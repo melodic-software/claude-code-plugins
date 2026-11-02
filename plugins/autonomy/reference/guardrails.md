@@ -32,7 +32,8 @@ instantiation of it. The playbook names the obligation, and this contract suppli
   trivially reversible.
 - `C3` scoped change: a briefed fix or small feature; bounded, tests exist.
 - `C4` structural: refactors, migrations, contract changes; cross-cutting, hard reversal.
-- `C5` untrusted-provenance: fork PRs, external contributions, unvetted repositories.
+- `C5` untrusted-provenance: fork PRs, external contributions, unvetted repositories, and
+  items carrying the `provenance: signal` label.
 
 ### Columns
 

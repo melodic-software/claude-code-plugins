@@ -42,6 +42,10 @@ const ALLOWED = new Map([
     `${NO_LOG}; step "Triage each sub-issue" calls gh without api_budget_wrap_gh`,
   ],
   [
+    "post-merge-demotion-alert.yml:close-cleared",
+    `${NO_LOG}; step "Close the records main cleared" calls gh without api_budget_wrap_gh`,
+  ],
+  [
     "pr-review-main.yml:record",
     `${NO_LOG}; step "Record the stops" calls gh without api_budget_wrap_gh; step "Record the counts" calls gh without api_budget_wrap_gh`,
   ],

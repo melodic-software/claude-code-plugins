@@ -4,19 +4,35 @@
       "answer": "§1 Rhyme suggestion filter: identity check fail on both of yours, tier walk pass, mosaic present, cliche scan pass.\n\n**Identity check first.** re-LEASE, po-LICE and LEASE all put the same l in front of the same stressed ee-s. That's identity, not rhyme: the ear hears one word three times. So neither police nor lease; here is a menu instead.\n\n| Tier | Candidate | Note |\n| --- | --- | --- |\n| Perfect | *peace* | resolved, risks the cliche pairing |\n| Perfect | *grease* | the car, the road |\n| Perfect | *decrease* | slows the line down |\n| Family | *beef* | s to f, same voiceless family |\n| Family | *wreath* | s to th, a funeral shadow |\n| Additive | *east* | adds the t, a direction to drive |\n| Assonance | *seat* | the empty passenger seat |\n| Assonance | *keep* | vowel only, stays open |\n| Mosaic | *the streets* | multi-word, keeps the motion |\n| Mosaic | *on my knees* | multi-word, voiced z, a turn of feeling |\n\nWhich one depends on whether the chorus should land or stay restless. The pick is yours."
     },
     {
-      "answer": "1. in though\n2. thin glow\n3. winds blow\n4. win so\n5. sin oh\n6. wander\n7. been so slow\n8. in the snow"
+      "answer": "1. wreath\n2. grief\n3. east\n4. free\n5. deep\n6. kiss\n7. the streets\n8. on my knees"
     },
     {
-      "answer": "| Tier | Candidate |\n| --- | --- |\n| Family | in though |\n| Family | thin glow |\n| Additive | winds blow |\n| Subtractive | win so |\n| Assonance | sin oh |\n| Consonance | wander |\n| Mosaic | been so slow |\n| Mosaic | in the snow |",
+      "answer": "| Tier | Candidate |\n| --- | --- |\n| Family | wreath |\n| Family | grief |\n| Additive | east |\n| Subtractive | free |\n| Assonance | deep |\n| Consonance | kiss |\n| Mosaic | the streets |\n| Mosaic | on my knees |",
       "why": "exactly eight candidate rows under a header row"
     },
     {
-      "answer": "**1.** in though (family)\n**2.** thin glow (family)\n**3.** winds blow (additive)\n**4.** win so (subtractive)\n**5.** sin oh (assonance)\n**6.** wander (consonance)\n**7.** been so slow (mosaic)\n**8.** in the snow (mosaic)",
+      "answer": "**1.** wreath (family)\n**2.** grief (family)\n**3.** east (additive)\n**4.** free (subtractive)\n**5.** deep (assonance)\n**6.** kiss (consonance)\n**7.** the streets (mosaic)\n**8.** on my knees (mosaic)",
       "why": "bold item numbers"
     },
     {
-      "answer": "- **Family**: in though\n- **Family**: thin glow\n- **Additive**: winds blow\n- **Subtractive**: win so\n- **Assonance**: sin oh\n- **Consonance**: wander\n- **Mosaic**: been so slow\n- **Mosaic**: in the snow",
+      "answer": "- **Family**: wreath\n- **Family**: grief\n- **Additive**: east\n- **Subtractive**: free\n- **Assonance**: deep\n- **Consonance**: kiss\n- **Mosaic**: the streets\n- **Mosaic**: on my knees",
       "why": "a bold tier label leads each candidate bullet"
+    },
+    {
+      "answer": "Candidates: wreath, grief, east, free, deep, kiss, the streets, on my knees.",
+      "why": "eight inline comma-separated candidates on one line"
+    },
+    {
+      "answer": "Police and lease are identities of release, not rhymes, so neither. Here is a menu instead.\n\n| Tier | Candidates |\n| --- | --- |\n| Perfect | peace, grease, decrease, increase, fleece |\n| Family | beef, wreath, leaf, belief, relief |\n| Additive | east, feast, least, beast, creased |\n| Assonance | seat, keep, the streets, on my knees, the keys |\n\nThe pick is yours.",
+      "why": "a four-row tier table with five candidates per row, twenty in all"
+    },
+    {
+      "answer": "Neither: police and lease are identities.\n\n- Perfect: peace, grease, decrease, fleece\n- Family: beef, wreath, belief, relief\n- Mosaic: the streets, on my knees, the keys, in the heat",
+      "why": "twelve candidates on three list lines, four per line"
+    },
+    {
+      "answer": "Not police or lease; those are identities. Perfect rhymes like *peace*, *grease* and *decrease* close the chorus; family rhymes, *wreath*, *belief*, *relief*, keep it near; and *the streets*, *on my knees* or *in the heat* leave it moving.",
+      "why": "nine candidates inline in prose"
     }
   ],
   "fail": [
@@ -27,8 +43,16 @@
       "answer": "The best rhyme is crescendo."
     },
     {
-      "answer": "Candidates: in though, thin glow, winds blow, win so, sin oh, wander, been so slow, in the snow.",
-      "why": "a single run-on line, not a labeled menu"
+      "answer": "- Perfect: peace, grease, decrease\n- Family: wreath, belief\n- Mosaic: the streets, on my knees",
+      "why": "seven candidates on three list lines, several per line"
+    },
+    {
+      "answer": "Try peace, grease, decrease, wreath, belief, the streets or on my knees.",
+      "why": "seven inline comma-separated candidates"
+    },
+    {
+      "answer": "Police and lease are identities, not rhymes. Use peace, grease, decrease, wreath, belief or the streets instead.",
+      "why": "six inline candidates; police and lease are named only to reject them"
     },
     {
       "answer": "| Tier | Candidate |\n| --- | --- |\n| Family | in though |\n| Family | thin glow |\n| Additive | winds blow |\n| Subtractive | win so |\n| Assonance | sin oh |\n| Consonance | wander |\n| Mosaic | been so slow |",

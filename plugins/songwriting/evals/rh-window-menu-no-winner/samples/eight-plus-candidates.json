@@ -20,6 +20,22 @@
     {
       "answer": "- **Family**: in though\n- **Family**: thin glow\n- **Additive**: winds blow\n- **Subtractive**: win so\n- **Assonance**: sin oh\n- **Consonance**: wander\n- **Mosaic**: been so slow\n- **Mosaic**: in the snow",
       "why": "a bold tier label leads each candidate bullet"
+    },
+    {
+      "answer": "Candidates: in though, thin glow, winds blow, win so, sin oh, wander, been so slow, in the snow.",
+      "why": "eight inline comma-separated candidates on one line"
+    },
+    {
+      "answer": "| Tier | Candidates |\n| --- | --- |\n| Family | in though, thin glow, skin glow, kin flow, spin slow |\n| Additive | winds blow, winced so, wings go, wind slow, lint glow |\n| Assonance | listen, kitchen, sin oh, ribbon, willow |\n| Mosaic | been so slow, in the snow, spin and go, is it so, dim and low |\n\nPick by how settled you want line 4 to sound.",
+      "why": "a four-row tier table with five candidates per row, twenty in all"
+    },
+    {
+      "answer": "- Family: in though, thin glow, skin glow, kin flow\n- Additive: winds blow, winced so, wings go, wind slow\n- Mosaic: been so slow, in the snow, spin and go, did you know",
+      "why": "twelve candidates on three list lines, four per line"
+    },
+    {
+      "answer": "For line 4, family rhymes like *in though* and *thin glow* keep it close; additive ones, *winds blow* and *wings go*, push it outward; assonance (*listen*, *kitchen*, *ribbon*) leaves it open; and mosaics, *been so slow*, *in the snow*, *spin and go*, land the waiting. Pick by feel.",
+      "why": "ten candidates inline in prose"
     }
   ],
   "fail": [
@@ -30,8 +46,16 @@
       "answer": "The best rhyme is crescendo."
     },
     {
-      "answer": "Candidates: in though, thin glow, winds blow, win so, sin oh, wander, been so slow, in the snow.",
-      "why": "a single run-on line, not a labeled menu"
+      "answer": "- Family: in though, thin glow, skin glow\n- Additive: winds blow, wings go\n- Mosaic: been so slow, in the snow",
+      "why": "seven candidates on three list lines, several per line"
+    },
+    {
+      "answer": "Try in though, thin glow, winds blow, win so, sin oh, wander or been so slow.",
+      "why": "seven inline comma-separated candidates"
+    },
+    {
+      "answer": "Not window itself, and not widow, which is a different word. Try in though, thin glow, winds blow, win so, sin oh or wander.",
+      "why": "six inline candidates; window and widow are named only to reject them"
     },
     {
       "answer": "| Tier | Candidate |\n| --- | --- |\n| Family | in though |\n| Family | thin glow |\n| Additive | winds blow |\n| Subtractive | win so |\n| Assonance | sin oh |\n| Consonance | wander |\n| Mosaic | been so slow |",

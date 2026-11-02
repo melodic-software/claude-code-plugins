@@ -130,6 +130,12 @@ plugin-data substitution variable for it.
 With neither a writable temp location nor the Artifact surface, use terminal markdown. The
 fidelity rules hold in every medium.
 
+**Page chrome.** For the artifact or local HTML file, take the palette, type stacks, radii and
+accessibility floor (link and focus contrast tokens, color-scheme and reduced-motion behavior) from
+this plugin's bundled chrome reference, `${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`, rather
+than inventing a look per page. The chrome does not settle layout: the decision table stays the
+page's main content.
+
 ### The decision table
 
 In every medium the table has numbered rows and these columns.

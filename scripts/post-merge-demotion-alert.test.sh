@@ -6,10 +6,12 @@
 # The step files the demotion record the babysit post-merge check and the
 # merge-policy reader also use: an issue by github-actions[bot] whose body's
 # first line is `<!-- babysit-merge-demotion sha=<S> signal=<name> -->`,
-# labeled needs-human, one per (signal, SHA). When no merge in the failing range
-# was enqueued by merge.agent-identity, it files the post-merge-failure record
-# instead (`<!-- post-merge-failure sha=<S> signal=<name> -->`, needs-human, no
-# demotion); anything unproven demotes. A matching record of either kind gets a comment
+# one per (signal, SHA), labeled needs-human for a canary record, or a full-run
+# one with a failing check that got no fix issue. When no
+# merge in the failing range was enqueued by merge.agent-identity, it files the
+# post-merge-failure record instead (`<!-- post-merge-failure sha=<S>
+# signal=<name> -->`, labeled the same way, no demotion); anything unproven
+# demotes. No record is sent to intake triage. A matching record of either kind gets a comment
 # instead; a run that is not a failed scheduled or dispatched full run, or a
 # failed canary push run, on main files nothing. A full run's first failed
 # attempt is re-run instead, and a later one files only for checks green on
@@ -93,7 +95,7 @@ for ((i = 0; i < ${#args[@]}; i++)); do
   case "${args[i]}" in
     --jq) filter="${args[i + 1]}"; i=$((i + 1)) ;;
     -X) method="${args[i + 1]}"; i=$((i + 1)) ;;
-    -f) fields+=("${args[i + 1]}"); i=$((i + 1)) ;;
+    -f | -F) fields+=("${args[i + 1]}"); i=$((i + 1)) ;;
     -H) i=$((i + 1)) ;;
     --paginate|api) ;;
     *) endpoint="${args[i]}" ;;
@@ -113,6 +115,10 @@ if [[ "$method" == PUT && "${STUB_LOCK_FAIL:-}" == 1 && "$endpoint" == */lock ]]
   exit 1
 fi
 if [[ "$method" == PATCH && "${STUB_PATCH_FAIL:-}" == 1 ]]; then
+  exit 1
+fi
+# STUB_FIX_POST_FAIL fails the write of a fix issue.
+if [[ "$method" == POST && "${STUB_FIX_POST_FAIL:-}" == 1 ]] && printf '%s\n' "${fields[@]}" | grep -q '^body=<!-- post-merge-fix '; then
   exit 1
 fi
 # STUB_REVERT_POST_FAIL fails the write of a revert record.
@@ -217,6 +223,11 @@ case "$endpoint" in
       jq -n '{run_attempt: 2, status: "in_progress", conclusion: null}' >"$fixture"
     fi
     ;;
+  # close-cleared's tests list the lanes App's records apart.
+  *creator=melodic-automation-lanes%5Bbot%5D*)
+    fixture="$STUB_DIR/lane-issues.json"
+    [[ -f "$fixture" ]] || fixture="$STUB_DIR/issues.json"
+    ;;
   *) fixture="$STUB_DIR/issues.json" ;;
 esac
 RUN_SHA="${STUB_RUN_SHA:-}" RUN_CREATED="${STUB_RUN_CREATED:-}" jq -r "$filter" "$fixture"
@@ -307,6 +318,8 @@ shutil.copy(args[args.index("--checks-file") + 1], "$TMP_ROOT/stub/judge.checks"
 if "--baseline-checks-file" in args:
     shutil.copy(args[args.index("--baseline-checks-file") + 1], "$TMP_ROOT/stub/judge.baseline")
 verdict = {"demoting": json.loads('${JUDGE_DEMOTING:-[]}')}
+if """${JUDGE_QUARANTINE:-}""":
+    verdict["quarantine"] = {"issues": json.loads("""${JUDGE_QUARANTINE:-}"""), "comments": []}
 if """${JUDGE_ERROR:-}""":
     verdict["error"] = """${JUDGE_ERROR:-}"""
 print(json.dumps(verdict))
@@ -332,7 +345,7 @@ PY
   : >"$TMP_ROOT/stub/log"
   : >"$TMP_ROOT/stub/output"
   OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" GITHUB_OUTPUT="$TMP_ROOT/stub/output" STUB_FAIL_READ="${FAIL_READ:-}" STUB_FAIL_LANE_READ="${FAIL_LANE_READ:-}" \
-    STUB_FAIL_GRAPHQL="${FAIL_GRAPHQL:-}" STUB_FAIL_NEWER_READ="${FAIL_NEWER_READ:-}" STUB_FAIL_PREV_READ="${FAIL_PREV_READ:-}" STUB_FAIL_BASE_READ="${FAIL_BASE_READ:-}" STUB_FAIL_COMPARE_PAGE="${FAIL_COMPARE_PAGE:-}" STUB_FAIL_COMMIT_READ="${FAIL_COMMIT_READ:-}" STUB_REVERT_POST_FAIL="${REVERT_POST_FAIL:-}" STUB_NEWER_FROM="${NEWER_FROM:-}" \
+    STUB_FAIL_GRAPHQL="${FAIL_GRAPHQL:-}" STUB_FAIL_NEWER_READ="${FAIL_NEWER_READ:-}" STUB_FAIL_PREV_READ="${FAIL_PREV_READ:-}" STUB_FAIL_BASE_READ="${FAIL_BASE_READ:-}" STUB_FAIL_COMPARE_PAGE="${FAIL_COMPARE_PAGE:-}" STUB_FAIL_COMMIT_READ="${FAIL_COMMIT_READ:-}" STUB_REVERT_POST_FAIL="${REVERT_POST_FAIL:-}" STUB_FIX_POST_FAIL="${FIX_POST_FAIL:-}" STUB_NEWER_FROM="${NEWER_FROM:-}" \
     STUB_RUN_SHA="$6" STUB_RUN_CREATED="$CREATED" STUB_RERUN="${RERUN:-}" POLL_SECONDS=0 \
     STUB_ANCESTRY="${ANCESTRY:-}" STUB_ON_MAIN="${ON_MAIN:-}" STUB_RERUN_POST_FAIL="${RERUN_POST_FAIL:-}" STUB_DISPATCH_FAIL="${DISPATCH_FAIL:-}" STUB_PATCH_FAIL="${PATCH_FAIL:-}" STUB_LOCK_FAIL="${LOCK_FAIL:-}" RUN_TRIGGERING_ACTOR="${STARTER:-octocat}" \
     GH_TOKEN=x GITHUB_REPOSITORY=o/r EVENT_NAME="${VIA:-workflow_run}" RUN_WORKFLOW="$1" RUN_EVENT="$2" RUN_CONCLUSION="$3" \
@@ -348,7 +361,7 @@ PY
 fix_lines() {
   local n line
   grep -n '^POST ' <<<"$LOG" | while IFS=: read -r n line; do
-    if [[ "$line" == */dispatches ]] ||
+    if [[ "$line" == */dispatches || "$line" == */labels ]] ||
       grep -qE '^body=(<!-- post-merge-fix |This check failed on main again)' "$TMP_ROOT/stub/post.$n"; then
       echo "$n"
     fi
@@ -378,14 +391,18 @@ files() {
   body="${fields#*body=}"
   if [[ "$body" != "<!-- babysit-merge-demotion sha=$SHA signal=$signal -->"$'\n'* ]]; then
     fail "$label: body's first line is not the marker: '${body%%$'\n'*}'"
-  elif [[ "$body" != *"git revert $SHA"* || "$body" == *"revert -m"* ]]; then
-    fail "$label: body lacks 'git revert $SHA'"
+  elif [[ "$body" == *"git revert"* ]]; then
+    fail "$label: a record carries a revert command"
   elif [[ "$body" != *"- Failing run: $RUN_URL/attempts/${ATTEMPT:-2}"$'\n'* ]]; then
     fail "$label: body lacks the failing attempt's link"
   elif [[ "$body" != *"https://github.com/o/r/pull/1234"* ]]; then
     fail "$label: body lacks the pull request link"
-  elif ! grep -qx 'labels\[\]=needs-human' <<<"$fields"; then
-    fail "$label: issue is not labeled needs-human: '$fields'"
+  elif [[ "$signal" == canary ]] && ! grep -qx 'labels\[\]=needs-human' <<<"$fields"; then
+    fail "$label: a canary record is not labeled needs-human: '$fields'"
+  elif [[ "$signal" != canary ]] && grep -q '^labels' <<<"$fields"; then
+    fail "$label: a self-clearing $signal record carries a label: '$fields'"
+  elif grep -qE '/lock$' <<<"$LOG" && [[ "$signal" == canary ]]; then
+    fail "$label: a canary record was locked for intake: log='$LOG'"
   elif [[ "$signal" != canary && ("$body" != *"- Main at the failing run: \`$SHA\`"* || "$body" == *"Merge commit"*) ]]; then
     fail "$label: a $signal record must name the SHA as main at the failing run"
   elif [[ "$signal" == canary && "$body" != *"- Merge commit: \`$SHA\`"* ]]; then
@@ -571,7 +588,7 @@ fi
 run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
 body="$(post_fields)"
 if [[ "$RC" -eq 0 && "$body" == *"- Pull request: https://github.com/o/r/pull/1234"* &&
-  "$body" == *"git revert $SHA"* && "$body" == *"title=Post-merge dispatch failure after #1234: unattended"* &&
+  "$body" != *"git revert"* && "$body" == *"title=Post-merge dispatch failure after #1234: unattended"* &&
   "$body" != *"attributed to the range"* ]] &&
   grep -q "^GET repos/o/r/compare/$OTHER\.\.\.$SHA?per_page=100&page=1$" <<<"$LOG"; then
   ok "one merge since the last green full run keeps the single pull request and its revert"
@@ -588,7 +605,7 @@ if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$body" == *"title=Post-merge dispatch 
   "$body" == *"https://github.com/o/r/pull/8259, merge commit \`$MID\`, by alice"* &&
   "$body" == *"https://github.com/o/r/pull/8260, merge commit \`$SHA\`, by bob"* &&
   "$body" == *"- Failing run: $RUN_URL/attempts/2"$'\n'* && "$body" != *"git revert"* &&
-  "$body" != *"- Pull request:"* && "$body" == *"picks the merge responsible, and reverts that one."* ]]; then
+  "$body" != *"- Pull request:"* && "$body" != *"picks the merge"* ]]; then
   ok "two merges since the last green full run are both named, with no single revert"
 else
   fail "two-merge range: rc=$RC log='$LOG' fields='$body'"
@@ -611,7 +628,7 @@ GREEN='' run_step "$FULL" schedule failure main o/r "$SHA" '[]'
 body="$(post_fields)"
 if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$body" == *"No green full run on main came before this one, so the merges this failure covers are unknown"* &&
   "$body" == *"- Pull request: https://github.com/o/r/pull/1234"* && "$body" == *"- Main at the failing run: \`$SHA\`"* &&
-  "$body" != *"git revert"* && "$body" == *"finds the merge responsible before reverting anything."* ]] &&
+  "$body" != *"git revert"* && "$body" != *"reverting"* ]] &&
   ! grep -q '/compare/' <<<"$LOG"; then
   ok "with no green full run to start from, the record says so and names the head commit without a revert"
 else
@@ -662,11 +679,11 @@ fields="$(post_fields)"
 body="${fields#*body=}"
 if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$body" == "<!-- post-merge-failure sha=$SHA signal=dispatch -->"$'\n'* &&
   "$fields" != *babysit-merge-demotion* && "$fields" == *"title=Post-merge dispatch failure after #1234: lane not demoted"* &&
-  "$body" == *"the lane is NOT demoted"* && "$body" != *"rung off while any demotion record is open"* &&
+  "$body" == *"the lane is NOT demoted"* && "$body" != *"rung off while this record holds"* &&
   "$body" == *"- Pull request: https://github.com/o/r/pull/1234, by octocat"* && "$OUT" == *"cost 1 remaining 4999"* ]] &&
-  grep -qx 'labels\[\]=needs-human' <<<"$fields" && [[ "$(grep -cx 'GET graphql' <<<"$LOG")" -eq 1 ]] &&
+  ! grep -q '^labels' <<<"$fields" && [[ "$(grep -cx 'GET graphql' <<<"$LOG")" -eq 1 ]] &&
   grep -q 'p1234: pullRequest(number: 1234)' "$TMP_ROOT/stub/graphql.$(grep -nx 'GET graphql' <<<"$LOG" | cut -d: -f1)"; then
-  ok "a window of human-enqueued merges files a needs-human record that does not demote"
+  ok "a window of human-enqueued merges files an unlabeled dispatch record that does not demote"
 else
   fail "human-only window: rc=$RC log='$LOG' out='$OUT' fields='$fields'"
 fi
@@ -688,7 +705,7 @@ demotes() {
   local fields
   fields="$(post_fields 2>/dev/null)"
   if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "${fields#*body=}" == "<!-- babysit-merge-demotion sha=$SHA signal="* &&
-    "$fields" == *": unattended merging demoted"* && "$fields" == *"rung off while any demotion record is open"* ]]; then
+    "$fields" == *": unattended merging demoted"* && "$fields" == *"rung off while this record holds"* ]]; then
     ok "$1"
   else
     fail "$1: rc=$RC log='$LOG' out='$OUT' fields='$fields'"
@@ -1158,7 +1175,7 @@ else
 fi
 
 JOBS='' run_step "$FULL" schedule failure main o/r "$SHA" '[]'
-if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)" == *"- Newly failing: pr-require-checks.yml: no failed jobs"* ]]; then
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)"$'\n' == *"- Newly failing: pr-require-checks.yml"$'\n'* ]]; then
   ok "a red run with no failed job files a record"
 else
   fail "zero-job red run: rc=$RC log='$LOG' out='$OUT'"
@@ -1198,7 +1215,7 @@ RUNS="$(baseline_run 4141 success)" files "a check green on main's previous run 
 
 RUNS="$(baseline_run 4141 failure)" BASE_JOBS="$(job 2 lint-shell ShellCheck)" \
   run_step "$FULL" schedule failure main o/r "$SHA" '[]'
-if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)" == *"- Newly failing: test-bash"* ]]; then
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)"$'\n' == *"- Newly failing: test-bash"* ]]; then
   ok "another check red on main's previous run does not excuse this one"
 else
   fail "different pre-existing check: rc=$RC log='$LOG'"
@@ -1232,7 +1249,7 @@ fi
 
 JOBS="$LINT_RED" ANNOTATIONS_7="$(jq -c '. + [{annotation_level: "failure", title: "markdown failed", message: "x"}]' <<<"$GITLEAKS")" \
   run_step "$FULL" schedule failure main o/r "$SHA" '[]'
-if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)" == *"- Newly failing: lint-repo: markdown failed"$'\n'* ]]; then
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)"$'\n' == *"- Newly failing: lint-repo"$'\n'* ]]; then
   ok "another gate beside gitleaks files, naming only that gate"
 else
   fail "gate beside gitleaks: rc=$RC log='$LOG' fields='$(post_fields 2>/dev/null)'"
@@ -1242,7 +1259,7 @@ fi
 # no failed step counts whole, and as a baseline it excuses nothing.
 LINT_UNKNOWN="$(job 7 lint-repo | jq -c '.steps = []'), $(job 8 ci-status 'Aggregate lane results')"
 JOBS="$LINT_UNKNOWN" ANNOTATIONS_7="$GITLEAKS" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
-if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)" == *"- Newly failing: lint-repo"$'\n'* ]]; then
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)"$'\n' == *"- Newly failing: lint-repo"$'\n'* ]]; then
   ok "a failed job listing no steps beside the gitleaks gate files, naming the job"
 else
   fail "unknown steps, gitleaks: rc=$RC log='$LOG' out='$OUT'"
@@ -1251,7 +1268,7 @@ fi
 RUNS="$(baseline_run 4141 failure)" BASE_JOBS="$LINT_UNKNOWN" ANNOTATIONS_7="$GITLEAKS" \
   JOBS="$(job 7 lint-repo 'Aggregate hygiene results' 'Test hygiene result aggregation'), $(job 8 ci-status 'Aggregate lane results')" \
   run_step "$FULL" schedule failure main o/r "$SHA" '[]'
-if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)" == *"- Newly failing: lint-repo"$'\n'* ]]; then
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)"$'\n' == *"- Newly failing: lint-repo"$'\n'* ]]; then
   ok "a baseline job listing no steps does not excuse the same job failing on a real step"
 else
   fail "unknown-steps baseline: rc=$RC log='$LOG' out='$OUT'"
@@ -1336,9 +1353,30 @@ else
   fail "excused run: rc=$RC judged='$judged' log='$LOG' out='$OUT'"
 fi
 
+# Each quarantine issue the judge filed is locked, then sent to intake triage;
+# one not sent fails the job.
+JUDGE=0 JUDGE_QUARANTINE='[77, 78]' RUNS="$(baseline_run 4141 success)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+sent="$(grep -n '^POST repos/o/r/actions/workflows/intake-triage.yml/dispatches$' <<<"$LOG" | cut -d: -f1 |
+  while read -r n; do sed -n 's/^inputs\[issue-number\]=//p' "$TMP_ROOT/stub/post.$n"; done | paste -sd ' ')"
+lock77="$(grep -n '^PUT repos/o/r/issues/77/lock$' <<<"$LOG" | cut -d: -f1)"
+first_sent="$(grep -n '/dispatches$' <<<"$LOG" | head -1 | cut -d: -f1)"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 0 && "$sent" == "77 78" && -n "$lock77" && "$lock77" -lt "$first_sent" ]] &&
+  grep -qx 'PUT repos/o/r/issues/78/lock' <<<"$LOG"; then
+  ok "each quarantine issue the judge filed is locked, then sent to intake triage"
+else
+  fail "quarantine intake: rc=$RC sent='$sent' log='$LOG'"
+fi
+JUDGE=0 JUDGE_QUARANTINE='[77]' DISPATCH_FAIL=1 RUNS="$(baseline_run 4141 success)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -ne 0 && "$(posts)" -eq 0 && "$OUT" == *"::error::quarantine issue #77 was not sent to intake triage: labeled needs-human"* ]] &&
+  grep -qx 'POST repos/o/r/issues/77/labels' <<<"$LOG" && grep -qx 'labels\[\]=needs-human' "$TMP_ROOT/stub/post.$(grep -nx 'POST repos/o/r/issues/77/labels' <<<"$LOG" | cut -d: -f1)"; then
+  ok "a quarantine issue not sent to intake fails the job"
+else
+  fail "quarantine intake failure: rc=$RC out='$OUT'"
+fi
+
 for code in 1 3; do
   JUDGE=$code RUNS="$(baseline_run 4141 success)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
-  if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)" == *"- Newly failing: test-bash"* ]] &&
+  if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)"$'\n' == *"- Newly failing: test-bash"* ]] &&
     ! grep -q excused "$TMP_ROOT/stub/output"; then
     ok "a judge exit $code files the record as before"
   else
@@ -1391,7 +1429,7 @@ fi
 # A check red on the baseline too is still judged for an expired quarantine.
 JUDGE=1 JUDGE_DEMOTING='["test-bash"]' RUNS="$(baseline_run 4141 failure)" \
   BASE_JOBS="$(job 2 test-bash 'Run the bash tests')" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
-if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)" == *"- Newly failing: test-bash"* &&
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)"$'\n' == *"- Newly failing: test-bash"* &&
   "$(cat "$TMP_ROOT/stub/judge.baseline" 2>/dev/null)" == test-bash && ! -s "$TMP_ROOT/stub/judge.checks" ]] &&
   ! grep -q excused "$TMP_ROOT/stub/output"; then
   ok "a baseline-red check whose quarantine expired (judge exit 1) files the record"
@@ -1413,7 +1451,7 @@ fi
 JUDGE=1 JUDGE_DEMOTING='["lint-shell"]' RUNS="$(baseline_run 4141 failure)" \
   JOBS="$(job 1 test-bash 'Run the bash tests'),$(job 3 lint-shell ShellCheck)" \
   BASE_JOBS="$(job 2 lint-shell ShellCheck)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
-if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)" == *"- Newly failing: lint-shell"$'\n'* &&
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)"$'\n' == *"- Newly failing: lint-shell"$'\n'* &&
   "$(cat "$TMP_ROOT/stub/judge.checks")" == test-bash && "$(cat "$TMP_ROOT/stub/judge.baseline")" == lint-shell &&
   "$(fixes)" -eq 1 && "$(fix_post 1)" == *"post-merge-fix check=lint-shell"* ]]; then
   ok "a judge exit 1 names the checks it demoted, not the excused newly red ones"
@@ -1447,7 +1485,7 @@ The check \`test-bash\` started failing on main in a \`schedule\` run of pr-requ
 - Run: https://github.com/o/r/actions/runs/4242/attempts/2
 - Merge range: \`89abcdef0123..0123456789ab\`, listed on demotion record #$r
 
-Fix the check on main. Closing this issue releases nothing on demotion record #$r; a human closes that record once main is green."
+Fix the check on main. Closing this issue changes nothing on demotion record #$r."
 if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(fixes)" -eq 2 && "$(dispatches)" -eq 2 && "$(fix_post 1)" == "$expected" &&
   "$(fix_post 2)" == "title=Fix main: lint-shell fails since 0123456789ab"$'\n'"body=<!-- post-merge-fix check=lint-shell -->"$'\n'* &&
   "$(dispatch_post 1)" == "ref=main"$'\n'"inputs[issue-number]=$(fix_number 1)" &&
@@ -1456,9 +1494,10 @@ if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(fixes)" -eq 2 && "$(dispatches)" -eq
 else
   fail "two fix issues: rc=$RC log='$LOG' out='$OUT' fix1='$(fix_post 1 2>/dev/null)'"
 fi
-if grep -qx 'labels\[\]=needs-human' <<<"$(post_fields)" && [[ "$(post_fields)" == *"body=<!-- babysit-merge-demotion sha=$SHA signal=schedule -->"* ]] &&
-  ! grep -q '^labels' <<<"$(fix_text)"; then
-  ok "the record keeps needs-human and its marker; a fix issue carries no label"
+if ! grep -q '^labels' <<<"$(post_fields)" && [[ "$(post_fields)" == *"body=<!-- babysit-merge-demotion sha=$SHA signal=schedule -->"* ]] &&
+  ! grep -q '^labels' <<<"$(fix_text)" && ! grep -qx "PUT repos/o/r/issues/$r/lock" <<<"$LOG" &&
+  [[ "$(dispatch_post 1)" != *"inputs[issue-number]=$r" && "$(dispatch_post 2)" != *"inputs[issue-number]=$r" ]]; then
+  ok "a schedule record keeps its marker, carries no label and is not sent to intake; a fix issue carries no label"
 else
   fail "labels: record='$(post_fields)' fixes='$(fix_text)'"
 fi
@@ -1476,9 +1515,9 @@ fi
 SEVEN=''
 for i in 1 2 3 4 5 6 7; do SEVEN="${SEVEN:+$SEVEN, }$(job "$i" "suite-$i" 'Run')"; done
 JOBS="$SEVEN" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
-if [[ "$RC" -eq 0 && "$(fixes)" -eq 5 && "$(dispatches)" -eq 5 && "$(post_fields)" == *"- Newly failing: suite-1, "*"suite-7"$'\n'"$OVERFLOW"$'\n'* &&
-  "$(fix_post 5)" == *"check=suite-5 -->"* ]]; then
-  ok "seven failing checks file five fix issues and the record says more failed"
+if [[ "$RC" -eq 0 && "$(fixes)" -eq 5 && "$(dispatches)" -eq 5 && "$(post_fields)"$'\n' == *"- Newly failing: suite-1, "*"suite-7"$'\n'"$OVERFLOW"$'\n'* &&
+  "$(fix_post 5)" == *"check=suite-5 -->"* ]] && grep -qx 'labels\[\]=needs-human' <<<"$(post_fields)"; then
+  ok "seven failing checks file five fix issues, and the record says more failed and is labeled needs-human"
 else
   fail "cap: rc=$RC fixes=$(fixes) record='$(post_fields)'"
 fi
@@ -1489,10 +1528,19 @@ ODD="$(job 1 'test (ubuntu-24.04, 3.12)' Run), $(job 2 "$LONG" Run), $(job 3 "${
   $(job 9 'babysit-merge-demotion' Run), $(job 10 '-flag' Run)"
 JOBS="$ODD" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
 if [[ "$RC" -eq 0 && "$(fixes)" -eq 2 && "$(fix_post 1)" == *"check=test (ubuntu-24.04, 3.12) -->"* &&
-  "$(fix_post 2)" == *"check=$LONG -->"* && "$(post_fields)" == *"$OVERFLOW"* ]]; then
-  ok "only a name in the charset, up to 100 characters, gets a fix issue; the rest count as over"
+  "$(fix_post 2)" == *"check=$LONG -->"* && "$(post_fields)" == *"$OVERFLOW"* ]] &&
+  grep -qx 'labels\[\]=needs-human' <<<"$(post_fields)"; then
+  ok "only a name in the charset, up to 100 characters, gets a fix issue; the rest count as over and label the record needs-human"
 else
   fail "charset: rc=$RC fixes=$(fixes) out='$OUT' log='$LOG'"
+fi
+
+JOBS="$(job 1 'Build & test' Run)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(fixes)" -eq 0 && "$(dispatches)" -eq 0 && "$(post_fields)" == *"$OVERFLOW"* ]] &&
+  grep -qx 'labels\[\]=needs-human' <<<"$(post_fields)"; then
+  ok "a full-run record whose every failing check is outside the charset files no fix issue and is labeled needs-human"
+else
+  fail "no fix issue: rc=$RC fixes=$(fixes) record='$(post_fields)' log='$LOG'"
 fi
 
 FIX_OPEN="$(issue 60 "<!-- post-merge-fix check=test-bash -->"$'\n\nfiled earlier')"
@@ -1516,7 +1564,7 @@ if [[ "$RC" -eq 0 && "$(fixes)" -eq 0 && "$(dispatches)" -eq 0 && -n "$c_line" &
   "$(cat "$TMP_ROOT/stub/post.$c_line")" == "body=This check failed on main again at \`$SHA\`. Merge range: \`89abcdef0123..0123456789ab\`, listed on demotion record #$r. Run: https://github.com/o/r/actions/runs/4242/attempts/2" &&
   "$(cat "$TMP_ROOT/stub/post.$p_line")" == $'state=open\nstate_reason=reopened' ]] &&
   ! grep -qE '^DELETE |issues/60/lock' <<<"$LOG"; then
-  ok "a closed fix issue for the check is reopened with the new range, keeps agent-ready, and is not sent to intake again"
+  ok "a closed fix issue for the check is reopened with the new range, keeps its labels, and is not sent to intake again"
 else
   fail "closed fix issue: rc=$RC log='$LOG' out='$OUT'"
 fi
@@ -1524,7 +1572,8 @@ fi
 JOBS="$(job 1 test-bash 'Run the bash tests'), $(job 2 lint-shell ShellCheck)" PATCH_FAIL=1 run_step "$FULL" schedule failure main o/r "$SHA" \
   "[$(issue 60 "<!-- post-merge-fix check=test-bash -->" '' closed completed)]"
 if [[ "$RC" -ne 0 && "$(fixes)" -eq 1 && "$(dispatches)" -eq 1 && "$OUT" == *"::error::could not reopen fix issue #60 for test-bash"* ]] &&
-  grep -qF -- "- #60 (\`test-bash\`) could not be reopened" "$TMP_ROOT/stub/post.$(grep -n '^POST repos/o/r/issues/9[0-9]*/comments$' <<<"$LOG" | tail -1 | cut -d: -f1)"; then
+  grep -qF -- "- #60 (\`test-bash\`) could not be reopened" "$TMP_ROOT/stub/post.$(grep -n '^POST repos/o/r/issues/9[0-9]*/comments$' <<<"$LOG" | tail -1 | cut -d: -f1)" &&
+  grep -qx 'labels\[\]=needs-human' "$TMP_ROOT/stub/post.$(grep -nx 'POST repos/o/r/issues/60/labels' <<<"$LOG" | cut -d: -f1)"; then
   ok "a failed reopen fails the job, names the issue on the record, and the other checks still file"
 else
   fail "reopen failure: rc=$RC log='$LOG' out='$OUT'"
@@ -1553,8 +1602,10 @@ JOBS="$(job 1 test-bash 'Run the bash tests'), $(job 2 lint-shell ShellCheck)" D
 record_n=$((900 + $(grep -n '^POST repos/o/r/issues$' <<<"$LOG" | head -1 | cut -d: -f1)))
 note_line="$(grep -n "^POST repos/o/r/issues/$record_n/comments$" <<<"$LOG" | cut -d: -f1)"
 if [[ "$RC" -ne 0 && "$(fixes)" -eq 2 && "$(dispatches)" -eq 2 && "$OUT" == *"::error::could not dispatch intake triage for #$(fix_number 2)"* &&
-  -n "$note_line" ]] && grep -q "triage them by hand" "$TMP_ROOT/stub/post.$note_line" &&
-  grep -q -- "- #$(fix_number 2) was not sent to intake triage" "$TMP_ROOT/stub/post.$note_line"; then
+  -n "$note_line" ]] && grep -q "labeled needs-human for a person" "$TMP_ROOT/stub/post.$note_line" &&
+  grep -q -- "- #$(fix_number 2) was not sent to intake triage" "$TMP_ROOT/stub/post.$note_line" &&
+  grep -qx "POST repos/o/r/issues/$(fix_number 2)/labels" <<<"$LOG" &&
+  ! grep -qx "POST repos/o/r/issues/$record_n/labels" <<<"$LOG"; then
   ok "a failed dispatch fails the job after every fix issue is filed, and names the issue on the record"
 else
   fail "dispatch failure: rc=$RC log='$LOG' out='$OUT'"
@@ -1574,10 +1625,23 @@ JOBS="$(job 1 test-bash 'Run the bash tests')" LOCK_FAIL=1 run_step "$FULL" sche
 record_n=$((900 + $(grep -n '^POST repos/o/r/issues$' <<<"$LOG" | head -1 | cut -d: -f1)))
 note_line="$(grep -n "^POST repos/o/r/issues/$record_n/comments$" <<<"$LOG" | cut -d: -f1)"
 if [[ "$RC" -ne 0 && "$(dispatches)" -eq 0 && -n "$note_line" ]] &&
-  grep -q -- "could not be locked, so it was not sent to intake triage" "$TMP_ROOT/stub/post.$note_line"; then
-  ok "a failed lock sends nothing to intake and names the issue on the record"
+  grep -q -- "could not be locked, so it was not sent to intake triage" "$TMP_ROOT/stub/post.$note_line" &&
+  grep -qx 'labels\[\]=needs-human' "$TMP_ROOT/stub/post.$(grep -nx "POST repos/o/r/issues/$(fix_number 1)/labels" <<<"$LOG" | cut -d: -f1)" &&
+  ! grep -qx "POST repos/o/r/issues/$record_n/labels" <<<"$LOG"; then
+  ok "a failed lock sends nothing to intake, labels the fix issue needs-human and names it on the record"
 else
   fail "lock failure: rc=$RC log='$LOG' out='$OUT'"
+fi
+JOBS="$(job 1 test-bash 'Run the bash tests')" FIX_POST_FAIL=1 run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+record_n=$((900 + $(grep -n '^POST repos/o/r/issues$' <<<"$LOG" | head -1 | cut -d: -f1)))
+note_line="$(grep -n "^POST repos/o/r/issues/$record_n/comments$" <<<"$LOG" | cut -d: -f1)"
+label_line="$(grep -nx "POST repos/o/r/issues/$record_n/labels" <<<"$LOG" | cut -d: -f1)"
+if [[ "$RC" -ne 0 && "$(dispatches)" -eq 0 && -n "$note_line" && -n "$label_line" ]] &&
+  grep -qF -- "- no fix issue could be filed for \`test-bash\`" "$TMP_ROOT/stub/post.$note_line" &&
+  grep -qx 'labels\[\]=needs-human' "$TMP_ROOT/stub/post.$label_line"; then
+  ok "a fix issue that could not be filed labels the record needs-human and names the check on it"
+else
+  fail "fix file failure: rc=$RC log='$LOG' out='$OUT'"
 fi
 
 # A gate title is any step's annotation text: the fix issue names the job only.
@@ -1585,8 +1649,9 @@ JOBS="$LINT_RED" ANNOTATIONS_7="$(jq -c '. + [{annotation_level: "failure", titl
   run_step "$FULL" schedule failure main o/r "$SHA" '[]'
 if [[ "$(fixes)" -eq 1 && "$(fix_post 1)" == *"title=Fix main: lint-repo fails since"* ]] &&
   fix_text="$(fix_lines | while read -r n; do cat "$TMP_ROOT/stub/post.$n"; done)" &&
-  ! grep -q 'Ignore previous' <<<"$fix_text"; then
-  ok "a fix issue names the job, never an annotation title"
+  ! grep -q 'Ignore previous' <<<"$fix_text" && ! grep -q 'Ignore previous' <<<"$(post_fields)" &&
+  [[ "$(post_fields)"$'\n' == *"- Newly failing: lint-repo"$'\n'* ]]; then
+  ok "a fix issue and its record name the job, never an annotation title"
 else
   fail "annotation title in fix issue: log='$LOG' fix1='$(fix_post 1 2>/dev/null)'"
 fi
@@ -1594,7 +1659,7 @@ fi
 PIPELINE="$PIPE" GRAPHQL="$(gq "$(enq 1234 octocat User)")" run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
 r="$(record_number)"
 if [[ "$RC" -eq 0 && "$(fixes)" -eq 1 && "$(dispatches)" -eq 1 && "$(post_fields)" == *"<!-- post-merge-failure sha="* &&
-  "$(fix_post 1)" == *"in a \`dispatch\` run"*"listed on failure record #$r"$'\n\n'"Fix the check on main. Closing this issue releases nothing on failure record #$r; a human closes that record once main is green." ]]; then
+  "$(fix_post 1)" == *"in a \`dispatch\` run"*"listed on failure record #$r"$'\n\n'"Fix the check on main. Closing this issue changes nothing on failure record #$r." ]]; then
   ok "a record that does not demote the lane also files fix issues"
 else
   fail "post-merge-failure fix: rc=$RC log='$LOG' fix='$(fix_post 1 2>/dev/null)'"
@@ -1993,5 +2058,70 @@ refused "a run a person dispatched, which raises its own workflow_run event, is 
   "$(attempt_run '.actor.login = "a-human"')"
 refused "an answer for another run id is refused" workflow_dispatch 4242 41898282 'github-actions[bot]' \
   "$(attempt_run '.id = 4243')"
+
+# --- The close-cleared job ----------------------------------------------------
+# A green attempt 1 of a scheduled full run closes each open schedule or
+# dispatch record either filer opened before the run, at a commit behind its
+# head, and never edited; never a canary record.
+CLOSE_NAME='Close the records main cleared'
+awk -v name="      - name: $CLOSE_NAME" '$0 == name { on = 1; next }
+  on && /^        run: \|$/ { body = 1; next }
+  body && /^          / { print substr($0, 11); next }
+  body && /^[[:blank:]]*$/ { print ""; next }
+  body { exit }' "$WORKFLOW" >"$TMP_ROOT/close.sh"
+# rec <n> <created_at> <first line>
+rec() {
+  jq -n --argjson n "$1" --arg t "$2" --arg body "$3" \
+    '{number: $n, state: "open", created_at: $t, body: $body, user: {login: "github-actions[bot]", type: "Bot"}}'
+}
+# run_close <issues-json> [lastEditedAt]
+run_close() {
+  rm -rf "$TMP_ROOT/stub"
+  mkdir -p "$TMP_ROOT/stub" "$TMP_ROOT/work"
+  printf '%s\n' "$1" >"$TMP_ROOT/stub/issues.json"
+  printf '%s\n' "${LANE_ISSUES:-[]}" >"$TMP_ROOT/stub/lane-issues.json"
+  printf '%s\n' "${PIPELINE:-}" >"$TMP_ROOT/stub/pipeline.yaml"
+  jq -n --arg e "${2:-}" '{data: {repository: {issue: {lastEditedAt: (if $e == "" then null else $e end)}}}}' >"$TMP_ROOT/stub/graphql.json"
+  : >"$TMP_ROOT/stub/log"
+  OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" STUB_RUN_SHA="$SHA" STUB_ANCESTRY="${ANCESTRY:-behind}" \
+    GH_TOKEN=x GITHUB_REPOSITORY=o/r RUN_SHA="$SHA" RUN_URL="$RUN_URL" RUN_CREATED=2026-10-17T16:26:00Z \
+    bash -e -c 'cd "$1" && bash -e "$2"' _ "$TMP_ROOT/work" "$TMP_ROOT/close.sh" 2>&1)" && RC=0 || RC=$?
+  LOG="$(cat "$TMP_ROOT/stub/log")"
+}
+closed() { grep -x 'PATCH repos/o/r/issues/[0-9]*' <<<"$LOG" | sed 's#.*/##' | paste -sd ' '; }
+BEFORE=2026-10-17T10:00:00Z
+if [[ ! -s "$TMP_ROOT/close.sh" ]]; then
+  fail "no '$CLOSE_NAME' step with a run: | body"
+fi
+LANE_ISSUES="[$(rec 11 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=dispatch -->")]" PIPELINE="$PIPE" \
+  run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->"), $(rec 8 $BEFORE "<!-- post-merge-failure sha=$OTHER signal=dispatch -->"), $(rec 9 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=canary -->"), $(rec 10 2026-10-17T17:00:00Z "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]"
+if [[ "$RC" -eq 0 && "$(closed)" == "7 8 11" ]] &&
+  grep -qx 'state_reason=completed' "$TMP_ROOT/stub/post.$(grep -nx 'PATCH repos/o/r/issues/7' <<<"$LOG" | cut -d: -f1)" &&
+  grep -q 'issues?state=open&creator=github-actions%5Bbot%5D' <<<"$LOG" &&
+  grep -q 'issues?state=open&creator=melodic-automation-lanes%5Bbot%5D' <<<"$LOG"; then
+  ok "close-cleared closes both filers' full-run records created before the run, never a canary or later record"
+else
+  fail "close cleared: rc=$RC closed='$(closed)' log='$LOG' out='$OUT'"
+fi
+for status in diverged ahead identical; do
+  ANCESTRY=$status run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]"
+  if [[ "$RC" -eq 0 && -z "$(closed)" ]]; then
+    ok "close-cleared closes no record when compare reads $status"
+  else
+    fail "close on $status: rc=$RC log='$LOG'"
+  fi
+done
+run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]"
+if [[ "$RC" -eq 0 && "$OUT" == *"::warning::merge.agent-identity '' could not be read or is no App login"* ]]; then
+  ok "close-cleared warns when merge.agent-identity does not read"
+else
+  fail "identity warning: out='$OUT'"
+fi
+run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]" 2026-10-17T11:00:00Z
+if [[ "$RC" -eq 0 && -z "$(closed)" && "$OUT" == *"#7 was edited or could not be read: left open"* ]]; then
+  ok "close-cleared leaves an edited record open"
+else
+  fail "close edited: rc=$RC log='$LOG' out='$OUT'"
+fi
 
 test_harness::report

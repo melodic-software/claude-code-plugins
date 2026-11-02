@@ -75,7 +75,7 @@ posts the brief, replaces `status: confirmed`, and `status:needs-info` replaces 
 
 **A briefed item takes one of three exits**, distinguished by the decision its brief carries:
 
-- **delegable**. Fully specified with no open decision → autonomous-eligible role (default `agent-ready`), with or without a `work-class:` label ([`context/apply-outcome.md`](context/apply-outcome.md), "Work class does not gate the role label").
+- **delegable**. Fully specified with no open decision → autonomous-eligible role (default `agent-ready`), with or without a `work-class:` label ([`context/apply-outcome.md`](context/apply-outcome.md), "Work class does not gate the role label"). The work-loop's intake sweep escalates this exit and the decision-defaulted one with a proposed class instead, unless its launch prompt opts in ("Work-loop intake sweep: propose, never admit" in the same file).
 - **decision-defaulted**, a single-fork item whose brief carries a well-grounded RECOMMENDED answer with only a maintainer-vetoable (reversible) alternative → autonomous-eligible role with `status:ready`, plus a `Decision defaulted: X — veto before merge` comment. The default rides in; a maintainer vetoes before merge if it is wrong. **Well-grounded** means the recommendation-basis grounding bar ([`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md); full convention: [grounding bar](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/recommendation-basis/README.md#grounding-bar)): the affected code and its consumers read, and, for a consequential item (cross-repo, shared infrastructure, irreversible, or security), external research reading official docs first. The `Decision defaulted` comment carries the answer's `Basis:` on the line after its prefix line, `verified, <file:line, tool output, or URL fetched this session>` or `judgment` (the comment rather than the brief, which carries no file paths or line numbers); a `judgment` basis on a consequential item is not well-grounded. A consequential answer research cannot settle is withheld: no RECOMMENDED answer and no `Decision defaulted` comment; the item routes to human-gated with the open question and the evidence that would settle it in its brief.
 - **human-gated**. Only when the item meets the label test below → human-gated role (default `needs-human`).
 
@@ -93,8 +93,8 @@ one of:
 A reversible change with a well-grounded recommendation (the decision-defaulted exit's bar) meets
 none of them: it takes the decision-defaulted exit, never this label. The rules in
 [`context/apply-outcome.md`](context/apply-outcome.md) that apply the label for an
-untrusted-provenance or signal-marked item, or a decomposition or probe a person must start, are
-instances of part 2.
+untrusted-provenance or signal-marked item, a decomposition or probe a person must start, or the
+work-loop intake sweep's proposed class awaiting a person's admission, are instances of part 2.
 
 ```text
 raw → verified → briefed

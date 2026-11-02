@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0] - 2026-11-02
+
+### Removed
+
+- **The team layer is read only from `docs/conventions/code-metrics.yaml`** ([#12290](https://github.com/melodic-software/claude-code-plugins/issues/12290)). The older `.claude/code-metrics.yaml`, read in its place since 0.6.0 while the docs file was absent, is no longer read. While it exists, `/code-metrics:setup check` shows a WARN row naming it. `/code-metrics:setup apply` still carries its declared keys into the docs file when that file does not exist yet; then delete the old file.
+
 ## [0.7.9] - 2026-11-01
 
 ### Changed

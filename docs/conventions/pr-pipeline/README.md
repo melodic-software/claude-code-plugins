@@ -1090,14 +1090,31 @@ the rules that only tighten in
   `CLAUDE_LANES_REPO_DISABLED` must each read exactly `false`. A read error, or a repository-level
   variable named `CLAUDE_LANES_DISABLED` that shadows the org one, refuses.
 - **Demotion issue.** A failed post-merge check files an issue whose body starts with
-  `<!-- babysit-merge-demotion sha=<S> signal=<name> -->` and that carries the `needs-human` label.
-  It holds the rung at `off` until a human closes it directly. A close through a pull request's or
+  `<!-- babysit-merge-demotion sha=<S> signal=<name> -->`. A record is a state marker, never lane
+  work: no record is sent to intake triage, since the fix issues carry the work, and its text keeps
+  the fix-issue rule (each newly failing check by job name only, never a gate's annotation title or
+  a revert command). `post-merge-demotion-alert.yml` files a red-main record (signal `schedule` or
+  `dispatch`) with no label, since it clears itself (below), unless a failing check got no fix
+  issue (over the cap or outside the charset), which labels it `needs-human`; it labels a canary or revert record
+  `needs-human`, since only a person's close clears one. `babysit_postmerge.py --remediate` labels
+  every record it files `needs-human`: the lanes App's issue starts intake triage on its own, and
+  that label keeps admission off it. On a green attempt 1 of a scheduled full run on main, the
+  alert's `close-cleared` job closes as completed each open schedule or dispatch record, demotion
+  or post-merge-failure, that either filer opened before that run was created, at a commit behind
+  its head, and that was never edited; closing it is the record's state only, and the merge gate
+  still decides whether it holds. A fix or quarantine issue not delivered to intake triage gets
+  `needs-human`, and the record does when a failing check got no fix issue, whether over the cap,
+  outside the charset, or not filed; a fix issue reopened on a
+  repeat failure keeps whatever labels it has, so one labeled `needs-human` stays with a person.
+  It holds the rung at `off` until it clears: a human's direct close clears any record. A close through a pull request's or
   commit's `Closes #N` does not count, and an issue that a non-human edited at any time stays in
   force. A red-main record (signal `schedule` or `dispatch`) that no non-human edited also clears,
   open or not, once main is green at a later commit: a green `pr-require-checks` run on main,
   attempt 1, from a schedule or a `github-actions[bot]` dispatch, created after the record, at a
   commit ahead of the record's SHA and on main's history. The earliest such run's creation is the
-  clear time, read from every such run since the record, so newer runs never move it. Canary,
+  clear time, read a week at a time from the record, oldest first, up to about a year and stopping
+  at the first week that clears it, so newer runs never move it and a record cleared long ago reads
+  one week. Canary,
   revert and read-back records stay human-close. A push to main files a `revert` record when one
   of its commits names a pull request it reverts and the lanes App enqueued that pull request or
   its enqueuer cannot be read; a revert of one a person enqueued files nothing. A commit names it
@@ -1114,9 +1131,12 @@ the rules that only tighten in
   or `github-actions[bot]`), so removing the marker or the label does not clear one. When `post-merge-demotion-alert.yml` proves
   that no merge the failing run covers was enqueued by the agent identity, it files a
   post-merge-failure record instead, first line `<!-- post-merge-failure sha=<S> signal=<name> -->`,
-  also `needs-human`. That record does not hold the rung off.
+  labeled as a record of its signal is: a full-run one carries no label unless a failing check got
+  no fix issue (over the cap or outside the charset), since its fix issues fix main, and a canary one is labeled `needs-human` on purpose, since a canary files no fix issue and
+  nothing else clears it. That record does not hold the rung off.
   With a new record of either kind, the alert files one fix issue per newly failing check, at
-  most 5 per run (an overflow line on the record says when more failed), first line
+  most 5 per run (an overflow line on the record says when more failed, and labels that record
+  `needs-human`, as does a failing name outside the fix-issue charset), first line
   `<!-- post-merge-fix check=<name> -->`, in fixed text only (the failing job's name, the SHA, the run
   link, the merge range and the record's number, never an annotation title), with no label, locks it,
   and dispatches intake triage for each; a fix issue that could not be filed, locked, reopened
@@ -1471,9 +1491,10 @@ the rules that only tighten in
   merges did not cause it).
   Any other suite outside the set
   demotes nothing, the window counts as verified (its `max-in-flight` slots free), and the suite
-  is quarantined: an issue marked `<!-- post-merge-quarantine suite=<path> -->`, labeled
-  needs-human and assigned to the suite's CODEOWNERS user when a rule names one, filed by the
-  agent identity's `--remediate` or by post-merge-demotion-alert.yml. While that issue is open
+  is quarantined: an issue marked `<!-- post-merge-quarantine suite=<path> -->`, with no label
+  and no assignee, filed by the agent identity's `--remediate` (whose issue starts intake triage)
+  or by post-merge-demotion-alert.yml (which locks it and dispatches intake triage for it), so a
+  lane picks it up. While that issue is open
   and younger than `merge.quarantine-days` (default 7, at most 30), the suite's out-of-set failures
   demote nothing; after that they demote again, even when the suite was already failing before the
   merge. An issue whose body was edited after filing, or whose title no longer names its marker's

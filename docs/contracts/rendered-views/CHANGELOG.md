@@ -3,6 +3,13 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## `adhd:clarify` adopts the shared chrome reference, 2026-11-02
+
+- **The chrome reference has a second adopter and is registered.** `adhd:clarify` carries a
+  byte-identical copy at `plugins/adhd/reference/html-chrome.html` and cites it for its decision
+  page. `scripts/cross-plugin-source-registry.txt` now lists `reference/html-chrome.html`, so the
+  drift checker fails when the two copies differ.
+
 ## The grandfathered emitters resolve `medium`, 2026-11-02
 
 - **No emitter is grandfathered on its ladder or `medium`.** `architecture:improve`,
