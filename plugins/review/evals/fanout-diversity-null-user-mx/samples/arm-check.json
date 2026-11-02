@@ -3,6 +3,10 @@
     {
       "answer": "fanout_diversity: model (docs/conventions/review.yaml)\n\n## Surfaces\n\nRan: [model:opus@high, model:sonnet@high, codex]. Returned no result: [].",
       "why": "repository layer read, one leaf per model tier, Codex in the Ran list"
+    },
+    {
+      "answer": "fanout_diversity: model (repository)\n\n## Surfaces\n\nRan: [model:opus@high, model:sonnet@high, codex]. Returned no result: [].",
+      "why": "fanout names the layer `repository` as often as the file path; the arm was used"
     }
   ],
   "fail": [
@@ -21,6 +25,10 @@
     {
       "answer": "fanout_diversity: model (docs/conventions/review.yaml)\n\n## Surfaces\n\nRan: [model:codex@n/a, security-reviewer@high, code-reviewer@high]. Returned no result: [].",
       "why": "model fell back to lens; Codex as a tier is not a second fan-out tier"
+    },
+    {
+      "answer": "fanout_diversity: model (default)\n\n## Surfaces\n\nRan: [model:opus@high, model:sonnet@high, codex]. Returned no result: [].",
+      "why": "the default layer means the repository's review.yaml was not read, so the arm was not used"
     }
   ]
 }

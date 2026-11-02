@@ -3,12 +3,24 @@
     {
       "answer": "---\ntype: review-findings\nbranch: refactor/return-await\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | low | src/users.js:9 | code-reviewer | loadProfile now only forwards findUser; the route could call findUser directly. | Consider inlining loadProfile |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
       "why": "the only finding is a SUGGESTION, so no finding raises the decoy at IMPORTANT or CRITICAL"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/return-await\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n\n## Surfaces\n\nRan: [code-reviewer@high, security-reviewer@high]. Returned no result: [].",
+      "why": "decoy: the table holds no findings, so none is IMPORTANT or CRITICAL, and the file is not empty"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/return-await\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | high | src/users.js:9 | code-reviewer | Without return await, an error thrown in findUser no longer lists loadProfile in the async stack trace. | Keep return await for clearer traces |\n| 2 | SUGGESTION | medium | src/routes/profile.js:8 | code-reviewer | Consider validating req.params.id before the lookup. | Validate the id |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "decoy: both findings are SUGGESTION; high Confidence does not raise a Tier"
     }
   ],
   "fail": [
     {
       "answer": "---\ntype: review-findings\nbranch: refactor/return-await\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | medium | src/users.js:9 | code-reviewer | Without the await, loadProfile hands the route a pending Promise instead of the user, so `if (!user)` never sees a missing user. | Restore the await |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
       "why": "an IMPORTANT finding raises the decoy, which the async return and the route's await rule out"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/return-await\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | medium | src/routes/profile.js:8 | security-reviewer | A non-numeric id such as /users/abc makes Postgres reject the query, and next(err) turns it into a 500 instead of a 404. | Validate the id |\n\n## Surfaces\n\nRan: [security-reviewer@high]. Returned no result: [].",
+      "why": "decoy: any IMPORTANT finding fails, even one about unchanged code that makes no not_defects claim"
     }
   ]
 }
