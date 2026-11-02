@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"### Result\\n- [Screenshot of viewport](./mcp-shot.png)\\n### Ran Playwright code\"}",
+      "why": "relative path, the server's default rendering"
+    },
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"- [Screenshot of viewport](/tmp/w/mcp-shot.png)\"}",
+      "why": "absolute path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"### Error\\nError: File access denied: /tmp/w/mcp-shot.png is outside allowed roots.\",\"is_error\":true}",
+      "why": "write refused"
+    },
+    {
+      "answer": "{\"type\":\"tool_use\",\"name\":\"mcp__plugin_pw-mcp_playwright__browser_take_screenshot\",\"input\":{\"filename\":\"mcp-shot.png\"}}",
+      "why": "the call alone, no result"
+    }
+  ]
+}

@@ -1481,6 +1481,8 @@ merge:
         class: enforcement
       - glob: ".github/scripts/work-resolve-issue/stop-routes.mjs"
         class: enforcement
+      - glob: ".github/scripts/work-resolve-issue/known-names.json"
+        class: enforcement
       - glob: ".github/scripts/lib/stop-reason.mjs"
         class: enforcement
       - glob: ".github/scripts/lib/admission-comment.mjs"

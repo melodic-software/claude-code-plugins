@@ -6,7 +6,9 @@ name: eval-browser-dispatch
 #   including eval cases that drive a browser through Bash. A local run cannot:
 #   the eval's throwaway HOME hides tools installed under /home, and a
 #   symlinked ~/.docker makes the eval refuse any Bash-granting run. Here node,
-#   playwright-cli and Chromium are installed outside HOME and on PATH.
+#   playwright-cli, the Playwright MCP server and Chromium are installed outside
+#   HOME and on PATH. The allow-real-servers input starts a case plugin's real
+#   MCP servers (plugins/testing/evals/browser-mcp-probe/README.md).
 # - When the `eval: run` label is added to a same-repository, non-draft pull
 #   request: the suite of each plugin whose skills/, agents/ or evals/ the pull
 #   request changes, deterministic graders only, with no tool beyond the
@@ -78,6 +80,14 @@ on:
         required: true
         type: string
         default: Bash(playwright-cli *)
+      allow-real-servers:
+        description: >-
+          Start the real MCP servers of the plugins under test that have no
+          mock (--allow-real-servers). They run outside the eval's sandbox;
+          grant their tools by name in allow-tools.
+        required: false
+        type: boolean
+        default: false
       debug-errors:
         description: Print short Bash error excerpts from each eval trace to the PUBLIC job log.
         required: false
@@ -469,7 +479,7 @@ jobs:
           echo "The managed policy denied the probe's Read, Grep and Glob calls."
 
       # Chromium comes from the playwright that the locked playwright-cli
-      # uses. Without sudo there is no --with-deps: the hosted image already
+      # and Playwright MCP server share. Without sudo there is no --with-deps: the hosted image already
       # carries a browser's system libraries. A pull request run grants no
       # Bash, so it needs no browser: it passes no --allow-tools, a case
       # cannot widen that grant (plugins/evals/skills/plugin-eval/SKILL.md,
@@ -538,6 +548,7 @@ jobs:
           TAGS: ${{ inputs.tag }}
           RUNS: ${{ inputs.runs }}
           ALLOW_TOOLS: ${{ inputs.allow-tools }}
+          REAL_SERVERS: ${{ inputs.allow-real-servers }}
           OUT: ${{ runner.temp }}/eval-results
         run: |
           args=(
@@ -561,6 +572,9 @@ jobs:
               esac
             done
             args+=(--scaffold --runs "$RUNS")
+            if [ "$REAL_SERVERS" = true ]; then
+              args+=(--allow-real-servers)
+            fi
             if [ "${#tools[@]}" -gt 0 ]; then
               args+=(--allow-tools "${tools[@]}")
             fi

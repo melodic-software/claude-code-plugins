@@ -2324,8 +2324,14 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   SSH or access key, `backdoor`, `exploit`, branch protection, `attack`, `unauthorized`, `hijack`,
   in any case and even inside a word; `XSS`, `RCE`, `CVE` or `PAT`, a takeover, `stolen`, a
   stranger or an outsider as a whole word; or an ignore-instructions phrase)
-  takes the `security-risk` row's hold instead; after a `wait` or `retry` code a `stopped` reason keeps its route. After
-  an ending code, every one of those words but the secret nouns (credential, secret, token,
+  takes the `security-risk` row's hold instead; after a `wait` or `retry` code a `stopped` reason keeps its route.
+  A match that lies wholly inside a known name listed in
+  `.github/scripts/work-resolve-issue/known-names.json` (a skill id such as
+  `review:security-review`, a principle name such as `attack-the-premise`), written exactly as
+  listed and not next to a letter, digit, `-`, `_` or `:`, does not count; one that runs past the
+  name's edge ("github-deploy key") still does. A listed name joins at least two parts with `-`,
+  `_` or `:` and holds no secret noun, so it never releases a credential mention. With no such
+  file, no name is exempt. After an ending code, every one of the security words but the secret nouns (credential, secret, token,
   password, API key) always holds. A secret noun holds unless it sits in a needs-a-credential
   capability phrasing ("a host with model credentials", "needs an API key the lane does not
   hold", "tokens per task") with at most a model or deploy qualifier, and the noun ends the

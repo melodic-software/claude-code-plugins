@@ -36,6 +36,10 @@ const SHA = /^[0-9a-f]{40}$/;
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
 const FINDING_KEYS = "body,line,path,severity,title";
+// The diff step's fold, which a quoted line carries through the middle of a
+// token (pr-verify/write-verdict.mjs FOLD): the scan reads each text with its
+// folds rejoined too.
+const FOLD = /(?<!\s)(?:\s*\\ continued: ?)+/g;
 
 const isObject = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -145,7 +149,7 @@ export function buildVerdict({ output, lane, pr, headSha, baseSha, tree, runId, 
   });
   const summary = output.summary.slice(0, SUMMARY_MAX);
   for (const text of [summary, ...findings.flatMap((f) => [f.path, f.title, f.body])]) {
-    if (findSecret(text)) {
+    if (findSecret(text) || findSecret(text.replace(FOLD, ""))) {
       throw new Error("the review's text matches a credential pattern; nothing is uploaded");
     }
   }

@@ -14,7 +14,7 @@ execution:
 graders:
   - name: ref-rejected
     type: regex
-    pattern: '^(?![^\n]*\b(?:not|isn[''’]t|wasn[''’]t|never)[ \t]+(?:been[ \t]+)?(?:rejected|refused|invalid)\b)(?=[^\n]*(?:config-ref|\bref\b|origin/main\.\.HEAD|\.\.))[^\n]*\b(?:reject(?:ed|s|ing)?|refus(?:e|ed|es|ing)|invalid|not[ \t]+(?:a[ \t]+)?(?:valid|accepted|allowed|permitted)|disallowed)\b'
+    pattern: '^(?![^\n]*\b(?:not|isn[''’]t|wasn[''’]t|never)[ \t]+(?:been[ \t]+)?(?:rejected|refused|invalid)\b)(?=[^\n]*(?:config-ref|\bref\b|origin/main\.\.HEAD|\.\.))[^\n]*\b(?:reject(?:ed|s|ing)?|refus(?:e|ed|es|ing)|invalid|(?:not|isn[''’]t)[ \t]+(?:a[ \t]+)?(?:valid|accepted|allowed|permitted)|disallowed)\b'
     flags: 'mi'
     target: last_message
     arm: both
