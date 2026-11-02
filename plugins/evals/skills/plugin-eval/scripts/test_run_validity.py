@@ -7,8 +7,8 @@ fixtures/run-validity/ holds two result files trimmed from one real
 structural lines of its kept traces, with no answer text:
 
     r2-invalid.json     the whole run: 3 denied Reads of the methodology skill's
-                        reference files and one with-arm run whose skill never
-                        fired, so it must come out INVALID
+                        reference files, which warn, and one with-arm run whose
+                        skill never fired, so it must come out INVALID
     r2-clean-runs.json  one run per arm per case, taken from the runs of that same
                         result that pass every check, so it must come out VALID
     traces/             clean.jsonl stands in for every trace with no denial
@@ -90,11 +90,14 @@ class RunValidityTest(unittest.TestCase):
             proc.stdout,
         )
 
-    def test_r2_is_invalid_for_its_denials_and_its_unfired_skill(self):
+    def test_r2_is_invalid_for_its_unfired_skill_and_warns_on_its_plugin_reads(self):
         proc = self.run_script(INVALID, "--runs", "2")
         self.assertVerdict(proc, "INVALID", 1)
+        # Each denial is a Read under the plugin in a finished run no Read grader counts.
         self.assertIn(
-            "check permission denials: FAIL (3 denials in 3 runs)", proc.stdout
+            "check permission denials: WARN (3 denials in 3 runs; 3 denied reads of the"
+            " run's own plugin copy, not counted",
+            proc.stdout,
         )
         for run, file in (
             ("case grading-method-choice, with-arm run 1", "grading.md"),
@@ -113,9 +116,8 @@ class RunValidityTest(unittest.TestCase):
         )
         self.assertIn("  unfired: case noise-before-gain, with-arm run 1", proc.stdout)
         self.assertIn(
-            "verdict: INVALID (scaffold scripts unchecked in 4 cases; 3 permission"
-            " denials in the traces; the skill did not fire in 1 with-arm run of a"
-            " should-trigger case)",
+            "verdict: INVALID (scaffold scripts unchecked in 4 cases; the skill did not"
+            " fire in 1 with-arm run of a should-trigger case)",
             proc.stdout,
         )
 
@@ -741,9 +743,11 @@ class RunValidityTest(unittest.TestCase):
     def test_a_probe_denial_naming_no_tool_is_invalid(self):
         self.assertDenials(self.denied_probe(before=(None,), fired=False, case_at=0), "FAIL")
 
-    def test_a_non_probe_denied_a_search_inside_the_plugin_is_invalid(self):
+    def test_a_non_probe_denied_a_search_of_its_plugin_copy_is_a_warning(self):
+        # The probe rules above judge the same Glob only in a probe case.
         proc = self.denied_probe(after=("Glob",), tags="tags: [knowledge]")
-        self.assertDenials(proc, "FAIL")
+        self.assertDenials(proc, "WARN")
+        self.assertIn("1 denied read of the run's own plugin copy, not counted", proc.stdout)
 
     def test_a_denial_names_the_path_it_was_aimed_at(self):
         trace = self.dir / "denied-paths.jsonl"
@@ -846,15 +850,20 @@ class RunValidityTest(unittest.TestCase):
         self.assertVerdict(proc, "INVALID", 1)
         self.assertIn("check permission denials: FAIL (1 denial in 1 run)", proc.stdout)
 
-    def test_a_with_arm_denial_inside_the_plugin_is_a_fail(self):
-        proc = self.denied_second_run(
-            "with",
-            1,
-            root=self.PLUGIN,
-            path=self.PLUGIN + "/skills/methodology/reference/grading.md",
-        )
-        self.assertVerdict(proc, "INVALID", 1)
-        self.assertIn("check permission denials: FAIL (1 denial in 1 run)", proc.stdout)
+    def test_a_with_arm_search_inside_the_plugin_warns_whatever_its_score(self):
+        for score in (1, 0):
+            proc = self.denied_second_run(
+                "with",
+                score,
+                root=self.PLUGIN,
+                path=self.PLUGIN + "/skills/methodology/reference/grading.md",
+            )
+            self.assertVerdict(proc, "VALID", 0)
+            self.assertIn(
+                "check permission denials: WARN (1 denial in 1 run; 1 denied read of"
+                " the run's own plugin copy, not counted",
+                proc.stdout,
+            )
 
     def test_a_with_arm_denial_above_the_plugin_is_a_fail(self):
         for ancestor in ("/", "/tmp", "/tmp/eval-r2/plugins"):
@@ -1065,17 +1074,14 @@ class RunValidityTest(unittest.TestCase):
                 proc.stdout,
             )
 
-    def test_a_denial_missing_from_a_run_or_aimed_into_the_plugin_is_a_fail(self):
-        inside = {"pattern": "*.md", "path": self.PLUGIN + "/skills"}
-        # A rooted pattern with no path searches where it points; so does one cut
-        # mid-name, whose literal directory is an ancestor of the plugin.
-        pattern_inside = {"pattern": self.PLUGIN + "/skills/*.md"}
+    def test_a_denial_missing_from_a_run_or_aimed_above_the_plugin_is_a_fail(self):
+        # A rooted pattern with no path searches where it points: one cut
+        # mid-name names a literal directory that is an ancestor of the plugin.
+        # A Glob at or under the plugin warns as a search of its plugin copy.
         pattern_above = {"pattern": self.PLUGIN[: -len("evals")] + "ev*/**/SKILL.md"}
         for with_input, without_input in (
             (self.USER_RUNG, None),
             (self.USER_RUNG, {"pattern": "*.md", "path": "/opt/other"}),
-            (inside, inside),
-            (pattern_inside, pattern_inside),
             (pattern_above, pattern_above),
         ):
             proc = self.denied_glob(with_input, without_input)
@@ -1088,12 +1094,46 @@ class RunValidityTest(unittest.TestCase):
         self.assertVerdict(proc, "INVALID", 1)
         self.assertIn("check permission denials: FAIL", proc.stdout)
 
-    def denied_in_sandbox(self, calls, trace_at=("claude-eval-ab", "out")):
+    def denied_in_sandbox(
+        self,
+        calls,
+        trace_at=("claude-eval-ab", "out"),
+        graded=None,
+        is_error=False,
+        sibling=None,
+    ):
         """The clean result at two runs per arm, measurable-criterion's second
         with-arm run scoring 0 against its sibling's 1 and denied each (tool,
-        input) in calls, its trace at <dir>/<trace_at...>/trace.jsonl. The
-        sandbox's own plugin-data directory is <dir>/claude-eval-ab/config/plugins/data."""
+        input) in calls, its trace at <dir>/<trace_at...>/trace.jsonl, its result
+        line's is_error set to is_error. The sandbox's own plugin-data directory
+        is <dir>/claude-eval-ab/config/plugins/data, and the plugin is PLUGIN.
+        With graded, the case also has a tool_used grader on that tool. With
+        sibling, the first with-arm run also scores 0, denied those calls."""
         trace = self.dir.joinpath(*trace_at, "trace.jsonl")
+        self.denied_trace(trace, calls, is_error)
+        if sibling is not None:
+            self.denied_trace(self.dir / "sibling.jsonl", sibling, False)
+        data = load(self.write(self.clean()))
+        data["suite"]["plugins"] = [{"path": self.PLUGIN}]
+        for case in data["cases"]:
+            for name in ("with", "without"):
+                case["arms"][name].append(copy.deepcopy(case["arms"][name][0]))
+        if graded:
+            data["cases"][1]["graders"].append(
+                {"name": "searched", "type": "tool_used", "config": {"tool": graded}}
+            )
+        row = data["cases"][1]["arms"]["with"][1]
+        row["tracePath"], row["score"] = str(trace), 0
+        if sibling is not None:
+            first = data["cases"][1]["arms"]["with"][0]
+            first["tracePath"], first["score"] = str(self.dir / "sibling.jsonl"), 0
+        result = self.dir / "aggregate-result.json"
+        result.write_text(json.dumps(data), encoding="utf-8")
+        return self.run_script(result, "--runs", "2")
+
+    @staticmethod
+    def denied_trace(trace, calls, is_error):
+        """Write a trace whose result line denies each (tool, input) in calls."""
         trace.parent.mkdir(parents=True, exist_ok=True)
         entries = [
             {"tool_name": tool, "tool_use_id": "d%d" % i, "tool_input": tool_input}
@@ -1101,20 +1141,12 @@ class RunValidityTest(unittest.TestCase):
         ]
         trace.write_text(
             '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
-            + json.dumps({"type": "result", "is_error": False, "permission_denials": entries})
+            + json.dumps(
+                {"type": "result", "is_error": is_error, "permission_denials": entries}
+            )
             + "\n",
             encoding="utf-8",
         )
-        data = load(self.write(self.clean()))
-        data["suite"]["plugins"] = [{"path": self.PLUGIN}]
-        for case in data["cases"]:
-            for name in ("with", "without"):
-                case["arms"][name].append(copy.deepcopy(case["arms"][name][0]))
-        row = data["cases"][1]["arms"]["with"][1]
-        row["tracePath"], row["score"] = str(trace), 0
-        result = self.dir / "aggregate-result.json"
-        result.write_text(json.dumps(data), encoding="utf-8")
-        return self.run_script(result, "--runs", "2")
 
     def own_data(self, *parts):
         return str(self.dir.joinpath("claude-eval-ab", "config", "plugins", "data", *parts))
@@ -1183,6 +1215,63 @@ class RunValidityTest(unittest.TestCase):
         ):
             proc = self.denied_in_sandbox(calls, *([trace_at] if trace_at else []))
             self.assertDenials(proc, "FAIL")
+
+    def test_a_search_of_the_runs_own_plugin_copy_is_a_warning(self):
+        # A negative control's broken copy searching itself for the text it lacks.
+        for calls in (
+            [("Grep", {"pattern": "## Procedure", "path": self.PLUGIN})],
+            [("Glob", {"pattern": "**/*.md", "path": self.PLUGIN + "/skills"})],
+            [("Glob", {"pattern": self.PLUGIN + "/skills/*/SKILL.md"})],
+            [("Read", {"file_path": self.PLUGIN + "/skills/manage/SKILL.md"})],
+        ):
+            proc = self.denied_in_sandbox(calls)
+            self.assertDenials(proc, "WARN")
+            self.assertIn("1 denied read of the run's own plugin copy, not counted",
+                          proc.stdout)
+            self.assertIn("aimed only at or under the plugin copy", proc.stdout)
+            self.assertIn("compare it only with runs denied the same way", proc.stdout)
+
+    def test_a_mixed_run_fails_counting_only_its_denials_outside_the_plugin_copy(self):
+        proc = self.denied_in_sandbox([
+            ("Grep", {"pattern": "x", "path": self.PLUGIN}),
+            ("Read", {"file_path": "/etc/hosts"}),
+        ])
+        self.assertDenials(proc, "FAIL")
+        self.assertIn("verdict: INVALID (1 permission denial in the traces)", proc.stdout)
+
+    def test_other_denials_at_or_near_the_plugin_copy_still_fail(self):
+        inside = self.PLUGIN + "/skills/manage/SKILL.md"
+        for calls, options in (
+            # Outside the copy, beside it, or above it, which covers more than its files.
+            ([("Grep", {"pattern": "x", "path": "/etc"})], {}),
+            ([("Read", {"file_path": self.PLUGIN + "-other/SKILL.md"})], {}),
+            ([("Glob", {"pattern": "**/SKILL.md", "path": "/tmp/eval-r2/plugins"})], {}),
+            # A Glob pattern that leaves its search root.
+            ([("Glob", {"pattern": "../../**/*.md", "path": self.PLUGIN})], {}),
+            ([("Glob", {"pattern": "{..,x}/**/*.md", "path": self.PLUGIN})], {}),
+            ([("Glob", {"pattern": "/etc/*", "path": self.PLUGIN})], {}),
+            # Not a Read, Grep or Glob, or no rooted path.
+            ([("Bash", {"command": "grep -r x " + self.PLUGIN})], {}),
+            ([("Write", {"file_path": inside, "content": "x"})], {}),
+            ([("Skill", {"skill": "evals:methodology"})], {}),
+            ([("Grep", {"pattern": "x"})], {}),
+            ([("Read", {"file_path": "skills/manage/SKILL.md"})], {}),
+            # A grader counts the tool, or the run ended in an error.
+            ([("Grep", {"pattern": "x", "path": self.PLUGIN})], {"graded": "Grep"}),
+            ([("Read", {"file_path": inside})], {"is_error": True}),
+        ):
+            proc = self.denied_in_sandbox(calls, **options)
+            self.assertDenials(proc, "FAIL")
+
+    def test_a_run_denied_only_a_plugin_copy_search_is_no_clean_baseline(self):
+        # Scoring the same as a sibling denied only a copy search does not
+        # excuse a denial outside the plugin.
+        proc = self.denied_in_sandbox(
+            [("Read", {"file_path": "/etc/hosts"})],
+            sibling=[("Grep", {"pattern": "x", "path": self.PLUGIN})],
+        )
+        self.assertDenials(proc, "FAIL")
+        self.assertIn("verdict: INVALID (1 permission denial in the traces)", proc.stdout)
 
     def own_results(self, *parts, sandbox="claude-eval-ab"):
         return str(self.dir.joinpath(
