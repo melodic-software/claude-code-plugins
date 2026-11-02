@@ -30,7 +30,9 @@ further capture, or drives no further entry point, and records each entry point 
 plugin each changed file sits in, once each, at most `maxEntryPoints` of them, each one left out
 named on stderr as `blocked: maxEntryPoints reached: <dir>`; with no changed file, the configured
 `pluginDir`. A Claude Code session loads one plugin, so each line runs in turn under the one
-`<session>`: Launch, Ready, its entry points, Cleanup, then the next line.
+`<session>`: Launch, Ready, its entry points, Cleanup, then the next line. Run `plugins` only when
+the run directory holds `affected.json`; otherwise `<plugin-dir>` is the one the person names, else
+`pluginDir` from `config/local.json`, else from `config/defaults.json`.
 
 `node <skill-dir>/driver/driver.mjs launch --plugin-dir <plugin-dir> --session <session>`
 
