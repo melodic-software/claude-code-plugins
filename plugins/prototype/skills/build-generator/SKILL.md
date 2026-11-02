@@ -186,8 +186,11 @@ When the user picks a keeper:
 2. Wire the export and the cleaned-up render logic into the real artifact: production imports the
    config file and the render function, or a static export (SVG, PNG) when the artifact doesn't
    need to stay live.
-3. Record the answer as the discipline's "When done" section says, then delete the tool: its
-   route, its controls and its save endpoint. The saved config and the export stay; they are the
+3. Record the answer as the discipline's "When done" section says, then run its
+   [evidence step](../../context/discipline.md#evidence-step). The evidence it pushes is the
+   generating tool's files: those its route, its controls and its save endpoint added or changed.
+4. Then delete the tool: its route, its controls and its save endpoint, removing only their lines
+   from a shared file such as the app's router. The saved config and the export stay; they are the
    output.
 
 ## Next

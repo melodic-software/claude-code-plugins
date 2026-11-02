@@ -3,6 +3,23 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.0] - 2026-11-02
+
+### Added
+
+- `check-skill.sh` check 30 reads two settings from the repository's convention home: `description_target` (default 250) and `description_warn` (default 419). It reads the team file `<home>/skill-quality.yaml`, then the personal `<home>/skill-quality.local.yaml`, and a later file wins key by key. A description above the target prints an INFO line, and one above the warn threshold warns. The 1,024-character field maximum stays a fixed FAIL (check 2b). The README's `## Settings` section lists the keys, and `schemas/skill-quality.schema.json` validates them.
+
+### Changed
+
+- Check 30's description warning names the `description_warn` setting and the file it came from, instead of "Pocock's measured max".
+
+## [0.33.0] - 2026-11-01
+
+### Changed
+
+- `check-skill.sh` check 3 now tracks unquoted `Use when` triggers. It splits the `Use when` clause of `description` and of `when_to_use` at commas, and warns when an item from the base ref is gone. Before, check 3 tracked only single-quoted phrases.
+- `check-skill.sh` check 12 no longer warns that `Use when` triggers are not single-quoted, because check 3 now covers unquoted triggers.
+
 ## [0.32.2] - 2026-11-01
 
 ### Changed

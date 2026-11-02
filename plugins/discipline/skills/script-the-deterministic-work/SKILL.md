@@ -94,7 +94,14 @@ Name concrete, located findings (per the method doc's step 2, self-audit):
   ways, not just hand-work that should have been scripted.
 - one change applied by hand at many sites where a lever was the cheaper and
   checkable route, or a lever run across every site with no hand-edited site
-  to compare it against (the Lever check below sets the rule).
+  to compare it against (the Lever check below sets the rule);
+- work that says a lever made its change but has no script in its diff: no
+  lever was applied. The test is to look in the diff for the script or
+  codemod configuration the work cites, and in its report for the exact
+  command that ran a tool which leaves no file (a language-server rename);
+  when none is there, the sites were edited some other way, so no pilot
+  diff or rerun check (Lever check step 4) stands behind them, and a
+  reviewer has nothing to rerun (pstack's `build-the-lever` principle).
 
 Correct each forward now: write and run the script or tool, read its real
 output, and re-derive the conclusion from that output. Do not keep the
@@ -179,7 +186,13 @@ there are.
 4. **Pilot before the rest.** With `build-a-lever`, under either value, the
    caller edits the first site by hand, runs the lever on a clean copy of
    that site, and diffs the two results. A difference means the lever is
-   wrong: fix it and diff again before it touches any other site.
+   wrong: fix it and diff again before it touches any other site. Then run
+   the lever a second time, on its own output for that site, and diff
+   against that output: expect no diff. A lever that changes its own output
+   on a rerun cannot be rerun safely across the remaining sites, where a
+   retry after a partial run lands on sites it already changed; a diff here
+   means the lever is wrong too, so fix it and repeat both diffs (pstack's
+   `build-the-lever` principle).
 5. **One pass or a fan-out.** When the caller is about to fan the change out
    to workers, also answer `one-pass: yes` or `one-pass: no`. `yes` means a
    single run of the lever covers every unit, so the caller dispatches one

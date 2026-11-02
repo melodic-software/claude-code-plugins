@@ -219,6 +219,10 @@ code changes were made, note "N/A" and skip.
 - Parallel tool-call opportunities missed; redundant file reads
 - Subagent usage. Was the delegation appropriate?
 - Longest/slowest turns. What caused them?
+- Tool economy:
+  an expensive tool call, or a custom CLI or MCP server whose output costs more tokens than its use needs.
+  Phase 3 routes a costly CLI or script to the catalog's owner for a command-line tool whose output
+  cost many tokens, and a costly MCP server to the catalog's MCP Servers section
 
 ### Phase 2 output
 
@@ -257,8 +261,25 @@ before filling the table. The placement decision tree and the per-target recomme
 (memory, rules, hooks, skills, agents, MCP servers, settings) live there.
 
 **Repeated corrections.** A finding that is a correction the session needed more than once is
-encoded through codify's Strength step (`context/codify.md`, step 2), which picks its rung before
-its place. Its row here names that route.
+routed to `/corrections:codify "<the mistake>"` when the `corrections` plugin is installed, which
+counts it and picks its rung before its place; its row here names that route. Without it, the
+catalog's matching section takes the finding, as its "Owner skills" section says.
+
+**Environment findings.** Look for each of these in the session, and give each one found a row
+with the route named here. An owner skill is named only when the catalog's Owner skills section
+allows it; otherwise the row takes that section's fallback.
+
+| Finding | What it is | Route |
+| --- | --- | --- |
+| Unwired or broken check | A check that exists and should have caught the mistake, but no CI or pre-commit step runs it, or it is broken. Read the repository's check scripts, CI workflows and pre-commit config before proposing a check | Reported before any new check is proposed: the row proposes wiring or repairing the existing check, per the catalog's "When to propose a check" |
+| No guardrail | A recurring mistake that meets the "Guardrail criterion" section of `<plugin-root>/skills/retro/reference/enforcement-ladder.md` but that no check covers, wired or not (an existing unwired or broken check is the row above) | Reported as a "no guardrail" finding naming that section, as `/corrections:codify` does in its step 2, "Pick the rung", and handed to the catalog's owner for a mechanical mistake |
+| Information access | Information the session needed but could not reach: dev-server logs not written to a file the agent can read, or a read-only service it had no way to query | The catalog's owner for missing automation, or its MCP Servers section for a service to query |
+| No-op in a steering file | A line in `CLAUDE.md`, `AGENTS.md` or a rules file that the model would follow without it | `/harness-config:unhobble` or `/harness-config:audit-instructions` |
+| Pointer after a long search | The session searched at length to find something | Proposes a navigation pointer in the steering file that would have led there, placed by the catalog's decision tree |
+
+**Steering-file yardstick.** A finding about a steering file (`CLAUDE.md`, `AGENTS.md`, a rules
+file) is judged against `/docs-hygiene:write-for-agents`, read through the Skill tool when it is
+among the available skills. Without it, the report says the yardstick was not available.
 
 Present as a GFM table with a **Scope** column distinguishing:
 
@@ -334,6 +355,18 @@ new rule next to it is proposed only when no repair of that kind can work, with 
 
 End Phase 4 with an explicit question, e.g.: "Which of these recommendations should I execute now?
 Reply with the numbers, 'all', or 'skip' to proceed to the summary."
+
+**Unapplied findings go to the findings buffer.** Once the user answers, each finding whose
+recommendation they decline or leave unselected, a 'skip' included, is appended to the findings
+buffer, so a later session can see the lesson recur and `/corrections:codify group` can count it
+against the codify threshold. Applied findings, "Queue for follow-up" items, skill candidates and
+follow-up candidates are not appended. When the `corrections` plugin is installed, make one
+`/corrections:codify note "<observation>"` call per unapplied finding through the Skill tool. Each
+observation is one sentence stating the lesson, not the recommended fix, with no person named, as
+that skill's `note` action requires, and with no quoted transcript text. When the plugin is not
+installed, list the unapplied findings in the Phase 5 summary under the heading "Unapplied
+findings", one sentence each in the same form, and write no file. This step is done when every
+unapplied finding has its note call or its summary line.
 
 ---
 

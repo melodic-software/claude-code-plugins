@@ -3,6 +3,24 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.7.12] - 2026-11-02
+
+### Changed
+
+- The rhyme cases' `no-single-winner` grader no longer fails a choosing guide that opens with a filler word or keys one-word moods to option numbers.
+
+## [1.7.11] - 2026-11-02
+
+### Changed
+
+- The metaphor case's `no-single-winner` grader no longer reads an italic `*by feel*` choosing guide as a single pick.
+
+## [1.7.10] - 2026-11-02
+
+### Changed
+
+- The songwriting eval suite is ready for the next measured pass. `mp-chorus-stress-count` / `raw-count-not-balance` is now an LLM-judged grader that reads any wording saying the raw 8/9/9/8 count is not the measure of balance, in place of a regex that failed such replies. The rhyme case's `no-single-winner` no longer flags a "How I'd choose:" guide keyed to feelings. Three new slash-invoked cases bring diagnose, meter-prosody and rhyme to two cases each: `dg-audit-identity-rhyme`, `mp-sung-line-template` and `rh-release-identity-menu`.
+
 ## [1.7.9] - 2026-11-01
 
 ### Changed

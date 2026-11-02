@@ -3,6 +3,35 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.136.4] - 2026-11-02
+
+### Changed
+
+- `/planning:design`'s two-candidate step now sends a logic or state fork that a run can settle to `/prototype:pressure-test observe`, beside the existing look-and-feel route to `/prototype:explore-directions`, because running each candidate on the same inputs shows which one holds where arguing them only predicts it. A fork qualifies when the criteria turn on an event sequence or record and nobody can yet say with confidence how each candidate handles it. This comes from pstack's `exhaust-the-design-space` principle ([#12148](https://github.com/melodic-software/claude-code-plugins/issues/12148)).
+
+## [0.136.3] - 2026-11-02
+
+### Changed
+
+- `/planning:design`'s type rules now come from the shared type-discipline contract, generated at
+  the same `reference/type-discipline.md` path with every rule unchanged. The Phase 3 framing and
+  the table of language files moved into the skill's Phase 3 section.
+
+## [0.136.2] - 2026-11-01
+
+### Changed
+
+- `reference/standards-contract.md` is now at standards-contract 1.1.2. Rung 4 of the resolution ladder and setup's bootstrap step 1 now name a `CODING_STANDARDS.md` and a `CONTRIBUTING.md` at the resolution root as sources for inferring standards when no index exists.
+- `setup` lists a root `CODING_STANDARDS.md` and `CONTRIBUTING.md` among the inference sources it reads.
+
+## [0.136.1] - 2026-11-01
+
+### Changed
+
+- `/planning:plan`'s agent-teams gate keeps its rule that teammates own disjoint files but no
+  longer restates how teammates share a checkout. It leaves the reason to its existing link to
+  the agent-teams page, rechecked on 2026-11-01.
+
 ## [0.136.0] - 2026-11-01
 
 ### Added

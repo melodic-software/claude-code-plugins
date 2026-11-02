@@ -21,7 +21,6 @@ write_skill() {
   printf -- '---\nname: %s\ndescription: "%s"\n---\n\n# %s\n\nBody.\n' \
     "$leaf" "$description" "$leaf" >"$root/plugins/demo/skills/$leaf/SKILL.md"
 }
-set_baseline() { printf '# baseline\n%s\n' "$1" >"$root/scripts/verb-contract-baseline.txt"; }
 
 # run <expected-exit> <name> [checker]: run the gate in the fixture.
 run() {
@@ -43,15 +42,8 @@ write_skill audit "$MUTATING"
 run 1 "an audit skill whose description advertises mutation fails"
 assert_output_contains "the failure names the skill" "plugins/demo/skills/audit"
 
-set_baseline plugins/demo/skills/audit
-run 0 "a baselined mismatch passes"
-
 write_skill audit "$READ_ONLY"
-run 1 "a baseline row whose skill no longer mismatches fails as stale"
-assert_output_contains "the stale row is named" "stale row"
-
-rm -f "$root/scripts/verb-contract-baseline.txt"
-run 0 "a clean corpus with no baseline passes"
+run 0 "a clean corpus passes"
 assert_output_contains "the pass counts both skills" "PASS (2 skills"
 
 stub="$root/stub-checker.sh"

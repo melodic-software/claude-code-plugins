@@ -8,6 +8,9 @@
 # the audit does, so it fails rather than skips where strace is missing.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+# On a runner the audit would wrap its gh calls and record into the job's
+# RUNNER_TEMP; the stubs here answer the unwrapped calls.
+unset RUNNER_TEMP
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AUDIT="$SELF_DIR/selection-audit.sh"

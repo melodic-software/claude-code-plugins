@@ -408,7 +408,10 @@ each, the summary below is a pointer, not a copy.
   carries it. Pass `--app-slug '${user_config.lane_app_slug}'` on every call, so
   under a GitHub App installation token the adoption fallback reads comments
   written by `SLUG[bot]`; the script reads an empty or unrendered value as no
-  slug. With no resolvable
+  slug. A body file must sit in this plugin's data dir, `${CLAUDE_PLUGIN_DATA}`,
+  passed as `--body-dir`; any other dir, `/` or the home dir is refused, and a
+  body generated in memory goes on stdin as `--body-file -`. Every body is leak
+  scanned and withheld on a hit. With no resolvable
   write identity it writes nothing and exits 4. The marker grammar, the `<lane>@<instance>` writer-identity rule,
   the body-file containment and size limits, the pre-write and read-back checks,
   and every exit code are in the script's `--help` header. Two rules the caller

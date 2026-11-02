@@ -3169,6 +3169,17 @@ complexity with no entry keeps the route's profile. The config
 reader rejects a key that is not a complexity and a value that is not a profile, and a
 `split-child-size` that names no size that runs.
 
+`models.issue-status` names an issue's state as its Work status org issue field: `field-id`,
+`options` mapping each single-select option id to a state (the option's name on GitHub), `labels`
+listing the issue labels each state collapses from, and `order`. An issue's labels collapse,
+without case, to the first state in `order` one of whose labels it carries, or the last state,
+`needs-triage`, when it carries none. A field value counts only under the issue-dimensions setter
+rule; a counted option no entry maps fails the read with `unmapped-status`. The config reader
+rejects two options for one state, a state with no label, a label listed twice, an `order` that
+does not list every state once or does not end on `needs-triage`, and a `field-id` that
+`models.issue-dimensions` uses (`undefined-status`). resolve-config's `issue-status.mjs` holds the
+collapse and the reader; no lane reads or writes the field yet.
+
 Intake splits an issue admission parks as Size Large into native sub-issues before any run
 (owner Q93; `.github/scripts/intake-triage/refine.mjs`). The model returns either `parts`, groups
 of the issue's trusted task-list line numbers, or, when each line repeats over named targets,

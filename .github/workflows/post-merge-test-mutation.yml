@@ -139,6 +139,7 @@ jobs:
       restored: ${{ steps.restored.outputs.restored }}
       stop-class: ${{ steps.stop.outputs.class }}
     env:
+      API_BUDGET_TOKEN: github-token
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
       npm_config_fund: "false"
@@ -361,7 +362,7 @@ jobs:
       - name: Record the lane outcome
         id: lane-record
         if: always() && (steps.audit.outcome == 'success' || steps.audit.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
           outcome: ${{ steps.audit.outcome }}
           execution-file: >-
@@ -389,6 +390,14 @@ jobs:
               exit 1
               ;;
           esac
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   report:
     needs: [prep, audit]

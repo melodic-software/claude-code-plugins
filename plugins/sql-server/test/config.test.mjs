@@ -23,6 +23,10 @@ describe('loadConfig accepts', () => {
   it('an entra-default environment with limit overrides', () => {
     assert.equal(load('valid-entra.json').environments['shared-dev'].limits.rowCap, 200);
   });
+
+  it('a write block naming a separate write principal by reference', () => {
+    assert.deepEqual(load('valid-write.json').environments.local.write.auth.password, { env: 'SQL_WRITER_PASSWORD' });
+  });
 });
 
 describe('loadConfig refuses', () => {

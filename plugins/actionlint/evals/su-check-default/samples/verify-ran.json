@@ -1,0 +1,140 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" verify",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"$P/lib/git-hooks/install.mjs\" verify",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "plain"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \\\n  \"$P/lib/git-hooks/install.mjs\" verify",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "continuation"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd \"$P/lib/git-hooks\" && node install.mjs verify",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "after &&"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -c 'node lib/git-hooks/install.mjs verify'",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "bash -c"
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "read, not run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"$P/lib/git-hooks/install.mjs\" plan --scope local",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "plan is not verify"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n verify \"$P/lib/git-hooks/install.mjs\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "grep for verify"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat \"$P/lib/git-hooks/install.mjs\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "read only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"$P/lib/git-hooks/install.mjs\" verifyx",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "verifyx"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'node install.mjs verify' \"$P/skills/setup/SKILL.md\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "verify quoted inside grep"
+    }
+  ]
+}

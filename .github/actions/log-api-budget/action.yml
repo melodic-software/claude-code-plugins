@@ -1,26 +1,37 @@
 name: Log API budget
 description: >
-  At the end of a job, write the hub collector's api-budget notice for each
-  named token, from the rate-limit readings the job's own API responses left
-  in $RUNNER_TEMP/api-budget (api-budget.bash): one per refused (403/429)
-  response and one for the last. GET /rate_limit is never read: it reports a
-  different bucket from the one the job spends. Then an `api-calls` notice,
-  `<name>=N not-modified=M graphql=K`: N is this job's own requests, which cost (the rise in a
-  counter every concurrent job shares) is not, M its 304 answers, which
-  GitHub does not count, and K the GraphQL requests among N, which spend
-  GraphQL's own pool. Then one line for the job's content-creating writes
-  (count and most in any 60 s). Then an `api-routes` notice per token,
-  `<name> <route>=<count> ... rest=<count>`: N by templated request path,
-  most first, at most 15 routes. Also writes each line and a `<name>-cost=N`
-  line to the step summary. A token with no reading gets only its api-calls
-  line, at 0. Never fails the job.
-
+  At the end of a job, write the hub collector's notices for each named
+  token, from the rate-limit readings the job's own API responses left in
+  $RUNNER_TEMP/api-budget (api-budget.bash). First an `api-calls` notice per
+  token, `<name>=N not-modified=M graphql=K`: N is this job's own requests,
+  which cost (the rise in a counter every concurrent job shares) is not, M
+  its 304 answers, which GitHub does not count, and K the GraphQL requests
+  among N, which spend GraphQL's own pool. With `outside` set, an
+  `api-uncounted` notice, `github-token <step> ...`, names the steps that
+  call GitHub with the job token through a client this action cannot count
+  (another action's own HTTP client), so the job-token api-calls count reads
+  as a floor, not a total. Then an `api-routes` notice per
+  token, `<name> <route>=<count> ... rest=<count>`: N by templated request
+  path, most first, at most 15 routes. Then one line for the job's
+  content-creating writes (count and most in any 60 s). Last the api-budget
+  notices: one per refused (403/429) response and one for the last of each
+  counter. GET /rate_limit is never read: it reports a different bucket from
+  the one the job spends. Also writes each line and a `<name>-cost=N` line to
+  the step summary. A token with no reading gets only its api-calls line, at
+  0, and its api-routes line. Never fails the job.
 inputs:
   tokens:
     description: >
       Token names, space or newline separated, in lower-case kebab case:
       `github-token` for the job token, `lanes-app` for the lanes App token.
     required: true
+  outside:
+    description: >
+      Steps that call GitHub with the job token outside the counted clients,
+      space or newline separated, each of `A-Za-z0-9._/:-` and at most 80
+      characters. Empty, the default, writes no api-uncounted notice.
+    required: false
+    default: ""
 
 outputs:
   costs:
@@ -38,18 +49,19 @@ runs:
       shell: bash
       env:
         TOKENS: ${{ inputs.tokens }}
+        OUTSIDE: ${{ inputs.outside }}
       run: |
         # shellcheck source=/dev/null
         . "$GITHUB_ACTION_PATH/api-budget.bash" || exit 0
-        costs=() counts=() names=()
+        # GitHub turns at most 10 of one step's notices into annotations (the
+        # merge job of run 41344350944 printed 12 and kept the first 10), so
+        # the counting lines go first: each token's api-calls, then their
+        # api-routes, then the content-creation line, and the per-reading
+        # api-budget lines last, which the log and summary keep in full.
+        costs=() counts=() names=() budget=()
         for name in $TOKENS; do
           [[ $name =~ ^[a-z][a-z0-9-]{0,39}$ ]] || { echo "::warning::api-budget: skipped a token name that is not lower-case kebab case"; continue; }
           names+=("$name")
-          lines=$(api_budget_emit "$name")
-          if [[ -n $lines ]]; then
-            printf '%s\n' "$lines"
-            sed 's/^::notice title=api-budget::/api-budget: /' <<<"$lines" >>"$GITHUB_STEP_SUMMARY"
-          fi
           # This job's own requests, every page and gh subcommand: unlike cost, no other job's.
           # A notice, as the hub reads annotations, not the log; 0 with no reading.
           calls=$(api_budget_emit_calls "$name")
@@ -60,21 +72,36 @@ runs:
           n=${n%% *}
           [[ $n =~ ^[0-9]+$ ]] || n=unknown
           counts+=("$name-calls=$n")
+          lines=$(api_budget_emit "$name")
           [[ -n $lines ]] || continue
+          budget+=("$lines")
           cost=${lines##*cost=}
           costs+=("$name-cost=${cost/na/unknown}")
         done
-        lines=$(api_budget_emit_content)
-        if [[ -n $lines ]]; then
-          printf '%s\n' "$lines"
-          sed 's/^::notice title=api-budget::/api-budget: /' <<<"$lines" >>"$GITHUB_STEP_SUMMARY"
+        # Job-token calls no counted client sees: named, so api-calls reads as a floor.
+        outside=()
+        for step in ${OUTSIDE:-}; do
+          [[ $step =~ ^[A-Za-z0-9._/:-]{1,80}$ ]] || { echo "::warning::api-budget: skipped an outside step name with other characters"; continue; }
+          outside+=("$step")
+        done
+        if ((${#outside[@]} > 0)); then
+          echo "::notice title=api-uncounted::github-token ${outside[*]}"
+          echo "api-uncounted github-token ${outside[*]}" >>"$GITHUB_STEP_SUMMARY"
         fi
-        # Last, after the lines the hub already reads.
         lines=$(api_budget_emit_routes "${names[@]}")
         if [[ -n $lines ]]; then
           printf '%s\n' "$lines"
           sed 's/^::notice title=api-routes::/api-routes /' <<<"$lines" >>"$GITHUB_STEP_SUMMARY"
         fi
+        lines=$(api_budget_emit_content)
+        if [[ -n $lines ]]; then
+          printf '%s\n' "$lines"
+          sed 's/^::notice title=api-budget::/api-budget: /' <<<"$lines" >>"$GITHUB_STEP_SUMMARY"
+        fi
+        for lines in "${budget[@]}"; do
+          printf '%s\n' "$lines"
+          sed 's/^::notice title=api-budget::/api-budget: /' <<<"$lines" >>"$GITHUB_STEP_SUMMARY"
+        done
         ((${#counts[@]} == 0)) || echo "calls=${counts[*]}" >>"$GITHUB_OUTPUT"
         if ((${#costs[@]} > 0)); then
           echo "${costs[*]}" >>"$GITHUB_STEP_SUMMARY"

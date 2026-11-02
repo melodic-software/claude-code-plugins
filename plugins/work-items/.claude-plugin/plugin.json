@@ -1,6 +1,6 @@
 {
   "name": "work-items",
-  "version": "4.0.2",
+  "version": "4.1.2",
   "description": "Work items through a provider-neutral tracker seam (github, local-markdown, jira, gitea, linear adapters): track (dashboard, creation, race-safe claims, recurring checks, stale-lease audits), scan-todos, decompose (plans into vertical slices), ship (run one spec container), triage (raw intake and unsolicited PRs), work, work-loop (autonomous PR-only drain), attend-queue (escalations), onboard-adapter (new tracker adapter), measure-delivery (DORA metrics), and setup (binds the provider).",
   "author": {
     "name": "Melodic Software",
@@ -52,7 +52,7 @@
     "lane_instance": {
       "type": "string",
       "title": "Lane instance ID",
-      "description": "Writer identity for this machine's work-loop telemetry, the suffix of its telemetry marker, so concurrent lane instances never overwrite each other. Absent: the sanitized lowercased hostname. Must match ^[a-z0-9][a-z0-9-]{0,31}$. It appears verbatim in tracker comments."
+      "description": "Writer identity for this machine's work-loop telemetry, the suffix of its telemetry marker, so concurrent lane instances never overwrite each other. Absent: a random id made once and kept in the plugin data dir. Must match ^[a-z0-9][a-z0-9-]{0,31}$. It appears verbatim in tracker comments."
     },
     "lane_app_slug": {
       "type": "string",

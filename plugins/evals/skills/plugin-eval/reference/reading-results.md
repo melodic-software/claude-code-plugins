@@ -105,6 +105,19 @@ Count each arm's rows for the run count, never `runsPerCase`: under `--runs 2` a
 - **Recheck trigger**: the plugin-evals page documents `runsPerCase`, or a run's `runsPerCase`
   matches its row count under `--runs`. Then update this paragraph.
 
+A case whose case.yaml sets `context.history_file` runs with-arm only from a path target even
+under `suite.ablation: with-without`: its `arms` holds no `without` key at all, and it has no
+delta. `run-validity.py` accepts that shape as single-arm by design and warns; an empty or short
+`without` list still fails the row count.
+
+- **Basis**: two `aggregate-result.json` files from path-target runs at Claude Code 2.1.316, with
+  `suite.ablation: with-without`, where every `history_file` case held 3 with-arm rows and no
+  `without` key; no docs page states the single-arm rule
+  (<https://code.claude.com/docs/en/plugin-evals#json-result>).
+- **As of**: 2026-11-01
+- **Recheck trigger**: the plugin-evals page documents how `history_file` interacts with
+  `--ablation`, or a path-target run records a `without` arm for a `history_file` case.
+
 `cases[].aggregates` carries `score` and `passRate` for the with-arm, plus `scoreWithout`,
 `passRateWithout`, and `delta` when the arms are comparable. Observed on a suite where one
 without-run lost its judge to the ceiling: `scoreWithout` and `delta` were both absent while
@@ -164,6 +177,14 @@ case complete), read 2026-09-13.
   excluded, so the same suite scores differently. Hold the mode fixed or the trend line is fiction.
 - A single run is a smoke test. The defaults exist because a non-deterministic agent tells you
   little in one sample, and pinning both models buys comparability, not determinism.
+- A grader that cannot pass without the plugin (every `tool_used` on `tool: Skill`, plus anything
+  `arm: with-only`) is excluded from scoring in both arms ([Per-grader fields](#per-grader-fields)).
+  `arm: both` forces scoring in both arms, which is what a must-not-invoke check (`min: 0` **and**
+  `max: 0`) needs.
+- Copy a plugin whose directory is named `evals` under another name before a run. Pointer: the
+  probe pair in [records.md](records.md#spoke-reach), as of 2026-10-31; recheck on a Claude Code
+  release by re-running one case with `--keep-temp`. Check the trace for a denied `Read` before
+  crediting a spoke.
 
 ## Noise report
 

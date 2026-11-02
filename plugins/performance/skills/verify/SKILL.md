@@ -122,6 +122,11 @@ Nothing in a printed figure tells a sound run from a broken one. Before the repo
   code paths against its `Path (<arm>):` lines; a cache the after arm found warm against a
   cold-start run of each arm; failed or skipped work against the error and work counts
   ([harness-integrity rule 8](${CLAUDE_PLUGIN_ROOT}/reference/harness-integrity.md#8-read-the-failure-and-completion-tallies-before-the-timing)).
+  An untuned arm, one left on default runtime settings the `Rig:` line does not record (a pool or
+  cache size, a GC setting, a connection limit) while the other was tuned, is checked against a
+  diff of the settings each arm ran with. A gap that one-sided tuning buys belongs to the tuning,
+  not the change, so when the settings differ, re-run the default arm with the same tuning before
+  comparing. The exception is a claim whose change is that tuning.
 
 Check the bound with arithmetic too: the saving is capped by how long the changed code ran in the
 before arm. If the old code ran for 300 ms of a 2 s run, the after arm can be at most 300 ms

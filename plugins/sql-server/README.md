@@ -4,9 +4,10 @@ Read-only access to SQL Server-family databases (a local SQL Server container, A
 for agents. The design is [ADR 0086](../../docs/adr/0086-bound-the-sql-server-read-tier-by-a-read-only-principal-and-fixed-registrations.md).
 
 This release ships the versioned config schema, its loader, the single-statement reject list, the
-stdio MCP server with its three tools, the executor that runs each call on SQL Server through
-`tedious`, and the `setup` skill that checks a config and registers its environments. The plugin
-is off by default.
+stdio MCP server with its five tools, the executor that runs each call on SQL Server through
+`tedious`, and the `setup` skill that checks a config and registers its environments. A
+registration is read-only unless it opts in to [writes](#writes), which a person approves on
+every call. The plugin is off by default.
 
 ## Setup
 
@@ -37,18 +38,21 @@ literal password, and writes nothing.
 One process serves one registration over stdio:
 
 ```bash
-node plugins/sql-server/src/launch.mjs --config <path> --environment <name>
+node plugins/sql-server/src/launch.mjs --config <path> --environment <name> [--write]
 ```
 
 `--environment` picks one environment from the config: one server and its database allow-list.
-Every registration exposes the same three tools, and `tools/list` returns the same list every
-time. The `tools` capability declares `listChanged` false.
+Every registration exposes the same five tools, whether or not it passes `--write`, and
+`tools/list` returns the same list every time. The `tools` capability declares `listChanged`
+false.
 
 | Tool | Arguments | Returns |
 |---|---|---|
 | `query` | `sql` (one `SELECT`, optionally led by `WITH`), `database` | The rows |
 | `list_objects` | `database`, `schema` | Schemas, tables and views |
 | `describe_object` | `name`, `schema`, `database` | Columns, keys and indexes |
+| `preview_write` | `name`, `schema`, `database` | The triggers on a table, the foreign keys that cascade from it, and the triggers on each table a cascade reaches |
+| `write` | `sql` (one `INSERT`, `UPDATE`, `DELETE` or `MERGE`, optionally led by `WITH`), `expectedRows`, `database` | The committed row count; refused without `--write` |
 
 `database` is optional and defaults to the first database in the allow-list. A name outside the
 list is refused before any connection opens. No argument names a server or an environment, so
@@ -58,6 +62,42 @@ with the reason.
 
 The server answers the stateless 2026-07-28 MCP protocol (`server/discover` and per-request
 `_meta`) and the `initialize`-based 2025-11-25 protocol.
+
+## Writes
+
+The write tier is off by default. A registration opts in with `--write`, and its environment must
+hold a `write` block naming a write principal: a second login or Entra identity, separate from
+the read principal in `auth` (see [Config](#config)). The read tools keep connecting as the read
+principal. Without `--write`, `write` refuses every call before it connects. The setup skill's
+registration commands leave `--write` out, so add it yourself to a registration you want to write
+through. They also forward only the read principal's credential variables. For a `sql-login`
+write principal, add one `--env 'NAME=${NAME}'` entry for each variable its `write.auth` names,
+such as `--env 'SQL_WRITER_USER=${SQL_WRITER_USER}' --env 'SQL_WRITER_PASSWORD=${SQL_WRITER_PASSWORD}'`,
+or the first approved `write` fails because the variable is not set. An `entra-default` write
+identity needs no extra `--env` entry: its `clientId` comes from the config.
+
+- **Approval on every call.** `write` carries `_meta["anthropic/requiresUserInteraction"]: true`,
+  so Claude Code shows its permission prompt on every call in every permission mode, and no allow
+  rule skips it. In `dontAsk` mode Claude Code denies the call, and a `--permission-prompt-tool`
+  cannot approve it. The other four tools stay unflagged.
+- **One guarded batch.** The server runs `BEGIN TRANSACTION`, the statement, a comparison of
+  `@@ROWCOUNT` with `expectedRows`, and `COMMIT` or `ROLLBACK` as one batch, after the same
+  per-call guards as a read and before the same `@@TRANCOUNT` check. A different count rolls back
+  and returns a tool error naming both counts. No transaction stays open while the prompt waits.
+- **The write reject list.** It accepts one `INSERT`, `UPDATE`, `DELETE` or `MERGE`, optionally
+  led by `WITH`, and refuses every other statement kind, a second statement (a `SELECT` after
+  `INSERT ... VALUES` included), transaction control, `SELECT ... INTO`, `OUTPUT`, `OPENROWSET`,
+  `OPENQUERY` and `OPENDATASOURCE`. Like the read list it is a heuristic; the write principal's
+  grants bound what a write can change. `expectedRows` is at most 2147483647, the largest
+  `@@ROWCOUNT`.
+- **An outcome the server cannot know.** When the request timeout cancels a write, or a trigger
+  returns more rows than `rowCap`, the tool error says whether the write committed is not known.
+  Read the table before trying again.
+- **Preview first.** The row-count check reads `@@ROWCOUNT`, which per #5940's Evidence counts
+  only the target table's rows, not the rows a trigger or a cascading foreign key changes. Call
+  `preview_write` on the target table before `write`. It runs
+  as the read principal and lists only what that principal can see, so a trigger or foreign key on
+  a table it cannot see is missing from the preview.
 
 ## What keeps a registration read-only
 
@@ -178,7 +218,10 @@ environment variable:
 ```
 
 `auth.type` is `sql-login` or `entra-default` (an optional `clientId`). `defaults` and each
-environment's `limits` take `requestTimeoutMs`, `lockTimeoutMs` and `rowCap`.
+environment's `limits` take `requestTimeoutMs`, `lockTimeoutMs` and `rowCap`. An environment may
+add `"write": { "auth": { ... } }`, the write principal a `--write` registration's `write` tool
+connects as, in the same two shapes; the server refuses one that names the read principal's
+variables or Entra identity.
 
 ## Tests
 
@@ -201,19 +244,22 @@ node plugins/sql-server/integration/read-path.mjs
 
 The script starts a `mcr.microsoft.com/mssql/server:2022-latest` container (Developer edition)
 on a random local port, with a self-signed certificate for `localhost` that only this run trusts.
-It creates a read-only login, a database `app` that the login can read and a database `other` that
-it cannot, and starts the server on a registration confined to `app`. Each password is generated
-for the run and reaches the plugin's server only through environment variables. It then checks the S1/S2,
-S5, S6 and S7 requirements of
+It creates two databases, `app` and `other`, a read-only login that can read `app` but not
+`other`, and a write login that can read and write `app`. It starts the server on a
+registration confined to `app`, first without `--write` and then with it, from a config whose
+environment names the variables that hold each login. Each password is generated for the run and reaches the plugin's
+server only through environment variables. It then checks the S1/S2, S4, S5, S6 and S7
+requirements of
 [#5940](https://github.com/melodic-software/claude-code-plugins/issues/5940) and prints one line
 per check:
 
 | Check | What passes |
 |---|---|
 | S1/S2 | Every write, DDL and session-state statement sent through `query` is refused, in each of two rounds. A statement the reject list lets through, such as `SELECT NEXT VALUE FOR` on a sequence, must meet a permission refusal. Each write is also sent straight to the server as the read-only login, past the reject list, and must meet a permission refusal there. After each attempt, a probe call shows the per-call settings in force and no plugin session holds a transaction. The database, read as `sa`, is unchanged at the end. |
+| S4 | `write` carries `_meta["anthropic/requiresUserInteraction"]: true` and the other tools do not. Without `--write`, the server refuses `write` for the missing opt-in even though the write login's variables are set, and the database stays unchanged. With `--write`, `query` still runs as the read-only login. A `write` that affects `expectedRows` rows commits. A `write` that affects 3 rows when `expectedRows` is 1 rolls back with a tool error and leaves the table unchanged. After either write, no plugin session holds a transaction. |
 | S5 | Each tool refuses `database: "other"` before connecting. A three-part name into `other` is refused because the login cannot access that database. `list_objects` shows only `app`. |
-| S6 | Neither password appears in the plugin's files, in the config and registration files the run wrote, or in the server's output. |
-| S7 | `tools/list` returns the same list after every tool call of the run. The `tools` capability declares `listChanged` false. |
+| S6 | No password appears in the plugin's files, in the config and registration files the run wrote, or in the output of either server. |
+| S7 | `tools/list` returns the same list after every tool call of the run, with and without `--write`. The `tools` capability declares `listChanged` false. |
 
 It exits 0 when every check passes and 1 when a check or the setup fails. Without a reachable
 Docker daemon it prints `SKIP: docker not available` and exits 0. It removes the container and

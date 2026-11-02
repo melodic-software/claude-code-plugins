@@ -1,5 +1,19 @@
 # Changelog: evals
 
+## [0.14.1] - 2026-11-02
+
+### Changed
+
+- `/evals:plugin-eval`'s "Reading the delta" section now has two more checks. First, every counted run must have attempted the task its prompt set; a run that did not makes its case not comparable. Second, a gap claimed for more than the model it ran on needs a second-model run of the same suite whose noise report also excludes 0. This comes from pstack's `explain-the-number` principle (`docs/upstream/cursor-pstack.md`).
+- The `promote` line now also requires both checks.
+- Three "What the number means" bullets moved from `SKILL.md` to `reference/reading-results.md` ("What a delta does and does not say"): with-only graders, `arm: both`, and copying a plugin directory named `evals`. The ablation-mode bullet was dropped from `SKILL.md`, since that reference already states it. The 1.00-case bullet stays as one sentence beside a pointer to the reference. The move keeps `SKILL.md` under its 500-line cap.
+
+## [0.14.0] - 2026-11-01
+
+### Added
+
+- `convert-evals-json.py` writes a deterministic grader instead of an `llm` judge when an expectation's whole wording is a mechanical check: the case's own skill invoked or one of the plugin's skills not invoked (`tool_used` on Skill), a backticked command run or not run (`tool_used` on Bash, its words in order), a backticked literal or `/<plugin>:<skill>` named in the reply (`regex`), or a file written at a path when the case can create files (`file_exists`). Each gets pass and fail samples that `/evals:validate` grades offline. Any qualifier, placeholder, slash command or other plugin's skill keeps the expectation an `llm` judgment.
+
 ## [0.13.7] - 2026-11-01
 
 ### Fixed

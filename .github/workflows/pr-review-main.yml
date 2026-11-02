@@ -675,7 +675,7 @@ jobs:
       - name: Report chunk 1's outcome
         if: steps.review-1.outcome == 'success' || steps.review-1.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
           outcome: ${{ steps.review-1.outcome }}
           execution-file: ${{ steps.review-1.outputs.execution-file }}
@@ -744,7 +744,7 @@ jobs:
       - name: Report chunk 2's outcome
         if: steps.review-2.outcome == 'success' || steps.review-2.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
           outcome: ${{ steps.review-2.outcome }}
           execution-file: ${{ steps.review-2.outputs.execution-file }}
@@ -813,7 +813,7 @@ jobs:
       - name: Report chunk 3's outcome
         if: steps.review-3.outcome == 'success' || steps.review-3.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
           outcome: ${{ steps.review-3.outcome }}
           execution-file: ${{ steps.review-3.outputs.execution-file }}
@@ -882,7 +882,7 @@ jobs:
       - name: Report chunk 4's outcome
         if: steps.review-4.outcome == 'success' || steps.review-4.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
           outcome: ${{ steps.review-4.outcome }}
           execution-file: ${{ steps.review-4.outputs.execution-file }}
@@ -1500,7 +1500,7 @@ jobs:
       - name: Report chunk 1's outcome
         if: steps.review-1.outcome == 'success' || steps.review-1.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
           outcome: ${{ steps.review-1.outcome }}
           execution-file: ${{ steps.review-1.outputs.execution-file }}
@@ -1572,7 +1572,7 @@ jobs:
       - name: Report chunk 2's outcome
         if: steps.review-2.outcome == 'success' || steps.review-2.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
           outcome: ${{ steps.review-2.outcome }}
           execution-file: ${{ steps.review-2.outputs.execution-file }}
@@ -1644,7 +1644,7 @@ jobs:
       - name: Report chunk 3's outcome
         if: steps.review-3.outcome == 'success' || steps.review-3.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
           outcome: ${{ steps.review-3.outcome }}
           execution-file: ${{ steps.review-3.outputs.execution-file }}
@@ -1716,7 +1716,7 @@ jobs:
       - name: Report chunk 4's outcome
         if: steps.review-4.outcome == 'success' || steps.review-4.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
           outcome: ${{ steps.review-4.outcome }}
           execution-file: ${{ steps.review-4.outputs.execution-file }}
@@ -2327,7 +2327,7 @@ jobs:
       - name: Report chunk 1's outcome
         if: steps.review-1.outcome == 'success' || steps.review-1.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
           outcome: ${{ steps.review-1.outcome }}
           execution-file: ${{ steps.review-1.outputs.execution-file }}
@@ -2397,7 +2397,7 @@ jobs:
       - name: Report chunk 2's outcome
         if: steps.review-2.outcome == 'success' || steps.review-2.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
           outcome: ${{ steps.review-2.outcome }}
           execution-file: ${{ steps.review-2.outputs.execution-file }}
@@ -2467,7 +2467,7 @@ jobs:
       - name: Report chunk 3's outcome
         if: steps.review-3.outcome == 'success' || steps.review-3.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
           outcome: ${{ steps.review-3.outcome }}
           execution-file: ${{ steps.review-3.outputs.execution-file }}
@@ -2537,7 +2537,7 @@ jobs:
       - name: Report chunk 4's outcome
         if: steps.review-4.outcome == 'success' || steps.review-4.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
           outcome: ${{ steps.review-4.outcome }}
           execution-file: ${{ steps.review-4.outputs.execution-file }}

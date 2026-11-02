@@ -17,7 +17,7 @@
     {
       "id": 2,
       "name": "markdown-only-runs-markdown-passes",
-      "prompt": "Run tidy-diff on lines.tsv, whose only rows name docs/guide.md lines 5-20 and plugins/x/skills/y/SKILL.md lines 40-44.",
+      "prompt": "Run tidy-diff on lines.tsv, whose only rows name docs/guide.md lines 5-20 and skills/y/SKILL.md lines 40-44.",
       "expected_output": "Runs only the markdown passes: /docs-hygiene:write-for-humans on docs/guide.md, /docs-hygiene:write-for-agents on the SKILL.md, then /ai-slop:audit fix on each, keeping fixes inside the listed lines. The simplify and comment passes report none, since no code file is listed.",
       "files": [],
       "narration": true,

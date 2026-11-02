@@ -1,6 +1,8 @@
 # Work-class labels
 
-Canonical `work-class:` axis members for the fail-closed admission gate and merge partition.
+Canonical `work-class:` axis members for the merge partition and the untrusted-provenance floor.
+The work-loop admission gate does not decide by work class: only `work-class: untrusted-provenance`
+or `provenance: signal` holds an item for a person.
 Classification criteria (the risk-property bundles behind C1–C5) live in the `autonomy`
 plugin's [`work-classes.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/reference/guardrails/work-classes.md);
 this leaf owns the **label strings** triage stamps and setup migrates.
@@ -17,31 +19,32 @@ this leaf owns the **label strings** triage stamps and setup migrates.
 
 Discover live members through the bound adapter's label listing (GitHub:
 `gh label list --limit 200 | grep -i work-class`). An item carries **exactly one**
-`work-class:` label; the merge partition and admission gate read the label only, never a
+`work-class:` label; the merge partition and the frontier floor read the label only, never a
 `Work-class: C<n>` body trailer.
 
-## Who applied the label
+## Who applied the role label
 
-The label counts toward admission only when its latest application came from an actor with
+Admission checks who applied the autonomous-eligible role label, not the `work-class:` label: the
+role label counts only when its latest application came from an actor with
 `write`, `maintain` or `admin` on the repository. GitHub's triage role can apply labels while
 holding only `read` (pointer:
 [Get repository permissions for a user](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user),
 as of 2026-10-04, recheck trigger: the endpoint's role mapping changes), so before admitting an item the work-loop drain runs the adapter's
-`label-provenance` operation over the item's `work-class:` label and its autonomous-eligible role
+`label-provenance` operation over the item's autonomous-eligible role
 label, and refuses the item for that cycle on a triage or read labeler, a missing `labeled` event,
 or a failed read ([`../skills/work-loop/SKILL.md`](../skills/work-loop/SKILL.md) "Admission gate",
 labeler precondition); a refusal only on the body edit time, edited after admission or unread, is
 escalated once instead. A provider adapter without that operation refuses every labeled item, so
 triage on such a tracker leaves the drain idle rather than trusting labels it cannot attribute.
 
-## Human-floor classes exclude the autonomous-eligible role label
+## The human-floor class excludes the autonomous-eligible role label
 
-`work-class: structural` (C4) and `work-class: untrusted-provenance` (C5) are human-gated
-**regardless of any other signal** (the admission-gate table in
-[`../skills/work-loop/SKILL.md`](../skills/work-loop/SKILL.md) "Admission gate", which binds
-whether or not the `autonomy` plugin is enabled). The autonomous-eligible role label
+`work-class: untrusted-provenance` (C5), and the `provenance: signal` label, are human-gated
+**regardless of any other signal** ([`../skills/work-loop/SKILL.md`](../skills/work-loop/SKILL.md)
+"Admission gate", which binds whether or not the `autonomy` plugin is enabled). No other class
+floors an item, and neither does a missing class. The autonomous-eligible role label
 (default `agent-ready`) asserts the opposite, so **an item must never carry both**. Applying
-that role label to a C4 or C5 item is a triage defect, not an operator override: no label
+that role label to a C5 item is a triage defect, not an operator override: no label
 lifts the floor.
 
 Enforcement, so the rule is not merely written down:
@@ -53,7 +56,7 @@ Enforcement, so the rule is not merely written down:
   [`../tools/work-item-tracker/lib/labels.sh`](../tools/work-item-tracker/lib/labels.sh), so a
   `provenance: signal` item is dropped whatever its `work-class:` label).
   Without that exclusion the contradictory item stays frontier-available, so each lane
-  instance in turn claims it, hits the fail-closed admission gate, and escalates, burning a
+  instance in turn claims it, hits the admission gate's provenance hold, and escalates, burning a
   worker every pass while the item never moves.
 - **The attended frontier still shows it.** The exclusion is autonomous-only, so `list-frontier`
   without `--autonomous` (operator listings, container-scoped views) still returns a mislabeled
@@ -68,10 +71,6 @@ Enforcement, so the rule is not merely written down:
   item unless the same edit reclassifies it to C1-C3
   ([`../skills/attend-queue/SKILL.md`](../skills/attend-queue/SKILL.md), "Human-floor work class:
   reclassify or stay gated").
-
-C3 `scoped` is deliberately **not** floored at the frontier: its disposition turns on
-bug-fix-vs-feature shape and first-drain ratification, neither readable from a label, so the
-work-loop admission gate owns it.
 
 Remediation when the pair is found on an existing item: keep the work class, remove the
 autonomous-eligible role label, and apply the human-gated role label (default `needs-human`)

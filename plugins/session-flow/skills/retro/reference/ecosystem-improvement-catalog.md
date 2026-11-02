@@ -71,7 +71,7 @@ CLAUDE.md / Rules, or Skills for a script whose output cost many tokens).
 
 | Finding | Hand to |
 | --- | --- |
-| Mechanical mistake: a fixed pattern, banned API, wrong file location, or a review-standard violation | `/review:audit-enforceability`, which picks the cheapest deterministic check and its owner. It reads one review-findings file, not a retro table, so the row names the finding and the user records it in such a file before running the skill |
+| Mechanical mistake: a fixed pattern, banned API, wrong file location, or a review-standard violation | `/corrections:codify "<the mistake>"`, which counts it, picks the strongest rung that can catch it and proves the check. The row names the mistake as the description to pass; a review-findings file the user already keeps goes to `/corrections:codify findings <file>` |
 | Missing automation: a hook, MCP server, skill, subagent, or scheduled task | `/harness-config:audit-automation-gaps`, which rejects new automation unless evidence earns it |
 | An instruction the model followed unaided, or one that is stale or conflicting | `/harness-config:audit-instructions` |
 | Whether standing instructions are still needed at all | `/harness-config:unhobble`, the bare-model experiment |
@@ -82,7 +82,10 @@ CLAUDE.md / Rules, or Skills for a script whose output cost many tokens).
 approval checkpoint, and the owner skill picks the mechanism. Propose one on the first occurrence of
 a policy-class mistake (irreversible, public, or security-relevant), and on a repeat with the same
 cause for a behavior correction. Sometimes the right outcome is no check: the model already
-complies, the action is reversible, or the repo has nothing to wire a check into.
+complies, the action is reversible, or the repo has nothing to wire a check into. An existing check
+that should have caught the mistake but is unwired (no CI or pre-commit step runs it) or broken is
+the finding, reported before any new check is proposed. A repo with no CI or pre-commit step to
+wire a check into is still reported as a finding, even when no check is proposed.
 
 ## Memory
 

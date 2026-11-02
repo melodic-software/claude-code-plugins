@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Mock the RabbitMQ publisher and assert the UserRegistered message it was asked to send.",
+      "why": "mock before bus"
+    },
+    {
+      "answer": "| RabbitMQ | Mock (unmanaged, another team consumes it) |",
+      "why": "table row"
+    },
+    {
+      "answer": "- **Message bus**: replace it with a test double, since the billing service's view of it is a contract.",
+      "why": "test double in a bold list"
+    },
+    {
+      "answer": "The bus is what you fake: a spy that records published events works well.",
+      "why": "bus before fake"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Run both for real: Postgres through Testcontainers and RabbitMQ in its own container.",
+      "why": "keeps the unmanaged dependency real"
+    },
+    {
+      "answer": "Use SUMIF in the spreadsheet to total the paid rows.",
+      "why": "answer to a different question"
+    }
+  ]
+}

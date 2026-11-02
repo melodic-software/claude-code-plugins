@@ -391,4 +391,38 @@
       "until": { "core": 999999999999, "graphql": 999999999999, "search": 999999999999, "code_search": 999999999999 }
     }
   ]
+,
+  "routes": [
+    { "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/issues/42/comments?per_page=100&page=2", "route": "repos/{repo}/issues/{n}/comments", "absent": ["melodic","claude-code-plugins","per_page","page=2"] },
+    { "url": "repos/{owner}/{repo}/pulls/7/files", "route": "repos/{repo}/pulls/{n}/files", "absent": ["{owner}"] },
+    { "url": "/repos/o/r/commits/0123456789abcdef0123456789abcdef01234567/check-runs", "route": "repos/{repo}/commits/{sha}/check-runs", "absent": ["0123456789abcdef"] },
+    { "url": "repos/o/r/actions/runs/39931677333/attempts/2/jobs", "route": "repos/{repo}/actions/runs/{n}/attempts/{n}/jobs", "absent": ["39931677333"] },
+    { "url": "https://api.github.com/graphql", "route": "graphql", "absent": [] },
+    { "url": "https://ghe.example/api/graphql", "route": "graphql", "absent": ["ghe.example"] },
+    { "url": "https://ghe.example/api/v3/repos/o/r/labels/needs-human", "route": "repos/{repo}/labels/{x}", "absent": ["ghe.example","needs-human"] },
+    { "url": "user/github_pat_abc", "route": "user/{x}", "absent": ["github_pat_abc"] },
+    { "url": "repos/o/r/git/ref/heads/feature/fix-it", "route": "repos/{repo}/git/ref/{x}/{x}/{x}", "absent": ["feature","fix-it"] },
+    { "url": "repos/o/r/branches/main/protection", "route": "repos/{repo}/branches/{x}/protection", "absent": ["main"] },
+    { "url": "users/SomeLogin/repos", "route": "users/{x}/repos", "absent": ["SomeLogin"] },
+    { "url": "repos/o/r/actions/workflows/pr-verify.yml/runs", "route": "repos/{repo}/actions/workflows/{x}/runs", "absent": ["pr-verify"] },
+    { "url": "repos/o/r/issues/1/comments#frag", "route": "repos/{repo}/issues/{n}/comments", "absent": ["frag"] },
+    { "url": "repos/o/r/hello world", "route": "repos/{repo}/{x}", "absent": ["hello"] },
+    { "url": "/repos/o/r/rules/branches/stale-feature-name", "route": "repos/{repo}/rules/branches/{x}", "absent": ["stale-feature-name"] },
+    { "url": "repos/o/r/branches/feat/secret-topic/protection", "route": "repos/{repo}/branches/{x}/{x}/protection", "absent": ["feat","secret-topic"] },
+    { "url": "repos/o/r/commits/release-candidate/status", "route": "repos/{repo}/commits/{x}/status", "absent": ["release-candidate"] },
+    { "url": "repos/o/r/git/trees/main?recursive=1", "route": "repos/{repo}/git/trees/{x}", "absent": ["main","recursive"] },
+    { "url": "repos/o/r/labels/area/ci", "route": "repos/{repo}/labels/{x}/{x}", "absent": ["area","ci"] },
+    { "url": "repos/o/r/actions/runners/build-box-seven", "route": "repos/{repo}/actions/{x}/{x}", "absent": ["runners","build-box-seven"] },
+    { "url": "repos/someowner", "route": "repos/{x}", "absent": ["someowner"] },
+    { "url": "applications/Iv1abcdef/token", "route": "{x}/{x}/{x}", "absent": ["applications","Iv1abcdef","token"] },
+    { "url": "https://github.com/someowner/somerepo/pull/5", "route": "other", "absent": ["someowner","somerepo","github.com"] },
+    { "url": "https://uploads.github.com/repos/o/r/releases/9/assets?name=secret-asset.zip", "route": "repos/{repo}/releases/{n}/{x}", "absent": ["secret-asset","assets"] },
+    { "url": "rate_limit", "route": "rate_limit", "absent": [] },
+    { "url": "", "route": "other", "absent": [] },
+    { "url": "https://api.github.com/", "route": "other", "absent": [] },
+    { "url": "repos/o/r/issues/issues/issues/issues/issues/issues/issues/issues/issues/issues/issues/issues/comments", "route": "other", "absent": [] },
+    { "url": "repos/o/r/commits/ABCDEF0123/statuses", "route": "repos/{repo}/commits/{sha}/statuses", "absent": ["ABCDEF0123"] },
+    { "url": "repos/o/r/actions/workflows/pr-require-checks.yml/runs?event=workflow_dispatch&branch=main&per_page=20", "route": "repos/{repo}/actions/workflows/{x}/runs", "absent": ["pr-require-checks","event","main"] },
+    { "url": "repos/o/r/merge-async", "route": "repos/{repo}/{x}", "absent": ["merge-async"] }
+  ]
 }

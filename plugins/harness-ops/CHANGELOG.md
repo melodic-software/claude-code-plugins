@@ -3,6 +3,24 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.4] - 2026-11-02
+
+### Security
+
+- Shared `publish-gate.mjs` synced: the publish gate now treats a `melo-phone-NNN` fleet hostname as machine-specific, like the desk and laptop hosts.
+
+## [5.2.3] - 2026-11-01
+
+### Security
+
+- The lanes telemetry upsert scans the body it would post, from a file or stdin, with the shared leak scan before any API call, and withholds it whole on a hit (exit 3), naming the rule and never the match. It now needs node.
+- A `--marker` whose instance the leak scan reads as a fleet or private hostname exits 3 before any API call, naming the instance rather than the body.
+
+- The lanes telemetry upsert now accepts a `--body-dir` only when it is this plugin's data dir (its last segment names harness-ops) and never `/`, the home dir or an ancestor of it, so a caller-chosen `--body-dir ~` no longer contains anything. The body path is canonicalized with `realpath`, opened once and re-checked through `/proc` on Linux.
+- The leak scan also withholds a body naming a home path or a private or fleet hostname, and recognizes npm, Google API, Pulumi and Azure storage keys, URL credentials, JWTs, Docker registry auth, base64-encoded PEM blocks and netrc passwords.
+- The data-dir name is checked again after `realpath`, so a symlink named for the plugin that points elsewhere is refused, and the home-dir check reads the account's passwd entry, so an overridden `HOME` cannot disable it. A machine path or hostname is reported as such, with no rotation advice, and a path under a GitHub-hosted runner's home dir is not withheld. URL credentials need a password of 6 or more characters that is not a placeholder (`$` and `*` allowed), and base64-encoded PEM blocks and netrc passwords are caught too.
+- netrc passwords are caught in the `default` entry and on a `password` line of their own.
+
 ## [5.2.2] - 2026-11-01
 
 ### Fixed

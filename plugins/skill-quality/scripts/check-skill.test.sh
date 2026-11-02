@@ -5408,7 +5408,7 @@ size_skill() {
 size_skill sz-at-max 419 160
 out="$(run sz-at-max 2>&1)"
 rc=$?
-if [[ $rc -eq 0 ]] && ! grep -q "Pocock's measured max" <<<"$out" &&
+if [[ $rc -eq 0 ]] && ! grep -q "Pocock's measured max" <<<"$out" && ! grep -q 'WARN: description is' <<<"$out" &&
   grep -q 'INFO: size: description 419 chars, body 160 lines (Pocock medians 130 chars, 70 lines; max 419, 160)' <<<"$out"; then
   pass "check 30 stays quiet at exactly 419 chars and 160 body lines, printing the medians as INFO"
 else
@@ -5417,11 +5417,90 @@ fi
 size_skill sz-over-desc 420 10
 out="$(run sz-over-desc 2>&1)"
 rc=$?
-if [[ $rc -eq 0 ]] && grep -q "WARN: description is 420 chars, above Pocock's measured max 419" <<<"$out"; then
+if [[ $rc -eq 0 ]] && grep -q "WARN: description is 420 chars, above the description_warn setting 419 from default" <<<"$out"; then
   pass "check 30 WARNs (exit 0) on a 420-char description"
 else
   fail "check 30 should WARN on 420 chars, exit 0 (rc=$rc): $out"
 fi
+# The description settings: target 250 and warn 419 by default, read from
+# docs/conventions/skill-quality.yaml (this fixture repo binds no home) and the
+# .local.yaml beside it, a later layer winning; 1024 stays the fixed FAIL.
+size_skill sz-setting 300 10
+out="$(run sz-setting 2>&1)"
+if grep -q 'INFO: description settings: target 250 (default), warn above 419 (default), fail above 1024 (fixed)' <<<"$out" &&
+  grep -q 'INFO: description is 300 chars, above the description_target setting 250 from default' <<<"$out" &&
+  ! grep -q 'WARN: description is' <<<"$out"; then
+  pass "check 30 prints the default description settings and an INFO above the target"
+else
+  fail "check 30 should print the default settings and an INFO above the target: $out"
+fi
+mkdir -p "$TMP/docs/conventions"
+printf 'description_warn: 280\n' >"$TMP/docs/conventions/skill-quality.yaml"
+out="$(run sz-setting 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'WARN: description is 300 chars, above the description_warn setting 280 from docs/conventions/skill-quality.yaml' <<<"$out"; then
+  pass "check 30 moves the description warning to the team layer's description_warn"
+else
+  fail "check 30 should WARN at the team layer's description_warn 280, exit 0 (rc=$rc): $out"
+fi
+printf 'description_warn: 350\ndescription_target: 320\n' >"$TMP/docs/conventions/skill-quality.local.yaml"
+out="$(run sz-setting 2>&1)"
+if ! grep -q 'WARN: description is' <<<"$out" &&
+  grep -q 'INFO: description settings: target 320 (docs/conventions/skill-quality.local.yaml), warn above 350 (docs/conventions/skill-quality.local.yaml)' <<<"$out"; then
+  pass "check 30 lets the personal layer override the team layer key by key"
+else
+  fail "check 30 should take the personal layer's description settings: $out"
+fi
+printf 'description_warn: 2000\n' >"$TMP/docs/conventions/skill-quality.local.yaml"
+out="$(run sz-setting 2>&1)"
+if grep -q "WARN: docs/conventions/skill-quality.local.yaml: description_warn is '2000', not a whole number from 1 to 1024" <<<"$out" &&
+  grep -q 'warn above 419 (default)' <<<"$out" && ! grep -q 'WARN: description is' <<<"$out"; then
+  pass "check 30 drops an out-of-range description_warn and resolves to the default, not the team value"
+else
+  fail "check 30 should name the invalid value and fall back to the default 419: $out"
+fi
+# A repository whose AGENTS.md region binds a home reads the layers from that
+# home, never from docs/conventions; a region that does not resolve WARNs and
+# reads no layer.
+rm -f "$TMP/docs/conventions/skill-quality.local.yaml"
+printf 'description_warn: 280\n' >"$TMP/docs/conventions/skill-quality.yaml"
+mkdir -p "$TMP/team-conv"
+printf '<!-- BEGIN GENERATED: convention-home -->\nTeam conventions live in `team-conv`.\n<!-- END GENERATED: convention-home -->\n' >"$TMP/AGENTS.md"
+out="$(run sz-setting 2>&1)"
+if grep -q 'warn above 419 (default)' <<<"$out" && ! grep -q 'WARN: description is' <<<"$out" &&
+  ! grep -q 'docs/conventions' <<<"$out"; then
+  pass "check 30 ignores docs/conventions when the pointer region binds another home"
+else
+  fail "check 30 should read no docs/conventions layer when the region binds team-conv: $out"
+fi
+printf 'description_warn: 290\n' >"$TMP/team-conv/skill-quality.yaml"
+out="$(run sz-setting 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'WARN: description is 300 chars, above the description_warn setting 290 from team-conv/skill-quality.yaml' <<<"$out" &&
+  ! grep -q 'docs/conventions' <<<"$out"; then
+  pass "check 30 reads the description settings from the bound convention home"
+else
+  fail "check 30 should WARN at team-conv's description_warn 290, exit 0 (rc=$rc): $out"
+fi
+printf '<!-- BEGIN GENERATED: convention-home -->\nTeam conventions live in `team-conv`.\nAlso `docs/conventions`.\n<!-- END GENERATED: convention-home -->\n' >"$TMP/AGENTS.md"
+out="$(run sz-setting 2>&1)"
+if grep -q 'WARN: the convention-home pointer region does not resolve' <<<"$out" &&
+  grep -q 'warn above 419 (default)' <<<"$out" && ! grep -q 'WARN: description is' <<<"$out"; then
+  pass "check 30 WARNs on an unresolvable pointer region and uses the default settings"
+else
+  fail "check 30 should WARN on two pointer lines and fall back to the defaults: $out"
+fi
+rm -rf "$TMP/AGENTS.md" "$TMP/team-conv"
+rm -rf "$TMP/docs"
+size_skill sz-setting-cap 1025 10
+out="$(run sz-setting-cap 2>&1)"
+rc=$?
+if [[ $rc -ne 0 ]] && grep -q 'FAIL: description alone is 1025 codepoints' <<<"$out"; then
+  pass "check 2b still FAILs a description above the fixed 1024 maximum"
+else
+  fail "check 2b should FAIL at 1025 codepoints (rc=$rc): $out"
+fi
+rm -rf "$SKILLS/sz-setting" "$SKILLS/sz-setting-cap"
 size_skill sz-over-body 100 161
 out="$(run sz-over-body 2>&1)"
 rc=$?

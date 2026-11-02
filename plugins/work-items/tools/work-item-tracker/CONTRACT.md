@@ -352,16 +352,14 @@ blocker closed as won't-do keeps its dependent off the frontier) AND no
 assignee AND not a container (a `work-map` item is never its own frontier item, see
 "Containers and state") AND no label starting `wayfind:` (a wayfind map item belongs to
 `/planning:wayfind`, never to `/work-items:work`). With `--autonomous`, items labeled
-`needs-human` are additionally excluded, as are items carrying a **human-floor work class**:
-`work-class: structural` (C4)
-or `work-class: untrusted-provenance` (C5), whose admission disposition is human-gated
-regardless of any other signal, and items labeled `status: needs-decision`,
+`needs-human` are additionally excluded, as are items carrying the **human-floor work class**
+`work-class: untrusted-provenance` (C5) or the `provenance: signal` label, which are
+human-gated regardless of any other signal, and items labeled `status: needs-decision`,
 `status: needs-info` or `needs-spec`, which wait on a person. The floor wins over the autonomous-eligible role label: an
 item carrying both is contradictory, and resolving it against the floor is what keeps a
-worker from claiming and then escalating it once per lane pass. `work-class: scoped` (C3) is
-deliberately not floored here: its disposition turns on bug-fix-vs-feature shape and
-first-drain ratification, which the work-loop admission gate owns and no label carries. The
-floor is autonomous-only: the default (attended) frontier still surfaces these items, so they
+worker from claiming and then escalating it once per lane pass. No other work class is
+floored, and neither is an item with no `work-class:` label: work class is not an admission
+gate. The floor is autonomous-only: the default (attended) frontier still surfaces these items, so they
 never become unreachable. The filter runs core-side over the labels `list-items` already
 returns; provider search syntax never leaves the adapter. With `--parent <container-id>` the frontier is scoped
 to one container: core reads the adapter's `list-sub-items` for that container instead of the
