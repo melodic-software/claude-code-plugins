@@ -85,13 +85,14 @@ const timeOf = (value) => (typeof value === "string" ? Date.parse(value) : Numbe
 const firstLine = (body) => (body ?? "").trimStart().split("\n", 1)[0].trimEnd();
 
 // When an issue's body was last edited, and its newest body edits and title
-// changes with the account behind each.
+// changes with the account behind each. GitHub lists body edits newest first
+// and timeline items oldest first, so each reads its newest page.
 const ACCOUNT = "{ ... on User { databaseId } ... on Bot { databaseId } }";
 const ISSUE_EDITS_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     issue(number: $number) {
       lastEditedAt
-      userContentEdits(last: 100) { pageInfo { hasPreviousPage } nodes { editedAt editor ${ACCOUNT} } }
+      userContentEdits(first: 100) { pageInfo { hasNextPage } nodes { editedAt editor ${ACCOUNT} } }
       timelineItems(itemTypes: [RENAMED_TITLE_EVENT], last: 100) { pageInfo { hasPreviousPage } nodes { ... on RenamedTitleEvent { createdAt actor ${ACCOUNT} } } }
     }
   }
@@ -111,14 +112,15 @@ async function readEditsSince(github, repository, number, frozenAt, trusted) {
     throw new Error("issue edits have an unexpected shape");
   }
   const after = (time) => time != null && !(timeOf(time) < frozenAt);
-  const since = (page, timeKey, accountKey) => {
+  // An older page can hide a change only when every node on this one is after `frozenAt`.
+  const since = (page, olderKey, timeKey, accountKey) => {
     const nodes = Array.isArray(page?.nodes) ? page.nodes : [];
-    const hidden = page?.pageInfo?.hasPreviousPage === true && (nodes.length === 0 || after(nodes[0]?.[timeKey]));
+    const hidden = page?.pageInfo?.[olderKey] === true && nodes.every((node) => after(node?.[timeKey]));
     const changes = nodes.filter((node) => node === null || typeof node !== "object" || after(node[timeKey]));
     return { hidden, changes, byTrusted: changes.every((node) => trusted.has(node?.[accountKey]?.databaseId)) };
   };
-  const body = since(issue.userContentEdits, "editedAt", "editor");
-  const title = since(issue.timelineItems, "createdAt", "actor");
+  const body = since(issue.userContentEdits, "hasNextPage", "editedAt", "editor");
+  const title = since(issue.timelineItems, "hasPreviousPage", "createdAt", "actor");
   const bodyChanged = after(issue.lastEditedAt);
   if (!bodyChanged && title.changes.length === 0) {
     return "";

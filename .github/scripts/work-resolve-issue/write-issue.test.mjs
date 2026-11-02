@@ -87,12 +87,16 @@ function fakeGitHub({ comments, edits = {}, issueEdits = {}, users = {}, fail = 
     if (key === "POST /graphql" && body.variables.number === 6825) {
       const { lastEditedAt = null, renamedAt, bodyEdits = [], renames, bodyMore = false, renamesMore = false } = issueEdits;
       const nodes = renames ?? (renamedAt ? [{ createdAt: renamedAt }] : []);
+      // `bodyEdits` newest first, as GitHub lists them; the page is the one the query asks for.
+      const [, side, size] = body.query.match(/userContentEdits\((first|last): (\d+)\)/);
+      const page = side === "first" ? bodyEdits.slice(0, Number(size)) : bodyEdits.slice(-Number(size));
+      const more = bodyMore || bodyEdits.length > page.length;
       return {
         data: {
           repository: {
             issue: {
               lastEditedAt,
-              userContentEdits: { pageInfo: { hasPreviousPage: bodyMore }, nodes: bodyEdits },
+              userContentEdits: { pageInfo: { hasNextPage: side === "first" && more, hasPreviousPage: side === "last" && more }, nodes: page },
               timelineItems: { pageInfo: { hasPreviousPage: renamesMore }, nodes },
             },
           },
@@ -452,7 +456,7 @@ describe("who changed the title or body after the label", () => {
 
   test("only listed accounts after the label is edited-trusted", async () => {
     for (const issueEdits of [
-      { lastEditedAt: at(15), bodyEdits: [bodyEdit(2, STRANGER), bodyEdit(14, OWNER), bodyEdit(15, LANES_BOT)] },
+      { lastEditedAt: at(15), bodyEdits: [bodyEdit(15, LANES_BOT), bodyEdit(14, OWNER), bodyEdit(2, STRANGER)] },
       { renames: [rename(14, CURSOR_AGENT)] },
       { lastEditedAt: at(14), bodyEdits: [bodyEdit(14, LANES_BOT)], renames: [rename(3, STRANGER), rename(15, OWNER)] },
     ]) {
@@ -462,7 +466,7 @@ describe("who changed the title or body after the label", () => {
 
   test("any other account, an unread account or a hidden page is edited", async () => {
     for (const issueEdits of [
-      { lastEditedAt: at(15), bodyEdits: [bodyEdit(14, STRANGER), bodyEdit(15, OWNER)] },
+      { lastEditedAt: at(15), bodyEdits: [bodyEdit(15, OWNER), bodyEdit(14, STRANGER)] },
       { lastEditedAt: at(14), bodyEdits: [bodyEdit(14, null)] },
       { lastEditedAt: at(14), bodyEdits: [] },
       { lastEditedAt: at(14), bodyEdits: [bodyEdit(14, OWNER)], bodyMore: true },
@@ -475,7 +479,13 @@ describe("who changed the title or body after the label", () => {
   });
 
   test("a hidden page whose oldest edit is before the label hides no change after it", async () => {
-    const outputs = await refusal({ lastEditedAt: at(14), bodyEdits: [bodyEdit(12, STRANGER), bodyEdit(14, OWNER)], bodyMore: true });
+    const outputs = await refusal({ lastEditedAt: at(14), bodyEdits: [bodyEdit(14, OWNER), bodyEdit(12, STRANGER)], bodyMore: true });
+    assert.deepEqual(outputs, [{ refused: "edited-trusted" }]);
+  });
+
+  test("a listed account's edit after the label on a body with over a page of edits is edited-trusted", async () => {
+    const older = Array.from({ length: 101 }, () => bodyEdit(12, STRANGER));
+    const outputs = await refusal({ lastEditedAt: at(14), bodyEdits: [bodyEdit(14, OWNER), ...older] });
     assert.deepEqual(outputs, [{ refused: "edited-trusted" }]);
   });
 });
