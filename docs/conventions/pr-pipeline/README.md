@@ -881,7 +881,12 @@ anywhere (`skill-md`), and allows only `markdown`, so a non-markdown path escala
 `patch-protected-path`; it otherwise matches `default`. No other row names those two refusals,
 and none has to. The `review-threads` row alone also refuses a new file at mode `100755` or a
 change to that mode (`new-exec-bit`), so address-feedback can drop an executable bit but never
-add one; `ci-context` and `issue` keep setting script bits. The `ci-context`, `docs`, `default`, `issue` and `merge-base` rows cap a patch at 300 paths, and the
+add one; `ci-context` and `issue` keep setting script bits. The `ci-context` and `review-threads`
+rows also refuse, in any case and through any `..` segment, a `.gitattributes` file at any depth
+(`gitattributes`), a path whose first segment is `.husky` (`husky`) and `lefthook.yml` at the root
+(`lefthook`): each changes what git, or a hook it runs, does on the next checkout or commit, so
+fix-ci and address-feedback cannot change them. No other row names these three.
+The `ci-context`, `docs`, `default`, `issue` and `merge-base` rows cap a patch at 300 paths, and the
 `merge-base` row a merge commit at 300 new blobs.
 `checkPatchRules` in
 [`patch-rules.mjs`](../../../.github/actions/resolve-config/patch-rules.mjs) rejects a row without that

@@ -160,14 +160,16 @@ changed_files::into changed_paths "$BASE" --include-deleted -- 'plugins/' || exi
 # A lane run's edits are uncommitted, so a skill it adds is untracked, which
 # git diff does not list.
 declare -A untracked=()
+# Every temp file lives in this one directory, whose trap is set before any
+# write, so an early exit leaves nothing behind.
+out_dir="$(mktemp -d)" || exit 2
+trap 'rm -rf "$out_dir"' EXIT
 if ((lane)); then
-  untracked_out="$(mktemp)" || exit 2
-  git ls-files --others --exclude-standard -z -- 'plugins/' >"$untracked_out" || exit 2
+  git ls-files --others --exclude-standard -z -- 'plugins/' >"$out_dir/untracked" || exit 2
   while IFS= read -r -d '' path; do
     changed_paths+=("$path")
     untracked["$path"]=1
-  done <"$untracked_out"
-  rm -f "$untracked_out"
+  done <"$out_dir/untracked"
 fi
 changed=()
 declare -A seen_dirs=()
@@ -204,8 +206,6 @@ failed=0
 # the skills one at a time for up to six minutes.
 jobs_max="${CHECK_CHANGED_SKILLS_JOBS:-$(nproc 2>/dev/null || echo 1)}"
 [[ "$jobs_max" =~ ^[1-9][0-9]*$ ]] || jobs_max=1
-out_dir="$(mktemp -d)" || exit 2
-trap 'rm -rf "$out_dir"' EXIT
 keys=()
 
 for skill_dir in ${changed[@]+"${changed[@]}"}; do

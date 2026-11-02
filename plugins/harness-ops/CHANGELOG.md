@@ -3,6 +3,16 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.5.0] - 2026-11-02
+
+### Added
+
+- `control-claude-code` takes `--unattended` on `launch`, `ready` and `logs`. It keeps the one CI credential variable that `credentials.ci` in `config/defaults.json` names (`ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`), sets `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, and the session holder unsets it once `claude` starts (its `/proc` environment still holds it); whether the plugin under test can still read it is left to #8651's isolation probe. Ready accepts that credential's `apiKeySource`, and the driver refuses to start when both variables are set. Attended runs are unchanged: the API-key, gateway and provider variables are cleared and Ready requires `none`.
+
+### Changed
+
+- Shared `publish-gate.mjs` synced: the R2 key pair pattern now finds a 32-hex and a 64-hex word on one line in time linear in the line, so a large one-line JSON file no longer takes minutes to scan. It matches exactly what it matched before.
+
 ## [5.4.0] - 2026-11-02
 
 ### Added

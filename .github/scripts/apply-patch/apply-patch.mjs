@@ -100,6 +100,11 @@ const ROW_PATH_RULES = {
   // A path under a skills/ directory at any depth.
   skills: (s) => s.slice(0, -1).includes("skills"),
   "skill-md": (s) => s.at(-1) === "skill.md",
+  // Files that change what git, or a hook it runs, does on the next checkout
+  // or commit on any machine.
+  gitattributes: (s) => s.at(-1) === ".gitattributes",
+  husky: (s) => s[0] === ".husky",
+  lefthook: (s) => s.length === 1 && s[0] === "lefthook.yml",
 };
 const rowPathRule = (name) => (entry) => ROW_PATH_RULES[name](segments(entry.path));
 
@@ -120,6 +125,9 @@ export const REFUSALS = {
   "rename-into-refused": PROTECTED_REFUSALS["rename-into-refused"],
   skills: { kind: "protected-path", optional: true, test: rowPathRule("skills") },
   "skill-md": { kind: "protected-path", optional: true, test: rowPathRule("skill-md") },
+  gitattributes: { kind: "protected-path", optional: true, test: rowPathRule("gitattributes") },
+  husky: { kind: "protected-path", optional: true, test: rowPathRule("husky") },
+  lefthook: { kind: "protected-path", optional: true, test: rowPathRule("lefthook") },
   // A mode that gains the executable bit: a new file at 100755, or a change
   // to it. Optional, so the issue row's script-exec-bit and the ci-context
   // row's script fixes keep working.
