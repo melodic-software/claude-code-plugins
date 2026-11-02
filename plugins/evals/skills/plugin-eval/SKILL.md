@@ -135,13 +135,13 @@ and point `--json` at the original's gitignored results directory.
 
 ### Tested model and judge
 
-Resolve the tested model and the judge from the planned invocation, the cases' `model` keys, and the
-environment, by the `--model` and `--judge-model` rows of the command options table; an alias and a
-full ID of one model are the same. Neither default is recorded here: read the rows, never search.
-Report `unknown` if either is unresolved pre-run. Setting: `${user_config.same_model_warning}`; if
-it renders empty or as its literal placeholder, use `true`, the manifest default, and say which you
-used. When `false`, print `same_model: off` and compare nothing. When `same_model` is `yes`, print
-this line under the report. It is advice: the run goes ahead.
+Resolve the model under test and the judge from the planned invocation, the cases' `model` keys,
+and the environment, by the `--model` and `--judge-model` rows of the command options table; an
+alias and a full model ID naming the same model are the same. Report `unknown` when either cannot
+be resolved before a run. Setting: `${user_config.same_model_warning}`; if it renders empty or as
+the literal placeholder text, use `true`, the manifest default, and say which you used. When it is
+`false`, print `same_model: off` and compare nothing. When `same_model` is `yes`, print this line
+under the report. It is advice: the run goes ahead.
 
 ```text
 warning: the judge is the model under test; pass a different --judge-model
