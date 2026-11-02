@@ -3,6 +3,18 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## The genre rubric applied to the remaining candidates, 2026-11-02
+
+- **`codebase-health:audit` offers a rendered view.** Its report is in the reports genre and feeds
+  a fix pass, so it offers to render the report through `visualization:visualize` and never builds a
+  page itself. It reads `medium` from a `--medium` argument, then the three layers.
+- **`harness-ops:morning-brief` is listed as a shared-builder emitter.** It already built its status
+  page from the printed brief; the contract now names it. A publishing `medium` from the team
+  layer now keeps its page local, as the cascade concern requires.
+- **Five more candidates are recorded with no lane.** `education:explain`, three knowledge skills
+  and `testing:audit` were assessed and get none, each with its reason under Wave-1 adoption and
+  grandfathered surfaces.
+
 ## `adhd:clarify` adopts the shared chrome reference, 2026-11-02
 
 - **The chrome reference has a second adopter and is registered.** `adhd:clarify` carries a
