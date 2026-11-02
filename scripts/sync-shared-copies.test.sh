@@ -439,6 +439,28 @@ assert_output_contains "an outside copy refuses --check-bump, with the reason" "
 chmod -R u+w "$tools"
 rm -rf "$tools"
 
+# --- a copy of scripts/ staged inside the checkout is still an outside copy ------
+# The issue lane stages its copy at .lane/verify/scripts inside the pull request's
+# checkout (collect-base-activity/action.yml), so the probe finds that checkout as
+# the copy's own top level; only the <top>/scripts comparison keeps it outside.
+fixture
+git_init_test_repo "$root" >/dev/null || exit 2
+git -C "$root" add -A && git -C "$root" commit -qm base
+mkdir -p "$root/.lane/verify"
+cp -R "$root/scripts" "$root/.lane/verify/scripts"
+staged() { (cd "$root" && bash "$root/.lane/verify/scripts/sync-shared-copies.sh" "$@" 2>&1); }
+out="$(staged)"
+expect "a copy staged inside the checkout regenerates the checkout's copies" 0 $? "$out"
+if [[ -f "$root/plugins/alpha/lib/esc.mjs" && -f "$root/plugins/beta/lib/esc.mjs" ]]; then
+  pass "a copy staged inside the checkout writes the registered copies into the checkout"
+else
+  bad "a copy staged inside the checkout writes the registered copies into the checkout" "out: $out"
+fi
+out="$(staged --check-bump HEAD)"
+expect "a copy staged inside the checkout refuses --check-bump" 2 $? "$out"
+LAST_OUTPUT="$out"
+assert_output_contains "a copy staged inside the checkout refuses --check-bump, with the reason" "refused: --check-bump"
+
 # --- with no work tree to resolve, --check-bump is refused (fails closed) -------
 fixture
 out="$(run --check-bump HEAD)"
