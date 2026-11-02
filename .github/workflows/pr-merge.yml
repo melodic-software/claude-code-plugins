@@ -2227,9 +2227,9 @@ jobs:
       group: pr-merge-enable-auto-merge
       queue: max
     runs-on: ubuntu-24.04
-    # Above the sum of its steps' timeouts (38, workflow.test.mjs checks it),
+    # Above the sum of its steps' timeouts (41, workflow.test.mjs checks it),
     # with a minute left for the steps that name none.
-    timeout-minutes: 39
+    timeout-minutes: 42
     permissions:
       contents: read # check out main
       actions: read # the verifier verdicts, their runs and the head-ref map
@@ -2459,9 +2459,9 @@ jobs:
 
       # A PR-scoped dispatch has no post-merge-dispatch job, so it reads the
       # report the last sweep kept, from a trusted run on main
-      # (last-report.mjs), into the same place. lane-room reuses it under the
-      # gate's reuse rule or checks it again (settle_shared); with none the
-      # room is unreadable and nothing is armed.
+      # (last-report.mjs), into the same place. The next step keeps it only
+      # under post-merge-dispatch's idle-tick rule; with none the room is
+      # unreadable and nothing is armed.
       - name: Read the post-merge report the last sweep kept
         if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr
         continue-on-error: true
@@ -2489,6 +2489,43 @@ jobs:
           LANE_RECORDS_PATH: ${{ runner.temp }}/lane-records.json
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
         run: node .base/.github/scripts/pr-merge/lane-records.mjs read
+
+      # The last sweep's report stands for a PR-scoped run only as it stands
+      # for post-merge-dispatch's idle tick: a check that passed (exit 0 or
+      # 5) and `settle --idle-tick` keeps, so a verifying run or canary that
+      # moved since its computedAt, changed quarantine markers or pins, or
+      # any hold the report carries refuses it (postmerge.idle_refusal).
+      # Any refusal or failure removes the report: the room then reads
+      # unreadable, nothing arms, and the next sweep checks again.
+      - name: Keep the last sweep's report only while nothing it read has moved
+        if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr
+        timeout-minutes: 3
+        env:
+          GH_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
+          API_BUDGET_SCRIPT: settle-idle-tick
+          BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
+          REPO: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+          last=$RUNNER_TEMP/post-merge
+          scripts=.base/plugins/source-control/skills/babysit-prs/scripts
+          kept=false
+          if [ -f "$last/post-merge.json" ] && [ -f "$last/post-merge-code" ]; then
+            last_code=$(cat "$last/post-merge-code")
+            last_sha=$(cat "$last/post-merge-code-sha" 2>/dev/null || true)
+            if [[ $last_code =~ ^[05]$ ]] &&
+              python3 "$scripts/babysit_verify_evidence.py" settle --idle-tick --repo "$REPO" \
+                --postmerge-result "$last/post-merge.json" --code-sha "$last_sha"; then
+              kept=true
+            fi
+          fi
+          if [ "$kept" = true ]; then
+            echo "the last sweep's post-merge report still stands: nothing it reads has moved"
+          else
+            rm -rf "${last:?}"
+            echo "::notice::the last sweep's post-merge report does not stand for this run; nothing is armed, and the next sweep checks again"
+          fi
 
       # While merge.report-only is anything but false it reports each
       # decision and writes nothing.
@@ -2555,7 +2592,7 @@ jobs:
       - name: Scan the upload for credentials
         id: scan-upload
         if: >-
-          always() && steps.arm.outcome != 'skipped' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+          always() && steps.arm.outcome != 'skipped' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && !inputs.pr
         continue-on-error: true
         timeout-minutes: 2
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
@@ -2566,7 +2603,7 @@ jobs:
 
       - name: Upload the verifier answers for the next run
         if: >-
-          (always() && steps.arm.outcome != 'skipped' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')) && steps.scan-upload.outputs.clean == 'true'
+          (always() && steps.arm.outcome != 'skipped' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && !inputs.pr) && steps.scan-upload.outputs.clean == 'true'
         continue-on-error: true
         timeout-minutes: 2
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -2585,12 +2622,15 @@ jobs:
       # `read` adds only this file's carried-* sections to them. Only a
       # scheduled or hand-started run's file is read back, so only one
       # uploads it, and only when it kept a read: an empty file would hide an
-      # older one.
+      # older one. A PR-scoped dispatch (inputs.pr) uploads neither file, nor
+      # the verifier answers above: they cover one pull request, not a sweep
+      # (rotation.mjs trustedRun skips such a run too).
       - name: Keep the verdict reads that never change
         id: carry
         if: >-
           always() && steps.arm.outcome != 'skipped'
           && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+          && !inputs.pr
         continue-on-error: true
         env:
           CARRY_FROM: ${{ runner.temp }}/babysit-run-cache.json

@@ -561,6 +561,67 @@ test("pr-merge takes a pr input, runs every 30 minutes and names a PR-scoped run
   assert.match(report, /\n {10}CALLS: \$\{\{ steps\.budget-end\.outputs\.calls \}\}\n/);
   assert.match(report, /::notice title=pr-merge-wake::/);
   assert.ok(arm.indexOf("- name: Log the API budget at job end") < arm.indexOf("- name: Report the PR-scoped outcome"));
+  // A sweep's carried verdict reads are kept and uploaded by a sweep only.
+  const carry = /- name: Keep the verdict reads that never change\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)?.[1];
+  assert.match(carry, /\n {10}&& !inputs\.pr\n/);
+});
+
+// The last sweep's report stands for a PR-scoped run only under
+// post-merge-dispatch's idle-tick rule (babysit_verify_evidence.py settle
+// --idle-tick): a refusal, an unread exit code or a failed check removes it,
+// so lane-room reads the room unreadable and nothing arms.
+const KEEP_STEP = "Keep the last sweep's report only while nothing it read has moved";
+const keepReport = ({ code = "0", settle = 0, files = true } = {}) => {
+  const arm = job("enable-auto-merge");
+  const body = new RegExp(`- name: ${KEEP_STEP.replace(/[.']/g, "\\$&")}\\n([\\s\\S]*?)(?=\\n {6}- name: )`).exec(arm)?.[1];
+  assert.ok(body, "a PR-scoped run settles the last sweep's report");
+  const script = /\n {8}run: \|\n([\s\S]*)$/.exec(body)[1].replace(/^ {10}/gm, "");
+  const dir = tempDir("pr-merge-keep-report-");
+  const bin = join(dir, "bin");
+  mkdirSync(bin);
+  const args = join(dir, "args");
+  writeFileSync(args, "");
+  writeFileSync(join(bin, "python3"), `#!/bin/sh\necho "$@" >>'${args}'\nexit ${settle}\n`, { mode: 0o755 });
+  const report = join(dir, "post-merge");
+  mkdirSync(report);
+  if (files) {
+    writeFileSync(join(report, "post-merge.json"), "{}");
+    writeFileSync(join(report, "post-merge-code"), `${code}\n`);
+    writeFileSync(join(report, "post-merge-code-sha"), `${"c".repeat(40)}\n`);
+  }
+  const run = spawnSync("bash", ["--noprofile", "--norc", "-c", script], {
+    env: { PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, REPO: "o/r" },
+    encoding: "utf8",
+  });
+  return { body, status: run.status, kept: existsSync(report), settled: readFileSync(args, "utf8").trim(), stdout: run.stdout };
+};
+
+test("a PR-scoped run keeps the last sweep's report only when settle --idle-tick keeps it", () => {
+  const kept = keepReport();
+  assert.equal(kept.status, 0);
+  assert.equal(kept.kept, true);
+  // The same call post-merge-dispatch makes for a reused report.
+  assert.match(kept.settled, /^\.base\/plugins\/source-control\/skills\/babysit-prs\/scripts\/babysit_verify_evidence\.py settle --idle-tick --repo o\/r --postmerge-result \S+\/post-merge\/post-merge\.json --code-sha c{40}$/);
+  assert.match(kept.body, /^ {8}if: steps\.lane-token\.outputs\.token != '' && github\.event_name == 'workflow_dispatch' && inputs\.pr\n/);
+  assert.match(kept.body, /\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n/);
+  const arm = job("enable-auto-merge");
+  assert.ok(arm.indexOf("- name: Read the post-merge report the last sweep kept") < arm.indexOf(`- name: ${KEEP_STEP}`));
+  assert.ok(arm.indexOf(`- name: ${KEEP_STEP}`) < arm.indexOf("- name: Arm and disarm auto-merge"));
+});
+
+test("a refused or unread settle leaves a PR-scoped run no report", () => {
+  for (const [why, options, asked] of [
+    ["settle refuses", { settle: 1 }, true],
+    ["the check could not judge", { code: "3" }, false],
+    ["the check failed", { code: "1" }, false],
+    ["no report", { files: false }, false],
+  ]) {
+    const run = keepReport(options);
+    assert.equal(run.status, 0, why);
+    assert.equal(run.kept, false, why);
+    assert.equal(run.settled !== "", asked, why);
+    assert.match(run.stdout, /::notice::the last sweep's post-merge report does not stand for this run/, why);
+  }
 });
 const pullRequestEvent = (senderType) => ({
   event_name: "pull_request_target",
@@ -1582,7 +1643,8 @@ test("enable-auto-merge reads the verifier answers only from a trusted run and u
   assert.match(armStep, /\n {10}export [^\n]*\bVERIFY_CACHE\b/);
   const upload = step("Upload the verifier answers for the next run");
   assert.ok(upload, "an answers upload");
-  const predicate = "always() && steps.arm.outcome != 'skipped' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')";
+  // A PR-scoped dispatch (inputs.pr) uploads none of a sweep's carried files.
+  const predicate = "always() && steps.arm.outcome != 'skipped' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && !inputs.pr";
   assert.ok(upload.startsWith(`        if: >-\n          (${predicate}) && steps.scan-upload.outputs.clean == 'true'\n`), upload);
   // The credential scan just before it runs on the same condition over the
   // same two files.

@@ -7,7 +7,11 @@
 // workflow_dispatch's first attempt, on main, whose actor is
 // github-actions[bot] (GITHUB_ACTIONS_BOT_ID) and that names one pull request
 // (DISPATCH_PR); a re-run of it still needs a listed human, and any other
-// bot's run stops.
+// bot's run stops. verdictWake cannot tell pr-verify's dispatch from any
+// other GITHUB_TOKEN workflow_dispatch of pr-merge.yml with a pr input: such
+// a run is still main's pr-merge.yml, which arms only that one pull request
+// after reading every rule itself, and the token broker checks the run
+// again before it mints.
 // Any other run proceeds only when its actor (ACTOR_ID) and the account that
 // started this attempt are each a listed human. Both are matched by id, since
 // a login can be released and registered by someone else; the attempt's
