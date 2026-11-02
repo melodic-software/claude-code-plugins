@@ -4,6 +4,10 @@ The default action and `report`. Scripts below are in the skill's `scripts/` dir
 as `<skill-dir>/scripts/<name>`: this file arrives through the Read tool, so no substitution
 variable resolves in it. Postures, the floor and the hard rules are in `SKILL.md`.
 
+With a subagent tool available, and unless you are `comment-reviewer` yourself, you run steps 1 and
+2 and then dispatch `code-tidying:comment-reviewer` for steps 3 to 7 ("The comment-reviewer agent"
+in `SKILL.md`), even when a missing tool means the run can only propose.
+
 ## Contents
 
 - [The three-way triage](#the-three-way-triage)
