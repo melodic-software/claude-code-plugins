@@ -37,6 +37,13 @@ labeler precondition); a refusal only on the body edit time, edited after admiss
 escalated once instead. A provider adapter without that operation refuses every labeled item, so
 triage on such a tracker leaves the drain idle rather than trusting labels it cannot attribute.
 
+The precondition cannot tell the lane's own identity from a person with `write`, so the
+work-loop's intake sweep writes neither the role label nor a `work-class:` label by default: it
+escalates with a proposed class instead
+([`../skills/triage/context/apply-outcome.md`](../skills/triage/context/apply-outcome.md),
+"Work-loop intake sweep: propose, never admit"). A label the lane applied itself admits an item
+only when the lane's launch prompt explicitly opts the sweep into writing it.
+
 ## The human-floor class excludes the autonomous-eligible role label
 
 `work-class: untrusted-provenance` (C5), and the `provenance: signal` label, are human-gated

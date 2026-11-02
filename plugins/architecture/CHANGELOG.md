@@ -3,6 +3,12 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.0] - 2026-11-02
+
+### Added
+
+- **`/architecture:improve` honors the `rendered-views` `medium` preference.** A `--medium` argument or the `~/.claude/rendered-views.md`, team or overlay layer decides where the deepening report goes: `terminal` writes no HTML report and leaves the candidate artifact, and every other value writes the local report as before. The reply names the source of `medium`.
+
 ## [1.3.2] - 2026-11-02
 
 ### Changed

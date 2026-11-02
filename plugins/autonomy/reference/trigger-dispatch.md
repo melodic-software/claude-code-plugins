@@ -122,7 +122,9 @@ matches only admission rules whose work class is `"*"`; an item those tests mark
 `C5`. The tests run on the state the item observed: a PR or an issue runs that surface's tests,
 and any other observed state fails closed to `C5`, such as a detector-fired `temporal` item
 backstopping a `channel-feed` surface or a `tracker-vcs-event` on a discussion. A `channel-feed`
-signal is the exception, held by its surface row instead.
+signal is the exception, held by its surface row instead. A queued item that carries the
+`provenance: signal` label is `C5` whatever class it was stamped, a routine run's included
+([label test](guardrails/work-classes.md#executable-provenance-tests)).
 
 **Authenticated run context.** Envelope fields are agent-claimable, so a temporal adapter
 resolves `signal.source_surface`, `signal.raw_link`, and `signal.producer_identity` from the

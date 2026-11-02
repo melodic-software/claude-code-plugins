@@ -561,7 +561,8 @@ residence are how this convention prices them.
 
 ## Wave-1 adoption and grandfathered surfaces
 
-Wave-1 adopter (cascade wiring plus chrome citation): `visualization:visualize`.
+Wave-1 adopter (cascade wiring plus chrome citation): `visualization:visualize`. Second chrome
+adopter, citing its own byte-identical copy: `adhd:clarify`.
 
 Emitters that resolve `medium` from the cascade, keeping their shipped default only when no layer
 sets it: `adhd:clarify`. A `terminal` or `file` from any layer keeps its page local; `artifact`, or
@@ -743,8 +744,10 @@ plugin copies it byte-identical to the same path within its own root
 (`reference/html-chrome.html`) and registers the cluster in
 `scripts/cross-plugin-source-registry.txt` in the same change; the drift checker rejects
 a registration while only one plugin carries the file, which is why the first adoption
-ships unregistered by design. Skills cite the reference inline by role (their plugin's
-own copy), never by a repository path an installed consumer cannot resolve.
+shipped unregistered by design. `adhd:clarify` is the second adopter
+(`plugins/adhd/reference/html-chrome.html`), so the cluster is now registered. Skills cite the
+reference inline by role (their plugin's own copy), never by a repository path an installed
+consumer cannot resolve.
 
 The chrome's ivory page background (`--ivory`) is the sanctioned default background for a
 view built on it, so no skill's "styles to leave out" list names a cream or off-white

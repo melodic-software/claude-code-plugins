@@ -3,6 +3,12 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.12] - 2026-11-02
+
+### Changed
+
+- **`/ai-briefing:generate` states that only `--format` selects HTML or PPTX.** No `rendered-views` `medium` layer starts the build, and with no `--format` the summary names the shipped default as the source of the format.
+
 ## [0.9.11] - 2026-10-31
 
 ### Security
