@@ -6783,6 +6783,7 @@ CHECK_CODE_PATHS = (
     "plugins/source-control/skills/babysit-prs/scripts",
     "docs/conventions/pr-pipeline.yaml",
     "plugins/source-control/lib/yaml-subset.awk",
+    "plugins/source-control/lib/parse-concern-value.sh",
 )
 # Inside those paths but deciding no report: a change here keeps it.
 CHECK_CODE_EXCLUDES = ("plugins/source-control/skills/babysit-prs/scripts/tests",)
@@ -6797,6 +6798,10 @@ _BLOCK_SCALAR = re.compile(r"(^|[\s:-])[|>][-+0-9]*\s*(#.*)?$")
 # (plugins/source-control/lib/yaml-subset.awk) reads as neither a line break
 # nor a blank, though Python's `splitlines` or `strip` would.
 _FOREIGN = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f  ]")
+# A line that starts a node: a sequence item, a complex key, a flow
+# collection, or a `key:` mapping entry. Any other line continues the
+# scalar before it, where a blank or `#` line is folded content.
+_STARTS_NODE = re.compile(r"[ \t]*([-?[{]|[^#]*?:([ \t]|$))")
 
 
 def _opens_quote(line: str) -> bool:
@@ -6826,7 +6831,8 @@ def _yaml_meaning(text: str) -> str:
     """`text` less its blank lines, its whole-line comments and each line's
     trailing whitespace, which no YAML parser reads; `text` itself when a
     line opens a block scalar or leaves a quote open (a quoted value going on
-    to the next line), where a `#` line is content. Indentation and an
+    to the next line) or continues a plain scalar from the line before,
+    where a blank or `#` line is content. Indentation and an
     inline comment stay: one is structure, and a `#` in a quoted value is
     not a comment. Lines, blanks and comments follow the config parser's
     rules: lines split on `\\n` only, one trailing `\\r` dropped, and only a
@@ -6837,7 +6843,10 @@ def _yaml_meaning(text: str) -> str:
         return text
     lines = [line.rstrip(" \t") for line in lines]
     kept = [line for line in lines if line and not line.lstrip(" \t").startswith("#")]
-    if any(_BLOCK_SCALAR.search(line) or _opens_quote(line) for line in kept):
+    if any(
+        _BLOCK_SCALAR.search(line) or _opens_quote(line) or not _STARTS_NODE.match(line)
+        for line in kept
+    ):
         return text
     return "\n".join(kept)
 

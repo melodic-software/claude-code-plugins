@@ -1283,7 +1283,7 @@ class IdleRefusal(unittest.TestCase):
 class CheckCodeUnchanged(unittest.TestCase):
     """`check_code_unchanged`: whether the check's code (the babysit-prs
     scripts, docs/conventions/pr-pipeline.yaml and the yaml-subset.awk parser
-    that reads it) at HEAD is the code at the kept commit. Expected outcomes
+    and parse-concern-value.sh wrapper that read it) at HEAD is the code at the kept commit. Expected outcomes
     are the brief's: the same commit or a change elsewhere only allows reuse;
     a change in any of those paths, a missing,
     malformed or unknown commit, or a git failure refuses."""
@@ -1302,6 +1302,7 @@ class CheckCodeUnchanged(unittest.TestCase):
             ("init", "plugins/source-control/skills/babysit-prs/scripts/a.py"),
             ("init", "docs/conventions/pr-pipeline.yaml"),
             ("init", "plugins/source-control/lib/yaml-subset.awk"),
+            ("init", "plugins/source-control/lib/parse-concern-value.sh"),
             ("base", "README.md"),
             ("elsewhere", "README.md"),
             ("scripts", "plugins/source-control/skills/babysit-prs/scripts/a.py"),
@@ -1311,6 +1312,7 @@ class CheckCodeUnchanged(unittest.TestCase):
                 "plugins/source-control/skills/babysit-prs/scripts/tests/test_a.py",
             ),
             ("parser", "plugins/source-control/lib/yaml-subset.awk"),
+            ("wrapper", "plugins/source-control/lib/parse-concern-value.sh"),
         ):
             file = self.root / path
             file.parent.mkdir(parents=True, exist_ok=True)
@@ -1347,6 +1349,10 @@ class CheckCodeUnchanged(unittest.TestCase):
     def test_a_change_to_the_config_parser_refuses(self) -> None:
         # yaml-subset.awk decides what the config means.
         self.assertFalse(self.unchanged(self.commits["tests"], "parser"))
+
+    def test_a_change_to_the_config_parser_wrapper_refuses(self) -> None:
+        # parse-concern-value.sh turns the awk's records into the values read.
+        self.assertFalse(self.unchanged(self.commits["parser"], "wrapper"))
 
     def commit_config(self, text: str) -> str:
         (self.root / "docs/conventions/pr-pipeline.yaml").write_text(text)
@@ -1412,6 +1418,10 @@ class CheckCodeUnchanged(unittest.TestCase):
 
     def test_a_hash_line_inside_a_block_or_quoted_scalar_is_content(self) -> None:
         for before, after in (
+            # A blank line folds a plain scalar's continuation as a newline.
+            ("a: one\n  two\n", "a: one\n\n  two\n"),
+            ("a: one\n  two\n", "a: one\n  # x\n  two\n"),
+            ("- one\n  two\n", "- one\n\n  two\n"),
             ("a: |\n  text\nb: 1\n", "a: |\n  text\n  # more text\nb: 1\n"),
             ("a: >-\n  text\n", "a: >-\n  text\n  # more\n"),
             ('a: "text\n  more"\n', 'a: "text\n  # x\n  more"\n'),
