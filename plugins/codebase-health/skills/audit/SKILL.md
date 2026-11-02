@@ -1,6 +1,6 @@
 ---
 description: "Audit a codebase for drift between docs, config, code, and architecture. Verifies every factual claim against reality via parallel subagent fan-out, severity-rates findings and reports read-only; remediation is delegated to the implementation/verification lanes (`--fix` hands the findings to `/implementation:implement` then `/verification:confirm`). Use when: 'audit codebase', 'check for drift', 'verify docs', 'full audit'. Flags: `--fix` (hand findings to the remediation lanes after reporting), `--docs-only`, `--code-only`, `--config-only`, `--arch-only`."
-argument-hint: "[scope] [--fix] [--docs-only|--code-only|--config-only|--arch-only]"
+argument-hint: "[scope] [--fix] [--medium <value>] [--docs-only|--code-only|--config-only|--arch-only]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -49,6 +49,8 @@ Parse `$ARGUMENTS` for:
   contract, bare `audit` is READ-ONLY. It reports at Phase 3 and stops; remediation intent sits
   behind this explicit override. (`--review-only` is also accepted and means the bare read-only
   default.)
+- **`--medium <value>`**: governs only the offer of a rendered view
+  ([Rendered view](#rendered-view-offered-never-emitted)).
 - **Dimension filters** (optional, mutually exclusive):
   - `--docs-only`: only documentation checks
   - `--code-only`: only code-quality checks
@@ -311,10 +313,40 @@ If the audit finds no discrepancies, report a clean bill of health:
 - Nothing to remediate, so no handoff. Still include the config-gap observations (§5), a clean run
   is the best time to note coverage gaps worth persisting via `/codebase-health:setup apply`.
 
+### Rendered view (offered, never emitted)
+
+Genre: reports. The report feeds a fix pass (`/implementation:implement`), so it offers a view and
+never builds one. The report stays the record; a view is a second presentation of it, never a
+place a finding first appears. In a session with no one reading, skip this section. When `medium`
+resolves to `terminal`, make no offer and print no unavailable line. Otherwise, with
+`visualization:visualize` installed, offer it in one line after the report, before any `--fix`
+handoff. Without that plugin, say in one line that the optional view is unavailable, and never
+hand-build an HTML file, chart or extra markdown file instead.
+
+Resolve `medium` first. A `--medium` argument naming `auto`, `terminal`, `file`, `artifact` or
+`hosted` decides. Otherwise read whichever layers exist, in order: `~/.claude/rendered-views.md`,
+`<root>/.claude/rendered-views.md`, `<root>/.claude/rendered-views.local.md`. `<root>` is
+`${CLAUDE_PROJECT_DIR}` when set, else `git rev-parse --show-toplevel`; outside a work tree read only
+the user-global layer. The last layer that sets `medium` wins. Count the overlay only when
+`git ls-files` does not list it and `git check-ignore` matches it; otherwise report it and ignore
+it. This plugin has no `medium` option.
+
+| `medium` | Offer |
+|---|---|
+| `terminal`, from any source | None: the report is the whole deliverable. |
+| `file` | Offered; when taken, passes `file` to `visualization:visualize`, so nothing is published. |
+| Any other value from `--medium` | Offered; when taken, passes that value to `visualization:visualize`. |
+| `artifact` or `hosted` from the team layer (`<root>/.claude/rendered-views.md`) | Offered; when taken, passes `file` to `visualization:visualize` and says a team layer cannot publish. |
+| Any other layer value, or none | Offered; `visualization:visualize` picks the rung from the same layers. |
+
+A value outside the five is reported and takes the last row. Name the source of `medium` after the
+report: the argument, the layer's path, or "shipped default".
+
 ### Fix gate
 
 **Without `--fix`** (the default, including every model auto-invocation): present the full
-report and **STOP**, the Phase 3 report is the deliverable.
+report, then the rendered-view offer line when one applies, and **STOP**; the Phase 3 report is
+the deliverable.
 **With `--fix`**: present the full Phase 3 report, then hand off to the remediation lanes below.
 
 ---

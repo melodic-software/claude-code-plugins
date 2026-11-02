@@ -44,6 +44,13 @@ exclusive. A scope path narrows the file set. An unscoped whole-repo run is gate
 requires a scope, a filter, or explicit confirmation before fanning out, because a full fan-out spans
 every doc/config/source file.
 
+In an interactive session with the `visualization` plugin installed, the audit ends its report with
+an offer to render it through `/visualization:visualize`, and never builds a page itself.
+`--medium <value>`, or the `medium` key of `.claude/rendered-views.md`, governs the offer:
+`terminal` drops it, and `file` keeps the view local. An `artifact` or `hosted` value from the
+repository's tracked `.claude/rendered-views.md` also keeps the view local, since a checked-out
+branch can write that file.
+
 ## Configurable audit dimensions
 
 What the audit reads and how it verifies claims is **not baked in**. It comes from the consuming
