@@ -420,9 +420,12 @@ regex answer. `compare` runs both and breaks the report on any value that differ
 the changelog skill's native-drift pass reads each new build that way.
 
 A module is a printable run that opens with `// @bun`. When Bun's module table decodes, a run
-outside the module graph's bytes (module sources and table) is not a module. On 2.1.316 that run is Bun's own bootstrap stub, and the
-runtime's string literals follow it with no separator byte, so the run does not parse.
+outside the module graph's bytes (module sources and table) is not a module, and is never parsed.
 `marker_runs_outside_graph` in the binary source counts the runs left out.
+
+| Claim | Basis | As of | Recheck trigger |
+|---|---|---|---|
+| One marker run sits outside the module graph, and parsing it fails | [#12278](https://github.com/melodic-software/claude-code-plugins/issues/12278); `TestBootstrapStub` in `scripts/test_parser_reader.py` holds the shape | 2026-11, Claude Code 2.1.316 | `marker_runs_outside_graph` reads 0 or more than 1, or a run inside the graph reports `Unexpected token` again |
 
 The parser stays opt-in because it reads the Explore and Plan `disallowed_tools` partial on
 2.1.284 to 2.1.288 (the claim below), where the regex reader reads a literal it cannot back:
