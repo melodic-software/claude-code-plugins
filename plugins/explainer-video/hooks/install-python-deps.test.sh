@@ -72,6 +72,57 @@ run_hook() {
 
 installs() { find "$1/python" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d '[:space:]'; }
 
+# Real Git Bash or Cygwin on Windows (the Windows CI lane): the ready stamp the real install writes, in native
+# Windows form (drive-letter paths, 8.3 or long names, .EXE suffixes as shutil.which gives them), holds and the hook
+# starts no Python. The fixture stays under /tmp, which Git Bash maps through an 8.3 short name, so the hook's ROOT
+# and the stamp's root spell one directory two ways. A sitecustomize on PYTHONPATH logs every Python start that
+# imports site, the hook's own interpreter probe included. Every later case stubs interpreters with shell scripts,
+# simulates Windows paths or needs Linux namespaces, so on Windows the suite ends here.
+if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* ]] && command -v cygpath >/dev/null 2>&1; then
+  root="$(new_plugin realwin "$digest")"
+  data="$WORK/data-realwin"
+  stamp="$data/python/.hook-ready"
+  mkdir -p "$WORK/site"
+  printf 'with open(%s, "a") as f:\n    f.write("start\\n")\n' "'$(native "$WORK/py-starts.log")'" >"$WORK/site/sitecustomize.py"
+  # win_run <find-links dir> -> runs the hook with the logging sitecustomize; sets OUT, RC and STARTS.
+  win_run() {
+    rm -f "$WORK/py-starts.log"
+    run_hook "$root" "$1" CLAUDE_PLUGIN_DATA="$(native "$data")" PYTHONPATH="$(native "$WORK/site")"
+    STARTS=0
+    [[ -f "$WORK/py-starts.log" ]] && STARTS="$(wc -l <"$WORK/py-starts.log" | tr -d '[:space:]')"
+  }
+  win_run "$WHEELS"
+  stamp_root=""
+  if [[ -f "$stamp" ]]; then
+    mapfile -t stamp_lines <"$stamp"
+    stamp_root="${stamp_lines[1]-}"
+  fi
+  drive_letter="^[A-Za-z]:\\\\"
+  if [[ "$RC" -eq 0 && -z "$OUT" && "$STARTS" -gt 0 && "$stamp_root" =~ $drive_letter ]]; then
+    ok "under Git Bash the first session installs, starting Python, and writes the ready stamp in Windows form"
+  else
+    fail "Git Bash install: rc=$RC starts=$STARTS stamp root=[$stamp_root] output=[$OUT]"
+  fi
+  win_run "$EMPTY"
+  if [[ "$RC" -eq 0 && -z "$OUT" && "$STARTS" -eq 0 ]]; then
+    ok "under Git Bash a ready stamp in Windows form starts no Python"
+  else
+    fail "Git Bash ready stamp: rc=$RC starts=$STARTS stamp=[$(tr '\n' '|' <"$stamp")] output=[$OUT]"
+  fi
+  rm -f "$stamp"
+  win_run "$EMPTY"
+  if [[ "$RC" -eq 0 && "$STARTS" -gt 0 ]]; then
+    ok "under Git Bash without the stamp the hook starts Python, so the start log sees one"
+  else
+    fail "Git Bash without stamp: rc=$RC starts=$STARTS output=[$OUT]"
+  fi
+  echo "SKIP: the remaining cases stub interpreters with shell scripts, simulate Windows paths or need Linux namespaces"
+  echo "---"
+  echo "passed: $PASS, failed: $FAIL"
+  exit $((FAIL > 0))
+fi
+echo "SKIP: the real Git Bash ready-stamp case needs Git Bash or Cygwin with cygpath"
+
 # First session: installs, says nothing.
 root="$(new_plugin first "$digest")"
 data="$WORK/data-first"
@@ -279,6 +330,175 @@ if [[ "$rc" -eq 0 && "$out" == *'Python 3.12 or 3.13 was not found'* && ! -e "$W
   ok "outside Git Bash and Cygwin a py on PATH is not used"
 else
   fail "py outside Windows: rc=$rc output=[$out]"
+fi
+
+# The ready stamp: pydeps.py install, started through a candidate found on PATH, writes <data>/python/.hook-ready,
+# and while it holds a session start starts no Python. Every candidate name resolves to a wrapper that logs each start
+# and execs the real interpreter. Each case restores the stamp that install wrote, shows that baseline starts nothing,
+# changes one input and shows the full path runs.
+logged="$WORK/logged"
+other="$WORK/other"
+mkdir -p "$logged" "$other"
+real_py="$(command -v "$py")"
+for name in python3.13 python3.12 python3 python; do
+  printf '#!/bin/sh\necho "%s $*" >>"%s/starts.log"\nexec "%s" "$@"\n' "$name" "$WORK" "$real_py" >"$logged/$name"
+done
+cp "$logged/python3.13" "$other/python3.13"
+chmod +x "$logged/"* "$other/"*
+root="$(new_plugin stamped "$digest")"
+data="$WORK/data-stamped"
+stamp="$data/python/.hook-ready"
+# stamp_run <plugin root> <find-links dir> [PATH prefix] -> runs the hook with the wrappers first on PATH; sets OUT, RC
+# and STARTS, the number of Python starts.
+stamp_run() {
+  rm -f "$WORK/starts.log"
+  run_hook "$1" "$2" CLAUDE_PLUGIN_DATA="$(native "$data")" PATH="${3:-}$logged:$PATH"
+  STARTS=0
+  [[ -f "$WORK/starts.log" ]] && STARTS="$(wc -l <"$WORK/starts.log" | tr -d '[:space:]')"
+}
+stamp_run "$root" "$WHEELS"
+if [[ "$RC" -eq 0 && -z "$OUT" && -f "$stamp" ]]; then
+  ok "an install through a candidate on PATH writes the ready stamp"
+else
+  fail "ready stamp write: rc=$RC stamp=$([[ -f "$stamp" ]] && echo yes || echo no) output=[$OUT]"
+fi
+cp "$stamp" "$WORK/good-stamp" 2>/dev/null
+# restore_stamp -> the stamp the install wrote, newer than every input it checks.
+restore_stamp() {
+  cp "$WORK/good-stamp" "$stamp"
+  touch -t 202001010000 "$root/requirements.txt" "$root/scripts/pydeps.py" "$root/scripts/pydeps.json" "$logged/"* "$other/"*
+  touch -t 202101010000 "$stamp"
+}
+# invalidated <what> <mutation command ...> -> the baseline starts no Python; after the mutation the hook starts one.
+invalidated() {
+  local what="$1" base
+  shift
+  restore_stamp
+  stamp_run "$root" "$WHEELS"
+  base="$STARTS/$RC/[$OUT]"
+  "$@"
+  if [[ "$base" == "0/0/[]" && "$STARTS" -gt 0 && "$RC" -eq 0 ]]; then
+    ok "while the ready stamp holds no Python starts; $what runs the full path"
+  else
+    fail "$what: baseline starts/rc/output=$base, after: starts=$STARTS rc=$RC output=[$OUT]"
+  fi
+}
+moved_root() {
+  mv "$root" "$root-moved"
+  stamp_run "$root-moved" "$WHEELS"
+  mv "$root-moved" "$root"
+}
+other_candidate() { stamp_run "$root" "$WHEELS" "$other:"; }
+newer() {
+  touch "$1"
+  stamp_run "$root" "$WHEELS"
+}
+target_missing() {
+  find "$data/python" -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} +
+  stamp_run "$root" "$WHEELS"
+}
+invalidated "another plugin root" moved_root
+invalidated "a candidate resolving elsewhere" other_candidate
+invalidated "a resolved candidate newer than the stamp" newer "$logged/python3"
+invalidated "a newer requirements.txt" newer "$root/requirements.txt"
+invalidated "a newer pydeps.py" newer "$root/scripts/pydeps.py"
+invalidated "a newer pydeps.json" newer "$root/scripts/pydeps.json"
+invalidated "a missing installed set" target_missing
+
+# One directory spelled two ways (a symlink here; an 8.3 short name or another mount on Windows): pydeps.py records
+# the resolved root, the hook's ROOT keeps the spelling it was started through, and the stamp still holds.
+ln -s "$root" "$WORK/stamped-link"
+restore_stamp
+stamp_run "$WORK/stamped-link" "$EMPTY"
+if [[ "$RC" -eq 0 && -z "$OUT" && "$STARTS" -eq 0 ]]; then
+  ok "a plugin root reached through a symlink still matches the stamp, and no Python starts"
+else
+  fail "symlinked plugin root: starts=$STARTS rc=$RC output=[$OUT]"
+fi
+
+# Under Git Bash, Windows Python writes the stamp with backslashes, while the hook sees POSIX paths. A stamp in that
+# shape holds under OSTYPE=msys and, paired, not elsewhere. Mounts, 8.3 names and .EXE suffixes need a Windows file
+# system: the real Git Bash case covers them. No case here covers a letter-case difference.
+# windows_form <path> -> the path with backslashes.
+windows_form() { printf '%s' "${1//\//\\}"; }
+target="$(find "$data/python" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+py_at="$(PATH="$logged:$PATH" command -v py 2>/dev/null || true)"
+{
+  printf 'pydeps-hook-ready 1\n%s\n%s\n' "$(windows_form "$root")" "$(windows_form "$target")"
+  for name in python3.13 python3.12 python3 python; do
+    printf '%s=%s\n' "$name" "$(windows_form "$logged/$name")"
+  done
+  printf 'py=%s\n' "$(windows_form "$py_at")"
+} >"$WORK/good-stamp"
+starts_under=""
+for ostype in msys linux-gnu; do
+  restore_stamp
+  touch "$stamp" # newer than a real py this PATH may hold
+  rm -f "$WORK/starts.log"
+  run_hook "$root" "$WHEELS" OSTYPE="$ostype" CLAUDE_PLUGIN_DATA="$data" PATH="$logged:$PATH"
+  STARTS=0
+  [[ -f "$WORK/starts.log" ]] && STARTS="$(wc -l <"$WORK/starts.log" | tr -d '[:space:]')"
+  starts_under+="$ostype=$STARTS "
+done
+if [[ "$starts_under" == "msys=0 linux-gnu="[1-9]* ]]; then
+  ok "a stamp in Windows path form holds under Git Bash and nowhere else"
+else
+  fail "Windows-form stamp: starts under $starts_under"
+fi
+
+# Git Bash on Windows can report OSTYPE=cygwin while it mounts drives at /c/, not /cygdrive/c/. Inside a user and
+# mount namespace whose root holds a /c directory (this suite's WORK bound there), a stamp in Windows drive-letter
+# form holds under OSTYPE=cygwin and under OSTYPE=msys, and starts no Python. Skipped where unprivileged user
+# namespaces are not allowed.
+drive_case() {
+  local nr="$WORK/newroot" d
+  mkdir -p "$nr"
+  mount -t tmpfs drives "$nr" || return 1
+  for d in /*; do
+    [[ "$d" == /proc || "$d" == /sys || "$d" == /dev ]] && continue
+    if [[ -L "$d" ]]; then
+      cp -P "$d" "$nr$d"
+    elif [[ -d "$d" ]]; then
+      mkdir "$nr$d" && mount --rbind "$d" "$nr$d"
+    fi
+  done
+  mkdir "$nr/proc" "$nr/dev" "$nr/c"
+  mount --rbind /dev "$nr/dev"
+  mount --rbind "$WORK/drive" "$nr/c"
+  chroot "$nr" /bin/bash -c "$1"
+}
+mkdir -p "$WORK/drive/plugin" "$WORK/drive/data/python/0123456789ab-cpython-399" "$WORK/drive/bin"
+cp -R "$root/hooks" "$root/scripts" "$root/requirements.txt" "$WORK/drive/plugin/"
+for name in python3.13 python3.12 python3 python; do
+  printf '#!/bin/sh\necho "%s $*" >>/c/starts.log\nexec "%s" "$@"\n' "$name" "$real_py" >"$WORK/drive/bin/$name"
+done
+chmod +x "$WORK/drive/bin/"*
+{
+  printf 'pydeps-hook-ready 1\nC:\\plugin\nC:\\data\\python\\0123456789ab-cpython-399\n'
+  for name in python3.13 python3.12 python3 python; do
+    printf '%s=C:%sbin%s%s\n' "$name" "\\" "\\" "$name"
+  done
+  printf 'py=\n'
+} >"$WORK/drive/data/python/.hook-ready"
+touch -t 202001010000 "$WORK/drive/plugin/requirements.txt" "$WORK/drive/plugin/scripts/"* "$WORK/drive/bin/"*
+drive_starts=""
+for ostype in cygwin msys; do
+  rm -f "$WORK/drive/starts.log"
+  # shellcheck disable=SC2016  # expands inside the namespace
+  if ! unshare -rm bash -c "$(declare -f drive_case); WORK='$WORK'; drive_case 'OSTYPE=$ostype CLAUDE_PLUGIN_DATA=/c/data PATH=/c/bin:/usr/bin:/bin bash /c/plugin/hooks/install-python-deps.sh </dev/null >/dev/null 2>&1'" 2>/dev/null; then
+    drive_starts="unavailable"
+    break
+  fi
+  n=0
+  [[ -f "$WORK/drive/starts.log" ]] && n="$(wc -l <"$WORK/drive/starts.log" | tr -d '[:space:]')"
+  drive_starts+="$ostype=$n "
+done
+if [[ "$drive_starts" == unavailable ]]; then
+  echo "SKIP: no unprivileged user and mount namespace here -- the /c/ drive-mount case is skipped"
+elif [[ "$drive_starts" == "cygwin=0 msys=0 " ]]; then
+  ok "a drive-letter stamp holds where drives mount at /c/, whether the shell reports cygwin or msys"
+else
+  fail "drive-letter stamp under a /c/ mount: starts $drive_starts"
 fi
 
 echo "---"

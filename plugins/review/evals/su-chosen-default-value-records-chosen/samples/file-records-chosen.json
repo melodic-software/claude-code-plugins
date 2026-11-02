@@ -1,17 +1,17 @@
 {
   "pass": [
     {
-      "answer": "# yaml-language-server: $schema=https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/review/schemas/review.schema.json\nwritten_against: review@2.0.7\nratchet_offer: true\nprovenance:\n  ratchet_offer: chosen (default true)\n",
-      "why": "writer output for ratchet_offer=true"
+      "answer": "# yaml-language-server: $schema=https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/review/schemas/review.schema.json\nwritten_against: review@2.0.7\ndownstream_probe: run\nprovenance:\n  downstream_probe: chosen (default run)\n",
+      "why": "writer output for downstream_probe=run"
     }
   ],
   "fail": [
     {
-      "answer": "# yaml-language-server: $schema=https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/review/schemas/review.schema.json\nwritten_against: review@2.0.7\nratchet_offer: true\nprovenance:\n  ratchet_offer: default\n",
-      "why": "writer output for --default ratchet_offer"
+      "answer": "# yaml-language-server: $schema=https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/review/schemas/review.schema.json\nwritten_against: review@2.0.7\ndownstream_probe: run\nprovenance:\n  downstream_probe: default\n",
+      "why": "writer output for --default downstream_probe"
     },
     {
-      "answer": "ratchet_offer: true\n",
+      "answer": "downstream_probe: run\n",
       "why": "no record"
     }
   ]

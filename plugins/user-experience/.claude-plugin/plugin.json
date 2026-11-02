@@ -16,5 +16,8 @@
     "jobs-to-be-done",
     "routing",
     "skill"
-  ]
+  ],
+  "metadata": {
+    "category": "design"
+  }
 }

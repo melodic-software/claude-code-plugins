@@ -1,8 +1,9 @@
 # Plugin catalog taxonomy
 
-This document is the single owner of the marketplace's category vocabulary. Each plugin entry in
-`.claude-plugin/marketplace.json` carries one `category` value drawn from the controlled set below, and
-the generated catalog groups plugins by it. Three consumers of this vocabulary conform to this document
+This document is the single owner of the marketplace's category vocabulary. Each plugin's
+`.claude-plugin/plugin.json` carries one `metadata.category` value drawn from the controlled set below,
+copied into its `.claude-plugin/marketplace.json` entry by `scripts/generate-marketplace.mjs`, and the
+generated catalog groups plugins by it. Three consumers of this vocabulary conform to this document
 and cite it, never restating its definitions: the marketplace file, the catalog generator, and
 `docs/catalog.md`.
 
@@ -59,7 +60,7 @@ Domain-and-cross-cutting tier, filed by subject:
 | `audio` | Songwriting, chiptune, and other sound: music and non-music audio. |
 | `personal` | The owner's personal-life tooling, outside the software-delivery lifecycle. |
 
-Current per-plugin assignments are owned by `marketplace.json`, not restated here; the generated catalog
+Current per-plugin assignments are owned by each `plugin.json`, not restated here; the generated catalog
 renders them.
 
 ## Singleton governance
@@ -97,10 +98,12 @@ Plugin-scoped (owned by the named plugin's README):
 
 ## Generation contract
 
-The human-browsable catalog is generated, not hand-maintained. `marketplace.json` is the single source of
-truth for each plugin's `category` and the ordering key; `plugin.json` owns each description. The generator
-emits the grouped catalog section between markers in `docs/catalog.md`, and a CI check fails when the committed
-section drifts from what the manifests would produce. This retires hand-maintained catalog duplication and
+The human-browsable catalog is generated, not hand-maintained. `plugin.json` is the single source of
+truth for each plugin's description, `metadata.category` and `keywords`; `scripts/generate-marketplace.mjs`
+copies the category and keywords (as `tags`) into the plugin's `marketplace.json` entry, which keeps the
+ordering key. The catalog generator emits the grouped catalog section between markers in `docs/catalog.md`,
+and CI checks fail when the marketplace entries or the committed section drift from what the manifests
+would produce. This retires hand-maintained catalog duplication and
 keeps the grouped view and the manifests from diverging.
 
 The generator's render order is held to this document the same way: on every run it parses the two

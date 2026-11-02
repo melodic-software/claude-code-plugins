@@ -384,8 +384,6 @@ and is empty until one is made.
 | `plugins/harness-ops/skills/lanes/scripts/restart-consumer.test.sh` | 19 | |
 | `plugins/harness-ops/skills/lanes/scripts/telemetry-upsert.test.sh` | 8 | |
 | `plugins/harness-ops/skills/machine-profile/scripts/profile.test.sh` | 9 | |
-| `plugins/harness-ops/skills/morning-brief/morning-brief-view.test.sh` | 4 | |
-| `plugins/harness-ops/skills/morning-brief/morning-brief.test.sh` | 135 | |
 | `plugins/harness-ops/skills/observability/claude-observability.test.sh` | 3 | |
 | `plugins/harness-ops/skills/observability/otel/cc-otel.test.sh` | 4 | |
 | `plugins/harness-ops/skills/observability/otel/net-probe.test.sh` | 0 | |
@@ -667,6 +665,8 @@ and is empty until one is made.
 | `plugins/work-items/scripts/lane-telemetry-upsert.test.sh` | 2 | |
 | `plugins/work-items/scripts/lib/legacy-frontier-tier-signal.test.sh` | 0 | |
 | `plugins/work-items/scripts/merge-hold.test.sh` | 0 | |
+| `plugins/work-items/skills/morning-brief/morning-brief-view.test.sh` | 4 | |
+| `plugins/work-items/skills/morning-brief/morning-brief.test.sh` | 135 | |
 | `plugins/work-items/skills/onboard-adapter/scripts/generate-adapter.test.sh` | 34 | |
 | `plugins/work-items/skills/work/scripts/preflight.test.sh` | 7 | |
 | `plugins/work-items/tests/floor-class-stays-routable.test.sh` | 0 | |

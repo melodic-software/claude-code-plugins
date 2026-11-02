@@ -8,7 +8,10 @@ Standard library only: it installs and launches the packages the plugin's script
 usage: pydeps.py install [--data-dir DIR]             install requirements.txt unless already ready; the
                                                       SessionStart hook runs this, and so does the repair line
        pydeps.py run [--data-dir DIR] -- SCRIPT ...   run SCRIPT against the installed packages; never installs
-       pydeps.py check [--data-dir DIR]               read-only PASS/FAIL rows: Python, the packages, any tools
+       pydeps.py check [--data-dir DIR]               PASS/FAIL rows: Python, the packages, any tools; installs nothing
+
+A successful install with an interpreter found on PATH writes <data>/python/.hook-ready, which lets the hook skip
+starting Python while nothing it records has changed; run and check drop it when the set fails them.
 
 exit codes: install 0 ready or installed, 1 broken (reason and repair line on stderr);
             run 2 packages not installed (repair line on stderr), else the script's own code;
@@ -55,6 +58,9 @@ STALE_PARTIAL_S = 2 * PIP_TIMEOUT_S
 CHECK_LABEL = _CONFIG.get('check', {}).get('label', 'Python packages')
 CHECK_TOOLS = dict(_CONFIG.get('check', {}).get('tools', {}))   # tool -> what to do when it is missing
 HANDED_OVER = re.sub(r'[^A-Z0-9]', '_', PLUGIN.upper()) + '_PYDEPS_INTERPRETER'
+# The hook's own candidate list, in its order; the ready stamp records what each resolves to.
+HOOK_CANDIDATES = ('python3.13', 'python3.12', 'python3', 'python')
+STAMP_TAG = 'pydeps-hook-ready 1'
 
 
 class Broken(Exception):
@@ -196,19 +202,65 @@ def install(data, requirements=REQUIREMENTS, probe=PROBE):
         shutil.rmtree(partial, ignore_errors=True)
 
 
+def _which(name):
+    """shutil.which, which on Windows searches the working directory first unless NoDefaultCurrentDirectoryInExePath
+    is set, so a python3.bat in the project would run as the interpreter."""
+    if sys.platform == 'win32':
+        os.environ['NoDefaultCurrentDirectoryInExePath'] = '1'
+    return shutil.which(name)
+
+
+def ready_stamp(data):
+    return Path(data) / 'python' / '.hook-ready'
+
+
+def write_ready_stamp(data, target):
+    """Record, one value per line, what the hook checks before it skips starting Python: this plugin root, the
+    installed set, and what each of the hook's candidate names resolves to on PATH. A changed lock shows as a newer
+    requirements.txt or another root; a different interpreter as another resolution or a newer resolved file.
+    Written atomically; a failed write leaves the hook on its full path."""
+    stamp = ready_stamp(data)
+    names = (*HOOK_CANDIDATES, *(('py',) if sys.platform == 'win32' else ()))
+    lines = [STAMP_TAG, str(Path(__file__).resolve().parent.parent), str(target),
+             *(f'{name}={_which(name) or ""}' for name in names)]
+    partial = stamp.with_name(f'{stamp.name}.{os.getpid()}')
+    try:
+        partial.write_text('\n'.join(lines) + '\n', encoding='utf-8', newline='\n')
+        os.replace(partial, stamp)
+    except OSError:
+        partial.unlink(missing_ok=True)
+
+
+def drop_ready_stamp(data):
+    """The set failed a run or check: the next session start probes it again, and rebuilds it if it does not load."""
+    try:
+        ready_stamp(data).unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
 def run(data, script_args, requirements=REQUIREMENTS):
     """Run a script with the installed packages on PYTHONPATH. Never installs: that is the hook's job."""
     target = env_dir(data, requirements)
     if not target.is_dir():
+        drop_ready_stamp(data)
         sys.stderr.write(f'{PLUGIN}: the Python packages are not installed for {sys.implementation.cache_tag}. '
                          'Start a new Claude Code session, whose SessionStart hook installs them, or run: '
                          f'{repair_line(data)}\n')
         return 2
-    return subprocess.run([sys.executable, '-S', *script_args], env=_env(target)).returncode
+    code = subprocess.run([sys.executable, '-S', *script_args], env=_env(target)).returncode
+    if code and ready_stamp(data).exists():
+        # The hook trusted the stamp and skipped the load probe, so the set may no longer import.
+        drop_ready_stamp(data)
+        sys.stderr.write(f'{PLUGIN}: the run failed; if the Python packages no longer load, the next Claude Code '
+                         'session start re-probes them and rebuilds them, or run now: '
+                         f'{repair_line(data)}\n')
+    return code
 
 
 def check(data, requirements=REQUIREMENTS, probe=PROBE):
-    """Read-only: one PASS/FAIL row per prerequisite. Returns the exit code, 1 when any row fails."""
+    """One PASS/FAIL row per prerequisite; installs nothing, and drops the ready stamp when a row fails. Returns the
+    exit code, 1 when any row fails."""
     target = env_dir(data, requirements)
     rows = [('PASS', f'Python {sys.version_info[0]}.{sys.version_info[1]}', sys.executable)]
     if target.is_dir() and loads(target, probe):
@@ -221,7 +273,10 @@ def check(data, requirements=REQUIREMENTS, probe=PROBE):
         rows.append(('PASS', tool, found) if found else ('FAIL', tool, f'not on PATH; {missing}'))
     for row in rows:
         print('  '.join(row))
-    return 1 if any(r[0] == 'FAIL' for r in rows) else 0
+    if any(r[0] == 'FAIL' for r in rows):
+        drop_ready_stamp(data)
+        return 1
+    return 0
 
 
 def _runs_supported(path):
@@ -255,13 +310,9 @@ def _launcher_listed():
 
 def interpreter():
     """The first supported interpreter: CANDIDATES on PATH in order, then on Windows each one the py launcher lists.
-    The hook and every run hand over to it, so both resolve the same <interpreter tag> directory. On Windows,
-    shutil.which searches the working directory first unless NoDefaultCurrentDirectoryInExePath is set, so a
-    python3.bat in the project would run as the interpreter."""
-    if sys.platform == 'win32':
-        os.environ['NoDefaultCurrentDirectoryInExePath'] = '1'
+    The hook and every run hand over to it, so both resolve the same <interpreter tag> directory."""
     for name in CANDIDATES:
-        found = shutil.which(name)
+        found = _which(name)
         if not found or ('windowsapps' in found.lower() and Path(found).stat().st_size == 0):
             continue
         if _runs_supported(found):
@@ -271,7 +322,8 @@ def interpreter():
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
-    if not os.environ.get(HANDED_OVER):
+    chosen = os.environ.get(HANDED_OVER)
+    if not chosen:
         chosen = interpreter()
         if chosen and Path(chosen).resolve() != Path(sys.executable).resolve():
             return subprocess.run([chosen, str(Path(__file__).resolve()), *argv],
@@ -304,10 +356,16 @@ def main(argv=None):
         return check(data, a.requirements, a.probe)
     try:
         print(install(data, a.requirements, a.probe))
-        return 0
     except Broken as e:
         sys.stderr.write(f'{PLUGIN}: {e}\nRepair with: {repair_line(data)}\n')
         return 1
+    # Only the plugin's own lock, and only an interpreter found through a name the hook checks: one the py launcher
+    # listed, or one named outside HOOK_CANDIDATES (python3.14 for a plugin allowing 3.14), could change without
+    # the hook seeing it, so no stamp, and the hook keeps its full path.
+    if (a.requirements.resolve() == REQUIREMENTS and tuple(a.probe) == PROBE
+            and chosen in {_which(name) for name in HOOK_CANDIDATES} - {None}):
+        write_ready_stamp(data, env_dir(data, a.requirements))
+    return 0
 
 
 if __name__ == '__main__':

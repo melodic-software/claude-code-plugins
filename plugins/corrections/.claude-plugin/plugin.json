@@ -16,6 +16,9 @@
     "worktree",
     "recurring-findings"
   ],
+  "metadata": {
+    "category": "quality"
+  },
   "userConfig": {
     "ratchet_offer": {
       "type": "boolean",

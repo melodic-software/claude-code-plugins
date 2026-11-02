@@ -31,8 +31,12 @@
     "adversarial",
     "runbook",
     "posture",
-    "batch"
+    "batch",
+    "audit"
   ],
+  "metadata": {
+    "category": "quality"
+  },
   "userConfig": {
     "batch_exclude": {
       "type": "string",
