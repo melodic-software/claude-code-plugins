@@ -12,8 +12,14 @@
 #   DISPATCHER_RUN_ID   the dispatcher run the dispatch names
 #   GITHUB_OUTPUT       receives stale=true when the files differ
 #
-# Exit: always 0. Anything unreadable sets nothing and leaves it to the broker.
+# Exit: 0. Anything unreadable sets nothing and leaves it to the broker. In a
+# job, non-zero (killed by TERM) when the api-budget rate guard cannot record
+# a rate-limit stop and ends the step (api_budget_stop).
 set -uo pipefail
+# In a job, each gh call keeps its rate-limit reading for the job-end
+# api-budget notice (.github/actions/log-api-budget).
+# shellcheck source=/dev/null
+[[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../../../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
 : "${GITHUB_REPOSITORY:?}" "${GITHUB_OUTPUT:?}"
 
 leave() {

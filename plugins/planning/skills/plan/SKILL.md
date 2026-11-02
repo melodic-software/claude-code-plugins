@@ -63,7 +63,7 @@ These hold after a compaction re-attach. Later steps say how to carry them out.
 
 - **Reviewer.** Before assessing blast radius, dispatch a fresh-context plan-reviewer sub-agent for any plan you present. The producing thread does not self-attack the plan inline. A change skipped under the one-sentence rule (Purpose) has no plan to review.
 - **Hard-to-reverse decisions escalate EARLY** regardless of confidence. Below-bar judgment calls go to an interview round before the plan locks.
-- **Agent teams.** Route a phase to an agent team only when the parallel-safe workers must message each other and agent teams are enabled; otherwise use sub-agent workers or sequential. Teammates are not worktree-isolated, so disjoint file ownership is mandatory; for why, see [agent teams: avoid file conflicts](https://code.claude.com/docs/en/agent-teams#avoid-file-conflicts) (as of 2026-10-31; recheck when that section changes how teammates share files).
+- **Agent teams.** Route a phase to an agent team only when the parallel-safe workers must message each other and agent teams are enabled; otherwise use sub-agent workers or sequential. Disjoint file ownership between teammates is mandatory; for why, see [agent teams: avoid file conflicts](https://code.claude.com/docs/en/agent-teams#avoid-file-conflicts) (as of 2026-11-01; recheck when that section changes how teammates share files).
 
 ### Step 4.7: Outcome gate (before Step 5. Verify the PLAN, not a recap)
 

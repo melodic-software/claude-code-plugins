@@ -1,0 +1,45 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "repo-fleet-hygiene:audit",
+            "args": "fleet"
+          }
+        }
+      ],
+      "why": "qualified name with the scope"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "audit"
+          }
+        }
+      ],
+      "why": "bare skill name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "repo-fleet-hygiene:apply",
+            "args": "--plan-file plan.json"
+          }
+        }
+      ],
+      "why": "the apply verb, not the audit"
+    }
+  ]
+}

@@ -211,6 +211,17 @@ INSTALL_FAILED = "install-failed"
 INSTALL_FAILURE_RE = re.compile(
     rf"(?P<lane>[\w-]+): failure-class={re.escape(INSTALL_FAILED)}: "
 )
+# Or when the lane job ended before it reported an outcome: this lane's
+# publish-review failure line (ci-workflows publish.cjs `fail`) with class
+# `no-outcome`. A runner loss or a defect in the lane's own outcome step (the
+# 2026-11-01 outage, fixed by ci-workflows#952) both end there, so attempt 2
+# binds only when the lane posted nothing on the head (`_unposted`). It binds a
+# re-run but does not start one (GATE_RERUN_CLASSES): a defect fails every run
+# until its fix ships, and a re-run before then would spend the one attempt.
+NO_OUTCOME = "no-outcome"
+NO_OUTCOME_RE = re.compile(
+    rf"(?P<lane>[\w-]+): failure-class={re.escape(NO_OUTCOME)}: "
+)
 # Or when a kill switch stopped attempt 1 before the review started: the
 # caller's `kill-switch` job succeeded and its `Report the kill switch` step
 # wrote this lane's notice, whose `if` is the negation of the `proceed` output
@@ -1111,6 +1122,7 @@ def _lane_line(pattern: re.Pattern[str], lane: str, message: str) -> bool:
 
 # The failure classes of a failed attempt 1 after which attempt 2 binds
 # (`rerun_binds`), each with its test of one failure annotation's message.
+# `NO_OUTCOME` binds too, but only after the posted check, so it is not here.
 RERUN_CLASSES: dict[str, Callable[[str, str], bool]] = {
     "rate-limit": lambda lane, m: RATE_LIMIT_CLASS_RE.search(m) is not None,
     "publish-rate-limit": lambda lane, m: _lane_line(PUBLISH_RATE_LIMIT_RE, lane, m),
@@ -1119,9 +1131,9 @@ RERUN_CLASSES: dict[str, Callable[[str, str], bool]] = {
 }
 # The ones the merge gate re-runs itself (babysit_merge
 # `rerun_rate_limited_review`): those failure classes, and `LOST`, which a
-# run's conclusion names rather than an annotation. A rejected credential is
-# left to a person: a re-run before the secret is fixed would spend the one
-# allowed attempt.
+# run's conclusion names rather than an annotation. A rejected credential and
+# `NO_OUTCOME` are left to a person: a re-run before the secret or the lane is
+# fixed would spend the one allowed attempt.
 GATE_RERUN_CLASSES = frozenset(
     {"rate-limit", "publish-rate-limit", INSTALL_FAILED, LOST}
 )
@@ -1148,8 +1160,8 @@ def rerun_binds(
     """Whether attempt 1 (`first`) left no verdict, so attempt 2 (`second`, at
     `sha`) binds: it failed on one of `RERUN_CLASSES`, a kill switch or the
     upstream-status gate stopped it (`_kill_switch_stopped`,
-    `_upstream_stopped`), or an outage lost it before its lane posted
-    (`_lost_unposted`)."""
+    `_upstream_stopped`), or an outage lost it, or its lane job ended with
+    `NO_OUTCOME`, before its lane posted (`_lost_unposted`, `_unposted`)."""
     if first.get("conclusion") == "success":
         return _kill_switch_stopped(lane, run_id, first)
     if first.get("conclusion") in LOST_CONCLUSIONS:
@@ -1158,7 +1170,14 @@ def rerun_binds(
         return False
     if _upstream_stopped(lane, run_id, first):
         return True
-    return bool(rerun_classes(lane, _lane_job(lane, run_id, first)))
+    job = _lane_job(lane, run_id, first)
+    if rerun_classes(lane, job):
+        return True
+    return (
+        any(_lane_line(NO_OUTCOME_RE, lane, m) for m in _failures(job))
+        and not recorded(job)
+        and _unposted(lane, first, sha, second, posted)
+    )
 
 
 def recorded(job: Mapping[str, Any]) -> bool:
@@ -1179,9 +1198,9 @@ def _lost_unposted(
 ) -> bool:
     """Whether lost attempt 1 reached no side effect: its lane job, when it
     has one, was lost too and left no completion record, and the lane posted
-    nothing on `sha` from attempt 1's start to attempt 2's (`lane_posted`). A
-    lane job that ended on its own (a failure outside `RERUN_CLASSES`) judged
-    the head, so a re-run could trade its verdict away."""
+    nothing on the head (`_unposted`). A lane job that ended on its own judged
+    the head unless it failed on a class `rerun_binds` accepts, so a re-run
+    could trade its verdict away."""
     if sha is None or second is None or posted is None:
         return False
     jobs = first.get("jobs")
@@ -1191,6 +1210,21 @@ def _lost_unposted(
         job = _lane_job(lane, run_id, first)
         if job.get("conclusion") not in LOST_CONCLUSIONS or recorded(job):
             return False
+    return _unposted(lane, first, sha, second, posted)
+
+
+def _unposted(
+    lane: str,
+    first: Mapping[str, Any],
+    sha: str | None,
+    second: Mapping[str, Any] | None,
+    posted: Poster | None,
+) -> bool:
+    """Whether the lane posted nothing on `sha` from attempt 1's start to
+    attempt 2's (`lane_posted`), a marker rewrite included; unknown inputs
+    read as posted."""
+    if sha is None or second is None or posted is None:
+        return False
     return not posted(
         lane, sha, first.get("run_started_at"), second.get("run_started_at")
     )
@@ -1205,9 +1239,10 @@ def lane_posted(
     threads: Any,
 ) -> bool:
     """Whether the lane posted on `head` from `since` to before `until` (both
-    timestamps; `until` None is now): its reviewed-head marker naming `head`,
-    another lane comment, or a lane thread opened then. An unreadable `since`,
-    time or input counts as posted; an unreadable `until` reads as now."""
+    timestamps; `until` None is now): its reviewed-head marker created or
+    rewritten naming `head` then (`_marker_rewritten`), another lane comment,
+    or a lane thread opened then. An unreadable `since`, time or input counts
+    as posted; an unreadable `until` reads as now."""
     start = _time(since)
     if start is None or not isinstance(comments, list | tuple):
         return True
@@ -1225,8 +1260,10 @@ def lane_posted(
         body = str(comment.get("body") or "")
         mark = MARKER_RE.match(body.split("\n", 1)[0].rstrip("\r"))
         if mark is not None:
-            if login == MARKER_AUTHOR and mark[1] == lane and mark[2] == head:
-                if within(comment.get("created_at")):
+            if login == MARKER_AUTHOR and mark[1] == lane:
+                if mark[2] == head and within(comment.get("created_at")):
+                    return True
+                if _marker_rewritten(lane, head, comment, within, end is None):
                     return True
             continue
         if _lane_comment(lane, login, body) and within(comment.get("created_at")):
@@ -1239,6 +1276,54 @@ def lane_posted(
         if _lane_thread(lane, thread) and within(
             thread["comments"][0].get("createdAt")
         ):
+            return True
+    return False
+
+
+def _marker_rewritten(
+    lane: str,
+    head: str,
+    comment: Mapping[str, Any],
+    within: Callable[[Any], bool],
+    open_ended: bool,
+) -> bool:
+    """Whether the lane's marker `comment` was rewritten naming `head` at a
+    time `within` accepts. The producer edits one marker in place per review
+    (ci-workflows publish.cjs `writeMarker`), so its creation time misses a
+    later review, and a still later rewrite hides it from `lastEditedAt`:
+    each revision in the `edit` record's history (`_marker_revisions`)
+    counts. With no `edit` record, REST's `updated_at` serves only for a
+    window open to now (`open_ended`), where no later rewrite can hide one:
+    unedited when it equals `created_at`, else rewritten when `within`. A
+    record or history that is missing, incomplete or empty, or a revision
+    that is deleted or unreadable, counts as rewritten."""
+    edit = comment.get("edit")
+    if not isinstance(edit, Mapping) or "lastEditedAt" not in edit:
+        created, updated = comment.get("created_at"), comment.get("updated_at")
+        if isinstance(created, str) and created and created == updated:
+            return False
+        return not open_ended or within(updated)
+    if edit["lastEditedAt"] is None:
+        return False
+    history = edit.get("history")
+    nodes = history.get("nodes") if isinstance(history, Mapping) else None
+    if (
+        not isinstance(nodes, list | tuple)
+        or not nodes
+        or history.get("totalCount") != len(nodes)
+    ):
+        return True
+    for node in nodes:
+        if (
+            not isinstance(node, Mapping)
+            or node.get("deletedAt") is not None
+            or not isinstance(node.get("diff"), str)
+        ):
+            return True
+        if not within(node.get("editedAt")):
+            continue
+        mark = MARKER_RE.match(node["diff"].split("\n", 1)[0].rstrip("\r"))
+        if mark is None or (mark[1] == lane and mark[2] == head):
             return True
     return False
 

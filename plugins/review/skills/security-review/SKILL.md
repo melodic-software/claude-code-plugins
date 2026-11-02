@@ -217,8 +217,8 @@ through:
   `clear-escalations.mjs`, the `pr-unblock/` and `work-resolve-issue/` modules they import, the
   ci-status hold steps in `.github/workflows/pr-require-checks.yml`, the steps in
   `.github/workflows/pr-merge.yml` that run those scripts and set their environment,
-  `plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py`,
-  `babysit_verify_evidence.py` and the `babysit-prs/scripts/` modules they import, and the `merge`
+  `/source-control:babysit-prs`'s `babysit_risk.py` and `babysit_verify_evidence.py` and the
+  modules they import from that skill's `scripts/` directory, and the `merge`
   settings in `docs/conventions/pr-pipeline.yaml`);
 - it widens what any other action under `.github/actions/` lets through: who is trusted
   (`check-trusted-base`, `check-signed-commits`), what untrusted text reaches a lane

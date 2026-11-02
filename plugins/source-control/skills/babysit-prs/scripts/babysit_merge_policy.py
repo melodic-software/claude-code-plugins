@@ -3120,6 +3120,13 @@ def _same_modes(merges: Any, trees: Any) -> bool:
     return True
 
 
+def _skill_scripts(skill: str) -> str:
+    """The glob over a skill's `scripts/` directory, the skill named as
+    `plugin:skill`."""
+    plugin, name = skill.split(":")
+    return f"plugins/{plugin}/skills/{name}/scripts/**"
+
+
 # The code a hold-path file loads that is no hold path itself (merge-holds.mjs
 # CARRY_REFUSES, the same list): a push that touches one stops an approval
 # carrying (`ungated_since`); test_merge_holds_sync.py derives that closure.
@@ -3131,18 +3138,18 @@ CARRY_REFUSES: tuple[str, ...] = (
     "docs/conventions/pr-pipeline/**",
     "scripts/**",
     "lib/**",
-    "plugins/source-control/skills/babysit-prs/scripts/**",
+    _skill_scripts("source-control:babysit-prs"),
     "plugins/performance/scripts/**",
-    "plugins/harness-ops/skills/inventory/scripts/**",
-    "plugins/ai-briefing/skills/generate/scripts/**",
-    "plugins/harness-config/skills/audit-permission-state/scripts/**",
-    "plugins/knowledge/skills/course-digest/scripts/**",
-    "plugins/knowledge/skills/video-digest/scripts/**",
+    _skill_scripts("harness-ops:inventory"),
+    _skill_scripts("ai-briefing:generate"),
+    _skill_scripts("harness-config:audit-permission-state"),
+    _skill_scripts("knowledge:course-digest"),
+    _skill_scripts("knowledge:video-digest"),
     "plugins/skill-quality/scripts/**",
     "plugins/source-control/scripts/**",
-    "plugins/testing/skills/check-visual-parity/scripts/**",
+    _skill_scripts("testing:check-visual-parity"),
     ".github/recurring-schedule.json",
-    "plugins/evals/skills/validate/scripts/**",
+    _skill_scripts("evals:validate"),
     "plugins/testing/evals/browser-probe/**",
     "plugins/work-items/scripts/**",
     "plugins/work-items/tools/work-item-tracker/**",
@@ -6776,15 +6783,17 @@ CHECK_CODE_PATHS = (
     "plugins/source-control/skills/babysit-prs/scripts",
     "docs/conventions/pr-pipeline.yaml",
 )
+# Inside those paths but deciding no report: a change here keeps it.
+CHECK_CODE_EXCLUDES = ("plugins/source-control/skills/babysit-prs/scripts/tests",)
 CHECK_CODE_ROOT = Path(__file__).resolve().parents[5]
 
 
 def check_code_unchanged(code_sha: str, *, root: Path = CHECK_CODE_ROOT) -> bool:
-    """Whether the check's code (`CHECK_CODE_PATHS`) at `root`'s HEAD is the
-    code at `code_sha`, the commit a kept post-merge report's check ran. A
-    sha that is not 40 hex digits, a commit missing from the clone, a path
-    missing at HEAD (a diff of a path at neither commit is empty) or any git
-    failure is not unchanged."""
+    """Whether the check's code (`CHECK_CODE_PATHS` less
+    `CHECK_CODE_EXCLUDES`) at `root`'s HEAD is the code at `code_sha`, the
+    commit a kept post-merge report's check ran. A sha that is not 40 hex
+    digits, a commit missing from the clone, a path missing at HEAD (a diff of
+    a path at neither commit is empty) or any git failure is not unchanged."""
     if not SHA_RE.fullmatch(code_sha):
         return False
     try:
@@ -6798,7 +6807,8 @@ def check_code_unchanged(code_sha: str, *, root: Path = CHECK_CODE_ROOT) -> bool
                 return False
         done = subprocess.run(
             ["git", "-C", str(root), "diff", "--quiet", code_sha, "HEAD", "--"]
-            + list(CHECK_CODE_PATHS),
+            + list(CHECK_CODE_PATHS)
+            + [f":(exclude){path}" for path in CHECK_CODE_EXCLUDES],
             capture_output=True,
             timeout=60,
             check=False,

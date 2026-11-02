@@ -79,6 +79,9 @@ function evaluate(expression, context) {
 }
 
 const LANE_BRANCH = "work-resolve-issue/issue-12-345-1";
+// The review-comment relay clause's one term no other case sets, so a review,
+// verify, sweep or pr-merge case below also shows the relay clause admits none.
+const RELAY_ON = { "github.event.workflow_run.actor.type": "User" };
 
 test("pr-feedback-dispatch.yml starts no runner for a skipped or cancelled review run", () => {
   const gate = jobIf("pr-feedback-dispatch.yml", "dispatch");
@@ -96,6 +99,7 @@ test("pr-feedback-dispatch.yml starts no runner for a skipped or cancelled revie
       "needs.post-verify-notes.outputs.pass-head-sha": passed,
       "github.run_attempt": "1",
       "github.triggering_actor": "a-person",
+      ...RELAY_ON,
       ...rerun,
     });
   assert.equal(runs("skipped"), false);
@@ -138,6 +142,7 @@ test("pr-feedback-dispatch.yml starts no runner for a review run off a lane bran
       "needs.post-verify-notes.outputs.pass-head-sha": "",
       "github.run_attempt": "1",
       "github.triggering_actor": "a-person",
+      ...RELAY_ON,
     });
   // Every branch the issue lane opens a PR from passes; a rename of the lane
   // branch fails here instead of silently stopping dispatches.
@@ -168,6 +173,7 @@ test("pr-feedback-dispatch.yml sweeps only after a scheduled pr-unblock-dispatch
       "needs.post-verify-notes.outputs.pass-head-sha": "",
       "github.run_attempt": "1",
       "github.triggering_actor": "a-person",
+      ...RELAY_ON,
       ...overrides,
     });
   assert.equal(runs(), true);
@@ -181,6 +187,87 @@ test("pr-feedback-dispatch.yml sweeps only after a scheduled pr-unblock-dispatch
   ]) {
     assert.equal(runs(overrides), false, label);
   }
+});
+
+test("pr-feedback-dispatch.yml dispatches for a relayed review comment only from a person on a lane branch of this repository", () => {
+  const gate = jobIf("pr-feedback-dispatch.yml", "dispatch");
+  const repo = "melodic-software/claude-code-plugins";
+  const runs = (overrides = {}) =>
+    evaluate(gate, {
+      "github.ref": "refs/heads/main",
+      "github.repository": repo,
+      "github.event.workflow_run.path": ".github/workflows/pr-review-comment-relay.yml",
+      "github.event.workflow_run.event": "pull_request_review_comment",
+      "github.event.workflow_run.repository.full_name": repo,
+      "github.event.workflow_run.head_repository.full_name": repo,
+      "github.event.workflow_run.head_branch": LANE_BRANCH,
+      "github.event.workflow_run.conclusion": "success",
+      "needs.post-verify-notes.outputs.head-sha": "",
+      "needs.post-verify-notes.outputs.pass-head-sha": "",
+      "github.run_attempt": "1",
+      "github.triggering_actor": "a-person",
+      ...RELAY_ON,
+      ...overrides,
+    });
+  assert.equal(runs(), true);
+  for (const [label, overrides] of [
+    ["a relay run its own condition skipped", { "github.event.workflow_run.conclusion": "skipped" }],
+    ["a relay run that failed", { "github.event.workflow_run.conclusion": "failure" }],
+    // A pull_request event is the review clause's, which the script checks by path.
+    ["a relay run on another event", { "github.event.workflow_run.event": "pull_request_target" }],
+    ["a review-comment run of another workflow", { "github.event.workflow_run.path": ".github/workflows/copy.yml" }],
+    ["a fork's PR", { "github.event.workflow_run.head_repository.full_name": "fork/claude-code-plugins" }],
+    ["another repository", { "github.event.workflow_run.repository.full_name": "fork/claude-code-plugins" }],
+    ["a branch the lanes App opens no PR from", { "github.event.workflow_run.head_branch": "feat/x" }],
+    ["a bot's comment", { "github.event.workflow_run.actor.type": "Bot" }],
+    ["a run off main", { "github.ref": "refs/heads/feat/x" }],
+  ]) {
+    assert.equal(runs(overrides), false, label);
+  }
+});
+
+// The relay is listed by the name its file gives, and holds nothing a
+// PR-controlled copy could use: no permission, no checkout, no secret, and no
+// event field in a step (only the job's condition reads the event).
+test("pr-review-comment-relay.yml is a workflow_run upstream and reaches no token, secret or event text in a step", () => {
+  const relay = readFileSync(new URL("../../workflows/pr-review-comment-relay.yml", import.meta.url), "utf8");
+  const dispatcher = readFileSync(new URL("../../workflows/pr-feedback-dispatch.yml", import.meta.url), "utf8");
+  assert.equal(/^name: (\S+)$/m.exec(relay)?.[1], "pr-review-comment-relay");
+  const upstreams = dispatcher.match(/\n    workflows: \[([^\]]*)\]\n/)[1].split(",").map((name) => name.trim());
+  assert.ok(upstreams.includes("pr-review-comment-relay"));
+  assert.match(relay, /\non:\n  pull_request_review_comment:\n    types: \[created\]\n\npermissions: \{\}\n/);
+  const steps = relay.slice(relay.indexOf("    steps:"));
+  assert.doesNotMatch(relay, /secrets\.|actions\/checkout|permissions: (?!\{\})/);
+  assert.doesNotMatch(steps, /github\.event|\$\{\{/);
+});
+
+test("pr-review-comment-relay.yml starts a runner only for a person's comment on a lane branch of this repository", () => {
+  const gate = jobIf("pr-review-comment-relay.yml", "relay");
+  const repo = "melodic-software/claude-code-plugins";
+  const runs = (o = {}) =>
+    evaluate(gate, {
+      "github.repository": repo,
+      "github.event.comment.user.type": "User",
+      "github.event.pull_request.head.repo.full_name": repo,
+      "github.event.pull_request.head.ref": LANE_BRANCH,
+      ...o,
+    });
+  assert.equal(runs(), true);
+  // The lanes App's own replies (publish-feedback, report-escalation) and any
+  // review bot's comments are Bot accounts: no relay, so no dispatcher loop.
+  assert.equal(runs({ "github.event.comment.user.type": "Bot" }), false);
+  assert.equal(runs({ "github.event.pull_request.head.repo.full_name": "fork/repo" }), false);
+  assert.equal(runs({ "github.event.pull_request.head.ref": "feat/x" }), false);
+});
+
+// The relay's round passes the dispatch job's kill switch and upstream status
+// checks like every other upstream: the dispatch step runs behind both.
+test("pr-feedback-dispatch.yml dispatches only behind the kill switch, for a relayed round too", () => {
+  const block = jobBlock("pr-feedback-dispatch.yml", "dispatch");
+  const at = block.findIndex((line) => line.trim() === "- name: Dispatch address-feedback");
+  assert.notEqual(at, -1);
+  const gate = ifAt(block, block.findIndex((line, i) => i > at && /^ {8}if: /.test(line)), 8);
+  assert.match(gate, /steps\.kill\.outputs\.proceed == 'true'/);
 });
 
 // A needs-human unlabel reaches pr-feedback-dispatch.yml only through this
@@ -207,6 +294,7 @@ test("pr-feedback-dispatch.yml decides a lane branch's head again after a pull_r
       "needs.post-verify-notes.outputs.pass-head-sha": "",
       "github.run_attempt": "1",
       "github.triggering_actor": "a-person",
+      ...RELAY_ON,
       ...overrides,
     });
   assert.equal(runs(), true, "the lanes App's own unlabel skips pr-merge's job and still counts");

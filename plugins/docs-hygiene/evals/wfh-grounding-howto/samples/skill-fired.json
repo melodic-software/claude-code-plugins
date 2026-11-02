@@ -1,0 +1,61 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "docs-hygiene:write-for-humans"
+          }
+        }
+      ],
+      "why": "qualified name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "style"
+          }
+        },
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "write-for-humans",
+            "args": "how-to: drain a quarry worker"
+          }
+        }
+      ],
+      "why": "bare name with args after a grep"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Skill call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "ai-slop:audit"
+          }
+        }
+      ],
+      "why": "another skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "docs-hygiene:write-for-agents"
+          }
+        }
+      ],
+      "why": "a sibling skill"
+    }
+  ]
+}

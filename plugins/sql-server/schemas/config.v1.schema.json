@@ -51,7 +51,16 @@
           "items": { "type": "string", "minLength": 1, "maxLength": 128 }
         },
         "auth": { "$ref": "#/$defs/auth" },
-        "limits": { "$ref": "#/$defs/limits" }
+        "limits": { "$ref": "#/$defs/limits" },
+        "write": {
+          "description": "The write principal, a login separate from auth's read principal. The write tool connects as it only on a registration started with --write.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["auth"],
+          "properties": {
+            "auth": { "$ref": "#/$defs/auth" }
+          }
+        }
       }
     },
     "auth": {

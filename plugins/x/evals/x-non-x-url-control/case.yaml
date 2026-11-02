@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: x-non-x-url-control
+graders:
+  - name: 'no-skill-x-read'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:x:)?read"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-converter-call'
+    type: 'tool_used'
+    tool: 'WebFetch'
+    input_match: '"url":"https?://(?:[\w-]+\.)*(?:xtomd\.com|threadreaderapp\.com)(?=[/"?:])'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'fetches-page'
+    type: 'tool_used'
+    tool: 'WebFetch'
+    input_match: '"url":"https?://blog\.example\.invalid/2026/10/leaving-twitter(?=[/"?#])'
+    min: 1
+    arm: 'both'

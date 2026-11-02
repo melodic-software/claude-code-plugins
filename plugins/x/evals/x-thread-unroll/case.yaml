@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: x-thread-unroll
+graders:
+  - name: 'routes-x-read'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:x:)?read"'
+    arm: 'with-only'
+  - name: 'uses-thread-reader'
+    type: 'tool_used'
+    tool: 'WebFetch'
+    input_match: '"url":"https?://(?:www\.)?threadreaderapp\.com/thread/1234567890123456789(?![0-9])'
+    min: 1
+    arm: 'both'
+  - name: 'names-thread-reader'
+    type: 'regex'
+    pattern: '\bthread ?reader(?: ?app)?\b|threadreaderapp\.com'
+    flags: 'i'
+    target: 'last_message'

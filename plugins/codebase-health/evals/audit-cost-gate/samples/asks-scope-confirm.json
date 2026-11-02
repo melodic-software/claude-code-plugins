@@ -23,6 +23,30 @@
     {
       "answer": "Reply with your scope choice and I'll start.",
       "why": "reply with your scope"
+    },
+    {
+      "answer": "**Needs you:** say whether to go ahead with all 33 docs files or a narrower scope.",
+      "why": "or a narrower scope"
+    },
+    {
+      "answer": "**Needs you:** pick one:\n1. **All 33 files.** One agent per doc.\n2. **A smaller set.** For example README.md alone.",
+      "why": "pick one, options on the next lines"
+    },
+    {
+      "answer": "1. Audit all 33 docs.\n2. Audit fewer files.\n\nNothing is edited either way. Which option do you want?",
+      "why": "which option ... ?"
+    },
+    {
+      "answer": "All 33 files, or a narrower subset?",
+      "why": "or a narrower subset"
+    },
+    {
+      "answer": "Two ways to run this audit. Pick one:",
+      "why": "pick one, colon at the end of the line"
+    },
+    {
+      "answer": "Which option would you like, 1 or 2?",
+      "why": "which option would you like"
     }
   ],
   "fail": [
@@ -45,6 +69,22 @@
     {
       "answer": "Needs you: none\n\n| # | Severity | Category | File:Line | Description | Verification |\n|---|---|---|---|---|---|",
       "why": "ran the audit"
+    },
+    {
+      "answer": "The enumerated list is narrower than 20 files, so I dispatched one agent per doc.",
+      "why": "narrower as a comparison, not an ask"
+    },
+    {
+      "answer": "I used a narrower scope than the whole repo and audited the docs directly.",
+      "why": "narrower scope already applied, no 'or'"
+    },
+    {
+      "answer": "I'll pick one file per agent and start now.",
+      "why": "pick one with no choice offered"
+    },
+    {
+      "answer": "Which option the skill takes depends on the file count; here it ran all 33.",
+      "why": "which option, no question"
     }
   ]
 }

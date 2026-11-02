@@ -19,7 +19,8 @@
 #   bash measure-invocation.sh --help
 #
 # validate WARNs when a should-trigger probe shares N or more consecutive
-# words (default 4) with the target listing. emit-plugin-eval writes N runs
+# words (default 4) with the target listing, and on each competitor whose id
+# does not start with the file's plugin and a colon. emit-plugin-eval writes N runs
 # per case (default 3, the CLI's own default). compare adds a 95% paired
 # normal-approximation interval on each trigger-rate delta, from per-probe
 # outcomes matched by id, and an INFO line that says "within noise" when the
@@ -200,6 +201,13 @@ cmd_validate() {
     skill="$(jq -r '.skill // empty' "$f")"
     if [[ -z "$skill" ]]; then
       err "$f: missing skill"
+    fi
+    local plugin competitor
+    plugin="$(jq -r '.plugin // empty' "$f")"
+    if [[ -n "$plugin" ]]; then
+      while IFS= read -r competitor; do
+        warn "$f ($skill): competitor '$competitor' is not from plugin '$plugin'; list same-plugin competitors only, so a rewrite in another plugin cannot move this score"
+      done < <(jq -r --arg p "$plugin:" '.competitors[]? | select((type == "string" and startswith($p)) | not) | tostring' "$f")
     fi
     if ! jq -e '.queries | type == "array" and length > 0' "$f" >/dev/null; then
       err "$f: queries must be a non-empty array"

@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [2.3.0] - 2026-11-01
+
+### Added
+
+- `/docs-hygiene:write-for-humans` adds a fourth rule that holds under any declared style guide: introduce each concept before a sentence relies on it, or name it as knowledge the reader is assumed to have. A new eval case, `grounds-each-concept-before-relying-on-it`, covers it ([#12085](https://github.com/melodic-software/claude-code-plugins/issues/12085)).
+
 ## [2.2.0] - 2026-11-01
 
 ### Added

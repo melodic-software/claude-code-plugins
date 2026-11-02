@@ -3,6 +3,12 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.6] - 2026-11-01
+
+### Changed
+
+- `firecrawl` drops three passages from its update notes that repeated what the skill already says: the CLI release-cadence sentence (its upstream link stays under Related), a second "updates arrive through `/plugin marketplace update`" line, and a Related bullet for `/firecrawl:update` that the "Updating the skill and CLI" section already covers. Measured with no loss on Opus 5.5 and Sonnet 5.5.
+
 ## [0.7.5] - 2026-10-30
 
 ### Changed

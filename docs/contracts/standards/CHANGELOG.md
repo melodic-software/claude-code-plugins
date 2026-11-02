@@ -1,5 +1,13 @@
 # Changelog for the standards convention
 
+## 1.1.2 - 2026-11-01
+
+Resolution ladder. Rung 4 now names a `CODING_STANDARDS.md` and a `CONTRIBUTING.md` at the
+resolution root as inference sources, beside docs directories, ecosystem configs and a standards
+location declared in `CLAUDE.md`, and setup's bootstrap step 1 reads them too. The other rungs,
+the schema, the index shape and the migration rules are unchanged. An index at 1.1.1 is older than
+the bundled contract, so setup offers the guided migration.
+
 ## 1.1.1 - 2026-10-21
 
 Wording only. The Paved paths section's readers bullets now name a writer: `reuse-or-replace` is

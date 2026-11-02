@@ -769,6 +769,8 @@ jobs:
           run-dispatcher-upstreams: >-
             .github/workflows/pr-review-hosted.yml
             .github/workflows/pr-review-security-hosted.yml
+          # Or a listed human's review comment, relayed (ADR 0088).
+          run-dispatcher-relay: .github/workflows/pr-review-comment-relay.yml
           # A job after the model job: the review was of the head that job
           # gated, and the PR is at it or at the commit the push job pushed.
           expected-upstream-head: ${{ inputs.expected-upstream-head }}

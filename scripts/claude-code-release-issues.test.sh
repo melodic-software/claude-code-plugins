@@ -52,7 +52,9 @@ run_sut() {
   local status="$1"
   shift
   LOG="$(mktemp -d "$TMP/log.XXXXXX")" || exit 2
-  OUT="$(env PATH="$STUB:$PATH" GH_STUB_LOG="$LOG" \
+  # RUNNER_TEMP emptied: on a runner the script would wrap its gh calls and
+  # record into the job's own api-budget state.
+  OUT="$(env PATH="$STUB:$PATH" GH_STUB_LOG="$LOG" RUNNER_TEMP='' \
     GITHUB_SERVER_URL=https://github.com GITHUB_REPOSITORY=acme/site GITHUB_RUN_ID=777 \
     ${GH_STUB_LIST:+GH_STUB_LIST="$GH_STUB_LIST"} ${GH_STUB_FAIL:+GH_STUB_FAIL="$GH_STUB_FAIL"} \
     bash "$SUT" "$@" "$status" 2>&1)"

@@ -73,10 +73,7 @@ const CARRIED = "          CARRIED: ${{ needs.check-intent.outputs.reads }}";
 const CARRY_ENV = ["          CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json", CARRIED];
 const NOT_CARRIED = " && steps.pr.outputs.carried != 'true'";
 const KEY_CLASS = "${{ steps.judge.outputs.lane-class }}";
-const KEY_REPORT_IF =
-  "(steps.judge.outcome == 'success' || steps.judge.outcome == 'failure') && (steps.judge.outputs.handoff != 'true' || steps.key-leg.outcome == 'failure')";
-const SUB_REPORT_IF =
-  "(steps.judge.outcome == 'success' || steps.judge.outcome == 'failure') && (steps.judge.outputs.handoff != 'true' || steps.sub-leg.outcome == 'failure')";
+const REPORT_IF = "steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'";
 const CREDENTIAL = {
   [KEY]: ["api-key", "PR_VERIFY_CLAUDE_API_KEY"],
   [SUB]: ["subscription-token", "PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN"],
@@ -414,7 +411,6 @@ test("the key job hands the judgment on only after a clean handoff or with no ke
 test("the subscription job repeats the key job's steps but for the credential", () => {
   // Each difference the two-job pattern needs, normalized away on the key
   // job's side; everything else, the gates and hardening included, matches.
-  const PLAIN_REPORT_IF = "if: steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'";
   const lines = (block) =>
     block
       .split("\n")
@@ -432,7 +428,7 @@ test("the subscription job repeats the key job's steps but for the credential", 
           .replace("\n          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}", "")
           .replace(/PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN/g, "PR_VERIFY_CLAUDE_API_KEY")
           .replace(/^( {10})subscription-token: /m, "$1api-key: ")
-          .replace(/if: \(steps\.(judge(?:-\d+|-spec)?)\.outcome == 'success' \|\| steps\.\1\.outcome == 'failure'\) && \(steps\.\1\.outputs\.handoff != 'true' \|\| steps\.(?:key|sub)-leg(?:-\d+|-spec)?\.outcome == 'failure'\)/, "if: steps.$1.outcome == 'success' || steps.$1.outcome == 'failure'")
+          .replace(/^( {10}handoff: .*steps\.)sub(-leg)/m, "$1key$2")
           .replace(`\n          fallback-reason: ${FALLBACK_REASON}`, "")
           .replace(/ && steps\.credential\.outputs\.present != 'false'/, "")
           .replace(/(?: && steps\.(?:key|sub)-leg(?:-\d+|-spec)?\.outcome != 'success')+$/m, ""),
@@ -440,7 +436,7 @@ test("the subscription job repeats the key job's steps but for the credential", 
   assert.deepEqual(normalize(STEPS[SUB]), normalize(STEPS[KEY]));
   // The fallback job reads everything again, as the key job does; its
   // credential step reads the fallback token where the subscription job's
-  // reads the role's.
+  // reads the role's. The last leg hands nothing on, so it has no handoff input.
   const fallback = STEPS[FB].map((s) => ({
     ...s,
     block: s.block
@@ -448,7 +444,10 @@ test("the subscription job repeats the key job's steps but for the credential", 
       .replace(`fallback-token: \${{ secrets.${FALLBACK} }}`, "subscription-token: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}")
       .replace(`\n          fallback-reason: ${FB_REASON}`, `\n          fallback-reason: ${FALLBACK_REASON}`),
   }));
-  assert.deepEqual(normalize(fallback), normalize(STEPS[KEY]));
+  assert.deepEqual(
+    normalize(fallback),
+    normalize(STEPS[KEY]).map((block) => block.replace(/\n {10}handoff: .*$/m, "")),
+  );
 });
 
 // check-intent hands its reads on only from steps that finish before the
@@ -560,7 +559,7 @@ test("the outcome is reported whenever a judge ran to a final class, and a missi
     assert.equal(STEPS[job].at(-1).name, "Fail without a verdict", job);
     assert.match(STEPS[job].at(-1).block, /exit 1/, job);
   }
-  assert.equal(/^ {8}if: (.*)$/m.exec(step("Report the judgment's outcome", SUB))[1], SUB_REPORT_IF);
+  assert.equal(/^ {8}if: (.*)$/m.exec(step("Report the judgment's outcome", SUB))[1], REPORT_IF);
   assert.match(step("Report the judgment's outcome", FB), /^ {8}if: steps\.judge\.outcome == 'success' \|\| steps\.judge\.outcome == 'failure'$/m);
   for (const job of [SUB, FB]) {
     assert.equal(input(step("Report the judgment's outcome", job), "known-failure-class"), "${{ steps.judge.outputs.lane-class }}", job);
@@ -580,15 +579,19 @@ test("the outcome is reported whenever a judge ran to a final class, and a missi
   assert.match(STEPS[FB].at(-1).block, /^ {8}if: always\(\) && steps\.agree\.outcome == 'success' && steps\.verdict\.outcome != 'success'$/m);
 });
 
-test("a handoff leaves exactly one lane record, from the job that saw its end", () => {
+test("a handoff leaves one lane record per leg, the leg that handed off marked handoff", () => {
   const report = step("Report the judgment's outcome", KEY);
-  assert.equal(/^ {8}if: (.*)$/m.exec(report)[1], KEY_REPORT_IF);
+  assert.equal(/^ {8}if: (.*)$/m.exec(report)[1], REPORT_IF);
   assert.equal(input(report, "lane"), "pr-verify");
   assert.equal(input(report, "fallback-reason"), undefined);
   // A key leg that is not clean hands nothing on, so the key job records the
   // stop itself under the leg's own class, credit-stop or auth.
   assert.equal(input(report, "known-failure-class"), KEY_CLASS);
-  // A clean handoff skips this report; the subscription job, which runs
+  // A clean handoff records this leg with handoff true, a notice; a handoff
+  // the leg check refused stays an error.
+  assert.equal(input(report, "handoff"), "${{ steps.judge.outputs.handoff == 'true' && steps.key-leg.outcome != 'failure' }}");
+  assert.equal(input(step("Report the judgment's outcome", SUB), "handoff"), "${{ steps.judge.outputs.handoff == 'true' && steps.sub-leg.outcome != 'failure' }}");
+  // The subscription job, which runs
   // exactly when key-leg-clean is true, records the run with a plain lane
   // name and says why in fallback-reason, one of report-lane-outcome's
   // credit-stop, auth or no-key.
@@ -668,6 +671,9 @@ test("every job has one judge step per chunk, each repeating the first but for i
       const report = step(`Report chunk ${k}'s outcome`, job);
       assert.equal(input(report, "outcome"), `\${{ steps.${judgeId(k)}.outcome }}`, job);
       assert.equal(input(report, "step-started-at"), `\${{ steps.time-${k}.outputs.started-at }}`, job);
+      if (legId[job]) {
+        assert.equal(input(report, "handoff"), `\${{ steps.${judgeId(k)}.outputs.handoff == 'true' && steps.${legId[job]}${suffix(k)}.outcome != 'failure' }}`, `${job} chunk ${k}`);
+      }
       assert.equal(input(step(`Upload chunk ${k}'s sealed transcript`, job), "job-id"), `\${{ github.job }}-${k}`, job);
     }
     // 22 minutes a judge step and 15 for the rest of the job.

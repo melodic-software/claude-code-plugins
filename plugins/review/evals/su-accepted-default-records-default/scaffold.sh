@@ -8,7 +8,7 @@ mkdir -p docs/standards
 
 cat >docs/standards/README.md <<'MD'
 ---
-standards-contract: 1.1.1
+standards-contract: 1.1.2
 ---
 
 # Standards index

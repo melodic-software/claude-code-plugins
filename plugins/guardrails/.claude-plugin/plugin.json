@@ -102,6 +102,12 @@
       "description": "Blocks an agent from posting the PR-fix lane fix request (a line starting \"PR-fix lane: please fix this finding\") to GitHub through gh, curl or a GitHub MCP write tool. Only the owner posts it, in the GitHub UI. On by default.",
       "default": true
     },
+    "block_github_post_content_enabled": {
+      "type": "boolean",
+      "title": "Block-github-post-content guard",
+      "description": "Blocks a Bash or PowerShell gh or curl command whose GitHub post body holds a secret or a hardcoded machine path, using the secret-pattern-detection and hardcoded-path-check patterns; their options also turn off their half here. On by default.",
+      "default": true
+    },
     "block_windows_drive_tmp_enabled": {
       "type": "boolean",
       "title": "Block-Windows-drive-tmp guard",
@@ -182,5 +188,5 @@
       "min": 1
     }
   },
-  "version": "0.81.0"
+  "version": "0.83.0"
 }

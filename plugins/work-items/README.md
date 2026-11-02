@@ -248,6 +248,20 @@ work_priority_order:
 
 The work skill's "Selection Priority" section says how it is read.
 
+`bug_path.mode` also lives only in the repository file. With `full`, the
+default, `/work-items:work` runs a bug item through to a fix and a draft pull
+request. With `investigate`, it stops after the root cause: it opens no branch,
+writes no fix and opens no pull request. Instead it posts one marker comment on
+the item with the outcome, the reproduction evidence, the ranked causes and the
+access that was missing. CI mode (`--issue <n> --ci`) does not read the key and
+runs a bug item through to a fix. The work skill's "Investigate mode" section
+says how it is read.
+
+```yaml
+bug_path:
+  mode: investigate
+```
+
 `delivery_deploy_signal` also lives only in the repository file. It sets what
 `/work-items:measure-delivery` counts as a deployment, and its one value, the
 default, is `merge-to-default-branch`: each commit on the default branch's
@@ -300,7 +314,7 @@ reads it from.
 | `triage_objection_window_hours` | number<br>*min 0* | `0` | `CLAUDE_PLUGIN_OPTION_TRIAGE_OBJECTION_WINDOW_HOURS` | Hours after triage makes an item autonomous-eligible during which the work-loop lane skips it, so a person can object in a reply. 0 (the default) is off. The repository's docs/conventions/work-items.yaml overrides this per repo. |
 | `ai_disclaimer` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_AI_DISCLAIMER` | When true, autonomous work-items lanes (triage, work-loop, attend-queue answers, autonomous filing) start each tracker item and comment they create with the AI disclaimer. Default false, so lanes omit it. The repository's docs/conventions/work-items.yaml overrides this per repo. |
 | `work_dispatch_concurrency_cap` | number<br>*min 1* | *(none)* | `CLAUDE_PLUGIN_OPTION_WORK_DISPATCH_CONCURRENCY_CAP` | Maximum worker rows /work-items:work's autonomous execute step lets /implementation:implement-dispatch run at once in one plan phase, passed as its --wave-cap ceiling. A fractional value is floored. Unset: implement-dispatch's implement_dispatch_wave_cap option, else its internal default. |
-| `lane_instance` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_INSTANCE` | Writer identity for this machine's work-loop telemetry, the suffix of its telemetry marker, so concurrent lane instances never overwrite each other. Absent: the sanitized lowercased hostname. Must match ^\[a-z0-9\]\[a-z0-9-\]{0,31}$. It appears verbatim in tracker comments. |
+| `lane_instance` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_INSTANCE` | Writer identity for this machine's work-loop telemetry, the suffix of its telemetry marker, so concurrent lane instances never overwrite each other. Absent: a random id made once and kept in the plugin data dir. Must match ^\[a-z0-9\]\[a-z0-9-\]{0,31}$. It appears verbatim in tracker comments. |
 | `lane_app_slug` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_APP_SLUG` | Slug of the GitHub App whose installation token the work-loop lane runs under, passed as --app-slug to its telemetry upsert so the write identity resolves to <slug>\[bot\]. Needed only under an App token. Absent: the identity resolves from gh api user. Must match ^\[a-z0-9\]\[a-z0-9-\]*$. |
 | `work_loop_item_cap_start` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_ITEM_CAP_START` | Where the work-loop lane's adaptive per-cycle item cap starts. Default 2. The cap ramps up by one after three consecutive clean items (never while a rate-limit warning is latched) and drops by one on any dirty item; enforcement is the loop body's own arithmetic. |
 | `work_loop_item_cap_ceiling` | number<br>*min 1* | `3` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_ITEM_CAP_CEILING` | Upper bound the work-loop lane's adaptive item cap can ramp to for non-frontier-tier items. Default 3. Frontier-tier items are bounded separately by work_loop_frontier_item_cap_ceiling. |

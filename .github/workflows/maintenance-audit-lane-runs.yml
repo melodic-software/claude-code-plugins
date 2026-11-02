@@ -152,6 +152,10 @@ jobs:
       max-parallel: 4
       matrix:
         unit: ${{ fromJson(needs.collect.outputs.units) }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the run's main commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -254,8 +258,8 @@ jobs:
       # continue-on-error keeps a launcher failure, which run-claude-cli
       # reports by failing this step, from ending the job before the outcome
       # step; "Fail without findings" carries the red. A handoff skips the
-      # findings steps, and a clean one the outcome step too: judge-subscription
-      # judges the unit and records it instead.
+      # findings steps; the outcome step records the leg as handed off, and
+      # judge-subscription judges the unit.
       # One leg of leg-timeout-minutes and the CLI install fit in
       # timeout-minutes, which the outcome step repeats, and that fits in the
       # job's 30. The launcher's --restricted keeps the file tools inside the
@@ -370,7 +374,8 @@ jobs:
           retention-days: 1
 
       - name: Report the judgment's outcome
-        if: (steps.judge.outcome == 'success' || steps.judge.outcome == 'failure') && (steps.judge.outputs.handoff != 'true' || steps.key-leg.outcome == 'failure')
+        if: steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'
+        continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge.outcome }}
@@ -383,6 +388,7 @@ jobs:
           credential: ${{ steps.judge.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
+          handoff: ${{ steps.judge.outputs.handoff == 'true' && steps.key-leg.outcome != 'failure' }}
 
       # The structured output is untrusted model text: read from the
       # launcher's file and checked by the script, never interpolated into a
@@ -413,6 +419,14 @@ jobs:
           path: ${{ runner.temp }}/lane-sweep-findings/findings.json
           if-no-files-found: error
           retention-days: 3
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
       - name: Fail without findings
         if: always() && steps.unit.outcome == 'success' && steps.findings.outcome != 'success' && steps.handoff.outcome != 'success'
@@ -489,6 +503,10 @@ jobs:
       fail-fast: false
       max-parallel: 4
       matrix: ${{ fromJson(needs.judge-handoffs.outputs.matrix) }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the run's main commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -599,8 +617,8 @@ jobs:
       # reports by failing this step, from ending the job before the outcome
       # step; "Fail without findings" carries the red. With the fallback
       # token set, a limit stop, a credit stop or a 401 or 402 hands off, which
-      # skips the findings steps, and a clean one the outcome step too:
-      # judge-fallback judges the unit and records it instead.
+      # skips the findings steps; the outcome step records the leg as handed
+      # off, and judge-fallback judges the unit.
       # One leg of leg-timeout-minutes and the CLI install fit in
       # timeout-minutes, which the outcome step repeats, and that fits in the
       # job's 30. The launcher's --restricted keeps the file tools inside the
@@ -713,7 +731,8 @@ jobs:
           retention-days: 1
 
       - name: Report the judgment's outcome
-        if: (steps.judge.outcome == 'success' || steps.judge.outcome == 'failure') && (steps.judge.outputs.handoff != 'true' || steps.sub-leg.outcome == 'failure')
+        if: steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'
+        continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge.outcome }}
@@ -726,7 +745,8 @@ jobs:
           credential: ${{ steps.judge.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
-          # Why this leg ran, for the unit's one lane record.
+          handoff: ${{ steps.judge.outputs.handoff == 'true' && steps.sub-leg.outcome != 'failure' }}
+          # Why this leg ran, for its lane record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
       # The structured output is untrusted model text: read from the
@@ -758,6 +778,14 @@ jobs:
           path: ${{ runner.temp }}/lane-sweep-findings/findings.json
           if-no-files-found: error
           retention-days: 3
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
       - name: Fail without findings
         if: always() && steps.unit.outcome == 'success' && steps.findings.outcome != 'success' && steps.handoff.outcome != 'success'
@@ -832,6 +860,10 @@ jobs:
       fail-fast: false
       max-parallel: 4
       matrix: ${{ fromJson(needs.judge-subscription-handoffs.outputs.matrix) }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the run's main commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1002,6 +1034,7 @@ jobs:
 
       - name: Report the judgment's outcome
         if: steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'
+        continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge.outcome }}
@@ -1014,7 +1047,7 @@ jobs:
           credential: ${{ steps.judge.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
-          # Why this leg ran, for the unit's one lane record.
+          # Why this leg ran, for its lane record.
           fallback-reason: ${{ matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || '' }}
 
       # The structured output is untrusted model text: read from the
@@ -1046,6 +1079,14 @@ jobs:
           path: ${{ runner.temp }}/lane-sweep-findings/findings.json
           if-no-files-found: error
           retention-days: 3
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
       - name: Fail without findings
         if: always() && steps.unit.outcome == 'success' && steps.findings.outcome != 'success'
