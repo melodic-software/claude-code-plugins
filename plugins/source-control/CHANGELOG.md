@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.3.3] - 2026-11-02
+
+### Fixed
+
+- `babysit-prs`: while a demotion record holds, the post-merge floor stays at the newest clear among the other records instead of falling back to the commit that enabled the unattended path, so a new record no longer reopens the whole post-merge window. The hold, its reason and its records are unchanged.
+
 ## [5.3.2] - 2026-11-02
 
 ### Changed
