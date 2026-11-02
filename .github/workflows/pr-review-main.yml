@@ -533,6 +533,8 @@ jobs:
       - name: Resolve the review's model
         id: models
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
+        env:
+          API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           model-route: ${{ matrix.route }}
@@ -1357,6 +1359,8 @@ jobs:
       - name: Resolve the review's model
         id: models
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
+        env:
+          API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           model-route: ${{ matrix.route }}
@@ -2185,6 +2189,8 @@ jobs:
       - name: Resolve the review's model
         id: models
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
+        env:
+          API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           model-route: ${{ matrix.route }}

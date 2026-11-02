@@ -2427,6 +2427,10 @@ jobs:
           HEAD_REF: ${{ needs.run.outputs.head-ref }}
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Each `gh api` call keeps its rate-limit reading for the job-end
+          # api-budget notice (.github/actions/log-api-budget).
+          # shellcheck source=/dev/null
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
           sha=""
           if [[ $PR_NUMBER =~ ^[1-9][0-9]*$ ]]; then
             ref_sha=""

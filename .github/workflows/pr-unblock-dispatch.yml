@@ -129,6 +129,8 @@ jobs:
         if: >-
           steps.kill.outputs.proceed == 'true'
           && (github.event_name == 'workflow_dispatch' || github.run_attempt != '1')
+        env:
+          API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
           require-pr: false
