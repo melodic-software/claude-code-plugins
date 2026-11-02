@@ -20,6 +20,30 @@
     {
       "answer": "**How I'd choose:** _if_ the song is tender, #3; if it is bitter, #5.",
       "why": "an inline conditional guide"
+    },
+    {
+      "answer": "How I'd choose: by feel. Quiet ache, #1 or #2; bitterness, #5.",
+      "why": "a bare guide keyed to feelings"
+    },
+    {
+      "answer": "Here's how I'd choose between them: sing each one against the chorus.",
+      "why": "guide prose, no pick"
+    },
+    {
+      "answer": "How I'd choose: quiet ache, #1 or #2; bitterness, #5.",
+      "why": "feeling-keyed guide"
+    },
+    {
+      "answer": "**How I'd choose:** *by feel*: quiet ache, #1 or #2; bitterness, #5.",
+      "why": "italic by-feel guide"
+    },
+    {
+      "answer": "How I'd choose: bitterness, #5; tenderness, #3.",
+      "why": "one-word moods keyed to option numbers"
+    },
+    {
+      "answer": "**How I'd choose:** tenderness, #3; bitterness, #5.",
+      "why": "one-word moods after a bold heading"
     }
   ],
   "fail": [
@@ -51,6 +75,14 @@
     {
       "answer": "**How I'd choose:** *the porch light still waits up*.",
       "why": "a single italic pick on the choosing-guide line (review finding)"
+    },
+    {
+      "answer": "How I'd choose: motel.",
+      "why": "a bare single pick on the choosing-guide line"
+    },
+    {
+      "answer": "**How I'd choose:** motel, it keeps the vacancy sign in the song.",
+      "why": "a bare single pick after a bold heading"
     }
   ]
 }
