@@ -1729,7 +1729,7 @@ fi
 mkdir -p "$ROOT17A/lib" "$ROOT17A/nodebin"
 cp "$HOOK_DIR/prerequisites.mjs" "$ROOT17A/lib/"
 ln -s "$(command -v node)" "$ROOT17A/nodebin/node"
-run17a_out="$(PATH="$ROOT17A/nodebin" "$BASH" -c "${prereq17_got##*diagnose with: }")"
+run17a_out="$(cd "$ROOT17A" && PATH="$ROOT17A/nodebin" "$BASH" -c "${prereq17_got##*diagnose with: }")"
 run17a_rc=$?
 if [[ $run17a_rc -eq 1 && "$run17a_out" == 'FAIL  biome (cli, required): '* ]]; then
   ok "prereq_notice_to: the printed command runs as written and reports biome as FAIL"
