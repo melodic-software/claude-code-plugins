@@ -644,6 +644,27 @@ run "echo \`# \\\`; git reset --hard⏎:\` (escaped backtick inside a backtick c
   $'echo `# \\`; git reset --hard\n:`' 0
 run "echo \`# \\\\\\\\\`; git reset --hard⏎:\` (backtick after an escaped backslash closes it, blocked)" \
   $'echo `# \\\\`; git reset --hard\n:`' 2
+# In a case pattern position only esac is a reserved word.
+run "echo \$(case x in x) :;; case) :;; esac)#; git reset --hard (pattern spelled case, blocked)" \
+  "echo \$(case x in x) :;; case) :;; esac)#; git reset --hard" 2
+run "echo \$(case x in⏎case) :;; esac)#; git reset --hard (pattern spelled case after a newline, blocked)" \
+  $'echo $(case x in\ncase) :;; esac)#; git reset --hard' 2
+# Every quoted or delimited reader ends at the closing backtick.
+run "echo \`\$'\`; git reset --hard #'\` (ANSI-C quote inside backticks, blocked)" \
+  "echo \`\$'\`; git reset --hard #'\`" 2
+run "echo \`cat <<'\`; git reset --hard #'\` (quoted here-doc delimiter inside backticks, blocked)" \
+  "echo \`cat <<'\`; git reset --hard #'\`" 2
+run "echo \`cat <<E\`⏎git reset --hard⏎E (here-doc opened inside backticks, blocked)" \
+  $'echo `cat <<E`\ngit reset --hard\nE' 2
+# shellcheck disable=SC2016  # the backticks are the command text under test
+{
+  run "echo \`echo \\\`git reset --hard\\\`\` (nested backtick substitution, blocked)" \
+    'echo `echo \`git reset --hard\``' 2
+  run "echo \`echo \\\`:\\\`#; git reset --hard\` (# after a nested substitution, blocked)" \
+    'echo `echo \`:\`#; git reset --hard`' 2
+}
+run "echo \`cat <<E⏎x\`⏎git reset --hard⏎E (here-doc body ends at the closing backtick, blocked)" \
+  $'echo `cat <<E\nx`\ngit reset --hard\nE' 2
 run "heredoc body with git reset (stdin, not a command, allowed)" $'cat >notes <<EOF\ngit reset --hard\nEOF' 0
 run "quoted-delimiter heredoc with git push --force (allowed)" $'cat <<\'EOF\'\ngit push --force\nEOF' 0
 run "tab-indented heredoc <<- body (allowed)" $'cat <<-EOF\n\tgit reset --hard\n\tEOF' 0

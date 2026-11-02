@@ -4483,12 +4483,21 @@ hook::_bps_close_word() {
     ((wq_open)) && HOOK_SEG_REDIR_OPAQUE[_bps_last]=1
     pend=0
   else
-    # An unquoted `case` or `esac` in command position opens or closes a case
-    # frame, so a pattern's `)` pops no `(` frame below it. Inside arithmetic
-    # (innermost frame `r`) either is a variable name, and an `esac` closes
-    # only a case frame that is innermost.
+    # A case frame moves through its states as bash's parser does: `i` wants
+    # the subject word, `j` wants `in`, `C` is a pattern position (after `in`,
+    # `;;`, `;&` or `;;&`, where only `esac` is a reserved word, as bash's
+    # PST_CASEPAT), and `c` is a clause body. An unquoted `case` in command
+    # position opens one, an unquoted `esac` in command position closes the
+    # innermost one, and a pattern's `)` pops no `(` frame below it. Inside
+    # arithmetic (innermost frame `r`) both are variable names.
     _bps_w=${pstk//0/}
-    if ((!_bps_q)) && [[ "$_bps_w" != *r ]] &&
+    if [[ "$_bps_w" == *i ]]; then
+      pstk=${pstk%i*}j${pstk##*i}
+    elif [[ "$_bps_w" == *j ]]; then
+      [[ "$word" == 'in' ]] && ((!_bps_q)) && pstk=${pstk%j*}C${pstk##*j}
+    elif [[ "$_bps_w" == *[Cp] ]]; then
+      [[ "$_bps_w" == *C && "$word" == 'esac' ]] && ((!_bps_q && !${#seg[@]})) && pstk=${pstk%C*}
+    elif ((!_bps_q)) && [[ "$_bps_w" != *r ]] &&
       [[ "$word" == 'case' || ("$word" == 'esac' && "$_bps_w" == *c) ]]; then
       _bps_last=1
       for _bps_w in ${seg[@]+"${seg[@]}"}; do
@@ -4501,7 +4510,7 @@ hook::_bps_close_word() {
         esac
       done
       if ((_bps_last)); then
-        if [[ "$word" == 'case' ]]; then pstk+=c; else pstk=${pstk%c*}; fi
+        if [[ "$word" == 'case' ]]; then pstk+=i; else pstk=${pstk%c*}; fi
       fi
     fi
     seg+=("$word")
@@ -4672,20 +4681,23 @@ hook::bash_parse_segments_uncached() {
   # word (an array assignment `a=(…)` or an extglob `@(…)`), `s` the `(` of a
   # substitution (`$(…)`, `$((…))`, `<(…)`, `>(…)`), `b` a backtick
   # substitution, `a` a `(` whose reading depends on extglob (a bare `!(…)` or
-  # `f@()`), `c` a `case` statement, `r` arithmetic (the second `(` of `$((`
-  # or `((`), `0` any other `(`. Every `(`, `)` and
+  # `f@()`), `i` `j` `C` `c` a `case` statement in each state of its parse
+  # (hook::_bps_close_word), `p` the optional `(` before a case pattern, `r`
+  # arithmetic (the second `(` of `$((` or `((`), `0` any other `(`. Every `(`, `)` and
   # backtick still splits, so no text leaves a segment; bash keeps the closing
   # `)` or backtick of `1` `s` `b` in its word, so a `#` right after it
-  # (`hash_at`) is literal, not a comment. A `)` under a `c` frame is a case
-  # pattern's and pops nothing.
+  # (`hash_at`) is literal, not a comment. A `)` on a case frame is a case
+  # pattern's and pops nothing. `bt_hd` counts the here-docs pending when the
+  # open backtick began.
   local pstk="" wpar j hash_at=-1 sub_at=-1 amb_at=-1 dbrace="\${" wpar_re='^[A-Za-z_][A-Za-z0-9_]*(\[[^]]*\])?\+?=$'
-  local amb_seen=0 __hu_bps_rest __hu_bps_e __hu_bps_k
+  local amb_seen=0 bt_hd=0 __hu_bps_rest __hu_bps_e __hu_bps_k
   local -a __hu_bps_hb=()
   # The extglob-on reading of the text after an ambiguous `)#`: the caller's
   # open frames and pending here-docs carry over, and byte 0 is the `#` that
   # continues the word.
   if ((ext)); then
     pstk=${__hu_bps_pstk//a/1}
+    bt_hd=$__hu_bps_bthd
     hash_at=0
     hd_delims=(${__hu_bps_hdd[@]+"${__hu_bps_hdd[@]}"})
     hd_strip=(${__hu_bps_hds[@]+"${__hu_bps_hds[@]}"})
@@ -4745,6 +4757,10 @@ hook::bash_parse_segments_uncached() {
         i=$((i + 2))
         local body=""
         while ((i < n)) && [[ "${chars[i]}" != "'" ]]; do
+          if [[ "${chars[i]}" == '`' ]] && hook::_bps_bt_closes "$i"; then
+            ((i--))
+            break
+          fi
           if [[ "${chars[i]}" == '\' ]] && ((i + 1 < n)); then
             body+="${chars[i]}${chars[i + 1]}"
             ((i += 2))
@@ -4774,6 +4790,14 @@ hook::bash_parse_segments_uncached() {
           # for nothing after it.
           ((have)) && wq_esc=1
           ((i++))
+        elif [[ "$nx" == '`' && "$pstk" == *b* ]]; then
+          # Inside backticks `\`` opens or closes a nested substitution, whose
+          # text bash runs: split there as at a backtick, and a `#` right after
+          # it stays literal.
+          ((have)) && hook::_bps_close_word
+          hook::_bps_flush_segment
+          ((i++))
+          hash_at=$((i + 1))
         else
           word+="$nx"
           ((i++))
@@ -4804,7 +4828,7 @@ hook::bash_parse_segments_uncached() {
           # whole command, so that one pass already reads every later
           # ambiguous `)#` the extglob-on way.
           amb_seen=1
-          local __hu_bps_pstk=$pstk
+          local __hu_bps_pstk=$pstk __hu_bps_bthd=$bt_hd
           local -a __hu_bps_hdd=(${hd_delims[@]+"${hd_delims[@]}"})
           local -a __hu_bps_hds=(${hd_strip[@]+"${hd_strip[@]}"})
           local -a __hu_bps_hdq=(${hd_quoted[@]+"${hd_quoted[@]}"})
@@ -4860,27 +4884,32 @@ hook::bash_parse_segments_uncached() {
         fi
         while ((i + 1 < n)) && [[ "${chars[i + 1]}" == ' ' || "${chars[i + 1]}" == $'\t' ]]; do ((i++)); done
         local delim=""
+        # Inside backticks the delimiter, quoted or not, ends at the closing
+        # backtick, which the main loop then reads.
         while ((i + 1 < n)); do
           nx="${chars[i + 1]}"
+          [[ "$nx" == '`' ]] && hook::_bps_bt_closes $((i + 1)) && break
           case "$nx" in
           ' ' | $'\t' | $'\n' | ';' | '&' | '|' | '<' | '>' | '(' | ')') break ;;
           "'")
             hquoted=1
             ((i++))
-            while ((i + 1 < n)) && [[ "${chars[i + 1]}" != "'" ]]; do
+            while ((i + 1 < n)) && [[ "${chars[i + 1]}" != "'" ]] &&
+              { [[ "${chars[i + 1]}" != '`' ]] || ! hook::_bps_bt_closes $((i + 1)); }; do
               delim+="${chars[i + 1]}"
               ((i++))
             done
-            ((i + 1 < n)) && ((i++))
+            ((i + 1 < n)) && [[ "${chars[i + 1]}" == "'" ]] && ((i++))
             ;;
           '"')
             hquoted=1
             ((i++))
-            while ((i + 1 < n)) && [[ "${chars[i + 1]}" != '"' ]]; do
+            while ((i + 1 < n)) && [[ "${chars[i + 1]}" != '"' ]] &&
+              { [[ "${chars[i + 1]}" != '`' ]] || ! hook::_bps_bt_closes $((i + 1)); }; do
               delim+="${chars[i + 1]}"
               ((i++))
             done
-            ((i + 1 < n)) && ((i++))
+            ((i + 1 < n)) && [[ "${chars[i + 1]}" == '"' ]] && ((i++))
             ;;
           '\')
             hquoted=1
@@ -4954,6 +4983,9 @@ hook::bash_parse_segments_uncached() {
         j=${pstk//0/}
         if ((i == sub_at)); then
           wpar=s
+        elif [[ "$j" == *C ]] && ((!have)); then
+          # The optional `(` before a case pattern.
+          wpar=p
         elif [[ "$j" == *r ]]; then
           :
         elif ((i > 0)) && [[ "${chars[i - 1]}" == '(' && "$pstk" == *[s0] ]]; then
@@ -4980,13 +5012,32 @@ hook::bash_parse_segments_uncached() {
         a) amb_at=$((i + 1)) ;;
         *) ;;
         esac
-        [[ "$pstk" == *[bc] ]] || pstk=${pstk%?}
+        # A pattern's `)` turns its case frame to a clause body.
+        case "${pstk: -1}" in
+        C) pstk=${pstk%C}c ;;
+        p)
+          pstk=${pstk%p}
+          [[ "$pstk" == *C ]] && pstk=${pstk%C}c
+          ;;
+        b | c | i | j) ;;
+        *) pstk=${pstk%?} ;;
+        esac
+      elif [[ "$c" == ';' || "$c" == '&' ]] && ((i > 0)) &&
+        [[ "${chars[i - 1]}" == ';' && "${pstk//0/}" == *c ]]; then
+        # `;;`, `;&` and `;;&` end a clause; a pattern position follows.
+        pstk=${pstk%c*}C${pstk##*c}
       elif [[ "$c" == '`' ]]; then
         if [[ "$pstk" == *b* ]]; then
+          # Here-docs opened inside the substitution take their bodies from it,
+          # never from the lines after it.
           pstk=${pstk%b*}
           hash_at=$((i + 1))
+          hd_delims=(${hd_delims[@]+"${hd_delims[@]:0:bt_hd}"})
+          hd_strip=(${hd_strip[@]+"${hd_strip[@]:0:bt_hd}"})
+          hd_quoted=(${hd_quoted[@]+"${hd_quoted[@]:0:bt_hd}"})
         else
           pstk+=b
+          bt_hd=${#hd_delims[@]}
         fi
       fi
       ((have)) && hook::_bps_close_word
@@ -4996,18 +5047,25 @@ hook::bash_parse_segments_uncached() {
       # stdin, so consume them without tokenizing. Delimiters match in FIFO
       # order; `<<-` strips leading tabs from body lines before comparing.
       if [[ "$c" == $'\n' ]] && ((${#hd_delims[@]})); then
-        local hidx line lc d strip hstart hclosed
-        for ((hidx = 0; hidx < ${#hd_delims[@]}; hidx++)); do
+        local hidx line lc d strip hstart hclosed hbt=0
+        for ((hidx = 0; hidx < ${#hd_delims[@]} && !hbt; hidx++)); do
           d="${hd_delims[hidx]}"
           strip="${hd_strip[hidx]}"
           hstart=$((i + 1))
           hclosed=0
           while ((i + 1 < n)); do
             line=""
+            # Bash ends a backtick substitution at its first unescaped
+            # backtick, even inside a here-doc body it holds.
             while ((i + 1 < n)) && [[ "${chars[i + 1]}" != $'\n' ]]; do
+              if [[ "${chars[i + 1]}" == '`' ]] && hook::_bps_bt_closes $((i + 1)); then
+                hbt=1
+                break
+              fi
               line+="${chars[i + 1]}"
               ((i++))
             done
+            ((hbt)) && break
             ((i + 1 < n)) && ((i++))
             lc="$line"
             if ((strip)); then

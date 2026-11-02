@@ -4061,6 +4061,29 @@ bps_segments_are 'the extglob-on reading keeps a pending here-doc body out of co
     'echo $' '$' 'case x in x' 'echo 1' 'esac' '#' 'git reset --hard'
   bps_segments_are '# after a ((…)) command is a comment' \
     '((case))#; git reset --hard' 'case'
+  bps_segments_are 'a case pattern spelled case after ;; opens no case frame' \
+    'echo $(case x in x) :;; case) :;; esac)#; git reset --hard' \
+    'echo $' 'case x in x' ':' 'case' ':' 'esac' '#' 'git reset --hard'
+  bps_segments_are 'a case pattern spelled case after a newline opens no case frame' \
+    $'echo $(case x in\ncase) :;; esac)#; git reset --hard' \
+    'echo $' 'case x in' 'case' ':' 'esac' '#' 'git reset --hard'
+  bps_segments_are 'a case pattern in parentheses spelled case opens no case frame' \
+    'echo $(case x in (case) :;; esac)#; git reset --hard' \
+    'echo $' 'case x in' 'case' ':' 'esac' '#' 'git reset --hard'
+  bps_segments_are "a \$'…' inside backticks ends at the closing backtick" \
+    "echo \`\$'\`; git reset --hard #'\`" 'echo' '' 'git reset --hard'
+  bps_segments_are 'a quoted here-doc delimiter inside backticks ends at the closing backtick' \
+    "echo \`cat <<'\`; git reset --hard #'\`" 'echo' 'cat' 'git reset --hard'
+  bps_segments_are 'a here-doc opened inside backticks takes no body after them' \
+    $'echo `cat <<E`\ngit reset --hard\nE' 'echo' 'cat' 'git reset --hard' 'E'
+  bps_segments_are 'an escaped backtick inside backticks opens a nested substitution' \
+    'echo `echo \`git reset --hard\``' 'echo' 'echo' 'git reset --hard'
+  bps_segments_are 'a # right after a nested substitution is literal' \
+    'echo `echo \`:\`#; git reset --hard`' 'echo' 'echo' ':' '#' 'git reset --hard'
+  bps_segments_are 'an escaped backtick outside backticks stays a literal character' \
+    'echo \`; git reset --hard' 'echo `' 'git reset --hard'
+  bps_segments_are 'a here-doc body inside backticks ends at the closing backtick' \
+    $'echo `cat <<E\nx`\ngit reset --hard\nE' 'echo' 'cat' 'git reset --hard' 'E'
 }
 
 # bps_heredocs_are <desc> <command> <entry>...: HOOK_HEREDOC_BODIES after the parse.
