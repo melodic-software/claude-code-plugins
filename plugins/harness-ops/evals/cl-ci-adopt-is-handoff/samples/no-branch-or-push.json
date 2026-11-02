@@ -23,7 +23,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "git switch -c changelog/demo/v2.1.250..2.1.261",
+            "command": "git switch -c changelog/demo/v2.1.250-2.1.261",
             "description": "branch"
           }
         }

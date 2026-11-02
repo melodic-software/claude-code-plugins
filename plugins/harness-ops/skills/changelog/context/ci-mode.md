@@ -12,6 +12,10 @@ handoff in the plan: never a guess, never a prompt.
 none, or when the status script reports the range `not computed`, the plan is written with status
 `stopped`. A single release `X` is the range `X..X`.
 
+Branch names cannot hold `..` (git-check-ref-format(1)), so a branch carries the range's ref form
+`<ref>`: `X` for a single release and `A-B` for a range. Keys, the plan directory and commit subjects
+keep `A..B`.
+
 ## Phases under --ci
 
 | Phase | Interactive | `--ci` |
@@ -20,7 +24,7 @@ none, or when the status script reports the range `not computed`, the plan is wr
 | 1 Explore, 2 Research | as written | Unchanged. An uncited research claim leaves its row unverified |
 | 3 Scope gate | the user picks rows | The rule below picks; nothing is asked |
 | 4 Hand off | stage skills, user confirms filing | Branch rows run through the stage skills with `--unattended`; every other row is a handoff, filed by the workflow, not here |
-| 5 Native drift | files work items | Its would-be work items are handoffs of kind `native-drift` under their existing dedupe keys; behavior probes are listed in `probes` and never run live |
+| 5 Native drift | files work items | Its would-be work items are handoffs of kind `native-drift` under their existing dedupe keys; behavior probes are listed in `probes` and never run live. The previous-run summary is never advanced, so a retry derives the same handoffs and the keys dedupe them |
 
 ## Which rows get a branch
 
@@ -54,20 +58,25 @@ Every other row is a handoff, with `kind` naming why:
 
 For each owner plugin with branch rows, from the base commit:
 
-1. `git switch -c changelog/<plugin>/v<range>`.
-2. `/planning:plan --unattended`, recording in `Approval:` the release-intake lane as the mandate
-   and the plugin's pull request as the review surface; `/implementation:implement`;
+1. When `changelog/<plugin>/v<ref>` already exists locally (an earlier run in this checkout), leave
+   it untouched: list it in `branches` with its current head when its commits from the base touch
+   only the paths in condition 4, else move its rows to `not-applied` handoffs. Skip steps 2 to 5.
+2. `git switch -c changelog/<plugin>/v<ref>`.
+3. `/planning:plan --unattended`, recording in `Approval:` the upstream-apply-changelog lane as the
+   mandate and the plugin's pull request as the review surface; `/implementation:implement`;
    `/verification:confirm --unattended`. The plugin's changelog entry is part of the edit.
-3. Commit with the subject `chore(<plugin>): address Claude Code v<range> changelog`.
-4. Switch back to the base commit.
+4. Commit with the subject `chore(<plugin>): address Claude Code v<A..B> changelog` (`v<X>` for a
+   single release).
+5. Switch back to the base commit.
 
 When the plan comes back unapproved or verification fails, delete that local branch and move its
-rows to `not-applied` handoffs. A branch this run did not create is never touched.
+rows to `not-applied` handoffs. A branch this run did not create is never modified.
 
 ## The plan
 
 Written to `<memory_dir>/claude-code-changelog/<A>..<B>/ci-plan.json`. The run's last message ends
-with two lines, `ci-plan: <path>` and `status: <status>`.
+with two lines, `ci-plan: <path>` and `status: <status>`. A `no-range` stop has no range directory:
+it writes no plan and ends with `ci-plan: none` and `status: stopped`.
 
 Branch names and handoff keys derive from the range, lens and owner surface only, so a rerun of the
 same release reproduces them and the workflow can skip what already exists. `marker.advance` is
