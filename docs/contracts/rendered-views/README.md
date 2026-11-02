@@ -634,6 +634,18 @@ Assessed under the genre rubric and given no lane:
   record a later pass reads (a knowledge slice with its interview handoff, skill reference files,
   a tracked `docs/upstream` record). The next consumer is that pass, not a person, so no genre
   applies. `knowledge:video-digest` is on the escape-helper gate (above).
+- `knowledge:course-digest` (genre: reports, for `repo-candidates.md` and `action-items.md`;
+  dual-audience, since each action item needs research before adoption): the person works the
+  report in the markdown itself, ticking `action-items.md`'s checkboxes, so a page would be a
+  read-only second copy and the text rung loses nothing. Its course directory (transcripts,
+  frames, module summaries) is a digest, which is always markdown. The course is paid content
+  kept in a private work root, so a view of it could never publish.
+- `knowledge:map-corpus` (genre: plans presented for approval, for its Phase 3 map approval;
+  dual-audience, since later phases re-read the approved `link-map.json`): the person approves or
+  narrows a map of at most `max_resources` in-corpus rows (default 30), shown as tallies, the
+  in-corpus list with reasons, bounds and batch plan, which the text rung serves without loss.
+  `queue.json` lists the URLs handed to the `knowledge:docpage-digest` runs and
+  `mapper-handoff.md` is a handoff; both are records, so neither gets a view.
 - `testing:audit`: the scanner's output, presented as the script prints it: one rule-tagged
   `path:line` row per finding and a coverage block. Its gate (`--check`) and its fix-pass file
   (`--persist-findings`) are separate script modes. The text rung loses nothing a page would add.
