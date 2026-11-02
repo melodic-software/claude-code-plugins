@@ -2679,11 +2679,15 @@ jobs:
           SECURITY_STOP: ${{ needs.review.outputs.claude-security-review-stop || needs.review-subscription.outputs.claude-security-review-stop || needs.review-fallback.outputs.claude-security-review-stop }}
           SECURITY_HEAD: ${{ needs.review.outputs.claude-security-review-head || needs.review-subscription.outputs.claude-security-review-head || needs.review-fallback.outputs.claude-security-review-head }}
         run: |
+          calls=0
+          # The count never changes the step's exit status.
+          trap '{ echo "$calls" >"$RUNNER_TEMP/pr-review-main-stop-calls"; } 2>/dev/null || :' EXIT
           for lane in claude-review claude-security-review; do
             if [ "$lane" = claude-review ]; then reason=$CODE_STOP head=$CODE_HEAD; else reason=$SECURITY_STOP head=$SECURITY_HEAD; fi
             [ -z "$reason" ] && continue
             [[ $reason =~ ^(too-large|binary|long-line|chunk-failed)$ && $head =~ ^[0-9a-f]{40}$ ]] || {
               echo "::error::a stop output is malformed for $lane"; exit 1; }
+            calls=$((calls + 1))
             gh api -X POST "repos/$GITHUB_REPOSITORY/check-runs" \
               -f name="pr-review-main: $lane" -f head_sha="$head" -f status=completed \
               -f conclusion=neutral \
@@ -2728,12 +2732,16 @@ jobs:
 
       # The hub's api-calls notice, in log-api-budget's api_budget_emit_calls
       # shape: this job has no checkout of that action, and its only calls
-      # are the check-run POSTs above, counted as they are sent.
+      # are the check-run POSTs of the two record steps, counted as they are sent.
       - name: Log the API calls at the end
         if: always()
         run: |
-          # No file: the record step did not run (its download failed), so 0.
+          # No file: that record step did not run, so 0 for it.
           calls=0
-          [[ -f $RUNNER_TEMP/pr-review-main-calls ]] && calls=$(<"$RUNNER_TEMP/pr-review-main-calls")
-          [[ $calls =~ ^[0-9]{1,6}$ ]] || calls=0
+          for file in pr-review-main-stop-calls pr-review-main-calls; do
+            n=0
+            [[ -f $RUNNER_TEMP/$file ]] && n=$(<"$RUNNER_TEMP/$file")
+            [[ $n =~ ^[0-9]{1,6}$ ]] || n=0
+            calls=$((calls + 10#$n))
+          done
           echo "::notice title=api-calls::github-token=$calls not-modified=0 graphql=0"

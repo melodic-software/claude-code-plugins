@@ -30,13 +30,9 @@ const NO_LOG = "no job-end log-api-budget step";
 const DECIDE_REBUILD =
   ".github/scripts/release-publish-plugins/decide-rebuild.sh does not wrap its gh calls";
 const ALLOWED = new Map([
-  // Head code runs in the lane jobs, so no step after it loads the log action
-  // (log-api-budget.test.mjs:1006). Their base-code steps still keep readings,
-  // which report-lane-outcome counts into the lane record's GitHub calls.
-  ["pr-run-activity-read.yml:run", NO_LOG],
-  ["pr-run-activity-write.yml:run", NO_LOG],
   // No checkout to load the log-api-budget action from, and no contents: read
-  // to check one out with.
+  // to check one out with; each counts its own POSTs and writes the api-calls
+  // notice itself.
   [
     "intake-triage.yml:redispatch-refined",
     `${NO_LOG}; step "Triage the refined issue again" calls gh without api_budget_wrap_gh`,
