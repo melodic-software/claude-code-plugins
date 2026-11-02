@@ -10,7 +10,7 @@ graders:
   - name: missing-goal-under-spec
     type: tool_used
     tool: Write
-    input_match: '^(?=.*\.work/reviews/[^"]*\.md")(?=.*## By axis(?:(?!\\n## ).)*### Spec(?:(?!### Standards)(?!\\n## ).)*(?:[Rr]edact|REDACT|[Mm]ask|MASK|PII|[Pp]ersonal data))(?!.*## By axis(?:(?!\\n## ).)*### Standards(?:(?!\\n## ).)*(?:[Rr]edact|REDACT|[Mm]ask|MASK|PII|[Pp]ersonal data))'
+    input_match: '^(?=.*\.work/reviews/[^"]*\.md")(?=.*## By axis(?:(?!\\n## ).)*### Spec(?:(?!### Standards)(?!\\n## ).)*?\\n\| *(\d+) *\|(?:(?!\\n).)*?(?:[Rr]edact|REDACT|[Mm]ask|MASK|PII|[Pp]ersonal data))(?!.*## By axis(?:(?!\\n## ).)*### Standards(?:(?!\\n## ).)*\\n\| *\1 *\|)'
   - name: defect-under-standards
     type: tool_used
     tool: Write
