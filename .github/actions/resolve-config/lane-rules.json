@@ -1,48 +1,76 @@
 {
   "work-resolve-issue": {
     "stage": "work",
-    "forbidden-effects": ["merge"],
+    "forbidden-effects": [
+      "merge"
+    ],
     "never": "Merges, or marks its pull request ready"
   },
   "intake-triage": {
     "stage": "intake",
-    "forbidden-effects": ["mutate-branch", "publish-artifact", "merge"],
+    "forbidden-effects": [
+      "mutate-branch",
+      "publish-artifact",
+      "merge"
+    ],
     "never": "Writes to a branch"
   },
   "work-unblock": {
     "stage": "work",
-    "forbidden-effects": ["mutate-branch", "publish-artifact", "merge"],
+    "forbidden-effects": [
+      "mutate-branch",
+      "publish-artifact",
+      "merge"
+    ],
     "never": "Writes to a branch, or labels an issue that carries a hold label"
   },
   "pr-refine": {
     "stage": "refine",
-    "forbidden-effects": ["merge"],
+    "forbidden-effects": [
+      "merge"
+    ],
     "never": "Changes behavior"
   },
   "pr-run-checks": {
     "stage": "verify",
-    "forbidden-effects": ["mutate-branch", "merge"],
+    "forbidden-effects": [
+      "mutate-branch",
+      "merge"
+    ],
     "never": "Writes to the branch"
   },
   "pr-review": {
     "stage": "verify",
-    "forbidden-effects": ["mutate-branch", "merge"],
+    "forbidden-effects": [
+      "mutate-branch",
+      "merge"
+    ],
     "never": "Pushes fixes"
   },
   "pr-review-security": {
     "stage": "verify",
-    "forbidden-effects": ["mutate-branch", "merge"],
+    "forbidden-effects": [
+      "mutate-branch",
+      "merge"
+    ],
     "never": "Pushes fixes"
   },
   "pr-verify": {
     "stage": "verify",
-    "forbidden-effects": ["mutate-branch", "merge"],
+    "forbidden-effects": [
+      "mutate-branch",
+      "merge"
+    ],
     "never": "Pushes fixes"
   },
   "pr-explain": {
     "stage": "verify",
-    "forbidden-effects": ["merge"],
-    "forbidden-gating": ["gate"],
+    "forbidden-effects": [
+      "merge"
+    ],
+    "forbidden-gating": [
+      "gate"
+    ],
     "never": "Gates"
   },
   "pr-require-checks": {
@@ -57,7 +85,9 @@
   },
   "pr-unblock": {
     "stage": "unblock",
-    "forbidden-effects": ["merge"],
+    "forbidden-effects": [
+      "merge"
+    ],
     "never": "Merges"
   },
   "pr-merge": {
@@ -67,12 +97,25 @@
   },
   "post-merge-verify": {
     "stage": "post-merge",
-    "forbidden-effects": ["mutate-branch", "merge"],
+    "forbidden-effects": [
+      "mutate-branch",
+      "merge"
+    ],
     "never": "Edits PRs"
   },
   "post-merge-sweep-comments": {
     "stage": "post-merge",
-    "forbidden-effects": ["merge"],
+    "forbidden-effects": [
+      "merge"
+    ],
     "never": "Reopens merged PRs"
+  },
+  "release-intake": {
+    "stage": "intake",
+    "forbidden-effects": [
+      "mutate-tracker",
+      "merge"
+    ],
+    "never": "Merges, or writes to main or a branch outside changelog/<plugin>/v<release>"
   }
 }

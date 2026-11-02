@@ -157,6 +157,13 @@
           "default": 1,
           "description": "Further fix-ci dispatches on one PR head after its first fix-ci run ended in failure."
         },
+        "release-intake-per-day": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 2,
+          "description": "release-intake runs that reach the model in any 24 hours."
+        },
         "fix-docs-per-run": {
           "type": "integer",
           "minimum": 1,
