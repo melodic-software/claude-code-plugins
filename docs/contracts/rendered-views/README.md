@@ -580,13 +580,15 @@ plugin dial sits between the argument and the cascade. Each names the source of 
 - `prototype:explore-directions`: the mockup stays a local file at every value; `terminal` and
   `file` drop the design-canvas offer, since the canvas is published.
 - `prototype:pressure-test`: `terminal` picks the terminal app; `file`, `artifact` and `hosted`
-  pick the HTML demo shell. An explicit shell request still wins.
+  override nothing, so the audience routing still picks the shell, and an HTML demo stays a local
+  file. An explicit shell request still wins.
 - `planning:interview`'s read-only decision table, `planning:prd`'s pitch view and
   `planning:design`'s topology view (`plugins/planning/reference/rendered-view.md`, "Other optional
   views"): `terminal` writes no file; every other value writes the local file.
 - `overengineering:audit`: `terminal` drops the offer to render the findings through
-  `visualization:visualize`; `file` keeps the offer and passes `file` to it; every other value
-  keeps the offer and leaves the rung to `visualization:visualize`.
+  `visualization:visualize`; `file` keeps the offer and passes `file` to it; a value from the
+  `--medium` argument keeps the offer and passes that value to it; every other value keeps the
+  offer and leaves the rung to `visualization:visualize`.
 - `ai-briefing:generate`: only `--format` selects HTML or PPTX, so no layer starts the build; the
   briefing stays markdown under every layer.
 

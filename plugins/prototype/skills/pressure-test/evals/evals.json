@@ -72,6 +72,19 @@
         "Builds the terminal app, not the HTML demo shell",
         "Names the team layer .claude/rendered-views.md as the source of the shell choice"
       ]
+    },
+    {
+      "id": 7,
+      "name": "file-medium-keeps-tui-for-engineer",
+      "prompt": "Prototype this reducer for the checkout cart so I can poke at the state transitions from my terminal. (Fixture: ~/.claude/rendered-views.md contains only 'medium: file'; the repo has no rendered-views layer; no --medium argument was given and the request does not ask for a TUI or an HTML demo by name.)",
+      "expected_output": "Resolves medium from the rendered-views layers and reads medium: file from the user-global layer. Because file overrides nothing about the shell, the audience routing still decides: the driver is a developer with a terminal, so it builds the terminal app, not the HTML demo shell.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Resolves medium from the rendered-views layers before routing by audience",
+        "Builds the terminal app, not the HTML demo shell",
+        "Does not treat medium: file as a request for the HTML demo shell"
+      ]
     }
   ]
 }

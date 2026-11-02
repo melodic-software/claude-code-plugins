@@ -94,11 +94,13 @@ swaps. Route by audience:
   `git rev-parse --show-toplevel`; outside a work tree, read only the user-global layer. The last
   layer that sets `medium` wins. Count the overlay only when `git ls-files` does not list it and
   `git check-ignore` matches it; otherwise report it and ignore it. This plugin has no `medium`
-  option, so no rung sits between the argument and the layers. `terminal` picks the TUI. `file`
-  picks the HTML demo shell, as do `artifact` and `hosted`, read as `file` because this skill
-  publishes nothing. `auto`, an empty value or no value leaves the audience routing above; any
-  other value is reported and read as `auto`. Name the source of the shell choice in the handoff:
-  the request, the layer's path, or "shipped default".
+  option, so no rung sits between the argument and the layers. `terminal` picks the TUI. `file`,
+  `artifact` and `hosted` override nothing: `medium` says where a view goes, not which shell an
+  audience needs, so the audience routing above still decides, and when it picks the HTML demo
+  the page stays a local file, since this skill publishes nothing. `auto`, an empty value or no
+  value also leaves the audience routing above; any other value is reported and read as `auto`.
+  Name the source of the shell choice in the handoff: the request, the layer's path, or "shipped
+  default".
 
 ## HTML demo shell
 

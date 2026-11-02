@@ -113,8 +113,11 @@ the user-global layer. The last layer that sets `medium` wins. Count the overlay
 This plugin has no `medium` option, so no rung sits between the argument and the layers. `terminal`
 drops the offer: layers 1 and 2 are the whole report. `file` keeps the offer and, when it is taken,
 passes `file` to `visualization:visualize` as its argument, so no rung of that skill publishes the
-view. Any other value, or none, keeps the offer, and `visualization:visualize` picks the rung itself;
-a value outside the five is reported. Name the
+view. When `medium` came from the `--medium` argument, the offer, when taken, passes that value to
+`visualization:visualize` as its argument too, so the argument's rung is never lost to a lower rung
+of that skill. Any other value from a layer or the shipped default, or none, keeps the offer, and
+`visualization:visualize` picks the rung itself, since it reads the same layers; a value outside
+the five is reported. Name the
 source of `medium` in the terminal summary: the argument, the layer's path, or "shipped default".
 
 **Documented fallback when that plugin is not installed: skip it.** Say nothing beyond a single line
