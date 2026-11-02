@@ -50,15 +50,22 @@ above the plugin's directory, or with no absolute path or no known plugin direct
 
 - A Bash denial's paths are its command's absolute arguments, plus no path when it has an
   expansion or a relative word other than a flag, or does not parse.
-- Two kinds of denial are set aside before any other rule judges the run, each a warning that never
-  counts toward a FAIL: a named call other than Skill aimed only under the run's own plugin-data
-  directory (`<sandbox>/config/plugins/data`), and a `Read`, `Grep` or `Glob` aimed only under the
-  session's own `<sandbox>/config/projects/*/*/tool-results/`, where it reads back output it already
-  received. A Bash pipeline of `cat`, `head`, `wc`, `grep` and `sed -n` that reads only there is set
-  aside the same way. Compare such a run's score only with runs denied the same way. Any other Bash call (a
-  redirect, another command or operator, an unquoted glob, brace or `$`, or a path outside that
-  directory), a write, or any other
-  path in the config directory (`settings.json` included) keeps the rules below.
+- Three kinds of denial are set aside before any other rule judges the run, each a warning that
+  never counts toward a FAIL: a named call other than Skill aimed only under the run's own
+  plugin-data directory (`<sandbox>/config/plugins/data`); a `Read`, `Grep` or `Glob`, or a Bash
+  pipeline of `cat`, `head`, `wc`, `grep` and `sed -n`, aimed only under the session's own
+  `<sandbox>/config/projects/*/*/tool-results/`, where it reads back output it already received;
+  and the search of the plugin's directory in the next bullet. Any other Bash call (a redirect,
+  another command or operator, an unquoted glob, brace or `$`, or a path outside tool-results), a
+  write, or any other path in the config directory (`settings.json` included) keeps the rules below.
+- The third kind is a `Read`, `Grep` or `Glob` aimed only at or under the plugin's directory
+  (`suite.root` or a `suite.plugins` path), as when a negative control's broken copy searches itself
+  for the text it lacks. It is set aside only when the run's trace has a result line that is not
+  an error and none that is, no `tool_used` grader of the case names that tool, and the case is not
+  an invocation probe. A Bash call, a path above or outside the plugin, or a `Glob` pattern holding
+  `..` keeps the rules below. A run with only such a denial is not a denial-free run for the
+  same-score rule below.
+- Compare the score of a run with any set-aside denial only with runs denied the same way.
 - One exception overrides that FAIL: a denial of the same named call other than Skill (tool and
   target) in every run of its case, in both arms, is a warning, with or without an absolute path,
   unless an absolute path it names is at, under or above the plugin's directory. The environment
