@@ -71,7 +71,7 @@ on:
         type: number
         default: 1
       deterministic-only:
-        description: Run only the deterministic graders (no llm or baseline judge), skipping cases with none.
+        description: Run only the cases whose graders are all deterministic (no llm or baseline judge).
         required: false
         type: boolean
         default: false
@@ -320,7 +320,7 @@ jobs:
 
       # validate-cases.py makes no model call. A FAIL is a case the binary
       # rejects at load, so the job stops before any spend. On a deterministic
-      # run each suite is then copied without its llm and baseline graders.
+      # run each suite is then copied without its judged cases.
       - name: Validate and stage the suites
         id: stage
         if: steps.plugins.outputs.go == 'true'
@@ -347,7 +347,7 @@ jobs:
               split=$(node .base/.github/scripts/plugin-eval/deterministic-suite.mjs "$dir" evals-deterministic)
               echo "$split"
               if [ "$(jq '.kept | length' <<<"$split")" -eq 0 ]; then
-                echo "::notice::$plugin has no case with a deterministic grader; skipped."
+                echo "::notice::$plugin has no case with deterministic graders only; skipped."
                 continue
               fi
               eval_dir=evals-deterministic
