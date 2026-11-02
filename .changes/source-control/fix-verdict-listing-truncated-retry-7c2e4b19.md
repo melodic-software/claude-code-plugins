@@ -12,4 +12,5 @@ bump: patch
   listing wait while time is left, and a page body cut short while gh exits 0
   (`page N is not JSON`) or that the reader cannot parse counts as cut short
   too. A rate-limit answer is still never read again, and a listing that
-  keeps failing still refuses.
+  keeps failing still refuses. A whole listing still cut short after its
+  waits is noted for the job, so later Readers refuse without paging it again.

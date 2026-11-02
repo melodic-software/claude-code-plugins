@@ -938,6 +938,12 @@ class _Transient(_Unreadable):
     """A failed read that may succeed if repeated."""
 
 
+class _CutShort(_Transient):
+    """A page body cut short: read again like a 5xx, but noted for the job
+    once its waits run out, since each later Reader would page the whole
+    listing again."""
+
+
 def _transient(detail: str) -> bool:
     """A 5xx, a network error with no HTTP response, or a page body cut
     short. A rate limit is not: a fixed short wait outlasts neither a
@@ -1460,7 +1466,9 @@ class Reader:
                 self._listing_error = str(exc)
                 if self._overcount_mine:
                     self._note_overcount(self._listing_error)
-                if self._whole_paged and not isinstance(exc, _Transient):
+                if self._whole_paged and (
+                    isinstance(exc, _CutShort) or not isinstance(exc, _Transient)
+                ):
                     self._note_failed_listing(self._listing_error)
                 raise _Unreadable(self._listing_error) from exc
             if self._overcount_mine:
@@ -2204,12 +2212,16 @@ class Reader:
             raise _Unreadable(f"{label}: {exc}") from exc
         if proc.returncode != 0:
             detail = f"{label}: {(proc.stderr or '').strip() or proc.returncode}"
-            raise (_Transient if _transient(detail) else _Unreadable)(detail)
+            if not _transient(detail):
+                raise _Unreadable(detail)
+            text = detail.casefold()
+            cut = PAGE_NOT_JSON.search(text) or "unexpected end of json input" in text
+            raise (_CutShort if cut else _Transient)(detail)
         try:
             return json.loads(proc.stdout) if proc.stdout.strip() else None
         except ValueError as exc:
             # A body cut short while gh exits 0.
-            raise _Transient(f"{label}: {exc}") from exc
+            raise _CutShort(f"{label}: {exc}") from exc
 
     def _contains(self, sha: str, *, shared: bool = False) -> bool:
         """Whether the branch holds `sha`, read under the Actions token (a

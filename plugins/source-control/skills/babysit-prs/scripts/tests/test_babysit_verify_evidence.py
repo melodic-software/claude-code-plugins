@@ -5174,6 +5174,20 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
         self.assertIsNone(evidence.refusal, evidence.detail)
         self.assertEqual(fake.listings(), 4)
 
+    def test_a_whole_listing_cut_short_after_its_waits_is_noted(self) -> None:
+        # Each later Reader in the job would page the whole listing again.
+        for detail in ("unexpected end of JSON input", "page 2 is not JSON"):
+            with self.subTest(detail):
+                self.failed.unlink(missing_ok=True)
+                fake = FlakyListing([detail] * 6)
+                _, evidence = self.judge(fake)
+                self.assertEqual(evidence.refusal, "verify:unreadable")
+                self.assertEqual(fake.listings(), 3)
+                self.assertTrue(self.failed.exists())
+                _, evidence = self.judge(fake)
+                self.assertEqual(evidence.refusal, "verify:unreadable")
+                self.assertEqual(fake.listings(), 3)
+
     def test_a_whole_listing_failure_not_the_callers_is_noted(self) -> None:
         # A timeout of the whole cap's own budget (60 s for five artifacts),
         # and a top-up page 404, with or without a caller's time left.
