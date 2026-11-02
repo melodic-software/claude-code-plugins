@@ -172,6 +172,13 @@ jobs:
     cache-mode: read
     permissions:
       contents: read # check out main with history, to branch from it
+    # No global or system git config applies to any step: one the model
+    # writes during its leg would otherwise reach the checkout after it
+    # (which copies the global config into its temporary HOME) and every
+    # later git call. The leg commits with the repository's own identity.
+    env:
+      GIT_CONFIG_GLOBAL: /dev/null
+      GIT_CONFIG_NOSYSTEM: "1"
     outputs:
       handoff: ${{ steps.run.outputs.handoff }}
       lane-class: ${{ steps.run.outputs.lane-class }}
@@ -364,10 +371,6 @@ jobs:
           OUT: ${{ runner.temp }}/upstream-apply-changelog-out
           JOB_ID: model
           MAX_CHUNKS: "6"
-          # The model ran as this user: no global or system git config it
-          # could have written applies here.
-          GIT_CONFIG_GLOBAL: /dev/null
-          GIT_CONFIG_NOSYSTEM: "1"
         run: |
           rm -rf "$OUT"
           mkdir -p "$OUT"
@@ -410,6 +413,8 @@ jobs:
       bundle-sha256: ${{ steps.hash.outputs.bundle }}
     env:
       API_BUDGET_TOKEN: github-token
+      GIT_CONFIG_GLOBAL: /dev/null
+      GIT_CONFIG_NOSYSTEM: "1"
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -589,6 +594,9 @@ jobs:
     permissions:
       contents: read # check out main
       id-token: write # prove to the token broker which workflow this is
+    env:
+      GIT_CONFIG_GLOBAL: /dev/null
+      GIT_CONFIG_NOSYSTEM: "1"
     outputs:
       skip-reason: ${{ steps.lane-token.outputs.skip-reason }}
       heads: ${{ steps.push.outputs.heads }}
@@ -723,6 +731,9 @@ jobs:
     permissions:
       contents: read # check out main
       id-token: write # prove to the token broker which workflow this is
+    env:
+      GIT_CONFIG_GLOBAL: /dev/null
+      GIT_CONFIG_NOSYSTEM: "1"
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
