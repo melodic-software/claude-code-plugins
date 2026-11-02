@@ -1502,7 +1502,7 @@ class DroppedDispatchListing(CheckCase):
     def spread_canary_listing(self, size: int) -> None:
         """A canary listing of `size` runs one second apart, the oldest red:
         past the cap, one search serves only the newest 1,000, without it."""
-        self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
+        self.gh.runs[("pr-require-checks.yml", "workflow_dispatch")] = [dispatch_run(11)]
         start = datetime(2026, 10, 12, 10, 0, 30, tzinfo=UTC)
         self.gh.runs[("post-merge-detect-silent-revert.yml", "push")] = [
             canary_run(
@@ -1530,8 +1530,9 @@ class DroppedDispatchListing(CheckCase):
         calls = self.canary_listing_calls()
         # Runs 10:00:30 to 10:30:21, read to 11:00: the whole range and its
         # older half each reach the cap on their first page (one call each),
-        # then 22, 870 and 900 runs are read whole, a page per 100.
-        self.assertEqual(len(calls), 2 + 1 + 9 + 9)
+        # then 22, 870 and 900 runs are read whole, a page per 100, and the
+        # 900 one more, empty page, since its ninth is full.
+        self.assertEqual(len(calls), 2 + 1 + 9 + 10)
         self.assertTrue(all("created=" in c for c in calls))
 
     def test_a_listing_under_the_search_cap_reads_its_pages_once(self) -> None:
@@ -1540,6 +1541,31 @@ class DroppedDispatchListing(CheckCase):
         verdict = self.check()
         self.assertTrue(verdict.readable, verdict.reason)
         self.assertEqual(len(self.canary_listing_calls()), 10)
+
+    def test_a_count_below_the_runs_listed_is_unreadable(self) -> None:
+        # 250 runs, the oldest red, on pages that claim fewer: paging stops at
+        # a page that is not full, never at the claimed count, and the runs
+        # must equal it, so the red run is never silently cut off.
+        for total in (150, 200, 0):
+            with self.subTest(total=total):
+                self.gh.calls.clear()
+                self.spread_canary_listing(250)
+                self.gh.total_counts[("post-merge-detect-silent-revert.yml", "push")] = (
+                    total
+                )
+                verdict = self.check()
+                self.assertFalse(verdict.readable)
+                self.assertIn(f"total_count {total}, but 250 returned", verdict.reason)
+                self.assertEqual(verdict.failures, ())
+                self.assertEqual(len(self.canary_listing_calls()), 3)
+
+    def test_a_count_on_a_page_boundary_reads_one_empty_page(self) -> None:
+        # 200 runs fill two pages, so a third, empty one shows nothing follows.
+        self.spread_canary_listing(200)
+        verdict = self.check()
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertEqual([f.signal for f in verdict.failures], ["canary"])
+        self.assertEqual(len(self.canary_listing_calls()), 3)
 
     def test_a_split_past_the_window_read_bound_is_unreadable(self) -> None:
         self.spread_canary_listing(1792)

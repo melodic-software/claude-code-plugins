@@ -869,22 +869,20 @@ def _run_window(endpoint: str, label: str) -> list[dict[str, Any]]:
         raise _RunSearchCapped(
             f"{label}: total_count {capped}, at the {RUN_SEARCH_CAP}-run search cap"
         )
-    # A run created during the read raises the count and shifts the pages:
-    # the next page is read while one may hold more, up to the cap's pages,
-    # and a run counted twice is kept once, so a shift that drops one fails
-    # the count.
+    # Pages are read while the last one is full, never stopping at the
+    # count a page claims, which can be low; ten full pages reach the cap and
+    # split the window (`_listed`). A run counted twice across shifted pages
+    # is kept once, and the runs must equal the first page's count: a run
+    # created during the read is past it, and a dropped one fails it.
     pages, last = [first], first
     while (
-        len(pages) * RUN_PAGE_SIZE < total
-        and len(pages) < RUN_SEARCH_CAP // RUN_PAGE_SIZE
+        len(pages) < RUN_SEARCH_CAP // RUN_PAGE_SIZE
         and len(json_array(json_object(last).get("workflow_runs"))) == RUN_PAGE_SIZE
     ):
         last = _read(["api", f"{endpoint}&page={len(pages) + 1}"], label)
         pages.append(last)
-        if type(count := json_object(last).get("total_count")) is int:
-            total = max(total, count)
     items = list({i.get("id"): i for i in _listed(pages, label, "workflow_runs")}.values())
-    if total > len(items):
+    if len(items) != total:
         raise PostMergeReadError(f"{label}: total_count {total}, but {len(items)} returned")
     return items
 

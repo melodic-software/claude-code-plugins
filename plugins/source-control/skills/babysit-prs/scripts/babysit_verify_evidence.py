@@ -5575,7 +5575,10 @@ class _PerRunBuild:
                 if not _is_id(run.get("id"), run.get("id")):
                     raise _Unreadable(f"a verifier run created {created} has no id")
                 found[run["id"]] = _kept_run(run)
-            if len(runs) < LISTING_PAGE_SIZE or page * LISTING_PAGE_SIZE >= count:
+            # Read on while the page is full, never stopping at the count a
+            # page claims, which can be low; the totals check below fails a
+            # count the runs do not equal.
+            if len(runs) < LISTING_PAGE_SIZE or page >= RUN_SEARCH_CAP // LISTING_PAGE_SIZE:
                 break
             page += 1
         if totals != {len(found)}:
