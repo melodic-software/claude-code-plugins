@@ -1,8 +1,8 @@
 """A fake `gh` for the per-repository config read, shared by the engine tests.
 
-Every script that resolves the ten policy keys reads the target repository's
-`.claude/source-control.md` through `babysit_repo_config`, and the loop-key
-read adds `docs/conventions/source-control.yaml`. A test that reaches
+Every script that resolves the policy keys reads the target repository's
+`docs/conventions/source-control.yaml`, then its `.claude/source-control.md`,
+through `babysit_repo_config`, and so does the loop-key read. A test that reaches
 that read installs `RepoConfigFake` so no real gh process runs and the
 per-process cache never carries one test's view into the next.
 """
