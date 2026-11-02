@@ -1473,13 +1473,38 @@ class RunValidityTest(unittest.TestCase):
             "echo x >> %s/new.sh" % self.SCRIPTS,
             "cat /etc/hosts >%s/new.sh" % self.SCRIPTS,
             "ls 2> %s/err" % self.SCRIPTS,
+            # A redirect glued to the word before it.
+            "echo '{}'>%s/state.json" % self.SCRIPTS,
+            "ls>%s/out" % self.SCRIPTS,
+            "cat /etc/hosts>%s/new.sh" % self.SCRIPTS,
         ):
             proc = self.bash_calls([("%s; %s" % (run, trailing), True), (run, False)])
             self.assertDenials(proc, "FAIL")
             self.assertNotIn(self.RERUN, proc.stdout)
+        # A cd or an assignment that redirects into a file is not dropped either.
+        for leading in ("cd /tmp >%s/out" % self.SCRIPTS, "X=1 >%s/out" % self.SCRIPTS,
+                        "X=1>%s/out" % self.SCRIPTS):
+            proc = self.bash_calls([("%s; %s" % (leading, run), True), (run, False)])
+            self.assertDenials(proc, "FAIL")
+            self.assertNotIn(self.RERUN, proc.stdout)
         # A redirect naming no file is still dropped with its command.
         for trailing in ("ls %s 2>&1" % self.DATA, "ls %s >/dev/null" % self.DATA,
-                         "echo x 2> /dev/null"):
+                         "echo x 2> /dev/null", "ls %s 2>&-" % self.DATA):
+            proc = self.bash_calls([("%s; %s" % (run, trailing), True), (run, False)])
+            self.assertDenials(proc, "WARN")
+
+    def test_a_compound_denial_holding_a_command_substitution_is_never_recovered(self):
+        run = "bash %s paths" % self.RUN_STATE
+        for trailing in (
+            'echo "$(rm %s/state.json)"' % self.SCRIPTS,
+            "echo `touch %s/x`" % self.SCRIPTS,
+            'ls "`id`"',
+        ):
+            proc = self.bash_calls([("%s; %s" % (run, trailing), True), (run, False)])
+            self.assertDenials(proc, "FAIL")
+            self.assertNotIn(self.RERUN, proc.stdout)
+        # A $? or $VAR, or a substitution in single quotes, is no substitution.
+        for trailing in ('echo "exit=$?"', 'echo "$HOME"', "echo '$(id)'"):
             proc = self.bash_calls([("%s; %s" % (run, trailing), True), (run, False)])
             self.assertDenials(proc, "WARN")
 

@@ -87,15 +87,18 @@ one line per check, detail lines indented under it:
                       split at ;, &&, || and
                       newlines, its assignment-only and cd commands dropped
                       and, after that part, ls, echo or cat (piped only into
-                      head or tail), exactly one command must remain, naming
-                      a path at or under the plugin's directory, and the
-                      later call's words must equal it, quotes removed and
-                      same-command variables resolved, a word holding a
-                      glob, brace, tilde or $ compared with its quoting; a
-                      command holding &, ( or ), a part left holding an
-                      unquoted glob, brace or tilde or an unresolved $, and a
-                      trailing command redirecting into a file never
-                      qualify. The run's score was
+                      head or tail), unless a word of the dropped command
+                      holds a < or > anywhere, even quoted, other than 2>&1,
+                      >&2, 2>&- or a /dev/null target; exactly one command
+                      must remain, naming a path at or under the plugin's
+                      directory, and the later call's words must equal it,
+                      quotes removed and same-command variables resolved, a
+                      word holding a glob, brace, tilde or $ compared with
+                      its quoting. A command holding an unquoted &, ( or ),
+                      or a $( or backtick outside single quotes anywhere,
+                      never qualifies, nor does a part left holding an
+                      unquoted glob, brace or tilde or an unresolved $. The
+                      run's score was
                       taken under such a denial, so compare it only with
                       runs denied the same way. Otherwise a
                       with-arm denial aimed at or under the plugin's
@@ -297,6 +300,8 @@ TRAILING, TRAILING_PIPED = ("ls", "echo", "cat"), ("head", "tail")
 # A character the shell may expand: GLOBBING only outside quotes, $ inside too.
 GLOBBING = re.compile(r"[*?\[\]{}~]")
 EXPANDING = re.compile(r"[*?\[\]{}~$]")
+# Command substitution, outside single quotes.
+SUBSTITUTION = re.compile(r"\$\(|`")
 
 # The suite's skill-fired convention and the no-trigger control markers.
 SKILL_TOOL = "Skill"
@@ -1616,7 +1621,12 @@ def command_segments(command):
     operator."""
     tokens = shell_tokens(command) if isinstance(command, str) else None
     words = shell_words(command) if tokens is not None else None
-    if not words or any(kind == "op" and value in NOT_SPLIT for kind, value in tokens):
+    if not words or any(
+        value in NOT_SPLIT
+        if kind == "op"
+        else any(quote != "'" and SUBSTITUTION.search(part) for part, quote in value)
+        for kind, value in tokens
+    ):
         return None
     segments, current, assigns, expands, texts = [], [], True, False, iter(words)
     for kind, value in tokens + [("op", None)]:
@@ -1637,14 +1647,15 @@ def command_segments(command):
 
 
 def writes_file(words):
-    """True when a command's words hold a redirect naming a file: any REDIRECT
-    word but an fd duplication or close or a /dev/null target, as bash_paths
+    """True when a command's words may redirect into a file: any word holding a <
+    or >, wherever in the word and even quoted, but an fd duplication or close or
+    a /dev/null target (2>&1, >&2, 2>&-, >/dev/null, 2> /dev/null), as bash_paths
     drops them."""
     words = tuple(
         "".join(part for part, _ in w) if isinstance(w, tuple) else w for w in words
     )
     for index, word in enumerate(words):
-        if not isinstance(word, str) or not REDIRECT.match(word):
+        if not isinstance(word, str) or not ("<" in word or ">" in word):
             continue
         full = REDIRECT.fullmatch(word)
         if full and full.group(1):
@@ -1666,7 +1677,7 @@ def plugin_part(command, roots):
     kept = []
     for words, assigns, expands in segments:
         heads = [words[0]] + [w for w, prior in zip(words[1:], words) if prior is None]
-        if assigns or (words[0] == CD and None not in words):
+        if (assigns or (words[0] == CD and None not in words)) and not writes_file(words):
             continue
         if (
             kept
