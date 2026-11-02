@@ -51,8 +51,10 @@ async function api(path, { method = "GET", body, allow404 = false } = {}) {
 export function releasesFromStatus(text) {
   const value = (key) => text.match(new RegExp(`^${key}: (.*)$`, "m"))?.[1]?.trim() ?? "";
   if (value("range") === "up to date") return [];
-  if (value("cap") !== "within budget") throw new Error(`changelog-status.sh reports cap: ${value("cap") || "missing"}`);
-  const versions = value("releases").split(/[\s,]+/).filter(Boolean);
+  // changelog-status.sh:59 prints `cap: within budget (<r> releases / <i> items)`;
+  // :57 prints `releases:` space-separated, oldest first.
+  if (!value("cap").startsWith("within budget")) throw new Error(`changelog-status.sh reports cap: ${value("cap") || "missing"}`);
+  const versions = value("releases").split(/ +/).filter(Boolean);
   if (!versions.length || !versions.every((v) => RELEASE.test(v))) throw new Error("the status file's releases line is malformed");
   return versions;
 }

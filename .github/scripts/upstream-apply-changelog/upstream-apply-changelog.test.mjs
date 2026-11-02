@@ -80,8 +80,8 @@ test("only the done marker skips a release, so a run after a failed publish fini
 });
 
 test("the status file gives the unread releases, none when up to date, and stops on anything else", () => {
-  assert.deepEqual(releasesFromStatus("range: 2.1.299..2.1.300\ncap: within budget\nreleases: 2.1.299 2.1.300\n"), ["2.1.299", "2.1.300"]);
+  assert.deepEqual(releasesFromStatus("range: 2.1.299..2.1.300 (2 releases, 5 core items)\nreleases: 2.1.299 2.1.300\ncap: within budget (2 releases / 5 items)\n"), ["2.1.299", "2.1.300"]);
   assert.deepEqual(releasesFromStatus("range: up to date\n"), []);
-  assert.throws(() => releasesFromStatus("range: 2.1.1..2.1.90\ncap: exceeded\n"), /cap: exceeded/);
+  assert.throws(() => releasesFromStatus("range: 2.1.1..2.1.90 (90 releases, 400 core items)\ncap: exceeded (90 releases / 400 items)\n"), /cap: exceeded/);
   assert.throws(() => releasesFromStatus("range: a..b\ncap: within budget\nreleases: v2\n"), /malformed/);
 });
