@@ -170,6 +170,8 @@ case "$verb" in
   *) ;;
   esac
   new="${CLAUDE_STUB_NEW_VERSION:-9.9.9}"
+  # CLAUDE_STUB_MOVE_CATALOG: the catalog moves during the run: this manifest changes.
+  [[ -z "${CLAUDE_STUB_MOVE_CATALOG:-}" ]] || printf '{"name":"moved","version":"8.8.8"}\n' >"$CLAUDE_STUB_MOVE_CATALOG"
   # CLAUDE_STUB_DIRTY_FILE: every update rewrites that settings file.
   [[ -z "${CLAUDE_STUB_DIRTY_FILE:-}" ]] || printf '{"enabledPlugins":{"%s":true}}\n' "$id" >"$CLAUDE_STUB_DIRTY_FILE"
   # CLAUDE_STUB_MISFIRE_PATH: the CLI moves only the record keyed to that path,
@@ -3160,10 +3162,34 @@ report=$(jq -r -f "$SCRIPT_DIR/render-report.jq" <<<"$out")
 assert_contains "other paths off: the report gives the count" "$report" "Behind in other paths: 6 record(s) in 4 path(s), not updated"
 assert_contains "other paths off: and the remedy" "$report" "remedy: /harness-ops:plugins sync --update-other-paths"
 
-# A catalog that changed between the pre and post reads is named.
-assert_contains "catalog moved: the row renders from the digest field" \
-  "$(jq -r -f "$SCRIPT_DIR/render-report.jq" <<<"$(jq -c '.marketplaces[0].other_paths.catalog_moved = 2' <<<"$out")")" \
-  "Catalog moved during this run: 2 plugin(s)"
+# A catalog that changed between the pre and post reads is named; an unchanged one is not.
+catalog_move_fixture() {
+  case_dir=$(new_case_dir)
+  catalog_plugin "$case_dir" market1 alpha 0.3.0
+  write "$case_dir/installed_plugins.json" '{
+  "version": 1,
+  "plugins": {"alpha@market1": [{"scope": "user", "installPath": "y", "version": "0.1.0"}]}
+}'
+  write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+  write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}]}'
+  write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
+  setup_case "$case_dir"
+}
+catalog_move_fixture
+EXTRA_ENV=(CLAUDE_STUB_NEW_VERSION=0.3.0 CC_STUB_CLEAN=1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_eq "catalog moved: zero on an unchanged catalog" "0" \
+  "$(jq -r '.marketplaces[0].other_paths.catalog_moved' <<<"$out")"
+assert_not_contains "catalog moved: no row on an unchanged catalog" \
+  "$(jq -r -f "$SCRIPT_DIR/render-report.jq" <<<"$out")" "Catalog moved during this run"
+catalog_move_fixture
+EXTRA_ENV=(CLAUDE_STUB_NEW_VERSION=0.3.0 CC_STUB_CLEAN=1
+  CLAUDE_STUB_MOVE_CATALOG="$case_dir/catalog/market1/alpha/.claude-plugin/plugin.json")
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_eq "catalog moved: counts the id whose catalog version changed during the run" "1" \
+  "$(jq -r '.marketplaces[0].other_paths.catalog_moved' <<<"$out")"
+assert_contains "catalog moved: the report names it" \
+  "$(jq -r -f "$SCRIPT_DIR/render-report.jq" <<<"$out")" "Catalog moved during this run: 1 plugin(s)"
 
 # Audit predicts the same calls and stops counting what sync could update.
 paths_fixture

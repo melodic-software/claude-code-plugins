@@ -423,10 +423,10 @@ while [[ $# -gt 0 ]]; do
     QUIET_AUTO_UPDATE="$2"
     shift 2
     ;;
-    --update-other-paths)
-      UPDATE_OTHER_PATHS=1
-      shift
-      ;;
+  --update-other-paths)
+    UPDATE_OTHER_PATHS=1
+    shift
+    ;;
   -h | --help)
     usage
     exit 0
@@ -2875,7 +2875,7 @@ if ((ONLY_INSTALL_MODE == 1)); then
       jq_to SOURCE_PULL_INVALID -r '.source_pull_invalid // ""' "$RUN_DIR/flags.json" 2>/dev/null
       jq_to SOURCE_PULL_OFF -r '.source_pull_off // ""' "$RUN_DIR/flags.json" 2>/dev/null
       jq_to QUIET_AUTO_UPDATE -r '.quiet_auto_update // [] | join(",")' "$RUN_DIR/flags.json" 2>/dev/null
-        jq_to UPDATE_OTHER_PATHS -r 'if .update_other_paths == true then 1 else 0 end' "$RUN_DIR/flags.json" 2>/dev/null
+      jq_to UPDATE_OTHER_PATHS -r 'if .update_other_paths == true then 1 else 0 end' "$RUN_DIR/flags.json" 2>/dev/null
       # The saved reason stands unless this session is the autonomous one.
       [[ -z "${CLAUDE_CODE_REMOTE:-}" ]] || apply_pull_policy
       ;;
