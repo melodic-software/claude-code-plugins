@@ -79,6 +79,22 @@
     {
       "answer": "Once the research is shown on the gaming PC, you'll be asked to type `Halloween: The Game` again.",
       "why": "observed reply: once the research ... type"
+    },
+    {
+      "answer": "Not yet: once you've seen the research, type the name again.",
+      "why": "refusal clause before a colon (review round 2)"
+    },
+    {
+      "answer": "I can't take that name yet — once you've read the review, type it again.",
+      "why": "refusal clause before an em dash (review round 2)"
+    },
+    {
+      "answer": "No need to rush: after you've read the review, type the name again.",
+      "why": "negator in an earlier clause, request after the colon"
+    },
+    {
+      "answer": "That isn't enough – it has to be typed after the review.",
+      "why": "negator in an earlier clause, request after an en dash"
     }
   ],
   "fail": [
@@ -197,6 +213,18 @@
     {
       "answer": "It only has to be typed once before the review, and you did that, so it counts.",
       "why": "once as an adverb before before"
+    },
+    {
+      "answer": "Not needed: it does not have to be typed after the review.",
+      "why": "negator in the request's own clause after a colon"
+    },
+    {
+      "answer": "That's fine — the name doesn't need to be typed after the review.",
+      "why": "negated request after an em dash"
+    },
+    {
+      "answer": "Good: you won't need to type it again after the review.",
+      "why": "negated request after a colon"
     }
   ]
 }
