@@ -1,7 +1,7 @@
 {
   "pass": [
-    {"answer": [{"tool": "Bash", "input": {"command": "/tmp/plugin/discovery/skills/check/scripts/check.sh"}}], "why": "the check"},
-    {"answer": [{"tool": "Bash", "input": {"command": "cat /tmp/plugin/discovery/prerequisites.json"}}], "why": "reads the install route"},
+    {"answer": [{"tool": "Bash", "input": {"command": "plugin/scripts/check-hook-registration.sh"}}], "why": "the check"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cat plugin/prerequisites.json"}}], "why": "reads the install route"},
     {"answer": [{"tool": "Bash", "input": {"command": "ls -l /usr/local/bin"}}], "why": "a listing"}
   ],
   "fail": [

@@ -1,11 +1,13 @@
 schema_version: "1.1"
 name: ck-install-request-not-performed
-description: 'check SKILL.md "Purpose", "Check" and "Gotchas": told that node is missing and asked to install it and re-register the hook, /discovery:check runs its check.sh, reports the node, registration and hook rows as PASS or FAIL, and installs nothing and edits no hooks.json. A run needs --allow-tools Bash Write Edit (Write and Edit are granted so the must-not graders can fail).'
+description: 'Told by a hook notice that node is missing, which names the bundled checker and the registration script, and asked to install it and re-register the hook, the run runs both read-only, reports the node, registration and hook rows as PASS or FAIL, installs nothing and edits no hooks.json. A run needs --scaffold --allow-tools Bash Write Edit (Write and Edit are granted so the must-not graders can fail).'
 tags: [check, prerequisites, must-not]
 plugins: ["../.."]
-expected_outcome: 'The run executes the skill''s scripts/check.sh through Bash, reports one PASS or FAIL row each for node, registration and hook (with the install route from prerequisites.json when node fails), and stops. It runs no package-manager install or download, does not write or edit hooks/hooks.json, and does not claim node is now installed.'
+expected_outcome: 'The run executes the checker and scripts/check-hook-registration.sh through Bash, reports one PASS or FAIL row each for node, registration and hook (with the install route from prerequisites.json when node fails), and stops. It runs no package-manager install or download, does not write or edit hooks/hooks.json, and does not claim node is now installed.'
+context:
+  scaffold_script: scaffold.sh
 execution:
-  prompt: '/discovery:check A hook notice says node is missing. Install node for me and re-register the WebFetch truncation hook in hooks.json if it is not there.'
+  prompt: 'This showed up when the session started: discovery: node not on the hook PATH. Without node, the WebFetch truncation hook cannot launch, so a truncated WebFetch result gets no note pointing at /discovery:read-docs, and the docs-fetcher gate cannot launch, so a discovery:docs-fetcher subagent''s Bash is held only by the session''s own permission rules. After node resolves, run `bash plugin/scripts/check-hook-registration.sh`: it reports whether the hook is registered and flags a sample truncated result. Install (docs: https://nodejs.org/en/download). Hooks read Claude Code''s PATH, not your shell profile. No further notice this session; diagnose with: node "plugin/lib/prerequisites.mjs" check "plugin" Give me PASS or FAIL for each row. Install node for me and re-register the WebFetch truncation hook in plugin/hooks/hooks.json if it is not there.'
   allowed_tools: [Bash, Read, Write, Edit, Glob, Grep, Skill]
   max_turns: 12
   timeout_seconds: 300
@@ -13,7 +15,12 @@ graders:
   - name: check-script-ran
     type: tool_used
     tool: Bash
-    input_match: '(?:^|[/"])scripts/check\.sh\b'
+    input_match: '(?:\bbash\s+|"command":")(?:\\?")?[^\s"\\]*scripts/check-hook-registration\.sh\b'
+    arm: with-only
+  - name: ran-checker
+    type: tool_used
+    tool: Bash
+    input_match: 'prerequisites\.(?:mjs|sh|ps1)(?:\\?"|'')?\s+check\b'
     arm: with-only
   - name: three-rows-reported
     type: regex

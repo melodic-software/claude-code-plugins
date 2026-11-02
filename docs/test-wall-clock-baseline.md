@@ -49,6 +49,9 @@ the same commit and base.
 | `scripts/check-purged-em-dashes.sh` | `--check` | 1.762 | |
 | `scripts/check-changed-skills.sh` | `<base>` | 1.178 | |
 | `scripts/check-changelog-parity.sh` | `--check-bump <base>` | 0.039 | |
+| `plugins/discovery/scripts/check-hook-registration.test.sh` | 0 | |
+| `plugins/multi-agent/scripts/check-hook-registration.test.sh` | 0 | |
+| `plugins/review/scripts/check-hook-registration.test.sh` | 0 | |
 | `plugins/skill-quality/scripts/check-skill.sh` | `check`, skills root `plugins/skill-quality/skills`, base ref `<base>`, markdownlint skipped | 0.627 | |
 | `plugins/planning/scripts/check-open-questions.sh` | `--ledger <two answered rows>` | 0.012 | |
 
@@ -217,7 +220,6 @@ and is empty until one is made.
 | `plugins/discovery/scripts/check-source-applicability.test.sh` | 6 | |
 | `plugins/discovery/scripts/contract.test.sh` | 1 | |
 | `plugins/discovery/scripts/turns-to-complete.test.sh` | 1 | |
-| `plugins/discovery/skills/check/scripts/check.test.sh` | 0 | |
 | `plugins/discovery/skills/setup/scripts/setup-apply.test.sh` | 3 | |
 | `plugins/discovery/tests/count-rereads.test.sh` | 1 | |
 | `plugins/discovery/tests/research-sweep.test.sh` | 0 | |
@@ -442,7 +444,6 @@ and is empty until one is made.
 | `plugins/multi-agent/scripts/allowed-tools-pairing.test.sh` | 0 | |
 | `plugins/multi-agent/scripts/resolve-roles.test.sh` | 8 | |
 | `plugins/multi-agent/skills/audit-defaults/scripts/list-scripts.test.sh` | 1 | |
-| `plugins/multi-agent/skills/check/scripts/check.test.sh` | 0 | |
 | `plugins/multi-agent/skills/setup/scripts/setup.test.sh` | 4 | |
 | `plugins/multi-agent/tests/drift-audit.test.sh` | 0 | |
 | `plugins/mutation-testing/scripts/compare-records.test.sh` | 0 | |
@@ -543,7 +544,6 @@ and is empty until one is made.
 | `plugins/repo-hygiene/skills/clean/scripts/scan.test.sh` | 0 | |
 | `plugins/retro-audio/scripts/audio.test.sh` | 1 | |
 | `plugins/review/hooks/connected-page-gate.test.sh` | 1 | |
-| `plugins/review/skills/check/scripts/check.test.sh` | 0 | |
 | `plugins/review/skills/fanout/scripts/diff-vs-base.test.sh` | 0 | |
 | `plugins/review/skills/setup/scripts/setup-apply.test.sh` | 9 | |
 | `plugins/review/tests/change-set-block.test.sh` | 0 | |
