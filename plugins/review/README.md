@@ -87,11 +87,6 @@ Invoke via `@review:<agent>` or let Claude delegate.
   request and never gates merge. `--risk-only` returns just the checked risk map and a `demote`
   flag, which may only send an unattended merge to a human and never makes a pull request
   merge-eligible.
-- **`/review:audit-enforceability <findings-file>`**. Read-only enforcement audit over ONE
-  operator-named findings file: derives a class per finding, maps it to the cheapest deterministic
-  rung (editorconfig severity, analyzer-pack rule, custom analyzer, Semgrep rule, architecture
-  test, action-guard, or automated-review), and writes one proposal stub per finding naming that rung and its
-  owner. It proposes a rung and never implements one.
 - **`/review:code-review`**. CI code-review lane command for a pull request
   (correctness / maintainability; security scoped out where a separate security
   lane runs, folded back in where none does).
@@ -187,11 +182,6 @@ Review findings persist to the memory tier, concern-scoped on the branch axis, u
 memory root). The memory root self-ignores (a `.gitignore` containing `*`,
 created on the session's first memory-tier write), so findings never enter version control.
 
-Enforcement-rung proposal stubs go to the separate
-`enforceability/<branch-slug>/` directory under the same root, and the stub writer is handed both resolved homes so a stub
-can never land in the directory the `fanout` `fix` action scans, nor in the findings file's own
-directory.
-
 ## Install
 
 ```shell
@@ -205,10 +195,10 @@ Review criteria and findings location route through your own project context: re
 criteria docs and severity vocabulary override the bundled baseline, and a documented
 findings location in your `CLAUDE.md`/rules overrides the default path.
 
-Three settings. `ratchet_offer` decides whether `/review:audit-enforceability` stubs offer a
-`/toolchain:ratchet` count ceiling; set it per user through the option below, or per repository in
-`docs/conventions/review.yaml` (written by `/review:setup apply`), which wins.
-`downstream_probe` decides whether `/review:quality-gate downstream` runs the one probe it writes
+Three settings, each set per user through the option below or per repository in
+`docs/conventions/review.yaml` (written by `/review:setup apply`). `ratchet_offer` is unused: no
+skill in this plugin reads it; to keep ratchet offers off, set `ratchet_offer` on the corrections
+plugin (its plugin option or `docs/conventions/corrections.yaml`). `downstream_probe` decides whether `/review:quality-gate downstream` runs the one probe it writes
 for its safety fact (`run`) or only states it (`report`). It is a policy floor: `report` in either
 layer wins, and the repository value is read from the default branch. `fanout_diversity` decides
 whether `/review:fanout run-everything` runs one reviewer agent per concern (`lens`, the default)
@@ -226,7 +216,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `connected_page_guard_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CONNECTED_PAGE_GUARD_ENABLED` | Runs the PreToolUse hook that denies an Artifact publish of an HTML page whose content security policy names a loopback connect-src. On by default. Turn off to allow publishing such a page. |
-| `ratchet_offer` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_RATCHET_OFFER` | When on (default), /review:audit-enforceability stubs on a rung that counts violations offer /toolchain:ratchet for a non-zero count once the rule exists. Off leaves the offer out. A repository's docs/conventions/review.yaml ratchet_offer wins over this option. |
+| `ratchet_offer` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_RATCHET_OFFER` | Unused: no skill in this plugin reads it. To keep ratchet offers off, set ratchet_offer on the corrections plugin (its plugin option or docs/conventions/corrections.yaml). |
 | `downstream_probe` | string | `"run"` | `CLAUDE_PLUGIN_OPTION_DOWNSTREAM_PROBE` | run (default): /review:quality-gate downstream mode writes one probe for its safety fact in a temp directory outside the tree and runs it. report: it shows the probe without running it. report here or in a repository's docs/conventions/review.yaml (default branch) wins over run. |
 | `fanout_diversity` | string | `"lens"` | `CLAUDE_PLUGIN_OPTION_FANOUT_DIVERSITY` | lens (default): /review:fanout run-everything runs one reviewer agent per concern. model: it sends one review prompt to each distinct fan-out model tier instead. A repository's docs/conventions/review.yaml fanout_diversity wins over this option. |
 

@@ -435,6 +435,7 @@ const ENFORCEMENT_FILES = [
   ".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs",
   ".github/scripts/work-resolve-issue/stop-routes.json",
   ".github/scripts/work-resolve-issue/stop-routes.mjs",
+  ".github/scripts/work-resolve-issue/known-names.json",
 ];
 test("the floor's enforcement globs are the merge gate's, every other one holds here", () => {
   assert.deepEqual(REVIEW_FLOOR, HOLD_PATH_CLASSES.filter(([, kind]) => kind === "enforcement").map(([glob]) => glob));
