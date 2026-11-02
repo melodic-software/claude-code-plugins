@@ -3,12 +3,24 @@
     {
       "answer": "---\ntype: review-findings\nbranch: refactor/titles\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | high | titles.py:2 | code-reviewer | Slicing is safe, but the removed check was what kept short titles unchanged: shorten now always appends the ellipsis, so 'Desk lamp' becomes 'Desk lamp…' and a 40-character title loses its last character. | Restore the length check |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
       "why": "names the short titles and the new ellipsis at IMPORTANT"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/titles\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | low | titles.py:2 | code-reviewer | Without the length check, a title of exactly 40 characters is cut to 39 and given an ellipsis, so it loses its last character even though it fit. | Restore the length check |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names the defect with one failing input (a 40-character title) and what fails for it at IMPORTANT; the low Confidence is ignored"
     }
   ],
   "fail": [
     {
       "answer": "---\ntype: review-findings\nbranch: refactor/titles\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | low | titles.py:1 | code-reviewer | The length check was redundant since slicing is safe; consider a docstring. | Add a docstring |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
       "why": "agrees the check was redundant and misses the ellipsis"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/titles\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | high | titles.py:2 | code-reviewer | shorten now appends the ellipsis to every title, so 'Desk lamp' becomes 'Desk lamp…' in the listing. | Restore the length check |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names the short title and the ellipsis, but its Tier is SUGGESTION; high Confidence is not severity"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/titles\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | titles.py:2 | code-reviewer | The commit removes the len(title) <= limit branch from shorten on the claim that slicing makes it redundant. | Restore the check |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names the changed lines at CRITICAL but neither a short title nor the stray ellipsis, so it does not count"
     }
   ]
 }

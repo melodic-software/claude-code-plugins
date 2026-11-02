@@ -3,6 +3,10 @@
     {
       "answer": "fanout_diversity: lens (docs/conventions/review.yaml)\n\n## Surfaces\n\nRan: [codex, security-reviewer@high, architecture-guardian@high, code-reviewer@high, doc-drift-detector@session]. Returned no result: [].",
       "why": "repository layer read, per-concern leaves ran, Codex in the Ran list"
+    },
+    {
+      "answer": "fanout_diversity: lens (repository)\n\n## Surfaces\n\nRan: [codex, security-reviewer@high, architecture-guardian@high, code-reviewer@high, doc-drift-detector@session]. Returned no result: [].",
+      "why": "fanout names the layer `repository` as often as the file path; the arm was used"
     }
   ],
   "fail": [

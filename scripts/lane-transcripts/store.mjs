@@ -31,18 +31,22 @@ export function laneOf(workflowPath) {
 const count = (value) => (Number.isInteger(value) && value >= 0 ? value : null);
 
 // The metrics a transcript carries, from the CLI's messages: the init message's
-// model, and the last result message's subtype, models and usage.
+// model, and the last result message's subtype, models and usage. A result with
+// is_error true is an `error` outcome whatever its subtype says.
 export function transcriptMetrics(messages) {
-  if (!Array.isArray(messages)) return { model: null, models: [], outcome: "unreadable", is_error: null, num_turns: null, duration_ms: null, input_tokens: null, output_tokens: null };
+  if (!Array.isArray(messages)) return { model: null, models: [], outcome: "unreadable", subtype: null, is_error: null, api_error_status: null, num_turns: null, duration_ms: null, input_tokens: null, output_tokens: null };
   const init = messages.find((m) => m?.type === "system" && m?.subtype === "init");
   const result = messages.findLast((m) => m?.type === "result") ?? null;
   const usage = result?.usage ?? {};
   const modelUsage = result?.modelUsage && typeof result.modelUsage === "object" ? result.modelUsage : {};
+  const subtype = typeof result?.subtype === "string" ? result.subtype : null;
   return {
     model: typeof init?.model === "string" ? init.model : null,
     models: Object.keys(modelUsage).sort(),
-    outcome: typeof result?.subtype === "string" ? result.subtype : "no-result",
+    outcome: result?.is_error === true ? "error" : (subtype ?? "no-result"),
+    subtype,
     is_error: typeof result?.is_error === "boolean" ? result.is_error : null,
+    api_error_status: count(result?.api_error_status),
     num_turns: count(result?.num_turns),
     duration_ms: count(result?.duration_ms),
     input_tokens: count(usage.input_tokens),
@@ -161,6 +165,14 @@ export function prune(sink, now = Date.now(), { capBytes = CAP_BYTES } = {}) {
   return { ...removed, bytes: sinkBytes(sink) };
 }
 
+// A row is `error` when is_error is true, whatever an older row stored as its
+// outcome. Its subtype still matches, except `success`, which an errored leg is
+// not. An older row has no subtype field: its outcome is the subtype.
+function hasOutcome(row, outcome) {
+  if (row.is_error !== true) return row.outcome === outcome;
+  return outcome === "error" || (outcome !== "success" && (row.subtype ?? row.outcome) === outcome);
+}
+
 // Rows matching every filter given: lane (or `lane/job-id`), model (any model
 // the run used, as a substring), outcome, and a date range on the run's date.
 export function query(rows, { lane, model, outcome, since, until } = {}) {
@@ -169,7 +181,7 @@ export function query(rows, { lane, model, outcome, since, until } = {}) {
     (row) =>
       (lane === undefined || row.lane === lane || `${row.lane}/${row.job_id}` === lane) &&
       (model === undefined || [row.model, ...(row.models ?? [])].some((m) => typeof m === "string" && m.includes(model))) &&
-      (outcome === undefined || row.outcome === outcome) &&
+      (outcome === undefined || hasOutcome(row, outcome)) &&
       (since === undefined || row.date >= since) &&
       (until === undefined || row.date <= until),
   );
