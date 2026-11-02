@@ -14,12 +14,16 @@ Contents: [where the file goes](#where-the-file-goes),
 
 Resolve it in this order:
 
-1. **The `review` plugin's bundled copy, when that plugin is installed.** It ships
-   `reference/findings-file-shape.md`, which owns the shape the fix action consumes, and its
-   `skills/fanout/` tree owns the merge-set rules. Read those files directly. For **where the file
-   goes**, read `review/skills/fanout/SKILL.md` "Shared inputs"; the detector-findings contract
-   points there and `findings-file-shape.md` does not restate it. This rung works offline, which is the point of putting it first.
-2. **The publisher's raw URL**, when `review` is not installed:
+1. **The `review` plugin's bundled copy, when `/review:fanout` resolves in this session.** That
+   skill listing is the whole installed-ness test: never glob, list or search outside this
+   plugin's root to find `review`. The plugin ships `reference/findings-file-shape.md`, which owns
+   the shape the fix action consumes, and `/review:fanout` owns the merge-set rules and, in its
+   "Shared inputs" section, **where the file goes**; the detector-findings contract points there
+   and `findings-file-shape.md` does not restate it. Read those exact files from the `review`
+   plugin's root when this session already knows it, for example from a loaded `review` skill's
+   base directory. When `/review:fanout` does not resolve, the root is not known, or a read
+   fails, go to rung 2. This rung works offline, which is the point of putting it first.
+2. **The publisher's raw URL**, when rung 1 does not apply:
    <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/detector-findings/README.md>.
 3. **Neither reachable → do not write.** Report that the destination and the guard could not be
    resolved from their owner, and say the run is report-only. Inventing a destination reports
@@ -260,7 +264,7 @@ the DECLARED tier**: a verdict name spelled in some other field, a `note` or a `
 opaque payload rather than a verdict, and if nothing else maps the record it goes to
 `## Unparsed` verbatim like any other unmappable row. That second limit is safe because of what
 the consumer does with the appendix, not merely because of how this producer labels it:
-[`review:fanout`](../../../../review/skills/fanout/context/fix-pass-mode.md) surfaces
+`/review:fanout`'s fix pass surfaces
 `## Unparsed` entries to the user for manual handling and cannot auto-classify them, so no
 remediation surface acts on a verdict name that reaches the file that way. It does not extend to
 a payload cell on a relayed row. An `excerpt` is copied source text and prints as written, which
