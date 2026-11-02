@@ -2,13 +2,14 @@
   "skill": "domain-driven-design:curate-language",
   "plugin": "domain-driven-design",
   "skill_dir": "plugins/domain-driven-design/skills/curate-language",
-  "ranking_note": "Authored from the before description at commit c6a1185b2b, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. The plugin has one skill, and the competitors live in other plugins, and plugin eval loads only this plugin, so near-miss negatives test quietness, not competitor wins.",
+  "ranking_note": "Authored from the before description at commit c6a1185b2b, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. The plugin has one skill, so every competitor lives in another plugin; emit-plugin-eval loads their plugins beside it, so near-miss negatives test competitor wins as well as quietness.",
   "competitors": [
     "planning:design",
     "planning:interview",
     "naming:name-it-better",
     "docs-hygiene:rename-references",
-    "architecture:improve"
+    "architecture:improve",
+    "knowledge:book-distill"
   ],
   "queries": [
     {

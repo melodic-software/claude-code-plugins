@@ -45,7 +45,7 @@ plugins/code-metrics/coverage.json
 .work/
 
 # measure-invocation emit-plugin-eval cases; --eval-dir refuses a dot-led segment, so not under .work/
-/probe-evals/
+probe-evals/
 
 # playwright-cli artifact folder (snapshots, screenshots, console and network logs)
 .playwright-cli/

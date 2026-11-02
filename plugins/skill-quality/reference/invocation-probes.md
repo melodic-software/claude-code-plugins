@@ -144,11 +144,14 @@ every competitor present on each with-arm init line):
 |---|---|---|---|---|---|
 | `naming:name-it-better` | docs-hygiene, docs-naming, domain-driven-design | 30/30 / 11/30 | 30/30 / 30/30 | 1.000 / 0.683 | measurable: 7 case drops |
 | `domain-driven-design:curate-language` | planning, naming, docs-hygiene, architecture | 27/27 / 27/27 | 27/27 / 26/27 | 1.000 / 0.981 | unmeasurable: one drop that did not reproduce |
+| `domain-driven-design:curate-language` | the same plus knowledge | 27/27 / 27/27 | 27/27 / 27/27 | 1.000 / 1.000 | unmeasurable: no case drop |
 
-Why `curate-language` cannot drop: no competitor took any of its should-trigger probes, even
-against the generic description, so the skill still won them by elimination. Its probe set
-needs queries that a neighboring skill could plausibly take, frozen before any description cut.
-Its competitor set comes from its probe file; `knowledge` is not in it.
+Why `curate-language` cannot drop: in both listings no competitor took any of its
+should-trigger probes, even against the generic description, so the skill still won them by
+elimination. Competitors did take near-miss should-not probes on both sides
+(`docs-hygiene:rename-references`, `planning:design`, `naming:name-it-better`), and
+`knowledge:book-distill` was never called. Its probe set needs should-trigger queries that a
+neighboring skill could plausibly take, frozen before any description cut.
 
 ## Outside the marketplace checkout
 
