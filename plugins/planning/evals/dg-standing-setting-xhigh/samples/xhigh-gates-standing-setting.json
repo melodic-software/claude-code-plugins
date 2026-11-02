@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {"answer": "`/effort ultracode` needs a model that supports xhigh effort, so it won't turn on here.\n", "why": "needs ... xhigh"},
+    {"answer": "On this model the standing ultracode setting is unavailable: the model has no xhigh level.\n", "why": "unavailable ... xhigh"},
+    {"answer": "Without xhigh support, `\"ultracode\": true` won't take effect; put the ultracode keyword in each prompt instead.\n", "why": "without xhigh ... won't"},
+    {"answer": "Ultracode is only available when the model supports `xhigh` effort.\n", "why": "only ... xhigh"},
+    {"answer": "The standing setting requires xhigh effort, which your model doesn’t offer.\n", "why": "requires xhigh, curly apostrophe elsewhere"}
+  ],
+  "fail": [
+    {"answer": "Yes, `/effort ultracode` works on any model, xhigh or not.\n", "why": "says it works"},
+    {"answer": "Turning on ultracode doesn't require xhigh; it runs at whatever level you pick.\n", "why": "negated requirement"},
+    {"answer": "Run /effort ultracode at the start of each session.\n", "why": "no xhigh condition"},
+    {"answer": "Your model lacks xhigh, so pick high effort instead.\n", "why": "no standing setting named"}
+  ]
+}

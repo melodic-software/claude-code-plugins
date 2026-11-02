@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: dg-standing-setting-xhigh
+description: An interactive user whose only model lacks the xhigh effort level, planning to turn on /effort ultracode for every session, hears that the standing setting needs a model with xhigh effort
+tags: [draft-goal-condition, outcome, workflow-row]
+expected_outcome: The reply says the standing /effort ultracode setting (or the ultracode settings key) is not available, or does not fit, on a model that lacks the xhigh effort level.
+execution:
+  prompt: "Use the draft-goal-condition skill from the planning plugin. I work interactively at the Claude Code prompt in my terminal. The only model my team has access to does not support the xhigh effort level: its /effort slider stops at high. For the rest of this week I want Claude to plan a dynamic workflow for every substantive task, so my plan is to run `/effort ultracode` at the start of each session, or put `\"ultracode\": true` in my settings. Which lever fits, will that plan work on this model, and if not, what should I do instead?"
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, WebFetch]
+  max_turns: 20
+  timeout_seconds: 900
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?draft-goal-condition"'
+    arm: with-only
+  - name: xhigh-gates-standing-setting
+    type: regex
+    pattern: '^(?=[^\n]*(?:ultracode|standing setting|/effort))[^\n]*(?:(?<!n[''’]t )(?<!not )(?<!no )\b(?:requires?|required|needs?|only)\b[^\n]{0,80}\bx-?high\b|\b(?:unavailable|not available|isn[''’]t available|won[''’]t be available|won[''’]t work|doesn[''’]t work|can[''’]t (?:use|turn|enable))\b[^\n]{0,120}\bx-?high\b|\bx-?high\b[^\n]{0,120}\b(?:unavailable|not available|isn[''’]t available|won[''’]t work|doesn[''’]t work)\b|\b(?:without|lacks?|lacking)\s+(?:an?\s+|the\s+)?`?x-?high`?[^\n]{0,120}\b(?:unavailable|not available|won[''’]t|can[''’]t|doesn[''’]t|isn[''’]t)\b)'
+    flags: mi
+    arm: both
