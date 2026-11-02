@@ -504,11 +504,12 @@ done
 # #11858: the page honors single pacing and shows the round index and Held line; each change alters how a frontier is shown or a setting is read, resolves no row, and the lock, STOP-on-gap, no-silent-resolve and late-commitment defenses are byte-identical
 # #12476: the closing index table is dropped and the grilling steps added (a because on the goal, the quality bar when the user cannot judge, no nodding along, stated facts checked against code, a read-only run settles a fact, document-my-repo routed, probe topics read, a pointer to audit-answers); each adds a check or removes a summary table, resolves no row, and the no-silent-resolve, fudge, gap and blocker defenses are byte-identical
 # #12476 review: question_pacing takes its cascade value, the because lives on the Intent line, each new ask is registered like any question, a stated constraint is still written confirmed at once, and restate skips the resume prompt; each adds a registered row or narrows a step, resolves no row, and the lock, fudge, no-silent-resolve and blocker defenses are byte-identical
+# #12502 replacement: answer_audit_rounds drops its userConfig layer (a manifest key outside the inert set), so the audit-offer paragraph names no user_config token; the pointer still asks nothing, resolves no row, and the lock, fudge, no-silent-resolve and blocker defenses are byte-identical
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "5f15a47fee0ce45b254df80899de2ac31392c47ba4746a2b7e31ad90f593196a"
+  "6e225b3afedb890bb993196b17b90536c81ea5d1ee1f6f259ab69c0a2de2a8c7"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \

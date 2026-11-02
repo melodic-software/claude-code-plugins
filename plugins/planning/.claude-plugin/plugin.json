@@ -22,13 +22,6 @@
         "single"
       ]
     },
-    "answer_audit_rounds": {
-      "type": "number",
-      "title": "Answer audit offer",
-      "description": "After this many /planning:interview rounds answered by accepting every recommendation, the interview offers /planning:audit-answers once. A whole number; 0 never offers. Default: 2. A repository's planning.yaml in its convention home overrides this value.",
-      "default": 2,
-      "min": 0
-    },
     "use_ask_user_question": {
       "type": "boolean",
       "title": "AskUserQuestion question rounds",

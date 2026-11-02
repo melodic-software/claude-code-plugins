@@ -128,6 +128,7 @@ Two interview keys resolve through the bound convention home and the four layers
 [ADR 0075](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md),
 lowest first: the default, the `userConfig` option of the same name, the team file
 `<home>/planning.yaml`, then the personal file `<home>/planning.local.yaml`.
+`answer_audit_rounds` has no `userConfig` option, so it skips that layer.
 
 | Key | Values | Default | Reader |
 |---|---|---|---|
