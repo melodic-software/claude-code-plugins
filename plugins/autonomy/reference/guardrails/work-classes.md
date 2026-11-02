@@ -122,8 +122,11 @@ per the [telemetry contract](../telemetry.md) are the evidence base.
   the cell ELIGIBLE; a human ratifies the flip, and the flip is recorded as a reviewable
   change on the governance surface.
 - **Demotion is automatic and fail-closed.** Contrary evidence lowers the cell's effective
-  state immediately, without waiting for human action; the cell re-earns promotion from
-  there through the same evidence predicate.
+  state immediately, without waiting for human action, and a lane, not a person, takes up its
+  record. It lifts with no person only once the evidence clears: a red main branch once main
+  is green at a later commit, and while main is still red it holds. Evidence a green main
+  cannot clear holds until a person clears it. Lifting restores the ratified state with no
+  second flip; the evidence window for the predicate restarts at the demotion.
 - **Promotion never overrides unanimity.** A promoted `C2`/`C3` auto-merge cell still does not
   auto-proceed on checker dissent: the promoted state is a ceiling, and dissent withholds the
   automatic transition the same way contrary evidence lowers the cell. That is the same

@@ -1319,6 +1319,27 @@ class AutoClearOnGreen(unittest.TestCase):
             result.cleared_at, policy.datetime.fromisoformat("2026-10-12T11:00:00Z")
         )
 
+    def test_a_lane_closed_record_holds_while_main_is_still_red(self) -> None:
+        # A lane takes up the record and may close it; with no later green
+        # full run it still holds the rung off.
+        self.fake(
+            runs={"workflow_runs": []},
+            state="CLOSED",
+            timelineItems={
+                "nodes": [
+                    {
+                        "createdAt": "2026-10-12T10:30:00Z",
+                        "actor": bot("agent-lanes"),
+                        "closer": None,
+                    }
+                ]
+            },
+        )
+        result = read_demotion()
+        self.assertEqual(
+            (result.active, result.reason), (True, "#9 closed-by-non-human")
+        )
+
     def test_a_clear_costs_two_listings_one_tip_read_and_two_compares(self) -> None:
         gh = self.fake()
         read_demotion()

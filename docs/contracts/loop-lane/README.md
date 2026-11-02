@@ -304,7 +304,8 @@ deterministic surface for out-of-band notification.
 The event classes that oblige escalation are governing policy owned by
 [`guardrails.md`](../../../plugins/autonomy/reference/guardrails.md#escalation) (gate failure,
 verification divergence, admission rejection, demotion, structural-plan approval, and
-untrusted-provenance). This convention adds no second escalation channel; the telemetry comment (§4)
+untrusted-provenance). A demotion's record routes to a lane through intake triage, never to
+the human-gated label. This convention adds no second escalation channel; the telemetry comment (§4)
 is the report surface, never the sole path when human action is required. The escalation record
 write and the out-of-band notification seam below are notification depth on the one filed
 escalation, the fan-out posture the runner design

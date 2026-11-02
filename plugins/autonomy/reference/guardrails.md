@@ -109,7 +109,7 @@ Six escalation event classes:
 | `gate-failure` | a blocking verification gate fails |
 | `verification-divergence` | a verification outcome diverges from the expected or claimed result, or two checkers of one class disagree |
 | `admission-rejection` | the admission seam rejects a signal as an audited rejection |
-| `demotion` | contrary evidence automatically demotes a promoted cell |
+| `demotion` | contrary evidence automatically demotes a promoted cell; its record routes to a lane, not to the human gate |
 | `structural-plan-approval` | a `C4` item requires upfront plan approval before execution |
 | `untrusted-provenance` | always, for every `C5` item |
 

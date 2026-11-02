@@ -1080,7 +1080,7 @@ the rules that only tighten in
   `docs/conventions/source-control.yaml` and `.claude/source-control.md`; a legacy file without the
   key, or either file the wrapper cannot read or trust, means `off`; a YAML without it leaves the
   legacy value, and with no legacy file the rung is `off`, so the YAML alone never raises it), the
-  cap variable, and `off` while any demotion issue is open.
+  cap variable, and `off` while any demotion issue holds.
 - **Cap variable.** `CLAUDE_LANES_MERGE_RUNG_CAP` (`off`, `merge` or `merge-reviewed`, or the
   aliases `C2` and `C3`) is a repository variable
   only a human sets, and it can only lower the rung. The wrapper never writes it, and the identity
@@ -1090,15 +1090,22 @@ the rules that only tighten in
   `CLAUDE_LANES_REPO_DISABLED` must each read exactly `false`. A read error, or a repository-level
   variable named `CLAUDE_LANES_DISABLED` that shadows the org one, refuses.
 - **Demotion issue.** A failed post-merge check files an issue whose body starts with
-  `<!-- babysit-merge-demotion sha=<S> signal=<name> -->` and that carries the `needs-human` label.
-  It holds the rung at `off` until a human closes it directly. A close through a pull request's or
-  commit's `Closes #N` does not count, and an issue that a non-human edited at any time stays in
-  force. A red-main record (signal `schedule` or `dispatch`) that no non-human edited also clears,
-  open or not, once main is green at a later commit: a green `pr-require-checks` run on main,
+  `<!-- babysit-merge-demotion sha=<S> signal=<name> -->`, with no label and no assignee, and
+  intake triage hands it to a lane: `post-merge-demotion-alert.yml` files it as
+  `github-actions[bot]`, which starts no issues run, so it locks the issue and dispatches intake
+  triage for it, and `babysit_postmerge.py --remediate` files it as the lanes App, whose issue
+  starts intake triage itself. An issue the alert could not send fails its job.
+  It holds the rung at `off` until it clears. A red-main record (signal `schedule` or `dispatch`)
+  that no non-human edited clears with no person, open or closed by a lane, once main is green at
+  a later commit: a green `pr-require-checks` run on main,
   attempt 1, from a schedule or a `github-actions[bot]` dispatch, created after the record, at a
   commit ahead of the record's SHA and on main's history. The earliest such run's creation is the
-  clear time, read from every such run since the record, so newer runs never move it. Canary,
-  revert and read-back records stay human-close. A push to main files a `revert` record when one
+  clear time, read from every such run since the record, so newer runs never move it. While main
+  is still red, only a human's direct close clears it. Canary,
+  revert and read-back records clear only when a human closes them directly: a green main does
+  not show that what they caught is fixed. A close through a pull request's or commit's
+  `Closes #N` does not count, and an issue that a non-human edited at any time stays in force.
+  A push to main files a `revert` record when one
   of its commits names a pull request it reverts and the lanes App enqueued that pull request or
   its enqueuer cannot be read; a revert of one a person enqueued files nothing. A commit names it
   on a line of its squash message: `Reverts` (optionally after a `-` or `*` bullet) followed by `#N`
@@ -1114,7 +1121,7 @@ the rules that only tighten in
   or `github-actions[bot]`), so removing the marker or the label does not clear one. When `post-merge-demotion-alert.yml` proves
   that no merge the failing run covers was enqueued by the agent identity, it files a
   post-merge-failure record instead, first line `<!-- post-merge-failure sha=<S> signal=<name> -->`,
-  also `needs-human`. That record does not hold the rung off.
+  sent to intake triage the same way. That record does not hold the rung off.
   With a new record of either kind, the alert files one fix issue per newly failing check, at
   most 5 per run (an overflow line on the record says when more failed), first line
   `<!-- post-merge-fix check=<name> -->`, in fixed text only (the failing job's name, the SHA, the run
@@ -1469,9 +1476,10 @@ the rules that only tighten in
   merges did not cause it).
   Any other suite outside the set
   demotes nothing, the window counts as verified (its `max-in-flight` slots free), and the suite
-  is quarantined: an issue marked `<!-- post-merge-quarantine suite=<path> -->`, labeled
-  needs-human and assigned to the suite's CODEOWNERS user when a rule names one, filed by the
-  agent identity's `--remediate` or by post-merge-demotion-alert.yml. While that issue is open
+  is quarantined: an issue marked `<!-- post-merge-quarantine suite=<path> -->`, with no label
+  and no assignee, filed by the agent identity's `--remediate` (whose issue starts intake triage)
+  or by post-merge-demotion-alert.yml (which locks it and dispatches intake triage for it), so a
+  lane picks it up. While that issue is open
   and younger than `merge.quarantine-days` (default 7, at most 30), the suite's out-of-set failures
   demote nothing; after that they demote again, even when the suite was already failing before the
   merge. An issue whose body was edited after filing, or whose title no longer names its marker's
@@ -3687,9 +3695,10 @@ and reports by run and attempt.
    green when it passed. The culprit is the one merge that is red while its parent is green (the
    last green run for the oldest). A range of one merge always pins it. Two such merges, or none
    (a merge with no full run of its own breaks the chain), pin no culprit: the report names the
-   untested merges, and a person picks from the post-merge record.
-3. **Who reverts.** The bot may revert the culprit only when every guard holds; otherwise a
-   person gets a draft revert pull request, labeled `needs-human`. The guards: the lanes App
+   untested merges, and a lane picks from the post-merge record.
+3. **Who reverts.** The bot may revert the culprit only when every guard holds; otherwise the
+   revert pull request opens ready for review, labeled `auto-revert` only, and the review lanes
+   and the merge lane take it. The guards: the lanes App
    (`merge.agent-identity`) put it in the merge queue, so an owner or other human merge never
    auto-reverts while a lane merge pinned inside a mixed range may; it merged under
    `max-culprit-age-hours` ago; it is no revert itself (a `revert` subject, a `This reverts
@@ -3706,7 +3715,7 @@ and reports by run and attempt.
 |---|---|---|
 | `dry-run` | `true` | Report only: the step summary and one comment per confirmed red on the log issue (first body line `<!-- red-main-revert-log -->`), each starting `<!-- red-main-report run=<id> attempt=<n> culprit=<sha or none> decision=<auto-revert, human or none> -->`. A run that posts no report, because its red is unconfirmed or the log already reports it, adds a note naming any unreported red full runs, starting `<!-- red-main-unreported-note run=<id> attempt=<n> -->`; a note counts as neither a report nor a cap decision, and none creates the log issue. Nothing is pushed, opened or merged. This version has no revert path, so `false` reports too. |
 | `daily-cap` | 3 | Auto-reverts decided in any 24 hours; 0 to 10, and 0 sends every culprit to a person. |
-| `max-culprit-age-hours` | 24 | Hours since the culprit merged past which a person decides; 1 to 168. |
+| `max-culprit-age-hours` | 24 | Hours since the culprit merged past which a lane decides; 1 to 168. |
 | `confirm-wait-minutes` | 40 | Minutes the job waits for the re-run to finish; 0 to 45. |
 | `remedy` | `rollback` | `rollback` applies rules 3 and 4. `fail-forward` plans no revert: the report's decision is `human`, it names the remedy as the reason, and a person or a fix pull request repairs `main`. |
 

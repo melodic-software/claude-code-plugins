@@ -1687,7 +1687,8 @@ DEMOTION_RECORD = (
 # `read_demotion`: records per query, as `babysit_postmerge.read_pins` batches pins.
 DEMOTION_BATCH = 20
 # A record of a red full run on main, the one kind a later green clears
-# (`_recovered_at`); canary and read-back records stay human-close.
+# (`_recovered_at`); canary, revert and read-back records stay human-close,
+# since a green main does not show that what they caught is fixed.
 RED_MAIN_RECORD = re.compile(
     r"<!-- babysit-merge-demotion sha=([0-9a-f]{40}) signal=(?:schedule|dispatch) -->"
 )
