@@ -492,10 +492,41 @@ const UNRUNNABLE = [
   ],
   // resolve-issue cannot write the tracker, and its pull request is the deliverable.
   // The comment must carry a payload the lane collects, and an output a named
-  // script owns (work-unblock's result) is that script's behavior.
+  // script owns (work-unblock's result) is that script's behavior. A comment
+  // above, in or beside code is a file change.
   [
     "a comment instead of a file change",
-    /^(?:a|one) comment on this issue (?:with|starting|records?|lists?|holds?|gives?|reports?)\b|(?<!\S[-.]\S*['’]s )\b(?:output|results?|findings?|answers?)\b[^,;:.]{0,20}\b(?:recorded|reported|posted|written|stated) (?:in|as) (?:a|one) comment on this issue\b|^no file is changed\.?\s*$/i,
+    new RegExp(
+      [
+        String.raw`^(?:a|one) comment on this issue (?:with|starting|records?|lists?|holds?|gives?|reports?)\b`,
+        String.raw`(?:(?<!\S[-.]\S*['’]s )\b(?:output|results?|findings?|answers?)\b[^,;:.]{0,20}\b(?:recorded|reported|posted|written|stated)|\b(?:is|are) (?:attributed|quantified|broken down)\b[^,;:.]{0,40}) (?:in|as) (?:a|one) (?:\x60[a-z][^\x60]*\x60 )?comment\b(?! (?:above|below|beside|next to|in|inside|within|at|before|after|for|of)\b)(?! on (?!this issue\b))`,
+        String.raw`^no file is changed\.?\s*$`,
+      ].join("|"),
+      "i",
+    ),
+  ],
+  // An item whose own deliverable is a new issue or a split into sub-issues.
+  // A conditional item, a doc or file that says so, and a script that files
+  // one stay with the lane.
+  [
+    "a tracker write instead of a file change",
+    {
+      write: new RegExp(
+        [
+          String.raw`\b(?:is|are) (?:either )?(?:split|broken up|filed|opened|spun off) (?:into|as) (?:(?:a|an|one|its own|their own|separate|new) )?(?:sub-?issues?|child issues?|follow-?up issues?|issues?)\b(?! (?:forms?|templates?|bod(?:y|ies)|titles?|labels?|numbers?|links?|comments?|fields?|types?|events?)\b)`,
+          String.raw`\b(?:a|one|each) (?:sub-?issue|child issue|follow-?up issue)(?: of #\d+)? (?:is|gets) (?:filed|opened|created)\b`,
+          String.raw`^(?:file|open) (?:(?:a|an|one|each|its own) )?(?:sub-?issues?|child issues?|follow-?up issues?|(?:new |separate )?issues?)\b(?! (?:forms?|templates?|bod(?:y|ies)|titles?|labels?|numbers?|links?|comments?|fields?|types?|events?)\b)`,
+        ].join("|"),
+        "i",
+      ),
+      conditional: /^\s*(?:if|when|whenever|unless|once)\b/i,
+      quoted: /\b(?:says?|states?|stated|documents?|explains?|describes?|mentions?|tells?|reads?|names?|wording)\b|\S\.(?:md|mjs|js|ts|sh|py|ps1|json|ya?ml)\b/i,
+      byScript: /^[^.;]*\bby (?:the )?(?:\S+\.(?:mjs|js|ts|sh|py|ps1)|(?:\S+ )?(?:workflow|script|lane|app|hook|skill|action|job|bot))\b/i,
+      test(text) {
+        const match = this.write.exec(text);
+        return Boolean(match) && !this.conditional.test(text) && !this.quoted.test(text.slice(0, match.index)) && !this.byScript.test(text.slice(match.index));
+      },
+    },
   ],
 ];
 // The lane can always reach these; a page elsewhere needs resolve-issue's
