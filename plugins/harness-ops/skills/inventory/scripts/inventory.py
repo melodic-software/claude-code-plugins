@@ -294,9 +294,13 @@ def read_bundle(
     `module_spans`, when given, receives the `[start, end)` in the returned
     source of each printable run that opens with a bundle marker: the units
     the parser reader parses, since the runs joined after a module are
-    bytecode string tables, not JavaScript. `module_paths`, when given,
+    bytecode string tables, not JavaScript. When Bun's module graph decodes,
+    a marker run outside its byte range is no module: Bun's own `// @bun`
+    bootstrap stub sits among the runtime's string literals, which join onto
+    it unseparated, so it does not parse. `meta["marker_runs_outside_graph"]`
+    counts the runs left out. `module_paths`, when given,
     receives each module's `/$bunfs/root/...` path by the start of its
-    source in the returned text (`_graph_sources`).
+    source in the returned text (`_graph_modules`).
 
     Deliberately format-agnostic. Parsing the PE section table (or Mach-O load
     commands, or ELF section headers) would work but ties the script to each
@@ -320,28 +324,35 @@ _GRAPH_TRAILER = b"\n---- Bun! ----\n"
 _GRAPH_RECORD_BYTES = 52
 
 
-def _graph_sources(data: bytes) -> dict[int, str]:
-    """Each module's path by the file offset of its source, from the Bun
-    standalone module graph: the graph ends with a trailer, after a fixed
-    offsets block whose first fields are the graph's byte count and the
-    module table's (offset, length); each 52-byte table record opens with
-    the module's name and contents as (offset, length) into the graph.
-    Empty for a build without one, or a table that does not decode."""
+def _graph_modules(data: bytes) -> tuple[range, dict[int, str]]:
+    """The Bun standalone module graph's byte range in `data`, and each
+    module's path by the file offset of its source: the graph ends with a
+    trailer, after a fixed offsets block whose first fields are the graph's
+    byte count and the module table's (offset, length); each 52-byte table
+    record opens with the module's name and contents as (offset, length)
+    into the graph. An empty range and no modules for a build without one,
+    or a table that does not decode."""
+    none: tuple[range, dict[int, str]] = (range(0), {})
     end = data.rfind(_GRAPH_TRAILER)
     if end < 32:
-        return {}
+        return none
     byte_count, table, size = struct.unpack_from("<QII", data, end - 32)
     base = end - 32 - byte_count
     if base < 0 or size % _GRAPH_RECORD_BYTES or base + table + size > end:
-        return {}
+        return none
     out: dict[int, str] = {}
     for rec in range(base + table, base + table + size, _GRAPH_RECORD_BYTES):
         name_at, name_len, body_at, _ = struct.unpack_from("<4I", data, rec)
         name = data[base + name_at : base + name_at + name_len]
         if not name.startswith(b"/"):
-            return {}
+            return none
         out[base + body_at] = name.decode("utf-8", "replace")
-    return out
+    return range(base, end), out
+
+
+def _graph_sources(data: bytes) -> dict[int, str]:
+    """Each module's path by the file offset of its source (`_graph_modules`)."""
+    return _graph_modules(data)[1]
 
 
 def _select_region(
@@ -373,19 +384,22 @@ def _select_region(
     matches = list(RUN_RE.finditer(data, first))
     runs = [m.group(0) for m in matches]
     joined = b"\n".join(runs)
-    if module_spans is not None:
-        at = 0
-        for run in runs:
-            if run.startswith(BUNDLE_MARKERS[-1]):
-                module_spans.append((at, at + len(run)))
-            at += len(run) + 1
-    if module_paths is not None:
-        sources = _graph_sources(data)
+    if module_spans is not None or module_paths is not None:
+        graph, sources = _graph_modules(data)
+        outside = 0
         at = 0
         for m in matches:
-            if m.start() in sources:
+            run = m.group(0)
+            if module_paths is not None and m.start() in sources:
                 module_paths[at] = sources[m.start()]
-            at += len(m.group(0)) + 1
+            if module_spans is not None and run.startswith(BUNDLE_MARKERS[-1]):
+                if sources and m.start() not in graph:
+                    outside += 1
+                else:
+                    module_spans.append((at, at + len(run)))
+            at += len(run) + 1
+        if outside:
+            meta["marker_runs_outside_graph"] = outside
     meta["anchor"] = marker_used
     meta["bundle_offset"] = first
     meta["region_rule"] = (
