@@ -1133,7 +1133,8 @@ the rules that only tighten in
   main, and a canary one is labeled `needs-human` on purpose, since a canary files no fix issue and
   nothing else clears it. That record does not hold the rung off.
   With a new record of either kind, the alert files one fix issue per newly failing check, at
-  most 5 per run (an overflow line on the record says when more failed), first line
+  most 5 per run (an overflow line on the record says when more failed, and labels that record
+  `needs-human`, as does a failing name outside the fix-issue charset), first line
   `<!-- post-merge-fix check=<name> -->`, in fixed text only (the failing job's name, the SHA, the run
   link, the merge range and the record's number, never an annotation title), with no label, locks it,
   and dispatches intake triage for each; a fix issue that could not be filed, locked, reopened

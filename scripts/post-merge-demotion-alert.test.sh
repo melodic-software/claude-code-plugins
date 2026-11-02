@@ -6,7 +6,8 @@
 # The step files the demotion record the babysit post-merge check and the
 # merge-policy reader also use: an issue by github-actions[bot] whose body's
 # first line is `<!-- babysit-merge-demotion sha=<S> signal=<name> -->`,
-# one per (signal, SHA), labeled needs-human for a canary record only. When no
+# one per (signal, SHA), labeled needs-human for a canary record, or a full-run
+# one with a failing check that got no fix issue. When no
 # merge in the failing range was enqueued by merge.agent-identity, it files the
 # post-merge-failure record instead (`<!-- post-merge-failure sha=<S>
 # signal=<name> -->`, labeled the same way, no demotion); anything unproven
@@ -1515,8 +1516,8 @@ SEVEN=''
 for i in 1 2 3 4 5 6 7; do SEVEN="${SEVEN:+$SEVEN, }$(job "$i" "suite-$i" 'Run')"; done
 JOBS="$SEVEN" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
 if [[ "$RC" -eq 0 && "$(fixes)" -eq 5 && "$(dispatches)" -eq 5 && "$(post_fields)"$'\n' == *"- Newly failing: suite-1, "*"suite-7"$'\n'"$OVERFLOW"$'\n'* &&
-  "$(fix_post 5)" == *"check=suite-5 -->"* ]]; then
-  ok "seven failing checks file five fix issues and the record says more failed"
+  "$(fix_post 5)" == *"check=suite-5 -->"* ]] && grep -qx 'labels\[\]=needs-human' <<<"$(post_fields)"; then
+  ok "seven failing checks file five fix issues, and the record says more failed and is labeled needs-human"
 else
   fail "cap: rc=$RC fixes=$(fixes) record='$(post_fields)'"
 fi
@@ -1527,10 +1528,19 @@ ODD="$(job 1 'test (ubuntu-24.04, 3.12)' Run), $(job 2 "$LONG" Run), $(job 3 "${
   $(job 9 'babysit-merge-demotion' Run), $(job 10 '-flag' Run)"
 JOBS="$ODD" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
 if [[ "$RC" -eq 0 && "$(fixes)" -eq 2 && "$(fix_post 1)" == *"check=test (ubuntu-24.04, 3.12) -->"* &&
-  "$(fix_post 2)" == *"check=$LONG -->"* && "$(post_fields)" == *"$OVERFLOW"* ]]; then
-  ok "only a name in the charset, up to 100 characters, gets a fix issue; the rest count as over"
+  "$(fix_post 2)" == *"check=$LONG -->"* && "$(post_fields)" == *"$OVERFLOW"* ]] &&
+  grep -qx 'labels\[\]=needs-human' <<<"$(post_fields)"; then
+  ok "only a name in the charset, up to 100 characters, gets a fix issue; the rest count as over and label the record needs-human"
 else
   fail "charset: rc=$RC fixes=$(fixes) out='$OUT' log='$LOG'"
+fi
+
+JOBS="$(job 1 'Build & test' Run)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(fixes)" -eq 0 && "$(dispatches)" -eq 0 && "$(post_fields)" == *"$OVERFLOW"* ]] &&
+  grep -qx 'labels\[\]=needs-human' <<<"$(post_fields)"; then
+  ok "a full-run record whose every failing check is outside the charset files no fix issue and is labeled needs-human"
+else
+  fail "no fix issue: rc=$RC fixes=$(fixes) record='$(post_fields)' log='$LOG'"
 fi
 
 FIX_OPEN="$(issue 60 "<!-- post-merge-fix check=test-bash -->"$'\n\nfiled earlier')"

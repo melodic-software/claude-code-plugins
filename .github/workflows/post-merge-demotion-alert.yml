@@ -16,7 +16,8 @@ name: post-merge-demotion-alert
 # once main is green at a later commit (babysit_merge_policy.py
 # `_recovered_at`). A canary record is labeled needs-human, since only a
 # person's close clears it. A fix issue or quarantine issue not delivered to
-# intake gets needs-human; the record does when no fix issue could be filed.
+# intake gets needs-human; the record does when a failing check got no fix
+# issue, whether over the cap, outside the name charset, or not filed.
 # The close-cleared job closes, on a green attempt 1 of a scheduled full run,
 # each open schedule or dispatch record (either filer's) created before that
 # run, at a commit behind its head, and never edited. This workflow merges,
@@ -26,7 +27,7 @@ name: post-merge-demotion-alert
 # demotes. When every merge in the failing range was enqueued by someone else
 # (a person, a release App), the issue's first line is `<!-- post-merge-failure
 # sha=<S> signal=<name> -->` instead, and no reader treats it as a demotion. A
-# full-run one carries no label, its fix issues fix main, and the close-cleared
+# full-run one is labeled as a full-run record above, and the close-cleared
 # job closes it too; a canary one is labeled needs-human on purpose, since a
 # canary files no fix issue and nothing else clears it. Anything the lookup cannot prove demotes.
 #
@@ -1055,10 +1056,12 @@ jobs:
           - Failing run: $sighting${newly_named:+
           - Newly failing: $newly_named}${fix_over:+
           - More checks failed than were filed as fix issues: a run files at most 5, and none for a name outside A-Z a-z 0-9 space . _ : , / ( ) -}"
-          # Only a canary record needs a person's close; a full-run record
-          # clears itself once main is green at a later commit.
+          # A canary record needs a person's close; a full-run record clears
+          # itself once main is green at a later commit, unless a failing
+          # check got no fix issue (over the cap or outside the charset): then
+          # a person holds that work.
           label=()
-          if [[ "$signal" == canary ]]; then
+          if [[ "$signal" == canary || -n "$fix_over" ]]; then
             label=(-f 'labels[]=needs-human')
           fi
           record="$(gh api -X POST "repos/$GITHUB_REPOSITORY/issues" \
