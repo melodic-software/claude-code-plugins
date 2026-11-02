@@ -78,6 +78,27 @@
         "Stops there, without a four-part briefing or invented content",
         "Writes nothing"
       ]
+    },
+    {
+      "id": 7,
+      "name": "zoom-out-timeline-from-handoff-chain",
+      "prompt": "Zoom out for me: when did we start on the invoice export, and what did we do each day? (The working tree is on branch feat/invoice-export. The handoffs directory holds the four handoff files in this case's fixtures, one chain on topic invoice-export. No spec container is linked and no plan file is named.)",
+      "expected_output": "The skill runs the zoom-out scope. Its first line names the boundary it used: the branch feat/invoice-export, since no spec container resolves. It reads the newest handoff (2026-09-04) and its four-entry chain, and lists all four sessions with date, session id, did and left matching the handoffs: 2026-09-01 (1b6f2c3e, endpoint scaffolded / rounding and pagination left), 2026-09-02 twice (4c8d9e10 rounding fixed; 7e0a1b22 pagination landed and PR #41 opened), and 2026-09-04 (9f1b2c33, review fixes pushed / docs page and release note left). It says the effort started 2026-09-01, groups sessions by day, and checks git, merged PRs and /session-flow:recall for 2026-09-03, which has no handoff, showing that day only if a source has something for it. Near term lists the docs page and release note from the newest handoff's remaining actions. Every claim carries a source label, and the reply ends with the newest handoff's one open question (whether the export includes voided invoices) restated with both options, their costs and the recommendation to include them with a status column. A timeline visual is only offered and routed to /visualization:visualize, and nothing is written.",
+      "files": [
+        "evals/fixtures/four-session-chain/handoffs/20260901T164000Z-handoff-invoice-export.md",
+        "evals/fixtures/four-session-chain/handoffs/20260902T111500Z-handoff-invoice-export.md",
+        "evals/fixtures/four-session-chain/handoffs/20260902T190500Z-handoff-invoice-export.md",
+        "evals/fixtures/four-session-chain/handoffs/20260904T103000Z-handoff-invoice-export.md"
+      ],
+      "expectations": [
+        "Names the effort boundary it used (the branch feat/invoice-export) and says the effort started on 2026-09-01",
+        "Lists all four sessions, each with its date, session id, did and left matching the handoff files, grouped by day with both 2026-09-02 sessions under that day",
+        "Checks git, merged pull requests or /session-flow:recall for 2026-09-03, the day with no handoff, without opening a transcript file",
+        "Labels every claim with its source (handoff file, git, tracker, plan, recall or conversation)",
+        "Near term matches the newest handoff's remaining actions (docs page, release note)",
+        "Ends with the recorded open question on voided invoices, restated with both options, their costs and a recommendation, and invents no other decision",
+        "Writes nothing, and only offers a timeline visual through /visualization:visualize rather than writing one to disk"
+      ]
     }
   ]
 }

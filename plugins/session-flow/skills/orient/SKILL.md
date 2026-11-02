@@ -1,8 +1,8 @@
 ---
-description: "Read-only orientation from durable state (ledgers, handoffs, open PRs and work items, git): where the session stands and why. Use when: 'where were we', 'catch me up', 'situation report'. Writes nothing. Past attempts: /session-flow:recall."
+description: "Read-only orientation from durable state (ledgers, handoffs, open PRs and work items, git): where the session stands and why, or a zoom-out timeline of the whole effort. Use when: 'where were we', 'catch me up', 'situation report', 'zoom out', 'when did we start', 'what did we do each day'. Writes nothing. Past attempts: /session-flow:recall."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[catch-up] [--unattended]"
+argument-hint: "[catch-up|zoom-out [--days <N>]] [--unattended]"
 metadata:
   workflow-stage: session
   summary: Read-only situation report from durable and off-thread state
@@ -97,7 +97,7 @@ agent the chat touched, rather than repeating what the chat last said; say which
 running and which could not be checked. This is a status read only; recovering or resuming
 an agent stays `/session-flow:keep-going`. Change nothing to gather. This is the one scope of
 this skill that re-checks live state; every "does not inspect", "does not verify" and "reports
-at a glance" limit below and above applies to the four-part briefing only.
+at a glance" limit below and above applies to every other scope.
 
 **Action items.** An action item is a decision or step only the user can take: a product
 choice, an approval, an irreversible action, or access the session lacks. Include any still
@@ -116,6 +116,79 @@ waiting from before the anchor. Work the session can still do itself is not an a
 Add a visual (table, diagram) only when one exists or can be built from what is in hand; never
 invent a number or picture.
 
+## Zoom-out scope. `/session-flow:orient zoom-out [--days <N>]`
+
+The whole effort, not just this session: when it started, what each day and each session did and
+left, what runs now, and what comes next. It runs on the argument `zoom-out` (strip `--unattended`
+first, as for `catch-up`), or when the ask is about the effort's history across sessions: "zoom
+out", "when did we start", "what did we do each day". A bare "catch me up" keeps the four-part
+briefing. `--days <N>` sets the last-N-days horizon; with none, or a value that is not a positive
+whole number, it is 7.
+
+**Effort boundary.** A boundary the ask names (a container, branch, plan file or topic) wins.
+Otherwise take the first of these that resolves, and name the one used, with its value, in the
+report's first line:
+
+1. **Spec container**: the open container item the current branch's work item links to, read
+   through `/work-items:track` when it is among the available skills.
+2. **Branch**: the current branch, when it is not the default branch.
+3. **Plan file**: the plan file the conversation names.
+4. **Topic slug**: the frontmatter `topic` of the handoff this session resumed from.
+
+When none resolves, say so, report only today and the last N days from git, and say the user can
+name a boundary in the ask. The effort's handoff chain is the newest handoff in
+`<memory_dir>/handoffs/` that matches the boundary (its branch, plan, topic or linked item),
+walked back; the directory also holds unrelated tasks' handoffs, so never take the newest file
+alone.
+
+**Timeline.** Build one row per session from the chain
+([`${CLAUDE_PLUGIN_ROOT}/reference/structure.md`](${CLAUDE_PLUGIN_ROOT}/reference/structure.md)
+"Prior sessions" and the frontmatter shapes):
+
+- Read the newest file's `chain:` (or `chain_root` and `hop`) for how many sessions the chain
+  holds, its `## Prior sessions` rows (date, session id, transcript, did/left, file), and its own
+  `## This session` line as the newest row.
+- When the table lacks a row for any earlier session in the chain, walk `previous_handoff` to the
+  root, taking each file's frontmatter `date` and `session_id` and its `## This session` line,
+  until every session has a row. A file with no `This session` line gives an `UNVERIFIED` row
+  from its Resumption brief. A row that differs between a table and the file it names is a
+  disagreement, reported as one.
+- The effort started at the earliest of the chain root's `date`, the boundary's first commit and
+  the container's creation; give each candidate when they differ.
+- Group the rows by day, from the effort's start to today. Fill each day with no handoff row from
+  git, one command per call, and merged pull requests. For a branch boundary run
+  `git log <default branch>..HEAD --format='%h %as %s'`; otherwise run
+  `git log --since=<start date> --format='%h %as %s'` and keep the commits that name the boundary. Then run `/session-flow:recall` once, its topic the
+  boundary's topic slug or the branch's distinctive words, and place its dated results on those
+  days. Show a day only when a source has something for it, except inside the last N days, where
+  an empty day is shown as empty. Transcripts reach this scope only through handoff rows and
+  recall's report; never open a transcript file here.
+
+**Roadmap.** Near term comes from the plan's open phases, the newest handoff's remaining actions
+and recorded preconditions or deviations, and open tracker items linked to the boundary. Long term
+comes from later plan phases and the container's open children. Report what each source holds;
+never invent a phase.
+
+**Provenance.** Every claim ends with its source label: `[git <sha>]`, `[handoff <file>]`,
+`[tracker <id>]`, `[plan <file>]`, `[recall]` or `[conversation]`. When two sources disagree, give
+both with their labels, and point to `/session-flow:reanchor` to settle which still holds.
+
+**Order of the reply.**
+
+1. **Boundary**: the rule used and its value, and when the effort started.
+2. **Today**, then **Last N days**, then **Earlier** back to the start: the per-day, per-session
+   timeline, one row per session with its date, session id, did and left.
+3. **Now**: what is in flight (open PRs, off-thread work at a glance, the newest handoff's state).
+4. **Near term**, then **Long term**: the roadmap above.
+5. **Open decisions**, last: each open question in the newest handoff, the plan or the linked
+   tracker items, restated in full with its options, what each costs, and a recommendation. With
+   none recorded, say so.
+
+A session timeline (a Gantt chart) or a phase-status diagram is optional: offer it in one line
+above the open decisions, and on a yes hand the rows to `/visualization:visualize`, which owns the
+form and the medium, including a shareable page. Unattended, record the offer in the output
+instead of asking.
+
 ## Boundaries. Pick the right sibling
 
 - **`/session-flow:workflow`**. "What stage is next." Orientation reports
@@ -129,6 +202,9 @@ invent a number or picture.
   codify). Orientation extracts no learnings and scores nothing.
 - **`/session-flow:handoff`**. Writes a save-point and ends the session.
   Orientation writes nothing and ends nothing.
+- **`/session-flow:recall`**. "What did we try for X" across transcripts,
+  reverts and closed PRs. The zoom-out scope calls it only for days the
+  handoff chain does not cover.
 
 ## Boundary, the built-in `/recap` command
 
@@ -160,9 +236,9 @@ when the person can run it, never that it is present. The four-part records live
 
 ## What this skill does NOT do
 
-- **Writes nothing**, no files, no memory, no `/clear`. It is a read-only
-  briefing that leaves state untouched.
-- **Does not verify freshness** (in the four-part briefing; `catch-up` re-checks
+- **Writes nothing**, no files, no memory, no `/clear`, in every scope,
+  `zoom-out` included. It is a read-only briefing that leaves state untouched.
+- **Does not verify freshness** (in every scope but `catch-up`, which re-checks
   live status, see its scope). It reports what the durable state says;
   confirming those claims still hold is `/session-flow:reanchor`.
 - **Does not recover off-thread work**. It names what is in flight;
