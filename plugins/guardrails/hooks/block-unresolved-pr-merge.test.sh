@@ -73,6 +73,7 @@ graphql)
 */status\?*) f=status.json ;;
 */pulls/[0-9]*/files*) f=files.json ;;
 */rules/branches/*) f=rules.json ;;
+*/actions/runs/[0-9]*) f="run_$(cut -d/ -f6 <<<"$endpoint").json" ;;
 */pulls\?*) f=pulls_list.json ;;
 */pulls/[0-9]*) f=pr.json ;;
 *) echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
@@ -408,14 +409,36 @@ assert_contains "empty ignore list -> names merge" "$ERR" "Pending checks (use -
 # Modeled on ci-workflows#951: both review lanes failed because they ran the
 # base branch's broken copy of the action the PR fixes, and ci-status, the one
 # check the base branch's rules require, passed.
-# wf_scenario <threads> <changes> <files> <rules> <ci-status> [statuses]
+# wf_scenario <threads> <changes> <files> <rules> <ci-status> [statuses] [runs]
 #   files:     action | workflow | renamed | source | unreadable
 #   rules:     ci-status | none | unreadable
 #   ci-status: success | failure
+#   runs:      the Actions runs (7002, 7003) behind the two failing review checks
+#     base       its caller called acme/widgets' pr-review.yml at main (default)
+#     own        its own workflow file is the changed pr-review.yml
+#     head       it called the changed pr-review.yml from the PR's merge ref
+#     other-repo it called pr-review.yml from another repository at main
+#     unrelated  it called this repository's other.yml at main
+#     unreadable the run read fails
+#     no-url     the check runs carry no details_url, so no run is read
 wf_scenario() {
   scenario "$1" "$2" green "${6:-green}"
+  local runs="${7:-base}" u2=',"details_url":"https://github.com/acme/widgets/actions/runs/7002/job/2"' u3=',"details_url":"https://github.com/acme/widgets/actions/runs/7003/job/3"' own='.github/workflows/pr-caller.yml' ref
   echo '{"state":"open","head":{"sha":"abc123"},"base":{"ref":"main","repo":{"full_name":"acme/widgets"}}}' >"$FIX/pr.json"
-  echo '{"total_count":3,"check_runs":[{"id":901,"name":"ci-status","app":{"id":15368,"slug":"github-actions"},"check_suite":{"id":1},"status":"completed","conclusion":"'"$5"'"},{"id":902,"name":"pr-review / claude-review-status","app":{"id":15368,"slug":"github-actions"},"check_suite":{"id":2},"status":"completed","conclusion":"failure"},{"id":903,"name":"pr-review-security / security-review","app":{"id":15368,"slug":"github-actions"},"check_suite":{"id":3},"status":"completed","conclusion":"failure"}]}' >"$FIX/checks.json"
+  [[ "$runs" == no-url ]] && u2='' u3=''
+  echo '{"total_count":3,"check_runs":[{"id":901,"name":"ci-status","app":{"id":15368,"slug":"github-actions"},"check_suite":{"id":1},"status":"completed","conclusion":"'"$5"'"},{"id":902,"name":"pr-review / claude-review-status","app":{"id":15368,"slug":"github-actions"},"check_suite":{"id":2},"status":"completed","conclusion":"failure"'"$u2"'},{"id":903,"name":"pr-review-security / security-review","app":{"id":15368,"slug":"github-actions"},"check_suite":{"id":3},"status":"completed","conclusion":"failure"'"$u3"'}]}' >"$FIX/checks.json"
+  case "$runs" in
+  base | no-url) ref='{"path":"acme/widgets/.github/workflows/pr-review.yml@main","sha":"base999","ref":"refs/heads/main"}' ;;
+  own) own='.github/workflows/pr-review.yml' ref='{"path":"acme/widgets/.github/workflows/pr-review.yml@main","sha":"base999","ref":"refs/heads/main"}' ;;
+  head) ref='{"path":"acme/widgets/.github/workflows/pr-review.yml@refs/pull/42/merge","sha":"merge777","ref":"refs/pull/42/merge"}' ;;
+  other-repo) ref='{"path":"other/ci-workflows/.github/workflows/pr-review.yml@main","sha":"cw555","ref":"refs/heads/main"}' ;;
+  unrelated) ref='{"path":"acme/widgets/.github/workflows/other.yml@main","sha":"base999","ref":"refs/heads/main"}' ;;
+  *) ref='' ;;
+  esac
+  if [[ "$runs" != unreadable ]]; then
+    echo '{"id":7002,"path":"'"$own"'","head_sha":"abc123","referenced_workflows":['"$ref"']}' >"$FIX/run_7002.json"
+    echo '{"id":7003,"path":"'"$own"'","head_sha":"abc123","referenced_workflows":['"$ref"']}' >"$FIX/run_7003.json"
+  fi
   case "$3" in
   action) echo '[{"filename":"src/app.py","status":"modified"},{"filename":".github/actions/report-lane-outcome/outcome-step.cjs","status":"modified"}]' >"$FIX/files.json" ;;
   workflow) echo '[{"filename":".github/workflows/pr-review.yml","status":"modified"}]' >"$FIX/files.json" ;;
@@ -470,8 +493,43 @@ wf_scenario none requested action ci-status success
 run "action change: a change request still blocks" "$WF_MERGE" 2
 assert_contains "action change, change request -> names the reviewer" "$ERR" "Changes requested by: bob"
 wf_scenario none none action ci-status success failed
-run "action change: a non-required failing commit status warns" "$WF_MERGE" 0
-assert_contains "action change, failed status -> the warning names it" "$OUT" "ci/legacy"
+run "action change: a non-required failing commit status still blocks" "$WF_MERGE" 2
+assert_eq "action change, failed status -> names only the status as failing" "Failing checks: ci/legacy" "$(grep 'Failing checks:' <<<"$ERR")"
+assert_contains "action change, failed status -> the review checks are not blocking" "$ERR" "not blocking"
+# The exemption holds only when the failing check's own run loaded the base
+# branch's copy of a changed workflow (or, for an action change, any of this
+# repository's workflows) and no head copy of a changed workflow.
+wf_scenario none none workflow ci-status success green base
+run "workflow change, run loaded it from the base branch: warns" "$WF_MERGE" 0
+assert_contains "base-loaded workflow -> says not blocking" "$OUT" "not blocking"
+assert_contains "base-loaded workflow -> the run was read" "$(calls)" "repos/acme/widgets/actions/runs/7002"
+wf_scenario none none workflow ci-status success green own
+run "the run's own workflow file is the changed one: blocks" "$WF_MERGE" 2
+assert_contains "own workflow changed -> names both review checks" "$ERR" "Failing checks: pr-review / claude-review-status, pr-review-security / security-review"
+assert_absent "own workflow changed -> nothing is exempt" "$ERR" "not blocking"
+wf_scenario none none workflow ci-status success green head
+run "the run loaded the changed workflow from the head: blocks" "$WF_MERGE" 2
+assert_contains "head-loaded workflow -> names the review checks" "$ERR" "Failing checks: pr-review / claude-review-status"
+wf_scenario none none workflow ci-status success green other-repo
+run "the run loaded another repository's workflow: blocks" "$WF_MERGE" 2
+assert_contains "other repository -> names the review checks" "$ERR" "Failing checks: pr-review / claude-review-status"
+wf_scenario none none workflow ci-status success green unrelated
+run "the run loaded none of the changed workflows: blocks" "$WF_MERGE" 2
+assert_contains "unrelated workflow -> names the review checks" "$ERR" "Failing checks: pr-review / claude-review-status"
+wf_scenario none none action ci-status success green unrelated
+run "action change, the run loaded a workflow of this repository at the base: warns" "$WF_MERGE" 0
+assert_contains "action change, base-loaded workflow -> says not blocking" "$OUT" "not blocking"
+wf_scenario none none action ci-status success green other-repo
+run "action change, the run loaded only another repository's workflow: blocks" "$WF_MERGE" 2
+assert_contains "action change, other repository -> names the review checks" "$ERR" "Failing checks: pr-review / claude-review-status"
+wf_scenario none none action ci-status success green unreadable
+run "the run cannot be read: blocks" "$WF_MERGE" 2
+assert_contains "run unreadable -> names the review checks" "$ERR" "Failing checks: pr-review / claude-review-status"
+assert_absent "run unreadable -> does not fail open" "$OUT" "will run unchecked"
+wf_scenario none none action ci-status success green no-url
+run "a failing check with no Actions run: blocks" "$WF_MERGE" 2
+assert_contains "no run -> names the review checks" "$ERR" "Failing checks: pr-review / claude-review-status"
+assert_absent "no run -> no run is read" "$(calls)" "actions/runs/"
 
 # --- 4. REST, GraphQL and curl merge paths -------------------------------------
 scenario unresolved none green green

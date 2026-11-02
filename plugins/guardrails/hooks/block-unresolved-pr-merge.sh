@@ -36,11 +36,18 @@
 #     file (a path under BUPM_WORKFLOW_PREFIXES), a failed check whose name the
 #     base branch's rules (its rulesets, read from `rules/branches/{base}`) do
 #     not list as a required status check is reported
-#     as a warning and does not block. Such a PR's own checks may run the
-#     broken workflow or action from the base branch and fail until the fix
-#     lands. A failed required check still blocks, and when the changed files
-#     or the base branch's rules cannot be read, or the rules require no check,
-#     every failed check blocks.
+#     as a warning and does not block, when its GitHub Actions run shows it
+#     loaded the base branch's copy of this repository's workflow code: a
+#     reusable workflow the PR changes, or, for a PR that changes an action
+#     file, any of this repository's reusable workflows, called at the base
+#     branch (`actions/runs/{id}` `.referenced_workflows`). Such a PR's own
+#     checks may run the broken workflow or action from the base branch and
+#     fail until the fix lands. A failed check still blocks when it is
+#     required, when it is a commit status, when its run's own workflow file is
+#     one the PR changes or it loaded a changed workflow from the head (the
+#     PR's own copy ran, so the failure is the PR's), or when its run cannot be
+#     read. When the changed files or the base branch's rules cannot be read,
+#     or the rules require no check, every failed check blocks.
 #   - a check that is still pending, for an immediate merge only. An auto-merge
 #     or merge-queue request is the way to wait for checks, so pending checks
 #     do not block `--auto`, `enablePullRequestAutoMerge`, `enqueuePullRequest`,
@@ -139,7 +146,11 @@
 # workflow; the workflow exemption reads only the first 100 changed files and
 # matches a required check by name alone, and an `action.yml` outside
 # BUPM_WORKFLOW_PREFIXES does not count as an action definition file, so in
-# those cases a failed check blocks; the rules read returns ruleset rules only
+# those cases a failed check blocks; a run does not list the actions it used,
+# so for an action change the exemption confirms only that the check loaded a
+# workflow of this repository from the base branch, not that the workflow used
+# the changed action; it reads at most BUPM_EXEMPT_MAX_RUNS runs, and a failed
+# check past them blocks; the rules read returns ruleset rules only
 # (first 100), so a check that only classic branch protection requires counts
 # as not required on a PR that changes a workflow or action file.
 #
@@ -154,7 +165,8 @@
 # runs, statuses, threads; up to seven with a branch or node lookup and the
 # thread fallback, and one more per failed check run, three at most, to read
 # its annotations, and when a check failed, one for the PR's changed files and,
-# if a workflow or action file changed, one for the base branch's rules), all
+# if a workflow or action file changed, one for the base branch's rules and one
+# per Actions run behind a failed check the rules do not require, five at most), all
 # inside one 35 s budget that keeps the row under its
 # 60 s timeout (TIME BUDGET below), about once per PR: measured
 # 3.0 to 3.6 s end to end against live PRs in a Claude Code cloud session on
@@ -973,15 +985,19 @@ BUPM_OUT="$(printf '%s\n%s\n' "$_bupm_all" "$_bupm_runs" | jq -rs --argjson sup 
       | ($all | map(select(.name == $c.name and (.app.id // 0) == ($c.app.id // 0) and ((.details_url // "") | contains($u))))
         | max_by(.id)) // ($c + {status: "in_progress", conclusion: null}))
     else . end) as $runs
-  | [$runs[] | select(.status == "completed" and (.conclusion | IN("failure","timed_out","cancelled","action_required","startup_failure","stale"))) | .name] as $f
+  | [$runs[] | select(.status == "completed" and (.conclusion | IN("failure","timed_out","cancelled","action_required","startup_failure","stale")))] as $fr
+  | [$fr[] | .name] as $f
   | [$runs[] | select(.status != "completed") | .name] as $p
-  | "\($f | join(", "))\u001f\($p | join(", "))\u001f\($f | tojson)"')" ||
+  | [$fr[] | {name, slug: (.app.slug // ""),
+      run: ((.details_url // "") | if type == "string" then (capture("/actions/runs/(?<r>[0-9]+)(/|$)").r // "") else "" end)}] as $fi
+  | "\($f | join(", "))\u001f\($p | join(", "))\u001f\($f | tojson)\u001f\($fi | tojson)"')" ||
   _bupm_unchecked "the check runs could not be judged"
 # A unit separator, not a tab: tab is IFS whitespace, so an empty first field
 # would collapse and the pending list would read as the failed one. The third
 # field is the failed names as a JSON array, since a matrix leg's name can
-# hold the ", " that joins the list.
-IFS=$'\x1f' read -r _bupm_failed _bupm_pending _bupm_failed_json <<<"$BUPM_OUT"
+# hold the ", " that joins the list. The fourth is each failed run's name, app
+# slug and Actions run id, for the workflow exemption.
+IFS=$'\x1f' read -r _bupm_failed _bupm_pending _bupm_failed_json _bupm_failed_runs <<<"$BUPM_OUT"
 
 # Commit statuses (the combined endpoint holds the latest per context).
 # shellcheck disable=SC2016
@@ -998,31 +1014,88 @@ IFS=$'\x1f' read -r _bupm_sfailed _bupm_spending _bupm_sfailed_json <<<"$BUPM_OU
 # reusable workflow or action runs its own checks against the base branch's
 # broken copy, so they fail until the fix lands. When such a PR's diff touches
 # one of these prefixes, a failed check the base branch's rules do not require
-# is reported and does not block. Every read here that fails, and a rules read
+# is reported and does not block, but only when the check's own GitHub Actions
+# run shows it loaded the base branch's copy of this repository's workflow
+# code (_bupm_run_loads_base). Every read here that fails, and a rules read
 # that names no required check, leaves every failed check blocking.
 BUPM_WORKFLOW_PREFIXES=(.github/workflows/ .github/actions/)
+# At most this many Actions runs are read; a failed check whose run is past it
+# blocks.
+BUPM_EXEMPT_MAX_RUNS=5
 _bupm_nonreq=""
+# _bupm_run_loads_base <run-id> <changed-files-json>: succeed when Actions run
+# <run-id> took the changed workflow code from the base branch, not the head.
+# Read from `actions/runs/{id}`: `.path` is the run's own workflow file and
+# `.referenced_workflows` the reusable workflows it called, each `path` written
+# `owner/repo/<file>@<ref>`. It fails, so the check blocks, when
+#   - the run's own workflow file is one the PR changes: a pull_request run
+#     takes that file from the head, so its failure is the PR's own;
+#   - a reusable workflow of this repository that the PR changes was loaded
+#     from any ref other than the base branch (a `./` call takes the head's);
+#   - no reusable workflow of this repository was loaded from the base branch,
+#     or, for a PR that changes no action file, none of those is a workflow the
+#     PR changes. An action is not listed in the run, so an action change counts
+#     when the run loaded a workflow of this repository from the base branch.
+_bupm_run_loads_base() {
+  _bupm_api "repos/$BUPM_REPO/actions/runs/$1" \
+    --jq '{path: (.path // ""), refs: [.referenced_workflows[]? | {path: (.path // ""), ref: (.ref // "")}]}' ||
+    return 1
+  # shellcheck disable=SC2016
+  jq -e --arg repo "$BUPM_REPO" --arg base "$_bupm_base" --argjson files "$2" '
+    def file: sub("@[^@]*$"; "");
+    (($repo | ascii_downcase) + "/") as $pre
+    | ((.path // "") | file) as $own
+    | [.refs[]? | select(.path | ascii_downcase | startswith($pre))
+        | {file: (.path[($pre | length):] | file),
+           base: (.ref == "refs/heads/" + $base or (.path | endswith("@" + $base)) or (.path | endswith("@refs/heads/" + $base)))}] as $w
+    | [$w[] | select(.base)] as $b
+    | ($own | IN($files[]) | not)
+      and ([$w[] | select(.base | not) | select(.file | IN($files[]))] | length == 0)
+      and (any($b[]; .file | IN($files[]))
+        or (($b | length) > 0 and any($files[]; startswith(".github/actions/"))))' \
+    <<<"$BUPM_OUT" >/dev/null 2>&1
+}
 _bupm_exempt() {
-  local f p hit=0 base req
+  local f p hit=0 base req files id ok='[]' reads=0
   [[ -n "$_bupm_base" && "$_bupm_base" != null ]] || return 1
   _bupm_api "repos/$BUPM_REPO/pulls/$BUPM_NUM/files?per_page=100" \
     --jq '.[] | .filename, (.previous_filename // empty)' || return 1
+  files="$BUPM_OUT"
   while IFS= read -r f; do
     for p in "${BUPM_WORKFLOW_PREFIXES[@]}"; do
       [[ "$f" == "$p"* ]] && hit=1
     done
-  done <<<"$BUPM_OUT"
+  done <<<"$files"
   ((hit)) || return 1
+  files="$(jq -Rn '[inputs | select(length > 0)]' <<<"$files")" || return 1
   _bupm_urlencode base "$_bupm_base"
   _bupm_api "repos/$BUPM_REPO/rules/branches/$base?per_page=100" \
     --jq '[.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[]?.context] | unique' ||
     return 1
   req="$BUPM_OUT"
   jq -e 'type == "array" and length > 0' <<<"$req" >/dev/null 2>&1 || return 1
+  # The Actions runs behind the failed checks the rules do not require.
   # shellcheck disable=SC2016
-  BUPM_OUT="$(jq -rn --argjson r "$req" --argjson a "${_bupm_failed_json:-[]}" --argjson b "${_bupm_sfailed_json:-[]}" '
-    ($a + $b) as $f
-    | "\([$f[] | select(IN($r[]))] | join(", "))\u001f\([$f[] | select(IN($r[]) | not)] | join(", "))"')" ||
+  while IFS= read -r id; do
+    [[ "$id" =~ ^[0-9]+$ ]] || continue
+    ((reads < BUPM_EXEMPT_MAX_RUNS)) || break
+    ((++reads))
+    _bupm_run_loads_base "$id" "$files" || continue
+    ok="$(jq -c --arg i "$id" '. + [$i]' <<<"$ok")" || return 1
+  done < <(jq -r --argjson r "$req" '[.[] | select((.name | IN($r[]) | not) and .run != "") | .run] | unique[]' \
+    <<<"${_bupm_failed_runs:-[]}")
+  # A failed check is exempt when the rules do not require it, it is a GitHub
+  # Actions check run (a commit status names no run), and every failed run of
+  # that name loaded the base branch's copy.
+  # shellcheck disable=SC2016
+  BUPM_OUT="$(jq -rn --argjson r "$req" --argjson a "${_bupm_failed_json:-[]}" --argjson b "${_bupm_sfailed_json:-[]}" \
+    --argjson c "${_bupm_failed_runs:-[]}" --argjson ok "$ok" '
+    def exempt($n): ($n | IN($r[]) | not)
+      and ([$c[] | select(.name == $n)] as $m
+        | ($m | length) > 0 and all($m[]; .slug == "github-actions" and (.run | IN($ok[]))));
+    [($a[] | select(exempt(.) | not)), $b[]] as $held
+    | [$a[] | select(exempt(.))] as $kept
+    | "\($held | join(", "))\u001f\($kept | join(", "))"')" ||
     return 1
   IFS=$'\x1f' read -r _bupm_failed _bupm_nonreq <<<"$BUPM_OUT"
 }
@@ -1062,7 +1135,7 @@ _bupm_threads="$BUPM_OUT"
 ((BUPM_AUTO)) && _bupm_pending=""
 _bupm_nonreq_line=""
 [[ -n "$_bupm_nonreq" ]] &&
-  _bupm_nonreq_line="Failing checks that the base branch's rules do not require (not blocking, because this PR changes a workflow or action definition file whose fix they may not run yet): $_bupm_nonreq"
+  _bupm_nonreq_line="Failing checks that the base branch's rules do not require (not blocking, because this PR changes a workflow or action definition file and each one's run loaded the base branch's copy of this repository's workflows, so it may not run the fix yet): $_bupm_nonreq"
 if [[ -z "$_bupm_threads" && -z "$_bupm_changes" && -z "$_bupm_failed" && -z "$_bupm_pending" ]]; then
   if [[ -n "$_bupm_nonreq_line" ]]; then
     _bupm_msg="guardrails block-unresolved-pr-merge: ${BUPM_REPO}#${BUPM_NUM} is allowed to merge. $_bupm_nonreq_line. Check that each one fails only because it ran the base branch's copy of the workflow or action this PR fixes."
