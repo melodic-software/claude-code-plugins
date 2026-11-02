@@ -194,7 +194,7 @@
     },
     {
       "id": "no_config_fallback",
-      "prompt": "Run /mutation-testing:audit on my branch. There is no docs/conventions/mutation-testing.yaml and no older .claude/mutation-testing.md read while it is absent, no .local.md overlay and no mutation-testing userConfig value. The test command is `python -m pytest {tests}`.",
+      "prompt": "Run /mutation-testing:audit on my branch. There is no docs/conventions/mutation-testing.yaml, no .local.md overlay and no mutation-testing userConfig value. The test command is `python -m pytest {tests}`.",
       "expected_output": "Does not refuse and does not send the user to /mutation-testing:setup apply. Resolves every config layer, finds none, and falls back: `tool: manual`, the diff target resolved with `git symbolic-ref --short refs/remotes/origin/HEAD` rather than a hardcoded main or master, `mutate` set to the changed source files minus test code, and the effort-derived mutant cap since no `max-mutants` is set. States `python -m pytest {tests}` as the test command to the user before the baseline run, with `{tests}` filled by test paths rather than left empty. The scope report's Config line reads `no config: fallback defaults` and lists each default, the resolved diff target included.",
       "files": [],
       "narration": true
@@ -207,7 +207,7 @@
     },
     {
       "id": "user_config_only",
-      "prompt": "Run /mutation-testing:audit on my branch. There is no docs/conventions/mutation-testing.yaml, no older .claude/mutation-testing.md read while it is absent, and no .local.md overlay. The userConfig values render as operators: narrow and max_mutants: 5. The test command is `python -m pytest {tests}`.",
+      "prompt": "Run /mutation-testing:audit on my branch. There is no docs/conventions/mutation-testing.yaml and no .local.md overlay. The userConfig values render as operators: narrow and max_mutants: 5. The test command is `python -m pytest {tests}`.",
       "expected_output": "Does not refuse and does not send the user to /mutation-testing:setup apply. Reads the user layer from the plugin's userConfig values, not from a ~/.claude/mutation-testing.md file, and uses them: at most 5 mutants and the narrow operator set. The scope report's Config line names `userConfig` as the source of `max-mutants: 5` and `operators: narrow`, and marks the keys no layer sets as fallback defaults: `tool: manual` and the diff target resolved from origin/HEAD. States `python -m pytest {tests}` as the test command before the baseline run; it does not read a test command from userConfig.",
       "files": [],
       "narration": true
@@ -217,13 +217,6 @@
       "prompt": "Run /mutation-testing:audit. The config says `tool: stryker-net`, but dotnet-stryker is not installed.",
       "expected_output": "Does not refuse outright. Names the install command for Stryker.NET, as /mutation-testing:setup check would, and offers to continue this run with `tool: manual`. Refuses only when the user declines both. Does not install the tool unasked. Running unattended, it stops with the install command and the manual offer rather than switching tools on its own.",
       "files": []
-    },
-    {
-      "id": "older_team_file",
-      "prompt": "Run /mutation-testing:audit --paths app.py. This repository has no docs/conventions/mutation-testing.yaml; an earlier plugin release wrote its settings as the yaml block in .claude/mutation-testing.md, which sets tool: manual, diff-target: main and max-mutants: 3. The test command is `python -m pytest {tests}`.",
-      "expected_output": "Reads the older .claude/mutation-testing.md as the team layer, because docs/conventions/mutation-testing.yaml is absent, and uses its values: the manual protocol, diff target main and at most 3 mutants. The scope report's Config line names that file as the source of those keys and says it is the older team file. Names /mutation-testing:setup apply as the way to move it to docs/conventions/mutation-testing.yaml. Does not fall back to defaults for the keys that file sets.",
-      "files": [],
-      "narration": true
     }
   ]
 }
