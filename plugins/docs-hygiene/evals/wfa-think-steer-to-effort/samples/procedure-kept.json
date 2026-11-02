@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "```markdown\n## Code review\n\n1. Run `make test` and note any failure.\n2. Read every changed file under `src/billing/`.\n3. Report each finding with its file and line.\n```",
+      "why": "steps kept"
+    }
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {
+      "answer": "```markdown\n## Code review\n\nReport each finding with its file and line.\n```\n\n- Cut `make test` and the `src/billing/` step: derivable.",
+      "why": "steps cut; the note outside the fence names them"
+    }
+  ]
+}

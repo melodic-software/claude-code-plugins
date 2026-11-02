@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "```markdown\n# Triage report\n\n- End every triage report with the label you chose.\n```",
+      "why": "label rule kept"
+    }
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {
+      "answer": "```markdown\n# Triage report\n\n- Give the rationale in two sentences.\n```\n\n- Cut the label line.",
+      "why": "label rule gone from the file"
+    }
+  ]
+}

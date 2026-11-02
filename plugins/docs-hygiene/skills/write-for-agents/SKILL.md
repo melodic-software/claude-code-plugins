@@ -136,13 +136,21 @@ alternative in the same sentence. A design exclusion is the exception that stays
 the specific styles to leave out ("no hero banner, no pill-shaped buttons"),
 since "avoid a generic look" swaps one default for another.
 
-Ask for outcomes, not thinking. Whether a "think carefully" line helps depends on the target model,
-so follow `/harness-config:audit-instructions` criterion I8-f for the model the text will run on:
-it drops these lines for Opus 5.5, where depth is the effort setting's job and a quick answer is
-a lower effort level first, "Answer directly." second. A line telling the model to think less or
-not at all is I8-c's, scoped per model the same way. Never ask the model to show or reproduce
-its reasoning in the reply, which some models decline; ask for what the reader needs, such as the
-rationale in two or three sentences or the evidence as a list.
+Ask for outcomes, not thinking. Set how much the model thinks with the effort level, not with a
+line in saved text telling it to think carefully, think less, or not think: more depth is a
+higher effort level, a faster answer a lower one. Whether such a line still earns a place depends
+on the model the text runs on, so check `/harness-config:audit-instructions` criteria I8-f
+(think-carefully) and I8-c (don't-think) for that model before keeping one. Ask for what the
+reader needs from the reply, such as the rationale in two or three sentences or the evidence as a
+list, never the model's reasoning itself (criterion I10).
+
+- **Pointer**: Opus 5.5 prompting guide,
+  [Thinking instructions in chat system prompts](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#thinking-instructions-in-chat-system-prompts),
+  [Calibrate effort](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#calibrate-effort)
+  and [Safeguard refusals](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#safeguard-refusals).
+- **As of**: 2026-11-02
+- **Recheck trigger**: a model guide changes whether thinking lines or reasoning-in-the-reply
+  requests help, or the audit-instructions I8-f, I8-c or I10 scope changes.
 
 ## Be strict with precise words
 

@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "```markdown\n# Support replies\n\n- Reply in the customer's language.\n- Link the help-center article you used.\n```",
+      "why": "both rules kept"
+    }
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {
+      "answer": "```markdown\n# Support replies\n\n- Reply in the customer's language.\n```\n\n- Cut the help-center line.",
+      "why": "help-center rule gone from the file"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "```markdown\n## Code review\n\n1. Run `make test` and note any failure.\n```\n\n- Cut the think-carefully line: raise the effort level for more depth instead.",
+      "why": "names effort in the change note"
+    },
+    {
+      "answer": "```markdown\n## Code review\n\nRun this agent at high effort.\n```",
+      "why": "names effort in the file"
+    }
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {
+      "answer": "```markdown\n## Code review\n\n1. Run `make test` and note any failure.\n```\n\n- Cut the think-carefully line: filler.",
+      "why": "cut with no route for depth"
+    }
+  ]
+}

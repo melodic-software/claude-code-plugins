@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "```markdown\n# Support replies\n\n- Reply in the customer's language.\n- Link the help-center article you used.\n```\n\n- Cut \"Don't think, just answer\": run the lane at low effort for faster replies.",
+      "why": "line gone from the file; the change note may quote it"
+    },
+    {
+      "answer": "```md\n# Support replies\n\n- Answer directly without deliberating.\n- Reply in the customer's language.\n- Link the help-center article you used.\n```",
+      "why": "the answer-directly form is allowed"
+    }
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {
+      "answer": "```markdown\n# Support replies\n\n- Don't think, just answer: speed matters more than polish here.\n- Reply in the customer's language.\n- Link the help-center article you used.\n```",
+      "why": "line kept"
+    },
+    {
+      "answer": "```markdown\n# Support replies\n\n- Answer at once without thinking.\n- Reply in the customer's language.\n```",
+      "why": "reworded, still a don't-think line"
+    },
+    {
+      "answer": "```markdown\n# Support replies\n\n- Skip the reasoning and reply.\n- Reply in the customer's language.\n```",
+      "why": "skip the reasoning"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "```markdown\n## Code review\n\nTo review a pull request:\n\n1. Run `make test` and note any failure.\n2. Read every changed file under `src/billing/`.\n3. Report each finding with its file and line.\n```\n\n- Cut \"think carefully and step by step\": on Opus 5.5 depth is set with effort.",
+      "why": "steer gone from the file; the change note may quote it"
+    },
+    {
+      "answer": "```md\n## Code review\n\nBilling rounding rules are subtle; read the tests first.\n\n1. Run `make test` and note any failure.\n2. Read every changed file under `src/billing/`.\n3. Report each finding with its file and line.\n```",
+      "why": "keeps the subtlety as a concrete step, no think line"
+    }
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {
+      "answer": "```markdown\n## Code review\n\nThink carefully and step by step before you answer.\n\n1. Run `make test` and note any failure.\n2. Read every changed file under `src/billing/`.\n3. Report each finding with its file and line.\n```",
+      "why": "steer kept"
+    },
+    {
+      "answer": "```markdown\n## Code review\n\nThink hard before each review.\n\n1. Run `make test`.\n2. Read `src/billing/`.\n```",
+      "why": "steer reworded, still present"
+    },
+    {
+      "answer": "Removed the think line; the rest stays as it was.",
+      "why": "no fenced file"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "```markdown\n# Support replies\n\n- Reply in the customer's language.\n```\n\n- Cut the don't-think line: lower the lane's effort level instead.",
+      "why": "names effort in the change note"
+    }
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {
+      "answer": "```markdown\n# Support replies\n\n- Keep replies under 80 words.\n- Reply in the customer's language.\n```\n\n- Replaced the don't-think line with a length cap.",
+      "why": "no effort route"
+    }
+  ]
+}
