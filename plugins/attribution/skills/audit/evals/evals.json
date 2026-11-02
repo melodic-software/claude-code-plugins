@@ -336,7 +336,7 @@
       "id": 16,
       "name": "larger-sample-adjudications-keep-their-labels",
       "prompt": "/attribution:audit the eighteen cases c39 through c56 under evals/fixtures/golden relative to the skill directory. Each case's source.md is the upstream page the passage is compared against. Report what you find in each.",
-      "expected_output": "Three cases are findings and fifteen are not. c39 is a near-verbatim finding over its rules list and c40 a verbatim finding over its three rules bullets, both fingerprint-confirmed. c54 is a near-verbatim finding on the two-line flag note, at tier source-fetched-similar because no fingerprint fires. c41 to c53 match their sources and are cleared: on an adjacent stamped record or pointer (c42, c45, c49, c50), on a declared extract or labeled evidence (c41, c43), on local judgment the passage adds (c44, c46, c47, c48), or on a distilling file's own attribution (c51, c52, c53). c55 and c56 state external facts inside whole records and are cleared on the conforming pointer or record carve-out. Each is reported as examined.",
+      "expected_output": "Four cases are findings and fourteen are not. c39 is a near-verbatim finding over its rules list and c40 a verbatim finding over its three rules bullets, both fingerprint-confirmed. c54 is a near-verbatim finding on the two-line flag note, at tier source-fetched-similar because no fingerprint fires. c41 to c53 match their sources and are cleared: on an adjacent stamped record or pointer (c42, c45, c49, c50), on a declared extract or labeled evidence (c41, c43), on local judgment the passage adds (c44, c46, c47, c48), or on a distilling file's own attribution (c51, c52, c53). c55 is a restated-fact finding over its Claim bullet: its record's recheck trigger names only the table, so the facts drawn from the other section are not covered. c56 states external facts inside a whole record and is cleared on the conforming pointer or record carve-out. Each is reported as examined.",
       "files": [
         "evals/fixtures/golden/c39-near-verbatim-rules-list-one-phrase-dropped/case.md",
         "evals/fixtures/golden/c39-near-verbatim-rules-list-one-phrase-dropped/source.md",
@@ -386,9 +386,9 @@
         "evals/fixtures/golden/c54-near-verbatim-one-flag-note-among-local-bullets/case.md",
         "evals/fixtures/golden/c54-near-verbatim-one-flag-note-among-local-bullets/source.md",
         "evals/fixtures/golden/c54-near-verbatim-one-flag-note-among-local-bullets/expected.json",
-        "evals/fixtures/golden/c55-negative-claim-inside-recorded-claim-block/case.md",
-        "evals/fixtures/golden/c55-negative-claim-inside-recorded-claim-block/source.md",
-        "evals/fixtures/golden/c55-negative-claim-inside-recorded-claim-block/expected.json",
+        "evals/fixtures/golden/c55-restated-claim-past-its-record-trigger/case.md",
+        "evals/fixtures/golden/c55-restated-claim-past-its-record-trigger/source.md",
+        "evals/fixtures/golden/c55-restated-claim-past-its-record-trigger/expected.json",
         "evals/fixtures/golden/c56-negative-verification-claim-with-record/case.md",
         "evals/fixtures/golden/c56-negative-verification-claim-with-record/source.md",
         "evals/fixtures/golden/c56-negative-verification-claim-with-record/expected.json"
@@ -396,9 +396,9 @@
       "expectations": [
         "Reports c39 as class near-verbatim with a span inside its Rules list, and c40 as class verbatim with a span covering its three Rules bullets",
         "Reports c54 as class near-verbatim with a span that includes the --keep-local bullet, at a tier below fingerprint-confirmed",
-        "Produces no finding for c41 through c53, c55 or c56",
+        "Produces no finding for c41 through c53 or c56",
         "For each cleared copy case, names the record, pointer, declared extract, labeled evidence, local judgment or distilling attribution that clears it",
-        "Clears c55 and c56 on the conforming pointer or record carve-out and quotes the basis and recheck trigger from each",
+        "Reports c55 as class restated-fact with a span inside its Claim bullet, stating that the recheck trigger names only the table; clears c56 on the conforming pointer or record carve-out and quotes its basis and recheck trigger",
         "Reports that all eighteen files were examined, so a cleared file is visible as coverage rather than absent from the report"
       ]
     }

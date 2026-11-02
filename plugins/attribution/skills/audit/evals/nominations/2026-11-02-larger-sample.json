@@ -9,7 +9,7 @@
       "path": "plugins/user-interface/skills/write-css/reference/layout.md",
       "lines": [
         54,
-        64
+        65
       ],
       "source_url": "https://github.com/vojtaholik/good-css/blob/main/PRACTICES.md",
       "fetched_at": "2026-11-02T02:25:57+00:00",
@@ -448,12 +448,10 @@
       "votes": [
         {
           "verdict": "CLEARED",
-          "class": "near-verbatim",
-          "span": {
-            "start_line": 161,
-            "end_line": 163
-          },
-          "carve_out": null
+          "class": null,
+          "span": null,
+          "carve_out": null,
+          "note": "C3 FAIL cleared it; the judge also wrote the copied span's class and lines (near-verbatim, 161-163) for the record, outside the verdict"
         },
         {
           "verdict": "CLEARED",
