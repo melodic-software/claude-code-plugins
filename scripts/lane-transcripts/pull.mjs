@@ -83,13 +83,15 @@ function defaultDeps(env) {
 }
 
 // GitHub answers these calls with a passing 502 now and then, so each gets a
-// few tries, waiting longer before each one.
+// few tries, waiting longer before each one. A rate limit stops the pull at
+// once: every further call while limited spends the user's shared budget.
 function ghRetried(deps, args) {
   const attempts = deps.ghAttempts ?? GH_ATTEMPTS;
   for (let attempt = 1; ; attempt++) {
     try {
       return deps.gh(args);
     } catch (error) {
+      if (/rate limit|HTTP 429/i.test(String(error?.stderr))) throw new PullError("rate-limited: gh reported a rate limit");
       if (attempt >= attempts) throw error;
       deps.sleep(attempt * (deps.ghDelayMs ?? GH_DELAY_MS));
     }
@@ -99,8 +101,8 @@ function ghRetried(deps, args) {
 function fetched(kind, call) {
   try {
     return call();
-  } catch {
-    throw new FetchFailed(kind);
+  } catch (error) {
+    throw error instanceof PullError ? error : new FetchFailed(kind);
   }
 }
 

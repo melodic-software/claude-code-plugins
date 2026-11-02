@@ -64,9 +64,10 @@ last success is therefore the last complete pull: an artifact that keeps failing
 the artifact expires at 7 days, and the 5-day alert can fire first. `last_error` names the count
 and the calls that failed (`artifact-zip`, `artifact-unzip`, `run-read`).
 
-Three outcomes fail the pull and leave the last success where it was, so the 5-day alert can fire:
-a listing page that still fails after its tries (`artifact-list`, since skipping it would lose
-artifacts for good), 400 pages read without reaching the cutoff (`page-cap`), and a window where
+Four outcomes fail the pull and leave the last success where it was, so the 5-day alert can fire:
+a rate limit on any `gh` call, which is not retried (`rate-limited`), a listing page that still
+fails after its tries (`artifact-list`, since skipping it would lose artifacts for good), 400 pages
+read without reaching the cutoff (`page-cap`), and a window where
 records failed to open and none opened or was already held (`key-mismatch`: the vault key and the
 repository variable differ).
 

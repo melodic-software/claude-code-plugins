@@ -263,6 +263,26 @@ test("a zip that unzip cannot read is a fetch failure, not an aborted pull or a 
   assert.match(result.out, /"bad_zip":0.*"fetch_failed":1/);
 });
 
+test("a rate limit on an artifact's call stops the pull at once, with no retry and no further call", () => {
+  const { publicLine, privateText } = generate();
+  const sink = sinkDir();
+  const last = iso(NOW - 86400_000);
+  seedState(sink, { last_success_at: last });
+  const fake = fakeDeps([[artifact(54, { record: sealed(publicLine) }), artifact(55, { jobId: "judge", record: sealed(publicLine, { jobId: "judge" }) })]]);
+  const gh = (args) => {
+    if (!args[1].endsWith("/zip")) return fake.gh(args);
+    fake.calls.push(args.join(" "));
+    throw Object.assign(new Error("gh failed"), { status: 1, stderr: Buffer.from("gh: API rate limit exceeded for user (HTTP 403)") });
+  };
+  const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps: { ...fake, gh } });
+  assert.equal(result.code, 1);
+  assert.match(result.err, /pull failed: rate-limited/);
+  assert.ok(!result.err.includes("for user"), "the kind only");
+  assert.equal(fake.calls.filter((c) => c.endsWith("/zip")).length, 1);
+  assert.deepEqual(fake.sleeps, []);
+  assert.equal(stateOf(sink).last_success_at, last);
+});
+
 test("a listing page that fails past its retries fails the pull and keeps the last success", () => {
   const { publicLine, privateText } = generate();
   const sink = sinkDir();
