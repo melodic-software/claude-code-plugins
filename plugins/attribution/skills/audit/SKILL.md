@@ -172,7 +172,7 @@ external source owns, is model work against [`reference/rubric.md`](reference/ru
 
 ## Fix flow (explicit invocation only)
 
-Never runs on bare invocation. Only findings that pass both gates in
+Never runs on bare invocation. Only findings that pass every gate in
 [`reference/dispositions.md`](reference/dispositions.md) "Fix eligibility" are eligible;
 everything else is a report. Read that file first, per file, worst-first:
 

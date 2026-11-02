@@ -6,14 +6,16 @@ needs this file.
 ## Fix eligibility
 
 This section is the one statement of which findings `fix` and `sweep` may edit. A finding is
-fix-eligible only when both gates hold:
+fix-eligible only when all three hold:
 
 - **Class gate: the class is `near-verbatim`.** It is the one class declared fix-eligible, on a
   golden-set measurement against copy rubric v5 (see "Adjudications become fixtures" below).
   `verbatim`, `paraphrase`, `summary` and `restated-fact` stay report-only.
-- **Tier gate: the tier is `fingerprint-confirmed`**, reached through every per-finding guard the
-  audit already runs: an identity-checked live source, a unanimous judge panel, and no review veto.
-  A `near-verbatim` finding at any other tier stays report-only.
+- **Tier gate: the tier is `fingerprint-confirmed`**: a matched span above the separation rule
+  against an identity-checked live source. A `near-verbatim` finding at any other tier stays
+  report-only.
+- **Verdict gate: the judge panel was unanimous and no review veto fired.** A split or a veto
+  routes the finding to the human whatever its tier.
 
 Everything else reaches the human report and stops there: a `verbatim` copy even when
 `fingerprint-confirmed`, a judged-similar passage, a suspected paraphrase, a `not-found` outcome,
