@@ -14,6 +14,7 @@ import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { createGitHubApi } from "../apply-patch/apply-patch.mjs";
+import { LANES_APP_LOGIN } from "../pr-merge/merge-holds.mjs";
 
 export const RELEASE = /^(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,5})$/;
 const PLUGIN = /^[a-z0-9][a-z0-9-]{0,63}$/;
@@ -55,15 +56,19 @@ export function renderItems(handoffs, budget) {
 }
 
 // Files a release's handoffs as one issue, found again by its release marker
-// in any state. An open issue missing some keys, in its body and comments,
-// gets them appended in one update, or in one comment when the body would
-// pass the limit; a closed one is left alone.
+// in any state. Only an issue the lanes App opened counts, and only key
+// markers in its body and the App's comments: anyone can type a marker. An
+// open issue missing some keys gets them appended in one update, or in one
+// comment when the body would pass the limit; a closed one is left alone.
 export async function fileReleaseHandoffs({ repo, release, handoffs, api }) {
   if (!handoffs.length) return "no handoffs; nothing filed";
   const marker = releaseMarker(release);
-  const q = encodeURIComponent(`repo:${repo} is:issue in:body "upstream-apply-changelog release=${release}"`);
+  const app = LANES_APP_LOGIN.replace(/\[bot\]$/, "");
+  const q = encodeURIComponent(`repo:${repo} is:issue author:app/${app} in:body "upstream-apply-changelog release=${release}"`);
   const found = await api(`/search/issues?q=${q}&per_page=20`);
-  const issue = (found?.items ?? []).find((i) => typeof i.body === "string" && i.body.includes(marker));
+  const issue = (found?.items ?? []).find(
+    (i) => i?.user?.login === LANES_APP_LOGIN && typeof i.body === "string" && i.body.includes(marker),
+  );
   if (!issue) {
     const head = `${marker}\n\n`;
     const body = head + renderItems(handoffs, ISSUE_BODY_MAX - head.length);
@@ -72,7 +77,8 @@ export async function fileReleaseHandoffs({ repo, release, handoffs, api }) {
   }
   if (issue.state !== "open") return `the release issue #${issue.number} is closed; nothing filed`;
   const comments = await listComments(api, repo, issue.number);
-  const have = new Set([issue.body, ...comments.map((c) => c?.body ?? "")].flatMap(keysIn));
+  const own = comments.filter((c) => c?.user?.login === LANES_APP_LOGIN && typeof c.body === "string");
+  const have = new Set([issue.body, ...own.map((c) => c.body)].flatMap(keysIn));
   const missing = handoffs.filter((h) => !have.has(h.key));
   if (!missing.length) return `the release issue #${issue.number} already holds every handoff`;
   const base = `${issue.body.trimEnd()}\n\n`;

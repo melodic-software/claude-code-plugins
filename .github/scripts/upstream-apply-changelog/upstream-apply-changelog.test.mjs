@@ -167,6 +167,8 @@ test("the planned commits are read oldest first with their files, and a merge co
 
 const REPO = "o/r";
 const REL = "2.1.300";
+const APP = { login: "melodic-automation-lanes[bot]", type: "Bot" };
+const OUTSIDER = { login: "someone", type: "User" };
 const handoff = (n, over = {}) => ({ key: `changelog:${REL}..${REL}:adopt:plugins/x/${n}.sh`, kind: "adopt", title: `adopt ${n}`, body: `body ${n}\nline two`, ...over });
 // A fake API: answers the search with `items`, a comment read with the page of
 // `comments` it asks for (or `comments` itself when not a list), and records every call.
@@ -235,14 +237,14 @@ test("bodies over the issue limit are cut in proportion, every key kept, and a l
 test("a release issue holding every key gets no write", async () => {
   const hs = [handoff(1), handoff(2)];
   const body = `${releaseMarker(REL)}\n\n${renderItems(hs, 65536)}`;
-  const f = issueApi([{ number: 7, state: "open", body }]);
+  const f = issueApi([{ user: APP, number: 7, state:"open", body }]);
   await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: hs, api: f.api });
   assert.equal(f.writes().length, 0);
 });
 
 test("an open release issue missing a key gets the missing item appended in one update", async () => {
   const body = `${releaseMarker(REL)}\n\n${renderItems([handoff(1)], 65536)}`;
-  const f = issueApi([{ number: 7, state: "open", body }]);
+  const f = issueApi([{ user: APP, number: 7, state:"open", body }]);
   await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1), handoff(2)], api: f.api });
   const writes = f.writes();
   assert.equal(writes.length, 1);
@@ -256,20 +258,20 @@ test("an open release issue missing a key gets the missing item appended in one 
 
 test("a closed release issue gets no write, even when it lacks a key", async () => {
   const body = `${releaseMarker(REL)}\n\n${renderItems([handoff(1)], 65536)}`;
-  const f = issueApi([{ number: 7, state: "closed", body }]);
+  const f = issueApi([{ user: APP, number: 7, state:"closed", body }]);
   await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1), handoff(2)], api: f.api });
   assert.equal(f.writes().length, 0);
 });
 
 test("an issue for another release does not count as this release's issue", async () => {
-  const f = issueApi([{ number: 7, state: "open", body: `${releaseMarker("2.1.30")}\n` }]);
+  const f = issueApi([{ user: APP, number: 7, state:"open", body: `${releaseMarker("2.1.30")}\n` }]);
   await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1)], api: f.api });
   assert.equal(f.writes()[0].method, "POST");
 });
 
 test("missing items that would push the body past the limit go in one comment instead", async () => {
   const body = `${releaseMarker(REL)}\n\n${renderItems([handoff(1, { body: "a".repeat(60000) })], 65536)}`;
-  const f = issueApi([{ number: 7, state: "open", body }]);
+  const f = issueApi([{ user: APP, number: 7, state:"open", body }]);
   await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1), handoff(2, { body: "b".repeat(10000) })], api: f.api });
   const writes = f.writes();
   assert.equal(writes.length, 1);
@@ -282,8 +284,8 @@ test("missing items that would push the body past the limit go in one comment in
 
 test("a key already in a comment, past the first page, is not added again", async () => {
   const body = `${releaseMarker(REL)}\n\n${renderItems([handoff(1)], 65536)}`;
-  const comments = [...Array.from({ length: 100 }, () => ({ body: "noise" })), { body: renderItems([handoff(2)], 65536) }];
-  const f = issueApi([{ number: 7, state: "open", body }], comments);
+  const comments = [...Array.from({ length: 100 }, () => ({ body: "noise" })), { user: APP, body: renderItems([handoff(2)], 65536) }];
+  const f = issueApi([{ user: APP, number: 7, state:"open", body }], comments);
   await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1), handoff(2), handoff(3)], api: f.api });
   const writes = f.writes();
   assert.equal(writes.length, 1);
@@ -296,10 +298,37 @@ test("a key already in a comment, past the first page, is not added again", asyn
 test("a comment read that fails, or runs past the page cap, files nothing", async () => {
   const body = `${releaseMarker(REL)}\n\n${renderItems([handoff(1)], 65536)}`;
   const hs = [handoff(1), handoff(2)];
-  const bad = issueApi([{ number: 7, state: "open", body }], { message: "Server Error" });
+  const bad = issueApi([{ user: APP, number: 7, state:"open", body }], { message: "Server Error" });
   await assert.rejects(fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: hs, api: bad.api }), /not come back as a list/);
   assert.equal(bad.writes().length, 0);
-  const many = issueApi([{ number: 7, state: "open", body }], Array.from({ length: 1000 }, () => ({ body: "" })));
+  const many = issueApi([{ user: APP, number: 7, state:"open", body }], Array.from({ length: 1000 }, () => ({ body: "" })));
   await assert.rejects(fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: hs, api: many.api }), /more comments/);
   assert.equal(many.writes().length, 0);
+});
+
+test("the search asks for issues the lanes App opened", async () => {
+  const f = issueApi();
+  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1)], api: f.api });
+  const q = decodeURIComponent(f.calls[0].path.match(/q=([^&]+)/)[1]);
+  assert.match(q, /(^| )author:app\/melodic-automation-lanes( |$)/);
+});
+
+test("an outsider's issue carrying the release marker is ignored and a new issue is filed", async () => {
+  const body = `${releaseMarker(REL)}\n\n${renderItems([handoff(1)], 65536)}`;
+  const f = issueApi([{ user: OUTSIDER, number: 7, state: "open", body }]);
+  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1)], api: f.api });
+  const writes = f.writes();
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].path, `/repos/${REPO}/issues`);
+  assert.equal(writes[0].method, "POST");
+});
+
+test("a key marker in an outsider's comment does not count as filed", async () => {
+  const body = `${releaseMarker(REL)}\n\n${renderItems([handoff(1)], 65536)}`;
+  const f = issueApi([{ user: APP, number: 7, state: "open", body }], [{ user: OUTSIDER, body: renderItems([handoff(2)], 65536) }]);
+  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1), handoff(2)], api: f.api });
+  const writes = f.writes();
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].method, "PATCH");
+  assert.ok(writes[0].body.body.includes(handoffMarker(handoff(2).key)));
 });
