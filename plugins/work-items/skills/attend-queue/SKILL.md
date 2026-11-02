@@ -242,7 +242,8 @@ never compress this restatement away.
   autonomous-eligible role or a `work-class:` label.
 - **Untrusted provenance: reclassify or stay gated, never the plain flip.** An item carrying
   `work-class: untrusted-provenance` (C5) or `provenance: signal` is not resolved by the plain
-  flip ([`${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md)
+  flip, whatever its `work-class:` label says: a `provenance: signal` item is C5 even when a person
+  stamped `work-class: scoped` or any other class on it ([`${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md)
   "The human-floor class excludes the autonomous-eligible role label"). It is floored:
   `list-frontier --autonomous` drops it and the work-loop's provenance hold escalates it, so
   **removing the human-gated role label strands it**, since this lane's attention view keys on that
