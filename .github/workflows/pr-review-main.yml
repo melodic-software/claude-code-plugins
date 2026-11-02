@@ -175,11 +175,15 @@ jobs:
       # collect_main_reviews, collect_main_review_counts): a verdict artifact
       # for the PR and the head's tree, from a pr-review-main run on main that
       # completed with success, naming this head, beside the record job's
-      # check run with its counts. A failed or cancelled run, a verdict for
-      # another head of the same tree, a lane with no verdict, or any failed
-      # read leaves no output, and the review runs as before. The run head's
-      # place on main is not compared: this file runs only from main's tip, and
-      # main's history is linear. The tree is the event's, for the event's head.
+      # check run with its counts. A verdict counts only when its run's main
+      # commit (the run's head_sha) has no diff from main's tip over the paths
+      # criteria.txt lists, so one judged under other criteria reviews again;
+      # the run need not be at the tip itself. That commit is fetched, when the
+      # one-commit checkout lacks it, anonymously, since this repository is
+      # public. A failed or cancelled run, a verdict for another head of the
+      # same tree, a lane with no verdict, or any failed read, fetch or diff
+      # leaves no output, and the review runs as before. The tree is the
+      # event's, for the event's head.
       - name: Find a head both lanes already reviewed
         id: judged
         if: steps.files.outputs.review == 'true'
@@ -201,6 +205,24 @@ jobs:
             echo "::warning::$1 did not read; the review runs"
             exit 0
           }
+          tip=$(git -C .base rev-parse --verify HEAD) || unread "the main checkout"
+          paths=$(awk '$1 ~ /^(copy|copy-if-present|read)$/ { sub("/[{]skill[}].*", "", $2); print $2 }' .base/.github/scripts/pr-review-main/criteria.txt) && [ -n "$paths" ] || unread "criteria.txt"
+          mapfile -t paths <<<"$paths"
+          declare -A diffs
+          # 0 when main commit $1 has the tip's criteria, 1 when it differs.
+          criteria_diff() {
+            if [ "$1" = "$tip" ]; then return 0; fi
+            if [ -z "${diffs[$1]:-}" ]; then
+              local rc=0
+              if ! git -C .base cat-file -e "$1^{commit}" 2>/dev/null; then
+                git -C .base fetch --quiet --no-tags --depth=1 origin "$1" || unread "main commit $1"
+              fi
+              git -C .base diff --quiet "$1" "$tip" -- "${paths[@]}" || rc=$?
+              [ "$rc" -le 1 ] || unread "the criteria diff from $1"
+              diffs[$1]=$rc
+            fi
+            return "${diffs[$1]}"
+          }
           for lane in claude-review claude-security-review; do
             name="pr-review-main-$lane-$PR_NUMBER-$TREE_SHA"
             gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$name&per_page=100" >"$DIR/listing.json" || unread "the $lane verdict listing"
@@ -214,6 +236,12 @@ jobs:
             while read -r artifact run; do
               [[ $artifact =~ ^[1-9][0-9]{0,19}$ && $run =~ ^[1-9][0-9]{0,19}$ ]] || unread "the $lane verdict listing"
               gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" >"$DIR/run.json" || unread "run $run"
+              sha=$(jq -r '.head_sha' "$DIR/run.json") || unread "run $run"
+              [[ $sha =~ ^[0-9a-f]{40}$ ]] || unread "run $run"
+              if ! criteria_diff "$sha"; then
+                echo "run $run reviewed under other criteria than main's tip; its $lane verdict does not count"
+                continue
+              fi
               gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact/zip" >"$DIR/verdict.zip" || unread "artifact $artifact"
               unzip -p "$DIR/verdict.zip" verdict.json >"$DIR/verdict.json" || unread "artifact $artifact"
               jq -nc --arg lane "$lane" --slurpfile listing "$DIR/listing.json" --slurpfile run "$DIR/run.json" --slurpfile verdict "$DIR/verdict.json" --argjson id "$artifact" \
@@ -602,10 +630,11 @@ jobs:
           output-path: ${{ github.workspace }}/pr-review-main-data/context.json
           github-token: ${{ github.token }}
 
-      # The lane's criteria and the repository's standards, from main. The
-      # skill keeps its place under the plugin's layout, so a relative pointer
-      # in it (`../../reference/...`) resolves inside the data directory; the
-      # rules the code lane names go beside the standards.
+      # The lane's criteria and the repository's standards, from main, as
+      # criteria.txt lists them. The skill keeps its place under the plugin's
+      # layout, so a relative pointer in it (`../../reference/...`) resolves
+      # inside the data directory; the rules the code lane names go beside the
+      # standards.
       - name: Copy the review criteria
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
         env:
@@ -613,13 +642,13 @@ jobs:
           DATA: ${{ github.workspace }}/pr-review-main-data
         run: |
           mkdir -p "$DATA/review/skills" "$DATA/standards"
-          cp -R .base/plugins/review/skills/"$SKILL" "$DATA/review/skills/"
+          while read -r how src dest; do
+            case $how in copy | copy-if-present) ;; *) continue ;; esac
+            src=${src//"{skill}"/$SKILL}
+            if [ "$how" = copy-if-present ] && ! [ -e ".base/$src" ]; then continue; fi
+            cp -R ".base/$src" "$DATA/${dest//"{skill}"/$SKILL}"
+          done <.base/.github/scripts/pr-review-main/criteria.txt
           rm -rf "$DATA/review/skills/$SKILL/evals"
-          cp -R .base/plugins/review/reference "$DATA/review/reference"
-          cp .base/REVIEW.md "$DATA/standards/"
-          cp -R .base/docs/standards "$DATA/standards/standards"
-          if [ -d .base/docs/review ]; then cp -R .base/docs/review "$DATA/standards/review"; fi
-          if [ -d .base/.claude/rules ]; then cp -R .base/.claude/rules "$DATA/standards/rules"; fi
 
       - name: Resolve the review's model
         id: models
@@ -1437,10 +1466,11 @@ jobs:
           output-path: ${{ github.workspace }}/pr-review-main-data/context.json
           github-token: ${{ github.token }}
 
-      # The lane's criteria and the repository's standards, from main. The
-      # skill keeps its place under the plugin's layout, so a relative pointer
-      # in it (`../../reference/...`) resolves inside the data directory; the
-      # rules the code lane names go beside the standards.
+      # The lane's criteria and the repository's standards, from main, as
+      # criteria.txt lists them. The skill keeps its place under the plugin's
+      # layout, so a relative pointer in it (`../../reference/...`) resolves
+      # inside the data directory; the rules the code lane names go beside the
+      # standards.
       - name: Copy the review criteria
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
         env:
@@ -1448,13 +1478,13 @@ jobs:
           DATA: ${{ github.workspace }}/pr-review-main-data
         run: |
           mkdir -p "$DATA/review/skills" "$DATA/standards"
-          cp -R .base/plugins/review/skills/"$SKILL" "$DATA/review/skills/"
+          while read -r how src dest; do
+            case $how in copy | copy-if-present) ;; *) continue ;; esac
+            src=${src//"{skill}"/$SKILL}
+            if [ "$how" = copy-if-present ] && ! [ -e ".base/$src" ]; then continue; fi
+            cp -R ".base/$src" "$DATA/${dest//"{skill}"/$SKILL}"
+          done <.base/.github/scripts/pr-review-main/criteria.txt
           rm -rf "$DATA/review/skills/$SKILL/evals"
-          cp -R .base/plugins/review/reference "$DATA/review/reference"
-          cp .base/REVIEW.md "$DATA/standards/"
-          cp -R .base/docs/standards "$DATA/standards/standards"
-          if [ -d .base/docs/review ]; then cp -R .base/docs/review "$DATA/standards/review"; fi
-          if [ -d .base/.claude/rules ]; then cp -R .base/.claude/rules "$DATA/standards/rules"; fi
 
       - name: Resolve the review's model
         id: models
@@ -2276,10 +2306,11 @@ jobs:
           output-path: ${{ github.workspace }}/pr-review-main-data/context.json
           github-token: ${{ github.token }}
 
-      # The lane's criteria and the repository's standards, from main. The
-      # skill keeps its place under the plugin's layout, so a relative pointer
-      # in it (`../../reference/...`) resolves inside the data directory; the
-      # rules the code lane names go beside the standards.
+      # The lane's criteria and the repository's standards, from main, as
+      # criteria.txt lists them. The skill keeps its place under the plugin's
+      # layout, so a relative pointer in it (`../../reference/...`) resolves
+      # inside the data directory; the rules the code lane names go beside the
+      # standards.
       - name: Copy the review criteria
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
         env:
@@ -2287,13 +2318,13 @@ jobs:
           DATA: ${{ github.workspace }}/pr-review-main-data
         run: |
           mkdir -p "$DATA/review/skills" "$DATA/standards"
-          cp -R .base/plugins/review/skills/"$SKILL" "$DATA/review/skills/"
+          while read -r how src dest; do
+            case $how in copy | copy-if-present) ;; *) continue ;; esac
+            src=${src//"{skill}"/$SKILL}
+            if [ "$how" = copy-if-present ] && ! [ -e ".base/$src" ]; then continue; fi
+            cp -R ".base/$src" "$DATA/${dest//"{skill}"/$SKILL}"
+          done <.base/.github/scripts/pr-review-main/criteria.txt
           rm -rf "$DATA/review/skills/$SKILL/evals"
-          cp -R .base/plugins/review/reference "$DATA/review/reference"
-          cp .base/REVIEW.md "$DATA/standards/"
-          cp -R .base/docs/standards "$DATA/standards/standards"
-          if [ -d .base/docs/review ]; then cp -R .base/docs/review "$DATA/standards/review"; fi
-          if [ -d .base/.claude/rules ]; then cp -R .base/.claude/rules "$DATA/standards/rules"; fi
 
       - name: Resolve the review's model
         id: models

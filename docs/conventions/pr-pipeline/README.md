@@ -1262,8 +1262,11 @@ the rules that only tighten in
   head's diff as data, each lane's criteria and the standards copied from main, with a read-only
   token and a model that may only Read its data directory. A head both lanes already reviewed,
   where the merge gate's own predicate (`_main_bound`) binds each lane on what the trigger job
-  reads, is not reviewed again, and no leg starts for a pull request with no lane source; a failed
-  or cancelled review, another head of the same tree, or a failed read reviews again. The diff is
+  reads, is not reviewed again, and no leg starts for a pull request with no lane source. A verdict
+  counts there only when its run's main commit has no diff from main's tip over what the review
+  reads from main (`.github/scripts/pr-review-main/criteria.txt`, which the copy steps also read),
+  so a verdict judged under other criteria reviews again; a failed or cancelled review, another
+  head of the same tree, or a failed read, fetch or diff reviews again. The diff is
   `git diff --text`, so a file git would call binary is shown as text, and a patch that still holds a binary file gets no
   verdict. A patch over 300000 bytes is split into chunks of at most 300000 bytes, cut at file
   boundaries with each file whole (`split-diff.py`); each chunk is reviewed by its own run, in

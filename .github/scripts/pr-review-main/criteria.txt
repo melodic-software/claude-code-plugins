@@ -1,0 +1,14 @@
+# What a pr-review-main review reads from main: the lane's criteria, the
+# standards, and the prompt, scripts and workflow that run it. Each line is
+# `<how> <path on main> [<path under the data directory>]`; {skill} is the
+# lane's skill. `copy` must exist, `copy-if-present` may be absent, and `read`
+# runs in place from the main checkout. The copy steps copy these; the trigger
+# job counts a verdict only when none of them differs from main's tip.
+copy plugins/review/skills/{skill} review/skills/{skill}
+copy plugins/review/reference review/reference
+copy REVIEW.md standards/REVIEW.md
+copy docs/standards standards/standards
+copy-if-present docs/review standards/review
+copy-if-present .claude/rules standards/rules
+read .github/scripts/pr-review-main
+read .github/workflows/pr-review-main.yml

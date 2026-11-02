@@ -837,7 +837,7 @@ test("the model reads its data directory alone", () => {
 // never applies the per-concern rules.
 test("the prompt names the per-concern review rules the criteria step copies", () => {
   assert.ok(prompt.includes("its per-concern review rules (`review/`, when present;"));
-  assert.ok(step("Copy the review criteria").includes('cp -R .base/docs/review "$DATA/standards/review"'));
+  assert.match(readFileSync(new URL("./criteria.txt", import.meta.url), "utf8"), /^copy-if-present docs\/review standards\/review$/m);
 });
 
 test("the verdict uploads once, after it is written, under the writer's name", () => {
@@ -1036,7 +1036,31 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
   const PR = 7;
   const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-judged-"));
   try {
-    mkdirSync(path.join(dir, ".base"));
+    // main's history: OLD, then CHANGED (REVIEW.md, a criterion, changes),
+    // then the tip (only a file outside criteria.txt changes). The step's
+    // checkout is a one-commit clone of the tip, as actions/checkout makes.
+    const gitEnv = { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1", GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@example.com", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@example.com" };
+    const git = (...args) => {
+      const result = spawnSync("git", args, { encoding: "utf8", env: gitEnv });
+      assert.equal(result.status, 0, result.stderr);
+      return result.stdout.trim();
+    };
+    const origin = path.join(dir, "origin");
+    mkdirSync(path.join(origin, ".github", "scripts", "pr-review-main"), { recursive: true });
+    git("-C", origin, "init", "--quiet");
+    writeFileSync(path.join(origin, ".github", "scripts", "pr-review-main", "criteria.txt"), readFileSync(new URL("./criteria.txt", import.meta.url)));
+    const commit = (file, text) => {
+      writeFileSync(path.join(origin, file), text);
+      git("-C", origin, "add", "-A");
+      git("-C", origin, "commit", "--quiet", "-m", file);
+      return git("-C", origin, "rev-parse", "HEAD");
+    };
+    const OLD = commit("REVIEW.md", "old criteria\n");
+    const CHANGED = commit("REVIEW.md", "new criteria\n");
+    const TIP = commit("notes.txt", "not a criterion\n");
+    git("clone", "--quiet", "--depth=1", `file://${origin}`, path.join(dir, ".base"));
+    const has = (sha) => spawnSync("git", ["-C", path.join(dir, ".base"), "cat-file", "-e", `${sha}^{commit}`], { env: gitEnv }).status === 0;
+    assert.ok(!has(CHANGED) && !has(OLD), "the checkout holds the tip alone");
     symlinkSync(new URL("../../../plugins", import.meta.url).pathname, path.join(dir, ".base", "plugins"));
     const bin = path.join(dir, "bin");
     const fixtures = path.join(dir, "fixtures");
@@ -1050,7 +1074,7 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
     chmodSync(path.join(bin, "gh"), 0o755);
     const key = (url) => url.replace(/[^A-Za-z0-9]/g, "_");
     const lanes = ["claude-review", "claude-security-review"];
-    const write = ({ missing = [], conclusion = "success", head = SHA_A, title = "findings=2 critical=0", branch = "main", total = 1 } = {}) => {
+    const write = ({ missing = [], conclusion = "success", head = SHA_A, title = "findings=2 critical=0", branch = "main", total = 1, main = TIP } = {}) => {
       rmSync(fixtures, { recursive: true, force: true });
       mkdirSync(fixtures);
       lanes.forEach((lane, i) => {
@@ -1060,7 +1084,7 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
         const runId = 200 + i;
         const at = (url, body) => writeFileSync(path.join(fixtures, key(url)), typeof body === "string" ? body : JSON.stringify(body));
         at(`repos/o/r/actions/artifacts?name=${name}&per_page=100`, { total_count: total, artifacts: [{ id: artifact, name, expired: false, workflow_run: { id: runId } }] });
-        at(`repos/o/r/actions/runs/${runId}`, { id: runId, path: ".github/workflows/pr-review-main.yml", event: "workflow_run", head_branch: branch, head_sha: SHA_B, status: "completed", conclusion, repository: { full_name: "o/r" }, head_repository: { full_name: "o/r" } });
+        at(`repos/o/r/actions/runs/${runId}`, { id: runId, path: ".github/workflows/pr-review-main.yml", event: "workflow_run", head_branch: branch, head_sha: main, status: "completed", conclusion, repository: { full_name: "o/r" }, head_repository: { full_name: "o/r" } });
         const verdict = path.join(dir, "verdict.json");
         writeFileSync(verdict, JSON.stringify({ schema: 1, lane, pr: PR, tree: TREE, head_sha: head, findings: 2, critical: 0, max_line_bytes: 80 }));
         const zipped = spawnSync("python3", ["-I", "-c", "import sys, zipfile; zipfile.ZipFile(sys.argv[1], 'w').write(sys.argv[2], 'verdict.json')", path.join(fixtures, key(`repos/o/r/actions/artifacts/${artifact}/zip`)), verdict], { encoding: "utf8" });
@@ -1076,7 +1100,7 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
       const result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", run], {
         cwd: dir,
         encoding: "utf8",
-        env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GITHUB_OUTPUT: out, GITHUB_REPOSITORY: "o/r", GH_LOG: log, GH_FIXTURES: fixtures, PR_NUMBER: String(PR), HEAD_SHA: SHA_A, TREE_SHA: TREE, DIR: path.join(dir, "work"), ...env },
+        env: { ...gitEnv, PATH: `${bin}:${process.env.PATH}`, GITHUB_OUTPUT: out, GITHUB_REPOSITORY: "o/r", GH_LOG: log, GH_FIXTURES: fixtures, PR_NUMBER: String(PR), HEAD_SHA: SHA_A, TREE_SHA: TREE, DIR: path.join(dir, "work"), ...env },
       });
       assert.equal(result.status, 0, result.stderr + result.stdout);
       return { out: readFileSync(out, "utf8"), calls: readFileSync(log, "utf8").split("\n").filter(Boolean) };
@@ -1100,6 +1124,27 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
       write(setup);
       assert.equal(runWith().out, "", why);
     }
+    // A run from an older main commit with the tip's criteria counts: that
+    // commit is fetched, and only a path outside criteria.txt differs.
+    write({ main: CHANGED });
+    const older = runWith();
+    assert.equal(older.out, "judged=true\n");
+    assert.equal(older.calls.length, 8, older.calls.join("\n"));
+    assert.ok(has(CHANGED), "the run's main commit was fetched");
+    // A run from a commit whose criteria differ (REVIEW.md) does not count,
+    // and its verdict is never downloaded: per lane, the listing, the run and
+    // the check runs.
+    write({ main: OLD });
+    const stale = runWith();
+    assert.equal(stale.out, "");
+    assert.equal(stale.calls.length, 6, stale.calls.join("\n"));
+    assert.ok(!stale.calls.some((call) => call.includes("/zip")), stale.calls.join("\n"));
+    // A commit main does not have (the fetch fails), or a run head that is no
+    // SHA: no output, and the step stays green.
+    for (const main of ["d".repeat(40), "main"]) {
+      write({ main });
+      assert.equal(runWith().out, "", main);
+    }
     // No verdict for the first lane: one listing read and no more.
     write({ missing: ["claude-review"] });
     const none = runWith();
@@ -1115,6 +1160,49 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
       assert.equal(bad.out, "", JSON.stringify(env));
       assert.equal(bad.calls.length, 0, JSON.stringify(env));
     }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// Every leg copies what criteria.txt lists, to the places the prompt names:
+// the skill without its evals beside the plugin's reference, and REVIEW.md,
+// the standards and the rules under standards; docs/review and the rules may
+// be absent, REVIEW.md may not.
+test("each leg copies the review criteria criteria.txt lists", () => {
+  const run = /^ {8}run: \|\n((?: {10}.*\n|\n)+)/m.exec(`${step("Copy the review criteria")}\n`)[1].replace(/^ {10}/gm, "");
+  for (const job of LEGS) assert.equal(step("Copy the review criteria", job), step("Copy the review criteria"), job);
+  assert.equal(input(step("Copy the review criteria"), "SKILL"), "${{ matrix.skill }}");
+  const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-criteria-"));
+  try {
+    const files = {
+      ".github/scripts/pr-review-main/criteria.txt": readFileSync(new URL("./criteria.txt", import.meta.url), "utf8"),
+      "plugins/review/skills/code-review/SKILL.md": "skill",
+      "plugins/review/skills/code-review/evals/case.md": "eval",
+      "plugins/review/skills/security-review/SKILL.md": "other lane",
+      "plugins/review/reference/ref.md": "ref",
+      "REVIEW.md": "review",
+      "docs/standards/s.md": "standard",
+      ".claude/rules/r.md": "rule",
+    };
+    for (const [file, body] of Object.entries(files)) {
+      mkdirSync(path.dirname(path.join(dir, ".base", file)), { recursive: true });
+      writeFileSync(path.join(dir, ".base", file), body);
+    }
+    const data = path.join(dir, "data");
+    const copy = () => spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", run], { cwd: dir, encoding: "utf8", env: { ...process.env, SKILL: "code-review", DATA: data } });
+    const result = copy();
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(readdirSync(data, { recursive: true }).filter((f) => f.endsWith(".md")).sort(), [
+      "review/reference/ref.md",
+      "review/skills/code-review/SKILL.md",
+      "standards/REVIEW.md",
+      "standards/rules/r.md",
+      "standards/standards/s.md",
+    ]);
+    rmSync(data, { recursive: true, force: true });
+    rmSync(path.join(dir, ".base", "REVIEW.md"));
+    assert.notEqual(copy().status, 0, "a main with no REVIEW.md fails the copy");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
