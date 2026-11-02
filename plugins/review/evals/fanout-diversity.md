@@ -47,6 +47,10 @@ because a case carries one prompt, one plugins list and one committed `review.ya
 | `empty-ratings` | `guard-removal-empty-ratings` |
 | `short-title` | `guard-removal-short-title` |
 | `search-sqli` | `qg-security-search-sqli` |
+| `stock-race` | none: a race on shared state |
+| `csv-handle-leak` | none: a resource leak on an error path |
+| `price-cents` | none: a caller left on an old contract |
+| `vacuous-slug-test` | none: a test that cannot fail |
 
 ## Prompt
 

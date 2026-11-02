@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: fix/slug-accents\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | high | test/slug.test.js:15 | code-reviewer | assert.ok(slugify(title), expected) takes expected as the message and only checks that the slug is truthy, so the test also passes for main's cr-me-br-l-e and cannot catch the accent bug coming back. | Use assert.equal(slugify(title), expected) |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names the assertion that cannot fail, the slug it lets through and the bug it misses at IMPORTANT"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: fix/slug-accents\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | medium | test/slug.test.js:10 | code-reviewer | Split each accent case into its own test so a failure names the title. | One test per case |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names the new test at SUGGESTION, without the assertion that cannot fail"
+    }
+  ]
+}
