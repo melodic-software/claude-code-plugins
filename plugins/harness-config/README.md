@@ -262,7 +262,7 @@ from `raw.githubusercontent.com` (read-only; a failed fetch degrades to SKIP).
 The bundled scripts run in `bash` (Claude Code's Bash-tool shell on every platform;
 [Git Bash](https://code.claude.com/docs/en/setup#set-up-on-windows) on native Windows). The
 JSON-parsing scripts require `jq`; the plugin-drift check and the docs fetcher additionally require `curl`; and `awk`
-and `sort` are required across six skills, not one: `audit`'s engine (both),
+and `sort` are required by several skills, not one: `audit`'s engine (both),
 `audit-automation-gaps`' inventory (`awk`), `audit-pass`'s retirement and digest helpers (both),
 `audit-permission-grants`' rule check (both), `audit-permission-state`'s scripts (both), and
 `audit-instructions`' scans (both). Only `audit-instructions`' two scans probe for them and
