@@ -213,21 +213,14 @@ jobs:
           base-path: .base
           output-path: ${{ runner.temp }}/upstream-apply-changelog-models.json
 
-      # Everything a later step of this job runs, copied out of main before
-      # the root checkout replaces .base: the sealer, its key, the transcript
-      # uploader with the actions and library it loads, and the plugins the
-      # skill and its stage skills load.
-      - name: Stage the base files
+      # The plugins the skill and its stage skills load, copied out of main
+      # before the root checkout replaces .base.
+      - name: Stage the base plugins
         if: steps.models.outcome == 'success'
         env:
           STAGE: ${{ runner.temp }}/upstream-apply-changelog-stage
         run: |
-          mkdir -p "$STAGE/seal" "$STAGE/plugins" "$STAGE/transcript/.github/actions" "$STAGE/transcript/lib"
-          cp .base/.github/actions/seal-lane-output/seal.mjs .base/.github/lane-keys/scan-carrier.pub "$STAGE/seal/"
-          for action in upload-lane-transcript seal-lane-output scan-upload; do
-            cp -R ".base/.github/actions/$action" "$STAGE/transcript/.github/actions/"
-          done
-          cp .base/lib/publish-gate.mjs "$STAGE/transcript/lib/"
+          mkdir -p "$STAGE/plugins"
           for plugin in harness-ops planning implementation verification; do
             cp -R ".base/plugins/$plugin" "$STAGE/plugins/"
             printf '{"mcpServers":{}}\n' >"$STAGE/plugins/$plugin/.mcp.json"
@@ -335,36 +328,39 @@ jobs:
             .lane/plugins/verification
           leg-timeout-minutes: "70"
 
-      # The transcript uploader, copied back from the stage: the root
-      # checkout removed .base, and the model could have written anything
-      # under the workspace.
-      - name: Restore the transcript uploader
-        if: always() && steps.run.outputs.execution-file != ''
-        continue-on-error: true
-        env:
-          STAGE: ${{ runner.temp }}/upstream-apply-changelog-stage
-        run: |
-          rm -rf "${GITHUB_WORKSPACE:?}/.lane-transcript"
-          cp -R "$STAGE/transcript" "$GITHUB_WORKSPACE/.lane-transcript"
+      # The sealer, its key and the transcript uploader come from a fresh
+      # checkout of the base after the leg: the model could have written
+      # anything under the workspace and RUNNER_TEMP, including this path.
+      - name: Clear the trusted checkout path
+        if: always() && steps.run.outcome != 'skipped'
+        run: rm -rf "${GITHUB_WORKSPACE:?}/.lane-trusted"
+
+      - name: Check out the base for the sealer
+        if: always() && steps.run.outcome != 'skipped'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.gate.outputs.base-sha }}
+          path: .lane-trusted
+          persist-credentials: false
 
       - name: Upload the sealed transcript
         if: always() && steps.run.outputs.execution-file != ''
         continue-on-error: true
-        uses: ./.lane-transcript/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        uses: ./.lane-trusted/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
         with:
           execution-file: ${{ steps.run.outputs.execution-file }}
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
 
       # The plan, and the planned branches as one git bundle from the base,
-      # sealed with the sealer staged before the model ran.
+      # sealed with the sealer from the trusted checkout.
       - name: Seal the plan and the branches
         id: seal
         if: always() && steps.run.outcome != 'skipped'
         env:
           RELEASE: ${{ needs.gate.outputs.release }}
           BASE_SHA: ${{ needs.gate.outputs.base-sha }}
-          STAGE: ${{ runner.temp }}/upstream-apply-changelog-stage
+          TRUSTED: ${{ github.workspace }}/.lane-trusted
           OUT: ${{ runner.temp }}/upstream-apply-changelog-out
           JOB_ID: model
           MAX_CHUNKS: "6"
@@ -379,10 +375,10 @@ jobs:
           if ((${#refs[@]})); then
             git bundle create "$OUT/branches.bundle" "^$BASE_SHA" "${refs[@]}"
           fi
-          PUBLIC_KEY_FILE="$STAGE/seal/scan-carrier.pub"
+          PUBLIC_KEY_FILE="$TRUSTED/.github/lane-keys/scan-carrier.pub"
           PAYLOADS=$(printf 'plan.json=%s\nbranches.bundle=%s\n' "$OUT/plan.json" "$OUT/branches.bundle")
           export PUBLIC_KEY_FILE PAYLOADS
-          node "$STAGE/seal/seal.mjs"
+          node "$TRUSTED/.github/actions/seal-lane-output/seal.mjs"
 
   # Opens the sealed plan and bundle, scans what will be published for
   # credentials, and uploads only a clean set. No model, no write token.
@@ -400,6 +396,11 @@ jobs:
     outputs:
       clean: ${{ steps.upload.outcome == 'success' }}
       branches: ${{ steps.check.outputs.branches }}
+      # Push and publish download this artifact by id and check these
+      # hashes before anything is minted.
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+      plan-sha256: ${{ steps.hash.outputs.plan }}
+      bundle-sha256: ${{ steps.hash.outputs.bundle }}
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -525,12 +526,26 @@ jobs:
         with:
           path: ${{ runner.temp }}/scan-in/publish.txt
 
-      # The plan and the rebuilt bundle, scan-out's only files.
-      - name: Upload the plan and the branches
-        id: upload
+      # The SHA-256 of each file uploaded below; no bundle, no bundle hash.
+      - name: Hash the plan and the branches
+        id: hash
         if: >-
           steps.scan-plan.outputs.clean == 'true' && steps.scan-diffs.outputs.clean == 'true'
           && steps.scan-publish.outputs.clean == 'true'
+        env:
+          OUT: ${{ runner.temp }}/scan-out
+        run: |
+          sum=$(sha256sum <"$OUT/plan.json")
+          echo "plan=${sum%% *}" >>"$GITHUB_OUTPUT"
+          if [ -f "$OUT/branches.bundle" ]; then
+            sum=$(sha256sum <"$OUT/branches.bundle")
+            echo "bundle=${sum%% *}" >>"$GITHUB_OUTPUT"
+          fi
+
+      # The plan and the rebuilt bundle, scan-out's only files.
+      - name: Upload the plan and the branches
+        id: upload
+        if: steps.hash.outcome == 'success'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: upstream-apply-changelog-plan-${{ github.run_attempt }}
@@ -595,11 +610,42 @@ jobs:
           base-path: .base
           output-path: ${{ runner.temp }}/resolved-config.json
 
+      # Before the mint: the scan job's artifact, by id, and the SHA-256 it
+      # recorded for each file. A missing or altered file fails the job, so
+      # nothing is minted.
+      - name: Download the plan and the branches
+        if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.scan.outputs.artifact-id }}
+          path: ${{ runner.temp }}/plan
+
+      - name: Check the plan and the branches
+        id: verify
+        if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
+        env:
+          DIR: ${{ runner.temp }}/plan
+          PLAN_SHA256: ${{ needs.scan.outputs.plan-sha256 }}
+          BUNDLE_SHA256: ${{ needs.scan.outputs.bundle-sha256 }}
+        run: |
+          for pair in "plan.json:$PLAN_SHA256" "branches.bundle:$BUNDLE_SHA256"; do
+            file="$DIR/${pair%%:*}" want="${pair#*:}"
+            if [ -L "$file" ] || [ ! -f "$file" ] || [ "$(stat -c %s "$file")" -gt 1048576 ]; then
+              echo "::error::the plan artifact holds no ${pair%%:*} of at most 1 MiB"
+              exit 1
+            fi
+            sum=$(sha256sum <"$file")
+            if ! [[ $want =~ ^[0-9a-f]{64}$ ]] || [ "${sum%% *}" != "$want" ]; then
+              echo "::error::${pair%%:*} does not match the SHA-256 the scan job recorded"
+              exit 1
+            fi
+          done
+
       # A kill switch turned on since the step above is a designed stop
       # (pr-run-activity.md, The lane token broker).
       - name: Request the lane token
         id: lane-token
-        if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
+        if: steps.verify.outcome == 'success'
         uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[self-repository]
         with:
           broker-url: ${{ vars.LANES_BROKER_URL }}
@@ -612,13 +658,6 @@ jobs:
           pull-requests: ${{ steps.config.outputs.pull-requests }}
           issues: ${{ steps.config.outputs.issues }}
           kill-switch-ok: true
-
-      - name: Download the plan and the branches
-        if: steps.lane-token.outputs.token != ''
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: upstream-apply-changelog-plan-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/plan
 
       - name: Push the branches
         id: push
@@ -700,9 +739,36 @@ jobs:
           base-path: .base
           output-path: ${{ runner.temp }}/resolved-config.json
 
+      # Before the mint: the scan job's artifact, by id, and the plan's
+      # SHA-256 (publish reads no bundle). A missing or altered plan fails
+      # the job, so nothing is minted.
+      - name: Download the plan
+        if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.scan.outputs.artifact-id }}
+          path: ${{ runner.temp }}/plan
+
+      - name: Check the plan
+        id: verify
+        if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
+        env:
+          PLAN_FILE: ${{ runner.temp }}/plan/plan.json
+          PLAN_SHA256: ${{ needs.scan.outputs.plan-sha256 }}
+        run: |
+          if [ -L "$PLAN_FILE" ] || [ ! -f "$PLAN_FILE" ] || [ "$(stat -c %s "$PLAN_FILE")" -gt 1048576 ]; then
+            echo "::error::the plan artifact holds no plan.json of at most 1 MiB"
+            exit 1
+          fi
+          sum=$(sha256sum <"$PLAN_FILE")
+          if ! [[ $PLAN_SHA256 =~ ^[0-9a-f]{64}$ ]] || [ "${sum%% *}" != "$PLAN_SHA256" ]; then
+            echo "::error::plan.json does not match the SHA-256 the scan job recorded"
+            exit 1
+          fi
+
       - name: Request the lane token
         id: lane-token
-        if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
+        if: steps.verify.outcome == 'success'
         uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[self-repository]
         with:
           broker-url: ${{ vars.LANES_BROKER_URL }}
@@ -715,13 +781,6 @@ jobs:
           pull-requests: ${{ steps.config.outputs.pull-requests }}
           issues: ${{ steps.config.outputs.issues }}
           kill-switch-ok: true
-
-      - name: Download the plan
-        if: steps.lane-token.outputs.token != ''
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: upstream-apply-changelog-plan-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/plan
 
       - name: Open the pull requests and file the handoffs
         id: publish
