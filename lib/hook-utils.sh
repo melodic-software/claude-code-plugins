@@ -4470,7 +4470,7 @@ hook::_bps_orphan_pending() {
 # own locals through dynamic scope, so it is not callable on its own.
 # shellcheck disable=SC2154  # every unassigned name here is a local of hook::bash_parse_segments_uncached
 hook::_bps_close_word() {
-  local _bps_q=0 _bps_last
+  local _bps_q=0 _bps_last _bps_w
   if ((wq_quoted || wq_esc)); then
     if ((wq_quoted && !wq_plain && !wq_esc)); then _bps_q=2; else _bps_q=1; fi
   fi
@@ -4481,6 +4481,23 @@ hook::_bps_close_word() {
     ((wq_open)) && HOOK_SEG_REDIR_OPAQUE[_bps_last]=1
     pend=0
   else
+    # An unquoted `case` or `esac` in command position opens or closes a case
+    # frame, so a pattern's `)` pops no `(` frame below it.
+    if ((!_bps_q)) && [[ "$word" == 'case' || "$word" == 'esac' ]]; then
+      _bps_last=1
+      for _bps_w in ${seg[@]+"${seg[@]}"}; do
+        case "$_bps_w" in
+        '!' | '{' | then | do | else | elif | if | while | until | time) ;;
+        *)
+          _bps_last=0
+          break
+          ;;
+        esac
+      done
+      if ((_bps_last)); then
+        if [[ "$word" == 'case' ]]; then pstk+=c; elif [[ "$pstk" == *c* ]]; then pstk=${pstk%c*}; fi
+      fi
+    fi
     seg+=("$word")
     HOOK_SEG_WORD_QUOTED+=("$_bps_q")
   fi
@@ -4588,16 +4605,22 @@ hook::bash_parse_segments() {
 # A segment with redirections but no argv word (`> f` alone) invokes no
 # callback, so its redirections are not reported.
 #
+# A `#` right after a `)` whose reading depends on extglob (`!(x)#`, `f@()#`)
+# is literal with extglob on and a comment with it off, and the mode is not in
+# the command string. The callback then sees both: the segments of the rest of
+# the command read with extglob on, then the comment reading's. A third
+# argument of 1 marks that internal extglob-on pass; callers pass two.
+#
 # Once the parse returns, HOOK_HEREDOC_BODIES holds one
 # `<start> <end> <quoted> <closed> <delimiter>` entry per here-doc body skipped,
-# in source order: the byte offsets in the command of the body's first byte and
+# in source order within each reading above: the byte offsets in the command of the body's first byte and
 # of the byte just past its delimiter line; 1 when the delimiter was quoted or
 # escaped (`<<'EOF'`, `<<\EOF`), so bash expands nothing in the body; 1 when a
 # delimiter line ended the body, 0 when it ran to the end of the command; and
 # the delimiter, quotes removed, which may hold spaces.
 # shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
 hook::bash_parse_segments_uncached() {
-  local cmd="$1" cb="$2"
+  local cmd="$1" cb="$2" ext="${3:-0}"
   local -a chars=()
   local c nx n i __hu_acd
   # In-process, not `read -N1` from a process substitution, which forked a
@@ -4627,12 +4650,27 @@ hook::bash_parse_segments_uncached() {
   # flags. A heredoc body is the command's stdin, not commands — recorded when
   # `<<` is seen and skipped wholesale at the command-line newline.
   local -a hd_delims=() hd_strip=() hd_quoted=() hd_bodies=()
-  # One digit per open `(` since the last `;` `&` `|` or newline: 1 when it
-  # continues a word (an array assignment `a=(…)` or an extglob `@(…)`), 0
-  # otherwise. Every `(` and `)` still splits, so no text leaves a segment;
-  # bash keeps a 1's `)` in its word, so a `#` right after it (`hash_at`) is
-  # literal, not a comment.
-  local pstk="" wpar j hash_at=-1 dbrace="\${" wpar_re='^[A-Za-z_][A-Za-z0-9_]*(\[[^]]*\])?\+?=$'
+  # One frame per open construct, innermost last: `1` a `(` that continues a
+  # word (an array assignment `a=(…)` or an extglob `@(…)`), `s` the `(` of a
+  # substitution (`$(…)`, `$((…))`, `<(…)`, `>(…)`), `b` a backtick
+  # substitution, `a` a `(` whose reading depends on extglob (a bare `!(…)` or
+  # `f@()`), `c` a `case` statement, `0` any other `(`. Every `(`, `)` and
+  # backtick still splits, so no text leaves a segment; bash keeps the closing
+  # `)` or backtick of `1` `s` `b` in its word, so a `#` right after it
+  # (`hash_at`) is literal, not a comment. A `)` under a `c` frame is a case
+  # pattern's and pops nothing.
+  local pstk="" wpar j hash_at=-1 sub_at=-1 amb_at=-1 dbrace="\${" wpar_re='^[A-Za-z_][A-Za-z0-9_]*(\[[^]]*\])?\+?=$'
+  local amb_seen=0 __hu_bps_rest __hu_bps_e
+  # The extglob-on reading of the text after an ambiguous `)#`: the caller's
+  # open frames and pending here-docs carry over, and byte 0 is the `#` that
+  # continues the word.
+  if ((ext)); then
+    pstk=${__hu_bps_pstk//a/1}
+    hash_at=0
+    hd_delims=(${__hu_bps_hdd[@]+"${__hu_bps_hdd[@]}"})
+    hd_strip=(${__hu_bps_hds[@]+"${__hu_bps_hds[@]}"})
+    hd_quoted=(${__hu_bps_hdq[@]+"${__hu_bps_hdq[@]}"})
+  fi
 
   for ((i = 0; i < n; i++)); do
     c="${chars[i]}"
@@ -4640,6 +4678,12 @@ hook::bash_parse_segments_uncached() {
     "'")
       ((i++))
       while ((i < n)) && [[ "${chars[i]}" != "'" ]]; do
+        # Bash ends a backtick substitution at its first unescaped backtick,
+        # before it reads the quotes inside.
+        if [[ "${chars[i]}" == '`' && "$pstk" == *b* && "${chars[i - 1]}" != '\' ]]; then
+          ((i--))
+          break
+        fi
         word+="${chars[i]}"
         ((i++))
       done
@@ -4664,6 +4708,10 @@ hook::bash_parse_segments_uncached() {
             ;;
           *) ;;
           esac
+        fi
+        if [[ "${chars[i]}" == '`' && "$pstk" == *b* ]]; then
+          ((i--))
+          break
         fi
         word+="${chars[i]}"
         ((i++))
@@ -4694,6 +4742,7 @@ hook::bash_parse_segments_uncached() {
         word+="$c"
         wq_plain=1
         have=1
+        sub_at=$((i + 1))
       fi
       ;;
     '\')
@@ -4727,7 +4776,29 @@ hook::bash_parse_segments_uncached() {
         wq_plain=1
         have=1
       else
-        while ((i + 1 < n)) && [[ "${chars[i + 1]}" != $'\n' ]]; do
+        if ((i == amb_at && !ext && !amb_seen)); then
+          # Extglob on, this `#` is literal; off, it starts a comment. The
+          # guard cannot know the mode, so the callback sees both readings:
+          # the rest of the command parsed once with extglob on, then the
+          # comment reading below. Once is enough: extglob is one mode for the
+          # whole command, so that one pass already reads every later
+          # ambiguous `)#` the extglob-on way.
+          amb_seen=1
+          local __hu_bps_pstk=$pstk
+          local -a __hu_bps_hdd=(${hd_delims[@]+"${hd_delims[@]}"})
+          local -a __hu_bps_hds=(${hd_strip[@]+"${hd_strip[@]}"})
+          local -a __hu_bps_hdq=(${hd_quoted[@]+"${hd_quoted[@]}"})
+          printf -v __hu_bps_rest '%s' "${chars[@]:i}"
+          hook::bash_parse_segments_uncached "$__hu_bps_rest" "$cb" 1
+          # Its here-doc bodies too, at offsets in this command.
+          for __hu_bps_e in ${HOOK_HEREDOC_BODIES[@]+"${HOOK_HEREDOC_BODIES[@]}"}; do
+            __hu_bps_rest=${__hu_bps_e#* }
+            hd_bodies+=("$((${__hu_bps_e%% *} + i)) $((${__hu_bps_rest%% *} + i)) ${__hu_bps_rest#* }")
+          done
+        fi
+        # Inside a backtick substitution a comment ends at its closing backtick.
+        while ((i + 1 < n)) && [[ "${chars[i + 1]}" != $'\n' ]] &&
+          ! [[ "${chars[i + 1]}" == '`' && "$pstk" == *b* ]]; do
           ((i++))
         done
       fi
@@ -4824,6 +4895,7 @@ hook::bash_parse_segments_uncached() {
         # parse can resolve to a path, and the '(' separator splits it into a
         # segment that gets scanned.
         hook::_bps_orphan_pending
+        sub_at=$((i + 1))
       else
         rop_txt="$c"
         while ((i + 1 < n)) && [[ "${chars[i + 1]}" == [\<\>] ]]; do # portability-ok: bash glob bracket class matching a literal < or > character, not a GNU grep \< \> word boundary
@@ -4853,28 +4925,42 @@ hook::bash_parse_segments_uncached() {
       fi
       ;;
     ';' | '&' | '|' | '(' | ')' | '`' | $'\n')
-      # Not an extglob: a bare `!` (the negation keyword), `f@()` (a function
-      # definition when extglob is off), or a `(` inside an open `${…}`.
+      # A `(` inside an open `${…}` is literal pattern text. A bare `!` (the
+      # negation keyword when extglob is off) and `f@()` (a function
+      # definition when extglob is off) are extglobs only when it is on.
       if [[ "$c" == '(' ]]; then
         wpar=0
-        if ((have)); then
+        if ((i == sub_at)); then
+          wpar=s
+        elif ((have)); then
           if [[ "$word" =~ $wpar_re ]]; then
             wpar=1
-          elif [[ "$word" == *[@?*+!] && "$word" != '!' &&
+          elif [[ "$word" == *[@?*+!] &&
             ! ("$word" == *"$dbrace"* && "${word##*"$dbrace"}" != *'}'*) ]]; then
             for ((j = i + 1; j < n; j++)); do
               [[ "${chars[j]}" == ' ' || "${chars[j]}" == $'\t' ]] || break
             done
-            [[ "${chars[j]-}" == ')' ]] || wpar=1
+            wpar=1
+            [[ "$word" == '!' || "${chars[j]-}" == ')' ]] && ((!ext)) && wpar=a
           fi
         fi
         pstk+="$wpar"
       elif [[ "$c" == ')' ]]; then
-        [[ "$pstk" == *1 ]] && hash_at=$((i + 1))
-        pstk=${pstk%?}
-      elif [[ "$c" != '`' && ! ("$c" == '|' && "$pstk" == *1) ]]; then
-        # A `|` inside an extglob is its alternation, not a pipe.
-        pstk=""
+        # First, so an `esac` right before the `)` closes its case frame.
+        ((have)) && hook::_bps_close_word
+        case "${pstk: -1}" in
+        1 | s) hash_at=$((i + 1)) ;;
+        a) amb_at=$((i + 1)) ;;
+        *) ;;
+        esac
+        [[ "$pstk" == *[bc] ]] || pstk=${pstk%?}
+      elif [[ "$c" == '`' ]]; then
+        if [[ "$pstk" == *b* ]]; then
+          pstk=${pstk%b*}
+          hash_at=$((i + 1))
+        else
+          pstk+=b
+        fi
       fi
       ((have)) && hook::_bps_close_word
       hook::_bps_flush_segment

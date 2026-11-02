@@ -4013,10 +4013,47 @@ bps_segments_are 'subshell ( at a word boundary still splits' \
   'true; (git reset --hard)' 'true' 'git reset --hard'
 bps_segments_are 'extglob alternation | keeps the frame open' \
   '@(a|b)#y; git reset --hard' '@' 'a' 'b' '#y' 'git reset --hard'
-bps_segments_are 'f@() is a function definition, so a # after it is a comment' \
-  'f@()#y; git reset --hard' 'f@'
-bps_segments_are 'bare ! before ( is negation, a subshell' \
-  '!(x)#; git reset --hard' '!' 'x'
+bps_segments_are 'f@()# yields the extglob-on word reading, then the function-definition comment' \
+  'f@()#y; git reset --hard' 'f@' '#y' 'git reset --hard'
+bps_segments_are 'bare !(x)# yields the extglob-on word reading, then the negated-subshell comment' \
+  '!(x)#; git reset --hard' '!' 'x' '#' 'git reset --hard'
+bps_segments_are 'the extglob-on reading keeps a second # in the word' \
+  '!(x)##; git reset --hard' '!' 'x' '##' 'git reset --hard'
+bps_segments_are 'the extglob-on reading runs past the line: a quote it opens can close later' \
+  $'!(x)#\'\n\'; git reset --hard' '!' 'x' $'#\n' 'git reset --hard' '; git reset --hard'
+bps_segments_are 'the extglob-on reading keeps a pending here-doc body out of commands' \
+  $'cat <<EOF; !(x)#; :\ngit reset --hard\nEOF\necho done' 'cat' '!' 'x' '#' ':' 'echo done' 'echo done'
+# shellcheck disable=SC2016  # the substitutions are the command text under test
+{
+  bps_segments_are '$(…) ) leaves a # after it literal' \
+    'echo $(:)#; git reset --hard' 'echo $' ':' '#' 'git reset --hard'
+  bps_segments_are '$((…)) ) leaves a # after it literal' \
+    'echo $((1))#; git reset --hard' 'echo $' '1' '#' 'git reset --hard'
+  bps_segments_are 'a ; inside $(…) keeps its frame' \
+    'echo $(:;:)#; git reset --hard' 'echo $' ':' ':' '#' 'git reset --hard'
+  bps_segments_are 'a newline inside $(…) keeps its frame' \
+    $'echo $(:\n:)#; git reset --hard' 'echo $' ':' ':' '#' 'git reset --hard'
+  bps_segments_are 'a case pattern ) inside $(…) pops no frame' \
+    'echo $(case x in x) :;; esac)#; git reset --hard' 'echo $' 'case x in x' ':' 'esac' '#' 'git reset --hard'
+  bps_segments_are 'a # after a case pattern ) inside $(…) is a comment' \
+    $'a=($(case x in x)#\'\ngit reset --hard;; esac))' 'a=' '$' 'case x in x' 'git reset --hard' 'esac'
+  bps_segments_are '# after whitespace past $(…) is a comment' \
+    'echo $(:) #; git reset --hard' 'echo $' ':'
+  bps_segments_are 'closing backtick leaves a # after it literal' \
+    'echo `:`#; git reset --hard' 'echo' ':' '#' 'git reset --hard'
+  bps_segments_are 'a ; inside backticks keeps the frame' \
+    'echo `:;:`#; git reset --hard' 'echo' ':' ':' '#' 'git reset --hard'
+  bps_segments_are 'a comment inside backticks ends at the closing backtick' \
+    'echo `#`; git reset --hard' 'echo' 'git reset --hard'
+}
+bps_segments_are 'a quote inside backticks ends at the closing backtick' \
+  "echo \`'\`; git reset --hard #'" 'echo' '' 'git reset --hard'
+bps_segments_are 'process substitution ) leaves a # after it literal' \
+  'cat <(:)#; git reset --hard' 'cat' ':' '#' 'git reset --hard'
+bps_segments_are 'a ; inside an extglob keeps its frame' \
+  'echo @(x;y)#; git reset --hard' 'echo @' 'x' 'y' '#' 'git reset --hard'
+bps_segments_are 'a newline inside an array assignment keeps its frame' \
+  $'a=(x\ny)#; git reset --hard' 'a=' 'x' 'y' '#' 'git reset --hard'
 # shellcheck disable=SC2016  # the substitution is the command text under test
 bps_segments_are 'substitution inside an array assignment stays a segment' \
   'a=($(git reset --hard))#y' 'a=' '$' 'git reset --hard' '#y'

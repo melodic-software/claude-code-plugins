@@ -613,6 +613,27 @@ run "f@() { git reset --hard; }; f@ (function name ending in @, blocked)" "f@() 
 run "!(git reset --hard) (negated subshell, blocked)" "!(git reset --hard)" 2
 run "echo \${x#*(}; case x in x) git reset --hard;; esac (literal ( in \${…}, blocked)" \
   "echo \${x#*(}; case x in x) git reset --hard;; esac" 2
+# Bash keeps the closing ) or backtick of a substitution in its word too.
+run "echo \$(:)#; git reset --hard (command substitution, blocked)" "echo \$(:)#; git reset --hard" 2
+run "echo \$((1))#; git reset --hard (arithmetic expansion, blocked)" "echo \$((1))#; git reset --hard" 2
+run "echo \$(:;:)#; git reset --hard (separator inside the substitution, blocked)" "echo \$(:;:)#; git reset --hard" 2
+run "echo \`:\`#; git reset --hard (backtick substitution, blocked)" "echo \`:\`#; git reset --hard" 2
+run "cat <(:)#; git reset --hard (process substitution, blocked)" "cat <(:)#; git reset --hard" 2
+run "echo \`#\`; git reset --hard (comment inside backticks, blocked)" "echo \`#\`; git reset --hard" 2
+run "echo \`'\`; git reset --hard #' (quote inside backticks, blocked)" "echo \`'\`; git reset --hard #'" 2
+run "echo \$(case x in x) :;; esac)#; git reset --hard (case inside a substitution, blocked)" \
+  "echo \$(case x in x) :;; esac)#; git reset --hard" 2
+run "a=(\$(case x in x)#' then a later line (case pattern comment, blocked)" \
+  $'a=($(case x in x)#\'\ngit reset --hard;; esac))' 2
+run "echo @(x;y)#; git reset --hard (separator inside an extglob, blocked)" "echo @(x;y)#; git reset --hard" 2
+run "a=(x⏎y)#; git reset --hard (newline inside an array assignment, blocked)" $'a=(x\ny)#; git reset --hard' 2
+# With extglob on, !(x)# and f@()# are one word and the # is literal; off, it is a comment.
+run "!(x)#; git reset --hard (extglob-on reading, blocked)" "!(x)#; git reset --hard" 2
+run "f@()#; git reset --hard (extglob-on reading, blocked)" "f@()#; git reset --hard" 2
+run "!(x)##; git reset --hard (second # in the extglob word, blocked)" "!(x)##; git reset --hard" 2
+run "!(x)#' then a quote closing on the next line (extglob-on reading, blocked)" $'!(x)#\'\n\'; git reset --hard' 2
+run "!(x)#; git backslash-newline reset --hard (extglob-on reading, blocked)" $'!(x)#; git \\\nreset --hard' 2
+run "echo \$(:) #; git reset --hard (comment after whitespace, allowed)" "echo \$(:) #; git reset --hard" 0
 run "heredoc body with git reset (stdin, not a command, allowed)" $'cat >notes <<EOF\ngit reset --hard\nEOF' 0
 run "quoted-delimiter heredoc with git push --force (allowed)" $'cat <<\'EOF\'\ngit push --force\nEOF' 0
 run "tab-indented heredoc <<- body (allowed)" $'cat <<-EOF\n\tgit reset --hard\n\tEOF' 0
