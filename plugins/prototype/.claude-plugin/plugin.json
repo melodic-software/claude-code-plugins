@@ -15,5 +15,8 @@
     "ui",
     "state-machine",
     "skill"
-  ]
+  ],
+  "metadata": {
+    "category": "design"
+  }
 }

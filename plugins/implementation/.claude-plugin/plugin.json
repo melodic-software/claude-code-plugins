@@ -13,8 +13,14 @@
     "orchestration",
     "execution",
     "tdd",
-    "skill"
+    "skill",
+    "execute",
+    "dispatch",
+    "incremental"
   ],
+  "metadata": {
+    "category": "development"
+  },
   "userConfig": {
     "implement_dispatch_wave_cap": {
       "type": "number",

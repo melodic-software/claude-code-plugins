@@ -1,6 +1,6 @@
 {
   "name": "planning",
-  "version": "0.139.3",
+  "version": "0.139.4",
   "userConfig": {
     "surface": {
       "type": "string",
@@ -121,6 +121,12 @@
     "goal",
     "completion-condition",
     "autonomous-goal",
-    "skill"
-  ]
+    "skill",
+    "domain-modeling",
+    "ubiquitous-language",
+    "glossary"
+  ],
+  "metadata": {
+    "category": "design"
+  }
 }

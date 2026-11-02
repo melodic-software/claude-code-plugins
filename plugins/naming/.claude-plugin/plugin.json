@@ -15,5 +15,8 @@
     "candidates",
     "anti-anchoring",
     "skill"
-  ]
+  ],
+  "metadata": {
+    "category": "design"
+  }
 }

@@ -17,5 +17,8 @@
     "audit",
     "maintenance",
     "skill"
-  ]
+  ],
+  "metadata": {
+    "category": "maintenance"
+  }
 }

@@ -17,8 +17,12 @@
     "rulesets",
     "actions-policy",
     "drift",
-    "skill"
+    "skill",
+    "advise"
   ],
+  "metadata": {
+    "category": "operations"
+  },
   "userConfig": {
     "offer_browser_automation": {
       "type": "boolean",

@@ -21,5 +21,8 @@
     "pull-request",
     "documentation",
     "skill"
-  ]
+  ],
+  "metadata": {
+    "category": "presentation"
+  }
 }

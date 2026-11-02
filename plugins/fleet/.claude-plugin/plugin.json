@@ -15,5 +15,8 @@
     "headless",
     "remote-agent",
     "skill"
-  ]
+  ],
+  "metadata": {
+    "category": "claude-code"
+  }
 }

@@ -16,8 +16,12 @@
     "triage",
     "issue",
     "workflow",
-    "skill"
+    "skill",
+    "bug-report"
   ],
+  "metadata": {
+    "category": "maintenance"
+  },
   "userConfig": {
     "output_dir": {
       "type": "directory",

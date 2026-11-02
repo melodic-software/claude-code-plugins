@@ -18,6 +18,9 @@
     "cisa-kev",
     "skill"
   ],
+  "metadata": {
+    "category": "operations"
+  },
   "userConfig": {
     "report_dir": {
       "type": "directory",

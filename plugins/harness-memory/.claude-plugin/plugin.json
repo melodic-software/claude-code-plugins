@@ -18,6 +18,10 @@
     "disable",
     "purge",
     "maintenance",
-    "skill"
-  ]
+    "skill",
+    "health"
+  ],
+  "metadata": {
+    "category": "claude-code"
+  }
 }

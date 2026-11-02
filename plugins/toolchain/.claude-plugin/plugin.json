@@ -16,8 +16,13 @@
     "polyglot",
     "verification",
     "skill",
-    "hook"
+    "hook",
+    "format",
+    "setup"
   ],
+  "metadata": {
+    "category": "development"
+  },
   "userConfig": {
     "turn_end_result_gate": {
       "type": "string",

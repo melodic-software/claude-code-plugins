@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "5.5.0",
+  "version": "5.6.0",
   "license": "MIT",
   "keywords": [
     "git",
@@ -21,6 +21,9 @@
     "delivery",
     "skill"
   ],
+  "metadata": {
+    "category": "development"
+  },
   "userConfig": {
     "pr_body_linkage_gate_enabled": {
       "type": "boolean",

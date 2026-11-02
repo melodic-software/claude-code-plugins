@@ -19,6 +19,11 @@
     "crap",
     "type-coverage",
     "quality",
-    "measurement"
-  ]
+    "measurement",
+    "audit",
+    "skill"
+  ],
+  "metadata": {
+    "category": "quality"
+  }
 }

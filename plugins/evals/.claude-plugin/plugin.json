@@ -61,5 +61,8 @@
       "default": false
     }
   },
-  "keywords": ["evals", "evaluation", "success-criteria", "llm-judge", "grading", "rubric", "testing", "knowledge", "skill"]
+  "keywords": ["evals", "evaluation", "success-criteria", "llm-judge", "grading", "rubric", "testing", "knowledge", "skill"],
+  "metadata": {
+    "category": "testing"
+  }
 }

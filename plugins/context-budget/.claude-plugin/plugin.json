@@ -32,5 +32,8 @@
     "attribution",
     "ledger",
     "skill"
-  ]
+  ],
+  "metadata": {
+    "category": "claude-code"
+  }
 }

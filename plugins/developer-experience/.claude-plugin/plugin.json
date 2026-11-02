@@ -15,5 +15,8 @@
     "scripts",
     "audit",
     "skill"
-  ]
+  ],
+  "metadata": {
+    "category": "development"
+  }
 }

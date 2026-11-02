@@ -12,8 +12,12 @@
     "interactive",
     "explorer",
     "html",
-    "prompt-round-trip"
+    "prompt-round-trip",
+    "skill"
   ],
+  "metadata": {
+    "category": "presentation"
+  },
   "dependencies": [
     {
       "name": "playground",

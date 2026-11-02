@@ -25,6 +25,11 @@
     "audit",
     "maintenance",
     "skill",
-    "instructions"
-  ]
+    "instructions",
+    "mcp",
+    "rules"
+  ],
+  "metadata": {
+    "category": "claude-code"
+  }
 }

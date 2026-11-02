@@ -16,5 +16,8 @@
     "verification",
     "claims",
     "skill"
-  ]
+  ],
+  "metadata": {
+    "category": "quality"
+  }
 }

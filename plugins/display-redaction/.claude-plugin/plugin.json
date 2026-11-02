@@ -15,6 +15,9 @@
     "display",
     "hooks"
   ],
+  "metadata": {
+    "category": "claude-code"
+  },
   "types": "./types/index.d.ts",
   "userConfig": {
     "mask_style": {

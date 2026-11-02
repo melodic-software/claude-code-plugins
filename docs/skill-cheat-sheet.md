@@ -379,7 +379,6 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/harness-ops:inventory`](../plugins/harness-ops/skills/inventory/SKILL.md) | `harness-ops` | weekly | Enumerate every command, skill, agent, and plugin component this machine can invoke |
 | [`/harness-ops:lanes`](../plugins/harness-ops/skills/lanes/SKILL.md) | `harness-ops` | daily | Start, restart, stop, and check loop lanes as named background sessions |
 | [`/harness-ops:machine-profile`](../plugins/harness-ops/skills/machine-profile/SKILL.md) | `harness-ops` | weekly | Discover, store and diff machine facts and per-tree identity domains. Read-only by default. |
-| [`/harness-ops:morning-brief`](../plugins/harness-ops/skills/morning-brief/SKILL.md) | `harness-ops` | daily | Print the operator's read-only morning view. Queues, merge-ready PRs, parked decisions |
 | [`/harness-ops:observability`](../plugins/harness-ops/skills/observability/SKILL.md) | `harness-ops` | weekly | Report on locally captured telemetry. Token burn, cost, hook latency, per-session activity |
 | [`/harness-ops:plugins`](../plugins/harness-ops/skills/plugins/SKILL.md) | `harness-ops` | weekly | Bring the machine's plugin fleet current. Refresh, update, install per policy |
 | [`/harness-ops:plugins-audit`](../plugins/harness-ops/skills/plugins-audit/SKILL.md) | `harness-ops` | weekly | Predict what plugin sync would change, read-only |
@@ -390,6 +389,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/source-control:babysit-loop`](../plugins/source-control/skills/babysit-loop/SKILL.md) | `source-control` | continuous | Run one repo's PR queue as a standing merge lane |
 | [`/source-control:babysit-prs`](../plugins/source-control/skills/babysit-prs/SKILL.md) | `source-control` | continuous | Tiered fleet pass advancing your open PRs |
 | [`/work-items:attend-queue`](../plugins/work-items/skills/attend-queue/SKILL.md) | `work-items` | daily | Drive escalations to resolution; list held PRs and post-merge failures; hand intake to triage |
+| [`/work-items:morning-brief`](../plugins/work-items/skills/morning-brief/SKILL.md) | `work-items` | daily | Print the operator's read-only morning view. Queues, merge-ready PRs, parked decisions |
 | [`/work-items:work-loop`](../plugins/work-items/skills/work-loop/SKILL.md) | `work-items` | continuous | Drain the backlog as a self-paced autonomous loop |
 
 <!-- cheatsheet:end -->

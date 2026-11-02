@@ -26,6 +26,14 @@
     "boris-cherny",
     "fable-5",
     "best-practices",
-    "tips"
-  ]
+    "tips",
+    "playbook",
+    "boris",
+    "repo-sweep",
+    "hygiene",
+    "skill"
+  ],
+  "metadata": {
+    "category": "claude-code"
+  }
 }

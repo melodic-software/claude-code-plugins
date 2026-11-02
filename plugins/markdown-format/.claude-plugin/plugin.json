@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "0.17.2",
+  "version": "0.17.3",
   "license": "MIT",
   "keywords": [
     "markdown",
@@ -14,6 +14,9 @@
     "linter",
     "hook"
   ],
+  "metadata": {
+    "category": "development"
+  },
   "userConfig": {
     "markdown_format_enabled": {
       "type": "boolean",

@@ -35,6 +35,9 @@
     "upstream",
     "provenance"
   ],
+  "metadata": {
+    "category": "discovery"
+  },
   "userConfig": {
     "library_dir": {
       "type": "directory",

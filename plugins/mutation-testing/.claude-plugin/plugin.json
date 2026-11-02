@@ -17,6 +17,9 @@
     "pitest",
     "skill"
   ],
+  "metadata": {
+    "category": "testing"
+  },
   "userConfig": {
     "operators": {
       "type": "string",

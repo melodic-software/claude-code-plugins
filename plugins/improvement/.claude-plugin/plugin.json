@@ -14,6 +14,10 @@
     "hotspots",
     "value-to-effort",
     "ranking",
-    "skill"
-  ]
+    "skill",
+    "audit"
+  ],
+  "metadata": {
+    "category": "quality"
+  }
 }

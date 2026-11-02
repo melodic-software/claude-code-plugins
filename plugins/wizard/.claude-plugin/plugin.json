@@ -19,5 +19,8 @@
     "env",
     "bash",
     "skill"
-  ]
+  ],
+  "metadata": {
+    "category": "development"
+  }
 }

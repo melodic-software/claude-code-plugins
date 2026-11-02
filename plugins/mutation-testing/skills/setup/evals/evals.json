@@ -76,7 +76,7 @@
     {
       "id": 12,
       "prompt": "/mutation-testing:setup apply. An earlier plugin release configured this repository, so its settings are the yaml block in .claude/mutation-testing.md (tool: manual, diff-target: main, mutate: [\"src/**/*.py\"], operators: narrow, max-mutants: 12) and there is no docs/conventions/mutation-testing.yaml. Keep every setting as it is.",
-      "expected_output": "Reports the older .claude/mutation-testing.md as the team layer in effect and names apply as the move. Writes docs/conventions/mutation-testing.yaml as plain YAML, not Markdown, carrying every key of the older file's yaml block with its name and value unchanged: tool manual, diff-target main, mutate src/**/*.py, operators narrow, max-mutants 12. Leaves .claude/mutation-testing.md in place and tells the user to delete it once the YAML file is committed. Offers the git add and commit for the new file without running them unasked.",
+      "expected_output": "Reports .claude/mutation-testing.md as a retired file that no layer reads (INFO), not as the team layer in effect, and names apply as the move. Writes docs/conventions/mutation-testing.yaml as plain YAML, not Markdown, carrying every key of the retired file's yaml block with its name and value unchanged: tool manual, diff-target main, mutate src/**/*.py, operators narrow, max-mutants 12. Leaves .claude/mutation-testing.md in place and tells the user to delete it once the YAML file is committed. Offers the git add and commit for the new file without running them unasked.",
       "files": [],
       "narration": true
     }

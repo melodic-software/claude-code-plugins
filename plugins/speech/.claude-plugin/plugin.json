@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "0.5.10",
+  "version": "0.5.11",
   "license": "MIT",
   "keywords": [
     "speech",
@@ -15,8 +15,12 @@
     "kokoro",
     "elevenlabs",
     "word-timings",
-    "skill"
+    "skill",
+    "audio"
   ],
+  "metadata": {
+    "category": "audio"
+  },
   "userConfig": {
     "elevenlabs_model": {
       "type": "string",

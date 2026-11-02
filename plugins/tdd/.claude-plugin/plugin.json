@@ -7,5 +7,8 @@
   },
   "version": "0.5.1",
   "license": "MIT",
-  "keywords": ["tdd", "testing", "unit-testing", "test-design", "knowledge", "beck", "khorikov", "best-practices"]
+  "keywords": ["tdd", "testing", "unit-testing", "test-design", "knowledge", "beck", "khorikov", "best-practices", "skill"],
+  "metadata": {
+    "category": "testing"
+  }
 }

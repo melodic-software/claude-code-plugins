@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "0.14.1",
+  "version": "0.14.2",
   "license": "MIT",
   "keywords": [
     "powershell",
@@ -15,6 +15,9 @@
     "linter",
     "hook"
   ],
+  "metadata": {
+    "category": "development"
+  },
   "userConfig": {
     "powershell_format_enabled": {
       "type": "boolean",

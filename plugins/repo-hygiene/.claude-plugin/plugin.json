@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "0.20.12",
+  "version": "0.20.13",
   "license": "MIT",
   "keywords": [
     "maintenance",
@@ -17,6 +17,9 @@
     "working-tree",
     "skill"
   ],
+  "metadata": {
+    "category": "maintenance"
+  },
   "userConfig": {
     "clean_destructive_guard_enabled": {
       "type": "boolean",

@@ -15,5 +15,8 @@
     "screenshot",
     "accessibility",
     "skill"
-  ]
+  ],
+  "metadata": {
+    "category": "claude-code"
+  }
 }

@@ -19,6 +19,17 @@
     "portfolio",
     "adr",
     "decision-record",
-    "skill"
-  ]
+    "skill",
+    "dependencies",
+    "components",
+    "containers",
+    "context",
+    "flow",
+    "events",
+    "data",
+    "deployment"
+  ],
+  "metadata": {
+    "category": "design"
+  }
 }

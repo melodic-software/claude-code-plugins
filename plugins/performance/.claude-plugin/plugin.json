@@ -17,5 +17,8 @@
     "drift-immune-counter",
     "interleaved-ab",
     "skill"
-  ]
+  ],
+  "metadata": {
+    "category": "verification"
+  }
 }

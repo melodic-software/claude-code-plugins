@@ -14,8 +14,12 @@
     "baseline",
     "measurement",
     "evidence",
-    "skill"
+    "skill",
+    "measure"
   ],
+  "metadata": {
+    "category": "verification"
+  },
   "userConfig": {
     "proof_level": {
       "type": "string",

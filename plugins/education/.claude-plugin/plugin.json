@@ -22,6 +22,9 @@
     "comprehension",
     "skill"
   ],
+  "metadata": {
+    "category": "learning"
+  },
   "userConfig": {
     "explain_starting_rung": {
       "type": "string",

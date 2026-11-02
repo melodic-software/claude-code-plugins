@@ -19,6 +19,9 @@
     "deck",
     "skill"
   ],
+  "metadata": {
+    "category": "presentation"
+  },
   "userConfig": {
     "medium": {
       "type": "string",

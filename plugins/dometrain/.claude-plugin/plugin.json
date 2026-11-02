@@ -12,6 +12,11 @@
     "courses",
     "dotnet",
     "csharp",
-    "learning"
-  ]
+    "learning",
+    "grounding",
+    "skill"
+  ],
+  "metadata": {
+    "category": "discovery"
+  }
 }

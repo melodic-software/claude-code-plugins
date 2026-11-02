@@ -19,6 +19,9 @@
     "dead-code",
     "skill"
   ],
+  "metadata": {
+    "category": "maintenance"
+  },
   "userConfig": {
     "hard_exclusions": {
       "type": "string",

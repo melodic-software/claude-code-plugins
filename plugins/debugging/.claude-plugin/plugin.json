@@ -15,5 +15,8 @@
     "root-cause",
     "regression",
     "skill"
-  ]
+  ],
+  "metadata": {
+    "category": "maintenance"
+  }
 }

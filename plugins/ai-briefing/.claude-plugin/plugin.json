@@ -17,6 +17,9 @@
     "rss",
     "skill"
   ],
+  "metadata": {
+    "category": "personal"
+  },
   "userConfig": {
     "active_profile": {
       "type": "string",

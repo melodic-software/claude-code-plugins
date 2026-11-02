@@ -79,7 +79,7 @@ valid layer wins. Layers:
      the schema does not list, so a valid floor beside it counts. Name it, and
      read this layer's `downstream_probe` from the PASS line as above.
    - exit 1 with no `PASS downstream_probe:` line: `downstream_probe` or the whole committed file
-     is invalid. Each `WARN` line names the file, the key and the value (`maybe`, a quoted string,
+     is invalid. Each `WARN` line names the file, the key and the value (`maybe`, an empty quoted string,
      an empty value, a list, a key set twice, an unknown key set twice or holding a map or list, a
      parse error, a symlink). Name them,
      drop this layer, and continue.

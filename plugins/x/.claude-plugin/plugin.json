@@ -12,6 +12,10 @@
     "twitter",
     "markdown",
     "social",
-    "content-extraction"
-  ]
+    "content-extraction",
+    "skill"
+  ],
+  "metadata": {
+    "category": "discovery"
+  }
 }
