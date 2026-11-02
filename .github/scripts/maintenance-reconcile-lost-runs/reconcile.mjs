@@ -66,6 +66,13 @@
 //   ci-status. Re-run as a Switch is, with no lookback; a re-run that fails is
 //   a warning, not a failed run, since the head's next push or a person's
 //   re-run still clears it.
+// - Pending: any PR whose newest pr-require-checks run failed, at attempt 1,
+//   only in ci-status, and only on its notes that a review lane had not
+//   finished (PENDING_REVIEW_NOTE), while the newest pull_request run of each
+//   hosted review on the head has since completed, the last of them at least
+//   PENDING_BACKOFF_MINUTES ago. rerun-ci-status re-runs that ci-status when
+//   the review completes, unless it was lost or held it: it holds a lanes App
+//   PR's while the kill switch is on. Re-run as a Stop is, with no lookback.
 // - Verdict: a pr-feedback-dispatch.yml run, at attempt 1, whose only failed
 //   job is post-verify-notes and whose only failed step there is its
 //   kill-switch stop (VERDICT_STOP_STEP): a pr-verify verdict finished while
@@ -428,6 +435,24 @@ export const unblockStopNoted = (annotations) => {
   const exits = failures.filter((m) => EXIT_NOTE.test(m)).length;
   return stops > 0 && exits <= 1 && stops + exits === failures.length;
 };
+// The error ci-status's review-lane step writes for a review still running
+// when it read the head (pr-require-checks.yml; reconcile.test.mjs pins it there).
+export const PENDING_REVIEW_NOTE = /^'[^']+' has not finished on [0-9a-f]{40} \(https:\/\/[^ ]+\)\. ci-status re-runs when the review finishes\.$/;
+// True when ci-status's only failure is its review-lane step on running
+// reviews: one or more pending notes and that step's one exit note.
+export const pendingReviewNoted = (annotations) => {
+  const failures = (Array.isArray(annotations) ? annotations : []).filter((a) => a?.annotation_level === "failure").map((a) => String(a.message ?? ""));
+  const pending = failures.filter((m) => PENDING_REVIEW_NOTE.test(m)).length;
+  const exits = failures.filter((m) => EXIT_NOTE.test(m)).length;
+  return pending > 0 && exits <= 1 && pending + exits === failures.length;
+};
+// How long after the last review completes before a Pending re-run: at least
+// rerun-ci-status's `timeout-minutes: 15` (reconcile.test.mjs pins it), so its
+// own re-run has had the time to land. Under its `queue: max` concurrency that
+// job may still start later, so this narrows the race without closing it; the
+// two final reads keep it safe: rerun-ci-status re-runs only on its
+// `"completed $attempt"` re-read, and act only on lostNow's attempt check.
+export const PENDING_BACKOFF_MINUTES = 20;
 // True when the newest status of a `pr-unblock/*` context on the head, by
 // github-actions[bot], is failure or error: ci-status's own read. Statuses
 // list newest first.
@@ -454,7 +479,7 @@ const lostNow = (item, r, since) => {
   if (r?.head_sha !== item.head) {
     return false;
   }
-  if (item.kind === "infra" || item.kind === "flake" || item.kind === "switch" || item.kind === "stop" || item.kind === "upstream") {
+  if (item.kind === "infra" || item.kind === "flake" || item.kind === "switch" || item.kind === "stop" || item.kind === "pending" || item.kind === "upstream") {
     return r.status === "completed" && r.conclusion === "failure" && r.run_attempt === item.attempt;
   }
   if (item.kind === "review") {
@@ -853,7 +878,8 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       // A newest checks run that failed only in ci-status: a review a kill
       // switch stopped is re-run once nothing would stop it again, a lanes App
       // PR's that the kill switch failed is re-run now that the switch is off,
-      // and any PR's that a pr-unblock stop failed once no stop fails the head.
+      // any PR's that a pr-unblock stop failed once no stop fails the head,
+      // and any PR's that a running review failed once the reviews are done.
       // The tested run's jobs are reused when it is that run.
       if (set.length === 0 && isRedChecks(checks)) {
         const status = onlyAggregateFailed(tested.find((t) => t?.run?.id === checks.id)?.jobs ?? (await readJobs(checks)));
@@ -865,6 +891,8 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
           }
         } else if (isFailedChecks(checks) && notes && laneApp !== undefined && pull.user?.id === laneApp && pull.user?.type === "Bot" && killSwitchNoted(notes)) {
           set.push({ kind: "switch", pr: pull.number, id: checks.id, path: checks.path, conclusion: "failure (kill switch)", attempt: 1, head: pull.head.sha });
+        } else if (checks.run_attempt >= 2 && notes && laneApp !== undefined && pull.user?.id === laneApp && pull.user?.type === "Bot" && killSwitchNoted(notes)) {
+          say(`#${pull.number}: ci-status failed on the kill switch at attempt ${checks.run_attempt}; a re-run needs a person on the trusted-actor list`);
         } else if (isFailedChecks(checks) && notes && unblockStopNoted(notes)) {
           // An unreadable status list re-runs nothing and fails no listing: the next run reads it again.
           let stands = true;
@@ -878,6 +906,17 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
           }
           if (!stands) {
             set.push({ kind: "stop", pr: pull.number, id: checks.id, path: checks.path, conclusion: "failure (cleared pr-unblock stop)", attempt: 1, head: pull.head.sha });
+          }
+        } else if (isFailedChecks(checks) && notes && pendingReviewNoted(notes)) {
+          // Every PR, not only the lanes App's: a lost rerun-ci-status strands
+          // a person's head the same way. ci-status's own pick of each review:
+          // the newest pull_request run on the head.
+          const reviews = [...GATED_REVIEWS]
+            .map((path) => own.filter((r) => r.path === path && r.event === "pull_request").reduce((a, r) => (a && a.id > r.id ? a : r), undefined))
+            .filter(Boolean);
+          const last = Math.max(...reviews.map((r) => Date.parse(r.updated_at)));
+          if (reviews.length > 0 && reviews.every((r) => r.status === "completed") && now - last >= PENDING_BACKOFF_MINUTES * 60_000) {
+            set.push({ kind: "pending", pr: pull.number, id: checks.id, path: checks.path, conclusion: "failure (review since finished)", attempt: 1, head: pull.head.sha });
           }
         }
       }
@@ -1171,6 +1210,7 @@ async function act({ repo, call, say, since, sleep, items }) {
         item.kind === "flake" ||
         item.kind === "switch" ||
         item.kind === "stop" ||
+        item.kind === "pending" ||
         item.kind === "upstream"
       ) {
         await call("POST", `/repos/${repo}/actions/runs/${item.id}/rerun-failed-jobs`);
@@ -1181,6 +1221,7 @@ async function act({ repo, call, say, since, sleep, items }) {
           flake: ", its one re-run before fix-ci takes it",
           switch: ": ci-status failed while the lanes kill switch was on",
           stop: ": ci-status failed on a pr-unblock stop the lane has since cleared",
+          pending: ": ci-status failed on a review that has since finished",
           upstream: ": the upstream-status gate stopped its review, and the gate lets it run now",
         }[item.kind];
         say(
@@ -1206,7 +1247,7 @@ async function act({ repo, call, say, since, sleep, items }) {
       if (error instanceof RateLimited) {
         throw error;
       }
-      if (item.kind === "stop") {
+      if (item.kind === "stop" || item.kind === "pending") {
         console.log(`::warning title=reconcile::${where} run ${item.id}: ${escapeCommand(error?.message ?? error)}`);
         continue;
       }
