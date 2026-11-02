@@ -5,6 +5,7 @@
 // read from the API when the run starts, never from the event payload, but the
 // closed issue's labels, which mark a sweep kick. The kill switch and
 // a close by any bot sender stop the run before any API call.
+import { labelsAfter as statusLabels } from "../../actions/resolve-config/write-status.mjs";
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -371,6 +372,13 @@ test("the last blocker closing adds agent-ready", async () => {
   const { github, calls } = oneDependent();
   assert.equal(await main({ env: envFor(), github }), 0);
   assert.deepEqual(writes(calls), [labeled(20)]);
+});
+
+test("the last blocker closing mirrors agent-ready into the Work status field after the label write", async () => {
+  const { github, calls } = oneDependent();
+  const mirrorStatus = async (number, change) => calls.push(`MIRROR ${number} ${JSON.stringify(statusLabels(change.had, change.add, change.remove))}`);
+  assert.equal(await main({ env: envFor(), github, mirrorStatus }), 0);
+  assert.deepEqual(writes(calls), [labeled(20), 'MIRROR 20 ["agent-ready"]']);
 });
 
 test("the last blocker closing leaves an umbrella with an open sub-issue unlabeled, and labels it once none is open", async () => {
@@ -2998,6 +3006,17 @@ test("a Refs PR merging lifts the needs-human report-outcome set for it: needs-h
   assert.deepEqual(writes(calls), [comment, `DELETE /repos/${REPO}/issues/30/labels/needs-human`, status, agentReady]);
 });
 
+test("a hand-off that lifts needs-human mirrors the labels it leaves, needs-human, status: ready and agent-ready off", async () => {
+  const { github, calls } = refsHeld();
+  const mirrored = [];
+  const mirrorStatus = async (number, change) => mirrored.push([number, statusLabels(change.had, change.add, change.remove)]);
+  assert.equal(await sweep({ github, mirrorStatus }), 0);
+  assert.ok(writes(calls).includes(`DELETE /repos/${REPO}/issues/30/labels/needs-human`), writes(calls).join("\n"));
+  assert.equal(mirrored.length, 1);
+  assert.equal(mirrored[0][0], 30);
+  assert.ok(!mirrored[0][1].some((name) => ["needs-human", "status: ready", "agent-ready"].includes(name)), JSON.stringify(mirrored));
+});
+
 test("a Refs PR closed unmerged lifts the needs-human report-outcome set for it and hands the issue to triage", async () => {
   const { github, calls } = refsHeld({ pulls: [lanePull({ merged: false })] });
   assert.equal(await sweep({ github }), 0);
@@ -3672,6 +3691,20 @@ test("the sweep refuses a deferred issue that gained area: security since its de
   const before = deferredWorld({ labels, events: [added("2026-10-16T07:00:00Z"), deferredAdd(LANES_BOT)] });
   assert.equal(await sweep({ github: before.github }, PAUSING), 0);
   assert.deepEqual(writes(before.calls), [labeled(25), undeferred(25)]);
+});
+
+test("a deferred issue refused at status: needs-decision mirrors with a parked status: confirmed off; one refused at status: confirmed keeps it", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const mirrorFor = (into) => async (number, change) => into.push(statusLabels(change.had, change.add, change.remove));
+  const added = { event: "labeled", label: { name: "area: security" }, actor: OWNER, created_at: "2026-10-16T09:00:00Z" };
+  const held = [];
+  const hold = deferredWorld({ labels: ["admission-deferred", "status: ready", "area: security", "status: confirmed"], events: [deferredAdd(LANES_BOT), added] });
+  assert.equal(await sweep({ github: hold.github, mirrorStatus: mirrorFor(held) }, PAUSING), 0);
+  assert.deepEqual(held, [["area: security", "status: needs-decision"]]);
+  const parked = [];
+  const edited = deferredWorld({ specs: { 25: editedSpec("2026-10-16T09:00:00Z") } });
+  assert.equal(await sweep({ github: edited.github, mirrorStatus: mirrorFor(parked) }, PAUSING), 0);
+  assert.deepEqual(parked, [["status: confirmed"]]);
 });
 
 test("the sweep refuses a deferred issue whose body was edited since its deferral, at status: confirmed", async (t) => {

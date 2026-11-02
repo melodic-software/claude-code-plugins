@@ -2227,10 +2227,13 @@ async function removeLabel(github, base, name) {
 }
 
 // Reads the issue fresh, decides, and writes. `status` answers check-wip-cap's
-// status for the issue lane. Returns {outcome, reasons}.
-export async function admit({ github, repository, number, verdict, rules, humans, appId, status, webHosts, log = console.log }) {
+// status for the issue lane. `mirrorStatus` (write-status.mjs statusMirror)
+// sets the Work status field from the labels each outcome leaves. Returns
+// {outcome, reasons}.
+export async function admit({ github, repository, number, verdict, rules, humans, appId, status, webHosts, mirrorStatus = async () => {}, log = console.log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
+  const mirror = (add, remove = []) => mirrorStatus(number, { had: names(issue.labels), add, remove });
   const facts = await admissionFacts({
     github,
     repository,
@@ -2276,6 +2279,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
       await github("DELETE", `${base}/labels/${encodeURIComponent(CONFIRMED)}`);
     }
     await undefer();
+    await mirror([status, ...(decision.attended ? [ATTENDED] : []), ...(decision.hostRun ? [HOST_RUN] : [])], [READY, DEFERRED, ...(status !== CONFIRMED ? [CONFIRMED] : [])]);
     await sayWhy(github, repository, base, comments, refusalText(reasons));
     log(`admit: #${number} refused (${reasons})`);
     return { outcome: "refused", reasons: decision.reasons, status };
@@ -2285,6 +2289,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
     // the report is cited as data the lanes App wrote, never as instructions.
     await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
     await undefer();
+    await mirror([], [READY, DEFERRED]);
     await sayWhy(github, repository, base, comments, retriageNote(reasons, decision.retriage));
     log(`admit: #${number} sent back to intake (${reasons})`);
     return { outcome: "retriage", reasons: decision.reasons };
@@ -2295,6 +2300,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
     } else if (!names(issue.labels).includes(DEFERRED)) {
       await github("POST", `${base}/labels`, { labels: [DEFERRED] });
     }
+    await mirror(decision.pulls.length === 0 ? [] : [DEFERRED], decision.pulls.length === 0 ? [DEFERRED] : []);
     await sayWhy(github, repository, base, comments, `Not admitted to the issue lane yet: ${reasons}.`);
     log(`admit: #${number} waits (${reasons})`);
     return { outcome: "waiting", reasons: decision.reasons };
@@ -2314,6 +2320,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
           ? "the issue lane's queued count could not be read (admission_basis fail-open)"
           : `admissions are closed (${s.admission_reason})`;
     await github("POST", `${base}/labels`, { labels: [DEFERRED] });
+    await mirror([DEFERRED]);
     log(`admit: #${number} deferred: ${why}`);
     return { outcome: "deferred", reasons: [why] };
   }
@@ -2332,11 +2339,13 @@ export async function admit({ github, repository, number, verdict, rules, humans
       ahead = admissionsAhead(await admissionsSince(github, repository, checkedAt - RACE_WINDOW_MS), number);
     } catch (error) {
       const why = `the admissions racing it could not be read (${String(error?.message ?? error).replaceAll("\n", " ")})`;
+      await mirror([DEFERRED]);
       log(`admit: #${number} deferred: ${why}`);
       return { outcome: "deferred", reasons: [why] };
     }
     if (ahead >= s.admission_room) {
       const why = `${ahead} issue(s) entered admission ahead of it since check-wip-cap's count, which takes the room of ${s.admission_room} it read`;
+      await mirror([DEFERRED]);
       log(`admit: #${number} deferred: ${why}`);
       return { outcome: "deferred", reasons: [why] };
     }
@@ -2351,6 +2360,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
   if (names(issue.labels).includes(CONFIRMED)) {
     await github("DELETE", `${base}/labels/${encodeURIComponent(CONFIRMED)}`);
   }
+  await mirror([AGENT_READY], [CONFIRMED, ...(capped ? [DEFERRED] : [])]);
   log(`admit: #${number} labeled ${AGENT_READY}`);
   return { outcome: "admitted", reasons: [] };
 }
