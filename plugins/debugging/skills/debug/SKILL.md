@@ -309,9 +309,12 @@ The run is not done until every line below holds. They fall into three groups.
   existed, the first failing run would have shown the fact. Propose it in the record and leave it
   out of the fix commit, because a signal left on in production needs its own review for cost and
   noise; a Phase 4 probe kept as that signal loses its tag and goes through the same review.
-  Whether to propose is the `always_on_signal` key of `docs/conventions/debugging.yaml` at the
-  repository root (the git toplevel; outside a git work tree, or with the root at or above your
-  home directory, skip the file). `when-instrumented` (the default, used when the file or the key
+  Whether to propose is the `always_on_signal` key of `<home>/debugging.yaml` under the git toplevel. Run
+  `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh"` and follow its exit code; never
+  parse the instruction file yourself. Exit 0 prints `<home>`; exit 1 or 4 means
+  `docs/conventions`; exit 5 (outside a git work tree, or the root at or above your home directory)
+  skips the file; exit 2 or 3 is reported in the reply with the resolver's message and skips the
+  file. `when-instrumented` (the default, used when the file or the key
   is absent) proposes one when Phase 4 instrumentation ran, since needing a probe is what shows
   the fact was hidden; `always` proposes one on every run; `never` skips it. A file that does not
   parse, or any other value, is reported in the reply as invalid with the file, key and value, and

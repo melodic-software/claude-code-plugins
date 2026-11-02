@@ -61,8 +61,8 @@ This plugin has no `userConfig`. The phase checklist is a bundled template you c
 into your own working-notes location (or track inline); nothing is written to shared
 plugin storage.
 
-A repository can commit `docs/conventions/debugging.yaml` to set one key, checked against
-[`schemas/debugging.schema.json`](schemas/debugging.schema.json):
+A repository can commit `debugging.yaml` in its convention home (default `docs/conventions`)
+to set one key, checked against [`schemas/debugging.schema.json`](schemas/debugging.schema.json):
 
 | Key | Values | Default | What it controls |
 |---|---|---|---|
