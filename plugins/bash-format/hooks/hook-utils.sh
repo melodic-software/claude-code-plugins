@@ -4986,13 +4986,19 @@ hook::bash_parse_segments_uncached() {
           # for nothing after it.
           ((have)) && wq_esc=1
           ((i++))
-        elif [[ "$nx" == '`' && "$pstk" == *b* ]]; then
-          # Inside backticks `\`` opens or closes a nested substitution, whose
-          # text bash runs: split there as at a backtick, and a `#` right after
-          # it stays literal.
+        elif [[ "$pstk" == *b* ]] && { [[ "$nx" == '`' ]] || {
+          j=$i
+          while ((j < n)) && [[ "${chars[j]}" == '\' ]]; do ((j++)); done
+          [[ "${chars[j]-}" == '`' ]] && (((j - i) % 2))
+        }; }; then
+          # Inside backticks an odd run of backslashes before a backtick
+          # (`\``, `\\\``, …) opens or closes a nested substitution one level
+          # deeper, whose text bash runs: split there as at a backtick, and a
+          # `#` right after it stays literal.
           ((have)) && hook::_bps_close_word
           hook::_bps_flush_segment
-          ((i++))
+          [[ "$nx" == '`' ]] && j=$((i + 1))
+          i=$j
           hash_at=$((i + 1))
         else
           word+="$nx"

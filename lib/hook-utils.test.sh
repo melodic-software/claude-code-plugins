@@ -4086,6 +4086,8 @@ bps_segments_are 'the extglob-on reading keeps a pending here-doc body out of co
     'echo $' 'case x in x' ';' 'case y in y' ':' 'esac' 'z' ':' 'esac' '#' 'git reset --hard'
   bps_segments_are 'an escaped backtick inside backticks opens a nested substitution' \
     'echo `echo \`git reset --hard\``' 'echo' 'echo' 'git reset --hard'
+  bps_segments_are 'escaped backticks two levels deep open a nested substitution' \
+    'echo `echo \`echo \\\`git reset --hard\\\`\``' 'echo' 'echo' 'echo' 'git reset --hard'
   bps_segments_are 'a # right after a nested substitution is literal' \
     'echo `echo \`:\`#; git reset --hard`' 'echo' 'echo' ':' '#' 'git reset --hard'
   bps_segments_are 'an escaped backtick outside backticks stays a literal character' \

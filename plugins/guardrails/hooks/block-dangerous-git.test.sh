@@ -680,6 +680,10 @@ run "echo \`cat <<E\`⏎git reset --hard⏎E (here-doc opened inside backticks, 
     'echo `echo \`git reset --hard\``' 2
   run "echo \`echo \\\`:\\\`#; git reset --hard\` (# after a nested substitution, blocked)" \
     'echo `echo \`:\`#; git reset --hard`' 2
+  run "doubly nested escaped backticks around git reset --hard (blocked)" \
+    'echo `echo \`echo \\\`git reset --hard\\\`\``' 2
+  run "nested escaped backticks around a harmless command (allowed)" \
+    'echo `echo \`echo ok\``' 0
 }
 run "echo \`cat <<E⏎x\`⏎git reset --hard⏎E (here-doc body ends at the closing backtick, blocked)" \
   $'echo `cat <<E\nx`\ngit reset --hard\nE' 2
