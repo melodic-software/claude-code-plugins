@@ -45,7 +45,7 @@ agent-writable blocking knob is a bypass channel). Shipped defaults:
 | `C1` | n/a. No repo mutation to scan; output-shape checks govern | n/a |
 | `C2` | `blocking` | not required; `advisory` where org-enabled |
 | `C3` | `blocking` | `advisory`, promotable to `blocking` |
-| `C4` | `blocking` | `blocking`; human review additionally mandatory per the matrix |
+| `C4` | `blocking` | `blocking` |
 | `C5` | `blocking` | `blocking`; full-gate cell. The zero-secret-exposure execution constraint is owned by the [isolation floor](isolation-ladder.md), not this leaf |
 
 Shipped defaults are FLOORS: a binding may tighten any cell (`advisory` → `blocking`) but

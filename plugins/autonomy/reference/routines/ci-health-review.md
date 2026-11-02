@@ -39,8 +39,8 @@ The row is derived through the catalog's mapping rules, never hand-assigned:
    repository mutation → `C1`, with the `L2` unattended floor.
 2. **Direct-change portion (optional).** A change to CI workflow/config touches a
    structural/config surface, so the structural-blast-radius axis derives `C4`, meaning
-   deterministic + AI + human review mandatory and human merge always, regardless of how
-   small the edit looks.
+   blocking deterministic and AI review, and auto-merge only after the `C3-auto-merge`
+   promotion, regardless of how small the edit looks.
 3. **Composition rule.** Where one derivation matches multiple rules, it composes to the
    highest-risk class (`C5` > `C4` > `C3` > `C2` > `C1`). A run emitting only the report
    and work items stays `C1`; any run producing the gated CI-config change carries the
@@ -83,7 +83,7 @@ carries two prerequisite sets.
 | Isolation floor | `L2`, cited from the [matrix](../guardrails.md#the-matrix) `C4` row and the [unattended floor](../guardrails/isolation-ladder.md#unattended-floor) |
 | Connector entitlements | none. Access is `repo`, so the connector branch of [Access to prerequisites](../routines.md#access-to-prerequisites) does not apply |
 | Connector entitlement rung | n/a (no connector). For `prod` / `product` / `org` / `ext`, entitlement binds at the [Org binding layer](../binding-seam.md#resolution-ladder) |
-| `executor_class` merge cap | cited from [executor surface classes](../trigger-dispatch.md#executor-surface-classes). None: `executor_class` is deprecated and caps nothing. `C4` is human merge always |
+| `executor_class` merge cap | cited from [executor surface classes](../trigger-dispatch.md#executor-surface-classes). None: `executor_class` is deprecated and caps nothing. `C4` auto-merges only after the `C3-auto-merge` promotion |
 | Repo needs | everything `advisory` requires, plus a merge-bearing path through the matrix for the gated CI-config change. The identity is not eligible where the bound surface cannot carry a merge-policy disposition |
 
 ## Admission and escalation
