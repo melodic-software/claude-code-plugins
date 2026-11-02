@@ -4,7 +4,7 @@ tags: [preflight, hard, self-reference]
 runs: 3
 max_turns: 10
 allowed_tools: [Read, Skill]
-append_system_prompt: "This session allows only the Read and Skill tools. Grep, Glob and every other tool are denied, so never call them and never search the filesystem: answer from a skill you load and the files it names, or from what you already know."
+append_system_prompt: "This session allows only the Read and Skill tools. Grep, Glob and every other tool are denied, so never call them and never search the filesystem."
 expected_outcome: "The answer says the judge resolves from --judge-model's own default, not from --model, and names that default or where to read it (the command options table or --help); with --judge-model sonnet the judge and the tested model are the same, so the preflight prints the same-model warning, and the run still goes ahead"
 ---
 
