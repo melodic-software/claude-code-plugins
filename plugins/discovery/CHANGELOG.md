@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [0.45.4] - 2026-11-02
+
+### Changed
+
+- Hook notices name the bundled checker command; `check` is optional (#12485).
+
 ## [0.45.3] - 2026-11-02
 
 ### Changed

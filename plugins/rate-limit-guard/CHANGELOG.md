@@ -3,6 +3,16 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.13] - 2026-11-02
+
+### Changed
+
+- Hook notices name the bundled checker command; `check` is optional (#12485).
+
+### Fixed
+
+- The shared hook library's Bash segment parser (`hook::bash_parse_segments`) now passes each substitution in an unquoted here-doc body (`$(...)`, a backtick pair, `${...}`, `$[...]`) to its callback as segments of their own, because bash runs them. A body under a quoted delimiter is still skipped as data.
+
 ## [2.1.12] - 2026-11-02
 
 ### Fixed

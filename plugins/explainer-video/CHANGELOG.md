@@ -3,6 +3,16 @@
 All notable changes to the `explainer-video` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.9] - 2026-11-02
+
+### Changed
+
+- Hook notices name the bundled checker command; `check` is optional (#12485).
+
+### Fixed
+
+- The shared hook library's Bash segment parser (`hook::bash_parse_segments`) now passes each substitution in an unquoted here-doc body (`$(...)`, a backtick pair, `${...}`, `$[...]`) to its callback as segments of their own, because bash runs them. A body under a quoted delimiter is still skipped as data.
+
 ## [0.4.8] - 2026-11-02
 
 ### Changed
