@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "mcp__plugin_pw-mcp_playwright__browser_navigate",
+          "input": {
+            "url": "file:///work/r/r/.base/plugins/testing/evals/browser-mcp-probe/peek/canary.html"
+          }
+        }
+      ],
+      "why": "the canary navigate step"
+    },
+    {
+      "answer": [
+        {
+          "tool": "mcp__plugin_pw-mcp_playwright__browser_navigate",
+          "input": {
+            "url": "file://D:\\a\\r\\plugins\\testing\\evals\\browser-mcp-probe\\peek\\canary.html"
+          }
+        }
+      ],
+      "why": "Windows separators"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "mcp__plugin_pw-mcp_playwright__browser_navigate",
+          "input": {
+            "url": "https://example.com/"
+          }
+        }
+      ],
+      "why": "a different page"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/x/peek/canary.html"
+          }
+        }
+      ],
+      "why": "Read route, not the browser"
+    }
+  ]
+}

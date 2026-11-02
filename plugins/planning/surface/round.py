@@ -2908,8 +2908,9 @@ def cmd_import_ledger(d, a):
             )
         exporters.import_ledger(doc, text, str(Path(a.ledger).resolve()), now())
         save(d, doc, doc["questions"])
+    n = len(doc["questions"])
     print(
-        f"seeded {len(doc['questions'])} questions from {a.ledger} (rev {doc['rev']})"
+        f"seeded {n} question{'' if n == 1 else 's'} from {a.ledger} (rev {doc['rev']})"
     )
 
 
