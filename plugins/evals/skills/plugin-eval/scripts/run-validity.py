@@ -104,7 +104,6 @@ import json
 import os
 import posixpath
 import re
-import shlex
 import sys
 
 MIN_PYTHON = (3, 8)
@@ -188,6 +187,31 @@ SHELL_SPLIT = re.compile(r"[<>|;&()'\"=]")  # where one shell word holds several
 UNRESOLVED = re.compile(r"[$`*?\[{]|^~|[^\w./-]/")
 # A path that resolves against the validator's own process, matched normalized.
 OWN_PROCESS = re.compile(r"^/+(proc/(self|thread-self)|dev/fd)(/|$)")
+# Same-command shell variables (shell_words): an unquoted NAME= opening a word,
+# and a $NAME or ${NAME}.
+SHELL_NAME = r"[A-Za-z_][A-Za-z0-9_]*"
+ASSIGNMENT = re.compile(r"(%s)=" % SHELL_NAME)
+EXPANSION = re.compile(r"\$(?:(%s)|\{(%s)\})" % (SHELL_NAME, SHELL_NAME))
+# A value a later $NAME cannot stand for as one literal word: empty, or holding
+# whitespace, an expansion, a glob or brace, a redirect, or a tilde the shell
+# would expand.
+UNRECORDED_VALUE = re.compile(r"\A\Z|[\s$`*?\[{<>]|\A~|:~")
+# A command holding one of these can set or split a variable in a way not traced.
+NO_RESOLVE = ("`", "<<", "IFS")
+# Names the shell sets, ignores assignments to or holds readonly, so an earlier
+# assignment does not fix their value.
+SHELL_SET = frozenset(
+    "_ PWD OLDPWD RANDOM SRANDOM SECONDS LINENO REPLY OPTARG OPTIND HISTCMD"
+    " EPOCHSECONDS EPOCHREALTIME BASHPID PPID UID EUID GROUPS FUNCNAME"
+    " SHELLOPTS MAPFILE PIPESTATUS DIRSTACK COPROC".split()
+)
+RESETS = ("eval", "source", ".")  # run other shell code, which may set any name
+# Words opening or closing a compound command: an assignment inside one may not run.
+COMPOUND = frozenset(
+    "if then else elif fi while until for select do done case esac function { }".split()
+)
+# The operators after which an assignment that ran stays set in the shell.
+KEEPS_ASSIGNMENT = (None, ";", "\n", "&&")
 
 # The suite's skill-fired convention and the no-trigger control markers.
 SKILL_TOOL = "Skill"
@@ -766,24 +790,175 @@ def rooted(path):
     return os.path.splitdrive(path or "")[1][:1] in (os.sep, os.altsep)
 
 
+def shell_tokens(command):
+    """A Bash command as tokens: ("op", text) for an unquoted ;, &, &&, |, ||, (,
+    ) or newline, else ("word", parts), each part (text, quote), quote None for
+    unquoted text, '"' for double-quoted text and "'" for text the shell takes as
+    written (single quotes or a backslash escape). A & or | right after < or >,
+    or a & before >, stays in its redirect's word. None when a quote is left open
+    or a backslash ends the command."""
+    tokens, parts, i, n = [], [], 0, len(command)
+
+    def add(text, quote):
+        if parts and parts[-1][1] == quote:
+            parts[-1] = (parts[-1][0] + text, quote)
+        else:
+            parts.append((text, quote))
+
+    def end_word():
+        if parts:
+            tokens.append(("word", parts[:]))
+            parts.clear()
+
+    while i < n:
+        char = command[i]
+        if char == "\\":
+            if i + 1 == n:
+                return None
+            if command[i + 1] != "\n":
+                add(command[i + 1], "'")
+            i += 2
+        elif char == "'":
+            close = command.find("'", i + 1)
+            if close < 0:
+                return None
+            add(command[i + 1 : close], "'")
+            i = close + 1
+        elif char == '"':
+            i += 1
+            add("", '"')
+            while i < n and command[i] != '"':
+                escaped = command[i + 1 : i + 2]
+                if command[i] == "\\" and escaped in ("$", "`", '"', "\\", "\n"):
+                    if escaped != "\n":
+                        add(escaped, "'")
+                    i += 2
+                else:
+                    add(command[i], '"')
+                    i += 1
+            if i >= n:
+                return None
+            i += 1
+        elif char in " \t":
+            end_word()
+            i += 1
+        elif char in "\n;&|()" and not (
+            (
+                char in "&|"
+                and parts
+                and parts[-1][1] is None
+                and parts[-1][0].endswith(("<", ">"))
+            )
+            or command.startswith("&>", i)
+        ):
+            end_word()
+            op = command[i : i + 2] if command[i : i + 2] in ("&&", "||") else char
+            tokens.append(("op", op))
+            i += len(op)
+        else:
+            add(char, None)
+            i += 1
+    end_word()
+    return tokens
+
+
+def assignment(parts):
+    """The match of a word's opening unquoted NAME=, else None."""
+    return ASSIGNMENT.match(parts[0][0]) if parts[0][1] is None else None
+
+
+def expand(parts, names):
+    """A word's text, each $NAME or ${NAME} outside single quotes replaced by
+    names[NAME], one with no entry left as written."""
+    return "".join(
+        text
+        if quote == "'"
+        else EXPANSION.sub(lambda m: names.get(m.group(1) or m.group(2), m.group(0)), text)
+        for text, quote in parts
+    )
+
+
+def shell_words(command):
+    """A Bash command's words as (text, lead) pairs, quotes removed. A $NAME or
+    ${NAME} outside single quotes takes the value of an earlier NAME=value in the
+    same command when that assignment stands alone as a command the shell is sure
+    to run in its own process (at the top level, first or after ;, a newline or
+    an && whose left side was such an assignment, before any compound command or
+    # comment) and its value is one literal word (UNRECORDED_VALUE). A later
+    word that holds the name other than as $NAME or ${NAME}, an eval, source or
+    ., or any assignment to it not recorded so drops the name, as in read NAME,
+    printf -vNAME or ((NAME=1)). Every other expansion stays as written. lead marks each
+    command's first word and each assignment, whose first piece names a command
+    or a variable, not a path. None when the command does not parse."""
+    tokens = shell_tokens(command)
+    if tokens is None:
+        return None
+    names, words, simple = {}, [], []
+    recording = not any(mark in command for mark in NO_RESOLVE)
+    depth, certain, at_command = 0, True, True
+    for kind, value in tokens + [("op", None)]:
+        if kind == "word":
+            simple.append(value)
+            continue
+        lead = at_command
+        alone = bool(simple) and at_command and all(assignment(p) for p in simple)
+        sure = alone and recording and depth == 0 and certain and value in KEEPS_ASSIGNMENT
+        for parts in simple:
+            match = assignment(parts) if lead else None
+            if match:
+                name = match.group(1)
+                text = expand([(parts[0][0][match.end() :], None)] + parts[1:], names)
+                words.append((name + "=" + text, True))
+                names.pop(name, None)
+                if (
+                    sure
+                    and name not in SHELL_SET
+                    and not name.startswith("BASH")
+                    and not UNRECORDED_VALUE.search(text)
+                ):
+                    names[name] = text
+                continue
+            raw = "".join(text for text, _ in parts)
+            if lead and raw in RESETS:
+                names.clear()
+            if (lead and raw in COMPOUND) or (parts[0][1] is None and raw[:1] == "#"):
+                recording = False
+            mentions = EXPANSION.sub("", raw)
+            for name in [name for name in names if name in mentions]:
+                del names[name]
+            words.append((expand(parts, names), lead))
+            lead = False
+        simple = []
+        certain = value in (";", "\n", None) or (value == "&&" and certain and sure)
+        if value == "(":
+            depth += 1
+        elif value == ")":
+            depth = max(depth - 1, 0)
+        at_command = value != ")"
+    return words
+
+
 def bash_paths(command):
     """The paths a Bash command names: each rooted word, split at quotes,
-    redirects, pipes, parentheses and `=` so --flag=/x, >/x and '/x' count. A
-    word UNRESOLVED matches, a relative path with a slash or any later word that
-    is neither rooted nor a flag (cwd-relative, so possibly the plugin), a path
-    OWN_PROCESS matches, no rooted word, or a command that does not parse adds
-    None, which inside() counts as inside."""
-    try:
-        words = shlex.split(command) if isinstance(command, str) else None
-    except ValueError:
-        words = None
+    redirects, pipes, parentheses and `=` so --flag=/x, >/x and '/x' count, after
+    shell_words puts each same-command variable it resolves in place. A word
+    UNRESOLVED matches, a relative path with a slash or any word that is neither
+    rooted, a flag nor the command or variable name opening a lead word
+    (cwd-relative, so possibly the plugin), a path OWN_PROCESS matches, no rooted
+    word, or a command that does not parse adds None, which inside() counts as
+    inside."""
+    words = shell_words(command) if isinstance(command, str) else None
     if not words:
         return (None,)
-    values = [v for w in words for v in SHELL_SPLIT.split(w) if v]
-    paths = tuple(v for v in values if rooted(v))
+    values = []
+    for text, lead in words:
+        first = lead and not SHELL_SPLIT.match(text)
+        pieces = [v for v in SHELL_SPLIT.split(text) if v]
+        values += [(v, first and k == 0) for k, v in enumerate(pieces)]
+    paths = tuple(v for v, _ in values if rooted(v))
     unresolved = (
-        any(UNRESOLVED.search(v) or (not rooted(v) and "/" in v) for v in values)
-        or any(not rooted(v) and not v.startswith("-") for v in values[1:])
+        any(UNRESOLVED.search(v) or (not rooted(v) and "/" in v) for v, _ in values)
+        or any(not (lead or rooted(v) or v.startswith("-")) for v, lead in values)
         or any(OWN_PROCESS.search(posixpath.normpath(v)) for v in paths)
     )
     return paths + (None,) if unresolved or not paths else paths
