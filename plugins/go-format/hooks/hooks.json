@@ -1,5 +1,5 @@
 {
-  "description": "Formats Go source and its imports with goimports once per batch of tool calls, optionally checks the uncommitted changes when a turn ends, and reports a missing goimports or a drifted git-hook entry at session start.",
+  "description": "Formats Go source and its imports with goimports once per batch of tool calls, optionally checks the uncommitted changes when a turn ends; harness-ops reports a missing goimports or a drifted git-hook entry at session start, from this plugin's prerequisites.json.",
   "hooks": {
     "PostToolBatch": [
       {
@@ -37,37 +37,6 @@
             ],
             "timeout": 30,
             "statusMessage": "Checking Go in uncommitted changes..."
-          }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "matcher": "startup|resume|clear|fork",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs",
-              "probe",
-              "${CLAUDE_PLUGIN_ROOT}",
-              "--run-if-unset-or-true",
-              "GO_FORMAT_ENABLED"
-            ],
-            "timeout": 10,
-            "statusMessage": "Checking goimports..."
-          }
-        ]
-      },
-      {
-        "matcher": "startup|resume|clear|fork",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /go-format:check GO_FORMAT_ENABLED; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /go-format:check GO_FORMAT_ENABLED",
-            "timeout": 10,
-            "statusMessage": "Checking that node is on PATH..."
           }
         ]
       }

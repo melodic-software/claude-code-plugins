@@ -1238,18 +1238,13 @@ assert_eq "the launcher skips the Stop row before bash with the script's own mar
     .[1:6] == ["--marker-root", "${CLAUDE_PLUGIN_DATA}", "--skip-unless-marker", "guard-launch-monitor",
       "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh"] and .[6:10] == .[1:5]] == [true]' "$HOOKS_JSON" | tr -d '\r')"
 
-# --- the SessionStart node notice is shell form and needs no node ---
-# Its behavior, with and without node and under PowerShell, is run by
-# scripts/node-notice-rows.test.sh; this pins that disk-hygiene keeps it shell form.
-# The same SessionStart entry also runs the resume notice (#9853), whose
-# behavior resume-notice.test.mjs runs; this pins the entry's two handlers.
-assert_eq "one SessionStart entry with two handlers" "[2]" \
+# --- SessionStart runs only the resume notice ---
+# harness-ops reports a missing node (scripts/node-notice-rows.test.sh); the resume notice
+# (#9853) is the entry's one handler, whose behavior resume-notice.test.mjs runs.
+assert_eq "one SessionStart entry with one handler" "[1]" \
   "$(jq -c '[.hooks.SessionStart[] | .hooks | length]' "$HOOKS_JSON")"
-notice="$(jq -c '.hooks.SessionStart[0].hooks[0]' "$HOOKS_JSON")"
-assert_eq "the first SessionStart handler is shell form with no args" "true" \
-  "$(jq '.type == "command" and (has("args") | not) and (.command | startswith("sh ") and contains("prerequisites.sh\" node-notice /disk-hygiene:check"))' <<<"$notice")"
-assert_eq "the second SessionStart handler is the exec-form resume notice" "true" \
-  "$(jq '.hooks.SessionStart[0].hooks[1] | .command == "node" and .args == ["${CLAUDE_PLUGIN_ROOT}/hooks/resume-notice.mjs", "--marker-root", "${CLAUDE_PLUGIN_DATA}"]' "$HOOKS_JSON" | tr -d '\r')"
+assert_eq "the SessionStart handler is the exec-form resume notice" "true" \
+  "$(jq '.hooks.SessionStart[0].hooks[0] | .command == "node" and .args == ["${CLAUDE_PLUGIN_ROOT}/hooks/resume-notice.mjs", "--marker-root", "${CLAUDE_PLUGIN_DATA}"]' "$HOOKS_JSON" | tr -d '\r')"
 assert_eq "the clean expansion records the session the resume notice reads" "true" \
   "$(jq '[.hooks.UserPromptExpansion[].hooks[].args | .[1:6] == ["${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "--marker-root", "${CLAUDE_PLUGIN_DATA}", "--launch-marker", "clean-invoked"]] == [true]' "$HOOKS_JSON" | tr -d '\r')"
 assert_eq "a model load of clean records the same marker, with no target to launch" "true" \

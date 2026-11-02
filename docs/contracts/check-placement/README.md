@@ -292,8 +292,10 @@ Drift line, shown to the user only:
 <plugin>: git hook <name> <state>; run /<plugin>:setup apply install-git-hooks
 ```
 
-The SessionStart drift check runs inside each plugin's existing `prerequisites.mjs probe` row, so
-it adds no SessionStart spawn. A decline is recorded per clone by default, never committed; git shares
+The SessionStart drift check runs inside the plugin's `prerequisites.mjs probe`, which harness-ops'
+one SessionStart runner starts for each plugin that declares `session_probe` in its
+`prerequisites.json` ([prerequisites](../prerequisites/README.md#the-checker)), so it adds no
+SessionStart row. A decline is recorded per clone by default, never committed; git shares
 `.git/config` and the hooks directory across every worktree of a clone, so the decline has the
 same scope as the hook it declines. A global decline (`decline --global`, or the master key
 `checks.git-hooks.declined` that declines every entry of every plugin) covers every clone; a

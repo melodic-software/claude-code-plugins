@@ -60,52 +60,19 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" ]]; then
   expect "hooks.json: the Stop row is gated on the end-of-turn option" "$EXPECTED_STOP" "$(jq -c '.hooks.Stop[0].hooks[0].args' "$HOOKS_JSON")"
   expect "hooks.json: the end-of-turn option is declared, default false" "boolean false" \
     "$(jq -r '.userConfig.go_format_end_of_turn | "\(.type) \(.default)"' "$PLUGIN_ROOT/.claude-plugin/plugin.json")"
-  expect "hooks.json: SessionStart holds the probe and the node notice only" "2" "$(jq '[.hooks.SessionStart[] | .hooks[]] | length' "$HOOKS_JSON")"
+  expect "hooks.json: no SessionStart row; harness-ops runs the probe" "false" "$(jq '.hooks | has("SessionStart")' "$HOOKS_JSON")"
 else
   fail "hooks.json assertions need jq and $HOOKS_JSON"
 fi
 
-# --- SessionStart probe honors go_format_enabled -------------------------------
-# With the option false the plugin is off, so the missing-goimports notice is
-# noise. The row's --run-if-unset-or-true gate makes the launcher exit 0 before
-# bash starts. The argv is read out of hooks.json, so the row and this test
-# cannot disagree. The unset and true cases guard against gating everything off.
-NODE_BIN="$(command -v node || true)"
-SYS_PATH="/usr/bin:/bin"
+# --- SessionStart probe: run by harness-ops behind go_format_enabled -----------
+# harness-ops' prerequisites-fleet.mjs runs this plugin's probe and skips it when the
+# option is set to anything but true; that runner's own test covers the gate.
 WORK="$(mktemp -d)"
 UNRELATED="$(mktemp -d)"
 trap 'rm -rf "$WORK" "$UNRELATED"' EXIT
-if [[ -z "$NODE_BIN" ]] || ! command -v jq >/dev/null 2>&1; then
-  echo "SKIP: node or jq not on PATH -- SessionStart probe gate cases skipped"
-elif PATH="$SYS_PATH" command -v goimports >/dev/null 2>&1; then
-  echo "SKIP: goimports is under $SYS_PATH -- SessionStart probe gate cases skipped"
-else
-  PROBE_ARGS=()
-  while IFS= read -r probe_arg; do
-    PROBE_ARGS+=("${probe_arg//\$\{CLAUDE_PLUGIN_ROOT\}/$PLUGIN_ROOT}")
-  # tr: a Windows jq.exe ends each line with CRLF, and read keeps the CR.
-  done < <(jq -r '.hooks.SessionStart[0].hooks[0].args[]' "$HOOKS_JSON" | tr -d '\r')
-  # run_probe_row <data-dir> [NAME=value ...]: the row under a clean environment.
-  run_probe_row() {
-    local data="$1"
-    shift
-    env -i PATH="$SYS_PATH" CLAUDE_PLUGIN_DATA="$data" "$@" "$NODE_BIN" "${PROBE_ARGS[@]}" <<<'{"session_id":"s1"}'
-  }
-  for probe_case in false unset true; do
-    PROBE_DATA="$(mktemp -d "$WORK/probe-data.XXXXXX")"
-    probe_env=()
-    [[ "$probe_case" == unset ]] || probe_env=("CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=$probe_case")
-    PROBE_OUT="$(run_probe_row "$PROBE_DATA" ${probe_env[@]+"${probe_env[@]}"})"
-    PROBE_RC=$?
-    if [[ "$probe_case" == false ]]; then
-      expect "probe-gate/false: go_format_enabled=false exits 0 with no goimports notice" "0|" "$PROBE_RC|$PROBE_OUT"
-    elif [[ $PROBE_RC -eq 0 && "$PROBE_OUT" == *"goimports not on the hook PATH"* ]]; then
-      ok "probe-gate/$probe_case: go_format_enabled $probe_case still reports the missing goimports"
-    else
-      fail "probe-gate/$probe_case: want rc 0 and the missing-goimports notice (rc=$PROBE_RC out=$PROBE_OUT)"
-    fi
-  done
-fi
+expect "prerequisites.json: session_probe is gated on go_format_enabled" "GO_FORMAT_ENABLED" \
+  "$(jq -r '.session_probe.run_if_unset_or_true' "$PLUGIN_ROOT/prerequisites.json" | tr -d '\r')"
 
 # Resolve a real goimports binary. Skip the rest of the suite when none is available.
 if [[ -n "${GOIMPORTS_TEST_BIN:-}" && -x "${GOIMPORTS_TEST_BIN}" ]]; then
