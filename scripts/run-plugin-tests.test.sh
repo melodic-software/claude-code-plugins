@@ -134,6 +134,25 @@ assert_output_has "the failing suite is named" "FAIL: plugins/b/b.test.sh"
 assert_output_has "suites after the failure still run" "PASS: plugins/c/c.test.sh"
 assert_output_has "the failure summary line" "One or more plugin tests failed."
 
+# A failed suite's excerpt follows its annotation: the early FAIL line a tail
+# alone would miss, then the tail, indented so neither line is parsed again.
+r="$(make_root excerpt)"
+# shellcheck disable=SC2016
+write_suite "$r" plugins/a/a.test.sh 'echo "FAIL: case one broke"; echo "::error::from the suite"; for i in $(seq 1 100); do echo "filler $i"; done; echo "last line"; exit 1'
+PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 1 "a long failing suite exits 1" --root "$r"
+excerpt="${RUN_OUTPUT#*::error title=plugins/a/a.test.sh::plugins/a/a.test.sh failed (exit 1)}"
+if [[ "$excerpt" == $'\n  Failing lines of plugins/a/a.test.sh:\n    FAIL: case one broke\n  Last 80 lines of plugins/a/a.test.sh:\n    filler 22\n'* &&
+  "$excerpt" == *$'\n    filler 100\n    last line\n'* ]]; then
+  ok "the annotation is followed by the indented FAIL line and the last 80 lines"
+else
+  fail "excerpt: got [$excerpt]"
+fi
+if [[ "$(grep -c '^::error' <<<"$RUN_OUTPUT")" -eq 2 ]]; then
+  ok "the reprinted ::error line is not a workflow command"
+else
+  fail "reprinted ::error: got [$RUN_OUTPUT]"
+fi
+
 r="$(make_root skips)"
 write_suite "$r" plugins/a/a.test.sh 'echo "SKIP: shfmt not installed"; echo "ok: rest"'
 write_suite "$r" plugins/b/b.test.sh 'echo "ok: b"'

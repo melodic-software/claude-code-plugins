@@ -75,7 +75,9 @@
 # concurrent suites never interleave and the per-suite markers that CI log
 # tooling reads survive. The block is printed the moment its suite finishes, so
 # progress stays visible. The TIME line prints on every run, with or without
-# --budget, so a CI log shows each suite's wall seconds.
+# --budget, so a CI log shows each suite's wall seconds. A failed suite's
+# annotation in the summary is followed by an indented excerpt of its capture:
+# its FAIL and `not ok` lines, then its last 80 lines.
 #
 # ADVISORY SUITES. With PLUGIN_TEST_ADVISORY=1 a failing suite named in
 # scripts/run-plugin-tests-advisory.txt prints a ::warning:: and its FAIL block
@@ -513,6 +515,20 @@ suite_annotate() {
   echo "::$level title=$title::$msg"
 }
 
+# fail_excerpt <suite> <capture>: a failed suite's FAIL and `not ok` lines (the
+# first 20) and its last 80 lines, printed again under its annotation, since its
+# block can sit thousands of lines above the summary. Every line is indented, so
+# nothing reprinted reads as a workflow command or a runner marker
+# (`FAIL: <suite>`, `=== <suite> ===`).
+fail_excerpt() {
+  if grep -q -E '^(FAIL|not ok)' "$2"; then
+    printf '  Failing lines of %s:\n' "$1"
+    grep -m 20 -E '^(FAIL|not ok)' "$2" | sed 's/^/    /'
+  fi
+  printf '  Last 80 lines of %s:\n' "$1"
+  tail -n 80 "$2" | sed 's/^/    /'
+}
+
 failed=0
 advisory_failed=0
 total_optional_skips=0
@@ -533,9 +549,11 @@ for i in "${!tests[@]}"; do
   [[ -z "$timings_file" ]] || printf '%s\t%s\t%s\n' "$t" "$(<"$log.secs")" "$rc" >>"$timings_file"
   if ((rc != 0)) && [[ -n "${is_advisory[$t]+x}" ]]; then
     suite_annotate warning "$t" "$t failed (exit $rc) but is advisory on this run (nonce $advisory_nonce; PLUGIN_TEST_ADVISORY=1, scripts/run-plugin-tests-advisory.txt)"
+    fail_excerpt "$t" "$log.out"
     advisory_failed=$((advisory_failed + 1))
   elif ((rc != 0)); then
     suite_annotate error "$t" "$t failed (exit $rc)"
+    fail_excerpt "$t" "$log.out"
     failed=1
   fi
   if [[ -n "$budget" ]]; then
