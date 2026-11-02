@@ -35,15 +35,3 @@ environment variable, a managed setting) as the first thing to check.
 - **As of**: 2026-11-02
 - **Recheck trigger**: the note changes its plan or provider list or the Pro step, or moves under
   a heading with its own anchor; or a release note changes which plans get dynamic workflows.
-
-## When the standing setting fits
-
-We recommend `/effort ultracode` only when workflows are on and the session's model supports
-`xhigh` effort. Otherwise we recommend the keyword form, or a plain request for a workflow, per
-task.
-
-- **Pointer**: when recommending the standing setting, fetch
-  <https://code.claude.com/docs/en/model-config#when-ultracode-is-available> live.
-- **As of**: 2026-11-02
-- **Recheck trigger**: that section adds or drops a condition, or a release note changes when
-  ultracode is available.

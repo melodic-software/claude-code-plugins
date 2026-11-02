@@ -74,11 +74,11 @@ Two caveats on the workflow row, each of which turns a plausible recommendation 
   `use a workflow`, is the same opt-in. `/effort ultracode` is the separate standing session
   setting that plans a workflow for each substantive task; for what it does to the effort level,
   see [Let Claude decide with ultracode](https://code.claude.com/docs/en/workflows#let-claude-decide-with-ultracode)
-  (as of 2026-10-02; recheck when that section changes ultracode's effort interaction). Before
-  recommending either form, apply the routing decisions in
-  [reference/workflow-row.md](reference/workflow-row.md): which prompt sources the keyword fits
-  (a `-p`, Agent SDK, scheduled or relayed prompt among them), which plans reach the workflow
-  lever and what a plan must switch on first, and when the standing setting fits.
+  (as of 2026-10-02; recheck when that section changes ultracode's effort interaction). The
+  standing setting needs a model that offers `xhigh` effort. Before recommending either form,
+  apply the routing decisions in [reference/workflow-row.md](reference/workflow-row.md): which
+  prompt sources the keyword fits (a `-p`, Agent SDK, scheduled or relayed prompt among them), and
+  which plans reach the workflow lever and what a plan must switch on first.
 - **The lever is unreachable from an ordinary subagent.** The `Workflow` tool is filtered out of
   every non-fork subagent (the filter is in
   [sub-agents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools), as of
