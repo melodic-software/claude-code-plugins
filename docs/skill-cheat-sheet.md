@@ -8,6 +8,24 @@ Grouping axis: this page groups skills by **sequence of use**, the session-flow 
 stages you move through while working. The separate what-kind-of-plugin taxonomy axis is
 owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 
+## Start from your problem
+
+| I want to | Start with |
+| --- | --- |
+| Understand code before changing it | [`/discovery:explore`](../plugins/discovery/skills/explore/SKILL.md) |
+| Find out why something was built this way | [`/discovery:trace-intent`](../plugins/discovery/skills/trace-intent/SKILL.md) |
+| Answer a question from outside sources | [`/discovery:research`](../plugins/discovery/skills/research/SKILL.md) |
+| Pin down a vague task before building it | [`/planning:interview`](../plugins/planning/skills/interview/SKILL.md) |
+| Make a code change | [`/implementation:implement`](../plugins/implementation/skills/implement/SKILL.md) |
+| Find the cause of a bug or failure | [`/debugging:debug`](../plugins/debugging/skills/debug/SKILL.md) |
+| Fix a failing test | [`/testing:diagnose`](../plugins/testing/skills/diagnose/SKILL.md) |
+| Get my change reviewed | [`/review:quality-gate`](../plugins/review/skills/quality-gate/SKILL.md) |
+| Prove my change worked | [`/verification:confirm`](../plugins/verification/skills/confirm/SKILL.md) |
+| Open, watch or merge a pull request | [`/source-control:pull-request`](../plugins/source-control/skills/pull-request/SKILL.md) |
+| Work the next item in the backlog | [`/work-items:work`](../plugins/work-items/skills/work/SKILL.md) |
+| Pick up after an interruption | [`/session-flow:keep-going`](../plugins/session-flow/skills/keep-going/SKILL.md) |
+| See which skills fit right now | [`/session-flow:recommend-skills`](../plugins/session-flow/skills/recommend-skills/SKILL.md) |
+
 <!-- cheatsheet:start -->
 
 - [1. Explore](#1-explore)

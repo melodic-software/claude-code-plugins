@@ -186,11 +186,11 @@ if [[ -s "$SINK_FILE" ]]; then
     fail "envelope: hook_event expected PostToolUse, got $he"
   fi
   # Validate status
-  st=$(jq -r '.status' "$SINK_FILE")
-  if [[ "$st" == "ok" ]]; then
+  status_val=$(jq -r '.status' "$SINK_FILE")
+  if [[ "$status_val" == "ok" ]]; then
     ok "envelope: status is ok"
   else
-    fail "envelope: status expected ok, got $st"
+    fail "envelope: status expected ok, got $status_val"
   fi
 else
   fail "envelope shape: sink file empty — emit did not fire or sink did not write"
@@ -1215,14 +1215,14 @@ fi
 # early not-proven return alike. `${#mb}` counts characters in the caller's
 # locale, so it moving would mean the caller was left in C.
 lc12g2_check() { # <label> <command...>
-  local label="$1" before_len mb='é日' st=0
+  local label="$1" before_len mb='é日' lc_rc=0
   shift
   before_len=${#mb}
-  "$@" >/dev/null 2>&1 || st=$?
-  if ((st == 127)); then
+  "$@" >/dev/null 2>&1 || lc_rc=$?
+  if ((lc_rc == 127)); then
     fail "C locale check $label: command not run"
   elif [[ "${#mb}" == "$before_len" ]]; then
-    ok "C locale restored after $label (rc $st)"
+    ok "C locale restored after $label (rc $lc_rc)"
   else
     fail "C locale leaked after $label: \${#mb} $before_len -> ${#mb}"
   fi
