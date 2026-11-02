@@ -11,6 +11,14 @@
     },
     {
       "answer": "Rec 1: the `test` script runs vitest, so write the new tests in vitest rather than jest. Basis: verified."
+    },
+    {
+      "answer": "Recommendation 1 no longer stands: the test script runs vitest, not jest.",
+      "why": "jest named as the claim that no longer stands"
+    },
+    {
+      "answer": "Rec 1 (jest -> vitest) is corrected and rec 3 stands.",
+      "why": "the keep-word belongs to another recommendation"
     }
   ],
   "fail": [
@@ -37,6 +45,14 @@
     {
       "answer": "Keep jest; vitest is not used in this repo.",
       "why": "vitest only negated; jest kept"
+    },
+    {
+      "answer": "package.json's `test` script is `vitest run`, but recommendation 1 stands: keep jest.",
+      "why": "quotes vitest from the file while keeping jest"
+    },
+    {
+      "answer": "The test script runs vitest. Recommendation 1 (jest) still holds.",
+      "why": "quotes vitest, then keeps jest"
     }
   ]
 }

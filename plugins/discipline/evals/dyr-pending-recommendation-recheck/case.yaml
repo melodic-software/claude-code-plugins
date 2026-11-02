@@ -10,12 +10,12 @@ graders:
     target: trace
   - name: test-runner-corrected
     type: regex
-    pattern: '^(?=[\s\S]*\bjest\b)[\s\S]*?(?<!\bnot )(?<!n''t )(?<!\bno )(?<!without )\bvitest\b(?!`?[ \t]+(?:is not|isn''t|is never|not|never)[ \t]+(?:needed|used|installed|present|required|configured|the runner))'
+    pattern: '^(?![\s\S]*?(?:\bjest\b[`*)\]]*[ \t]*(?:[:,—–-][ \t]*)?(?:is |was |is still |remains )?(?<!n''t )(?<!n’t )(?<!\bnot )(?<!not\*\* )(?<!no longer )(?<!longer\*\* )\b(?:stands|unchanged|still holds|still applies|keep|kept)\b|(?<!n''t )(?<!n’t )(?<!\bnot )(?<!not\*\* )(?<!no longer )(?<!longer\*\* )\b(?:stands|unchanged|still holds|still applies|keep|kept)\b[ \t:*`]*(?:using |with )?\bjest\b))(?=[\s\S]*\bjest\b)[\s\S]*?(?<!\bnot )(?<!n''t )(?<!\bno )(?<!without )\bvitest\b(?!`?[ \t]+(?:is not|isn''t|is never|not|never)[ \t]+(?:needed|used|installed|present|required|configured|the runner))'
     flags: 'i'
     target: last_message
   - name: engines-corrected
     type: regex
-    pattern: '(?:>=|≥)[ \t]*v?20\b|\bnode(?:\.js)?[ \t]+(?:version[ \t]+)?v?20\b|\bnode(?:\.js)?[ \t]+twenty\b|\btwenty or (?:later|newer|above|higher)\b'
+    pattern: '^(?![\s\S]*?(?:(?:(?:>=|≥)[ \t]*v?16\b|\bnode(?:\.js)?[ \t]+(?:version[ \t]+)?v?16\b)[`*)\]]*[ \t]*(?:[:,—–-][ \t]*)?(?:is |was |is still |remains )?(?<!n''t )(?<!n’t )(?<!\bnot )(?<!not\*\* )(?<!no longer )(?<!longer\*\* )\b(?:stands|unchanged|still holds|still applies|keep|kept)\b|(?<!n''t )(?<!n’t )(?<!\bnot )(?<!not\*\* )(?<!no longer )(?<!longer\*\* )\b(?:stands|unchanged|still holds|still applies|keep|kept)\b[ \t:*`]*(?:node(?:\.js)?[ \t]+)?(?:(?:>=|≥)[ \t]*)?v?16\b))[\s\S]*?(?:(?:>=|≥)[ \t]*v?20\b|\bnode(?:\.js)?[ \t]+(?:version[ \t]+)?v?20\b|\bnode(?:\.js)?[ \t]+twenty\b|\btwenty or (?:later|newer|above|higher)\b)'
     flags: 'i'
     target: last_message
   - name: basis-label

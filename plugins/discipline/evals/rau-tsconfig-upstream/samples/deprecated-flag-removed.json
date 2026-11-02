@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "{\n  \"compilerOptions\": {\n    \"strict\": false,\n    \"verbatimModuleSyntax\": true,\n    \"useDefineForClassFields\": false\n  }\n}\n",
+      "why": "the deprecated flag is gone"
+    },
+    {
+      "answer": "{ \"compilerOptions\": { \"strict\":false, \"useDefineForClassFields\":false } }"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\n  \"compilerOptions\": {\n    \"strict\": false,\n    \"importsNotUsedAsValues\": \"remove\",\n    \"useDefineForClassFields\": false\n  }\n}\n",
+      "why": "classified as a gap but left in tsconfig.json"
+    },
+    {
+      "answer": "{\"compilerOptions\":{\"importsNotUsedAsValues\":\"remove\"}}",
+      "why": "one-line file still sets the flag"
+    }
+  ]
+}
