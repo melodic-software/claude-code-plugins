@@ -76,7 +76,7 @@
     "never": "Reopens merged PRs"
   },
   "upstream-apply-changelog": {
-    "stage": "intake",
+    "stage": "upstream",
     "forbidden-effects": ["mutate-tracker", "merge"],
     "never": "Merges, or writes to main or a branch outside changelog/<plugin>/v<release>"
   }

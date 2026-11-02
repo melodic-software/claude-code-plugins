@@ -764,7 +764,7 @@ lanes:
   # open are separate jobs: the broker refuses contents and pull-requests
   # write in one mint.
   upstream-apply-changelog:
-    stage: intake
+    stage: upstream
     slots:
       - activity: apply-changelog-branches
       - activity: publish-changelog-intake
