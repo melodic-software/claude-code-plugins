@@ -3,6 +3,13 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.139.3] - 2026-11-02
+
+### Fixed
+
+- **`round.py import-ledger` says "seeded 1 question" when it seeds one.** It printed
+  "seeded 1 questions"; the noun now agrees with the count.
+
 ## [0.139.2] - 2026-11-02
 
 ### Changed
