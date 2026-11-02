@@ -16,6 +16,12 @@ Collect, deduplicate, rank, and present current AI-industry developments without
 on organization-specific configuration. Markdown is the default output. HTML and PPTX are
 explicit, optional outputs backed by the bundled deterministic build pipeline.
 
+Only `--format` selects HTML or PPTX. The `rendered-views` `medium` preference
+(`~/.claude/rendered-views.md` and the repository's `.claude/rendered-views.md` layers) never
+starts the build, whatever value a layer sets, because the build needs the optional build tree
+and writes into the meetings folder. With no `--format`, the briefing is markdown and the report
+names "shipped default" as the source of the format (step 9).
+
 ## Source and access policy
 
 Use only interfaces that authorize automated access:
@@ -157,7 +163,8 @@ cascade overlay:
    provider.
 9. Lead the report with anything waiting on the user (a missing build prerequisite with its
    setup command, the text of a user-supplied X URL the run needs), then the collected,
-   excluded, deduplicated, and secondary-only counts plus the output path.
+   excluded, deduplicated, and secondary-only counts plus the output path, and the source of
+   the format (`--format`, or "shipped default").
    Make warnings visible, including unreachable sources and missing optional build tooling.
 
 ## Source bookmarks

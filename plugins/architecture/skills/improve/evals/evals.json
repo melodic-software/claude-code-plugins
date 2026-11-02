@@ -205,6 +205,20 @@
         "Drafts the entry with the concern, a pointer to the chosen way, the four building blocks without claiming an order, and the enforcing check or none",
         "Hands the draft to /discipline:reuse-or-replace through the Skill tool and writes no paved-path entry or standards file itself"
       ]
+    },
+    {
+      "id": 15,
+      "name": "user-global-terminal-medium-skips-html-report",
+      "prompt": "/architecture:improve deepening (Fixture: the scan is of the user's own repository; ~/.claude/rendered-views.md contains only 'medium: terminal'; the repo has no rendered-views layer; no --medium argument was given.)",
+      "expected_output": "Resolves medium from the rendered-views layers before writing the report, reads medium: terminal from the user-global layer, and writes no HTML report: the durable candidate artifact in the memory tier and the reply are the deliverable. The reply names ~/.claude/rendered-views.md as the source of the medium, gives the artifact path, and asks which candidate to explore.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Resolves medium from the rendered-views layers before writing any report",
+        "Writes no HTML report file and opens no browser",
+        "Still writes the durable candidate artifact to the memory tier and gives its path",
+        "Names ~/.claude/rendered-views.md as the source of the medium"
+      ]
     }
   ]
 }

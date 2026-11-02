@@ -632,6 +632,20 @@
         "Q4 to Q7 are not collapsed into a one-line pointer to the earlier round",
         "No question is recorded as answered, because the user has not replied"
       ]
+    },
+    {
+      "id": 45,
+      "name": "terminal-medium-degrade-table-renders-inline",
+      "prompt": "/planning:interview caching layer for the search API (Fixture: the surface option is set to page, but the session runs on a remote host the browser cannot reach, so the page cannot start; ~/.claude/rendered-views.md contains only 'medium: terminal'; the repo has no rendered-views layer. The first round has four questions.)",
+      "expected_output": "The page cannot start, so the round degrades to the read-only decision table, and the skill says in one line why. Before writing the table it resolves medium, reads medium: terminal from the user-global layer, and renders the table inline as a fenced markdown table with the same columns, grounded basis and closing probe, writing no HTML file. It names ~/.claude/rendered-views.md as the source of the medium.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Says in one line that the page could not start because the browser cannot reach the remote host",
+        "Resolves medium from the rendered-views layers before writing the decision table",
+        "Renders the round as an inline fenced markdown table with the Recommendation basis and the closing probe, and writes no HTML file",
+        "Names ~/.claude/rendered-views.md as the source of the medium"
+      ]
     }
   ]
 }

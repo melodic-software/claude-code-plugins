@@ -1,6 +1,6 @@
 ---
 description: "Builds a throwaway interactive terminal app to pressure-test business logic, a state machine, a data model, or an API surface before committing to it. Use when nobody can say yet what the rules do with an awkward sequence of events or an odd record: 'what happens if a refund arrives after the order ships', 'is this transition allowed from that status', 'will this schema fit our odd records', 'which arguments should this call take', 'prototype this reducer'. A pure logic module, liftable into production, sits behind a disposable shell: the terminal app, or a self-contained click-through HTML demo for someone outside engineering. Records the validated answer in a durable note. Visual or design questions: /prototype:explore-directions."
-argument-hint: "[observe] [scope]"
+argument-hint: "[observe] [--medium <value>] [scope]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(git branch:*)", "Bash(git status:*)", "Bash(head:*)", "Bash(echo:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/detect-ecosystems.sh:*)"]
@@ -10,9 +10,10 @@ metadata:
   summary: Throwaway terminal app or shareable HTML demo pressure-testing logic or a data model
 ---
 
-**Arguments.** `[observe] [scope]`. e.g., /prototype:pressure-test scheduling state machine, or
+**Arguments.** `[observe] [--medium <value>] [scope]`. e.g., /prototype:pressure-test scheduling state machine, or
 /prototype:pressure-test observe reservation check in renew or in a guard. A leading `observe`
-selects [Observe](#observe-the-agent-runs-the-fork).
+selects [Observe](#observe-the-agent-runs-the-fork). `--medium` picks the shell
+([Two shells](#two-shells-tui-default)) and is not part of the scope.
 
 ## Repository context. Gather first
 
@@ -85,6 +86,19 @@ swaps. Route by audience:
   nothing to install, opened by double-click.
 - **Explicit override wins both ways**. Ask for a TUI or an HTML demo directly and that beats
   the default routing.
+- **Then the `rendered-views` preference.** With no such request, resolve `medium` (`auto`,
+  `terminal`, `file`, `artifact`, `hosted`): a `--medium` argument naming one decides; otherwise
+  read whichever layers exist, in order: user-global
+  `~/.claude/rendered-views.md`, team `<root>/.claude/rendered-views.md`, overlay
+  `<root>/.claude/rendered-views.local.md`. `<root>` is `${CLAUDE_PROJECT_DIR}` when set, else
+  `git rev-parse --show-toplevel`; outside a work tree, read only the user-global layer. The last
+  layer that sets `medium` wins. Count the overlay only when `git ls-files` does not list it and
+  `git check-ignore` matches it; otherwise report it and ignore it. This plugin has no `medium`
+  option, so no rung sits between the argument and the layers. `terminal` picks the TUI. `file`
+  picks the HTML demo shell, as do `artifact` and `hosted`, read as `file` because this skill
+  publishes nothing. `auto`, an empty value or no value leaves the audience routing above; any
+  other value is reported and read as `auto`. Name the source of the shell choice in the handoff:
+  the request, the layer's path, or "shipped default".
 
 ## HTML demo shell
 

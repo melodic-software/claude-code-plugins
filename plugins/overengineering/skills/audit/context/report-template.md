@@ -103,6 +103,20 @@ manufacturing a finding to justify the pass is the failure this whole method is 
 the artifact for a rendered view. The artifact stays the source of truth and the rendering is a
 second presentation of it, never a place a finding appears first.
 
+**Resolve `medium` before the offer.** The `rendered-views` preference is one of `auto`, `terminal`,
+`file`, `artifact` or `hosted`. A `--medium` argument naming one decides. Otherwise read whichever
+layers exist, in order: user-global `~/.claude/rendered-views.md`, team
+`<root>/.claude/rendered-views.md`, overlay `<root>/.claude/rendered-views.local.md`. `<root>` is
+`${CLAUDE_PROJECT_DIR}` when set, else `git rev-parse --show-toplevel`; outside a work tree, read only
+the user-global layer. The last layer that sets `medium` wins. Count the overlay only when
+`git ls-files` does not list it and `git check-ignore` matches it; otherwise report it and ignore it.
+This plugin has no `medium` option, so no rung sits between the argument and the layers. `terminal`
+drops the offer: layers 1 and 2 are the whole report. `file` keeps the offer and, when it is taken,
+passes `file` to `visualization:visualize` as its argument, so no rung of that skill publishes the
+view. Any other value, or none, keeps the offer, and `visualization:visualize` picks the rung itself;
+a value outside the five is reported. Name the
+source of `medium` in the terminal summary: the argument, the layer's path, or "shipped default".
+
 **Documented fallback when that plugin is not installed: skip it.** Say nothing beyond a single line
 noting that the optional rendered view was unavailable, and do not substitute a hand-built HTML file,
 an inline chart, or an extra markdown file. Layers 1 and 2 are complete on their own; a substitute

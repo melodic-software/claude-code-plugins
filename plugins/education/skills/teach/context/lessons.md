@@ -58,6 +58,7 @@ Before authoring a new lesson, read the workspace `assets/` directory (if presen
 
 The format decision, made once per lesson:
 
+0. **Resolve `medium` first (`topic` mode).** The `rendered-views` preference is one of `auto`, `terminal`, `file`, `artifact` or `hosted`. A `--medium` argument naming one decides; take it out of the arguments before reading the topic or concept. Otherwise read whichever layers exist, in order: user-global `~/.claude/rendered-views.md`, team `<root>/.claude/rendered-views.md`, overlay `<root>/.claude/rendered-views.local.md`. `<root>` is `${CLAUDE_PROJECT_DIR}` when set, else `git rev-parse --show-toplevel`; outside a work tree, read only the user-global layer. The last layer that sets `medium` wins. Count the overlay only when `git ls-files` does not list it and `git check-ignore` matches it; otherwise report it and ignore it. This plugin has no `medium` option, so no rung sits between the argument and the layers. `auto`, an empty value or no value leaves the shipped default, steps 1 and 2; any other value is reported and read as `auto`. `terminal` writes `lesson.md`. `file` runs steps 1 and 2 and makes no artifact offer ("Artifact share" below). `artifact` or `hosted` runs steps 1 and 2 and keeps the artifact offer, since the lesson file stays the source of truth and this lane never publishes on its own. Name the source of `medium` when handing back the lesson: the argument, the layer's path, or "shipped default".
 1. **Can the learner's host render HTML?** On headless/SSH/remote/cloud hosts with no local browser (signals: `$SSH_CONNECTION` set, Linux with neither `$DISPLAY` nor `$WAYLAND_DISPLAY`, a cloud/web sandbox), HTML is dead weight, so the lesson defaults to `lesson.md`, readable in terminal and chat. The open-lesson affordance shares this host check.
 2. **Host can render → default is interactive, self-contained `lesson.html`**: in-page quiz blocks (via the `assets/` quiz component), anchor links for deep-linking sections, visual/spatial *Teach* layouts, worked *Practice* examples the learner manipulates. A lesson where interactivity pays nothing (a short prose-only explainer) stays markdown, a documented exception rather than the default.
 
@@ -152,7 +153,7 @@ Offer, don't auto-open. The command runs only with the user's go-ahead.
 
 ## Artifact share (flavor)
 
-When the session can publish Claude artifacts (the capability exists in the harness), offer to publish the lesson as a private artifact page for viewing on other devices. The workspace file stays the source of truth; the artifact is a rendering, re-published on change.
+When the session can publish Claude artifacts (the capability exists in the harness) and `medium` did not resolve to `terminal` or `file` (step 0 of "Lesson format" above), offer to publish the lesson as a private artifact page for viewing on other devices. The workspace file stays the source of truth; the artifact is a rendering, re-published on change.
 
 ## Codebase mode
 

@@ -237,6 +237,20 @@
         "Each control shows its current value, and the panel has a button that copies the whole config",
         "The panel sits top-right, clear of the switcher, and does not add its own replay button"
       ]
+    },
+    {
+      "id": 20,
+      "name": "file-medium-drops-design-canvas-offer",
+      "prompt": "Our web app already has a /settings page. Show me a few options for what that settings page could look like. (Fixture: the bundled design skill and the Artifact tool are available; ~/.claude/rendered-views.md contains only 'medium: file'; the repo has no rendered-views layer; no --medium argument was given.)",
+      "expected_output": "Takes the HTML mockup host, resolves medium from the rendered-views layers, reads medium: file from the user-global layer, and builds the local file:// mockup without offering the design canvas, since the canvas is published. The handover names ~/.claude/rendered-views.md as the source of the medium.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Resolves medium from the rendered-views layers before making any design-canvas offer",
+        "Builds the self-contained file:// mockup in a temp location",
+        "Does not offer the design canvas or any other published surface",
+        "Names ~/.claude/rendered-views.md as the source of the medium"
+      ]
     }
   ]
 }

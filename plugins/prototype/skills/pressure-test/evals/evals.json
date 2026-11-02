@@ -59,6 +59,19 @@
         "The prototype uses an in-memory store rather than connecting to the real Postgres database",
         "The response only reaches for real persistence if the question being tested is specifically about persistence"
       ]
+    },
+    {
+      "id": 6,
+      "name": "team-terminal-medium-keeps-tui-for-product-driver",
+      "prompt": "Prototype our loan renewal rules so our product manager can click through what happens when a reserved copy is renewed. (Fixture: the repo's tracked .claude/rendered-views.md says 'medium: terminal'; no user-global layer or overlay exists; no --medium argument was given and the request does not ask for a TUI or an HTML demo by name.)",
+      "expected_output": "With no explicit shell request, resolves medium from the rendered-views layers, reads medium: terminal from the team layer, and builds the terminal app rather than the HTML demo shell the product-manager audience would otherwise select. Names the team layer as the source of the shell choice.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Resolves medium from the rendered-views layers before routing by audience",
+        "Builds the terminal app, not the HTML demo shell",
+        "Names the team layer .claude/rendered-views.md as the source of the shell choice"
+      ]
     }
   ]
 }
