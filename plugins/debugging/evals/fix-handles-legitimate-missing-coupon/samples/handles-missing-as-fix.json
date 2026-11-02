@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Fixed: `discount_rate` now returns 0 when no coupon code is given. The coupon field is optional, so an order without a code is a legitimate state, and handling it is the fix, not a guard hiding a bug. The loop and the new regression test pass.",
+      "why": "handles the missing code and says the state is legitimate"
+    },
+    {
+      "answer": "Most orders carry no coupon, since the form marks it optional. `order_total` now skips the discount when `coupon_code` is None; repro_checkout.py exits 0.",
+      "why": "handles it and grounds legitimacy in the optional field"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Added `if code is None: return 0` to `discount_rate`. The loop passes.",
+      "why": "handles it but never says why the state is legitimate"
+    },
+    {
+      "answer": "A None check here would only fix the symptom. The real question is why checkout passes no coupon code; I made the coupon field required in form.py.",
+      "why": "does not handle the missing code"
+    }
+  ]
+}
