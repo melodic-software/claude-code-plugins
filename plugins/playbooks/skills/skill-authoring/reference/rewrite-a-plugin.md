@@ -70,7 +70,9 @@ ships; this page says how to run it across a plugin. "Step N" below is the proto
    the loss is largest; degrade the guidance in a way that invites no denied command, or count the
    part unmeasurable. A degraded copy often searches its own plugin copy for the text it lost: pass
    `--own-copy-search-warns` to `/evals:plugin-eval`'s run-validity gate on the degraded side only,
-   so that search warns instead of failing, and never on a before or after pass.
+   so that search warns instead of failing, and never on a before or after pass. The before run has
+   no such denial, so a case whose degraded runs carry one cannot decide the control: the `case drop`
+   or the 0.15 fall must hold with those cases left out, or the part is unmeasurable.
 6. **Meaning diff (step 5).** Run `/docs-hygiene:compress compare` with two independent labelers
    and take the union of their losses, since one labeler can miss a loss the other catches.
 7. **Decide (step 6).** Decide each skill's description and body separately. An unmeasurable part

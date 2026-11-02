@@ -71,7 +71,9 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   lost. Without the flag that denial is a FAIL, since in a normal run it usually means the skill
   references a file it cannot read. A rooted `Glob` pattern or one holding `..`, any other tool,
   and a run that did not finish keep the rules below even with the flag. Compare a run with any of
-  these denials only with runs denied the same way.
+  these denials only with runs denied the same way. A negative control compares the degraded side
+  against a before run that has no such denial, so there a case whose degraded runs carry an
+  own-copy search cannot decide the control: its drop must hold with those cases left out.
 - One exception overrides that FAIL: a denial of the same named call other than Skill (tool and
   target) in every run of its case, in both arms, is a warning, with or without an absolute path,
   unless an absolute path it names is at, under or above the plugin's directory. The environment
