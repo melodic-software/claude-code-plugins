@@ -6,7 +6,11 @@ name: post-merge-demotion-alert
 # canary push run. The issue is the demotion record the babysit post-merge
 # check files under the agent identity and the merge-policy reader holds the
 # rung off on: first body line `<!-- babysit-merge-demotion sha=<S>
-# signal=<name> -->`, one per (signal, SHA). A record is a state marker, never
+# signal=<name> -->`, one per (signal, SHA). A record that already exists
+# gets a comment naming the run attempt instead. Records from both filers
+# (github-actions[bot] and merge.agent-identity) are read, so a sighting of
+# either filer's record comments on it, and any record holds the rung off. A
+# record is a state marker, never
 # lane work: it is not sent to intake triage, since the fix issues below carry
 # the work. A schedule or dispatch record carries no label: it clears itself
 # once main is green at a later commit (babysit_merge_policy.py
@@ -15,10 +19,7 @@ name: post-merge-demotion-alert
 # intake gets needs-human; the record does when no fix issue could be filed.
 # The close-cleared job closes, on a green attempt 1 of a scheduled full run,
 # each open schedule or dispatch record (either filer's) created before that
-# run, at a commit behind its head, and never edited. A record
-# that already exists gets a comment naming the run attempt instead. Records
-# the agent identity filed are not read here, so one (signal, SHA) can hold a
-# record from each filer; both hold the rung off. This workflow merges,
+# run, at a commit behind its head, and never edited. This workflow merges,
 # reverts and dequeues nothing.
 #
 # Only a failure whose merges include one the lanes App put in the merge queue
@@ -1116,7 +1117,8 @@ jobs:
           for check in "${fix_checks[@]}"; do
             # One issue per check across SHAs: an open one stands, a closed one
             # is reopened (unless closed as not planned or a duplicate, which
-            # mutes the check). A reopened issue keeps agent-ready and is not
+            # mutes the check). A reopened issue keeps whatever labels it has
+            # (one labeled needs-human stays with a person) and is not
             # sent to intake again, so a repeat goes straight back to agents.
             # Only this workflow's own issues are read.
             fix_marker="<!-- post-merge-fix check=$check -->"
@@ -1133,9 +1135,6 @@ jobs:
               if gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$fix_number/comments" -f body="$note" >/dev/null &&
                 gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/$fix_number" -f state=open -f state_reason=reopened >/dev/null; then
                 echo "reopened fix issue #$fix_number for $check"
-                # An earlier delivery failure's needs-human comes off, so the
-                # reopened issue goes back to agents; absent, nothing to drop.
-                gh api -X DELETE "repos/$GITHUB_REPOSITORY/issues/$fix_number/labels/needs-human" >/dev/null 2>&1 || true
               else
                 echo "::error::could not reopen fix issue #$fix_number for $check"
                 undelivered+=("#$fix_number (\`$check\`) could not be reopened")
@@ -1328,6 +1327,8 @@ jobs:
           filers=(github-actions%5Bbot%5D)
           if [[ "$identity" =~ ^[A-Za-z0-9]+(-[A-Za-z0-9]+)*\[bot\]$ ]]; then
             filers+=("${identity%\[bot\]}%5Bbot%5D")
+          else
+            echo "::warning::merge.agent-identity '$identity' could not be read or is no App login: its records are not closed"
           fi
           declare -A seen=()
           for filer in "${filers[@]}"; do

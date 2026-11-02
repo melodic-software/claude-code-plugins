@@ -1103,7 +1103,7 @@ the rules that only tighten in
   its head, and that was never edited; closing it is the record's state only, and the merge gate
   still decides whether it holds. A fix or quarantine issue not delivered to intake triage gets
   `needs-human`, and the record does when no fix issue could be filed; a fix issue reopened on a
-  repeat failure drops `needs-human` again, so it goes straight back to agents.
+  repeat failure keeps whatever labels it has, so one labeled `needs-human` stays with a person.
   It holds the rung at `off` until it clears: a human's direct close clears any record. A close through a pull request's or
   commit's `Closes #N` does not count, and an issue that a non-human edited at any time stays in
   force. A red-main record (signal `schedule` or `dispatch`) that no non-human edited also clears,

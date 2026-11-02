@@ -222,6 +222,11 @@ case "$endpoint" in
       jq -n '{run_attempt: 2, status: "in_progress", conclusion: null}' >"$fixture"
     fi
     ;;
+  # close-cleared's tests list the lanes App's records apart.
+  *creator=melodic-automation-lanes%5Bbot%5D*)
+    fixture="$STUB_DIR/lane-issues.json"
+    [[ -f "$fixture" ]] || fixture="$STUB_DIR/issues.json"
+    ;;
   *) fixture="$STUB_DIR/issues.json" ;;
 esac
 RUN_SHA="${STUB_RUN_SHA:-}" RUN_CREATED="${STUB_RUN_CREATED:-}" jq -r "$filter" "$fixture"
@@ -1548,9 +1553,8 @@ if [[ "$RC" -eq 0 && "$(fixes)" -eq 0 && "$(dispatches)" -eq 0 && -n "$c_line" &
   "$c_line" -lt "$p_line" &&
   "$(cat "$TMP_ROOT/stub/post.$c_line")" == "body=This check failed on main again at \`$SHA\`. Merge range: \`89abcdef0123..0123456789ab\`, listed on demotion record #$r. Run: https://github.com/o/r/actions/runs/4242/attempts/2" &&
   "$(cat "$TMP_ROOT/stub/post.$p_line")" == $'state=open\nstate_reason=reopened' ]] &&
-  [[ "$(grep -n '^DELETE ' <<<"$LOG")" == "$((p_line + 1)):DELETE repos/o/r/issues/60/labels/needs-human" ]] &&
-  ! grep -q 'issues/60/lock' <<<"$LOG"; then
-  ok "a closed fix issue is reopened with the new range, drops needs-human, keeps agent-ready, and is not sent to intake again"
+  ! grep -qE '^DELETE |issues/60/lock' <<<"$LOG"; then
+  ok "a closed fix issue for the check is reopened with the new range, keeps its labels, and is not sent to intake again"
 else
   fail "closed fix issue: rc=$RC log='$LOG' out='$OUT'"
 fi
@@ -2065,6 +2069,7 @@ run_close() {
   rm -rf "$TMP_ROOT/stub"
   mkdir -p "$TMP_ROOT/stub" "$TMP_ROOT/work"
   printf '%s\n' "$1" >"$TMP_ROOT/stub/issues.json"
+  printf '%s\n' "${LANE_ISSUES:-[]}" >"$TMP_ROOT/stub/lane-issues.json"
   printf '%s\n' "${PIPELINE:-}" >"$TMP_ROOT/stub/pipeline.yaml"
   jq -n --arg e "${2:-}" '{data: {repository: {issue: {lastEditedAt: (if $e == "" then null else $e end)}}}}' >"$TMP_ROOT/stub/graphql.json"
   : >"$TMP_ROOT/stub/log"
@@ -2078,8 +2083,9 @@ BEFORE=2026-10-17T10:00:00Z
 if [[ ! -s "$TMP_ROOT/close.sh" ]]; then
   fail "no '$CLOSE_NAME' step with a run: | body"
 fi
-PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->"), $(rec 8 $BEFORE "<!-- post-merge-failure sha=$OTHER signal=dispatch -->"), $(rec 9 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=canary -->"), $(rec 10 2026-10-17T17:00:00Z "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]"
-if [[ "$RC" -eq 0 && "$(closed)" == "7 8" ]] &&
+LANE_ISSUES="[$(rec 11 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=dispatch -->")]" PIPELINE="$PIPE" \
+  run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->"), $(rec 8 $BEFORE "<!-- post-merge-failure sha=$OTHER signal=dispatch -->"), $(rec 9 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=canary -->"), $(rec 10 2026-10-17T17:00:00Z "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]"
+if [[ "$RC" -eq 0 && "$(closed)" == "7 8 11" ]] &&
   grep -qx 'state_reason=completed' "$TMP_ROOT/stub/post.$(grep -nx 'PATCH repos/o/r/issues/7' <<<"$LOG" | cut -d: -f1)" &&
   grep -q 'issues?state=open&creator=github-actions%5Bbot%5D' <<<"$LOG" &&
   grep -q 'issues?state=open&creator=melodic-automation-lanes%5Bbot%5D' <<<"$LOG"; then
@@ -2087,11 +2093,19 @@ if [[ "$RC" -eq 0 && "$(closed)" == "7 8" ]] &&
 else
   fail "close cleared: rc=$RC closed='$(closed)' log='$LOG' out='$OUT'"
 fi
-ANCESTRY=diverged run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]"
-if [[ "$RC" -eq 0 && -z "$(closed)" ]]; then
-  ok "close-cleared closes no record whose commit is off the run's history"
+for status in diverged ahead identical; do
+  ANCESTRY=$status run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]"
+  if [[ "$RC" -eq 0 && -z "$(closed)" ]]; then
+    ok "close-cleared closes no record when compare reads $status"
+  else
+    fail "close on $status: rc=$RC log='$LOG'"
+  fi
+done
+run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]"
+if [[ "$RC" -eq 0 && "$OUT" == *"::warning::merge.agent-identity '' could not be read or is no App login"* ]]; then
+  ok "close-cleared warns when merge.agent-identity does not read"
 else
-  fail "close off history: rc=$RC log='$LOG'"
+  fail "identity warning: out='$OUT'"
 fi
 run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]" 2026-10-17T11:00:00Z
 if [[ "$RC" -eq 0 && -z "$(closed)" && "$OUT" == *"#7 was edited or could not be read: left open"* ]]; then

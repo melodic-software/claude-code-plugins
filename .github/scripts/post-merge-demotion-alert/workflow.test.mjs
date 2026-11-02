@@ -289,3 +289,15 @@ test("close-cleared runs only on a green scheduled attempt 1 on main, with a nar
     issues: "write",
   });
 });
+
+// The file step's load_records and close-cleared read merge.agent-identity the
+// same way, so the filer one closes is the filer the other matches.
+test("load_records and close-cleared extract merge.agent-identity identically", () => {
+  const lines = (pattern) => text.split("\n").filter((line) => line.includes(pattern)).map((line) => line.trim());
+  const seds = lines("sed -n '/^merge:/,/^[^[:space:]#]/ s/^  agent-identity: ");
+  assert.equal(seds.length, 2, "one extraction in each place");
+  assert.equal(seds[0].replace(/configured_identity/, "identity"), seds[1]);
+  const checks = lines("=~ ^[A-Za-z0-9]+(-[A-Za-z0-9]+)*\\[bot\\]$ ]]");
+  assert.equal(checks.length, 2, "one login check in each place");
+  assert.equal(checks[0].replace(/lane_filer/, "identity"), checks[1]);
+});
