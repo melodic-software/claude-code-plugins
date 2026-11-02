@@ -36,15 +36,21 @@ code.
 
 ## Gate scripts
 
-Each column is empty until `scripts/time-gates.sh` has run on that host.
+With the default `--base origin/main` on an unchanged checkout, three gates see
+an empty diff and time nothing, so the columns use a one-commit skill diff: a
+checkout of `52a529d9cf` (#11995, a `skill-quality` skill change with its
+changelog fragment) timed with `--base 52a529d9cf~1`. The Linux column is the
+median of three runs on a WSL2 Linux host on 2026-11-02, not the CI runner;
+every gate exited 0. The Windows column is empty until a Git Bash host times
+the same commit and base.
 
 | Gate | Invocation | Linux (s) | Windows Git Bash (s) |
 | --- | --- | --- | --- |
-| `scripts/check-purged-em-dashes.sh` | `--check` | | |
-| `scripts/check-changed-skills.sh` | `<base>` | | |
-| `scripts/check-changelog-parity.sh` | `--check-bump <base>` | | |
-| `plugins/skill-quality/scripts/check-skill.sh` | `check`, skills root `plugins/skill-quality/skills`, base ref `<base>`, markdownlint skipped | | |
-| `plugins/planning/scripts/check-open-questions.sh` | `--ledger <two answered rows>` | | |
+| `scripts/check-purged-em-dashes.sh` | `--check` | 1.762 | |
+| `scripts/check-changed-skills.sh` | `<base>` | 1.178 | |
+| `scripts/check-changelog-parity.sh` | `--check-bump <base>` | 0.039 | |
+| `plugins/skill-quality/scripts/check-skill.sh` | `check`, skills root `plugins/skill-quality/skills`, base ref `<base>`, markdownlint skipped | 0.627 | |
+| `plugins/planning/scripts/check-open-questions.sh` | `--ledger <two answered rows>` | 0.012 | |
 
 ## Shell suites
 

@@ -1,5 +1,5 @@
 ---
-description: "Audit tracked markdown for prose restating content an external source owns without a pointer or a stamped record, and convert copies into links, citations, or stamped pointer records. Breadcrumb-first, then budgeted search. Two rubrics: copy, and restated fact (a default or limit, any wording). Evidence-gated tiers; only fingerprint-confirmed copies are fix-eligible. Only a unanimous restated fact that survives refutation relays, report-only. Also flags verification stamps past their expiry window. Use when: 'find copied content', 'is this copied from the docs', 'check our docs for copied text', 'replace copies with links', 'find stale verification stamps', 'audit provenance', 'where did this paragraph come from', or before publishing prose that restates an upstream page. Read-only by default; explicit 'fix' applies dispositions behind a semantic-diff guard and live pointer checks, and 'sweep' adds per-file closure. Empty target audits tracked markdown."
+description: "Audit tracked markdown for prose restating content an external source owns without a pointer or a stamped record, and convert copies into links, citations, or stamped pointer records. Breadcrumb-first, then budgeted search. Two rubrics: copy, and restated fact (a default or limit, any wording). Evidence-gated tiers; only fingerprint-confirmed near-verbatim copies are fix-eligible. Only a unanimous restated fact that survives refutation relays, report-only. Also flags verification stamps past their expiry window. Use when: 'find copied content', 'is this copied from the docs', 'check our docs for copied text', 'replace copies with links', 'find stale verification stamps', 'audit provenance', 'where did this paragraph come from', or before publishing prose that restates an upstream page. Read-only by default; explicit 'fix' applies dispositions behind a semantic-diff guard and live pointer checks, and 'sweep' adds per-file closure. Empty target audits tracked markdown."
 argument-hint: "[audit|fix|sweep] [target]"
 user-invocable: true
 disable-model-invocation: false
@@ -166,15 +166,17 @@ external source owns, is model work against [`reference/rubric.md`](reference/ru
     tracked files. Resolve the producer contract first and refuse to write when it cannot be
     resolved, reporting report-only as the outcome. Relay-eligible findings only.
 
-12. **Recommend, never auto-run.** The `fix` action for fix-eligible findings, `sweep` for a
-    repo-wide pass, or `/attribution:setup` when the run tripped over deliberate house structure
-    (heavy declined counts, or a carve-out that should be configured).
+12. **Recommend, never auto-run.** Report each finding as fix-eligible or report-only by
+    [`reference/dispositions.md`](reference/dispositions.md) "Fix eligibility". Recommend the
+    `fix` action for fix-eligible findings, `sweep` for a repo-wide pass, or `/attribution:setup`
+    when the run tripped over deliberate house structure (heavy declined counts, or a carve-out
+    that should be configured).
 
 ## Fix flow (explicit invocation only)
 
-Never runs on bare invocation. Only `fingerprint-confirmed` findings are eligible; everything
-else is a report. Read [`reference/dispositions.md`](reference/dispositions.md) first, per file,
-worst-first:
+Never runs on bare invocation. Only findings that pass every gate in
+[`reference/dispositions.md`](reference/dispositions.md) "Fix eligibility" are eligible;
+everything else is a report. Read that file first, per file, worst-first:
 
 1. **Choose the disposition** by asking what a reader loses if the local text goes away. A
    surface that must work when the source is unreachable condenses to a stamped record and

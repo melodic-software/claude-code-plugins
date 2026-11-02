@@ -140,13 +140,14 @@ export function attribute(base, range, statuses) {
 export const isRevert = (message, labels = []) =>
   /^revert\b/i.test(message) || /This reverts commit [0-9a-f]{7,40}/.test(message) || labels.includes("auto-revert");
 
-// Whether the bot may revert the culprit itself, and every guard that sends it
-// to a person instead. Owner and other human merges never auto-revert: only a
+// Whether the bot may revert the culprit itself, and every guard that stops
+// it. A failed guard plans no revert: the fix issues fix main forward through
+// the issue lane. Owner and other human merges never auto-revert: only a
 // merge the lanes App put in the merge queue may. Under the fail-forward
 // remedy nothing is reverted.
 export function decide({ culprit, agentIdentity, config, now, revertsToday, culpritDecided, platformFault, revertApplies }) {
   if (config.remedy === "fail-forward") {
-    return { decision: "human", reasons: ["the remedy is fail-forward: a person or a fix pull request repairs main"] };
+    return { decision: "fix-forward", reasons: ["the remedy is fail-forward: the fix issues repair main"] };
   }
   const reasons = [];
   if (!agentIdentity || (culprit.enqueuer ?? "").toLowerCase() !== agentIdentity.toLowerCase()) {
@@ -166,14 +167,15 @@ export function decide({ culprit, agentIdentity, config, now, revertsToday, culp
   if (platformFault) reasons.push(`a platform fault is suspected: ${platformFault}`);
   if (revertApplies === false) reasons.push("the revert does not apply cleanly to main's tip");
   if (revertApplies === null) reasons.push("whether the revert applies to main's tip could not be read");
-  return { decision: reasons.length === 0 ? "auto-revert" : "human", reasons };
+  return { decision: reasons.length === 0 ? "auto-revert" : "fix-forward", reasons };
 }
 
 export const LOG_MARKER = "<!-- red-main-revert-log -->";
 export const reportMarker = ({ runId, attempt, culprit, decision }) =>
   `<!-- red-main-report run=${runId} attempt=${attempt} culprit=${culprit ?? "none"} decision=${decision} -->`;
+// `human` is the decision older reports on the log name for `fix-forward`.
 export const MARKER_PATTERN =
-  /^<!-- red-main-report run=(\d+) attempt=(\d+) culprit=([0-9a-f]{40}|none) decision=(auto-revert|human|none) -->$/;
+  /^<!-- red-main-report run=(\d+) attempt=(\d+) culprit=([0-9a-f]{40}|none) decision=(auto-revert|fix-forward|human|none) -->$/;
 
 // A note on the log for a run that posts no report. MARKER_PATTERN does not
 // match its marker, so a note counts as neither a report nor a cap decision.
@@ -192,23 +194,22 @@ const inert = (text) => String(text ?? "").replaceAll("`", "'").split("\n")[0];
 
 const SUBJECT_PR = /\s*\(#(\d+)\)$/;
 
-// The revert the bot would open for the culprit, as the report names it.
+// The revert the bot would open for the culprit, as the report names it, or
+// null when a guard failed: then nothing is reverted and the fix issues fix
+// main forward.
 export function plannedRevert(culprit, decision, runUrl) {
+  if (decision !== "auto-revert") return null;
   const subject = inert(culprit.message).replace(SUBJECT_PR, "");
   const pr = culprit.number ? `#${culprit.number}` : culprit.sha.slice(0, 12);
   return {
     branch: `red-main-revert/${culprit.sha.slice(0, 12)}`,
     command: `git revert --no-edit ${culprit.sha}`,
     title: `revert: ${subject}`,
-    draft: decision !== "auto-revert",
-    labels: decision === "auto-revert" ? ["auto-revert"] : ["auto-revert", "needs-human"],
+    labels: ["auto-revert"],
     bodyMarker: `<!-- red-main-revert culprit=${culprit.sha} -->`,
     reinstate: `Reinstate ${pr} after its red-main revert`,
     notify: culprit.number ? `a comment on #${culprit.number} linking ${runUrl}` : "none: the merge names no pull request",
-    merge:
-      decision === "auto-revert"
-        ? "the bot enqueues it in the merge queue once its checks pass"
-        : "a person reviews and merges it",
+    merge: "the bot enqueues it in the merge queue once its checks pass",
   };
 }
 
@@ -223,7 +224,7 @@ export function renderReport({ run, verdict, base, range, attribution, culprit, 
       decision: decision?.decision ?? "none",
     }),
     "",
-    `### Red main at \`${run.sha.slice(0, 12)}\`: ${decision ? (decision.decision === "auto-revert" ? "the bot would auto-revert" : "a person decides") : "no culprit"}`,
+    `### Red main at \`${run.sha.slice(0, 12)}\`: ${decision ? (decision.decision === "auto-revert" ? "the bot would auto-revert" : "fixed forward, no revert") : "no culprit"}`,
     "",
     `Mode: ${config["dry-run"] ? "dry-run" : "dry-run off, but this version only reports"}; nothing was pushed, opened or merged.`,
     "",
@@ -234,7 +235,7 @@ export function renderReport({ run, verdict, base, range, attribution, culprit, 
   if (record) lines.push(`- Post-merge record: #${record}`);
   if (unreported.length > 0) {
     lines.push(
-      `- Red full runs since the last green one with no report on this log (dropped, unconfirmed or skipped): ${unreportedList(unreported)}. ${range ? "Their merges are in this report's range, so this decision covers them." : "The range could not be read, so a person checks their merges."}`,
+      `- Red full runs since the last green one with no report on this log (dropped, unconfirmed or skipped): ${unreportedList(unreported)}. ${range ? "Their merges are in this report's range, so this decision covers them." : "The range could not be read, so the fix issues cover their merges."}`,
     );
   }
   if (range) {
@@ -254,7 +255,7 @@ export function renderReport({ run, verdict, base, range, attribution, culprit, 
         `To pin one, the bot would run the full suite at each untested merge (${attribution.untested.map((s) => `\`${s.slice(0, 12)}\``).join(", ")}) by dispatching pr-require-checks on a branch at that commit.`,
       );
     }
-    lines.push("No revert pull request: a person picks the merge from the post-merge record.");
+    lines.push("No revert pull request: the fix issues fix main forward.");
   }
   if (culprit && decision) {
     lines.push(
@@ -262,13 +263,13 @@ export function renderReport({ run, verdict, base, range, attribution, culprit, 
       `Culprit: \`${culprit.sha}\`${culprit.number ? ` (#${culprit.number})` : ""}, merged ${culprit.mergedAt}, fails where its parent passes.`,
     );
     if (decision.reasons.length > 0) {
-      lines.push("", "A person decides because:", ...decision.reasons.map((r) => `- ${r}`));
+      lines.push("", "No revert, because:", ...decision.reasons.map((r) => `- ${r}`), "", "The fix issues fix main forward.");
     }
   }
   if (revert) {
     lines.push(
       "",
-      `The revert it would open${revert.draft ? " (draft)" : ""}:`,
+      "The revert it would open:",
       "",
       "```text",
       `branch:    ${revert.branch}`,

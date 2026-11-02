@@ -83,7 +83,24 @@ one line per check, detail lines indented under it:
                       of its case names that tool, such as the broken side of
                       a negative control searching for the text it lacks; a
                       Glob pattern that is rooted or holds `..` never
-                      qualifies. The run's score was
+                      qualifies. A with-arm denied compound Bash call whose
+                      plugin part a later Bash call in the same trace ran
+                      alone and was not denied is set aside the same way:
+                      split at ;, &&, || and
+                      newlines, its assignment-only and cd commands dropped
+                      and, after that part, ls, echo or cat (piped only into
+                      head or tail), unless a word of the dropped command
+                      holds a < or > anywhere, even quoted, other than 2>&1,
+                      >&2, 2>&- or a /dev/null target; exactly one command
+                      must remain, naming a path at or under the plugin's
+                      directory, and the later call's words must equal it,
+                      quotes removed and same-command variables resolved, a
+                      word holding a glob, brace, tilde or $ compared with
+                      its quoting. A command holding an unquoted &, ( or ),
+                      or a $( or backtick outside single quotes anywhere,
+                      never qualifies, nor does a part left holding an
+                      unquoted glob, brace or tilde or an unresolved $. The
+                      run's score was
                       taken under such a denial, so compare it only with
                       runs denied the same way. Otherwise a
                       with-arm denial aimed at or under the plugin's
@@ -274,6 +291,19 @@ KEEPS_ASSIGNMENT = (None, ";", "\n", "&&")
 # takes the next word as its operand, dropped only when it is /dev/null.
 REDIRECT = re.compile(r"(?:\d*|&)(?:>>?|<)(&(?:\d+|-)|/dev/null)?")
 DEV_NULL = "/dev/null"
+# A denied compound Bash call whose plugin part a later call ran alone: the
+# operators that separate its commands, the ones that keep it from qualifying,
+# and the commands dropped around that part (cd anywhere; after it, ls, echo or
+# cat, piped only into head or tail).
+SEPARATORS = (";", "&&", "||", "\n")
+NOT_SPLIT = ("&", "(", ")")
+CD = "cd"
+TRAILING, TRAILING_PIPED = ("ls", "echo", "cat"), ("head", "tail")
+# A character the shell may expand: GLOBBING only outside quotes, $ inside too.
+GLOBBING = re.compile(r"[*?\[\]{}~]")
+EXPANDING = re.compile(r"[*?\[\]{}~$]")
+# Command substitution, outside single quotes.
+SUBSTITUTION = re.compile(r"\$\(|`")
 
 # The suite's skill-fired convention and the no-trigger control markers.
 SKILL_TOOL = "Skill"
@@ -1649,6 +1679,120 @@ def own_copy_denial(run, denial, roots):
     )
 
 
+def command_segments(command):
+    """A Bash command's commands, split at SEPARATORS, each a (words, assignments,
+    expands) triple: its words as shell_words gives them (quotes removed, same-
+    command variables resolved) with None between pipeline stages, a word that
+    holds an EXPANDING character kept as its quoted parts so quoting still tells
+    a pattern from a literal; True when every word is a NAME=value; and True when
+    a word still holds a $ or an unquoted glob, brace or tilde, which the shell
+    would expand. None when it does not parse, is empty, or holds a NOT_SPLIT
+    operator."""
+    tokens = shell_tokens(command) if isinstance(command, str) else None
+    words = shell_words(command) if tokens is not None else None
+    if not words or any(
+        value in NOT_SPLIT
+        if kind == "op"
+        else any(quote != "'" and SUBSTITUTION.search(part) for part, quote in value)
+        for kind, value in tokens
+    ):
+        return None
+    segments, current, assigns, expands, texts = [], [], True, False, iter(words)
+    for kind, value in tokens + [("op", None)]:
+        if kind == "word":
+            text = next(texts)[0]
+            current.append(tuple(value) if EXPANDING.search(text) else text)
+            assigns = assigns and assignment(value) is not None
+            expands = expands or "$" in text or any(
+                quote is None and GLOBBING.search(part) for part, quote in value
+            )
+        elif value == PIPE:
+            current.append(None)
+            assigns = False
+        elif current:
+            segments.append((tuple(current), assigns, expands))
+            current, assigns, expands = [], True, False
+    return segments
+
+
+def writes_file(words):
+    """True when a command's words may redirect into a file: any word holding a <
+    or >, wherever in the word and even quoted, but an fd duplication or close or
+    a /dev/null target (2>&1, >&2, 2>&-, >/dev/null, 2> /dev/null), as bash_paths
+    drops them."""
+    words = tuple(
+        "".join(part for part, _ in w) if isinstance(w, tuple) else w for w in words
+    )
+    for index, word in enumerate(words):
+        if not isinstance(word, str) or not ("<" in word or ">" in word):
+            continue
+        full = REDIRECT.fullmatch(word)
+        if full and full.group(1):
+            continue
+        if full and words[index + 1 : index + 2] == (DEV_NULL,):
+            continue
+        return True
+    return False
+
+
+def plugin_part(command, roots):
+    """The words of the one command left in a compound Bash command once its
+    assignment-only and cd commands, and the ls, echo or cat pipelines (into head
+    or tail only) after it, are dropped, when that command names a rooted path at
+    or under a plugin root; else None."""
+    segments = command_segments(command)
+    if not segments or len(segments) < 2:
+        return None
+    kept = []
+    for words, assigns, expands in segments:
+        heads = [words[0]] + [w for w, prior in zip(words[1:], words) if prior is None]
+        if (assigns or (words[0] == CD and None not in words)) and not writes_file(words):
+            continue
+        if (
+            kept
+            and heads[0] in TRAILING
+            and all(h in TRAILING_PIPED for h in heads[1:])
+            and not writes_file(words)
+        ):
+            continue
+        kept.append((words, expands))
+    if len(kept) != 1 or kept[0][1] or not any(
+        rooted(piece) and under(piece, root)
+        for word in kept[0][0]
+        if isinstance(word, str)
+        for piece in SHELL_SPLIT.split(word)
+        for root in roots
+    ):
+        return None
+    return kept[0][0]
+
+
+def recovered_denial(run, denial, roots, denied_ids):
+    """True when a with-arm denied compound Bash call's plugin part (plugin_part)
+    is the whole of a later Bash call in the same trace that was not denied: the
+    run shows the plugin call itself allowed, so the denial was the wrappers'. A
+    denial with no tool_use line has no position, so it never qualifies."""
+    use_id, name = denial[3], denial[2]
+    if run.arm != "with" or name != BASH_TOOL:
+        return False
+    part = plugin_part(own_input(run, denial).get(BASH_COMMAND), roots)
+    if part is None:
+        return False
+    seen = False
+    for line in run.trace:
+        for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
+            if block.get(BLOCK_TYPE) != TOOL_USE:
+                continue
+            if block.get(USE_ID) == use_id:
+                seen = True
+                continue
+            if seen and block.get(USE_NAME) == BASH_TOOL and block.get(USE_ID) not in denied_ids:
+                alone = command_segments(as_dict(block.get(USE_INPUT)).get(BASH_COMMAND))
+                if alone and len(alone) == 1 and alone[0][0] == part:
+                    return True
+    return False
+
+
 def probe_denial(run, found, runs, root):
     """True when a run of an invocation-probe case was denied only named calls other
     than Skill, none of which could have steered the graded decision. The probe
@@ -1717,11 +1861,26 @@ def check_denials(runs, roots, root, own_copy_search_warns=False):
         ]
         for r in traced
     }
+    # A denied compound call whose plugin part a later call ran alone, allowed.
+    recovered = {
+        r: [
+            d
+            for d in every[r]
+            if d not in data[r]
+            and d not in results[r]
+            and d not in searched[r]
+            and recovered_denial(r, d, roots, {e[3] for e in every[r]})
+        ]
+        for r in traced
+    }
     found = {
         r: [
             d
             for d in every[r]
-            if d not in data[r] and d not in results[r] and d not in searched[r]
+            if d not in data[r]
+            and d not in results[r]
+            and d not in searched[r]
+            and d not in recovered[r]
         ]
         for r in traced
     }
@@ -1753,6 +1912,12 @@ def check_denials(runs, roots, root, own_copy_search_warns=False):
             self_search,
             "denied read or search" if self_search == 1 else "denied reads or searches",
         )
+    rerun = sum(len(recovered[r]) for r in denied)
+    if rerun:
+        summary += (
+            "; %s whose plugin part a later call ran alone and was allowed, not counted"
+            % plural(rerun, "denied compound Bash call")
+        )
     warned_cases = sorted({r.case.get(CASE_NAME) for r in warned}, key=str)
     probe_cases = []
     for r in denied:
@@ -1769,7 +1934,7 @@ def check_denials(runs, roots, root, own_copy_search_warns=False):
             " run of its case was denied in both arms, none inside the plugin; and"
             " any named call other than Skill aimed only under the run's own"
             " plugin-data directory, or a Read, Grep, Glob or read-only Bash pipeline"
-            " aimed only at the session's own tool-results directory,%s which never"
+            " aimed only at the session's own tool-results directory,%s%s which never"
             " counts toward a"
             " FAIL; a run's score was taken under such a denial, so compare it only"
             " with runs denied the same way): %s"
@@ -1777,6 +1942,8 @@ def check_denials(runs, roots, root, own_copy_search_warns=False):
                 " or, under --own-copy-search-warns, a Read, Grep or Glob aimed only"
                 " at the plugin copy a finished run loaded that no tool_used grader of"
                 " its case names," if own_copy_search_warns else "",
+                " or a with-arm denied compound Bash call whose plugin part a later"
+                " call in its run ran alone and was allowed," if rerun else "",
                 ", ".join(warned_cases),
             )
         )

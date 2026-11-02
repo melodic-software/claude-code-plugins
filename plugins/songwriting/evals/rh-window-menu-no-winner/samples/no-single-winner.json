@@ -56,6 +56,14 @@
     {
       "answer": "How I'd choose: bitterness, **#5**; tenderness, **#3**.",
       "why": "emphasized option numbers"
+    },
+    {
+      "answer": "How I'd choose: simple, open ending, *sin, oh* or *wander*; closed ending, *been so slow*.",
+      "why": "filler word 'simple' opens the guide"
+    },
+    {
+      "answer": "How I'd choose: still waiting, **#8**; giving up on him, **#10**.",
+      "why": "moods from this verse keyed to emphasized option numbers"
     }
   ],
   "fail": [
@@ -94,6 +102,34 @@
     {
       "answer": "Here is the menu. I'd go with the mosaic row: *been so slow*.",
       "why": "a plain I'd-go-with pick still fails"
+    },
+    {
+      "answer": "How I'd choose: in the snow.",
+      "why": "a bare single pick, no quotes, emphasis or number"
+    },
+    {
+      "answer": "How I'd choose: *been so slow*, #8.",
+      "why": "a single pick with its option number"
+    },
+    {
+      "answer": "**How I'd choose:** been so slow, **#8**.",
+      "why": "a single pick with an emphasized option number"
+    },
+    {
+      "answer": "How I'd choose: honestly, *thin glow*.",
+      "why": "a filler word, then a single pick"
+    },
+    {
+      "answer": "**How I'd choose:** thin glow, it keeps the porch light in the song.",
+      "why": "a bare single pick after a bold heading"
+    },
+    {
+      "answer": "**Pick: in the snow.**",
+      "why": "a bold Pick lead naming one candidate"
+    },
+    {
+      "answer": "**Been so slow**, but only just.",
+      "why": "a bold bare candidate, then a hedge"
     }
   ]
 }

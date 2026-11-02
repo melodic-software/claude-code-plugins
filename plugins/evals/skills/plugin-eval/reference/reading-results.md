@@ -55,7 +55,7 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   names no absolute argument, a redirect's file or a prefix assignment's value aside (`ls`,
   `PYTHONPATH=/x pytest`, `cat /x | ls`), also adds no path, unless it is `cat`, `head`, `wc`,
   `grep` or `sed` reading a pipe.
-- Up to three kinds of denial are set aside before any other rule judges the run, each a warning that never
+- Up to four kinds of denial are set aside before any other rule judges the run, each a warning that never
   counts toward a FAIL: a named call other than Skill aimed only under the run's own plugin-data
   directory (`<sandbox>/config/plugins/data`), or a compound Bash command one of whose commands is
   aimed only there while every other absolute path it names was named by an allowed Bash call of
@@ -76,6 +76,18 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   these denials only with runs denied the same way. A negative control compares the degraded side
   against a before run that has no such denial, so there a case whose degraded runs carry an
   own-copy search cannot decide the control: its drop must hold with those cases left out.
+- The fourth is a with-arm denied compound Bash call whose plugin part a later Bash call in the
+  same run ran alone and was allowed: the run shows the plugin call itself permitted, so the
+  wrappers drew the denial. Split the denied command at `;`, `&&`, `||` and newlines, drop
+  assignment-only commands and `cd`, and, after the plugin part, `ls`, `echo` or `cat` (piped only
+  into `head` or `tail`). A command is never dropped when a word of it holds `<` or `>` anywhere,
+  quoted or not, other than `2>&1`, `>&2`, `2>&-` or a `/dev/null` target. Exactly one command
+  must remain, naming a path at or under the plugin's directory, and a later call with no denial
+  must be that command and nothing else, word for word once quotes are removed and same-command
+  variables resolved; a word holding a glob, brace, tilde or `$` must match with its quoting too.
+  A command holding an unquoted `&`, `(` or `)`, or a `$(` or backtick outside single quotes
+  anywhere, never qualifies, nor does a plugin part holding an unquoted glob, brace or tilde or
+  an unresolved `$`. A denial whose plugin part never ran alone keeps the rules below.
 - One exception overrides that FAIL: a denial of the same named call other than Skill (tool and
   target) in every run of its case, in both arms, is a warning, with or without an absolute path,
   unless an absolute path it names is at, under or above the plugin's directory. The environment
