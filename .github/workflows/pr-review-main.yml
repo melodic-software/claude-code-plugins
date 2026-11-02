@@ -96,7 +96,8 @@ jobs:
     permissions:
       contents: read # check out main
       pull-requests: read # the PR and its files
-      actions: read # the upstream run the trigger gate reads
+      actions: read # the upstream run the trigger gate reads; the verdicts already uploaded
+      checks: read # the record job's check runs on the head
     outputs:
       run-attempt: ${{ github.run_attempt }}
       proceed: ${{ steps.gate.outputs.proceed }}

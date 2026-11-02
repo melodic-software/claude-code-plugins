@@ -129,10 +129,14 @@ test("the model's jobs can only read, and the one writer runs no model", () => {
     assert.match(route, /^ {4}permissions: \{\}$/m, job);
     assert.doesNotMatch(route, /run-claude-cli|secrets\.|actions\/checkout@|uses:/, job);
   }
-  // The trigger job reads with the key leg's grants, holds no secret and runs
-  // no model.
+  // The trigger job reads with the key leg's grants and checks: read, for the
+  // record job's check runs its judged-head read takes; it holds no secret
+  // and runs no model.
   const trigger = jobText("trigger");
-  assert.deepEqual(grantsOf(trigger).map(([, scope, level]) => `${scope}:${level}`), grantsOf(jobText(KEY)).map(([, scope, level]) => `${scope}:${level}`));
+  assert.deepEqual(
+    grantsOf(trigger).map(([, scope, level]) => `${scope}:${level}`),
+    [...grantsOf(jobText(KEY)).map(([, scope, level]) => `${scope}:${level}`), "checks:read"],
+  );
   assert.doesNotMatch(trigger, /run-claude-cli|secrets\./);
   const record = jobText("record");
   assert.deepEqual(grantsOf(record).map(([, scope, level]) => `${scope}:${level}`), ["checks:write"]);
