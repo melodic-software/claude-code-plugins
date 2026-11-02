@@ -14,9 +14,10 @@ async page => { // the user journey in order on one page, no reload after phase 
   const token = async () => page.$eval('meta[name="interview-token"]', m => m.content);
   const post = async body => page.request.post(base + "api/answer", {headers: {"Content-Type": "application/json", "X-Interview-Token": await token()}, data: body});
   const focused = async () => page.evaluate(() => document.activeElement.id || document.activeElement.tagName);
-  const pick = async id => {
-    if (await page.$eval('.rail-list .qbtn[data-q="' + id + '"]', el => !el.offsetParent).catch(() => false)) await page.click('.sec:has(.qbtn[data-q="' + id + '"]) .sec-h');
-    await tap('.rail-list .qbtn[data-q="' + id + '"]', 200);
+  const pick = async id => { // a render can collapse the question's group between a check and the click, so open it until the button shows
+    const q = '.qbtn[data-q="' + id + '"]', b = ".rail-list " + q;
+    for (let i = 0; i < 5 && !(await page.isVisible(b)); i++) await page.click('.sec[data-collapsed="true"]:has(' + q + ") .sec-h", {timeout: 2000}).catch(() => {});
+    await tap(b, 200);
   };
   const arm = async key => { await page.click("#qhead"); await page.keyboard.press(key); };
   const badge = async () => page.evaluate(() => { const b = document.getElementById("actBadge"); return b.hidden ? 0 : +b.textContent; });
