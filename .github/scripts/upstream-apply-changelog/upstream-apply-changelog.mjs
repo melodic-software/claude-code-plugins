@@ -36,6 +36,11 @@ const TRUNCATED = "Handoff bodies are truncated proportionally to fit GitHub's 6
 const KIND = /^[a-z][a-z-]{0,39}$/;
 // ci-mode.md: the two reasons a plan stops before deriving any row.
 const STOP_REASONS = new Set(["cap-exceeded", "range-not-computed"]);
+// range-not-computed can pass on a later run (the changelog fetch failed, or
+// the page lags the tag), so it files nothing and leaves the release undone;
+// cap-exceeded is the same on every run, so its issue is filed and the
+// release marked done.
+export const marksDone = (stop) => stop !== "range-not-computed";
 
 const stopLine = (release, stop) =>
   `The plan for Claude Code v${release} stopped (stop_reason \`${stop}\`): no changelog row was derived and no branch was opened. ` +
@@ -75,7 +80,7 @@ export function releaseIssue(release, handoffs, stop = null) {
 // handoff items untruncated, as an append or a comment posts them.
 export function publishText(plan, release) {
   const parts = plan.branches.flatMap((b) => [b.pr.title, b.pr.body]);
-  if (plan.handoffs.length || plan.stop_reason) {
+  if (marksDone(plan.stop_reason) && (plan.handoffs.length || plan.stop_reason)) {
     const issue = releaseIssue(release, plan.handoffs, plan.stop_reason);
     parts.push(issue.title, issue.body, renderItems(plan.handoffs, Number.POSITIVE_INFINITY));
   }
@@ -87,9 +92,9 @@ export function publishText(plan, release) {
 // markers in its body and the App's comments: anyone can type a marker. An
 // open issue missing some keys gets them appended in one update, or in one
 // comment when the body would pass the limit; a closed one is left alone.
-// A stopped plan (`stop` is its stop_reason) is marked done once this
-// returns, so it files the issue even with no handoffs, and a closed issue
-// missing a key throws instead.
+// A stopped plan publish files (`stop` is a stop_reason marksDone accepts)
+// is marked done once this returns, so it files the issue even with no
+// handoffs, and a closed issue missing a key throws instead.
 export async function fileReleaseHandoffs({ repo, release, handoffs, stop = null, api }) {
   if (!handoffs.length && !stop) return "no handoffs; nothing filed";
   const marker = releaseMarker(release);
@@ -489,10 +494,15 @@ async function publish(env) {
     opened++;
   }
   console.log(`opened ${opened} pull requests`);
-  // A stopped plan is the same on every run for its release, so once its
-  // issue holds every handoff publish succeeds and the release is marked
-  // done; a filing that fails throws, and the next run takes it again.
+  // A deterministic stop's release is marked done once its issue holds every
+  // handoff; a filing that fails throws, and the next run takes it again.
+  if (!marksDone(plan.stop_reason)) {
+    console.log(`::notice::the plan for Claude Code v${release} stopped (${plan.stop_reason}); nothing filed, and the next run takes it again`);
+    output("done", "false");
+    return;
+  }
   console.log(await fileReleaseHandoffs({ repo, release, handoffs: plan.handoffs, stop: plan.stop_reason, api }));
+  output("done", "true");
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {

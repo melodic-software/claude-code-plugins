@@ -215,6 +215,8 @@ jobs:
       - name: Resolve the model
         id: models
         if: steps.kill.outputs.proceed == 'true'
+        env:
+          API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           model-route: resolve-issue
@@ -390,6 +392,15 @@ jobs:
           PAYLOADS=$(printf 'plan.json=%s\nbranches.bundle=%s\n' "$OUT/plan.json" "$OUT/branches.bundle")
           export PUBLIC_KEY_FILE PAYLOADS
           node "$TRUSTED/.github/actions/seal-lane-output/seal.mjs"
+
+      # From the trusted checkout: the root checkout replaced .base.
+      - name: Log the API budget at the end
+        if: always() && steps.run.outcome != 'skipped'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.lane-trusted/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # Opens the sealed plan and bundle, scans what will be published for
   # credentials, and uploads only a clean set. No model, no write token.
@@ -724,8 +735,10 @@ jobs:
   # publish-artifact: pull-requests and issues write, contents read. Opens a
   # pull request for each branch at the head push-branches left that has none, and files
   # the release's handoffs as one issue, appending keys an open one lacks; then
-  # records the release done. A stopped plan files its issue, naming its
-  # stop_reason, and is recorded done once that issue holds every handoff key.
+  # records the release done. A cap-exceeded plan files its issue, naming its
+  # stop_reason, and is recorded done once that issue holds every handoff key;
+  # a range-not-computed plan files nothing and is not recorded done, so the
+  # next run takes the release again.
   publish:
     needs: [gate, scan, push-branches]
     if: >-
@@ -852,9 +865,9 @@ jobs:
           [ "$status" = 204 ] || echo "::warning::the lane token was not revoked (DELETE $status); it expires within the hour"
 
       # The gate's done marker: a later run skips this release even when its
-      # plan made no branch or stopped.
+      # plan made no branch or stopped on cap-exceeded.
       - name: Upload the done marker
-        if: steps.publish.outcome == 'success'
+        if: steps.publish.outcome == 'success' && steps.publish.outputs.done == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: upstream-apply-changelog-done-${{ needs.gate.outputs.release }}

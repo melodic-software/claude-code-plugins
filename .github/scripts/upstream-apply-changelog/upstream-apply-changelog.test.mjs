@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -13,6 +13,7 @@ import {
   fetchSynthetic,
   fileReleaseHandoffs,
   handoffMarker,
+  marksDone,
   netRawDiff,
   newestRelease,
   publishText,
@@ -172,13 +173,28 @@ test("the publish text holds every pull request and issue string publish can pos
 });
 
 test("a stopped plan's publish text holds the issue it posts, stop line included, even with no handoffs", async () => {
-  const v = validatePlan(plan({ status: "stopped", stop_reason: "range-not-computed", handoffs: [] }), ctx);
+  const v = validatePlan(plan({ status: "stopped", stop_reason: "cap-exceeded", handoffs: [] }), ctx);
   const f = issueApi();
   await fileReleaseHandoffs({ repo: REPO, release: "2.1.300", handoffs: v.handoffs, stop: v.stop_reason, api: f.api });
   const posted = f.writes()[0].body;
   const text = publishText(v, "2.1.300");
   assert.ok(text.includes(posted.title) && text.includes(posted.body));
-  assert.ok(posted.body.includes("stop_reason `range-not-computed`"));
+  assert.ok(posted.body.includes("stop_reason `cap-exceeded`"));
+});
+
+test("only a deterministic stop marks the release done; range-not-computed is retried and posts nothing", () => {
+  assert.equal(marksDone(null), true);
+  assert.equal(marksDone("cap-exceeded"), true);
+  assert.equal(marksDone("range-not-computed"), false);
+  const v = validatePlan(plan({ status: "stopped", stop_reason: "range-not-computed", handoffs: [] }), ctx);
+  assert.equal(publishText(v, "2.1.300"), "\n");
+});
+
+test("the done marker uploads only when publish says the release is done", () => {
+  const wf = readFileSync(new URL("../../workflows/upstream-apply-changelog.yml", import.meta.url), "utf8");
+  const step = wf.split(/\n(?= {6}- name: )/).filter((s) => s.includes("name: upstream-apply-changelog-done-"));
+  assert.equal(step.length, 1);
+  assert.match(step[0], /\n {8}if: steps\.publish\.outcome == 'success' && steps\.publish\.outputs\.done == 'true'\n/);
 });
 
 test("a commit outside its plugin, or writing a link or submodule, is refused", () => {
@@ -498,13 +514,13 @@ test("an outsider's issue carrying the release marker is ignored and a new issue
 
 test("a stopped plan with no handoffs still files one issue that names its stop_reason", async () => {
   const f = issueApi();
-  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [], stop: "range-not-computed", api: f.api });
+  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [], stop: "cap-exceeded", api: f.api });
   const writes = f.writes();
   assert.equal(writes.length, 1);
   assert.equal(writes[0].path, `/repos/${REPO}/issues`);
   assert.equal(writes[0].body.title, `Claude Code v${REL} changelog: 0 handoffs`);
   assert.ok(writes[0].body.body.startsWith(`${releaseMarker(REL)}\n\n`));
-  assert.ok(writes[0].body.body.includes(`Claude Code v${REL} stopped (stop_reason \`range-not-computed\`)`));
+  assert.ok(writes[0].body.body.includes(`Claude Code v${REL} stopped (stop_reason \`cap-exceeded\`)`));
 });
 
 test("a stopped plan's handoff issue opens with the stop line above its checklist", async () => {
