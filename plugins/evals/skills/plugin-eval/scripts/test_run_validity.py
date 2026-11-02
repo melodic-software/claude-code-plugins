@@ -517,8 +517,8 @@ class RunValidityTest(unittest.TestCase):
         self.assertVerdict(proc, "INVALID", 1)
         self.assertIn("1 run never started or had no sandbox", proc.stdout)
         self.assertIn(
-            "  case measurable-criterion, with-arm run 1: 0 turns, and a skill's"
-            " pre-computed command failed before the first turn (%s)" % trace,
+            "  case measurable-criterion, with-arm run 1: a skill's pre-computed"
+            " command failed (%s)" % trace,
             proc.stdout,
         )
 
@@ -650,6 +650,70 @@ class RunValidityTest(unittest.TestCase):
         self.assertIn(
             "  case measurable-criterion, without-arm run 1: the shell sandbox failed"
             " to start (%s)" % trace,
+            proc.stdout,
+        )
+
+    def test_a_bash_result_reporting_a_read_only_file_system_is_invalid(self):
+        # The #12422 positive control: a run with turns whose Bash write fails.
+        for name, results in (
+            ("ro-error.jsonl", [(True, "touch: cannot touch './made-by-bash': Read-only file system")]),
+            ("ro-output.jsonl", [(True, "Exit code 1\nv42\ntouch: cannot touch '/r/tmp/t': READ-ONLY FILE SYSTEM")]),
+        ):
+            proc, trace = self.bash_trace(name, results)
+            self.assertVerdict(proc, "INVALID", 1)
+            self.assertIn(
+                "  case measurable-criterion, without-arm run 1: a Bash call hit a"
+                " read-only file system (%s)" % trace,
+                proc.stdout,
+                name,
+            )
+
+    def test_a_successful_bash_result_quoting_read_only_passes(self):
+        proc, _ = self.bash_trace(
+            "ro-grep.jsonl", [(False, "records.md:66: cwd-6a70: Read-only file system")]
+        )
+        self.assertIn("check session started: PASS", proc.stdout)
+
+    def test_a_read_only_mention_outside_a_bash_result_passes(self):
+        trace = self.dir / "ro-read.jsonl"
+        trace.write_text(
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
+            '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"r1",'
+            '"name":"Read","input":{"file_path":"/x/records.md"}}]}}\n'
+            '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"r1",'
+            '"content":"cwd-6a70: Read-only file system"}]}}\n'
+            '{"type":"result","subtype":"success","is_error":false,"num_turns":3}\n',
+            encoding="utf-8",
+        )
+        result = self.write(self.clean())
+        data = load(result)
+        data["cases"][1]["arms"]["without"][0].update(tracePath=str(trace), turns=3)
+        result.write_text(json.dumps(data), encoding="utf-8")
+        proc = self.run_script(result, "--runs", "1")
+        self.assertIn("check session started: PASS", proc.stdout)
+
+    def test_a_run_with_turns_whose_pre_computed_command_failed_is_invalid(self):
+        stderr = (
+            "<local-command-stderr>Shell command failed for pattern \"!`echo ok`\":"
+            " [stderr]</local-command-stderr>"
+        )
+        trace = self.dir / "pre-command-turns.jsonl"
+        trace.write_text(
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
+            + json.dumps({"type": "user", "message": {"content": stderr}}) + "\n"
+            + '{"type":"assistant","message":{"content":[{"type":"text","text":"x"}]}}\n'
+            '{"type":"result","subtype":"success","is_error":false,"num_turns":2}\n',
+            encoding="utf-8",
+        )
+        result = self.write(self.clean())
+        data = load(result)
+        data["cases"][1]["arms"]["without"][0].update(tracePath=str(trace), turns=2)
+        result.write_text(json.dumps(data), encoding="utf-8")
+        proc = self.run_script(result, "--runs", "1")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn(
+            "  case measurable-criterion, without-arm run 1: a skill's pre-computed"
+            " command failed (%s)" % trace,
             proc.stdout,
         )
         self.assertIn(

@@ -44,9 +44,11 @@ one line per check, detail lines indented under it:
                       no working shell. A failed call that printed output ran in a
                       working shell, whatever its exit code. A 0-turn run whose
                       trace holds assistant messages ran in a forked session (a
-                      slash-invoked `context: fork` skill) and passes, unless a
-                      user line's local-command-stderr shows a skill's
-                      pre-computed command failing, which fails the run
+                      slash-invoked `context: fork` skill) and passes. Any run
+                      fails whose failed Bash result reports a read-only file
+                      system,
+                      or whose user line's local-command-stderr shows a skill's
+                      pre-computed command failing
     plugins loaded    every suite.plugins plugin, named by its
                       .claude-plugin/plugin.json (else its directory), is in
                       each with-arm run's init plugins list with no
@@ -245,11 +247,13 @@ DENIAL_TEXT = "denied by your permission settings"  # in an is_error tool_result
 # Anywhere in a trace line when the shell sandbox never started (Claude Code 2.1.310).
 SANDBOX_FAILURE_TEXT = "Sandbox is required but failed to initialize"
 # A user line's local-command-stderr when a slash-invoked skill's pre-computed
-# (!`command`) line failed and the session ended before its first turn
-# (Claude Code 2.1.316, #12422).
+# (!`command`) line failed (Claude Code 2.1.316, #12422).
 TRACE_USER = "user"
 PRE_COMMAND_STDERR = "local-command-stderr"
 PRE_COMMAND_FAILURE_TEXT = "Shell command failed for pattern"
+# In a Bash result, lowercased, when the run's workspace or TMPDIR is not writable
+# (Claude Code 2.1.316 with TMPDIR under /tmp or /var/tmp, #12422).
+READ_ONLY_TEXT = "read-only file system"
 # A run with at least this many Bash calls, every one failed with no output, had no
 # working shell. Two, not one, so one silent failure does not flag a healthy run.
 MIN_BASH_CALLS = 2
@@ -710,11 +714,11 @@ def has_output(content):
 
 
 def shell_failure(run):
-    """Why the run had no working shell, or None: a failed Bash result reporting the
-    sandbox not starting, or every one of at least MIN_BASH_CALLS Bash calls failing
-    with no output. A failed call that printed output ran, so the shell worked. A
-    denied call never reached the shell, so it counts toward neither; check_denials
-    judges it."""
+    """Why the run had no working shell, or None: a failed Bash result reporting
+    a read-only file system or the sandbox not starting, or every one of at least MIN_BASH_CALLS Bash calls failing with no
+    output. A failed call that printed output ran, so the shell worked. A denied
+    call never reached the shell, so it counts toward none; check_denials judges
+    it."""
     bash_ids, failed_ids = set(), set()
     for line in run.trace or []:
         for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
@@ -722,13 +726,17 @@ def shell_failure(run):
                 bash_ids.add(block.get(USE_ID))
             elif (
                 block.get(BLOCK_TYPE) == TOOL_RESULT
-                and block.get(RESULT_ERROR) is True
                 and block.get(RESULT_USE_ID) in bash_ids
             ):
                 if is_denial(block):
                     bash_ids.discard(block.get(RESULT_USE_ID))
                     continue
-                if SANDBOX_FAILURE_TEXT in json.dumps(block.get(CONTENT)):
+                if block.get(RESULT_ERROR) is not True:
+                    continue
+                text = json.dumps(block.get(CONTENT))
+                if READ_ONLY_TEXT in text.lower():
+                    return "a Bash call hit a read-only file system"
+                if SANDBOX_FAILURE_TEXT in text:
                     return "the shell sandbox failed to start"
                 if not has_output(block.get(CONTENT)):
                     failed_ids.add(block.get(RESULT_USE_ID))
@@ -851,11 +859,17 @@ def check_started(runs):
     """A run at 0 turns that check_errors passes, or one whose trace shows the
     sandbox failing to start, scored a session that never ran or had no shell.
     A 0-turn run whose trace holds assistant messages ran in a forked session
-    (a slash-invoked `context: fork` skill), which the turn count leaves out,
-    unless its trace shows a pre-computed command failing before the first turn."""
+    (a slash-invoked `context: fork` skill), which the turn count leaves out.
+    Any run whose trace shows a skill's pre-computed command failing fails."""
     details, failed, forked = [], set(), []
     for r in runs:
-        if (
+        if pre_command_failed(r):
+            details.append(
+                "%s: a skill's pre-computed command failed (%s)"
+                % (r.where, r.trace_path)
+            )
+            failed.add(r)
+        elif (
             is_number(r.row.get(RUN_TURNS))
             and r.row[RUN_TURNS] == 0
             and r.row.get(RUN_ERROR) is None
@@ -863,13 +877,7 @@ def check_started(runs):
             and not trace_errored(r)
         ):
             messages = assistant_messages(r)
-            if pre_command_failed(r):
-                details.append(
-                    "%s: 0 turns, and a skill's pre-computed command failed before"
-                    " the first turn (%s)" % (r.where, r.trace_path)
-                )
-                failed.add(r)
-            elif messages:
+            if messages:
                 forked.append(
                     "%s: 0 turns, and its trace holds %s (%s)"
                     % (r.where, plural(messages, "assistant message"), r.trace_path)
