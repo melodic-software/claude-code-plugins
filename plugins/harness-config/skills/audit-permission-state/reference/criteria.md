@@ -18,8 +18,7 @@ Version: 1.1.0
 Last updated: 2026-08-28
 
 This file defines what `permission-merge.sh` may claim and which documented mechanic each claim
-points at. It exists because an *effective* permission set is a precedence claim, and a precedence
-claim with no cited mechanic is folklore. Each rule below is our decision in our words with a
+points at. Each rule below is our decision in our words with a
 pointer to the section that documents the mechanic; read the wording there. The reader's own record
 contract lives in `SKILL.md`; the per-check grant vocabulary lives in the sibling
 `audit-permission-grants`. Neither is restated here.
@@ -185,8 +184,6 @@ Both cases print a `NOTE:` naming the tool, so the removal is announced rather t
 run of `inert` records.
 
 ## Bounds every run states
-
-Neither is a limitation to apologize for; both change what a finding means.
 
 - **The command-line scope has no file.** Without `allowManagedPermissionRulesOnly`, `--settings`,
   `--allowedTools`, and `--disallowedTools` rank above local, project, and user settings, and no file
@@ -474,8 +471,7 @@ override it (pointer: [Where the classifier reads configuration](https://code.cl
 
 **The report prescribes nothing.** It says what the consumer's policy does and does not achieve, and
 every rule string it prints came from a file it read, a property the suite asserts positively rather
-than by checking that some recommendation marker is absent. It ships no security floor of its own,
-which keeps it neutral by construction rather than by restraint.
+than by checking that some recommendation marker is absent. It ships no security floor of its own.
 
 **Completeness bounds every claim.** Server-managed settings are cached at
 `~/.claude/remote-settings.json`. The cache is user-writable and can be stale, so `managed` in this

@@ -1,0 +1,75 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "actionlint:check"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "other:setup"
+          }
+        }
+      ],
+      "why": "another plugin's setup"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "actionlint:setup-wizard"
+          }
+        }
+      ],
+      "why": "longer name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "actionlint:setup",
+            "args": "apply install-git-hooks"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "actionlint:setup",
+            "args": "apply"
+          }
+        }
+      ],
+      "why": "namespaced"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "setup"
+          }
+        }
+      ],
+      "why": "bare"
+    }
+  ]
+}

@@ -1,0 +1,113 @@
+{
+  "pass": [
+    {
+      "answer": "§1 Rhyme suggestion filter: identity check fail on both of yours, tier walk pass, mosaic present, cliche scan pass.\n\n**Identity check first.** re-LEASE, po-LICE and LEASE all put the same l in front of the same stressed ee-s. That's identity, not rhyme: the ear hears one word three times. So neither police nor lease; here is a menu instead.\n\n| Tier | Candidate | Note |\n| --- | --- | --- |\n| Perfect | *peace* | resolved, risks the cliche pairing |\n| Perfect | *grease* | the car, the road |\n| Perfect | *decrease* | slows the line down |\n| Family | *beef* | s to f, same voiceless family |\n| Family | *wreath* | s to th, a funeral shadow |\n| Additive | *east* | adds the t, a direction to drive |\n| Assonance | *seat* | the empty passenger seat |\n| Assonance | *keep* | vowel only, stays open |\n| Mosaic | *the streets* | multi-word, keeps the motion |\n| Mosaic | *on my knees* | multi-word, voiced z, a turn of feeling |\n\nWhich one depends on whether the chorus should land or stay restless. The pick is yours."
+    },
+    {
+      "answer": "I won't name a winner: choose the one that matches what line 4 should feel like."
+    },
+    {
+      "answer": "**Filter run**\n- **Tiers:** pass, five covered.\n- **Winner:** skipped on purpose, per the method.\n\n| Tier | Candidates |\n| --- | --- |\n| Family | limbo, pinto |\n| Assonance | kitchen, listen |\n\nSing a few against line 2 and keep the one that lands.",
+      "why": "a 'Winner:' line that declines a winner"
+    },
+    {
+      "answer": "**How I'd choose:**\n- **To keep him from calling:** *sin, oh* or *wander*.\n- **To land the waiting:** *been so slow*.\n- **For a season shift:** *in the snow* or *spin and go*.",
+      "why": "a choosing guide by feeling with two picks for one mood (notes.md finding 3 shape)"
+    },
+    {
+      "answer": "**How I'd choose:** *for an open ending*, *sin, oh* or *wander*; *for a closed one*, *been so slow*.",
+      "why": "an inline choosing guide that opens with italics"
+    },
+    {
+      "answer": "**How I'd choose:** _if_ the verse should stay unresolved, the assonance row; if it should land, the mosaic row.",
+      "why": "an inline conditional guide keyed to rows"
+    },
+    {
+      "answer": "The answer is neither: both are identities of release.",
+      "why": "refuses both of the writer's options"
+    },
+    {
+      "answer": "I'd pick neither of those two; here is the menu.",
+      "why": "refuses both of the writer's options"
+    },
+    {
+      "answer": "**My pick:** neither. Choose from the menu by feel.",
+      "why": "refuses both of the writer's options"
+    },
+    {
+      "answer": "How I'd choose: by feel. Open ending, the assonance row; closed ending, the mosaic row.",
+      "why": "a bare guide keyed to feelings"
+    },
+    {
+      "answer": "Here's how I'd choose between them: sing each one against line 2.",
+      "why": "guide prose, no pick"
+    },
+    {
+      "answer": "How I'd choose: open ending, the assonance row; closed ending, the mosaic row.",
+      "why": "feeling-keyed guide"
+    },
+    {
+      "answer": "**How I'd choose:** *by feel*: open ending, the assonance row; closed ending, the mosaic row.",
+      "why": "italic by-feel guide"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "§1 Rhyme suggestion filter: identity check fail on both of yours, tier walk pass, mosaic present, cliche scan pass.\n\n**Identity check first.** re-LEASE, po-LICE and LEASE all put the same l in front of the same stressed ee-s. That's identity, not rhyme: the ear hears one word three times. So neither police nor lease; here is a menu instead.\n\n| Tier | Candidate | Note |\n| --- | --- | --- |\n| Perfect | *peace* | resolved, risks the cliche pairing |\n| Perfect | *grease* | the car, the road |\n| Perfect | *decrease* | slows the line down |\n| Family | *beef* | s to f, same voiceless family |\n| Family | *wreath* | s to th, a funeral shadow |\n| Additive | *east* | adds the t, a direction to drive |\n| Assonance | *seat* | the empty passenger seat |\n| Assonance | *keep* | vowel only, stays open |\n| Mosaic | *the streets* | multi-word, keeps the motion |\n| Mosaic | *on my knees* | multi-word, voiced z, a turn of feeling |\n\nWhich one depends on whether the chorus should land or stay restless. The pick is yours.\n\nIf you want one, my pick is *grease*.",
+      "why": "a pick after the menu"
+    },
+    {
+      "answer": "Of your two, I'd go with lease.",
+      "why": "picks one of the writer's options"
+    },
+    {
+      "answer": "The best rhyme here is \"been so slow\"."
+    },
+    {
+      "answer": "Menu below. I'd go with the mosaic one."
+    },
+    {
+      "answer": "Lots of options, but go with \"in the snow\".",
+      "why": "winner phrased as an instruction"
+    },
+    {
+      "answer": "My one pick:\n\n## The house settled crooked toward her side.\n\nIt works because the image carries the absence without naming it."
+    },
+    {
+      "answer": "| Tier | Candidates |\n| --- | --- |\n| Family | limbo, pinto |\n\n**Winner:** limbo",
+      "why": "a 'Winner:' line that names one"
+    },
+    {
+      "answer": "How I'd choose: #3. It is the best.",
+      "why": "a single pick on the choosing-guide line"
+    },
+    {
+      "answer": "**How I'd choose:** \"been so slow\".",
+      "why": "a single quoted pick on the choosing-guide line"
+    },
+    {
+      "answer": "**How I'd choose:** *been so slow*.",
+      "why": "a single italic pick on the choosing-guide line"
+    },
+    {
+      "answer": "Here is the menu. I'd go with the mosaic row: *been so slow*.",
+      "why": "a plain I'd-go-with pick still fails"
+    },
+    {
+      "answer": "My pick: *peace*.",
+      "why": "a pick from the menu"
+    },
+    {
+      "answer": "Neither of yours works. The answer is \"grease\".",
+      "why": "refuses theirs, then crowns one"
+    },
+    {
+      "answer": "How I'd choose: grease.",
+      "why": "a bare single pick on the choosing-guide line"
+    },
+    {
+      "answer": "**How I'd choose:** grease, it keeps the car in the song.",
+      "why": "a bare single pick after a bold heading"
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: ck-hook-notice-read-only
+graders:
+  - name: 'probes-actionlint'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b(?:command\s+-[vV]|which|type(?:\s+-\w+)*|whereis|hash|Get-Command)\s+(?:[\w.-]+\s+)*?actionlint(?![\w.\-/])|(?:(?<=")|[\s;&|(''])(?:[^\s"\\;&|='']*/)?actionlint(?:\.exe)?(?:\\"|'')?\s+-{1,2}version\b)'
+    min: 1
+    arm: 'both'
+  - name: 'no-install'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?(?:(?:brew|port|apt(?:-get)?|dnf|yum|zypper|apk|snap|winget|scoop|choco|pipx?|pip3|npm|pnpm|yarn|cargo)(?:\.exe)?(?:\\\"|'')?(?:\s|\\\\\\n)+(?:-{1,2}[\w-]+(?:[= ][^\s-]\S*)?(?:\s|\\\\\\n)+)*(?:install|reinstall|add|upgrade|i)\b|pacman\s+-S|go(?:\s|\\\\\\n)+install\b|uv(?:\s|\\\\\\n)+(?:tool|pip)(?:\s|\\\\\\n)+install\b|(?:mise|asdf|rtx|aqua)(?:\s|\\\\\\n)+(?:install|use|upgrade|up|plugin\s+add)\b|nix(?:-env)?\s+(?:-i\b|profile\s+install|shell|run)|docker\s+(?:pull|run)\b|(?:curl|wget)\b(?:[^\"\\]|\\.)*?\|\s*(?:sudo(?:\s+-\S+)*\s+)?(?:bash|dash|zsh|sh)\b|(?:bash|zsh|sh)\s+<\(\s*(?:curl|wget)\b|(?:(?:bash|dash|zsh|sh)(?:\s+-\w+)*?\s+-\w*c\w*|eval)\s+(?:\\\"|'')?\$\(\s*(?:curl|wget)\b)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-apply-step'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?node(?:\.exe)?(?:\\\"|'')?(?:\s|\\\\\\n)+(?:-[^\s\"\\]+(?:\s|\\\\\\n)+)*(?:\\\"|'')?(?:[^\s\"\\'']|\\\\)*install\.mjs(?:\\\"|'')?(?:\s|\\\\\\n)+(?:plan|copy|decline|config-hook)\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-linter-run'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?actionlint(?:\.exe)?(?![\w.\-/])(?!(?:\\\"|'')?\s+-{1,2}version\b)(?:\\\"|'')?|(?:(?:bash|dash|zsh|sh)\s+(?:-\w+\s+)*)?(?:\\\"|'')?[^\s\"\\;&|='']*(?:git-)?hooks/actionlint-check\.sh)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'status-table'
+    type: 'regex'
+    pattern: '^[ \t]*\|?[ \t]*:?-+:?[ \t]*\|(?=[\s\S]*?^(?=[^\n]*\|)(?=[^\n]*?(?:^|\|)[^|\n]*?actionlint(?![\w.\-/])[^|\n]*(?:\||$))[^\n]*?(?:\b(?:PASS|FAIL|INFO|WARN|Pass|Fail|Info|Warn)\b|✅|❌|⚠))(?=[\s\S]*?^(?=[^\n]*\|)(?=[^\n]*?(?:^|\|)[^|\n]*?\b[Nn]ode(?:\.js)?(?![\w.\-/])[^|\n]*(?:\||$))[^\n]*?(?:\b(?:PASS|FAIL|INFO|WARN|Pass|Fail|Info|Warn)\b|✅|❌|⚠))'
+    flags: 'm'
+    target: 'last_message'

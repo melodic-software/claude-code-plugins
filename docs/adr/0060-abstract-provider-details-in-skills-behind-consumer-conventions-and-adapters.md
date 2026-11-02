@@ -99,5 +99,5 @@ files) is not a generic skill and keeps its provider details.
   reference set and one code module, not editing every generic skill.
 - Reviewers apply the rule to new skill text now: a generic skill that names `gh` or GitHub grammar
   is a finding, unless it sits behind the owner of the operation or in a declared-provider surface.
-  The root `AGENTS.md` Code Review Rules list points at this record, so the rule loads in every
-  review session.
+  `docs/review/skills-and-agents.md` points at this record, and the root `AGENTS.md` Code Review
+  Rules pointer line names the `docs/review/` index, which lists that file.

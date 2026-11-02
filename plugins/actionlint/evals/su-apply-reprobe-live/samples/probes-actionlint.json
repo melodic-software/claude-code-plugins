@@ -1,0 +1,294 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v actionlint",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v node; command -v actionlint",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v node actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "two names in one probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "which actionlint || echo absent",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "actionlint -version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "version probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "type -a actionlint",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v node && command -v actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "second after &&"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "which actionlint || echo missing",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "which"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "type -P actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "type -P"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /tmp; actionlint --version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "version after ;"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -c 'command -v actionlint'",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "bash -c"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sudo which actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "sudo which"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/usr/local/bin/actionlint\" -version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "quoted path version probe counts as a probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "'actionlint' --version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "single-quoted version probe counts as a probe"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "nothing run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v node",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "node only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat \"${CLAUDE_PLUGIN_ROOT}/git-hooks/actionlint-check.sh\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "reads the script, probes nothing"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls /opt/plugins/actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "path, not a probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat \"$P/skills/check/SKILL.md\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "read the skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "which actionlint-check.sh",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "hook script name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v actionlint_enabled",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "toggle name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls ~/.local/bin | grep actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "ls grep"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "actionlint .github/workflows",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "a linter run is not a probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/usr/local/bin/actionlint\" .github/workflows/ci.yml",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "quoted lint run is not a probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "'actionlint' -color",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "quoted run with another flag is not a probe"
+    }
+  ]
+}

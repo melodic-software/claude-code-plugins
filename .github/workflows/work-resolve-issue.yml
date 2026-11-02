@@ -303,13 +303,19 @@ jobs:
     outputs:
       fallback-ready: ${{ steps.fallback.outputs.ready }}
       handed-off: ${{ steps.handoff.outputs.handed-off }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.repository.default_branch }}
           path: .base
-          sparse-checkout: .github/scripts/lib/handoff-evidence.sh
+          sparse-checkout: |
+            .github/scripts/lib/handoff-evidence.sh
+            .github/actions/log-api-budget
           sparse-checkout-cone-mode: false
           persist-credentials: false
 
@@ -328,6 +334,14 @@ jobs:
         env:
           PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
         run: echo "ready=$PRESENT" >>"$GITHUB_OUTPUT"
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # The subscription fallback, a second call on new VMs in the same slot: it
   # runs only on resolve-issue-handoff's read, holds the OAuth token alone,
@@ -378,13 +392,19 @@ jobs:
       contents: read # the default branch tip's handoff-evidence.sh
     outputs:
       handed-off: ${{ steps.handoff.outputs.handed-off }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.repository.default_branch }}
           path: .base
-          sparse-checkout: .github/scripts/lib/handoff-evidence.sh
+          sparse-checkout: |
+            .github/scripts/lib/handoff-evidence.sh
+            .github/actions/log-api-budget
           sparse-checkout-cone-mode: false
           persist-credentials: false
 
@@ -394,6 +414,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CALLS: resolve-issue-subscription
         run: bash .base/.github/scripts/lib/handoff-evidence.sh handed-off
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # The third call, on the central fallback subscription's token alone: it
   # runs only on resolve-issue-subscription-handoff's read, after resolve-issue-subscription's subscription leg handed off (a
@@ -449,13 +477,19 @@ jobs:
       contents: read # the default branch tip's handoff-evidence.sh
     outputs:
       stale: ${{ steps.stale.outputs.stale }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.repository.default_branch }}
           path: .base
-          sparse-checkout: .github/scripts/lib/handoff-evidence.sh
+          sparse-checkout: |
+            .github/scripts/lib/handoff-evidence.sh
+            .github/actions/log-api-budget
           sparse-checkout-cone-mode: false
           persist-credentials: false
 
@@ -465,6 +499,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CALLS: resolve-issue resolve-issue-subscription resolve-issue-fallback
         run: bash .base/.github/scripts/lib/handoff-evidence.sh stale
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # An issue its Size, Complexity and Uncertainty fields skip (pick-slot's
   # resolve) takes no model turn, so the run leaves no outcome and every job
@@ -680,6 +722,10 @@ jobs:
       issues: read # resolve-config reads the issue's labels for labels-absent
     outputs:
       checks: ${{ steps.run-checks.outputs.checks }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -860,6 +906,14 @@ jobs:
           record=$(jq -nc --arg branch "$BRANCH" --arg tip "$tip" --argjson results "$results" --arg scan "$scan" \
             '{version: 1, branch: $branch, tip: $tip, results: $results} + if $scan == "" then {} else {scan: $scan} end')
           echo "checks=$record" >>"$GITHUB_OUTPUT"
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   report-outcome:
     needs: [resolve-issue, resolve-issue-subscription, resolve-issue-fallback, resolve-issue-stale, apply-issue-patch, run-checks]
