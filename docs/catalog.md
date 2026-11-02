@@ -123,7 +123,7 @@ plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabu
 
 ## Project Management
 
-- [`work-items`](../plugins/work-items): Work items through a provider-neutral tracker seam (github, local-markdown, jira, gitea, linear adapters): track (dashboard, creation, race-safe claims, recurring checks, stale-lease audits), scan-todos, decompose (plans into vertical slices), ship (run one spec container), triage (raw intake and unsolicited PRs), work, work-loop (autonomous PR-only drain), attend-queue (escalations), morning-brief (operator's read-only daily view), onboard-adapter (new tracker adapter), measure-delivery (DORA metrics), and setup (binds the provider).
+- [`work-items`](../plugins/work-items): Work items through a provider-neutral tracker seam (github, local-markdown, jira, gitea, linear adapters): track (dashboard, creation, race-safe claims, recurring checks, stale-lease audits), scan-todos, decompose (plans to vertical slices), ship (one spec container), triage (intake, unsolicited PRs), work, work-loop (autonomous drain), attend-queue (escalations), morning-brief (read-only daily view), onboard-adapter (new trackers), measure-delivery (DORA metrics), and setup (binds a provider).
 
 ## Operations
 
