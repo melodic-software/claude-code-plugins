@@ -1,5 +1,5 @@
 ---
-description: "Reviewer-diversity eval, fixture stock-race, arm M+X (fanout_diversity model, plus Codex): /review:fanout run-everything on a commit that awaits a warehouse check inside reserve's read-check-write"
+description: "Reviewer-diversity eval, fixture stock-race, arm M+X (fanout_diversity model, plus Codex): /review:fanout run-everything on a commit that awaits a warehouse check inside reserve's read-check-write. Probe result: L and M tie at 24/24 recall, so lens stays the default; the Codex arms are not measurable under codex 1.0.6 (#12151, 2026-11-02; #12495)."
 tags: [review, fanout-diversity, arm-mx]
 runs: 3
 max_turns: 80

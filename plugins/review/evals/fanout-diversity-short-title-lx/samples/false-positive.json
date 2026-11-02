@@ -3,12 +3,24 @@
     {
       "answer": "---\ntype: review-findings\nbranch: refactor/titles\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | titles.py:2 | code-reviewer | Every short title now gets an ellipsis: 'Desk lamp' becomes 'Desk lamp…'. | Restore the length check |\n| 2 | SUGGESTION | low | listing.py:3 | code-reviewer | Consider loading titles from the catalogue. | Load titles from data |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
       "why": "the only CRITICAL finding is the planted defect"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/titles\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | titles.py:2 | code-reviewer | Every short title now gets an ellipsis: 'Desk lamp' becomes 'Desk lamp…'. | Restore the length check |\n| 2 | IMPORTANT | medium | titles.py:2 | security-reviewer | title[: limit - 1] raises IndexError when the title is shorter than the limit. | Guard the slice |\n\n## Surfaces\n\nRan: [code-reviewer@high, security-reviewer@high]. Returned no result: [].",
+      "why": "the slicing claim is IMPORTANT, and only CRITICAL findings count"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/titles\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | titles.py:2 | code-reviewer | 'Desk lamp' and 'Cable tray' now print with a trailing ellipsis. | Restore the length check |\n| 2 | CRITICAL | medium | titles.py:2 | architecture-guardian | A title of exactly 40 characters now loses its last character to the ellipsis. | Restore the length check |\n\n## Surfaces\n\nRan: [code-reviewer@high, architecture-guardian@high]. Returned no result: [].",
+      "why": "both CRITICAL findings are the planted defect (short titles, a 40-character title), which never counts"
     }
   ],
   "fail": [
     {
       "answer": "---\ntype: review-findings\nbranch: refactor/titles\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | titles.py:2 | code-reviewer | Every short title now gets an ellipsis. | Restore the length check |\n| 2 | CRITICAL | medium | titles.py:2 | security-reviewer | Slicing a title shorter than the limit raises IndexError, so the listing crashes. | Guard the slice |\n\n## Surfaces\n\nRan: [code-reviewer@high, security-reviewer@high]. Returned no result: [].",
       "why": "a CRITICAL finding claims slicing past the end raises an error"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/titles\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | high | titles.py:2 | code-reviewer | Every short title now gets an ellipsis. | Restore the length check |\n| 2 | CRITICAL | low | titles.py:2 | architecture-guardian | Titles over the limit are now cut one character shorter than before. | Restore the old cut |\n\n## Surfaces\n\nRan: [code-reviewer@high, architecture-guardian@high]. Returned no result: [].",
+      "why": "a CRITICAL finding claims long titles are now cut differently; the low Confidence is ignored"
     }
   ]
 }
