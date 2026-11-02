@@ -60,26 +60,31 @@ the two versions with `/evals:plugin-eval`. A cut to an existing skill ships onl
 
 ## Descriptions
 
-- **Model-invoked:** what it is, then "Use when" with one trigger per branch of what the skill
-  does: `Noun phrase. Use when <branch>, <branch>.` (Pocock's shape, as of 2026-10-06; recheck when his repository's descriptions change shape).
+- **Model-invoked:** one sentence saying what the skill is, then "Use when" with one trigger per
+  branch of what the skill does, then at most three hook terms:
+  `Noun phrase. Use when <branch>, <branch>.` (Pocock's shape, as of 2026-10-06; recheck when his repository's descriptions change shape).
   Enumerating
   every phrasing a user might type is the trigger-case defect the prompt audit flags. Use the
   nouns a user would type, and lead with the main use case: the listing truncates from the end.
 - **Hook terms.** Models latch onto particular words, and which ones is found by trial, not
-  guessed. Keep a quoted user idiom that shares no word with the rest of the description (a
-  jargon or slang name for the job) when probes show it moves triggering; cut a paraphrase of
-  words already present. Our untested hypothesis is that weaker models lean on these terms more,
-  so measure on each model the skill targets.
+  guessed. Keep at most three, each a quoted user idiom that shares no word with the rest of the
+  description (a jargon or slang name for the job) and that probes show moves triggering
+  ([Measurement](#measurement)); cut a paraphrase of words already present, and cut a term no
+  probe has tested. Our untested hypothesis is that weaker models lean on these terms more, so
+  measure on each model the skill targets.
 - **User-invoked** (`disable-model-invocation: true`): a one-line summary, no trigger list. Why
   trigger text does nothing there: the invocation-control section of the Claude Code skills docs
   in [Sources](#sources).
 - Third person. No first or second person in the prose; a quoted user utterance keeps the user's
   voice. Trigger text may keep calibrated urgency.
 - Name a sibling skill only when probes show the two are confused (see [Measurement](#measurement)).
-- Length: the upstream description caps, the listing truncation and the shared listing budget
-  live in the pages [Sources](#sources) names; `/skill-quality:check` holds the current values,
-  enforces the caps and estimates the budget (`listing-budget`). Our own measure of Pocock's
-  skills: descriptions run median 130 and max 419 characters (as of 2026-10-06; recheck when a re-measure at a newer commit moves it).
+- Length: aim for the target, 250 characters; above 419 warns, and above the spec's field
+  maximum fails. The target and the warn threshold are `/skill-quality:check` settings
+  (`description_target`, `description_warn`, read from the repository's convention home); the
+  field maximum is fixed. The upstream description caps, the listing truncation and the shared
+  listing budget live in the pages [Sources](#sources) names; `/skill-quality:check` holds the
+  current values, enforces the caps and estimates the budget (`listing-budget`). Our own measure
+  of Pocock's skills: descriptions run median 130 and max 419 characters (as of 2026-10-06; recheck when a re-measure at a newer commit moves it).
 
 ## Body
 
@@ -256,7 +261,9 @@ never copy a case's text and never use held-back cases.
    the plugin's eval cases, per model the skill targets. Run the versions concurrently with the
    same flags: run conditions drift, so before and after runs made hours apart are not
    comparable. Read a number only from a run `/evals:plugin-eval` judges valid, and compare the
-   versions with its two-version noise report.
+   versions with its two-version noise report. Trust a pass only from a suite that can detect a
+   loss: run the negative control in [rewrite-a-plugin.md](rewrite-a-plugin.md#order-of-work)
+   step 4, and keep the before text of any part it finds unmeasurable.
 5. Diff meaning with `/docs-hygiene:compress compare`, labeled by a fresh agent.
 6. Ship on non-inferiority: no lost trigger, case or directive, with a margin of 5 points on
    mean case score and trigger rate (this protocol's house setting), and no single case dropping

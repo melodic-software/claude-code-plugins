@@ -94,6 +94,7 @@ docs/contracts/shell-test-helpers/*.md
 docs/contracts/standards/*.md
 docs/contracts/standards/examples/*.md
 docs/contracts/tracker-reference-form/*.md
+docs/contracts/type-discipline/*.md
 docs/contracts/untrusted-content/*.md
 docs/contracts/upstream-drift/*.md
 docs/contracts/windows-path-emit/*.md
@@ -309,6 +310,7 @@ plugins/guardrails/*.md
 plugins/guardrails/skills/*/SKILL.md
 plugins/implementation/README.md
 plugins/implementation/reference/config.md
+plugins/implementation/reference/type-discipline.md
 plugins/implementation/skills/*/SKILL.md
 plugins/improvement/README.md
 plugins/improvement/CHANGELOG.md

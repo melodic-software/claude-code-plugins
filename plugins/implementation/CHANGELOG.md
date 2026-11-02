@@ -3,6 +3,14 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.2] - 2026-11-02
+
+### Added
+
+- `/implementation:implement` reads a copy of the shared type rules
+  (`reference/type-discipline.md`) before a block that declares or changes a type, the same rules
+  `/planning:design` applies.
+
 ## [0.34.1] - 2026-10-31
 
 ### Fixed

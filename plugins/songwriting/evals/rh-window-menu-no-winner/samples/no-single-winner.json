@@ -12,6 +12,50 @@
     {
       "answer": "**Filter run**\n- **Tiers:** pass, five covered.\n- **Winner:** skipped on purpose, per the method.\n\n| Tier | Candidates |\n| --- | --- |\n| Family | limbo, pinto |\n| Assonance | kitchen, listen |\n\nSing a few against line 2 and keep the one that lands.",
       "why": "a 'Winner:' line that declines a winner"
+    },
+    {
+      "answer": "**How I'd choose:**\n- **To keep him from calling:** *sin, oh* or *wander*.\n- **To land the waiting:** *been so slow*.\n- **For a season shift:** *in the snow* or *spin and go*.",
+      "why": "a choosing guide by feeling with two picks for one mood (notes.md finding 3 shape)"
+    },
+    {
+      "answer": "**How I'd choose:** *for an open ending*, *sin, oh* or *wander*; *for a closed one*, *been so slow*.",
+      "why": "an inline choosing guide that opens with italics"
+    },
+    {
+      "answer": "**How I'd choose:** _if_ the verse should stay unresolved, the assonance row; if it should land, the mosaic row.",
+      "why": "an inline conditional guide keyed to rows"
+    },
+    {
+      "answer": "How I'd choose: by feel. Open ending, the assonance row; closed ending, the mosaic row.",
+      "why": "a bare guide keyed to feelings"
+    },
+    {
+      "answer": "Here's how I'd choose between them: sing each one against line 2.",
+      "why": "guide prose, no pick"
+    },
+    {
+      "answer": "How I'd choose: open ending, the assonance row; closed ending, the mosaic row.",
+      "why": "feeling-keyed guide"
+    },
+    {
+      "answer": "**How I'd choose:** *by feel*: open ending, the assonance row; closed ending, the mosaic row.",
+      "why": "italic by-feel guide"
+    },
+    {
+      "answer": "How I'd choose: honestly, it depends on whether the verse wants an open or a closed ending.",
+      "why": "filler word opens the guide"
+    },
+    {
+      "answer": "How I'd choose: first, say the line out loud; then take the assonance row for open, the mosaic row for closed.",
+      "why": "ordinal opens the guide"
+    },
+    {
+      "answer": "How I'd choose: bitterness, #5; tenderness, #3.",
+      "why": "one-word moods keyed to option numbers"
+    },
+    {
+      "answer": "How I'd choose: bitterness, **#5**; tenderness, **#3**.",
+      "why": "emphasized option numbers"
     }
   ],
   "fail": [
@@ -34,6 +78,22 @@
     {
       "answer": "| Tier | Candidates |\n| --- | --- |\n| Family | limbo, pinto |\n\n**Winner:** limbo",
       "why": "a 'Winner:' line that names one"
+    },
+    {
+      "answer": "How I'd choose: #3. It is the best.",
+      "why": "a single pick on the choosing-guide line"
+    },
+    {
+      "answer": "**How I'd choose:** \"been so slow\".",
+      "why": "a single quoted pick on the choosing-guide line"
+    },
+    {
+      "answer": "**How I'd choose:** *been so slow*.",
+      "why": "a single italic pick on the choosing-guide line"
+    },
+    {
+      "answer": "Here is the menu. I'd go with the mosaic row: *been so slow*.",
+      "why": "a plain I'd-go-with pick still fails"
     }
   ]
 }

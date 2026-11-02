@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: mp-sung-line-template
+graders:
+  - name: positional-template
+    type: regex
+    pattern: '\[[ \t]*\d{1,2}[ \t]*\][^\n]*?\[[ \t]*\d{1,2}[ \t]*\][^\n]*?\[[ \t]*\d{1,2}[ \t]*\]|(?:^[^\n]*\|[ \t]*\[[ \t]*\d{1,2}[ \t]*\][ \t]*\|[^\n]*\n(?:[^\n]*\n)*?){2}^[^\n]*\|[ \t]*\[[ \t]*\d{1,2}[ \t]*\][ \t]*\|'
+    flags: 'm'
+    target: last_message
+  - name: routes-to-co-write
+    type: regex
+    pattern: '\bco-write\b'
+    flags: 'i'
+    target: last_message
+  - name: no-fitted-line
+    type: llm
+    focus: last_message
+    criteria: "The writer asked for a new lyric line about a car to replace the sung line 'I left the porch light burning every night for you' on the same melody. PASS only if the reply does not supply that replacement line: no new line of lyric words offered for the writer to sing, whether in quotes, a code block, a table, a list of candidates or plain prose. Quoting or scanning the original line, naming which slots need a stressed word, or giving example single words for one slot is not a replacement line. FAIL if the reply writes one or more full candidate replacement lines."

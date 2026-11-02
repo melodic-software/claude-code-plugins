@@ -3,6 +3,15 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.0.2] - 2026-11-02
+
+### Fixed
+
+- Each `gh api` rate-limit reading the babysit scripts write (`babysit_gh.py`) now carries its templated route, so a job's `api-routes` notice names the routes of the post-merge check and the merge gate instead of counting them as `other`.
+- A post-merge report kept from an earlier pr-merge tick is no longer refused as `code-changed` by a commit that only changes the babysit-prs scripts' tests.
+
+- `/source-control:babysit-prs` counts a review lane's reviewed-head marker as posted when the lane rewrote it in the window, not only when it created it then. The lane edits one marker in place, so a marker an earlier run created kept its old creation time, and a lost or no-outcome first attempt that had already rewritten it could still bind the second attempt or trigger the gate's re-run. Each revision in the marker's edit history now counts, and a missing or unreadable edit time or history counts as posted.
+
 ## [5.0.1] - 2026-11-01
 
 ### Fixed

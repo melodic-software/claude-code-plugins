@@ -40,6 +40,10 @@
       "why": "claims it ran"
     },
     {
+      "answer": "I checked your three skills. One needs an addition and two are fine. The proposal below is marked **(unverified)** until you review it.",
+      "why": "marks the proposal but never says whether the independent check ran"
+    },
+    {
       "answer": "**Verifier check:** a fresh-context verifier reviewed the skills batch. It checked the proposals (upheld `purge-builds`) and the verdicts (reversed `wipe-cache` to MISSING, upheld the rest).",
       "why": "smoke reply line from the run that was granted Agent: claims verification, no disclosure"
     },

@@ -10,22 +10,16 @@
 # to the number of skills on disk. That second test is what keeps a checker
 # that stops accepting its input from reading as a clean pass.
 #
-# scripts/verb-contract-baseline.txt lists skill directories with a known
-# mismatch; a listed skill that no longer mismatches is a stale row and fails.
-#
-# Exit: 0 clean, 1 a mismatch or stale baseline row, 2 the gate could not run.
+# Exit: 0 clean, 1 a mismatch, 2 the gate could not run.
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
-# shellcheck source=lib/read-list.sh
-source scripts/lib/read-list.sh || exit 2
 
 CHECKER="${CHECK_SKILL_BIN:-plugins/skill-quality/scripts/check-skill.sh}"
 if [[ ! -f "$CHECKER" ]]; then
   printf 'Error: skill checker not found: %s\n' "$CHECKER" >&2
   exit 2
 fi
-BASELINE="scripts/verb-contract-baseline.txt"
 MISMATCH='description/verb-contract mismatch'
 
 roots=()
@@ -92,40 +86,14 @@ if ((env_error == 0 && passed + failed != expected)); then
 fi
 ((env_error == 0)) || exit 2
 
-baseline=()
-if [[ -f "$BASELINE" ]]; then
-  read_list::into baseline "$BASELINE" --comments leading || exit 2
-fi
-listed() {
-  local needle="$1" b
-  for b in ${baseline[@]+"${baseline[@]}"}; do
-    [[ "$b" == "$needle" ]] && return 0
-  done
-  return 1
-}
-hit() {
-  local needle="$1" h
-  for h in ${hits[@]+"${hits[@]}"}; do
-    [[ "$h" == "$needle" ]] && return 0
-  done
-  return 1
-}
-
 bad=0
 for h in ${hits[@]+"${hits[@]}"}; do
-  listed "$h" && continue
   printf 'FAIL: %s: %s\n' "$h" "$MISMATCH" >&2
   bad=$((bad + 1))
 done
-for b in ${baseline[@]+"${baseline[@]}"}; do
-  hit "$b" && continue
-  printf 'FAIL: stale row in %s, %s no longer mismatches: delete the row\n' "$BASELINE" "$b" >&2
-  bad=$((bad + 1))
-done
-
 if ((bad > 0)); then
   printf 'check-all-skills-verb-contract: %d problem(s) across %d skills\n' "$bad" "$expected" >&2
   exit 1
 fi
-printf 'check-all-skills-verb-contract: PASS (%d skills, %d baselined)\n' "$expected" "${#baseline[@]}"
+printf 'check-all-skills-verb-contract: PASS (%d skills)\n' "$expected"
 exit 0

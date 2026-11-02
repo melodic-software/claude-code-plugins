@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": "§3 Critique filter and §8 Pre-lock filter: run.\n\n**Line:** \"I'll never feel that same delight\"\n\n**Stress & meter**\n- Stressed syllables on strong beats: pass. i'll NEV-er FEEL that SAME de-LIGHT, four stresses like line 1.\n- Greedy spots: pass.\n\n**Rhyme stability**\n- Identity check: fail. light / de-LIGHT keep the same l before the stressed vowel, so this is identity, not rhyme. The ear hears the same word twice.\n- Cliche pair: fail. light / delight is a stock pair.\n\n**Image specificity**\n- Rusty's-collar image before the telling line: fail. \"feel that same delight\" names a feeling; line 1's kitchen light already shows it.\n\n**Register**: skipped. No voiceprint exists for you yet, so I can't judge this against your own style; I'm not ruling on register.\n\nDominant: the identity at the line's end. Fix it, accept it with a reason, or come back after another pass. Which?"
+    },
+    {
+      "answer": "- Stress: ✓\n- Identity: ✗\n- Cliche: ✗",
+      "why": "check glyphs"
+    },
+    {
+      "answer": "Meter passes, the identity check fails, and I skipped the register box.",
+      "why": "verdicts in prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "This line tells instead of shows, and light / delight is a stock pairing. Try an image from the kitchen instead.",
+      "why": "a critique with no box verdicts"
+    },
+    {
+      "answer": "Meter: good. Rhyme: weak.",
+      "why": "judgments, not pass/fail/skip verdicts"
+    }
+  ]
+}

@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Tests for dispatcher-current.sh with stub gh and git on PATH. The stub gh
-# serves the Actions run and contents reads; the stub git prints the tip's blob.
+# serves the Actions run and contents reads, with a rate-limit header block
+# first when called with -i as the api-budget wrapper calls it; the stub git
+# prints the tip's blob. Each case runs with RUNNER_TEMP emptied, so the script
+# leaves its gh calls unwrapped, except the one that sets CASE_RUNNER_TEMP.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -27,15 +30,22 @@ check() {
 mkdir -p "$TMP/bin"
 cat >"$TMP/bin/gh" <<'STUB'
 #!/usr/bin/env bash
+include=
+[[ $2 == -i ]] && include=1 && set -- "$1" "${@:3}"
 printf '%s\n' "$2" >>"$STUB/calls"
+# The x-ratelimit-* response headers GitHub documents, ahead of the body.
+emit() {
+  [[ -z $include ]] || printf 'HTTP/2.0 200 OK\r\nX-Ratelimit-Limit: 5000\r\nX-Ratelimit-Remaining: 4990\r\nX-Ratelimit-Used: 10\r\nX-Ratelimit-Reset: 1790000000\r\nX-Ratelimit-Resource: core\r\n\r\n'
+  cat "$1"
+}
 case $2 in
 repos/o/r/actions/runs/*)
   [[ -f $STUB/fail_run ]] && exit 1
-  cat "$STUB/run"
+  emit "$STUB/run"
   ;;
 repos/o/r/contents/*)
   [[ -f $STUB/fail_contents ]] && exit 1
-  cat "$STUB/blob"
+  emit "$STUB/blob"
   ;;
 *) exit 1 ;;
 esac
@@ -58,7 +68,7 @@ run_case() {
   : >"$STUB/output"
   [[ -z ${FAIL:-} ]] || : >"$STUB/$FAIL"
   set +e
-  env PATH="$TMP/bin:$PATH" STUB="$STUB" GH_TOKEN=t GITHUB_REPOSITORY=o/r GITHUB_OUTPUT="$STUB/output" \
+  env PATH="$TMP/bin:$PATH" STUB="$STUB" RUNNER_TEMP="${CASE_RUNNER_TEMP-}" GH_TOKEN=t GITHUB_REPOSITORY=o/r GITHUB_OUTPUT="$STUB/output" \
     DISPATCHER_RUN_ID="${5-41217038328}" "$SUT" >"$STUB/out" 2>&1
   RC=$?
   set -e
@@ -101,5 +111,15 @@ run_case '../secrets.yml' "$HEAD" "$BLOB_A" "$BLOB_B"
 check "a path outside the workflows reads no contents" 'repos/o/r/actions/runs/41217038328' "$(cat "$STUB/calls")"
 run_case "$UNBLOCK" 'main' "$BLOB_A" "$BLOB_B"
 check "a head that is no commit id reads no contents" 'repos/o/r/actions/runs/41217038328' "$(cat "$STUB/calls")"
+
+# In a job the script wraps its gh calls: each response's header block becomes
+# a reading in the job's api-budget state, and the verdict is unchanged.
+CASE_RUNNER_TEMP="$TMP/runner" run_case "$UNBLOCK" "$HEAD" "$BLOB_A" "$BLOB_B"
+check "in a job: exit 0" 0 "$RC"
+check "in a job: stale" 'stale=true' "$(cat "$STUB/output")"
+check "in a job: both reads still go out" \
+  "repos/o/r/actions/runs/41217038328 repos/o/r/contents/$UNBLOCK?ref=$HEAD" "$(tr '\n' ' ' <"$STUB/calls" | sed 's/ $//')"
+check "in a job: one reading per read, from its headers" 2 \
+  "$(grep -c '^200 5000 4990 10 1790000000 core ' "$TMP/runner/api-budget/github-token" 2>/dev/null)"
 
 exit "$FAILED"

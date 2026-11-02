@@ -1,5 +1,19 @@
 # Changelog for the PR pipeline convention
 
+## [8.33.0] - 2026-11-02
+
+### Added
+
+- `models.issue-status` names an issue's state as its Work status org issue field: the field id, each option id's state, the labels each state collapses from, and the collapse order (first match wins, labels compared without case; no state label collapses to the last, `needs-triage`). The config reader rejects two options for one state, a state with no label, a label listed twice, an order that does not list every state once or does not end on `needs-triage`, and a field id `models.issue-dimensions` uses (`undefined-status`). resolve-config's new `issue-status.mjs` exports `collapseStatus` (an issue's labels to its state), `statusOption` (a state's option id) and `issueStatus` (the state the field holds under the issue-dimensions setter rule, or null; an unmapped option fails with `unmapped-status`); `dimensions.mjs` exports the shared `trustedOption` reader. No lane reads or writes the field yet.
+
+## [8.32.1] - 2026-11-02
+
+### Fixed
+
+- The log-api-budget action writes each token's `api-calls` and `api-routes` notices before the per-counter `api-budget` ones, so they stay among the 10 notices of a step that become annotations; a job with two tokens and several counters (the pr-merge merge job) lost its `api-routes` lines, and with a content write its `github-token` total too.
+- pr-merge's full-run cover counts pr-require-checks.yml's scheduled and hand-started full runs of main toward the 30-minute cap and as cover of main's tip; only a github-actions[bot] dispatch still covers a lane merge for the cap bypass.
+- The cap comments in pr-merge.yml and pr-require-checks.yml name the lane-merge cap bypass, and the pr-pipeline config comment says the work-class lane hold covers untrusted provenance only.
+
 ## [8.32.0] - 2026-11-01
 
 ### Added

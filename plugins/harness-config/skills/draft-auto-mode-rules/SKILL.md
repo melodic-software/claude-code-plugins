@@ -109,7 +109,7 @@ Ask about one entry at a time. For each, you need four things, and the fourth is
 2. **A short label**: the subject, two or three words. It is what a reader scans for.
 3. **What is covered, and what is explicitly not.** Both. An entry with no stated exclusions is one
    the classifier will over-apply.
-4. **A condition visible in the transcript.** This is the one that matters. The critique's finding was
+4. **A condition visible in the transcript.** The critique's finding was
    that "uncheckable conditions are the biggest weakness". Entries state preconditions the classifier
    cannot evaluate from the command text, so it either allows blindly (the condition is decorative) or
    blocks (the grant is inoperable), with no stated disposition.
@@ -153,7 +153,7 @@ the built-in list, or retires `$defaults`).
 Print the block. Say exactly where it goes: the `autoMode` key of
 `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json`. Then stop.
 
-Two things to say while handing it over, because both are load-bearing:
+Two things to say while handing it over:
 
 - **Project and local settings will not work.** The classifier reads `autoMode` from user settings,
   managed settings, and inline `--settings`/SDK JSON only. A block pasted into `.claude/settings.json`

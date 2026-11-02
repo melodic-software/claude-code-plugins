@@ -1607,7 +1607,12 @@ test("a head a finished run handled is recorded, and a later run at that head re
   const { result, lines } = await decideWith(later.api, parseRecord(serializeRecord(record)));
   assert.equal(result, null);
   assert.deepEqual(later.counts, {});
-  assert.deepEqual(lines, [`skip: head ${HEAD} already has a pr-unblock / address-feedback check run (recorded)`]);
+  assert.deepEqual(lines, [`skip: head ${HEAD} already has a pr-unblock / address-feedback check run (recorded) (upstream pr-review-hosted.yml run ${UPSTREAM_RUN_ID})`]);
+});
+
+test("a skip names the upstream run, and a path that is not a workflow file by name only", async () => {
+  const { lines } = await decideWith(fakeApi({ run: { path: ".github/workflows/../x\ny.yml" } }), emptyRecord());
+  assert.match(lines.at(-1), new RegExp(`\\(upstream an unnamed workflow run ${UPSTREAM_RUN_ID}\\)$`));
 });
 
 // #9362 part 2: between the round's address-feedback check and its reply
@@ -1692,7 +1697,7 @@ test("a later run at a head whose dispatched run is still going skips after one 
   const { result, lines } = await decideWith(later.api, record);
   assert.equal(result, null);
   assert.deepEqual(later.counts, { pullsForCommit: 1, getWorkflowRun: 1 });
-  assert.ok(lines.at(-1).endsWith("is not done yet (recorded)"));
+  assert.ok(lines.at(-1).endsWith(`is not done yet (recorded) (upstream pr-review-hosted.yml run ${UPSTREAM_RUN_ID})`));
 });
 
 test("a recorded run that finished, started before this review, or cannot be read takes the full path", async () => {
@@ -2790,7 +2795,7 @@ test("a pass-only round never goes to an owner PR", async () => {
   const api = ownerApi();
   const { result, lines } = await decideOwner(api, { passOnly: true });
   assert.equal(result, null);
-  assert.match(lines.at(-1), /was not opened by the lanes App$/);
+  assert.match(lines.at(-1), /was not opened by the lanes App \(upstream [a-z0-9.-]+ run \d+\)$/);
 });
 
 test("the sweep dispatches an idle owner PR whose reviewed head the lane has not answered", async () => {

@@ -1,0 +1,771 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "R=${CLAUDE_PLUGIN_ROOT}/../actionlint && ls \"$R/skills\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "assignment holding a path ending in actionlint (the pilot regression)"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "R=/opt/plugins/actionlint; cat \"$R/README.md\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "assignment then read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v actionlint",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "which actionlint node",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "actionlint -version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "version probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat \"${CLAUDE_PLUGIN_ROOT}/git-hooks/actionlint-check.sh\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "reading the entry (setup:49)"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls -la .github/actionlint.yaml",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "config path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "head -40 ${CLAUDE_PLUGIN_ROOT}/hooks/actionlint-check.sh",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "reading the hook"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "actionlint -version; echo ---; env -i PATH=/usr/local/bin:/usr/bin:/bin sh -c 'command -v actionlint || echo \"not found on minimal PATH\"'",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "smoke 2026-11-01, hook-notice case without-arm: version probe and a PATH probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "actionlint --version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "version probe double dash"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "which actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "which"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "type -a actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "type"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "R=\"$P/actionlint\"; echo $R",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "path assignment"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat \"$P/hooks/actionlint-check.sh\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "reading the hook"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n actionlint_enabled \"$P/.claude-plugin/plugin.json\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "toggle name grep"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls \"$P/skills/actionlint\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "directory named actionlint"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo 'run actionlint yourself'",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "word inside echo"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mise latest actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "mise latest"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -c 'command -v actionlint'",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "bash -c probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo ${P}/actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "brace expansion inside echo"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "$(command -v actionlint) -version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "substituted path, version probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -p -v actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "command -p -v"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "hash actionlint 2>/dev/null && echo ok",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "hash probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/usr/local/bin/actionlint\" -version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "reviewer input: double-quoted path, version probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "'/usr/local/bin/actionlint' -version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "reviewer input: single-quoted path, version probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"actionlint\" --version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "quoted bare name, --version"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "'C:/tools/actionlint.exe' --version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "quoted Windows path with .exe, version probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v actionlint && \"/usr/local/bin/actionlint\" -version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "presence probe then quoted version probe"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "bare run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "actionlint -oneline .github/workflows/ci.yml",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /tmp/proj && actionlint -shellcheck= -pyflakes=",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "after a separator"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/opt/tools/bin/actionlint .github/workflows/release.yml",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "absolute path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/git-hooks/actionlint-check.sh\" --worktree",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "the git-hook entry run by hand"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sh ${CLAUDE_PLUGIN_ROOT}/git-hooks/actionlint-check.sh",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "entry under sh"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo '{}' | bash \"${CLAUDE_PLUGIN_ROOT}/hooks/actionlint-check.sh\" --end-of-turn",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "the Stop hook run by hand"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v actionlint && actionlint .github/workflows/*.yml",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "probe then run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --short && ls -la .github/workflows 2>/dev/null; actionlint --version; actionlint; echo \"exit=$?\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "smoke 2026-11-01, passing case without-arm: bare run after a version probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "actionlint .github/workflows/ci.yml",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "with a file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd repo && actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "after &&"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v actionlint && actionlint -color",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "probe then run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -c 'actionlint -oneline'",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "bash -c single quotes"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -c \"actionlint\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "bash -c double quotes"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sudo actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "sudo"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sudo -E actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "sudo with flag"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "env -i PATH=/usr/bin actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "env -i wrapper"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "if command -v actionlint >/dev/null; then actionlint; fi",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "then keyword"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "find .github -name '*.yml' | xargs actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "xargs"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"$HOME/.local/bin/actionlint\" .github/workflows/ci.yml",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "quoted absolute path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "~/.local/bin/actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "tilde path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo start\nactionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "after a newline"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls \\\n  && actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "after a continuation and &&"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"$P/hooks/actionlint-check.sh\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "hook script"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"$P/lib/git-hooks/actionlint-check.sh\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "git hook script"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "(cd repo && actionlint)",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "subshell"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "actionlint -version; actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "version then a run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "time actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "time"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "nohup actionlint &",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "nohup"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "find .github -name '*.yml' -exec actionlint {} +",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "find -exec"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "{ actionlint; }",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "brace group"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/usr/local/bin/actionlint\" -color .github/workflows/ci.yml",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "quoted path, real lint run with files"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "'actionlint' -version && actionlint .github/workflows/ci.yml",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "real run chained after an exempt quoted probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"actionlint\" -versionx",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "flag that only starts with version"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"actionlint\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "quoted bare run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "'/usr/local/bin/actionlint' -oneline",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "quoted path, other flag"
+    }
+  ]
+}

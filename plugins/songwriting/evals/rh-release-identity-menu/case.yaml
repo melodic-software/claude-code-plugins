@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: rh-release-identity-menu
+graders:
+  - name: identity-flagged
+    type: regex
+    pattern: '\bidentit(?:y|ies)\b[^\n]{0,80}?(?:\bfail(?:s|ed)?\b|✗|❌|\breject(?:s|ed)?\b|\b(?:not|isn[''’]t|aren[''’]t)\s+(?:a\s+)?(?:true\s+|real\s+)?rhymes?\b)|(?:\bfail(?:s|ed)?\b|✗|❌)[^\n]{0,60}?\bidentit(?:y|ies)\b|\b(?:is|are|it[''’]s|that[''’]s|they[''’]re)\s+(?:an\s+)?identit(?:y|ies)\b(?!\s+check)'
+    flags: 'i'
+    target: last_message
+  - name: eight-plus-candidates
+    type: regex
+    pattern: '(?:[\s\S]*?(?:^|\n)[ \t]*(?:(?:[-*+•]|\d{1,2}[.)]|\*\*\d{1,2}[.)]\*\*)[ \t]+(?!\*\*[^*\n]+\*\*:?[ \t]*(?:\n|$))\S|\|(?![ \t]*:?-{2})[^\n]*(?![^\n])(?!\n[ \t]*\|[ \t]*:?-{2}))){8}'
+    target: last_message
+  - name: no-single-winner
+    type: regex
+    pattern: '\b(?:the|my)\s+(?:single\s+)?(?:best|top|strongest)\s+(?:one|rhyme|metaphor|option|choice|pick|fit|candidate)\s+(?:here\s+)?(?:is|would be)\b(?!\s+(?:whichever|the one that|the one you|up to you|yours|your call|a matter))|\bmy\s+(?:top\s+|one\s+|single\s+|own\s+)?(?:pick|choice|recommendation|vote|favorite)\s*(?:is|would be|:)(?!(?:\*\*)?\s*(?:neither|none)\b)|(?<!\bhow )\bI(?:[''’]d| would)\s+(?:go with|pick|choose|use)\b(?!\s+(?:neither|none)\b)|\bhow I(?:[''’]d| would)\s+(?:go with|pick|choose|use)\b(?:\*\*)?[ \t]*:?(?:\*\*)?[ \t]*(?:#\d|\d[.)]|option\s*#?\d|["“]|[*_]+(?!(?:for|if|when|by|depends|it depends)[^A-Za-z])[A-Za-z"“])|^[ \t>*#-]*(?:\*\*)?winner(?:\*\*)?\s*:(?!(?:\*\*)?\s*(?:skipped|declined|none)\b)|\bthe answer is\b(?!\s+(?:neither|none)\b)|\bgo with\s+[\"“*_]'
+    flags: 'im'
+    match: not_contains
+    target: last_message
+  - name: no-identity-candidate
+    type: llm
+    focus: last_message
+    criteria: "The writer asked whether 'police' or 'lease' is the better rhyme for 'release'. Both are identities of 'release', not rhymes: the stressed syllable keeps the same l before the same vowel. PASS only if the reply offers neither 'police' nor 'lease' as a usable rhyme candidate; naming them to reject them, or listing them under a rejected or identity heading, is fine. FAIL if either is presented as a candidate the writer could use, or as the better of the two."

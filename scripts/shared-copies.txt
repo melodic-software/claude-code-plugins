@@ -94,6 +94,9 @@ docs/contracts/enforcement-ladder/README.md plugins/harness-config/skills/audit-
 docs/contracts/enforcement-ladder/README.md plugins/architecture/skills/improve/research/enforcement-ladder.md
 docs/contracts/enforcement-ladder/README.md plugins/corrections/skills/codify/reference/enforcement-ladder.md
 docs/contracts/standards/README.md plugins/improvement/reference/standards-contract.md
+docs/contracts/type-discipline/README.md plugins/planning/skills/design/reference/type-discipline.md
+docs/contracts/type-discipline/README.md plugins/implementation/reference/type-discipline.md
+docs/contracts/type-discipline/README.md plugins/review/context/type-discipline.md
 docs/contracts/pr-scope-budget/README.md plugins/improvement/reference/pr-scope-budget.md
 docs/contracts/pr-scope-budget/README.md plugins/code-tidying/reference/pr-scope-budget.md
 docs/contracts/pr-scope-budget/README.md plugins/coupling/reference/pr-scope-budget.md
@@ -561,3 +564,6 @@ lib/prerequisites.mjs plugins/sql-server/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/sql-server/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/sql-server/lib/prerequisites.ps1
 lib/check-convention-facts.mjs plugins/developer-experience/lib/check-convention-facts.mjs
+lib/parse-concern-value.sh plugins/skill-quality/lib/parse-concern-value.sh
+lib/yaml-subset.awk plugins/skill-quality/lib/yaml-subset.awk
+lib/resolve-convention-home.sh plugins/skill-quality/lib/resolve-convention-home.sh

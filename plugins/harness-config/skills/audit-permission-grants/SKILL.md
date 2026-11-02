@@ -83,8 +83,8 @@ name wins when both are set. Never report "no fragile permission grants found" o
 
 ### Report the denominator, always
 
-Every run ends with a **coverage block**, and it is not optional garnish. It is what makes a clean
-result readable. Carry its numbers into the report:
+Every run ends with a **coverage block**. It is what makes a clean result readable. Carry its
+numbers into the report:
 
 - **A clean bill needs a non-zero denominator.** `No fragile permission grants found.` is printed
   only when the run actually parsed at least one `allowed-tools` block or allow rule. When it parsed
@@ -130,8 +130,7 @@ The detector is advisory by default and a gate on request:
 - The default report mode and `--count` are unchanged and always exit 0, however many findings print.
 
 **A gate flag does not make this skill a fixer.** The skill stays report-only for the reason stated
-above: the operative rule has to land in a user-global settings file a skill cannot write, and the P1
-and P2 rewrites are judgment calls an operator confirms.
+above.
 
 ## Phase 2: Report
 
@@ -222,5 +221,4 @@ audit:
    stays in the counts.
 3. **A suppressed report must not read like a clean one.** If every finding in a run is exempted,
    the report says so explicitly, "N finding(s), all exempted by consumer declaration", and does
-   not print a clean bill. Combined with the denominator, that closes the two ways this report could
-   claim health it never established: an empty scan, and a silenced one.
+   not print a clean bill.

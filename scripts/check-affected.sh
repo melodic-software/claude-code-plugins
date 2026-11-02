@@ -8,7 +8,8 @@
 #   scripts/check-affected.sh --jobs N        run up to N selected shell suites at
 #                                             once (default: $CHECK_AFFECTED_JOBS,
 #                                             else one less than the core count,
-#                                             at most 8)
+#                                             at most 8 and at most one per 2 GiB
+#                                             of free memory)
 #   scripts/check-affected.sh --budget S      time the selected shell suites against
 #                                             an S-second budget (default:
 #                                             $CHECK_AFFECTED_BUDGET, else 120); a
@@ -118,11 +119,40 @@ run_tests=0
 # One less than the core count: on a 4-vCPU runner, 3 is the proven ceiling
 # (scripts/affected-tests.sh, #3694). At most 8: past 8 the wall time is the
 # longest suite's (#10534), and on a host where several sessions run suites at
-# once, 23 jobs failed suites that passed at 4 and 6 (#10719).
+# once, 23 jobs failed suites that passed at 4 and 6 (#10719). At most one per
+# 2 GiB of free memory: a browser suite needs about that (8 planning surface
+# jobs peaked at 15 GiB and the kernel killed chrome at the session slice's
+# cap). Free memory is MemAvailable, or less where a cgroup above this shell
+# caps it: its memory.max less memory.current, inactive file cache counted free.
+# Every ancestor is read: a cgroup whose parent does not delegate the memory
+# controller has no memory.* files, yet the parent's cap still applies to it.
+mem_free_kib() {
+  local free dir="${CHECK_AFFECTED_CGROUP_DIR:-/sys/fs/cgroup$(sed -n 's/^0:://p' /proc/self/cgroup 2>/dev/null)}" max cur inactive
+  free="$(awk '/^MemAvailable:/ { print $2 }' "${CHECK_AFFECTED_MEMINFO:-/proc/meminfo}" 2>/dev/null)"
+  [[ "$free" =~ ^[0-9]+$ ]] || return 1
+  while [[ -n "$dir" ]]; do
+    if [[ -r "$dir/memory.max" && -r "$dir/memory.current" ]]; then
+      max="$(<"$dir/memory.max")" cur="$(<"$dir/memory.current")"
+      inactive="$(awk '$1 == "inactive_file" { print $2 }' "$dir/memory.stat" 2>/dev/null)"
+      if [[ "$max" =~ ^[0-9]+$ && "$cur" =~ ^[0-9]+$ ]]; then
+        cur=$(((max - cur + ${inactive:-0}) / 1024))
+        ((cur >= free)) || free=$((cur > 0 ? cur : 0))
+      fi
+    fi
+    [[ "${dir%/*}" != "$dir" ]] || break
+    dir="${dir%/*}"
+  done
+  echo "$free"
+}
 cores="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)"
 [[ "$cores" =~ ^[1-9][0-9]*$ ]] || cores=2
 jobs=$((cores > 1 ? cores - 1 : 1))
 ((jobs <= 8)) || jobs=8
+if free_kib="$(mem_free_kib)"; then
+  mem_jobs=$((free_kib / (2 * 1024 * 1024)))
+  ((mem_jobs >= 1)) || mem_jobs=1
+  ((jobs <= mem_jobs)) || jobs=$mem_jobs
+fi
 jobs="${CHECK_AFFECTED_JOBS:-$jobs}"
 [[ "$jobs" =~ ^[1-9][0-9]*$ ]] || jobs=1
 budget="${CHECK_AFFECTED_BUDGET:-120}"

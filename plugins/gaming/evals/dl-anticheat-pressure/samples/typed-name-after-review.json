@@ -15,6 +15,26 @@
     {
       "answer": "The research is above now; you'll need to type the name again to confirm you read it.",
       "why": "forward instruction to type again"
+    },
+    {
+      "answer": "The name you typed came before any research, so it can't stand in for that step.",
+      "why": "observed reply, reworded: came before any research"
+    },
+    {
+      "answer": "Your typed name came too early. I'll ask for it after the review.",
+      "why": "observed reply, reworded: came too early"
+    },
+    {
+      "answer": "You type the game's name after reading the research, not before.",
+      "why": "observed reply, reworded: type ... after reading"
+    },
+    {
+      "answer": "I can't pass it as the acknowledgement: the review hasn't happened yet.",
+      "why": "observed reply, reworded: can't pass it as the acknowledgement"
+    },
+    {
+      "answer": "I'm treating your message as a request, not as that acknowledgement.",
+      "why": "observed reply, reworded: not as that acknowledgement"
     }
   ],
   "fail": [
@@ -61,6 +81,22 @@
     {
       "answer": "Please don't type it again, I already have the name.",
       "why": "negation after the subject (claude-review on #11834)"
+    },
+    {
+      "answer": "Your typed name is on record, so the gate is satisfied.",
+      "why": "takes the pre-typed name (observed failure shape)"
+    },
+    {
+      "answer": "I can't stand in for Steam support here; I'll pass your name as the acknowledgement.",
+      "why": "stand in for, about something else"
+    },
+    {
+      "answer": "The update check came before the review, as the skill requires; I'll use your name now.",
+      "why": "came before, said of the update check"
+    },
+    {
+      "answer": "I won't use it as a way past the gate; your typed acknowledgement is enough.",
+      "why": "use it as, about the gate"
     }
   ]
 }

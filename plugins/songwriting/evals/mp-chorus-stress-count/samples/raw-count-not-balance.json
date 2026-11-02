@@ -31,9 +31,6 @@
       "answer": "Balance comes from stresses, not syllable count."
     },
     {
-      "answer": "The raw syllable count says nothing about balance."
-    },
-    {
       "answer": "By stress the chorus is 4/3/4/4. The 8/9/9/8 doesn't measure balance here.",
       "why": "a with-arm reply the earlier pattern failed"
     },
@@ -64,6 +61,34 @@
     {
       "answer": "**Why the syllable count misleads:** a line's length is the number of stressed syllables, not total syllables.",
       "why": "a with-arm reply the earlier pattern failed"
+    },
+    {
+      "answer": "On paper 8/9/9/8 looks lopsided, two short lines around two long ones. Count the stresses and it evens out: i NEV-er THOUGHT i'd BE a-LONE, in ALL the EMP-ty ROOMS of THIS house, and EV-ery CLOCK is TICK-ing SLOW-er, and NOW that YOU are GONE for GOOD. That is 4/4/4/4. The syllable totals were never the thing to read; the stresses are, and by stress the chorus is balanced.",
+      "why": "the counts look uneven, yet the stresses balance"
+    },
+    {
+      "answer": "A raw count can show symmetry that isn't there. By stress your lines run 4/3/4/4, so line 2 is the short one even though it has nine syllables.",
+      "why": "#11941 Remaining: a form the regex never covered"
+    },
+    {
+      "answer": "Counting every syllable gives you 8/9/9/8, but it just doesn't measure what you want it to. What decides how long a line feels is how many stressed syllables it carries: here 3, 4, 4, 3.",
+      "why": "#11941 Remaining: 'doesn't measure what you want it to'"
+    },
+    {
+      "answer": "Balance in a lyric lives in the stresses, so I'd set the 8/9/9/8 aside. Stress map: 3/4/4/3, short-long-long-short, the same frame your count suggested, but for a different reason.",
+      "why": "sets the raw count aside, then judges by stress"
+    },
+    {
+      "answer": "Your tally is accurate, it's just the wrong ruler. Line length in this method is the number of stresses, and by that ruler the chorus reads 4/3/4/4.",
+      "why": "metaphor for the wrong measure"
+    },
+    {
+      "answer": "Syllables tell you how many notes you'd need, not how long the line sits in the ear. The stresses do that: 4, 4, 3, 4, so line 3 is lighter than it looks.",
+      "why": "contrasts syllables with stresses without the word 'measure'"
+    },
+    {
+      "answer": "The raw syllable count says nothing about balance.",
+      "why": "restored: the expected outcome's clause asks only that the raw count be denied as the measure"
     }
   ],
   "fail": [
@@ -140,6 +165,22 @@
     {
       "answer": "This method measures line length in stressed syllables, and I'm not surprised the chorus is balanced at 4/4/4/4.",
       "why": "a negation about something else before the balance claim"
+    },
+    {
+      "answer": "Your 8/9/9/8 tells me lines 2 and 3 run long, so the chorus is unbalanced. Trim a syllable from each and it'll even out.",
+      "why": "treats the raw count as proof of imbalance"
+    },
+    {
+      "answer": "Stress map: i NEV-er THOUGHT i'd BE a-LONE (4), in ALL the EMP-ty ROOMS of this HOUSE (4), and EV-ery CLOCK is TICK-ing SLOW-er (4), and NOW that YOU are GONE for GOOD (4). The chorus reads 4/4/4/4 and the feminine ending on line 3 keeps it open.",
+      "why": "reports stresses but is silent on the raw syllable count"
+    },
+    {
+      "answer": "Nine syllables on lines 2 and 3 against eight on 1 and 4 is uneven, and that unevenness is what makes the chorus feel off-balance.",
+      "why": "reads imbalance from the raw count"
+    },
+    {
+      "answer": "Here are the four lines with their rhyme sounds: alone, house, slower, good. Only alone and good come near each other.",
+      "why": "an answer to a different question"
     }
   ]
 }

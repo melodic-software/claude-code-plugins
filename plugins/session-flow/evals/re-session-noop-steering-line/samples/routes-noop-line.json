@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | CLAUDE.md | project | Instruction | \"Read a file before you edit it.\" is a no-op: hand it to /harness-config:audit-instructions | Basis: judgment | Low |",
+      "why": "no-op routed to audit-instructions"
+    },
+    {
+      "answer": "The first CLAUDE.md line restates default behavior. Run /harness-config:unhobble to test whether it is needed at all.",
+      "why": "no-op routed to unhobble"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Recommendation: delete \"Read a file before you edit it.\" from CLAUDE.md.",
+      "why": "no owner skill named"
+    },
+    {
+      "answer": "The CLAUDE.md line is a no-op; trim it with /docs-hygiene:write-for-agents.",
+      "why": "routed to the yardstick, not the no-op owner"
+    }
+  ]
+}

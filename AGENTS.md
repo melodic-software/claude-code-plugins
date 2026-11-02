@@ -68,8 +68,10 @@ dontAsk with explicit allow rules and no write token; `permission-mode: auto` th
 because under the launcher's subprocess env scrub the CLI starts in the default mode. All run under
 the hardening in [ADR 0049](docs/adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md),
 which also answers the untrusted-text risk below for them. A hook `ask` or `permissions.ask` rule can open a dialog no one
-answers, so lane sessions carry none. `--permission-prompts none` is documented for print mode and
-unattended runs. A host run on 2026-10-28 (Claude Code 2.1.312,
+answers, so lane sessions carry none. `--permission-prompts none` is documented for print-mode
+runs where nobody can answer a prompt
+([CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags), as of 2026-11-01; recheck
+when its `--permission-prompts` row changes). A host run on 2026-10-28 (Claude Code 2.1.312,
 [probe record](plugins/session-flow/skills/continue-in-background/reference/denial-probe.md))
 launched `claude --bg --permission-mode auto` without that flag: one classifier denial came back
 to the session as a tool error and it went on to its next step. What a `--bg` lane does with the
@@ -121,35 +123,7 @@ gate.
 
 ## Code Review Rules
 
-Each line names a rule CI does not enforce; the linked file states it in full.
-
-- Org-wide criteria: [`REVIEW.md`](REVIEW.md), synced from `melodic-software/standards`.
-- Skill and agent bodies never restate a volatile upstream specific (behavior, limit, default,
-  version), even with a stamp; they point at the exact section, and the pointer carries an as-of
-  date and recheck trigger: [rule](.claude/rules/skill-bodies-state-current-rules.md).
-- Skill and agent text meets the skill standard, and a cut to an existing skill ships only with
-  eval evidence of no loss:
-  [skill criteria](plugins/playbooks/skills/skill-authoring/reference/skill-criteria.md).
-- Cost claims: no prices or per-task costs, outside two named exceptions:
-  [rule](.claude/rules/cost-claims.md).
-- A generic skill names no `gh` command or GitHub grammar unless it sits behind the operation's
-  owner or in a declared-provider surface:
-  [ADR 0060](docs/adr/0060-abstract-provider-details-in-skills-behind-consumer-conventions-and-adapters.md).
-- Eval cases hold no raw session or product transcript:
-  [rule](.claude/rules/eval-case-transcripts.md).
-- Cross-plugin citations name the skill by `/plugin:skill`, never by path:
-  [plugin philosophy](docs/plugin-philosophy.md#configuration-ownership-and-scope).
-- Mods: a hooks module follows the mod-authoring convention and ADR 0052:
-  [rule](.claude/rules/mod-authoring.md).
-- Ingested text (web pages, tracker items, tool output) is framed as data, never instructions:
-  [untrusted-content](docs/contracts/untrusted-content/README.md).
-- A new standing instruction names its observed-stumble evidence:
-  [instruction economy](docs/plugin-philosophy.md#instruction-economy).
-- A hook false-positive fix lands with a stay-quiet test that fails before the fix:
-  [hook-precision](docs/contracts/hook-precision/README.md#the-discipline).
-- Work on an open PR (CI results, review comments, `/autofix-pr` sessions, which never merge)
-  follows the post-PR triage rules:
-  [source-control](docs/conventions/source-control.md#post-pr-triage).
+Rules CI does not enforce, for writing and reviewing a change, one file per concern: [`docs/review/`](docs/review/README.md).
 
 <!-- BEGIN GENERATED: instruction-placement rules index -->
 
