@@ -3,6 +3,10 @@
     {
       "answer": "Intent: ops can download the filtered order list from the admin orders page as CSV.\nChanged since read-back: Q5, the file is now orders-export-<timestamp>.csv.\nNew assumptions from the sweep: exports run synchronously in the request; the export respects the user's row-level permissions.\nQ1-Q4 and Q6-Q8 stand as read back.\n\nConfirm, or give me the numbers to change.",
       "why": "intent, the change, the two new assumptions, nothing re-listed"
+    },
+    {
+      "answer": "Intent: CSV export of the admin orders page.\nChanged since read-back: Q5, orders-export-<timestamp>.csv.\nQ1-Q4 and Q6-Q8 are unchanged.\nNew assumptions: the export respects row-level permissions, and it runs synchronously in the request, which the 50,000-row cap with gzip off keeps bounded.\n\nConfirm, or name the items to change.",
+      "why": "two unchanged values cited as context for an assumption, not re-listed"
     }
   ],
   "fail": [
