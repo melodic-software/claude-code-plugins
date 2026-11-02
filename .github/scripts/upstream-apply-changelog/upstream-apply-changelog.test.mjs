@@ -16,6 +16,7 @@ import {
   newestRelease,
   readNetChanges,
   readPlan,
+  refuseBinary,
   releaseMarker,
   releasesFromStatus,
   renderItems,
@@ -198,6 +199,12 @@ test("the net change reads each file once at its head content, whatever the comm
     changes.map((e) => [e.path, e.mode, e.content === null ? null : String(e.content)]),
     [["keep.md", "100644", null], ["new.md", "100644", "n2"]],
   );
+  writeFileSync(join(dir, "img.bin"), Buffer.from([0, 1, 2, 0, 255]));
+  git("add", ".");
+  git("commit", "-qm", "binary");
+  const numstat = git("diff", "--numstat", base, "HEAD");
+  assert.throws(() => refuseBinary(numstat, 2), (e) => /branches\[2\] changes a binary file/.test(e.message) && !e.message.includes("img.bin"));
+  assert.doesNotThrow(() => refuseBinary(git("diff", "--numstat", base, "HEAD~1"), 2));
   // A merge commit's change shows in the net diff, so the path check sees it.
   git("checkout", "-qb", "side", base);
   git("checkout", "-q", "main", "--", "new.md");

@@ -268,6 +268,14 @@ export function readNetChanges(repoDir, baseSha, headSha) {
     });
 }
 
+// `git diff --numstat` marks a binary file `-\t-\t`; the scan reads text,
+// so a branch with one is refused. The message names no path.
+export function refuseBinary(numstat, index = 0) {
+  if (numstat.split("\n").some((line) => line.startsWith("-\t-\t"))) {
+    throw new Error(`branches[${index}] changes a binary file; only text is published`);
+  }
+}
+
 // One commit on the base, with no author or committer, so GitHub authors and
 // signs it as the lanes App, as apply-patch does (apply-patch.mjs
 // createGitHubApi). Its message is the scanned pull request title and its
@@ -336,6 +344,7 @@ async function push(env) {
     if (git(repoDir, ["rev-parse", local]) !== b.head_sha) throw new Error(`branches[${i}] is not at its planned head`);
     if (git(repoDir, ["merge-base", baseSha, b.head_sha]) !== baseSha) throw new Error(`branches[${i}] does not start at the base`);
     checkRawLog(netRawDiff(repoDir, baseSha, b.head_sha), b.plugin, i);
+    refuseBinary(git(repoDir, ["diff", "--numstat", "--no-renames", baseSha, b.head_sha]), i);
     const headTree = git(repoDir, ["rev-parse", `${b.head_sha}^{tree}`]);
     const existing = await api(`/repos/${repo}/git/ref/heads/${b.branch}`, { allow404: true });
     if (existing) {

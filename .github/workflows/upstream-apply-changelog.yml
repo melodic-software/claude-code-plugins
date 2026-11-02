@@ -481,6 +481,11 @@ jobs:
             while read -r head; do
               [[ $head =~ ^[0-9a-f]{40}$ ]] || exit 1
               git -C .base fetch --quiet --no-tags "$IN/branches.bundle" "$head:refs/scan/$head" >/dev/null 2>&1 || { echo "::error::a planned head did not fetch from the bundle"; exit 1; }
+              # The scanners read text, so a binary file is refused, unnamed.
+              if git -C .base diff --numstat --no-renames "$BASE_SHA" "$head" | grep -q $'^-\t-\t'; then
+                echo "::error::a planned branch changes a binary file; only text is published"
+                exit 1
+              fi
               # The net diff: push publishes one commit with the head's tree
               # and the plan's scanned title, never the model's commits.
               git -C .base diff --no-renames --binary "$BASE_SHA" "$head" >>"$IN/diffs.txt"
