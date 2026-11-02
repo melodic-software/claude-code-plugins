@@ -400,6 +400,9 @@ jobs:
     outputs:
       clean: ${{ steps.upload.outcome == 'success' }}
       branches: ${{ steps.check.outputs.branches }}
+      # Each planned branch's synthetic commit and tree, in plan order: push
+      # fetches that commit from the bundle and publishes that tree.
+      synthetic: ${{ steps.check.outputs.synthetic }}
       # Push and publish download this artifact by id and check these
       # hashes before anything is minted.
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
@@ -490,32 +493,35 @@ jobs:
               [[ $head =~ ^[0-9a-f]{40}$ ]] || exit 1
               git -C .base fetch --quiet --no-tags "$IN/branches.bundle" "$head:refs/scan/$head" >/dev/null 2>&1 || { echo "::error::a planned head did not fetch from the bundle"; exit 1; }
               # The scanners read text, so a binary file is refused, unnamed.
-              # Every commit counts: the bundle push and publish get carries them all.
-              numstat=$(git -C .base log --numstat --no-renames --format= "$BASE_SHA..$head")
+              numstat=$(git -C .base diff --numstat --no-renames "$BASE_SHA" "$head")
               if grep -q $'^-\t-\t' <<<"$numstat"; then
                 echo "::error::a planned branch changes a binary file; only text is published"
                 exit 1
               fi
-              # The net diff: push publishes one commit with the head's tree
-              # and the plan's scanned title, never the model's commits.
+              # The net diff is all that leaves this job: the bundle below
+              # carries one synthetic commit with the head's tree, and push
+              # publishes one commit with that tree and the plan's title.
               git -C .base diff --no-renames --binary "$BASE_SHA" "$head" >>"$IN/diffs.txt"
-              # The rebuilt bundle is an artifact and holds each commit's
-              # message and blobs, so those are scanned too.
-              git -C .base log -p --no-renames --format=%B "$BASE_SHA..$head" >>"$IN/diffs.txt"
               count=$((count + 1))
             done <"$IN/heads.txt"
           fi
-          # What push and publish get: the plan, and a bundle rebuilt from
-          # the planned heads only, never the model's bundle with whatever
-          # else it carries.
+          # What push and publish get: the plan, and a bundle of one
+          # synthetic commit per planned head (its tree on the base, a fixed
+          # identity, date and message), never the model's commits, whose
+          # headers, merges and intermediate blobs the scan never read.
           rm -rf "$OUT"
           mkdir -p "$OUT"
           cp "$IN/plan.json" "$OUT/plan.json"
+          synthetic='[]'
           if ((count)); then
-            mapfile -t refs < <(sed 's|^|refs/scan/|' "$IN/heads.txt")
-            git -C .base bundle create --quiet "$OUT/branches.bundle" "^$BASE_SHA" "${refs[@]}" >/dev/null 2>&1 || { echo "::error::the planned heads did not bundle"; exit 1; }
+            synthetic=$(node --input-type=module -e '
+              import { readFileSync } from "node:fs";
+              import { syntheticBundle } from "./.base/.github/scripts/upstream-apply-changelog/upstream-apply-changelog.mjs";
+              const heads = readFileSync(process.env.IN + "/heads.txt", "utf8").split("\n").filter(Boolean);
+              console.log(JSON.stringify(syntheticBundle(".base", process.env.BASE_SHA, heads, process.env.OUT + "/branches.bundle")));
+            ') || { echo "::error::the planned heads did not bundle"; exit 1; }
           fi
-          echo "branches=$count" >>"$GITHUB_OUTPUT"
+          { echo "branches=$count"; echo "synthetic=$synthetic"; } >>"$GITHUB_OUTPUT"
 
       - name: Scan the plan for credentials
         id: scan-plan
@@ -678,6 +684,7 @@ jobs:
           BASE_SHA: ${{ needs.gate.outputs.base-sha }}
           PLAN_FILE: ${{ runner.temp }}/plan/plan.json
           BUNDLE_FILE: ${{ runner.temp }}/plan/branches.bundle
+          SYNTHETIC: ${{ needs.scan.outputs.synthetic }}
           REPO_DIR: ${{ github.workspace }}/.base
         run: node .base/.github/scripts/upstream-apply-changelog/upstream-apply-changelog.mjs push
 

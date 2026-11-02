@@ -7,8 +7,9 @@
 //            API as one lanes App commit on the base (mutate-branch token)
 //   publish  opens one PR per pushed branch and files the release's handoffs
 //            as one issue (publish-artifact token)
-// The plan and the bundle come from the model job, so every field is data:
-// names are held to fixed shapes and each branch's net diff to its plugin's paths.
+// The plan and each branch's tree come from the model job, so every field is
+// data: names are held to fixed shapes and each branch's net diff to its
+// plugin's paths. The bundle holds the scan job's synthetic commits only.
 import { execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -308,6 +309,59 @@ export async function commitNetTree(changes, { message, baseSha, baseTree, headT
   return api.createCommit(message, tree, [baseSha]);
 }
 
+const SYNTHETIC_ENV = {
+  GIT_AUTHOR_NAME: "upstream-apply-changelog",
+  GIT_AUTHOR_EMAIL: "upstream-apply-changelog@users.noreply.github.com",
+  GIT_AUTHOR_DATE: "1970-01-01T00:00:00Z",
+  GIT_COMMITTER_NAME: "upstream-apply-changelog",
+  GIT_COMMITTER_EMAIL: "upstream-apply-changelog@users.noreply.github.com",
+  GIT_COMMITTER_DATE: "1970-01-01T00:00:00Z",
+};
+export const SYNTHETIC_MESSAGE = "upstream-apply-changelog scanned tree";
+
+// The scan job's stand-in for each planned head: one commit on the base
+// holding the head's tree, with a fixed identity, date and message, bundled
+// alone. The bundle push gets then carries no model commit, header, merge or
+// intermediate blob, only what the scan read as the net diff. Returns each
+// branch's { commit, tree } in plan order.
+export function syntheticBundle(repoDir, baseSha, heads, bundlePath) {
+  const env = { ...process.env, ...SYNTHETIC_ENV };
+  const quiet = { stdio: ["ignore", "pipe", "pipe"] };
+  const made = heads.map((head, i) => {
+    const tree = git(repoDir, ["rev-parse", "--verify", `${head}^{tree}`], quiet);
+    const commit = git(repoDir, ["commit-tree", "--no-gpg-sign", tree, "-p", baseSha, "-m", SYNTHETIC_MESSAGE], { env, ...quiet });
+    if (git(repoDir, ["rev-parse", `${commit}^{tree}`], quiet) !== tree) throw new Error(`branches[${i}]'s synthetic commit does not hold its head's tree`);
+    git(repoDir, ["update-ref", `refs/synthetic/${i}`, commit], quiet);
+    return { commit, tree };
+  });
+  git(repoDir, ["bundle", "create", "--quiet", bundlePath, `^${baseSha}`, ...heads.map((_, i) => `refs/synthetic/${i}`)], quiet);
+  return made;
+}
+
+// The scan job's synthetic output: one { commit, tree } per planned branch.
+export function readSynthetic(text, count) {
+  let list;
+  try {
+    list = JSON.parse(text || "[]");
+  } catch {
+    throw new Error("the scan job's synthetic commits are not JSON");
+  }
+  if (!Array.isArray(list) || list.length !== count || !list.every((s) => SHA.test(s?.commit ?? "") && SHA.test(s?.tree ?? ""))) {
+    throw new Error("the scan job's synthetic commits do not match the plan's branches");
+  }
+  return list;
+}
+
+// Fetches a branch's synthetic commit from the scanned bundle and checks it
+// is one commit on the base holding the tree the scan recorded.
+export function fetchSynthetic(repoDir, bundleFile, baseSha, { commit, tree }, local, i) {
+  git(repoDir, ["fetch", "--quiet", "--no-tags", bundleFile, `${commit}:${local}`]);
+  if (git(repoDir, ["rev-parse", local]) !== commit) throw new Error(`branches[${i}] is not at its synthetic commit`);
+  if (git(repoDir, ["rev-list", "--parents", "-n", "1", commit]) !== `${commit} ${baseSha}`) throw new Error(`branches[${i}] is not one commit on the base`);
+  if (git(repoDir, ["rev-parse", `${commit}^{tree}`]) !== tree) throw new Error(`branches[${i}] does not hold the scanned tree`);
+  return commit;
+}
+
 async function gate(env) {
   const repo = env.GITHUB_REPOSITORY;
   let candidates;
@@ -354,14 +408,15 @@ async function push(env) {
   const writer = createGitHubApi({ token: env.GH_TOKEN, repository: repo, apiUrl: env.GITHUB_API_URL || "https://api.github.com" });
   const heads = {};
   if (plan.branches.length && !existsSync(BUNDLE_FILE)) throw new Error("the plan names branches and the run left no bundle");
+  // The bundle holds the scan job's synthetic commits only, never the
+  // model's heads, which push never reads.
+  const synthetic = readSynthetic(env.SYNTHETIC, plan.branches.length);
   for (const [i, b] of plan.branches.entries()) {
     const local = `refs/upstream-apply-changelog/${b.plugin}`;
-    git(repoDir, ["fetch", "--no-tags", BUNDLE_FILE, `${b.head_sha}:${local}`]);
-    if (git(repoDir, ["rev-parse", local]) !== b.head_sha) throw new Error(`branches[${i}] is not at its planned head`);
-    if (git(repoDir, ["merge-base", baseSha, b.head_sha]) !== baseSha) throw new Error(`branches[${i}] does not start at the base`);
-    checkRawLog(netRawDiff(repoDir, baseSha, b.head_sha), b.plugin, i);
-    refuseBinary(git(repoDir, ["diff", "--numstat", "--no-renames", baseSha, b.head_sha]), i);
-    const headTree = git(repoDir, ["rev-parse", `${b.head_sha}^{tree}`]);
+    const commit = fetchSynthetic(repoDir, BUNDLE_FILE, baseSha, synthetic[i], local, i);
+    checkRawLog(netRawDiff(repoDir, baseSha, commit), b.plugin, i);
+    refuseBinary(git(repoDir, ["diff", "--numstat", "--no-renames", baseSha, commit]), i);
+    const headTree = synthetic[i].tree;
     const existing = await api(`/repos/${repo}/git/ref/heads/${b.branch}`, { allow404: true });
     if (existing) {
       // A re-run's branch counts only when its tip holds the planned tree.
@@ -371,7 +426,7 @@ async function push(env) {
       console.log(`${b.branch} already exists${heads[b.branch] ? "" : " with another tree"}; not pushed`);
       continue;
     }
-    const head = await commitNetTree(readNetChanges(repoDir, baseSha, b.head_sha), {
+    const head = await commitNetTree(readNetChanges(repoDir, baseSha, commit), {
       message: b.pr.title,
       baseSha,
       baseTree: git(repoDir, ["rev-parse", `${baseSha}^{tree}`]),

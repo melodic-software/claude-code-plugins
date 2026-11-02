@@ -10,6 +10,7 @@ import {
   branchFor,
   checkRawLog,
   commitNetTree,
+  fetchSynthetic,
   fileReleaseHandoffs,
   handoffMarker,
   netRawDiff,
@@ -17,12 +18,15 @@ import {
   publishText,
   readNetChanges,
   readPlan,
+  readSynthetic,
   refuseBinary,
   releaseIssue,
   releaseMarker,
   releasesFromStatus,
   renderItems,
   startedInWindow,
+  SYNTHETIC_MESSAGE,
+  syntheticBundle,
   validatePlan,
 } from "./upstream-apply-changelog.mjs";
 
@@ -236,6 +240,68 @@ test("the net change reads each file once at its head content, whatever the comm
   git("commit", "-qm", "side");
   git("merge", "-q", "--no-edit", "main");
   assert.match(netRawDiff(dir, base, git("rev-parse", "HEAD")), /\tnew\.md$/m);
+});
+
+test("the scanned bundle holds one fixed commit per head with its tree, and no blob a merge added then removed", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "uac-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const env = { PATH: process.env.PATH, HOME: dir, GIT_CONFIG_NOSYSTEM: "1", GIT_AUTHOR_NAME: "model", GIT_AUTHOR_EMAIL: "m@m", GIT_COMMITTER_NAME: "model", GIT_COMMITTER_EMAIL: "m@m" };
+  const repo = join(dir, "repo");
+  const fresh = join(dir, "fresh");
+  const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, ...args], { env, encoding: "utf8" }).trim();
+  git(dir, "init", "-q", "-b", "main", repo);
+  writeFileSync(join(repo, "keep.md"), "k");
+  git(repo, "add", ".");
+  git(repo, "commit", "-qm", "base");
+  const base = git(repo, "rev-parse", "HEAD");
+  git(repo, "tag", "base");
+  git(repo, "checkout", "-qb", "side");
+  writeFileSync(join(repo, "secret.md"), "SECRET-VALUE-0123456789");
+  git(repo, "add", ".");
+  git(repo, "commit", "-qm", "add secret");
+  const secret = git(repo, "rev-parse", "side:secret.md");
+  git(repo, "checkout", "-qb", "head", base);
+  writeFileSync(join(repo, "plugin.md"), "p");
+  git(repo, "add", ".");
+  git(repo, "commit", "-qm", "plugin change");
+  git(repo, "merge", "-q", "--no-edit", "side");
+  git(repo, "rm", "-q", "secret.md");
+  git(repo, "commit", "-qm", "drop secret");
+  const head = git(repo, "rev-parse", "HEAD");
+  assert.equal(git(repo, "cat-file", "-t", secret), "blob");
+
+  const bundle = join(dir, "branches.bundle");
+  const [made] = syntheticBundle(repo, base, [head], bundle);
+  assert.equal(made.tree, git(repo, "rev-parse", `${head}^{tree}`));
+  assert.deepEqual(syntheticBundle(repo, base, [head], join(dir, "again.bundle")), [made]);
+  assert.equal(git(repo, "log", "-1", "--format=%P|%an|%ae|%aI|%cn|%ce|%cI|%B", made.commit),
+    `${base}|upstream-apply-changelog|upstream-apply-changelog@users.noreply.github.com|1970-01-01T00:00:00Z|upstream-apply-changelog|upstream-apply-changelog@users.noreply.github.com|1970-01-01T00:00:00Z|${SYNTHETIC_MESSAGE}`);
+
+  git(dir, "init", "-q", "-b", "main", fresh);
+  git(fresh, "fetch", "-q", "--no-tags", repo, "refs/tags/base:refs/base");
+  assert.equal(fetchSynthetic(fresh, bundle, base, made, "refs/scanned", 0), made.commit);
+  const has = (sha) => {
+    try {
+      git(fresh, "cat-file", "-e", sha);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  assert.equal(has(made.commit), true);
+  assert.equal(has(secret), false);
+  assert.equal(has(head), false);
+  assert.deepEqual(readNetChanges(fresh, base, made.commit).map((e) => e.path), ["plugin.md"]);
+  assert.throws(() => fetchSynthetic(fresh, bundle, base, { ...made, tree: base }, "refs/other", 3), /branches\[3\] does not hold the scanned tree/);
+});
+
+test("the scan job's synthetic list must name one commit and tree per planned branch", () => {
+  const one = [{ commit: HEAD, tree: BASE }];
+  assert.deepEqual(readSynthetic(JSON.stringify(one), 1), one);
+  assert.deepEqual(readSynthetic("", 0), []);
+  assert.throws(() => readSynthetic(JSON.stringify(one), 2), /do not match/);
+  assert.throws(() => readSynthetic(JSON.stringify([{ commit: "x", tree: BASE }]), 1), /do not match/);
+  assert.throws(() => readSynthetic("{", 1), /not JSON/);
 });
 
 const REPO = "o/r";
