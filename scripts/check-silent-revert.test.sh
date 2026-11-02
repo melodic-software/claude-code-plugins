@@ -330,6 +330,92 @@ t_fragments_dropped_beside_another_changelog_still_fire() {
   assert_fragment_drop_fires other "dropping recent .changes/ fragments while editing a different plugin's CHANGELOG fires"
 }
 
+# drop_bumped_fragments <repo> <bump> <changelog> <layout> -- the shape of a
+# release's none-fragment cleanup: 31 seeded changelogs, a recent commit adding
+# thirty ten-line files whose front matter reads `bump: <bump>` (300 lines), then
+# a commit deleting them. changelog=other also edits plugin0's CHANGELOG.md,
+# which has no fragments, so no fragment's own plugin changes its CHANGELOG;
+# changelog=no edits none. layout=fragment writes .changes/pluginN/<name>.md;
+# layout=elsewhere writes half nested a level too deep under .changes/ and half
+# outside .changes/, neither of which is the fragment layout.
+drop_bumped_fragments() {
+  local repo="$1" bump="$2" changelog="$3" layout="$4" i j path
+  for i in $(seq 0 30); do
+    mkdir -p "$repo/plugins/plugin$i"
+    printf '# Changelog for plugin%s\n\n## 1.0.0\n\n- First release.\n' "$i" \
+      >"$repo/plugins/plugin$i/CHANGELOG.md"
+  done
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "chore: seed the changelogs"
+  for i in $(seq 1 30); do
+    path=".changes/plugin$i/readme-install-0123abcd.md"
+    if [[ "$layout" = elsewhere ]]; then
+      path=".changes/plugin$i/nested/readme-install-0123abcd.md"
+      ((i % 2)) || path="notes/plugin$i/readme-install-0123abcd.md"
+    fi
+    mkdir -p "$repo/${path%/*}"
+    {
+      printf -- '---\nbump: %s\n---\n' "$bump"
+      for j in $(seq 1 7); do
+        printf 'the plugin%s README install line %s needs no release\n' "$i" "$j"
+      done
+    } >"$repo/$path"
+  done
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "docs: one install form in every README (#98)"
+  [[ "$(find "$repo/.changes" "$repo/notes" -type f -exec cat {} + 2>/dev/null | wc -l)" -eq 300 ]] ||
+    fail "fixture built the wrong number of fragment lines (want 300)"
+  if [[ "$changelog" = other ]]; then
+    printf -- '- An unrelated plugin0 note.\n' >>"$repo/plugins/plugin0/CHANGELOG.md"
+  fi
+  git_test_config "$repo" rm -rq --ignore-unmatch -- .changes notes >/dev/null
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "chore(release): release 1 plugins (#99)"
+}
+
+# The fbdf2ec7e shape (#12353): a release deleting other plugins' `bump: none`
+# fragments, none of whose own CHANGELOG.md changes.
+t_release_none_fragment_cleanup_is_not_a_removal() {
+  local repo
+  mk_repo repo
+  drop_bumped_fragments "$repo" none other fragment
+  run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 0 ]]; then
+    ok "a release deleting 300 lines of bump: none fragments whose plugins' CHANGELOGs stay unchanged is not a removal (threshold 200)"
+  else
+    fail "a release's bump: none fragment cleanup must not fire, rc=$RC: $OUT"
+  fi
+}
+
+assert_bumped_drop_fires() { # <bump> <changelog> <layout> <label>
+  local repo sink
+  mk_repo repo
+  drop_bumped_fragments "$repo" "$1" "$2" "$3"
+  sink="$(mktemp "$TMP/x.XXXX")"
+  FINDINGS_SINK="$sink" run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 1 ]] && grep -qxE '[0-9a-f]{40} 300' "$sink" && [[ "$(wc -l <"$sink")" -eq 1 ]]; then
+    ok "$4 (300 lines, threshold 200)"
+  else
+    fail "$4: want one 300-line finding, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
+t_release_patch_fragment_drop_still_fires() {
+  assert_bumped_drop_fires patch other fragment \
+    "a release deleting bump: patch fragments whose plugins' CHANGELOGs stay unchanged fires"
+}
+
+t_none_front_matter_outside_fragment_layout_still_fires() {
+  assert_bumped_drop_fires none other elsewhere \
+    "deleting bump: none files nested under .changes/<p>/ or outside .changes/ fires beside a CHANGELOG change"
+}
+
+t_none_fragment_drop_without_any_changelog_change_still_fires() {
+  assert_bumped_drop_fires none no fragment \
+    "deleting bump: none fragments in a commit that changes no CHANGELOG fires"
+}
+
 # The attribution counts must not depend on the CALLER'S GIT CONFIG. They are
 # what the replay's recorded expectations assert on, so a developer's ambient
 # settings deciding them means a red build on a clean tree, for example under
@@ -2394,6 +2480,10 @@ t_rename_is_not_a_removal
 t_release_consuming_fragments_is_not_a_removal
 t_fragments_dropped_without_changelog_still_fire
 t_fragments_dropped_beside_another_changelog_still_fire
+t_release_none_fragment_cleanup_is_not_a_removal
+t_release_patch_fragment_drop_still_fires
+t_none_front_matter_outside_fragment_layout_still_fires
+t_none_fragment_drop_without_any_changelog_change_still_fires
 t_counts_are_immune_to_ambient_git_config
 t_rename_pin_is_load_bearing
 t_minus_diff_lock_file_is_attributed
