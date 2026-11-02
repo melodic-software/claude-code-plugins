@@ -9,7 +9,7 @@ async page => { // the user journey in order on one page, no reload after phase 
   const plainBeside = async re => { const a = (await state()).questions.activity, i = a.findIndex(e => re.test(e.text)), after = a.slice(i + 1); return i >= 0 && after.some(e => e.notes && !e.asks) && after.filter(e => e.asks).length === 1; }; // after the activity entry: a plain Notes reply and one that asks
   const events = async () => (await state()).responses.events;
   const last = async () => { const e = await events(); return e[e.length - 1]; };
-  const landed = async (want, ms) => { const end = Date.now() + ms; for (;;) { const e = await last(); if (want(e) || Date.now() >= end) return e; await page.waitForTimeout(100); } }; // the newest event once it matches, or at the deadline whatever it is
+  const landed = async (want, ms) => { const end = Date.now() + ms; for (;;) { const e = await last(); if (want(e)) return {e, timedOut: false}; if (Date.now() >= end) return {e, timedOut: true}; await page.waitForTimeout(100); } }; // the newest event once it matches, or at the deadline whatever it is, with whether the deadline hit
   const sel = async () => page.evaluate(() => (document.querySelector('.qbtn[aria-current="true"]') || {}).dataset?.q || (document.querySelector('.sumbtn[aria-current="true"]') ? "summary" : null));
   const text = async s => (await page.textContent(s).catch(() => "")) || "";
   const token = async () => page.$eval('meta[name="interview-token"]', m => m.content);
@@ -144,8 +144,9 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("a finished Own note shows no cut-off nudge", !(await page.$("#cutNudge")), await text("#decideRow"));
     await page.fill("#note", "Should we pin the version?");
     await page.keyboard.press("Escape"); await tap("[data-save]", 700);
-    const own = await landed(e => e.kind === "own" && e.id === "Q5", 5000); // a loaded CI host can still have the save in flight once settle's 700 ms ceiling passes
-    ok("saving as own stays possible", own.kind === "own" && own.id === "Q5" && own.text === "Should we pin the version?", JSON.stringify(own));
+    const saved = await landed(e => !!e && e.kind === "own" && e.id === "Q5", 5000); // a loaded CI host can still have the save in flight once settle's 700 ms ceiling passes
+    const own = saved.e;
+    ok("saving as own stays possible", !!own && own.kind === "own" && own.id === "Q5" && own.text === "Should we pin the version?", (saved.timedOut ? "timed out waiting for the Q5 save: " : "") + JSON.stringify(own));
     await pick("Q1"); // off the rows the next writes name, so their dots show
     await page.click('.sec[data-key="g:g2"] .sec-h'); // collapsed by the user before Claude replies on Q4
   }
