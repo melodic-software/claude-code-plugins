@@ -17,9 +17,10 @@ const TRUSTED = path.join(REPO_ROOT, ".github/standards/trusted-actors/trusted-a
 const LANE = /^ {2}agent-identity: (.+)$/m.exec(readFileSync(path.join(REPO_ROOT, "docs/conventions/pr-pipeline.yaml"), "utf8"))[1];
 const count = (filter) => CASES.filter(filter).length;
 
-test("twenty-one cases in the planned mix", () => {
-  assert.equal(CASES.length, 21);
-  assert.equal(count((c) => c.expect.class === "control"), 4);
+test("twenty-two cases in the planned mix", () => {
+  assert.equal(CASES.length, 22);
+  // One control's only would-be note is a test-run claim the head's CI settled green.
+  assert.equal(count((c) => c.expect.class === "control"), 5);
   assert.equal(count((c) => c.expect.class === "blocking"), 11);
   assert.equal(count((c) => c.expect.class === "non-blocking"), 2);
   assert.equal(count((c) => c.expect.class === "injection"), 4);
@@ -100,8 +101,12 @@ test("every case lays out the six data files through the real filters", async ()
       assert.equal(context.items.filter((item) => item.kind === "linked-issue").length, 1, testCase.id);
       assert.equal(read("spec.json")[0].author_type, "User");
       const upstream = read("upstream-jobs.json");
-      assert.deepEqual(upstream.jobs, UPSTREAM_JOBS.map((name) => ({ name, conclusion: "success" })), testCase.id);
       assert.ok(Number.isSafeInteger(upstream.run_id) && upstream.run_id > 0, testCase.id);
+      assert.deepEqual(upstream.jobs.map(({ name, conclusion }) => ({ name, conclusion })), UPSTREAM_JOBS.map((name) => ({ name, conclusion: "success" })), testCase.id);
+      // Each job carries the page a note cites, in the judged run.
+      for (const job of upstream.jobs) {
+        assert.match(job.url, new RegExp(`^https://github\\.com/melodic-software/claude-code-plugins/actions/runs/${upstream.run_id}/job/\\d+$`), testCase.id);
+      }
       // The replayed head is this checkout's tree plus the fixture's diff, and no
       // fixture touches explain-change, which test-bash runs through its wrapper.
       assert.ok(
