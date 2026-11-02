@@ -34,8 +34,8 @@ check "no PostToolUse, Stop or SubagentStop entry" \
   '[[ "$(jq "[.hooks.PostToolUse, .hooks.Stop, .hooks.SubagentStop] | map(length) | add" "$HOOKS")" == 0 ]]'
 check "no row runs test-scan or a test-judge script" \
   '! grep -qE "test-scan|test-judge" "$HOOKS"'
-check "SessionStart holds only the node-notice entry" \
-  '[[ "$(jq ".hooks.SessionStart | length" "$HOOKS")" == 1 && "$(jq -r ".hooks.SessionStart[0].hooks[0].command | contains(\"node-notice /testing:check\")" "$HOOKS")" == true ]]'
+check "no SessionStart entry: harness-ops reports a missing node fleet-wide" \
+  '[[ "$(jq ".hooks | has(\"SessionStart\")" "$HOOKS")" == false ]]'
 check "PreToolUse has no Bash row" '[[ "$(jq "[.hooks.PreToolUse[] | select(.matcher | test(\"Bash\"))] | length" "$HOOKS")" == 0 ]]'
 
 event=PreToolUse

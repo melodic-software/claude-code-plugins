@@ -12,7 +12,8 @@
 // settings.json and settings.local.json in ~/.claude (or $CLAUDE_CONFIG_DIR) and
 // the project's .claude directory instead, skipping a whole file whose
 // enabledPlugins holds a non-Boolean value (Claude Code ignores that file's
-// keys); that fallback does not read the managed scope. Output that is not a
+// keys), and pick install records by the same project and scope rule; that
+// fallback does not read the managed scope. Output that is not a
 // JSON list is an error (exit 2), never a fallback. Only when none of that state
 // exists and this repo has plugins/*/prerequisites.json, scan those.
 //
@@ -94,12 +95,14 @@ export function rootsFromListing(rows, project) {
 }
 
 // { read, roots } from enabledPlugins in the settings files and installed_plugins.json.
-export function rootsFromSettings(config, project) {
-  // User, then project, then local: a later scope's true/false wins.
+// managed: managed settings files, applied last so a managed true/false wins.
+export function rootsFromSettings(config, project, managed = []) {
+  // User, then project, then local, then managed: a later scope's true/false wins.
   const files = [path.join(config, "settings.json"), path.join(config, "settings.local.json")];
   if (project) {
     files.push(path.join(project, ".claude", "settings.json"), path.join(project, ".claude", "settings.local.json"));
   }
+  files.push(...managed);
   const state = {};
   let read = false;
   for (const file of files) {
@@ -122,14 +125,9 @@ export function rootsFromSettings(config, project) {
     for (const key of enabled.sort()) {
       let records = installed[key] ?? [];
       if (!Array.isArray(records)) records = [records];
-      let installPath = "";
-      for (const record of records) {
-        if (record && typeof record === "object" && record.installPath) {
-          installPath = record.installPath;
-          if (record.scope === "user") break;
-        }
-      }
-      if (installPath) roots.push(installPath);
+      // The listing's rule: another project's records drop out, and the most specific scope wins.
+      const rows = records.filter((r) => r && typeof r === "object").map((r) => ({ ...r, id: key, enabled: true }));
+      roots.push(...rootsFromListing(rows, project));
     }
   }
   return { read, roots };
