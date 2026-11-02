@@ -75,8 +75,17 @@ describe("prerequisites-fleet", { skip: !posix && "the claude stub is a POSIX sh
     const f = fleet({ plugins: [gated("alpha"), { name: "beta", sessionProbe: {} }] });
     const message = await f.run();
     assert.match(message, /^alpha: alpha-tool not on the hook PATH/);
-    assert.match(message, /\nbeta: beta-tool not on the hook PATH.*\/beta:check diagnoses\.$/);
+    const beta = path.join(f.config, "plugins", "cache", "mkt", "beta", "1.0.0");
+    const cmd = `node "${beta}/lib/prerequisites.mjs" check "${beta}"`;
+    assert.ok(message.endsWith(`\nbeta: beta-tool not on the hook PATH. Without it the beta hook skips. Install (docs: https://example.com/install). Hooks read Claude Code's PATH, not your shell profile. No further notice this session; diagnose with: ${cmd}`), message);
     assert.equal(existsSync(path.join(f.config, "claude-ran")), false);
+  });
+
+  test("a notice's command, run as printed, reports the missing tool as FAIL", async () => {
+    const f = fleet({ plugins: [{ name: "beta", sessionProbe: {} }] });
+    const r = spawnSync("bash", ["-c", (await f.run()).split("diagnose with: ")[1]], { encoding: "utf8" });
+    assert.equal(r.status, 1, r.stderr);
+    assert.match(r.stdout, /^FAIL {2}beta-tool \(cli, required\): /m);
   });
 
   test("a plugin that does not declare session_probe is not probed", async () => {
