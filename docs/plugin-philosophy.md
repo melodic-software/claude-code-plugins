@@ -630,7 +630,7 @@ a separate `<plugin>:check` skill with `disable-model-invocation: false`. It rea
 follows only its `check` section, so `setup` stays the one account of what is checked, and it
 installs and writes nothing. `setup` keeps `true`, and `apply` stays manual. A hook or probe names
 `/<plugin>:check`, never `/<plugin>:setup check`, which the flag hides from Claude.
-`plugins/context7/skills/check/SKILL.md` is the shape to copy. Record. Decision: we set the flag
+`plugins/context7/skills/check/SKILL.md` is the shape to copy. Decision record: we set the flag
 per skill and split `check` into its own skill, because we found no per-action invocation flag.
 Pointer: for `disable-model-invocation`, see
 <https://code.claude.com/docs/en/skills#frontmatter-reference> and
