@@ -10,8 +10,8 @@ Canonical location for the purposes of this case: `https://example.invalid/lumen
 
 On most models you can set `reasoning: {mode: "off"}` to skip the reasoning step.
 
-`reasoning: {mode: "off"}` fails no matter the effort on Lumen Atlas 4.1, Lumen Atlas 4, Lumen Brook
-4.1, Lumen Brook 4 and Lumen Brook Preview: it is rejected with a validation error at every effort level. Use a lower
+On Lumen Atlas 4.1, Lumen Atlas 4, Lumen Brook 4.1, Lumen Brook 4 and Lumen Brook Preview,
+`reasoning: {mode: "off"}` is rejected with a validation error at every effort level. Use a lower
 effort instead.
 
 ## Lumen Atlas 4.5

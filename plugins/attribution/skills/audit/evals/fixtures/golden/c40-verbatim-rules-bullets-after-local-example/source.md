@@ -49,10 +49,10 @@ still version.
 Each entry credits the people whose work it draws on.
 
 - `lane-grid`: Orla Pennick, A calmer board template, 2024-03-11 · Dev Haskins, Lanes without breakpoints · Mirela Stoyan, The edge lane trick
-- `fluid-lanes`: Dev Haskins, Lanes that size themselves, 2025-01-19 · Ines Valdemar, One template for every board
+- `fluid-lanes`: Dev Haskins, Lanes that size themselves, 2025-01-19 · Inez Valdemar, One template for every board
 - `stacked-tiles`: Tobin Achterberg, Layers on a single cell, 2025-03-29
 - `safe-centering`: Pia Marchetti, Centering that never clips, 2025-06-10
 - `clip-over-crop`: Orla Pennick, Two better choices than crop, 2023-12-14
-- `neighbor-spacing`: Ines Valdemar, Spacing that reads its neighbors, 2022-08-18 · Dev Haskins, The sibling selector
+- `neighbor-spacing`: Inez Valdemar, Spacing that reads its neighbors, 2022-08-18 · Dev Haskins, The sibling selector
 - `parent-gap`: Hollis Brandt and Yusra Okafor, The Pile, Tile Patterns · Hollis Brandt, Spacing from above, 2014-10-21
 - `quiet-motion`: Saoirse Lindqvist, Motion as an opt-in, 2023-06-02 · Ruben Oyelaran, The still version first

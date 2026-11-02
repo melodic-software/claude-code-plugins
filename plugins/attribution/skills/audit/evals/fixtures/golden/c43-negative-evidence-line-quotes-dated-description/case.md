@@ -3,7 +3,7 @@
 One entry per Kestrel native surface that overlaps a component of ours: the ruling, what it rests
 on, and what would reopen it.
 
-### `tidy-allowlist`
+## `tidy-allowlist`
 
 - **Verdict:** `complementary`. The bundled command builds a ranked allowlist in kestrel.toml out
   of log evidence, and ours only reads out which permissions are in force. Decided 2026-09-29 on
