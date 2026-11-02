@@ -277,8 +277,8 @@
         "confirm-wait-minutes": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 45,
-          "default": 40,
+          "maximum": 60,
+          "default": 55,
           "description": "Minutes the report waits for the one re-run of a red full run to finish; a run with no finished re-run is not confirmed red."
         },
         "remedy": {
