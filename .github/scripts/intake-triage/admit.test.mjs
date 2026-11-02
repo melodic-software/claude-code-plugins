@@ -1058,6 +1058,12 @@ describe("decide", () => {
           assert.equal(inBody(`- [ ] ${item}`), found, item);
         }
       });
+
+      test("a spend guard the work lowers or raises, with no cost word", () => {
+        for (const item of ["Turn off the budget cap.", "Delete the spend cap.", "Raise the quota."]) {
+          assert.equal(inBody(`- [ ] ${item}`), "a spend guard", item);
+        }
+      });
     });
 
     // Owner decision 2026-10-31 Q1: the check reads what the issue will do,
