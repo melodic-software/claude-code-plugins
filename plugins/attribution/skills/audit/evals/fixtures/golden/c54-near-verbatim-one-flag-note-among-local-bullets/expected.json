@@ -1,0 +1,29 @@
+{
+  "negatives": false,
+  "findings": [
+    {
+      "class": "near-verbatim",
+      "tier": "source-fetched-similar",
+      "span": {
+        "start_line": 26,
+        "end_line": 27
+      },
+      "rule": "attribution/audit/rule-verbatim-copy"
+    }
+  ],
+  "adjudication": {
+    "verdict": "STANDS",
+    "panel": "two of three blind judges returned near-verbatim on the span and one cleared it on C4; labelled near-verbatim by an agent decision under the owner's standing direction",
+    "rubric": "copy",
+    "rubric_version": 5,
+    "nomination": "evals/nominations/2026-11-02-larger-sample.json k16"
+  },
+  "notes": {
+    "shape": "One bullet of a flag list restates a source sentence with light edits, while the bullets around it add local policy: the pinning rule, the pass-mark rationale, the spend ceiling preference. The shared run stays below the span limb, so no fingerprint fires.",
+    "carve_outs": "None apply. The file names no source for the flag notes.",
+    "rubric": "Graded on the two-line span: C1 holds, the bullet corresponds to the source's report sentence. C2 holds: the self-contained, no-network property is the source's specific claim. C3 holds: no attribution. C4 holds for the span: replaced by a link, it loses nothing; the local judgment in the neighboring bullets does not reach it. A judge who grades C4 on the whole list clears it, which is why the real passage split two to one.",
+    "measured": "fingerprint.mjs at k=5 against its source.md: containment 0.031, jaccard 0.019, longest matched span 11 words; the separation rule does not fire. Case and source each stay below both limbs against the real passage's file and its real source (highest containment 0.071, longest span 10 words).",
+    "carries": "A near-verbatim span inside a transformative list, found only by narrowing to the span. Labelled near-verbatim by an agent decision under the owner's standing direction, from a two-to-one panel whose dissent was C4 alone.",
+    "tier_reason": "No fingerprint fires, matching the real passage, so the tier is source-fetched-similar and the finding is not fix-eligible on its own evidence."
+  }
+}

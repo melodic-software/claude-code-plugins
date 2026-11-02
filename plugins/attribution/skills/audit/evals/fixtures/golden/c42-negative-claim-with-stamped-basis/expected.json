@@ -1,0 +1,18 @@
+{
+  "negatives": true,
+  "findings": [],
+  "adjudication": {
+    "verdict": "CLEARED",
+    "panel": "three blind judges, unanimous: CLEARED",
+    "rubric": "copy",
+    "rubric_version": 5,
+    "nomination": "evals/nominations/2026-11-02-larger-sample.json k04"
+  },
+  "notes": {
+    "shape": "A claim record whose Claim sentence is a light edit of two source sentences, followed by one local consequence, with a Source line naming the anchored section, a checked date and a revisit trigger.",
+    "carve_outs": "None needed; the criteria clear it.",
+    "rubric": "C1 and C2 hold on the Claim's first two sentences. C3 FAILS: the Source line is claim-scoped, names the section, dates the read and states the trigger. C4 FAILS narrowly: the closing sentence draws the cross-boundary consequence the source does not state. C3 alone decides the verdict.",
+    "measured": "fingerprint.mjs at k=5 against its source.md: containment 0.230, jaccard 0.161, longest matched span 25 words; the separation rule fires. Case and source each stay below both limbs against the real passage's file and its real source (highest containment 0.005, longest span 5 words).",
+    "carries": "A near-verbatim claim inside its own stamped record. A run that flags it has read the copied words without reading the record beside them."
+  }
+}

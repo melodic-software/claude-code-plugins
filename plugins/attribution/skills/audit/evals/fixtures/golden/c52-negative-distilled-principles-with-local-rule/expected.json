@@ -1,0 +1,18 @@
+{
+  "negatives": true,
+  "findings": [],
+  "adjudication": {
+    "verdict": "CLEARED",
+    "panel": "three blind judges, unanimous: CLEARED (carve-outs named: 5 Distilled-product architectures)",
+    "rubric": "copy",
+    "rubric_version": 5,
+    "nomination": "evals/nominations/2026-11-02-larger-sample.json k14"
+  },
+  "notes": {
+    "shape": "A distilled reference file whose three principles restate the source's list in the local author's words with one short attributed quotation, and whose last principle adds a local rule the source does not state.",
+    "carve_outs": "Distilled-product architecture applies on one reading: the file declares what it distills, with a pointer record at its head.",
+    "rubric": "Where graded: C1 holds loosely on the corner-case list. C3 FAILS on the header record. C4 FAILS: 'never easier cases' and the logged-reason rule are local and would be lost behind a link.",
+    "measured": "fingerprint.mjs at k=5 against its source.md: containment 0.102, jaccard 0.046, longest matched span 11 words; the separation rule does not fire. Case and source each stay below both limbs against the real passage's file and its real source (highest containment 0.051, longest span 8 words).",
+    "carries": "A distilled list close to its source in order, below both fingerprint limbs, with a local rule appended. Drawn from the same page as the previous case."
+  }
+}

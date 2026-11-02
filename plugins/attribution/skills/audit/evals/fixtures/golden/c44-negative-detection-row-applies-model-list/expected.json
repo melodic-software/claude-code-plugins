@@ -1,0 +1,18 @@
+{
+  "negatives": true,
+  "findings": [],
+  "adjudication": {
+    "verdict": "CLEARED",
+    "panel": "three blind judges, unanimous: CLEARED",
+    "rubric": "copy",
+    "rubric_version": 5,
+    "nomination": "evals/nominations/2026-11-02-larger-sample.json k06"
+  },
+  "notes": {
+    "shape": "A detection-criteria row whose middle arm repeats a source's model list, merged with a model the source names in a separate section, inside the row's own firing rule and the reasoning that bounds it.",
+    "carve_outs": "None needed; the criteria clear it.",
+    "rubric": "C1 holds on the model list. C3 FAILS on the reading that the row's pointer and the merged set are this catalog's own derivation; C4 FAILS: the arm applies the list to which operand fires the finding and how the arms relate, which exists nowhere in the source.",
+    "measured": "fingerprint.mjs at k=5 against its source.md: containment 0.083, jaccard 0.053, longest matched span 18 words; the separation rule fires. Case and source each stay below both limbs against the real passage's file and its real source (highest containment 0.004, longest span 5 words).",
+    "carries": "A matched model list inside a local detection rule. A run that flags it reads an enumeration as the passage, where the passage is the rule built on it."
+  }
+}

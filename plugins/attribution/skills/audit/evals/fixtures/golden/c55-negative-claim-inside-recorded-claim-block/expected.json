@@ -1,0 +1,18 @@
+{
+  "negatives": true,
+  "findings": [],
+  "adjudication": {
+    "verdict": "CLEARED",
+    "panel": "two of three blind judges returned restated-fact and one cleared it on carve-out 1; labelled not a finding by an agent decision under the owner's standing direction",
+    "rubric": "restated-fact",
+    "rubric_version": 1,
+    "nomination": "evals/nominations/2026-11-02-larger-sample.json k17"
+  },
+  "notes": {
+    "shape": "A Claim bullet stating an external product's loader behavior, inside a file that declares its claims are recorded in the drift shape, with a Basis bullet naming both page sections, an as-of date and a recheck trigger that names only the table.",
+    "carve_outs": "Conforming pointer or record applies: the claim sits in a whole record, decision, pointer, date and trigger, under a file that declares the shape.",
+    "rubric": "Not graded under the carve-out. The contested reading: the trigger names the table and not the section that carries the last sentence, so a judge who requires the trigger to name every fact's topic grades R4 PASS on that sentence.",
+    "measured": "fingerprint.mjs at k=5 against its source.md: containment 0.024, jaccard 0.014, longest matched span 6 words; the separation rule does not fire. Case and source each stay below both limbs against the real passage's file and its real source (highest containment 0.048, longest span 9 words).",
+    "carries": "A restated fact inside its own record, where the record's trigger is narrower than its basis. Labelled not a finding by an agent decision under the owner's standing direction, from a two-to-one panel whose dissent read R4 against the trigger alone."
+  }
+}
