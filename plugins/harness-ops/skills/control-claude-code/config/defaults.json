@@ -2,13 +2,16 @@
   "environment": "local",
   "pluginDir": "plugins/context-budget",
   "maxCaptures": 20,
+  "maxEntryPoints": 6,
   "timeouts": {
     "launchSeconds": 30,
     "readyMs": 120000,
     "stepMs": 15000,
     "logMs": 600000
   },
-  "credentials": {},
+  "credentials": {
+    "ci": { "apiKey": "ANTHROPIC_API_KEY", "oauthToken": "CLAUDE_CODE_OAUTH_TOKEN" }
+  },
   "safety": {
     "recipients": {},
     "signInAttempts": {},

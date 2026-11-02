@@ -1,0 +1,9 @@
+{
+  "issue": {
+    "body": "## Problem\n\n`compareVersions` in `plugins/sample-kit/scripts/semver.mjs` compares prerelease tags as plain strings, so `1.0.0-rc.10` sorts before `1.0.0-rc.2`, and a prerelease sorts after its release.\n\n## Fix\n\nCompare prerelease identifiers as SemVer 2.0.0 section 11 orders them: a version with a prerelease is lower than the same version without one; identifiers compare left to right, numeric ones as numbers and the rest as ASCII text; a numeric identifier is lower than a text one; and when every shared identifier is equal, the shorter list is lower.\n\n## Done when\n\n- [ ] `compareVersions` follows the order above.\n- [ ] `semver.test.mjs` asserts the SemVer 2.0.0 example chain `1.0.0-alpha < 1.0.0-alpha.1 < 1.0.0-alpha.beta < 1.0.0-beta < 1.0.0-beta.2 < 1.0.0-beta.11 < 1.0.0-rc.1 < 1.0.0`.\n- [ ] `node --test plugins/sample-kit/scripts/semver.test.mjs` exits 0.\n\nOut of scope: build metadata and range parsing."
+  },
+  "pr": {
+    "title": "fix(sample-kit): order prerelease versions as SemVer 2.0.0 does",
+    "body": "Compares prerelease identifiers per SemVer 2.0.0 section 11 and asserts the spec's example chain in semver.test.mjs. The suite runs in CI's test-node job on this head; I did not run it locally."
+  }
+}

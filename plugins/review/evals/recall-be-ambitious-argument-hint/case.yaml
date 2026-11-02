@@ -8,7 +8,7 @@
 #   request typed after the command. The fix inserts it before line 3; the
 #   Codex review that found it anchored line 4.
 # source: confirmed lane miss; fix commit 5dd311b1a9c3539c3058750374d33694f453e9ef
-# confirmed-by: verifier-agent (owner spot-check pending)
+# confirmed-by: verifier-agent, owner spot-check 2026-11-02 (#8990)
 # rebuilt: SKILL.md whole at 513c96b1c569; the PR's other 102 files are left out.
 schema_version: "1.1"
 name: recall-be-ambitious-argument-hint

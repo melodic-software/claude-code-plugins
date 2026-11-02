@@ -17,8 +17,6 @@ graders:
     flags: 'i'
     target: last_message
   - name: no-single-winner
-    type: regex
-    pattern: '\b(?:the|my)\s+(?:single\s+)?(?:best|top|strongest)\s+(?:one|rhyme|metaphor|option|choice|pick|fit|candidate)\s+(?:here\s+)?(?:is|would be)\b(?!\s+(?:whichever|the one that|the one you|up to you|yours|your call|a matter))|\bmy\s+(?:top\s+|one\s+|single\s+|own\s+)?(?:pick|choice|recommendation|vote|favorite)\s*(?:is|would be|:)|(?<!\bhow )\bI(?:[''’]d| would)\s+(?:go with|pick|choose|use)\b|\bhow I(?:[''’]d| would)\s+(?:go with|pick|choose|use)\b(?:\*\*)?[ \t]*:?(?:\*\*)?[ \t]*(?:#\d|\d[.)]|option\s*#?\d|[\"“]|[*_]+(?!(?:for|if|when|by|depends|it depends)[^A-Za-z])[A-Za-z\"“])|^[ \t>*#-]*(?:\*\*)?winner(?:\*\*)?\s*:|\bthe answer is\b|\bgo with\s+[\"“*_]'
-    flags: 'im'
-    match: not_contains
-    target: last_message
+    type: llm
+    focus: last_message
+    criteria: "The writer asked for metaphor options for the loneliness after a divorce, for a slow country ballad, to choose from. PASS if the reply leaves the choice to the writer: a menu, a choosing guide keyed to feelings or moods, or a plain statement that the pick is theirs, with no single option crowned. A guide that maps several moods to options passes, whatever word opens it ('honestly', 'first', 'simple') and however its option numbers are emphasized. FAIL if any part of the reply, even after a full menu or a hedge such as 'if you only want one', presents one option as the answer: a lone pick on a 'How I'd choose' line with or without its option number, 'my pick is X', 'I'd go with X', 'the best metaphor is X', a Pick or Winner line naming one, or a bold lead naming one option, even with a hedge such as 'but only just'. Judge only whether one option is crowned; menu size, types, distances and finder lists are graded elsewhere."

@@ -392,13 +392,14 @@ class RunsGitHub:
             return ok({"total_count": len(listed), "workflow_runs": listed})
         window = re.fullmatch(
             rf"repos/{REPO}/actions/workflows/pr-verify\.yml/runs\?created=(\S+)\.\.(\S+)"
-            r"&per_page=100&page=1",
+            r"&per_page=100&page=([0-9]+)",
             path,
         )
         if window:
             listed = [r for r in self.runs if window[1] <= r["created_at"] <= window[2]]
             total = self.window_total.get(window[1], len(listed))
-            return ok({"total_count": total, "workflow_runs": listed})
+            first = (int(window[3]) - 1) * 100
+            return ok({"total_count": total, "workflow_runs": listed[first : first + 100]})
         of_run = re.fullmatch(
             rf"repos/{REPO}/actions/runs/([0-9]+)/artifacts\?per_page=100", path
         )
@@ -649,6 +650,38 @@ class PerRunLegacyFails(unittest.TestCase):
         code, err = self.run_build(fake)
         self.assertEqual(code, 1, err)
         self.assertIn("list 1 of [9]", err)
+        self.assertFalse(self.out.exists())
+
+    def window_below_its_runs(self, size: int, total: int) -> None:
+        """A window of `size` runs whose pages claim `total`: pages are read
+        while full, never stopped at the claimed count, so the build refuses."""
+        fake = RunsGitHub()
+        fake.runs += [
+            run(1000 + n, created_at=f"2026-10-14T04:{n // 60:02d}:{n % 60:02d}Z")
+            for n in range(size - 1)
+        ]
+        fake.window_total["2026-10-14T00:00:00Z"] = total
+        code, err = self.run_build(fake)
+        self.assertEqual(code, 1, err)
+        self.assertIn(f"list {size} of [{total}]", err)
+        self.assertFalse(self.out.exists())
+
+    def test_a_window_count_on_a_page_boundary_below_its_runs_refuses(self) -> None:
+        self.window_below_its_runs(200, 100)
+
+    def test_a_window_count_off_a_page_boundary_below_its_runs_refuses(self) -> None:
+        self.window_below_its_runs(150, 120)
+
+    def test_a_window_at_the_search_cap_splits_down_to_a_minute_then_refuses(
+        self,
+    ) -> None:
+        # Each left half keeps the day's start, so it stays at the cap until
+        # it spans a minute (`split_created_window`), and the build refuses.
+        fake = RunsGitHub()
+        fake.window_total["2026-10-14T00:00:00Z"] = 1000
+        code, err = self.run_build(fake)
+        self.assertEqual(code, 1, err)
+        self.assertIn("1000 verifier runs created 2026-10-14T00:00:00Z..", err)
         self.assertFalse(self.out.exists())
 
     def test_a_run_whose_artifacts_miss_their_count_refuses(self) -> None:
