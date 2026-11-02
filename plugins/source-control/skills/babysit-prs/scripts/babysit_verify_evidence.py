@@ -576,6 +576,9 @@ EARLIER_FAIL = "verify:earlier-fail"
 REPEATED_FAIL = "verify:repeated-fail"
 MISSING = "verify:missing"
 UNREADABLE = "verify:unreadable"
+# `Reader.queued_hold`: a lanes App entry whose verdict this run could not
+# read. The merge queue's own reader judges it fail-closed, so it is no hold.
+QUEUE_READS = "verify:queue-reads"
 TOO_OLD = "verify:too-old"
 UNTRUSTED_SPEC = "verify:untrusted-spec"
 SPEC_CHANGED = "verify:spec-changed"
@@ -3953,7 +3956,10 @@ class Reader:
 
     def queued_hold(self, number: int) -> str | None:
         """Why a queued entry must leave: no allowing verdict at its live
-        head now. An unreadable pull request is a hold. A dependency
+        head now. An unreadable pull request is a hold, but an unreadable
+        verdict on a lanes App entry is `QUEUE_READS`: the merge queue's
+        ci-status reads that entry's verdict itself and refuses it
+        fail-closed, while it reads none for any other author. A dependency
         manager's entry is the lane's Dependabot class, which pr-verify never
         judges, so it is not held here."""
         try:
@@ -3963,7 +3969,21 @@ class Reader:
         if dependency_bot(pr.get("user")):
             return None
         head = str(json_object(pr.get("head")).get("sha"))
-        return self.evidence(number, head, pr).refusal
+        refusal = self.evidence(number, head, pr).refusal
+        if refusal == UNREADABLE and self._queue_reads(pr):
+            return QUEUE_READS
+        return refusal
+
+    def _queue_reads(self, pr: dict[str, Any]) -> bool:
+        """Whether the merge queue's ci-status reads this pull request's
+        verdict: the lanes App's, matched by id and type as ci-status
+        matches it. A lanes App id that cannot be read is a no."""
+        user = json_object(pr.get("user"))
+        try:
+            app_id = self._lane_app_id()
+        except Exception:  # noqa: BLE001 -- any failure keeps the hold
+            return False
+        return app_id is not None and user.get("id") == app_id and user.get("type") == "Bot"
 
 
 def lane_risk_refusal(

@@ -4316,7 +4316,9 @@ def unattended_writes(
         else:
             queued, _ = postmerge.identity_queue(repo, branch, identity)
             # In the pr-merge lane a queued entry also leaves without a
-            # passing verifier verdict at its head now.
+            # passing verifier verdict at its head now; a lanes App entry
+            # whose verdict cannot be read stays for the merge queue's own
+            # reader (`verify_evidence.QUEUE_READS`).
             config = inputs.get("config")
             verifier = inputs.get("verify_reader") or (
                 verify_evidence.Reader(
@@ -4350,6 +4352,11 @@ def unattended_writes(
                         if verifier is not None and n != number
                         else None
                     )
+                if hold == verify_evidence.QUEUE_READS:
+                    # A lanes App entry whose verdict this run could not read:
+                    # the merge queue's own reader refuses it fail-closed, so
+                    # it stays, neither dequeued nor counted as kept.
+                    return None
                 kept_at[n] = min([began, *taken])
                 return hold
 
