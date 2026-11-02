@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.1.0] - 2026-11-02
+
+### Changed
+
+- A demoted promotion cell is promoted again from run evidence, with no person ratifying it again and no binding update. `check-security-binding.mjs` evaluation mode reads a `re-earned` event (`{cell, event: "re-earned", at, since}`) for the cell itself: when its `since` is at or after the `at` and the `discovered` time of every contrary event in the cell's epoch, its prerequisites' included, and its `at` is at or after `since`, the cell resolves effective promoted. A malformed re-earn, or a contrary event whose `at` or `discovered` does not parse, keeps the cell unpromoted, and a prerequisite's re-earn never revives a dependent.
+
 ## [3.0.2] - 2026-11-02
 
 ### Changed
