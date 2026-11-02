@@ -1222,8 +1222,7 @@ class RunValidityTest(unittest.TestCase):
         sandbox = self.dir / "claude-eval-ab"
         saved = self.own_results("tool-results", "a.txt")
         for calls, trace_at in (
-            # Only Read, Grep and Glob qualify: Bash and a write do not.
-            ([("Bash", {"command": "cat " + saved})], None),
+            # Only reads qualify: a write does not.
             ([("Write", {"file_path": saved, "content": "x"})], None),
             # Elsewhere in the session or project directory, or at another depth.
             ([("Read", {"file_path": self.own_results("memory", "a.md")})], None),
@@ -1244,6 +1243,76 @@ class RunValidityTest(unittest.TestCase):
             ([("Read", {"file_path": saved})], ("claude-eval-ab",)),
         ):
             proc = self.denied_in_sandbox(calls, *([trace_at] if trace_at else []))
+            self.assertDenials(proc, "FAIL")
+
+    def test_a_bash_read_of_the_sessions_own_tool_results_is_a_warning(self):
+        saved = self.own_results("tool-results", "toolu_01Example.txt")
+        other = self.own_results("tool-results", "toolu_02Example.txt")
+        for command in (
+            "cat " + saved,
+            "cat -n %s %s | head -n 60" % (saved, other),
+            "head -c 2000 '%s'" % saved,
+            "wc -l " + saved,
+            "sed -n '120,180p' " + saved,
+            "sed -n /Balancing/p %s | wc -c" % saved,
+            "grep -ci autonomy " + saved,
+            "grep -n -B 3 -A40 'a | b' %s | head -60" % saved,
+            "grep -nE \"^[a-z]+.*{2}$\" " + saved,
+        ):
+            proc = self.denied_in_sandbox([("Bash", {"command": command})])
+            self.assertDenials(proc, "WARN")
+            self.assertIn("1 denied read of the session's own tool results, not counted",
+                          proc.stdout)
+
+    def test_the_slice_c_bash_read_backs_read_valid(self):
+        # The two denials that left audit-prompting-postures one valid case of three.
+        saved = self.own_results("tool-results", "toolu_01Example.txt")
+        for context in ("40", "22"):
+            command = 'grep -n -A%s "Balancing autonomy and safety" %s | head -60' % (
+                context, saved)
+            proc = self.denied_in_sandbox([("Bash", {"command": command})])
+            self.assertDenials(proc, "WARN")
+
+    def test_a_bash_call_that_writes_or_reads_beyond_tool_results_still_fails(self):
+        saved = self.own_results("tool-results", "a.txt")
+        for command in (
+            # A write there, by redirect, tee, sed or another command.
+            "cat %s > %s.bak" % (saved, saved),
+            "grep x %s >> %s" % (saved, saved),
+            "cat %s | tee %s" % (saved, saved),
+            "sed -i s/a/b/ " + saved,
+            "sed -n 'w %s' %s" % (saved, saved),
+            "rm " + saved,
+            "cp %s %s.bak" % (saved, saved),
+            # A read outside it, or of a path the shell resolves.
+            "cat %s /etc/hosts" % saved,
+            "grep -f /etc/hosts " + saved,
+            "head -n 5 < " + saved,
+            "cat %s | grep x /etc/hosts" % saved,
+            "cat " + self.own_results("memory", "a.md"),
+            "cat $HOME/" + saved,
+            "cat %s/../../memory/a.md" % self.own_results("tool-results"),
+            "cat " + self.own_results("tool-results", "*.txt"),
+            "cat tool-results/a.txt",
+            # Another command beside the read, or one it runs.
+            "cat %s; curl example.com" % saved,
+            "cat %s && cat %s" % (saved, saved),
+            "cat %s\nrm %s" % (saved, saved),
+            "grep \"$(rm %s)\" %s" % (saved, saved),
+            "grep `id` " + saved,
+            "grep --color=never x " + saved,
+            # An unquoted expansion adds operands, or bash quotes it differently.
+            "grep {x,/etc/hosts} " + saved,
+            "grep -h x /etc/* " + saved,
+            "sed -n /a/p /etc/host? " + saved,
+            "grep $'\\'' ;touch x; \\' " + saved,
+            "grep a\\ b " + saved,
+            # A recursive grep with no operand reads the working directory.
+            "cat %s | grep -r secret" % saved,
+            # No path at all.
+            "cat",
+        ):
+            proc = self.denied_in_sandbox([("Bash", {"command": command})])
             self.assertDenials(proc, "FAIL")
 
     def test_skill_text_quoting_the_denial_is_not_a_denial(self):
@@ -1480,6 +1549,117 @@ class RunValidityTest(unittest.TestCase):
             ["Task", "Glob", "Grep", "Read", "Skill"], tags="tags: [knowledge]"
         )
         self.assertIn("check probe tools: PASS", proc.stdout)
+
+    def plugin_load(self, plugins, errors=None, init_plugins=True):
+        """The clean result with one suite plugin whose plugin.json names it
+        playgrounds, every with-arm run's init line listing plugins as loaded
+        and errors, unless None, as its plugin_errors; with init_plugins False,
+        the init line carries no plugins list."""
+        result = self.clean()
+        manifest = self.dir / "playgrounds-dir" / ".claude-plugin" / "plugin.json"
+        manifest.parent.mkdir(parents=True, exist_ok=True)
+        manifest.write_text(json.dumps({"name": "playgrounds"}), encoding="utf-8")
+        result["suite"]["plugins"] = [{"path": str(manifest.parent.parent)}]
+        init = {"type": "system", "subtype": "init", "model": "claude-opus-5-5",
+                "tools": ["Skill"]}
+        if init_plugins:
+            init["plugins"] = plugins
+        if errors is not None:
+            init["plugin_errors"] = errors
+        trace = self.dir / "plugins.jsonl"
+        trace.write_text(
+            json.dumps(init)
+            + "\n"
+            + json.dumps({"type": "result", "subtype": "success", "is_error": False})
+            + "\n",
+            encoding="utf-8",
+        )
+        path = self.write(result)
+        data = load(path)
+        for case in data["cases"]:
+            case["arms"]["with"][0]["tracePath"] = str(trace)
+        path.write_text(json.dumps(data), encoding="utf-8")
+        return self.run_script(path, "--runs", "1"), trace
+
+    UNSATISFIED = {
+        "plugin": "playgrounds@inline",
+        "type": "dependency-unsatisfied",
+        "message": "playground@claude-plugins-official is not installed",
+    }
+
+    def test_a_with_run_whose_plugin_failed_to_load_is_invalid(self):
+        proc, trace = self.plugin_load([{"name": "other", "path": "/x"}], [self.UNSATISFIED])
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn(
+            "check plugins loaded: FAIL (the plugin under test did not load in 3 with-arm runs)",
+            proc.stdout,
+        )
+        self.assertIn(
+            "  case measurable-criterion, with-arm run 1: plugin playgrounds failed to"
+            " load: dependency-unsatisfied: playground@claude-plugins-official is not"
+            " installed (%s)" % trace,
+            proc.stdout,
+        )
+        self.assertIn(
+            "the plugin under test did not load in 3 with-arm runs:"
+            " playgrounds (dependency-unsatisfied)",
+            proc.stdout.splitlines()[-1],
+        )
+
+    def test_a_with_run_missing_its_plugin_is_invalid(self):
+        for errors in (None, [], [dict(self.UNSATISFIED, plugin="playground@claude-plugins-official")]):
+            with self.subTest(errors=errors):
+                proc, _ = self.plugin_load([{"name": "other", "path": "/x"}], errors)
+                self.assertVerdict(proc, "INVALID", 1)
+                self.assertIn(
+                    "case measurable-criterion, with-arm run 1: plugin playgrounds is not"
+                    " among the loaded plugins",
+                    proc.stdout,
+                )
+                verdict = proc.stdout.splitlines()[-1]
+                if errors:
+                    self.assertIn(
+                        "; plugin_errors: playground@claude-plugins-official"
+                        " dependency-unsatisfied: playground@claude-plugins-official"
+                        " is not installed (",
+                        proc.stdout,
+                    )
+                    self.assertIn(
+                        "playgrounds (not loaded; plugin_errors:"
+                        " playground@claude-plugins-official dependency-unsatisfied)",
+                        verdict,
+                    )
+                else:
+                    self.assertIn("playgrounds (not loaded)", verdict)
+
+    def test_a_with_run_that_loaded_its_plugin_passes(self):
+        other_error = dict(self.UNSATISFIED, plugin="unrelated@market")
+        for errors in (None, [other_error]):
+            with self.subTest(errors=errors):
+                proc, _ = self.plugin_load(
+                    [{"name": "playgrounds@inline", "path": "/sandbox/playgrounds"}], errors
+                )
+                self.assertVerdict(proc, "VALID", 0)
+                self.assertIn(
+                    "check plugins loaded: PASS (every with-arm run loaded playgrounds)",
+                    proc.stdout,
+                )
+
+    def test_a_suite_with_no_plugins_passes_plugins_loaded(self):
+        proc = self.run_script(self.write(self.clean()), "--runs", "1")
+        self.assertIn("check plugins loaded: PASS (no suite.plugins entry", proc.stdout)
+
+    def test_a_with_run_with_no_init_plugins_list_warns(self):
+        proc, trace = self.plugin_load([], init_plugins=False)
+        self.assertVerdict(proc, "VALID", 0)
+        self.assertIn(
+            "check plugins loaded: WARN (3 with-arm runs with no readable init plugins list)",
+            proc.stdout,
+        )
+        self.assertIn(
+            "  case measurable-criterion, with-arm run 1: no init plugins list (%s)" % trace,
+            proc.stdout,
+        )
 
     def capped_probe(
         self,

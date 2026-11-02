@@ -5129,6 +5129,9 @@ jobs:
           BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
           . "$RUNNER_TEMP/gh-read.sh"
+          # gh-read.sh wraps gh when it carries the library; named here so
+          # this step's own gh api calls read as wrapped (idempotent).
+          ! declare -F api_budget_wrap_gh >/dev/null || api_budget_wrap_gh github-token
           keep() {
             echo "The cost hold stays for a person: $1."
             exit 0
@@ -6137,7 +6140,10 @@ jobs:
       # evidenceHold, which holds on every refusal but the three a pass decides
       # (those stay with verdictHold and linkHold): every FAIL class,
       # verify:unreadable and verify:too-old. The same approval of the head
-      # lifts it. The reader reads with this job's token, which holds no
+      # lifts it. Every verifier hold's error annotation is titled
+      # `pr-verify hold` (merge-holds.mjs VERIFIER_TITLE), so a reader of this
+      # step's annotations tells it from a body hold, member veto or hold
+      # path. The reader reads with this job's token, which holds no
       # issues scope: on this public repository its issue reads answer as
       # public reads, and one that does not read refuses verify:unreadable,
       # which holds. Its gh calls go to the gh binary, outside this step's
@@ -6281,6 +6287,9 @@ jobs:
           BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
           . "$RUNNER_TEMP/gh-read.sh"
+          # gh-read.sh wraps gh when it carries the library; named here so
+          # this step's own gh api calls read as wrapped (idempotent).
+          ! declare -F api_budget_wrap_gh >/dev/null || api_budget_wrap_gh github-token
           if [[ ! ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]]; then
             echo "::error::the job's LANES_APP_ID is not a numeric id."
             exit 1
@@ -6455,15 +6464,16 @@ jobs:
             # and LISTING_READS (3) whole listings, each up to
             # 1 + len(LISTING_WAITS) (3) attempts that page from the first,
             # and a top-up after each (LISTING_TOP_UP_PAGES, 7), plus at most
-            # NEAR_EXPIRY_PAGE_CAP (24) pages near expiry read again when a
-            # count is over, and NEAR_EXPIRY_ID_READ_CAP (34) artifacts read
-            # by id that those pages omit. A whole
+            # NEAR_EXPIRY_PAGE_CAP (24) pages near expiry read again and
+            # NEAR_EXPIRY_ID_READ_CAP (34) artifacts read by id that those
+            # pages omit, once for the incremental reads and once for the
+            # whole listings' top-ups. A whole
             # listing pages ceil(total_count / 100), plus one for uploads while
             # it pages, so a cold read costs at most
-            # 3 x FAILs + 3 x 13 + 1 + 3 x (3 x pages + 7) + 24 + 34, plus the
+            # 3 x FAILs + 3 x 13 + 1 + 3 x (3 x pages + 7) + 2 x (24 + 34), plus the
             # pages of this step's own listing, which every entry the queue
-            # builds at once also reads, cold_cost below: 1,681 at 7,522
-            # artifacts and 264 FAILs, 2,079 at 10,450 and 300.
+            # builds at once also reads, cold_cost below: 1,739 at 7,522
+            # artifacts and 264 FAILs, 2,137 at 10,450 and 300.
             # test_babysit_verify_evidence runs these lines against those caps
             # at several sizes. It covers this path only: an
             # entry with a carried run cache but no carried listing pays the
@@ -6505,7 +6515,7 @@ jobs:
                 exit 1
               fi
               listing_pages=$(((total + 99) / 100 + 1))
-              cold_cost=$((listing_pages + 3 * fails + 3 * 13 + 1 + 3 * (3 * listing_pages + 7) + 24 + 34))
+              cold_cost=$((listing_pages + 3 * fails + 3 * 13 + 1 + 3 * (3 * listing_pages + 7) + 2 * (24 + 34)))
               rate=$(read_api "the GITHUB_TOKEN rate limit" rate_limit) || rate=
               if ! remaining=$(jq -er '.resources.core.remaining | numbers | floor' <<<"$rate" 2>/dev/null) ||
                 ! limit=$(jq -er '.resources.core.limit | numbers | floor' <<<"$rate" 2>/dev/null) ||

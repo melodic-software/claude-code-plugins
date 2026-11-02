@@ -1,5 +1,27 @@
 # Changelog: evals
 
+## [0.14.3] - 2026-11-02
+
+### Fixed
+
+- `run-validity.py` now sets aside a denied Bash read of the session's own tool-results directory, as it already did for `Read`, `Grep` and `Glob`. The command must be a pipeline of `cat`, `head`, `wc`, `grep` or `sed -n` whose every path is under that directory. A redirect, another command or operator, an unquoted glob, brace or `$`, or a path outside it still counts as a denial.
+
+- The `default-judge-same-model` case no longer grades the CLI's default judge by name, a volatile upstream default the plugin-eval skill points at rather than restates. It passes an answer that says the judge resolves from `--judge-model`, not `--model`, and either names the default or says where to read it. The case allows only `Read` and `Skill`, so a run no longer searches the plugin root, which the eval sandbox denies.
+- The `pe-ci-pin-full-ids` `reads-json` grader passes "Check `partial`, each run's `error`, and the `delta` field in the JSON": its window between the verb and `JSON` grows from 60 to 90 characters.
+- The `pe-rules-target` `claude-md-absent` grader accepts "removed" beside its other words for an absent `CLAUDE.md`.
+
+## [0.14.2] - 2026-11-02
+
+### Fixed
+
+- `run-validity.py` no longer fails the row count on a `history_file` case that ran single-arm by
+  design: a case whose case.yaml sets `context.history_file` and whose result records no
+  without-arm key is reported as a single-arm warning with no delta. An empty or short without-arm
+  still fails.
+- `run-validity.py` drops a Bash redirect that names no file (`2>&1`, `2>/dev/null`, `>/dev/null`)
+  before reading a command's paths, so a denied `ls <plugin-data> 2>&1` falls under the
+  plugin-data warning instead of counting as a cwd-relative path and a FAIL.
+
 ## [0.14.1] - 2026-11-02
 
 ### Changed

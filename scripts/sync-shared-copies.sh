@@ -16,14 +16,18 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-# The repository synced is the one the caller stands in, so a copy of scripts/
-# kept outside it (the issue lane's read-only copy) syncs the checkout.
-# outside stays 1 (offline modes only) unless git resolved the root and this
-# script is that root's own scripts/ directory.
+# A script in a checkout's own scripts/ directory syncs that checkout, whatever
+# the caller's working directory, so a worktree's script writes the worktree.
+# Any other copy of scripts/ (the issue lane's read-only copy) syncs the
+# checkout the caller stands in, and gets only the offline modes (outside=1).
+# The probe drops an inherited GIT_DIR, which would make any directory a top level.
 outside=1
-if root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+if own="$(env -u GIT_DIR -u GIT_WORK_TREE git -C "$script_dir/.." rev-parse --show-toplevel 2>/dev/null)" &&
+  [[ "$(cd "$own" && pwd -P)/scripts" == "$script_dir" ]]; then
+  cd "$own"
+  outside=0
+elif root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
   cd "$root"
-  [[ "$script_dir" != "$(pwd -P)/scripts" ]] || outside=0
 else
   cd "$script_dir/.."
 fi

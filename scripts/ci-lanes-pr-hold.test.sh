@@ -869,7 +869,7 @@ fi
 # THE READER'S FAIL REFUSALS HOLD (merge-holds.mjs evidenceHold).
 evidence() { jq -nc --arg refusal "$1" --arg head "${2:-$SHA}" '{refusal: $refusal, head: $head, detail: "why"}'; }
 for refusal in verify:fail verify:earlier-fail verify:repeated-fail verify:unreadable verify:too-old; do
-  STUB_EVIDENCE="$(evidence "$refusal")" expect "in the merge queue, the reader's $refusal holds a passed head" 1 3 "::error::#7: pr-verify's reader refuses this head ($refusal: why)"
+  STUB_EVIDENCE="$(evidence "$refusal")" expect "in the merge queue, the reader's $refusal holds a passed head" 1 3 "::error title=pr-verify hold::#7: pr-verify's reader refuses this head ($refusal: why)"
 done
 STUB_EVIDENCE="$(evidence verify:spec-changed)" expect "in the merge queue, a refusal a pass decides is left to the pass checks" 0 3 "#7: no pr-verify FAIL hold: the reader refuses this head only on its pass (verify:spec-changed)."
 STUB_EVIDENCE="$(evidence verify:fail)" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]" \
@@ -884,7 +884,7 @@ STUB_READER_RC=1 expect "in the merge queue, a reader that fails fails closed" 1
 # holds, and a trusted approval of the head lifts it as it lifts a FAIL.
 for refusal in verify:unreadable verify:too-old; do
   STUB_NO_LISTING=1 STUB_EVIDENCE="$(evidence "$refusal")" \
-    expect "in the merge queue, the reader's $refusal before any listing holds" 1 3 "::error::#7: pr-verify's reader refuses this head ($refusal: why)"
+    expect "in the merge queue, the reader's $refusal before any listing holds" 1 3 "::error title=pr-verify hold::#7: pr-verify's reader refuses this head ($refusal: why)"
   STUB_NO_LISTING=1 STUB_EVIDENCE="$(evidence "$refusal")" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]" \
     expect "in the merge queue, a trusted approval of the head lifts the reader's $refusal before any listing" 0 3 "no pr-verify FAIL hold: kyle-sexton approved this head"
 done
@@ -896,32 +896,33 @@ STUB_NO_LISTING=1 STUB_EVIDENCE="$(jq -nc --arg head "$SHA" '{refusal: null, hea
 # plus the read floor left. A cold read's cost comes from the live listing
 # (STUB_TOTAL artifacts, STUB_LISTED_FAILS FAILs): 3 reads a FAIL, 3 incremental
 # reads of 13 pages, the count read, and 3 whole listings of 3 attempts of
-# ceil(total / 100) + 1 pages, each with a 7-page top-up, and 24 pages near
-# expiry read again, and 34 artifacts read by id. By default 7,522
+# ceil(total / 100) + 1 pages, each with a 7-page top-up, and twice (the
+# incremental reads, then the top-ups) 24 pages near expiry read again
+# and 34 artifacts read by id. By default 7,522
 # artifacts (77 pages) and 264 FAILs: 77 for the step's own listing, plus
-# 792 + 39 + 1 + 3 x (3 x 77 + 7) + 24 + 34 = 1681, so 1681 x 1 + 0.1 x min(limit, 1000) = 1781 here.
+# 792 + 39 + 1 + 3 x (3 x 77 + 7) + 2 x (24 + 34) = 1739, so 1739 x 1 + 0.1 x min(limit, 1000) = 1839 here.
 rate() { jq -nc --argjson remaining "$1" '{resources: {core: {limit: 5000, remaining: $remaining, reset: 1793030000}}}'; }
-STUB_COLD=1 STUB_RATE="$(rate 1781)" expect "in the merge queue, a cold reader with the headroom for it reads" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
+STUB_COLD=1 STUB_RATE="$(rate 1839)" expect "in the merge queue, a cold reader with the headroom for it reads" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
 if [[ "$(readers)" -eq 1 ]]; then ok "a cold reader with headroom is started"; else fail "a cold reader with headroom ran $(readers) times"; fi
-STUB_COLD=1 STUB_RATE="$(rate 1780)" expect "in the merge queue, a cold reader without the headroom holds without reading" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN has 1780 requests left, under the 1781 a cold read needs"
+STUB_COLD=1 STUB_RATE="$(rate 1838)" expect "in the merge queue, a cold reader without the headroom holds without reading" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN has 1838 requests left, under the 1839 a cold read needs"
 if [[ "$(readers)" -eq 0 ]]; then ok "a cold reader without headroom is never started"; else fail "a cold reader without headroom ran: '$(grep '^reader ' "$TMP_ROOT/log")'"; fi
 STUB_COLD=1 STUB_RATE='' expect "in the merge queue, a cold reader whose rate limit does not read holds" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN's remaining requests could not be read"
 if [[ "$(readers)" -eq 0 ]]; then ok "a cold reader with an unread rate limit is never started"; else fail "a cold reader with an unread rate limit ran"; fi
 STUB_COLD=1 STUB_RATE='{"resources":{"core":{"limit":5000}}}' expect "in the merge queue, a rate limit with no remaining count holds a cold reader" 1 3 "GITHUB_TOKEN's remaining requests could not be read"
 # 10,450 artifacts (105 pages, as on 2026-10-30, so 106) and 300 FAILs:
-# 106 + 900 + 39 + 1 + 3 x (3 x 106 + 7) + 24 + 34 = 2079, plus the floor's 100.
-STUB_COLD=1 STUB_TOTAL=10450 STUB_LISTED_FAILS=300 STUB_RATE="$(rate 2179)" expect "in the merge queue, a cold read's cost grows with the live listing" 0 3 "cold reads for 1 queue entries need 2179"
-STUB_COLD=1 STUB_TOTAL=10450 STUB_LISTED_FAILS=300 STUB_RATE="$(rate 2178)" expect "in the merge queue, a larger live listing holds a cold reader the old cost would start" 1 3 "GITHUB_TOKEN has 2178 requests left, under the 2179 a cold read needs (2079 for each of the 1 entries"
-# 150 artifacts (2 pages, so 3) and 10 FAILs: 3 + 30 + 39 + 1 + 3 x (3 x 3 + 7) + 24 + 34 = 179.
-STUB_COLD=1 STUB_TOTAL=150 STUB_LISTED_FAILS=10 STUB_RATE="$(rate 279)" expect "in the merge queue, a small live listing needs only its own cost" 0 3 "cold reads for 1 queue entries need 279"
+# 106 + 900 + 39 + 1 + 3 x (3 x 106 + 7) + 2 x (24 + 34) = 2137, plus the floor's 100.
+STUB_COLD=1 STUB_TOTAL=10450 STUB_LISTED_FAILS=300 STUB_RATE="$(rate 2237)" expect "in the merge queue, a cold read's cost grows with the live listing" 0 3 "cold reads for 1 queue entries need 2237"
+STUB_COLD=1 STUB_TOTAL=10450 STUB_LISTED_FAILS=300 STUB_RATE="$(rate 2236)" expect "in the merge queue, a larger live listing holds a cold reader the old cost would start" 1 3 "GITHUB_TOKEN has 2236 requests left, under the 2237 a cold read needs (2137 for each of the 1 entries"
+# 150 artifacts (2 pages, so 3) and 10 FAILs: 3 + 30 + 39 + 1 + 3 x (3 x 3 + 7) + 2 x (24 + 34) = 237.
+STUB_COLD=1 STUB_TOTAL=150 STUB_LISTED_FAILS=10 STUB_RATE="$(rate 337)" expect "in the merge queue, a small live listing needs only its own cost" 0 3 "cold reads for 1 queue entries need 337"
 STUB_COLD=1 STUB_TOTAL='' STUB_RATE="$(rate 9999)" expect "in the merge queue, a live listing that does not read holds a cold reader" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and the artifact listing could not be read"
 if [[ "$(readers)" -eq 0 ]]; then ok "a cold reader with an unread listing is never started"; else fail "a cold reader with an unread listing ran"; fi
 # Every entry the queue builds at once goes cold together on a missing cache,
-# so the need scales with max_entries_to_build: 1681 x 5 + 100 = 8505.
-STUB_COLD=1 STUB_RULES=5 STUB_RATE="$(rate 8505)" expect "in the merge queue, a cold reader reads with headroom for every entry the queue builds" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
-STUB_COLD=1 STUB_RULES=5 STUB_RATE="$(rate 8504)" expect "in the merge queue, a cold reader holds under the headroom of every entry the queue builds" 1 3 "GITHUB_TOKEN has 8504 requests left, under the 8505 a cold read needs"
-STUB_COLD=1 STUB_RULES=2 STUB_RATE="$(rate 3461)" expect "in the merge queue, the cold headroom scales with max_entries_to_build" 1 3 "under the 3462 a cold read needs"
-STUB_COLD=1 STUB_RULES='' STUB_RATE="$(rate 8505)" expect "in the merge queue, a merge queue rule that does not read holds a cold reader" 1 3 "the merge queue's max_entries_to_build could not be read"
+# so the need scales with max_entries_to_build: 1739 x 5 + 100 = 8795.
+STUB_COLD=1 STUB_RULES=5 STUB_RATE="$(rate 8795)" expect "in the merge queue, a cold reader reads with headroom for every entry the queue builds" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
+STUB_COLD=1 STUB_RULES=5 STUB_RATE="$(rate 8794)" expect "in the merge queue, a cold reader holds under the headroom of every entry the queue builds" 1 3 "GITHUB_TOKEN has 8794 requests left, under the 8795 a cold read needs"
+STUB_COLD=1 STUB_RULES=2 STUB_RATE="$(rate 3577)" expect "in the merge queue, the cold headroom scales with max_entries_to_build" 1 3 "under the 3578 a cold read needs"
+STUB_COLD=1 STUB_RULES='' STUB_RATE="$(rate 8795)" expect "in the merge queue, a merge queue rule that does not read holds a cold reader" 1 3 "the merge queue's max_entries_to_build could not be read"
 if [[ "$(readers)" -eq 0 ]]; then ok "a cold reader with an unread queue rule is never started"; else fail "a cold reader with an unread queue rule ran"; fi
 STUB_CARRIED='{"carried-run-record":{},"carried-fail-head-ref":{},"carried-on-branch":{}}' expect "in the merge queue, a carried cache with every section empty is cold" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN's remaining requests could not be read"
 STUB_CARRIED='not json' expect "in the merge queue, a carried cache that does not parse is cold" 1 3 "GITHUB_TOKEN's remaining requests could not be read"
@@ -973,7 +974,7 @@ STUB_RECORD='' STUB_REVIEWS=''
 STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass-notes-$DIGEST\":[11]}"
 expect "in the merge queue, a digest-named pass-notes at the head passes" 0 3 "no verifier hold: pr-verify passed this head"
 STUB_ARTIFACTS='{}'
-expect "in the merge queue, no verdict fails the group" 1 3 "::error::#7: pr-verify has not passed this head; wait for pr-verify to pass it"
+expect "in the merge queue, no verdict fails the group" 1 3 "::error title=pr-verify hold::#7: pr-verify has not passed this head; wait for pr-verify to pass it"
 if [[ "$(lookups)" -eq 0 && "$(runs)" -eq 0 ]]; then
   ok "no verdict makes no lookup by name and no run read"
 else

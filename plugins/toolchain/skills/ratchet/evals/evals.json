@@ -3,13 +3,13 @@
   "evals": [
     {
       "id": 1,
-      "name": "lint-count-gets-a-ceiling-in-the-required-job",
+      "name": "lint-count-gets-per-file-ceilings-in-the-required-job",
       "narration": true,
-      "prompt": "/toolchain:ratchet the eslint rule no-floating-promises. `npm run lint:count -- no-floating-promises` prints violations=37. CI has no ratchet yet; the required check is the `verify` job in .github/workflows/ci.yml.",
-      "expected_output": "Measures the count with ratchet.py add and records a ceiling of 37, the measured value, in a new .ratchets.json at the repository root, passing --file .ratchets.json on every ratchet.py call. Vendors ratchet.py beside it without the two generated header lines. Adds one check step inside the `verify` job that runs the vendored script with --file .ratchets.json. Leaves the rule from failing the build by itself (warning severity or its own invocation). Writes the files uncommitted, does not merge, and routes to /source-control:pull-request.",
+      "prompt": "/toolchain:ratchet our in-house lint rule no-raw-sql. Our linter, `python3 tools/lint.py`, has no baseline file and no autofix. `python3 tools/lint.py --rule no-raw-sql --per-file` prints one `<path> violations=<n>` line per file, 37 in total, and exits 0. CI has no ratchet yet; the required check is the `verify` job in .github/workflows/ci.yml.",
+      "expected_output": "Takes the per-file baseline path, since the fix is not mechanical and the linter has no native baseline. Measures with ratchet.py add --per-file, recording each file's measured count as its own ceiling, not one repository-wide 37, in a new .ratchets.json at the repository root, passing --file .ratchets.json on every ratchet.py call and --break-glass for the new file. Vendors ratchet.py beside it without the two generated header lines. Adds one check step inside the `verify` job that runs the vendored script with --file .ratchets.json. Writes the files uncommitted, does not merge, and routes to /source-control:pull-request.",
       "files": [],
       "expectations": [
-        "Records a ceiling of 37 from ratchet.py add, not a rounded-up value",
+        "Runs ratchet.py add with --per-file, so each file keeps its own measured ceiling rather than one total of 37",
         "Proposes .ratchets.json at the repository root and passes --file .ratchets.json to add and check",
         "Puts the check step inside the `verify` job, the required check",
         "Commits, pushes and merges nothing; the Output block ends awaiting human approval"
@@ -87,6 +87,42 @@
         "Records a ceiling of 0 with ratchet.py add",
         "Does not claim a linter rule now blocks new noqa comments",
         "Adds or reuses a check step inside the required job"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "eslint-rule-uses-the-native-baseline",
+      "prompt": "/toolchain:ratchet the eslint rule no-floating-promises. `npx eslint --rule '{\"@typescript-eslint/no-floating-promises\": \"error\"}' .` reports 37 violations across 12 files today, and the rule has no autofix.",
+      "expected_output": "Takes the per-file baseline path at error severity and, since ESLint has a native per-file baseline, points to ESLint's own suppressions docs for it instead of writing a ceilings entry. Turns the rule on at error severity. Runs no ratchet.py add and does not restate ESLint's flags from memory as the source; it cites the docs page.",
+      "files": [],
+      "expectations": [
+        "Uses ESLint's native suppressions baseline and cites its docs page",
+        "Turns the rule on at error severity, not warn",
+        "Runs no ratchet.py add and writes no ceilings entry"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "mechanical-fix-gets-a-codemod-then-error",
+      "prompt": "/toolchain:ratchet the ruff rule UP006 (use builtin generics in type annotations). `ruff check --select UP006 --statistics` reports 54 violations today, and `ruff check --select UP006 --fix` rewrites every one of them safely with no judgment call.",
+      "expected_output": "Takes the codemod path: runs the rule's safe autofix across the repository in the same change and turns UP006 on at error severity in the ruff configuration. Records no ceiling: runs no ratchet.py add and writes no ceilings entry, because after the codemod the count is 0 and the rule itself fails the next violation.",
+      "files": [],
+      "expectations": [
+        "Applies the autofix to every violation in the same change",
+        "Turns the rule on at error severity, not warn",
+        "Runs no ratchet.py add and writes no ceilings entry"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "warn-severity-needs-an-end-date",
+      "prompt": "/toolchain:ratchet our in-house lint rule no-print. `python3 tools/lint.py --rule no-print --per-file` prints one `<path> violations=<n>` line per file, 120 in total, and exits 0; there is no autofix and no native baseline. We want it at warn severity for now and will decide later when to make it an error.",
+      "expected_output": "Refuses an open-ended warn rule: warn severity is only a dated step, so it asks for the date the rule moves to error, or takes the per-file baseline at error severity. When it records the per-file counter while the rule sits at warn, the --goal passed to ratchet.py add ends with `warn until <YYYY-MM-DD>, then error`.",
+      "files": [],
+      "expectations": [
+        "Does not set the rule to warn severity with no end date",
+        "Any ceilings entry recorded while the rule is at warn has a --goal ending in `warn until <YYYY-MM-DD>, then error`",
+        "Offers error severity with a per-file baseline as the alternative to a dated warn step"
       ]
     }
   ]

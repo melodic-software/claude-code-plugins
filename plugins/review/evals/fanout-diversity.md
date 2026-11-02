@@ -51,6 +51,14 @@ because a case carries one prompt, one plugins list and one committed `review.ya
 | `csv-handle-leak` | none: a resource leak on an error path |
 | `price-cents` | none: a caller left on an old contract |
 | `vacuous-slug-test` | none: a test that cannot fail |
+| `typed-user` | none (decoy) |
+| `sort-column` | none (decoy) |
+| `page-links` | none (decoy) |
+| `return-promise` | none (decoy) |
+
+A decoy is a correct change that looks wrong, so it measures each arm's false positives. Its
+ground truth reads `none` for `defect` and `axis`, and its `not_defects` name the findings a
+reviewer would wrongly raise.
 
 ## Prompt
 

@@ -1,0 +1,8 @@
+fixture: typed-user
+source_case: none
+defect: none
+axis: none
+not_defects:
+  - "displayName now throws a TypeError for a null or signed-out user (headerLabel in src/header.ts returns \"Sign in\" before it calls displayName, and tsconfig.json's strict mode rejects a null argument)"
+  - "a user with no profile now throws (SignedInUser.profile is required by src/types.ts)"
+  - "src/header.ts changed on this branch (only src/display-name.ts changed)"
