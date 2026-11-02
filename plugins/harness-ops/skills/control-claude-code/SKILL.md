@@ -15,8 +15,10 @@ switches accounts, and it never drives Claude Desktop (Gotchas).
 
 In the commands below, `<skill-dir>` is this skill's folder; `<plugin-dir>` is the plugin directory
 the person names, else each line Launch's `plugins` prints, resolved from the directory the run
-starts in; `<run-dir>` is drive's run directory; `<session>` is one name for the whole run; `<file>`
-is the feature id with each `/` as `-`, then the entry point (`mods-band-01`). The `--timeout`
+starts in; `<plugin>` is the last segment of `<plugin-dir>`; `<run-dir>` is drive's run directory;
+`<session>` is one name for the whole run; `<file>` is `<plugin>`, then the feature id with each `/`
+as `-`, then the entry point (`context-budget-mods-band-01`), so two plugins driving the same entry
+point keep separate evidence. The `--timeout`
 values come from `timeouts` in `config/local.json`, else `config/defaults.json`: `stepMs` for every
 `wait-for`, `readyMs` for Ready, `logMs` for `logs`. A run takes at most `maxCaptures` screenshots
 and videos together, and drives at most `maxEntryPoints` entry points across all its plugins, both
@@ -29,7 +31,7 @@ further capture, or drives no further entry point, and records each entry point 
 `node <skill-dir>/driver/driver.mjs plugins <changed files>` prints one `<plugin-dir>` per line: the
 plugin each changed file sits in, once each, at most `maxEntryPoints` of them, each one left out
 named on stderr as `blocked: maxEntryPoints reached: <dir>`; with no changed file, the configured
-`pluginDir`. A Claude Code session loads one plugin, so each line runs in turn under the one
+`pluginDir`. The driver launches one plugin per session, so each line runs in turn under the one
 `<session>`: Launch, Ready, its entry points, Cleanup, then the next line. Run `plugins` only when
 the run directory holds `affected.json`; otherwise `<plugin-dir>` is the one the person names, else
 `pluginDir` from `config/local.json`, else from `config/defaults.json`.
@@ -41,7 +43,7 @@ the startup screen.
 
 ## Ready
 
-`node <skill-dir>/driver/driver.mjs ready --plugin-dir <plugin-dir> --session <session> --out <run-dir>/ready-init.jsonl --timeout <readyMs>`
+`node <skill-dir>/driver/driver.mjs ready --plugin-dir <plugin-dir> --session <session> --out <run-dir>/<plugin>-ready-init.jsonl --timeout <readyMs>`
 
 It prints the driver's doctor lines (engine, signatures, font) and whether the session answers, then
 starts one print-mode turn with the launch's flags and environment and stops it at the init event,
