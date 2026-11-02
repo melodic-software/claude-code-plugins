@@ -137,11 +137,13 @@ the reviewer to confirm the description still names that intent, or to restore t
   `owner/repo#N`, link anchors, and any block of lines that carries an as-of date and a recheck
   trigger (a pointer record) are exempt. Reference files are not checked.
   `/playbooks:skill-authoring` (`## History and provenance`) owns the rule.
-- Skill size (advisory). A `description` over 419 characters or a `SKILL.md` body (the lines after
-  the frontmatter) over 160 lines warns: those are the largest in
-  [mattpocock/skills](https://github.com/mattpocock/skills) at commit `6fd9479`, measured
-  2026-10-06; his medians, 130 characters and 70 lines, print as INFO. Recheck when a re-measure
-  of that repository moves them. Growth of either against `CHECK_SKILL_BASE_REF`, or the merge-base
+- Skill size (advisory). A `description` over the `description_warn` setting (default 419
+  characters) or a `SKILL.md` body (the lines after the frontmatter) over 160 lines warns: 419 and
+  160 are the largest in [mattpocock/skills](https://github.com/mattpocock/skills) at commit
+  `6fd9479`, measured 2026-10-06; his medians, 130 characters and 70 lines, print as INFO. Recheck
+  when a re-measure of that repository moves them. A description over the `description_target`
+  setting (default 250) prints as INFO. The 1,024-character field maximum (check 2b) is fixed and
+  is not a setting; see [Settings](#settings). Growth of the description or body against `CHECK_SKILL_BASE_REF`, or the merge-base
   with `origin` when that is unset, also warns; with no base, or for a new skill, the growth half
   is skipped with an INFO. A `SKILL.md` above the 5,000-token router cap also warns; the count
   is an estimate, whole-file characters divided by 4 and rounded up, and prints as INFO under the
@@ -265,6 +267,29 @@ bash plugins/skill-quality/scripts/measure-invocation.sh score plugins/skill-qua
 bash plugins/skill-quality/scripts/measure-invocation.sh compare \
   plugins/skill-quality/probes/baselines/listing-overlap.json /tmp/score.json
 ```
+
+## Settings
+
+`check-skill.sh` reads two repository settings for check 30 from the convention home your
+`AGENTS.md` or `CLAUDE.md` pointer region binds (`docs/conventions` when the repository binds
+none): the team file `<home>/skill-quality.yaml`, then the personal, gitignored
+`<home>/skill-quality.local.yaml`. A later file wins key by key; with neither, the defaults apply.
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `description_target` | `250` | A description longer than this prints an INFO line. |
+| `description_warn` | `419` | A description longer than this warns. |
+
+```yaml
+description_target: 200
+description_warn: 350
+```
+
+Each value is a whole number from 1 to 1,024. A file that holds any other value, or does not
+parse, is named in a WARN and ignored for that key, so the default applies unless a later file
+sets a valid value. The 1,024-character field maximum (check 2b) is fixed. A repository whose
+pointer region records `declined` uses the defaults. The schema is
+`schemas/skill-quality.schema.json`.
 
 ## Configuration
 
