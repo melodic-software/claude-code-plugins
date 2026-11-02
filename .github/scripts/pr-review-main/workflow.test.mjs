@@ -1058,9 +1058,9 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
       git("-C", origin, "commit", "--quiet", "-m", file);
       return git("-C", origin, "rev-parse", "HEAD");
     };
-    const SIDE = ["plugins/review/skills/code-review/SKILL.md", "docs/review/x.md", ".github/workflows/pr-review-main.yml"];
-    const OLD = commit("REVIEW.md", "old criteria\n");
+    const SIDE = ["plugins/review/skills/code-review/SKILL.md", "plugins/review/reference/x.md", "docs/review/x.md", ".github/workflows/pr-review-main.yml"];
     for (const file of SIDE) commit(file, "criterion\n");
+    const OLD = commit("REVIEW.md", "old criteria\n");
     const CHANGED = commit("REVIEW.md", "new criteria\n");
     const TIP = commit("notes.txt", "not a criterion\n");
     const trunk = git("-C", origin, "symbolic-ref", "--short", "HEAD");
@@ -1085,7 +1085,7 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
     chmodSync(path.join(bin, "gh"), 0o755);
     const key = (url) => url.replace(/[^A-Za-z0-9]/g, "_");
     const lanes = ["claude-review", "claude-security-review"];
-    const write = ({ missing = [], conclusion = "success", head = SHA_A, title = "findings=2 critical=0", branch = "main", total = 1, main = TIP, workflow = ".github/workflows/pr-review-main.yml" } = {}) => {
+    const write = ({ missing = [], conclusion = "success", head = SHA_A, title = "findings=2 critical=0", branch = "main", event = "workflow_run", total = 1, main = TIP, workflow = ".github/workflows/pr-review-main.yml" } = {}) => {
       rmSync(fixtures, { recursive: true, force: true });
       mkdirSync(fixtures);
       lanes.forEach((lane, i) => {
@@ -1095,7 +1095,7 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
         const runId = 200 + i;
         const at = (url, body) => writeFileSync(path.join(fixtures, key(url)), typeof body === "string" ? body : JSON.stringify(body));
         at(`repos/o/r/actions/artifacts?name=${name}&per_page=100`, { total_count: total, artifacts: [{ id: artifact, name, expired: false, workflow_run: { id: runId } }] });
-        at(`repos/o/r/actions/runs/${runId}`, { id: runId, path: workflow, event: "workflow_run", head_branch: branch, head_sha: main, status: "completed", conclusion, repository: { full_name: "o/r" }, head_repository: { full_name: "o/r" } });
+        at(`repos/o/r/actions/runs/${runId}`, { id: runId, path: workflow, event, head_branch: branch, head_sha: main, status: "completed", conclusion, repository: { full_name: "o/r" }, head_repository: { full_name: "o/r" } });
         const verdict = path.join(dir, "verdict.json");
         writeFileSync(verdict, JSON.stringify({ schema: 1, lane, pr: PR, tree: TREE, head_sha: head, findings: 2, critical: 0, max_line_bytes: 80 }));
         const zipped = spawnSync("python3", ["-I", "-c", "import sys, zipfile; zipfile.ZipFile(sys.argv[1], 'w').write(sys.argv[2], 'verdict.json')", path.join(fixtures, key(`repos/o/r/actions/artifacts/${artifact}/zip`)), verdict], { encoding: "utf8" });
@@ -1122,13 +1122,12 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
     // Per lane: the listing, the run, the zip and the head's check runs.
     assert.equal(judged.calls.length, 8, judged.calls.join("\n"));
     // A run that did not succeed, a verdict for another head of the tree, a
-    // record whose counts differ, a run off main, a lane with no verdict, a
+    // record whose counts differ, a lane with no verdict, a
     // listing past one page: no output, so the review runs.
     for (const [why, setup] of [
       ["failed run", { conclusion: "failure" }],
       ["other head", { head: SHA_B }],
       ["counts differ", { title: "findings=3 critical=0" }],
-      ["off main", { branch: "feature" }],
       ["security lane unreviewed", { missing: ["claude-security-review"] }],
       ["more than one page", { total: 101 }],
     ]) {
@@ -1158,12 +1157,20 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
       assert.equal(one.out, "", file);
       assert.equal(one.calls.length, 6, `${file}\n${one.calls.join("\n")}`);
     }
-    // Another workflow's run is dropped before any fetch or download, even
-    // at the tip.
-    write({ workflow: ".github/workflows/other.yml" });
-    const other = runWith();
-    assert.equal(other.out, "");
-    assert.equal(other.calls.length, 6, other.calls.join("\n"));
+    // A run of another workflow, off main, or for another event is dropped
+    // before any fetch or download, even at the tip: per lane, the listing,
+    // the run and the check runs.
+    for (const [why, setup] of [
+      ["other workflow", { workflow: ".github/workflows/other.yml" }],
+      ["off main", { branch: "feature" }],
+      ["pull_request event", { event: "pull_request" }],
+    ]) {
+      write(setup);
+      const other = runWith();
+      assert.equal(other.out, "", why);
+      assert.equal(other.calls.length, 6, `${why}\n${other.calls.join("\n")}`);
+      assert.ok(!other.calls.some((call) => call.includes("/zip")), why);
+    }
     // A commit main does not have (the fetch fails), or a run head that is no
     // SHA: no output, and the step stays green.
     for (const main of ["d".repeat(40), "main"]) {
