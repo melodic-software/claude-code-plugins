@@ -80,8 +80,12 @@ subclass sets `max_body` and `page_csp` and adds routes in `route_get(url, query
 names the session files and the token header; `CONTROL` is the app's control script beside it,
 which `wake.sh` runs as `CONTROL --dir <data_dir> apply --file <data_dir>/ops.json` and messages
 name for `ensure-running`, `stop` and `lease [--release]`. On events it prints one JSON line with
-`dataDir` and `next` (the re-arm command, `bash '<here>/wake.sh' '<data_dir>'`), stores the seq in
-`.watch-seq` and the replayed seq in `.watch-replay`, and exits 0. It exits 2 when curl, the conf
+`dataDir` and `next` (the re-arm command, `bash '<here>/wake.sh' '<data_dir>'`), writes the same
+line alone to `<data_dir>/.watch-wake.json` (mode 0600, so a session reads it without the task
+output's stderr and exit footer), stores the seq in `.watch-seq` and the replayed seq in
+`.watch-replay`, and exits 0. Only an exit 0 writes `.watch-wake.json`, which otherwise holds the
+last exit-0 wake's line, if any; when the write fails, the watcher removes the file and says so on
+stderr. It exits 2 when curl, the conf
 or the env file is missing, the token is rejected, or the server stays unreachable, and 3 when
 another watcher holds the lease, its lease was released, or the server was stopped. It exits 4 after
 `WAIT_EMPTY` consecutive waits with no event (default 40, about an hour at the default 90 s wait),
