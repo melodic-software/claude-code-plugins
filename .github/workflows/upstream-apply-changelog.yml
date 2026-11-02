@@ -364,6 +364,10 @@ jobs:
           OUT: ${{ runner.temp }}/upstream-apply-changelog-out
           JOB_ID: model
           MAX_CHUNKS: "6"
+          # The model ran as this user: no global or system git config it
+          # could have written applies here.
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
         run: |
           rm -rf "$OUT"
           mkdir -p "$OUT"
@@ -371,9 +375,9 @@ jobs:
           if [ -f "$plan" ] && [ ! -L "$plan" ]; then
             cp "$plan" "$OUT/plan.json"
           fi
-          mapfile -t refs < <(git for-each-ref --format='%(refname)' "refs/heads/changelog/*/v$RELEASE")
+          mapfile -t refs < <(git -c core.fsmonitor=false for-each-ref --format='%(refname)' "refs/heads/changelog/*/v$RELEASE")
           if ((${#refs[@]})); then
-            git bundle create "$OUT/branches.bundle" "^$BASE_SHA" "${refs[@]}"
+            git -c core.fsmonitor=false bundle create "$OUT/branches.bundle" "^$BASE_SHA" "${refs[@]}"
           fi
           PUBLIC_KEY_FILE="$TRUSTED/.github/lane-keys/scan-carrier.pub"
           PAYLOADS=$(printf 'plan.json=%s\nbranches.bundle=%s\n' "$OUT/plan.json" "$OUT/branches.bundle")
@@ -486,7 +490,8 @@ jobs:
               [[ $head =~ ^[0-9a-f]{40}$ ]] || exit 1
               git -C .base fetch --quiet --no-tags "$IN/branches.bundle" "$head:refs/scan/$head" >/dev/null 2>&1 || { echo "::error::a planned head did not fetch from the bundle"; exit 1; }
               # The scanners read text, so a binary file is refused, unnamed.
-              numstat=$(git -C .base diff --numstat --no-renames "$BASE_SHA" "$head")
+              # Every commit counts: the bundle push and publish get carries them all.
+              numstat=$(git -C .base log --numstat --no-renames --format= "$BASE_SHA..$head")
               if grep -q $'^-\t-\t' <<<"$numstat"; then
                 echo "::error::a planned branch changes a binary file; only text is published"
                 exit 1
@@ -494,6 +499,9 @@ jobs:
               # The net diff: push publishes one commit with the head's tree
               # and the plan's scanned title, never the model's commits.
               git -C .base diff --no-renames --binary "$BASE_SHA" "$head" >>"$IN/diffs.txt"
+              # The rebuilt bundle is an artifact and holds each commit's
+              # message and blobs, so those are scanned too.
+              git -C .base log -p --no-renames --format=%B "$BASE_SHA..$head" >>"$IN/diffs.txt"
               count=$((count + 1))
             done <"$IN/heads.txt"
           fi
