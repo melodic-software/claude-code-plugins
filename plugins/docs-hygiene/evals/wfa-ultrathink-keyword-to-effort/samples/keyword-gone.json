@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "```markdown\n# Schema review\n\n- Never edit a merged migration; write a new migration instead, because deployed checksums fail on an edited file.\n```\n\n- Cut \"ultrathink\": run the lane at high effort for depth.",
+      "why": "keyword gone from the file; the change note may quote it"
+    }
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {
+      "answer": "```markdown\n# Schema review\n\n- ultrathink: schema changes are risky.\n- Never edit a merged migration; write a new migration instead.\n```",
+      "why": "keyword kept"
+    },
+    {
+      "answer": "```markdown\n# Schema review\n\n- Think hard about schema changes.\n- Never edit a merged migration; write a new migration instead.\n```",
+      "why": "keyword reworded as a think-hard line"
+    }
+  ]
+}

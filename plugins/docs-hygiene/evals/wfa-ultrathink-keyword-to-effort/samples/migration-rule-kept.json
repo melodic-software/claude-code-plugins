@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "```markdown\n# Schema review\n\n- Never edit a merged migration; write a new migration instead, because deployed checksums fail on an edited file.\n```",
+      "why": "rule kept"
+    },
+    {
+      "answer": "```md\n# Schema review\n\n- Write a new migration rather than editing one that is merged: deployed checksums fail on an edited file.\n```",
+      "why": "reordered wording"
+    }
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {
+      "answer": "```markdown\n# Schema review\n\n- Review schema changes with care.\n```\n\n- Cut the merged-migration rule; write a new migration is derivable.",
+      "why": "rule gone from the file"
+    }
+  ]
+}
