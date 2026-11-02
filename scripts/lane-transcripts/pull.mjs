@@ -42,13 +42,18 @@ const PER_PAGE = 100;
 export const MAX_PAGES = 400;
 const MAX_SEALED = 64 * 1024 * 1024;
 const MAX_PLAIN = 256 * 1024 * 1024;
+export const GH_ATTEMPTS = 3;
+export const GH_DELAY_MS = 2000;
 
 const USAGE = `usage: pull.mjs <pull|status|query|prune> [--sink DIR] [--repo OWNER/REPO]
-  query filters: [--lane LANE[/JOB]] [--model TEXT] [--outcome SUBTYPE] [--since YYYY-MM-DD] [--until YYYY-MM-DD]`;
+  query filters: [--lane LANE[/JOB]] [--model TEXT] [--outcome OUTCOME] [--since YYYY-MM-DD] [--until YYYY-MM-DD]`;
 
 export class UsageError extends Error {}
 // A failed pull whose message names a kind and a count, never a value.
 export class PullError extends Error {}
+// One artifact's call that still failed: the pull counts it and goes on. Its
+// message is the call's kind, so the failed call's own text goes no further.
+class FetchFailed extends Error {}
 
 export function parseArgs(argv) {
   const [command, ...rest] = argv;
@@ -74,7 +79,29 @@ const json = (buffer) => JSON.parse(buffer.toString("utf8"));
 
 function defaultDeps(env) {
   const run = (cmd) => (args) => execFileSync(cmd, args, { env, maxBuffer: MAX_SEALED * 2, stdio: ["ignore", "pipe", "pipe"] });
-  return { gh: run("gh"), unzip: run("unzip"), now: () => Date.now() };
+  return { gh: run("gh"), unzip: run("unzip"), now: () => Date.now(), sleep: (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms) };
+}
+
+// GitHub answers these calls with a passing 502 now and then, so each gets a
+// few tries, waiting longer before each one.
+function ghRetried(deps, args) {
+  const attempts = deps.ghAttempts ?? GH_ATTEMPTS;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return deps.gh(args);
+    } catch (error) {
+      if (attempt >= attempts) throw error;
+      deps.sleep(attempt * (deps.ghDelayMs ?? GH_DELAY_MS));
+    }
+  }
+}
+
+function fetched(kind, call) {
+  try {
+    return call();
+  } catch {
+    throw new FetchFailed(kind);
+  }
 }
 
 // The sealed record inside one artifact zip: exactly one entry, the sealed file.
@@ -83,9 +110,10 @@ function sealedRecord(deps, sink, zip) {
   try {
     const file = path.join(dir, "artifact.zip");
     writeFileSync(file, zip, { mode: 0o600 });
-    const entries = deps.unzip(["-Z1", file]).toString("utf8").split("\n").filter(Boolean);
+    const unzip = (args) => fetched("artifact-unzip", () => deps.unzip(args));
+    const entries = unzip(["-Z1", file]).toString("utf8").split("\n").filter(Boolean);
     if (entries.length !== 1 || entries[0] !== ENTRY) return null;
-    return deps.unzip(["-p", file, ENTRY]);
+    return unzip(["-p", file, ENTRY]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -101,7 +129,8 @@ export function pull({ sink, repo, recipient, deps, log }) {
   const cutoff = Math.max(now - ARTIFACT_DAYS * 24 * HOUR, Number.isNaN(last) ? 0 : last - OVERLAP);
   const known = new Set(readRows(sink).map((row) => row.artifact_id));
   const runs = new Map();
-  const tally = { pulled: 0, known: 0, fork: 0, expired: 0, unnamed: 0, too_large: 0, bad_zip: 0, sealed_mismatch: 0 };
+  const tally = { pulled: 0, known: 0, fork: 0, expired: 0, unnamed: 0, too_large: 0, bad_zip: 0, sealed_mismatch: 0, fetch_failed: 0 };
+  const failedKinds = new Set();
   writeState(sink, { ...state, last_attempt_at: new Date(now).toISOString() });
 
   let done = false;
@@ -110,7 +139,7 @@ export function pull({ sink, repo, recipient, deps, log }) {
     // Paging past the cap without reaching the cutoff would record a success
     // that skipped the oldest artifacts, so it fails and the window stays.
     if (++page > (deps.maxPages ?? MAX_PAGES)) throw new PullError(`page-cap: ${deps.maxPages ?? MAX_PAGES} pages did not reach the last pull's cutoff`);
-    const { artifacts = [] } = json(deps.gh(["api", `repos/${repo}/actions/artifacts?per_page=${PER_PAGE}&page=${page}`]));
+    const { artifacts = [] } = json(ghRetried(deps, ["api", `repos/${repo}/actions/artifacts?per_page=${PER_PAGE}&page=${page}`]));
     if (artifacts.length < PER_PAGE) done = true;
     for (const artifact of artifacts) {
       if (Date.parse(artifact.created_at) < cutoff) {
@@ -127,9 +156,15 @@ export function pull({ sink, repo, recipient, deps, log }) {
       else if (!wf.id || wf.head_repository_id !== wf.repository_id) tally.fork++;
       else if (artifact.size_in_bytes > MAX_SEALED) tally.too_large++;
       else {
-        const outcome = store({ sink, repo, recipient, deps, artifact, named, runs, now });
-        tally[outcome]++;
-        if (outcome === "pulled") known.add(artifact.id);
+        try {
+          const outcome = store({ sink, repo, recipient, deps, artifact, named, runs, now });
+          tally[outcome]++;
+          if (outcome === "pulled") known.add(artifact.id);
+        } catch (error) {
+          if (!(error instanceof FetchFailed)) throw error;
+          tally.fetch_failed++;
+          failedKinds.add(error.message);
+        }
       }
     }
   }
@@ -137,14 +172,17 @@ export function pull({ sink, repo, recipient, deps, log }) {
   // not match the repository variable, which must alert, not pass.
   if (tally.sealed_mismatch > 0 && tally.pulled === 0 && tally.known === 0) throw new PullError(`key-mismatch: ${tally.sealed_mismatch} transcript(s) did not open for this key and none did`);
   const pruned = prune(sink, now);
-  writeState(sink, { ...readState(sink), last_success_at: new Date(now).toISOString(), last_error: null, last_tally: tally });
+  // A pull that missed an artifact keeps the last success, so the next pull's
+  // cutoff still reaches it; the artifact's 7-day expiry bounds how long.
+  const finished = tally.fetch_failed > 0 ? { last_error: `fetch-failed: ${tally.fetch_failed} transcript(s) (${[...failedKinds].join(", ")})` } : { last_success_at: new Date(now).toISOString(), last_error: null };
+  writeState(sink, { ...readState(sink), ...finished, last_tally: tally });
   log(`pulled ${tally.pulled} transcript(s); skipped ${JSON.stringify(tally)}; pruned ${JSON.stringify(pruned)}`);
   return tally;
 }
 
 function store({ sink, repo, recipient, deps, artifact, named, runs, now }) {
   const runId = String(artifact.workflow_run.id);
-  const record = sealedRecord(deps, sink, deps.gh(["api", `repos/${repo}/actions/artifacts/${artifact.id}/zip`]));
+  const record = sealedRecord(deps, sink, fetched("artifact-zip", () => ghRetried(deps, ["api", `repos/${repo}/actions/artifacts/${artifact.id}/zip`])));
   if (!record) return "bad_zip";
   let gz;
   try {
@@ -159,7 +197,7 @@ function store({ sink, repo, recipient, deps, artifact, named, runs, now }) {
   } catch {
     messages = null;
   }
-  if (!runs.has(runId)) runs.set(runId, json(deps.gh(["api", `repos/${repo}/actions/runs/${runId}`])));
+  if (!runs.has(runId)) runs.set(runId, fetched("run-read", () => json(ghRetried(deps, ["api", `repos/${repo}/actions/runs/${runId}`]))));
   const run = runs.get(runId);
   const row = {
     artifact_id: artifact.id,
@@ -235,11 +273,14 @@ export function main(argv = process.argv.slice(2), env = process.env, deps = und
     return 1;
   }
   try {
-    pull({ sink, repo: flags.repo ?? REPO, recipient, deps: d, log: (s) => io.out(`${s}\n`) });
-    return 0;
+    const tally = pull({ sink, repo: flags.repo ?? REPO, recipient, deps: d, log: (s) => io.out(`${s}\n`) });
+    if (tally.fetch_failed === 0) return 0;
+    const s = status(sink, d.now());
+    if (s.stale) io.err(`${alert(s)}\n`);
+    return s.stale ? 1 : 0;
   } catch (error) {
-    // A kind, never a value: a failed gh call names its exit status only.
-    const kind = error instanceof PullError ? error.message : error?.status !== undefined ?`a gh or unzip call exited ${error.status}` : error?.name ?? "error";
+    // A kind, never a value: a failed listing call names its exit status only.
+    const kind = error instanceof PullError ? error.message : error?.status !== undefined ? `artifact-list: gh exited ${error.status}` : error?.name ?? "error";
     try {
       writeState(sink, { ...readState(sink), last_error: kind });
     } catch {

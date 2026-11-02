@@ -8,7 +8,7 @@ import { generate } from "../../.github/actions/open-lane-output/keygen.mjs";
 import { parsePublicKey, sealRecord } from "../../.github/actions/seal-lane-output/seal.mjs";
 import { tempDir } from "../../lib/test-tmp.mjs";
 import { ENTRY, main, PAYLOAD } from "./pull.mjs";
-import { CAP_BYTES, parseArtifactName, paths, prune, query, readRows, writeRows } from "./store.mjs";
+import { CAP_BYTES, parseArtifactName, paths, prune, query, readRows, transcriptMetrics, writeRows } from "./store.mjs";
 
 const MARKER = "plaintext-marker-5d21";
 const NOW = Date.parse("2026-11-02T12:00:00Z");
@@ -31,15 +31,22 @@ function sealed(publicLine, { runId = 42, jobId = "verify", messages = MESSAGES 
   return sealRecord(parsePublicKey(publicLine), PAYLOAD, gzipSync(Buffer.from(JSON.stringify(messages))), String(runId), jobId);
 }
 
-function fakeDeps(pages, { now = NOW, runs = {} } = {}) {
+// `failures` maps a gh URL's suffix to how many calls to it fail before one succeeds.
+function fakeDeps(pages, { now = NOW, runs = {}, failures = {} } = {}) {
   const calls = [];
+  const sleeps = [];
   const byId = new Map(pages.flat().map((a) => [a.id, a]));
+  const left = { ...failures };
   return {
     calls,
+    sleeps,
     now: () => now,
+    sleep: (ms) => sleeps.push(ms),
     gh(args) {
       calls.push(args.join(" "));
       const url = args[1];
+      const failing = Object.keys(left).find((suffix) => url.endsWith(suffix));
+      if (failing && left[failing]-- > 0) throw Object.assign(new Error(`HTTP 502 ${MARKER}`), { status: 1 });
       let m = /actions\/artifacts\?per_page=100&page=(\d+)$/.exec(url);
       if (m) return Buffer.from(JSON.stringify({ artifacts: (pages[Number(m[1]) - 1] ?? []).map(({ zip, ...a }) => a) }));
       m = /actions\/artifacts\/(\d+)\/zip$/.exec(url);
@@ -176,7 +183,7 @@ test("a failed pull with no success in 5 days alerts, and status exits 1 until a
   const failing = { ...fakeDeps([]), gh: () => { throw Object.assign(new Error("boom"), { status: 4 }); } };
   const failed = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps: failing });
   assert.equal(failed.code, 1);
-  assert.match(failed.err, /pull failed: a gh or unzip call exited 4/);
+  assert.match(failed.err, /pull failed: artifact-list: gh exited 4/);
   assert.match(failed.err, /^ALERT: no lane transcript pull has succeeded in the last 5 days \(last: never\)$/m);
   assert.equal(run(["status", "--sink", sink], { deps: fakeDeps([]) }).code, 1);
   assert.equal(run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps: fakeDeps([[]]) }).code, 0);
@@ -184,6 +191,164 @@ test("a failed pull with no success in 5 days alerts, and status exits 1 until a
   const late = run(["status", "--sink", sink], { deps: fakeDeps([], { now: NOW + 6 * 86400_000 }) });
   assert.equal(late.code, 1);
   assert.match(late.err, /^ALERT: /m);
+});
+
+const FOREVER = Number.MAX_SAFE_INTEGER;
+const stateOf = (sink) => JSON.parse(readFileSync(paths(sink).state, "utf8"));
+const seedState = (sink, state) => {
+  mkdirSync(sink, { recursive: true });
+  writeFileSync(paths(sink).state, JSON.stringify(state));
+};
+const zipCalls = (deps, id) => deps.calls.filter((c) => c.endsWith(`artifacts/${id}/zip`)).length;
+
+test("a gh call that fails is retried with a growing delay, and the pull then succeeds", () => {
+  const { publicLine, privateText } = generate();
+  const sink = sinkDir();
+  const deps = fakeDeps([[artifact(41, { record: sealed(publicLine) })]], { failures: { "artifacts/41/zip": 2, "actions/runs/42": 1, "page=1": 1 } });
+  const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps });
+  assert.equal(result.code, 0, result.err);
+  assert.equal(readRows(sink).length, 1);
+  assert.equal(zipCalls(deps, 41), 3);
+  assert.deepEqual(deps.sleeps, [2000, 2000, 4000, 2000], "page, zip twice, run");
+  assert.equal(stateOf(sink).last_success_at, new Date(NOW).toISOString());
+});
+
+test("the retry count and delay are injectable", () => {
+  const { publicLine, privateText } = generate();
+  const deps = { ...fakeDeps([[artifact(42, { record: sealed(publicLine) })]], { failures: { "artifacts/42/zip": FOREVER } }), ghAttempts: 2, ghDelayMs: 5 };
+  assert.equal(run(["pull", "--sink", sinkDir()], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps }).code, 1);
+  assert.equal(zipCalls(deps, 42), 2);
+  assert.deepEqual(deps.sleeps, [5]);
+});
+
+for (const [kind, failures] of [["artifact-zip", { "artifacts/51/zip": FOREVER }], ["run-read", { "actions/runs/51": FOREVER }]]) {
+  test(`a fetch failure (${kind}) past its retries is counted, the pull goes on, and the next pull fetches the artifact though it is behind the failed pull's overlap`, () => {
+    const { publicLine, privateText } = generate();
+    const sink = sinkDir();
+    const previous = iso(NOW - 24 * 3600_000);
+    seedState(sink, { last_success_at: previous });
+    const env = () => ({ LANE_TRANSCRIPT_PRIVATE_KEY: privateText });
+    // Older than OVERLAP (6 hours) at the failed pull, so a cutoff taken from that pull would miss it.
+    const failing = artifact(51, { runId: 51, createdAt: NOW - 10 * 3600_000, record: sealed(publicLine, { runId: 51 }) });
+    const healthy = artifact(52, { jobId: "judge", runId: 52, record: sealed(publicLine, { runId: 52, jobId: "judge" }) });
+
+    const partial = run(["pull", "--sink", sink], { env: env(), deps: fakeDeps([[failing, healthy]], { failures }) });
+    assert.equal(partial.code, 0, partial.err);
+    assert.match(partial.out, /"fetch_failed":1/);
+    assert.deepEqual(readRows(sink).map((r) => r.artifact_id), [52], "the artifact listed after the failure is still pulled");
+    const state = stateOf(sink);
+    assert.equal(state.last_success_at, previous, "a pull that missed an artifact does not move the cutoff");
+    assert.equal(state.last_error, `fetch-failed: 1 transcript(s) (${kind})`);
+    assert.equal(state.last_tally.fetch_failed, 1);
+    assert.equal(state.last_attempt_at, new Date(NOW).toISOString());
+    for (const text of [partial.out, partial.err, JSON.stringify(state)]) assert.ok(!text.includes(MARKER), "no call's error text is stored or printed");
+
+    const later = NOW + 3600_000;
+    const clean = run(["pull", "--sink", sink], { env: env(), deps: fakeDeps([[failing, healthy]], { now: later }) });
+    assert.equal(clean.code, 0, clean.err);
+    assert.deepEqual(readRows(sink).map((r) => r.artifact_id).sort(), [51, 52]);
+    assert.equal(stateOf(sink).last_success_at, new Date(later).toISOString());
+    assert.equal(stateOf(sink).last_error, null);
+  });
+}
+
+test("a zip that unzip cannot read is a fetch failure, not an aborted pull or a permanent skip", () => {
+  const { publicLine, privateText } = generate();
+  const sink = sinkDir();
+  const fake = fakeDeps([[artifact(53, { record: sealed(publicLine) })]]);
+  const unreadable = { ...fake, unzip: () => { throw Object.assign(new Error("bad zip"), { status: 9 }); } };
+  const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps: unreadable });
+  assert.equal(stateOf(sink).last_error, "fetch-failed: 1 transcript(s) (artifact-unzip)");
+  assert.equal(result.code, 1, "never succeeded, so the stale rule applies");
+  assert.match(result.out, /"bad_zip":0.*"fetch_failed":1/);
+});
+
+test("a listing page that fails past its retries fails the pull and keeps the last success", () => {
+  const { publicLine, privateText } = generate();
+  const sink = sinkDir();
+  const last = iso(NOW - 3 * 86400_000);
+  seedState(sink, { last_success_at: last });
+  const full = Array.from({ length: 100 }, (_, i) => ({ ...artifact(6000 - i, { record: sealed(publicLine) }), name: "other-artifact" }));
+  const deps = fakeDeps([full, []], { failures: { "page=2": FOREVER } });
+  const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps });
+  assert.equal(result.code, 1);
+  assert.match(result.err, /pull failed: artifact-list: gh exited 1/);
+  assert.ok(!result.err.includes(MARKER));
+  assert.equal(deps.calls.filter((c) => c.endsWith("page=2")).length, 3);
+  assert.equal(stateOf(sink).last_success_at, last);
+});
+
+test("a pull with a fetch failure exits 0 until the held last success is over 5 days old, then alerts", () => {
+  const { publicLine, privateText } = generate();
+  const attempt = (ageDays) => {
+    const sink = sinkDir();
+    seedState(sink, { last_success_at: iso(NOW - ageDays * 86400_000) });
+    const deps = fakeDeps([[artifact(61, { record: sealed(publicLine) })]], { failures: { "artifacts/61/zip": FOREVER } });
+    return run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps });
+  };
+  const fresh = attempt(4);
+  assert.equal(fresh.code, 0, fresh.err);
+  assert.equal(fresh.err, "");
+  const stale = attempt(6);
+  assert.equal(stale.code, 1);
+  assert.match(stale.err, /^ALERT: no lane transcript pull has succeeded in the last 5 days/m);
+  assert.match(stale.out, /"fetch_failed":1/);
+});
+
+test("a fetch failure beside transcripts that do not open for the key still fails the pull as a key mismatch", () => {
+  const { privateText } = generate();
+  const other = generate();
+  const sink = sinkDir();
+  const page = [artifact(71, { record: sealed(other.publicLine) }), artifact(72, { jobId: "judge", record: sealed(other.publicLine, { jobId: "judge" }) })];
+  const deps = fakeDeps([page], { failures: { "artifacts/72/zip": FOREVER } });
+  const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps });
+  assert.equal(result.code, 1);
+  assert.match(result.err, /pull failed: key-mismatch: 1 transcript/);
+  assert.equal(stateOf(sink).last_success_at, undefined);
+});
+
+test("a result with is_error true is stored as outcome error, with its subtype and API status and no transcript text", () => {
+  const { publicLine, privateText } = generate();
+  const sink = sinkDir();
+  const failedLeg = [MESSAGES[0], { type: "result", subtype: "success", is_error: true, api_error_status: 400, result: `Credit balance is too low ${MARKER}`, num_turns: 1, duration_ms: 5, usage: {}, modelUsage: {} }];
+  const page = [
+    artifact(81, { runId: 81, record: sealed(publicLine, { runId: 81, messages: failedLeg }) }),
+    artifact(82, { runId: 82, record: sealed(publicLine, { runId: 82 }) }),
+    artifact(83, { runId: 83, record: sealed(publicLine, { runId: 83, messages: [MESSAGES[0]] }) }),
+  ];
+  const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps: fakeDeps([page]) });
+  assert.equal(result.code, 0, result.err);
+  const shape = ({ outcome, subtype, is_error: isError, api_error_status: status }) => ({ outcome, subtype, isError, status });
+  const rows = readRows(sink);
+  assert.deepEqual(shape(rows[0]), { outcome: "error", subtype: "success", isError: true, status: 400 });
+  assert.deepEqual(shape(rows[1]), { outcome: "success", subtype: "success", isError: false, status: null });
+  assert.deepEqual(shape(rows[2]), { outcome: "no-result", subtype: null, isError: null, status: null });
+  assert.ok(!JSON.stringify(rows).includes(MARKER) && !JSON.stringify(rows).includes("Credit balance"));
+  const success = run(["query", "--sink", sink, "--outcome", "success"], { deps: fakeDeps([]) });
+  assert.deepEqual(success.out.trim().split("\n").map((line) => JSON.parse(line).artifact_id), [82]);
+});
+
+test("an api_error_status that is not an integer is not stored", () => {
+  const rows = transcriptMetrics([{ type: "result", subtype: "success", is_error: true, api_error_status: "Credit balance is too low" }]);
+  assert.equal(rows.api_error_status, null);
+});
+
+test("query --outcome reads is_error, so a row stored before the field existed queries correctly", () => {
+  const rows = [
+    { job_id: "old-failed", outcome: "success", is_error: true },
+    { job_id: "old-ok", outcome: "success", is_error: false },
+    { job_id: "old-turns", outcome: "error_max_turns", is_error: true },
+    { job_id: "new-turns", outcome: "error", subtype: "error_max_turns", is_error: true },
+    { job_id: "new-failed", outcome: "error", subtype: "success", is_error: true },
+    { job_id: "no-flag", outcome: "error_during_execution", is_error: false },
+    { job_id: "none", outcome: "no-result", is_error: null },
+  ];
+  const jobs = (outcome) => query(rows, { outcome }).map((r) => r.job_id);
+  assert.deepEqual(jobs("success"), ["old-ok"]);
+  assert.deepEqual(jobs("error"), ["old-failed", "old-turns", "new-turns", "new-failed"]);
+  assert.deepEqual(jobs("error_max_turns"), ["old-turns", "new-turns"]);
+  assert.deepEqual(jobs("error_during_execution"), ["no-flag"]);
+  assert.deepEqual(jobs("no-result"), ["none"]);
 });
 
 function seedStore(sink, ages) {

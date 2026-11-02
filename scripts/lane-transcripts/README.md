@@ -14,15 +14,19 @@ node scripts/lane-transcripts/pull.mjs prune
 
 | Command | Does | Exit |
 |---|---|---|
-| `pull` | Copies every new `lane-transcript-*` artifact, then prunes | 0 done; 1 failed, and `ALERT:` on stderr when no pull succeeded in 5 days |
+| `pull` | Copies every new `lane-transcript-*` artifact, then prunes | 0 done, including one that missed an artifact; 1 failed, and `ALERT:` on stderr when no pull succeeded in 5 days (a pull that missed an artifact and is that stale exits 1 too) |
 | `status` | Prints the last successful pull, its age, and the store's size and counts as JSON | 1 and `ALERT:` when no pull succeeded in 5 days |
 | `query` | Prints the metrics rows matching every filter given, as JSONL with the transcript's absolute path | 0 |
 | `prune` | Applies retention alone | 0 |
 
 `query` filters: `--lane` (the workflow file's stem, or `lane/job-id`), `--model` (a substring of
-any model the leg used), `--outcome` (the result message's `subtype`: `success`, `error_max_turns`,
-..., or `no-result`), `--since` and `--until` (`YYYY-MM-DD`, inclusive). For anything else, read
-`metrics.jsonl` with `jq`. No command prints transcript text.
+any model the leg used), `--outcome`, `--since` and `--until` (`YYYY-MM-DD`, inclusive). For
+anything else, read `metrics.jsonl` with `jq`. No command prints transcript text.
+
+`--outcome` takes `error` (every leg whose result has `is_error: true`), `success` (a `success`
+subtype on a leg that did not error), another result `subtype` such as `error_max_turns`, or
+`no-result`. It reads `is_error`, so a row stored with `outcome: success` and `is_error: true`
+answers to `error`; the printed row keeps the values it was stored with.
 
 ## The sink
 
@@ -39,8 +43,10 @@ machine or object storage, is any directory it mounts at; nothing else changes. 
 
 A metrics row holds the artifact, run, attempt and job ids, lane, workflow name, event, branch,
 the run's conclusion when pulled, `created_at` and `date`, the init message's `model`, the result
-message's `models` (its `modelUsage` keys), `outcome`, `is_error`, `num_turns`, `duration_ms` and
-token counts, the transcript's size, and its path (`null` once pruned).
+message's `models` (its `modelUsage` keys), `outcome` (`error` when `is_error` is true, else the
+`subtype`), `subtype`, `is_error`, `api_error_status` (`null` when the result carries none),
+`num_turns`, `duration_ms` and token counts, the transcript's size, and its path (`null` once
+pruned).
 
 ## What a pull takes
 
@@ -51,10 +57,18 @@ a record. A zip must hold exactly `transcript.json.gz.sealed`. A record that doe
 key, the artifact's run id and its job id (moved, tampered with, or sealed under a rotated key) is
 counted as `sealed_mismatch` and skipped. The summary line counts each kind.
 
-Two outcomes fail the pull and leave the last success where it was, so the 5-day alert can fire:
-400 pages read without reaching the cutoff (`page-cap`), and a window where records failed to open
-and none opened or was already held (`key-mismatch`: the vault key and the repository variable
-differ).
+A `gh` call that fails is tried 3 times, 2 and then 4 seconds apart. An artifact whose download,
+unzip or run read still fails counts as `fetch_failed` and the pull goes on. It has no metrics row
+and the last success stays where it was, so the next pull lists back far enough to fetch it. The
+last success is therefore the last complete pull: an artifact that keeps failing holds it until
+the artifact expires at 7 days, and the 5-day alert can fire first. `last_error` names the count
+and the calls that failed (`artifact-zip`, `artifact-unzip`, `run-read`).
+
+Three outcomes fail the pull and leave the last success where it was, so the 5-day alert can fire:
+a listing page that still fails after its tries (`artifact-list`, since skipping it would lose
+artifacts for good), 400 pages read without reaching the cutoff (`page-cap`), and a window where
+records failed to open and none opened or was already held (`key-mismatch`: the vault key and the
+repository variable differ).
 
 ## Retention
 
