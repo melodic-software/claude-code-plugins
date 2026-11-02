@@ -567,9 +567,8 @@ NETWORK_ERRORS = (
     "unexpected eof",
     "unexpected end of json input",
 )
-# A whole listing cut short has already paged up to every artifact, so it is
-# read once more at most, not after every wait (`Reader._read_listing`).
-CUT_SHORT = "unexpected end of json input"
+# A page body cut short while gh exits 0, as babysit_gh._run_pages reports it.
+PAGE_NOT_JSON = re.compile(r"\bpage \d+ is not json$")
 FAIL = "verify:fail"
 EARLIER_FAIL = "verify:earlier-fail"
 REPEATED_FAIL = "verify:repeated-fail"
@@ -940,13 +939,15 @@ class _Transient(_Unreadable):
 
 
 def _transient(detail: str) -> bool:
-    """A 5xx, or a network error with no HTTP response. A rate limit is not:
-    a fixed short wait outlasts neither a Retry-After nor an hourly reset, and
-    more requests can extend a secondary limit."""
+    """A 5xx, a network error with no HTTP response, or a page body cut
+    short. A rate limit is not: a fixed short wait outlasts neither a
+    Retry-After nor an hourly reset, and more requests can extend a secondary
+    limit."""
     status = gh_http_status(detail)
     if status is not None:
         return status >= 500
-    return any(phrase in detail.casefold() for phrase in NETWORK_ERRORS)
+    text = detail.casefold()
+    return any(p in text for p in NETWORK_ERRORS) or bool(PAGE_NOT_JSON.search(text))
 
 
 def listing_pages(total_count: int) -> int:
@@ -2154,12 +2155,11 @@ class Reader:
     def _read_listing(
         self, deadline: float | None = None, budget: float = LISTING_TIMEOUT_SECONDS
     ) -> Any:
-        """The listing payload, read again after a 5xx or a fast network
-        error while time is left: every page, read and wait fits in
-        `budget`, so a retry adds no time to the run's worst
-        case. A read cut short (`CUT_SHORT`) is read once more, and that
-        read's failure refuses. A `deadline` set by an earlier read is kept;
-        this read's is saved as `_read_deadline`."""
+        """The listing payload, read again after each of `LISTING_WAITS` on a
+        5xx, a fast network error or a page body cut short while time is
+        left: every page, read and wait fits in `budget`, so a retry adds no
+        time to the run's worst case. A `deadline` set by an earlier read is
+        kept; this read's is saved as `_read_deadline`."""
         args = [
             "api",
             f"repos/{self.repo}/actions/artifacts?per_page=100",
@@ -2177,7 +2177,7 @@ class Reader:
         for wait in LISTING_WAITS:
             try:
                 return self._actions(args, "repository artifacts", timeout)
-            except _Transient as exc:
+            except _Transient:
                 if deadline - _listing_clock() - wait <= 0:
                     raise
                 _listing_sleep(wait)
@@ -2185,8 +2185,6 @@ class Reader:
                 timeout = deadline - _listing_clock()
                 if timeout <= 0:
                     raise
-                if CUT_SHORT in str(exc).casefold():
-                    break
         return self._actions(args, "repository artifacts", timeout)
 
     def _env(self) -> dict[str, str] | None:
@@ -2210,7 +2208,8 @@ class Reader:
         try:
             return json.loads(proc.stdout) if proc.stdout.strip() else None
         except ValueError as exc:
-            raise _Unreadable(f"{label}: {exc}") from exc
+            # A body cut short while gh exits 0.
+            raise _Transient(f"{label}: {exc}") from exc
 
     def _contains(self, sha: str, *, shared: bool = False) -> bool:
         """Whether the branch holds `sha`, read under the Actions token (a
