@@ -4313,15 +4313,22 @@ bps_oracle_cell() {
 }
 bps_or_n=0 bps_or_ran=0 bps_or_wrote_n=0 bps_or_skip=0 bps_or_bad=0 bps_or_all=0
 bps_or_t0=$SECONDS
-# Depth 1: every row.
-bps_or_keep=65536
+# Each row spawns bash, which is slow on Windows, so Windows samples both depths
+# (about 1 row in 10 and 1 in 128, still hitting every opener, word and tail).
+bps_or_keep1=65536 bps_or_keep2=2048
+# shellcheck disable=SC2031  # this shell's own OSTYPE; Test 11 overrides it only in subshells
+if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* ]]; then
+  bps_or_keep1=6554 bps_or_keep2=512
+fi
+# Depth 1: every row (sampled on Windows).
+bps_or_keep=$bps_or_keep1
 for ((bps_or_k = 0; bps_or_k < ${#bps_or_pre[@]}; bps_or_k++)); do
   bps_oracle_cell "${bps_or_pre[bps_or_k]}" "${bps_or_post[bps_or_k]}"
 done
 bps_or_n1=$bps_or_n bps_or_all1=$bps_or_all
 # Depth 2: each bare opener inside every context (a pattern word that starts
-# with an opener included), one row in 32 kept.
-bps_or_keep=2048
+# with an opener included), one row in 32 kept (128 on Windows).
+bps_or_keep=$bps_or_keep2
 for ((bps_or_k = 0; bps_or_k < ${#bps_or_pre[@]}; bps_or_k++)); do
   for ((bps_or_m = 0; bps_or_m < ${#bps_or_ipre[@]}; bps_or_m++)); do
     # A backtick inside a backtick would need escaping; that form has its own rows.
