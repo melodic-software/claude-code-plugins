@@ -1,5 +1,5 @@
 {
-  "description": "Optionally checks the uncommitted GitHub Actions workflow changes with actionlint when a turn ends, and reports a missing actionlint or a drifted git-hook entry at session start.",
+  "description": "Optionally checks the uncommitted GitHub Actions workflow changes with actionlint when a turn ends; harness-ops reports a missing actionlint or a drifted git-hook entry at session start, from this plugin's prerequisites.json.",
   "hooks": {
     "Stop": [
       {
@@ -18,37 +18,6 @@
             ],
             "timeout": 30,
             "statusMessage": "Checking workflows in uncommitted changes..."
-          }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "matcher": "startup|resume|clear|fork",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs",
-              "probe",
-              "${CLAUDE_PLUGIN_ROOT}",
-              "--run-if-unset-or-true",
-              "ACTIONLINT_ENABLED"
-            ],
-            "timeout": 10,
-            "statusMessage": "Checking actionlint..."
-          }
-        ]
-      },
-      {
-        "matcher": "startup|resume|clear|fork",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /actionlint:check ACTIONLINT_ENABLED; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /actionlint:check ACTIONLINT_ENABLED",
-            "timeout": 10,
-            "statusMessage": "Checking that node is on PATH..."
           }
         ]
       }

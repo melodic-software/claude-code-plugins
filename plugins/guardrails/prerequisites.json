@@ -1,4 +1,7 @@
 {
+  "session_probe": {
+    "run_if_unset_or_true": "GIT_HOOKS_NOTICE_ENABLED"
+  },
   "requires": [
     {
       "id": "node",

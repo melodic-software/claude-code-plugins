@@ -1488,14 +1488,10 @@ guards behave exactly as before.
   so on Claude Code 2.1.295 or later a row that cannot start, because `node` or bash is missing, or
   that times out, denies the call. An older client ignores the key, and such a row enforces nothing
   ([hook budget](../../docs/contracts/hook-budget/README.md#which-rows-set-onfailure-block)).
-  `/guardrails:check` reports a missing `node` or `jq`. A `SessionStart` row in shell form
-  (no `shell` field and no `args`) runs `lib/prerequisites.sh node-notice`, or
-  `lib/prerequisites.ps1` where there is no `sh`, and needs no node itself. When node is
-  absent it exits 0 with a `systemMessage` that shows the user a warning once per session across
-  plugins, and the notice names `/guardrails:check`.
-  It prints nothing when node is present. It does not read the per-guard toggles, because an unset toggle exports no
-  environment variable and the row would need every guard's key listed by hand; a host that turns
-  every guard off should disable the plugin instead. Pointer: for how an exec-form `command`
+  `/guardrails:check` reports a missing `node` or `jq`. With harness-ops enabled, its shell-form
+  `SessionStart` row warns the user once per session that `node` is missing, whichever guards are
+  on; without harness-ops nothing does
+  ([prerequisites convention](../../docs/contracts/prerequisites/README.md#hook-notices)). Pointer: for how an exec-form `command`
   resolves, see <https://code.claude.com/docs/en/hooks#exec-form-and-shell-form>; for a hook that
   cannot start, see <https://code.claude.com/docs/en/hooks#other-exit-codes>; for where
   `SessionStart` stdout goes, see <https://code.claude.com/docs/en/hooks#exit-code-0>; for

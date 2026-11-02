@@ -56,8 +56,7 @@
 # every event in the same files, with the same token walk. A hook implemented in another language sources no shell library, has no
 # `source` line to sit above, and is reported as NOT SCANNED rather than passed
 # silently — today that is disk-hygiene's destructive_guard.py, context-budget's
-# node handler, and the inline shell-form node-notice rows in guardrails and
-# disk-hygiene.
+# node handler, and harness-ops' inline shell-form node-notice row.
 #
 # Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr. That is
 # the whole family's contract, stated once in README.md, "The check-script
@@ -121,7 +120,7 @@ fi
 #   run-python-hook.sh — disk-hygiene's interpreter resolver; execs the
 #                        Python guard, whose switch is disk_hygiene_enabled and
 #                        lives in destructive_guard.py
-#   prerequisites.sh   - the shared SessionStart node notice; reads the plugin's switch
+#   prerequisites.sh   - the shared SessionStart node notice; reads a plugin's switch
 #                        from its argument and guards nothing
 LAUNCHERS=("run-guards.sh" "run-python-hook.sh" "prerequisites.sh")
 

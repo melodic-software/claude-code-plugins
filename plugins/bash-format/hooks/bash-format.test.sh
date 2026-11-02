@@ -67,7 +67,7 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" ]]; then
   # shellcheck disable=SC2016 # the CLAUDE_PLUGIN_ROOT placeholders are literal manifest text
   EXPECTED_ROW='["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","--run-if-unset-or-true","BASH_FORMAT_ENABLED","--skip-unless-stdin-contains","sh\"","${CLAUDE_PLUGIN_ROOT}/hooks/bash-format.sh"]'
   expect "hooks.json: no PostToolUse row" "0" "$(jq '[.hooks.PostToolUse // [] | .[]] | length' "$HOOKS_JSON")"
-  expect "hooks.json: no digest-reset SessionStart row" "0" "$(jq '[.hooks.SessionStart[].hooks[].args // [] | .[] | select(. == "--reset-digests")] | length' "$HOOKS_JSON")"
+  expect "hooks.json: no digest-reset SessionStart row" "0" "$(jq '[.hooks.SessionStart[]?.hooks[].args // [] | .[] | select(. == "--reset-digests")] | length' "$HOOKS_JSON")"
   expect "hooks.json: one PostToolBatch group with one handler" "1 1" "$(jq -r '.hooks.PostToolBatch | "\(length) \(.[0].hooks | length)"' "$HOOKS_JSON")"
   expect "hooks.json: the batch handler has no matcher, no if, and runs the script behind the prefilter" \
     "node true true $EXPECTED_ROW" \
@@ -81,67 +81,11 @@ else
   fail "hooks.json assertions need jq and $HOOKS_JSON"
 fi
 
-# --- SessionStart probe honors bash_format_enabled ---------------------------
-# Runs the hooks.json SessionStart row as the harness spawns it: `node` with the
-# row's args, ${CLAUDE_PLUGIN_ROOT} expanded, from an empty cwd, on a PATH that
-# holds the system tools and none of shfmt, shellcheck and jq. The gate is
-# `--run-if-unset-or-true` in exec-bash.mjs, so a row without it prints the
-# notice for a disabled plugin. A missing node fails the suite instead of
-# skipping the cases: every hook row launches through it.
-NODE_BIN="$(command -v node 2>/dev/null)"
-if [[ -z "$NODE_BIN" ]]; then
-  fail "probe-gate: node is not on PATH, and every hook row launches through node hooks/exec-bash.mjs"
-else
-  PG_WORK="$(mktemp -d)"
-  mkdir -p "$PG_WORK/sysbin" "$PG_WORK/cwd"
-  for dir in /usr/local/bin /usr/bin /bin; do
-    for exe in "$dir"/*; do
-      base="${exe##*/}"
-      [[ -x "$exe" && "$base" != shfmt && "$base" != shellcheck && "$base" != jq && ! -e "$PG_WORK/sysbin/$base" ]] || continue
-      MSYS=winsymlinks:nativestrict ln -s "$exe" "$PG_WORK/sysbin/$base"
-    done
-  done
-  PG_ARGS=()
-  while IFS= read -r pg_arg; do
-    # shellcheck disable=SC2016  # the placeholder is matched literally, as Claude Code substitutes it
-    PG_ARGS+=("${pg_arg//\$\{CLAUDE_PLUGIN_ROOT\}/$PLUGIN_ROOT}")
-  # tr: a Windows jq.exe ends each line with CRLF, and read keeps the CR.
-  done < <(jq -r '.hooks.SessionStart[0].hooks[0].args[]' "$HOOKS_JSON" | tr -d '\r')
-
-  # run_probe <value|__unset__> -> run the row with bash_format_enabled set to <value> (or unset).
-  run_probe() {
-    local v="$1"
-    local -a opt=(env -u CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED)
-    [[ "$v" == "__unset__" ]] || opt=(env "CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=$v")
-    (cd "$PG_WORK/cwd" && printf '{"session_id":"s1"}' |
-      "${opt[@]}" PATH="$PG_WORK/sysbin" CLAUDE_PLUGIN_DATA="$(mktemp -d "$PG_WORK/data.XXXXXX")" \
-        "$NODE_BIN" "${PG_ARGS[@]}" 2>&1)
-  }
-
-  OUT_PG=$(run_probe false)
-  RC_PG=$?
-  if [[ $RC_PG -eq 0 && -z "$OUT_PG" ]]; then
-    ok "probe-gate: bash_format_enabled=false -> exit 0 and no notice"
-  else
-    fail "probe-gate: bash_format_enabled=false should print nothing and exit 0 (rc=$RC_PG out=$OUT_PG)"
-  fi
-  for v in __unset__ true; do
-    label="bash_format_enabled=$v"
-    [[ "$v" == "__unset__" ]] && label="bash_format_enabled unset"
-    OUT_PG=$(run_probe "$v")
-    RC_PG=$?
-    pg_ok=1
-    while IFS=$'\t' read -r PG_NAME PG_CHECK PG_INSTALL; do
-      [[ "$OUT_PG" == *"$PG_NAME"* && "$OUT_PG" == *"$PG_CHECK"* && "$OUT_PG" == *"$PG_INSTALL"* ]] || pg_ok=0
-    done < <(jq -r '.requires[] | select(.id != "node") | [.id, .check, (.install | to_entries[0].value)] | @tsv' "$MANIFEST" | tr -d '\r')
-    if [[ $RC_PG -eq 0 && $pg_ok -eq 1 ]]; then
-      ok "probe-gate: $label -> notices name each tool, its check and the install line"
-    else
-      fail "probe-gate: $label should print a missing-tool notice per tool (rc=$RC_PG out=$OUT_PG)"
-    fi
-  done
-  rm -rf "${PG_WORK:?}"
-fi
+# --- SessionStart probe: run by harness-ops behind bash_format_enabled ---
+# harness-ops' prerequisites-fleet.mjs runs this plugin's probe and skips it when the
+# option is set to anything but true; that runner's own test covers the gate.
+expect "prerequisites.json: session_probe is gated on bash_format_enabled" "BASH_FORMAT_ENABLED" \
+  "$(jq -r '.session_probe.run_if_unset_or_true' "$PLUGIN_ROOT/prerequisites.json" | tr -d '\r')"
 
 if ! command -v shfmt >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
   echo "SKIP: shfmt or jq not on PATH -- remaining bash-format hook tests skipped"

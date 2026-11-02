@@ -8,6 +8,14 @@
   "required": ["requires"],
   "properties": {
     "$schema": { "type": "string" },
+    "session_probe": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Opts the plugin into the harness-ops SessionStart prerequisites runner, which runs this plugin's lib/prerequisites.mjs probe. run_if_unset_or_true names the plugin's kill-switch option in capitals: the runner skips the probe when that option is set to anything but true.",
+      "properties": {
+        "run_if_unset_or_true": { "type": "string", "pattern": "^[A-Z0-9_]+$" }
+      }
+    },
     "requires": {
       "type": "array",
       "minItems": 1,
