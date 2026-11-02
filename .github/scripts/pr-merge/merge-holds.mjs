@@ -1535,11 +1535,6 @@ export function humanGatedLabel(tracker) {
   return typeof label === "string" && label.trim() ? label.trim() : "needs-human";
 }
 
-// The label report-outcome puts on a lanes App pull request that holds for a
-// person (report-outcome.mjs HUMAN_MERGE_HOLD). Only a listed person's own
-// removal lifts it (ci-status's `Fail a human-merge hold` step).
-export const HUMAN_MERGE_HOLD = "human-merge-hold";
-
 // The label security-outside-actor.yml puts on an item someone outside the
 // organization wrote on. It holds wherever the human-gated label holds, and
 // only a person removes it: no lane or sweep takes it off.
@@ -1550,8 +1545,8 @@ export const OUTSIDE_ACTOR_LABEL = "security: outside-actor";
 export const PR_VERIFY_FAILED_LABEL = "pr-verify-failed";
 
 // The hold labels on pull request `number`: `do-not-merge`, the tracker's
-// human-gated label, `pr-verify-failed`, HUMAN_MERGE_HOLD and
-// OUTSIDE_ACTOR_LABEL, one reason each. `labels` are
+// human-gated label, `pr-verify-failed` and OUTSIDE_ACTOR_LABEL, one reason
+// each. `labels` are
 // names or label objects; a list that is not an array throws.
 export function labelHolds(labels, tracker, number) {
   if (!Array.isArray(labels)) {
@@ -1564,8 +1559,6 @@ export function labelHolds(labels, tracker, number) {
     names.has(gated) && `#${number} carries '${gated}'; the merge queue removes it. Removing the label approves this pull request; re-queue it to merge.`,
     names.has(PR_VERIFY_FAILED_LABEL) &&
       `#${number} carries '${PR_VERIFY_FAILED_LABEL}': pr-verify failed its head, and a pass at a new commit removes the label. The merge queue removes it; re-queue it once the label is off.`,
-    names.has(HUMAN_MERGE_HOLD) &&
-      `#${number} carries '${HUMAN_MERGE_HOLD}': a person merges it. The merge queue removes it; a person on the trusted-actor list removing the label approves it, then re-queue it to merge.`,
     names.has(OUTSIDE_ACTOR_LABEL) &&
       `#${number} carries '${OUTSIDE_ACTOR_LABEL}': someone outside the organization wrote on it, and only a person removes the label. Re-queue it once the label is off.`,
   ].filter(Boolean);
@@ -1586,35 +1579,17 @@ export function switchHold(pull, { appId, disabled, repoDisabled } = {}) {
   return `#${pull.number}: the lanes kill switch is on (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false'), so no lanes App pull request merges; it merges once both read 'false' and ci-status is re-run, which the lost-runs reconciler does when this is the run's only failure.`;
 }
 
-// THE HOLDS THAT COST NO LANE WORK, for a queued pull request: its hold labels,
-// its head's pr-unblock stops and the lanes kill switch, from the pull request
-// as the pulls API returns it, its head's statuses newest first, the tracker
-// config (or null) and the kill switch's { appId, disabled, repoDisabled }.
-// select-tests runs this before the lanes; ci-status keeps judging each hold.
-export function queueHolds({ pull, statuses, tracker = null, lanes = {} } = {}) {
+// THE HOLDS THAT COST NO LANE WORK, for a queued pull request: its hold labels
+// and the lanes kill switch, from the pull request as the pulls API returns it,
+// the tracker config (or null) and the kill switch's { appId, disabled,
+// repoDisabled }. select-tests runs this before the lanes; ci-status keeps
+// judging each hold.
+export function queueHolds({ pull, tracker = null, lanes = {} } = {}) {
   const head = pull?.head?.sha;
   if (!Number.isInteger(pull?.number) || typeof head !== "string") {
     throw new Error("the pull request does not read");
   }
-  return [
-    ...labelHolds(pull.labels, tracker, pull.number),
-    ...unblockStops(statuses).map(
-      ({ context, state, description }) =>
-        `'${context}' is ${state} on ${head}: ${description}. The lane that stopped clears it by running again on this head, or a new head carries none.`,
-    ),
-    switchHold(pull, lanes),
-  ].filter(Boolean);
-}
-
-// Whether a person wrote the body of pull request `number` (personWrote); a
-// read that fails counts as a person.
-async function bodyByPerson(github, repo, number) {
-  const [owner, name] = repo.split("/");
-  try {
-    return personWrote((await github("POST", "/graphql", { query: BODY_WRITERS_QUERY, variables: { owner, name, number } }))?.data?.repository?.pullRequest);
-  } catch {
-    return true;
-  }
+  return [...labelHolds(pull.labels, tracker, pull.number), switchHold(pull, lanes)].filter(Boolean);
 }
 
 export async function main(argv = process.argv.slice(2), { env = process.env, github = fetchGitHub(env) } = {}) {
@@ -1654,10 +1629,6 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
     if (decision) {
       console.log(`#${number}: ${decision} records the owner's cost decision, which lifts its cost hold.`);
     }
-    const byPerson = BODY_HOLD.test(body) && !LANE_HOLD.test(body) && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo) ? await bodyByPerson(github, repo, Number(number)) : true;
-    if (!byPerson) {
-      console.log(`#${number}: its body's hold text is the lanes App's own, which holds nothing.`);
-    }
     const widened = actorsHold(await withActorContents(github, repo, changes, env.BASE_SHA, head));
     // PATH_HOLDS, merge.diff-check.path-holds as the base has it: only
     // "false" turns the hold paths off.
@@ -1672,7 +1643,9 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
       lifted = await liftersOf(github, repo, Number(number), head, humans, holdPaths);
     }
     const lifters = approved.length ? approved : lifted.lifters;
-    const reasons = holds(body, items, files, holdPaths, lifters, decision, byPerson, widened, pathHolds);
+    // A body hold and a member's veto are not judged here: the `do-not-merge`
+    // label is the veto, which ci-status's label steps hold on.
+    const reasons = holds("", [], files, holdPaths, lifters, decision, true, widened, pathHolds);
     const how = approved.length ? "approved this head" : "approved an earlier head whose every change since is a base merge";
     if (held && lifters.length && Array.isArray(holdPaths)) {
       console.log(`#${number}: ${lifters.join(", ")} ${how}, which lifts its hold path (${escape(held)}).`);
@@ -1681,7 +1654,7 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
       console.log(`#${number}: ${lifters.join(", ")} ${how}, which lifts its trusted-actor list hold (${escape(widened)}).`);
     }
     // The verifier's holds, recorded under their own annotation title
-    // (VERIFIER_TITLE): they share this step with the body and member holds.
+    // (VERIFIER_TITLE): they share this step with the path holds.
     const verifier = [];
     if (verdictsFile) {
       const unverified = verdictHold(lines(verdictsFile).map((line) => JSON.parse(line)), env.GITHUB_REPOSITORY);

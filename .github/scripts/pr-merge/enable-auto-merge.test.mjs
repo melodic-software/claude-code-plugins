@@ -2164,12 +2164,12 @@ test("the lane's own hold line holds a lanes App body", async () => {
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_3", head: HEAD }]);
 });
 
-// report-outcome labels a held PR human-merge-hold, so a lanes App edit of
+// report-outcome labels a held PR do-not-merge, so a lanes App edit of
 // the body (the hold line deleted, or the Refs line rewritten to a closing
 // line) leaves it unarmed while the label is on.
-test("a human-merge-hold label holds a lanes App PR whose body lost its hold line or its Refs line", async () => {
+test("a do-not-merge label holds a lanes App PR whose body lost its hold line or its Refs line", async () => {
   const appOnly = { totalCount: 0, nodes: [] };
-  const held = labels("human-merge-hold");
+  const held = labels("do-not-merge");
   const { writes } = await run([
     // The hold line deleted from a Refs PR's body.
     pull(1, { body: "Refs: #5\n\n## Summary", labels: held, userContentEdits: appOnly }),
@@ -2178,8 +2178,8 @@ test("a human-merge-hold label holds a lanes App PR whose body lost its hold lin
     pull(3, { body: "Closes #5\n\n## Summary", userContentEdits: appOnly }),
   ]);
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_3", head: HEAD }]);
-  assert.equal(holdReason({ labels: held, body: "Closes #5" }, "needs-human"), "it carries human-merge-hold");
-  assert.equal(holdReason({ labels: labels("Human-Merge-Hold"), body: "Closes #5" }, "needs-human"), "it carries human-merge-hold");
+  assert.equal(holdReason({ labels: held, body: "Closes #5" }, "needs-human"), "it carries do-not-merge");
+  assert.equal(holdReason({ labels: labels("Human-Merge-Hold"), body: "Closes #5" }, "needs-human"), null);
 });
 
 // Owner decision Q-HOLDLINE: report-outcome's own hold line is a cause a
@@ -3795,7 +3795,7 @@ test("with path holds off, a standing hold-path refusal comes off with no approv
 });
 
 // ci-status passes the base's merge.diff-check.path-holds as PATH_HOLDS.
-test("merge-holds.mjs holds no hold path from the command line with PATH_HOLDS false, and still holds a cost path or a body hold", () => {
+test("merge-holds.mjs holds no hold path from the command line with PATH_HOLDS false, and still holds a cost path but no body hold", () => {
   const dir = tempDir("merge-holds-");
   const head = "0123456789abcdef0123456789abcdef01234567";
   const cli = (files, pathHolds, body = "Closes #1") => {
@@ -3820,7 +3820,8 @@ test("merge-holds.mjs holds no hold path from the command line with PATH_HOLDS f
     assert.match(held.stdout, /it changes \.github\/scripts\/pr-merge\/clear-escalations\.mjs, a hold path/);
   }
   assert.equal(cli([["infra/main.tf"]], "false").status, 1);
-  assert.equal(cli([gate], "false", "Closes #1\n\nHold: wait for the owner").status, 1);
+  // The do-not-merge label is the veto; ci-status reads no body hold text.
+  assert.equal(cli([gate], "false", "Closes #1\n\nHold: wait for the owner").status, 0);
 });
 
 // The babysit gate's own path holds, recorded in a risk refusal before the

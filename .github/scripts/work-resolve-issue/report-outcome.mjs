@@ -180,9 +180,9 @@ export const HOLD_LINE = "Hold: a human merges this";
 // The work class of an issue that asks for a report and no change.
 const READ_ONLY_CLASS = "work-class: read-only";
 // The label a held PR carries from its opening. The hold line is body text the
-// lanes App can edit; ci-status fails while this label is on and unless a
-// listed person's own removal took it off (merge-holds.mjs HUMAN_MERGE_HOLD).
-export const HUMAN_MERGE_HOLD = "human-merge-hold";
+// lanes App can edit; ci-status fails while this label is on, and removing it
+// lifts the hold.
+export const HOLD_LABEL = "do-not-merge";
 const EXITS = new Set(["done", "pushback", "stopped"]);
 // The causes a pushback that reaches a person names: an intent question.
 const PUSHBACK_CAUSES = new Set(["intent", "intent-change"]);
@@ -2358,10 +2358,10 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         // cannot reach is closed rather than left held by body text alone.
         const labeled =
           !plan.hold ||
-          (await github("POST", `${repo}/issues/${pull.number}/labels`, { labels: [HUMAN_MERGE_HOLD] }, { safeToResend: true }).then(
+          (await github("POST", `${repo}/issues/${pull.number}/labels`, { labels: [HOLD_LABEL] }, { safeToResend: true }).then(
             () => true,
             (error) => {
-              console.log(`::warning title=report-outcome::could not label PR #${pull.number} ${HUMAN_MERGE_HOLD}: ${String(error?.message ?? error)}`);
+              console.log(`::warning title=report-outcome::could not label PR #${pull.number} ${HOLD_LABEL}: ${String(error?.message ?? error)}`);
               return false;
             },
           ));
@@ -2377,13 +2377,13 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         console.log(
           moved
             ? `report-outcome: closed PR #${pull.number}: its head is not ${plan.tip}, the tip the runner checked`
-            : `report-outcome: closed PR #${pull.number}: it holds for a person and could not be labeled ${HUMAN_MERGE_HOLD}`,
+            : `report-outcome: closed PR #${pull.number}: it holds for a person and could not be labeled ${HOLD_LABEL}`,
         );
         plan = routeStop(moved ? "pr-head-moved" : "hold-label-failed", {
           outcome: stopped(
             moved
               ? `The PR from \`${plan.branch}\` opened at a head other than ${plan.tip}, the tip the runner checked, so it was closed.`
-              : `The PR from \`${plan.branch}\` holds for a person, and the \`${HUMAN_MERGE_HOLD}\` label could not be added, so it was closed.`,
+              : `The PR from \`${plan.branch}\` holds for a person, and the \`${HOLD_LABEL}\` label could not be added, so it was closed.`,
           ),
           issueNumber,
           branch: plan.branch,

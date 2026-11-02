@@ -647,6 +647,8 @@ const ORDER = [
   "feedback-question-security",
   "feedback-question-intent",
   "feedback-question-design",
+  "feedback-disputed-security",
+  "feedback-uncertain-security",
   "feedback-disputed",
   "feedback-uncertain",
   "feedback-partial",
@@ -821,7 +823,12 @@ export async function settleDisputes({ api, pr, adjudicatedSha, headSha = adjudi
     }
     if (!adjudicable(comments)) {
       log(`${thread}: a CRITICAL finding, a security-review finding rated ${SECURITY_PERSON_SEVERITY} or above or unrated, or a person's own thread; it goes to a person, not to an adjudicator`);
-      raise(disposition === "INCORRECT" ? "feedback-disputed" : "feedback-uncertain");
+      // A reviewer's finding here is security (CRITICAL, or a rating a
+      // person decides or none), and so is a thread this round did not keep
+      // (fail safe): a person decides them. A person's own thread goes to a
+      // session.
+      const security = [undefined, "reviewer"].includes(comments?.[0]?.author) ? "-security" : "";
+      raise(`${disposition === "INCORRECT" ? "feedback-disputed" : "feedback-uncertain"}${security}`);
       continue;
     }
     const verdict = verdicts.get(thread);

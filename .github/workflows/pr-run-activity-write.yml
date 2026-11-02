@@ -683,6 +683,7 @@ jobs:
             "" | protected-path-conflict | workflow-staged | unexpected-path-staged | repeat-cap | unresolved-conflict) ;;
             feedback-protected-path | feedback-round-cap | feedback-not-converging | feedback-uncertain | feedback-not-landed | feedback-invalid) ;;
             feedback-partial | feedback-incomplete | feedback-disputed) ;;
+            feedback-round-cap-security | feedback-uncertain-security | feedback-disputed-security) ;;
             feedback-untaken-threads | feedback-publish-failed) ;;
             feedback-unadjudicated | feedback-question-intent | feedback-question-design) ;;
             feedback-question-security | feedback-stood-open | feedback-verifier-open) ;;
@@ -2152,6 +2153,7 @@ jobs:
             case "$FEEDBACK_REPLIES_DIR:$escalation" in
               ?*:feedback-uncertain | ?*:feedback-not-landed | ?*:feedback-invalid) ;;
               ?*:feedback-partial | ?*:feedback-incomplete | ?*:feedback-disputed) ;;
+              ?*:feedback-uncertain-security | ?*:feedback-disputed-security) ;;
               ?*:feedback-unadjudicated | ?*:feedback-question-intent | ?*:feedback-question-design) ;;
               ?*:feedback-question-security | ?*:feedback-stood-open | ?*:feedback-verifier-open) ;;
               :ci-fix-invalid | :ci-fix-protected-path | :ci-fix-not-applied | :patch-invalid | :patch-credential | :patch-protected-path | :patch-not-applied | :patch-empty)
