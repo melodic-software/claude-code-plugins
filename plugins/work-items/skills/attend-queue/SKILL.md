@@ -236,41 +236,21 @@ never compress this restatement away.
   autonomous-eligible role label and remove the human-gated role label **in the same edit** (both
   resolved from `config.role_labels`, never literals), an item wearing both roles is a
   contradiction. The item re-enters the worker loop's frontier on its next cycle; do not dispatch
-  it from this lane. **Read the item's `work-class:` label first: a missing class or a human-floor
-  class blocks this plain flip**, per the two branches below. The flip and both branches are for
-  issues only: a pull request, whatever its row kind, never takes the autonomous-eligible role or a
-  `work-class:` label.
-- **No recorded class: stamp, then flip.** An item with no `work-class:` label never takes the
-  plain flip (the autonomous-eligible role without a class is the pairing defect
-  `/work-items:triage` forbids, and the admission gate never admits it). An unattended triage lane
-  that may not record a class leaves this row, its marker comment carrying a
-  `Proposed work class:` line
-  ([`${CLAUDE_PLUGIN_ROOT}/reference/escalation-marker.md`](${CLAUDE_PLUGIN_ROOT}/reference/escalation-marker.md)).
-  Put the proposed class and its basis to the operator, who confirms or changes it. For a C1-C3
-  class, **one edit** applies that `work-class:` label and the autonomous-eligible role and
-  removes the human-gated role; record the stamped class as a reply comment. When this session's
-  standing direction forbids writing `work-class:` labels, hand the operator that edit as a
-  ready-to-paste command instead, one line per item and one command per proposed class, and
-  re-read the labels before clearing `@me`. A C4/C5 answer applies the class label alone and the
-  item stays human-gated, per the branch below.
-- **Human-floor work class: reclassify or stay gated, never the plain flip.** An item carrying
-  `work-class: structural` (C4) or `work-class: untrusted-provenance` (C5) is not resolved by the
-  plain flip
-  ([`${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md)
-  "The human-floor class excludes the autonomous-eligible role label"). The two classes now differ
-  at the frontier and the admission gate. `work-class: untrusted-provenance` is still floored:
+  it from this lane. No work class, and no missing one, blocks this flip; only
+  `work-class: untrusted-provenance` or `provenance: signal` does, per the branch below. The flip
+  and that branch are for issues only: a pull request, whatever its row kind, never takes the
+  autonomous-eligible role or a `work-class:` label.
+- **Untrusted provenance: reclassify or stay gated, never the plain flip.** An item carrying
+  `work-class: untrusted-provenance` (C5) or `provenance: signal` is not resolved by the plain
+  flip ([`${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md)
+  "The human-floor class excludes the autonomous-eligible role label"). It is floored:
   `list-frontier --autonomous` drops it and the work-loop's provenance hold escalates it, so
   **removing the human-gated role label strands it**, since this lane's attention view keys on that
-  role label plus a marker comment and nothing lists the item again. `work-class: structural` is no
-  longer floored: neither `list-frontier --autonomous` nor the admission gate drops it, so removing
-  the human-gated role label puts it back on the autonomous frontier, where the work-loop admits
-  it. Whether a structural item may go there is the reclassify policy, which is pending slice S2
-  ([#12060](https://github.com/melodic-software/claude-code-plugins/issues/12060)); until S2 settles
-  it, resolve a structural row by one of the two branches below, never the plain flip. Resolve such
-  a row one of two ways:
-  - **Reclassify, then flip**, when the operator's answer genuinely narrows the work to an
-    autonomously dispatchable class (C1-C3). Replace the `work-class:` label with the new member
-    and perform the role-label flip **in the same edit**, and record the reclassification and the
+  role label plus a marker comment and nothing lists the item again. Resolve such a row one of two
+  ways:
+  - **Reclassify, then flip**, when the operator's answer establishes the item is trusted. A
+    person with `write` removes the provenance labels, under the provenance-removal rule above,
+    and the same edit performs the role-label flip; record the reclassification and the
     operator's reason as a comment. The item is then no longer floored and re-enters the worker
     frontier on its next cycle like any other flipped item.
   - **Keep it human-gated**, when the class stands, which is the default. Leave the human-gated
@@ -403,11 +383,8 @@ placeholder before running a command or writing it into a brief.
   `list-frontier --autonomous`.
 - **Never clear the human-gated role off a floor class.** A `work-class: untrusted-provenance`
   item stripped of it is floored out of `list-frontier --autonomous` and matches no row condition
-  here, so no lane surfaces it again. A `work-class: structural` item stripped of it is no longer
-  floored and goes back onto the autonomous frontier, where the work-loop admits it; the reclassify
-  policy for structural items is pending slice S2
-  ([#12060](https://github.com/melodic-software/claude-code-plugins/issues/12060)). Either way,
-  reclassify it in the same edit as the flip, or leave the role label alone.
+  here, so no lane surfaces it again. Reclassify it in the same edit as the flip, or leave the
+  role label alone.
 - **Judgment lane only.** Resolving an escalation never turns into executing the item here; the
   worker loop picks it up through the frontier. Executing from this lane would bypass the seam
   claim and the topology's single-authority rule.

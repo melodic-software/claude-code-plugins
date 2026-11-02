@@ -18,7 +18,7 @@ this leaf owns the **label strings** triage stamps and setup migrates.
 | `work-class: untrusted-provenance` | C5 | Outside the org's trust boundary (fork PR, external contribution, or an item filed from a signal and labeled `provenance: signal`); isolated, human-merged. |
 
 Discover live members through the bound adapter's label listing (GitHub:
-`gh label list --limit 200 | grep -i work-class`). An item carries **exactly one**
+`gh label list --limit 200 | grep -i work-class`). An item carries **at most one**
 `work-class:` label; the merge partition and the frontier floor read the label only, never a
 `Work-class: C<n>` body trailer.
 
@@ -68,22 +68,23 @@ Enforcement, so the rule is not merely written down:
   label nor an intake condition matches no row in that view and is floored out of the
   autonomous frontier, which leaves it reachable by no lane. That is why the attended lane's
   "Flip to agent-ready" transition refuses to strip the human-gated role label off a floor-class
-  item unless the same edit reclassifies it to C1-C3
-  ([`../skills/attend-queue/SKILL.md`](../skills/attend-queue/SKILL.md), "Human-floor work class:
+  item unless the same edit removes its provenance labels
+  ([`../skills/attend-queue/SKILL.md`](../skills/attend-queue/SKILL.md), "Untrusted provenance:
   reclassify or stay gated").
 
 Remediation when the pair is found on an existing item: keep the work class, remove the
 autonomous-eligible role label, and apply the human-gated role label (default `needs-human`)
 so the item routes to the attended lane. Resolving the escalation that follows does **not**
-lift the floor: the attended lane either reclassifies the item to an autonomously dispatchable
-class in the same edit as the role-label flip, or leaves it human-gated with its completion
-route recorded as a comment. A floor-class item never leaves the attended lane carrying the
-autonomous-eligible role label alone.
+lift the floor: the attended lane either removes the provenance labels in the same edit as the
+role-label flip, once a person with `write` establishes the item is trusted, or leaves it
+human-gated with its completion route recorded as a comment. A floor-class item never leaves the
+attended lane carrying the autonomous-eligible role label alone.
 
 ## Migration
 
-Repos adopting triage's autonomous-eligible outcomes or the work-loop admission gate need all
-five labels present **before** triage applies `agent-ready`.
+Triage applies `agent-ready` with or without a `work-class:` label, so a missing member does not
+stop an autonomous-eligible outcome. Triage needs `work-class: untrusted-provenance` before it
+labels a signal-marked item, and a member before it stamps that member.
 
 1. **Label-as-code owner declared.** Route provisioning to that system; `/work-items:setup`
    validates presence only and never writes labels ad hoc.
@@ -92,5 +93,6 @@ five labels present **before** triage applies `agent-ready`.
    label-creation mechanics using the descriptions above. An unattended `apply` stops with an
    explicit remediation instead of guessing.
 
-Triage and setup both fail closed when any canonical member is absent: triage before mutating
-an item, setup in `check` and at the start of `apply`'s migration pass.
+Setup fails closed when any canonical member is absent, in `check` and at the start of `apply`'s
+migration pass. Triage stops before mutating an item only when the label its edit would apply is
+absent.

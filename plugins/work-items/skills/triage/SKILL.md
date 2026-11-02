@@ -35,11 +35,12 @@ It binds every step below, hardest at step 1.
 
 ## Scope: raw intake only
 
-**Classification vocabulary.** Autonomous routing uses the `work-class:` label axis (`read-only`,
+**Classification vocabulary.** The merge partition and the untrusted-provenance floor read the `work-class:` label axis (`read-only`,
 `mechanical`, `scoped`, `structural`, `untrusted-provenance`). Human-readable aliases of the
 autonomy plugin's `C1`–`C5` contract. Canonical members and migration status:
 [`${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md);
-read it before the work-class pairing step below applies a member. `T1`/`T2`/`T3` and
+read it before step 5 stamps a member. No class gates the autonomous-eligible role label; only
+`work-class: untrusted-provenance` and `provenance: signal` keep an item off it. `T1`/`T2`/`T3` and
 `simple`/`medium`/`complex` are not classification metadata (loop-lane status lines may report
 simple/medium/complex counts as lane-local telemetry only). The separate frontier
 capability-tier stamp (`capability-tier: frontier`) has its own canonical member and migration
@@ -74,8 +75,8 @@ posts the brief, replaces `status: confirmed`, and `status:needs-info` replaces 
 
 **A briefed item takes one of three exits**, distinguished by the decision its brief carries:
 
-- **delegable**. Fully specified with no open decision → autonomous-eligible role (default `agent-ready`); a lane barred from writing `work-class:` labels human-gates it with a proposed class instead ([`context/apply-outcome.md`](context/apply-outcome.md), "Lane barred from recording a class").
-- **decision-defaulted**, a single-fork item whose brief carries a well-grounded RECOMMENDED answer with only a maintainer-vetoable (reversible) alternative → autonomous-eligible role with `status:ready`, plus a `Decision defaulted: X — veto before merge` comment (a lane barred from recording a class human-gates it instead, as above). The default rides in; a maintainer vetoes before merge if it is wrong. **Well-grounded** means the recommendation-basis grounding bar ([`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md); full convention: [grounding bar](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/recommendation-basis/README.md#grounding-bar)): the affected code and its consumers read, and, for a consequential item (cross-repo, shared infrastructure, irreversible, or security), external research reading official docs first. The `Decision defaulted` comment carries the answer's `Basis:` on the line after its prefix line, `verified, <file:line, tool output, or URL fetched this session>` or `judgment` (the comment rather than the brief, which carries no file paths or line numbers); a `judgment` basis on a consequential item is not well-grounded. A consequential answer research cannot settle is withheld: no RECOMMENDED answer and no `Decision defaulted` comment; the item routes to human-gated with the open question and the evidence that would settle it in its brief.
+- **delegable**. Fully specified with no open decision → autonomous-eligible role (default `agent-ready`), with or without a `work-class:` label ([`context/apply-outcome.md`](context/apply-outcome.md), "Work class does not gate the role label").
+- **decision-defaulted**, a single-fork item whose brief carries a well-grounded RECOMMENDED answer with only a maintainer-vetoable (reversible) alternative → autonomous-eligible role with `status:ready`, plus a `Decision defaulted: X — veto before merge` comment. The default rides in; a maintainer vetoes before merge if it is wrong. **Well-grounded** means the recommendation-basis grounding bar ([`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md); full convention: [grounding bar](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/recommendation-basis/README.md#grounding-bar)): the affected code and its consumers read, and, for a consequential item (cross-repo, shared infrastructure, irreversible, or security), external research reading official docs first. The `Decision defaulted` comment carries the answer's `Basis:` on the line after its prefix line, `verified, <file:line, tool output, or URL fetched this session>` or `judgment` (the comment rather than the brief, which carries no file paths or line numbers); a `judgment` basis on a consequential item is not well-grounded. A consequential answer research cannot settle is withheld: no RECOMMENDED answer and no `Decision defaulted` comment; the item routes to human-gated with the open question and the evidence that would settle it in its brief.
 - **human-gated**. Only when the item meets the label test below → human-gated role (default `needs-human`).
 
 **Human-gated label test.** The human-gated role label applies only when the item needs at least
@@ -84,17 +85,16 @@ one of:
 1. **An irreversible act**: a step that cannot be undone or reviewed before it lands, such as
    deleting data, publishing, or a migration with no way back.
 2. **A person's consent**: an approval only a person may give, such as a manual QA or UX sign-off,
-   admitting a human-floor work class, acting on signal provenance, or stamping a class a lane may
-   not record.
+   admitting an untrusted-provenance item, or acting on signal provenance.
 3. **A secret**: a credential, key, or access only a person holds.
 4. **A design choice the owner has not made**: open design space, product intent, cross-repo
    policy, or a withheld consequential answer.
 
 A reversible change with a well-grounded recommendation (the decision-defaulted exit's bar) meets
 none of them: it takes the decision-defaulted exit, never this label. The rules in
-[`context/apply-outcome.md`](context/apply-outcome.md) that apply the label for a human-floor
-class, a signal-marked item, a lane barred from recording a class, or a decomposition or probe a
-person must start are instances of part 2.
+[`context/apply-outcome.md`](context/apply-outcome.md) that apply the label for an
+untrusted-provenance or signal-marked item, or a decomposition or probe a person must start, are
+instances of part 2.
 
 ```text
 raw → verified → briefed
@@ -237,9 +237,7 @@ machine and changes no label but that one.
 1. **List** open issues carrying the label (adapter: "List items", label filter), after the
    lane-infrastructure exclusion. Skip pull requests and every item whose label a rule set, a
    queue reads, or a person put back:
-   - a human-floor class (`work-class: structural` or `work-class: untrusted-provenance`), or no
-     `work-class:` label at all, since admission never takes an unclassed item;
-   - `provenance: signal`;
+   - `work-class: untrusted-provenance` or `provenance: signal`;
    - an escalation marker from a
      [trusted escalation author](${CLAUDE_PLUGIN_ROOT}/reference/escalation-marker.md#trusted-escalation-authors);
    - issue dimensions that human-gated it (a split size or an uncertainty mode other than `run`);
@@ -380,7 +378,7 @@ Instead, route it to `/planning:interview`. Once the direction gate is met, run 
 cannot be posted, apply no label. Then, in one label edit, apply `needs-spec` and remove the raw
 marker. Apply no `status:`, priority, work-class or role label, except that a signal-marked idea
 issue also gets `provenance: signal` and `work-class: untrusted-provenance` (`provenance: signal`
-alone in a lane barred from recording a class), and never the human-gated role label. In an
+alone in a lane that may not write `work-class:` labels), and never the human-gated role label. In an
 interactive session, offer to run `/planning:interview` on the item now. A lane does not run it.
 Once an interview records the item's intent, return it to raw in one label edit that removes
 `needs-spec` and restores the raw marker, then triage it from step 1. A request whose purpose is
