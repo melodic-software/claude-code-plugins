@@ -1,0 +1,20 @@
+ ▝▝   ▝▝   Opus 5.5 · Claude Max
+
+   Settings  Status   Config   Usage   Stats
+
+   Session
+
+   Total cost:            $1.2345
+   Total duration (API):  0s
+   Total duration (wall): 14s
+   Total code changes:    0 lines added, 0 lines removed
+   Usage:                 120 input, 34 output, 0 cache read, 0 cache write
+
+   Current week (all models)
+   ███████████████████████                            42% used
+   Resets Jan 7, 9am (Etc/UTC)
+
+   Usage credits
+   Usage credits are off · /usage-credits to turn them on
+
+   Esc to cancel
