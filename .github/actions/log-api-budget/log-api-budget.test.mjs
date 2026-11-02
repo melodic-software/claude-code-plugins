@@ -204,41 +204,16 @@ test("recordReading appends the same line shape, na for a missing or malformed v
     assert.equal(existsSync(join(dir, "api-budget", "lanes-app")), false);
   }));
 
-// [URL or gh api path, route, the names in the input no route may carry].
-// A token-shaped segment, built so no secret scanner reads it as one.
+// [URL or gh api path, route, the names in the input no route may carry]:
+// rate-guard.vectors.json's routes, which babysit_gh.py's api_route reads
+// too, and the token-shaped ones, built here so no secret scanner reads a
+// committed file's segment as one.
 const PAT = ["ghp", "abcdefghijklmnopqrstuvwxyz0123456789"].join("_");
 const ROUTES = [
-  ["https://api.github.com/repos/melodic-software/claude-code-plugins/issues/42/comments?per_page=100&page=2", "repos/{repo}/issues/{n}/comments", ["melodic", "claude-code-plugins", "per_page", "page=2"]],
-  ["repos/{owner}/{repo}/pulls/7/files", "repos/{repo}/pulls/{n}/files", ["{owner}"]],
-  ["/repos/o/r/commits/0123456789abcdef0123456789abcdef01234567/check-runs", "repos/{repo}/commits/{sha}/check-runs", ["0123456789abcdef"]],
-  ["repos/o/r/actions/runs/39931677333/attempts/2/jobs", "repos/{repo}/actions/runs/{n}/attempts/{n}/jobs", ["39931677333"]],
-  ["https://api.github.com/graphql", "graphql", []],
-  ["https://ghe.example/api/graphql", "graphql", ["ghe.example"]],
-  ["https://ghe.example/api/v3/repos/o/r/labels/needs-human", "repos/{repo}/labels/{x}", ["ghe.example", "needs-human"]],
+  ...JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8")).routes.map(({ url, route, absent }) => [url, route, absent]),
   [`search/issues?q=repo:o/r+is:open&access_token=${PAT}`, "search/issues", [PAT, "access_token", "is:open"]],
   [`repos/o/r/contents/.github/${PAT}`, "repos/{repo}/contents/{x}/{x}", [PAT, ".github"]],
   [`user/${PAT}`, "user/{x}", [PAT]],
-  ["user/github_pat_abc", "user/{x}", ["github_pat_abc"]],
-  ["repos/o/r/git/ref/heads/feature/fix-it", "repos/{repo}/git/ref/{x}/{x}/{x}", ["feature", "fix-it"]],
-  ["repos/o/r/branches/main/protection", "repos/{repo}/branches/{x}/protection", ["main"]],
-  ["users/SomeLogin/repos", "users/{x}/repos", ["SomeLogin"]],
-  ["repos/o/r/actions/workflows/pr-verify.yml/runs", "repos/{repo}/actions/workflows/{x}/runs", ["pr-verify"]],
-  ["repos/o/r/issues/1/comments#frag", "repos/{repo}/issues/{n}/comments", ["frag"]],
-  ["repos/o/r/hello world", "repos/{repo}/{x}", ["hello"]],
-  ["/repos/o/r/rules/branches/stale-feature-name", "repos/{repo}/rules/branches/{x}", ["stale-feature-name"]],
-  ["repos/o/r/branches/feat/secret-topic/protection", "repos/{repo}/branches/{x}/{x}/protection", ["feat", "secret-topic"]],
-  ["repos/o/r/commits/release-candidate/status", "repos/{repo}/commits/{x}/status", ["release-candidate"]],
-  ["repos/o/r/git/trees/main?recursive=1", "repos/{repo}/git/trees/{x}", ["main", "recursive"]],
-  ["repos/o/r/labels/area/ci", "repos/{repo}/labels/{x}/{x}", ["area", "ci"]],
-  ["repos/o/r/actions/runners/build-box-seven", "repos/{repo}/actions/{x}/{x}", ["runners", "build-box-seven"]],
-  ["repos/someowner", "repos/{x}", ["someowner"]],
-  ["applications/Iv1abcdef/token", "{x}/{x}/{x}", ["applications", "Iv1abcdef", "token"]],
-  ["https://github.com/someowner/somerepo/pull/5", "other", ["someowner", "somerepo", "github.com"]],
-  ["https://uploads.github.com/repos/o/r/releases/9/assets?name=secret-asset.zip", "repos/{repo}/releases/{n}/{x}", ["secret-asset", "assets"]],
-  ["rate_limit", "rate_limit", []],
-  ["", "other", []],
-  ["https://api.github.com/", "other", []],
-  [`repos/o/r/${"issues/".repeat(12)}comments`, "other", []],
 ];
 
 test("routeOf and the shell's api_route template each request path alike, leaking nothing", () =>
@@ -359,16 +334,16 @@ test("the action emits each named token, the call count as an api-calls notice t
     assert.equal(
       out,
       "::notice title=api-calls::lanes-app=0 not-modified=0 graphql=0\n" +
-        `${NOTICE}token=github-token ${WHERE} limit=5000 remaining=4959 used=41 reset=1792748042 resource=core cost=28\n` +
         "::notice title=api-calls::github-token=2 not-modified=1 graphql=0\n" +
-        "::notice title=api-routes::lanes-app rest=0\n::notice title=api-routes::github-token other=2 rest=0\n",
+        "::notice title=api-routes::lanes-app rest=0\n::notice title=api-routes::github-token other=2 rest=0\n" +
+        `${NOTICE}token=github-token ${WHERE} limit=5000 remaining=4959 used=41 reset=1792748042 resource=core cost=28\n`,
     );
     assert.equal(
       readFileSync(join(dir, "summary"), "utf8"),
       "api-calls lanes-app=0 not-modified=0 graphql=0\n" +
-        `api-budget: token=github-token ${WHERE} limit=5000 remaining=4959 used=41 reset=1792748042 resource=core cost=28\n` +
         "api-calls github-token=2 not-modified=1 graphql=0\n" +
-        "api-routes lanes-app rest=0\napi-routes github-token other=2 rest=0\ngithub-token-cost=28\n",
+        "api-routes lanes-app rest=0\napi-routes github-token other=2 rest=0\n" +
+        `api-budget: token=github-token ${WHERE} limit=5000 remaining=4959 used=41 reset=1792748042 resource=core cost=28\ngithub-token-cost=28\n`,
     );
     // calls: each token's own requests (2 counted plus a 304 is 2), not the counter's rise (28).
     assert.equal(readFileSync(join(dir, "output"), "utf8"), "calls=lanes-app-calls=0 github-token-calls=2\ncosts=github-token-cost=28\n");
@@ -952,7 +927,7 @@ test("the gh wrapper counts a content write, and the action emits the count and 
     assert.equal(bash(dir, "api_budget_emit_content").stdout, "");
   }));
 
-test("the action writes the content-creation notice after the token lines", () =>
+test("the action writes the content-creation notice after the counting lines", () =>
   withDir((dir) => {
     mkdirSync(join(dir, "api-budget"), { recursive: true });
     writeFileSync(join(dir, "api-budget", "content-creation"), "1792748000\n");
@@ -972,11 +947,35 @@ test("the action writes the content-creation notice after the token lines", () =
         TOKENS: "github-token",
       },
     });
-    assert.equal(out, `::notice title=api-calls::github-token=0 not-modified=0 graphql=0\n${NOTICE}content-creation ${WHERE} count=1 max-per-minute=1\n::notice title=api-routes::github-token rest=0\n`);
+    assert.equal(out, `::notice title=api-calls::github-token=0 not-modified=0 graphql=0\n::notice title=api-routes::github-token rest=0\n${NOTICE}content-creation ${WHERE} count=1 max-per-minute=1\n`);
     assert.equal(
       readFileSync(join(dir, "summary"), "utf8"),
-      `api-calls github-token=0 not-modified=0 graphql=0\napi-budget: content-creation ${WHERE} count=1 max-per-minute=1\napi-routes github-token rest=0\n`,
+      `api-calls github-token=0 not-modified=0 graphql=0\napi-routes github-token rest=0\napi-budget: content-creation ${WHERE} count=1 max-per-minute=1\n`,
     );
+  }));
+
+test("with two tokens, many counters and a content write, every counting line is among the step's first 10 notices", () =>
+  withDir((dir) => {
+    // Five counters (resource and reset) per token: ten api-budget lines.
+    for (const token of ["lanes-app", "github-token"]) {
+      readEach(dir, token, ...[1, 2, 3, 4, 5].map((i) => head({ used: i, reset: 1792748040 + i, resource: i % 2 ? "core" : "graphql" })));
+    }
+    writeFileSync(join(dir, "api-budget", "content-creation"), "1792748000\n");
+    const run = /\n {6}run: \|\n([\s\S]*)$/.exec(ACTION)[1].replace(/^ {8}/gm, "");
+    writeFileSync(join(dir, "summary"), "");
+    writeFileSync(join(dir, "output"), "");
+    const out = execFileSync("bash", ["-c", run], {
+      encoding: "utf8",
+      env: { PATH: process.env.PATH, ...RUNNER, RUNNER_TEMP: dir, TMPDIR: dir, GITHUB_ACTION_PATH: new URL(".", import.meta.url).pathname, GITHUB_STEP_SUMMARY: join(dir, "summary"), GITHUB_OUTPUT: join(dir, "output"), TOKENS: "lanes-app github-token" },
+    });
+    const notices = out.split("\n").filter((line) => line.startsWith("::notice "));
+    assert.equal(notices.length, 15);
+    const first = notices.slice(0, 10).join("\n");
+    for (const token of ["lanes-app", "github-token"]) {
+      assert.match(first, new RegExp(`title=api-calls::${token}=5 `));
+      assert.match(first, new RegExp(`title=api-routes::${token} `));
+    }
+    assert.match(first, /content-creation/);
   }));
 
 // Every lane job that calls GitHub through the rate guard names its token and
