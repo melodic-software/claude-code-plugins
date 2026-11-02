@@ -16,10 +16,10 @@ ships; this page says how to run it across a plugin. "Step N" below is the proto
   sandbox backend, and the skill names the route when this host has none or when the CLI refuses a
   repository with many linked worktrees.
 - Each eval pass is a paid run. `/evals:plugin-eval` estimates every pass before it starts and
-  stops at the configured ceiling; set the ceiling for the whole plugin, step 5's control passes
+  stops at the configured ceiling; set the ceiling for the whole plugin, step 4's control passes
   included, before step 4, because a pass cut short by the ceiling is not comparable.
 - Work on a branch from the default branch and open the pull request as a draft.
-- Preregister step 5's negative control in the draft pull request body before the first paid run
+- Preregister step 4's negative control in the draft pull request body before the first paid run
   (step 2's smoke pass): each degraded copy, its model and the two detection thresholds. A control
   chosen after seeing scores can be picked to pass.
 
@@ -67,7 +67,7 @@ ships; this page says how to run it across a plugin. "Step N" below is the proto
 6. **Meaning diff (step 5).** Run `/docs-hygiene:compress compare` with two independent labelers
    and take the union of their losses, since one labeler can miss a loss the other catches.
 7. **Decide (step 6).** Decide each skill's description and body separately. An unmeasurable part
-   (step 5's negative control) ships its before text, whatever its own pass shows. Put the
+   (step 4's negative control) ships its before text, whatever its own pass shows. Put the
    per-skill decision table in the pull request body, with the numbers behind each row and each
    control's before and degraded scores.
 8. **Ship (step 7).** Commit the skills, cases, fixtures and probe files, plus the plugin's version
