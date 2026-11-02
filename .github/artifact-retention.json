@@ -1,6 +1,17 @@
 {
   "$schema": "./artifact-retention.schema.json",
   "families": {
+    "pr-verify-index-*": {
+      "retention-days": "max",
+      "readers": [
+        "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py Reader._targeted finds every FAIL by these exact names instead of the whole artifact listing"
+      ],
+      "max-reader": "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
+      "reason": "Each index artifact is how the gate finds its FAIL, so it keeps the FAIL's own retention (write-verdict.mjs retentionDays, max for a FAIL): an index that expired first would hide a FAIL that still counts. It holds only the FAIL's artifact name, built from numbers and a SHA, and no model text, so no leak scan runs over it.",
+      "scan": "none",
+      "computed-by": ".github/scripts/pr-verify/write-verdict.mjs",
+      "uploads": [".github/actions/upload-fail-index/action.yml#runs"]
+    },
     "pr-verify-*": {
       "retention-days": "max",
       "readers": [

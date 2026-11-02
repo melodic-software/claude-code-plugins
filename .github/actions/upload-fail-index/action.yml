@@ -1,0 +1,136 @@
+name: Upload a FAIL's index artifacts
+description: >
+  Upload one small artifact per name in `names` (write-verdict.mjs
+  failIndexNames: the pull request, the head, the head branch's digest and each
+  issue the FAIL records), each holding `path`, so the pr-merge lane's reader
+  finds every FAIL by exact-name lookups instead of the repository's whole
+  artifact listing (babysit_verify_evidence.py `Reader._targeted`). The FAIL's
+  upload must require this step's success: a FAIL with no index is one that
+  reader cannot see, and a failed index upload leaves no verdict at all. More
+  names than slots fail the step. A name the run already holds (an earlier
+  attempt's upload) fails the step too, so a re-run attempt writes no FAIL:
+  replacing the name would delete the earlier attempt's pointer first, and
+  keeping it would leave a new FAIL that outlives its index.
+
+inputs:
+  names:
+    description: The index artifact names, one per line (at most 13).
+    required: true
+  path:
+    description: The file each index artifact holds.
+    required: true
+  retention-days:
+    description: The FAIL's retention, which each index keeps.
+    required: true
+  github-token:
+    description: A token that can read this run's artifacts (actions read).
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Split the names
+      id: slots
+      shell: bash
+      env:
+        NAMES: ${{ inputs.names }}
+        RETENTION: ${{ inputs.retention-days }}
+        GH_TOKEN: ${{ inputs.github-token }}
+        REPO: ${{ github.repository }}
+        RUN_ID: ${{ github.run_id }}
+      run: |
+        case "$RETENTION" in
+        [1-9] | [1-8][0-9] | 90) echo "retention-days=$RETENTION" >>"$GITHUB_OUTPUT" ;;
+        *)
+          echo "::error::retention-days is not 1 to 90"
+          exit 1
+          ;;
+        esac
+        mapfile -t names < <(printf '%s\n' "$NAMES" | sed '/^$/d')
+        if [ "${#names[@]}" -lt 3 ] || [ "${#names[@]}" -gt 13 ]; then
+          echo "::error::${#names[@]} FAIL index names, not 3 to 13"
+          exit 1
+        fi
+        # The names this run holds already, every attempt's, in one read
+        # that must hold its own count.
+        if ! body=$(gh api "repos/$REPO/actions/runs/$RUN_ID/artifacts?per_page=100"); then
+          echo "::error::the run's artifacts could not be read"
+          exit 1
+        fi
+        if ! jq -e '.total_count == (.artifacts | length) and .total_count < 100' <<<"$body" >/dev/null; then
+          echo "::error::the run's artifacts do not hold their count"
+          exit 1
+        fi
+        mapfile -t held < <(jq -r '.artifacts[].name' <<<"$body")
+        slot=0
+        for name in "${names[@]}"; do
+          case "$name" in
+          pr-verify-index-[a-z]*-[0-9a-f]*) ;;
+          *)
+            echo "::error::a FAIL index name no reader takes"
+            exit 1
+            ;;
+          esac
+          found=
+          for have in "${held[@]}"; do
+            if [ "$have" = "$name" ]; then found=1; fi
+          done
+          if [ -n "$found" ]; then
+            echo "::error::$name is held by an earlier attempt of this run, so this attempt writes no FAIL"
+            exit 1
+          fi
+          slot=$((slot + 1))
+          echo "n$slot=$name" >>"$GITHUB_OUTPUT"
+        done
+    - name: Upload index 1
+      if: ${{ steps.slots.outputs.n1 != '' }}
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with: { name: "${{ steps.slots.outputs.n1 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error }
+    - name: Upload index 2
+      if: ${{ steps.slots.outputs.n2 != '' }}
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with: { name: "${{ steps.slots.outputs.n2 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error }
+    - name: Upload index 3
+      if: ${{ steps.slots.outputs.n3 != '' }}
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with: { name: "${{ steps.slots.outputs.n3 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error }
+    - name: Upload index 4
+      if: ${{ steps.slots.outputs.n4 != '' }}
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with: { name: "${{ steps.slots.outputs.n4 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error }
+    - name: Upload index 5
+      if: ${{ steps.slots.outputs.n5 != '' }}
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with: { name: "${{ steps.slots.outputs.n5 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error }
+    - name: Upload index 6
+      if: ${{ steps.slots.outputs.n6 != '' }}
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with: { name: "${{ steps.slots.outputs.n6 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error }
+    - name: Upload index 7
+      if: ${{ steps.slots.outputs.n7 != '' }}
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with: { name: "${{ steps.slots.outputs.n7 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error }
+    - name: Upload index 8
+      if: ${{ steps.slots.outputs.n8 != '' }}
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with: { name: "${{ steps.slots.outputs.n8 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error }
+    - name: Upload index 9
+      if: ${{ steps.slots.outputs.n9 != '' }}
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with: { name: "${{ steps.slots.outputs.n9 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error }
+    - name: Upload index 10
+      if: ${{ steps.slots.outputs.n10 != '' }}
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with: { name: "${{ steps.slots.outputs.n10 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error }
+    - name: Upload index 11
+      if: ${{ steps.slots.outputs.n11 != '' }}
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with: { name: "${{ steps.slots.outputs.n11 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error }
+    - name: Upload index 12
+      if: ${{ steps.slots.outputs.n12 != '' }}
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with: { name: "${{ steps.slots.outputs.n12 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error }
+    - name: Upload index 13
+      if: ${{ steps.slots.outputs.n13 != '' }}
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with: { name: "${{ steps.slots.outputs.n13 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error }
