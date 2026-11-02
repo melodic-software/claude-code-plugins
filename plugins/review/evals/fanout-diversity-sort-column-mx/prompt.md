@@ -1,5 +1,5 @@
 ---
-description: "Reviewer-diversity eval, decoy fixture sort-column, arm M+X (fanout_diversity model, plus Codex): /review:fanout run-everything on a correct commit that adds a product sort whose column is interpolated into the SQL from a fixed map Probe result (#12151, 2026-11-02): L and M tie at 24/24 recall, so lens stays the default; the Codex arms are not measurable under codex 1.0.6 (#12495)."
+description: "Reviewer-diversity eval, decoy fixture sort-column, arm M+X (fanout_diversity model, plus Codex): /review:fanout run-everything on a correct commit that adds a product sort whose column is interpolated into the SQL from a fixed map. Probe result: L and M tie at 24/24 recall, so lens stays the default; the Codex arms are not measurable under codex 1.0.6 (#12151, 2026-11-02; #12495)."
 tags: [review, fanout-diversity, arm-mx, decoy]
 runs: 3
 max_turns: 80
