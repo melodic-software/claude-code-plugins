@@ -4544,6 +4544,196 @@ hook::_bps_chars() {
   done
 }
 
+# hook::_bps_hd_spans <start> <end>: append to hook::bash_parse_segments_uncached's
+# `hd_spans` one `<from> <to>` byte range of `chars` for each substitution bash
+# runs in the unquoted here-doc body chars[start..end). bash expands such a body
+# as it expands a double-quoted string, `"` aside (Here Documents, Bash
+# Reference Manual): a `\` before `$`, a backtick, `\` or a newline escapes it,
+# and `$(...)`, a backtick pair, `${...}` and `$[...]` run what they hold. A
+# `$(` range starts at its `(`, so its parse reads a subshell; the others keep
+# their `$`, so their parse reads the word the same text reads at top level.
+# Inside `$( )` the quotes, `$'...'` spans, comments and nested openers are
+# tracked, so a `)` in them does not end the range. A here-doc opener or a
+# `case` word inside `$( )`, whose `)` this scan does not model, and a range
+# still open at the end of the body, run the range to the end of the body and
+# end the scan: the parse then reads more of the body as commands, never less.
+# Dynamic scope, like hook::_bps_close_word.
+# shellcheck disable=SC1003,SC2154  # '\' compares a literal backslash; `chars` and `hd_spans` are locals of hook::bash_parse_segments_uncached
+hook::_bps_hd_spans() {
+  local k=$1 e=$2 from=0 j ch nx top ws=0
+  # Open frames, innermost last: P `$(` or `(` in a command, A an arithmetic
+  # paren, B `${`, K `$[` or `[` inside one, D a double-quoted string, Q a
+  # backtick substitution.
+  local -a st=()
+  while ((k < e)); do
+    ch=${chars[k]}
+    nx=""
+    ((k + 1 < e)) && nx=${chars[k + 1]}
+    if ((${#st[@]} == 0)); then
+      case $ch in
+      '\')
+        case $nx in
+        '$' | '`' | '\' | $'\n')
+          k=$((k + 2))
+          continue
+          ;;
+        *) ;;
+        esac
+        ;;
+      '`')
+        from=$k
+        st=(Q)
+        ;;
+      '$')
+        case $nx in
+        '(')
+          from=$((k + 1))
+          if ((k + 2 < e)) && [[ ${chars[k + 2]} == '(' ]]; then st=(A); else st=(P); fi
+          k=$((k + 2))
+          ws=1
+          continue
+          ;;
+        '{' | '[')
+          from=$k
+          if [[ $nx == '{' ]]; then st=(B); else st=(K); fi
+          k=$((k + 2))
+          continue
+          ;;
+        *) ;;
+        esac
+        ;;
+      *) ;;
+      esac
+      k=$((k + 1))
+      continue
+    fi
+    top=${st[${#st[@]} - 1]}
+    if [[ $top == Q ]]; then
+      # The first backtick no backslash escapes ends it.
+      if [[ $ch == '\' ]]; then
+        k=$((k + 2))
+        continue
+      fi
+      [[ $ch == '`' ]] && unset 'st[${#st[@]}-1]'
+    else
+      case $ch in
+      '\')
+        k=$((k + 2))
+        ws=0
+        continue
+        ;;
+      '`')
+        st+=(Q)
+        k=$((k + 1))
+        continue
+        ;;
+      '$')
+        case $nx in
+        '(')
+          if ((k + 2 < e)) && [[ ${chars[k + 2]} == '(' ]]; then st+=(A); else st+=(P); fi
+          k=$((k + 2))
+          ws=1
+          continue
+          ;;
+        '{' | '[')
+          if [[ $nx == '{' ]]; then st+=(B); else st+=(K); fi
+          k=$((k + 2))
+          continue
+          ;;
+        "'")
+          if [[ $top == P ]]; then
+            j=$((k + 2))
+            while ((j < e)) && [[ ${chars[j]} != "'" ]]; do
+              if [[ ${chars[j]} == '\' ]]; then j=$((j + 2)); else j=$((j + 1)); fi
+            done
+            ((j < e)) || break
+            k=$((j + 1))
+            ws=0
+            continue
+          fi
+          ;;
+        *) ;;
+        esac
+        ;;
+      *) ;;
+      esac
+      case $top in
+      D) [[ $ch == '"' ]] && unset 'st[${#st[@]}-1]' ;;
+      B) [[ $ch == '}' ]] && unset 'st[${#st[@]}-1]' ;;
+      K)
+        case $ch in
+        '[') st+=(K) ;;
+        ']') unset 'st[${#st[@]}-1]' ;;
+        *) ;;
+        esac
+        ;;
+      A)
+        case $ch in
+        '(') st+=(A) ;;
+        ')') unset 'st[${#st[@]}-1]' ;;
+        '"') st+=(D) ;;
+        *) ;;
+        esac
+        ;;
+      P)
+        case $ch in
+        "'")
+          j=$((k + 1))
+          while ((j < e)) && [[ ${chars[j]} != "'" ]]; do j=$((j + 1)); done
+          ((j < e)) || break
+          k=$j
+          ws=0
+          ;;
+        '"')
+          st+=(D)
+          ws=0
+          ;;
+        '(')
+          st+=(P)
+          ws=1
+          ;;
+        ')')
+          unset 'st[${#st[@]}-1]'
+          ws=0
+          ;;
+        '#')
+          if ((ws)); then
+            while ((k + 1 < e)) && [[ ${chars[k + 1]} != $'\n' ]]; do k=$((k + 1)); done
+          fi
+          ws=0
+          ;;
+        '<')
+          if [[ $nx == '<' ]]; then
+            # `<<<` is a here-string; `<<` opens a here-doc.
+            ((k + 2 < e)) && [[ ${chars[k + 2]} == '<' ]] || break
+            k=$((k + 2))
+          fi
+          ws=1
+          ;;
+        ' ' | $'\t' | $'\n' | ';' | '&' | '|' | '>') ws=1 ;;
+        *)
+          if ((ws)) && [[ $ch == c ]] && ((k + 3 < e)) &&
+            [[ ${chars[k + 1]}${chars[k + 2]}${chars[k + 3]} == ase ]]; then
+            nx=""
+            ((k + 4 < e)) && nx=${chars[k + 4]}
+            case $nx in
+            '' | ' ' | $'\t' | $'\n' | ';' | '&' | '|' | '(' | ')' | '<' | '>') break ;;
+            *) ;;
+            esac
+          fi
+          ws=0
+          ;;
+        esac
+        ;;
+      *) ;;
+      esac
+    fi
+    k=$((k + 1))
+    ((${#st[@]})) || hd_spans+=("$from $k")
+  done
+  ((${#st[@]} == 0)) || hd_spans+=("$from $e")
+}
+
 # hook::bash_parse_segments is the name every hook calls, and
 # hook::bash_parse_segments_uncached the same parse under the name a dispatcher
 # that shares one parse across the hooks of an event (guardrails
@@ -4573,8 +4763,11 @@ hook::bash_parse_segments() {
 #   HOOK_SEG_REDIR_OP[j]      operator in source order — `>` `>>` `<` `<>` `>&`
 #                             `<&` `<<` `<<-` `<<<`. `<<`/`<<-` is a here-doc
 #                             OPENER, whose target is the delimiter (the body is
-#                             stdin and is skipped, not tokenized); `<<<` is a
-#                             here-string, whose target is the string.
+#                             stdin and is not tokenized, but each substitution
+#                             an unquoted body holds reaches the callback as
+#                             segments of its own, after the opener's line);
+#                             `<<<` is a here-string, whose target is the
+#                             string.
 #   HOOK_SEG_REDIR_FD[j]      the fd prefix word (`2` of `2>err`), else "".
 #   HOOK_SEG_REDIR_TARGET[j]  the target word as bash would expand quoting away;
 #                             for a dup or close (`>&1`, `>&-`) the fd or `-`.
@@ -4594,7 +4787,10 @@ hook::bash_parse_segments() {
 # of the byte just past its delimiter line; 1 when the delimiter was quoted or
 # escaped (`<<'EOF'`, `<<\EOF`), so bash expands nothing in the body; 1 when a
 # delimiter line ended the body, 0 when it ran to the end of the command; and
-# the delimiter, quotes removed, which may hold spaces.
+# the delimiter, quotes removed, which may hold spaces. A here-doc opened inside
+# an unquoted body's substitution has no entry, though its segment carries the
+# opener, so a consumer that matches openers to entries by count sees them
+# differ.
 # shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
 hook::bash_parse_segments_uncached() {
   local cmd="$1" cb="$2"
@@ -4625,8 +4821,14 @@ hook::bash_parse_segments_uncached() {
   HOOK_SEG_REDIR_OPAQUE=()
   # Pending heredoc delimiters (FIFO), their `<<-` tab-strip flags and quoted
   # flags. A heredoc body is the command's stdin, not commands — recorded when
-  # `<<` is seen and skipped wholesale at the command-line newline.
-  local -a hd_delims=() hd_strip=() hd_quoted=() hd_bodies=()
+  # `<<` is seen and skipped at the command-line newline, all but the
+  # substitutions an unquoted body holds (hd_spans, hook::_bps_hd_spans).
+  local -a hd_delims=() hd_strip=() hd_quoted=() hd_bodies=() hd_spans=()
+  # How many unquoted bodies enclose this text: the caller's __hu_hdd_in, then
+  # cleared so a callback's own parse starts at 0. Past 8 a here-doc opener
+  # records no body, so every line after it is parsed as commands: more is
+  # judged, never less, and the nesting costs no more stack.
+  local __hu_hdd=${__hu_hdd_in:-0} __hu_hdd_in=""
 
   for ((i = 0; i < n; i++)); do
     c="${chars[i]}"
@@ -4798,9 +5000,11 @@ hook::bash_parse_segments_uncached() {
             ;;
           esac
         done
-        hd_delims+=("$delim")
-        hd_strip+=("$hstrip")
-        hd_quoted+=("$hquoted")
+        if ((__hu_hdd <= 8)); then
+          hd_delims+=("$delim")
+          hd_strip+=("$hstrip")
+          hd_quoted+=("$hquoted")
+        fi
         # The opener is a redirection whose target is the delimiter. A pending
         # operand ahead of it never arrived.
         hook::_bps_orphan_pending
@@ -4853,13 +5057,14 @@ hook::bash_parse_segments_uncached() {
       # stdin, so consume them without tokenizing. Delimiters match in FIFO
       # order; `<<-` strips leading tabs from body lines before comparing.
       if [[ "$c" == $'\n' ]] && ((${#hd_delims[@]})); then
-        local hidx line lc d strip hstart hclosed
+        local hidx line lc d strip hstart hclosed hline hend
         for ((hidx = 0; hidx < ${#hd_delims[@]}; hidx++)); do
           d="${hd_delims[hidx]}"
           strip="${hd_strip[hidx]}"
           hstart=$((i + 1))
           hclosed=0
           while ((i + 1 < n)); do
+            hline=$((i + 1))
             line=""
             while ((i + 1 < n)) && [[ "${chars[i + 1]}" != $'\n' ]]; do
               line+="${chars[i + 1]}"
@@ -4872,11 +5077,29 @@ hook::bash_parse_segments_uncached() {
             fi
             [[ "$lc" == "$d" ]] && hclosed=1 && break
           done
+          hend=$((i + 1))
+          ((hclosed)) && hend=$hline
+          ((hd_quoted[hidx])) || hook::_bps_hd_spans "$hstart" "$hend"
           hd_bodies+=("$hstart $((i + 1)) ${hd_quoted[hidx]} $hclosed $d")
         done
         hd_delims=()
         hd_strip=()
         hd_quoted=()
+        # Each substitution an unquoted body holds runs as a command, so it is
+        # parsed here into segments for the same callback, in source order
+        # after the line that opened the body.
+        if ((${#hd_spans[@]})); then
+          local hsp hj hsub
+          local -a hsps=("${hd_spans[@]}")
+          hd_spans=()
+          for hsp in "${hsps[@]}"; do
+            hsub=""
+            for ((hj = ${hsp% *}; hj < ${hsp#* }; hj++)); do hsub+=${chars[hj]}; done
+            __hu_hdd_in=$((__hu_hdd + 1))
+            hook::bash_parse_segments_uncached "$hsub" "$cb"
+            __hu_hdd_in=""
+          done
+        fi
       fi
       ;;
     *)

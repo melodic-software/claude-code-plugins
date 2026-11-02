@@ -607,6 +607,22 @@ run "quoted-delimiter heredoc with git push --force (allowed)" $'cat <<\'EOF\'\n
 run "tab-indented heredoc <<- body (allowed)" $'cat <<-EOF\n\tgit reset --hard\n\tEOF' 0
 run "real git reset --hard after a heredoc (blocked)" $'cat <<EOF\nhello\nEOF\ngit reset --hard' 2
 run "here-string git reset --hard (not a heredoc, blocked)" $'git reset --hard <<<input' 2
+# bash runs each substitution in an unquoted heredoc body; a quoted body is data.
+run "unquoted heredoc body \$(git reset --hard) (blocked)" $'cat <<EOF\n$(git reset --hard)\nEOF' 2
+run "unquoted heredoc body backticked git reset --hard (blocked)" $'cat >notes <<EOF\nnote: `git reset --hard`\nEOF' 2
+run "<<-EOF body \$(git clean -fd) (blocked)" $'cat <<-EOF\n\t$(git clean -fd)\n\tEOF' 2
+run "unquoted heredoc body \${x:-\$(git reset --hard)} (blocked)" $'cat <<EOF\n${x:-$(git reset --hard)}\nEOF' 2
+run "unquoted heredoc body \$[\$(git reset --hard)] (blocked)" $'cat <<EOF\n$[$(git reset --hard)]\nEOF' 2
+run "unquoted heredoc body, a quoted ) inside \$( ) (blocked)" $'cat <<EOF\n$(echo ")"; git reset --hard)\nEOF' 2
+run "unquoted heredoc body, a commented ) inside \$( ) (blocked)" $'cat <<EOF\n$(: # )\ngit reset --hard)\nEOF' 2
+run "unquoted heredoc body, a case pattern ) inside \$( ) (blocked)" $'cat <<EOF\n$(case x in x) git reset --hard;; esac)\nEOF' 2
+run "unquoted heredoc body, a heredoc inside \$( ) (blocked)" $'cat <<EOF\n$(cat <<X\n)\nX\ngit reset --hard\n)\nEOF' 2
+run "second heredoc on the line, unquoted, \$(git reset --hard) (blocked)" $'cat <<\'A\' - <<B\nx\nA\n$(git reset --hard)\nB' 2
+run "quoted-delimiter heredoc body \$(git reset --hard) (data, allowed)" $'cat <<\'EOF\'\n$(git reset --hard)\nEOF' 0
+run "double-quoted-delimiter heredoc body \$(git reset --hard) (data, allowed)" $'cat <<"EOF"\n$(git reset --hard)\nEOF' 0
+run "backslashed-delimiter heredoc body \$(git reset --hard) (data, allowed)" $'cat <<\\EOF\n$(git reset --hard)\nEOF' 0
+run "escaped \\\$(git reset --hard) in an unquoted body (literal, allowed)" $'cat <<EOF\n\\$(git reset --hard)\nEOF' 0
+run "unquoted heredoc body \$(git status) and \$HOME (allowed)" $'cat <<EOF\n$(git status) in $HOME\nEOF' 0
 run "git -c alias.rh='reset --hard' rh (inline git alias, blocked)" "git -c alias.rh='reset --hard' rh" 2
 run "git -c alias.nuke='!git reset --hard' nuke (inline shell alias, blocked)" "git -c alias.nuke='!git reset --hard' nuke" 2
 run "git -c alias.st=status st (safe alias, allowed)" "git -c alias.st=status st" 0
@@ -904,8 +920,7 @@ run_pwsh "PS: NO-GIT label in scriptblock (allowed — #2592)" \
 run_pwsh "PS: gh title mentioning -git and PowerShell (allowed — #2592)" \
   "gh issue create --title 'guardrails: block-dangerous-git.sh blocks PowerShell commands'" 0
 # Intermediate path directory named Git is not a git invocation.
-run_pwsh "PS: call-op to bash under Git\\bin (allowed — #2592, basename is bash)" \
-  "& 'C:\\Program Files\\Git\\bin\\bash.exe' -c 'echo ok'" 0 # portability-ok: Windows path string in a test fixture, not a regex/sed construct
+run_pwsh "PS: call-op to bash under Git\\bin (allowed — #2592, basename is bash)" "& 'C:\\Program Files\\Git\\bin\\bash.exe' -c 'echo ok'" 0 # portability-ok: Windows path strings in a test label and fixture, not a regex/sed construct
 # Drive-relative git.exe (C:git.exe) must still count as git (Codex review on #2592).
 run_pwsh "PS: drive-relative C:git.exe reset --hard (blocked — #2592)" \
   "& 'C:git.exe' --% reset --hard" 2
