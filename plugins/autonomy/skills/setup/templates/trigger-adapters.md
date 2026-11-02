@@ -6,7 +6,8 @@ event names appear only as marked examples. Every shape carries the contract's s
 obligations inline: normalize+enqueue only, idempotent dedup, provenance + raw link,
 traceparent injection, admission enforcement, acknowledgment. Every shape STAMPS
 `signal.work_class` from the security-surface classification rules where they resolve, and
-leaves it absent (unclassified → human-gated) where they do not.
+leaves it absent where they do not; admission then evaluates the item with the work-class axis
+`"*"` after the `C5` trust tests.
 
 ## Signal envelope (all classes)
 
@@ -159,8 +160,8 @@ interval of 5 minutes, delays under load, and 60-day public-repo auto-disable, p
   `surfaces` map, `signal.raw_link` = a durable reference to the observed state (https
   permalink; a local-scheduler surface may use an absolute `file:` or artifact-store URI). A
   detector-fired temporal signal carries NO `signal.routine` and never stamps
-  `signal.work_class`. It stays unclassified (human-gated downstream), and a routine identity
-  or a stamped class on it is rejected fail-closed. State-based detections with no instance
+  `signal.work_class`. It carries no stamped class, and a routine identity or a stamped class
+  on it is rejected fail-closed. State-based detections with no instance
   identity bound dedup retention to open items, and re-detection after closure is a new signal.
 
 The scheduled-ROUTINE shape is the temporal surface's other producer, wired per
@@ -174,8 +175,8 @@ No standing wiring: an executing session files follow-up work through the queue 
 directly, carrying the envelope with `signal.provenance: "agent"` and
 `signal.parent_item` = the canonical URL of the item the session was dispatched on
 (REQUIRED: the admission seam verifies the session-to-parent association against the
-queue's own lease record; an unverifiable association is NO provenance → unclassified →
-human-gated). `signal.raw_link` = a durable reference to the emitting context (the parent
+queue's own lease record; an unverifiable association is NO provenance, a trust hold that
+enqueues the item human-gated). `signal.raw_link` = a durable reference to the emitting context (the parent
 item or its run permalink). Dedup identity composes the parent item + the follow-up's
 content hash + the filing timestamp.
 
@@ -188,8 +189,8 @@ vendor-hosted channel agents are advisory, plan-gated):
    transports record expiry and are backed by a temporal poll-detector for the same
    surface, or lapse fail-closes to a human-gated alert item.
 2. Derive `signal.identity` from the platform's event/delivery id.
-3. Enqueue the envelope; `signal.work_class` stays absent (channel-feed is UNCLASSIFIED →
-   human-gated) unless security-bound rules resolve it; `signal.raw_link` = the message/
+3. Enqueue the envelope; `signal.work_class` stays absent unless security-bound rules resolve
+   it, and the admission policy's shipped `channel-feed` surface row holds the item human-gated; `signal.raw_link` = the message/
    event permalink.
 4. Acknowledge in-thread per [`ack-reply.md`](ack-reply.md).
 

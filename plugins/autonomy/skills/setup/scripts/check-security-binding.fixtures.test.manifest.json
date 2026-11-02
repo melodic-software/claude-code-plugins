@@ -1,11 +1,29 @@
 {
   "_comment": "Graded-fixture manifest for check-security-binding.fixtures.test.mjs. Keyed by top-level fixture filename under evals/fixtures/security-binding/. Each entry: expected checker exit (0 valid, 1 findings) and defect-naming substrings the runner asserts (stdout when exit 0, stderr when exit 1). A binding+evidence pair grades evaluation mode with the named event-array input; egress_hosts pins the --egress-hosts allow-list seam; credential_roots pins the --credential-roots deny-by-default trusted-credential-root seam. quarantined lists any fixture whose real checker behavior contradicts its name (none currently).",
   "fixtures": {
-    "admission-weakened-no-justification.json": {
+    "admission-c3-autonomous-no-justification-valid.json": {
+      "exit": 0,
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
+    },
+    "admission-c4-autonomous-no-justification-valid.json": {
+      "exit": 0,
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
+    },
+    "admission-c5-autonomous-no-justification.json": {
       "exit": 1,
       "findings_substrings": [
-        "admission.rules[2]: disposition \"autonomous-eligible\" is more permissive than the shipped default for C3"
-      ]
+        "admission.rules[4]: disposition \"autonomous-eligible\" is more permissive than the shipped default for C5 — invalid without override_justification"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "admission-channel-feed-autonomous-no-justification.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "admission.rules[5]: disposition \"autonomous-eligible\" is more permissive than the shipped default for channel-feed — invalid without override_justification"
+      ],
+      "credential_roots": "/home/runner"
     },
     "ambiguous-runtime-markers.json": {
       "exit": 1,

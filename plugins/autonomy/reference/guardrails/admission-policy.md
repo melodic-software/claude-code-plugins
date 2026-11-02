@@ -25,8 +25,10 @@ One table, three axes, one disposition per decision:
 | `human-gated` | Enqueued and held; a human admits the item before any dispatch |
 | `audited-rejection` | Recorded as rejected, with provenance and the matched rule on the audit trail, never a silent drop |
 
-An item the classification rules cannot resolve never reaches table evaluation:
-unclassified is fail-closed `human-gated`, always (trigger-dispatch rule).
+An item with no stamped class is evaluated with the work-class axis `"*"` once the
+[`C5` trust tests](work-classes.md#executable-provenance-tests) have run: it matches only
+rules whose work class is `"*"`. An item those tests mark untrusted is `C5`
+(trigger-dispatch rule).
 
 ### Wildcards and precedence
 
@@ -43,15 +45,24 @@ decreases `autonomous-eligible` → `human-gated` → `audited-rejection`.
 
 | Surface class | Provenance | Work class | Disposition |
 |---|---|---|---|
-| `"*"` | `"*"` | `C1` | `autonomous-eligible`, within caps |
-| `"*"` | `"*"` | `C2` | `autonomous-eligible`, within caps |
-| `"*"` | `"*"` | `C3` | `human-gated`, per-item human admission |
-| `"*"` | `"*"` | `C4` | `human-gated` |
 | `"*"` | `"*"` | `C5` | `human-gated` |
+| `channel-feed` | `"*"` | `"*"` | `human-gated` |
 
-Default disposition where no rule matches: `human-gated`.
+The shipped rows apply beneath the binding's own rules: where no binding rule matches an
+item, a shipped row that matches it decides, so a binding need not restate them.
 
-- `C1`/`C2` are autonomous-eligible within caps REGARDLESS of provenance: blocking
+Default disposition where no rule matches, binding or shipped: `autonomous-eligible`, within
+caps.
+
+- The two shipped rows are trust holds, not class gates: `C5` is the untrusted-provenance
+  class the [work-class trust tests](work-classes.md) assign, and a `channel-feed` signal
+  carries no class unless the binding classifies that surface, so its surface row holds
+  it. A binding rule more permissive than either needs an `override_justification`; once
+  the binding classifies `channel-feed`, that includes a wildcard-surface rule binding a
+  work class.
+- Every other item that clears the trigger-dispatch trust holds (an unverified routine
+  identity or `agent-internal` parent) is autonomous-eligible within caps REGARDLESS of
+  provenance: blocking
   `agent` provenance would sever the agent-kicks-off-agent loop the `agent-internal`
   surface class exists for.
 - Provenance is RECORDED input to gating, never trusted as isolation: provenance is

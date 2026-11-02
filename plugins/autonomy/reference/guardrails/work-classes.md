@@ -32,9 +32,8 @@ reversal is a bounded revert; verifiability combines deterministic gates with AI
 
 ### `C4`: structural
 
-Refactors, migrations, contract changes. Blast radius is cross-cutting and reversal is hard,
-so the class escalates for upfront plan approval before execution. Its risk shows in the diff
-the review lanes read. A merge authority that reads no class works differently: see [Merge
+Refactors, migrations, contract changes. Blast radius is cross-cutting and reversal is hard.
+Its risk shows in the diff the review lanes read, and the class merges by a human always. A merge authority that reads no class works differently: see [Merge
 authorities that read no class](#merge-authorities-that-read-no-class).
 
 ### `C5`: untrusted-provenance

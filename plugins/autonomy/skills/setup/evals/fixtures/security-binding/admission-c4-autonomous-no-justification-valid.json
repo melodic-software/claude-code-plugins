@@ -7,6 +7,7 @@
       "L2": {
         "substrate": "egress-denied-container-pool",
         "substrate_class": "container",
+        "host_interop": "none",
         "component_reachable_hosts": [
           "example.com"
         ],
@@ -76,13 +77,13 @@
         "signal_class": "*",
         "provenance": "*",
         "work_class": "C3",
-        "disposition": "autonomous-eligible"
+        "disposition": "human-gated"
       },
       {
         "signal_class": "*",
         "provenance": "*",
         "work_class": "C4",
-        "disposition": "human-gated"
+        "disposition": "autonomous-eligible"
       },
       {
         "signal_class": "*",

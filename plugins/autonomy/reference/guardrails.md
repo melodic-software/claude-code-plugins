@@ -21,7 +21,7 @@ instantiation of it. The playbook names the obligation, and this contract suppli
 | C1 | L2 (exfil surface remains) | output-shape checks | 1 checker | n/a; artifacts via queue audit trail | economy | low |
 | C2 | L2 | deterministic blocking | 1 checker | auto-merge ELIGIBLE after per-class promotion trigger; ships human-gated | economy | gate failure → human |
 | C3 | L2 | deterministic blocking + AI review (advisory, promotable per [the security-review policy](guardrails/security-review.md)) | 2 distinct checkers, 1 a model judge | auto-merge ELIGIBLE after per-class promotion trigger; ships human-gated | standard | divergence/failed verify → human |
-| C4 | L2 | deterministic + AI + human review mandatory | 3 distinct checkers, 2 vendor-disjoint model judges | human merge always | premium | upfront plan approval |
+| C4 | L2 | deterministic + AI + human review mandatory | 3 distinct checkers, 2 vendor-disjoint model judges | human merge always | premium | human review and merge |
 | C5 | L3 | full gates + zero secret exposure | 3 distinct checkers, 2 vendor-disjoint model judges | human merge always | standard | always |
 
 ### Classes
@@ -110,7 +110,7 @@ Six escalation event classes:
 | `verification-divergence` | a verification outcome diverges from the expected or claimed result, or two checkers of one class disagree |
 | `admission-rejection` | the admission seam rejects a signal as an audited rejection |
 | `demotion` | contrary evidence automatically demotes a promoted cell |
-| `structural-plan-approval` | a `C4` item requires upfront plan approval before execution |
+| `structural-plan-approval` | an org-bound step asks a human to approve a `C4` item's plan; no shipped step raises it |
 | `untrusted-provenance` | always, for every `C5` item |
 
 **Routing obligation.** Every event class has an org-bound route in the security binding.

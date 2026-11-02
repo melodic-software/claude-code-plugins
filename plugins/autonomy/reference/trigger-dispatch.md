@@ -97,7 +97,7 @@ security governance surface; the adapter stamps, never defines, and no repo-loca
   reused by the routine), carries the class its bound routine definition derives
   ([routine contract](routines.md)), including woken routine runs, event or continuous feed,
   which are `temporal` regardless of wake source. A temporal poll-fallback detector emission,
-  one claiming no routine identity, derives no class: it stays unclassified, and a stamped
+  one claiming no routine identity, derives no class: it carries no stamped class, and a stamped
   `signal.work_class` (or a producer identity) on it is rejected fail-closed, as is a claimed
   identity that no enabled routine records or whose recorded surface disagrees.
 - `agent-internal` items must prove protected provenance: the envelope serializes the
@@ -106,15 +106,20 @@ security governance surface; the adapter stamps, never defines, and no repo-loca
   queue's own lease record of which item the emitting session was dispatched on. An
   agent-supplied URL alone proves nothing (any session could cite an unrelated low-class
   item to launder higher-risk follow-up work); an association the seam cannot verify is no
-  provenance. Admission then resolves the verified parent's class from its own protected
+  provenance, and the item enqueues `human-gated` under the same trust hold as an unverified
+  routine identity (below). Admission then resolves the verified parent's class from its own protected
   classification rather than trusting the stamped value: the effective class is the higher
   of the inherited class and the class the security-surface rules derive for the target.
-- `channel-feed`, and any signal the rules cannot resolve, stays unclassified. `signal.routine`
+- `channel-feed`, and any signal the rules cannot resolve, carries no stamped class. `signal.routine`
   identifies a routine-fired temporal run only, and the envelope check rejects the stamp on a
   detector-fired temporal signal and on every non-temporal class, so a `channel-feed` signal
-  never carries a routine run.
+  never carries a routine run. A `channel-feed` signal is held `human-gated` by the
+  [admission policy](guardrails/admission-policy.md)'s shipped surface-class row.
 
-Unclassified → fail-closed human-gated, always.
+An item with no stamped class is evaluated with the work-class axis `"*"` once the
+[`C5` trust tests](guardrails/work-classes.md#executable-provenance-tests) have run, so it
+matches only admission rules whose work class is `"*"`; an item those tests mark untrusted is
+`C5`.
 
 **Authenticated run context.** Envelope fields are agent-claimable, so a temporal adapter
 resolves `signal.source_surface`, `signal.raw_link`, and `signal.producer_identity` from the
@@ -128,8 +133,9 @@ it is not disjoint per entry: the prefix pins the platform-and-repo namespace, a
 entries). Attestation is therefore both: a raw link inside the ratified prefix and a
 `producer_identity` equal to the ratified value; a raw link outside the namespace, or a producer
 identity that does not match, fails the identity-to-surface association check
-([routine contract](routines.md)) and the signal stays unclassified, fail-closed human-gated,
-like any claim the [admission seam](guardrails/admission-policy.md) cannot verify.
+([routine contract](routines.md)). That is a trust hold, not a class gate: the signal enqueues
+`human-gated` before table evaluation, like any provenance claim the
+[admission seam](guardrails/admission-policy.md) cannot verify.
 
 ## Signal envelope
 
@@ -147,10 +153,10 @@ every contract schema. Keys:
 | `signal.identity` | dedup identity per obligation 2 |
 | `signal.raw_link` | durable absolute reference to the source event; form branched by origin. Web-origin signals carry an absolute https URL with query and fragment preserved (the telemetry contract's strip rule applies only to the work-item join key); a temporal signal from a local-scheduler surface may carry a durable local/artifact URI (absolute `file:` URI or org artifact-store locator); relative or ephemeral references conform on no branch |
 | `signal.traceparent` | W3C trace context from the trigger hop |
-| `signal.work_class` | optional; the stamped risk class per the classification rules. Absent = unclassified = human-gated |
+| `signal.work_class` | optional; the stamped risk class per the classification rules. Absent = evaluated with the work-class axis `"*"` after the `C5` trust tests |
 | `signal.parent_item` | required when `signal.class` is `agent-internal`: canonical URL of the emitting session's admitted source item, verified against the queue's lease record |
 | `signal.source_surface` | required when `signal.class` is `temporal`: the originating scheduling surface's id as recorded in the org's trigger/routine binding, the discriminator raw-link form validation branches on |
-| `signal.routine` | required for a routine-fired `temporal` signal, one whose identity a `routines.enabled` entry records against the emitting surface (the surface record itself may live under `triggers` and be reused); forbidden on every non-temporal class, and absent on a detector-fired `temporal` signal. The routine identity the emitting schedule claims ([routine contract](routines.md)); a claim validated against the enablement record and the security binding's protected identity-to-surface association (one identity per surface) before any `signal.work_class` stamp. An unvalidated or mismatched claim stays unclassified, fail-closed human-gated |
+| `signal.routine` | required for a routine-fired `temporal` signal, one whose identity a `routines.enabled` entry records against the emitting surface (the surface record itself may live under `triggers` and be reused); forbidden on every non-temporal class, and absent on a detector-fired `temporal` signal. The routine identity the emitting schedule claims ([routine contract](routines.md)); a claim validated against the enablement record and the security binding's protected identity-to-surface association (one identity per surface) before any `signal.work_class` stamp. An unvalidated or mismatched claim fails the routine identity trust hold and enqueues human-gated |
 | `signal.producer_identity` | required for a routine-fired `temporal` signal; `temporal`-only. The platform-attested workflow-file or scheduler-unit reference resolved from the authenticated run context; checked for equality with the ratified `producer_identity` and unique across classification entries, the discriminator that pins which schedule fired within a possibly-shared run-link namespace |
 
 ## Dispatch
