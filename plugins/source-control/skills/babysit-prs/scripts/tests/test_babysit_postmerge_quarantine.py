@@ -618,7 +618,6 @@ class AffectedSet(AffectedBase):
         self.assertEqual(report["quarantine"]["issues"], [9001])
         (post,) = self.posts()
         self.assertFalse(any(a.startswith(("assignees[]=", "labels[]=")) for a in post))
-        self.assertFalse(any("CODEOWNERS" in " ".join(c) for c in self.gh.calls))
 
     def test_a_repeat_sighting_is_not_commented_twice(self) -> None:
         self.quarantine_issue(FLAKY, "2026-10-12T09:00:00Z")

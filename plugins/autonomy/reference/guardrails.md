@@ -123,9 +123,7 @@ the escalation is queryable from the event.
 
 **Mechanism.** The governed queue itself: an escalation lands as a human-gated work item on
 the one queue, with an optional channel notification delivered through the trigger contract's
-closed-loop acknowledgment symmetry ([trigger-dispatch](trigger-dispatch.md)). A `demotion`
-is the exception: its record is filed with no human-gated label, and intake triage hands it to a
-lane.
+closed-loop acknowledgment symmetry ([trigger-dispatch](trigger-dispatch.md)).
 
 **The one-channel invariant.** No second escalation channel exists. It is this contract's
 own, distinct from and narrower than the claim and dispatch paths, which the

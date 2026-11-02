@@ -29,7 +29,7 @@ reported as unattributed and passes like a green run.
 
 `remediate()` acts on failures in order: disarm the native auto-merge the
 identity armed on its own open pull requests, dequeue the identity's
-merge-queue entries, file (unlabeled, for intake triage to hand to a lane) or
+merge-queue entries, file (human-gated only when no green main clears it) or
 comment on the demotion issue, then record the telemetry
 count. `attribute()` triggers the one re-run, and `dispatch_full_run()` the
 dispatch. The CLI is read-only unless `--remediate` is given; with it, a cycle
@@ -40,8 +40,7 @@ dispatched for (a sync App's own enqueue) cannot hold the lane forever.
 The pinned SHA is read from the agent identity's `<!-- babysit-merge-pin
 sha=<S> -->` comment, which `babysit_merge.py --unattended` posts immediately
 before it enqueues. Without `--since` the floor is the merge gate's: the later
-of the enabling config commit and the newest clear of a demotion record (a
-person's close, or main going green past a red-main record).
+of the enabling config commit and the newest human close of a demotion record.
 
 A merge of the identity's that a readable check judged verified with nothing
 left that could still change it (`MergeState.settleable`) is listed in the
@@ -147,6 +146,12 @@ FULL_RUN_ALLOWANCE = timedelta(minutes=50)
 DISPATCH_DEADLINE = timedelta(hours=6)
 DEMOTION_FILERS = ("github-actions[bot]",)
 HUMAN_GATED_ROLE = "human-gated"
+# The record signals babysit_merge_policy `_recovered_at` clears once main is
+# green at a later commit; their records carry no human-gated label.
+SELF_CLEARING_SIGNALS = ("schedule", "dispatch")
+# Record text a model may read (intake triage reads every issue the lanes App
+# opens) keeps the fix-issue rule: job names, SHAs and links only.
+_RECORD_TEXT = re.compile(r"[^- A-Za-z0-9._:,/()#;@]")
 DEFAULT_ROLE_LABEL = "needs-human"
 # The role marking a pull request whose only writer is the standards sync App.
 STANDARDS_SYNC_ROLE = "standards-sync"
@@ -3406,6 +3411,15 @@ def _quarantined_suite(body: Any) -> str | None:
     return match[1] if match and _SUITE_RE.fullmatch(match[1]) else None
 
 
+def _record_detail(detail: str) -> str:
+    """`detail` with each newly failing check cut to its job name (a gate's
+    annotation title is free text) and any other character dropped."""
+    head, sep, checks = detail.partition("; newly failing: ")
+    if sep:
+        checks = ", ".join(sorted({c.split(": ", 1)[0] for c in checks.split(", ")}))
+    return _RECORD_TEXT.sub("", head + sep + checks)
+
+
 def _issue_body(failure: Failure, also: Iterable[AutoMerge] = ()) -> str:
     merge = failure.merge
     others = ", ".join(f"#{m.number} (`{m.merge_commit}`)" for m in also)
@@ -3414,39 +3428,23 @@ def _issue_body(failure: Failure, also: Iterable[AutoMerge] = ()) -> str:
             failure.marker,
             "",
             f"The post-merge check found a `{failure.signal}` failure after an unattended merge. The",
-            "unattended merge path stays at rung off while any demotion record holds.",
-            *(
-                [
-                    "This record clears itself once a full run passes on main at a later commit:",
-                    "fix main. A new sighting of the same failure reopens it.",
-                ]
-                if failure.signal in (SIGNAL_SCHEDULE, SIGNAL_DISPATCH)
-                else [
-                    "This record clears only when a person closes it directly (not through a",
-                    "pull request's closing keyword). A new sighting of the same failure reopens it.",
-                ]
-            ),
+            "unattended merge path stays at rung off while any demotion record is open. Fix main",
+            "first, then close every open demotion record directly (not through a pull request's",
+            "closing keyword); a new sighting of the same failure reopens its record.",
             "",
             f"- Pull request: {merge.url or f'#{merge.number}'}",
             f"- Merge commit: `{merge.merge_commit}`",
             f"- Failing run: {failure.run_url or 'none'}",
-            f"- Detail: {failure.detail}",
+            f"- Detail: {_record_detail(failure.detail)}",
             *(
                 [
                     f"- Also charged by this run: {others}",
                     "",
-                    "Read the failing suites in the run above, pick the merge responsible, and",
-                    "revert that one.",
+                    "A human reads the failing suites in the run above, picks the merge responsible,",
+                    "and reverts that one.",
                 ]
                 if others
-                else [
-                    "",
-                    "To revert the merge, run:",
-                    "",
-                    "```sh",
-                    f"git revert {merge.merge_commit}",
-                    "```",
-                ]
+                else []
             ),
         ]
     )
@@ -3460,7 +3458,7 @@ def _body_line(failure: Failure) -> str:
     """The record body line naming the sighting, as `_issue_body` writes it."""
     if failure.run_url:
         return f"- Failing run: {failure.run_url}"
-    return f"- Detail: {failure.detail}"
+    return f"- Detail: {_record_detail(failure.detail)}"
 
 
 def _lines(text: Any) -> set[str]:
@@ -3598,13 +3596,14 @@ def remediate(
     *,
     agent_identity: str,
     branch: str | None = None,
+    label: str | None = None,
     record_telemetry: Callable[[int], None] | None = None,
 ) -> dict[str, Any]:
     """Act on the verdict's failures: turn off native auto-merge on every open
     pull request the agent identity opened and armed, so GitHub enqueues none
     of them, then dequeue every merge-queue entry the agent identity enqueued,
-    then file one demotion issue per (signal, merge SHA) or failing run, with
-    no label so intake triage hands it to a lane, or comment on the existing one, also found by its failing run (reopening it first when closed and the sighting
+    then file one demotion issue per (signal, merge SHA) or
+    failing run, or comment on the existing one, also found by its failing run (reopening it first when closed and the sighting
     is new; only the filers' own comments count as a prior sighting), then
     record the number of new issues as
     `demotion_events`. Each step runs even when an earlier one failed; errors are
@@ -3663,6 +3662,7 @@ def remediate(
     try:
         filers = {_login_key(f) for f in (agent_identity, *DEMOTION_FILERS)}
         existing = _demotion_issues(owner, name, (agent_identity, *DEMOTION_FILERS))
+        role_label = label or _role_label(owner, name)
         # One record per marker (signal, SHA); every distinct sighting under it
         # is checked against that record, so a second red run on a closed
         # record reopens it.
@@ -3703,6 +3703,13 @@ def remediate(
                         f"title=Post-merge {failure.signal} failure after #{failure.merge.number}: unattended merging demoted",
                         "-f",
                         f"body={body}",
+                        # A full-run record clears itself once main is green
+                        # at a later commit; any other needs a person's close.
+                        *(
+                            []
+                            if failure.signal in SELF_CLEARING_SIGNALS
+                            else ["-f", f"labels[]={role_label}"]
+                        ),
                     ],
                     "file the demotion issue",
                 )
@@ -3737,7 +3744,7 @@ def remediate(
             if _recorded(failure, match, notes):
                 continue
             if match.get("state") != "open":
-                # A closed record must hold the rung again on a new
+                # A record a human closed must hold the rung again on a new
                 # failure; a reopen is no content edit, so a later close clears.
                 _write(
                     [
@@ -4540,8 +4547,8 @@ def main(argv: list[str] | None = None) -> int:
         type=_since,
         help=(
             "ISO 8601 floor with an offset (default: the floor the merge gate "
-            "uses, the later of the enabling config commit and the newest clear "
-            "of a demotion record)"
+            "uses, the later of the enabling config commit and the newest human "
+            "close of a demotion record)"
         ),
     )
     parser.add_argument(

@@ -4,4 +4,4 @@ bump: patch
 
 ### Changed
 
-- The guardrails say a demotion's record is filed with no human-gated label and intake triage hands it to a lane. The record stops holding with no person only once its evidence clears (a red main branch once main is green at a later commit); evidence a green main cannot clear holds until a person clears it.
+- The work-class guardrails say a person re-ratifies a cell's promotion after a demotion, and that only a demotion record's label and routing depend on whether its evidence clears without a person: a record that clears once main is green at a later commit carries no human-gated label.

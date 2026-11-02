@@ -17,7 +17,7 @@
 # binds a lane push to it). Pushes bind to the identity in scripts/lane-push.sh.
 #
 # --since defaults to the merge gate's floor (the enabling config commit, or the
-# newest clear of a demotion record when later); --branch to the
+# newest human close of a demotion record when later); --branch to the
 # repository's default branch.
 # Exit: 0 no failure and every auto-merge verified, 1 a failure, 2 usage or a
 # refused identity, 3 unreadable or no Python, 4 a write failed, 5 an auto-merge
