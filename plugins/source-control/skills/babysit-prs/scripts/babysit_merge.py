@@ -4254,8 +4254,8 @@ def queue_ejection_body(head: str, count: int, runs: list[str] | None) -> str:
 
 
 def _queued_verify_hold(verifier: verify_evidence.Reader, number: int) -> str | None:
-    """One queued entry's verifier hold. An unexpected error reads as
-    unreadable for that entry alone, and the sweep goes on to the next."""
+    """One queued entry's verifier hold. An unexpected error refuses that
+    entry, so it leaves the queue and the sweep goes on to the next."""
     try:
         return verifier.queued_hold(number)
     except Exception:  # noqa: BLE001 -- any crash refuses this entry alone
@@ -4316,8 +4316,9 @@ def unattended_writes(
         else:
             queued, _ = postmerge.identity_queue(repo, branch, identity)
             # In the pr-merge lane a queued entry also leaves without a
-            # passing verifier verdict at its head now; one whose verdict
-            # cannot be read stays for the merge queue's own reader.
+            # passing verifier verdict at its head now; a lanes App entry
+            # whose verdict cannot be read stays for the merge queue's own
+            # reader (`verify_evidence.QUEUE_READS`).
             config = inputs.get("config")
             verifier = inputs.get("verify_reader") or (
                 verify_evidence.Reader(
@@ -4351,10 +4352,10 @@ def unattended_writes(
                         if verifier is not None and n != number
                         else None
                     )
-                if hold == verify_evidence.UNREADABLE:
-                    # A verdict this run could not read is no hold: the merge
-                    # queue's own reader refuses it fail-closed, so the entry
-                    # stays, neither dequeued nor counted as kept.
+                if hold == verify_evidence.QUEUE_READS:
+                    # A lanes App entry whose verdict this run could not read:
+                    # the merge queue's own reader refuses it fail-closed, so
+                    # it stays, neither dequeued nor counted as kept.
                     return None
                 kept_at[n] = min([began, *taken])
                 return hold

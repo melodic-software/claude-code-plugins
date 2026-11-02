@@ -5513,21 +5513,28 @@ def tearDownModule() -> None:
 
 class AnUnreadableVerdictKeepsAQueuedEntry(unittest.TestCase):
     """The queued-entry sweep dequeues an entry its verdict holds, but keeps
-    one whose verdict it could not read: the merge queue's own reader refuses
-    that fail-closed. Run 41496022715 dequeued #12432 and #12435 on an
-    unreadable listing while enable-auto-merge re-armed them on a pass."""
+    a lanes App entry whose verdict it could not read (`QUEUE_READS`): the
+    merge queue's own reader refuses that fail-closed. Any other unreadable
+    entry still leaves, since the queue reads no verdict for it. Run
+    41496022715 dequeued #12432 and #12435 on an unreadable listing while
+    enable-auto-merge re-armed them on a pass."""
 
     REPO = "owner/repo"
 
     def test_only_a_read_hold_dequeues(self) -> None:
-        holds = {5: "verify:fail", 6: merge.verify_evidence.UNREADABLE, 8: None}
+        holds = {
+            5: "verify:fail",
+            6: merge.verify_evidence.QUEUE_READS,
+            8: None,
+            9: merge.verify_evidence.UNREADABLE,
+        }
         reader = mock.Mock()
         reader.queued_hold.side_effect = holds.get
         dequeued: list[set[int] | None] = []
         kept: list[str] = []
         with (
             mock.patch.object(
-                postmerge, "identity_queue", return_value=([5, 6, 8], 0)
+                postmerge, "identity_queue", return_value=([5, 6, 8, 9], 0)
             ),
             mock.patch.object(
                 postmerge,
@@ -5553,8 +5560,10 @@ class AnUnreadableVerdictKeepsAQueuedEntry(unittest.TestCase):
                     },
                 ),
             )
-        self.assertEqual(out["holds"], {5: "verify:fail"})
-        self.assertEqual(dequeued, [{5}])
+        self.assertEqual(
+            out["holds"], {5: "verify:fail", 9: merge.verify_evidence.UNREADABLE}
+        )
+        self.assertEqual(dequeued, [{5, 9}])
         self.assertEqual([k.rsplit("|", 1)[1] for k in kept], ["8"])
 
 
