@@ -17,6 +17,14 @@ each successfully-run check's final severity. Runs recorded before that map
 existed carry no evidence and count as zero. Runs need not be consecutive: a
 real problem that persists would otherwise keep the check clamped forever.
 
+A check id in -ReviewedIds is not clamped: the owner recorded a review of it
+in approvals.json (reviewed_checks, written only by Set-ApprovalState from
+/machine-health:setup), so its computed severity stands.
+
+A clamped result carries clamped_from, the severity before the cap, beside
+severity. A custom result the clamp leaves alone carries no clamped_from, even
+one its script emitted.
+
 Runs after trend analysis and correlation, so it caps every upgrade path.
 Shipped checks are never touched. Neutrally named: cross-OS algorithm.
 #>
@@ -28,17 +36,21 @@ function Invoke-CustomCheckClamp {
         [Parameter(Mandatory = $true)] [AllowEmptyCollection()] [object[]] $CheckResults,
         [Parameter(Mandatory = $true)] [AllowEmptyCollection()] [string[]] $CustomIds,
         [Parameter(Mandatory = $true)] [AllowEmptyCollection()] [object[]] $HistoryTail,
+        [AllowEmptyCollection()] [string[]] $ReviewedIds = @(),
         [int] $RequiredCleanRuns = 3
     )
 
     if ($CustomIds.Count -eq 0) { return $CheckResults }
 
     foreach ($r in $CheckResults) {
-        if ($CustomIds -notcontains $r.id -or $r.severity -ne 'CRIT') { continue }
+        if ($CustomIds -notcontains $r.id) { continue }
+        $r.PSObject.Properties.Remove('clamped_from')
+        if ($r.severity -ne 'CRIT' -or $ReviewedIds -contains $r.id) { continue }
 
         $cleanRuns = Get-CleanRunCount -CheckId $r.id -HistoryTail $HistoryTail
         if ($cleanRuns -ge $RequiredCleanRuns) { continue }
 
+        $r | Add-Member -NotePropertyName 'clamped_from' -NotePropertyValue $r.severity
         $r.severity = 'WARN'
         $note = ("custom check clamp: CRIT capped at WARN until it reports clean in " +
             "$RequiredCleanRuns runs ($cleanRuns so far)")

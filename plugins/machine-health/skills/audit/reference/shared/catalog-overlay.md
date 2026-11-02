@@ -67,8 +67,11 @@ shipped ones, with one extra gate. The discovery guide's "straightforward" bar c
 (read-only, no new egress, narrow scope), not whether the check's verdicts are true. So a custom
 check is capped at WARN until `history.jsonl` shows it reporting OK or INFO in 3 runs
 (`check_severities`, any 3 runs, not necessarily consecutive). The cap runs after trend and
-correlation, and the finding's note names it. The report marks every custom check `[custom]`
-beside its id.
+correlation. A capped result keeps the severity it computed in `clamped_from`, beside
+`severity`, and the finding's note names the cap. A check the owner reviewed is not capped:
+`/machine-health:setup apply review-check=<id>` records the review in `approvals.json`
+([`approvals.md`](approvals.md#reviewed-custom-checks)), and an audit run never writes it. The
+report marks every custom check `[custom]` beside its id.
 
 ## Relation to self-improvement
 

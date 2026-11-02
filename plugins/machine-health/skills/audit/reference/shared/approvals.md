@@ -26,8 +26,9 @@ checkbox that drives behavior. Runtime proposals accumulate in `<StateBase>/TODO
 ## Writing approvals and mutes
 
 `approvals.json` and `mutes.json` have one writer, `Set-ApprovalState`, which
-`/machine-health:setup apply` runs (`approve=`, `revoke=`, `unmute=`, `exclude-service=`,
-`include-service=`), through an atomic replace. Service exclusions are written this way too;
+`/machine-health:setup apply` runs (`approve=`, `revoke=`, `review-check=`, `unreview-check=`,
+`unmute=`, `exclude-service=`, `include-service=`), through an atomic replace. An audit run reads
+both files and never writes either. Service exclusions are written this way too;
 `Set-ApprovalState` keeps the keys it never writes (`migration`, `noise_allowlist`) as they are.
 No `TODO.md` text, checked box or not, ever becomes an approval.
 
@@ -80,6 +81,41 @@ block, which the schema still accepts and nothing reads.
 
 `/machine-health:setup apply revoke=<remediation-id>` sets `approved` to `false` and refreshes
 `approved_at`. The next run respects it immediately. No cache.
+
+## Reviewed custom checks
+
+A custom check registered in the overlay starts clamped: its CRIT is capped at WARN until it has
+reported clean in 3 runs ([`catalog-overlay.md`](catalog-overlay.md#custom-checks)). The owner can
+lift the clamp for one check by recording that they reviewed it. The record lives in
+`reviewed_checks`, keyed by check id:
+
+```json
+{
+  "schema_version": "1.0",
+  "remediations": {},
+  "reviewed_checks": {
+    "my-check": {
+      "reviewed": true,
+      "reviewed_at": "2026-10-21T12:00:00-04:00",
+      "reviewed_by": "setup apply",
+      "notes": "Read the script; the CRIT threshold matches the vendor guidance."
+    }
+  }
+}
+```
+
+- `/machine-health:setup apply review-check=<check-id>` writes the record, and
+  `unreview-check=<check-id>` sets `reviewed` back to `false` and refreshes `reviewed_at`.
+- Each write names one check. `review-check=` takes only a custom check the overlay registers: a
+  shipped check is never clamped, so it cannot be reviewed. `unreview-check=` takes a check that
+  has a record, registered or not. A wildcard, the word `all` or a list of ids is refused, and
+  nothing is written.
+- The audit run reads the record (`Get-ReviewedCheckId` in `Get-ApprovalState.ps1`) and never
+  writes it. A check with `reviewed: true` keeps the severity it computed. Every other custom
+  check is clamped as before. A run whose `<StateBase>` is under a cloud sync root reads no
+  `approvals.json`, so every custom check is clamped there.
+- A review is not tied to the script's content: after the owner edits or replaces a reviewed
+  check's script, `unreview-check=` puts the clamp back until they review it again.
 
 ## Per-host check overrides
 
@@ -145,7 +181,9 @@ with no approvals.json and asserts that no approvals.json appears.
 `tests/windows/lib/Write-StateFile.Tests.ps1` covers the replace recipe and its sharing and
 first-write cases; `tests/windows/lib/Set-ApprovalState.Tests.ps1` covers each action, the
 refusals, the schema check before the replace, the `approvals.lock` wait and the synced
-`<StateBase>` refusal.
+`<StateBase>` refusal. Its `review-check` cases include the refusal of a blanket review (a
+wildcard, `all`, or a list of ids). `tests/windows/lib/Invoke-CustomCheckClamp.Tests.ps1` covers a
+reviewed check's CRIT standing, an unreviewed one still clamped, and `clamped_from`.
 
 `tests/windows/lib/Get-MutedFindingKey.Tests.ps1` covers `mutes.json`: the schema, the per-check
 key lookup, the fail-safe fallbacks, the shared read, and that the read creates no file or folder.

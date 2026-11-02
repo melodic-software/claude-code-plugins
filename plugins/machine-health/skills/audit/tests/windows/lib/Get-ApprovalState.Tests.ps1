@@ -179,3 +179,31 @@ Describe 'Get-ServiceExclusion' -Tag 'lib' {
         @(Get-ServiceExclusion -State $null).Count | Should -Be 0
     }
 }
+
+Describe 'Get-ReviewedCheckId' -Tag 'lib' {
+    It 'returns only the check ids recorded with reviewed true' {
+        $state = ('{"schema_version":"1.0","remediations":{},"reviewed_checks":{' +
+            '"my-check":{"reviewed":true,"reviewed_at":"2026-10-21T12:00:00Z","reviewed_by":"setup apply","notes":null},' +
+            '"old-check":{"reviewed":false}}}') | ConvertFrom-Json
+        @(Get-ReviewedCheckId -State $state) | Should -Be @('my-check')
+    }
+
+    It 'returns an empty list when reviewed_checks is absent or the state is null' {
+        @(Get-ReviewedCheckId -State (New-DefaultApprovalState)).Count | Should -Be 0
+        @(Get-ReviewedCheckId -State $null).Count | Should -Be 0
+    }
+
+    It 'reads a review from approvals.json through Get-ApprovalState' {
+        $tmp = New-MachineHealthTempDir -Prefix 'machine-health-reviewed'
+        try {
+            $stateDir = Join-Path $tmp 'state'
+            New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
+            [System.IO.File]::WriteAllText((Join-Path $stateDir 'approvals.json'),
+                '{"schema_version":"1.0","remediations":{},"reviewed_checks":{"my-check":{"reviewed":true}}}')
+            $state = Get-ApprovalState -StateDir $stateDir
+            @(Get-ReviewedCheckId -State $state) | Should -Be @('my-check')
+        } finally {
+            Remove-MachineHealthTempDir -Path $tmp
+        }
+    }
+}

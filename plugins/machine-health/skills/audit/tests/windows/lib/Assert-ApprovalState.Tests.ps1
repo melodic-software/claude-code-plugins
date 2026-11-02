@@ -50,9 +50,31 @@ Describe 'Assert-ApprovalState' -Tag 'lib' {
             }
             Assert-ApprovalState $state | Should -BeTrue
         }
+
+        It 'accepts a state with a reviewed_checks record' {
+            $state = New-ValidState -Overrides @{
+                reviewed_checks = [pscustomobject]@{
+                    'my-check' = [pscustomobject]@{
+                        reviewed    = $true
+                        reviewed_at = '2026-10-21T12:00:00-04:00'
+                        reviewed_by = 'setup apply'
+                        notes       = $null
+                    }
+                }
+            }
+            Assert-ApprovalState $state | Should -BeTrue
+        }
     }
 
     Context 'invalid states' {
+        It 'rejects a reviewed_checks entry with <Case>' -ForEach @(
+            @{ Case = 'no reviewed field'; Entry = [pscustomobject]@{ notes = 'looked at it' }; Message = "*missing required field 'reviewed'*" }
+            @{ Case = 'a non-boolean reviewed'; Entry = [pscustomobject]@{ reviewed = 'yes' }; Message = '*reviewed must be a boolean*' }
+        ) {
+            $state = New-ValidState -Overrides @{ reviewed_checks = [pscustomobject]@{ 'my-check' = $Entry } }
+            { Assert-ApprovalState $state } | Should -Throw -ExpectedMessage $Message
+        }
+
         It 'rejects null input' {
             { Assert-ApprovalState $null } | Should -Throw -ExpectedMessage '*is null*'
         }

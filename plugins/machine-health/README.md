@@ -40,6 +40,12 @@ default to **not approved**, and only run when explicitly approved in the machin
 The shipped check catalog is read-only at runtime; machine-specific tuning (disable, deprecate,
 demote cadence, custom checks) lives in the overlay, written by `/machine-health:setup`.
 
+A custom check's CRIT is capped at WARN until it has reported clean in 3 runs; the capped result
+records its own severity in `clamped_from`. After you read a custom check's script,
+`/machine-health:setup apply review-check=<check-id>` records your review in `approvals.json`, and
+that check's CRIT then stands. `unreview-check=<check-id>` withdraws it. An audit run never
+writes a review. See `skills/audit/reference/shared/approvals.md`, "Reviewed custom checks".
+
 ## Network posture
 
 Egress is allowlisted: Microsoft Update endpoints, winget sources, and the CISA KEV feed

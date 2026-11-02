@@ -38,6 +38,33 @@
         }
       }
     },
+    "reviewed_checks": {
+      "type": "object",
+      "description": "The owner's review of a custom (overlay-registered) check, keyed by check id. A check recorded here with reviewed true is not held by the custom-check clamp (reference/shared/catalog-overlay.md, \"Custom checks\"). Written by /machine-health:setup apply review-check= and unreview-check=; an audit run never writes it. Optional.",
+      "propertyNames": { "pattern": "^[a-z][a-z0-9-]*[a-z0-9]$" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["reviewed"],
+        "properties": {
+          "reviewed": {
+            "type": "boolean",
+            "description": "True lifts the clamp for this check; false keeps it."
+          },
+          "reviewed_at": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "reviewed_by": {
+            "type": ["string", "null"],
+            "description": "Free-form identifier for audit (hostname, username, or note)."
+          },
+          "notes": {
+            "type": ["string", "null"]
+          }
+        }
+      }
+    },
     "check_overrides": {
       "type": "object",
       "description": "Per-check user-curated state, keyed by check id. Optional.",
