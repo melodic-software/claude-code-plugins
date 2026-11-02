@@ -225,7 +225,7 @@ jobs:
           fi
           mkdir -p "$RUNNER_TEMP/verdict"
           gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" >"$RUNNER_TEMP/verdict.zip"
-          unzip -o -q "$RUNNER_TEMP/verdict.zip" verdict.json -d "$RUNNER_TEMP/verdict"
+          unzip -p "$RUNNER_TEMP/verdict.zip" verdict.json >"$RUNNER_TEMP/verdict/verdict.json"
           echo "name=$name" >>"$GITHUB_OUTPUT"
 
       - name: Post a fail's notes, or find a pass's stale ones

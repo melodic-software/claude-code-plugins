@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import zlib from "node:zlib";
 import { test } from "node:test";
@@ -1269,14 +1269,16 @@ test("pr-feedback-dispatch.yml: the wrapper setup keeps the step's stderr for an
   }));
 
 // One stored (uncompressed) entry, the zip GitHub's artifact download answers.
-function storedZip(name, text) {
+// A `link` entry carries the Unix symlink mode, so unzip restores it as a link.
+function storedZip(name, text, link = false) {
   const file = Buffer.from(name);
   const data = Buffer.from(text);
   const local = Buffer.alloc(30);
   local.writeUInt32LE(0x04034b50, 0);
   const central = Buffer.alloc(46);
   central.writeUInt32LE(0x02014b50, 0);
-  central.writeUInt16LE(20, 4);
+  central.writeUInt16LE(link ? 0x031e : 20, 4);
+  if (link) central.writeUInt32LE(0o120777 * 0x10000, 38);
   for (const [header, at] of [
     [local, 4],
     [central, 6],
@@ -1346,6 +1348,19 @@ test("pr-feedback-dispatch.yml: post-verify-notes downloads the listed verdict b
       state(join(dir, "rt"), "github-token"),
       "200 5000 4959 41 1792748042 core repos/{repo}/actions/runs/{n}/artifacts\n200 5000 4958 42 1792748042 core repos/{repo}/actions/artifacts/{n}/{x}\n",
     );
+  }));
+
+test("pr-feedback-dispatch.yml: post-verify-notes writes a symlink verdict member as a regular file holding the link text", () =>
+  withDir((dir) => {
+    const name = `pr-verify-42-${"a".repeat(40)}-pass`;
+    const secret = join(dir, "secret.txt");
+    writeFileSync(secret, "SECRET\n");
+    const listing = { artifacts: [{ id: 555, name, expired: false }] };
+    const result = downloadStep(dir, { [LISTING]: JSON.stringify(listing), "repos/o/r/actions/artifacts/555/zip": storedZip("verdict.json", secret, true) });
+    assert.equal(result.status, 0, result.stderr);
+    const out = join(dir, "rt/verdict/verdict.json");
+    assert.equal(lstatSync(out).isFile(), true);
+    assert.equal(readFileSync(out, "utf8"), secret);
   }));
 
 test("the gh wrapper routes each traced request by its URL", () =>
