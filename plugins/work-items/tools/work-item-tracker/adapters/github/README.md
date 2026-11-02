@@ -86,6 +86,17 @@ Forward `--assignee` for the `list --assignee` flag and the audit's assigned-onl
 needed (`gh` truncates at 30 silently; max page size 100, so for larger sets, page with `--search`
 date ranges).
 
+**`list-items` in a cloud session.** `gh issue list --json blockedBy` is GraphQL, so with
+`CLAUDE_CODE_REMOTE=true` the `list-items` verb reads the
+[repository issues endpoint](https://docs.github.com/en/rest/issues/issues#list-repository-issues)
+instead: 100 rows a page, pull requests dropped, `--label` sent as the `labels` parameter (a label
+containing a comma lists unfiltered and the core's exact match filters it). Each row's
+`issue_dependencies_summary.total_blocked_by` says whether it has blockers; only a row with any,
+or with no summary, costs one
+[`dependencies/blocked_by`](https://docs.github.com/en/rest/issues/issue-dependencies) read, whose
+issue objects carry the `state`, `state_reason` and labels the blocker counts need. `parent_id` is
+null on both paths, since neither list read fetches the parent.
+
 ## Search items
 
 Search with `--search` (GitHub search syntax, not `gh` flags):
@@ -165,9 +176,10 @@ re-authenticate.
 The adapter makes that switch itself: with `CLAUDE_CODE_REMOTE=true` (set in cloud sessions) it
 takes the REST read and create paths whatever the `gh` version, and a native read or create that
 fails with a 403 starting `GitHub GraphQL is not available from Claude Code sessions` is retried
-over REST. Sub-issue and dependency edges and the `blockedBy` listings have no REST form, so
-`add-sub-item`, `link-blocks`, `list-sub-items`, `list-items` and `create-item --parent` or
-`--blocked-by` exit 3 there with an "unavailable in this Claude Code cloud session" message.
+over REST. `list-items`, and so `list-frontier`, reads REST there too (see "List items" above).
+The adapter's sub-issue and dependency edge writes and its sub-item listing have no REST path, so
+`add-sub-item`, `link-blocks`, `list-sub-items` and `create-item --parent` or `--blocked-by` exit 3
+there with an "unavailable in this Claude Code cloud session" message.
 
 - **Pointer**: when a `gh` call returns 403 in a cloud session, fetch the GraphQL restrictions in
   [cloud environments § GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy)
@@ -288,9 +300,10 @@ while REST `POST …/assignees` returns 201 and silently drops the login. `claim
 re-reads the assignees and fails `4` (auth) when its own assignment did not land, rather than
 reporting a held lease on an item the frontier still sees as unassigned.
 
-Verbs beyond the lease protocol (`get-item`, `list-items`, `list-sub-items`, `list-frontier`,
-`add-sub-item`, `link-blocks`) still resolve GraphQL-only fields (`issueType`, `blockedBy`,
-`parent`, `subIssues`) or use `gh issue list`, so they remain unavailable under that restriction.
+Of the verbs beyond the lease protocol, `get-item`, `list-items` and `list-frontier` switch to
+REST under that restriction ("View item", "List items"). `list-sub-items`, `add-sub-item` and
+`link-blocks` still use GraphQL-only fields (`blockedBy`, `parent`, `subIssues`), so they remain
+unavailable there.
 
 ## Edit title / body
 

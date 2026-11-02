@@ -204,6 +204,12 @@ wording the check does not recognize, the same conclusion follows. Leave it off 
 - **Gates do not quiet a report.** Raising `fix_precision_bar` changes what may be auto-fixed and
   shows exactly the same findings. If someone asks for a shorter report, the honest lever is
   `excluded_paths` for a class of surface that should not be scanned at all.
+- **Writing a whole config to change one key is a silent decision.** Merge is per-key override,
+  so regenerating the file from the default schema converts every key the user never mentioned
+  into a choice they did not make. Edit in place.
+- **The fixture exclusion belongs in config, and moving it into the script breaks the harness.**
+  An unconditional exclusion would decline the fixtures under the eval harness's own config
+  isolation, leaving the eval author reading prose instead of results.
 
 ## What this skill does NOT do
 

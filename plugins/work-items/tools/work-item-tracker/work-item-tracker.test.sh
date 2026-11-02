@@ -534,7 +534,9 @@ for v in list-sub-items link-blocks add-sub-item; do
 done
 assert_eq "remote session: create-item --parent gated → exit 3" \
   "3" "$(run_gh_verb_remote create-item --title t --parent "github:o/r#1")"
-assert_eq "remote session: list-frontier gated → exit 3" "3" "$(run_gh_verb_remote list-frontier)"
+assert_eq "remote session: list-frontier dispatches (list-items reads REST)" "0" "$(run_gh_verb_remote list-frontier)"
+assert_eq "remote session: list-frontier --parent gated → exit 3" \
+  "3" "$(run_gh_verb_remote list-frontier --parent "github:o/r#9")"
 assert_eq "remote session: plain create-item dispatches" \
   "0" "$(run_gh_verb_remote create-item --title t)"
 ERR="$(CLAUDE_CODE_REMOTE=true PATH="$STUB_BIN:$PATH" WORK_ITEM_TRACKER_BINDING="$GH_BINDING" \

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/page-numbers\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | low | src/pagination.js:7 | code-reviewer | A test for a single partial page, pageNumbers(1), would pin the lower bound of the new loop. | Add a test |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "no finding has CRITICAL in its Tier column"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/page-numbers\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/pagination.js:7 | code-reviewer | Off-by-one: the <= bound runs one iteration too many, so every listing renders a link to an empty page past the last one. | Use < pageCount |\n\n## Surfaces\n\nRan: [code-reviewer@high, security-reviewer@high]. Returned no result: [].",
+      "why": "a CRITICAL finding makes the wrong off-by-one claim"
+    }
+  ]
+}

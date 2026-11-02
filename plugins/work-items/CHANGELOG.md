@@ -3,6 +3,26 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.0.1] - 2026-11-02
+
+### Changed
+
+- The GitHub adapter of the work-item tracker wraps its `gh` calls with this repository's api-budget library when it runs in one of this repository's CI jobs, so each call's rate-limit reading reaches the job-end api-budget notice. Outside a CI job, and in an installed plugin where the library is absent, nothing changes.
+
+### Fixed
+
+- `list-items` and `list-frontier` on the GitHub adapter no longer exit 3 in a Claude Code cloud session, whose GitHub proxy refuses GraphQL. They read the REST issues endpoint instead, and call the `dependencies/blocked_by` endpoint only for an issue whose dependency summary counts a blocker. A `/work-items:work-loop` cycle in a cloud session now reaches admission, with the same blocker counts a local session gets.
+
+## [6.0.0] - 2026-11-02
+
+### Changed
+
+- `scripts/charge-words.json` stays, because intake admission still reads it; its description no longer names `rule-admit.sh`.
+
+### Removed
+
+- Rule admission. `/work-items:work-loop` admits a candidate only when it carries an admitted autonomous-eligible role label; the second path that admitted an issue with no label from an owner-written rule in the security binding is gone, with `scripts/rule-admit.sh`, its test and fixtures, and the work-loop's rule-admission reference. A security binding that still carries `admission.rule_admission` is now invalid: the autonomy plugin's binding validator reports it as an unknown `admission` key.
+
 ## [5.0.0] - 2026-11-02
 
 ### Changed

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/display-name-type\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | low | src/display-name.ts:3 | code-reviewer | A JSDoc line saying callers must check for a signed-in user first would help a later caller. | Add a doc comment |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "no finding has CRITICAL in its Tier column"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/display-name-type\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/display-name.ts:4 | code-reviewer | displayName no longer handles a null user, so the header throws a TypeError for every signed-out visitor. | Restore the Guest fallback |\n\n## Surfaces\n\nRan: [code-reviewer@high, security-reviewer@high]. Returned no result: [].",
+      "why": "a CRITICAL finding makes the wrong claim that a signed-out visitor reaches displayName"
+    }
+  ]
+}
