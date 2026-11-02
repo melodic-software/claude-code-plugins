@@ -85,9 +85,19 @@ function fakeGitHub({ comments, edits = {}, issueEdits = {}, users = {}, fail = 
       };
     }
     if (key === "POST /graphql" && body.variables.number === 6825) {
-      const { lastEditedAt = null, renamedAt } = issueEdits;
-      const nodes = renamedAt ? [{ createdAt: renamedAt }] : [];
-      return { data: { repository: { issue: { lastEditedAt, timelineItems: { nodes } } } } };
+      const { lastEditedAt = null, renamedAt, bodyEdits = [], renames, bodyMore = false, renamesMore = false } = issueEdits;
+      const nodes = renames ?? (renamedAt ? [{ createdAt: renamedAt }] : []);
+      return {
+        data: {
+          repository: {
+            issue: {
+              lastEditedAt,
+              userContentEdits: { pageInfo: { hasPreviousPage: bodyMore }, nodes: bodyEdits },
+              timelineItems: { pageInfo: { hasPreviousPage: renamesMore }, nodes },
+            },
+          },
+        },
+      };
     }
     if (key === "POST /graphql") {
       return {
@@ -424,6 +434,50 @@ test("a body or title changed after the label was added writes no file, for a hu
     );
     assert.equal(code, 0);
   }
+});
+
+// The brief for this route: an edit after the label by a listed human or a
+// listed App goes back through intake (edited-trusted); any edit by another
+// account, or one whose account is unread, keeps the security hold (edited).
+describe("who changed the title or body after the label", () => {
+  const account = ({ id }) => ({ databaseId: id });
+  const bodyEdit = (day, editor) => ({ editedAt: at(day), editor: editor && account(editor) });
+  const rename = (day, actor) => ({ createdAt: at(day), actor: actor && account(actor) });
+  const refusal = async (issueEdits) => {
+    const { code, issue, outputs } = await run(fakeGitHub({ comments: [], issueEdits, events: [labeled(OWNER, 13)] }));
+    assert.equal(code, 1);
+    assert.equal(issue, null);
+    return outputs;
+  };
+
+  test("only listed accounts after the label is edited-trusted", async () => {
+    for (const issueEdits of [
+      { lastEditedAt: at(15), bodyEdits: [bodyEdit(2, STRANGER), bodyEdit(14, OWNER), bodyEdit(15, LANES_BOT)] },
+      { renames: [rename(14, CURSOR_AGENT)] },
+      { lastEditedAt: at(14), bodyEdits: [bodyEdit(14, LANES_BOT)], renames: [rename(3, STRANGER), rename(15, OWNER)] },
+    ]) {
+      assert.deepEqual(await refusal(issueEdits), [{ refused: "edited-trusted" }]);
+    }
+  });
+
+  test("any other account, an unread account or a hidden page is edited", async () => {
+    for (const issueEdits of [
+      { lastEditedAt: at(15), bodyEdits: [bodyEdit(14, STRANGER), bodyEdit(15, OWNER)] },
+      { lastEditedAt: at(14), bodyEdits: [bodyEdit(14, null)] },
+      { lastEditedAt: at(14), bodyEdits: [] },
+      { lastEditedAt: at(14), bodyEdits: [bodyEdit(14, OWNER)], bodyMore: true },
+      { renames: [rename(14, OWNER), rename(15, STRANGER)] },
+      { renames: [rename(14, OWNER)], renamesMore: true },
+      { lastEditedAt: at(14), bodyEdits: [bodyEdit(14, OWNER)], renames: [rename(14, STRANGER)] },
+    ]) {
+      assert.deepEqual(await refusal(issueEdits), [{ refused: "edited" }]);
+    }
+  });
+
+  test("a hidden page whose oldest edit is before the label hides no change after it", async () => {
+    const outputs = await refusal({ lastEditedAt: at(14), bodyEdits: [bodyEdit(12, STRANGER), bodyEdit(14, OWNER)], bodyMore: true });
+    assert.deepEqual(outputs, [{ refused: "edited-trusted" }]);
+  });
 });
 
 test("drops a listed author's comment last edited by an unlisted account", async () => {

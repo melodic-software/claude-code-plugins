@@ -61,7 +61,9 @@
 //                         webHostsFrom); unset allows only GitHub hosts
 //   GITHUB_API_URL
 //   GITHUB_OUTPUT         receives refused=edited when the title or body
-//                         changed after the label, which report-outcome names
+//                         changed after the label, or refused=edited-trusted
+//                         when only listed accounts changed them, which
+//                         report-outcome names
 import { rmSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -82,26 +84,47 @@ export const CAPPED_CLOSE_MARKER = "<!-- verify-capped-close pr=";
 const timeOf = (value) => (typeof value === "string" ? Date.parse(value) : Number.NaN);
 const firstLine = (body) => (body ?? "").trimStart().split("\n", 1)[0].trimEnd();
 
-// When an issue's body was last edited and its title last changed.
+// When an issue's body was last edited, and its newest body edits and title
+// changes with the account behind each.
+const ACCOUNT = "{ ... on User { databaseId } ... on Bot { databaseId } }";
 const ISSUE_EDITS_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     issue(number: $number) {
       lastEditedAt
-      timelineItems(itemTypes: [RENAMED_TITLE_EVENT], last: 1) { nodes { ... on RenamedTitleEvent { createdAt } } }
+      userContentEdits(last: 100) { pageInfo { hasPreviousPage } nodes { editedAt editor ${ACCOUNT} } }
+      timelineItems(itemTypes: [RENAMED_TITLE_EVENT], last: 100) { pageInfo { hasPreviousPage } nodes { ... on RenamedTitleEvent { createdAt actor ${ACCOUNT} } } }
     }
   }
 }`;
 
-// The issue's body edit and title change times (null when never). A failed
-// read or an unexpected shape throws.
-async function readIssueEdits(github, repository, number) {
+// "" when the title and body are as they stood at `frozenAt`; "edited-trusted"
+// when every change since was made by an account in `trusted`; else "edited".
+// Timestamps are whole seconds, so a change in the label's own second counts
+// as after it, and an unparsable time is a change. Fail closed: a change whose
+// account is unread, or a page that may hide an older change after
+// `frozenAt`, is "edited". A failed read or an unexpected shape throws.
+async function readEditsSince(github, repository, number, frozenAt, trusted) {
   const [owner, name] = repository.split("/");
   const issue = (await github("POST", "/graphql", { query: ISSUE_EDITS_QUERY, variables: { owner, name, number: Number(number) } }))
     ?.data?.repository?.issue;
   if (issue === null || typeof issue !== "object" || Array.isArray(issue)) {
     throw new Error("issue edits have an unexpected shape");
   }
-  return [issue.lastEditedAt, ...(issue.timelineItems?.nodes ?? []).map((node) => node?.createdAt)];
+  const after = (time) => time != null && !(timeOf(time) < frozenAt);
+  const since = (page, timeKey, accountKey) => {
+    const nodes = Array.isArray(page?.nodes) ? page.nodes : [];
+    const hidden = page?.pageInfo?.hasPreviousPage === true && (nodes.length === 0 || after(nodes[0]?.[timeKey]));
+    const changes = nodes.filter((node) => node === null || typeof node !== "object" || after(node[timeKey]));
+    return { hidden, changes, byTrusted: changes.every((node) => trusted.has(node?.[accountKey]?.databaseId)) };
+  };
+  const body = since(issue.userContentEdits, "editedAt", "editor");
+  const title = since(issue.timelineItems, "createdAt", "actor");
+  const bodyChanged = after(issue.lastEditedAt);
+  if (!bodyChanged && title.changes.length === 0) {
+    return "";
+  }
+  const bodyTrusted = !bodyChanged || (body.changes.length > 0 && !body.hidden && body.byTrusted);
+  return bodyTrusted && !title.hidden && title.byTrusted ? "edited-trusted" : "edited";
 }
 
 // When `senderId` added `label` in the event that started this run (its newest
@@ -242,11 +265,10 @@ export async function main({ env = process.env, github, log = console.log, write
     dropped["over-cap"] = 0;
 
     const frozenAt = await readAdmittedAt(client, repository, env.ISSUE_NUMBER, env.LABEL_NAME, Number(env.LABEL_SENDER_ID), lanesAppId, humans, eventAt);
-    // Timestamps are whole seconds, so a change in the label's own second counts as after it.
-    // NaN compares false, so an unparsable time is a change.
-    const edits = await readIssueEdits(client, repository, env.ISSUE_NUMBER);
-    if (!edits.every((time) => time == null || timeOf(time) < frozenAt)) {
-      throw Object.assign(new Error(`the issue title or body changed after ${env.LABEL_NAME} was added`), { refused: "edited" });
+    const refused = await readEditsSince(client, repository, env.ISSUE_NUMBER, frozenAt, new Set([...ids, lanesAppId]));
+    if (refused) {
+      const by = refused === "edited" ? "" : ", each change by a listed account";
+      throw Object.assign(new Error(`the issue title or body changed after ${env.LABEL_NAME} was added${by}`), { refused });
     }
 
     // The body's checks a person runs, as admission read them: the comments
