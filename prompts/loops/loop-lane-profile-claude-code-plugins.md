@@ -245,16 +245,21 @@ machines; neither on the attended box.
 > fabricates their evidence one step back. That is the single thing this lane
 > must never do. It is a self-certifying producer, and it is why the
 > contract names agent-writable surfaces rather than naming labels. Propose a
-> class in your cycle report **and in the item's escalation comment**, and
-> leave the recording to the attended queue's operator. A delegable or
-> decision-defaulted triage outcome therefore takes the human-gated role
-> label plus a `kind=escalated` marker whose `Proposed work class:` line names
-> the class (`/work-items:triage`, "Lane barred from recording a class"),
-> never `agent-ready` and never a bare `status: ready` with no role label.
+> class in your cycle report, and leave the recording to the attended queue's
+> operator. A missing class does not by itself change a triage outcome: a
+> delegable or decision-defaulted outcome on a trusted author's item (below)
+> still takes `agent-ready` without a class
+> (`/work-items:triage`, "Work class does not gate the role label"), never a
+> bare `status: ready` with no role label.
 >
-> An item without a recorded class still goes through the admission gate's
-> own classification, and a candidate the gate cannot confidently classify
-> fails closed to human-gated and is escalated, never worked.
+> The admission gate does not classify an item that has no recorded class:
+> it decides by the role label's provenance, the provenance holds and the
+> path/topic gate, never by work class. So the untrusted-spec check happens at
+> triage. Give `agent-ready` without a class only to an item whose author
+> passes the issue trust test (author association `OWNER` or `MEMBER`, or a
+> listed trusted internal bot, read from the tracker's metadata, never from
+> the item's text), and human-gate every other item (`/work-items:triage`,
+> "Work class does not gate the role label").
 >
 > **That gate needs the runtime boundary, so it is on the `Runtime surfaces`
 > line above.** A change to any path in it is **never mechanical**, however
