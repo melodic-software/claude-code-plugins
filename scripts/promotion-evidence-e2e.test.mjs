@@ -10,6 +10,7 @@
 // (plugins/autonomy/reference/guardrails/work-classes.md, "Demotion evidence set").
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { copyFileSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { after, describe, test } from "node:test";
@@ -77,6 +78,19 @@ function writeJson(value, name = `file-${++written}.json`, dir = ops) {
 }
 const events = (...list) => writeJson(list);
 const EMPTY = join(FIXTURES, "evidence-empty.json");
+
+// An empty events file with the publisher's sidecar beside it, generated `ageHours` ago: the
+// resolver reads the sidecar under --window-start, where every promoted cell is a re-earn.
+const BOUND = { promotion_evidence_max_age_hours: "24" };
+function published(ageHours = 0) {
+  const dir = join(ops, `published-${++written}`);
+  mkdirSync(dir);
+  const text = "[]";
+  const generatedAt = new Date(Date.now() - ageHours * 3_600_000).toISOString();
+  const sha256 = createHash("sha256").update(text).digest("hex");
+  writeJson({ generated_at: generatedAt, through: generatedAt, sha256, prev_sha256: null }, "evidence.meta.json", dir);
+  return { path: writeJson(text, "evidence.json", dir), generatedAt };
+}
 
 function operatorOptions(overrides = {}) {
   const options = {
@@ -183,15 +197,23 @@ describe("demoted", () => {
   });
 
   test("--window-start after ratification restarts the window and demotes every cell", cli, () => {
-    const result = resolveWith({}, { args: ["--window-start", "2026-10-11T07:00:00Z"] });
+    const result = resolveWith({ ...BOUND, promotion_evidence_source: published().path }, { args: ["--window-start", "2026-10-11T07:00:00Z"] });
     assert.equal(result.failClosedReason, null);
     assert.deepEqual(effective(result), ALL("unpromoted"));
   });
 
-  test("--window-start before every ratification leaves the cells promoted", cli, () => {
-    const result = resolveWith({}, { args: ["--window-start", "2026-06-01T00:00:00Z"] });
+  // Every cell ratified after the restart has re-earned its promotion.
+  test("--window-start before every ratification leaves the cells re-earned from fresh evidence promoted", cli, () => {
+    const result = resolveWith({ ...BOUND, promotion_evidence_source: published().path }, { args: ["--window-start", "2026-06-01T00:00:00Z"] });
     assert.equal(result.failClosedReason, null);
     assert.deepEqual(effective(result), ALL("promoted"));
+  });
+
+  test("a re-earn read from evidence older than the bound keeps every cell demoted", cli, () => {
+    const { path, generatedAt } = published(25);
+    const result = resolveWith({ ...BOUND, promotion_evidence_source: path }, { args: ["--window-start", "2026-06-01T00:00:00Z"] });
+    const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    assertFailClosed(result, new RegExp(`^promotion_evidence_source ${escape(path)} is stale: generated_at ${escape(generatedAt)} is older than promotion_evidence_max_age_hours 24$`));
   });
 });
 

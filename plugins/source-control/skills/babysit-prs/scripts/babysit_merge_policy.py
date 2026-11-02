@@ -5843,8 +5843,12 @@ PROMOTION_OPTIONS = (
     "promotion_evidence_checker",
 )
 # Optional options whose values are not local paths: the credential roots name
-# the probe host, so only the settings file they came from is checked.
-PROMOTION_SETTINGS_ONLY_OPTIONS = ("promotion_evidence_credential_roots",)
+# the probe host and the age bound is a number of hours, so only the settings
+# file each came from is checked.
+PROMOTION_SETTINGS_ONLY_OPTIONS = (
+    "promotion_evidence_credential_roots",
+    "promotion_evidence_max_age_hours",
+)
 PROMOTION_RESOLVER = (
     Path(__file__).resolve().parents[2]
     / "babysit-loop"

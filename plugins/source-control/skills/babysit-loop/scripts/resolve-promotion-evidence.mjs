@@ -11,6 +11,12 @@
 // worktree root and removed on exit, with one gate-failure event per promotable cell at that
 // instant appended, so a cell stays unpromoted until it is re-ratified after it. An empty or
 // malformed value, or a source that cannot be read as a JSON array, fails closed.
+// Every cell that resolves promoted under --window-start is a re-earn, so the source must also be
+// fresh: its sidecar (evidence.json -> evidence.meta.json, written by
+// publish-promotion-evidence.mjs) must hold the source's sha256 and a generated_at no older than
+// promotion_evidence_max_age_hours, a positive whole number read from settings like the options
+// below. An unset or malformed bound, a missing, mismatched or lane-writable sidecar, or a stale
+// generated_at fails closed, so a demoted cell stays demoted while the publisher is not running.
 //
 // The four bootstrap values (promotion_evidence_binding, promotion_evidence_root,
 // promotion_evidence_source, promotion_evidence_checker) are not arguments: the helper reads
@@ -40,6 +46,7 @@
 // --window-start copy and reads nothing in the checkout.
 
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { accessSync, constants, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -49,14 +56,21 @@ import { parseArgs } from "node:util";
 import { managedSettingsFiles, OptionsError, readOperatorOptions, resolveInstall } from "./operator-options.mjs";
 
 // The first four are required; promotion_evidence_credential_roots is optional, and unset it
-// passes the checker no --credential-roots.
+// passes the checker no --credential-roots. promotion_evidence_max_age_hours is required only
+// with --window-start.
 export const OPTION_KEYS = [
   "promotion_evidence_binding",
   "promotion_evidence_root",
   "promotion_evidence_source",
   "promotion_evidence_checker",
   "promotion_evidence_credential_roots",
+  "promotion_evidence_max_age_hours",
 ];
+const MAX_AGE = "promotion_evidence_max_age_hours";
+const HOUR_MS = 3_600_000;
+// How far the publisher's clock may run ahead of this host's before a generated_at reads as
+// forged: a future one would keep the evidence fresh past the bound.
+const CLOCK_SKEW_MS = 300_000;
 
 const PROMOTABLE_CELLS = ["C2-auto-merge", "C3-auto-merge", "C3-ai-review-blocking"];
 const BLOCK_HEADER = "Effective promotion state (evaluation mode):";
@@ -172,17 +186,49 @@ function isStrictIso(value) {
 
 const restartEvents = (events, at) => [...events, ...PROMOTABLE_CELLS.map((cell) => ({ cell, event: "gate-failure", at }))];
 
+// Fails closed unless the publisher's sidecar describes `text`, the source as read, and its
+// generated_at is within the operator's age bound of now.
+function requireFresh(path, text, judge) {
+  const bound = options[MAX_AGE]?.value?.trim();
+  if (!bound) emit(source, `${MAX_AGE} not set in managed or user settings, so a re-earn after --window-start cannot be read`);
+  if (!/^[1-9]\d{0,5}$/.test(bound)) emit(source, `${MAX_AGE} ${JSON.stringify(bound)} is not a whole number of hours from 1 to 999999`);
+  refuseLaneWritable(options[MAX_AGE].file, options[MAX_AGE].file, judge);
+  const sidecar = `${path.replace(/\.json$/, "")}.meta.json`;
+  let meta;
+  try {
+    meta = JSON.parse(readFileSync(sidecar, "utf8"));
+  } catch (error) {
+    emit(source, `promotion_evidence_source ${path} has no readable sidecar ${sidecar} (${error.code ?? error.message})`);
+  }
+  refuseLaneWritable(sidecar, sidecar, judge);
+  if (meta?.sha256 !== createHash("sha256").update(text).digest("hex")) {
+    emit(source, `the sidecar ${sidecar} does not hold the sha256 of promotion_evidence_source ${path}`);
+  }
+  const generatedAt = meta.generated_at;
+  if (typeof generatedAt !== "string" || !isStrictIso(generatedAt)) {
+    emit(source, `the sidecar ${sidecar} has no ISO 8601 generated_at: ${JSON.stringify(generatedAt)}`);
+  }
+  const age = Date.now() - Date.parse(generatedAt);
+  if (age < -CLOCK_SKEW_MS) emit(source, `the sidecar ${sidecar} has a generated_at ${generatedAt} in the future`);
+  if (age > Number(bound) * HOUR_MS) {
+    emit(source, `promotion_evidence_source ${path} is stale: generated_at ${generatedAt} is older than ${MAX_AGE} ${bound}`);
+  }
+}
+
 // The source's events plus one gate-failure per promotable cell at `at`, written outside every
 // root and removed on exit.
-function restartedCopy(path, at, roots) {
+function restartedCopy(path, at, roots, judge) {
   if (!isStrictIso(at)) emit(source, `--window-start ${JSON.stringify(at)} is not an ISO 8601 date-time with an offset`);
+  let text;
   let events;
   try {
-    events = JSON.parse(readFileSync(path, "utf8"));
+    text = readFileSync(path, "utf8");
+    events = JSON.parse(text);
   } catch (error) {
     emit(source, `promotion_evidence_source ${path} cannot be read as JSON (${error.code ?? error.message})`);
   }
   if (!Array.isArray(events)) emit(source, `promotion_evidence_source ${path} is not a JSON array`);
+  requireFresh(path, text, judge);
   const dir = realpathSync.native(mkdtempSync(join(tmpdir(), "promotion-evidence-")));
   process.on("exit", () => rmSync(dir, { recursive: true, force: true }));
   for (const root of roots) {
@@ -287,7 +333,7 @@ export function main({ platform = process.platform, ...judge } = {}) {
   const probeRoot = option("promotion_evidence_root", roots);
   const sourcePath = option("promotion_evidence_source", roots);
   const evidence =
-    values["window-start"] === undefined ? sourcePath : restartedCopy(sourcePath, values["window-start"], roots);
+    values["window-start"] === undefined ? sourcePath : restartedCopy(sourcePath, values["window-start"], roots, judge);
   // The roots name the probe host, so only the settings file that set them is judged.
   const credentialSetting = options.promotion_evidence_credential_roots;
   if (credentialSetting) refuseLaneWritable(credentialSetting.file, credentialSetting.file, judge);
