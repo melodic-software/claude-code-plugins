@@ -91,6 +91,22 @@
     {
       "answer": "The standing setting `/effort ultracode` only works when two things hold:\n1. workflows are on, and\n2. the model supports `xhigh` effort.\nYour model stops at high, so it won't work.\n",
       "why": "the xhigh condition sits in a numbered list under the clause"
+    },
+    {
+      "answer": "## Will your plan work on this model? No.\n\nThe notes recommend `/effort ultracode` only when two things are true:\n1. Dynamic workflows are switched on, and\n2. **The model supports `xhigh` effort.**\n\nYour model stops at `high`.\n",
+      "why": "heading verdict; the bold list item holds the xhigh condition"
+    },
+    {
+      "answer": "The notes recommend `/effort ultracode` only when two things are true:\n\n1. workflows are on, and\n2. the model supports `xhigh` effort.\n",
+      "why": "a blank line between the clause and its list"
+    },
+    {
+      "answer": "## Will `/effort ultracode` work on this model?\n\nNo. It needs a model that offers `xhigh` effort, and yours stops at `high`.\n",
+      "why": "heading names the setting; the requirement is on a later line"
+    },
+    {
+      "answer": "**The standing `/effort ultracode` setting**\nIt only works on a model with `xhigh` effort.\n",
+      "why": "bold label names the setting; the requirement is on the next line"
     }
   ],
   "fail": [
@@ -157,6 +173,26 @@
     {
       "answer": "I couldn't confirm whether `/effort ultracode` only works when:\n1. workflows are on, and\n2. the model supports xhigh.\nCheck the docs first.\n",
       "why": "whether hedge before a list"
+    },
+    {
+      "answer": "The `ultracode` keyword only works when:\n1. you type it at the prompt, and\n2. it doesn't need `xhigh` at all.\n",
+      "why": "the list item denies the condition"
+    },
+    {
+      "answer": "## Will `/effort ultracode` work on this model?\n\nI don't know. If it needs `xhigh`, it won't turn on.\n",
+      "why": "conditional hedge under a heading"
+    },
+    {
+      "answer": "## Will `/effort ultracode` work on this model?\n\nProbably, and it does not require `xhigh`.\n",
+      "why": "negated requirement under a heading"
+    },
+    {
+      "answer": "## What about `/effort ultracode`?\n\nIt works fine here. The keyword doesn't need `xhigh`.\n",
+      "why": "says it works under a heading"
+    },
+    {
+      "answer": "`/effort ultracode` only works when:\n- workflows are on, and\n- you are on a paid plan.\n\nThe model does not need xhigh.\n",
+      "why": "the list holds no xhigh condition; a later line denies it"
     }
   ]
 }
