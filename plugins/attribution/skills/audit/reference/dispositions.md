@@ -3,10 +3,23 @@
 Read this only inside `fix` or `sweep`. The default `audit` action never edits, so it never
 needs this file.
 
-Only `fingerprint-confirmed` findings are fix-eligible. Everything else reaches the human report
-and stops there: a judged-similar passage, a suspected paraphrase, a `not-found` outcome, a
-split judge panel, a vetoed finding. A finding that is not fix-eligible is not "a fix
-awaiting approval"; it is a report.
+## Fix eligibility
+
+This section is the one statement of which findings `fix` and `sweep` may edit. A finding is
+fix-eligible only when both gates hold:
+
+- **Class gate: the class is `near-verbatim`.** It is the one class declared fix-eligible, on a
+  golden-set measurement against copy rubric v5 (see "Adjudications become fixtures" below).
+  `verbatim`, `paraphrase`, `summary` and `restated-fact` stay report-only.
+- **Tier gate: the tier is `fingerprint-confirmed`**, reached through every per-finding guard the
+  audit already runs: an identity-checked live source, a unanimous judge panel, and no review veto.
+  A `near-verbatim` finding at any other tier stays report-only.
+
+Everything else reaches the human report and stops there: a `verbatim` copy even when
+`fingerprint-confirmed`, a judged-similar passage, a suspected paraphrase, a `not-found` outcome,
+a split judge panel, a vetoed finding. A finding that is not fix-eligible is not "a fix awaiting
+approval"; it is a report. An eligible finding still passes every edit-time guard below: the
+matched-span fence, pointer liveness, and the semantic-diff revert.
 
 ## The five dispositions
 
@@ -145,8 +158,10 @@ worth more than the report they appeared in, and both are lost unless the loop b
 and, where the case needs one, `source.md`. Each directory is named for what its case tests, which
 means the name states the case's answer; a case is relabelled, and its harness scaffolding
 dropped, before any subagent reads it, per `reference/nomination.md` "Neutral labels
-(required)". The set grows toward 20 to 50 cases; every class stays report-only until the set
-carries it past `min_n_per_class` at or above the precision bar, `verbatim` first.
+(required)". A class stays report-only until the set carries it past `min_n_per_class` at or
+above the precision bar and the owner declares it in "Fix eligibility" above. `near-verbatim` is
+declared on its copy rubric v5 measurement; a rubric version bump lapses that declaration until
+the set is re-scored, per `reference/rubric.md`.
 
 Convert like this, in order:
 
