@@ -120,8 +120,9 @@ IDS="$(frontier_ids false "needs-human" "decision-map" <<<"$REMAP_CONTAINER")"
 assert_eq "explicit container label excludes the remap, not the stale default" \
   "github:o/r#1,github:o/r#10" "$IDS"
 
-# The autonomous frontier drops human-floor work classes (C4, C5) EVEN WHEN the item
-# also carries the autonomous-eligible role label.
+# The autonomous frontier drops only the untrusted-provenance work class, EVEN WHEN
+# the item also carries the autonomous-eligible role label. A structural item and
+# an item with no class stay listed: work class is not an admission gate.
 WORK_CLASS='{
   "schema_version": "1.0",
   "items": [
@@ -129,18 +130,19 @@ WORK_CLASS='{
     {"id":"github:o/r#2","state":"open","assignees":[],"labels":["agent-ready","work-class: structural"],"blocked_by_count":0},
     {"id":"github:o/r#3","state":"open","assignees":[],"labels":["agent-ready","work-class: untrusted-provenance"],"blocked_by_count":0},
     {"id":"github:o/r#4","state":"open","assignees":[],"labels":["work-class: read-only"],"blocked_by_count":0},
-    {"id":"github:o/r#5","state":"open","assignees":[],"labels":["work-class: mechanical"],"blocked_by_count":0}
+    {"id":"github:o/r#5","state":"open","assignees":[],"labels":["work-class: mechanical"],"blocked_by_count":0},
+    {"id":"github:o/r#12","state":"open","assignees":[],"labels":["agent-ready"],"blocked_by_count":0}
   ]
 }'
 IDS="$(frontier_ids true <<<"$WORK_CLASS")"
-assert_eq "autonomous frontier drops C4/C5 even when agent-ready is present" \
-  "github:o/r#1,github:o/r#4,github:o/r#5" "$IDS"
+assert_eq "autonomous frontier lists structural and unclassified agent-ready items, drops untrusted-provenance" \
+  "github:o/r#1,github:o/r#2,github:o/r#4,github:o/r#5,github:o/r#12" "$IDS"
 
 # The floor is an AUTONOMOUS-only exclusion: the attended lane must still see
 # these items, otherwise a human-gated item becomes unreachable by every view.
 IDS="$(frontier_ids false <<<"$WORK_CLASS")"
-assert_eq "default frontier still surfaces C4/C5 for the attended lane" \
-  "github:o/r#1,github:o/r#2,github:o/r#3,github:o/r#4,github:o/r#5" "$IDS"
+assert_eq "default frontier still surfaces untrusted-provenance for the attended lane" \
+  "github:o/r#1,github:o/r#2,github:o/r#3,github:o/r#4,github:o/r#5,github:o/r#12" "$IDS"
 
 # A signal-filed item is C5 by rule: the provenance label floors it whatever its
 # work-class label says, and the attended lane still sees it.
@@ -168,8 +170,7 @@ IDS="$(frontier_ids false <<<"$STATUS")"
 assert_eq "default frontier still surfaces status: needs-decision, needs-info and needs-spec items" \
   "github:o/r#1,github:o/r#9,github:o/r#10,github:o/r#11" "$IDS"
 
-# C3 scoped is deliberately NOT in the floor (the admission gate owns it), so it
-# must survive this filter.
+# C3 scoped is not in the floor, so it must survive this filter.
 SCOPED='{"schema_version":"1.0","items":[
   {"id":"github:o/r#7","state":"open","assignees":[],"labels":["work-class: scoped"],"blocked_by_count":0}]}'
 COUNT="$(frontier_count true <<<"$SCOPED")"
@@ -178,7 +179,7 @@ assert_eq "C3 scoped is not floored by the frontier" "1" "$COUNT"
 # Exact-match, not substring: a label that merely CONTAINS a floor member's text
 # is a different label and must not be floored.
 NEARMISS='{"schema_version":"1.0","items":[
-  {"id":"github:o/r#8","state":"open","assignees":[],"labels":["work-class: structural-lite"],"blocked_by_count":0}]}'
+  {"id":"github:o/r#8","state":"open","assignees":[],"labels":["work-class: untrusted-provenance-lite"],"blocked_by_count":0}]}'
 COUNT="$(frontier_count true <<<"$NEARMISS")"
 assert_eq "floor matching is exact, not substring" "1" "$COUNT"
 

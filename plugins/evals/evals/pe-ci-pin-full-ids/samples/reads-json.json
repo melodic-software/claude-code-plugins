@@ -8,6 +8,10 @@
     },
     {
       "answer": "The JSON tells you which of the causes happened."
+    },
+    {
+      "answer": "Exit 1 alone doesn't say why. Check `partial`, each run's `error`, and the `delta` field in the JSON.",
+      "why": "three fields put more than 60 characters between the verb and JSON"
     }
   ],
   "fail": [
@@ -33,6 +37,10 @@
     {
       "answer": "the JSON shows nothing the exit code doesn't, so gate on the exit code.",
       "why": "JSON dismissed"
+    },
+    {
+      "answer": "Check `partial`, each run's `error`, and the `delta` field in the log, not in the JSON.",
+      "why": "same fields, JSON negated inside the wider window"
     }
   ]
 }

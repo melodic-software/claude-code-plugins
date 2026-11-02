@@ -54,8 +54,11 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   counts toward a FAIL: a named call other than Skill aimed only under the run's own plugin-data
   directory (`<sandbox>/config/plugins/data`), and a `Read`, `Grep` or `Glob` aimed only under the
   session's own `<sandbox>/config/projects/*/*/tool-results/`, where it reads back output it already
-  received. Compare such a run's score only with runs denied the same way. A Bash call, a write, or
-  any other path in the config directory (`settings.json` included) keeps the rules below.
+  received. A Bash pipeline of `cat`, `head`, `wc`, `grep` and `sed -n` that reads only there is set
+  aside the same way. Compare such a run's score only with runs denied the same way. Any other Bash call (a
+  redirect, another command or operator, an unquoted glob, brace or `$`, or a path outside that
+  directory), a write, or any other
+  path in the config directory (`settings.json` included) keeps the rules below.
 - One exception overrides that FAIL: a denial of the same named call other than Skill (tool and
   target) in every run of its case, in both arms, is a warning, with or without an absolute path,
   unless an absolute path it names is at, under or above the plugin's directory. The environment
@@ -104,6 +107,19 @@ Count each arm's rows for the run count, never `runsPerCase`: under `--runs 2` a
 - **As of**: 2026-10-01
 - **Recheck trigger**: the plugin-evals page documents `runsPerCase`, or a run's `runsPerCase`
   matches its row count under `--runs`. Then update this paragraph.
+
+A case whose case.yaml sets `context.history_file` runs with-arm only from a path target even
+under `suite.ablation: with-without`: its `arms` holds no `without` key at all, and it has no
+delta. `run-validity.py` accepts that shape as single-arm by design and warns; an empty or short
+`without` list still fails the row count.
+
+- **Basis**: two `aggregate-result.json` files from path-target runs at Claude Code 2.1.316, with
+  `suite.ablation: with-without`, where every `history_file` case held 3 with-arm rows and no
+  `without` key; no docs page states the single-arm rule
+  (<https://code.claude.com/docs/en/plugin-evals#json-result>).
+- **As of**: 2026-11-01
+- **Recheck trigger**: the plugin-evals page documents how `history_file` interacts with
+  `--ablation`, or a path-target run records a `without` arm for a `history_file` case.
 
 `cases[].aggregates` carries `score` and `passRate` for the with-arm, plus `scoreWithout`,
 `passRateWithout`, and `delta` when the arms are comparable. Observed on a suite where one

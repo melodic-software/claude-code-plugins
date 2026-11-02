@@ -415,6 +415,14 @@ export function issueDimensionsFromBase(env) {
   return loadConfig(filesUnderBase(basePath, configPath), { configPath }).models?.["issue-dimensions"] ?? null;
 }
 
+// The base config's `models.issue-status` leaf as set, or null, after the
+// same file checks as resolve(), for the label writers' Work status mirror.
+export function issueStatusFromBase(env) {
+  const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
+  const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
+  return loadConfig(filesUnderBase(basePath, configPath), { configPath }).models?.["issue-status"] ?? null;
+}
+
 // The base config's `red-main` leaf as set and `merge.agent-identity`, after
 // the same file checks as resolve(), for the post-merge red-main report. The
 // leaf's defaults have one copy, in

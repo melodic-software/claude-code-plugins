@@ -9,7 +9,7 @@ Copy into your project's working-notes location, or track inline. Tick as each p
 - [ ] Phase 3: Hypothesize. List candidate root causes in priority order
 - [ ] Phase 4: Instrument. Add logging / breakpoints; gather evidence per hypothesis
 - [ ] Phase 5: Fix + regression test. Apply minimal fix; add test that would have caught the bug
-- [ ] Phase 6: Cleanup + post-mortem. Remove instrumentation; record the root-cause pattern
+- [ ] Phase 6: Cleanup + post-mortem. Remove instrumentation; search for siblings of the defect and fix or file each; record the root-cause pattern; propose an always-on signal when `always_on_signal` says to
 
 ## Skip criteria
 

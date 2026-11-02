@@ -10,7 +10,7 @@ citation. This lane's specifics:
 
 - **Qualifying progress** (worker lane, an item advanced or a PR opened): an admitted item
   executed to an opened PR or a closed item, or an item's tracker state advanced by this lane,
-  swept to a triage routing outcome, escalated (step 5), or queued for C3 ratification. A stale
+  swept to a triage routing outcome, or escalated (step 5). A stale
   in-flight escalation is not progress. A dirty execution that changed no tracker state (retried next cycle) is not progress; a dirty item that
   escalated off the item is.
 - **Actionable work in view**: the cycle-start snapshot holds at least one autonomous-frontier
@@ -26,6 +26,5 @@ citation. This lane's specifics:
   machine-marked comment whose first line is
   `<!-- work-items:escalation lane=work-loop kind=escalated -->`, reporting the streak length,
   the cycles covered, and what sat unmoved in the snapshot. The at-most-one-open check matches on
-  the exact title plus the seam's configured write identity as author, exactly like the
-  `kind=ratify-c3` dedup. A stall item is ordinary human-gated backlog to the exit evaluation
+  the exact title plus the seam's configured write identity as author. A stall item is ordinary human-gated backlog to the exit evaluation
   (drain-terminal state), never lane infrastructure. A truncated snapshot raises it at once.

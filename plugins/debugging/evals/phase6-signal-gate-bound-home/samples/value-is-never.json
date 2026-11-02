@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Removed the [DEBUG-c71e] line; the loop and the regression test pass.\n\n`always_on_signal: never` (Documentation/conventions/debugging.yaml), so no signal is proposed.",
+      "why": "reports the value in use from the bound home"
+    },
+    {
+      "answer": "Signal proposal skipped: always_on_signal never, set in Documentation/conventions/debugging.yaml.",
+      "why": "names the key and the value without the colon"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "always_on_signal: always (docs/conventions/debugging.yaml). Proposed signal: log a warning on a missing price key with the key and the known keys.",
+      "why": "reads the default path instead of the bound home"
+    },
+    {
+      "answer": "Removed the [DEBUG-c71e] line; the loop and the regression test pass. Done.",
+      "why": "does not report the value in use"
+    }
+  ]
+}
