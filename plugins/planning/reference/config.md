@@ -136,10 +136,12 @@ lowest first: the default, the `userConfig` option of the same name, the team fi
 
 Resolve `<home>` by running `bash "<plugin-root>/lib/resolve-convention-home.sh"` from the
 repository root (`<plugin-root>` per the reading skill's "Spoke paths"). Exit 0 prints the home.
-Exit 1 means no pointer is bound: use the default home, `docs/conventions`, the directory
-`/planning:setup apply` writes `planning.yaml` to. Any other exit skips both file layers, with the
-cause named in the one-line report. The root rule above applies to the two file layers, and the
-unset and invalid-value rules to every layer. Report the value and the layer that supplied it in
+Exit 1 means no pointer is bound, and exit 4 that the repository declined a home: in both cases
+use the default home, `docs/conventions`, the directory `/planning:setup apply` writes
+`planning.yaml` to in those states. Exit 5 is the root rule above: both file layers are skipped.
+Any other exit (2 or 3) skips both file layers, with the cause named in the one-line report. The
+root rule above applies to the two file layers, and the unset and invalid-value rules to every
+layer. Report the value and the layer that supplied it in
 one line.
 
 ## Probe topics
