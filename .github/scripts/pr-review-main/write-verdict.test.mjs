@@ -39,6 +39,8 @@ test("refuses output off the schema, a bad id or SHA, and a credential in model 
     ["bad tree", args({ findings: [], summary: "s" }, { tree: "x" })],
     ["bad pr", args({ findings: [], summary: "s" }, { pr: "0" })],
     ["secret", args({ findings: [], summary: `key AKIA${"A".repeat(16)}` })],
+    ["secret over a fold", args({ findings: [finding("IMPORTANT", { body: `quoted: AKIA${"A".repeat(8)}\n\\ continued: ${"A".repeat(8)}` })], summary: "s" })],
+    ["secret over a same-line fold", args({ findings: [], summary: `key AKIA${"A".repeat(8)} \\ continued: ${"A".repeat(8)}` })],
   ]) {
     assert.throws(() => buildVerdict(call), Error, name);
   }
