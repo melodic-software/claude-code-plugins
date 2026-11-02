@@ -8,7 +8,7 @@
       "expected_output": "With no mode argument at end of session, the skill selects session mode and runs the full 5-phase analysis: extract transcript metrics, assess quality across the five dimensions, check feedback-memory regressions, and identify skill/follow-up candidates — including an explicit 'no candidates this session' when that is the conclusion.",
       "files": [],
       "expectations": [
-        "The skill runs in session mode (full 5-phase analysis), not quick/trends",
+        "The skill runs in session mode (full 5-phase analysis), not quick",
         "It attempts transcript-metric extraction and quality assessment across the five dimensions",
         "It includes skill-candidate and follow-up-candidate analysis, stating 'no candidates' explicitly when that is the conclusion rather than omitting the analysis"
       ]
@@ -17,23 +17,12 @@
       "id": 2,
       "name": "codify-request-names-corrections-codify",
       "prompt": "/session-flow:retro mine review comments from our recent merged PRs and codify what reviewers keep telling us. The corrections plugin is installed.",
-      "expected_output": "Mining review comments is not a retro mode. The skill names /corrections:codify, whose reviews action reads recent merged pull requests' review comments, and stops. It does not run a session, trends or quick retro in its place and fetches no review comments itself.",
+      "expected_output": "Mining review comments is not a retro mode. The skill names /corrections:codify, whose reviews action reads recent merged pull requests' review comments, and stops. It does not run a session or quick retro in its place and fetches no review comments itself.",
       "files": [],
       "expectations": [
         "The answer names /corrections:codify (its reviews action) as the skill for review-comment lessons",
-        "It does not run a session, trends or quick retrospective instead",
+        "It does not run a session or quick retrospective instead",
         "It does not fetch or mine pull request review comments itself"
-      ]
-    },
-    {
-      "id": 3,
-      "name": "trends-mode-routing",
-      "prompt": "How am I doing across recent sessions — show me the score trends.",
-      "expected_output": "The 'how am I doing' / 'trends' signal routes to trends mode: cross-session score history read from plugin state (${CLAUDE_PLUGIN_DATA}/scores/...), presenting the trend rather than analyzing the current session in isolation.",
-      "files": [],
-      "expectations": [
-        "The skill routes to trends mode (cross-session score history)",
-        "It reads score history from plugin state (${CLAUDE_PLUGIN_DATA}), not from a file inside the consumer's repo"
       ]
     },
     {
@@ -64,10 +53,10 @@
       "id": 6,
       "name": "leading-unattended-flag-then-quick-mode",
       "prompt": "/session-flow:retro --unattended quick",
-      "expected_output": "The `--unattended` flag is taken out first, though it comes before the mode, and only gates the /export step: the suggestion is recorded in the output and not asked. The mode is then read from the remainder, so `quick` selects the abbreviated quick pass rather than session or trends.",
+      "expected_output": "The `--unattended` flag is taken out first, though it comes before the mode, and only gates the /export step: the suggestion is recorded in the output and not asked. The mode is then read from the remainder, so `quick` selects the abbreviated quick pass rather than session.",
       "files": [],
       "expectations": [
-        "`--unattended` is taken out before the mode is read, and `quick` is then selected as the mode (abbreviated pass, not session/trends)",
+        "`--unattended` is taken out before the mode is read, and `quick` is then selected as the mode (abbreviated pass, not session)",
         "The /export step records the suggestion in the output and does not ask the operator",
         "`--unattended` is not read as a mode and does not change anything other than the /export step"
       ]
@@ -153,27 +142,15 @@
       ]
     },
     {
-      "id": 13,
-      "name": "trends-reads-delivery-metrics-when-available",
-      "prompt": "/retro trends. The work-items plugin is installed, so /work-items:measure-delivery is available.",
-      "expected_output": "Trends mode presents the cross-session score analysis, or the 'No historical scores found' line when there is no history, then invokes /work-items:measure-delivery through the Skill tool and shows its delivery table and trend lines under a separate Delivery heading, with the window, branch and deploy signal, naming no person.",
+      "id": 15,
+      "name": "trends-argument-names-audit-sessions-trends",
+      "prompt": "/session-flow:retro trends",
+      "expected_output": "Score trends across sessions are not a retro mode. The skill stops and names /session-flow:audit-sessions trends as the action that reads the score history and shows delivery metrics. It analyzes no session: it parses no transcript, scores nothing and writes no score history row.",
       "files": [],
       "expectations": [
-        "The skill invokes /work-items:measure-delivery rather than computing delivery metrics itself",
-        "The delivery table appears under its own heading with the window, branch and deploy signal, apart from the session scores",
-        "No author, committer or other person is named in the delivery section"
-      ]
-    },
-    {
-      "id": 14,
-      "name": "trends-names-missing-measure-delivery",
-      "prompt": "/retro trends. The work-items plugin is not installed in this setup.",
-      "expected_output": "Trends mode presents the score analysis, or the 'No historical scores found' line when there is no history, and states that delivery metrics were not read because /work-items:measure-delivery is not available, without inventing delivery numbers or computing them another way.",
-      "files": [],
-      "expectations": [
-        "The output says delivery metrics were not read and names /work-items:measure-delivery as unavailable",
-        "No delivery numbers are invented or computed from git history by the skill itself",
-        "The score analysis, or the 'No historical scores found' line, still appears before the Delivery heading"
+        "The answer names /session-flow:audit-sessions trends as where cross-session score trends live",
+        "It does not run a session or quick retrospective, parse a transcript or score a session",
+        "It writes nothing to the score history and invokes no other skill in place of naming it"
       ]
     }
   ]

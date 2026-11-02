@@ -15,6 +15,6 @@ again.
 `/insights` is cross-session usage analytics: a report over many sessions, with no scoring
 dimensions and no path into the repo's rules or memory. This skill scores one session or handoff
 chain against fixed quality dimensions, checks feedback-memory regressions, and codifies learnings
-behind approval. `trends` mode is the nearest overlap, and it still reads this plugin's own score
-history rather than usage telemetry, so the skill offers `/insights` beside it rather than
-replacing either.
+behind approval. `/session-flow:audit-sessions trends` is the nearest overlap, and it still reads
+this plugin's own score history rather than usage telemetry, so `/insights` sits beside it rather
+than replacing either.

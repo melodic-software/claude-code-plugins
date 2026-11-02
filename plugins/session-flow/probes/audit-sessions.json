@@ -2,13 +2,12 @@
   "skill": "session-flow:audit-sessions",
   "plugin": "session-flow",
   "skill_dir": "plugins/session-flow/skills/audit-sessions",
-  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the single-session retros, the friction audit, and the improvement and speed sweeps in other plugins.",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are same-plugin siblings only (plugins/skill-quality/probes/template.md): the single-session retros, the friction audit and recall. pos-train-07 (trends across several retros) moved here from probes/retro.json when cross-session score trends moved to /session-flow:audit-sessions trends.",
   "competitors": [
     "session-flow:retro",
     "session-flow:running-retro",
     "session-flow:audit-friction",
-    "improvement:find",
-    "performance:go-faster"
+    "session-flow:recall"
   ],
   "queries": [
     {
@@ -46,6 +45,12 @@
       "split": "train",
       "expect_trigger": true,
       "request": "Find the sessions where I had to restate a preference more than twice."
+    },
+    {
+      "id": "pos-train-07",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Show me trends across my last several retros."
     },
     {
       "id": "pos-val-01",
