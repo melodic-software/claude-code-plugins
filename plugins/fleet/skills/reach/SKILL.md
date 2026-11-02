@@ -1,5 +1,5 @@
 ---
-description: "Reach another Claude Code lane in the fleet, on this machine or another, to run, prompt, query, message or start a session, with no human copying prompts. Use when: 'run this on HOST', 'ask the desktop to', 'cross-machine', 'remote agent', 'reach the fleet', 'message the Windows session', 'from WSL to Windows'. Not for: a session in THIS lane (ListAgents/SendMessage), a detached local background session (session-flow:continue-in-background), or repository fleets (repo-fleet-hygiene)."
+description: "Reach another Claude Code lane in the fleet, on this machine or another, to run, prompt, query, message or start a session, with no human copying prompts. Use when: 'run this on HOST', 'ask the desktop to', 'cross-machine', 'remote agent', 'reach the fleet', 'message the Windows session', 'from WSL to Windows', 'ssh to the desktop fails', 'one account for every lane', 'allow rule for remote claude runs'. Not for: a session in THIS lane (ListAgents/SendMessage), a detached local background session (session-flow:continue-in-background), or repository fleets (repo-fleet-hygiene)."
 argument-hint: "[relay]"
 user-invocable: true
 disable-model-invocation: false
@@ -18,7 +18,9 @@ start a named session in it.
 Prefer the richest lane for the work. **WSL is the default agent lane**: it has the repos, the
 toolchain and sshd. Use native Windows only for Windows-only work and Windows-side sessions.
 
-Read `~/.config/fleet/FLEET.md` before composing anything. It is rendered per machine and carries
+Read `~/.config/fleet/FLEET.md` before composing anything; `~` is the session's `$HOME`, which can
+differ from the login user's home, so when that read is refused, Glob `**/fleet/FLEET.md` under the
+session's home. It is rendered per machine and carries
 the real aliases, accounts and paths; the commands below are the same commands with placeholders.
 
 ## Route matrix
