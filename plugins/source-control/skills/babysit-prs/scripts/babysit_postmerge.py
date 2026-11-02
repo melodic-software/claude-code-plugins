@@ -29,7 +29,8 @@ reported as unattributed and passes like a green run.
 
 `remediate()` acts on failures in order: disarm the native auto-merge the
 identity armed on its own open pull requests, dequeue the identity's
-merge-queue entries, file or comment on the demotion issue, then record the telemetry
+merge-queue entries, file (unlabeled, for intake triage to hand to a lane) or
+comment on the demotion issue, then record the telemetry
 count. `attribute()` triggers the one re-run, and `dispatch_full_run()` the
 dispatch. The CLI is read-only unless `--remediate` is given; with it, a cycle
 also dispatches one full run on the branch tip whenever an unverified
@@ -39,7 +40,8 @@ dispatched for (a sync App's own enqueue) cannot hold the lane forever.
 The pinned SHA is read from the agent identity's `<!-- babysit-merge-pin
 sha=<S> -->` comment, which `babysit_merge.py --unattended` posts immediately
 before it enqueues. Without `--since` the floor is the merge gate's: the later
-of the enabling config commit and the newest human close of a demotion record.
+of the enabling config commit and the newest clear of a demotion record (a
+person's close, or main going green past a red-main record).
 
 A merge of the identity's that a readable check judged verified with nothing
 left that could still change it (`MergeState.settleable`) is listed in the
@@ -225,7 +227,6 @@ GATE_SUITE_PREFIXES = (
 QUARANTINE_NOTE = "The quarantined suite failed again: "
 QUARANTINE_CHANGED = "quarantine_changed"
 BORN_TRIAGED = "<!-- work-items:born-triaged -->"
-CODEOWNERS_PATHS = (".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS")
 _SUITE_RE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9._/-]*")
 
 SIGNAL_SCHEDULE = "schedule"
@@ -3413,9 +3414,18 @@ def _issue_body(failure: Failure, also: Iterable[AutoMerge] = ()) -> str:
             failure.marker,
             "",
             f"The post-merge check found a `{failure.signal}` failure after an unattended merge. The",
-            "unattended merge path stays at rung off while any demotion record is open. Fix main",
-            "first, then close every open demotion record directly (not through a pull request's",
-            "closing keyword); a new sighting of the same failure reopens its record.",
+            "unattended merge path stays at rung off while any demotion record holds.",
+            *(
+                [
+                    "This record clears itself once a full run passes on main at a later commit:",
+                    "fix main. A new sighting of the same failure reopens it.",
+                ]
+                if failure.signal in (SIGNAL_SCHEDULE, SIGNAL_DISPATCH)
+                else [
+                    "This record clears only when a person closes it directly (not through a",
+                    "pull request's closing keyword). A new sighting of the same failure reopens it.",
+                ]
+            ),
             "",
             f"- Pull request: {merge.url or f'#{merge.number}'}",
             f"- Merge commit: `{merge.merge_commit}`",
@@ -3425,13 +3435,13 @@ def _issue_body(failure: Failure, also: Iterable[AutoMerge] = ()) -> str:
                 [
                     f"- Also charged by this run: {others}",
                     "",
-                    "A human reads the failing suites in the run above, picks the merge responsible,",
-                    "and reverts that one.",
+                    "Read the failing suites in the run above, pick the merge responsible, and",
+                    "revert that one.",
                 ]
                 if others
                 else [
                     "",
-                    "To revert the merge, a human runs:",
+                    "To revert the merge, run:",
                     "",
                     "```sh",
                     f"git revert {merge.merge_commit}",
@@ -3481,67 +3491,6 @@ def _same_run(failure: Failure, body: Any) -> bool:
     return any(line.startswith(prefix) for line in _lines(body))
 
 
-def _codeowners_pattern(pattern: str) -> re.Pattern[str]:
-    """A CODEOWNERS pattern as a regex over a repository path, with
-    gitignore's rules: a leading or inner `/` anchors it at the root, `**`
-    spans directories, `*` and `?` do not, and a pattern also matches every
-    path under a directory it names."""
-    anchored = "/" in pattern.rstrip("/")
-    body = pattern.strip("/")
-    out = ""
-    i = 0
-    while i < len(body):
-        if body.startswith("**", i):
-            out += ".*"
-            i += 2
-        elif body[i] == "*":
-            out += "[^/]*"
-            i += 1
-        elif body[i] == "?":
-            out += "[^/]"
-            i += 1
-        else:
-            out += re.escape(body[i])
-            i += 1
-    return re.compile(("" if anchored else "(?:.*/)?") + out + "(?:/.*)?")
-
-
-def suite_owner(text: str, suite: str) -> str | None:
-    """The first user login the last CODEOWNERS rule matching `suite`
-    names, or None: no rule matches, the rule names no owner, or only teams
-    and emails, which an issue cannot be assigned to."""
-    owners: list[str] | None = None
-    for raw in text.splitlines():
-        line = raw.split("#", 1)[0].strip()
-        if not line:
-            continue
-        pattern, *names = line.split()
-        if _codeowners_pattern(pattern).fullmatch(suite):
-            owners = names
-    return next(
-        (o[1:] for o in owners or () if o.startswith("@") and "/" not in o), None
-    )
-
-
-def _codeowners(owner: str, name: str, sha: str) -> str:
-    """The CODEOWNERS file GitHub reads at `sha`, or "" when none reads."""
-    for path in CODEOWNERS_PATHS:
-        try:
-            proc = gh_capture(
-                [
-                    "api",
-                    "-H",
-                    "Accept: application/vnd.github.raw+json",
-                    f"repos/{owner}/{name}/contents/{path}?ref={sha}",
-                ]
-            )
-        except (RuntimeError, ValueError, OSError):
-            return ""
-        if proc.returncode == 0:
-            return proc.stdout or ""
-    return ""
-
-
 def _quarantine_body(q: Quarantine, branch: str, days: int) -> str:
     return "\n".join(
         [
@@ -3572,14 +3521,12 @@ def file_quarantines(
     branch: str,
     days: int,
     report: dict[str, Any],
-    label: str | None = None,
 ) -> None:
-    """File one quarantine issue per suite with no open one (needs-human,
-    assigned to the suite's CODEOWNERS user when a rule names one), or
-    comment each new sighting on the open one. Only the filers' issues and
-    comments count. Appends issue numbers to `report["issues"]` and
-    `report["comments"]`; raises `PostMergeReadError` or
-    `PostMergeWriteError`."""
+    """File one quarantine issue per suite with no open one, with no label and
+    no assignee so intake triage hands it to a lane, or comment each new
+    sighting on the open one. Only the filers' issues and comments count.
+    Appends issue numbers to `report["issues"]` and `report["comments"]`;
+    raises `PostMergeReadError` or `PostMergeWriteError`."""
     owner, name = _split_repo(repo)
     filers = (agent_identity, *DEMOTION_FILERS)
     keys = {_login_key(f) for f in filers}
@@ -3588,39 +3535,25 @@ def file_quarantines(
         suite = _quarantined_suite(issue.get("body"))
         if suite is not None and issue.get("state") == "open":
             open_issues.setdefault(suite, issue)
-    role_label = label or _role_label(owner, name)
-    codeowners: dict[str, str] = {}
     for q in quarantines:
         if not _SUITE_RE.fullmatch(q.suite):
             continue
         issue = open_issues.get(q.suite)
         if issue is None:
-            if q.sha not in codeowners:
-                codeowners[q.sha] = _codeowners(owner, name, q.sha)
-            assignee = suite_owner(codeowners[q.sha], q.suite)
             body = _quarantine_body(q, branch, days)
-            args = [
-                "api",
-                "-X",
-                "POST",
-                f"repos/{owner}/{name}/issues",
-                "-f",
-                f"title={quarantine_title(branch, q.suite)}",
-                "-f",
-                f"body={body}",
-                "-f",
-                f"labels[]={role_label}",
-            ]
-            try:
-                filed = _write(
-                    [*args, *(["-f", f"assignees[]={assignee}"] if assignee else [])],
-                    f"file the quarantine issue for {q.suite}",
-                )
-            except PostMergeWriteError:
-                if not assignee:
-                    raise
-                # An owner the repository cannot assign: file it unassigned.
-                filed = _write(args, f"file the quarantine issue for {q.suite}")
+            filed = _write(
+                [
+                    "api",
+                    "-X",
+                    "POST",
+                    f"repos/{owner}/{name}/issues",
+                    "-f",
+                    f"title={quarantine_title(branch, q.suite)}",
+                    "-f",
+                    f"body={body}",
+                ],
+                f"file the quarantine issue for {q.suite}",
+            )
             number = json_object(filed).get("number")
             if not isinstance(number, int):
                 raise PostMergeWriteError(
@@ -3665,14 +3598,13 @@ def remediate(
     *,
     agent_identity: str,
     branch: str | None = None,
-    label: str | None = None,
     record_telemetry: Callable[[int], None] | None = None,
 ) -> dict[str, Any]:
     """Act on the verdict's failures: turn off native auto-merge on every open
     pull request the agent identity opened and armed, so GitHub enqueues none
     of them, then dequeue every merge-queue entry the agent identity enqueued,
-    then file one demotion issue per (signal, merge SHA) or
-    failing run, or comment on the existing one, also found by its failing run (reopening it first when closed and the sighting
+    then file one demotion issue per (signal, merge SHA) or failing run, with
+    no label so intake triage hands it to a lane, or comment on the existing one, also found by its failing run (reopening it first when closed and the sighting
     is new; only the filers' own comments count as a prior sighting), then
     record the number of new issues as
     `demotion_events`. Each step runs even when an earlier one failed; errors are
@@ -3699,7 +3631,6 @@ def remediate(
                     repo, verdict.quarantines[0].sha
                 ).quarantine_days,
                 report=report["quarantine"],
-                label=label,
             )
         except (PostMergeReadError, PostMergeWriteError, policy.PolicyReadError) as exc:
             report["errors"].append(f"quarantine issue: {exc}")
@@ -3732,7 +3663,6 @@ def remediate(
     try:
         filers = {_login_key(f) for f in (agent_identity, *DEMOTION_FILERS)}
         existing = _demotion_issues(owner, name, (agent_identity, *DEMOTION_FILERS))
-        role_label = label or _role_label(owner, name)
         # One record per marker (signal, SHA); every distinct sighting under it
         # is checked against that record, so a second red run on a closed
         # record reopens it.
@@ -3773,8 +3703,6 @@ def remediate(
                         f"title=Post-merge {failure.signal} failure after #{failure.merge.number}: unattended merging demoted",
                         "-f",
                         f"body={body}",
-                        "-f",
-                        f"labels[]={role_label}",
                     ],
                     "file the demotion issue",
                 )
@@ -3809,7 +3737,7 @@ def remediate(
             if _recorded(failure, match, notes):
                 continue
             if match.get("state") != "open":
-                # A record a human closed must hold the rung again on a new
+                # A closed record must hold the rung again on a new
                 # failure; a reopen is no content edit, so a later close clears.
                 _write(
                     [
@@ -4612,8 +4540,8 @@ def main(argv: list[str] | None = None) -> int:
         type=_since,
         help=(
             "ISO 8601 floor with an offset (default: the floor the merge gate "
-            "uses, the later of the enabling config commit and the newest human "
-            "close of a demotion record)"
+            "uses, the later of the enabling config commit and the newest clear "
+            "of a demotion record)"
         ),
     )
     parser.add_argument(

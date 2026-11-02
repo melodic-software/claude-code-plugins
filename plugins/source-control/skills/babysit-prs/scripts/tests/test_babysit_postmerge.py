@@ -3207,11 +3207,36 @@ class Remediation(CheckCase):
             f"<!-- babysit-merge-demotion sha={MERGE_SHA} signal=read-back -->",
         )
         self.assertIn(f"git revert {MERGE_SHA}", body)
-        # Any open record holds the rung off, and a red main reopens a closed one.
-        self.assertIn("rung off while any demotion record is open", body)
-        self.assertIn("then close every open demotion record directly", body)
+        # Any record holds the rung off; a read-back record clears only on a
+        # person's direct close, and a new sighting reopens it.
+        self.assertIn("rung off while any demotion record holds", body)
+        self.assertIn("clears only when a person closes it directly", body)
         self.assertIn("https://github.com/example-org/example-repo/pull/7001", body)
-        self.assertIn("labels[]=needs-human", create)
+        # No label: intake triage hands it to a lane.
+        self.assertFalse(any(a.startswith("labels[]=") for a in create))
+
+    def test_a_full_run_record_says_it_clears_once_main_is_green(self) -> None:
+        # babysit_merge_policy._recovered_at clears schedule and dispatch
+        # records on a later green full run; the others wait for a person.
+        merge = pm.AutoMerge(7001, MERGE_SHA, HEAD_SHA, "2026-10-12T10:00:00Z")
+        for signal, clears in (
+            (pm.SIGNAL_SCHEDULE, True),
+            (pm.SIGNAL_DISPATCH, True),
+            (pm.SIGNAL_CANARY, False),
+            (pm.SIGNAL_READ_BACK, False),
+        ):
+            with self.subTest(signal=signal):
+                body = " ".join(
+                    pm._issue_body(pm.Failure(signal, merge, None, "red")).split()
+                )
+                self.assertEqual(
+                    "clears itself once a full run passes on main at a later commit"
+                    in body,
+                    clears,
+                )
+                self.assertEqual(
+                    "clears only when a person closes it directly" in body, not clears
+                )
 
     def test_failing_run_link_is_in_the_body(self) -> None:
         self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
@@ -3310,7 +3335,7 @@ class Remediation(CheckCase):
         verdict = self.check()
         self.assertEqual(sorted(f.merge.number for f in verdict.failures), [7001, 7002])
         report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
-        files = [w for w in self.record_writes() if w[-1].startswith("labels[]=")]
+        files = [w for w in self.record_writes() if f"repos/{REPO}/issues" in w]
         self.assertEqual(len(files), 1)
         self.assertEqual(report["issues"], [9001])
         self.assertEqual(report["comments"], [])
