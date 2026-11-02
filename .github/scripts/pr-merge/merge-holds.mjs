@@ -1489,8 +1489,8 @@ export function changeOf(line) {
 // { context, state, description }. `statuses` are a commit's REST statuses,
 // newest first as GitHub lists them, so a later `success` on the head
 // supersedes a failure, and another account's status neither holds nor
-// clears. ci-status's pr-unblock step and enable-auto-merge both judge a head
-// by this; a list that is not an array throws.
+// clears. enable-auto-merge judges a head by this; a list that is not an
+// array throws.
 export function unblockStops(statuses) {
   if (!Array.isArray(statuses)) {
     throw new Error("the head's statuses are not a list");
