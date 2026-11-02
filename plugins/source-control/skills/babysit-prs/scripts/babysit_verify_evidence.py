@@ -5293,7 +5293,17 @@ RUN_FIELDS_KEPT = (
     "head_branch",
     "head_sha",
     "created_at",
+    "updated_at",
 )
+# A run can be re-run up to 30 days after its first run
+# (https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs,
+# "Re-running workflows and jobs", read 2026-11-02; recheck when that limit
+# changes), keeping its `created_at`: so the runs created this long before
+# `--since` are listed too, and each one updated since is read. A day over
+# the limit covers its boundary.
+RERUN_LOOKBACK = timedelta(days=31)
+# The statuses of a verifier run not completed yet.
+RUNNING_STATUSES = ("queued", "in_progress", "waiting", "requested", "pending")
 RATE_LIMIT_SIGNS = (
     "rate limit",
     "HTTP 429",
@@ -5460,6 +5470,7 @@ class _PerRunBuild:
     since: datetime
     cutover: datetime
     checkpoint_path: Path
+    lookback: timedelta = RERUN_LOOKBACK
     state: dict[str, Any] = field(default_factory=dict)
 
     def load(self) -> None:
@@ -5468,7 +5479,9 @@ class _PerRunBuild:
             "repo": self.reader.repo,
             "since": self.since.isoformat(),
             "cutover": self.cutover.isoformat(),
+            "lookback": self.lookback.total_seconds(),
             "windows": {},
+            "lookbackWindows": {},
             "runs": {},
         }
         try:
@@ -5478,7 +5491,10 @@ class _PerRunBuild:
             return
         except (OSError, ValueError) as exc:
             raise _Unreadable(f"the checkpoint cannot be read: {exc}") from exc
-        if any(saved.get(k) != fresh[k] for k in ("version", "repo", "since", "cutover")):
+        if any(
+            saved.get(k) != fresh[k]
+            for k in ("version", "repo", "since", "cutover", "lookback")
+        ):
             raise _Unreadable("the checkpoint is for another repository, range or cutover")
         self.state = saved
 
@@ -5637,9 +5653,56 @@ class _PerRunBuild:
             raise _Unreadable(f"run {run_id} could not be read")
         return _kept_run(record)
 
+    def _running_check(self) -> None:
+        """No verifier run created before the cutover is still to finish: it
+        could upload a FAIL with no index after its window was read. Each
+        status's runs are read in one page that must hold its own
+        `total_count`, never kept in the checkpoint."""
+        for status in RUNNING_STATUSES:
+            body = json_object(
+                self.reader._actions(
+                    [
+                        "api",
+                        f"repos/{self.reader.repo}/actions/workflows/{Path(WORKFLOW_PATH).name}"
+                        f"/runs?status={status}&per_page={LISTING_PAGE_SIZE}",
+                    ],
+                    f"{status} verifier runs",
+                )
+            )
+            listed, count = body.get("workflow_runs"), body.get("total_count")
+            if (
+                not is_json_array(listed)
+                or type(count) is not int
+                or count != len(listed)
+                or count >= LISTING_PAGE_SIZE
+            ):
+                raise _Unreadable(f"the {status} verifier runs do not hold their count")
+            for run in map(json_object, listed):
+                created = _when(run.get("created_at"))
+                if created is None or created <= self.cutover:
+                    raise _Unreadable(
+                        f"verifier run {run.get('id')} from before the cutover is {status}"
+                    )
+
     def build(self) -> dict[str, Any]:
         self.load()
         windows, runs = self.state["windows"], self.state["runs"]
+        self._running_check()
+        # Runs created up to `lookback` before `since` and updated since: a
+        # re-run keeps its creation time. Each window holds its count.
+        early = self.state["lookbackWindows"]
+        for start, end in _windows(self.since - self.lookback, self.since):
+            key = _stamp(start)
+            if key not in early:
+                early[key] = self._window(start, end)
+                self.save()
+            for record in early[key]:
+                updated = _when(record.get("updated_at"))
+                if (updated is None or updated >= self.since) and str(
+                    record["id"]
+                ) not in runs:
+                    runs[str(record["id"])] = self._run(record)
+                    self.save()
         spans = _windows(self.since, self.cutover)
         for n, (start, end) in enumerate(spans):
             key = _stamp(start)
@@ -5653,9 +5716,11 @@ class _PerRunBuild:
         # The listing's FAILs: a run created before `since` (a re-run keeps
         # its creation time, and a judgment can upload hours after it) is
         # read here, so the file is the union of the windows and the listing.
+        self._running_check()
         if "listed" not in self.state:
             self.state["listed"] = self._listing_fails()
             self.save()
+        self._running_check()
         added = []
         for item in self.state["listed"]:
             run_id = item["run"]
@@ -5698,6 +5763,7 @@ def build_legacy_fails(
     cutover: datetime,
     now: datetime,
     checkpoint: Path,
+    lookback: timedelta = RERUN_LOOKBACK,
 ) -> dict[str, Any]:
     """The legacy FAILs file (`Reader._legacy`), the union of two reads. The
     runs: every pr-verify.yml run created from `since` to the cutover (the
@@ -5716,7 +5782,7 @@ def build_legacy_fails(
     kept in `checkpoint`, so a stopped build resumes where it stopped."""
     if not since < cutover <= now:
         raise _Unreadable("the range must run from --since to a cutover in the past")
-    return _PerRunBuild(reader, since, cutover, checkpoint).build()
+    return _PerRunBuild(reader, since, cutover, checkpoint, lookback).build()
 
 
 def _legacy_fails_main(args: argparse.Namespace, now: datetime | None) -> int:
@@ -5748,7 +5814,12 @@ def _legacy_fails_main(args: argparse.Namespace, now: datetime | None) -> int:
                     )
                 cutover = asked
             built = build_legacy_fails(
-                reader, since, cutover, now or _wall_clock(), Path(args.checkpoint)
+                reader,
+                since,
+                cutover,
+                now or _wall_clock(),
+                Path(args.checkpoint),
+                timedelta(days=args.rerun_lookback_days),
             )
     except _BuildStopped as exc:
         pacer.report()
@@ -5899,6 +5970,9 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     legacy.add_argument("--window-cap", type=int, default=1800)
     legacy.add_argument("--min-remaining", type=int, default=2000)
     legacy.add_argument("--breaker-file", default=None)
+    legacy.add_argument(
+        "--rerun-lookback-days", type=float, default=RERUN_LOOKBACK.days
+    )
     args = parser.parse_args(argv)
     if args.command == "legacy-fails":
         return _legacy_fails_main(args, now)

@@ -114,6 +114,39 @@ const upstreamRun = (overrides = {}) => ({
   },
 });
 
+// upload-fail-index's "Split the names" step, run with a stand-in gh that
+// answers the run's artifacts read with `held` (or fails), returning its exit
+// status and the outputs it wrote.
+const ACTION = readFileSync(new URL("../../actions/upload-fail-index/action.yml", import.meta.url), "utf8");
+const splitNames = (names, held, { total, fail = false } = {}) => {
+  const script = /\n {6}run: \|\n([\s\S]*?)\n {4}- name: /.exec(ACTION)[1].replace(/^ {8}/gm, "");
+  const dir = tempDir("upload-fail-index-");
+  const bin = path.join(dir, "bin");
+  mkdirSync(bin);
+  const body = JSON.stringify({ total_count: total ?? held.length, artifacts: held.map((name) => ({ name })) });
+  writeFileSync(path.join(bin, "gh"), fail ? "#!/bin/sh\nexit 1\n" : `#!/bin/sh\ncat <<'JSON'\n${body}\nJSON\n`, { mode: 0o755 });
+  const out = path.join(dir, "out");
+  writeFileSync(out, "");
+  const run = spawnSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", script], {
+    env: { PATH: `${bin}:${process.env.PATH}`, NAMES: names.join("\n"), RETENTION: "90", GITHUB_OUTPUT: out, REPO: "o/r", RUN_ID: "1", GH_TOKEN: "t" },
+    encoding: "utf8",
+  });
+  return { status: run.status, outputs: readFileSync(out, "utf8") };
+};
+
+test("a FAIL index skips the names its run already holds, and never overwrites one", () => {
+  const names = ["pr-verify-index-pr-41", `pr-verify-index-sha-${"a".repeat(40)}`, "pr-verify-index-ref-0123456789abcdef"];
+  assert.equal(splitNames(names, []).outputs, `retention-days=90\n${names.map((n, i) => `n${i + 1}=${n}`).join("\n")}\n`);
+  // A re-run attempt: the earlier attempt's pr index stays, and only the rest upload.
+  assert.equal(splitNames(names, [names[0], "pr-verify-41-x-fail"]).outputs, `retention-days=90\nn1=${names[1]}\nn2=${names[2]}\n`);
+  // A read that fails or does not hold its count uploads nothing.
+  assert.notEqual(splitNames(names, [], { fail: true }).status, 0);
+  assert.notEqual(splitNames(names, [names[0]], { total: 2 }).status, 0);
+  assert.doesNotMatch(ACTION, /overwrite/);
+  assert.equal((ACTION.match(/uses: actions\/upload-artifact@/g) ?? []).length, 13);
+  assert.equal((ACTION.match(/if: \$\{\{ steps\.slots\.outputs\.n\d+ != '' \}\}/g) ?? []).length, 13);
+});
+
 test("the upload is each job's only artifact step and follows the written verdict", () => {
   for (const job of JOBS) {
     const uploads = STEPS[job].filter((s) => /uses: actions\/upload-artifact@/.test(s.block));
@@ -144,6 +177,7 @@ test("the upload is each job's only artifact step and follows the written verdic
     assert.match(failIndex, /^ {8}uses: \.\/\.base\/\.github\/actions\/upload-fail-index /m, job);
     assert.equal(input(failIndex, "names"), "${{ steps.verdict.outputs.index-names }}", job);
     assert.equal(input(failIndex, "retention-days"), "${{ steps.verdict.outputs.retention-days }}", job);
+    assert.equal(input(failIndex, "github-token"), "${{ github.token }}", job);
     assert.match(
       uploads[0].block,
       new RegExp(`^ {8}if: >-\\n {10}\\(!cancelled\\(\\) && ${indexed}\\) && steps\\.scan-upload\\.outputs\\.clean == 'true'$`, "m"),

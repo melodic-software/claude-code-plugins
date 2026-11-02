@@ -334,12 +334,15 @@ class RunsGitHub:
         self.listed_only: list[dict[str, Any]] = []
         self.records = {named(EARLIER, "fail"): record(sha=EARLIER, verdict="fail")}
         self.workflow = 'env:\n  FAIL_INDEX: "1"\n'
-        self.window_total: int | None = None
+        # A window's stated count, by its start, where it is not its runs'.
+        self.window_total: dict[str, int] = {}
         self.run_total: dict[int, int] = {}
         self.remaining = 4000
         self.limit_from: int | None = None  # the call that answers rate limited
         self.limit_text = "gh: API rate limit exceeded (HTTP 403)"
         self.calls: list[str] = []
+        # Verifier runs not completed, by the workflow's status filter.
+        self.running: list[dict[str, Any]] = []
 
     def __call__(self, args: list[str], **kwargs: Any) -> subprocess.CompletedProcess:
         path = next(a for a in args if a.startswith("repos/") or a == "rate_limit")
@@ -360,6 +363,13 @@ class RunsGitHub:
         if path == f"repos/{REPO}/contents/{WORKFLOW}?ref={MERGE_SHA}":
             content = base64.b64encode(self.workflow.encode()).decode()
             return ok({"content": content, "encoding": "base64"})
+        status = re.fullmatch(
+            rf"repos/{REPO}/actions/workflows/pr-verify\.yml/runs\?status=([a-z_]+)&per_page=100",
+            path,
+        )
+        if status:
+            listed = [r for r in self.running if r["status"] == status[1]]
+            return ok({"total_count": len(listed), "workflow_runs": listed})
         window = re.fullmatch(
             rf"repos/{REPO}/actions/workflows/pr-verify\.yml/runs\?created=(\S+)\.\.(\S+)"
             r"&per_page=100&page=1",
@@ -367,7 +377,7 @@ class RunsGitHub:
         )
         if window:
             listed = [r for r in self.runs if window[1] <= r["created_at"] <= window[2]]
-            total = len(listed) if self.window_total is None else self.window_total
+            total = self.window_total.get(window[1], len(listed))
             return ok({"total_count": total, "workflow_runs": listed})
         of_run = re.fullmatch(
             rf"repos/{REPO}/actions/runs/([0-9]+)/artifacts\?per_page=100", path
@@ -400,9 +410,11 @@ class RunsGitHub:
 
 
 # Calls of a whole build: rate limit, merge commit, its compare, its
-# pr-verify.yml; window 1, run 5, its compare and download; window 2, runs 3,
-# 1 and 6; the listing page.
-BUILD_CALLS = 13
+# pr-verify.yml (4); the five running statuses (9); 31 lookback windows (40);
+# window 1, run 5, its compare and download (44); window 2, runs 3, 1 and 6
+# (48); the running statuses (53), the listing page (54), and the running
+# statuses again (59).
+BUILD_CALLS = 59
 
 
 class PerRunLegacyFails(unittest.TestCase):
@@ -482,6 +494,57 @@ class PerRunLegacyFails(unittest.TestCase):
             sorted([named(EARLIER, "fail"), named(IN_PR, "fail")]),
         )
 
+    def test_a_run_created_before_since_and_updated_after_it_is_read(self) -> None:
+        # Run 9 was re-run after `--since`; run 7 was not, so it is not read.
+        fake = RunsGitHub()
+        fake.runs += [
+            run(
+                9, created_at="2026-10-01T00:00:00Z", updated_at="2026-10-14T05:00:00Z"
+            ),
+            run(
+                7, created_at="2026-10-02T00:00:00Z", updated_at="2026-10-02T01:00:00Z"
+            ),
+        ]
+        fake.artifacts[9] = [artifact(named(IN_PR, "fail"), 9)]
+        fake.records[named(IN_PR, "fail")] = record(sha=IN_PR, verdict="fail")
+        code, err = self.run_build(fake)
+        self.assertEqual(code, 0, err)
+        built = json.loads(self.out.read_text())
+        # Read through its window, not added by the listing.
+        self.assertEqual(built["addedFromListing"], [])
+        self.assertIn(named(IN_PR, "fail"), [a["name"] for a in built["artifacts"]])
+        self.assertNotIn(
+            f"repos/{REPO}/actions/runs/7/artifacts?per_page=100", fake.calls
+        )
+
+    def test_a_lookback_window_that_misses_its_count_refuses(self) -> None:
+        fake = RunsGitHub()
+        fake.window_total["2026-10-01T00:00:00Z"] = 1
+        code, err = self.run_build(fake)
+        self.assertEqual(code, 1, err)
+        self.assertIn("list 0 of [1]", err)
+
+    def test_a_verifier_run_from_before_the_cutover_still_running_refuses(self) -> None:
+        fake = RunsGitHub()
+        fake.running = [
+            run(
+                9,
+                status="in_progress",
+                conclusion=None,
+                created_at="2026-10-15T23:00:00Z",
+            )
+        ]
+        code, err = self.run_build(fake)
+        self.assertEqual(code, 1, err)
+        self.assertIn("verifier run 9 from before the cutover is in_progress", err)
+        self.assertFalse(self.out.exists())
+        # One created after the cutover is the index's, and holds nothing up.
+        fake = RunsGitHub()
+        fake.running = [
+            run(9, status="queued", conclusion=None, created_at="2026-10-16T00:00:01Z")
+        ]
+        self.assertEqual(self.run_build(fake)[0], 0)
+
     def test_a_listed_fail_no_run_read_holds_refuses(self) -> None:
         fake = RunsGitHub()
         ghost = artifact(named(IN_PR, "fail"), 5)
@@ -507,7 +570,7 @@ class PerRunLegacyFails(unittest.TestCase):
 
     def test_a_window_that_misses_its_count_refuses_and_writes_nothing(self) -> None:
         fake = RunsGitHub()
-        fake.window_total = 9
+        fake.window_total["2026-10-14T00:00:00Z"] = 9
         code, err = self.run_build(fake)
         self.assertEqual(code, 1, err)
         self.assertIn("list 1 of [9]", err)
@@ -530,7 +593,7 @@ class PerRunLegacyFails(unittest.TestCase):
 
     def test_a_rate_limit_stops_and_the_checkpoint_resumes(self) -> None:
         fake = RunsGitHub()
-        fake.limit_from = 9  # window 2
+        fake.limit_from = 45  # window 2
         code, err = self.run_build(fake)
         self.assertEqual(code, 3, err)
         self.assertIn("stopped, resume from", err)
@@ -550,14 +613,14 @@ class PerRunLegacyFails(unittest.TestCase):
     def test_a_rate_limit_inside_a_verdict_download_still_stops(self) -> None:
         # The download's reader wraps every error; the stop is kept anyway.
         fake = RunsGitHub()
-        fake.limit_from = 8
+        fake.limit_from = 44  # run 5's download
         code, err = self.run_build(fake)
         self.assertEqual(code, 3, err)
         self.assertEqual(json.loads(self.checkpoint.read_text())["runs"], {})
 
     def test_a_permission_403_refuses_and_does_not_wait(self) -> None:
         fake = RunsGitHub()
-        fake.limit_from = 6  # run 5's artifacts
+        fake.limit_from = 42  # run 5's artifacts
         fake.limit_text = "gh: Resource not accessible by integration (HTTP 403)"
         code, err = self.run_build(fake)
         self.assertEqual(code, 1, err)

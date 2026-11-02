@@ -1882,6 +1882,7 @@ jobs:
           names: ${{ steps.verdict.outputs.index-names }}
           path: ${{ runner.temp }}/pr-verify-verdict/fail-index.txt
           retention-days: ${{ steps.verdict.outputs.retention-days }}
+          github-token: ${{ github.token }}
 
       - name: Scan the upload for credentials
         id: scan-upload
@@ -3703,6 +3704,7 @@ jobs:
           names: ${{ steps.verdict.outputs.index-names }}
           path: ${{ runner.temp }}/pr-verify-verdict/fail-index.txt
           retention-days: ${{ steps.verdict.outputs.retention-days }}
+          github-token: ${{ github.token }}
 
       - name: Scan the upload for credentials
         id: scan-upload
@@ -5258,6 +5260,7 @@ jobs:
           names: ${{ steps.verdict.outputs.index-names }}
           path: ${{ runner.temp }}/pr-verify-verdict/fail-index.txt
           retention-days: ${{ steps.verdict.outputs.retention-days }}
+          github-token: ${{ github.token }}
 
       - name: Scan the upload for credentials
         id: scan-upload
