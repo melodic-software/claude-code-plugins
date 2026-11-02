@@ -4489,6 +4489,45 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
         ids = [a["id"] for a in json.loads(self.saved.read_text())["artifacts"]]
         self.assertEqual(ids, [1100, 1000, 900, 800, 700, 600, 400, 300])
 
+    def test_an_over_count_left_short_by_a_skip_is_read_again_after_a_wait(
+        self,
+    ) -> None:
+        # ci-status job 125052787044's shape: the carry holds 500 and 400,
+        # both deleted early, so the first read over-counts; the pages near
+        # expiry drop both and leave it one short of the FAIL the first page
+        # skipped. Read again after one wait, it holds the count: no whole
+        # listing, so the job's over-count slot and failure note stay unused.
+        base = self.tail((500, 30), (400, 40))
+        self.write_carry(base)
+        fail = dated(named(HEAD, "fail"), 2, 1100, LISTED_AT)
+        fake = self.fake(fail, base=[a for a in base if a["id"] not in (500, 400)])
+        self.skips_once(fake, 1100)
+        reader, evidence = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:fail", evidence.detail)
+        self.assertEqual(reader.listing_mode, "incremental")
+        self.assertEqual(fake.full_listings(), 0)
+        self.assertEqual([c.args[0] for c in self.sleep.call_args_list], [15.0])
+        overcount = pathlib.Path(f"{self.saved}{ve.OVERCOUNT_FALLBACK_SUFFIX}")
+        self.assertFalse(overcount.exists())
+        self.assertFalse(self.failed.exists())
+
+    def test_a_skip_a_callers_limit_cannot_wait_for_takes_a_whole_listing(
+        self,
+    ) -> None:
+        # Under a 50 s caller limit, 35 s are left: not enough for the 30 s
+        # wait and a 12 s whole listing (5 pages and the top-up's 7), so the
+        # whole listing comes at once.
+        fake = self.early_deletion_and_a_new_fail()
+        with (
+            mock.patch.dict("os.environ", {ve.DEADLINE_ENV: "50"}),
+            mock.patch.object(ve, "_elapsed", return_value=0.0),
+        ):
+            reader, evidence = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:fail", evidence.detail)
+        self.assertEqual(reader.listing_mode, "full")
+        self.assertEqual(fake.full_listings(), 1)
+        self.assertEqual(self.sleep.call_args_list, [])
+
     def test_a_skip_the_caps_left_cannot_read_again_takes_a_whole_listing(
         self,
     ) -> None:

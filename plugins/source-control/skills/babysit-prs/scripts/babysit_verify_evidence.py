@@ -1629,6 +1629,7 @@ class Reader:
         running out during those reads, left it so."""
         self._page_transient = self._near_expiry_spent = False
         spent = (self._near_expiry_reads, self._artifact_reads)
+        started = _listing_clock()
         if base is not None and not all(_listed_entry(a) for a in base[1]):
             return None
         base = base or self._incremental_base()
@@ -1741,15 +1742,22 @@ class Reader:
         # GitHub answered gone, so the fresh pages skipped an artifact at a
         # page boundary (#10486), which a read after a wait can restore, as
         # for any short count. It is read again only while the caps left
-        # cover another read like this one; else a whole listing. A top-up's
-        # exact count left short goes to another whole listing, which can
-        # restore a skip outside those pages.
+        # cover another read like this one, and a caller's limit still fits
+        # that read, the longest wait and one whole listing; else a whole
+        # listing. A top-up's exact count left short goes to another whole
+        # listing, which can restore a skip outside those pages.
         if stage == "incremental" and (over or near):
             pages = self._near_expiry_reads - spent[0]
             ids = self._artifact_reads - spent[1]
+            cap = listing_cap()[0]
+            took = _listing_clock() - started
             if (
                 NEAR_EXPIRY_PAGE_CAP - self._near_expiry_reads < pages
                 or NEAR_EXPIRY_ID_READ_CAP - self._artifact_reads < ids
+                or (
+                    cap < LISTING_TIMEOUT_SECONDS
+                    and cap < took + max(INCREMENTAL_WAITS) + listing_seconds(total)
+                )
             ):
                 return COUNT_OVER
         elif over:
