@@ -160,17 +160,25 @@
 #   instead, which is what keeps a backward move off the report's `Updated:` line
 #   even for an id the guard could not prove in advance.
 #   `divergences` is `{pre, mid, post, new_total, new_by_interval, pre_existing,
-#   actionable_here, actionable_elsewhere, in_worktrees, blocked, records, by_path}`:
+#   actionable_here, actionable_elsewhere, in_worktrees, blocked, record_count,
+#   records_file, by_path, blocked_paths}`:
 #   `post` counts the actionable (`versionsMatch: false`) rows, and
 #   `actionable_here` through `blocked` split it by what an operator can do about
 #   each row (see `divergence_block`). A digest written before the split carries
-#   none of the four. `records[]` is `{id, scope, version, projectPath}` for every
-#   record that makes a counted row skewed (projectPath null at user scope), and
-#   `by_path[]` is `{path, class, count, ids, more}` per projectPath among them,
-#   `class` the path's pin class (`actionable`, `worktree` or `blocked`), the
-#   actionable paths first and then most records first, `ids` the first
-#   DIVERGENCE_PATH_IDS distinct ids and `more` the rest. A digest written before
-#   them carries neither, and one written before `class` carries no `class`.
+#   none of the four. `record_count` counts the records that make a counted row
+#   skewed, each `{id, scope, version, projectPath}` (projectPath null at user
+#   scope). In sync they are written as `records[]` to `records_file`
+#   (`<run_dir>/divergences.<mp>.json`, beside the full `by_path[]`), not to the
+#   digest; under --audit, or when that write fails, `records_file` is null and
+#   the digest carries `records[]` itself. `by_path[]` is `{path, class, count,
+#   ids, more}` per projectPath among them that is present, `class` the path's
+#   pin class (`actionable` or `worktree`), the actionable paths first and then
+#   most records first, `ids` the first DIVERGENCE_PATH_IDS distinct ids and
+#   `more` the rest; `blocked_paths` is `{paths, records}` for the `blocked`
+#   paths it leaves out, which the stale project records section counts. A digest
+#   written before `blocked_paths` carries `records[]` and every path in
+#   `by_path`, one written before `records` and `by_path` carries neither, and one
+#   written before `class` carries no `class`.
 #   `moved_during_run[]` is `{id, scope, kind, old, new, direction}` for each id whose
 #   update call the CLI answered "already at the latest version" while the post
 #   snapshot's version differs from the pre-mutation one: it moved during the run
@@ -1229,6 +1237,15 @@ divergence_block() {
     | ([$qq.divergences[]? | actionable | {id, c: row_class}]) as $rows
     | ([$rows[] | select(.c == "actionable")]) as $act_rows
     | ([$qq.divergences[]? | actionable | diverging_records[]]) as $records
+    # A path converge can act on sorts before a linked worktree, and a worktree
+    # before a path that is not present, so the first sub-line under the
+    # converge pointer is a place converge can run from.
+    | ([$records[] | select((.projectPath // "") != "")]
+       | group_by(.projectPath)
+       | map((map(.id) | unique) as $ids
+             | {path: .[0].projectPath, class: .[0].class, count: length, ids: $ids[:$cap],
+                more: ([($ids | length) - $cap, 0] | max)})
+       | sort_by(({actionable: 0, worktree: 1, blocked: 2}[.class // ""] // 0), -.count, .path)) as $paths
     | {pre: ($pre | length), mid: ($mid | length), post: ($post | length),
        new_total: ($new | length),
        new_by_interval: {in_repo: ([$by_step[] | select(. as $i | $mid | index($i))] | length),
@@ -1240,16 +1257,29 @@ divergence_block() {
        in_worktrees: ([$rows[] | select(.c == "worktree")] | length),
        blocked: ([$rows[] | select(.c == "blocked")] | length),
        records: [$records[] | del(.class)],
-       # A path converge can act on sorts before a linked worktree, and a worktree
-       # before a path that is not present, so the first sub-line under the
-       # converge pointer is a place converge can run from.
-       by_path: ([$records[] | select((.projectPath // "") != "")]
-                 | group_by(.projectPath)
-                 | map((map(.id) | unique) as $ids
-                       | {path: .[0].projectPath, class: .[0].class, count: length, ids: $ids[:$cap],
-                          more: ([($ids | length) - $cap, 0] | max)})
-                 | sort_by(({actionable: 0, worktree: 1, blocked: 2}[.class // ""] // 0), -.count, .path))}' \
-    "$RUN_DIR/.divergence-args.$mp.json"
+       # The stale project records section already counts every path that is
+       # not present, so the digest names those paths by count only.
+       by_path: [$paths[] | select(.class != "blocked")],
+       blocked_paths: ([$paths[] | select(.class == "blocked")]
+                       | {paths: length, records: (map(.count) | add // 0)}),
+       by_path_all: $paths}' \
+    "$RUN_DIR/.divergence-args.$mp.json" || return
+  # The per-record detail goes to a run-directory file, not the digest: on a
+  # large fleet it is most of the digest, and the digest is printed into the
+  # session. Audit's scratch directory is removed on exit, so audit keeps the
+  # records inline, and so does a run whose file write fails.
+  local full="${!__var}"
+  local detail=""
+  local detail_file="$RUN_DIR/divergences.$mp.json"
+  if [[ "$MODE" != "audit" ]] &&
+    jq_to detail -c '{records, by_path: .by_path_all}' <<<"$full" &&
+    printf '%s\n' "$detail" >"$detail_file"; then
+    # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+    jq_to "$__var" -c --arg f "$detail_file" \
+      '(.records | length) as $n | del(.records, .by_path_all) + {record_count: $n, records_file: $f}' <<<"$full"
+  else
+    jq_to "$__var" -c 'del(.by_path_all) + {record_count: (.records | length), records_file: null}' <<<"$full"
+  fi
 }
 
 # --- Step 3a — forward-update the records of every other present path --------------
