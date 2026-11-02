@@ -543,11 +543,13 @@ pin_section "SKILL.md interview-loop preamble is unchanged (it governs every ste
 # Review round on the rounds change: the out-of-band check and its full restate now cover discussing rows (restated as under discussion, never read as an answer), and discussing is limited to the terminal lane, the page keeping the row open; each widens what is checked or restated, resolves no row, and the no-silent-resolve, gap and blocker defenses are unchanged
 # #5769: the Step 3 register gate and loop.md's gate list name the stale=<n> outcome as a halt, and Re-check covers answered rows; every existing halt is kept and none is qualified
 # #5769 review: a stale=<n> row is named as any status, as check-open-questions.sh counts it; no halt is removed or qualified
+# R-D pointer (#12103): the read-back paragraph's closing sentence now says the rule holds in every lane and R-D adds only the page's display and confirmation; the read-back row still stays open until the user confirms, so it resolves no row on the user's behalf, and the gap and blocker bindings are unchanged
+# Merge of main with #12103: both edits to the register section kept (main's stale=<n> halt and Re-check, this branch's read-back closing sentence); re-pinned over the merged text, no halt removed or qualified
 pin_section "loop.md open-question register section is unchanged (it binds gaps and blockers to the gate)" \
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "4d527ca10611ae8699d6d140664981cc96d5dee93cf0d751bcc0e76989ea9f2f"
+  "f3d890893af12345f8a599076c5113172934d8dc1e5210ea2f515341d915da7f"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate `lock` line ("`lock` confirms the problem … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a

@@ -351,24 +351,27 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("the open-assumptions warning is gone after Confirm all", !(await page.$("#openAssumeWarn")));
 
     // confirm understanding
-    ok("the summary shows the restatement with Confirm and Something's off", /Ship green builds to staging/.test(await text("#restate")) && /Left to the plan stage/.test(await text("#restate")) && !!(await page.$('[data-understand="confirm"]')) && !!(await page.$('[data-understand="off"]')), (await text("#restate")).slice(0, 160));
+    ok("the summary shows the restatement with Confirm and Change these", /Confirm, or give the numbers to change/.test(await text("#uAsk")) && /Ship green builds to staging/.test(await text("#restate")) && /Left to the plan stage/.test(await text("#restate")) && !!(await page.$('[data-understand="confirm"]')) && !!(await page.$('[data-understand="off"]')), (await text("#restate")).slice(0, 160));
     ok("Wrap up warns Understanding not confirmed yet", /Understanding not confirmed yet/.test(await text("#unconfWarn")));
     for (const [w, h] of [[1440, 900], [390, 844]]) {
       await page.setViewportSize({width: w, height: h}); await settle(200);
       const hit = await page.evaluate(() => { const a = document.querySelector('[data-understand="confirm"]').getBoundingClientRect(), b = document.getElementById("offText").getBoundingClientRect(); return !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top); });
-      ok("at " + w + "x" + h + " Confirm does not overlap the What-is-off box", !hit);
+      ok("at " + w + "x" + h + " Confirm does not overlap the numbers box", !hit);
     }
     await page.setViewportSize({width: 1400, height: 860}); await settle(200);
     const n2 = (await events()).length;
     await tap('[data-understand="off"]', 400);
-    ok("Something's off needs text: nothing posts without it", (await events()).length === n2 && /Say what is off first/.test(await text("#restate")), await text("#restate"));
-    await page.click("#offText"); await page.keyboard.type("The goal misses production");
+    ok("Change these needs numbers: nothing posts without them", (await events()).length === n2 && /Give the numbers to change first/.test(await text("#restate")), await text("#restate"));
+    await page.fill("#offText", "The goal misses production"); await tap('[data-understand="off"]', 400);
+    ok("Change these refuses free text: nothing posts", (await events()).length === n2 && /Give question numbers only/.test(await text("#restate")), await text("#restate"));
+    await page.fill("#offText", "");
+    await page.click("#offText"); await page.keyboard.type("Q2, 7");
     await page.evaluate(() => { document.getElementById("offText").__mark = 1; });
     await post({kind: "note", text: "A note that pushes new state"}); await settle(900);
-    ok("a state push keeps the typed box, its text and focus", await page.evaluate(() => { const t = document.getElementById("offText"); return !!t && t.__mark === 1 && t.value === "The goal misses production" && document.activeElement === t; }));
+    ok("a state push keeps the typed box, its text and focus", await page.evaluate(() => { const t = document.getElementById("offText"); return !!t && t.__mark === 1 && t.value === "Q2, 7" && document.activeElement === t; }));
     await tap('[data-understand="off"]', 800);
     const off = await last();
-    ok("Something's off posts the text and the restatement rev, and the summary shows it flagged", off.kind === "confirm-understanding" && off.alt === "off" && off.text === "The goal misses production" && off.contentRev === 1 && /You flagged/.test(await text("#restate")), JSON.stringify(off));
+    ok("Change these posts the question numbers and the restatement rev, and the summary shows them flagged", off.kind === "confirm-understanding" && off.alt === "off" && off.text === "Change Q2, Q7" && off.contentRev === 1 && /You flagged: Change Q2/.test(await text("#restate")), JSON.stringify(off));
     const stale = await post({kind: "confirm-understanding", alt: "confirm", text: "", contentRev: 0});
     ok("a confirm on an old restatement is refused as stale", stale.status() === 409, stale.status());
 
@@ -666,7 +669,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("at 390 px no Decisions cell breaks inside a word, has break-all or anywhere, or scrolls the page", sum390.n > 5 && sum390.broken.length === 0 && sum390.chip < 24 && cells390.bad === 0 && cells390.page <= cells390.W, JSON.stringify({sum390, cells390}));
     await page.setViewportSize({width: 1024, height: 800}); await settle(300);
     ok("every answered row shows what was decided", sum.empty === 0 && /Pin it to the lock file\./.test(sum.q5) && /^All of them/.test(sum.q9), JSON.stringify(sum));
-    ok("after the wrap-up the summary shows no Confirm, Something's off or Confirm all", !(await page.$("[data-understand]")) && !(await page.$("[data-confirmall]")) && (await page.$$("#toConfirm [data-confirm]")).length > 0 && /Not confirmed; wrap-up already sent/.test(await text("#uDone")), await text("#restate"));
+    ok("after the wrap-up the summary shows no Confirm, Change these or Confirm all", !(await page.$("[data-understand]")) && !(await page.$("[data-confirmall]")) && (await page.$$("#toConfirm [data-confirm]")).length > 0 && /Not confirmed; wrap-up already sent/.test(await text("#uDone")), await text("#restate"));
     ok("only one control is labeled Finish: export and end the session, and it sends the wrap-up event", await page.$$eval("button", bs => bs.filter(b => b.textContent.trim() === "Finish: export and end the session").map(b => b.hasAttribute("data-wrapup")).join()) === "true");
     ok("each panel button has a name that is not a number", await page.$$eval(".strip button", bs => bs.every(b => /\D/.test(b.getAttribute("aria-label") || ""))));
     // the header at 420 px

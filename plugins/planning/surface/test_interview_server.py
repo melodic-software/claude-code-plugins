@@ -1823,6 +1823,51 @@ class TestHedged(WaitCase):
         self.assertEqual(rc, 0, out)
 
 
+class TestConfirmReading(WaitCase):
+    """`confirm-reading` confirms Claude's read-back of an answer and records no decision."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(cls.dir, question("A"))
+
+    def test_confirm_reading_is_kept_unhandled_and_leaves_the_decision(self):
+        from interview_server import rebuild_responses
+
+        code, own = self.post({"id": "A", "kind": "own", "text": "fee chair flag"})
+        self.assertEqual(code, 200, own)
+        seq = own["seq"]
+        before = self.state()["responses"]["responses"]["A"]
+        read = {"id": "A", "kind": "confirm-reading", "answerSeq": seq}
+        rc, out = self.rp_ops(
+            {"op": "reply", "id": "A", "seq": seq, "text": "Understood as: feature flag."}
+        )
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.post({"id": "A", "kind": "confirm-reading"})[0], 400)
+        rc, out = self.rp_ops(
+            {"op": "reply", "id": "A", "seq": seq, "text": "Understood as: fee chart flag."}
+        )
+        self.assertEqual(rc, 0, out)
+        # The tab drew the first read-back; Claude replaced it before the click.
+        code, data = self.post({**read, "readRev": 1})
+        self.assertEqual((code, data.get("readRev")), (409, 2), data)
+        code, data = self.post({**read, "answerSeq": seq - 1, "readRev": 2})
+        self.assertEqual(code, 409, data)
+        code, data = self.post({**read, "readRev": 2})
+        self.assertEqual(code, 200, data)
+        r = self.state()["responses"]
+        ev = next(e for e in r["events"] if e["seq"] == data["seq"])
+        self.assertEqual(
+            (ev["kind"], ev["id"], ev["answerSeq"], ev["readRev"]),
+            ("confirm-reading", "A", seq, 2),
+        )
+        self.assertNotIn("autoHandled", ev)
+        self.assertEqual(r["responses"]["A"], before)
+        self.assertEqual(rebuild_responses(r["events"]), (r["responses"], r["history"]))
+        self.assertEqual(self.post({**read, "id": "nope", "readRev": 2})[0], 400)
+        rc, out = self.rp("validate")
+        self.assertEqual(rc, 0, out)
+
+
 class TestQuestionState(WaitCase):
     """AC19: stale direct dependents, upstream-pending descendants, archived, revising."""
 
