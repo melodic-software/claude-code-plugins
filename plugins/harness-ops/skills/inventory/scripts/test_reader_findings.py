@@ -1522,8 +1522,19 @@ class TestToolAliasesAcrossModules(unittest.TestCase):
     `TaskStop` shape on 2.1.302). The exporter declares the tool name beside
     the array, the registering module spreads it, a second importer spreads it
     into a `new Set`, and an unrelated module declares a function of the
-    same name. The regex reader reads the names; the parser reader reads them
-    or marks the field partial, and never reports an unread list as `[]`."""
+    same name. Both readers read the names.
+
+    The parser's written-elsewhere check counts the `export{...}` as an
+    escape and asks `_flow_holds`, which follows the export into both
+    importers. Each only spreads the array, which trusts `@@iterator` and
+    `next`, and no module here can write either name, so the check holds.
+    The unrelated `function bjn` is a binding of its own module: the
+    importers reach the one module exporting `bjn`, and no write the
+    parser finds there is the function. A whole bundle can still fail the
+    flow: a module the sink rule counts against any trusted name (a direct
+    `eval`, code built from a string, as `TestInstalledBuilds` lists for
+    2.1.284 to 2.1.288) makes `_sink_hit` fail it, and the list then reads
+    partial."""
 
     reader: pr.ParserReader | None = None
     NAMES = ["KillShell", "KillBash"]
@@ -1535,35 +1546,50 @@ class TestToolAliasesAcrossModules(unittest.TestCase):
             cls.reader = None
 
     @staticmethod
-    def _bundle() -> str:
+    def _bundle(*more: str) -> str:
         modules = (
             'var Ud="TaskStop",bjn=["KillShell","KillBash"];export{Ud,bjn};',
             'import{Ud,bjn}from"/a.js";'
             "$t({name:Ud,maxResultSizeChars:1,aliases:[...bjn]});",
             'import{Ud,bjn}from"/a.js";var s=new Set([Ud,...bjn]);',
             "function bjn(e){}",
+            *more,
         )
         return "\n// @bun\n".join(modules)
+
+    def _parsed(self, src: str) -> dict:
+        """The `TaskStop` record under the parser, with Bun's module table
+        naming the modules `/a.js`, `/b.js`, ... in order."""
+        if type(self).reader is None:
+            type(self).reader = pr.ParserReader(_require_live(self))
+        type(self).reader.set_module_paths(
+            src,
+            {lo: f"/{chr(97 + i)}.js" for i, lo in enumerate(inv._chunk_starts(src))},
+        )
+        with inv.use_reader(type(self).reader):
+            return _tool(src, "TaskStop")
 
     def test_the_regex_reader_reads_the_imported_array(self) -> None:
         rec = _tool(self._bundle(), "TaskStop")
         self.assertEqual(rec["aliases"], self.NAMES)
         self.assertEqual(rec["aliases_source"], "literal")
 
-    def test_the_parser_reader_reads_the_names_or_marks_them_partial(self) -> None:
-        src = self._bundle()
-        if type(self).reader is None:
-            type(self).reader = pr.ParserReader(_require_live(self))
-        type(self).reader.set_module_paths(
-            src, {lo: f"/{chr(97 + i)}.js" for i, lo in enumerate(inv._chunk_starts(src))}
-        )
-        with inv.use_reader(type(self).reader):
-            rec = _tool(src, "TaskStop")
-        if rec["aliases_source"] == "literal":
-            self.assertEqual(rec["aliases"], self.NAMES)
-        else:
-            self.assertEqual(rec["aliases_source"], "partial")
-            self.assertTrue(set(rec["aliases"]) <= set(self.NAMES))
+    def test_the_parser_reader_follows_the_export_into_its_spreads(self) -> None:
+        rec = self._parsed(self._bundle())
+        self.assertEqual(rec["aliases"], self.NAMES)
+        self.assertEqual(rec["aliases_source"], "literal")
+
+    def test_a_spread_the_parser_cannot_clear_stays_partial(self) -> None:
+        """An importer that may change the array, and a module the sink rule
+        counts against the names the spreads trust."""
+        for module in (
+            'import{bjn}from"/a.js";bjn.push("X");',
+            'function z(){eval("")}',
+        ):
+            with self.subTest(module=module):
+                rec = self._parsed(self._bundle(module))
+                self.assertEqual(rec["aliases"], [])
+                self.assertEqual(rec["aliases_source"], "partial")
 
 
 INSTALLED = pathlib.Path.home() / ".local" / "share" / "claude" / "versions"
