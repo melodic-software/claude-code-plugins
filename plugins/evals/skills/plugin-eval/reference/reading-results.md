@@ -57,7 +57,9 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   `grep` or `sed` reading a pipe.
 - Up to three kinds of denial are set aside before any other rule judges the run, each a warning that never
   counts toward a FAIL: a named call other than Skill aimed only under the run's own plugin-data
-  directory (`<sandbox>/config/plugins/data`), and a `Read`, `Grep` or `Glob` aimed only under the
+  directory (`<sandbox>/config/plugins/data`), or a compound Bash command one of whose commands is
+  aimed only there while every other absolute path it names was named by an allowed Bash call of
+  the same run (with no expansion left unresolved), and a `Read`, `Grep` or `Glob` aimed only under the
   session's own `<sandbox>/config/projects/*/*/tool-results/`, where it reads back output it already
   received. A Bash pipeline of `cat`, `head`, `wc`, `grep` and `sed -n` that reads only there is set
   aside the same way. Any other Bash call (a
@@ -86,7 +88,9 @@ above the plugin's directory, or with no absolute path or no known plugin direct
 - `plugins loaded` fails a with-arm run whose trace init line has a `plugin_errors` entry for a
   `suite.plugins` plugin, or leaves that plugin out of its `plugins` list. That run ran without the
   plugin under test. The detail names the plugin and the error type, such as
-  `dependency-unsatisfied`. A with-arm run whose init line has no `plugins` list is a warning.
+  `dependency-unsatisfied`. A `suite.plugins` path inside a case's directory is that case's own
+  helper, loaded only for that case, so only that case's runs must list it. A with-arm run whose
+  init line has no `plugins` list is a warning.
 - An invocation probe's denial of a named call other than Skill is a warning when it follows the
   graded Skill call, or the run held a should-not-fire case whose denial-free runs all held; the
   gate prints each probe case's fire counts with and without denials.

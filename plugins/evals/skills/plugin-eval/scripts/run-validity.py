@@ -51,7 +51,9 @@ one line per check, detail lines indented under it:
                       plugin_errors entry; a with-arm run that lacks one, or
                       reports a load error for one, ran without the plugin
                       under test and is a FAIL naming the plugin and the
-                      error. A with-arm run with no trace, no init line or no
+                      error. A plugin inside a case's dir is that case's own
+                      helper and is checked only in that case's runs. A
+                      with-arm run with no trace, no init line or no
                       plugins list on it is a warning
     permission denials  no denied tool call in any trace; a denial is a warning
                       when that run scores the same as every denial-free run
@@ -871,13 +873,28 @@ def load_error(error):
     return "%s: %s" % (error.get(ERROR_TYPE) or "error", error.get(ERROR_MESSAGE) or "no message")
 
 
-def check_plugins_loaded(runs, plugins):
+def case_dir_of(run, root):
+    """<suite root>/<case dir> of the run's case, or None."""
+    case_dir = run.case.get(CASE_DIR)
+    if not root or not isinstance(case_dir, str) or not case_dir:
+        return None
+    return os.path.normpath(os.path.join(root, case_dir))
+
+
+def check_plugins_loaded(runs, plugins, root=None):
     """A with-arm run whose init line reports a plugin_errors entry for a suite
     plugin, or leaves one out of its loaded plugins, ran without the plugin
-    under test, so its score measures the bare model. A with-arm run whose
-    init plugins list cannot be read is a warning."""
+    under test, so its score measures the bare model. A suite plugin inside a
+    case's dir is that case's own helper, which claude plugin eval loads only
+    for that case, so it is checked only in that case's runs. A with-arm run
+    whose init plugins list cannot be read is a warning."""
     if not plugins:
         return PASS, "no suite.plugins entry to check", [], None
+    case_dirs = {d for d in (case_dir_of(r, root) for r in runs) if d}
+    plugins = [
+        (name, path, next((d for d in case_dirs if under(path, d)), None))
+        for name, path in plugins
+    ]
     details, failed, causes, unread = [], 0, set(), []
     for r in (r for r in runs if r.arm == "with"):
         init = init_line(r)
@@ -886,7 +903,8 @@ def check_plugins_loaded(runs, plugins):
             continue
         loaded, errors = as_list(init[TRACE_PLUGINS]), as_list(init.get(TRACE_PLUGIN_ERRORS))
         problems = []
-        for plugin in plugins:
+        case_dir = case_dir_of(r, root)
+        for plugin in [(n, p) for n, p, d in plugins if d is None or d == case_dir]:
             name = plugin[0]
             own = [e for e in errors if names_plugin(e, ERROR_PLUGIN, ERROR_PATH, plugin)]
             for error in own:
@@ -940,7 +958,8 @@ def check_plugins_loaded(runs, plugins):
             unread_details,
             "plugins loaded unread in %s" % plural(len(unread), "run"),
         )
-    return PASS, "every with-arm run loaded %s" % ", ".join(n for n, _ in plugins), [], None
+    names = ", ".join(dict.fromkeys(n for n, _, _ in plugins))
+    return PASS, "every with-arm run loaded %s" % names, [], None
 
 
 def single_arm(case, root):
@@ -1485,7 +1504,57 @@ def own_data_denial(run, denial):
         and name not in (None, SKILL_TOOL)
         and bool(paths)
         and all(under(p, data) for p in paths)
-    )
+    ) or own_data_compound(run, denial, data)
+
+
+def own_data_compound(run, denial, data):
+    """True when a denied Bash command is a compound one of whose simple commands
+    names only rooted paths under the run's own plugin-data directory, which is
+    denied whatever the case does, and every rooted path its other commands name
+    was also named by a Bash call of the same run that was not denied, so none of
+    them caused the denial; a bare word in another command is an argument, not a
+    path. A command that does not parse, or a word UNRESOLVED matches outside a
+    file-less redirect, never qualifies."""
+    if not data or denial[2] != BASH_TOOL:
+        return False
+    try:
+        command = json.loads(denial[4][1])
+    except (TypeError, ValueError):
+        return False
+    words = shell_words(command) if isinstance(command, str) else None
+    if not words:
+        return False
+    parts = {}
+    for text, _, simple in words:
+        if not REDIRECT.fullmatch(text) and any(
+            UNRESOLVED.search(v) for v in SHELL_SPLIT.split(text) if v
+        ):
+            return False
+        parts.setdefault(simple, []).append(text)
+    if len(parts) < 2:
+        return False
+    paths = [bash_paths(shlex.join(texts)) for texts in parts.values()]
+    if not any(p and None not in p and all(under(x, data) for x in p) for p in paths):
+        return False
+    others = {x for p in paths for x in p if x and not under(x, data)}
+    return others <= allowed_bash_paths(run, denial[3])
+
+
+def allowed_bash_paths(run, denied_id):
+    """The rooted paths named by every Bash call in the run other than denied_id
+    that no tool result or permission_denials entry denied."""
+    denied = {d[3] for d in denials(run)} | {denied_id}
+    paths = set()
+    for line in run.trace:
+        for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
+            if (
+                block.get(BLOCK_TYPE) == TOOL_USE
+                and block.get(USE_NAME) == BASH_TOOL
+                and block.get(USE_ID) not in denied
+            ):
+                command = as_dict(block.get(USE_INPUT)).get(BASH_COMMAND)
+                paths |= {p for p in bash_paths(command) if p}
+    return paths
 
 
 def own_results_denial(run, denial):
@@ -2127,7 +2196,7 @@ def main(argv=None):
         lines.append("traces: %d of %d tracePaths resolve" % (len(runs), len(runs)))
     later = [
         ("session started", check_started(runs)),
-        ("plugins loaded", check_plugins_loaded(runs, suite_plugins(suite, base))),
+        ("plugins loaded", check_plugins_loaded(runs, suite_plugins(suite, base), root)),
         (
             "permission denials",
             check_denials(runs, plugin_roots, root, args.own_copy_search_warns),
