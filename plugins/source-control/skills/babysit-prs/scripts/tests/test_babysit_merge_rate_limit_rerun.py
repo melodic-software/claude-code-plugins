@@ -350,11 +350,15 @@ def _marker(
     lane: str = "claude-review",
     sha: str = HEAD,
     at: str = "2026-10-09T09:55:00Z",
+    edited: str | None = None,
 ) -> dict[str, Any]:
+    """A REST issue comment, whose `updated_at` equals `created_at` until an
+    edit."""
     return {
         "id": 1,
         "user": {"login": "github-actions[bot]", "type": "Bot"},
         "created_at": at,
+        "updated_at": edited or at,
         "body": f"<!-- claude-lane-reviewed-head lane={lane} sha={sha} -->\nreviewed",
     }
 
@@ -420,10 +424,28 @@ class LostReviewRerun(unittest.TestCase):
                 )
                 self.assertEqual(posts, [])
 
+    def test_a_lost_run_whose_lane_rewrote_its_marker_is_left_to_a_person(
+        self,
+    ) -> None:
+        # The producer edits one marker in place: created by an earlier run,
+        # rewritten since this one started, or with no readable edit time.
+        rewritten = _marker(at="2026-10-09T09:00:00Z", edited="2026-10-09T09:55:00Z")
+        unreadable = _marker(at="2026-10-09T09:00:00Z")
+        del unreadable["updated_at"]
+        for comment in (rewritten, unreadable):
+            with self.subTest(updated=comment.get("updated_at")):
+                report, posts = self._lost(comments=[comment])
+                self.assertFalse(report["rerun"])
+                self.assertTrue(
+                    report["reason"].startswith(merge.LEFT_TO_A_PERSON), report
+                )
+                self.assertEqual(posts, [])
+
     def test_what_the_lane_posted_elsewhere_does_not_hold_the_rerun(self) -> None:
         for comments in (
             # Before the run started: an earlier run's review.
             [_marker(at="2026-10-09T09:00:00Z")],
+            [_marker(at="2026-10-09T08:00:00Z", edited="2026-10-09T09:00:00Z")],
             # Another head, or the other lane.
             [_marker(sha=base.STALE)],
             [_marker(lane="claude-security-review")],

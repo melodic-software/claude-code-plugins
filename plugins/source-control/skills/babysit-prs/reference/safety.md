@@ -906,7 +906,9 @@ whose run an outage lost: its job and the run's first attempt concluded `cancell
 holds `startup_failure`). A run that never started leaves no job and no check, so the gate finds
 none to rerun. A lost run that already reached its side effect is left to a person: its job
 carries the lane's completion record, or the PR has that lane's reviewed-head marker for the head
-or another lane comment created since the run started. The review evidence binds a second attempt
+created or rewritten since the run started, or another lane comment created since then. The lane
+edits one marker in place, so a rewrite counts by the comment's edit history, and an edit time or
+history that cannot be read counts as posted. The review evidence binds a second attempt
 after a lost first attempt, of any `LOST_CONCLUSIONS`, by the same rule, between the two attempts'
 starts and reading the lane's review threads too; a lane job that ended on its own judged the head,
 so it binds none. The lost-run reconciler still reruns no review run.
