@@ -20,12 +20,16 @@
 #   sync-run.sh [--marketplace <name> | --all] --journal-root <dir>
 #               [--install-new all|none|ask] [--allow-downgrade] [--render]
 #               [--source-pull ask|never] [--pull-source <names>]
-#               [--quiet-auto-update <names>]
+#               [--quiet-auto-update <names>] [--update-other-paths]
 #   sync-run.sh [--marketplace <name> | --all] --audit
 #               [--install-new all|none|ask] [--allow-downgrade] [--render]
 #               [--source-pull ask|never] [--quiet-auto-update <names>]
+#               [--update-other-paths]
 #   sync-run.sh --only-install <ids> --run-dir <dir> [--marketplace <name> | --all]
 #               [--render]
+#
+# `--update-other-paths` turns on Step 3a, one serial CLI call per lagging record
+# in every other present path. Off, those records are counted and left alone.
 #
 # `--source-pull` is the rendered `directory_source_pull` option (ask, the
 # default, or never; any other value is treated as ask and named in the digest).
@@ -90,10 +94,13 @@
 #    stale_project_records, user_scope_orphans, installed_disabled, delisted,
 #    delisted_project, delisted_settings_only, other_paths, self_updated, self_update,
 #    updated_with_monitors, errors}
-#   `other_paths` is `{updated, failed, not_moved, would_update}` for the
-#   project/local records of every OTHER present path (a user home and a linked
-#   worktree included) whose version is below a readable catalog version: sync
-#   runs `update -s <scope>` from that path and reads each record back.
+#   `other_paths` is `{updated, failed, not_moved, would_update, skipped,
+#   catalog_moved}` for the project/local records of every OTHER present path (a
+#   user home and a linked worktree included) whose version is below a readable
+#   catalog version: with `--update-other-paths`, sync runs `update -s <scope>`
+#   from that path and reads each record back. Without it, `skipped` is `{records,
+#   paths}` for those records, and no call is made. `catalog_moved` counts the
+#   plugins whose catalog version changed between the pre and post reads.
 #   `updated[]` is `{id, scope, path, old, new}`, `would_update[]` (audit) is
 #   `{id, scope, path, old, catalog}`, `not_moved[]` is `{id, scope, path,
 #   version, catalog, label}` for a linked-worktree or user-home record the call
@@ -269,9 +276,9 @@ clock_into() {
   local __var="$1"
   local t
   case "$CLOCK_RESOLUTION" in
-  microseconds) t="${EPOCHREALTIME:-}" ;;
-  nanoseconds) t=$(LC_ALL=C date +%s.%N) ;;
-  *) t=$(date +%s) ;;
+    microseconds) t="${EPOCHREALTIME:-}" ;;
+    nanoseconds) t=$(LC_ALL=C date +%s.%N) ;;
+    *) t=$(date +%s) ;;
   esac
   printf -v "$__var" '%s' "${t//,/.}"
 }
@@ -300,6 +307,7 @@ SOURCE_PULL_OFF=""
 PULL_SOURCES=""
 PULL_SOURCES_SET=0
 QUIET_AUTO_UPDATE=""
+UPDATE_OTHER_PATHS=0
 
 usage() {
   cat <<'EOF'
@@ -309,10 +317,11 @@ Usage:
   sync-run.sh [--marketplace <name> | --all] --journal-root <dir>
               [--install-new all|none|ask] [--allow-downgrade] [--render]
               [--source-pull ask|never] [--pull-source <names>]
-              [--quiet-auto-update <names>]
+              [--quiet-auto-update <names>] [--update-other-paths]
   sync-run.sh [--marketplace <name> | --all] --audit
               [--install-new all|none|ask] [--allow-downgrade] [--render]
               [--source-pull ask|never] [--quiet-auto-update <names>]
+              [--update-other-paths]
   sync-run.sh --only-install <ids> --run-dir <dir> [--marketplace <name> | --all]
               [--render]
 
@@ -322,6 +331,8 @@ digest line; the report is written to <run_dir>/report.txt either way.
 issuing it, and leaves nothing behind.
 --pull-source fast-forwards each named marketplace's directory checkout before
 its refresh, only when the checkout is clean, tracking, not ahead and behind.
+--update-other-paths updates the lagging records of every other present path, one
+call per record; without it they are counted in the report and left alone.
 
 Exit: 0 the run completed (per-marketplace and per-id failures are in the digest);
 2 usage error, jq missing, or a run-level failure that left no digest.
@@ -330,97 +341,101 @@ EOF
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  --marketplace)
-    [[ $# -ge 2 ]] || {
-      echo "ERROR: --marketplace requires a name" >&2
+    --marketplace)
+      [[ $# -ge 2 ]] || {
+        echo "ERROR: --marketplace requires a name" >&2
+        exit 2
+      }
+      TARGET_MP="$2"
+      shift 2
+      ;;
+    --all)
+      ALL=1
+      shift
+      ;;
+    --audit)
+      MODE="audit"
+      shift
+      ;;
+    --allow-downgrade)
+      ALLOW_DOWNGRADE=1
+      shift
+      ;;
+    --render)
+      RENDER=1
+      shift
+      ;;
+    --install-new)
+      [[ $# -ge 2 ]] || {
+        echo "ERROR: --install-new requires a value" >&2
+        exit 2
+      }
+      INSTALL_NEW="$2"
+      shift 2
+      ;;
+    --journal-root)
+      [[ $# -ge 2 ]] || {
+        echo "ERROR: --journal-root requires a directory" >&2
+        exit 2
+      }
+      JOURNAL_ROOT="$2"
+      shift 2
+      ;;
+    --run-dir)
+      [[ $# -ge 2 ]] || {
+        echo "ERROR: --run-dir requires a directory" >&2
+        exit 2
+      }
+      RUN_DIR="$2"
+      shift 2
+      ;;
+    --only-install)
+      [[ $# -ge 2 ]] || {
+        echo "ERROR: --only-install requires an id list (an empty string is legal)" >&2
+        exit 2
+      }
+      ONLY_INSTALL="$2"
+      ONLY_INSTALL_MODE=1
+      shift 2
+      ;;
+    --source-pull)
+      [[ $# -ge 2 ]] || {
+        echo "ERROR: --source-pull requires a value" >&2
+        exit 2
+      }
+      SOURCE_PULL="$2"
+      shift 2
+      ;;
+    --pull-source)
+      [[ $# -ge 2 ]] || {
+        echo "ERROR: --pull-source requires marketplace names" >&2
+        exit 2
+      }
+      PULL_SOURCES="$2"
+      PULL_SOURCES_SET=1
+      shift 2
+      ;;
+    --quiet-auto-update)
+      [[ $# -ge 2 ]] || {
+        echo "ERROR: --quiet-auto-update requires marketplace names" >&2
+        exit 2
+      }
+      QUIET_AUTO_UPDATE="$2"
+      shift 2
+      ;;
+    --update-other-paths)
+      UPDATE_OTHER_PATHS=1
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "ERROR: unknown argument: $1" >&2
+      usage >&2
       exit 2
-    }
-    TARGET_MP="$2"
-    shift 2
-    ;;
-  --all)
-    ALL=1
-    shift
-    ;;
-  --audit)
-    MODE="audit"
-    shift
-    ;;
-  --allow-downgrade)
-    ALLOW_DOWNGRADE=1
-    shift
-    ;;
-  --render)
-    RENDER=1
-    shift
-    ;;
-  --install-new)
-    [[ $# -ge 2 ]] || {
-      echo "ERROR: --install-new requires a value" >&2
-      exit 2
-    }
-    INSTALL_NEW="$2"
-    shift 2
-    ;;
-  --journal-root)
-    [[ $# -ge 2 ]] || {
-      echo "ERROR: --journal-root requires a directory" >&2
-      exit 2
-    }
-    JOURNAL_ROOT="$2"
-    shift 2
-    ;;
-  --run-dir)
-    [[ $# -ge 2 ]] || {
-      echo "ERROR: --run-dir requires a directory" >&2
-      exit 2
-    }
-    RUN_DIR="$2"
-    shift 2
-    ;;
-  --only-install)
-    [[ $# -ge 2 ]] || {
-      echo "ERROR: --only-install requires an id list (an empty string is legal)" >&2
-      exit 2
-    }
-    ONLY_INSTALL="$2"
-    ONLY_INSTALL_MODE=1
-    shift 2
-    ;;
-  --source-pull)
-    [[ $# -ge 2 ]] || {
-      echo "ERROR: --source-pull requires a value" >&2
-      exit 2
-    }
-    SOURCE_PULL="$2"
-    shift 2
-    ;;
-  --pull-source)
-    [[ $# -ge 2 ]] || {
-      echo "ERROR: --pull-source requires marketplace names" >&2
-      exit 2
-    }
-    PULL_SOURCES="$2"
-    PULL_SOURCES_SET=1
-    shift 2
-    ;;
-  --quiet-auto-update)
-    [[ $# -ge 2 ]] || {
-      echo "ERROR: --quiet-auto-update requires marketplace names" >&2
-      exit 2
-    }
-    QUIET_AUTO_UPDATE="$2"
-    shift 2
-    ;;
-  -h | --help)
-    usage
-    exit 0
-    ;;
-  *)
-    echo "ERROR: unknown argument: $1" >&2
-    usage >&2
-    exit 2
-    ;;
+      ;;
   esac
 done
 
@@ -433,20 +448,20 @@ fi
 # SKILL.md states for the rendered option: a policy the caller thought it set must
 # never disappear silently.
 case "$INSTALL_NEW" in
-all | none | ask) ;;
-*)
-  INSTALL_NEW_INVALID="$INSTALL_NEW"
-  INSTALL_NEW="ask"
-  ;;
+  all | none | ask) ;;
+  *)
+    INSTALL_NEW_INVALID="$INSTALL_NEW"
+    INSTALL_NEW="ask"
+    ;;
 esac
 # The same rule for the pull policy. `ask` is the safe default here too: the
 # script pulls only a checkout the caller names after a yes.
 case "$SOURCE_PULL" in
-ask | never) ;;
-*)
-  SOURCE_PULL_INVALID="$SOURCE_PULL"
-  SOURCE_PULL="ask"
-  ;;
+  ask | never) ;;
+  *)
+    SOURCE_PULL_INVALID="$SOURCE_PULL"
+    SOURCE_PULL="ask"
+    ;;
 esac
 # No human can answer the offer in an autonomous session, so the run neither
 # offers nor pulls there: the same test converge applies before touching anything.
@@ -648,6 +663,8 @@ run_cli() {
   local label="$1"
   shift
   local sink="$RUN_DIR/.last-cli-out"
+  local t_s t_e
+  clock_into t_s
   {
     echo "\$ $label"
     # stdin closed: the CLI's confirmation for a marketplace-declared command
@@ -659,6 +676,8 @@ run_cli() {
     fi
   } | tee -a "$JOURNAL_LOG" >"$sink"
   CLI_RC=${PIPESTATUS[0]}
+  clock_into t_e
+  echo "# took $(LC_ALL=C awk -v s="$t_s" -v e="$t_e" 'BEGIN { printf "%.3f", e - s }')s" >>"$JOURNAL_LOG"
   CLI_OUT=$(<"$sink")
   CLI_OUT="${CLI_OUT//$'\r'/}"
   # A CLI older than `--json` (before 2.1.268) rejects it as an unknown option:
@@ -783,16 +802,16 @@ cli_move_result() {
   if [[ -n "$json" ]]; then
     jq_to outcome -r '.updateOutcome // ""' <<<"$json"
     case "$outcome" in
-    updated) printf -v "$__var" '%s' "updated" ;;
-    up_to_date) printf -v "$__var" '%s' "noop" ;;
-    *) printf -v "$__var" '%s' "other" ;;
+      updated) printf -v "$__var" '%s' "updated" ;;
+      up_to_date) printf -v "$__var" '%s' "noop" ;;
+      *) printf -v "$__var" '%s' "other" ;;
     esac
     return 0
   fi
   case "$text" in
-  *"updated from"*) printf -v "$__var" '%s' "updated" ;;
-  *"already at the latest version"*) printf -v "$__var" '%s' "noop" ;;
-  *) printf -v "$__var" '%s' "other" ;;
+    *"updated from"*) printf -v "$__var" '%s' "updated" ;;
+    *"already at the latest version"*) printf -v "$__var" '%s' "noop" ;;
+    *) printf -v "$__var" '%s' "other" ;;
   esac
 }
 
@@ -841,8 +860,8 @@ install_disabled_notice() {
   local text
   cli_message text "$1"
   case "$text" in
-  *"disabled by default"* | *"Disabled by default"*) return 0 ;;
-  *) return 1 ;;
+    *"disabled by default"* | *"Disabled by default"*) return 0 ;;
+    *) return 1 ;;
   esac
 }
 
@@ -1018,8 +1037,8 @@ linked_worktree_paths() {
     IFS= read -r line <"$fs/.git" || true
     line="${line//$'\r'/}"
     case "$line" in
-    "gitdir:"*".git/worktrees/"*) found+=("$p") ;;
-    *) ;;
+      "gitdir:"*".git/worktrees/"*) found+=("$p") ;;
+      *) ;;
     esac
   done <<<"$paths"
   json_strings_of "$__var" ${found[@]+"${found[@]}"}
@@ -1029,9 +1048,13 @@ would_pins() {
   local __var="$1"
   local ir_w
   json_array_of ir_w ${IR_WOULD[@]+"${IR_WOULD[@]}"}
+  local skipped="$RUN_DIR/.other-paths-skipped.$2.jsonl"
+  [[ -f "$skipped" ]] || skipped=/dev/null
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to "$__var" -c -n --argjson ir "$ir_w" --argjson op "$OTHER_PATHS_JSON" \
-    '[($ir[] | {id, scope, current: true}), ($op.would_update[]? | {id, scope, path})]' || printf -v "$__var" '%s' "[]"
+    --slurpfile skipped "$skipped" \
+    '[($ir[] | {id, scope, current: true}), ($op.would_update[]? | {id, scope, path}), $skipped[]]' ||
+    printf -v "$__var" '%s' "[]"
   [[ -n "${!__var}" ]] || printf -v "$__var" '%s' "[]"
 }
 
@@ -1055,7 +1078,7 @@ divergence_block() {
   # step's doing, so it is split out of the interval it first appeared in.
   local moved_rows
   local would
-  would_pins would
+  would_pins would "$mp"
   json_array_of moved_rows ${MOVED_DURING[@]+"${MOVED_DURING[@]}"}
   json_object_file "$RUN_DIR/.divergence-args.$mp.json" moved "$moved_rows" wt "$linked" would "$would"
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
@@ -1064,8 +1087,9 @@ divergence_block() {
     --argjson cap "$DIVERGENCE_PATH_IDS" "$ACTIONABLE_DEF$TRIPLE_DEF"'
     . as {$moved, $wt, $would}
     # Under --audit nothing moved, so a pin sync would forward-update (Step 2 or
-    # Step 3a) is read at the catalog version: it is not work for converge. A
-    # linked worktree keeps its own version, since update leaves it behind there.
+    # Step 3a) is read at the catalog version: it is not work for converge. So is a
+    # pin Step 3a skipped, which `--update-other-paths` moves. A linked worktree
+    # keeps its own version, since update leaves it behind there.
     | ($q[0] | if ($would | length) == 0 then . else
         .catalog_versions as $cv
         | ([.installed[]? | select(.currentProject == true) | {id, scope, path: .projectPath}]) as $cur
@@ -1155,10 +1179,12 @@ divergence_block() {
 }
 
 # --- Step 3a — forward-update the records of every other present path --------------
-# Step 2 updates the records of the repo the run stands in; this step takes the
-# project/local records of every OTHER path that is present, a user home and a
-# linked worktree included, and runs `claude plugin update <id> -s <scope>` from
-# that path, since the two scopes have no path flag. Forward only: a record is
+# Step 2 updates the records of the repo the run stands in; with
+# `--update-other-paths` this step takes the project/local records of every OTHER
+# path that is present, a user home and a linked worktree included, and runs
+# `claude plugin update <id> -s <scope>` from that path, since the two scopes have
+# no path flag. Calls stay serial: concurrent `update` calls lost records in a
+# sandbox probe. Without the flag it only counts them. Forward only: a record is
 # called only when its version and the catalog's both parse and the record is
 # below, so a deliberate pin above the catalog, a catalog that moved backward,
 # and an id with no readable catalog version are never touched.
@@ -1226,6 +1252,14 @@ other_paths_step() {
     mp_error "other-paths selection failed, step not run"
     return 0
   fi
+  if ((UPDATE_OTHER_PATHS == 0)); then
+    # Pins for divergence_block's would list, kept out of the digest, which would
+    # otherwise carry one row per record.
+    printf '%s\n' "$cands" | jq -c -R 'select(. != "") | gsub("\r"; "") | split("\u001f")
+      | {path: .[0], id: .[1], scope: .[2]}' >"$RUN_DIR/.other-paths-skipped.$mp.jsonl" ||
+      mp_error "other-paths count failed"
+    return 0
+  fi
   while IFS=$'\x1f' read -r path id scope old cat label home; do
     path="${path//$'\r'/}" id="${id//$'\r'/}" scope="${scope//$'\r'/}" old="${old//$'\r'/}"
     cat="${cat//$'\r'/}" label="${label//$'\r'/}" home="${home//$'\r'/}"
@@ -1272,6 +1306,8 @@ finalize_other_paths() {
   local file="$RUN_DIR/other-paths.$mp.json"
   local rows_file="$RUN_DIR/.other-paths-rows.$mp.json"
   local post="$RUN_DIR/post.$mp.json"
+  local pre="$RUN_DIR/pre.$mp.json"
+  local skipped="$RUN_DIR/.other-paths-skipped.$mp.jsonl"
   local rows
   local result=""
   if ((ONLY_INSTALL_MODE == 1)); then
@@ -1281,9 +1317,13 @@ finalize_other_paths() {
   json_array_of rows ${PATH_ROWS[@]+"${PATH_ROWS[@]}"}
   printf '%s\n' "$rows" >"$rows_file"
   [[ -f "$post" ]] || post="$rows_file"
+  [[ -f "$pre" ]] || pre="$rows_file"
+  [[ -f "$skipped" ]] || skipped=/dev/null
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  jq_to result -c -n --slurpfile rows "$rows_file" --slurpfile post "$post" "$TRIPLE_DEF"'
+  jq_to result -c -n --slurpfile rows "$rows_file" --slurpfile post "$post" --slurpfile pre "$pre" \
+    --slurpfile skipped "$skipped" "$TRIPLE_DEF"'
     ($post[0] | if type == "object" then . else {} end) as $q
+    | ($pre[0] | if type == "object" then . else {} end) as $p
     | [$rows[0][] | select(.result == "called")
        | . as $r
        | . + {new: (first($q.installed[]? | select(.id == $r.id and .scope == $r.scope
@@ -1297,7 +1337,10 @@ finalize_other_paths() {
                 + [$called[] | select((.moved | not) and .label == "" and (.home | not))
                    | {id, scope, path, stopped: false,
                       reason: ("the record did not move: still at \(.new // "an unread version"), the catalog reads \(.catalog)")}]),
-       would_update: [$rows[0][] | select(.result == "would") | {id, scope, path, old, catalog}]}' || result=""
+       would_update: [$rows[0][] | select(.result == "would") | {id, scope, path, old, catalog}],
+       skipped: {records: ($skipped | length), paths: ($skipped | map(.path) | unique | length)},
+       catalog_moved: (($p.catalog_versions // {}) as $a | ($q.catalog_versions // {}) as $b
+                       | [$a | keys[] | select($b[.] != null and $a[.] != null and $a[.] != $b[.])] | length)}' || result=""
   if [[ -n "$result" ]]; then
     OTHER_PATHS_JSON="$result"
   else
@@ -1323,7 +1366,7 @@ reset_marketplace_state() {
   CATALOG_LAST_UPDATED="" PROJECT_ROOT_JSON="null" SOURCE_PULL_JSON="null"
   # Step stamps (start, end) for this marketplace; an empty pair is a step this
   # invocation did not run and reads `null` in the digest, never 0.
-  T_PRR_S="" T_PRR_E="" T_MU_S="" T_MU_E="" T_IR_S="" T_IR_E="" T_US_S="" T_US_E=""
+  T_PRR_S="" T_PRR_E="" T_MU_S="" T_MU_E="" T_IR_S="" T_IR_E="" T_OP_S="" T_OP_E="" T_US_S="" T_US_E=""
   T_PI_S="" T_PI_E="" T_IE_S="" T_IE_E="" T_CC_S="" T_CC_E="" T_PR_S="" T_PR_E=""
   T_FN_S="" T_MP_S="" T_MP_E=""
   CACHE_CHECK_RAN=0
@@ -1700,7 +1743,10 @@ run_marketplace() {
       return 0
     fi
 
+    clock_into T_OP_S
     other_paths_step "$mp"
+    clock_into T_OP_E
+    T_US_S="$T_OP_E"
 
     project_ids downgrade-candidates "$RUN_DIR/mid.$mp.json" "$RUN_DIR/downgrades.$mp.txt"
     dg_rc=$?
@@ -1864,15 +1910,15 @@ run_marketplace() {
     for row in ${IR_UPDATED[@]+"${IR_UPDATED[@]}"} ${US_UPDATED[@]+"${US_UPDATED[@]}"} \
       ${DOWNGRADED[@]+"${DOWNGRADED[@]}"} ${MOVED_DURING[@]+"${MOVED_DURING[@]}"}; do
       case "$row" in
-      *"\"id\":\"$own@"*)
-        SELF_UPDATED="true"
-        # The digest names this plugin's own row, so the render never has to
-        # pick it out of the moved rows. The first match wins.
-        if [[ "$SELF_UPDATE" == "null" ]]; then
-          jq_to SELF_UPDATE -c '{id, scope, old, new}' <<<"$row"
-        fi
-        ;;
-      *) ;;
+        *"\"id\":\"$own@"*)
+          SELF_UPDATED="true"
+          # The digest names this plugin's own row, so the render never has to
+          # pick it out of the moved rows. The first match wins.
+          if [[ "$SELF_UPDATE" == "null" ]]; then
+            jq_to SELF_UPDATE -c '{id, scope, old, new}' <<<"$row"
+          fi
+          ;;
+        *) ;;
       esac
     done
   fi
@@ -1938,16 +1984,16 @@ recover_pending() {
       | if ($in | not) then "absent" elif $en == false then "off" else "on" end' \
       "$RUN_DIR/pre-install.$mp.json" || continue
     case "$state" in
-    off)
-      enable_one "$id" user
-      if ((CLI_RC == 0)); then
-        pending_remove "$id"
-        RECOVERED_ROWS+=("$(jq -c -n --arg id "$id" '{id: $id, outcome: "enabled"}')")
-      else
-        RECOVERED_ROWS+=("$(jq -c -n --arg id "$id" '{id: $id, outcome: "enable_failed"}')")
-      fi
-      ;;
-    *) pending_remove "$id" ;;
+      off)
+        enable_one "$id" user
+        if ((CLI_RC == 0)); then
+          pending_remove "$id"
+          RECOVERED_ROWS+=("$(jq -c -n --arg id "$id" '{id: $id, outcome: "enabled"}')")
+        else
+          RECOVERED_ROWS+=("$(jq -c -n --arg id "$id" '{id: $id, outcome: "enable_failed"}')")
+        fi
+        ;;
+      *) pending_remove "$id" ;;
     esac
   done <"$PENDING_FILE"
 }
@@ -2309,16 +2355,16 @@ finalize_moves() {
       dir=$(version_direction "$old" "$new")
     fi
     case "$dir" in
-    same) continue ;;
-    backward)
-      DOWNGRADED+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg o "$old" --arg n "$new" \
-        '{id: $id, scope: $sc, old: $o, new: $n}')")
-      ;;
-    *)
-      row=$(jq -c -n --arg id "$id" --arg sc "$scope" --arg o "$old" --arg n "$new" --arg d "$dir" \
-        '{id: $id, scope: $sc, old: $o, new: $n, direction: $d}')
-      if [[ "$kind" == "in_repo" ]]; then IR_UPDATED+=("$row"); else US_UPDATED+=("$row"); fi
-      ;;
+      same) continue ;;
+      backward)
+        DOWNGRADED+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg o "$old" --arg n "$new" \
+          '{id: $id, scope: $sc, old: $o, new: $n}')")
+        ;;
+      *)
+        row=$(jq -c -n --arg id "$id" --arg sc "$scope" --arg o "$old" --arg n "$new" --arg d "$dir" \
+          '{id: $id, scope: $sc, old: $o, new: $n, direction: $d}')
+        if [[ "$kind" == "in_repo" ]]; then IR_UPDATED+=("$row"); else US_UPDATED+=("$row"); fi
+        ;;
     esac
   done <"$RUN_DIR/moves.$mp.tsv"
 }
@@ -2374,7 +2420,7 @@ report_extras() {
   # the groups past the cap.
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to "$__var" -c --argjson cap "$STALE_PARENT_ROWS" --arg list_file "$list_file" \
-    --argjson audit "$([[ "$MODE" == "audit" ]] && echo true || echo false)" \
+    --argjson left_to_step3a "$([[ "$MODE" == "audit" || "$UPDATE_OTHER_PATHS" == 0 ]] && echo true || echo false)" \
     "$ACTIONABLE_DEF$TRIPLE_DEF"'
     def parent: capture("^(?<p>.*[/\\\\])[^/\\\\]+[/\\\\]*$").p // .;
     ([.divergences[]? | actionable | .id]) as $act
@@ -2382,12 +2428,12 @@ report_extras() {
     | ([.installed[]? | select(.currentProject == true) | .id]) as $here
     | ([.installed[]? | select(.projectPathPresent == false)]) as $absent
     # A home record still below the catalog, or with no version to compare: the
-    # ones Step 3a could not move. Under --audit, the present ones it would move
-    # are left out.
+    # ones Step 3a could not move. Under --audit or with Step 3a off, the present
+    # ones it would move are left out.
     | ([.installed[]? | select(.projectPathIsHome == true)
         | select(($cv[.id] | triple) as $c | (.version | triple) as $v
                  | ($c == null or $v == null or $v < $c)
-                   and (($audit and .projectPathPresent == true and $c != null and $v != null) | not))]) as $homes
+                   and (($left_to_step3a and .projectPathPresent == true and $c != null and $v != null) | not))]) as $homes
     | {auto_update: .marketplace.autoUpdate,
        user_home_records: {total: ($homes | length),
                            paths: ($homes | map(.projectPath) | unique)},
@@ -2511,31 +2557,31 @@ monitor_count_at() {
       jq_to __mc_kind -r 'if .present == true then "true" else "false" end' <<<"$__mc_spec" 2>/dev/null || __mc_kind="unreadable"
     fi
     case "$__mc_kind" in
-    true)
-      # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-      jq_to __mc_n -r '
+      true)
+        # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+        jq_to __mc_n -r '
         .value
         | if type == "array" then "array:\(length)"
           elif type == "string" then "path:\(.)"
           else "other" end' <<<"$__mc_spec" 2>/dev/null || __mc_n="other"
-      case "$__mc_n" in
-      array:*) __mc_n="${__mc_n#array:}" ;;
-      path:*)
-        __mc_path="${__mc_n#path:}"
-        __mc_path="${__mc_path#./}"
-        __mc_n="0"
-        [[ -f "$__mc_root/$__mc_path" ]] &&
-          jq_to __mc_n -r 'if type == "array" then length else 0 end' "$__mc_root/$__mc_path" 2>/dev/null
+        case "$__mc_n" in
+          array:*) __mc_n="${__mc_n#array:}" ;;
+          path:*)
+            __mc_path="${__mc_n#path:}"
+            __mc_path="${__mc_path#./}"
+            __mc_n="0"
+            [[ -f "$__mc_root/$__mc_path" ]] &&
+              jq_to __mc_n -r 'if type == "array" then length else 0 end' "$__mc_root/$__mc_path" 2>/dev/null
+            ;;
+          *) __mc_n="0" ;;
+        esac
         ;;
-      *) __mc_n="0" ;;
-      esac
-      ;;
-    false) ;;
-    *)
-      # Unreadable manifest: a key may be present and we cannot see it, so the
-      # default file is not a safe fallback.
-      __mc_kind="unreadable"
-      ;;
+      false) ;;
+      *)
+        # Unreadable manifest: a key may be present and we cannot see it, so the
+        # default file is not a safe fallback.
+        __mc_kind="unreadable"
+        ;;
     esac
   fi
   if [[ "$__mc_kind" != "true" && "$__mc_kind" != "unreadable" && -f "$__mc_root/monitors/monitors.json" ]]; then
@@ -2703,6 +2749,7 @@ emit_marketplace_block() {
     --arg t_prr_s "$T_PRR_S" --arg t_prr_e "$T_PRR_E" \
     --arg t_mu_s "$T_MU_S" --arg t_mu_e "$T_MU_E" \
     --arg t_ir_s "$T_IR_S" --arg t_ir_e "$T_IR_E" \
+    --arg t_op_s "$T_OP_S" --arg t_op_e "$T_OP_E" \
     --arg t_us_s "$T_US_S" --arg t_us_e "$T_US_E" \
     --arg t_pi_s "$T_PI_S" --arg t_pi_e "$T_PI_E" \
     --arg t_ie_s "$T_IE_S" --arg t_ie_e "$T_IE_E" \
@@ -2728,6 +2775,7 @@ emit_marketplace_block() {
     | {pre_refresh_read: dur($t_prr_s; $t_prr_e),
      marketplace_update: dur($t_mu_s; $t_mu_e),
      in_repo_update: dur($t_ir_s; $t_ir_e),
+     other_paths: dur($t_op_s; $t_op_e),
      user_sweep: dur($t_us_s; $t_us_e),
      pre_install_read: dur($t_pi_s; $t_pi_e),
      install_enable: dur($t_ie_s; $t_ie_e),
@@ -2811,26 +2859,27 @@ if ((ONLY_INSTALL_MODE == 1)); then
     # The pair is restored together, so the digest never names a policy beside
     # an invalid value from a different invocation.
     case "$SAVED_INSTALL_NEW" in
-    all | none | ask)
-      INSTALL_NEW="$SAVED_INSTALL_NEW"
-      INSTALL_NEW_INVALID="$SAVED_INSTALL_NEW_INVALID"
-      ;;
-    *) ;;
+      all | none | ask)
+        INSTALL_NEW="$SAVED_INSTALL_NEW"
+        INSTALL_NEW_INVALID="$SAVED_INSTALL_NEW_INVALID"
+        ;;
+      *) ;;
     esac
     # The pull policy and the quiet list belong to the run too, so the digest
     # that supersedes the first one renders the same Marketplace rows.
     SAVED_SOURCE_PULL=""
     jq_to SAVED_SOURCE_PULL -r '.source_pull // ""' "$RUN_DIR/flags.json" 2>/dev/null
     case "$SAVED_SOURCE_PULL" in
-    ask | never)
-      SOURCE_PULL="$SAVED_SOURCE_PULL"
-      jq_to SOURCE_PULL_INVALID -r '.source_pull_invalid // ""' "$RUN_DIR/flags.json" 2>/dev/null
-      jq_to SOURCE_PULL_OFF -r '.source_pull_off // ""' "$RUN_DIR/flags.json" 2>/dev/null
-      jq_to QUIET_AUTO_UPDATE -r '.quiet_auto_update // [] | join(",")' "$RUN_DIR/flags.json" 2>/dev/null
-      # The saved reason stands unless this session is the autonomous one.
-      [[ -z "${CLAUDE_CODE_REMOTE:-}" ]] || apply_pull_policy
-      ;;
-    *) ;;
+      ask | never)
+        SOURCE_PULL="$SAVED_SOURCE_PULL"
+        jq_to SOURCE_PULL_INVALID -r '.source_pull_invalid // ""' "$RUN_DIR/flags.json" 2>/dev/null
+        jq_to SOURCE_PULL_OFF -r '.source_pull_off // ""' "$RUN_DIR/flags.json" 2>/dev/null
+        jq_to QUIET_AUTO_UPDATE -r '.quiet_auto_update // [] | join(",")' "$RUN_DIR/flags.json" 2>/dev/null
+        jq_to UPDATE_OTHER_PATHS -r 'if .update_other_paths == true then 1 else 0 end' "$RUN_DIR/flags.json" 2>/dev/null
+        # The saved reason stands unless this session is the autonomous one.
+        [[ -z "${CLAUDE_CODE_REMOTE:-}" ]] || apply_pull_policy
+        ;;
+      *) ;;
     esac
   fi
 else
@@ -2849,8 +2898,10 @@ else
   FLAG_QAU="[]"
   # shellcheck disable=SC2086  # word splitting on the comma-folded list is the point
   json_strings_of FLAG_QAU ${QUIET_AUTO_UPDATE//,/ }
-  printf '{"allow_downgrade":%s,"install_new":%s,"install_new_invalid":%s,"source_pull":%s,"source_pull_invalid":%s,"source_pull_off":%s,"quiet_auto_update":%s}\n' \
-    "$FLAG_AD" "$FLAG_IN" "$FLAG_INV" "$FLAG_SP" "$FLAG_SPI" "$FLAG_SPO" "$FLAG_QAU" >"$RUN_DIR/flags.json"
+  FLAG_UOP="false"
+  ((UPDATE_OTHER_PATHS == 0)) || FLAG_UOP="true"
+  printf '{"allow_downgrade":%s,"install_new":%s,"install_new_invalid":%s,"source_pull":%s,"source_pull_invalid":%s,"source_pull_off":%s,"quiet_auto_update":%s,"update_other_paths":%s}\n' \
+    "$FLAG_AD" "$FLAG_IN" "$FLAG_INV" "$FLAG_SP" "$FLAG_SPI" "$FLAG_SPO" "$FLAG_QAU" "$FLAG_UOP" >"$RUN_DIR/flags.json"
 fi
 
 # The first pass's run-level timings, written by that pass once its clock stops

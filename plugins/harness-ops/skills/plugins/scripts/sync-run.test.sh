@@ -33,14 +33,14 @@ assert_exit() {
 }
 assert_contains() {
   case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "expected to contain: $3 — got: $2" ;;
+    *"$3"*) pass "$1" ;;
+    *) fail "$1" "expected to contain: $3 — got: $2" ;;
   esac
 }
 assert_not_contains() {
   case "$2" in
-  *"$3"*) fail "$1" "expected not to contain: $3 — got: $2" ;;
-  *) pass "$1" ;;
+    *"$3"*) fail "$1" "expected not to contain: $3 — got: $2" ;;
+    *) pass "$1" ;;
   esac
 }
 
@@ -1038,17 +1038,17 @@ esac
 assert_timings_shape() {
   local label="$1" digest="$2" t
   t=$(jq -c '.marketplaces[0].timings' <<<"$digest")
-  assert_eq "$label: the timings object carries the nine step keys, the remainder and resolution" \
-    "cache_content_check,finalize,in_repo_update,install_enable,marketplace_update,post_read,pre_install_read,pre_refresh_read,resolution,total,unattributed,user_sweep" \
+  assert_eq "$label: the timings object carries the ten step keys, the remainder and resolution" \
+    "cache_content_check,finalize,in_repo_update,install_enable,marketplace_update,other_paths,post_read,pre_install_read,pre_refresh_read,resolution,total,unattributed,user_sweep" \
     "$(jq -r 'keys | join(",")' <<<"$t")"
   assert_eq "$label: every non-null timing is a non-negative number" "true" \
     "$(jq -r 'del(.resolution) | [.[] | select(. != null)] | all(type == "number" and . >= 0)' <<<"$t")"
   assert_eq "$label: the total is at least the sum of the steps" "true" \
-    "$(jq -r '. as $t | [.pre_refresh_read, .marketplace_update, .in_repo_update, .user_sweep,
+    "$(jq -r '. as $t | [.pre_refresh_read, .marketplace_update, .in_repo_update, .other_paths, .user_sweep,
         .pre_install_read, .install_enable, .cache_content_check, .post_read, .finalize]
         | map(select(. != null)) | (add // 0) <= $t.total' <<<"$t")"
   assert_eq "$label: the steps plus unattributed sum to the marketplace total" "true" \
-    "$(jq -r '. as $t | [.pre_refresh_read, .marketplace_update, .in_repo_update, .user_sweep,
+    "$(jq -r '. as $t | [.pre_refresh_read, .marketplace_update, .in_repo_update, .other_paths, .user_sweep,
         .pre_install_read, .install_enable, .cache_content_check, .post_read, .finalize, .unattributed]
         | map(select(. != null)) | (add // 0) - $t.total | . < 0.0015 and . > -0.0015' <<<"$t")"
   assert_eq "$label: the post-read work is a named step" "number" "$(jq -r '.finalize | type' <<<"$t")"
@@ -1361,7 +1361,10 @@ assert_eq "text result: the update line still yields an Updated row" "alpha@mark
 # updateOutcome as its recording, so a stub drifting from the CLI fails here.
 stub_line() { # stub_line <env...> -- <args...>: the stub's last stdout line
   local -a vars=()
-  while [[ "$1" != -- ]]; do vars+=("$1"); shift; done
+  while [[ "$1" != -- ]]; do
+    vars+=("$1")
+    shift
+  done
   shift
   env CLAUDE_STUB_LOG="$case_dir/claude.log" CLAUDE_STUB_INSTALLED_JSON="$case_dir/installed_plugins.json" \
     "${vars[@]}" bash "$case_dir/stubs/claude" "$@" </dev/null 2>/dev/null | tail -n 1
@@ -3113,7 +3116,10 @@ cwd_calls() { cut -f1 "$case_dir/claude.log.cwd" 2>/dev/null | sed "s#^$case_dir
 paths_fixture
 EXTRA_ENV=(HOME="$case_dir/home" CLAUDE_STUB_NEW_VERSION=2.0.0 CLAUDE_STUB_KEY_CWD=1
   CLAUDE_STUB_INEFFECTIVE_PATHS="$case_dir/wt" CC_STUB_CLEAN=1)
-out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal" --update-other-paths)
+assert_contains "journal: each CLI call records its duration" "$(cat "$(jq -r '.run_dir' <<<"$out")/journal.log")" "# took "
+assert_eq "timings: the step has its own figure" "number" \
+  "$(jq -r '.marketplaces[0].timings.other_paths | type' <<<"$out")"
 assert_eq "other paths: one call per lagging present record, from its own path, home included" \
   "home plain plain repoA repoA wt " "$(cwd_calls)"
 assert_not_contains "other paths: no call for a record without a catalog version" "$(cat "$case_dir/claude.log")" "gamma@market1"
@@ -3136,10 +3142,33 @@ report=$(jq -r -f "$SCRIPT_DIR/render-report.jq" <<<"$out")
 assert_contains "other paths: the report names the moved records" "$report" "Updated in other paths: 5 record(s)"
 assert_contains "other paths: and the worktree record that did not move" "$report" "did not move"
 
+# Off by default: no call from any other path, the count and remedy in the report,
+# and nothing the flag would move left for converge or the user-home row.
+paths_fixture
+EXTRA_ENV=(HOME="$case_dir/home" CLAUDE_STUB_NEW_VERSION=2.0.0 CLAUDE_STUB_KEY_CWD=1 CC_STUB_CLEAN=1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_eq "other paths off: no update call from any other path" "" "$(cwd_calls)"
+assert_eq "other paths off: the records and paths are counted" "6 4" \
+  "$(jq -r '.marketplaces[0].other_paths.skipped | "\(.records) \(.paths)"' <<<"$out")"
+assert_eq "other paths off: the digest carries no per-record rows" "0" \
+  "$(jq -r '.marketplaces[0].other_paths.would_update | length' <<<"$out")"
+assert_eq "other paths off: a pin the flag would move is not counted for converge" "0" \
+  "$(jq -r '.marketplaces[0].divergences | .actionable_here + .actionable_elsewhere' <<<"$out")"
+assert_eq "other paths off: a home record the flag would move is not listed" "0" \
+  "$(jq -r '.marketplaces[0].user_home_records.total' <<<"$out")"
+report=$(jq -r -f "$SCRIPT_DIR/render-report.jq" <<<"$out")
+assert_contains "other paths off: the report gives the count" "$report" "Behind in other paths: 6 record(s) in 4 path(s), not updated"
+assert_contains "other paths off: and the remedy" "$report" "remedy: /harness-ops:plugins sync --update-other-paths"
+
+# A catalog that changed between the pre and post reads is named.
+assert_contains "catalog moved: the row renders from the digest field" \
+  "$(jq -r -f "$SCRIPT_DIR/render-report.jq" <<<"$(jq -c '.marketplaces[0].other_paths.catalog_moved = 2' <<<"$out")")" \
+  "Catalog moved during this run: 2 plugin(s)"
+
 # Audit predicts the same calls and stops counting what sync could update.
 paths_fixture
 EXTRA_ENV=(HOME="$case_dir/home" CLAUDE_STUB_KEY_CWD=1 CC_STUB_CLEAN=1)
-out=$(run_sync "$case_dir" --marketplace market1 --install-new none --audit)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --audit --update-other-paths)
 assert_eq "audit: no update call from any path" "" "$(cwd_calls)"
 assert_eq "audit: the forward updates are predicted" "6" \
   "$(jq -r '.marketplaces[0].other_paths.would_update | length' <<<"$out")"
@@ -3155,7 +3184,7 @@ assert_eq "audit: a home record sync could update is not listed" "0" \
 paths_fixture
 EXTRA_ENV=(HOME="$case_dir/home" CLAUDE_STUB_NEW_VERSION=2.0.0 CLAUDE_STUB_KEY_CWD=1
   CLAUDE_STUB_DIRTY_PATHS="$case_dir/repoA $case_dir/plain" CC_STUB_CLEAN=1)
-out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal" --update-other-paths)
 assert_eq "guard: one call in each path whose settings changed" "home plain repoA wt " "$(cwd_calls)"
 assert_eq "guard: both stops are failures naming the change" "2" \
   "$(jq -r '[.marketplaces[0].other_paths.failed[] | select(.reason | test("changed after this call"))] | length' <<<"$out")"

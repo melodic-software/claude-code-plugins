@@ -61,6 +61,12 @@
       "description": "Comma-separated marketplace names whose sync report shows autoUpdate: off without the suggestion to enable it. Empty, the default, keeps the suggestion for every marketplace with autoUpdate off.",
       "default": ""
     },
+    "update_other_paths": {
+      "type": "boolean",
+      "title": "Update other paths on sync",
+      "description": "Whether sync also updates the outdated project and local plugin records of every other present path on this machine, one CLI call per record. Off (the default), sync reports how many it left and how to update them.",
+      "default": false
+    },
     "skill_usage_audit_enabled": {
       "type": "boolean",
       "title": "Skill-usage-audit hook",

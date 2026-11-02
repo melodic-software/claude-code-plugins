@@ -623,10 +623,16 @@ this step only; an `--allow-downgrade` project/local rollback is not compared.
 
 ## Step 3a: Forward update in every other present path
 
-Step 2 covers the repo the run stands in. Right after the mid read, before the user-scope sweep,
-`sync-run.sh` takes the project/local records of every other path that is present, a user home and a
-linked worktree included, and runs `claude plugin update <id> -s <scope> --json` from that path
-(`-s project` and `-s local` have no path flag). It is forward-only, unlike Step 2: a record is
+Off by default, because it makes one serial CLI call per lagging record, which on a machine with
+many checkouts runs to tens of minutes. The calls stay serial because a sandbox probe of parallel
+`update` calls lost records with no error ([#12525](https://github.com/melodic-software/claude-code-plugins/issues/12525)).
+Off, the step makes no call and renders `Behind in other paths:` with the count and the remedy; those
+records are not counted for `converge`, and a user-home one leaves the `User-home project records` row.
+
+Step 2 covers the repo the run stands in. With `--update-other-paths`, right after the mid read and
+before the user-scope sweep, `sync-run.sh` takes the project/local records of every other path that is
+present, a user home and a linked worktree included, and runs `claude plugin update <id> -s <scope>
+--json` from that path (`-s project` and `-s local` have no path flag). It is forward-only, unlike Step 2: a record is
 called only when its version and the catalog's both parse and the record is below. A record with no
 readable catalog version, one at or above the catalog, and one in an absent path take no call;
 absent paths stay in the stale project records section.
@@ -642,8 +648,10 @@ After the post read, each called record is read back by id, scope and path. A re
 forward renders under `Updated in other paths:`. One left behind in a linked worktree or a user home
 renders under `Not moved in other paths:` with its label; the worktree keeps its divergence class and
 the home stays in the `User-home project records` row. Any other record left behind, a failed call,
-and a stopped path go under `Action needed`. Audit runs no call and lists `Would update in other
-paths:`. The digest field is `other_paths`; its shape is in `sync-run.sh`'s header.
+and a stopped path go under `Action needed`. With the flag, audit runs no call and lists `Would update
+in other paths:`. The digest field is `other_paths`; its shape is in `sync-run.sh`'s header.
+`Catalog moved during this run:` names a catalog that changed between the pre and post reads, since a
+long run can leave records on different versions. Each CLI call's duration is in the journal.
 
 ## Step 3: User-scope update sweep
 
