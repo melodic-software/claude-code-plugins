@@ -1221,7 +1221,8 @@ def _unposted(
     posted: Poster | None,
 ) -> bool:
     """Whether the lane posted nothing on `sha` from attempt 1's start to
-    attempt 2's (`lane_posted`); unknown inputs read as posted."""
+    attempt 2's (`lane_posted`), a marker rewrite included; unknown inputs
+    read as posted."""
     if sha is None or second is None or posted is None:
         return False
     return not posted(
@@ -1238,9 +1239,10 @@ def lane_posted(
     threads: Any,
 ) -> bool:
     """Whether the lane posted on `head` from `since` to before `until` (both
-    timestamps; `until` None is now): its reviewed-head marker naming `head`,
-    another lane comment, or a lane thread opened then. An unreadable `since`,
-    time or input counts as posted; an unreadable `until` reads as now."""
+    timestamps; `until` None is now): its reviewed-head marker created or
+    rewritten naming `head` then (`_marker_rewritten`), another lane comment,
+    or a lane thread opened then. An unreadable `since`, time or input counts
+    as posted; an unreadable `until` reads as now."""
     start = _time(since)
     if start is None or not isinstance(comments, list | tuple):
         return True
@@ -1258,8 +1260,10 @@ def lane_posted(
         body = str(comment.get("body") or "")
         mark = MARKER_RE.match(body.split("\n", 1)[0].rstrip("\r"))
         if mark is not None:
-            if login == MARKER_AUTHOR and mark[1] == lane and mark[2] == head:
-                if within(comment.get("created_at")):
+            if login == MARKER_AUTHOR and mark[1] == lane:
+                if mark[2] == head and within(comment.get("created_at")):
+                    return True
+                if _marker_rewritten(lane, head, comment, within, end is None):
                     return True
             continue
         if _lane_comment(lane, login, body) and within(comment.get("created_at")):
@@ -1272,6 +1276,54 @@ def lane_posted(
         if _lane_thread(lane, thread) and within(
             thread["comments"][0].get("createdAt")
         ):
+            return True
+    return False
+
+
+def _marker_rewritten(
+    lane: str,
+    head: str,
+    comment: Mapping[str, Any],
+    within: Callable[[Any], bool],
+    open_ended: bool,
+) -> bool:
+    """Whether the lane's marker `comment` was rewritten naming `head` at a
+    time `within` accepts. The producer edits one marker in place per review
+    (ci-workflows publish.cjs `writeMarker`), so its creation time misses a
+    later review, and a still later rewrite hides it from `lastEditedAt`:
+    each revision in the `edit` record's history (`_marker_revisions`)
+    counts. With no `edit` record, REST's `updated_at` serves only for a
+    window open to now (`open_ended`), where no later rewrite can hide one:
+    unedited when it equals `created_at`, else rewritten when `within`. A
+    record or history that is missing, incomplete or empty, or a revision
+    that is deleted or unreadable, counts as rewritten."""
+    edit = comment.get("edit")
+    if not isinstance(edit, Mapping) or "lastEditedAt" not in edit:
+        created, updated = comment.get("created_at"), comment.get("updated_at")
+        if isinstance(created, str) and created and created == updated:
+            return False
+        return not open_ended or within(updated)
+    if edit["lastEditedAt"] is None:
+        return False
+    history = edit.get("history")
+    nodes = history.get("nodes") if isinstance(history, Mapping) else None
+    if (
+        not isinstance(nodes, list | tuple)
+        or not nodes
+        or history.get("totalCount") != len(nodes)
+    ):
+        return True
+    for node in nodes:
+        if (
+            not isinstance(node, Mapping)
+            or node.get("deletedAt") is not None
+            or not isinstance(node.get("diff"), str)
+        ):
+            return True
+        if not within(node.get("editedAt")):
+            continue
+        mark = MARKER_RE.match(node["diff"].split("\n", 1)[0].rstrip("\r"))
+        if mark is None or (mark[1] == lane and mark[2] == head):
             return True
     return False
 

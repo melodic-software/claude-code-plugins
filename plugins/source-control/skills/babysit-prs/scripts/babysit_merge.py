@@ -373,8 +373,9 @@ def rerun_rate_limited_review(
     class in `review_evidence.GATE_RERUN_CLASSES`, a rate limit has reset, and
     the run was not re-run before; or when an outage lost it (cancelled or
     timed out) before its lane posted on the head of pull request
-    `number`: no completion record on its job, and no reviewed-head marker or
-    other lane comment since the run started (`review_evidence.lane_posted`).
+    `number`: no completion record on its job, and no reviewed-head marker
+    written or rewritten, or other lane comment, since the run started
+    (`review_evidence.lane_posted`).
 
     Every other case is reported with its reason and left alone: another
     failure class is never re-run. The whole run is re-run, not its failed
