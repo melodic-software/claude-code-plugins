@@ -1,0 +1,45 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/w/probe/steps.txt"
+          }
+        },
+        {
+          "tool": "mcp__plugin_pw-mcp_playwright__browser_navigate",
+          "input": {
+            "url": "file:///tmp/w/probe/index.html"
+          }
+        }
+      ],
+      "why": "first step run through the MCP tool"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/w/probe/steps.txt"
+          }
+        }
+      ],
+      "why": "no navigate call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "playwright-cli goto file:///tmp/w/probe/index.html"
+          }
+        }
+      ],
+      "why": "Bash playwright-cli, not the MCP tool"
+    }
+  ]
+}

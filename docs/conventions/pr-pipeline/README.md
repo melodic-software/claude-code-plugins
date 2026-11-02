@@ -1281,15 +1281,14 @@ the rules that only tighten in
   the chunk count, each chunk's bytes and `manifest_paths`, the files the manifest names, and the
   verdict step one `pr-review-main chunk` notice per chunk with its bytes, findings and
   CRITICAL ones. Each chunk is split into parts one Read returns whole (15000
-  bytes and 1000 lines at most; a longer line gets no verdict), and a verdict is written only when
+  bytes and 1000 lines at most), and a verdict is written only when
   every chunk's run succeeded and read each of its parts whole, with no offset or limit
   (`write-verdict.mjs` `readCoverage`). A chunk that hands off hands the whole lane to the next
-  leg, which reviews every chunk again. A diff
-  line over 1800 bytes (`babysit_risk.LONG_LINE_BYTES`), which Read may cut short, gets no verdict:
-  the merge gate holds a pull request only the main-run review binds (`needs_main_review`, as
-  `bind()` decides; a read-only workflow binds through the pull_request lanes, which read the
-  whole diff) for a person as `long-line-review:<path>`,
-  and the binder counts no verdict whose recorded `max_line_bytes` is past the cap. The diff is
+  leg, which reviews every chunk again. Read may cut a long line short, so a diff line over 1800
+  bytes (`babysit_risk.LONG_LINE_BYTES`) continues on lines that start `\ continued:`, never cut
+  inside a UTF-8 character, as pr-verify's `chunk-diff.sh` folds; the prompt says each such line
+  is the rest of the line before it and adds no line to the file's numbering. Every byte reaches a
+  whole Read, and the binder counts no verdict whose recorded `max_line_bytes` is past the cap. The diff is
   `--no-renames`, so a renamed file is reviewed whole. Only when that patch is over the size cap
   does a file moved unchanged (git's 100% similarity) show as its rename lines alone, and even then
   a move into or out of a lane source (`lane_source`), one that changes the file mode or moves a
@@ -1305,9 +1304,9 @@ the rules that only tighten in
   `pr-review-main-<lane>-<pr>-<tree>`, the tree read by git, never the model, and a separate job
   with no model posts its counts as the check run `pr-review-main: <lane>` (titled
   `findings=<n> critical=<m>`, conclusion neutral) on the reviewed head. A designed stop (a
-  binary file, a patch over the chunk cap or a line over 1800 bytes) leaves the leg green with no
+  binary file or a patch over the chunk cap) leaves the leg green with no
   verdict, and the record job posts it on the head as the same check run titled
-  `verdict=none reason=<too-large|binary|long-line|chunk-failed>`, so each stop is a countable
+  `verdict=none reason=<too-large|binary|chunk-failed>`, so each stop is a countable
   record; it posts nothing else. `chunk-failed` is a chunked review one of whose chunks failed,
   left no result or skipped a part: no chunk's counts bind, and that leg still fails. A stop
   counts no CRITICAL finding and never binds a lane: with no verdict the lanes stay unbound as
@@ -3929,6 +3928,16 @@ list. The config reader reads the synced copy from the base SHA's
   rejects any value until a second repository adopts.
 - The post-merge failure remedy, revert or fail forward, is the per-repository `red-main.remedy`
   key ([Red main](#red-main)), not a choice by change type.
+- Holds converge on one label. `ci-status` enforces holds in seven places
+  ([Review-lane holds](#review-lane-holds)), and in a 2026-11-01 sample holds, not code, made 17 of 24 red
+  pull request runs and 10 of 12 red merge groups red
+  ([#12284 audit](https://github.com/melodic-software/claude-code-plugins/issues/12284#issuecomment-6582114885)).
+  The direction: a hold our own actors place is `do-not-merge`, read once per run; only the
+  review lanes' critical-security and cost holds and the trust-path holds stay person-only. The
+  slices are tracked as #12445 (pr-merge wakes per pull request), #12446 (fold own-actor holds),
+  #12447 (review requirement off ci-status's first pass), #12448 (per-completion run fan-out),
+  #12449 (queue-time hold read once), #12456 (parent close-out) and #12438 (duplicate ruleset
+  `pull_request` rule).
 
 ## Versioning
 

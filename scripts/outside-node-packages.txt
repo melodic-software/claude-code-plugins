@@ -41,3 +41,4 @@ plugins/knowledge/vendor/node-launcher
 plugins/knowledge/vendor/repo-analysis
 plugins/knowledge/vendor/video-digestion
 plugins/sql-server
+scripts/lane-transcripts

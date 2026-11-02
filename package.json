@@ -11,6 +11,7 @@
     "@anthropic-ai/claude-code": "2.1.316",
     "@biomejs/biome": "2.6.4",
     "@playwright/cli": "0.1.22",
+    "@playwright/mcp": "0.0.83",
     "htmlhint": "1.9.2",
     "markdownlint-cli2": "0.24.0"
   },

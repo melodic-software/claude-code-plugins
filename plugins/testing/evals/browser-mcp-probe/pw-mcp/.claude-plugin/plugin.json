@@ -1,0 +1,5 @@
+{
+  "name": "pw-mcp",
+  "version": "0.0.0",
+  "description": "Eval-only: declares the pinned Playwright MCP server the browser-mcp-probe case drives (start.sh)"
+}

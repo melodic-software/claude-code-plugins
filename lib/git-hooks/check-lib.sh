@@ -26,7 +26,9 @@
 #   checks_files               NUL-separated paths to check, repo-relative
 #   checks_changed_lines       write "<path><TAB><start><TAB><end>" ranges of
 #                              added lines to $CHECKS_TMP/ranges, none for a
-#                              file whose content is binary
+#                              file whose content is binary; in pre-commit
+#                              while a merge is in progress, only the lines no
+#                              parent holds
 #   checks_file_text [--tip <sha>] <p> [<rev>]
 #                              <p> as the change holds it, on stdout: the
 #                              tip's blob (in pre-push with no tip, the tip of
@@ -391,17 +393,17 @@ checks_files() {
   fi
 }
 
-# Hunk headers read "@@ -a[,b] +c[,d] @@"; d defaults to 1 and d=0 adds
+# checks_added_ranges <file> <diff filter> [<rev>]: append the checks_diff
+# ranges of added lines, for the files whose status <diff filter> names, to
+# <file>; in pre-commit, <rev> diffs the index against that commit instead of
+# HEAD. Hunk headers read "@@ -a[,b] +c[,d] @@"; d defaults to 1 and d=0 adds
 # nothing. Paths come from "+++ b/<path>", where git appends a tab to a name
-# holding a space; a name git still quotes is skipped.
-#
-# --text keeps a `-diff` attribute from hiding a text file's hunks, so a file
-# is dropped here instead when the content the change holds is binary
-# (checks_has_nul): no caller then sees ranges for it.
-checks_changed_lines() {
-  local out="$CHECKS_TMP/ranges" raw="$CHECKS_TMP/ranges.raw"
-  : >"$raw"
-  checks_diff -U0 --text --diff-filter=ACMR --src-prefix=a/ --dst-prefix=b/ 2>/dev/null |
+# holding a space; a name git still quotes is skipped. --text keeps a `-diff`
+# attribute from hiding a text file's hunks.
+checks_added_ranges() {
+  local raw="$1" filter="$2"
+  shift 2
+  checks_diff "$@" -U0 --text --diff-filter="$filter" --src-prefix=a/ --dst-prefix=b/ 2>/dev/null |
     awk '
       /^\+\+\+ / { path = substr($0, 5); sub(/\t$/, "", path); if (path ~ /^b\//) path = substr(path, 3); else path = ""; next }
       /^@@ / && path != "" {
@@ -422,6 +424,52 @@ checks_changed_lines() {
     checks_tool_failed awk "${st[1]}" 'listing the changed lines'
     rc=1
   fi
+  return "$rc"
+}
+
+# checks_intersect_ranges <a> <b>: the parts of <b>'s ranges that <a>'s ranges
+# of the same path cover too, in <b>'s order.
+checks_intersect_ranges() {
+  awk -F '\t' -v OFS='\t' '
+    NR == FNR { n++; f[n] = $1; s[n] = $2 + 0; e[n] = $3 + 0; next }
+    { for (i = 1; i <= n; i++) if (f[i] == $1) {
+        lo = ($2 + 0 > s[i]) ? $2 + 0 : s[i]; hi = ($3 + 0 < e[i]) ? $3 + 0 : e[i]
+        if (lo <= hi) print $1, lo, hi } }' "$1" "$2"
+}
+
+# checks_merge_heads: pre-commit; the other parents of the merge being
+# committed, one per line (more than one for an octopus merge), none outside a
+# merge.
+checks_merge_heads() {
+  [[ "$CHECKS_MODE" == pre-commit ]] || return 0
+  local file line
+  file="$(git rev-parse --git-path MERGE_HEAD 2>/dev/null)" || return 0
+  [[ -f "$file" ]] || return 0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "$line" ]] || printf '%s\n' "$line"
+  done <"$file"
+}
+
+# A file whose content the change holds is binary (checks_has_nul) is dropped
+# here, since checks_added_ranges reads every file as text: no caller then sees
+# ranges for it.
+checks_changed_lines() {
+  local out="$CHECKS_TMP/ranges" raw="$CHECKS_TMP/ranges.raw" rc=0 m
+  : >"$raw"
+  checks_added_ranges "$raw" ACMR || rc=1
+  # A merge being committed adds only the lines no parent holds, its conflict
+  # resolution: a line another parent already holds is that branch's content,
+  # not this commit's. With T, a file that parent holds as a symlink or a
+  # submodule counts every line as added against it.
+  while read -r m; do
+    : >"$raw.other"
+    checks_added_ranges "$raw.other" ACMRT "$m" || rc=1
+    checks_intersect_ranges "$raw.other" "$raw" >"$raw.both" || {
+      checks_tool_failed awk "$?" 'listing the lines the merge adds'
+      rc=1
+    }
+    mv "$raw.both" "$raw"
+  done < <(checks_merge_heads)
   if [[ "$CHECKS_MODE" == worktree ]]; then
     local f
     while IFS= read -r -d '' f; do

@@ -2234,6 +2234,20 @@ class TestImportLedger(SessionCase):
             "Pruned.",
         )
 
+    def test_the_seeded_count_agrees_with_its_noun(self):
+        for rows, said in ((1, "seeded 1 question from"), (2, "seeded 2 questions from")):
+            ledger = self.tmp / f"count-{rows}.md"
+            ledger.write_text(
+                "# Interview ledger\n\n## Open-question register\n\n"
+                + "".join(f"- Q{i} | open | round 1 | Ask {i}? |\n" for i in range(1, rows + 1)),
+                encoding="utf-8",
+            )
+            fresh = self.tmp / f"fresh-{rows}"
+            fresh.mkdir()
+            rc, out = self.rp("import-ledger", "--ledger", str(ledger), d=fresh)
+            self.assertEqual(rc, 0, out)
+            self.assertIn(said, out)
+
     def test_a_user_hold_reopens_an_imported_answer_even_after_it_clears(self):
         ledger = self.tmp / "seed-ledger.md"
         ledger.write_text(

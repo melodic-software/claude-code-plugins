@@ -35,6 +35,12 @@ set -uo pipefail
 
 checks_init pre-commit "$@" || exit 0
 content_scan_init
+# A merge is judged on the lines it adds against every parent, its conflict
+# resolution (checks_changed_lines), and a file it takes whole from another
+# parent, one judged whole past the ranges, is not judged again.
+while read -r head; do
+  other_parents+=("$head")
+done < <(checks_merge_heads)
 checks_changed_lines
 content_scan "$CHECKS_TMP/blocking"
 content_report "$CHECKS_TMP/blocking" 'the change (use a placeholder, an environment variable or a portable path)'
