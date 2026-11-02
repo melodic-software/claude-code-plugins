@@ -640,15 +640,29 @@ test("a cancelled gate run counts as a failure unless a later run of the same ch
   assert.deepEqual(result.gateFailures, [{ number: 1110, check: "lint-repo", conclusion: "cancelled", at: "2026-09-01T00:10:00Z" }]);
 });
 
-test("a revert seen in both the PR body and the squash commit yields one event at the earlier time", () => {
-  const result = run({
-    pulls: [
-      pr(909, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] }),
-      pr(910, "2026-09-02T00:00:00Z", { title: 'Revert "x"', body: `Reverts ${REPO}#909`, merger: "kyle-sexton" }),
-    ],
-    commits: [{ ...REC.commit, sha: shaOf(910), commit: { message: `Revert "x" (#910)\n\nReverts ${REPO}#909`, committer: { date: "2026-09-01T23:55:00Z" } } }],
-  });
-  assert.deepEqual(result.events, [{ cell: "C2-auto-merge", event: "reverted-merge", at: "2026-09-01T23:55:00Z" }]);
+const revertedAt = (...dates) => dates.map((at) => ({ cell: "C2-auto-merge", event: "reverted-merge", at }));
+const revertOf909 = (withCommit) => ({
+  pulls: [
+    pr(909, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] }),
+    pr(910, "2026-09-02T00:00:00Z", { title: 'Revert "x"', body: `Reverts ${REPO}#909`, merger: "kyle-sexton" }),
+  ],
+  commits: withCommit ? [{ ...REC.commit, sha: shaOf(910), commit: { message: `Revert "x" (#910)\n\nReverts ${REPO}#909`, committer: { date: "2026-09-01T23:55:00Z" } } }] : [],
+});
+
+test("a revert seen in both the PR body and the squash commit yields an event at each date", () => {
+  assert.deepEqual(run(revertOf909(true)).events, revertedAt("2026-09-01T23:55:00Z", "2026-09-02T00:00:00Z"));
+});
+
+test("a later publish that finds an earlier revert of a published reverted merge adds an event and drops none", () => {
+  const out = mkdtempSync(join(base, "out-"));
+  const first = run(revertOf909(false)).events;
+  assert.deepEqual(first, revertedAt("2026-09-02T00:00:00Z"));
+  publish(out, first, THROUGH);
+  const second = run(revertOf909(true)).events;
+  publish(out, second, THROUGH);
+  assert.deepEqual(JSON.parse(readFileSync(join(out, "evidence.json"), "utf8")), revertedAt("2026-09-01T23:55:00Z", "2026-09-02T00:00:00Z"));
+  // A set that really lacks the published event is still refused.
+  assert.throws(() => publish(out, revertedAt("2026-09-01T23:55:00Z"), THROUGH), (error) => error instanceof PublishError && /refusing.*drop 1/.test(error.message));
 });
 
 test("a PR updated while the listing pages is not skipped", () => {
