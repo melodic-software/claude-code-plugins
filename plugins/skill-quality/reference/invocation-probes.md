@@ -150,7 +150,7 @@ Why `curate-language` cannot drop: in both listings no competitor took any of it
 should-trigger probes, even against the generic description, so the skill still won them by
 elimination. Competitors did take near-miss should-not probes on both sides
 (`docs-hygiene:rename-references`, `planning:design`, `naming:name-it-better`), and
-`knowledge:book-distill` was never called. Its probe set needs should-trigger queries that a
+no `knowledge` skill was called. Its probe set needs should-trigger queries that a
 neighboring skill could plausibly take, frozen before any description cut.
 
 ## Outside the marketplace checkout
