@@ -9,6 +9,9 @@
 # line below is written by hand from the fixture the case builds: the SHAs, the
 # paths and the page line numbers are literals of this file.
 set -uo pipefail
+# On a runner the script would wrap its gh calls and record into the job's
+# RUNNER_TEMP; the cases here run it unwrapped.
+unset RUNNER_TEMP
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 SUT_SRC="$SCRIPT_DIR/check-upstream-drift.sh"

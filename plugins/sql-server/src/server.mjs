@@ -52,11 +52,12 @@ const toolError = (message) => ({ content: [{ type: 'text', text: message }], is
  * @param {object} options
  * @param {readonly string[]} options.databases The registration's allow-list; the first is the default.
  * @param {import('./tools.mjs').Executor} options.executor
+ * @param {import('./tools.mjs').Executor} [options.writeExecutor] The write principal's executor; only a registration that opted in to writes has one.
  * @param {{ name: string, version: string }} [options.serverInfo]
  * @param {(line: string) => void} [options.log] Where an unexpected error is reported; never stdout.
  */
-export function createServer({ databases, executor, serverInfo = { name: 'sql-server', version: '0.0.0' }, log = () => {} }) {
-  const binding = { databases: Object.freeze([...databases]), executor };
+export function createServer({ databases, executor, writeExecutor, serverInfo = { name: 'sql-server', version: '0.0.0' }, log = () => {} }) {
+  const binding = { databases: Object.freeze([...databases]), executor, writeExecutor };
 
   async function dispatch(method, params) {
     if (method === 'initialize') {

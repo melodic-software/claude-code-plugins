@@ -1,0 +1,55 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "tdd:principles"
+          }
+        }
+      ],
+      "why": "qualified"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "principles",
+            "args": "reads vs writes integration tests"
+          }
+        }
+      ],
+      "why": "bare with args"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "testing:plan"
+          }
+        }
+      ],
+      "why": "adjacent test-plan skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "mutation-testing:principles"
+          }
+        }
+      ],
+      "why": "another plugin's principles skill"
+    }
+  ]
+}

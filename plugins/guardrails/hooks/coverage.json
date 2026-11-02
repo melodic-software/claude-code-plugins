@@ -64,6 +64,31 @@
           "effect": "false switches the guard off"
         }
       ]
+    },
+    {
+      "hook": "hooks/block-github-post-content.sh",
+      "event": "PreToolUse",
+      "matcher": "Bash|PowerShell",
+      "decision": "block",
+      "families": [],
+      "patterns": [],
+      "levers": [
+        {
+          "kind": "userConfig",
+          "name": "block_github_post_content_enabled",
+          "effect": "false switches the guard off"
+        },
+        {
+          "kind": "userConfig",
+          "name": "secret_pattern_detection_enabled",
+          "effect": "false switches off the secret half"
+        },
+        {
+          "kind": "userConfig",
+          "name": "hardcoded_path_check_enabled",
+          "effect": "false switches off the machine-path half"
+        }
+      ]
     }
   ]
 }

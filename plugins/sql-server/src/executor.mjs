@@ -1,7 +1,8 @@
-// Runs every call on SQL Server through tedious, per ADR 0086 sections 1 and 4.
-// The plugin owns the pool, so the guards and the discard rule live here: a call
-// takes a connection, runs the guard batch, runs its statements in autocommit,
-// checks @@TRANCOUNT, and hands the connection back only when all of that ended
+// Runs every call on SQL Server through tedious, per ADR 0086 sections 1 and 4
+// and its write-tier amendment. The plugin owns the pool, so the guards and
+// the discard rule live here: a call takes a connection, runs the guard batch, runs its statements
+// (a read in autocommit, a write in its own one-batch transaction), checks
+// @@TRANCOUNT, and hands the connection back only when all of that ended
 // cleanly. A timeout, a cancel, an error or an open transaction closes it.
 
 export const APP_NAME = 'sql-server-plugin (agent session)';
@@ -59,6 +60,60 @@ JOIN sys.index_columns AS ic ON ic.object_id = i.object_id AND ic.index_id = i.i
 JOIN sys.columns AS c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
 WHERE i.object_id = OBJECT_ID(QUOTENAME(${OBJECT_SCHEMA}) + N'.' + QUOTENAME(@name))
 ORDER BY i.name, ic.is_included_column, ic.key_ordinal, ic.index_column_id;`;
+
+// The tables a write to the target reaches: the target at depth 0, then each
+// table whose foreign key has a cascading action into one already reached.
+// SQL Server refuses a cascade cycle, and the depth bound keeps this finite anyway.
+const CASCADE_REACH = `WITH reached AS (
+  SELECT t.object_id AS object_id, CAST(NULL AS int) AS fk_id, 0 AS depth
+  FROM sys.tables AS t
+  WHERE t.object_id = OBJECT_ID(QUOTENAME(${OBJECT_SCHEMA}) + N'.' + QUOTENAME(@name))
+  UNION ALL
+  SELECT fk.parent_object_id, fk.object_id, r.depth + 1
+  FROM reached AS r
+  JOIN sys.foreign_keys AS fk ON fk.referenced_object_id = r.object_id
+  WHERE (fk.delete_referential_action <> 0 OR fk.update_referential_action <> 0) AND r.depth < 32
+)`;
+
+const PREVIEW_CASCADES = `${CASCADE_REACH}
+SELECT r.depth AS [depth], OBJECT_SCHEMA_NAME(r.object_id) + N'.' + OBJECT_NAME(r.object_id) AS [table],
+  fk.name AS [foreignKey], OBJECT_SCHEMA_NAME(fk.referenced_object_id) + N'.' + OBJECT_NAME(fk.referenced_object_id) AS [references],
+  fk.delete_referential_action_desc AS [onDelete], fk.update_referential_action_desc AS [onUpdate]
+FROM reached AS r
+LEFT JOIN sys.foreign_keys AS fk ON fk.object_id = r.fk_id
+ORDER BY r.depth, [table], [foreignKey];`;
+
+// One row per trigger and event it fires on.
+const PREVIEW_TRIGGERS = `${CASCADE_REACH}
+SELECT OBJECT_SCHEMA_NAME(tr.parent_id) + N'.' + OBJECT_NAME(tr.parent_id) AS [table], tr.name AS [name],
+  te.type_desc AS [event], tr.is_instead_of_trigger AS [insteadOf], tr.is_disabled AS [disabled]
+FROM sys.triggers AS tr
+JOIN sys.trigger_events AS te ON te.object_id = tr.object_id
+WHERE tr.parent_id IN (SELECT object_id FROM reached)
+ORDER BY [table], [name], [event];`;
+
+// @@ROWCOUNT is an int.
+const MAX_INT = 2_147_483_647;
+
+// One batch holds the transaction from BEGIN to COMMIT or ROLLBACK, so no
+// transaction stays open between calls or across the person's approval.
+// BEGIN and COMMIT reset @@ROWCOUNT, so it is read straight after the
+// statement. statement must already end in a semicolon.
+export function writeBatch(statement, expectedRows) {
+  if (!Number.isInteger(expectedRows) || expectedRows < 0 || expectedRows > MAX_INT) {
+    throw new Error(`expectedRows must be a non-negative integer no larger than ${MAX_INT}, not ${expectedRows}`);
+  }
+  return [
+    'DECLARE @affected int;',
+    'BEGIN TRANSACTION;',
+    statement,
+    'SET @affected = @@ROWCOUNT;',
+    `IF @affected = ${expectedRows}`,
+    'BEGIN COMMIT TRANSACTION; SELECT CAST(1 AS bit) AS [committed], @affected AS [affected]; END',
+    'ELSE',
+    'BEGIN ROLLBACK TRANSACTION; SELECT CAST(0 AS bit) AS [committed], @affected AS [affected]; END',
+  ].join('\n');
+}
 
 function readSecret(env, name) {
   const value = env[name];
@@ -294,7 +349,9 @@ export function createTediousExecutor(
       reusable = trancount === 0 && !timedOut;
       return results;
     } catch (error) {
-      if (timedOut) throw new Error(`the call ran past the ${limits.requestTimeoutMs} ms request timeout and was cancelled`);
+      if (timedOut) {
+        throw Object.assign(new Error(`the call ran past the ${limits.requestTimeoutMs} ms request timeout and was cancelled`), { timedOut: true });
+      }
       throw error;
     } finally {
       clearTimeout(timer);
@@ -339,6 +396,47 @@ export function createTediousExecutor(
         indexes: toObjects(indexes),
         truncated: sets.some((set) => set.truncated),
       };
+    },
+
+    async previewWrite({ database, schema, name }) {
+      const params = { schema, name };
+      const sets = await run(database, [
+        { sql: PREVIEW_CASCADES, params },
+        { sql: PREVIEW_TRIGGERS, params },
+      ]);
+      const [reached, triggers] = [0, 1].map((i) => sets[i] ?? { columns: [], rows: [], truncated: false });
+      const tables = toObjects(reached);
+      const target = tables.find((row) => row.depth === 0);
+      if (target === undefined) {
+        throw new Error(`${database} has no table named ${schema === undefined ? name : `${schema}.${name}`} that this login can see`);
+      }
+      return {
+        table: target.table,
+        cascades: tables.filter((row) => row.depth > 0),
+        triggers: toObjects(triggers),
+        truncated: sets.some((set) => set.truncated),
+      };
+    },
+
+    // Throws when the batch rolled back, so a mismatch reaches the agent as a tool error.
+    async write({ database, sql, expectedRows }) {
+      const unknown = 'whether it committed is not known; read the table before trying again';
+      let result;
+      try {
+        [result] = await run(database, [{ sql: writeBatch(sql, expectedRows) }]);
+      } catch (error) {
+        // The cancel can land after COMMIT, while the verdict is on its way.
+        if (error.timedOut) throw new Error(`${error.message}, so ${unknown}`);
+        throw error;
+      }
+      // A trigger can return rows of its own before the verdict; the verdict is the last row.
+      const verdict = result.truncated ? undefined : result.rows.at(-1);
+      if (verdict === undefined || verdict.length !== 2) throw new Error(`the write batch returned no verdict, so ${unknown}`);
+      const [committed, affected] = verdict;
+      if (!committed) {
+        throw new Error(`rolled back: the statement affected ${affected} rows, not the expected ${expectedRows}`);
+      }
+      return { committed: true, rowCount: affected };
     },
 
     async close() {

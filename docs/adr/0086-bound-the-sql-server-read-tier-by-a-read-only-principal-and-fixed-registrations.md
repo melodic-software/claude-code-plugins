@@ -215,3 +215,54 @@ Sources read on 2026-10-28:
 [SET LOCK_TIMEOUT](https://learn.microsoft.com/en-us/sql/t-sql/statements/set-lock-timeout-transact-sql),
 [SET XACT_ABORT](https://learn.microsoft.com/en-us/sql/t-sql/statements/set-xact-abort-transact-sql)
 and the [tedious Connection API](https://tediousjs.github.io/tedious/api-connection.html).
+
+## Amendment (2026-11-01): the write tier (S4)
+
+[#9909](https://github.com/melodic-software/claude-code-plugins/issues/9909) (slice 7) adds the
+write tier of #5940 S4: a write, where enabled, is approved by a person on every call, and Claude
+Code enforces that in every permission mode. Sections 1 to 5 still hold for every read.
+
+- **A separate write principal.** An environment may hold a `write` block whose `auth` names a
+  second login or Entra identity, the only one with write grants. The read tools keep connecting
+  as the read principal, so the read path still rests on section 1's read-only principal on every
+  registration. The write principal gets its own pool. The server refuses a `write` block that
+  names the read principal's variables or Entra identity; it cannot detect two variables that
+  hold the same login.
+- **Opt-in per registration.** A registration opts in with the `--write` launch argument, which
+  needs the environment's `write` block. Without it, the write tool refuses every call before it
+  connects. A person makes that registration, as section 2 requires of every registration.
+- **Five fixed tools.** Section 2's list grows to `query`, `list_objects`, `describe_object`,
+  `preview_write` and `write` on every registration, whether or not it opted in, so `tools/list`
+  stays the same across calls and does not depend on the opt-in. A registration that did not opt
+  in refuses `write` instead of hiding it; #5940's Evidence found hidden tools still callable by
+  name.
+- **Per-call approval through the tool flag.** `write` carries
+  `_meta["anthropic/requiresUserInteraction"]: true`. Claude Code then shows its permission prompt
+  on every call, in `acceptEdits`, `auto` and `bypassPermissions` modes too, offers no "don't ask
+  again" option, lets no allow rule skip it, and denies the call in `dontAsk` mode. The other four
+  tools stay unflagged, so a `dontAsk` or headless session keeps its reads. A client that ignores
+  the flag gets no prompt; the opt-in and the write principal's grants still bound it.
+- **One guarded batch with a row-count check.** `write` takes one `INSERT`, `UPDATE`, `DELETE` or
+  `MERGE` and the number of rows it must affect. The server runs `BEGIN TRANSACTION`, the
+  statement, a comparison of `@@ROWCOUNT` with that number, and `COMMIT` or `ROLLBACK` as one
+  batch, between the same per-call guards and `@@TRANCOUNT` check as a read. A mismatch rolls back
+  and returns a tool error. A write reject list, a heuristic like section 1's, refuses every other
+  statement kind, a second statement, transaction control, `OUTPUT` and the `OPENROWSET` family,
+  because each could get around the check.
+- **No transaction held open across approval.** The person approves before the call reaches the
+  server, and the batch opens and ends its transaction within that one call, so no lock is held
+  while the prompt waits.
+- **A preview of triggers and cascading foreign keys.** #5940's Evidence records that
+  `@@ROWCOUNT` sees only the target table, not the rows a trigger or a cascade changes; this
+  record has not tested it. `preview_write` lists the triggers on the target, the foreign keys whose
+  `ON DELETE` or `ON UPDATE` action cascades from it, and the triggers on each table a cascade
+  reaches. It runs as the read principal and lists only what that principal can see.
+
+S4's no-prompt mode, an explicit opt-in for an environment the user deems safe, is not built. It
+needs its own amendment.
+
+Sources read on 2026-11-01: [Claude Code MCP, "Require approval for a specific
+tool"](https://code.claude.com/docs/en/mcp#require-approval-for-a-specific-tool) and
+[@@ROWCOUNT](https://learn.microsoft.com/en-us/sql/t-sql/functions/rowcount-transact-sql) (an
+`int`; `BEGIN TRANSACTION` and `COMMIT TRANSACTION` reset it to 0, so the batch reads it straight
+after the statement).

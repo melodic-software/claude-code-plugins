@@ -1,0 +1,82 @@
+{
+  "pass": [
+    {
+      "answer": "Assert on the total that Total(cart) returns: `Assert.Equal(90m, sut.Total(cart));`",
+      "why": "assert on the returned total"
+    },
+    {
+      "answer": "Make it an **output-based** test: feed a cart, compare the decimal you get back.",
+      "why": "names output-based"
+    },
+    {
+      "answer": "| Before | After |\n|---|---|\n| Verify ApplyDiscounts called once | Check the result of Total |",
+      "why": "table row"
+    },
+    {
+      "answer": "- The returned total is what callers care about, so that is what you assert.",
+      "why": "result before assert"
+    },
+    {
+      "answer": "Check the cart total after discounts: `Assert.Equal(108m, sut.Total(cart));`",
+      "why": "cart total"
+    },
+    {
+      "answer": "Compare the total against a hard-coded 108m.",
+      "why": "compare the total"
+    },
+    {
+      "answer": "Drop the Verify and assert that Total(cart) returns 108m.",
+      "why": "assert that the method returns a value"
+    },
+    {
+      "answer": "Replace the Moq Verify with Assert.Equal(108m, sut.Total(cart)).",
+      "why": "assert call wrapping Total("
+    },
+    {
+      "answer": "The test verifies the returned total, nothing else.",
+      "why": "'verifies' before the returned total"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Keep the Verify but loosen it to Times.AtLeastOnce so it is less strict.",
+      "why": "stays on the interaction"
+    },
+    {
+      "answer": "Filter column A to paid and read the status bar.",
+      "why": "answer to a different question"
+    },
+    {
+      "answer": "Keep the Moq Verify on ApplyDiscounts; it's the only proof that Total(cart) applied the discounts.",
+      "why": "keeps Verify, names Total(cart)"
+    },
+    {
+      "answer": "Your test verifies how Total(cart) gets its answer, and that is fine.",
+      "why": "verifies how Total(cart)"
+    },
+    {
+      "answer": "Verify that the Total(cart) method calls ApplyDiscounts exactly once.",
+      "why": "the Total( method name"
+    },
+    {
+      "answer": "Total(cart) is already correct, so keep the Verify on ApplyDiscounts.",
+      "why": "method name before Verify"
+    },
+    {
+      "answer": "Expect ApplyDiscounts to be called once whenever Total(cart) runs.",
+      "why": "expect on the interaction, Total( without returns"
+    },
+    {
+      "answer": "Keep Verify(x => x.ApplyDiscounts(cart)) and call sut.Total(cart) once.",
+      "why": "keeps Verify, calls Total("
+    },
+    {
+      "answer": "Verify that Total(cart) returns only after calling ApplyDiscounts once.",
+      "why": "Verify, not assert, before Total( returns"
+    }
+  ]
+}

@@ -5,7 +5,7 @@ The ClaudeDevs guide *"Getting started with loops"* (Part 19, July 6, 2026, writ
 ## 100. The Four Loops: A Taxonomy
 
 - **Turn-based** (the agentic loop): a prompt triggers it; it stops when Claude judges the task done. Short one-off tasks. You hand off **the check**.
-- **Goal-based** (`/goal`): a prompt triggers it; it stops when the goal is met or a turn cap trips. Tasks with verifiable exit criteria. You hand off **the stop condition**.
+- **Goal-based** (`/goal`): a prompt triggers it; it stops when the goal resolves (Section 101). Tasks with verifiable exit criteria. You hand off **the stop condition**.
 - **Time-based** (`/loop`, `/schedule`): a time interval triggers it; it stops when you cancel or the work completes. Recurring work, or reacting to an external system. You hand off **the trigger**.
 - **Proactive**: an event or schedule triggers it with no human in real time; each task exits at its goal and the routine runs until you turn it off. Recurring streams of well-defined work. You hand off **the prompt**.
 
@@ -14,7 +14,8 @@ The guide frames these as a progression: each step hands off one more piece of t
 ## 101. Loops You Drive: Turn-based and Goal-based
 
 - **Turn-based, the agentic loop.** Every prompt is already a loop: gather context, act, check the work, repeat, respond, exiting when Claude judges the task complete or the effort budget runs out. The lever is verification: encode your manual check steps as a `SKILL.md` so Claude verifies its own work end to end, and give it tools to see, measure, and interact. The more quantitative the check, the easier the self-verification. Builds on Section 14.
-- **Goal-based, `/goal`.** One turn often isn't enough, and agents do better iterating. `/goal` defines what done looks like so Claude cannot settle for "good enough": each time it tries to stop, an evaluator model checks the condition and sends it back until the goal is met or the turn cap is reached. Deterministic criteria such as tests passing or a score threshold work best. Extends Section 77.
+- **Goal-based, `/goal`.** One turn often isn't enough, and agents do better iterating. `/goal` defines what done looks like so Claude cannot settle for "good enough": each time it tries to stop, an evaluator model checks the condition and sends it back until the goal resolves. Do not count on a built-in turn cap: when a run needs a turn or time bound, write it into the condition itself. Deterministic criteria such as tests passing or a score threshold work best. Extends Section 77.
+  - **Pointer**: when deciding what ends a goal or how to bound one, fetch [How evaluation works](https://code.claude.com/docs/en/goal#how-evaluation-works) and [Write an effective condition](https://code.claude.com/docs/en/goal#write-an-effective-condition) live. **As of**: 2026-11-01. **Recheck trigger**: either section changes what clears a goal or adds a built-in turn or time limit.
 
 ## 102. Autonomous Loops: Time-based and Proactive
 
@@ -27,5 +28,6 @@ A loop is only as good as the system around it.
 
 - **Output quality.** Keep the codebase clean, since Claude follows existing patterns; give it a way to verify its own work by encoding "good" as skills; keep docs reachable; use a second agent for review, because fresh context is less biased. When a result misses the bar, encode the fix so every future iteration improves rather than patching the instance.
 - **Token usage.** Pick the right primitive and model, define clear stop criteria, pilot before a large run, use scripts for deterministic work, match the interval to how often the watched thing changes, and review spend with `/usage`, a bare `/goal`, and `/workflows`.
+  - **Pointer**: when reviewing a goal's or a workflow's spend, fetch [Check status](https://code.claude.com/docs/en/goal#check-status) and the workflows [Cost](https://code.claude.com/docs/en/workflows#cost) section live. **As of**: 2026-11-01. **Recheck trigger**: either section stops showing token spend.
 
 **Which loop when.** Turn-based when exploring or deciding; goal-based when you know what done looks like; time-based when the work happens on a schedule outside your project; proactive when the work is recurring and well defined. To start, pick one task where you are the bottleneck, hand off exactly one piece, run it, and watch where it stalls or over-reaches.

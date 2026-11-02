@@ -729,6 +729,10 @@ jobs:
       handoff: ${{ steps.run.outputs.handoff }}
       credential-present: ${{ steps.credential.outputs.present }}
       refined: ${{ steps.upload.outcome == 'success' }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1042,6 +1046,14 @@ jobs:
           echo "::error::the refinement left no output for this issue"
           exit 1
 
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   # The subscription leg, as its own job on a new VM: refine-issue's
   # processes, files and environment do not reach it. Its steps repeat
   # refine-issue's from a fresh checkout, in the same order, but for the
@@ -1065,6 +1077,10 @@ jobs:
       contents: read # check out main
     outputs:
       refined: ${{ steps.upload.outcome == 'success' }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1343,6 +1359,14 @@ jobs:
         run: |
           echo "::error::the refinement left no output for this issue"
           exit 1
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # Posts the refinement as the lanes App, with the grant apply-verdict gets
   # (issues: write). No model: refine.mjs --apply validates the output

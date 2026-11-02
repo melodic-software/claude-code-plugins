@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "No. DiscountCalculator is an in-process dependency; test OrderService with the real one.",
+      "why": "plain no first"
+    },
+    {
+      "answer": "**No.** An interface with one implementation is not an abstraction.",
+      "why": "bold no"
+    },
+    {
+      "answer": "## Verdict\n\n**No**, keep the concrete class.",
+      "why": "heading then bold no"
+    },
+    {
+      "answer": "Short answer: no. Mocking an in-process collaborator couples the test to implementation details.",
+      "why": "short answer prefix"
+    },
+    {
+      "answer": "I'd push back on this. You don't need to extract an interface here: interfaces earn their place only for unmanaged dependencies you must mock.",
+      "why": "verdict in prose, not first"
+    },
+    {
+      "answer": "No — not for a pure in-process class.",
+      "why": "no with an em dash"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Yes. Extract IDiscountCalculator so the tests can mock it and OrderService depends on an abstraction.",
+      "why": "base-model default"
+    },
+    {
+      "answer": "Yes, it's a good idea. Nothing else in OrderService needs to change.",
+      "why": "yes with a later 'Nothing' line"
+    },
+    {
+      "answer": "It depends on how often the discount rules change; an interface gives you flexibility later.",
+      "why": "hedge with no verdict"
+    },
+    {
+      "answer": "Notably, interfaces help with dependency injection, so go ahead and add one.",
+      "why": "starts with 'Not', which is not a no"
+    },
+    {
+      "answer": "Yes. You don't need to add an interface for every class, but here it pays off.",
+      "why": "yes verdict with a later negated clause"
+    }
+  ]
+}
