@@ -26,6 +26,10 @@ placement and the act-on cap. This file is the shape every slice of that eval fo
   ([How runs are isolated](https://code.claude.com/docs/en/plugin-evals#how-runs-are-isolated)).
   The host run has to add the Codex plugin's directory to the X cases' `plugins` and make its
   login reachable. Without that, Codex reports a skip and the arm check marks the run invalid.
+  The fanout skill finds the plugin through `claude plugin list --json`, which lists a plugin
+  loaded with `--plugin-dir` only when that flag precedes the subcommand
+  ([Plugin commands reference](https://code.claude.com/docs/en/plugins/cli-reference#plugin-list)),
+  so the host run also has to make `codex@openai-codex` an installed plugin in the run's home.
 
 ## Case directory
 
@@ -68,8 +72,10 @@ byte to .work/eval/findings.md, then end your reply with the report's fanout_div
 its ## Surfaces section.` (with code spans around the path, the line name and the heading).
 
 - Codex sentence for `l` and `m`: `Leave out the Codex surface even when it is installed.`
-- Codex sentence for `mx` and `lx`: `Run the Codex surface, /codex:review --wait --base
-  <review-base>, as one of the orchestrators, and list it in the ## Surfaces Ran entry.`
+- Codex sentence for `mx` and `lx`: `Run the Codex surface as one of the orchestrators, and report
+  it in ## Surfaces by the status its script prints.` The skill runs it through
+  `skills/fanout/scripts/codex-review.sh`, and lists Codex under `Ran` only when the script printed
+  `codex: ran`, so a skipped Codex fails the arm check.
 
 The copy gives the file graders one fixed path, since the persisted file's name carries a
 timestamp. The reply's last lines give the arm check its input.
