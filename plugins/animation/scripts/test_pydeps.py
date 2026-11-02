@@ -6,7 +6,9 @@ PIP_FIND_LINKS, so no test reaches a package index. `python test_pydeps.py --mak
 prints its sha256, for the hook suite (../hooks/install-python-deps.test.sh).
 """
 import base64
+import contextlib
 import hashlib
+import io
 import os
 import re
 import shutil
@@ -283,6 +285,86 @@ class NoRuntimeFetch(unittest.TestCase):
                  for p in runnable if p.is_file() and p.name not in self.OWNERS and not p.name.endswith('.test.sh')
                  for m in self.FETCH.finditer(p.read_text(encoding='utf-8', errors='replace'))]
         self.assertEqual(found, [])
+
+
+@unittest.skipUnless(os.name == 'posix' and sys.version_info >= (3, 12) and have_pip(),
+                     'needs a POSIX Python 3.12 or later with pip: the PATH candidate is a symlink')
+class ReadyStamp(unittest.TestCase):
+    """The ready stamp lets the SessionStart hook skip starting Python. Only an install through an interpreter the
+    hook can see on PATH writes it; a run or check that finds the set broken drops it."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = Path(tmp.name)
+        self.root = self.tmp / 'plugin'
+        (self.root / 'scripts').mkdir(parents=True)
+        for name in ('pydeps.py', 'pydeps.json'):
+            shutil.copy(HERE / name, self.root / 'scripts' / name)
+        wheels = self.tmp / 'wheels'
+        wheels.mkdir()
+        _, digest = make_wheel(wheels)
+        self.lock = self.root / 'requirements.txt'
+        self.lock.write_text(lock_text(digest), encoding='utf-8')
+        self.pip = {'PIP_NO_INDEX': '1', 'PIP_FIND_LINKS': str(wheels)}
+        self.bin = self.tmp / 'bin'
+        self.bin.mkdir()
+        self.data = self.tmp / 'data'
+        self.stamp = self.data / 'python' / '.hook-ready'
+        self.pydeps = import_pydeps()
+
+    def install_as(self, chosen):
+        """pydeps.py install in the plugin copy, as the child handed over to `chosen`, with only self.bin on PATH."""
+        r = subprocess.run([sys.executable, str(self.root / 'scripts' / 'pydeps.py'), 'install', '--data-dir', str(self.data)], capture_output=True, text=True, cwd=self.root / 'scripts',
+                           env={**os.environ, **self.pip, 'PATH': str(self.bin), 'ANIMATION_PYDEPS_INTERPRETER': str(chosen)})
+        self.assertEqual((r.returncode, r.stdout.strip()), (0, 'installed'), r.stderr)
+
+    def install_here(self):
+        with mock.patch.dict(os.environ, self.pip):
+            self.pydeps.install(self.data, self.lock)
+
+    def stamped(self):
+        self.stamp.parent.mkdir(parents=True, exist_ok=True)
+        self.stamp.write_text('pydeps-hook-ready 1\n', encoding='utf-8')
+
+    def test_an_install_through_a_candidate_on_path_writes_the_stamp_the_hook_reads(self):
+        python3 = self.bin / 'python3'
+        python3.symlink_to(sys.executable)
+        self.install_as(python3)
+        (target,) = [p for p in (self.data / 'python').iterdir() if p.is_dir()]
+        self.assertEqual(self.stamp.read_text(encoding='utf-8').splitlines(), [
+            'pydeps-hook-ready 1', str(self.root.resolve()), str(target),
+            'python3.13=', 'python3.12=', f'python3={python3}', 'python='])
+
+    def test_an_interpreter_only_the_launcher_listed_writes_no_stamp(self):
+        self.install_as(sys.executable)   # not on PATH, as a python.exe that only py -0p lists
+        self.assertEqual(len([p for p in (self.data / 'python').iterdir() if p.is_dir()]), 1)
+        self.assertFalse(self.stamp.exists())
+
+    def test_run_drops_the_stamp_when_the_set_is_missing_or_the_script_fails(self):
+        script = self.tmp / 'exit.py'
+        script.write_text('import sys\nsys.exit(int(sys.argv[1]))\n', encoding='utf-8')
+        self.stamped()
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(self.pydeps.run(self.data, [str(script), '0'], self.lock), 2)
+            self.assertFalse(self.stamp.exists())
+            self.assertEqual(self.pydeps.run(self.data, [str(script), '0'], self.lock), 2)   # no stamp to drop
+        self.install_here()
+        self.stamped()
+        self.assertEqual(self.pydeps.run(self.data, [str(script), '0'], self.lock), 0)
+        self.assertTrue(self.stamp.exists())
+        self.assertEqual(self.pydeps.run(self.data, [str(script), '3'], self.lock), 3)
+        self.assertFalse(self.stamp.exists())
+
+    def test_check_drops_the_stamp_when_a_row_fails(self):
+        self.stamped()
+        with contextlib.redirect_stdout(io.StringIO()), mock.patch.object(self.pydeps, 'CHECK_TOOLS', {}):
+            self.assertEqual(self.pydeps.check(self.data, self.lock), 1)
+            self.assertFalse(self.stamp.exists())
+            self.install_here()
+            self.stamped()
+            self.assertEqual(self.pydeps.check(self.data, self.lock), 0)
+            self.assertTrue(self.stamp.exists())
 
 
 if __name__ == '__main__':

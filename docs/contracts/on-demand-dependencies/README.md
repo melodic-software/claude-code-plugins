@@ -1,7 +1,7 @@
 # On-demand dependencies: install pinned packages, never vendor them
 
-Version: 2.3.0
-Last updated: 2026-10-04
+Version: 2.4.0
+Last updated: 2026-11-02
 
 A marketplace-wide rule for **third-party packages a plugin needs at run time**: commit the pinned
 manifest and lockfile, install from them on demand into the plugin's data directory, and fail
@@ -121,6 +121,16 @@ and does nothing when the set already loads (Rule P3). pip refuses the install w
 requirement, transitive ones included, is unpinned or unhashed, or a wheel's hash differs from the
 lock ([pip secure installs](https://pip.pypa.io/en/stable/topics/secure-installs/)).
 
+**Ready stamp:** while the reference's ready stamp holds, the hook skips the install and the load
+probe and starts no process, since starting Python and importing the set take most of the hook's
+run time on Windows. After a successful install with an interpreter found through a PATH
+candidate, `pydeps.py` writes `<plugin data dir>/python/.hook-ready` atomically, recording the
+plugin root, the installed directory and what each of the hook's candidate names resolves to. An
+interpreter only the py launcher listed writes no stamp. The hook checks the stamp with shell
+builtins alone, and any of these sends it down the full path: another plugin root, a candidate
+name resolving elsewhere, a resolved interpreter file, `requirements.txt`, `pydeps.py` or
+`pydeps.json` newer than the stamp, or the installed directory missing.
+
 **Nothing else fetches.** No skill body, script or hook other than the install hook runs
 `uv run`, `uvx`, `pip install` or `--with-requirements`. A skill runs its scripts against the
 installed set through a launcher that puts the install directory on `PYTHONPATH` and never
@@ -148,7 +158,9 @@ or script runs it on its own.
   distribution and import names differ, `opencv-python-headless` and `cv2`) and imports them with
   the install as the only third-party path (`PYTHONPATH` set to it, `-S` so no ambient
   `site-packages`), so an ambient copy never passes for the locked set. The launcher runs scripts
-  the same way. A directory that is present but no longer loads is rebuilt.
+  the same way. A directory that is present but no longer loads is rebuilt. The probe runs on the
+  hook's full path, in the install the repair line runs, and in `check`; while the ready stamp
+  (Rule P2) holds, the hook trusts the stamp instead.
 - **Floor:** the component states its Python floor and the hook looks for an interpreter at or
   above it, so a host with an older Python gets Rule P4's notice, not a failed install.
 
@@ -160,7 +172,14 @@ the hook emits a notice on both channels (`systemMessage` and `additionalContext
 is the installer run in the foreground with the same interpreter and data directory (POSIX shell,
 or Windows PowerShell 5.1 on Windows, as in Rule 3). The hook exits
 0, so a failed install never blocks the session, and it leaves no partial directory. A launcher run
-with no installed set prints the same line and exits 2. Neither falls back to another interpreter's
+with no installed set prints the same line and exits 2.
+
+A stamped set that breaks surfaces when a skill runs, not at session start: the launcher prints the
+repair line for a missing set and drops the ready stamp, as it does when a script exits non-zero
+and as `check` does when a row fails, so the next session start probes and rebuilds. One hole
+remains: a candidate symlink repointed to an interpreter file older than the stamp passes both the
+resolution and the newer-file checks, and the hook keeps trusting the stamp until a failed skill
+run drops it. Neither falls back to another interpreter's
 packages, installs on its own, or reports a partial result as complete. In an interactive session
 the agent offers to run the repair line and runs it on the user's yes, per
 [When a check fails](../prerequisites/README.md#when-a-check-fails-offer-the-fix-run-it-on-a-yes).

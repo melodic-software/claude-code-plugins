@@ -186,6 +186,79 @@ else
   fail "linux paths: rc=$RC argv=[$ARGV] output=[$OUT]"
 fi
 
+# The ready stamp: pydeps.py install, started through a candidate found on PATH, writes <data>/python/.hook-ready,
+# and while it holds a session start starts no Python. Every candidate name resolves to a wrapper that logs each start
+# and execs the real interpreter. Each case restores the stamp that install wrote, shows that baseline starts nothing,
+# changes one input and shows the full path runs.
+logged="$WORK/logged"
+other="$WORK/other"
+mkdir -p "$logged" "$other"
+real_py="$(command -v "$py")"
+for name in python3.13 python3.12 python3 python; do
+  printf '#!/bin/sh\necho "%s $*" >>"%s/starts.log"\nexec "%s" "$@"\n' "$name" "$WORK" "$real_py" >"$logged/$name"
+done
+cp "$logged/python3.13" "$other/python3.13"
+chmod +x "$logged/"* "$other/"*
+root="$(new_plugin stamped "$digest")"
+data="$WORK/data-stamped"
+stamp="$data/python/.hook-ready"
+# stamp_run <plugin root> <find-links dir> [PATH prefix] -> runs the hook with the wrappers first on PATH; sets OUT, RC
+# and STARTS, the number of Python starts.
+stamp_run() {
+  rm -f "$WORK/starts.log"
+  run_hook "$1" "$2" CLAUDE_PLUGIN_DATA="$(native "$data")" PATH="${3:-}$logged:$PATH"
+  STARTS=0
+  [[ -f "$WORK/starts.log" ]] && STARTS="$(wc -l <"$WORK/starts.log" | tr -d '[:space:]')"
+}
+stamp_run "$root" "$WHEELS"
+if [[ "$RC" -eq 0 && -z "$OUT" && -f "$stamp" ]]; then
+  ok "an install through a candidate on PATH writes the ready stamp"
+else
+  fail "ready stamp write: rc=$RC stamp=$([[ -f "$stamp" ]] && echo yes || echo no) output=[$OUT]"
+fi
+cp "$stamp" "$WORK/good-stamp" 2>/dev/null
+# restore_stamp -> the stamp the install wrote, newer than every input it checks.
+restore_stamp() {
+  cp "$WORK/good-stamp" "$stamp"
+  touch -t 202001010000 "$root/requirements.txt" "$root/scripts/pydeps.py" "$root/scripts/pydeps.json" "$logged/"* "$other/"*
+  touch -t 202101010000 "$stamp"
+}
+# invalidated <what> <mutation command ...> -> the baseline starts no Python; after the mutation the hook starts one.
+invalidated() {
+  local what="$1" base
+  shift
+  restore_stamp
+  stamp_run "$root" "$WHEELS"
+  base="$STARTS/$RC/[$OUT]"
+  "$@"
+  if [[ "$base" == "0/0/[]" && "$STARTS" -gt 0 && "$RC" -eq 0 ]]; then
+    ok "while the ready stamp holds no Python starts; $what runs the full path"
+  else
+    fail "$what: baseline starts/rc/output=$base, after: starts=$STARTS rc=$RC output=[$OUT]"
+  fi
+}
+moved_root() {
+  mv "$root" "$root-moved"
+  stamp_run "$root-moved" "$WHEELS"
+  mv "$root-moved" "$root"
+}
+other_candidate() { stamp_run "$root" "$WHEELS" "$other:"; }
+newer() {
+  touch "$1"
+  stamp_run "$root" "$WHEELS"
+}
+target_missing() {
+  find "$data/python" -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} +
+  stamp_run "$root" "$WHEELS"
+}
+invalidated "another plugin root" moved_root
+invalidated "a candidate resolving elsewhere" other_candidate
+invalidated "a resolved candidate newer than the stamp" newer "$logged/python3"
+invalidated "a newer requirements.txt" newer "$root/requirements.txt"
+invalidated "a newer pydeps.py" newer "$root/scripts/pydeps.py"
+invalidated "a newer pydeps.json" newer "$root/scripts/pydeps.json"
+invalidated "a missing installed set" target_missing
+
 echo "---"
 echo "passed: $PASS, failed: $FAIL"
 [[ "$FAIL" -eq 0 ]]
