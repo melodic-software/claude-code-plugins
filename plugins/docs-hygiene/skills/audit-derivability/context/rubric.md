@@ -150,10 +150,11 @@ that never saw the document.
 
 1. Spawn a **fresh-context, non-fork subagent**. When the audited file loads at
    launch (root `CLAUDE.md`, `AGENTS.md`, an unscoped `.claude/rules` file), it
-   MUST be an `Explore` or `Plan` agent, the subagent types we rely on to start
-   without those files, so the "fresh" run is not graded by an agent that has
-   read the answer. A custom subagent with `omitClaudeMd` is not a substitute.
-   Any other audited file may use any non-fork subagent.
+   MUST be this plugin's `docs-hygiene:derivability-spot-tester` (it sets
+   `omitClaudeMd`), or an `Explore` or `Plan` agent when it does not resolve:
+   the agents we rely on to start without those files, so the "fresh" run is
+   not graded by an agent that has read the answer. Any other audited file may
+   use any non-fork subagent.
    The subagent must NOT be shown the document and must NOT be spawned as the Agent tool's
    `fork` subagent type, which would carry this context's answers into the
    test. A skill's own `context: fork` frontmatter is a different mechanism and
@@ -164,7 +165,7 @@ that never saw the document.
      <https://code.claude.com/docs/en/sub-agents#what-loads-at-startup> and
      <https://code.claude.com/docs/en/sub-agents#fork-the-current-conversation>
      live; the dated record is also in SKILL.md "Sources".
-   - **As of**: 2026-10-11
+   - **As of**: 2026-11-02
    - **Recheck trigger**: the first section stops listing Explore and Plan as
      skipping CLAUDE.md, or changes what `omitClaudeMd` leaves loaded; or the
      second section stops saying a fork inherits the parent conversation.
