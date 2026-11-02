@@ -232,9 +232,9 @@ the rule.
 
 ## Gotchas
 
-- **`## By dimension` repeats every row.** The section re-renders the same findings under
-  per-dimension headings with rank numbers unchanged, so reading every table row in the file
-  counts each finding twice. The table under `## Findings` is the only source of rows. The writer
+- **`## By dimension` and `## By axis` repeat every row.** Each re-renders the same findings under
+  its own headings with rank numbers unchanged, so reading every table row in the file
+  counts each finding three times. The table under `## Findings` is the only source of rows. The writer
   enforces this; do not re-count rows yourself from the whole file.
 - **Unescape `\|` before classifying.** Cells escape a literal pipe, and reviewer text carries
   pipes routinely (type unions, shell pipelines). A cell read without unescaping splits into

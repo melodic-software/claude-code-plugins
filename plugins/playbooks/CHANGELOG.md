@@ -4,6 +4,18 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.27.3] - 2026-11-02
+
+### Changed
+
+- The skill-authoring rewrite runbook requires a negative control before a rewrite's measurement counts: a degraded copy of each changed part (procedure steps deleted for a body cut, a generic description for a description cut), run on one model against a before run launched together. The suite detects a loss when the noise report calls a `case drop` or the mean case score falls by 0.15 or more; a part it cannot measure ships its before text. The control is preregistered in the draft pull request before the first paid run, and its numbers go in the decision table. The skill criteria's measurement protocol points at it.
+
+## [0.27.2] - 2026-11-02
+
+### Changed
+
+- The skill criteria's `## Descriptions` section states the description standard: one sentence saying what the skill is, "Use when" with one trigger per branch, and at most three hook terms, each one probes show moves triggering. It also states the length thresholds: a 250-character target, a warning above 419, and a fail above the spec's field maximum, with the target and warn threshold read as `/skill-quality:check` settings.
+
 ## [0.27.1] - 2026-11-01
 
 ### Changed

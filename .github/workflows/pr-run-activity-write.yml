@@ -587,6 +587,9 @@ jobs:
       lane-max-turns: ${{ steps.lane-record.outcome == 'success' && steps.config.outputs.max-turns || '' }}
       lane-models: ${{ steps.lane-record.outcome == 'success' && steps.act-turns.outputs.models || '' }}
       lane-profile: ${{ steps.lane-record.outcome == 'success' && steps.config.outputs.profile || '' }}
+      # The lane-outcome JSON itself, empty when the step wrote none; the
+      # report-check-run action validates it before the check run carries it.
+      record: ${{ steps.lane-record.outputs.record }}
       # Set after the model ran, so forgeable: post.mjs checks every row.
       api-failures: ${{ steps.api-failures.outputs.api-failures }}
       # A gate skill succeeds only on a `pass` verdict, a skill that took no
@@ -1797,7 +1800,7 @@ jobs:
       - name: Record the lane outcome
         id: lane-record
         if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
           outcome: ${{ steps.act-result.outputs.outcome || steps.act-skill.outcome }}
           execution-file: >-
@@ -2480,6 +2483,7 @@ jobs:
           lane-max-turns: ${{ needs.run.outputs.lane-max-turns }}
           lane-models: ${{ needs.run.outputs.lane-models }}
           lane-profile: ${{ needs.run.outputs.lane-profile }}
+          lane-outcome: ${{ needs.run.outputs.record }}
           verdict-path: ${{ runner.temp }}/verdict/verdict.json
           base-path: .base
           head-sha-fallback: ${{ github.event.pull_request.head.sha || github.sha }}

@@ -19,7 +19,11 @@ one line per check, detail lines indented under it:
                       an invocation-probe case, a max-turns error in a run whose
                       trace holds a Skill call is a warning, since the graded
                       call already happened
-    row count         every case holds N rows per arm; runsPerCase is ignored
+    row count         every case holds N rows per arm; runsPerCase is ignored. A
+                      case whose case.yaml sets context.history_file and whose
+                      result records no without-arm key at all ran single-arm by
+                      design (a path target runs it with-arm only): a warning
+                      with no delta. An empty or short without-arm still fails
     scaffold          no case sets context.scaffold_script in its case.yaml,
                       or the pass ran with --scaffold (--scaffolded); without
                       it, both arms of such a case ran in an empty workspace.
@@ -54,8 +58,11 @@ one line per check, detail lines indented under it:
                       Grep or Glob aimed only under the session's own
                       <sandbox>/config/projects/*/*/tool-results/, where Claude
                       Code persists a large tool result the session already
-                      received. The run's score was taken under such a denial,
-                      so compare it only with runs denied the same way. Otherwise a
+                      received, and a Bash pipeline of cat, head, wc, grep and
+                      sed -n reading only there, with no redirect, other
+                      operator or unquoted expansion. The run's score was
+                      taken under such a denial, so compare it only with
+                      runs denied the same way. Otherwise a
                       with-arm denial aimed at or under the plugin's
                       directory (suite.root or a
                       suite.plugins path), at a directory above it, or with
@@ -164,6 +171,28 @@ SANDBOX_PLUGIN_DATA = ("config", "plugins", "data")
 # <sandbox>/config/projects/<project>/<session>/tool-results/.
 SANDBOX_PROJECTS, TOOL_RESULTS_DIR = ("config", "projects"), "tool-results"
 TOOL_RESULTS_READERS = ("Read", "Grep", "Glob")
+# A Bash pipeline the same reads may take, joined only by `|`: per command, the
+# short flags it may cluster, the flags that take a number (glued, -A40, or the
+# next word), and whether its first operand is a pattern or script, not a path.
+# Any other command, flag, operator or word keeps the call a denial.
+BASH_READERS = {
+    "cat": ("nbsvetAET", "", False),
+    "head": ("qv", "nc", False),
+    "wc": ("lcwmL", "", False),
+    "grep": ("nicvwxoqszHhlLEFGPaI", "ABCm", True),
+    "sed": ("nEr", "", True),
+}
+PIPE = "|"
+NUMBER = re.compile(r"\A[-+]?\d+\Z")
+# The only sed scripts that qualify: print a line, a range or a /regex/ match.
+SED_ADDRESS = r"(?:\d+|\$|/[^/\\]*/)"
+SED_PRINT = re.compile(r"\A%s(?:,%s)?p\Z" % (SED_ADDRESS, SED_ADDRESS))
+# Command substitution or a second line runs something other than the pipeline.
+BASH_EXEC = re.compile(r"`|\$\(|[\r\n]")
+# Outside quotes, a brace, glob or $ can expand into more operands, and $'...' or
+# a backslash quotes the command differently for bash than for shlex.
+QUOTED_SPAN = re.compile(r"'[^']*'|\"(?:[^\"\\]|\\.)*\"")
+UNQUOTED_EXPANSION = re.compile(r"[{*?\[$\\]")
 DENIAL_TOOL, DENIAL_ID, DENIAL_INPUT = "tool_name", "tool_use_id", "tool_input"
 MESSAGE, CONTENT, BLOCK_TYPE = "message", "content", "type"  # message.content[].type
 TOOL_USE, USE_ID, USE_NAME, USE_INPUT = "tool_use", "id", "name", "input"
@@ -188,6 +217,12 @@ SHELL_SPLIT = re.compile(r"[<>|;&()'\"=]")  # where one shell word holds several
 UNRESOLVED = re.compile(r"[$`*?\[{]|^~|[^\w./-]/")
 # A path that resolves against the validator's own process, matched normalized.
 OWN_PROCESS = re.compile(r"^/+(proc/(self|thread-self)|dev/fd)(/|$)")
+# A redirect word that names no file the command reads or writes: an fd
+# duplication or close (2>&1, >&2, 2>&-) or a redirect to /dev/null, with or
+# without its fd (>/dev/null, 2>/dev/null, &>/dev/null). A bare operator (2>)
+# takes the next word as its operand, dropped only when it is /dev/null.
+REDIRECT = re.compile(r"(?:\d*|&)(?:>>?|<)(&(?:\d+|-)|/dev/null)?")
+DEV_NULL = "/dev/null"
 
 # The suite's skill-fired convention and the no-trigger control markers.
 SKILL_TOOL = "Skill"
@@ -211,15 +246,13 @@ TRACE_TOOLS = "tools"  # on the init line: the tools the session could call
 # The init line names the Agent tool Task.
 PROBE_REMOVED_TOOLS = ("Read", "Glob", "Grep", "Agent", "Task")
 
-# case.yaml's context.scaffold_script, in block or flow form, read without a
-# YAML parser. Any uncommented mention of scaffold_script outside these shapes,
-# a quoted key or an empty value continued on the next line among them, leaves
-# the case UNCHECKED.
-SCAFFOLD_KEY = re.compile(r"^[^#\n]*scaffold_script", re.MULTILINE)
+# A case.yaml context key (scaffold_script, history_file), in block or flow
+# form, read without a YAML parser. Any uncommented mention of the key outside
+# these shapes, a quoted key or an empty value continued on the next line among
+# them, leaves the case UNCHECKED.
+SCAFFOLD_SCRIPT, HISTORY_FILE = "scaffold_script", "history_file"
 CONTEXT_BLOCK = re.compile(r"context:\s*(?:#.*)?")
 CONTEXT_FLOW = re.compile(r"context:\s*\{(.*)\}\s*(?:#.*)?")
-BLOCK_SCRIPT = re.compile(r"\s+scaffold_script:\s*(.*?)\s*(?:#.*)?")
-FLOW_SCRIPT = re.compile(r"\bscaffold_script:\s*([^,}]*)")
 NO_VALUE = ("", "null", "~")
 
 PASS, WARN, FAIL, UNCHECKED = "PASS", "WARN", "FAIL", "UNCHECKED"
@@ -420,8 +453,14 @@ def continues(lines, index):
 
 def scaffold_script(case, root):
     """(the case's context.scaffold_script or None, why its case.yaml could not
-    be read or None). An existing case dir with no case.yaml has no script; a
-    missing suite root or case dir leaves the case.yaml unread."""
+    be read or None)."""
+    return context_value(case, root, SCAFFOLD_SCRIPT)
+
+
+def context_value(case, root, key):
+    """(the case's context.<key> or None, why its case.yaml could not be read or
+    None). An existing case dir with no case.yaml has no value; a missing suite
+    root or case dir leaves the case.yaml unread."""
     case_dir = case.get(CASE_DIR)
     if not root or not isinstance(case_dir, str) or not case_dir:
         return None, (
@@ -438,14 +477,16 @@ def scaffold_script(case, root):
         return None, "case dir %s does not exist" % os.path.dirname(path)
     except (OSError, ValueError) as error:
         return None, "cannot read %s (%s)" % (path, error)
-    if not SCAFFOLD_KEY.search(text):
+    if not re.search(r"^[^#\n]*" + key, text, re.MULTILINE):
         return None, None
+    block_key = re.compile(r"\s+%s:\s*(.*?)\s*(?:#.*)?" % key)
+    flow_key = re.compile(r"\b%s:\s*([^,}]*)" % key)
     lines = text.splitlines()
     in_context = False
     for index, line in enumerate(lines):
         flow = CONTEXT_FLOW.fullmatch(line)
         if flow:
-            found = FLOW_SCRIPT.search(flow.group(1))
+            found = flow_key.search(flow.group(1))
             if found:
                 return script_value(found.group(1)), None
             in_context = False
@@ -454,15 +495,13 @@ def scaffold_script(case, root):
         elif line[:1] not in ("", " ", "\t", "#"):
             in_context = False
         elif in_context:
-            found = BLOCK_SCRIPT.fullmatch(line)
+            found = block_key.fullmatch(line)
             if found:
                 value = script_value(found.group(1))
                 if value is None and continues(lines, index):
                     break
                 return value, None
-    return None, (
-        "%s names scaffold_script outside a context block this check reads" % path
-    )
+    return None, "%s names %s outside a context block this check reads" % (path, key)
 
 
 def check_scaffold(cases, root, scaffolded):
@@ -725,10 +764,22 @@ def check_started(runs):
     return PASS, summary, forked, None
 
 
-def check_rows(cases, runs_wanted, arms):
-    details, per_case = [], set()
+def single_arm(case, root):
+    """True when the result records no without-arm for the case at all and its
+    case.yaml sets context.history_file: claude plugin eval runs such a case
+    with-arm only from a path target, whatever --ablation says."""
+    if "without" in as_dict(case.get(CASE_ARMS)):
+        return False
+    return context_value(case, root, HISTORY_FILE)[0] is not None
+
+
+def check_rows(cases, runs_wanted, arms, root):
+    details, per_case, one_arm = [], set(), []
     for case in cases:
         for arm in arms:
+            if arm == "without" and single_arm(case, root):
+                one_arm.append(case.get(CASE_NAME))
+                continue
             count = len(as_list(as_dict(case.get(CASE_ARMS)).get(arm)))
             if count != runs_wanted:
                 details.append(
@@ -742,6 +793,11 @@ def check_rows(cases, runs_wanted, arms):
         ignored = "; runsPerCase reads %s and is not used" % ", ".join(
             str(v) for v in sorted(stated, key=str)
         )
+    if one_arm:
+        ignored += (
+            "; single-arm by design (context.history_file, no without-arm recorded),"
+            " so no delta: %s" % ", ".join(one_arm)
+        )
     if details:
         return (
             FAIL,
@@ -749,6 +805,14 @@ def check_rows(cases, runs_wanted, arms):
             details,
             "%s hold a row count other than --runs %d"
             % (plural(len(details), "arm"), runs_wanted),
+        )
+    if one_arm:
+        return (
+            WARN,
+            "%s per arm as --runs %d asked%s"
+            % (plural(runs_wanted, "row"), runs_wanted, ignored),
+            [],
+            "%s single-arm by design, with no delta" % plural(len(one_arm), "case"),
         )
     return (
         PASS,
@@ -769,6 +833,7 @@ def rooted(path):
 def bash_paths(command):
     """The paths a Bash command names: each rooted word, split at quotes,
     redirects, pipes, parentheses and `=` so --flag=/x, >/x and '/x' count. A
+    REDIRECT word naming no file (2>&1, 2>/dev/null) is dropped first. A
     word UNRESOLVED matches, a relative path with a slash or any later word that
     is neither rooted nor a flag (cwd-relative, so possibly the plugin), a path
     OWN_PROCESS matches, no rooted word, or a command that does not parse adds
@@ -779,6 +844,21 @@ def bash_paths(command):
         words = None
     if not words:
         return (None,)
+    kept, skip = [], False
+    for index, word in enumerate(words):
+        if skip:
+            skip = False
+            continue
+        redirect = REDIRECT.fullmatch(word)
+        if redirect and redirect.group(1):
+            continue
+        if redirect and words[index + 1 : index + 2] == [DEV_NULL]:
+            skip = True
+            continue
+        kept.append(word)
+    words = kept
+    if not words:
+        return (None,)
     values = [v for w in words for v in SHELL_SPLIT.split(w) if v]
     paths = tuple(v for v in values if rooted(v))
     unresolved = (
@@ -787,6 +867,73 @@ def bash_paths(command):
         or any(OWN_PROCESS.search(posixpath.normpath(v)) for v in paths)
     )
     return paths + (None,) if unresolved or not paths else paths
+
+
+def bash_read_paths(command):
+    """The path operands of a Bash command that only reads: a pipeline of
+    BASH_READERS commands, each with only its listed flags, sed with -n and a
+    SED_PRINT script. None for any other command, a redirect or other operator,
+    command substitution, an UNQUOTED_EXPANSION character outside quotes, a path
+    UNRESOLVED matches, or no path at all."""
+    if (
+        not isinstance(command, str)
+        or BASH_EXEC.search(command)
+        or UNQUOTED_EXPANSION.search(QUOTED_SPAN.sub("", command))
+    ):
+        return None
+    lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
+    lexer.whitespace_split, lexer.commenters = True, ""
+    try:
+        words = list(lexer)
+    except ValueError:
+        return None
+    paths, segment = [], []
+    for word in words + [PIPE]:
+        if word != PIPE:
+            if not word.strip(lexer.punctuation_chars):
+                return None
+            segment.append(word)
+            continue
+        found = segment_read_paths(segment)
+        if found is None:
+            return None
+        paths += found
+        segment = []
+    return tuple(paths) if paths else None
+
+
+def segment_read_paths(words):
+    """The path operands of one pipeline segment, per bash_read_paths, or None."""
+    if not words or words[0] not in BASH_READERS:
+        return None
+    flags, numeric, takes_script = BASH_READERS[words[0]]
+    seen, script, paths = set(), None, []
+    rest = iter(words[1:])
+    for word in rest:
+        if word.startswith("-") and len(word) > 1:
+            cluster = word[1:]
+            if numeric and cluster.isdigit():
+                continue
+            for i, flag in enumerate(cluster):
+                if flag in numeric:
+                    value = cluster[i + 1 :] or next(rest, "")
+                    if not NUMBER.match(value):
+                        return None
+                    break
+                if flag not in flags:
+                    return None
+                seen.add(flag)
+        elif takes_script and script is None:
+            script = word
+        elif rooted(word) and not UNRESOLVED.search(word):
+            paths.append(word)
+        else:
+            return None
+    if takes_script and script is None:
+        return None
+    if words[0] == "sed" and ("n" not in seen or not SED_PRINT.match(script)):
+        return None
+    return paths
 
 
 def glob_root(pattern):
@@ -803,7 +950,9 @@ def denials(run):
     """Every denied tool call in one trace, keyed by tool_use_id, as (detail line,
     the paths it targets: a Bash call's rooted arguments, else the target path, a
     path-less Glob's pattern root (glob_root) or None, the tool's name, the
-    tool_use_id, the (tool, target) pair that names the same call in another run)."""
+    tool_use_id, the (tool, target) pair that names the same call in another run,
+    the paths it only reads: a Read, Grep or Glob's paths, a read-only Bash
+    pipeline's path operands (bash_read_paths), else None)."""
     calls, found = {}, {}
     for line in run.trace:
         for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
@@ -831,6 +980,10 @@ def denials(run):
             paths = (glob_root(tool_input.get(GLOB_PATTERN)),)
         else:
             paths = (path if isinstance(path, str) else None,)
+        if name == BASH_TOOL:
+            reads = bash_read_paths(tool_input.get(BASH_COMMAND))
+        else:
+            reads = paths if name in TOOL_RESULTS_READERS else None
         out.append(
             (
                 "%s: %s %s (%s)" % (run.where, name or "tool", target, run.trace_path),
@@ -838,6 +991,7 @@ def denials(run):
                 name,
                 use_id,
                 (name, json.dumps(target)),
+                reads,
             )
         )
     return out
@@ -889,7 +1043,7 @@ def same_as_clean(run, found, runs, roots):
     in the same arm, the case has at least one, every sibling in that arm has a
     readable trace, and no with-arm denial is aimed inside the plugin."""
     if run.arm == "with" and any(
-        inside(path, roots) for _, paths, _, _, _ in found[run] for path in paths
+        inside(path, roots) for _, paths, _, _, _, _ in found[run] for path in paths
     ):
         return False
     siblings = [
@@ -920,11 +1074,11 @@ def in_every_run(run, found, runs, roots):
         return False
     if any(
         name in (None, SKILL_TOOL) or any(rooted(p) and inside(p, roots) for p in paths)
-        for _, paths, name, _, _ in found[run]
+        for _, paths, name, _, _, _ in found[run]
     ):
         return False
-    held = [{key for _, _, _, _, key in found[r]} for r in case_runs]
-    return all(all(key in keys for keys in held) for _, _, _, _, key in found[run])
+    held = [{key for _, _, _, _, key, _ in found[r]} for r in case_runs]
+    return all(all(key in keys for keys in held) for _, _, _, _, key, _ in found[run])
 
 
 def sandbox_dir(run):
@@ -969,7 +1123,7 @@ def own_data_denial(run, denial):
     persists state is denied there in every run whatever it does; no case or
     skill change can avoid it. A denial elsewhere in the run's config directory,
     or with no rooted path, never qualifies."""
-    _, paths, name, _, _ = denial
+    _, paths, name, _, _, _ = denial
     data = own_data_dir(run)
     return (
         bool(data)
@@ -980,19 +1134,20 @@ def own_data_denial(run, denial):
 
 
 def own_results_denial(run, denial):
-    """True when the denial is a Read, Grep or Glob whose every target path is
-    under the run's own config/projects/<project>/<session>/tool-results/. Claude
-    Code writes a large tool result there and the model reads it back; the run's
-    permission settings deny its config directory, so the read is denied whatever
-    the case does. It reads only output the session already received, so it
-    cannot add to what the model knows. Bash, a write, or any other path never
+    """True when the denial is a Read, Grep or Glob, or a read-only Bash pipeline
+    (bash_read_paths), whose every target path is under the run's own
+    config/projects/<project>/<session>/tool-results/. Claude Code writes a large
+    tool result there and the model reads it back; the run's permission settings
+    deny its config directory, so the read is denied whatever the case does. It
+    reads only output the session already received, so it cannot add to what the
+    model knows. Any other Bash command, a write, or any other path never
     qualifies."""
-    _, paths, name, _, _ = denial
+    reads = denial[5]
     sandbox = sandbox_dir(run)
-    if not sandbox or name not in TOOL_RESULTS_READERS or not paths:
+    if not sandbox or not reads:
         return False
     projects = os.path.join(sandbox, *SANDBOX_PROJECTS)
-    return all(in_tool_results(p, projects) for p in paths)
+    return all(in_tool_results(p, projects) for p in reads)
 
 
 def probe_denial(run, found, runs, root):
@@ -1007,13 +1162,13 @@ def probe_denial(run, found, runs, root):
     has denial-free with-arm runs and every one of them held too. A denial naming
     no tool may have been the Skill call."""
     if not is_probe(run.case, root) or not all(
-        name is not None and name != SKILL_TOOL for _, _, name, _, _ in found[run]
+        name is not None and name != SKILL_TOOL for _, _, name, _, _, _ in found[run]
     ):
         return False
     if graded_call_made(run, root):
         at, first = graded_call_at(run, root)
         return first is not None and all(
-            at.get(use_id, -1) > first for _, _, _, use_id, _ in found[run]
+            at.get(use_id, -1) > first for _, _, _, use_id, _, _ in found[run]
         )
     if skill_graders(run.case, root)[0]:
         return False
@@ -1065,7 +1220,7 @@ def check_denials(runs, roots, root):
         or in_every_run(r, found, runs, roots)
     ]
     failed = [r for r in denied if r not in warned]
-    details = [line for r in denied for line, _, _, _, _ in every[r]]
+    details = [line for r in denied for line, _, _, _, _, _ in every[r]]
     summary = "%s in %s" % (plural(len(details), "denial"), plural(len(denied), "run"))
     set_aside = sum(len(data[r]) for r in denied)
     if set_aside:
@@ -1092,8 +1247,9 @@ def check_denials(runs, roots, root):
             " plugin; or a run denied only named calls other than Skill that every"
             " run of its case was denied in both arms, none inside the plugin; and"
             " any named call other than Skill aimed only under the run's own"
-            " plugin-data directory, or a Read, Grep or Glob aimed only at the"
-            " session's own tool-results directory, which never counts toward a"
+            " plugin-data directory, or a Read, Grep, Glob or read-only Bash pipeline"
+            " aimed only at the session's own tool-results directory, which never"
+            " counts toward a"
             " FAIL; a run's score was taken under such a denial, so compare it only"
             " with runs denied the same way): %s"
             % ", ".join(warned_cases)
@@ -1487,7 +1643,7 @@ def main(argv=None):
         ("complete", check_complete(result, runs)),
         ("paid graders", check_paid(runs)),
         ("run errors", check_errors(runs, root)),
-        ("row count", check_rows(cases, args.runs, arms)),
+        ("row count", check_rows(cases, args.runs, arms, root)),
         ("scaffold", check_scaffold(cases, root, args.scaffolded)),
     ]
     lines = []

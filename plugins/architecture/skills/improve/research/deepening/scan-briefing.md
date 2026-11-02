@@ -34,13 +34,21 @@ for a subagent:
 | Leaking **seam** | Two modules are coupled so tightly that the details of one show up across the other's seam | The invoice export reads the rates client's cache keys |
 | Defects between subsystems | The same kind of defect keeps appearing where several owned subsystems meet, not inside any one of them | Checkout and the refund job disagree on a total by one cent |
 
-Three further signals belong to this scan alone; record them in the same way:
+Four further signals belong to this scan alone; record them in the same way. They measure reader
+load, which has two axes: the layers a reader must trace to answer one question, and the state a
+reader must hold in mind while reading. The axes vary independently, so check both: a flat file full of
+module state can cost a reader as much as a deep stack of forwarding calls. Line count is only a
+proxy for either axis, so a short module can still be costly to read, and a line count is never the
+evidence in `shallow-signal`. To place a finding on an axis, ask what the reader spends answering
+one question about the code: files and calls opened one after another are layers to trace, and
+values kept in mind across lines are state to hold (pstack's `minimize-reader-load` principle).
 
 | Signal | What the agent sees | Tax example |
 |---|---|---|
 | State held too broadly | A value lives where far more code can reach it than reads it, or a derived value is saved and refreshed on each change when it could be worked out at the moment it is read. Rank the possible homes from broadest to tightest (globals, module state, an object's fields, locals, function parameters) and flag state kept higher than its readers require | `invoice.taxTotal` is written back after each line edit rather than added up on read; checkout assigns a module-level `currentRegion` and then calls `quote()` |
 | Hops that add little | Answering one question about a request walks the reader through a chain of files or layers, each contributing little beyond passing the call on. How long is too long depends on how deep this codebase's other paths run; there is no threshold number | Tax for one line passes the controller, then `TaxService`, `TaxFacade` and `TaxRateLookup`, before it reaches the rates client |
 | One caller's rule in shared code | Code every caller uses carries a branch that serves a single caller, and each caller added later carries it too. Leave the shared work where it is and hand that one decision back to the caller that wants it | `TaxCalculator.quote()` picks a date only after asking whether the refund job is calling; the refund job could supply its own date |
+| Invariant re-checked in each consumer | Several callers each check the same rule about a value (non-empty, in range, normalized) when the module that first makes the value could guarantee it in its interface. Each reader re-learns the rule at every call site, and a caller added later can skip the check. Test: find where the value is first made; when that module could enforce the rule and its callers check it anyway, the signal holds (pstack's `minimize-reader-load` principle) | `quote()`, the refund job and the invoice export each reject a negative rate, while the rates client, where the rate enters billing, could refuse one so that no caller has to check |
 
 Four more signals are hazards that mislead an agent editing the code. Judge each by the
 **open-file test**: with only the file being edited open, can an agent see every other place it

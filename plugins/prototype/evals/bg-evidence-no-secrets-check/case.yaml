@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: bg-evidence-no-secrets-check
+description: "Evidence step with no check to run, MB:plugins/prototype/context/discipline.md 'Evidence step' as run by build-generator's harvest: the scaffold repository has no secrets or machine-data check, so harvesting the torn-edge generator pushes nothing and the durable note records the generating tool's local path and not pushed: <reason>."
+tags: [build-generator, hard]
+runs: 3
+expected_outcome: "The agent harvests src/config/torn-edge.json into ReportCover, records the keeper in docs/decisions/torn-edge.md, runs no git push, and records in that note the generating tool's local path under src/lab/torn-edge and a not pushed: <reason> line. Nothing is pushed to any branch; the tool is deleted and src/config/torn-edge.json stays."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/prototype:build-generator save-output src/config/torn-edge.json\n\nThat seed is the keeper. Record the decision in docs/decisions/torn-edge.md."
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit]
+  max_turns: 50
+  timeout_seconds: 900

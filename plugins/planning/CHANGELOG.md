@@ -3,6 +3,24 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.136.5] - 2026-11-02
+
+### Fixed
+
+- Eval cases `interview-coded-terms-round-answerable`, `interview-context-unfamiliar-term-upstream`
+  and the three `brainstorm-*` cases whose prompt slash-invokes the skill drop their `tool_used:
+  Skill` grader: a slash-invoked skill loads without a Skill call, so the grader measured nothing
+  (it failed every with-arm run of the two interview cases).
+- Eval cases `interview-round-topic-groups-index` and `interview-scope-cut-moscow` raise
+  `max_turns` from 12 to 30 and `timeout_seconds` to 900: their passing runs needed 19 to 20
+  turns, and 4 of 6 runs stopped at the cap mid-round.
+
+## [0.136.4] - 2026-11-02
+
+### Changed
+
+- `/planning:design`'s two-candidate step now sends a logic or state fork that a run can settle to `/prototype:pressure-test observe`, beside the existing look-and-feel route to `/prototype:explore-directions`, because running each candidate on the same inputs shows which one holds where arguing them only predicts it. A fork qualifies when the criteria turn on an event sequence or record and nobody can yet say with confidence how each candidate handles it. This comes from pstack's `exhaust-the-design-space` principle ([#12148](https://github.com/melodic-software/claude-code-plugins/issues/12148)).
+
 ## [0.136.3] - 2026-11-02
 
 ### Changed
