@@ -1,0 +1,28 @@
+{
+  "negatives": false,
+  "findings": [
+    {
+      "class": "near-verbatim",
+      "tier": "fingerprint-confirmed",
+      "span": {
+        "start_line": 23,
+        "end_line": 29
+      },
+      "rule": "attribution/audit/rule-verbatim-copy"
+    }
+  ],
+  "adjudication": {
+    "verdict": "STANDS",
+    "panel": "three blind judges, unanimous: STANDS near-verbatim",
+    "rubric": "copy",
+    "rubric_version": 5,
+    "nomination": "evals/nominations/2026-11-02-larger-sample.json k01"
+  },
+  "notes": {
+    "shape": "A five-bullet rules list after a local example, lifted from one upstream practices entry with light edits: one qualifying phrase dropped from the first rule, and the last rule built from the source's two-sentence paragraph with its clauses swapped and its parenthetical examples dropped. The example above the list and the section after it are local.",
+    "carve_outs": "None apply. No attribution names the practices page anywhere in the file.",
+    "rubric": "C1 holds: each bullet corresponds to a specific source sentence. C2 holds: the five rules are the source's selection and order. C3 holds: no attribution. C4 holds: the rules add nothing the source does not say; the local example above them is outside the span.",
+    "measured": "fingerprint.mjs at k=5 against its source.md: containment 0.404, jaccard 0.142, longest matched span 67 words; the separation rule fires. Case and source each stay below both limbs against the real passage's file and its real source (highest containment 0.051, longest span 8 words).",
+    "carries": "A near-verbatim copy whose edits are a dropped phrase and a reordered sentence pair. It sits beside a verbatim case drawn from the same upstream page, so the set keeps the real sample's concentration of positives on one source."
+  }
+}

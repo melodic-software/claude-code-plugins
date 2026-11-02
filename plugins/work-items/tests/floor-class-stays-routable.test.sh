@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Regression guard: the attended lane's "Flip to agent-ready" transition must
-# stay human-floor aware, so resolving a C4/C5 escalation never strands the item.
+# stay human-floor aware, so resolving a C5 escalation never strands the item.
 #
 # An unconditional flip on a floor-class row leaves the item outside the autonomous
 # frontier AND off the attended view (which reads role labels): reachable by no lane.
+# Only untrusted provenance floors an item, so the transition must not gate on
+# `work-class: structural` either.
 # shellcheck disable=SC2016  # fixture bodies are literal prose in single quotes; expansion is never wanted
 set -uo pipefail
 
@@ -41,8 +43,8 @@ transition_gap() {
     printf 'no "Flip to agent-ready" bullet found'
     return
   fi
-  if ! grep -qF 'work-class: structural' <<<"$region"; then
-    printf 'transition does not name work-class: structural'
+  if grep -qF 'work-class: structural' <<<"$region"; then
+    printf 'transition still names work-class: structural'
     return
   fi
   if ! grep -qF 'work-class: untrusted-provenance' <<<"$region"; then
@@ -97,24 +99,31 @@ Next section.'
 assert_flags 'a file with no flip transition at all' \
   '- **`[held]` rows**. Restate the brief and leave the next step to the operator.'
 
-# Near miss: the floor classes are named in the file, but outside the transition.
+# Near miss: the floor class is named in the file, but outside the transition.
 # Reachability depends on the rule being stated where the flip is instructed.
 assert_flags 'floor classes named outside the transition' \
   '- **Flip to agent-ready.** Apply the autonomous-eligible role label and remove the human-gated
   role label in the same edit.
 
-`work-class: structural` and `work-class: untrusted-provenance` are human-gated; reclassify them.'
+`work-class: untrusted-provenance` is human-gated; reclassify it.'
 
-assert_flags 'a transition naming only one floor class' \
+assert_flags 'a transition naming untrusted provenance with no reclassify branch' \
   '- **Flip to agent-ready.** Apply the autonomous-eligible role label unless the item carries
-  `work-class: structural`, in which case reclassify it first.'
+  `work-class: untrusted-provenance`, in which case leave the human-gated role label in place.'
 
-assert_accepts 'a floor-aware two-branch transition' \
+assert_flags 'a transition that still gates on work-class: structural' \
   '- **Flip to agent-ready.** Apply the autonomous-eligible role label and remove the human-gated
-  role label in the same edit. Read the item'"'"'s `work-class:` label first.
+  role label in the same edit.
 - **Human-floor work class.** `work-class: structural` (C4) and `work-class: untrusted-provenance`
   (C5) stay human-gated: reclassify to C1-C3 in the same edit as the flip, or leave the
   human-gated role label in place so the attended view keeps listing the item.'
+
+assert_accepts 'a floor-aware two-branch transition' \
+  '- **Flip to agent-ready.** Apply the autonomous-eligible role label and remove the human-gated
+  role label in the same edit. Only untrusted provenance blocks it.
+- **Untrusted provenance.** `work-class: untrusted-provenance` (C5) stays human-gated: reclassify
+  it in the same edit as the flip, or leave the human-gated role label in place so the attended
+  view keeps listing the item.'
 
 # --- (2) real scan: the shipped transition satisfies the invariant ----------
 if [[ ! -f "$SKILL" ]]; then

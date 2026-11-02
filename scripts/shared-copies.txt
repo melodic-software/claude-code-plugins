@@ -557,6 +557,7 @@ lib/resolve-convention-home.sh plugins/ai-slop/lib/resolve-convention-home.sh
 lib/parse-concern-value.sh plugins/attribution/lib/parse-concern-value.sh
 lib/yaml-subset.awk plugins/attribution/lib/yaml-subset.awk
 lib/resolve-convention-home.sh plugins/attribution/lib/resolve-convention-home.sh
+lib/resolve-convention-home.sh plugins/debugging/lib/resolve-convention-home.sh
 lib/prerequisites.mjs plugins/app-control/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/app-control/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/app-control/lib/prerequisites.ps1

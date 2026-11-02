@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The coupon is optional, so no code is a valid order. `discount_rate` returns 0 for a missing code; that handling is the fix.",
+      "why": "accepts the handling as the fix"
+    },
+    {
+      "answer": "Fixed in discounts.py: an order without a coupon gets no discount instead of crashing. Regression test added for an order with no coupon.",
+      "why": "fixes by handling the state, no upstream hunt"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Guarding against None at the call site would hide the bug. Tracing where coupon_code should be set before checkout.",
+      "why": "rejects the guard and hunts for why the value is missing"
+    },
+    {
+      "answer": "I added a None check for now, but that only masks the symptom; the form should always send a coupon code, so I made the field required.",
+      "why": "downgrades the guard to a symptom fix and removes the legitimate state"
+    }
+  ]
+}

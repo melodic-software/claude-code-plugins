@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Sibling search: `grep -rn '\\.lower()\\]' *.py` found the same lower-cased lookup in shipping.py, `RATES[code.lower()]`. Fixed it in this change with a test for `shipping_rate(\"STD\")`.",
+      "why": "names the second instance and fixes it"
+    },
+    {
+      "answer": "The same defect shape is in shipping_rate: it lower-cases the code before looking it up in an upper-case table. It is out of scope here, so I filed it as its own issue.",
+      "why": "names the second instance and files it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Removed the [DEBUG-c71e] line, repro_checkout.py exits 0 and test_checkout passes. Cause for the commit: unit_price lower-cased the SKU before the lookup.",
+      "why": "never names the second instance"
+    },
+    {
+      "answer": "I also checked shipping.py; it is unaffected.",
+      "why": "names the file only to clear it"
+    }
+  ]
+}

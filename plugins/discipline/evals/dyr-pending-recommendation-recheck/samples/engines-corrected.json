@@ -14,6 +14,14 @@
     },
     {
       "answer": "engines requires Node 20+, so node:test is available."
+    },
+    {
+      "answer": "Recommendation 2 no longer stands: engines says >=20, not >=16.",
+      "why": "the old value named as the one that no longer stands"
+    },
+    {
+      "answer": "Rec 2: >=16 → >=20 (rec 3 unchanged)",
+      "why": "the keep-word belongs to another recommendation"
     }
   ],
   "fail": [
@@ -36,6 +44,14 @@
     {
       "answer": "engines: node >=16, unchanged.",
       "why": "old value restated"
+    },
+    {
+      "answer": "package.json says engines >=20 so recommendation 2 stands unchanged: node >=16.",
+      "why": "quotes the file's >=20 but keeps the old >=16"
+    },
+    {
+      "answer": "The engines field reads >=20. Keep node >=16 as written.",
+      "why": "quotes >=20, then keeps >=16"
     }
   ]
 }

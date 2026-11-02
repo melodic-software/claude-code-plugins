@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: fanout-spec-first-email-redaction
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: spec-before-standards
+    type: tool_used
+    tool: Write
+    input_match: '^(?=.*\.work/reviews/[^"]*\.md")(?=.*## By axis(?:(?!\\n## ).)*### Spec(?:(?!\\n## ).)*### Standards)'
+  - name: missing-goal-under-spec
+    type: tool_used
+    tool: Write
+    input_match: '^(?=.*\.work/reviews/[^"]*\.md")(?=.*## By axis(?:(?!\\n## ).)*### Spec(?:(?!### Standards)(?!\\n## ).)*?\\n\| *(\d+) *\|(?:(?!\\n).)*?(?:[Rr]edact|REDACT|[Mm]ask|MASK|PII|[Pp]ersonal data))(?!.*## By axis(?:(?!\\n## ).)*### Standards(?:(?!\\n## ).)*\\n\| *\1 *\|)'
+  - name: axis-row-keeps-rank-and-surfaces
+    type: tool_used
+    tool: Write
+    input_match: '^(?=.*\.work/reviews/[^"]*\.md")(?=.*## Findings(?:(?!\\n## ).)*\\n\| *(\d+) *\|[^|]*\|[^|]*\|[^|]*\| *([^|]*?) *\|(?:(?!\\n).)*?(?:[Rr]edact|REDACT|[Mm]ask|MASK|PII|[Pp]ersonal data)(?:(?!\\n## ).)*.*## By axis(?:(?!\\n## ).)*### Spec(?:(?!### Standards)(?!\\n## ).)*\\n\| *\1 *\|[^|]*\|[^|]*\|[^|]*\| *\2 *\|)'
+  - name: defect-under-standards
+    type: tool_used
+    tool: Write
+    input_match: '^(?=.*\.work/reviews/[^"]*\.md")(?=.*## By axis(?:(?!\\n## ).)*### Standards(?:(?!\\n## ).)*(?:[Ii]sWeekend|[Ww]eekend|WEEKEND|[Ss]unday|SUNDAY))(?!.*## By axis(?:(?!\\n## ).)*### Spec(?:(?!### Standards)(?!\\n## ).)*(?:[Ii]sWeekend|[Ww]eekend|WEEKEND|[Ss]unday|SUNDAY))'

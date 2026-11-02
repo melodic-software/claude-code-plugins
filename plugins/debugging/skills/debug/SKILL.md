@@ -267,7 +267,7 @@ reaches the cause and is a correct seam.
 
 Keep the fix diff focused on the root cause. Leave surrounding cleanup out of this change, even in files you touched. If the fix reveals a design problem, note it for a separate refactor commit or the Phase 6 architectural recommendation.
 
-Diff the tree against the session's starting point before committing: any guard, retry, raised limit or other edit added for a hypothesis now marked refuted comes out, so the fix commit carries only the confirmed cause's fix and its regression test.
+Diff the tree against the session's starting point before committing: any guard, retry, raised limit or other edit added for a hypothesis now marked refuted comes out, so the fix commit carries only the confirmed cause's fix, the Phase 6 sibling fixes of that same cause, and their regression tests.
 
 **Worked example: a load imbalance.** In every pass of the Phase 3 tally, export workers 2 and 5 hold most of the large jobs. Giving those two more memory, or adding workers, is a symptom fix: the code that picks a worker stays as it was. That picking code holds the defect, so the fix belongs there, for example hashing on a key with more spread, capping how many large jobs one worker may hold, or claiming by least current work.
 
@@ -284,6 +284,14 @@ The run is not done until every line below holds. They fall into three groups.
 
 **Prove the fix.**
 
+- Search the codebase for the same defect shape once the cause is fixed: the call, pattern or
+  wrong assumption the fix removed. One cause usually has more than one instance, so a fix to the
+  copy the loop found leaves the others to fail later. A match is a sibling when an input that
+  code path should accept fails there for the same reason. Fix each sibling in this change, with
+  a regression test where a correct seam exists, before the proof steps below, so they cover it.
+  File it with your issue tracker instead when fixing it needs a module, owner or seam this change
+  does not touch, since that fix needs its own review. Name the search and each sibling in the
+  record, so a reader can tell "searched, none found" from "never searched".
 - The Phase 1 loop, run again, no longer reproduces the failure.
 - The regression test passes, or the missing correct seam is written up as an architecture finding.
 - The user report and the PR description each carry two redacted runs of the Phase 1 loop: the red one from before the fix and the green one from after it. When no red run exists (say the loop was built only after a hotfix), the report records that gap and the evidence used in its place
@@ -294,6 +302,24 @@ The run is not done until every line below holds. They fall into three groups.
 - The commit message or PR description names the hypothesis that proved right, so whoever debugs
   this area next starts from it.
 - If the loop revealed a recurring class of bug, record it in your project's known-issues / quirks notes
+- Propose one cheap, always-on signal (a log line, a metric or an assertion) that would have shown
+  the deciding fact (the value or state that settled the Phase 3 table) at first look. A deep dig
+  means the failure did not show that fact, and a signal left on shows it the next time without
+  another session. A proposal fits when it is cheap enough to leave on in production and, had it
+  existed, the first failing run would have shown the fact. Propose it in the record and leave it
+  out of the fix commit, because a signal left on in production needs its own review for cost and
+  noise; a Phase 4 probe kept as that signal loses its tag and goes through the same review.
+  Whether to propose is the `always_on_signal` key of `<home>/debugging.yaml` under the git toplevel. Run
+  `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh"` and follow its exit code; never
+  parse the instruction file yourself. Exit 0 prints `<home>`; exit 1 (no pointer) means
+  `docs/conventions`; exit 4 (the repository declined a home) and exit 5 (outside a git work tree,
+  or the root at or above your home directory) skip the file; exit 2 or 3 is reported in the reply
+  with the resolver's message and skips the file. `when-instrumented` (the default, used when the file or the key
+  is absent) proposes one when Phase 4 instrumentation ran, since needing a probe is what shows
+  the fact was hidden; `always` proposes one on every run; `never` skips it. A file that does not
+  parse, or any other value, is reported in the reply as invalid with the file, key and value, and
+  the default applies. Report the value in use in one line, such as
+  `always_on_signal: when-instrumented (default)`.
 
 ### Prevention
 
@@ -340,7 +366,7 @@ four-part records live in [reference/native-debug.md](reference/native-debug.md)
 
 - **Does not ship without a feedback loop**. Phase 1 is a hard gate. If a loop cannot be built, that is the report you deliver
 - **Does not retry blindly**. "tried it again and it worked" is not a fix. Intermittent passes mean the root cause is still present
-- **Does not fix the symptom**. A null check at the call site is fixing the symptom; finding why the value is null is fixing the cause
+- **Does not fix the symptom**. A null check at the call site is fixing the symptom when the value should never be null: the guard hides the bug, and finding why the value is null is fixing the cause. Handling a state is the fix when the system can legitimately be in it (an optional field left blank, a lookup with no match), so the test is whether that state is legitimate, not whether the change adds a guard
 - **Does not refactor mid-fix**. Keep the diff focused. Architectural findings go to Phase 6
 - **Does not re-derive a known classification**. When the symptom matches a shape your environment already classifies (a known-error taxonomy, a test-investigation routine), lean on that instead of re-deriving it
 - **Does not ship a workaround in place of the cause**. A workaround that ships carries a tracking link or a removal condition in its comment, and the code-tidying comment-residue audit flags one with neither as `unjustified-workaround`. Before shipping one, go back to Phase 3 if the diff's odd behavior cannot be followed without that explanatory comment: the cause is still unfound

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/debugging/schemas/debugging.schema.json",
+  "title": "Debugging team config",
+  "description": "Schema for debugging.yaml in a repository's convention home (default docs/conventions): the team layer of the debugging plugin's settings. Keys are read by /debugging:debug and listed in plugins/debugging/README.md, Configuration. Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "always_on_signal": {
+      "description": "When /debugging:debug's Phase 6 record proposes one cheap, always-on signal (a log line, metric or assertion) that would have shown the deciding fact at first look. when-instrumented: only when Phase 4 instrumentation ran. always: on every run. never: not at all.",
+      "enum": ["when-instrumented", "always", "never"],
+      "default": "when-instrumented"
+    }
+  }
+}

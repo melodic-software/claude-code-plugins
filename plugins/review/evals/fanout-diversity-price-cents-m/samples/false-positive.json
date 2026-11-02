@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/price-cents\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/invoice.js:4 | code-reviewer | invoiceLine still reads parsePrice's cents as dollars, so every invoice line prints 100 times too large. | Divide by 100 in invoiceLine |\n| 2 | SUGGESTION | low | src/price.js:3 | code-reviewer | parsePrice returns NaN for an empty string. | Validate the input |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "the only CRITICAL finding is the planted defect"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/price-cents\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/invoice.js:4 | code-reviewer | invoiceLine still reads parsePrice's cents as dollars, so every invoice line prints 100 times too large. | Divide by 100 in invoiceLine |\n| 2 | CRITICAL | medium | src/cart.js:5 | architecture-guardian | cartTotal now formats cents as dollars, so every cart total is 100 times too large. | Divide by 100 in cartTotal |\n\n## Surfaces\n\nRan: [code-reviewer@high, architecture-guardian@high]. Returned no result: [].",
+      "why": "a CRITICAL finding claims cartTotal is wrong"
+    }
+  ]
+}

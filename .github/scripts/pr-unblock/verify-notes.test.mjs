@@ -553,3 +553,35 @@ test("a pass on a person's PR at its head removes pr-verify-failed and names no 
   assert.deepEqual(await run({ pull: { head: { sha: OLD } } }), [], "the PR moved past the passing head");
   assert.deepEqual(await run({ pull: { state: "closed" } }), [], "a closed PR");
 });
+
+// The pull request read already carries its labels and its review comment
+// count, so the label check and the thread listing cost no call of their own
+// when they are there.
+test("a pass reads the labels and review comment count from the pull request read, not with calls of its own", async () => {
+  const run = async (pull) => {
+    const dir = tempDir("verify-notes-");
+    const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, "out"), ARTIFACT_NAME: PASS, VERDICT_FILE: join(dir, "verdict.json"), APP_SENDER_ID: String(APP) };
+    writeFileSync(env.VERDICT_FILE, passText());
+    writeFileSync(env.GITHUB_OUTPUT, "");
+    const api = {
+      ...fakeApi({ pull }),
+      listLabels: async () => assert.fail("the labels come with the pull request"),
+      listThreads: async () => assert.fail("no review comment, no fail-note thread"),
+    };
+    await main(env, { api, log: () => {} });
+    return { writes: api.writes, out: readFileSync(env.GITHUB_OUTPUT, "utf8") };
+  };
+  assert.deepEqual(await run({ user: { id: PERSON }, labels: [{ name: "ci" }, { name: "pr-verify-failed" }] }), { writes: [{ op: "unlabel", pr: 42, name: "pr-verify-failed" }], out: "" });
+  assert.deepEqual(await run({ user: { id: PERSON }, labels: [{ name: "ci" }] }), { writes: [], out: "" });
+  assert.deepEqual(await run({ review_comments: 0 }), { writes: [], out: "" });
+});
+
+test("a person's PR fail reads the label from the pull request read", async () => {
+  const dir = tempDir("verify-notes-");
+  const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, "out"), ARTIFACT_NAME: NAME, VERDICT_FILE: join(dir, "verdict.json"), APP_SENDER_ID: String(APP) };
+  writeFileSync(env.VERDICT_FILE, verdictText());
+  writeFileSync(env.GITHUB_OUTPUT, "");
+  const api = { ...fakeApi({ pull: { user: { id: PERSON }, labels: [{ name: "pr-verify-failed" }] } }), listLabels: async () => assert.fail("the labels come with the pull request") };
+  await main(env, { api, log: () => {} });
+  assert.deepEqual(ops(api), ["comment"], "labeled already: the comment alone");
+});

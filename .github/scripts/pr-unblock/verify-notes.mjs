@@ -121,7 +121,9 @@ export function failComment({ head, summary, notes }) {
   ].join("\n");
 }
 
-const hasLabel = async (api, pr, name = FAILED_LABEL) => (await api.listLabels(pr)).some((label) => label.name === name);
+// The labels come from the pull request read the job already made, when it
+// carries them, so the check costs no call of its own.
+const hasLabel = async (api, pull, pr, name = FAILED_LABEL) => (Array.isArray(pull?.labels) ? pull.labels : await api.listLabels(pr)).some((label) => label.name === name);
 
 // Runs every step, so one failure leaves the others done, then throws the first.
 async function everyStep(log, steps) {
@@ -167,7 +169,7 @@ async function holdForCredential({ api, pull, verdict: { pr, head }, humanGatedL
   await everyStep(log, [
     async () => {
       const label = humanGatedLabel();
-      if (!(await hasLabel(api, pr, label))) {
+      if (!(await hasLabel(api, pull, pr, label))) {
         await api.addLabels(pr, [label]);
       }
     },
@@ -192,7 +194,7 @@ async function holdForCredential({ api, pull, verdict: { pr, head }, humanGatedL
 }
 
 // A person's pull request at the FAIL's head: its fail comment, then the label.
-async function holdPersonPull({ api, verdict, log }) {
+async function holdPersonPull({ api, pull, verdict, log }) {
   const { pr, head } = verdict;
   const body = failComment(verdict);
   const mine = (await api.listIssueComments(pr)).filter((comment) => comment.user?.id === MARKER_AUTHOR_ID && firstLine(comment.body) === VERIFY_NOTE_MARKER);
@@ -202,7 +204,7 @@ async function holdPersonPull({ api, verdict, log }) {
   } else if (last.body !== body) {
     await api.updateIssueComment(last.id, body);
   }
-  if (!(await hasLabel(api, pr))) {
+  if (!(await hasLabel(api, pull, pr))) {
     await api.addLabels(pr, [FAILED_LABEL]);
   }
   await leaveQueue({ api, pr, log });
@@ -258,10 +260,16 @@ export async function findStaleNotes({ api, verdict, appId, log }) {
     return false;
   }
   if (pull.user?.id !== appId) {
-    if (await hasLabel(api, pr)) {
+    if (await hasLabel(api, pull, pr)) {
       await api.removeLabel(pr, FAILED_LABEL);
       log(`#${pr}: the ${verdict.verdict} at ${head} removed ${FAILED_LABEL}`);
     }
+    return false;
+  }
+  // A fail note is a review comment, so a pull request the read counts none
+  // on holds no fail-note thread; a read without the count lists the threads.
+  if (pull.review_comments === 0) {
+    log(`#${pr}: no review comment, so no open fail-note thread the ${verdict.verdict} at ${head} may supersede`);
     return false;
   }
   const open = staleVerifyNotes(await api.listThreads(pr), head, { supersededHead: head });
@@ -293,7 +301,7 @@ async function postAtHead({ api, pull, verdict, appId, log }) {
     return false;
   }
   if (pull.user?.id !== appId) {
-    await holdPersonPull({ api, verdict, log });
+    await holdPersonPull({ api, pull, verdict, log });
     return false;
   }
   // A note in a resolved thread is not posted: a pass that superseded an

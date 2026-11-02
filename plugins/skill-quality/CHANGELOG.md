@@ -3,6 +3,12 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.1] - 2026-11-02
+
+### Fixed
+
+- The `ve-new-evals-route-to-suite` case drops its `skill-fired` grader. `/skill-quality:check`'s description routes new eval cases to `/evals:validate`, so the right answer need not fire the skill; the case's other graders grade that routing.
+
 ## [0.34.0] - 2026-11-02
 
 ### Added

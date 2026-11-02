@@ -27,9 +27,10 @@ without the check ever failing, and a reviewer sees a one-line data change, not 
 - **Same change.** The change that fixes the last entry deletes the list. A later cleanup leaves
   the door open in between.
 - **Already empty.** A list found at zero entries is deleted the same way, in its own change.
-- **Not the ceilings file.** A counter in the ceilings file is not a list of offenders. A count
-  measured at `0` follows [§2 of the skill](../SKILL.md#2-zero-lands-the-rule): a lint count lands
-  its rule with no ceiling, and a count with no rule behind it is ratcheted at `0`.
+- **Not the ceilings file.** A single-count counter in the ceilings file is not a list of
+  offenders. A per-file counter is one, and `propose-tighten` drops each file that reaches `0`. A
+  count measured at `0` follows [§2 of the skill](../SKILL.md#2-the-lint-rollout-rule): a lint
+  count lands its rule with no ceiling, and a count with no rule behind it is ratcheted at `0`.
 - **Read by a file this change cannot edit.** When a workflow or other protected path reads the
   list, the list and its reader go together in a follow-up for whoever owns that path; deleting
   the list alone breaks the reader.

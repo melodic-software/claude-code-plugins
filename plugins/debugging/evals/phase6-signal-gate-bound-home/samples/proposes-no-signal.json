@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Removed the [DEBUG-c71e] line; the loop and the regression test pass. `always_on_signal: never`, so no always-on signal is proposed.",
+      "why": "skips the proposal under never"
+    },
+    {
+      "answer": "Fix committed with the regression test. The record notes the lower-cased lookup key as the root cause; the repo's debugging.yaml turns signal proposals off.",
+      "why": "no signal proposed, and says why"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "always_on_signal: never. Still, I recommend a `pricing.lookup_miss` counter tagged with the requested key.",
+      "why": "proposes a metric despite never"
+    },
+    {
+      "answer": "Proposed signal (not added here): when a price lookup misses, log a warning with the key and the known keys.",
+      "why": "proposes a log line"
+    },
+    {
+      "answer": "Kept the [DEBUG-c71e] print in pricing.py so the key shows next time.",
+      "why": "keeps the temporary debug line as a signal"
+    }
+  ]
+}

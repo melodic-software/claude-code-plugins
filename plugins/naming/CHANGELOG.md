@@ -3,6 +3,12 @@
 All notable changes to the `naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.2] - 2026-11-02
+
+### Changed
+
+- The `name-it-better` description is back to its 650-character text. The shorter one shipped on an eval that a negative control showed cannot tell it from a one-line generic description, so the cut was never measured.
+
 ## [0.6.1] - 2026-11-02
 
 ### Changed

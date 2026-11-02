@@ -1,6 +1,6 @@
 {
   "name": "toolchain",
-  "version": "0.19.1",
+  "version": "0.20.0",
   "description": "Repo-agnostic polyglot verification toolchain: build + test + lint for changed files across .NET, Python, TypeScript, Bash, PowerShell, Markdown, Go, YAML, and cross-cutting surfaces (`/toolchain:check`, `/toolchain:lint` with format-only `--fix` and gated `--code-fix`), `/toolchain:setup` for the per-ecosystem command config, `/toolchain:ratchet` for a CI ceiling on a count, and a turn-end Stop hook that warns when the recorded check or lint result is not a pass.",
   "author": {
     "name": "Melodic Software",
@@ -24,6 +24,12 @@
       "title": "Turn-end result gate",
       "description": "What a turn end does when the tree's recorded check or lint result is not a pass: advisory (default) warns and blocks nothing, enforce also blocks once on a recorded FAIL, off stays silent. Honored from user or managed settings only.",
       "default": "advisory"
+    },
+    "ratchet_break_glass": {
+      "type": "boolean",
+      "title": "Ratchet break glass",
+      "description": "When on, /toolchain:ratchet writes break_glass true into a ceilings file lacking the key, so a per-file counter honors inline exceptions with a reason, expiry and approver. Defaults to false, which writes false. The file's own break_glass key wins over this option.",
+      "default": false
     }
   }
 }

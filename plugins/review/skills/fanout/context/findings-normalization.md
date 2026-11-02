@@ -72,6 +72,16 @@ Key = normalized file path + line-proximity bucket (±3 lines), NOT category. Fi
 - **Rank:** (1) tier CRITICAL → IMPORTANT → SUGGESTION; (2) agreement count descending; (3) confidence, in the rank order [`context/severity.md`](../../../context/severity.md) "Confidence axis" owns. Render `pending: human-tier` and `forward-flag` markers visibly.
 - **Two-axis presentation:** the merged ranked queue is the primary view; the report ALSO regroups the same findings by review dimension (the Stage-0 category enum) under per-dimension headings. A merged rank can mask one dimension failing badly while the others pass.
 
+## Axis assignment
+
+After ranking, give each merged finding exactly one axis:
+
+- `spec` when the finding says the change does not do what the intent paragraph (SKILL.md "Intent paragraph") says it is for, or does only part of it.
+- `standards` for every other finding.
+- `standards` for every finding when the intent paragraph reads `Intent: not stated`.
+
+The axis comes from what the finding says about the change against the intent paragraph, never from its surface, category or tier: a security finding that a stated goal is missing is `spec`. The report lists the findings by axis under `## By axis`, spec first ([`findings-file-shape.md`](../../../reference/findings-file-shape.md) "Findings-file shape").
+
 ## Model assignment
 
-Stages 0 and 3 are judgment steps and run as `review:stage-normalizer` agent calls: Stage 0 for parse fidelity, Stage 3 for semantic merge. They read untrusted reviewer output, so they run as `stage-normalizer`, which holds Read only, never as a general-purpose subagent. Stages 1, 2, and 4 are table lookups and a sort; apply them directly on the main thread, never through a model call.
+Stages 0 and 3 are judgment steps and run as `review:stage-normalizer` agent calls: Stage 0 for parse fidelity, Stage 3 for semantic merge. They read untrusted reviewer output, so they run as `stage-normalizer`, which holds Read only, never as a general-purpose subagent. Stages 1, 2, and 4 are table lookups and a sort; apply them directly on the main thread, never through a model call. Axis assignment runs on the main thread too: it compares each already-normalized finding with the intent paragraph the main thread wrote.

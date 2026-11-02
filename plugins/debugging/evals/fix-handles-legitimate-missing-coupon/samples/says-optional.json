@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The coupon field is optional, so `discount_rate` now returns 0 for a missing code.",
+      "why": "names the coupon as optional"
+    },
+    {
+      "answer": "An order with no coupon is a legitimate state; handling it is the fix.",
+      "why": "names the state as legitimate"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Added a None check in discount_rate. The loop passes.",
+      "why": "never says why the state is allowed"
+    },
+    {
+      "answer": "Made the coupon field required so the code is always set.",
+      "why": "removes the state instead of handling it"
+    }
+  ]
+}

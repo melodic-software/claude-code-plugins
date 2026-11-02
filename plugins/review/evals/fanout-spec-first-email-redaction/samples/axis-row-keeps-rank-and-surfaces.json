@@ -1,0 +1,66 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/ws/.work/reviews/feat-orders-csv-export/20261101T120000Z-orders-csv.md",
+            "content": "---\ntype: review-findings\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/export-orders.js:4 | code-reviewer, security-reviewer | The commit says customer emails are redacted, but the CSV writes each raw address. | Mask the address |\n| 2 | IMPORTANT | high | src/calendar.js:2 | code-reviewer | isWeekend misses Sunday. | Check 0 and 6 |\n\n## By dimension\n\n### correctness\n\n| 2 | IMPORTANT | high | src/calendar.js:2 | code-reviewer | isWeekend misses Sunday. | Check 0 and 6 |\n\n## By axis\n\n### Spec\n\n| 1 | CRITICAL | high | src/export-orders.js:4 | code-reviewer, security-reviewer | The commit says customer emails are redacted, but the CSV writes each raw address. | Mask the address |\n\n### Standards\n\n| 2 | IMPORTANT | high | src/calendar.js:2 | code-reviewer | isWeekend misses Sunday. | Check 0 and 6 |\n\n## Unparsed\n\nnone\n"
+          }
+        }
+      ],
+      "why": "the Spec row keeps the redaction finding's rank 1 and its Surface(s) cell from ## Findings"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/ws/.work/reviews/feat-orders-csv-export/20261101T120000Z-orders-csv.md",
+            "content": "---\ntype: review-findings\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | high | src/calendar.js:2 | code-reviewer | isWeekend misses Sunday. | Check 0 and 6 |\n| 2 | CRITICAL | high | src/export-orders.js:4 | security-reviewer | Customer emails are not redacted as the commit states. | Mask the address |\n\n## By axis\n\n### Spec\n\n| 2 | CRITICAL | high | src/export-orders.js:4 | security-reviewer | Customer emails are not redacted as the commit states. | Mask the address |\n\n### Standards\n\n| 1 | IMPORTANT | high | src/calendar.js:2 | code-reviewer | isWeekend misses Sunday. | Check 0 and 6 |\n"
+          }
+        }
+      ],
+      "why": "rank 2 and its single surface carry over unchanged to the Spec row"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/ws/.work/reviews/feat-orders-csv-export/20261101T120000Z-orders-csv.md",
+            "content": "---\ntype: review-findings\n---\n\n## Findings\n\n| Rank | Tier     | Confidence | Location               | Surface(s)        | Finding                                              | Action |\n|------|----------|------------|------------------------|-------------------|------------------------------------------------------|--------|\n| 1    | CRITICAL | high       | src/export-orders.js:4 | security-reviewer | The CSV writes PII the commit says it leaves out.    | Drop the email column |\n\n## By axis\n\n### Spec\n\n| 1 | CRITICAL | high | src/export-orders.js:4 | security-reviewer | The CSV writes PII the commit says it leaves out. | Drop the email column |\n\n### Standards\n\nnone\n"
+          }
+        }
+      ],
+      "why": "a column-aligned ## Findings row and an unpadded Spec row carry the same rank and surface; the finding names PII"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/ws/.work/reviews/feat-orders-csv-export/20261101T120000Z-orders-csv.md",
+            "content": "---\ntype: review-findings\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | high | src/calendar.js:2 | code-reviewer | isWeekend misses Sunday. | Check 0 and 6 |\n| 2 | CRITICAL | high | src/export-orders.js:4 | code-reviewer, security-reviewer | The CSV writes raw emails the commit says are redacted. | Mask the address |\n\n## By axis\n\n### Spec\n\n| 1 | CRITICAL | high | src/export-orders.js:4 | code-reviewer, security-reviewer | The CSV writes raw emails the commit says are redacted. | Mask the address |\n\n### Standards\n\n| 2 | IMPORTANT | high | src/calendar.js:2 | code-reviewer | isWeekend misses Sunday. | Check 0 and 6 |\n"
+          }
+        }
+      ],
+      "why": "the axis rows are renumbered from 1, so the Spec row loses the finding's rank 2"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/ws/.work/reviews/feat-orders-csv-export/20261101T120000Z-orders-csv.md",
+            "content": "---\ntype: review-findings\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/export-orders.js:4 | code-reviewer, security-reviewer | The commit says customer emails are redacted, but the CSV writes each raw address. | Mask the address |\n\n## By axis\n\n### Spec\n\n| 1 | CRITICAL | high | src/export-orders.js:4 | The CSV writes raw emails. | Mask |\n\n### Standards\n\nnone\n"
+          }
+        }
+      ],
+      "why": "the Spec row drops the Surface(s) column"
+    }
+  ]
+}

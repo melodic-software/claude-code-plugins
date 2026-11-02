@@ -20,7 +20,7 @@ graders:
     flags: 'm'
   - name: 'reads-json'
     type: 'regex'
-    pattern: '(?:^|[.;!?:]|\b(?:so|then|and|but)\b)[ \t*_>`-]*(?:(?![.;!?\n])(?!\b(?:not|never|no|cannot|without|nothing|rather than|instead of)\b)(?![A-Za-z]*n[''’]t\b)[^\n])*?\b(?:read|parse|check|inspect|look at|examine|load)\b(?:(?![.;!?\n])(?!\b(?:not|never|no|without|instead of|rather than)\b)(?![A-Za-z]*n[''’]t\b)[^\n]){0,60}?\b(?:JSON|results?\.json|out\.json|aggregate-result\.json)\b|\bjq\b|\bJSON\b[^\n.]{0,40}\b(?:tells|shows|says|distinguishes|explains|reveals)\b(?![ \t]+(?:you[ \t]+)?(?:nothing|no|little|less)\b)'
+    pattern: '(?:^|[.;!?:]|\b(?:so|then|and|but)\b)[ \t*_>`-]*(?:(?![.;!?\n])(?!\b(?:not|never|no|cannot|without|nothing|rather than|instead of)\b)(?![A-Za-z]*n[''’]t\b)[^\n])*?\b(?:read|parse|check|inspect|look at|examine|load)\b(?:(?![.;!?\n])(?!\b(?:not|never|no|without|instead of|rather than)\b)(?![A-Za-z]*n[''’]t\b)[^\n]){0,90}?\b(?:JSON|results?\.json|out\.json|aggregate-result\.json)\b|\bjq\b|\bJSON\b[^\n.]{0,40}\b(?:tells|shows|says|distinguishes|explains|reveals)\b(?![ \t]+(?:you[ \t]+)?(?:nothing|no|little|less)\b)'
     flags: 'mi'
   - name: 'skill-fired'
     type: 'tool_used'

@@ -12,6 +12,10 @@
     },
     {
       "answer": "Not with plugin eval; it runs in a fresh temporary home, and CLAUDE.md is absent there. Instead, remove the rules for a while and watch what goes wrong in real work."
+    },
+    {
+      "answer": "No. Each run starts from a throwaway home, so CLAUDE.md and your rules are removed before the agent starts.",
+      "why": "removed, a synonym the word list lacked"
     }
   ],
   "fail": [
@@ -26,6 +30,10 @@
     {
       "answer": "CLAUDE.md is loaded in both arms, so the delta is zero.",
       "why": "wrong"
+    },
+    {
+      "answer": "CLAUDE.md is loaded in every run. Removed files elsewhere don't matter.",
+      "why": "removed in another sentence, not about CLAUDE.md"
     }
   ]
 }

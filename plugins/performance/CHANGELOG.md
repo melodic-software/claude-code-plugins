@@ -3,6 +3,12 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.2] - 2026-11-02
+
+### Added
+
+- `scripts/ratchet.py` accepts per-file counters (a `ceilings` object of file path to ceiling) and an optional `break_glass` key. Existing ceilings files keep working unchanged.
+
 ## [0.14.1] - 2026-11-02
 
 ### Changed

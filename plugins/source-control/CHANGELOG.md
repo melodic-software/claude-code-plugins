@@ -3,6 +3,22 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.0.5] - 2026-11-02
+
+### Fixed
+
+- **babysit-prs**: the pr-verify verdict reader reads its incremental artifact listing again after a wait when the pages near expiry leave the count short, instead of paging the whole repository at once. That short count is a page-boundary skip in the fresh pages, which a second read restores. It reads again only while the near-expiry caps left cover another such read. The whole listings' top-ups now get those caps again, so incremental reads that spent them do not starve a top-up.
+
+- A post-merge report kept from an earlier pr-merge tick is no longer refused as `code-changed` by a commit that only edits whole-line comments, blank lines or trailing whitespace in `docs/conventions/pr-pipeline.yaml`. Those are read by the config parser's own rules (`yaml-subset.awk`): lines split on `\n` only, one trailing `\r` dropped, and only a space or tab is a blank. A block scalar, a quote left open on a line, or any other control or line-separator character still compares the file as written, and a change to `yaml-subset.awk` refuses the report.
+- `babysit_verify_evidence.py settle --idle-tick` reads cheapest first: the report's own refusals before any read, and the two verifying-run listings before the lane room's reuse rule, so a miss either one decides spends none of that rule's reads. Every refusal is kept, and the report checks run again last.
+- `settle` prints how the lane room's reuse rule settled (`outcome`, with what moved), so a refused reuse names its cause in the log.
+
+## [5.0.4] - 2026-11-02
+
+### Fixed
+
+- The `babysit-loop-demotion-reported-not-written` eval case's `names-demoted-cell` grader now also passes a report that says `C2-auto-merge` was lowered or is off, so a correct cycle report in plain words no longer scores 0.8.
+
 ## [5.0.3] - 2026-11-02
 
 ### Security

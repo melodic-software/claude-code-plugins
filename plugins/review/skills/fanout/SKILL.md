@@ -33,6 +33,8 @@ Breadth review: fan out across MANY finding-producing surfaces at once (`quality
 
 **Review modes report; a separate `fix` action applies.** The `default` and `run-everything` modes fan out, normalize, and persist findings, mutating nothing but the findings file. The `fix` action consumes the persisted findings and is the only mode that touches the working tree.
 
+**Stub-scaffold phase.** When a stub-scaffold phase (the planning plugin's `scaffold_stubs` setting) is committed, fanout may review that diff before the bodies are filled in, so file layout and signatures get a review while they are still cheap to change. It runs as an ordinary review of the committed diff, with no argument, setting or step of its own.
+
 ## Shared inputs
 
 - **Review diff base**, when an open PR exists for the branch, its `baseRefName` is the base: dispatched surfaces diff `git merge-base origin/<baseRefName> HEAD`. The pre-computed PR list above is capped; when the current branch is absent from it, run `gh pr list --head <current-branch> --json number,baseRefName` before concluding no PR exists. Otherwise `git merge-base origin/HEAD HEAD` (falling back to the remote's resolved default branch via `git ls-remote --symref`, then `origin/main`). When none of them yields a merge-base (no remote, or a shallow clone sharing no ancestor with it), the base is unresolved: never fall back to `HEAD`. A hardcoded `git diff HEAD` is empty on a clean committed branch, so it would read as nothing to review.
@@ -132,7 +134,15 @@ Read the pre-computed facts (the pre-flight gate above has already screened out 
 
 Run the 5-stage pipeline in [context/findings-normalization.md](context/findings-normalization.md) over every surface's raw output. Before a CRITICAL finding enters the report, read its cited `file:line` in the diff; a finding the code does not bear out drops to `low` confidence with that note, never silently removed.
 
-**Dismissed.** The report gains a `## Dismissed` section after `## By dimension`: one line per
+**Axis.** Then give each finding one axis, `spec` or `standards`, by the rule in
+[context/findings-normalization.md](context/findings-normalization.md) "Axis assignment": `spec`
+when it says the change does not do, or only partly does, what the intent paragraph says it is for.
+The report lists the findings again under `## By axis`, after `## By dimension`, with `### Spec`
+before `### Standards` (shape: [`findings-file-shape.md`](../../reference/findings-file-shape.md)
+"Findings-file shape"). Fanout reviews the code against its stated purpose; it does not review a
+spec or plan document.
+
+**Dismissed.** The report gains a `## Dismissed` section after `## By axis`: one line per
 finding this step demoted, giving its rank, its location and the reason in one sentence taken from
 what the cited line shows. The finding itself stays in `## Findings` at its demoted confidence. The
 section lists demotions only; no finding leaves the report, so nothing is listed as dropped. With

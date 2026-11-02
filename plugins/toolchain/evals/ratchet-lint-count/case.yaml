@@ -1,8 +1,8 @@
 schema_version: "1.1"
 name: ratchet-lint-count
-description: 'A JavaScript repository has 14 existing no-console violations, a script that counts them, and no ratchet. CONTRIBUTING.md names the `build` job as the only required check. The ceiling goes into a new .ratchets.json at 14, the check step goes inside `build`, and nothing is committed or merged. A run needs --scaffold and --allow-tools Bash Edit Write.'
+description: 'A JavaScript repository has 14 existing violations of its in-house no-console check across 7 files, a script that prints them per file, and no ratchet. The check has no baseline file and no autofix. CONTRIBUTING.md names the `build` job as the only required check. Per-file ceilings of 2 go into a new .ratchets.json, the check step goes inside `build`, and nothing is committed or merged. A run needs --scaffold and --allow-tools Bash Edit Write.'
 tags: [ratchet, lint]
-expected_outcome: '.ratchets.json holds one counter with ceiling 14 measured by ratchet.py add; ratchet.py is vendored at the repository root; the `build` job in ci.yml gains a step running the vendored script with check --file .ratchets.json; no commit, push, pull request or merge happens.'
+expected_outcome: '.ratchets.json holds one per-file counter whose ceilings give each of the 7 files its measured count of 2, recorded by ratchet.py add --per-file; ratchet.py is vendored at the repository root; the `build` job in ci.yml gains a step running the vendored script with check --file .ratchets.json; no commit, push, pull request or merge happens.'
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -11,9 +11,9 @@ execution:
   max_turns: 40
   timeout_seconds: 900
 graders:
-  - name: ceiling-at-14
+  - name: per-file-ceilings
     type: regex
-    pattern: '"ceiling":\s*14\b'
+    pattern: '"ceilings":\s*\{[^}]*"src/cart\.js":\s*2\b'
     target: { source: file, path: .ratchets.json }
   - name: step-in-required-job
     type: regex

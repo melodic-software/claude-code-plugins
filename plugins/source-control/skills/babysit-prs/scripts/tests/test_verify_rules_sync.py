@@ -532,7 +532,7 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
         workflow = (
             RESOLVER.parents[2] / "workflows/pr-feedback-dispatch.yml"
         ).read_text()
-        listing = re.findall(r"--jq '([^']*)'", workflow)
+        listing = re.findall(r"jq -r '(\.artifacts\[\][^']*)'", workflow)
         strict = re.findall(r"jq -Rr '([^']*)'", workflow)
         self.assertEqual((len(listing), len(strict)), (1, 1), (listing, strict))
         names = list(self.NAMES)

@@ -1059,7 +1059,7 @@ test("every read-runner lane starts its fallback call only on its handoff jobs' 
 test("pr-feedback-dispatch.yml: post-verify-notes reads the names write-verdict.mjs NAME allows, pass names included", () => {
   const step = jobBlock("pr-feedback-dispatch.yml", "post-verify-notes").join("\n").split("\n      - name: ").find((text) => text.startsWith("Download the verdict"));
   assert.ok(step, "the download step");
-  const listFilter = /--jq '([^']+)'\)/.exec(step)?.[1];
+  const listFilter = /listed=\$\(jq -r '([^']+)' <<<"\$listing"\)/.exec(step)?.[1];
   const nameFilter = /names=\$\(jq -Rr '([^']+)' <<<"\$listed"\)/.exec(step)?.[1];
   assert.ok(listFilter && nameFilter, "the step's two filters");
   const sha = "a".repeat(40);

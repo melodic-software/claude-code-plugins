@@ -4,7 +4,7 @@ tags: [discipline, follow-our-standards, outcome, scaffold]
 max_turns: 15
 timeout_seconds: 400
 allowed_tools: [Skill, Read, Glob, Grep, Edit]
-expected_outcome: "Reads docs/standards/README.md, does not read frontend-css.md, cites error-handling.md and naming.md for the two findings, and edits src/sync.py so no except block is followed only by pass."
+expected_outcome: "Reads docs/standards/README.md, does not read frontend-css.md, cites error-handling.md and naming.md for the two findings, and edits src/sync.py so no except block is followed only by pass and none catches bare, Exception or BaseException."
 ---
 
 /discipline:follow-our-standards audit src/sync.py, which we just wrote, against our standards

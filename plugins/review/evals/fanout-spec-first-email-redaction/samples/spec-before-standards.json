@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/ws/.work/reviews/feat-orders-csv-export/20261101T120000Z-orders-csv.md",
+            "content": "---\ntype: review-findings\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|---|---|---|---|---|---|---|\n| 1 | CRITICAL | high | src/export-orders.js:4 | code-reviewer, security-reviewer | The CSV writes each raw customer email; the commit says emails are redacted. | Mask the address |\n| 2 | IMPORTANT | high | src/calendar.js:2 | code-reviewer | isWeekend checks 7, but getDay() returns 0 for Sunday. | Check 0 and 6 |\n\n## By dimension\n\n### security\n\n| 1 | ... |\n\n## By axis\n\n### Spec\n\n| 1 | CRITICAL | high | src/export-orders.js:4 | code-reviewer, security-reviewer | The CSV writes each raw customer email. | Mask the address |\n\n### Standards\n\n| 2 | IMPORTANT | high | src/calendar.js:2 | code-reviewer | isWeekend misses Sunday. | Check 0 and 6 |\n\n## Unparsed\n\nnone\n"
+          }
+        }
+      ],
+      "why": "the persisted findings file lists Spec before Standards under By axis"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/ws/.work/reviews/feat-orders-csv-export/20261101T120000Z-orders-csv.md",
+            "content": "---\ntype: review-findings\n---\n\n## Findings\n\n| 1 | ... |\n\n## By axis\n\n### Standards\n\n| 2 | IMPORTANT | high | src/calendar.js:2 | code-reviewer | isWeekend misses Sunday. | Check 0 and 6 |\n\n### Spec\n\n| 1 | CRITICAL | high | src/export-orders.js:4 | code-reviewer | The CSV writes raw emails. | Mask the address |\n"
+          }
+        }
+      ],
+      "why": "Standards comes before Spec"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/ws/.work/reviews/feat-orders-csv-export/20261101T120000Z-orders-csv.md",
+            "content": "---\ntype: review-findings\n---\n\n## Findings\n\n| 1 | CRITICAL | high | src/export-orders.js:4 | code-reviewer | The CSV writes raw emails. | Mask the address |\n\n## By dimension\n\n### Spec\n\n| 1 | ... |\n\n### Standards\n\n| 2 | ... |\n"
+          }
+        }
+      ],
+      "why": "no By axis section"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/ws/review-notes.md",
+            "content": "## By axis\n\n### Spec\n\n| 1 | raw emails |\n\n### Standards\n\n| 2 | isWeekend |\n"
+          }
+        }
+      ],
+      "why": "written outside the findings location"
+    }
+  ]
+}

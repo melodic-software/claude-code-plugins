@@ -3,7 +3,7 @@ name: dl-legacy-state-relay
 graders:
   - name: relays-the-move
     type: regex
-    pattern: '^(?=[\s\S]*\bruntime\b)(?=[\s\S]*\bstate\b)(?=[\s\S]*\bbuilds\b)(?=[\s\S]*\bcache\b)(?=[\s\S]*\bLEDGER\.md\b)(?=[\s\S]*(?:\bGaming[\\/]+dlss5\b|\bJoin-Path\b[^\n]{0,40}[''"]dlss5[''"]|`dlss5[\\/]`))'
+    pattern: '^(?=[\s\S]*\bruntime\b)(?=[\s\S]*\bstate\b)(?=[\s\S]*\bbuilds\b)(?=[\s\S]*\bcache\b)(?=[\s\S]*\bLEDGER\.md\b)(?=[\s\S]*(?:\bGaming[\\/]+dlss5\b|\bJoin-Path\b[^\n]{0,40}[''"]dlss5[''"]|`dlss5[\\/]`|\$\w+[\\/]+dlss5[\\/]?[''"]))'
     flags: 'i'
     target: last_message
   - name: user-moves
