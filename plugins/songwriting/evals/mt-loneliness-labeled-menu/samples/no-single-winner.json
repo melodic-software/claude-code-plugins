@@ -44,6 +44,18 @@
     {
       "answer": "**How I'd choose:** tenderness, #3; bitterness, #5.",
       "why": "one-word moods after a bold heading"
+    },
+    {
+      "answer": "How I'd choose: honestly, it depends on whether the ballad is bitter or tender.",
+      "why": "filler word opens the guide"
+    },
+    {
+      "answer": "How I'd choose: first, name the feeling; then take #1 for ache or #5 for bitterness.",
+      "why": "ordinal opens the guide"
+    },
+    {
+      "answer": "How I'd choose: bitterness, **#5**; tenderness, **#3**.",
+      "why": "emphasized option numbers"
     }
   ],
   "fail": [
@@ -75,14 +87,6 @@
     {
       "answer": "**How I'd choose:** *the porch light still waits up*.",
       "why": "a single italic pick on the choosing-guide line (review finding)"
-    },
-    {
-      "answer": "How I'd choose: motel.",
-      "why": "a bare single pick on the choosing-guide line"
-    },
-    {
-      "answer": "**How I'd choose:** motel, it keeps the vacancy sign in the song.",
-      "why": "a bare single pick after a bold heading"
     }
   ]
 }
