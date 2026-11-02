@@ -914,7 +914,7 @@ class RunValidityTest(unittest.TestCase):
             )
 
     def test_a_with_arm_bash_denial_with_no_rooted_path_is_a_fail(self):
-        for command in ("ls -la", "cat notes.txt", ""):
+        for command in ("ls -la", "cat notes.txt", "", "ls -la /proc; ls"):
             proc = self.denied_second_run("with", 1, root=self.PLUGIN, command=command)
             self.assertVerdict(proc, "INVALID", 1)
 
@@ -1756,6 +1756,18 @@ class BashPathsTest(unittest.TestCase):
             ('D="<d>"\nR=$D/x S=$R/y\ncat $S', (d, d + "/x", d + "/x/y", d + "/x/y")),
             ("R=/p/skills/x; cat $R/f", ("/p/skills/x", "/p/skills/x/f")),
             ("cat /a; cat /b | head", ("/a", "/b")),
+            ("(cat /a) >/tmp/x", ("/a", "/tmp/x")),
+        ):
+            self.assertEqual(self.paths(command), paths, command)
+
+    def test_a_later_command_naming_no_rooted_argument_adds_none(self):
+        for command, paths in (
+            ("ls -la /proc; ls", ("/proc", None)),
+            ("cat /proc/v && make", ("/proc/v", None)),
+            ("ls /proc; find -type f", ("/proc", None)),
+            ("cd /proc && cd - && ls", ("/proc", None)),
+            ("cat /proc/v; ls >/tmp/x", ("/proc/v", "/tmp/x", None)),
+            ("cat /proc/v; ls > /tmp/x", ("/proc/v", "/tmp/x", None)),
         ):
             self.assertEqual(self.paths(command), paths, command)
 
@@ -1787,6 +1799,10 @@ class BashPathsTest(unittest.TestCase):
             'D=<d>; printf -vD -- -x; ls -- "$D/a"',
             'GROUPS=<d>; cat "$GROUPS/a"',
             'D=<d>\r\ncat "$D/a"',
+            'D=<d>; E="$((D=5))"; cat "$D/a"',
+            'D=<d>; E=$[D=5]; cat "$D/a"',
+            'D=<d>; X=D; read "$X"; cat "$D/a"',
+            'D=<d>; X=D; declare "$X=/e"; cat "$D/a"',
         ):
             self.assertIn(None, self.paths(command), command)
 
