@@ -15,13 +15,19 @@ The writer of both files under the rule in reference/shared/approvals.md,
            approved_at, approved_by, notes }.
   revoke   approvals.json: remediations.<RemediationId>.approved = false and
            approved_at = now.
+  review-check  approvals.json: reviewed_checks.<CheckId> = { reviewed: true,
+           reviewed_at, reviewed_by: "setup apply", notes }. CheckId must be
+           one custom check registered in <StateBase>/catalog/checks.local.jsonc,
+           so a wildcard or a list is refused.
+  unreview-check  approvals.json: reviewed_checks.<CheckId>.reviewed = false
+           and reviewed_at = now; a check with no record throws.
   exclude-service  approvals.json: append ServiceName to
            check_overrides.services.service_exclusions; a name already there
            (any case, as Restart-StoppedService matches) is skipped.
   include-service  approvals.json: remove ServiceName (any case) from that list.
 
-CheckId must be a shipped check id and RemediationId a shipped remediation
-(Get-RemediationId). ServiceName follows the CreateService rule: 1 to 256
+For mute, CheckId must be a shipped check id; for review-check, a custom one.
+RemediationId must be a shipped remediation (Get-RemediationId). ServiceName follows the CreateService rule: 1 to 256
 characters, no '/' or '\', and here also no control character and no leading or
 trailing whitespace, since Restart-StoppedService compares the exact name. state/approvals.lock (Enter-RunLock) is held across one
 read, the change, the schema check and one Write-StateFile replace, so a
@@ -49,7 +55,8 @@ function Set-ApprovalState {
     param(
         [Parameter(Mandatory = $true)] [string] $StateBase,
         [Parameter(Mandatory = $true)]
-        [ValidateSet('mute', 'unmute', 'approve', 'revoke', 'exclude-service', 'include-service')] [string] $Action,
+        [ValidateSet('mute', 'unmute', 'approve', 'revoke', 'review-check', 'unreview-check',
+            'exclude-service', 'include-service')] [string] $Action,
         [string] $CheckId,
         [string] $FindingKey,
         [string] $RemediationId,
@@ -107,14 +114,30 @@ function Set-ApprovalState {
         return , $node['service_exclusions']
     }
 
+    $idsOf = {
+        param([string] $Path)
+        $doc = Get-Content -LiteralPath $Path -Raw -ErrorAction Stop | ConvertFrom-Jsonc
+        if ($null -eq $doc -or -not $doc.PSObject.Properties['checks']) { return @() }
+        return @($doc.checks | Where-Object { $_ -and $_.PSObject.Properties['id'] } | ForEach-Object { [string]$_.id })
+    }
+    $assertCheckIdShape = {
+        if ($request.CheckId -cnotmatch '^[a-z][a-z0-9-]*[a-z0-9]$') {
+            throw "Set-ApprovalState: -CheckId '$($request.CheckId)' is not one check id; name each check on its own."
+        }
+    }
+    $reviewedOf = {
+        param($Doc)
+        if ($null -eq $Doc['reviewed_checks']) { $Doc['reviewed_checks'] = [System.Text.Json.Nodes.JsonObject]::new() }
+        return , $Doc['reviewed_checks']
+    }
+
     $mutesFile = @{ Name = 'mutes.json'; Schema = 'mutes.schema.json'; Root = 'checks' }
     $approvalsFile = @{ Name = 'approvals.json'; Schema = 'approvals.schema.json'; Root = 'remediations' }
     $actions = @{
         mute    = @{
             File     = $mutesFile
             Validate = {
-                $shipped = @((Get-Content -LiteralPath (Join-Path $catalogRoot 'checks.jsonc') -Raw |
-                            ConvertFrom-Jsonc).checks | ForEach-Object { [string]$_.id })
+                $shipped = @(& $idsOf (Join-Path $catalogRoot 'checks.jsonc'))
                 if ($request.CheckId -notin $shipped) { throw "Set-ApprovalState: '$($request.CheckId)' is not a shipped check id." }
             }
             Apply    = {
@@ -178,6 +201,46 @@ function Set-ApprovalState {
                 if ($null -eq $remediations[$id]) { $remediations[$id] = [System.Text.Json.Nodes.JsonObject]::new() }
                 $remediations[$id]['approved'] = $false
                 $remediations[$id]['approved_at'] = $now
+                return $true
+            }
+        }
+        'review-check' = @{
+            File     = $approvalsFile
+            Validate = {
+                & $assertCheckIdShape
+                $overlayPath = Join-Path $StateBase 'catalog\checks.local.jsonc'
+                $custom = @()
+                if (Test-Path -LiteralPath $overlayPath) {
+                    $shipped = @(& $idsOf (Join-Path $catalogRoot 'checks.jsonc'))
+                    $custom = @(& $idsOf $overlayPath | Where-Object { $_ -notin $shipped })
+                }
+                if ($request.CheckId -cnotin $custom) {
+                    throw ("Set-ApprovalState: '$($request.CheckId)' is not a custom check registered in " +
+                        "'$overlayPath'; only a custom check is clamped, so only one can be reviewed.")
+                }
+            }
+            Apply    = {
+                param($Doc)
+                $entry = [System.Text.Json.Nodes.JsonObject]::new()
+                $entry['reviewed'] = $true
+                $entry['reviewed_at'] = $now
+                $entry['reviewed_by'] = 'setup apply'
+                $entry['notes'] = & $orNull $request.Notes
+                (& $reviewedOf $Doc)[$request.CheckId] = $entry
+                return $true
+            }
+        }
+        'unreview-check' = @{
+            File     = $approvalsFile
+            Validate = $assertCheckIdShape
+            Apply    = {
+                param($Doc)
+                # Assign inside the branch: an if expression would enumerate a JsonObject.
+                $entry = $null
+                if ($null -ne $Doc['reviewed_checks']) { $entry = $Doc['reviewed_checks'][$request.CheckId] }
+                if ($null -eq $entry) { throw "Set-ApprovalState: '$($request.CheckId)' has no review recorded in reviewed_checks." }
+                $entry['reviewed'] = $false
+                $entry['reviewed_at'] = $now
                 return $true
             }
         }

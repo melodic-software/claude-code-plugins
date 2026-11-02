@@ -32,6 +32,7 @@ Emitted by `scripts/<os>/checks/Test-*.ps1`. Exactly one JSON object per invocat
                              "delta":         { "type": ["string", "null"] },
                              "adjusted_from": { "type": ["string", "null"], "description": "Pre-adjustment severity when a trend rule changed it." }
                          }},
+    "clamped_from":     { "type": "string", "enum": ["OK", "INFO", "WARN", "CRIT", "UNKNOWN"], "description": "Set by the orchestrator only, on a custom check the custom-check clamp capped: the severity before the cap. Absent otherwise." },
     "notes":            { "type": "string", "description": "Optional. Reason for severity adjustment, caveats, etc." },
     "error":            { "type": ["string", "null"], "description": "Populated when ran_successfully is false." }
   }

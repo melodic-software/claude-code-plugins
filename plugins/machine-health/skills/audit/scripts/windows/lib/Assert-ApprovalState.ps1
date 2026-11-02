@@ -8,7 +8,8 @@ Validates that an object conforms to the ApprovalState schema.
 Mirrors Assert-CheckResult and Assert-CatalogEntry for the approvals.json
 payload. The authoritative schema is catalog/schemas/approvals.schema.json;
 this function pins the shape rules the orchestrator actually relies on
-(schema_version, remediations shape, optional migration block).
+(schema_version, remediations shape, optional reviewed_checks and migration
+blocks).
 
 Returns $true on success; throws on violation. Callers typically catch and
 log the message while falling back to default (nothing approved).
@@ -51,6 +52,22 @@ function Assert-ApprovalState {
         }
         if ($value.approved -isnot [bool]) {
             throw "ApprovalState.remediations['$name'].approved must be a boolean$ctx."
+        }
+    }
+
+    if ($State.PSObject.Properties['reviewed_checks']) {
+        if ($null -eq $State.reviewed_checks) {
+            throw "ApprovalState.reviewed_checks is null$ctx."
+        }
+        foreach ($prop in $State.reviewed_checks.PSObject.Properties) {
+            $name = $prop.Name
+            $value = $prop.Value
+            if ($null -eq $value -or $null -eq $value.PSObject.Properties['reviewed']) {
+                throw "ApprovalState.reviewed_checks['$name'] missing required field 'reviewed'$ctx."
+            }
+            if ($value.reviewed -isnot [bool]) {
+                throw "ApprovalState.reviewed_checks['$name'].reviewed must be a boolean$ctx."
+            }
         }
     }
 
