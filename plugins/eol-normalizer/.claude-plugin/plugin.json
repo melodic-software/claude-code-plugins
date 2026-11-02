@@ -16,6 +16,9 @@
     "normalizer",
     "hook"
   ],
+  "metadata": {
+    "category": "development"
+  },
   "userConfig": {
     "eol_normalizer_enabled": {
       "type": "boolean",

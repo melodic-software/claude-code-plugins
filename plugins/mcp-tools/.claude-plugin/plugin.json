@@ -14,5 +14,8 @@
     "quality",
     "scorecard",
     "skill"
-  ]
+  ],
+  "metadata": {
+    "category": "quality"
+  }
 }

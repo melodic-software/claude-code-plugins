@@ -838,7 +838,9 @@ For each skill/hook/agent being migrated:
 10. **Version.** Set an explicit semver `version` in `plugin.json`. A later bump that changes behavior a
    consumer depends on records the change in the plugin's changelog. See "Version pinning and update
    delivery" above.
-11. **Publish.** Add the entry to `.claude-plugin/marketplace.json`. The plugin `source` is the
+11. **Publish.** Set `keywords` and `metadata.category` (from [catalog-taxonomy.md](catalog-taxonomy.md))
+    in `plugin.json`, add an entry with `name` and `source` to `.claude-plugin/marketplace.json`, and run
+    `node scripts/generate-marketplace.mjs`, which writes the entry's `category` and `tags`. The plugin `source` is the
     `./`-prefixed relative path (e.g. `./plugins/<name>`). Bare names fail `claude plugin validate --strict`
     even with `metadata.pluginRoot` set, despite the marketplaces-doc example to the contrary (verified
     2026-06-23). Then run `claude plugin validate --strict <repo-root>` to validate the **catalog manifest
@@ -1130,7 +1132,7 @@ wrote only data (`zones.json`) or nothing at all. Reviewed as a delta; the base 
 
 - **Code execution (1).** The write is a byte-identical copy of a reviewed, tested, bundled script,
   with no generation, no templating, and no operator-supplied content, so nothing enters it that was not
-  already in the plugin. Critically, **the copy is inert until the operator wires it**: it is not
+  already in the plugin. **The copy is inert until the operator wires it**: it is not
   on `PATH`, not a hook, and not referenced by any Claude Code surface, so the base record's
   justification for having no kill switch, "nothing runs unless the operator wires it, and
   unwiring is the same one-line edit", survives verbatim. The shim itself has no untrusted input

@@ -59,5 +59,8 @@
     "testing",
     "tooling",
     "skill"
-  ]
+  ],
+  "metadata": {
+    "category": "testing"
+  }
 }

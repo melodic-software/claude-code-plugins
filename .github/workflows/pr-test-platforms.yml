@@ -413,6 +413,19 @@ jobs:
       - name: Test the developer-experience pointer-line helper on Windows
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/developer-experience/skills/setup/scripts/pointer-line.test.sh')
         run: bash plugins/developer-experience/skills/setup/scripts/pointer-line.test.sh
+      # The install-python-deps SessionStart hooks under real Git Bash: a ready stamp
+      # pydeps.py writes with native Windows paths must let the hook start no Python.
+      # Only the real Git Bash cases run here; the rest stub interpreters and run on
+      # Linux. explainer-video's suite skips unless Python 3.12 or 3.13 is on PATH.
+      - name: Test the animation install-python-deps hook on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/animation/hooks/install-python-deps.test.sh')
+        run: bash plugins/animation/hooks/install-python-deps.test.sh
+      - name: Test the speech install-python-deps hook on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/speech/hooks/install-python-deps.test.sh')
+        run: bash plugins/speech/hooks/install-python-deps.test.sh
+      - name: Test the explainer-video install-python-deps hook on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/explainer-video/hooks/install-python-deps.test.sh')
+        run: bash plugins/explainer-video/hooks/install-python-deps.test.sh
 
       - name: Log the API budget at the end
         if: always()

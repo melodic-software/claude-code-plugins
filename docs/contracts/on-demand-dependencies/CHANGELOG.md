@@ -4,6 +4,19 @@ Notable changes to the on-demand dependency contract. The contract is versioned 
 stamp in `README.md` (SemVer). A `[SPEC]` rule that tightens is a major bump; a new rule, exception
 or adopter is a minor bump; wording is a patch.
 
+## [2.4.0] - 2026-11-02
+
+- **Rule P2**: the install hook skips the install and the load probe, starting no process, while
+  `pydeps.py`'s ready stamp holds. A successful install through an interpreter found on PATH writes
+  the stamp; another plugin root, a changed candidate resolution, a newer interpreter file, lock,
+  `pydeps.py` or `pydeps.json`, or a missing installed set invalidates it. Paths are compared as
+  files, not strings ([#12258](https://github.com/melodic-software/claude-code-plugins/issues/12258)).
+- **Rule P3**: the load probe runs on the hook's full path, in the repair install and in `check`.
+- **Rule P4**: a stamped set that breaks surfaces at skill time; the launcher and `check` drop the
+  stamp so the next session start rebuilds, and a failed launcher run with a stamp present prints
+  the repair line. The two cases that outlive the stamp's checks, a candidate symlink repointed to
+  an older interpreter file and a version-manager shim whose selected version changed, are stated.
+
 ## [2.3.0] - 2026-10-04
 
 - **Rule P4**: in an interactive session the agent offers to run the repair line and runs it on the

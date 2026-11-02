@@ -34,5 +34,8 @@
     "audit",
     "realign",
     "skill"
-  ]
+  ],
+  "metadata": {
+    "category": "claude-code"
+  }
 }

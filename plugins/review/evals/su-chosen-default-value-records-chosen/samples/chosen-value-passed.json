@@ -5,7 +5,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "node \"/plugins/review/skills/setup/scripts/setup-apply.mjs\" ratchet_offer=true",
+            "command": "node \"/plugins/review/skills/setup/scripts/setup-apply.mjs\" downstream_probe=run",
             "description": "Write the review settings"
           }
         }
@@ -19,7 +19,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "node \"/plugins/review/skills/setup/scripts/setup-apply.mjs\" --default ratchet_offer",
+            "command": "node \"/plugins/review/skills/setup/scripts/setup-apply.mjs\" --default downstream_probe",
             "description": "Write the review settings"
           }
         }

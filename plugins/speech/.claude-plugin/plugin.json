@@ -15,8 +15,12 @@
     "kokoro",
     "elevenlabs",
     "word-timings",
-    "skill"
+    "skill",
+    "audio"
   ],
+  "metadata": {
+    "category": "audio"
+  },
   "userConfig": {
     "elevenlabs_model": {
       "type": "string",

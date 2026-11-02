@@ -434,7 +434,7 @@ command's own `--help` (gh 2.95.0); `gh api` has no `--body-file` flag at all.
 
 The failure is invisible from the outside: the comment's timestamp still
 moves, so any check keying on `updatedAt` reads the lane as **fresh** while it
-carries no data. (This skill's sibling reader `morning-brief` is not that check: it parses `lane:` and `last-cycle:` out of the body, so a degraded comment makes
+carries no data. (The reader `/work-items:morning-brief` is not that check: it parses `lane:` and `last-cycle:` out of the body, so a degraded comment makes
 the lane vanish from its report rather than look healthy. What a degraded body
 deceives is any consumer that keys on the comment's timestamp instead of reading
 its body.)
@@ -460,5 +460,5 @@ succeeds while storing the previous body still verifies, and the read-back prove
 - `/harness-ops:plugins`, the authoritative, richer plugin-fleet sync (scope
   divergence, new-catalog installs). This skill's marketplace refresh is the light
   `claude plugin marketplace update` step of a launch, not a substitute.
-- `/harness-ops:morning-brief`. Reads the loop-lane **telemetry** (per-lane
+- `/work-items:morning-brief`. Reads the loop-lane **telemetry** (per-lane
   last-cycle freshness). This skill starts/stops the lanes that emit it.

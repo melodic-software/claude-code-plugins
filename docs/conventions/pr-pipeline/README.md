@@ -1103,11 +1103,12 @@ the rules that only tighten in
   issue (over the cap or outside the charset), which labels it `needs-human`; it labels a canary or revert record
   `needs-human`, since only a person's close clears one. `babysit_postmerge.py --remediate` labels
   every record it files `needs-human`: the lanes App's issue starts intake triage on its own, and
-  that label keeps admission off it. On a green attempt 1 of a scheduled full run on main, the
+  that label keeps admission off it. On each completed scheduled full run on main, the
   alert's `close-cleared` job closes as completed each open schedule or dispatch record, demotion
-  or post-merge-failure, that either filer opened before that run was created, at a commit behind
-  its head, and that was never edited; closing it is the record's state only, and the merge gate
-  still decides whether it holds. A fix or quarantine issue not delivered to intake triage gets
+  or post-merge-failure, that either filer opened, that was never edited, and that a later green
+  full run on main cleared by the merge gate's own rule (`_recovered_at`: attempt 1, a schedule or
+  a github-actions[bot] dispatch, created after the record, at a commit ahead of its SHA and on
+  main); closing it is the record's state only, and the merge gate still decides whether it holds. A fix or quarantine issue not delivered to intake triage gets
   `needs-human`, and the record does when a failing check got no fix issue, whether over the cap,
   outside the charset, or not filed; a fix issue reopened on a
   repeat failure keeps whatever labels it has, so one labeled `needs-human` stays with a person.
