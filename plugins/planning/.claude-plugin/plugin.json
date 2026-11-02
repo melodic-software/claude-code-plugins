@@ -121,6 +121,12 @@
     "goal",
     "completion-condition",
     "autonomous-goal",
-    "skill"
-  ]
+    "skill",
+    "domain-modeling",
+    "ubiquitous-language",
+    "glossary"
+  ],
+  "metadata": {
+    "category": "design"
+  }
 }

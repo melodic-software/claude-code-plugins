@@ -15,5 +15,8 @@
     "work-item",
     "context-guard",
     "skill"
-  ]
+  ],
+  "metadata": {
+    "category": "claude-code"
+  }
 }

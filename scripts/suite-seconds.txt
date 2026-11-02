@@ -360,8 +360,6 @@ plugins/harness-ops/skills/lanes/scripts/probe-lane-config.test.sh 1
 plugins/harness-ops/skills/lanes/scripts/restart-consumer.test.sh 38
 plugins/harness-ops/skills/lanes/scripts/telemetry-upsert.test.sh 7
 plugins/harness-ops/skills/machine-profile/scripts/profile.test.sh 9
-plugins/harness-ops/skills/morning-brief/morning-brief-view.test.sh 1
-plugins/harness-ops/skills/morning-brief/morning-brief.test.sh 105
 plugins/harness-ops/skills/observability/claude-observability.test.sh 2
 plugins/harness-ops/skills/observability/otel/cc-otel.test.sh 3
 plugins/harness-ops/skills/observability/otel/net-probe.test.sh 1
@@ -665,6 +663,8 @@ plugins/work-items/scripts/backfill-capability-tier-labels.test.sh 1
 plugins/work-items/scripts/evaluate-schedule-precondition.test.sh 1
 plugins/work-items/scripts/lane-telemetry-upsert.test.sh 1
 plugins/work-items/scripts/lib/legacy-frontier-tier-signal.test.sh 1
+plugins/work-items/skills/morning-brief/morning-brief-view.test.sh 1
+plugins/work-items/skills/morning-brief/morning-brief.test.sh 105
 plugins/work-items/skills/onboard-adapter/scripts/generate-adapter.test.sh 31
 plugins/work-items/skills/work/scripts/preflight.test.sh 4
 plugins/work-items/tests/floor-class-stays-routable.test.sh 1

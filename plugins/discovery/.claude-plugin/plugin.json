@@ -21,6 +21,9 @@
     "agents",
     "skill"
   ],
+  "metadata": {
+    "category": "discovery"
+  },
   "userConfig": {
     "explore_output": {
       "type": "string",

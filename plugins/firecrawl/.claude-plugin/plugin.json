@@ -13,6 +13,10 @@
     "web-search",
     "crawling",
     "parsing",
-    "cli"
-  ]
+    "cli",
+    "skill"
+  ],
+  "metadata": {
+    "category": "discovery"
+  }
 }
