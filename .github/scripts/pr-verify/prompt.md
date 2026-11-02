@@ -45,14 +45,18 @@ DIFF_PARTSCHUNK_NOTE
   item applies in full.
 - `JOBS_FILE`: JSON listing the jobs of the pr-require-checks run on the judged head, each with
   its `name`, `conclusion` and job page `url`. It is the evidence of which test and check suites
-  ran and whether they passed: you run no test or eval yourself. A job that concluded `success`
-  on the judged head and runs a suite settles that the suite ran and passed there: a done-when
+  ran and whether they passed: you run no test or eval yourself. The list does not name the
+  suites each job ran: a job counts as having run suite X only when X is in that job's lane and
+  covers the changed files, since the test selection picks suites from the changed paths. When
+  a job that ran X concluded `success` on the judged head, X ran and passed there: a done-when
   item such as "X exits 0" is met, and "the tests were not run" or "X likely fails" is no
   defect, whatever the pull request body says about running it and whatever reading the code
-  predicts. Cite the job's `url` when you rely on it. A green job settles only that; steps 2 and
-  3 still judge whether the test can fail, covers the change, or was weakened, and whether the
-  diff changed the job's workflow. Suites the change does not touch are skipped by design, so a `skipped`
-  job is a defect only when its suite covers the changed files. When `select-tests` itself is
+  predicts. Cite the job's `url` when you rely on it. When nothing shows that a green job ran X,
+  such as a change elsewhere that X only imports, the item stays unsettled and is judged as
+  before. A green job settles only that; steps 2 and 3 still judge whether the test can fail,
+  covers the change, or was weakened, and whether the diff changed the job's workflow. Suites
+  the change does not touch are skipped by design, so a `skipped` job is a defect only when its
+  suite covers the changed files. When `select-tests` itself is
   `skipped`, the run was a label or body-edit re-run that ran no suite: the list is then no
   evidence either way, and its skips are no defect. `ci-status` sums the others and
   fails on holds a person lifts; it is not test evidence. Its `wrapped_node_suites` lists each
