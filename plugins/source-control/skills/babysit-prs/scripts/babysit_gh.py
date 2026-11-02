@@ -315,7 +315,7 @@ def _send(
         status, headers, proc.stdout = _split_headers(proc.stdout)
         token = _api_budget_token(env_overrides)
         if token and status is not None:
-            _api_budget_write(token, status, headers)
+            _api_budget_write(token, status, headers, api_route(_endpoint(args)))
     if guarded:
         _guard_response(limits_pool, args, proc, status, headers, binary=binary)
     return proc, headers
@@ -947,7 +947,9 @@ def _split_headers(stdout: str) -> tuple[int | None, dict[str, str], str]:
     return int(match.group(1)), headers, stdout[offset:]
 
 
-def _api_budget_write(token: str, status: int, headers: Mapping[str, str]) -> None:
+def _api_budget_write(
+    token: str, status: int, headers: Mapping[str, str], route: str = "other"
+) -> None:
     """Append one reading. Never raises: a reading that cannot be written is
     dropped."""
     readings = {
@@ -959,17 +961,103 @@ def _api_budget_write(token: str, status: int, headers: Mapping[str, str]) -> No
         path = os.path.join(os.environ["RUNNER_TEMP"], "api-budget")
         os.makedirs(path, exist_ok=True)
         with open(os.path.join(path, token), "a", encoding="utf-8") as handle:
-            handle.write(_api_budget_line(str(status), readings))
+            handle.write(_api_budget_line(str(status), readings, route))
     except OSError:
         pass
 
 
-def _api_budget_line(status: str, headers: Mapping[str, str]) -> str:
+def _api_budget_line(
+    status: str, headers: Mapping[str, str], route: str = "other"
+) -> str:
     values = [
         headers[key] if pattern.fullmatch(headers.get(key, "")) else "na"
         for key, pattern in _API_BUDGET_VALUES.items()
     ]
-    return f"{status} {' '.join(values)}\n"
+    return f"{status} {' '.join(values)} {route}\n"
+
+
+# A reading's route, for the job-end api-routes notice: rate-guard.mjs's
+# routeOf, whose REST_PATH_WORDS this list is (test_babysit_gh_api_budget.py
+# checks both against rate-guard.vectors.json's routes). A URL on a host other
+# than api.github.com and uploads.github.com is other, unless its path starts
+# with /api/ (GHES); scheme, host, /api/v3, query and fragment go; a GraphQL
+# path is graphql; repos/<owner>/<repo> is repos/{repo}; a number is {n}; hex
+# of 7 or more characters {sha}; the segment after one that names a thing
+# (labels/<name>) and every segment after one that starts a path or ref
+# (contents/<path>) is {x} unless a number; a REST path word stays; any other
+# segment is {x}; a route over 80 characters is other.
+REST_PATH_WORDS = frozenset(
+    "api v3 repos orgs users user installation app graphql pulls issues comments"
+    " reviews requested_reviewers git refs ref heads tags trees blobs commits"
+    " compare merges merge check-runs check-suites statuses status labels"
+    " assignees milestones events timeline actions runs jobs attempts artifacts"
+    " logs rerun rerun-failed-jobs workflows dispatches variables secrets"
+    " contents branches protection rules rulesets collaborators permission teams"
+    " members hooks deployments environments releases search code reactions"
+    " files rate_limit annotations repositories installations access_tokens"
+    " pending_deployments cancel update-branch dismissals readme matching-refs"
+    " languages notifications".split()
+)
+_ROUTE_TAIL = frozenset(
+    {"contents", "ref", "refs", "matching-refs", "readme", "compare", "trees"}
+)
+_ROUTE_NAME = frozenset(
+    {"labels", "branches", "tags", "users", "orgs", "teams", "members"}
+    | {"collaborators", "assignees", "environments", "secrets", "variables"}
+    | {"workflows", "commits", "blobs", "statuses", "releases"}
+)
+_ROUTE_URL = re.compile(r"([a-z][a-z0-9+.-]*://)([^/?#]*)([^?#]*)", re.IGNORECASE)
+_ROUTE_API_HOST = re.compile(r"(api|uploads)\.github\.com", re.IGNORECASE)
+_ROUTE_NUMBER = re.compile(r"[0-9]+")
+_ROUTE_SHA = re.compile(r"[0-9a-fA-F]{7,}")
+
+
+def api_route(url: str) -> str:
+    """A request's URL or `gh api` path as a route that holds no query, name
+    or token (the rules above)."""
+    url = str(url)
+    host = _ROUTE_URL.match(url)
+    if host:
+        if not _ROUTE_API_HOST.fullmatch(host[2]) and not host[3].startswith("/api/"):
+            return "other"
+        url = url[len(host[1]) + len(host[2]) :]
+    path = re.split(r"[?#]", url, maxsplit=1)[0].lstrip("/")
+    path = re.sub(r"^api/(v3/)?", "", path).rstrip("/")
+    if path == "graphql":
+        return "graphql"
+    if path == "":
+        return "other"
+    segments = path.split("/")
+    out: list[str] = []
+    tail = name = False
+    index = 0
+    while index < len(segments):
+        seg = segments[index]
+        if tail or name:
+            out.append(
+                "{n}"
+                if _ROUTE_NUMBER.fullmatch(seg)
+                else "{sha}"
+                if _ROUTE_SHA.fullmatch(seg)
+                else "{x}"
+            )
+            name = False
+        elif index == 1 and segments[0] == "repos" and len(segments) >= 3:
+            out.append("{repo}")
+            index += 1
+        elif _ROUTE_NUMBER.fullmatch(seg):
+            out.append("{n}")
+        elif _ROUTE_SHA.fullmatch(seg):
+            out.append("{sha}")
+        elif seg in REST_PATH_WORDS and seg not in ("api", "v3", "graphql"):
+            out.append(seg)
+            tail = seg in _ROUTE_TAIL
+            name = seg in _ROUTE_NAME
+        else:
+            out.append("{x}")
+        index += 1
+    route = "/".join(out)
+    return "other" if len(route) > 80 else route
 
 
 def run_gh(args: list[str], *, timeout_seconds: float | None = None) -> str:

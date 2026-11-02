@@ -3,6 +3,21 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.83.0] - 2026-11-01
+
+### Added
+
+- `block-github-post-content` on the Bash and PowerShell row blocks a `gh pr|issue comment|review|create|edit`, a writing `gh api`, or a curl post to the GitHub API whose body holds a secret pattern or a hardcoded machine-specific path, with the secret-pattern-detection and hardcoded-path-check pattern sets. A secret block names the pattern class, never the value. Escape: `block_github_post_content_enabled`.
+
+### Fixed
+
+- The README note about installed mods no longer says a mod can always approve a call these
+  guards blocked. That now depends on the setup, so the note links to where hooks run in the mod
+  chain and to the precedence among rules, hooks and mods, with an as-of date and a recheck
+  trigger.
+
+- `block-fix-request-post` now reads the command a script wrapper runs after `--` (`bash gate.sh run KEY -- gh ...`, split on bare `+++`), which it passed unread before, and curl short flags written together (`-sSd`) and `--expand-data`. Its body parse moved to `lib/github-post/github-post-body.sh`, shared with the new guard.
+
 ## [0.82.0] - 2026-11-01
 
 ### Added

@@ -73,8 +73,10 @@
 #                    silent credential exfiltration. Containment blocks that; pipe
 #                    via `-` for a body generated in memory.
 #   --body-dir DIR   Directory a real --body-file must resolve under
-#                    (default: $CLAUDE_PLUGIN_DATA, only when its last path
-#                    segment names harness-ops).
+#                    (default: $CLAUDE_PLUGIN_DATA). Either counts only when its
+#                    last path segment names harness-ops, and never when it is /,
+#                    the home dir, or an ancestor of it: a caller-chosen
+#                    `--body-dir ~` would otherwise contain nothing.
 #   --repo owner/name  Target repo (default: `gh repo view` for the cwd's repo).
 #                    Validated as owner/repo before URL interpolation so a
 #                    traversal value can't redirect the API to another repo.
@@ -151,8 +153,10 @@
 #   0  upserted and verified (or, with --dry-run, resolved)
 #   3  invalid argument (bad issue/marker/repo, body-file outside the safe dir),
 #      or a body that failed the pre-write gate (over the size cap, under the
-#      size floor, or starting with a literal `@`) — NOTHING was written
-#   4  prerequisite missing (gh or jq), or the repo / safe body dir / write
+#      size floor, starting with a literal `@`, or matching the leak scan, which
+#      names the rule and never the match), or a --marker findMachine matches
+#      (a hostname the public sentinel would publish) — NOTHING was written
+#   4  prerequisite missing (gh, jq or node), or the repo / safe body dir / write
 #      identity unresolved (nothing was written)
 #   5  a gh API call (list / create / update) failed, the comment list was empty
 #      or not a JSON array of objects, or detection could not read it (nothing
@@ -161,6 +165,7 @@
 #      performed) — the comment on the issue is NOT confirmed telemetry
 
 set -uo pipefail
+unset CDPATH
 
 jq() { command jq "$@" | tr -d '\r'; }
 err() { printf 'ERROR: %s\n' "$*" >&2; }
@@ -262,7 +267,7 @@ while (($#)); do
 done
 
 # After the parse loop, so `--help` answers on a machine missing either tool.
-for bin in gh jq; do
+for bin in gh jq node; do
   type -P "$bin" >/dev/null 2>&1 || {
     err "$bin not found (required)"
     exit 4
@@ -289,62 +294,31 @@ if [[ -n "$APP_SLUG" && ! "$APP_SLUG" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
   exit 3
 fi
 
-# Read the body. `-` reads stdin (a body generated in memory — no arbitrary-file
-# read, so it is exempt from the containment check below). A real path must
-# resolve UNDER the safe dir: this script is prompt-driven, and an unconstrained
-# read would turn `--body-file <any-secret>` into public-comment exfiltration.
+# Read the body. `-` reads stdin (a body generated in memory: no arbitrary-file
+# read, so it is exempt from containment, not from the leak scan below). A real
+# path goes through telemetry-body-gate.sh (a generated copy of
+# lib/telemetry-body-gate.sh), the rule every lane telemetry upsert shares: the
+# safe body dir must be this plugin's data dir (never /, the home dir or an
+# ancestor of it), the file must resolve under it, and it is read once.
+# shellcheck source=lib/telemetry-body-gate.sh
+. "${BASH_SOURCE[0]%/*}/lib/telemetry-body-gate.sh"
 if [[ "$BODY_FILE" == "-" ]]; then
   body_text="$(cat)"
 else
-  [[ -f "$BODY_FILE" ]] || {
-    err "body file not found: $BODY_FILE"
+  [[ -e "$BODY_FILE" || -L "$BODY_FILE" ]] || {
+    err "body file not found; nothing was written"
     exit 3
   }
-  # Reject a symlink leaf outright. Containment below canonicalizes the PARENT
-  # dir but re-appends the basename raw, so a symlink whose link file sits under
-  # the safe dir but targets a secret elsewhere would otherwise pass and `cat`
-  # would follow it. A telemetry body has no reason to be a symlink; use `-`
-  # (stdin) for an in-memory body.
-  [[ -L "$BODY_FILE" ]] && {
-    err "body file must not be a symlink: $BODY_FILE"
-    exit 3
-  }
-  # An inherited CLAUDE_PLUGIN_DATA bounds the body file only when its last path
-  # segment names this plugin: another plugin's SessionStart hook can export its
-  # own data dir under that name, which would widen the containment to it.
-  safe_dir="$BODY_DIR"
-  if [[ -z "$safe_dir" ]]; then
-    seg="${CLAUDE_PLUGIN_DATA:-}"
-    seg="${seg%[/\\]}"
-    seg="${seg##*[/\\]}"
-    if [[ "$seg" == harness-ops || "$seg" == harness-ops-* ]]; then
-      safe_dir="$CLAUDE_PLUGIN_DATA"
-    fi
-  fi
-  [[ -n "$safe_dir" ]] || {
-    err "no safe body dir: pass --body-dir DIR (or pipe the body via --body-file -); an inherited CLAUDE_PLUGIN_DATA counts only when it names harness-ops"
+  tbg_safe_dir harness-ops "$BODY_DIR" || {
+    err "$TBG_ERR (or pipe the body via --body-file -)"
     exit 4
   }
-  # Canonicalize the PARENT dir of each side to a physical path via the same
-  # `cd … && pwd -P` (resolving any `..` and symlinked ancestor), then compare
-  # prefixes. The leaf is guarded separately by the symlink check above, so
-  # re-appending basename raw is safe.
-  safe_canon="$(cd "$safe_dir" 2>/dev/null && pwd -P)" || {
-    err "safe body dir not found: $safe_dir"
-    exit 4
-  }
-  body_parent="$(cd "$(dirname "$BODY_FILE")" 2>/dev/null && pwd -P)" || {
-    err "cannot resolve body file directory: $BODY_FILE"
+  tbg_read_body "$BODY_FILE" || {
+    err "$TBG_ERR; nothing was read or written"
     exit 3
   }
-  body_canon="$body_parent/$(basename "$BODY_FILE")"
-  # The trailing slash in the pattern forces a path-segment boundary, so
-  # `/safe` never matches a sibling `/safe-evil/...`.
-  [[ "$body_canon" == "$safe_canon"/* ]] || {
-    err "body file must resolve under the safe dir ($safe_canon); refusing to read $body_canon"
-    exit 3
-  }
-  body_text="$(cat "$BODY_FILE")"
+  body_text="$(cat -- "$TBG_COPY")"
+  rm -f -- "$TBG_COPY"
 fi
 
 # --- Pre-write body gate -----------------------------------------------------
@@ -369,8 +343,29 @@ if ((body_bytes < MIN_BODY_BYTES)); then
   exit 3
 fi
 
+# The marker is published too; a hostname-shaped instance in it is refused up
+# front, so the body scan below never blames the body for it.
+tbg_check_instance "${BASH_SOURCE[0]%/*}/../../../lib/publish-gate.mjs" "$MARKER" || {
+  err "$TBG_ERR; nothing was written"
+  exit 3
+}
 SENTINEL="<!-- harness-ops:lane-telemetry marker=$MARKER -->"
 new_body="$SENTINEL"$'\n'"$body_text"
+
+# --- Leak scan ---------------------------------------------------------------
+# The comment is public. scanLeak and findMachine (this plugin's generated copy
+# of lib/publish-gate.mjs) judge what would be posted, from a file or stdin. A
+# hit withholds all of it, never a masked copy, and names only the rule. A plain
+# assignment, a home path or a private hostname is withheld too, and so is a body
+# the scan cannot judge.
+leak="$(printf '%s' "$new_body" | tbg_scan "${BASH_SOURCE[0]%/*}/../../../lib/publish-gate.mjs")" || {
+  err "the leak scan could not run; nothing was written"
+  exit 3
+}
+if [[ -n "$leak" ]]; then
+  err "body withheld: $leak; nothing was written"
+  exit 3
+fi
 
 # --- Resolve owner/repo ------------------------------------------------------
 if [[ -z "$REPO" ]]; then

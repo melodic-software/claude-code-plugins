@@ -300,10 +300,10 @@ Every surviving mutant is one of three things, and the difference is a judgment:
 **This judgment is delegated to a fresh-context (non-fork) subagent, mandatorily.** It is the
 `self-grade` bias class: a context that generated the mutants and ran them is the weakest place to
 decide whether its own findings are worth reporting, and a fork inherits that reasoning rather than
-removing it. Hand over the artifact, the mutated line, its surrounding code, and the tests that
-covered it, never the reasoning that produced the mutant. The brief says it is done when every
-handed-over survivor has one of the three verdicts or is marked unclassified, and that it returns
-early rather than guess when the handed-over code is not enough to decide.
+removing it ([what a fork inherits](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents), as of 2026-11-01; recheck when that section changes).
+Hand over the artifact, the mutated line, its surrounding code, and the tests that covered it, never the reasoning
+that produced the mutant. The brief says it is done when every handed-over survivor has one of the three verdicts
+or is marked unclassified, and that it returns early rather than guess when the handed-over code is not enough to decide.
 
 **Every productive survivor also gets a cause**, assigned in the same brief, in both scopes, with a
 quoted line as its evidence:

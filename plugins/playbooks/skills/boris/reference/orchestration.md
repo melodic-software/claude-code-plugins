@@ -12,7 +12,7 @@ Tips from Boris Cherny's Parts 13–15 threads + the Thariq/Sid workflows deep-d
 > decision that would turn on any figure below, a new frontier-model release, or a suite version
 > bump (e.g. Terminal-Bench 2.1 → 2.2). On a firing, resolve current figures from the vendor's own
 > announcement for that release plus
-> [models overview](https://platform.claude.com/docs/en/models/overview#latest-models-comparison), and leave
+> [models overview](https://platform.claude.com/docs/en/models/overview#compare-models), and leave
 > these lines as history rather than restating a fresh snapshot here. Model specs and rates are
 > not recorded in this file at all;
 > [Section 94](#94-fable-5-the-best-coding-model-by-a-wide-margin) points at the pages that own
@@ -30,7 +30,7 @@ Shipped May 28, 2026. Launch-day benchmarks, from the [launch announcement](http
 - **Recheck trigger**: that section changes how fast mode is toggled, or a Claude Code release note
   touches it.
 
-> **Superseded (Jun 9, 2026):** Fable 5 is now the strongest coding model (Section 94). Opus 4.8 details remain accurate for that release.
+> **Superseded (Jun 9, 2026):** Fable 5 was the strongest coding model as of its launch (Section 94) and has since been succeeded. Opus 4.8 details remain accurate for that release. For the current lineup, fetch [Compare models](https://platform.claude.com/docs/en/models/overview#compare-models) and [Work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable) live (as of 2026-11-01; recheck on a new model release or when either section is renamed or moved).
 
 ## 79. High-Effort Default + xhigh + Raised Rate Limits
 
@@ -92,7 +92,7 @@ Thariq: sometimes more useful for non-technical work. Migrations/refactors (Bun'
 
 ## 86. Saving and Sharing Workflows
 
-Press **"s"** in the workflow menu to save (for the save locations, see [Save the workflow for reuse](https://code.claude.com/docs/en/workflows#save-the-workflow-for-reuse); as of 2026-10-02, recheck when that section changes), or distribute via a skill (reference the JS files in SKILL.md and prompt Claude to treat them as a *template*, not a verbatim script). The **"ultracode"** trigger word guarantees Claude builds a workflow rather than a single pass.
+Press **"s"** in the workflow menu to save (for the save locations, see [Save the workflow for reuse](https://code.claude.com/docs/en/workflows#save-the-workflow-for-reuse); as of 2026-10-02, recheck when that section changes), or distribute via a skill (reference the JS files in SKILL.md and prompt Claude to treat them as a *template*, not a verbatim script). The **"ultracode"** keyword opts a prompt into a workflow rather than a single pass, but not on every route a prompt can arrive by; for where it works, see [Ask for a workflow in your prompt](https://code.claude.com/docs/en/workflows#ask-for-a-workflow-in-your-prompt) (as of 2026-11-01; recheck when that section changes the keyword or where it applies).
 
 ## 87. Auto Mode Retired Plan Mode (Opus 4.6+)
 
@@ -120,7 +120,7 @@ Shipped Jun 9, 2026: a subagent can spawn its own subagents, capped at depth=5 *
 
 ## 92. fork: true Runs a Skill in Its Own Context Window (Experimental)
 
-Mark a skill to run in its own context window (the documented field is in the amendment below, not the tip's `fork: true`), then have the skill use agents to isolate context per step. Boris is adding it to the built-in `/code-review` skill. Why: a heavy skill (deep research, code review) pollutes or blows out the main context. Experimental: treat as preview, not stable API. Pairs with 5, 91; echoes 88's minimalism.
+Mark a skill to run in its own context window (the documented field is in the amendment below, not the tip's `fork: true`), then have the skill use agents to isolate context per step. Boris is adding it to the built-in `/code-review` skill. Why: a heavy skill (deep research, code review) pollutes or blows out the main context. The tip called it experimental at launch; that caveat is the tip's own, so read the amendment's pointers for the field's current status. Pairs with 5, 91; echoes 88's minimalism.
 
 > **Amended:** the `fork: true` key from this tip is not a documented frontmatter field. Use the
 > field the skills page documents for running a skill in its own subagent context instead.
@@ -147,17 +147,17 @@ Launch-day benchmarks (Fable 5 → Opus 4.8), from the [launch announcement](htt
 Specs and pricing are upstream-owned and not restated here.
 
 - **Pointer**: when a decision turns on this model's id, context window, output limit or
-  cutoff, fetch [Compare models](https://platform.claude.com/docs/en/models/overview#latest-models-comparison)
+  cutoff, fetch [Compare models](https://platform.claude.com/docs/en/models/overview#compare-models)
   live; for its rates, fetch [Model pricing](https://platform.claude.com/docs/en/about-claude/pricing#model-pricing)
   live.
-- **As of**: 2026-10-11
+- **As of**: 2026-11-01
 - **Recheck trigger**: a new frontier-model release, or either section is renamed or moved.
 
 <!-- ai-slop-ignore: verbatim Karpathy quotation --> Karpathy: "SOTA on everything by a margin… a major-version-bump-deserving step change… You can give it a lot more ambitious tasks — the model 'gets it' and it will just go."
 
 ## 95. What Fable 5 Changes for You
 
-- **New default for coding**: updates Section 2 (Model Selection) and 78 (Opus 4.8 "strongest yet").
+- **New default for coding (historical, Fable 5 launch)**: updated Section 2 (Model Selection) and 78 (Opus 4.8 "strongest yet") at launch. Do not treat Fable as today's default; for which model a session runs on and when to pick Fable, fetch [Work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable) and [Compare models](https://platform.claude.com/docs/en/models/overview#compare-models) live (as of 2026-11-01; recheck on a new model release or when either section changes its default or recommendation).
 - **"Less prompts and steers"**: lean into context minimalism (88) and delegation over guidance (65): give it the goal, not the micro-steps.
 - **Longer sessions + higher trust**: the autonomy stack (auto mode 42/68, `/goal` 77, nested subagents 91, workflows 80–86) pays off more on a base model that self-verifies better.
 - **Cost**: reach for Fable where the quality jump pays for itself. For current model economics, see [compare models on cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task) (as of 2026-10-02; recheck on a new model release or a change to that section's default recommendation).

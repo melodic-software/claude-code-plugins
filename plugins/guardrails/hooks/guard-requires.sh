@@ -59,6 +59,7 @@ declare -A GUARD_FIELDS=(
   ["block-cross-domain.sh"]='.tool_input.command .tool_name .cwd'
   ["block-dangerous-git.sh"]='.tool_input.command .cwd .tool_name'
   ["block-fix-request-post.sh"]='.tool_input.command .tool_name .cwd'
+  ["block-github-post-content.sh"]='.tool_input.command .tool_name .cwd'
   ["block-exported-msys-pathconv.sh"]='.tool_input.command .tool_name'
   ["block-no-verify.sh"]='.tool_input.command .tool_name'
   ["block-noncanonical-commit.sh"]='.tool_input.command .cwd .tool_name'

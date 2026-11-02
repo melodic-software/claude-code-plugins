@@ -61,6 +61,8 @@ Beyond the terminal, run additional sessions on claude.ai/code:
 > covers a later pick). For which model to run and how thinking works on it now, see
 > [Claude Code model config](https://code.claude.com/docs/en/model-config) and its
 > ["Extended thinking"](https://code.claude.com/docs/en/model-config#extended-thinking) section.
+> **As of:** 2026-11-01. **Recheck trigger:** that section is renamed or removed, or changes which
+> models can turn thinking off.
 
 ### Use Opus 4.5 with Thinking for Everything
 

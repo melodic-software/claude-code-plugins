@@ -9,8 +9,10 @@ had without -i. The line shape is .github/actions/log-api-budget/api-budget.bash
 
 from __future__ import annotations
 
+import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -94,7 +96,8 @@ class ApiBudgetTests(unittest.TestCase):
         )
         self.assertEqual(proc.stdout, body)
         self.assertEqual(
-            self.readings("lanes-app"), "200 5000 4880 120 1792748042 core\n"
+            self.readings("lanes-app"),
+            "200 5000 4880 120 1792748042 core repos/{repo}/contents/{x}\n",
         )
 
     def test_a_failed_call_is_read_and_still_raises_as_without_headers(self) -> None:
@@ -114,7 +117,8 @@ class ApiBudgetTests(unittest.TestCase):
             "gh api repos/o/r/pulls/1 failed: gh: Not Found (HTTP 404)",
         )
         self.assertEqual(
-            self.readings("github-token"), "404 5000 4000 1000 1792748042 core\n"
+            self.readings("github-token"),
+            "404 5000 4000 1000 1792748042 core repos/{repo}/pulls/{n}\n",
         )
 
     def test_a_rate_limited_call_is_read_before_the_latch_trips(self) -> None:
@@ -130,7 +134,8 @@ class ApiBudgetTests(unittest.TestCase):
                 check=True,
             )
         self.assertEqual(
-            self.readings("github-token"), "403 5000 0 5000 1792748042 core\n"
+            self.readings("github-token"),
+            "403 5000 0 5000 1792748042 core repos/{repo}/pulls/{n}\n",
         )
 
     def test_a_call_with_its_own_token_reads_into_the_override_name(self) -> None:
@@ -146,7 +151,7 @@ class ApiBudgetTests(unittest.TestCase):
             overrides={"GH_TOKEN": "t"},
         )
         self.assertEqual(
-            self.readings("github-token"), "200 5000 3 7 1792748042 core\n"
+            self.readings("github-token"), "200 5000 3 7 1792748042 core {x}\n"
         )
         self.assertFalse(pathlib.Path(self.dir, "api-budget", "lanes-app").exists())
 
@@ -188,6 +193,71 @@ class ApiBudgetTests(unittest.TestCase):
         )
         self.assertEqual(self.calls[-1], ["gh", "api", "rate_limit"])
         self.assertFalse(pathlib.Path(self.dir, "api-budget").exists())
+
+    def test_each_page_of_a_paged_read_is_a_reading_under_its_route(self) -> None:
+        env = {"RUNNER_TEMP": self.dir, "API_BUDGET_TOKEN": "github-token"}
+        page = HEAD.format(status=200, remaining=9, used=1).replace(
+            "\r\n\r\n",
+            '\r\nLink: <https://api.github.com/repositories/1/pulls?page=2>; rel="next"\r\n\r\n',
+        )
+        pages = iter(
+            [page + "[1]", HEAD.format(status=200, remaining=8, used=2) + "[2]"]
+        )
+
+        def fake(argv: list[str], **_kwargs: Any) -> subprocess.CompletedProcess[str]:
+            self.calls.append(argv)
+            return subprocess.CompletedProcess(argv, 0, next(pages), "")
+
+        with (
+            mock.patch.dict(os.environ, env, clear=False),
+            mock.patch.object(gh, "run_command", fake),
+        ):
+            gh._run_gh(
+                ["api", "repos/o/r/pulls?state=open", "--paginate", "--slurp"],
+                timeout_seconds=None,
+                check=True,
+            )
+        self.assertEqual(
+            self.readings("github-token"),
+            "200 5000 9 1 1792748042 core repos/{repo}/pulls\n"
+            "200 5000 8 2 1792748042 core repositories/{n}/pulls\n",
+        )
+
+
+VECTORS = json.loads(
+    (
+        pathlib.Path(__file__).resolve().parents[6]
+        / ".github"
+        / "actions"
+        / "log-api-budget"
+        / "rate-guard.vectors.json"
+    ).read_text(encoding="utf-8")
+)
+RATE_GUARD = (
+    pathlib.Path(__file__).resolve().parents[6]
+    / ".github"
+    / "actions"
+    / "log-api-budget"
+    / "rate-guard.mjs"
+).read_text(encoding="utf-8")
+
+
+class ApiRouteTests(unittest.TestCase):
+    def test_api_route_templates_each_shared_vector_as_route_of_does(self) -> None:
+        self.assertGreaterEqual(len(VECTORS["routes"]), 30)
+        for vector in VECTORS["routes"]:
+            with self.subTest(url=vector["url"]):
+                route = gh.api_route(vector["url"])
+                self.assertEqual(route, vector["route"])
+                for name in vector["absent"]:
+                    self.assertNotIn(name, route)
+
+    def test_the_route_words_are_rate_guard_mjs_rest_path_words(self) -> None:
+        match = re.search(
+            r'REST_PATH_WORDS = new Set\(\s*"([^"]+)"\.split\(" "\)', RATE_GUARD
+        )
+        assert match is not None
+        self.assertEqual(gh.REST_PATH_WORDS, frozenset(match[1].split(" ")))
 
 
 if __name__ == "__main__":
