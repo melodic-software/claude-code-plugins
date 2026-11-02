@@ -77,6 +77,10 @@
     {
       "answer": "SQL injection: unlike products.js, which uses a placeholder, this concatenates q. Fix: escape single quotes in q.",
       "why": "the placeholder describes products.js; the fix is escaping"
+    },
+    {
+      "answer": "SQL injection in src/routes/search.js:12. The code does not bind a parameter; escape quotes in the term before concatenating.",
+      "why": "a negated 'bind a parameter' with an escaping fix is not the parameterized fix"
     }
   ]
 }
