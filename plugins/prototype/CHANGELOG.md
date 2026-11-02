@@ -3,6 +3,12 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.0] - 2026-11-02
+
+### Added
+
+- **`/prototype:explore-directions` and `/prototype:pressure-test` honor the `rendered-views` `medium` preference.** Both take a `--medium` argument and read the `rendered-views` layers. In `explore-directions`, `terminal` or `file` drops the design-canvas offer, and the mockup stays a local file. In `pressure-test`, unless the request names a shell, `terminal` picks the terminal app, while `file`, `artifact` or `hosted` leaves the audience routing to pick the shell. Each names the source of `medium`.
+
 ## [0.23.0] - 2026-11-02
 
 ### Added
