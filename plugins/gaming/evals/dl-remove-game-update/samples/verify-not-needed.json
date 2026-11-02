@@ -2,11 +2,16 @@
   "pass": [
     { "answer": "Verify integrity isn't needed here: the changed exe is Steam's own update.", "why": "isn't needed" },
     { "answer": "You don't need to run Verify integrity.", "why": "don't need" },
-    { "answer": "Skip Verify; offer the refresh instead.", "why": "skip" }
+    { "answer": "Skip Verify; offer the refresh instead.", "why": "skip" },
+    { "answer": "**Verify integrity of game files**\n- You don't need it for this drift: the exe already matches Steam's build.", "why": "observed reply, reworded: heading, then the answer on the next line" },
+    { "answer": "## Verify integrity\n\nYou don't need to run it; the refresh is the fix.", "why": "markdown heading and a blank line" }
   ],
   "fail": [
     { "answer": "", "why": "empty" },
     { "answer": "Yes, run Verify integrity of game files, then run remove again.", "why": "recommends verify" },
-    { "answer": "The game was updated by Steam since the apply.", "why": "silent on verify" }
+    { "answer": "The game was updated by Steam since the apply.", "why": "silent on verify" },
+    { "answer": "**Verify integrity**\n- Don't forget to run it after the refresh.", "why": "heading then a bare don't that recommends it" },
+    { "answer": "**Verify integrity**\n- You don't need to wait: run it now, then rerun remove.", "why": "don't need to, about something else" },
+    { "answer": "**Verify integrity**\n\nRun it first.\nYou don't need it after that.", "why": "the answer is not the line under the heading" }
   ]
 }
