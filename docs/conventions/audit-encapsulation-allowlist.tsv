@@ -3,11 +3,15 @@
 # exist to exercise a detector; fix a real cite instead.
 plugins/docs-hygiene/skills/audit-encapsulation/scripts/detect.test.sh	regression fixtures embed literal cross-plugin, scripts/ and marketplace-id cites to exercise the detector
 plugins/attribution/skills/audit/evals/fixtures/golden/c28-near-verbatim-reformatted-guidance/expected.json	golden case for the attribution audit's eval; its adjudication records the third-party repository URL its planted copy came from, a plugin skill path the detector cannot tell from this marketplace's
+plugins/attribution/skills/audit/evals/nominations/	nomination records list the corpus files the attribution audit nominated, by repository path, as the sample its eval panel adjudicates
 plugins/attribution/skills/audit/scripts/list-corpus.test.sh	builds a scratch marketplace with plugins/demo/skills/ vendor and eval fixtures to exercise list-corpus.sh's corpus exclusions
 plugins/code-metrics/skills/audit-duplication/scripts/test_registry_filter.py	feeds synthetic plugins/<p>/skills/<s>/scripts/ instance paths to exercise the duplication registry filter's glob members
 plugins/docs-hygiene/evals/ae-cross-plugin-script-cite/	scaffold, graders and graded samples cite a scaffolded plugins/lint-kit skill script from a plugins/release-kit skill to exercise the encapsulation audit's cross-plugin scripts/ verdict
+plugins/evals/skills/plugin-eval/scripts/fixtures/run-validity/traces/	recorded eval traces whose tool calls read a scratch plugins/demo skill path to exercise run-validity's self-read denial rules
 plugins/guardrails/hooks/run-guards.test.sh	builds a scratch plugins/alpha/skills/setup tree to exercise run-guards.sh's post-tool dispatch
 plugins/guardrails/hooks/skill-reference-verify.test.sh	builds scratch plugin skill trees to exercise skill-reference-verify.sh's skill resolution
+plugins/harness-config/evals/fixtures/quay-repo.sh	builds a scratch plugins/quay-tools/skills/notes skill the permission-grant eval cases audit
+plugins/harness-config/evals/pg-plugin-skill-token/	case and graded samples name the scaffolded plugins/quay-tools notes skill to exercise the permission-grant audit's plugin-token verdict
 plugins/harness-config/skills/audit-instructions/scripts/emit-findings.test.sh	uses a synthetic plugins/demo/skills/tool path to exercise emit-findings.sh's lane and surface findings
 plugins/harness-config/skills/audit-permission-grants/evals/evals.json	eval prompt names a hypothetical plugins/deploy/skills/ship/SKILL.md to exercise the permission-grant audit's inert-grant verdict
 plugins/harness-config/skills/audit-permission-grants/scripts/permission-rule-check.test.sh	builds scratch plugin skill trees to exercise permission-rule-check.sh's skill scope and remedies
