@@ -138,7 +138,7 @@
       "required": ["classification", "rules", "autonomous_concurrency", "items_per_run"],
       "properties": {
         "classification": {
-          "description": "Signal-to-work-class classification rules, homed per signal-surface class — the mappings adapters stamp signal.work_class from (e.g. label string to class for tracker-vcs-event). A signal these rules cannot resolve is fail-closed human-gated before table evaluation.",
+          "description": "Signal-to-work-class classification rules, homed per signal-surface class — the mappings adapters stamp signal.work_class from (e.g. label string to class for tracker-vcs-event). A signal these rules cannot resolve carries no class and is evaluated against the decision table with the work-class axis \"*\", after the C5 untrusted-provenance trust tests have run.",
           "type": "object",
           "additionalProperties": false,
           "properties": {
@@ -149,7 +149,7 @@
           }
         },
         "rules": {
-          "description": "Decision-table rules; matching is most-specific-wins (full triple > two axes > one axis > default human-gated). Two matching rules of equal specificity with different dispositions make the binding invalid — fail-closed. A rule more permissive than the shipped default for its cell is invalid without override_justification; tightening needs none.",
+          "description": "Decision-table rules; matching is most-specific-wins (full triple > two axes > one axis); where no rule matches, the shipped C5 and channel-feed human-gated rows apply, then the default autonomous-eligible within caps. Two matching rules of equal specificity with different dispositions make the binding invalid — fail-closed. A rule more permissive than the shipped default for its cell is invalid without override_justification; tightening needs none.",
           "type": "array",
           "items": { "$ref": "#/$defs/AdmissionRule" }
         },

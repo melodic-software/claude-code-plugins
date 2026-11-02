@@ -32,9 +32,8 @@ reversal is a bounded revert; verifiability combines deterministic gates with AI
 
 ### `C4`: structural
 
-Refactors, migrations, contract changes. Blast radius is cross-cutting and reversal is hard,
-so the class escalates for upfront plan approval before execution. Its risk shows in the diff
-the review lanes read. A merge authority that reads no class works differently: see [Merge
+Refactors, migrations, contract changes. Blast radius is cross-cutting and reversal is hard.
+Its risk shows in the diff the review lanes read, and the class merges by a human always. A merge authority that reads no class works differently: see [Merge
 authorities that read no class](#merge-authorities-that-read-no-class).
 
 ### `C5`: untrusted-provenance
@@ -49,7 +48,8 @@ any execution surface below `L3`, and the class's merge policy never promotes.
 `C5` is assigned by field tests on the provider's own metadata, never by classifier judgment
 alone, and never by anything recorded in the item's own body (the untrusted surface being
 classified). Two surfaces carry the tests; they answer different provenance questions and do
-not substitute for one another.
+not substitute for one another. A classless item whose observed state is neither fails
+closed to `C5` (below).
 
 **Pull request: the code's provenance.** Two tests on the PR's cycle-start snapshot, either
 one marking the PR `C5`, each failing closed to `C5` when its field is missing or unreadable:
@@ -81,6 +81,16 @@ failing closed to `C5` when any field it needs is missing or unreadable:
 The issue test keys on the issue author only. It is not a lookup of anything in the issue's
 title, body, or comments; those surfaces are attacker-writable and are evaluated as data,
 never as admission input.
+
+**Any other observed state: no readable provenance.** An item with no stamped class whose
+observed state is neither a PR nor an issue has no author either test can read: a
+detector-fired `temporal` item (one claiming no routine identity), such as a poll-detector
+backstopping a `channel-feed` surface, or a `tracker-vcs-event` on another object, such as a
+discussion or a commit comment. It fails closed to `C5`, as any test does when the field it
+needs is missing. A classless item whose observed state is a PR or an issue runs that
+surface's tests. Two items stay out of this rule: a `channel-feed` signal, which the
+[admission policy](admission-policy.md)'s shipped surface row holds, and an item that carries
+a class, such as a validated routine run.
 
 **Composition.** The PR tests and the issue test are independent: a same-repository PR from a
 trusted member closing an issue filed by an outside collaborator is `C5` on the issue and not
