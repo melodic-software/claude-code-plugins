@@ -94,6 +94,32 @@
         }
       ],
       "why": "rejected flag, then a guarded option that reads args"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs",
+            "old_string": "// usage\n",
+            "new_string": "if (args.Contains(\"--token\") || args.Contains(\"--forge-token\"))\n{\n    Console.Error.WriteLine(\"use TARNQUILL_FORGE_TOKEN\");\n    return 2;\n}\nvar issue = args[0];\n"
+          }
+        }
+      ],
+      "why": "rejects the flag in a block, then reads a positional argument"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs",
+            "old_string": "// usage\n",
+            "new_string": "if (a is \"--token\") return Fail(\"use TARNQUILL_FORGE_TOKEN\");\nissue = args[0];\n"
+          }
+        }
+      ],
+      "why": "one-line rejection, then reads a positional argument"
     }
   ],
   "fail": [
