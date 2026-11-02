@@ -55,9 +55,9 @@ project file, because production imports that file. Once the person picks a keep
 is harvested into the project, the tool is deleted; the saved configuration and any export stay,
 since they are the harvested output.
 
-A fourth exception, to rule 6, for `/prototype:pressure-test`'s
-[evidence step](#evidence-step): the shell still leaves the working tree when the prototype is
-closed out, but the prototype's files can stay reachable on a pushed throwaway branch. That branch
+A fourth exception, to rule 6, for the [evidence step](#evidence-step) every facet runs: the
+throwaway code still leaves the working tree when the prototype is closed out, but the prototype's
+files can stay reachable on a pushed throwaway branch. That branch
 holds the evidence only when the repository's own secrets and machine-data check passed over those
 files; otherwise nothing is pushed, and the note records where the files were and why they were not
 pushed.
@@ -67,10 +67,8 @@ pushed.
 Capture what the prototype taught somewhere durable: wherever your project keeps design
 decisions (a decision note, commit message, ADR, or issue tracker). If the user is present, a
 quick conversation captures the verdict; if not, leave a placeholder `NOTES.md` next to the
-prototype so the answer gets filled in before deletion. For `/prototype:pressure-test`, once the
-note holds the answer, run the [evidence step](#evidence-step), and only after it delete the
-throwaway code. `/prototype:explore-directions` and `/prototype:build-generator` do not run it:
-they delete the throwaway code once the note holds the answer.
+prototype so the answer gets filled in before deletion. Once the note holds the answer, run the
+[evidence step](#evidence-step), and only after it delete the throwaway code.
 
 **Record the directions that lost, not only the one that won.** Name each direction that was tried
 and the reason it lost. A losing direction is the cheapest possible answer to "why not just do it
@@ -78,14 +76,15 @@ this way?", and it is the only part of the exercise a future reader cannot recon
 shipped result. When the verdict is a graft rather than a single winner, such as "this layout, but
 that one's navigation", say which piece came from where, and what was in the discarded parts that
 the graft deliberately left behind. The deletion that closes the prototype is irreversible: whatever
-is not written here (or, for `/prototype:pressure-test`, pushed by the evidence step) is gone, and
+is not written here (or pushed by the evidence step) is gone, and
 the question gets re-litigated from scratch the next time it comes up.
 
 ### Evidence step
 
-`/prototype:pressure-test` runs it, in its capture step, after the durable note is written and
-before the throwaway code is deleted. It adds no check of its own: it relies on the repository's own
-secrets and machine-data check, and pushes only when that check passes.
+Each facet runs it after the durable note is written and before the throwaway code is deleted:
+`/prototype:pressure-test` in its capture step, `/prototype:explore-directions` in its record step
+and `/prototype:build-generator` in its harvest. It adds no check of its own: it relies on the
+repository's own secrets and machine-data check, and pushes only when that check passes.
 
 1. **Find the check.** It is the scan the repository already runs over files before they leave the
    machine, such as a pre-push or pre-commit secrets hook, or a pre-push secrets step its

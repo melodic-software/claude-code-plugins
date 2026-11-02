@@ -1,7 +1,7 @@
 # Objection window at admission
 
 A rung of the admission gate in [`../SKILL.md`](../SKILL.md), run after the in-flight precondition
-and before classification. It applies only to a candidate carrying an objection window comment.
+and before the hard gates. It applies only to a candidate carrying an objection window comment.
 
 Triage posts an "Objection window until <UTC>" comment when a consumer turned the window on
 (`/work-items:triage`'s `triage_objection_window_hours`, resolved there with its layer reported).
@@ -33,7 +33,7 @@ a window. Check in this order:
    `kind=escalated`, whose one-line question names the objecting comment, and it leaves the
    autonomous frontier. The cycle report lists it as `objection: #<item> -> escalated`.
 2. **Window still open** (`<end>` after the cycle-start time): skip the candidate this cycle. It is
-   not dispatched, classified, or escalated, and none of its labels change. It is not actionable,
+   not dispatched or escalated, and none of its labels change. It is not actionable,
    so it neither counts toward nor resets the no-progress streak. The cycle report lists it as
    `objection window open: #<item> until <end>`.
-3. **Window over**, or no marker: continue to classification.
+3. **Window over**, or no marker: continue with the rest of the gate.

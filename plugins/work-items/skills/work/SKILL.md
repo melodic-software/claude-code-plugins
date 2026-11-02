@@ -324,8 +324,7 @@ attended-only: an autonomous run prints neither it nor the prompt.
 **Autonomous invocation (no interactive user).** When a loop lane (e.g. `/work-items:work-loop`)
 or another unattended context invokes this skill, do not present the prompt and do not block. The
 invoker's admission decision satisfies the confirmation: the invocation names the already-admitted
-item id and states that its admission gate passed (for a loop lane, the work-class gate plus any
-required ratification marker). The named id **binds the selection**: skip the selection steps, do
+item id and states that its admission gate passed (for a loop lane, the work-loop admission gate). The named id **binds the selection**: skip the selection steps, do
 not recompute priorities or re-select, and proceed from the staleness pre-check with exactly that
 item, so the invoker's admission and accounting stay attached to the item executed (concurrent
 slots rely on this to avoid colliding on one candidate). Record the auto-confirmation in the

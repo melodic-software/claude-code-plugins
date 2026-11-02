@@ -16,6 +16,7 @@
 - [Comment on item / edit a comment](#comment-on-item--edit-a-comment)
 - [PR closing-keyword mechanics](#pr-closing-keyword-mechanics)
 - [Open linked PRs](#open-linked-prs)
+- [Label-removal provenance](#label-removal-provenance)
 - [Linked changes](#linked-changes)
 - [Aggregate / count (dashboard + hygiene)](#aggregate--count-dashboard--hygiene)
 - [API budget](#api-budget)
@@ -449,6 +450,52 @@ linkage instead of a body regex over `gh pr list --search`:
 - **Opt-out is intrinsic.** An intentional `Refs #<num>` (reference without closing) never enters
   the closing linkage, so it correctly does not exclude its issue. That is the same opt-out the
   `pr-issue-linkage` gate honors, now with no keyword allow/deny list to keep in sync.
+
+## Label-removal provenance
+
+For `/work-items:work-loop`'s provenance-removal hold: who last removed label `<label>` from item
+`<N>`, and the repository permission that actor holds. It is the removal-side counterpart of the
+seam's `label-provenance` verb, which reads only `labeled` events, and it uses the same
+permission read and the same mapping: `admin` and `write` are trusted (maintain maps to `write`),
+and anything else, triage and read included, is below `write`. Two bare reads, each captured and
+its exit status checked before any reduction, so a failed read is never an empty result.
+
+**Latest removal.** The timeline paginates oldest-first, `gh` applies `--jq` per page, and the
+pages are slurped before the reduction ("List item comments" above). The label name reaches `jq`
+only as an `--arg` value:
+
+<!-- label-removal-filter:start -->
+```bash
+REMOVALS='[.[] | select(.event == "unlabeled") | {label: (.label.name // null), actor: (.actor.login // null), at: (.created_at // "")}]'
+LATEST_REMOVAL='add // [] | [.[] | select(.label == $l)] | sort_by(.at) | last // empty'
+```
+<!-- label-removal-filter:end -->
+
+```bash
+removals=$(gh api --paginate "repos/<owner>/<repo>/issues/<N>/timeline?per_page=100" --jq "$REMOVALS") \
+  || { echo "removal read failed for #<N>" >&2; exit 1; }
+printf '%s\n' "$removals" | tr -d '\r' | jq -cs --arg l "<label>" "$LATEST_REMOVAL"
+```
+
+It prints `{label, actor, at}` for the latest removal, and nothing when the label was never
+removed. A row whose `actor` is `null` has no usable actor login, and the caller fails closed on it.
+
+**Actor permission.** The login is the one value that reaches an API path, so it is checked
+against GitHub's login grammar first (an app's `[bot]` form included), the same check
+`label-provenance.sh` makes; a login that fails it reaches no command:
+
+```bash
+login_re='^[A-Za-z0-9][A-Za-z0-9-]*(\[bot\])?$'
+[[ "$actor" =~ $login_re ]] || { echo "no usable actor login" >&2; exit 1; }
+permission=$(gh api "repos/<owner>/<repo>/collaborators/$actor/permission" --jq '.permission // ""') \
+  || { echo "permission read failed for $actor" >&2; exit 1; }
+permission=$(printf '%s' "$permission" | tr -d '\r')
+```
+
+`$actor` is the `actor` field read from the removal row with `jq -r`, never typed into the
+command. An empty `permission` is a permission that does not read. Both cases fail closed in the
+caller, the same as a non-zero exit. The endpoint and its role mapping are cited in
+`/work-items:work-loop`'s labeler precondition pointer.
 
 ## Linked changes
 

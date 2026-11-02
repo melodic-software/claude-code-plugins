@@ -15,40 +15,38 @@ metadata:
 
 Automation inventory: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-automation-gaps/scripts/inventory.sh" 2>/dev/null || echo "inventory unavailable"`
 
-That block counts files present separately from handlers actually registered, and marks a scope it
-could not read as `unreadable` rather than as zero. Treat it as a starting point, never as a
-finding. Re-derive any count a verdict leans on, and where your own count disagrees with the block,
-report both numbers and say which one the verdict used. A partial inventory that reads as complete
-is this skill's own recorded failure: see [context/gotchas.md](context/gotchas.md).
+That block counts files present separately from handlers registered, and marks a scope it could
+not read as `unreadable`, not zero. Treat it as a starting point, never a finding. Re-derive any
+count a verdict leans on; where your count disagrees with the block, report both and say which the
+verdict used. A partial inventory that reads as complete is this skill's recorded failure: see
+[context/gotchas.md](context/gotchas.md).
 
 ## Purpose
 
-Audit the repo's automation landscape and identify genuine gaps, not surface-level "you don't have X"
-observations, but evidence-backed gaps where no mechanism in the enforcement hierarchy covers the
-concern.
+Find evidence-backed automation gaps, where no mechanism in the enforcement hierarchy covers the
+concern, not surface-level "you don't have X" observations.
 
 **Design principle**: most "missing automation" gaps are already covered by higher enforcement levels
-(compiler, analyzers, build-time checks, architecture tests, behavioral rules). This skill's job is to
-prove a gap exists before recommending a solution. The default verdict is REJECT, not PASS.
+(compiler, analyzers, build-time checks, architecture tests, behavioral rules). Prove a gap exists
+before recommending a solution. The default verdict is REJECT, not PASS.
 
 **The enforcement hierarchy** is the rung list in
 [context/enforcement-ladder.md](context/enforcement-ladder.md); this skill's selection rule there
-is the strongest rung that covers the concern. A consuming repo that documents its own hierarchy in `CLAUDE.md`, in
-any `AGENTS.md` the session reads natively, whether in place of a `CLAUDE.md` or alongside one, or in rules files overrides this default
-ordering, so read and use theirs.
+is the strongest rung that covers the concern. A consuming repo's own hierarchy, documented in
+`CLAUDE.md`, in an `AGENTS.md` the session reads natively (in place of or beside a `CLAUDE.md`), or
+in rules files, overrides this default ordering: read and use theirs.
 
 A proposed deterministic check meets the "Guardrail criterion" section of that same file before it
 earns a PASS verdict.
 
 ## Boundary: no machine-readable hook enumerator
 
-This skill ships no hook-enumeration mode, and the absence is a decision rather than a gap. The
-native `/hooks` menu already reports the harness's own resolved set, with the source each hook
-comes from. A script here would restate that set from the settings files instead of from the
-resolution the harness actually performs, which is the weaker source. Revisiting the
-decision requires first recording a native-surface verdict for `/hooks` in whatever registry the
-repository keeps for native-overlap decisions, because whether such a reference should exist at all
-is a human's call. This paragraph is a boundary, not a routing verdict.
+This skill ships no hook-enumeration mode, by decision. The native `/hooks` menu already reports the
+harness's resolved set, with each hook's source; a script here would restate that set from the
+settings files instead of the harness's own resolution, the weaker source. Revisiting the decision
+first requires recording a native-surface verdict for `/hooks` in whatever registry the repository
+keeps for native-overlap decisions, because whether such a reference should exist is a human's
+call. This paragraph is a boundary, not a routing verdict.
 
 - **Pointer**: when you need what `/hooks` lists, or what it shows for a selected hook, fetch
   [the /hooks menu](https://code.claude.com/docs/en/hooks#the-/hooks-menu) live.
@@ -58,18 +56,18 @@ is a human's call. This paragraph is a boundary, not a routing verdict.
 
 ## Adapting to your environment (graceful degrade)
 
-This skill is self-contained. Where a phase names an adjacent capability, such as a research skill, an
-implementation-planning skill, a work-item tracker, or an outcome verifier, treat it as optional: if
-your setup provides an equivalent, use it; otherwise follow the inline guidance, which stands on its
-own. Adjacent skills cover neighboring questions: the sibling `audit` skill (are the config FILES
-correct?) and the `audit` skill in the `harness-memory` plugin (is the instruction layer healthy?).
+Where a phase names an adjacent capability (a research skill, an implementation-planning skill, a
+work-item tracker, an outcome verifier), it is optional: use your setup's equivalent if it has one,
+else follow the inline guidance, which stands on its own. Neighboring questions belong to the
+sibling `audit` skill (are the config FILES correct?) and the `audit` skill in the `harness-memory`
+plugin (is the instruction layer healthy?).
 
-This skill proposes NEW automation. The inverse question, whether the automation already in place
-still earns its carry cost, is owned by `/overengineering:audit`, whose evidence-earned-keep walk
-treats every incumbent as a retirement candidate until evidence keeps it. Send a retirement question
-there when the `overengineering` plugin is installed; when it is not, the **Already enforced** gate
-still names the mechanism covering a concern, and any retirement observation is recorded in the
-verdict for the human rather than acted on here.
+This skill proposes NEW automation. Whether automation already in place still earns its carry cost
+is owned by `/overengineering:audit`, whose evidence-earned-keep walk treats every incumbent as a
+retirement candidate until evidence keeps it. Send a retirement question there when the
+`overengineering` plugin is installed; when it is not, the **Already enforced** gate still names the
+mechanism covering a concern, and any retirement observation is recorded in the verdict for the
+human, not acted on here.
 
 ## Arguments
 
@@ -79,38 +77,37 @@ Parse `$ARGUMENTS` for:
 - **`--implement`**: After presenting validated recommendations, implement user-chosen items sequentially
 - **Category filter** (`hooks`, `mcp`, `skills`, `subagents`, `scheduled`): Limit to a specific automation type. Default: `all`
 
-There is deliberately no `ci` category. Two skills own that ground. The `ci-lanes` layer of
-`/overengineering:audit` walks the lanes already running and judges whether each still earns its
-carry cost, and `/corrections:codify` maps one recurring mistake or review finding to the strongest
-enforcement rung that can catch it, including a check that runs in CI. Route a CI concern to whichever fits when
-the `overengineering` or `corrections` plugin is installed; when neither is, record
-the concern in the verdict as out of scope and name its owner, rather than widening this audit's
-categories.
+There is deliberately no `ci` category. Two skills own that ground: the `ci-lanes` layer of
+`/overengineering:audit` judges whether each lane already running still earns its carry cost, and
+`/corrections:codify` maps one recurring mistake or review finding to the strongest enforcement rung
+that can catch it, including a check that runs in CI. Route a CI concern to whichever fits when the
+`overengineering` or `corrections` plugin is installed; when neither is, record the concern in the
+verdict as out of scope and name its owner, rather than widening this audit's categories.
 
 ## Track progress
 
-For any deep-dive run (Phases 1-4), keep a phase checklist and tick each phase + every anti-noise
-doctrine check as it completes, either in-response or by copying
-`${CLAUDE_PLUGIN_ROOT}/skills/audit-automation-gaps/templates/checklist.md` into wherever the consuming
+For any deep-dive run (Phases 1-4), keep a phase checklist and tick each phase and every anti-noise
+doctrine check as it completes, in-response or in a copy of
+`${CLAUDE_PLUGIN_ROOT}/skills/audit-automation-gaps/templates/checklist.md` wherever the consuming
 repo keeps working task notes. Phase 4 is SKIPPED in default `--recommend-only` mode.
 
 ## Phase 1: Discover Candidates (Self-Generated)
 
-Analyze the current automation landscape directly, with no external recommender dependency.
+Analyze the automation landscape directly, with no external recommender dependency.
 
 ### 1.1 Inventory Current State
 
 The pre-computed block already ran
 `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-automation-gaps/scripts/inventory.sh"`; re-run it directly
 if that block is missing. It settles the per-scope hook-location counts, the component counts, and
-the enablement inputs. It deliberately leaves three things to you: effective plugin enablement,
+the enablement inputs. It leaves three things to you: effective plugin enablement,
 because `enabledPlugins` follows precedence rather than the merge that hook entries follow; the
 contents of any frontmatter `hooks:` block, which it counts but does not parse; and plugins
 installed on the machine from outside this repository. Then read:
 
 | What | Source |
 |------|--------|
-| Hooks | Every hook location: user + project + local `settings.json` → `hooks`, managed policy settings when readable, each enabled plugin's `hooks/hooks.json`, and skill or agent frontmatter `hooks:`. Also record which hook EVENTS you considered: the documented event set is far wider than `PreToolUse` and `PostToolUse`, so a no-gaps hooks verdict has to name the events it examined, because an event nobody looked at cannot surface a candidate |
+| Hooks | Every hook location: user + project + local `settings.json` → `hooks`, managed policy settings when readable, each enabled plugin's `hooks/hooks.json`, and skill or agent frontmatter `hooks:`. Also record which hook EVENTS you considered: the documented set is far wider than `PreToolUse` and `PostToolUse`, and an event nobody looked at cannot surface a candidate, so a no-gaps hooks verdict names the events it examined |
 | MCP servers | `.mcp.json` + `settings.json` → `disabledMcpjsonServers` |
 | Permissions | `settings.json` → `permissions` (deny/ask/allow) |
 | Enforcement | Ecosystem-specific build config (`<root-build-config>`, e.g. `Directory.Build.props` for .NET, `pyproject.toml` for Python, `package.json` for TS/JS), `.editorconfig` (top 20 lines), any enforcement-hierarchy section in the repo's own instruction files |
@@ -119,7 +116,7 @@ installed on the machine from outside this repository. Then read:
 
 ### 1.2 Gap Analysis
 
-For each automation category, systematically check for gaps using the category-specific checklists in
+For each automation category, check for gaps with the checklists in
 [context/gap-analysis.md](context/gap-analysis.md): Hooks (formatter exists? fast enough? higher
 enforcement already covers?), MCP Servers (configured? CLI equivalent? service in use yet?), Skills
 (skill exists? frequency? simpler mechanism?), Subagents (value over hook/skill? isolation help?
@@ -128,14 +125,13 @@ durability model?).
 
 ### 1.3 Generate Candidate List
 
-Produce a numbered list of candidates with category and one-line rationale. Target **5-10 candidates**.
-Cast a wide net, the quality gates will filter. Include borderline items; it's better to evaluate
-and reject with evidence than to silently exclude.
+Produce a numbered list of candidates, each with category and one-line rationale. Target
+**5-10 candidates**. Cast a wide net and include borderline items: the quality gates filter, and
+rejecting with evidence beats silently excluding.
 
 ## Phase 2: Deep-Dive Each Candidate
 
-For each candidate, execute the evaluation workflow. **Batch the Explore phase** (read all configs
-once), then evaluate candidates sequentially.
+**Batch the Explore phase** (read all configs once), then evaluate candidates sequentially.
 
 ### 2.1 Explore (Local Codebase)
 
@@ -144,9 +140,8 @@ For each candidate:
 - **Read the relevant config/code**: the specific files that would be affected
 - **Check the enforcement hierarchy**: walk the ladder's rungs up from the weakest (`automated-review`) to the strongest (`make-impossible`). Stop when you find coverage. Document which level covers it
 - **Check incident history**: `git log --grep` for related problems, then read a sample of the hits.
-  The count is a **ceiling**, the number of commits whose message mentions a word, not a count of
-  incidents and not a frequency. Report the match count, the total commit count, the sample size
-  read, and what the sampled commits actually were
+  The count is a **ceiling**, not a count of incidents or a frequency. Report the match count, the
+  total commit count, the sample size read, and what the sampled commits actually were
 - **Measure performance**: if the candidate involves a CLI tool as a hook, time it:
 
 ```bash
@@ -155,24 +150,23 @@ time <tool-command> 2>&1 | tail -5
 
 Judge that measurement against the **consuming repository's own documented hook budget** where one
 exists, and say which source the threshold came from. No upstream latency budget exists, so any
-fixed number this skill supplies is a house rule and is labeled as one in the verdict. Note that
-`PostToolUse` cannot block a tool call, so its cost is turn latency rather than a blocked call.
-Budget-resolution ladder, per-event costs, the documented levers, and the dated upstream-fact
-records: read [context/hook-timing.md](context/hook-timing.md).
+fixed number this skill supplies is a house rule, labeled as one in the verdict. `PostToolUse`
+cannot block a tool call, so its cost is turn latency. For the budget-resolution ladder, per-event
+costs, the documented levers, and the dated upstream-fact records, read
+[context/hook-timing.md](context/hook-timing.md).
 
 ### 2.2 Research (One Mandatory Batch, Then Conditional)
 
-Research splits by who owns the fact, and the two halves are not optional in the same way.
+Research splits by who owns the fact.
 
 **Mandatory: one batched docs fetch for harness mechanisms.** Any candidate whose mechanism is a
 Claude Code surface gets its harness facts fetched before its verdict, however settled the local
-evidence already looks. That covers hook event semantics and what each event can and cannot block,
+evidence looks. That covers hook event semantics and what each event can and cannot block,
 `async` and `timeout` behavior, MCP server scope and configuration, and skill, agent or plugin
 frontmatter fields. Collect every such question across every surviving candidate into ONE fetch
-pass rather than one pass per candidate. The batch is mandatory because a docs pass routinely
-changes the shape of a candidate that local evidence had already settled: a gate written as `exit 2`
-on `PermissionRequest` reads as settled locally and is inert upstream, which no amount of local
-reading surfaces.
+pass. The batch is mandatory because a docs pass routinely reshapes a candidate that local evidence
+had settled: a gate written as `exit 2` on `PermissionRequest` reads as settled locally and is
+inert upstream, which no local reading surfaces.
 
 **Conditional: facts the harness does not own.** Third-party tool performance, an ecosystem's
 standard formatter, server stability and auth, known issues in a tool the candidate would run. Fetch
@@ -183,7 +177,7 @@ verdict: the measurement taken, the file read, or the existing dated record reli
 and "not done" must stay distinguishable in the artifact.
 
 Group related queries to minimize agent count, and run the mandatory batch as one dispatch for all
-candidates rather than one per candidate.
+candidates.
 
 **Per-candidate research questions by type:**
 
@@ -205,12 +199,12 @@ gates in 2.3 read that evidence and decide.
 
 A candidate **fails** if ANY gate triggers.
 
-**Run this gate in a fresh context.** Phase 1 generated these candidates in the context now being
-asked to refuse them, and a context that produced work is a biased judge of it. Dispatch a
-fresh-context subagent, handing it the candidate list, the Phase 2.1 and 2.2 evidence, and this
-table, and keep the gate results it returns. Where the environment exposes no subagent surface, run
-the gates inline and say in the report that the refusal gate ran in the same context that generated
-the candidates, so the bias is visible rather than assumed away.
+**Run this gate in a fresh context.** Phase 1 generated these candidates in the context now asked
+to refuse them, and a context that produced work is a biased judge of it. Dispatch a fresh-context
+subagent with the candidate list, the Phase 2.1 and 2.2 evidence, and this table, and keep the gate
+results it returns. Where the environment exposes no subagent surface, run the gates inline and say
+in the report that the refusal gate ran in the context that generated the candidates, so the bias
+is visible.
 
 | Gate | Condition | Evidence Required |
 |------|-----------|-------------------|
@@ -233,9 +227,8 @@ marketplace at merged main `49912c63`, `secret|gitleaks` matched 209 of 2202 com
 what the sampled commits were.
 
 The discipline is asymmetric, which keeps it cheap. A ceiling already below the 5% **YAGNI**
-threshold settles that gate on its own, because the true frequency cannot exceed the ceiling, so no
-sample is needed. Only a PASS, or an affirmative claim that the concern is frequent, has to pay for
-one.
+threshold settles that gate on its own, because the true frequency cannot exceed the ceiling. Only
+a PASS, or an affirmative claim that the concern is frequent, has to pay for a sample.
 
 #### Shift-left carve-out to Already enforced
 
@@ -272,9 +265,9 @@ gates, not passed.
 
 Why the carve-out is scoped this narrowly: the hooks documentation states that hooks give
 "deterministic control: certain actions always happen rather than relying on the LLM to choose to
-run them", which supports duplicating a check so it runs deterministically for every author. It states
-nothing about where a check belongs, in CI or in a hook, so no latency or placement argument may be
-offered as an upstream one. The record for both facts:
+run them", which supports duplicating a check so it runs deterministically for every author. It
+says nothing about whether a check belongs in CI or in a hook, so no latency or placement argument
+may be offered as an upstream one. The record for both facts:
 
 | Claim | Basis | As of | Recheck trigger |
 |---|---|---|---|
@@ -340,9 +333,8 @@ Either way, a time budget the user states is quoted in the user's words.
 
 ### Maturity Assessment
 
-End with a one-paragraph assessment of the repo's automation maturity: what's well-covered, what the
-genuine gaps are (if any), and whether the current automation investment level is appropriate for the
-project stage.
+End with a one-paragraph assessment of the repo's automation maturity: what's well-covered, the
+genuine gaps (if any), and whether the automation investment fits the project stage.
 
 If items pass: "Which items would you like to implement? I'll work through them sequentially."
 
@@ -426,7 +418,7 @@ Principles that govern every verdict:
 
 1. **The enforcement hierarchy is your first check.** Most "gaps" are covered by the compiler-through-git-hooks levels
 2. **Measure, don't assume.** Time every tool before recommending it as a hook. A formatter looks perfect until you measure 15+ seconds per file
-3. **Check incident history, then read it.** Zero incidents across 100+ commits is strong evidence the problem doesn't exist in practice, but a `git log --grep` count is a ceiling on the incidents, not a count of them, and a check a higher rung already runs suppresses its own incidents
+3. **Check incident history, then read it.** Zero incidents across 100+ commits is strong evidence the problem doesn't exist in practice, but a `git log --grep` count is a ceiling, and a check a higher rung already runs suppresses its own incidents
 4. **Behavioral rules are valid enforcement.** A rule in CLAUDE.md, or in a natively read AGENTS.md, is legitimate coverage; not everything needs a hook or script
 5. **YAGNI is a quality gate, not laziness.** Automation for a task at 4% frequency is premature
 6. **Premature is worse than missing.** Adding a database MCP before a database exists, or scheduling before CI exists, creates maintenance burden for zero value
@@ -441,8 +433,7 @@ Principles that govern every verdict:
 
 ## Gotchas
 
-Five failure modes this skill has actually produced, each with the evidence and the dated upstream
-records behind it: a partial inventory anchoring every later verdict, keyword counts read as
+Five failure modes this skill has produced, each with its evidence and dated upstream records: a partial inventory anchoring every later verdict, keyword counts read as
 frequencies, `PostToolUse` candidates phrased as gates, an `exit 2` gate on `PermissionRequest` that
 is silently inert, and a candidate generator that reaches three of the 33 documented hook events.
 Read [context/gotchas.md](context/gotchas.md) before any run whose verdicts a human will act on.

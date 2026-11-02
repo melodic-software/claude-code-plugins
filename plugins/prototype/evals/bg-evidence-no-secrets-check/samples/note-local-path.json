@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "# Torn edge\n\nKeeper: seed 4127, depth 18.\n\nGenerator was at src/lab/torn-edge (TornEdgeLab.jsx, render.js).\nnot pushed: no secrets check in this repository\n",
+      "why": "names the tool's local path"
+    },
+    {
+      "answer": "# Torn edge\n\nKeeper: seed 4127.\n\nEvidence: src/lab/torn-edge/TornEdgeLab.jsx\nnot pushed: no secrets check in this repository\n",
+      "why": "names the tool's file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no note"
+    },
+    {
+      "answer": "# Torn edge\n\nKeeper: seed 4127.\n\nnot pushed: no secrets check in this repository\n",
+      "why": "reason without the local path"
+    },
+    {
+      "answer": "# Torn edge\n\nKeeper: seed 4127. The cover reads src/config/torn-edge.json.\n\nnot pushed: no secrets check in this repository\n",
+      "why": "names only the kept config, not where the tool was"
+    }
+  ]
+}

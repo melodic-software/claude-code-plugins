@@ -356,6 +356,18 @@ new rule next to it is proposed only when no repair of that kind can work, with 
 End Phase 4 with an explicit question, e.g.: "Which of these recommendations should I execute now?
 Reply with the numbers, 'all', or 'skip' to proceed to the summary."
 
+**Unapplied findings go to the findings buffer.** Once the user answers, each finding whose
+recommendation they decline or leave unselected, a 'skip' included, is appended to the findings
+buffer, so a later session can see the lesson recur and `/corrections:codify group` can count it
+against the codify threshold. Applied findings, "Queue for follow-up" items, skill candidates and
+follow-up candidates are not appended. When the `corrections` plugin is installed, make one
+`/corrections:codify note "<observation>"` call per unapplied finding through the Skill tool. Each
+observation is one sentence stating the lesson, not the recommended fix, with no person named, as
+that skill's `note` action requires, and with no quoted transcript text. When the plugin is not
+installed, list the unapplied findings in the Phase 5 summary under the heading "Unapplied
+findings", one sentence each in the same form, and write no file. This step is done when every
+unapplied finding has its note call or its summary line.
+
 ---
 
 ## Phase 5: Summary

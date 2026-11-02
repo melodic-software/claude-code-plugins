@@ -258,8 +258,9 @@ workers, also asking whether one run of the lever covers every unit. The
 `lever_scope` setting decides the answer: `deterministic` (default) builds a
 lever only for a mechanical change; `non-trivial` builds one for
 judgment-bearing changes too, with an established codemod tool. Either way the
-first site is edited by hand and the lever's result on it is compared before
-the lever runs on the rest.
+first site is edited by hand and the lever's result on it is compared, then
+the lever is run again on its own output and must leave no diff, before the
+lever runs on the rest.
 
 ```shell
 /discipline:script-the-deterministic-work   # re-anchor + audit + correct

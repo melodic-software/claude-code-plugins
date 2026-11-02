@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.136.4] - 2026-11-02
+
+### Changed
+
+- `/planning:design`'s two-candidate step now sends a logic or state fork that a run can settle to `/prototype:pressure-test observe`, beside the existing look-and-feel route to `/prototype:explore-directions`, because running each candidate on the same inputs shows which one holds where arguing them only predicts it. A fork qualifies when the criteria turn on an event sequence or record and nobody can yet say with confidence how each candidate handles it. This comes from pstack's `exhaust-the-design-space` principle ([#12148](https://github.com/melodic-software/claude-code-plugins/issues/12148)).
+
 ## [0.136.3] - 2026-11-02
 
 ### Changed
