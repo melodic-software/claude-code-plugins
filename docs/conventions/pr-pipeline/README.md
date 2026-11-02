@@ -1094,7 +1094,8 @@ the rules that only tighten in
   work: no record is sent to intake triage, since the fix issues carry the work, and its text keeps
   the fix-issue rule (each newly failing check by job name only, never a gate's annotation title or
   a revert command). `post-merge-demotion-alert.yml` files a red-main record (signal `schedule` or
-  `dispatch`) with no label, since it clears itself (below); it labels a canary or revert record
+  `dispatch`) with no label, since it clears itself (below), unless a failing check got no fix
+  issue (over the cap or outside the charset), which labels it `needs-human`; it labels a canary or revert record
   `needs-human`, since only a person's close clears one. `babysit_postmerge.py --remediate` labels
   every record it files `needs-human`: the lanes App's issue starts intake triage on its own, and
   that label keeps admission off it. On a green attempt 1 of a scheduled full run on main, the
@@ -1102,7 +1103,8 @@ the rules that only tighten in
   or post-merge-failure, that either filer opened before that run was created, at a commit behind
   its head, and that was never edited; closing it is the record's state only, and the merge gate
   still decides whether it holds. A fix or quarantine issue not delivered to intake triage gets
-  `needs-human`, and the record does when no fix issue could be filed; a fix issue reopened on a
+  `needs-human`, and the record does when a failing check got no fix issue, whether over the cap,
+  outside the charset, or not filed; a fix issue reopened on a
   repeat failure keeps whatever labels it has, so one labeled `needs-human` stays with a person.
   It holds the rung at `off` until it clears: a human's direct close clears any record. A close through a pull request's or
   commit's `Closes #N` does not count, and an issue that a non-human edited at any time stays in
@@ -1129,8 +1131,8 @@ the rules that only tighten in
   or `github-actions[bot]`), so removing the marker or the label does not clear one. When `post-merge-demotion-alert.yml` proves
   that no merge the failing run covers was enqueued by the agent identity, it files a
   post-merge-failure record instead, first line `<!-- post-merge-failure sha=<S> signal=<name> -->`,
-  labeled as a record of its signal is: a full-run one carries no label, since its fix issues fix
-  main, and a canary one is labeled `needs-human` on purpose, since a canary files no fix issue and
+  labeled as a record of its signal is: a full-run one carries no label unless a failing check got
+  no fix issue (over the cap or outside the charset), since its fix issues fix main, and a canary one is labeled `needs-human` on purpose, since a canary files no fix issue and
   nothing else clears it. That record does not hold the rung off.
   With a new record of either kind, the alert files one fix issue per newly failing check, at
   most 5 per run (an overflow line on the record says when more failed, and labels that record
