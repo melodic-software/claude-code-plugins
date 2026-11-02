@@ -1037,7 +1037,9 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
   const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-judged-"));
   try {
     // main's history: OLD, then CHANGED (REVIEW.md, a criterion, changes),
-    // then the tip (only a file outside criteria.txt changes). The step's
+    // then the tip (only a file outside criteria.txt changes). Off the tip,
+    // one commit per SIDE file changes that criterion alone: the skill (a
+    // {skill} row), a copy-if-present row and a read row. The step's
     // checkout is a one-commit clone of the tip, as actions/checkout makes.
     const gitEnv = { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1", GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@example.com", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@example.com" };
     const git = (...args) => {
@@ -1050,18 +1052,27 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
     git("-C", origin, "init", "--quiet");
     writeFileSync(path.join(origin, ".github", "scripts", "pr-review-main", "criteria.txt"), readFileSync(new URL("./criteria.txt", import.meta.url)));
     const commit = (file, text) => {
+      mkdirSync(path.dirname(path.join(origin, file)), { recursive: true });
       writeFileSync(path.join(origin, file), text);
       git("-C", origin, "add", "-A");
       git("-C", origin, "commit", "--quiet", "-m", file);
       return git("-C", origin, "rev-parse", "HEAD");
     };
+    const SIDE = ["plugins/review/skills/code-review/SKILL.md", "docs/review/x.md", ".github/workflows/pr-review-main.yml"];
     const OLD = commit("REVIEW.md", "old criteria\n");
+    for (const file of SIDE) commit(file, "criterion\n");
     const CHANGED = commit("REVIEW.md", "new criteria\n");
     const TIP = commit("notes.txt", "not a criterion\n");
+    const trunk = git("-C", origin, "symbolic-ref", "--short", "HEAD");
+    const side = SIDE.map((file, i) => {
+      git("-C", origin, "switch", "--quiet", "-c", `side-${i}`, TIP);
+      return [file, commit(file, "changed criterion\n")];
+    });
+    git("-C", origin, "switch", "--quiet", trunk);
     git("clone", "--quiet", "--depth=1", `file://${origin}`, path.join(dir, ".base"));
     const has = (sha) => spawnSync("git", ["-C", path.join(dir, ".base"), "cat-file", "-e", `${sha}^{commit}`], { env: gitEnv }).status === 0;
     assert.ok(!has(CHANGED) && !has(OLD), "the checkout holds the tip alone");
-    symlinkSync(new URL("../../../plugins", import.meta.url).pathname, path.join(dir, ".base", "plugins"));
+    symlinkSync(new URL("../../../plugins/source-control", import.meta.url).pathname, path.join(dir, ".base", "plugins", "source-control"));
     const bin = path.join(dir, "bin");
     const fixtures = path.join(dir, "fixtures");
     mkdirSync(bin);
@@ -1074,7 +1085,7 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
     chmodSync(path.join(bin, "gh"), 0o755);
     const key = (url) => url.replace(/[^A-Za-z0-9]/g, "_");
     const lanes = ["claude-review", "claude-security-review"];
-    const write = ({ missing = [], conclusion = "success", head = SHA_A, title = "findings=2 critical=0", branch = "main", total = 1, main = TIP } = {}) => {
+    const write = ({ missing = [], conclusion = "success", head = SHA_A, title = "findings=2 critical=0", branch = "main", total = 1, main = TIP, workflow = ".github/workflows/pr-review-main.yml" } = {}) => {
       rmSync(fixtures, { recursive: true, force: true });
       mkdirSync(fixtures);
       lanes.forEach((lane, i) => {
@@ -1084,7 +1095,7 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
         const runId = 200 + i;
         const at = (url, body) => writeFileSync(path.join(fixtures, key(url)), typeof body === "string" ? body : JSON.stringify(body));
         at(`repos/o/r/actions/artifacts?name=${name}&per_page=100`, { total_count: total, artifacts: [{ id: artifact, name, expired: false, workflow_run: { id: runId } }] });
-        at(`repos/o/r/actions/runs/${runId}`, { id: runId, path: ".github/workflows/pr-review-main.yml", event: "workflow_run", head_branch: branch, head_sha: main, status: "completed", conclusion, repository: { full_name: "o/r" }, head_repository: { full_name: "o/r" } });
+        at(`repos/o/r/actions/runs/${runId}`, { id: runId, path: workflow, event: "workflow_run", head_branch: branch, head_sha: main, status: "completed", conclusion, repository: { full_name: "o/r" }, head_repository: { full_name: "o/r" } });
         const verdict = path.join(dir, "verdict.json");
         writeFileSync(verdict, JSON.stringify({ schema: 1, lane, pr: PR, tree: TREE, head_sha: head, findings: 2, critical: 0, max_line_bytes: 80 }));
         const zipped = spawnSync("python3", ["-I", "-c", "import sys, zipfile; zipfile.ZipFile(sys.argv[1], 'w').write(sys.argv[2], 'verdict.json')", path.join(fixtures, key(`repos/o/r/actions/artifacts/${artifact}/zip`)), verdict], { encoding: "utf8" });
@@ -1139,6 +1150,20 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
     assert.equal(stale.out, "");
     assert.equal(stale.calls.length, 6, stale.calls.join("\n"));
     assert.ok(!stale.calls.some((call) => call.includes("/zip")), stale.calls.join("\n"));
+    // A run whose main commit changes one criterion alone, whatever its row's
+    // kind, does not count either.
+    for (const [file, main] of side) {
+      write({ main });
+      const one = runWith();
+      assert.equal(one.out, "", file);
+      assert.equal(one.calls.length, 6, `${file}\n${one.calls.join("\n")}`);
+    }
+    // Another workflow's run is dropped before any fetch or download, even
+    // at the tip.
+    write({ workflow: ".github/workflows/other.yml" });
+    const other = runWith();
+    assert.equal(other.out, "");
+    assert.equal(other.calls.length, 6, other.calls.join("\n"));
     // A commit main does not have (the fetch fails), or a run head that is no
     // SHA: no output, and the step stays green.
     for (const main of ["d".repeat(40), "main"]) {

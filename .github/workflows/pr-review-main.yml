@@ -236,6 +236,14 @@ jobs:
             while read -r artifact run; do
               [[ $artifact =~ ^[1-9][0-9]{0,19}$ && $run =~ ^[1-9][0-9]{0,19}$ ]] || unread "the $lane verdict listing"
               gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" >"$DIR/run.json" || unread "run $run"
+              # Only this workflow's main run counts, so no other run's artifact is fetched or unzipped.
+              rc=0
+              jq -e '.path == ".github/workflows/pr-review-main.yml" and .event == "workflow_run" and .head_branch == "main"' "$DIR/run.json" >/dev/null || rc=$?
+              [ "$rc" -le 1 ] || unread "run $run"
+              if [ "$rc" = 1 ]; then
+                echo "run $run is not a pr-review-main run on main; its $lane verdict does not count"
+                continue
+              fi
               sha=$(jq -r '.head_sha' "$DIR/run.json") || unread "run $run"
               [[ $sha =~ ^[0-9a-f]{40}$ ]] || unread "run $run"
               if ! criteria_diff "$sha"; then
