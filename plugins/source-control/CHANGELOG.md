@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.0.6] - 2026-11-02
+
+### Fixed
+
+- **babysit-prs**: the pr-verify verdict reader reads a short incremental artifact listing again after a wait when no whole listing fits the caller's limit, instead of falling back to a whole listing that can only refuse. Under the dispatchers' FAIL-cap reads at about 13,600 artifacts, that fallback refused the PR's round after spending its reads. A listing is still kept only when it holds GitHub's live count.
+
 ## [5.0.5] - 2026-11-02
 
 ### Fixed
