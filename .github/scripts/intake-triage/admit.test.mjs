@@ -1052,7 +1052,7 @@ describe("decide", () => {
           ["Disable the spending limit on the Azure account.", "spending limit, azure"],
           ["Cut over the e2e job to larger runners.", "larger runners"],
           ["Cut over to Azure.", "azure"],
-          ["Retire the standard runners in favour of larger runners.", "larger runners"],
+          ["Retire the standard runners in favor of larger runners.", "larger runners"],
           ["Drop the old runner for larger runners.", "larger runners"],
         ]) {
           assert.equal(inBody(`- [ ] ${item}`), found, item);
