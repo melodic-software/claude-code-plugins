@@ -1931,7 +1931,10 @@ other than `${{ github.event.repository.default_branch }}` or a `with` key other
 `./.base/.github/actions/open-lane-output` with `private-key: ${{ secrets.scan-carrier-private-key }}`
 exactly; a job that calls the read file passes it by name only,
 `scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}` in its `secrets` map; and only
-the `scan` job may name an `environment`, `pr-pipeline-scan-carrier`. GitHub gives an environment
+the `scan` job may name an `environment`, `pr-pipeline-scan-carrier`. The one second holder (owner
+decision, 2026-11-02) is `upstream-apply-changelog.yml`'s `scan` job: one `open` step, the same
+action and exact `private-key`, after the main-only gate job, with `contents: read` alone, no
+id-token and a read-only cache; the environment admits main only. GitHub gives an environment
 secret to a reusable workflow only when the caller passes it by name, and the value it then holds
 is the environment's only in the job that names the environment
 ([Reuse workflows](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows)).

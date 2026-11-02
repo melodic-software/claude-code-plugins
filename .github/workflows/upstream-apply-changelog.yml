@@ -387,6 +387,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     cache-mode: read
+    # The scan-carrier key's second holder (owner decision, 2026-11-02): main only, no id-token, no
+    # write token, read-only cache; the environment admits main only.
+    environment: pr-pipeline-scan-carrier
     permissions:
       contents: read # check out main
     outputs:
@@ -415,6 +418,7 @@ jobs:
           echo "id=$id" >>"$GITHUB_OUTPUT"
 
       - name: Open the model job's sealed payloads
+        id: open
         uses: ./.base/.github/actions/open-lane-output # zizmor: ignore[self-repository]
         with:
           private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
@@ -457,6 +461,8 @@ jobs:
               [[ $head =~ ^[0-9a-f]{40}$ ]] || exit 1
               git -C .base fetch --no-tags "$IN/branches.bundle" "$head:refs/scan/$head"
               git -C .base diff --no-renames --binary "$BASE_SHA" "$head" >>"$IN/diffs.txt"
+              # Push replays these messages as public commits, so they are scanned too.
+              git -C .base log --format=%B "$BASE_SHA..$head" >>"$IN/diffs.txt"
               count=$((count + 1))
             done < <(jq -r '.branches[]?.head_sha' "$IN/plan.json")
           fi
