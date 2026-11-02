@@ -256,7 +256,8 @@ class AffectedSet(AffectedBase):
         self.assertIn(
             "comment on this issue rather than editing it", " ".join(body.split())
         )
-        self.assertIn("labels[]=needs-human", post)
+        # No label and no assignee: intake triage hands it to a lane.
+        self.assertFalse(any(a.startswith("labels[]=") for a in post))
         self.assertNotIn("babysit-merge-demotion", body)
         self.assertFalse(any(a.startswith("assignees[]=") for a in post))
 
@@ -608,14 +609,15 @@ class AffectedSet(AffectedBase):
         del self.fake.logs[112]
         self.assertEqual([f.signal for f in self.check().failures], ["dispatch"])
 
-    def test_the_quarantine_issue_goes_to_the_codeowners_user(self) -> None:
+    def test_a_codeowners_user_is_not_assigned_the_quarantine_issue(self) -> None:
         self.fake.codeowners = (
             "/plugins/notes/** @notes-owner\n/plugins/x/** @org/team\n"
         )
         self.red_dispatch(bash_log((FLAKY, False)))
-        self.remediate(self.check())
+        report = self.remediate(self.check())
+        self.assertEqual(report["quarantine"]["issues"], [9001])
         (post,) = self.posts()
-        self.assertIn("assignees[]=notes-owner", post)
+        self.assertFalse(any(a.startswith(("assignees[]=", "labels[]=")) for a in post))
 
     def test_a_repeat_sighting_is_not_commented_twice(self) -> None:
         self.quarantine_issue(FLAKY, "2026-10-12T09:00:00Z")
@@ -1122,29 +1124,6 @@ class SuiteFailures(unittest.TestCase):
             ]
         )
         self.assertIsNone(pm.suite_failures(log, "python"))
-
-
-class SuiteOwner(unittest.TestCase):
-    TEXT = "\n".join(
-        [
-            "# comment",
-            "* @default-owner",
-            "/plugins/source-control/** @sc-owner",
-            "/plugins/source-control/skills/commit/ @org/team",
-            "/plugins/notes/sync.test.sh",
-        ]
-    )
-
-    def test_the_last_matching_rule_wins(self) -> None:
-        self.assertEqual(pm.suite_owner(self.TEXT, TOUCHED), None)
-        self.assertEqual(pm.suite_owner(self.TEXT, GATE), "sc-owner")
-        self.assertEqual(
-            pm.suite_owner(self.TEXT, "scripts/x.test.sh"), "default-owner"
-        )
-        self.assertEqual(pm.suite_owner(self.TEXT, "plugins/notes/sync.test.sh"), None)
-
-    def test_no_rule_is_no_owner(self) -> None:
-        self.assertIsNone(pm.suite_owner("/docs/** @docs", FLAKY))
 
 
 class QuarantineDaysConfig(unittest.TestCase):

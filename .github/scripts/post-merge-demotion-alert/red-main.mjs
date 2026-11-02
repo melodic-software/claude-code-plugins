@@ -192,23 +192,20 @@ const inert = (text) => String(text ?? "").replaceAll("`", "'").split("\n")[0];
 
 const SUBJECT_PR = /\s*\(#(\d+)\)$/;
 
-// The revert the bot would open for the culprit, as the report names it.
-export function plannedRevert(culprit, decision, runUrl) {
+// The revert the bot would open for a culprit every guard passed, as the
+// report names it.
+export function plannedRevert(culprit, runUrl) {
   const subject = inert(culprit.message).replace(SUBJECT_PR, "");
   const pr = culprit.number ? `#${culprit.number}` : culprit.sha.slice(0, 12);
   return {
     branch: `red-main-revert/${culprit.sha.slice(0, 12)}`,
     command: `git revert --no-edit ${culprit.sha}`,
     title: `revert: ${subject}`,
-    draft: decision !== "auto-revert",
-    labels: decision === "auto-revert" ? ["auto-revert"] : ["auto-revert", "needs-human"],
+    labels: ["auto-revert"],
     bodyMarker: `<!-- red-main-revert culprit=${culprit.sha} -->`,
     reinstate: `Reinstate ${pr} after its red-main revert`,
     notify: culprit.number ? `a comment on #${culprit.number} linking ${runUrl}` : "none: the merge names no pull request",
-    merge:
-      decision === "auto-revert"
-        ? "the bot enqueues it in the merge queue once its checks pass"
-        : "a person reviews and merges it",
+    merge: "the bot enqueues it in the merge queue once its checks pass",
   };
 }
 
@@ -223,7 +220,7 @@ export function renderReport({ run, verdict, base, range, attribution, culprit, 
       decision: decision?.decision ?? "none",
     }),
     "",
-    `### Red main at \`${run.sha.slice(0, 12)}\`: ${decision ? (decision.decision === "auto-revert" ? "the bot would auto-revert" : "a person decides") : "no culprit"}`,
+    `### Red main at \`${run.sha.slice(0, 12)}\`: ${decision ? (decision.decision === "auto-revert" ? "the bot would auto-revert" : "no revert, fix forward") : "no culprit"}`,
     "",
     `Mode: ${config["dry-run"] ? "dry-run" : "dry-run off, but this version only reports"}; nothing was pushed, opened or merged.`,
     "",
@@ -262,13 +259,13 @@ export function renderReport({ run, verdict, base, range, attribution, culprit, 
       `Culprit: \`${culprit.sha}\`${culprit.number ? ` (#${culprit.number})` : ""}, merged ${culprit.mergedAt}, fails where its parent passes.`,
     );
     if (decision.reasons.length > 0) {
-      lines.push("", "A person decides because:", ...decision.reasons.map((r) => `- ${r}`));
+      lines.push("", "No revert is planned; the fix issues fix main forward, because:", ...decision.reasons.map((r) => `- ${r}`));
     }
   }
   if (revert) {
     lines.push(
       "",
-      `The revert it would open${revert.draft ? " (draft)" : ""}:`,
+      "The revert it would open:",
       "",
       "```text",
       `branch:    ${revert.branch}`,

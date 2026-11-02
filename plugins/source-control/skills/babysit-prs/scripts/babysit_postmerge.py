@@ -29,7 +29,8 @@ reported as unattributed and passes like a green run.
 
 `remediate()` acts on failures in order: disarm the native auto-merge the
 identity armed on its own open pull requests, dequeue the identity's
-merge-queue entries, file or comment on the demotion issue, then record the telemetry
+merge-queue entries, file (human-gated only when no green main clears it) or
+comment on the demotion issue, then record the telemetry
 count. `attribute()` triggers the one re-run, and `dispatch_full_run()` the
 dispatch. The CLI is read-only unless `--remediate` is given; with it, a cycle
 also dispatches one full run on the branch tip whenever an unverified
@@ -145,6 +146,12 @@ FULL_RUN_ALLOWANCE = timedelta(minutes=50)
 DISPATCH_DEADLINE = timedelta(hours=6)
 DEMOTION_FILERS = ("github-actions[bot]",)
 HUMAN_GATED_ROLE = "human-gated"
+# The record signals babysit_merge_policy `_recovered_at` clears once main is
+# green at a later commit; their records carry no human-gated label.
+SELF_CLEARING_SIGNALS = ("schedule", "dispatch")
+# Record text a model may read (intake triage reads every issue the lanes App
+# opens) keeps the fix-issue rule: job names, SHAs and links only.
+_RECORD_TEXT = re.compile(r"[^- A-Za-z0-9._:,/()#;@]")
 DEFAULT_ROLE_LABEL = "needs-human"
 # The role marking a pull request whose only writer is the standards sync App.
 STANDARDS_SYNC_ROLE = "standards-sync"
@@ -225,7 +232,6 @@ GATE_SUITE_PREFIXES = (
 QUARANTINE_NOTE = "The quarantined suite failed again: "
 QUARANTINE_CHANGED = "quarantine_changed"
 BORN_TRIAGED = "<!-- work-items:born-triaged -->"
-CODEOWNERS_PATHS = (".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS")
 _SUITE_RE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9._/-]*")
 
 SIGNAL_SCHEDULE = "schedule"
@@ -3405,6 +3411,15 @@ def _quarantined_suite(body: Any) -> str | None:
     return match[1] if match and _SUITE_RE.fullmatch(match[1]) else None
 
 
+def _record_detail(detail: str) -> str:
+    """`detail` with each newly failing check cut to its job name (a gate's
+    annotation title is free text) and any other character dropped."""
+    head, sep, checks = detail.partition("; newly failing: ")
+    if sep:
+        checks = ", ".join(sorted({c.split(": ", 1)[0] for c in checks.split(", ")}))
+    return _RECORD_TEXT.sub("", head + sep + checks)
+
+
 def _issue_body(failure: Failure, also: Iterable[AutoMerge] = ()) -> str:
     merge = failure.merge
     others = ", ".join(f"#{m.number} (`{m.merge_commit}`)" for m in also)
@@ -3420,7 +3435,7 @@ def _issue_body(failure: Failure, also: Iterable[AutoMerge] = ()) -> str:
             f"- Pull request: {merge.url or f'#{merge.number}'}",
             f"- Merge commit: `{merge.merge_commit}`",
             f"- Failing run: {failure.run_url or 'none'}",
-            f"- Detail: {failure.detail}",
+            f"- Detail: {_record_detail(failure.detail)}",
             *(
                 [
                     f"- Also charged by this run: {others}",
@@ -3429,14 +3444,7 @@ def _issue_body(failure: Failure, also: Iterable[AutoMerge] = ()) -> str:
                     "and reverts that one.",
                 ]
                 if others
-                else [
-                    "",
-                    "To revert the merge, a human runs:",
-                    "",
-                    "```sh",
-                    f"git revert {merge.merge_commit}",
-                    "```",
-                ]
+                else []
             ),
         ]
     )
@@ -3450,7 +3458,7 @@ def _body_line(failure: Failure) -> str:
     """The record body line naming the sighting, as `_issue_body` writes it."""
     if failure.run_url:
         return f"- Failing run: {failure.run_url}"
-    return f"- Detail: {failure.detail}"
+    return f"- Detail: {_record_detail(failure.detail)}"
 
 
 def _lines(text: Any) -> set[str]:
@@ -3479,67 +3487,6 @@ def _same_run(failure: Failure, body: Any) -> bool:
         return False
     prefix = f"- Failing run: {failure.run_url.rsplit('/attempts/', 1)[0]}/attempts/"
     return any(line.startswith(prefix) for line in _lines(body))
-
-
-def _codeowners_pattern(pattern: str) -> re.Pattern[str]:
-    """A CODEOWNERS pattern as a regex over a repository path, with
-    gitignore's rules: a leading or inner `/` anchors it at the root, `**`
-    spans directories, `*` and `?` do not, and a pattern also matches every
-    path under a directory it names."""
-    anchored = "/" in pattern.rstrip("/")
-    body = pattern.strip("/")
-    out = ""
-    i = 0
-    while i < len(body):
-        if body.startswith("**", i):
-            out += ".*"
-            i += 2
-        elif body[i] == "*":
-            out += "[^/]*"
-            i += 1
-        elif body[i] == "?":
-            out += "[^/]"
-            i += 1
-        else:
-            out += re.escape(body[i])
-            i += 1
-    return re.compile(("" if anchored else "(?:.*/)?") + out + "(?:/.*)?")
-
-
-def suite_owner(text: str, suite: str) -> str | None:
-    """The first user login the last CODEOWNERS rule matching `suite`
-    names, or None: no rule matches, the rule names no owner, or only teams
-    and emails, which an issue cannot be assigned to."""
-    owners: list[str] | None = None
-    for raw in text.splitlines():
-        line = raw.split("#", 1)[0].strip()
-        if not line:
-            continue
-        pattern, *names = line.split()
-        if _codeowners_pattern(pattern).fullmatch(suite):
-            owners = names
-    return next(
-        (o[1:] for o in owners or () if o.startswith("@") and "/" not in o), None
-    )
-
-
-def _codeowners(owner: str, name: str, sha: str) -> str:
-    """The CODEOWNERS file GitHub reads at `sha`, or "" when none reads."""
-    for path in CODEOWNERS_PATHS:
-        try:
-            proc = gh_capture(
-                [
-                    "api",
-                    "-H",
-                    "Accept: application/vnd.github.raw+json",
-                    f"repos/{owner}/{name}/contents/{path}?ref={sha}",
-                ]
-            )
-        except (RuntimeError, ValueError, OSError):
-            return ""
-        if proc.returncode == 0:
-            return proc.stdout or ""
-    return ""
 
 
 def _quarantine_body(q: Quarantine, branch: str, days: int) -> str:
@@ -3572,14 +3519,12 @@ def file_quarantines(
     branch: str,
     days: int,
     report: dict[str, Any],
-    label: str | None = None,
 ) -> None:
-    """File one quarantine issue per suite with no open one (needs-human,
-    assigned to the suite's CODEOWNERS user when a rule names one), or
-    comment each new sighting on the open one. Only the filers' issues and
-    comments count. Appends issue numbers to `report["issues"]` and
-    `report["comments"]`; raises `PostMergeReadError` or
-    `PostMergeWriteError`."""
+    """File one quarantine issue per suite with no open one, with no label and
+    no assignee so intake triage hands it to a lane, or comment each new
+    sighting on the open one. Only the filers' issues and comments count.
+    Appends issue numbers to `report["issues"]` and `report["comments"]`;
+    raises `PostMergeReadError` or `PostMergeWriteError`."""
     owner, name = _split_repo(repo)
     filers = (agent_identity, *DEMOTION_FILERS)
     keys = {_login_key(f) for f in filers}
@@ -3588,39 +3533,25 @@ def file_quarantines(
         suite = _quarantined_suite(issue.get("body"))
         if suite is not None and issue.get("state") == "open":
             open_issues.setdefault(suite, issue)
-    role_label = label or _role_label(owner, name)
-    codeowners: dict[str, str] = {}
     for q in quarantines:
         if not _SUITE_RE.fullmatch(q.suite):
             continue
         issue = open_issues.get(q.suite)
         if issue is None:
-            if q.sha not in codeowners:
-                codeowners[q.sha] = _codeowners(owner, name, q.sha)
-            assignee = suite_owner(codeowners[q.sha], q.suite)
             body = _quarantine_body(q, branch, days)
-            args = [
-                "api",
-                "-X",
-                "POST",
-                f"repos/{owner}/{name}/issues",
-                "-f",
-                f"title={quarantine_title(branch, q.suite)}",
-                "-f",
-                f"body={body}",
-                "-f",
-                f"labels[]={role_label}",
-            ]
-            try:
-                filed = _write(
-                    [*args, *(["-f", f"assignees[]={assignee}"] if assignee else [])],
-                    f"file the quarantine issue for {q.suite}",
-                )
-            except PostMergeWriteError:
-                if not assignee:
-                    raise
-                # An owner the repository cannot assign: file it unassigned.
-                filed = _write(args, f"file the quarantine issue for {q.suite}")
+            filed = _write(
+                [
+                    "api",
+                    "-X",
+                    "POST",
+                    f"repos/{owner}/{name}/issues",
+                    "-f",
+                    f"title={quarantine_title(branch, q.suite)}",
+                    "-f",
+                    f"body={body}",
+                ],
+                f"file the quarantine issue for {q.suite}",
+            )
             number = json_object(filed).get("number")
             if not isinstance(number, int):
                 raise PostMergeWriteError(
@@ -3699,7 +3630,6 @@ def remediate(
                     repo, verdict.quarantines[0].sha
                 ).quarantine_days,
                 report=report["quarantine"],
-                label=label,
             )
         except (PostMergeReadError, PostMergeWriteError, policy.PolicyReadError) as exc:
             report["errors"].append(f"quarantine issue: {exc}")
@@ -3773,8 +3703,13 @@ def remediate(
                         f"title=Post-merge {failure.signal} failure after #{failure.merge.number}: unattended merging demoted",
                         "-f",
                         f"body={body}",
-                        "-f",
-                        f"labels[]={role_label}",
+                        # A full-run record clears itself once main is green
+                        # at a later commit; any other needs a person's close.
+                        *(
+                            []
+                            if failure.signal in SELF_CLEARING_SIGNALS
+                            else ["-f", f"labels[]={role_label}"]
+                        ),
                     ],
                     "file the demotion issue",
                 )

@@ -274,12 +274,9 @@ test("under fail-forward even a lane merge under every limit goes to a person, n
   assert.match(verdict.reasons[0], /fail-forward/);
 });
 
-test("a person's revert is a draft labeled needs-human; the bot's goes through the merge queue", () => {
-  const human = plannedRevert(laneMerge(), "human", "https://example.test/run");
-  assert.equal(human.draft, true);
-  assert.deepEqual(human.labels, ["auto-revert", "needs-human"]);
-  const bot = plannedRevert(laneMerge(), "auto-revert", "https://example.test/run");
-  assert.equal(bot.draft, false);
+test("the bot's revert carries auto-revert only and goes through the merge queue", () => {
+  const bot = plannedRevert(laneMerge(), "https://example.test/run");
+  assert.deepEqual(bot.labels, ["auto-revert"]);
   assert.equal(bot.command, `git revert --no-edit ${A}`);
   assert.equal(bot.title, "revert: fix(x): y");
   assert.match(bot.merge, /merge queue/);

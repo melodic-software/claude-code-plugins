@@ -6,7 +6,11 @@ name: post-merge-demotion-alert
 # canary push run. The issue is the demotion record the babysit post-merge
 # check files under the agent identity and the merge-policy reader holds the
 # rung off on: first body line `<!-- babysit-merge-demotion sha=<S>
-# signal=<name> -->`, labeled needs-human, one per (signal, SHA). A record
+# signal=<name> -->`, one per (signal, SHA). A canary record is labeled
+# needs-human, since only a person's close clears it; a schedule or dispatch
+# record carries no label, since it clears itself once main is green at a
+# later commit (babysit_merge_policy.py `_recovered_at`). No record is sent to
+# intake triage: the fix issues below carry the work. A record
 # that already exists gets a comment naming the run attempt instead. Records
 # the agent identity filed are not read here, so one (signal, SHA) can hold a
 # record from each filer; both hold the rung off. This workflow merges,
@@ -15,8 +19,8 @@ name: post-merge-demotion-alert
 # Only a failure whose merges include one the lanes App put in the merge queue
 # demotes. When every merge in the failing range was enqueued by someone else
 # (a person, a release App), the issue's first line is `<!-- post-merge-failure
-# sha=<S> signal=<name> -->` instead: still needs-human, but no reader treats
-# it as a demotion. Anything the lookup cannot prove demotes.
+# sha=<S> signal=<name> -->` instead, labeled as a record of its signal is,
+# but no reader treats it as a demotion. Anything the lookup cannot prove demotes.
 #
 # A push to main that reverts a pull request the lanes App put in the merge
 # queue files a `revert` record. Every canary push run, whatever it concluded
@@ -42,15 +46,15 @@ name: post-merge-demotion-alert
 # main's last green full run, or quarantined, with a failure on a re-run also
 # having passed on an earlier attempt or failed at green, files nothing but each
 # suite's quarantine issue
-# (babysit_postmerge.py --judge-run, run from main's tip).
+# (babysit_postmerge.py --judge-run, run from main's tip), each locked and sent
+# to intake triage as a fix issue is.
 #
 # Beside a new record of a full run, it files one fix issue per newly failing
 # check (at most 5) and dispatches intake-triage.yml for each, so an agent can
 # fix main once the owner ratifies it. First body line `<!-- post-merge-fix
 # check=<name> -->`, no label, fixed text only; one issue per check across
 # SHAs, reopened when the check fails again, keeping agent-ready and with no
-# second intake dispatch. The record keeps needs-human, and closing a fix issue
-# changes nothing on it.
+# second intake dispatch. Closing a fix issue changes nothing on the record.
 #
 # A full run pr-merge.yml starts for main's merges uses GITHUB_TOKEN, so its
 # completion raises no workflow_run event. pr-merge's post-merge-dispatch job
@@ -483,6 +487,18 @@ jobs:
               --repo "$GITHUB_REPOSITORY" --judge-run "$RUN_ID" --attempt "$RUN_ATTEMPT" \
               --checks-file "$now" --baseline-checks-file "$kept" --file-quarantine)" || judged=$?
             printf '%s\n' "$judgment"
+            # Each quarantine issue the judge filed is locked, then sent to
+            # intake triage: github-actions[bot] issues start no issues run.
+            # One not sent fails the job at its end.
+            quarantined="$(jq -r '.quarantine.issues[]? | select(type == "number")' <<<"$judgment" 2>/dev/null)" || quarantined=''
+            for q in $quarantined; do
+              if ! gh api -X PUT "repos/$GITHUB_REPOSITORY/issues/$q/lock" >/dev/null ||
+                ! gh api -X POST "repos/$GITHUB_REPOSITORY/actions/workflows/intake-triage.yml/dispatches" \
+                  -f ref=main -f "inputs[issue-number]=$q" >/dev/null; then
+                echo "::error::quarantine issue #$q was not sent to intake triage"
+                trap 'rm -f -- "$now" "$now.new" "$kept" "$before"; exit 1' EXIT
+              fi
+            done
             if ((judged >= 2 && judged <= 4)); then
               error="$(jq -r '.error // empty' <<<"$judgment" 2>/dev/null)" || error=''
               [[ -n "$error" ]] || error='no error in its output'
@@ -1026,8 +1042,14 @@ jobs:
           - More checks failed than were filed as fix issues: a run files at most 5, and none for a name outside A-Z a-z 0-9 space . _ : , / ( ) -}
 
           $revert"
+          # Only a canary record needs a person's close; a full-run record
+          # clears itself once main is green at a later commit.
+          label=()
+          if [[ "$signal" == canary ]]; then
+            label=(-f 'labels[]=needs-human')
+          fi
           record="$(gh api -X POST "repos/$GITHUB_REPOSITORY/issues" \
-            -f title="$title" -f body="$body" -f 'labels[]=needs-human' --jq .number)"
+            -f title="$title" -f body="$body" "${label[@]}" --jq .number)"
           kind='demotion issue'
           if [[ -z "$lane" ]]; then
             kind='post-merge-failure issue (lane not demoted)'
@@ -1106,7 +1128,7 @@ jobs:
           - Run: $run_link
           - Merge range: $merges
 
-          Fix the check on main. Closing this issue releases nothing on $on_record; a human closes that record once main is green."
+          Fix the check on main. Closing this issue changes nothing on $on_record."
               if fix_number="$(gh api -X POST "repos/$GITHUB_REPOSITORY/issues" \
                 -f title="Fix main: $check fails since ${RUN_SHA:0:12}" -f body="$fix_body" --jq .number)" &&
                 [[ "$fix_number" =~ ^[1-9][0-9]*$ ]]; then

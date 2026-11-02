@@ -121,11 +121,13 @@ test("a single-merge range of a lane merge: the bot would auto-revert it, and on
   assert.match(result.body, /git revert --no-edit f{40}/);
 });
 
-test("an owner merge pinned as the culprit goes to a person, with a draft revert", async () => {
+test("an owner merge pinned as the culprit plans no revert: the fix issues fix main forward", async () => {
   const w = world({ merges: [{ sha: HEAD, number: 102, by: "kyle-sexton" }] });
   const result = await run(ENV, w);
   assert.equal(decisionOf(result.body), "human");
-  assert.match(result.body, /The revert it would open \(draft\)/);
+  assert.match(result.body, /no revert, fix forward/);
+  assert.match(result.body, /No revert is planned; the fix issues fix main forward, because:/);
+  assert.doesNotMatch(result.body, /The revert it would open|git revert|needs-human/);
 });
 
 test("under fail-forward a pinned lane merge goes to a person and the report plans no revert", async () => {
