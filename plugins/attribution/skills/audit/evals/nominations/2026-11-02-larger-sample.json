@@ -1,0 +1,705 @@
+{
+  "purpose": "Real repository passages nominated for the #5654 larger-sample re-measure, with the blind three-judge panel outcome for each. Pointers only: the passages and sources are not copied here. Unanimous labels are converted into synthetic golden cases per reference/dispositions.md 'Adjudications become fixtures'; splits go to the owner.",
+  "repo_sha": "edef3f697a1630046390a32943a17e9b6fc90b56",
+  "rubric": "copy v5, restated-fact v1 (reference/rubric.md at repo_sha)",
+  "combine_rule": "unanimous STANDS with one class is a finding; unanimous CLEARED is none; anything else routes to the owner",
+  "candidates": [
+    {
+      "id": "k01",
+      "path": "plugins/user-interface/skills/write-css/reference/layout.md",
+      "lines": [
+        54,
+        65
+      ],
+      "source_url": "https://github.com/vojtaholik/good-css/blob/main/PRACTICES.md",
+      "fetched_at": "2026-11-02T02:25:57+00:00",
+      "fingerprint": {
+        "fired": true,
+        "containment": 0.482,
+        "longest_span_words": 60
+      },
+      "rubric": "copy",
+      "panel": "STANDS near-verbatim 58-65",
+      "votes": [
+        {
+          "verdict": "STANDS",
+          "class": "near-verbatim",
+          "span": {
+            "start_line": 58,
+            "end_line": 65
+          },
+          "carve_out": null
+        },
+        {
+          "verdict": "STANDS",
+          "class": "near-verbatim",
+          "span": {
+            "start_line": 58,
+            "end_line": 64
+          },
+          "carve_out": null
+        },
+        {
+          "verdict": "STANDS",
+          "class": "near-verbatim",
+          "span": {
+            "start_line": 58,
+            "end_line": 65
+          },
+          "carve_out": null
+        }
+      ]
+    },
+    {
+      "id": "k02",
+      "path": "plugins/user-interface/skills/write-css/reference/motion.md",
+      "lines": [
+        36,
+        45
+      ],
+      "source_url": "https://github.com/vojtaholik/good-css/blob/main/PRACTICES.md",
+      "fetched_at": "2026-11-02T02:25:57+00:00",
+      "fingerprint": {
+        "fired": true,
+        "containment": 0.228,
+        "longest_span_words": 54
+      },
+      "rubric": "copy",
+      "panel": "STANDS verbatim 40-43",
+      "votes": [
+        {
+          "verdict": "STANDS",
+          "class": "verbatim",
+          "span": {
+            "start_line": 40,
+            "end_line": 43
+          },
+          "carve_out": null
+        },
+        {
+          "verdict": "STANDS",
+          "class": "verbatim",
+          "span": {
+            "start_line": 40,
+            "end_line": 43
+          },
+          "carve_out": null
+        },
+        {
+          "verdict": "STANDS",
+          "class": "verbatim",
+          "span": {
+            "start_line": 40,
+            "end_line": 43
+          },
+          "carve_out": null
+        }
+      ]
+    },
+    {
+      "id": "k03",
+      "path": "docs/upstream/good-css.md",
+      "lines": [
+        102,
+        130
+      ],
+      "source_url": "https://github.com/vojtaholik/good-css/blob/main/PRACTICES.md",
+      "fetched_at": "2026-11-02T02:25:06+00:00",
+      "fingerprint": {
+        "fired": true,
+        "containment": 0.31,
+        "longest_span_words": 44
+      },
+      "rubric": "copy",
+      "panel": "cleared",
+      "votes": [
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        },
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        },
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        }
+      ]
+    },
+    {
+      "id": "k04",
+      "path": "plugins/autonomy/skills/setup/context/windows-surfaces.md",
+      "lines": [
+        76,
+        82
+      ],
+      "source_url": "https://code.claude.com/docs/en/sandboxing",
+      "fetched_at": "2026-11-02T02:29:02+00:00",
+      "fingerprint": {
+        "fired": true,
+        "containment": 0.023,
+        "longest_span_words": 27
+      },
+      "rubric": "copy",
+      "panel": "cleared",
+      "votes": [
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        },
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        },
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        }
+      ]
+    },
+    {
+      "id": "k05",
+      "path": "docs/native-surfaces.md",
+      "lines": [
+        893,
+        897
+      ],
+      "source_url": "https://code.claude.com/docs/en/commands",
+      "fetched_at": "2026-11-02T02:29:02+00:00",
+      "fingerprint": {
+        "fired": true,
+        "containment": 0.005,
+        "longest_span_words": 26
+      },
+      "rubric": "copy",
+      "panel": "cleared",
+      "votes": [
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        },
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        },
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        }
+      ]
+    },
+    {
+      "id": "k06",
+      "path": "plugins/harness-config/skills/audit-instructions/reference/criteria.md",
+      "lines": [
+        1188,
+        1194
+      ],
+      "source_url": "https://platform.claude.com/docs/en/build-with-claude/thinking",
+      "fetched_at": "2026-11-02T02:29:03+00:00",
+      "fingerprint": {
+        "fired": true,
+        "containment": 0.005,
+        "longest_span_words": 32
+      },
+      "rubric": "copy",
+      "panel": "cleared",
+      "votes": [
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        },
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        },
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        }
+      ]
+    },
+    {
+      "id": "k07",
+      "path": "plugins/playbooks/skills/skill-authoring/SKILL.md",
+      "lines": [
+        202,
+        210
+      ],
+      "source_url": "https://code.claude.com/docs/en/skills",
+      "fetched_at": "2026-11-02T02:29:03+00:00",
+      "fingerprint": {
+        "fired": true,
+        "containment": 0.017,
+        "longest_span_words": 18
+      },
+      "rubric": "copy",
+      "panel": "cleared",
+      "votes": [
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        },
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": "2 Conforming stamped records"
+        },
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        }
+      ]
+    },
+    {
+      "id": "k08",
+      "path": "docs/plugin-philosophy.md",
+      "lines": [
+        1349,
+        1356
+      ],
+      "source_url": "https://code.claude.com/docs/en/model-config",
+      "fetched_at": "2026-11-02T02:29:03+00:00",
+      "fingerprint": {
+        "fired": true,
+        "containment": 0.005,
+        "longest_span_words": 17
+      },
+      "rubric": "copy",
+      "panel": "cleared",
+      "votes": [
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        },
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        },
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        }
+      ]
+    },
+    {
+      "id": "k09",
+      "path": "lib/session-bridge/README.md",
+      "lines": [
+        228,
+        234
+      ],
+      "source_url": "https://code.claude.com/docs/en/authentication",
+      "fetched_at": "2026-11-02T02:29:04+00:00",
+      "fingerprint": {
+        "fired": true,
+        "containment": 0.007,
+        "longest_span_words": 17
+      },
+      "rubric": "copy",
+      "panel": "cleared",
+      "votes": [
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        },
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        },
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        }
+      ]
+    },
+    {
+      "id": "k10",
+      "path": "docs/adr/0052-adopt-claude-code-mods.md",
+      "lines": [
+        37,
+        46
+      ],
+      "source_url": "https://code.claude.com/docs/en/plugins/mods/admin",
+      "fetched_at": "2026-11-02T02:29:04+00:00",
+      "fingerprint": {
+        "fired": true,
+        "containment": 0.025,
+        "longest_span_words": 16
+      },
+      "rubric": "copy",
+      "panel": "cleared",
+      "votes": [
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        },
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        },
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        }
+      ]
+    },
+    {
+      "id": "k11",
+      "path": "plugins/harness-config/skills/audit/reference/required-permissions.md",
+      "lines": [
+        149,
+        156
+      ],
+      "source_url": "https://code.claude.com/docs/en/permissions",
+      "fetched_at": "2026-11-02T02:29:04+00:00",
+      "fingerprint": {
+        "fired": true,
+        "containment": 0.023,
+        "longest_span_words": 15
+      },
+      "rubric": "copy",
+      "panel": "cleared",
+      "votes": [
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": "2 Conforming stamped records"
+        },
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        },
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        }
+      ]
+    },
+    {
+      "id": "k12",
+      "path": "plugins/playbooks/skills/skill-authoring/reference/precompute-context.md",
+      "lines": [
+        158,
+        165
+      ],
+      "source_url": "https://code.claude.com/docs/en/worktrees",
+      "fetched_at": "2026-11-02T02:29:04+00:00",
+      "fingerprint": {
+        "fired": true,
+        "containment": 0.01,
+        "longest_span_words": 15
+      },
+      "rubric": "copy",
+      "panel": "cleared",
+      "votes": [
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null,
+          "note": "C3 FAIL cleared it; the judge also wrote the copied span's class and lines (near-verbatim, 161-163) for the record, outside the verdict"
+        },
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": "2 Conforming stamped records"
+        },
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": "2 Conforming stamped records"
+        }
+      ]
+    },
+    {
+      "id": "k13",
+      "path": "plugins/evals/skills/methodology/reference/success-criteria.md",
+      "lines": [
+        38,
+        46
+      ],
+      "source_url": "https://platform.claude.com/docs/en/test-and-evaluate/develop-tests",
+      "fetched_at": "2026-11-02T02:29:05+00:00",
+      "fingerprint": {
+        "fired": false,
+        "containment": 0.127,
+        "longest_span_words": 13
+      },
+      "rubric": "copy",
+      "panel": "cleared",
+      "votes": [
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": "5 Distilled-product architectures"
+        },
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        },
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": "5 Distilled-product architectures"
+        }
+      ]
+    },
+    {
+      "id": "k14",
+      "path": "plugins/evals/skills/methodology/reference/eval-design.md",
+      "lines": [
+        28,
+        41
+      ],
+      "source_url": "https://platform.claude.com/docs/en/test-and-evaluate/develop-tests",
+      "fetched_at": "2026-11-02T02:29:05+00:00",
+      "fingerprint": {
+        "fired": false,
+        "containment": 0.054,
+        "longest_span_words": 13
+      },
+      "rubric": "copy",
+      "panel": "cleared",
+      "votes": [
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": "5 Distilled-product architectures"
+        },
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        },
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        }
+      ]
+    },
+    {
+      "id": "k15",
+      "path": "plugins/ai-slop/skills/audit/reference/catalog.md",
+      "lines": [
+        236,
+        262
+      ],
+      "source_url": "https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing",
+      "fetched_at": "2026-11-02T02:26:22+00:00",
+      "fingerprint": {
+        "fired": false,
+        "containment": 0.006,
+        "longest_span_words": 14
+      },
+      "rubric": "copy",
+      "panel": "cleared",
+      "votes": [
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": "5 Distilled-product architectures"
+        },
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        },
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": "5 Distilled-product architectures"
+        }
+      ]
+    },
+    {
+      "id": "k16",
+      "path": "plugins/evals/skills/plugin-eval/reference/ci.md",
+      "lines": [
+        25,
+        41
+      ],
+      "source_url": "https://code.claude.com/docs/en/plugin-evals",
+      "fetched_at": "2026-11-02T02:29:05+00:00",
+      "fingerprint": {
+        "fired": false,
+        "containment": 0.018,
+        "longest_span_words": 12
+      },
+      "rubric": "copy",
+      "panel": "routed: STANDS/near-verbatim, CLEARED, STANDS/near-verbatim",
+      "votes": [
+        {
+          "verdict": "STANDS",
+          "class": "near-verbatim",
+          "span": {
+            "start_line": 37,
+            "end_line": 38
+          },
+          "carve_out": null
+        },
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": null
+        },
+        {
+          "verdict": "STANDS",
+          "class": "near-verbatim",
+          "span": {
+            "start_line": 37,
+            "end_line": 38
+          },
+          "carve_out": null
+        }
+      ]
+    },
+    {
+      "id": "k17",
+      "path": "plugins/harness-config/reference/agents-md-liveness.md",
+      "lines": [
+        125,
+        133
+      ],
+      "source_url": "https://code.claude.com/docs/en/memory",
+      "fetched_at": "2026-11-02T02:29:06+00:00",
+      "fingerprint": {
+        "fired": false,
+        "containment": 0.033,
+        "longest_span_words": 11
+      },
+      "rubric": "restated-fact",
+      "panel": "routed: CLEARED (1 Conforming pointer or record), STANDS/restated-fact, STANDS/restated-fact",
+      "votes": [
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": "1 Conforming pointer or record"
+        },
+        {
+          "verdict": "STANDS",
+          "class": "restated-fact",
+          "span": {
+            "start_line": 132,
+            "end_line": 132
+          },
+          "carve_out": null
+        },
+        {
+          "verdict": "STANDS",
+          "class": "restated-fact",
+          "span": {
+            "start_line": 132,
+            "end_line": 133
+          },
+          "carve_out": null
+        }
+      ]
+    },
+    {
+      "id": "k18",
+      "path": "plugins/planning/agents/plan-reviewer.md",
+      "lines": [
+        40,
+        46
+      ],
+      "source_url": "https://code.claude.com/docs/en/sub-agents",
+      "fetched_at": "2026-11-02T02:29:06+00:00",
+      "fingerprint": {
+        "fired": false,
+        "containment": 0.026,
+        "longest_span_words": 11
+      },
+      "rubric": "restated-fact",
+      "panel": "cleared",
+      "votes": [
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": "1 Conforming pointer or record"
+        },
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": "1 Conforming pointer or record"
+        },
+        {
+          "verdict": "CLEARED",
+          "class": null,
+          "span": null,
+          "carve_out": "1 Conforming pointer or record"
+        }
+      ]
+    }
+  ]
+}
