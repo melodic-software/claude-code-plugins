@@ -100,3 +100,10 @@ xdescribe = "xdescribe"
 extend-exclude = [
   "*.min.*",
 ]
+
+# Generated verdict data (commit SHAs and branch names, not prose). A file type,
+# not an exclude, since the hooks pass changed files explicitly and typos checks
+# an explicit path whatever the exclude list says.
+[type.verdict-data]
+extend-glob = ["verify-legacy-fails.json"]
+check-file = false
