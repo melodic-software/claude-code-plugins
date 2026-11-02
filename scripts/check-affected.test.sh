@@ -679,17 +679,38 @@ check "--uncommitted leaves HEAD, the index and the worktree list as they were" 
 run -- --uncommitted
 check "--uncommitted with no edits passes with nothing to check" '[[ $RC == 0 && $OUT == *"over 0 changed files"* ]]'
 
-# The default job count is one less than the core count, at most 8, on a host
-# whatever nproc reports; CHECK_AFFECTED_JOBS and --jobs still set it outright.
+# The default job count is one less than the core count, at most 8 and at most
+# one per 2 GiB of free memory, on a host whatever nproc and the memory files
+# report; CHECK_AFFECTED_JOBS and --jobs still set it outright.
 unset CHECK_AFFECTED_JOBS
-mkdir -p "$tmp/nprocbin"
+mkdir -p "$tmp/nprocbin" "$tmp/cg/slice/scope"
 printf '#!/usr/bin/env bash\necho "$STUB_NPROC"\n' >"$tmp/nprocbin/nproc"
 chmod +x "$tmp/nprocbin/nproc"
-jobs_env=(PATH="$tmp/nprocbin:$PATH" STUB_ARGS_LOG="$tmp/args.log")
+printf 'MemTotal: 100663296 kB\nMemAvailable: 67108864 kB\n' >"$tmp/meminfo-64g"
+printf 'MemAvailable: 6291456 kB\n' >"$tmp/meminfo-6g"
+printf 'MemAvailable: 1048576 kB\n' >"$tmp/meminfo-1g"
+# A slice capped at 10 GiB holding 6 GiB, 1 GiB of it inactive file cache: 5 GiB
+# free under it. The scope below sets no cap of its own.
+echo 10737418240 >"$tmp/cg/slice/memory.max"
+echo 6442450944 >"$tmp/cg/slice/memory.current"
+printf 'anon 5368709120\ninactive_file 1073741824\n' >"$tmp/cg/slice/memory.stat"
+echo max >"$tmp/cg/slice/scope/memory.max"
+echo 4294967296 >"$tmp/cg/slice/scope/memory.current"
+jobs_env=(PATH="$tmp/nprocbin:$PATH" STUB_ARGS_LOG="$tmp/args.log" CHECK_AFFECTED_MEMINFO="$tmp/meminfo-64g" CHECK_AFFECTED_CGROUP_DIR="$tmp/no-cgroup")
 run "${jobs_env[@]}" STUB_NPROC=24 -- --base base --tests
 check "a 24-core host defaults to 8 jobs" '[[ $RC == 0 && $(cat "$tmp/args.log") == *"--jobs 8 "* ]]'
 run "${jobs_env[@]}" STUB_NPROC=4 -- --base base --tests
 check "a 4-core host defaults to 3 jobs" '[[ $RC == 0 && $(cat "$tmp/args.log") == *"--jobs 3 "* ]]'
+run "${jobs_env[@]}" STUB_NPROC=24 CHECK_AFFECTED_MEMINFO="$tmp/meminfo-6g" -- --base base --tests
+check "6 GiB of MemAvailable caps a 24-core host at 3 jobs" '[[ $RC == 0 && $(cat "$tmp/args.log") == *"--jobs 3 "* ]]'
+run "${jobs_env[@]}" STUB_NPROC=24 CHECK_AFFECTED_CGROUP_DIR="$tmp/cg/slice/scope" -- --base base --tests
+check "a parent cgroup with 5 GiB free caps a 64 GiB host at 2 jobs" '[[ $RC == 0 && $(cat "$tmp/args.log") == *"--jobs 2 "* ]]'
+run "${jobs_env[@]}" STUB_NPROC=24 CHECK_AFFECTED_MEMINFO="$tmp/meminfo-1g" -- --base base --tests
+check "under 2 GiB free still runs 1 job" '[[ $RC == 0 && $(cat "$tmp/args.log") == *"--jobs 1 "* ]]'
+run "${jobs_env[@]}" STUB_NPROC=24 CHECK_AFFECTED_MEMINFO="$tmp/no-meminfo" -- --base base --tests
+check "with no meminfo the core cap alone applies" '[[ $RC == 0 && $(cat "$tmp/args.log") == *"--jobs 8 "* ]]'
+run "${jobs_env[@]}" STUB_NPROC=24 CHECK_AFFECTED_MEMINFO="$tmp/meminfo-1g" CHECK_AFFECTED_JOBS=6 -- --base base --tests
+check "CHECK_AFFECTED_JOBS sets the job count past the memory cap" '[[ $RC == 0 && $(cat "$tmp/args.log") == *"--jobs 6 "* ]]'
 run "${jobs_env[@]}" STUB_NPROC=24 CHECK_AFFECTED_JOBS=16 -- --base base --tests
 check "CHECK_AFFECTED_JOBS sets the job count past the default cap" '[[ $RC == 0 && $(cat "$tmp/args.log") == *"--jobs 16 "* ]]'
 run "${jobs_env[@]}" STUB_NPROC=24 CHECK_AFFECTED_JOBS=16 -- --base base --tests --jobs 12
