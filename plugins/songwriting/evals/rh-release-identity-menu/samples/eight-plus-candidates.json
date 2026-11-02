@@ -45,6 +45,18 @@
     {
       "answer": "**Police**, but only just. Neither one passes the identity check.\n\nThe filter caught this on the pre-vowel consonant. \"Release\" is re-**LEASE**, so its stressed syllable is `l-ē-s`.\n\n- **lease:** This is the stressed syllable of \"release\" itself, so it repeats the word instead of rhyming with it. It's the worst case.\n- **police:** The stressed syllable is `l-ē-s` too, so it's still an identity, not a rhyme. Only the unstressed first syllable differs. It's the lesser problem because it's a different word with a different meaning, so the ear takes it as a new image and not the same word again. It also puts something concrete in the rhyme spot, where \"release\" is abstract.\n\nIf you want a true rhyme, keep the `ē` vowel but change the sound before it. Here are some to sing against your line:\n\n- **Perfect:** peace, piece, cease, crease, increase\n- **Family (`s` to `z`):** please, knees, breeze, ease, freeze\n- **Mosaic (multi-word):** \"tell me, please\", \"on my knees\"\n\nI skipped the full tier-by-tier menu because you asked for a binary pick. \"Rest in peace\" and \"piece/peace\" pairs lean toward stock pairings, so reframe them if you use them. I can't sing, so your ear makes the final call. Sing \"sweet release / police\" once to see whether the identity bothers you.",
       "why": "observed Sonnet reply: twelve candidates on three list lines"
+    },
+    {
+      "answer": "Police and lease are identities of release, not rhymes, so neither. Here is a menu instead.\n\n| Tier | Candidates |\n| --- | --- |\n| Perfect | peace, grease, decrease, increase, fleece |\n| Family | beef, wreath, leaf, belief, relief |\n| Additive | east, feast, least, beast, creased |\n| Assonance | seat, keep, the streets, on my knees, the keys |\n\nThe pick is yours.",
+      "why": "a four-row tier table with five candidates per row, twenty in all"
+    },
+    {
+      "answer": "Neither: police and lease are identities.\n\n- Perfect: peace, grease, decrease, fleece\n- Family: beef, wreath, belief, relief\n- Mosaic: the streets, on my knees, the keys, in the heat",
+      "why": "twelve candidates on three list lines, four per line"
+    },
+    {
+      "answer": "Not police or lease; those are identities. Perfect rhymes like *peace*, *grease* and *decrease* close the chorus; family rhymes, *wreath*, *belief*, *relief*, keep it near; and *the streets*, *on my knees* or *in the heat* leave it moving.",
+      "why": "nine candidates inline in prose"
     }
   ],
   "fail": [
@@ -84,6 +96,18 @@
     {
       "answer": "- Perfect: peace, grease, crease\n- Family: breeze, keys\n- Mosaic: in one piece",
       "why": "six candidates on three list lines"
+    },
+    {
+      "answer": "- Perfect: peace, grease, decrease\n- Family: wreath, belief\n- Mosaic: the streets, on my knees",
+      "why": "seven candidates on three list lines, several per line"
+    },
+    {
+      "answer": "Try peace, grease, decrease, wreath, belief, the streets or on my knees.",
+      "why": "seven inline comma-separated candidates"
+    },
+    {
+      "answer": "Police and lease are identities, not rhymes. Use peace, grease, decrease, wreath, belief or the streets instead.",
+      "why": "six inline candidates; police and lease are named only to reject them"
     }
   ]
 }
