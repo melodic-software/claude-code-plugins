@@ -3000,6 +3000,36 @@ test("the step summary carries each verifier read's cost even when the run raise
   assert.equal(readFileSync(summary, "utf8"), "enable-auto-merge: #1 calls=9 github-token=7 paginated=1 ms=46800\n");
 });
 
+// Outage posture element 2: a listing that is not whole holds the run green
+// with a notice, where it used to throw and end red.
+test("more than 1000 open pull requests holds green with a notice: nothing armed, disarmed or noted", async () => {
+  const summary = join(tempDir("enable-auto-merge-full-"), "summary.md");
+  writeFileSync(summary, "");
+  const calls = [];
+  const armed = pull(1, { autoMergeRequest: { enabledAt: "2026-10-23T10:00:00Z" } });
+  const github = async (method, path, body) => {
+    calls.push({ method, path, query: body?.query });
+    assert.equal(body?.query, PULLS_QUERY, `only the listing is read: ${method} ${path}`);
+    return { data: { repository: { pullRequests: { pageInfo: { hasNextPage: true, endCursor: `c${calls.length}` }, nodes: [armed, pull(2)] } } } };
+  };
+  const lines = [];
+  const log = console.log;
+  console.log = (line) => lines.push(line);
+  let code;
+  try {
+    code = await main({ env: { ...ENV, GITHUB_STEP_SUMMARY: summary }, github, room: room(), sleep: async () => {} });
+  } finally {
+    console.log = log;
+  }
+  assert.equal(code, 0, lines.join("\n"));
+  assert.equal(calls.length, 10, "ten listing pages, then the hold");
+  assert.ok(calls.every((call) => call.method === "POST" && call.path === "/graphql" && call.query === PULLS_QUERY));
+  const hold = "more than 1000 open pull requests into main, so the listing is not whole: nothing is armed, disarmed or noted this run, and the next run reads it again";
+  assert.ok(lines.includes(`::notice title=enable-auto-merge hold::${hold}`), lines.join("\n"));
+  assert.ok(!lines.some((line) => String(line).startsWith("::error")), lines.join("\n"));
+  assert.equal(readFileSync(summary, "utf8"), `enable-auto-merge: hold: ${hold}\n`);
+});
+
 test("pythonRoom gives the lane-room read its own 8 minute timeout and reads a kill as unreadable", async () => {
   const seen = [];
   const killed = (_cmd, _args, options) => {

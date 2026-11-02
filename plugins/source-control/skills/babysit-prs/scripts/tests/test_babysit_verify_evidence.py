@@ -2884,6 +2884,45 @@ class TheSpecMustBeTheJudgedOne(unittest.TestCase):
         self.assertEqual(read(fake).refusal, "verify:unreadable")
 
 
+class AnUnreadableQueuedLanesEntryIsLeftToTheQueue(unittest.TestCase):
+    """An unreadable verdict on a queued lanes App entry is `QUEUE_READS`,
+    since the merge queue's ci-status reads that entry's verdict itself; on
+    any other author, or when the App's id cannot be read, it stays a hold."""
+
+    APP = 4242
+
+    def hold(self, user: dict[str, Any], app: Any = APP) -> str | None:
+        unreadable = ve.Evidence(ve.UNREADABLE, HEAD, (), 0)
+        lane_id = (
+            mock.patch.object(ve.Reader, "_lane_app_id", side_effect=app)
+            if isinstance(app, BaseException)
+            else mock.patch.object(ve.Reader, "_lane_app_id", return_value=app)
+        )
+        with (
+            mock.patch.object(policy, "pull_request", return_value=pull(user=user)),
+            mock.patch.object(ve.Reader, "evidence", return_value=unreadable),
+            lane_id,
+        ):
+            return ve.Reader(REPO, "main", now=NOW).queued_hold(PR)
+
+    def test_only_the_lanes_apps_entry_is_left_to_the_queue(self) -> None:
+        cases: dict[str, tuple[dict[str, Any], Any, str]] = {
+            "lanes App": ({"id": self.APP, "type": "Bot"}, self.APP, ve.QUEUE_READS),
+            "owner": ({"id": 7, "type": "User"}, self.APP, ve.UNREADABLE),
+            "same id, not a Bot": ({"id": self.APP, "type": "User"}, self.APP, ve.UNREADABLE),
+            "other App": ({"id": 99, "type": "Bot"}, self.APP, ve.UNREADABLE),
+            "no App id": ({"id": self.APP, "type": "Bot"}, None, ve.UNREADABLE),
+            "App id unreadable": (
+                {"id": self.APP, "type": "Bot"},
+                RuntimeError("trusted list"),
+                ve.UNREADABLE,
+            ),
+        }
+        for label, (user, app, want) in cases.items():
+            with self.subTest(label):
+                self.assertEqual(self.hold(user, app), want)
+
+
 class AQueuedDependabotEntryNeedsNoVerdict(unittest.TestCase):
     """The pr-merge lane enqueues Dependabot pull requests in their own class
     (babysit_dependabot), which pr-verify never judges."""

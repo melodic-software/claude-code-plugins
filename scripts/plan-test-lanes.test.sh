@@ -259,19 +259,20 @@ check "an unlisted Python suite never weighs less than the 5 s default" $?
 cp "$scratch/suite-seconds.txt" "$repo/scripts/suite-seconds.txt"
 rm -f "$repo/plugins/u/test_u.py"
 
-# 925 suite-seconds would take ceil(925/180) = 6 legs; test-python stops at 5.
-# Longest first onto the least-loaded leg: p, r, s, q and t open the five legs,
-# then u joins t (95), v joins q (100) and w joins s (110).
+# 1650 suite-seconds would take ceil(1650/180) = 10 legs; test-python stops at 9.
+# Longest first onto the least-loaded leg: p, r, s, t, u, v, w, x and y open the
+# nine legs, then m joins y (120) and q joins x (130).
 cp "$repo/scripts/suite-seconds.txt" "$scratch/suite-seconds.txt"
-for s in r s t u v w; do mk "plugins/$s/test_$s.py" "assert True"; done
-printf '%s\n' "plugins/r/test_r.py 190" "plugins/s/test_s.py 110" "plugins/t/test_t.py 95" \
-  "plugins/u/test_u.py 90" "plugins/v/test_v.py 80" "plugins/w/test_w.py 60" >>"$repo/scripts/suite-seconds.txt"
+for s in r s t u v w x y m; do mk "plugins/$s/test_$s.py" "assert True"; done
+printf '%s\n' "plugins/r/test_r.py 190" "plugins/s/test_s.py 180" "plugins/t/test_t.py 170" \
+  "plugins/u/test_u.py 160" "plugins/v/test_v.py 150" "plugins/w/test_w.py 140" \
+  "plugins/x/test_x.py 130" "plugins/y/test_y.py 120" "plugins/m/test_m.py 110" >>"$repo/scripts/suite-seconds.txt"
 plan -- .python-version
-for s in r s t u v w; do rm -rf "${repo:?}/plugins/$s"; done
+for s in r s t u v w x y m; do rm -rf "${repo:?}/plugins/$s"; done
 cp "$scratch/suite-seconds.txt" "$repo/scripts/suite-seconds.txt"
-is "$(key python_legs)" "[0,1,2,3,4]" &&
-  grep -q 'python: 8 suite(s), 925 suite-seconds, 5 leg(s): 200s/1 190s/1 170s/2 180s/2 185s/2' "$ERR"
-check "test-python packs by suite-seconds onto at most 5 legs, longest first to the least-loaded leg" $?
+is "$(key python_legs)" "[0,1,2,3,4,5,6,7,8]" &&
+  grep -q 'python: 11 suite(s), 1650 suite-seconds, 9 leg(s): 200s/1 190s/1 180s/1 170s/1 160s/1 150s/1 140s/1 230s/2 230s/2' "$ERR"
+check "test-python packs by suite-seconds onto at most 9 legs, longest first to the least-loaded leg" $?
 
 plan -- lib/w.mjs
 is "$(suites bash)" "lib/w.test.sh" && is "$(key node)" false
