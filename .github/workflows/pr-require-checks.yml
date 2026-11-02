@@ -4817,11 +4817,11 @@ jobs:
             | select($last)
             | "| \(.name) | \(($last | fromdate) - (.started_at | fromdate)) | \((.completed_at | fromdate) - ($last | fromdate)) |"
         run: |
+          . "$RUNNER_TEMP/gh-read.sh"
           {
             echo '| job | work s | tail s |'
             echo '|---|---|---|'
-            # gh-read-exempt: a best-effort record that never gates the job.
-            timeout 30 gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs?per_page=100" --jq "$TAIL_ROWS" ||
+            gh_read "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs?per_page=100" --jq "$TAIL_ROWS" ||
               echo "::warning::Could not read this attempt's jobs; no runner tails recorded." >&2
           } >>"$GITHUB_STEP_SUMMARY"
       - name: Check the pull-request contract
