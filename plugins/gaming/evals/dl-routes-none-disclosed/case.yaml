@@ -5,7 +5,7 @@ graders:
     type: tool_used
     tool: 'Skill'
     input_match: '"skill"\s*:\s*"(?:gaming:)?dlss5"'
-    arm: 'both'
+    arm: 'with-only'
   - name: not-proof-of-none
     type: regex
     pattern: '\bno (?:kernel(?:[- ]mode)? )?anti-?cheat (?:was |is |has been )?(?:disclosed|declared|listed|reported)\b|\b(?:doesn''t|does[\s*_]+not|don''t|isn''t|is[\s*_]+not)[\s*_]+(?:mean|prove|guarantee|imply)\b[^\n.]{0,60}\b(?:no|none|safe|clean|there''s no|has no|without)\b|\bnot (?:a )?(?:proof|guarantee)\b|\bnot the same as\b[^\n.]{0,40}\b(?:no|none|safe)\b|\babsence of (?:a )?disclosure\b'

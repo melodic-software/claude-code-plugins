@@ -3,6 +3,14 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.3.5] - 2026-11-02
+
+### Added
+
+- The `code-reviewer` agent reads a copy of the shared type rules
+  (`context/type-discipline.md`) when a change declares or changes a type, and reports a departure
+  from a rule as a suggestion. Its existing checklist items are unchanged.
+
 ## [2.3.4] - 2026-11-01
 
 ### Changed

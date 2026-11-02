@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/display-name\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/display-name.js:2 | code-reviewer | The commit says every caller passes a signed-in user, but renderHeader passes session.user, null until sign-in. displayName(null) now throws TypeError reading `profile`, so the header breaks for every signed-out visitor. | Restore the Guest fallback |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names the null input and the TypeError at CRITICAL"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/display-name\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | medium | src/display-name.js:1 | code-reviewer | A defensive check was removed; consider a JSDoc type for user. | Add JSDoc |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names the removal at SUGGESTION, without the input or the failure"
+    }
+  ]
+}
