@@ -138,11 +138,6 @@ The table follows the Before text from its first word to its last:
   it, and so does one that reads as generated, however many rules it satisfies. If applying a rule
   left a sentence harder to read, revert that edit, then repair the sentence another way or keep
   the earlier wording.
-- **Check each term's first use.** List the terms a newcomer may not know, find the first sentence
-  that uses each, and confirm its definition sits in that sentence or an earlier one. "Jobs go to
-  the broker. The broker is the queue service…" fails; fold the definition into the first
-  sentence: "Jobs go to the broker, the queue service…". The rule is easiest to miss in the
-  opening paragraph.
 - **Run the project's prose linter.** When the repository configures one (a Vale, markdownlint, or
   textlint config), run it on the files you wrote, fix what it reports in them, and report the
   command and its result.
