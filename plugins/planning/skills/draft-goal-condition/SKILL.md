@@ -70,15 +70,15 @@ see the result. When either is missing, prompt once instead.
 Two caveats on the workflow row, each of which turns a plausible recommendation into a dead one:
 
 - **Route to the right ultracode form.** The `ultracode` keyword in a prompt runs **one** task as a
-  workflow and changes nothing else, not the session's effort level, and is honored only from a
-  prompt a human types (not `-p`, not an Agent SDK prompt that never stamps its origin as human
-  input, not a scheduled-task prompt, not a webhook or relayed PR comment). Asking in plain words,
+  workflow and changes nothing else, not the session's effort level. Asking in plain words,
   `use a workflow`, is the same opt-in. `/effort ultracode` is the separate standing session
   setting that plans a workflow for each substantive task; for what it does to the effort level,
   see [Let Claude decide with ultracode](https://code.claude.com/docs/en/workflows#let-claude-decide-with-ultracode)
-  (as of 2026-10-02; recheck when that section changes ultracode's effort interaction). The
-  workflow lever reaches all paid plans (on Pro it is switched on from the **Dynamic workflows**
-  row in `/config`), while the standing setting needs a model that offers `xhigh` effort.
+  (as of 2026-10-02; recheck when that section changes ultracode's effort interaction). Before
+  recommending either form, apply the routing decisions in
+  [reference/workflow-row.md](reference/workflow-row.md): which prompt sources the keyword fits
+  (a `-p`, Agent SDK, scheduled or relayed prompt among them), which plans reach the workflow
+  lever and what a plan must switch on first, and when the standing setting fits.
 - **The lever is unreachable from an ordinary subagent.** The `Workflow` tool is filtered out of
   every non-fork subagent (the filter is in
   [sub-agents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools), as of
@@ -90,10 +90,11 @@ Two caveats on the workflow row, each of which turns a plausible recommendation 
   orchestrating context is the main thread or a fork.
 
 Confirm the current comparison semantics against the live docs (below) rather than this summary.
-The workflow row's keyword, origin, and availability specifics were verified against
-`https://code.claude.com/docs/en/workflows` and `https://code.claude.com/docs/en/sub-agents` on
-2026-09-02; the Step 1 fetch is the recheck, and the live page wins on any mismatch. Proceed only
-when the intent genuinely wants "keep working until this condition is met."
+When the docs are reachable, the Step 1 fetch rechecks the workflow-row record against its
+pointers, and the live page wins on any mismatch. When they are not, the record's decisions still
+apply: answer from them and name the record's as-of date. Step 1's stop rule covers only the
+`/goal` condition shape and limit. Proceed only when the intent genuinely wants "keep working
+until this condition is met."
 
 ## Step 1. Read the live contract
 
