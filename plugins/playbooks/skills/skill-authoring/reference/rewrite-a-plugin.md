@@ -16,9 +16,12 @@ ships; this page says how to run it across a plugin. "Step N" below is the proto
   sandbox backend, and the skill names the route when this host has none or when the CLI refuses a
   repository with many linked worktrees.
 - Each eval pass is a paid run. `/evals:plugin-eval` estimates every pass before it starts and
-  stops at the configured ceiling; set the ceiling for the whole plugin before step 4, because a
-  pass cut short by the ceiling is not comparable.
+  stops at the configured ceiling; set the ceiling for the whole plugin, step 5's control passes
+  included, before step 4, because a pass cut short by the ceiling is not comparable.
 - Work on a branch from the default branch and open the pull request as a draft.
+- Preregister step 5's negative control in the draft pull request body before the first paid run
+  (step 2's smoke pass): each degraded copy, its model and the two detection thresholds. A control
+  chosen after seeing scores can be picked to pass.
 
 ## Order of work
 
@@ -53,10 +56,20 @@ ships; this page says how to run it across a plugin. "Step N" below is the proto
    - Read its two-version noise report, after against before, at the protocol's margin.
    - For a `case drop`, restore the cut text and re-run that case against a fresh before control,
      launched together. When no restore closes the gap, the before text ships.
+
+   Prove each suite can detect a loss with a negative control, since a suite whose cases score the
+   same on a broken copy as on the before version would pass any cut. For each changed part, copy
+   the before plugin and degrade only that part: for a body cut, delete the skill's procedure steps
+   and keep its frontmatter; for a description cut, give it a generic description and keep its
+   body. Run the degraded copy on one target model, compared against a before run launched together
+   with it. The suite detects a loss when the noise report calls a `case drop` or the mean case
+   score falls by 0.15 or more (scores run 0 to 1). When it does neither, the part is unmeasurable.
 6. **Meaning diff (step 5).** Run `/docs-hygiene:compress compare` with two independent labelers
    and take the union of their losses, since one labeler can miss a loss the other catches.
-7. **Decide (step 6).** Decide each skill's description and body separately, and put the per-skill
-   decision table, with the numbers behind each row, in the pull request body.
+7. **Decide (step 6).** Decide each skill's description and body separately. An unmeasurable part
+   (step 5's negative control) ships its before text, whatever its own pass shows. Put the
+   per-skill decision table in the pull request body, with the numbers behind each row and each
+   control's before and degraded scores.
 8. **Ship (step 7).** Commit the skills, cases, fixtures and probe files, plus the plugin's version
    or changelog entry in the plugin's release mode. Run `/skill-quality:check <plugin root>` again
    and compare it with the before state.
