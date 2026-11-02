@@ -19,6 +19,7 @@ The comment adds nothing beyond the adjacent code, or is actively wrong.
 - Obsolete: describes behavior the code no longer has, including a class-C claim the re-check
   below finds the current code contradicts
 - Commented-out code (version control owns history)
+- A comment on unreachable code; the code itself goes to `/code-tidying:audit-dead-code`
 - A section divider (`// ===== Helpers =====`)
 - A file-level summary block that lists everything the code below does: it goes stale on the first
   edit and nobody reads it
@@ -157,7 +158,8 @@ before the deletion is final. See [safety.md](safety.md).
 
 - **Public-API doc comments are exempt entirely**: docstrings, C# XML docs, JSDoc/TSDoc on
   exported surfaces. They feed documentation generators and IDE surfaces; deleting them is
-  quasi-behavioral. Never touched, in any mode.
+  quasi-behavioral. Never deleted, in any posture; `none` proposes deleting one that only restates
+  its signature.
 - **Private/internal doc comments** get the same three-way triage as any comment, a deliberate
   doctrine choice (the Martin pole for internal interfaces): a private method whose docstring
   restates its name and parameters is class A/B; one carrying a real contract (constraints, units,

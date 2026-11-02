@@ -45,6 +45,9 @@ still deletes a linked workaround comment and lists it as open root-cause work.
 
 Run `<skill-dir>/scripts/detect.sh` (with `--added-since <base>` when given) on the targets and map
 its emitted facts to the per-file table in the output schema, using the treatments above.
+The detector's findings are the whole report: a comment it did not flag may be named as kept, never
+as something to delete or review, because a hand-added finding has none of the shape's boundary
+checks behind it.
 
 ## Rules
 

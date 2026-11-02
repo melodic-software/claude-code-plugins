@@ -12,7 +12,7 @@ behavior, while a token comparison is exhaustive over the file.
 - [Mode ladder](#mode-ladder)
 - [The gates, by what each can prove](#the-gates-by-what-each-can-prove)
 - [The test net (tiers 2 and 3)](#the-test-net-tiers-2-and-3)
-- [Exempt surfaces (never touched, any mode)](#exempt-surfaces-never-touched-any-mode)
+- [Exempt surfaces](#exempt-surfaces)
 - [Outside-constraint keeps (`necessary` only)](#outside-constraint-keeps-necessary-only)
 - [Not exempt, but the highest-cost misclassification: route to class C](#not-exempt-but-the-highest-cost-misclassification-route-to-class-c)
 - [Path exclusions](#path-exclusions)
@@ -36,8 +36,8 @@ the one to get right: the triage still runs in every mode and still returns a ve
 verdict is not an application. `safe` narrowing class C to proposals is what makes "only class-A
 deletions are applied" in the action router true rather than approximately true.
 
-In **no mode** does the skill: apply an edit whose tier gate did not pass, touch an exempt surface
-or excluded path, or delete text without a landing place (staging rule below).
+In **no mode** does the skill: apply an edit whose tier gate did not pass, touch the floor or an
+excluded path, or delete text without a landing place (staging rule below).
 
 ## The gates, by what each can prove
 
@@ -124,7 +124,12 @@ proposals only. No knob applies an edit its tier's proof did not pass.
 Lint and formatters are supplementary hygiene (run them if the repo has them wired). They never
 open the apply path, because they cannot attest behavior preservation.
 
-## Exempt surfaces (never touched, any mode)
+## Exempt surfaces
+
+The floor in `SKILL.md` is untouched under every posture. Public-API doc comments stay under every
+posture too, except that `none` proposes deleting one that only restates its signature. Unit,
+sentinel and ordering annotations are exempt under `explanatory` only: `necessary` and `none`
+delete them with a reshape flag to a type. The list:
 
 - Public-API doc comments, in the language's structured doc-comment form: docstrings, C# XML docs,
   JSDoc/TSDoc, GoDoc sentences, on exported/public surfaces. PowerShell comment-based help (a
