@@ -639,10 +639,12 @@ hd_nest() { # <levels>: `git reset --hard` inside that many nested here-doc bodi
   printf '%s' "$s"
 }
 run "here-docs nested ten deep in substitutions, innermost \$(git reset --hard) (blocked)" "$(hd_nest 10)" 2
+# shellcheck disable=SC2016  # literal shell text under test
 run "unquoted heredoc body of 20 \$(<<X lines, then git reset --hard (blocked)" "cat <<EOF$(hd_lines '$(<<X' 20)"$'\nEOF\ngit reset --hard' 2
 # Each `$( <<X` line opens a body holding the lines after it; the parse count
 # must stay linear in them, far inside the Bash row's 60 s hook timeout.
 bdg_t0=${EPOCHREALTIME/./}
+# shellcheck disable=SC2016  # literal shell text under test
 run "git reset --hard, then an unquoted heredoc body of 20 \$(: <<X lines (blocked)" "git reset --hard; cat <<EOF$(hd_lines '$(: <<X' 20)"$'\nEOF' 2
 bdg_ms=$(((${EPOCHREALTIME/./} - bdg_t0) / 1000))
 if ((bdg_ms < 10000)); then ok "20 nested \$(: <<X lines finish in ${bdg_ms} ms (under 10000)"; else bad "20 nested \$(: <<X lines took ${bdg_ms} ms (limit 10000)"; fi
