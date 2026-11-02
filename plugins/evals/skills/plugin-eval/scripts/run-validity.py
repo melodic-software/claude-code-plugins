@@ -90,8 +90,12 @@ one line per check, detail lines indented under it:
                       head or tail), exactly one command must remain, naming
                       a path at or under the plugin's directory, and the
                       later call's words must equal it, quotes removed and
-                      same-command variables resolved; a command holding &,
-                      ( or ) never qualifies. The run's score was
+                      same-command variables resolved, a word holding a
+                      glob, brace, tilde or $ compared with its quoting; a
+                      command holding &, ( or ), a part left holding an
+                      unquoted glob, brace or tilde or an unresolved $, and a
+                      trailing command redirecting into a file never
+                      qualify. The run's score was
                       taken under such a denial, so compare it only with
                       runs denied the same way. Otherwise a
                       with-arm denial aimed at or under the plugin's
@@ -290,6 +294,9 @@ SEPARATORS = (";", "&&", "||", "\n")
 NOT_SPLIT = ("&", "(", ")")
 CD = "cd"
 TRAILING, TRAILING_PIPED = ("ls", "echo", "cat"), ("head", "tail")
+# A character the shell may expand: GLOBBING only outside quotes, $ inside too.
+GLOBBING = re.compile(r"[*?\[\]{}~]")
+EXPANDING = re.compile(r"[*?\[\]{}~$]")
 
 # The suite's skill-fired convention and the no-trigger control markers.
 SKILL_TOOL = "Skill"
@@ -1599,27 +1606,53 @@ def own_copy_denial(run, denial, roots):
 
 
 def command_segments(command):
-    """A Bash command's commands, split at SEPARATORS, each a (words, assignments)
-    pair: its words as shell_words gives them (quotes removed, same-command
-    variables resolved) with None between pipeline stages, and True when every
-    word is a NAME=value. None when it does not parse, is empty, or holds a
-    NOT_SPLIT operator."""
+    """A Bash command's commands, split at SEPARATORS, each a (words, assignments,
+    expands) triple: its words as shell_words gives them (quotes removed, same-
+    command variables resolved) with None between pipeline stages, a word that
+    holds an EXPANDING character kept as its quoted parts so quoting still tells
+    a pattern from a literal; True when every word is a NAME=value; and True when
+    a word still holds a $ or an unquoted glob, brace or tilde, which the shell
+    would expand. None when it does not parse, is empty, or holds a NOT_SPLIT
+    operator."""
     tokens = shell_tokens(command) if isinstance(command, str) else None
     words = shell_words(command) if tokens is not None else None
     if not words or any(kind == "op" and value in NOT_SPLIT for kind, value in tokens):
         return None
-    segments, current, assigns, texts = [], [], True, iter(words)
+    segments, current, assigns, expands, texts = [], [], True, False, iter(words)
     for kind, value in tokens + [("op", None)]:
         if kind == "word":
-            current.append(next(texts)[0])
+            text = next(texts)[0]
+            current.append(tuple(value) if EXPANDING.search(text) else text)
             assigns = assigns and assignment(value) is not None
+            expands = expands or "$" in text or any(
+                quote is None and GLOBBING.search(part) for part, quote in value
+            )
         elif value == PIPE:
             current.append(None)
             assigns = False
         elif current:
-            segments.append((tuple(current), assigns))
-            current, assigns = [], True
+            segments.append((tuple(current), assigns, expands))
+            current, assigns, expands = [], True, False
     return segments
+
+
+def writes_file(words):
+    """True when a command's words hold a redirect naming a file: any REDIRECT
+    word but an fd duplication or close or a /dev/null target, as bash_paths
+    drops them."""
+    words = tuple(
+        "".join(part for part, _ in w) if isinstance(w, tuple) else w for w in words
+    )
+    for index, word in enumerate(words):
+        if not isinstance(word, str) or not REDIRECT.match(word):
+            continue
+        full = REDIRECT.fullmatch(word)
+        if full and full.group(1):
+            continue
+        if full and words[index + 1 : index + 2] == (DEV_NULL,):
+            continue
+        return True
+    return False
 
 
 def plugin_part(command, roots):
@@ -1631,22 +1664,27 @@ def plugin_part(command, roots):
     if not segments or len(segments) < 2:
         return None
     kept = []
-    for words, assigns in segments:
+    for words, assigns, expands in segments:
         heads = [words[0]] + [w for w, prior in zip(words[1:], words) if prior is None]
         if assigns or (words[0] == CD and None not in words):
             continue
-        if kept and heads[0] in TRAILING and all(h in TRAILING_PIPED for h in heads[1:]):
+        if (
+            kept
+            and heads[0] in TRAILING
+            and all(h in TRAILING_PIPED for h in heads[1:])
+            and not writes_file(words)
+        ):
             continue
-        kept.append(words)
-    if len(kept) != 1 or not any(
+        kept.append((words, expands))
+    if len(kept) != 1 or kept[0][1] or not any(
         rooted(piece) and under(piece, root)
-        for word in kept[0]
-        if word is not None
+        for word in kept[0][0]
+        if isinstance(word, str)
         for piece in SHELL_SPLIT.split(word)
         for root in roots
     ):
         return None
-    return kept[0]
+    return kept[0][0]
 
 
 def recovered_denial(run, denial, roots, denied_ids):

@@ -80,8 +80,10 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   assignment-only commands and `cd`, and, after the plugin part, `ls`, `echo` or `cat` (piped only
   into `head` or `tail`). Exactly one command must remain, naming a path at or under the plugin's
   directory, and a later call with no denial must be that command and nothing else, word for word
-  once quotes are removed and same-command variables resolved. A command holding `&`, `(` or `)`
-  never qualifies. A denial whose plugin part never ran alone keeps the rules below.
+  once quotes are removed and same-command variables resolved; a word holding a glob, brace,
+  tilde or `$` must match with its quoting too. A command holding `&`, `(` or `)`, a plugin part
+  holding an unquoted glob, brace or tilde or an unresolved `$`, and a trailing command that
+  redirects into a file (anything but `2>&1` or `/dev/null`) never qualify. A denial whose plugin part never ran alone keeps the rules below.
 - One exception overrides that FAIL: a denial of the same named call other than Skill (tool and
   target) in every run of its case, in both arms, is a warning, with or without an absolute path,
   unless an absolute path it names is at, under or above the plugin's directory. The environment

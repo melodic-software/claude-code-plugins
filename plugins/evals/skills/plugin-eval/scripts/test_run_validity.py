@@ -1445,6 +1445,44 @@ class RunValidityTest(unittest.TestCase):
             self.assertDenials(proc, "FAIL")
             self.assertNotIn(self.RERUN, proc.stdout)
 
+    def test_a_compound_denial_whose_plugin_part_expands_is_never_recovered(self):
+        run = "bash %s paths" % self.RUN_STATE
+        for denied, alone in (
+            # An unquoted glob, brace, tilde or unresolved $ in the denied part.
+            ("%s /tmp/*.json; ls /tmp" % run, '%s "/tmp/*.json"' % run),
+            ("%s /tmp/*.json; ls /tmp" % run, "%s /tmp/*.json" % run),
+            ("%s /tmp/{a,b}; ls" % run, "%s /tmp/{a,b}" % run),
+            ("%s ~/x; ls" % run, "%s ~/x" % run),
+            ("%s --run-id $RID; ls" % run, "%s --run-id $RID" % run),
+            ('%s --run-id "$RID"; ls' % run, '%s --run-id "$RID"' % run),
+            # A quoted literal is not the same word as the unquoted pattern.
+            ('%s "/tmp/*.json"; ls /tmp' % run, "%s /tmp/*.json" % run),
+        ):
+            proc = self.bash_calls([(denied, True), (alone, False)])
+            self.assertDenials(proc, "FAIL")
+            self.assertNotIn(self.RERUN, proc.stdout)
+        # Quoted the same way in both, the literal still matches.
+        proc = self.bash_calls([
+            ('%s "/tmp/*.json"; ls /tmp' % run, True), ('%s "/tmp/*.json"' % run, False)])
+        self.assertDenials(proc, "WARN")
+
+    def test_a_trailing_command_that_redirects_into_a_file_is_not_dropped(self):
+        run = "bash %s paths" % self.RUN_STATE
+        for trailing in (
+            "echo x > %s" % self.RUN_STATE,
+            "echo x >> %s/new.sh" % self.SCRIPTS,
+            "cat /etc/hosts >%s/new.sh" % self.SCRIPTS,
+            "ls 2> %s/err" % self.SCRIPTS,
+        ):
+            proc = self.bash_calls([("%s; %s" % (run, trailing), True), (run, False)])
+            self.assertDenials(proc, "FAIL")
+            self.assertNotIn(self.RERUN, proc.stdout)
+        # A redirect naming no file is still dropped with its command.
+        for trailing in ("ls %s 2>&1" % self.DATA, "ls %s >/dev/null" % self.DATA,
+                         "echo x 2> /dev/null"):
+            proc = self.bash_calls([("%s; %s" % (run, trailing), True), (run, False)])
+            self.assertDenials(proc, "WARN")
+
     COPY = "/tmp/eval-ctl/plugins/demo"  # the plugin copy the self-search traces load
     SELF_SEARCH = "denied read or search of the run's own plugin copy in a finished run"
     LAST_LINE_END = 'permission settings."}]}}\n'  # self-read-unfinished.jsonl's denied result
