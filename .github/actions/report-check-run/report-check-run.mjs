@@ -8,6 +8,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { createGitHub, detailSuffix } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { decide } from "./decide.mjs";
+import { MARKER, validRecord } from "../../scripts/lib/lane-outcome.mjs";
 import { laneRecordOutput } from "./lane-record.mjs";
 import { externalIdOf } from "./posting-run.mjs";
 
@@ -16,6 +17,22 @@ const SCHEMA = "docs/conventions/pr-pipeline/pr-pipeline.schema.json";
 const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
 const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]*$/;
+
+// The run job's lane-outcome record as the `lane-outcome <json>` line, or
+// "" when it is absent, not JSON, out of shape, or names another lane. Only
+// its known, validated fields are written, with `activity` from this job's
+// own input, so nothing the model or a later emitter field wrote reaches
+// the check run.
+function laneOutcomeLine(raw, lane, activity) {
+  let parsed;
+  try {
+    parsed = JSON.parse(raw ?? "");
+  } catch {
+    return "";
+  }
+  const record = validRecord(parsed === null || typeof parsed !== "object" ? null : { ...parsed, activity });
+  return record && record.lane === lane ? `${MARKER}${JSON.stringify(record)}` : "";
+}
 
 // null when there is no file; the raw text when it is not JSON, which decide
 // rejects as a malformed verdict.
@@ -115,6 +132,10 @@ export async function main({
       summary: `${record.line}\n\n${body.output.summary}`,
       text: record.text,
     };
+  }
+  const outcome = laneOutcomeLine(env.LANE_OUTCOME, env.LANE, env.ACTIVITY);
+  if (outcome) {
+    body.output = { ...body.output, text: body.output.text ? `${outcome}\n\n${body.output.text}` : outcome };
   }
   const externalId = externalIdOf({
     lane: env.LANE,

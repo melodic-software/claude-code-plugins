@@ -14,7 +14,7 @@ const fetch = (url, agent = 'multi-agent:drift-checker') => ({ agent_type: agent
 
 test('a first-party docs page passes', () => {
   assert.equal(decide(fetch('https://code.claude.com/docs/en/workflows#cost')), null)
-  assert.equal(decide(fetch('https://platform.claude.com/docs/en/about-claude/models/overview')), null)
+  assert.equal(decide(fetch('https://platform.claude.com/docs/en/models/overview')), null)
 })
 
 test('an off-host, query-carrying, userinfo or non-https fetch is denied', () => {
