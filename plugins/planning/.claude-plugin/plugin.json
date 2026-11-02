@@ -15,12 +15,19 @@
     "question_pacing": {
       "type": "string",
       "title": "Interview question pacing",
-      "description": "How /planning:interview asks a frontier, in the terminal and on the page: round (default, every ready question in one message) or single (the same questions, one per message, largest blast radius first). A reading preference: ask for the other pacing in the session to override it.",
+      "description": "How /planning:interview asks a frontier: round (default, every ready question in one message) or single (one per message, largest blast radius first). Asking for the other pacing in a session overrides it there; a repository's planning.yaml in its convention home overrides this value.",
       "default": "round",
       "options": [
         "round",
         "single"
       ]
+    },
+    "answer_audit_rounds": {
+      "type": "number",
+      "title": "Answer audit offer",
+      "description": "After this many /planning:interview rounds answered by accepting every recommendation, the interview offers /planning:audit-answers once. A whole number; 0 never offers. Default: 2. A repository's planning.yaml in its convention home overrides this value.",
+      "default": 2,
+      "min": 0
     },
     "use_ask_user_question": {
       "type": "boolean",
