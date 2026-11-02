@@ -122,7 +122,7 @@ implement it by reference, do not restate it. Plugin-side notes only:
 
 - **State reading order:** `.claude/standards.yaml` → index presence test at the resolved
   `<standards_dir>/README.md` → inference sources (existing docs directories, ecosystem configs,
-  ambient `CLAUDE.md` content).
+  a root `CODING_STANDARDS.md` and `CONTRIBUTING.md`, ambient `CLAUDE.md` content).
 - **Bootstrap writes** (interactive, user-accepted. No silent writes): the skeleton index with
   its `standards-contract` frontmatter at the binding's version, and the setup-owned
   `<standards_dir>/.gitignore` containing `*.local.md` (the personal-overlay ignore). Write

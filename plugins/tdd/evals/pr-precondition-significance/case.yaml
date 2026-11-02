@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: pr-precondition-significance
+graders:
+  - name: 'routes-principles'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:tdd:)?principles"'
+    arm: 'with-only'
+  - name: 'skips-technical'
+    type: 'regex'
+    pattern: '(?:^|(?<=[.;!?])\s+)(?![\s>*_#|-]*yes\b)(?:(?![.;!?]\s)[^\n])*?(?:\(b\)|^[\s>*_#|]*b[).:]|CsvRowParser|field[- ]count|Split\()(?:(?!\(a\)|^[\s>*_#|]*a[).:]|Account\.Withdraw|\byes\b)[\s\S]){0,160}?(?:(?:^|[\s:*|(—–-])no\b(?!\s+(?:harm|downside|reason|matter))|(?<!n[''’]t )(?<!not )\bskip\b|\bnot worth\b|\bunnecessary\b)|(?:^|(?<=[.;!?,])\s+|(?<=\b(?:and|but))\s+)[\s>*_#|-]*(?:no\b(?!\s+(?:harm|downside|reason|matter))|skip\b)(?:(?!\(a\)|Withdraw|overdraft|\byes\b)[^\n]){0,80}?(?:\(b\)|CsvRowParser|field[- ]count|Split\()'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'tests-domain'
+    type: 'regex'
+    pattern: '(?:^|(?<=[.;!?])\s+)(?![\s>*_#|-]*no\b)(?:(?![.;!?]\s)[^\n])*?(?:\(a\)|^[\s>*_#|]*a[).:]|Withdraw|overdraft)(?:(?!\(b\)|^[\s>*_#|]*b[).:]|CsvRowParser|\bno\b)[\s\S]){0,160}?(?:^|[\s:*|(—–-])yes\b|(?:^|(?<=[.;!?,])\s+|(?<=\b(?:and|but))\s+)[\s>*_#|-]*yes\b(?:(?!\(b\)|CsvRowParser|field[- ]count|Split\(|\bno\b)[^\n]){0,80}?(?:\(a\)|Withdraw|overdraft)'
+    flags: 'im'
+    target: 'last_message'

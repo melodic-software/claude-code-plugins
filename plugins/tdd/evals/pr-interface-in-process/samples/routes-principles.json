@@ -1,0 +1,55 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "tdd:principles"
+          }
+        }
+      ],
+      "why": "qualified"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "principles",
+            "args": "interface for an in-process dependency"
+          }
+        }
+      ],
+      "why": "bare with args"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "testing:test-value"
+          }
+        }
+      ],
+      "why": "adjacent test-value skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "mutation-testing:principles"
+          }
+        }
+      ],
+      "why": "another plugin's principles skill"
+    }
+  ]
+}

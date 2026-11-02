@@ -3,6 +3,28 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.0.1] - 2026-11-01
+
+### Fixed
+
+- The README note about installed mods no longer says a mod can always approve a call these
+  hooks blocked. That now depends on the setup, so the note links to where hooks run in the mod
+  chain and to the precedence among rules, hooks and mods, with an as-of date and a recheck
+  trigger.
+
+### Security
+
+- The babysit-loop telemetry upsert reads its body file only when it resolves under `--body-dir` (or a `CLAUDE_PLUGIN_DATA` that names source-control): a symlink or an outside path exits 3 before any read, so a prompt-injected path can no longer post a credential file as a public comment. The reference now passes `--body-dir "${CLAUDE_PLUGIN_DATA}"`.
+- The body is scanned with the shared leak scan before any API call and withheld whole on a hit (exit 3), naming the rule and never the match. The upsert now needs node.
+- An unset lane instance falls back to a random id kept in the body dir instead of the hostname, which the public marker published. Comments written under a hostname marker are no longer found, so the next cycle starts a new one; the old comment keeps the hostname it already published.
+- A `lane_instance` the leak scan reads as a fleet or private hostname exits 3 before any API call, naming the instance rather than the body; unset it so the stored random id is used.
+
+- The babysit-loop telemetry upsert now accepts a `--body-dir` only when it is this plugin's data dir (its last segment names source-control) and never `/`, the home dir or an ancestor of it. The body path is canonicalized with `realpath`, opened once and re-checked through `/proc` on Linux.
+- The leak scan also withholds a body naming a home path or a private or fleet hostname, and recognizes npm, Google API, Pulumi and Azure storage keys, URL credentials, JWTs, Docker registry auth, base64-encoded PEM blocks and netrc passwords.
+- A symlinked or malformed stored lane instance is refused without echoing it. The skill gives the data dir as an absolute path, since its reference file reaches Bash unsubstituted.
+- The data-dir name is checked again after `realpath`, so a symlink named for the plugin that points elsewhere is refused, and the home-dir check reads the account's passwd entry, so an overridden `HOME` cannot disable it. A machine path or hostname is reported as such, with no rotation advice, and a path under a GitHub-hosted runner's home dir is not withheld. URL credentials need a password of 6 or more characters that is not a placeholder (`$` and `*` allowed), and base64-encoded PEM blocks and netrc passwords are caught too.
+- netrc passwords are caught in the `default` entry and on a `password` line of their own.
+
 ## [5.0.0] - 2026-11-01
 
 ### Changed

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "WebFetch", "input": {"url": "https://blog.example.invalid/2026/10/leaving-twitter", "prompt": "List the main reasons given"}}],
+      "why": "exact URL"
+    },
+    {
+      "answer": [{"tool": "WebFetch", "input": {"url": "https://blog.example.invalid/2026/10/leaving-twitter/", "prompt": "Reasons"}}],
+      "why": "trailing slash"
+    },
+    {
+      "answer": [{"tool": "WebFetch", "input": {"url": "http://blog.example.invalid/2026/10/leaving-twitter", "prompt": "Reasons"}}],
+      "why": "http scheme"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call: answers from memory"
+    },
+    {
+      "answer": [{"tool": "WebFetch", "input": {"url": "https://blog.example.invalid/2026/10/leaving-twitter-part-2", "prompt": "Reasons"}}],
+      "why": "a different post"
+    },
+    {
+      "answer": [{"tool": "WebFetch", "input": {"url": "https://x.com/search?q=leaving-twitter", "prompt": "Reasons"}}],
+      "why": "searches X instead"
+    }
+  ]
+}

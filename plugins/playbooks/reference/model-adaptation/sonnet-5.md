@@ -54,10 +54,14 @@ at the pointers. `[CC: direct]`
 
 - **Pointer**: for effort, see
   [Calibrating effort and thinking depth](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#calibrating-effort-and-thinking-depth)
-  and
-  [Recommended effort levels for Claude Sonnet 5](https://platform.claude.com/docs/en/build-with-claude/effort#recommended-effort-levels-for-claude-sonnet-5).
-- **As of**: 2026-08-04
-- **Recheck trigger**: a re-read of either section no longer supporting the decision above.
+  and the Claude Sonnet 5 entry of
+  [Recommended effort levels](https://platform.claude.com/docs/en/build-with-claude/effort#recommended-effort-levels);
+  for comparing levels across models in Claude Code, see
+  [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level).
+- **As of**: 2026-11-01
+- **Recheck trigger**: the pointed sections no longer presenting effort as the control for depth
+  of reasoning on Sonnet 5, no longer saying the scale is calibrated per model, or the effort page
+  dropping its Claude Sonnet 5 entry.
 
 ## Scope
 
@@ -176,6 +180,16 @@ and planning chapters ask for. `[CC: prompt-authoring]`
 - **Do not read another version's chapter.** The other files under `model-adaptation/` carry
   counter-steers calibrated for models whose defaults differ from yours. Meta-rule 3 in the skill
   body owns this routing.
+
+For the first two bullets:
+
+- **Pointer**: when deciding how much to spell out or how large a step to hand over, fetch
+  [More literal instruction following](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#more-literal-instruction-following)
+  live for Sonnet 5, and
+  [Work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable) live for Fable.
+- **As of**: 2026-11-01
+- **Recheck trigger**: the Sonnet 5 section no longer asking for stated scope, or the Fable section
+  no longer advising outcome-level, larger tasks.
 
 ## Sources
 

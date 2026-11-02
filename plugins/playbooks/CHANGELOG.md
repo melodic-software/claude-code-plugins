@@ -4,6 +4,20 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.27.1] - 2026-11-01
+
+### Changed
+
+- The skill criteria state the bare-invocation rule (infer the action; a read-only action proceeds
+  and names what it inferred; a state change proposes and waits; unattended, a state change stops
+  and reports) and the invocation convention (an automation starter is a reason against
+  `disable-model-invocation: true`; the invocation-mode rubric's exception classes decide, and
+  listing starvation alone is not one).
+
+### Fixed
+
+- The model-adaptation chapters and the `boris`, `fable-5` and `skill-authoring` skills point at the live upstream sections with an as-of date and recheck trigger for each drifted claim. Dead per-model effort anchors and the models-overview anchor are re-pinned. Stale claims are corrected: `ultracode` no longer "guarantees" a workflow, `/goal` has no built-in turn cap, the auto mode plan list is gone, and Fable is no longer called the current default. The subagent omitted-`model` sentence no longer gives a stale fallback and points at the subagent model docs instead ([#12107](https://github.com/melodic-software/claude-code-plugins/issues/12107)).
+
 ## [0.27.0] - 2026-11-01
 
 ### Added

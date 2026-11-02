@@ -106,7 +106,7 @@ Steps 2–3 run in the fresh `auditor` subagent in every zone, the zone modulate
 
 ### Effort, and why the zone outranks it
 
-Caller effort for this run is `${CLAUDE_EFFORT}`. If that still reads as a literal placeholder (a dollar sign and braces around
+Caller effort for this run is `${CLAUDE_EFFORT}` ([the variable](https://code.claude.com/docs/en/skills#available-string-substitutions), as of 2026-11-01; recheck when that table changes). If that still reads as a literal placeholder (a dollar sign and braces around
 the variable name) rather than an effort level, this body was read directly instead of
 skill-loaded, so the substitution never ran: treat the run as `high` and run every seam below.
 
@@ -222,12 +222,13 @@ this step needs: its context carries the evidence packet but **not** this sessio
 history or prior reasoning, and the dispatch site names the worker so it is auditable. The packet
 is the deliberate channel, the agent reads it as ground truth; what must not cross is the reasoning
 that produced the work under review. Running the step inline in the main thread, or in a
-conversation fork, satisfies neither property; any other dispatch mechanism must supply both.
+conversation fork, satisfies neither property ([what a fork inherits](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents),
+as of 2026-11-01; recheck when that section changes); any other dispatch mechanism must supply both.
 
-The `auditor` definition pins `model: opus`, the default a dispatch gets when it passes no
-`model`. Its verdict is consequential, so it runs at the session's model tier or above: when this
-session's model resolves above `opus`, pass the session's own model as the per-call `model`. Never
-pass one below `opus`.
+The `auditor` definition pins `model: opus`. Its verdict is consequential, so it runs at the
+session's model tier or above: when this session's model resolves above `opus`, pass the session's
+own model as the per-call `model`, in the form that parameter's schema accepts. Never pass one below `opus`. Which model a dispatch gets: [subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model)
+(as of 2026-11-01; recheck when that section changes).
 
 ### Step 3. Persist-check, then blindspot + candidate findings (subagent output → user)
 

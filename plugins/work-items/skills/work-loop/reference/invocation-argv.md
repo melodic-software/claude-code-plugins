@@ -19,7 +19,7 @@ at lane start):
   access. When the block recorded a different value, report the key and both values and run the
   resolved one.
 - **Lane instance**: `--instance`, else the persisted `lane_instance`, else
-  `${user_config.lane_instance}`, else the sanitized hostname per
+  `${user_config.lane_instance}`, else a stored random id per
   [telemetry-upsert.md](telemetry-upsert.md).
 
 **`<owner/repo>`** (optional). When present, validate against the checkout's `origin` remote

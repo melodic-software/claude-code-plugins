@@ -11,8 +11,6 @@ file after validating it against the schema; `/session-flow:setup check` validat
 | Key | Values | Default | Reader | Level rule |
 |---|---|---|---|---|
 | `worker_continuation` | `resume`, `respawn` | `resume` | `/session-flow:orchestrate` (priming addendum only; export modes omit it) | repository file over user option over default |
-| `encode_policy` | `promote-when-must-hold`, `strongest-first` | `promote-when-must-hold` | `/session-flow:retro codify` (Strength step) | repository file over user option over default |
-| `review_mining_prs` | an unquoted integer from 2 to 200 | `20` | `/session-flow:retro codify reviews` | repository file over user option over default |
 | `wip_commit` | an unquoted `true` or `false` | `false` | `/session-flow:handoff` ("WIP commit on an explicit pause") | repository file over user option over default |
 | `retro_lenses` | `1`, `3` (an unquoted `3` is valid) | `1` | `/session-flow:retro` session mode (Phase 2, "Review lenses"; `3` runs three parallel lens subagents merged before scoring) | repository file over user option over default |
 | `transcript_scope` | `worktree`, `repo`, `all` | `worktree` | `/session-flow:find-handoff` (step 2, the transcript scan); `/session-flow:recall` (Steps 2 and 3) | narrowest wins (`worktree` < `repo` < `all`); an unset user option counts as `worktree` |
@@ -25,13 +23,6 @@ every worktree of the repository and asks the same way. `all` widens to every pr
 asking. This key does not follow the later-layer rule below: the narrower of the two layers wins,
 and an unset or unrendered user option counts as `worktree`. A repository file can therefore
 narrow a user's scan but never widen it, and a user who wants `all` sets it in their own option.
-
-`encode_policy` decides where codify starts a lesson on the enforcement ladder. Under
-`promote-when-must-hold`, a lesson becomes a line in `CLAUDE.md`, a rules file or `REVIEW.md`,
-and only a rule that must hold every time moves up to a rung that checks it. Under
-`strongest-first`, every lesson is proposed at the strongest rung that can assert it.
-`review_mining_prs` is how many of the repository's most recent merged pull requests
-`codify reviews` reads; a lesson is routed only when it recurs in two or more of them.
 
 `wip_commit` lets `/session-flow:handoff` make one local `chore(wip): <one-line state>` commit of
 tracked changes, and only when the user asks in this session to pause. A handoff another skill
@@ -60,12 +51,12 @@ The reading skill resolves each key once, lowest layer first:
 3. The key in the repository's `docs/conventions/session-flow.yaml`, read with the plugin's copy
    of the shared reader, `skills/retro/scripts/parse-concern-value.sh`. A missing file or key
    leaves this layer unset. The reader prints nothing both for an absent key and for an empty
-   one (`key:`), so a skill that reads `encode_policy`, `review_mining_prs`, `wip_commit`,
-   `transcript_scope` or `retro_lenses` first runs `node skills/setup/scripts/setup-apply.mjs --check --root <git root>` from the plugin root.
+   one (`key:`), so a skill that reads `wip_commit`, `transcript_scope` or `retro_lenses` first
+   runs `node skills/setup/scripts/setup-apply.mjs --check --root <git root>` from the plugin root.
    When it exits 1, a problem line naming the key marks the repository value invalid, and a
    parse-error line (`line <n>: ...`, no key named) marks every key in the file invalid; any other
-   exit leaves the reader's output standing. A quoted number or boolean is a string, so
-   `review_mining_prs: "20"` and `wip_commit: "true"` are invalid, and so is `wip_commit: yes`.
+   exit leaves the reader's output standing. A quoted boolean is a string, so
+   `wip_commit: "true"` is invalid, and so is `wip_commit: yes`.
 
 The later layer wins. The skill reports one line naming the resolved value and the layer that
 supplied it, for example `worker_continuation: respawn (docs/conventions/session-flow.yaml)`. A

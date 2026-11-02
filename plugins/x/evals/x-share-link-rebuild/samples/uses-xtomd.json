@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "curl -q -sS --proto '=https' --max-time 30 --max-filesize 5000000 \\\n  -X POST https://xtomd.com/api/markdown \\\n  -H \"Content-Type: application/json\" \\\n  -H \"Accept: text/markdown\" \\\n  -d '{\"url\":\"https://x.com/fakehandle/status/1234567890123456789\"}' \\\n  -o '/plugin-data/x/x-1234567890123456789-k3f9.md' \\\n  -w '%{http_code}'", "description": "run"}}],
+      "why": "the skill's multi-line template"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "curl -q -sS --proto '=https' -X POST -d '{\"url\":\"https://x.com/fakehandle/status/1234567890123456789\"}' -H 'Content-Type: application/json' https://xtomd.com/api/fetch -o '/d/x-1234567890123456789-a1.json' -w '%{http_code}'", "description": "run"}}],
+      "why": "body before endpoint, /api/fetch form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "curl -q -sS -X POST https://xtomd.com/api/markdown -H 'Content-Type: application/json' -d '{\"url\":\"https://twitter.com/fakehandle/status/1234567890123456789?s=20&t=AbCdEfGhIjKlMnOp\"}' -o '/d/x.md'", "description": "run"}}],
+      "why": "input passed through, not rebuilt"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "curl -sS 'https://x.com/fakehandle/status/1234567890123456789'", "description": "run"}}],
+      "why": "fetches x.com directly, no converter"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "curl -q -sS -X POST https://xtomd.com/api/markdown -d '{\"url\":\"https://x.com/fakehandle/status/1234567890123456789?s=20\"}' -o '/d/x.md'", "description": "run"}}],
+      "why": "query string kept on the rebuilt host"
+    }
+  ]
+}

@@ -463,6 +463,12 @@ lib/write-snapshot.mjs plugins/rate-limit-guard/lib/write-snapshot.mjs
 lib/write-snapshot.mjs plugins/context-guard/lib/write-snapshot.mjs
 lib/publish-gate.mjs plugins/review/lib/publish-gate.mjs
 lib/publish-gate.mjs plugins/visualization/lib/publish-gate.mjs
+lib/publish-gate.mjs plugins/work-items/lib/publish-gate.mjs
+lib/publish-gate.mjs plugins/harness-ops/lib/publish-gate.mjs
+lib/publish-gate.mjs plugins/source-control/lib/publish-gate.mjs
+lib/telemetry-body-gate.sh plugins/work-items/scripts/telemetry-body-gate.sh
+lib/telemetry-body-gate.sh plugins/harness-ops/skills/lanes/scripts/lib/telemetry-body-gate.sh
+lib/telemetry-body-gate.sh plugins/source-control/skills/babysit-loop/scripts/telemetry-body-gate.sh
 lib/suppression-scan.py plugins/code-metrics/skills/audit-suppressions/scripts/suppression-scan.py
 lib/suppression-scan.py plugins/toolchain/skills/ratchet/scripts/suppression-scan.py
 lib/installed.mjs plugins/user-experience/scripts/lib/installed.mjs

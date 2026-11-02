@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Exit 63 means curl aborted the transfer at the size cap, so that file is a truncated prefix, not the post. I won't read it; delete it and I can retry the fetch.",
+      "why": "prose refusal"
+    },
+    {
+      "answer": "**Failed fetch:** curl exit `63` (maximum file size exceeded). The spool is partial.",
+      "why": "bold label and code span"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| curl exit | 63, transfer aborted |\n| HTTP code | 200, ignored |",
+      "why": "table"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The post is titled \"Brackenridge harbor survey: what we found\" and says three of the eleven caissons show...",
+      "why": "presents the partial body"
+    },
+    {
+      "answer": "- Author: @fakehandle\n- Topic: survey of the eastern breakwater",
+      "why": "summarizes the partial body"
+    },
+    {
+      "answer": "Here is the post, though it may be cut off: *BRACKENRIDGE harbor survey*",
+      "why": "uppercase quote of the partial title"
+    }
+  ]
+}
