@@ -32,15 +32,17 @@ reversal is a bounded revert; verifiability combines deterministic gates with AI
 
 ### `C4`: structural
 
-Refactors, migrations, contract changes. Blast radius is cross-cutting and reversal is hard,
-so the class escalates for upfront plan approval before execution. Its risk shows in the diff
-the review lanes read. A merge authority that reads no class works differently: see [Merge
+Refactors, migrations, contract changes. Blast radius is cross-cutting and reversal is hard.
+Its risk shows in the diff the review lanes read. It has no promotion cell of its own: a `C4`
+auto-merge needs an effective-promoted `C3-auto-merge` cell, the reviewed rung's cell. A merge
+authority that reads no class works differently: see [Merge
 authorities that read no class](#merge-authorities-that-read-no-class).
 
 ### `C5`: untrusted-provenance
 
-Fork PRs, external contributions, unvetted repositories. The input provenance itself is
-untrusted, and it dominates every other property. The class's min-isolation cell, `L3`, is
+Fork PRs, external contributions, unvetted repositories, and items carrying the
+`provenance: signal` label. The input provenance itself is untrusted, and it dominates every
+other property. The class's min-isolation cell, `L3`, is
 the floor the runner design pack's `C5`-dispatch gate cites: no `C5` item is dispatched onto
 any execution surface below `L3`, and the class's merge policy never promotes.
 
@@ -49,7 +51,9 @@ any execution surface below `L3`, and the class's merge policy never promotes.
 `C5` is assigned by field tests on the provider's own metadata, never by classifier judgment
 alone, and never by anything recorded in the item's own body (the untrusted surface being
 classified). Two surfaces carry the tests; they answer different provenance questions and do
-not substitute for one another.
+not substitute for one another. A third trigger, the signal provenance label, marks an item
+`C5` on its own. A classless item whose observed state is neither fails closed to `C5`
+(below).
 
 **Pull request: the code's provenance.** Two tests on the PR's cycle-start snapshot, either
 one marking the PR `C5`, each failing closed to `C5` when its field is missing or unreadable:
@@ -82,11 +86,31 @@ The issue test keys on the issue author only. It is not a lookup of anything in 
 title, body, or comments; those surfaces are attacker-writable and are evaluated as data,
 never as admission input.
 
+**Label: the signal's provenance.** An item carrying the `provenance: signal` label is `C5`,
+whatever its `work-class:` label says, whatever class a routine run stamped on it, and whatever
+the PR and issue tests return. The test reads the label from the provider's label set, never the
+item's body. The `work-items` plugin's triage stamps the label on an item whose body carries the
+autonomy signal marker; a marker anyone pasted into a body can only add the label, which tightens
+handling and grants nothing. No lane removes the label; only a person with `write` does, and a
+removal by anyone below `write` keeps the item held.
+
+**Any other observed state: no readable provenance.** An item with no stamped class whose
+observed state is neither a PR nor an issue has no author either test can read: a
+detector-fired `temporal` item (one claiming no routine identity), such as a poll-detector
+backstopping a `channel-feed` surface, or a `tracker-vcs-event` on another object, such as a
+discussion or a commit comment. It fails closed to `C5`, as any test does when the field it
+needs is missing. A classless item whose observed state is a PR or an issue runs that
+surface's tests. Two items stay out of this rule: a `channel-feed` signal, which the
+[admission policy](admission-policy.md)'s shipped surface row holds, and an item that carries
+a class, such as a validated routine run.
+
 **Composition.** The PR tests and the issue test are independent: a same-repository PR from a
 trusted member closing an issue filed by an outside collaborator is `C5` on the issue and not
 `C5` on the PR; a fork PR closing an internally triaged issue is `C5` on the PR regardless of
-the issue author's association. Classification at triage and admission stamps the bundle the
-tests resolve; the tests are the executable trigger, not a second opinion on a stamped label.
+the issue author's association. The signal label is independent of both: an item carrying it
+is `C5` even when every PR and issue test passes. Classification at triage and admission stamps
+the bundle the tests resolve; the tests are the executable trigger, not a second opinion on a
+stamped label.
 
 ## Merge authorities that read no class
 
@@ -102,7 +126,9 @@ The babysit unattended merge gate (`/source-control:babysit-prs`, its `--unatten
 another. It reads no class; it needs its effective rung's promotion cells (rung `merge` (`C2`) the
 `C2-auto-merge` cell, rung `merge-reviewed` (`C3`) every C3 cell), read by rung, never by class. The one label it
 reads by a class name is a trust hold: it refuses a change request whose linked item carries
-`work-class: untrusted-provenance`, or had that label removed by a non-human, and it needs the
+`work-class: untrusted-provenance`, or had that label removed by a non-human (it does not read
+`provenance: signal`, so it holds a signal item only when that item also carries the class
+label), and it needs the
 linked item vouched for by a human (written by one with write access, or given the admission
 label by one in person with no body edit after). That skill's safety reference defines it, section
 "Unattended Merge Path".
@@ -123,7 +149,11 @@ per the [telemetry contract](../telemetry.md) are the evidence base.
   change on the governance surface.
 - **Demotion is automatic and fail-closed.** Contrary evidence lowers the cell's effective
   state immediately, without waiting for human action; the cell re-earns promotion from
-  there through the same evidence predicate.
+  there through the same evidence predicate, and a person re-ratifies it after the demotion.
+  Only a demotion record's label and routing depend on whether its evidence can clear without a
+  person: a record that clears once main is green at a later commit carries no human-gated
+  label, unless its filer needs one to keep intake admission off it (the lanes App's
+  `--remediate` record) or a failing check got no fix issue.
 - **Promotion never overrides unanimity.** A promoted `C2`/`C3` auto-merge cell still does not
   auto-proceed on checker dissent: the promoted state is a ceiling, and dissent withholds the
   automatic transition the same way contrary evidence lowers the cell. That is the same
@@ -143,7 +173,11 @@ other records a candidate term as deliberately deferred.
 | `C2` auto-merge | ≥ 20 autonomous C2 completions over ≥ 14 days with 100% deterministic-gate pass and 0 human-reverted merges |
 | `C3` auto-merge | ≥ 20 autonomous C2 merges over ≥ 14 days with 0 demotion events, plus ≥ 10 autonomous C3 completions with 100% deterministic-gate pass, 0 human-reverted merges, and 0 human-confirmed missed-blocking AI-review findings |
 | `C3` AI review advisory → blocking | ≥ 30 advisory reviews with 0 human-confirmed missed-blocking findings |
-| `C4` / `C5` merge | never promotes. No merge rung reaches these cells, and no evidence predicate exists for them |
+| `C5` merge | never promotes. No merge rung reaches this cell, and no evidence predicate exists for it |
+
+`C4` has no merge row of its own: a `C4` auto-merge needs an effective-promoted `C3-auto-merge`
+cell, so the `C3` auto-merge predicate and its demotion cascade govern it. A `C4` outcome counts
+as `C3` evidence for that cell, so a `C4` demotion event lowers it too.
 
 **Demotion evidence set** (one event suffices): any post-merge gate failure, any
 human-reverted merge, any verification divergence. Demotion cascades along

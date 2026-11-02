@@ -26,16 +26,21 @@ reference and `dependencies` are reserved for hard requires.
 sitemap, so rung 3 is actually reached. The answer changes the mapper's
 constraints and prerequisite set, so the user arbitrates it.
 
-## 2. Repository-tree enumeration rung
+## 2. Repository-tree enumeration rung: taken
 
-V1 ingress for repository files is human-enumerated **resource seeds** (a
-non-root seed URL is itself a corpus resource, rung `seed`, no discovery at its
-origin; GitHub files seeded in `raw.githubusercontent.com` form because a `blob`
-URL snapshots HTML chrome). The first corpus hand-enumerated its 12 spec-repo
-blobs. A `git ls-tree` / tree-API enumeration rung is deferred.
+**Status:** taken (#7368). `map-corpus` has a `repo-tree` discovery rung: a
+repository seed pinned to a commit SHA plus include and exclude globs, the forge
+tree listing read through an adapter (`reference/providers/github/repo-tree.md`,
+per ADR 0060), and the URL set computed by `parse_discovery.py`. A corpus may
+have a repository seed as its only seed.
 
-**Trigger:** the first corpus whose repository half is too large to enumerate by
-hand.
+Before this, repository files entered only as human-enumerated **resource
+seeds** (the first corpus hand-enumerated its 12 spec-repo blobs).
+
+**Trigger (fired):** the first corpus whose repository half is too large to
+enumerate by hand. On 2026-10-13 the pstack plugin in `cursor/plugins` (167
+files: 55 skills, 2 agents, 17 docs) was too large, and the session enumerated
+it with the forge's recursive tree API outside the skill.
 
 ## 3. Renaming `docpage-digest`
 
@@ -90,6 +95,6 @@ per-video slices.
 
 ## Disposition
 
-No trigger has fired as of the filing of #2707. This document is preservation,
-not a work queue. Closing #2707 means the records live here; it does not mean
-any trigger has fired.
+Item 2's trigger fired and the item was taken; no other trigger has fired.
+This document is preservation, not a work queue. Closing #2707 means the records
+live here; it does not mean any trigger has fired.

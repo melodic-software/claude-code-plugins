@@ -1,5 +1,5 @@
 {
-  "description": "Optionally checks the uncommitted PowerShell changes with PSScriptAnalyzer when a turn ends, and reports a missing pwsh or a drifted git-hook entry at session start.",
+  "description": "Optionally checks the uncommitted PowerShell changes with PSScriptAnalyzer when a turn ends; harness-ops reports a missing pwsh or a drifted git-hook entry at session start, from this plugin's prerequisites.json.",
   "hooks": {
     "Stop": [
       {
@@ -18,37 +18,6 @@
             ],
             "timeout": 30,
             "statusMessage": "Checking PowerShell in uncommitted changes..."
-          }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "matcher": "startup|resume|clear|fork",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs",
-              "probe",
-              "${CLAUDE_PLUGIN_ROOT}",
-              "--run-if-unset-or-true",
-              "POWERSHELL_FORMAT_ENABLED"
-            ],
-            "timeout": 10,
-            "statusMessage": "Checking pwsh..."
-          }
-        ]
-      },
-      {
-        "matcher": "startup|resume|clear|fork",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /powershell-format:check POWERSHELL_FORMAT_ENABLED; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /powershell-format:check POWERSHELL_FORMAT_ENABLED",
-            "timeout": 10,
-            "statusMessage": "Checking that node is on PATH..."
           }
         ]
       }

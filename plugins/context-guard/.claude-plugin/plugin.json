@@ -1,6 +1,6 @@
 {
   "name": "context-guard",
-  "version": "1.1.11",
+  "version": "1.2.0",
   "description": "Per-session context-window observability. A mod writes each session's context-window figures to a snapshot file and shows the person a toast and a transcript line when the context zone (smart, acceptable or dumb, from bands in zones.json) worsens; with model_notices on (off by default) it also tells Claude the zone at each crossing, approach and compaction. /context-guard prints status and toggles an optional band row. It answers a status tool. A PostCompact hook leaves a marker.",
   "author": {
     "name": "Melodic Software",
@@ -53,7 +53,7 @@
     "context_guard_toast": {
       "type": "boolean",
       "title": "Zone-change toast",
-      "description": "Shows a short toast when the session crosses into a worse context zone, beside the transcript line that records it. On by default; off, only the transcript line remains.",
+      "description": "Shows a short toast when the session crosses into a worse context zone, beside the transcript line that records it, and when zones.json is malformed. On by default; off, only the crossing's transcript line remains.",
       "default": true
     }
   }

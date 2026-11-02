@@ -105,10 +105,9 @@ came from, not by who wrote it down.
   that has read any K2 text (a diff, an issue, a fetched page) writes K2, whatever the
   output looks like, and its page is built from the checked-in template and runtime
   (see K2 is builder-only).
-- **The class rules bind every emitter now.** The grandfathered surfaces (see Wave-1
-  adoption and grandfathered surfaces) are bound too, including the minimum content
-  security policy on a K0 or K1 page; only their ladder and `medium` are grandfathered.
-  A lane whose authoring context holds K2 text emits the markdown record or terminal
+- **The class rules bind every emitter**, including the minimum content security policy
+  on a K0 or K1 page (see Wave-1 adoption and grandfathered surfaces for each emitter's
+  `medium` handling). A lane whose authoring context holds K2 text emits the markdown record or terminal
   output, or a page built by the shared builder (`lib/view-builder.mjs`, report or
   interactive profile) or by `lib/html-escape.mjs`, never a page with model-written
   markup or script.
@@ -364,8 +363,10 @@ fact that decided the outcome, rather than silently printing a dead file path.
 
 ## Default ladder and its reconciliation
 
-The shipped default ladder for existing emitting surfaces stays **published artifact,
-then local file, then terminal**, exactly as those surfaces and their evals ship today.
+The shipped default ladder for the existing emitting surfaces that publish
+(`adhd:clarify`, `visualization:visualize`) stays **published artifact, then local file,
+then terminal**, exactly as those surfaces and their evals ship today; the other existing
+emitters keep the local default each one ships.
 Two sentences reconcile this with the local-first residence decision:
 
 1. Local-first governs NEW rendered-view lanes and any operator's personal environment:
@@ -373,8 +374,9 @@ Two sentences reconcile this with the local-first residence decision:
    `CLAUDE_CODE_DISABLE_ARTIFACT=1` environment variable, or a `permissions.deny`
    `Artifact` rule) are the sanctioned day-one flip that turns every ladder local, with
    zero plugin changes.
-2. The existing emitting surfaces are grandfathered on the shipped ladder until the
-   priced fleet sweep deliberately migrates them (tracked as a deferred-work issue).
+2. An existing emitting surface keeps its shipped ladder only as its default: each one
+   reads `medium` from the argument and the cascade first (see Wave-1 adoption and
+   grandfathered surfaces).
 
 One new lane is an exception to sentence 1, recorded here: the pull-request digest
 lane (`/review:explain-change`) ships `medium: artifact` as its default. Its page is
@@ -559,21 +561,48 @@ residence are how this convention prices them.
 
 ## Wave-1 adoption and grandfathered surfaces
 
-Wave-1 adopter (cascade wiring plus chrome citation): `visualization:visualize`.
+Wave-1 adopter (cascade wiring plus chrome citation): `visualization:visualize`. Second chrome
+adopter, citing its own byte-identical copy: `adhd:clarify`.
 
 Emitters that resolve `medium` from the cascade, keeping their shipped default only when no layer
 sets it: `adhd:clarify`. A `terminal` or `file` from any layer keeps its page local; `artifact`, or
 `hosted` read as `artifact`, publishes only from the argument, the user-global layer, or an
 untracked, gitignored overlay. Its output names the layer that decided, or "shipped default".
 
-Current emitters, grandfathered on their shipped ladder and `medium` only, since the
-content-class rules bind them now (see Content classes):
-`architecture:improve`, `education:teach` (topic mode),
-`prototype:explore-directions`, `prototype:pressure-test`,
-`machine-health:audit` (its step-6 static report view; the decision page is on the shared builder),
-`planning:interview` (and planning's other rendered views, except the plan and brainstorm views below),
-`overengineering:audit`, `ai-briefing:generate`,
-`visualization:visualize`.
+Emitters that resolve `medium` from the argument, then the cascade, and publish nothing themselves.
+None has a `medium` option, so no
+plugin dial sits between the argument and the cascade. Each names the source of `medium`, or
+"shipped default", and keeps its shipped behavior when no layer sets one:
+
+- `architecture:improve`: `terminal` skips the HTML report and leaves the candidate artifact;
+  every other value writes the local report.
+- `education:teach` (topic mode): `terminal` writes `lesson.md`; `file` keeps the host-aware
+  format choice and drops the artifact-share offer; `artifact` and `hosted` keep the offer.
+- `prototype:explore-directions`: the mockup stays a local file at every value; `terminal` and
+  `file` drop the design-canvas offer, since the canvas is published.
+- `prototype:pressure-test`: `terminal` picks the terminal app; `file`, `artifact` and `hosted`
+  override nothing, so the audience routing still picks the shell, and an HTML demo stays a local
+  file. An explicit shell request still wins.
+- `planning:interview`'s read-only decision table, `planning:prd`'s pitch view and
+  `planning:design`'s topology view (`plugins/planning/reference/rendered-view.md`, "Other optional
+  views"): `terminal` writes no file; every other value writes the local file.
+- `overengineering:audit`: `terminal` drops the offer to render the findings through
+  `visualization:visualize`; `file` keeps the offer and passes `file` to it; a value from the
+  `--medium` argument keeps the offer and passes that value to it; every other value keeps the
+  offer and leaves the rung to `visualization:visualize`.
+- `ai-briefing:generate`: only `--format` selects HTML or PPTX, so no layer starts the build; the
+  briefing stays markdown under every layer.
+- `codebase-health:audit` (genre: reports; dual-audience, since its findings feed a fix pass):
+  `terminal` drops the offer to render the report through `visualization:visualize`; `file` keeps
+  the offer and passes `file` to it; a value from the `--medium` argument keeps the offer and
+  passes that value to it; `artifact` or `hosted` from the team layer keeps the offer and passes
+  `file` to it, so a team layer cannot publish; every other value keeps the offer and leaves the
+  rung to `visualization:visualize`.
+
+`visualization:visualize` reads the argument, its `medium` option and the cascade (the Wave-1
+adopter above). `machine-health:audit` writes no model-written view: its report is markdown, and
+its decision page is on the shared builder (below). Every surface the grandfathered list named has
+left it, and the list is empty.
 
 Emitters on the escape-helper gate (the third bullet of the security baseline), each building
 its page with a checked-in builder: `education:teach` (codebase mode),
@@ -591,7 +620,23 @@ the same way (`plugins/debugging/scripts/build-view.mjs`, `plugins/discovery/scr
 (`plugins/architecture/scripts/build-view.mjs`); and the `machine-health:audit` decision page, which
 its orchestrator builds for each run from `latest.json`
 (`plugins/machine-health/skills/audit/scripts/build-checkup-view.mjs`), with a copied payload that
-`machine-health:setup picks` resolves against the run's id map.
+`machine-health:setup picks` resolves against the run's id map; and `harness-ops:morning-brief`
+(genre: reports and status), which builds its status page from the printed brief
+(`plugins/harness-ops/skills/morning-brief/scripts/build-brief-view.mjs`) and resolves `medium` from
+the cascade, defaulting to a local `file`; `artifact` or `hosted` from the team layer keeps the page local.
+
+Assessed under the genre rubric and given no lane:
+
+- `education:explain`: a concept explainer, but its answer is short text the reader uses where they
+  read, the lowest rung. Its page and video views already exist as `education:illustrate` and
+  `explainer-video:produce`.
+- `knowledge:docpage-digest`, `knowledge:distill` and `knowledge:absorb-upstream`: each delivers a
+  record a later pass reads (a knowledge slice with its interview handoff, skill reference files,
+  a tracked `docs/upstream` record). The next consumer is that pass, not a person, so no genre
+  applies. `knowledge:video-digest` is on the escape-helper gate (above).
+- `testing:audit`: the scanner's output, presented as the script prints it: one rule-tagged
+  `path:line` row per finding and a coverage block. Its gate (`--check`) and its fix-pass file
+  (`--persist-findings`) are separate script modes. The text rung loses nothing a page would add.
 
 Emitters through an Artifact type (see Artifact types): `/visualization:present`, a deck made from
 the account's Slides type, gated by `plugins/visualization/skills/present/scripts/check-deck.mjs`.
@@ -721,8 +766,10 @@ plugin copies it byte-identical to the same path within its own root
 (`reference/html-chrome.html`) and registers the cluster in
 `scripts/cross-plugin-source-registry.txt` in the same change; the drift checker rejects
 a registration while only one plugin carries the file, which is why the first adoption
-ships unregistered by design. Skills cite the reference inline by role (their plugin's
-own copy), never by a repository path an installed consumer cannot resolve.
+shipped unregistered by design. `adhd:clarify` is the second adopter
+(`plugins/adhd/reference/html-chrome.html`), so the cluster is now registered. Skills cite the
+reference inline by role (their plugin's own copy), never by a repository path an installed
+consumer cannot resolve.
 
 The chrome's ivory page background (`--ivory`) is the sanctioned default background for a
 view built on it, so no skill's "styles to leave out" list names a cream or off-white
@@ -806,7 +853,4 @@ which is another cost of copying.
   (`/review:explain-change` explains a pull request) may emit a view as its deliverable,
   owning its genre's page shape and reusing the shared builder and chrome.
   `visualization:visualize` stays a router that owns no craft.
-- It does not migrate the grandfathered surfaces' ladder or `medium`: that sweep is
-  priced and tracked separately, gated on the userConfig smoke test. The content-class
-  rules already bind them.
 - It does not vendor the 31 corpus templates: see Template vendoring posture.

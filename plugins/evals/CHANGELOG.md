@@ -1,5 +1,27 @@
 # Changelog: evals
 
+## [0.14.7] - 2026-11-02
+
+### Fixed
+
+- **The `default-judge-same-model` eval case no longer Greps the plugin root.** Leaving Grep and Glob out of `allowed_tools` did not stop the model calling them, and the sandbox denied the search in every with-arm run, which made the case's runs invalid. The case now carries an `append_system_prompt` that limits the session to Read and Skill and says not to search the filesystem.
+
+## [0.14.6] - 2026-11-02
+
+### Added
+
+- `plugin-eval`'s validity gate takes `--own-copy-search-warns` for the broken side of a negative
+  control: a denied Read, Grep or Glob aimed only at the plugin copy a finished run loaded, when no
+  `tool_used` grader of its case names that tool, then warns instead of failing, so the gutted
+  skill's search for the text it lost no longer leaves the control unmeasured. Without the flag
+  the gate is unchanged and that denial stays a FAIL.
+
+## [0.14.5] - 2026-11-02
+
+### Fixed
+
+- The plugin-eval validity gate now resolves a shell variable a Bash command assigned earlier in the same command, as in `D=<dir>; ls "$D/runs"`. It judges `$D` by the path it stands for, so a denial aimed only at the run's own plugin-data directory through a variable is set aside like one written with the literal path. The assignment must be a command of its own that always runs in the top-level shell, and its value must be one literal word. Any other expansion still counts as no path and fails the gate. A command name after `;`, `&&`, `|` or a newline no longer counts as a relative path, but a command that names no absolute argument, such as `ls` or `PYTHONPATH=/opt/lib pytest`, still counts as one that may work inside the plugin. ([#12156](https://github.com/melodic-software/claude-code-plugins/issues/12156))
+
 ## [0.14.4] - 2026-11-02
 
 ### Fixed

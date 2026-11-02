@@ -3,6 +3,32 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.0.0] - 2026-11-02
+
+### Changed
+
+- `/work-items:work-loop`'s intake sweep no longer applies `agent-ready` or a `work-class:` label by default. A delegable, decision-defaulted or multi-surface stub outcome now takes the human-gated role label (default `needs-human`) and a `kind=escalated` marker with a `Proposed work class:` line, so a label the lane applied under its own identity can no longer admit an item. To keep the old behavior, a launch prompt must explicitly opt the sweep into writing those labels; a general grant of triage mutations does not count.
+
+## [7.0.1] - 2026-11-02
+
+### Fixed
+
+- `attend-queue` states that its plain-flip refusal holds for an item carrying `provenance: signal` whatever its `work-class:` label says, so a signal-filed item a person classed as `work-class: scoped` still stays human-gated. A new eval case covers it.
+
+## [7.0.0] - 2026-11-02
+
+### Changed
+
+- `/work-items:triage` no longer requires a work class for the autonomous-eligible role. A delegable, decision-defaulted or multi-surface stub outcome applies `agent-ready` with or without a `work-class:` label, and the five-label preflight before those outcomes is gone. The one pairing ban left: `work-class: untrusted-provenance` or `provenance: signal` is never paired with `agent-ready`.
+- A triage lane that may not write `work-class:` labels now applies `agent-ready` to a delegable outcome instead of human-gating it with a proposed class.
+- The triage `sweep` no longer skips a human-gated item for carrying `work-class: structural` or no `work-class:` label.
+- `/work-items:attend-queue` flips an escalated item to `agent-ready` whatever its work class, and with none. Only `work-class: untrusted-provenance` or `provenance: signal` still blocks the plain flip.
+
+### Removed
+
+- Triage's "Lane barred from recording a class" branch.
+- Attend-queue's "No recorded class: stamp, then flip" rule and the rule that `work-class: structural` is reclassified before the flip.
+
 ## [6.0.1] - 2026-11-02
 
 ### Changed

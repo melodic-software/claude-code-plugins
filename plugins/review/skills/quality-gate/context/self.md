@@ -8,7 +8,7 @@ Design judgment and completeness check after implementation, before verification
 
 1. **Gather inputs**: the pre-computed git facts; the approved plan or task brief when one exists, taken from the conversation, else the topic's memory slice `<memory_dir>/<slug>/PLAN.md` (default `.work/`), else the plan pasted in the PR body or linked issue
 2. **Choose the worker**: this plugin's `code-reviewer` agent (`review:code-reviewer`), never a general-purpose subagent, so the worker cannot rediscover this skill and fan out
-3. **Dispatch** with the prompt template below
+3. **Dispatch** with the prompt template below, plus a `Findings path:` line per SKILL.md "Shared inputs" "Reviewer handback" (one path per worker); read each worker's report from its file, not from its reply
 4. **Check the return is complete.** A worker return with no report, no `Criteria read:` line, no `Coverage:` line, a `Coverage:` line other than `all changed files reviewed`, or a `Criteria read:` line that omits a criteria source resolved in the shared inputs or names anything unread or skipped is a **partial gate**. Dispatch the worker once more for the missing part, or dispatch a fresh worker for the criteria lens. If it is still partial, the verdict and the findings artifact say the gate is partial and name what was missed; a partial gate never reads as clean
 5. **Verify each finding** (diff read, grep, file assert) before presenting: worker output is synthesis, not evidence
 6. **Write the findings artifact** to the findings location (SKILL.md "Shared inputs"), even on a clean pass: a missing artifact must mean "review never ran," not "review found nothing"
@@ -32,7 +32,8 @@ Read in order:
    unresolved and decline to grade rather than read an empty diff as clean)
    plus untracked files from git ls-files --others --exclude-standard.
 
-Run the checklist below. Do not edit files. Open your report with a `Criteria read:` line
+Run the checklist below. Do not edit files; write only the `Findings path:` file, per your
+Handback section, and reply as it says. Open your report with a `Criteria read:` line
 naming every criteria and convention source your reading steps list that you read, or
 `none present`, or `skipped: <reason>`. Close it with a `Coverage:` line naming the changed
 files you did not reach, or `all changed files reviewed`. Between them, return the findings

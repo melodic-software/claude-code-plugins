@@ -111,7 +111,7 @@ staged `.go` file that needs a rewrite takes a median 0.078 s (0.068-0.083 s). F
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install go-format@<marketplace>
+/plugin install go-format@melodic-software
 ```
 
 Then verify prerequisites with `/go-format:setup check`.

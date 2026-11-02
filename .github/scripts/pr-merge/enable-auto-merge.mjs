@@ -148,8 +148,8 @@
 // auto-merge event, so the post-merge check reads that head back against the
 // pin. An armed pull request
 // that fails any rule is disarmed. Each request opens its own connection, and
-// a read or write that fails on the network is sent up to twice more
-// (withRetry). A resent arm or disarm that errors is read back once, and
+// an arm or disarm that fails on the network is sent up to twice more
+// (withRetry); a read is left to createGitHub's own retry. A resent arm or disarm that errors is read back once, and
 // counts as done when the pull request already holds the target state. One
 // whose arm or disarm still fails is left as it was, named with its cause,
 // and the run goes on to the rest, then exits 1. While
@@ -350,11 +350,11 @@ export function describe(error, { label = false } = {}) {
   return escapeCommand(text.replaceAll(/Bearer\s+\S+|gh[pousr]_\w+|github_pat_\w+/g, "***"));
 }
 // `github` with every request on a connection of its own, and a GraphQL
-// POST that fails on the network sent again (RETRY_CAPS_MS). `Connection: close` closes
+// mutation that fails on the network sent again (RETRY_CAPS_MS). `Connection: close` closes
 // each socket after its answer, so no request goes out on a pooled one that
-// sat idle through a verifier read and that GitHub has since closed. A GET is
-// left to createGitHub's own retry (retryServerErrors), which resends only
-// GETs and GraphQL queries, so a query can go out up to three times four. This
+// sat idle through a verifier read and that GitHub has since closed. A GET and
+// a GraphQL query are left to createGitHub's own retry (retryServerErrors),
+// which resends only those, so no call goes out more than three times. This
 // retry's waits, and the first send of each resend, fall outside that helper's
 // 60 s budget; the step's 18-minute timeout (pr-merge.yml) is the outer cap.
 // A REST write such as the refusal comment is never resent, since a
@@ -370,7 +370,8 @@ export function withRetry(github, { sleep, random = Math.random }) {
         return await github(method, path, body, { Connection: "close", ...headers }, options);
       } catch (error) {
         const cap = RETRY_CAPS_MS[attempt];
-        if (path !== "/graphql" || cap === undefined || !transient(error)) {
+        const mutation = path === "/graphql" && /\bmutation\b/.test(String(body?.query ?? ""));
+        if (!mutation || cap === undefined || !transient(error)) {
           // How many sends it took: after a resend, an earlier one may have landed.
           if (error !== null && typeof error === "object") {
             error.attempts = attempt + 1;

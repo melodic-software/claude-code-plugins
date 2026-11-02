@@ -27,17 +27,12 @@ const WORKFLOWS = new URL(".github/workflows/", ROOT);
 // Jobs that call GitHub and are not yet covered, each with the exact gap the
 // detector reports for it, so a gap that grows, shrinks or closes fails.
 const NO_LOG = "no job-end log-api-budget step";
-const LANE_JOB =
-  "no job-end log-api-budget step; check-trusted-trigger without API_BUDGET_TOKEN; resolve-config without API_BUDGET_TOKEN";
 const DECIDE_REBUILD =
   ".github/scripts/release-publish-plugins/decide-rebuild.sh does not wrap its gh calls";
 const ALLOWED = new Map([
-  // Head code runs in the lane jobs, so no step after it loads the log action
-  // (log-api-budget.test.mjs:1006); with no log, the token would emit nothing.
-  ["pr-run-activity-read.yml:run", LANE_JOB],
-  ["pr-run-activity-write.yml:run", LANE_JOB],
   // No checkout to load the log-api-budget action from, and no contents: read
-  // to check one out with.
+  // to check one out with; each counts its own POSTs and writes the api-calls
+  // notice itself.
   [
     "intake-triage.yml:redispatch-refined",
     `${NO_LOG}; step "Triage the refined issue again" calls gh without api_budget_wrap_gh`,
@@ -45,6 +40,10 @@ const ALLOWED = new Map([
   [
     "intake-triage.yml:triage-split-children",
     `${NO_LOG}; step "Triage each sub-issue" calls gh without api_budget_wrap_gh`,
+  ],
+  [
+    "post-merge-demotion-alert.yml:close-cleared",
+    `${NO_LOG}; step "Close the records main cleared" calls gh without api_budget_wrap_gh`,
   ],
   [
     "pr-review-main.yml:record",

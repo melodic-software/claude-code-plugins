@@ -14,6 +14,13 @@ Invocation: `/wizard:generate` is model-invoked as well as typed. Its
 description limits it to steps outside the agent's reach and excludes any step
 the agent could carry out itself.
 
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install wizard@melodic-software
+```
+
 ## Security posture
 
 - **Only the person runs a wizard.** It runs in their own terminal; the agent's

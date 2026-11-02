@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: fix/slug-accents\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | test/slug.test.js:15 | code-reviewer | assert.ok(slugify(title), expected) passes for any non-empty slug, so the accent test cannot fail. | Use assert.equal |\n| 2 | SUGGESTION | low | src/slug.js:4 | code-reviewer | The combining-mark range misses marks outside U+0300 to U+036F. | Match the Unicode mark property instead |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "the only CRITICAL finding is the planted defect"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: fix/slug-accents\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | test/slug.test.js:15 | code-reviewer | assert.ok(slugify(title), expected) passes for any non-empty slug, so the accent test cannot fail. | Use assert.equal |\n| 2 | CRITICAL | medium | src/slug.js:3 | architecture-guardian | normalize(\"NFD\") changes the slug of every existing ASCII title, which breaks old post URLs. | Drop the normalize call |\n\n## Surfaces\n\nRan: [code-reviewer@high, architecture-guardian@high]. Returned no result: [].",
+      "why": "a CRITICAL finding claims ASCII slugs changed"
+    }
+  ]
+}

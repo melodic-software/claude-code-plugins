@@ -16,13 +16,12 @@
 plugins/session-flow/skills/audit-sessions/vendor/gitleaks/gitleaks-rules.json:aws-amazon-bedrock-api-key-short-lived:165
 plugins/corrections/tools/findings-buffer/vendor/gitleaks/gitleaks-rules.json:aws-amazon-bedrock-api-key-short-lived:165
 # The fake key in the elevenlabs tests. Commit-less, so it survives the squash merge.
+# Line 21 is the key's line in its adding commit (d301b20), where a history scan
+# reports it; later commits moved it to line 24 without re-adding it.
 plugins/speech/scripts/test_elevenlabs.py:generic-api-key:21
 bf5e54fb3c1f180d10e2dcff580d411a3dea0b5d:plugins/display-redaction/hooks/mask.test.ts:private-key:46
 18f4917b2ab26200350495175e01e81080971bfb:plugins/display-redaction/hooks/mask.test.ts:private-key:265
 18f4917b2ab26200350495175e01e81080971bfb:plugins/display-redaction/hooks/display-redaction.test.ts:private-key:558
-# A dummy bearer token in test case 41 (redaction check), a test fixture on PR #7165's
-# branch. Remove once that commit is unreachable.
-cbd6129e6b7ef353095fd4b6d0d35de41136829e:plugins/performance/scripts/findings.test.sh:curl-auth-header:1128
 # The fake GitHub token in the hook timing redaction test. Commit-less, so it survives the squash merge.
 plugins/harness-ops/skills/observability/scripts/hook-transcript-timing.test.sh:github-pat:99
 # The canary IDE lock token in an install-state eval scaffold. Commit-less, so it survives the squash merge.

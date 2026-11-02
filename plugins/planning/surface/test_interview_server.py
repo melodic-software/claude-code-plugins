@@ -1611,6 +1611,80 @@ class TestStateFallback(unittest.TestCase):
         self.assertFalse(hub.read_state()[1])
 
 
+class TestAnswerOrder(unittest.TestCase):
+    """Above orderThreshold open questions the state carries a recommended answering order:
+    prerequisites first, then the most transitive dependents, then the lower id."""
+
+    @staticmethod
+    def fixture():
+        """A chain Q1 <- Q2 <- Q3 and a fan-out Q4 <- Q5..Q8, plus an archived Q9 on Q4."""
+        qs = [
+            {"id": "Q1"},
+            {"id": "Q2", "dependsOn": ["Q1"]},
+            {"id": "Q3", "dependsOn": ["Q2"]},
+            {"id": "Q4"},
+        ]
+        qs += [{"id": f"Q{n}", "dependsOn": ["Q4"]} for n in range(5, 9)]
+        qs.append({"id": "Q9", "dependsOn": ["Q4"], "state": "archived"})
+        return qs
+
+    def test_chain_and_fan_out_order(self):
+        from interview_server import answer_order
+
+        self.assertEqual(
+            answer_order(self.fixture(), 0),
+            ["Q4", "Q1", "Q2", "Q3", "Q5", "Q6", "Q7", "Q8"],
+        )
+
+    def test_an_answered_prerequisite_leaves_the_order_but_counts_its_dependents(self):
+        from interview_server import answer_order
+
+        qs = self.fixture()
+        qs[0]["answered"] = True
+        self.assertEqual(
+            answer_order(qs, 0), ["Q4", "Q2", "Q3", "Q5", "Q6", "Q7", "Q8"]
+        )
+
+    def test_a_held_answered_prerequisite_stays_open(self):
+        from interview_server import answer_order
+
+        qs = self.fixture()
+        qs[0].update(answered=True, waiting=True)
+        self.assertEqual(answer_order(qs, 0)[:3], ["Q4", "Q1", "Q2"])
+
+    def test_threshold_boundary(self):
+        from interview_server import answer_order
+
+        self.assertEqual(answer_order(self.fixture(), 8), [])
+        self.assertEqual(len(answer_order(self.fixture(), 7)), 8)
+
+    def test_a_cycle_is_broken_by_id(self):
+        from interview_server import answer_order
+
+        qs = [{"id": "X2", "dependsOn": ["X1"]}, {"id": "X1", "dependsOn": ["X2"]}]
+        self.assertEqual(answer_order(qs, 0), ["X1", "X2"])
+
+    def test_state_carries_the_order_only_above_the_threshold(self):
+        import interview_server as server
+
+        tmp = Path(tempfile.mkdtemp(prefix="iv-order-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        qs = [{k: v for k, v in q.items() if k != "state"} for q in self.fixture()]
+        qs[-1]["archived"] = {"why": "off the path"}
+        (tmp / "questions.json").write_text(
+            json.dumps({"questions": qs}), encoding="utf-8"
+        )
+        hub = server.Hub(0, tmp)
+        self.assertNotIn("answerOrder", hub.read_state()[0]["questions"])
+        (tmp / "settings.json").write_text(
+            json.dumps({"orderThreshold": 7}), encoding="utf-8"
+        )
+        self.assertEqual(
+            hub.read_state()[0]["questions"]["answerOrder"],
+            ["Q4", "Q1", "Q2", "Q3", "Q5", "Q6", "Q7", "Q8"],
+        )
+
+
 class TestSignatureWaiter(unittest.TestCase):
     """A waiter arriving or leaving inside the listen grace, lease held, still changes the
     signature, so the open page gets the frame that turns its header Live or back to working."""
@@ -1745,6 +1819,51 @@ class TestHedged(WaitCase):
         self.assertEqual(r["responses"]["A"]["decision"], "hedged")
         self.assertEqual(r["responses"]["A"]["text"], "if it is cheap")
         self.assertEqual(rebuild_responses(r["events"]), (r["responses"], r["history"]))
+        rc, out = self.rp("validate")
+        self.assertEqual(rc, 0, out)
+
+
+class TestConfirmReading(WaitCase):
+    """`confirm-reading` confirms Claude's read-back of an answer and records no decision."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(cls.dir, question("A"))
+
+    def test_confirm_reading_is_kept_unhandled_and_leaves_the_decision(self):
+        from interview_server import rebuild_responses
+
+        code, own = self.post({"id": "A", "kind": "own", "text": "fee chair flag"})
+        self.assertEqual(code, 200, own)
+        seq = own["seq"]
+        before = self.state()["responses"]["responses"]["A"]
+        read = {"id": "A", "kind": "confirm-reading", "answerSeq": seq}
+        rc, out = self.rp_ops(
+            {"op": "reply", "id": "A", "seq": seq, "text": "Understood as: feature flag."}
+        )
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.post({"id": "A", "kind": "confirm-reading"})[0], 400)
+        rc, out = self.rp_ops(
+            {"op": "reply", "id": "A", "seq": seq, "text": "Understood as: fee chart flag."}
+        )
+        self.assertEqual(rc, 0, out)
+        # The tab drew the first read-back; Claude replaced it before the click.
+        code, data = self.post({**read, "readRev": 1})
+        self.assertEqual((code, data.get("readRev")), (409, 2), data)
+        code, data = self.post({**read, "answerSeq": seq - 1, "readRev": 2})
+        self.assertEqual(code, 409, data)
+        code, data = self.post({**read, "readRev": 2})
+        self.assertEqual(code, 200, data)
+        r = self.state()["responses"]
+        ev = next(e for e in r["events"] if e["seq"] == data["seq"])
+        self.assertEqual(
+            (ev["kind"], ev["id"], ev["answerSeq"], ev["readRev"]),
+            ("confirm-reading", "A", seq, 2),
+        )
+        self.assertNotIn("autoHandled", ev)
+        self.assertEqual(r["responses"]["A"], before)
+        self.assertEqual(rebuild_responses(r["events"]), (r["responses"], r["history"]))
+        self.assertEqual(self.post({**read, "id": "nope", "readRev": 2})[0], 400)
         rc, out = self.rp("validate")
         self.assertEqual(rc, 0, out)
 
@@ -3141,6 +3260,7 @@ class TestSettingsLayers(ServerCase):
             "readingWindow": 180,
             "frontierLock": "confirm",
             "requireDepends": False,
+            "orderThreshold": 25,
         }
         self.assertEqual({k: v["value"] for k, v in s.items()}, want)
         self.assertEqual({v["layer"] for v in s.values()}, {"default"})

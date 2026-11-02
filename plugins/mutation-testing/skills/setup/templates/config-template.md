@@ -1,18 +1,23 @@
 # Mutation testing configuration
 
-Written by `/mutation-testing:setup apply`. Read by `/mutation-testing:audit`, which falls back to
-`tool: manual` and asks for the test command when none of the layers below exists.
+`/mutation-testing:setup apply` writes the YAML block below, without the Markdown around it, as
+the team layer `docs/conventions/mutation-testing.yaml`, validated by the plugin's
+`schemas/mutation-testing.schema.json`. `/mutation-testing:audit` reads it, and falls back to
+`tool: manual` and asks for the test command when no layer exists.
 
 Layers resolve the user layer (the plugin's `userConfig`, which carries only `operators` and
-`max_mutants`) → team (this file) → local overlay (`.claude/mutation-testing.local.md`).
-Scalars override; lists union.
-This file is team-shared and must be committed.
+`max_mutants`) → team (`docs/conventions/mutation-testing.yaml`) → local overlay
+(`.claude/mutation-testing.local.md`). Scalars override; lists union. The team file is
+team-shared and must be committed.
 
 Arid-node suppressions live in a separate file, `.claude/mutation-testing-arid.md`,
 so that a config diff reads as a policy change and a suppression diff reads as an
 accepted finding.
 
 ```yaml
+# Team layer for the mutation-testing plugin. Schema: the plugin's
+# schemas/mutation-testing.schema.json; keys: its skills/setup/templates/config-template.md.
+
 # The mutation tool driving this project's test runner.
 # One of: stryker-js | stryker-net | stryker4s | pitest | infection | mutmut | manual
 # `manual` means no off-the-shelf tool covers this language; the audit falls back

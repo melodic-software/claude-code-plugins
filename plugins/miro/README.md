@@ -20,6 +20,13 @@ and [Debug your configuration, Check MCP servers](https://code.claude.com/docs/e
 verified 2026-10-24; recheck when either section changes where server stderr is shown or the debug
 flag that captures it.
 
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install miro@melodic-software
+```
+
 ## Enabling and configuration
 
 The plugin **installs disabled** (`defaultEnabled: false`). A bundled MCP server that

@@ -472,8 +472,9 @@ check "label removed by a human, same head: escalates again" \
   $'POST repos/o/r/issues/42/labels\nPOST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
 
 # Partial failure: a failed label write posts no comment; a failed comment
-# write is retried; a retry run after the label landed posts exactly one comment.
-LABEL_THEN_3_COMMENTS=$'POST repos/o/r/issues/42/labels\nPOST repos/o/r/issues/42/comments\nPOST repos/o/r/issues/42/comments\nPOST repos/o/r/issues/42/comments'
+# write, a POST that is not idempotent, is sent once (outage posture element
+# 1); a retry run after the label landed posts exactly one comment.
+LABEL_THEN_COMMENT=$'POST repos/o/r/issues/42/labels\nPOST repos/o/r/issues/42/comments'
 setup '[]' '[]'
 touch "$STUB/fail_labels"
 run feedback-question-design
@@ -483,11 +484,9 @@ check "label write fails: no comment posted" 0 "$(grep -c '^POST repos/o/r/issue
 setup '[]' '[]'
 echo 1 >"$STUB/fail_comments"
 run feedback-question-design
-check "comment write fails once: exit 0" 0 "$RC"
-check "comment write fails once: label, then the comment twice" \
-  $'POST repos/o/r/issues/42/labels\nPOST repos/o/r/issues/42/comments\nPOST repos/o/r/issues/42/comments' \
-  "$(grep '^POST' "$STUB/requests")"
-check "comment write fails once: backs off once" 'sleep 5' "$(cat "$STUB/sleeps" 2>/dev/null)"
+check "comment write fails once: exit 1" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
+check "comment write fails once: label, then the comment once" "$LABEL_THEN_COMMENT" "$(grep '^POST' "$STUB/requests")"
+check "comment write fails once: no back-off" '' "$(cat "$STUB/sleeps" 2>/dev/null)"
 
 # exhausted <name>: a run whose comment write fails every attempt (the job
 # fails, the label is on), then the PR as the next run sees it: label on,
@@ -496,9 +495,9 @@ exhausted() {
   setup '[]' '[]'
   echo 99 >"$STUB/fail_comments"
   run feedback-question-design
-  check "$1: comment write fails every attempt: exit 1" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
-  check "$1: comment write fails every attempt: label on, three comment attempts" \
-    "$LABEL_THEN_3_COMMENTS" "$(grep '^POST' "$STUB/requests")"
+  check "$1: comment write fails: exit 1" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
+  check "$1: comment write fails: label on, one comment attempt" \
+    "$LABEL_THEN_COMMENT" "$(grep '^POST' "$STUB/requests")"
   printf '{"number":42,"labels":[{"name":"needs-human"}]}' >"$STUB/issue.json"
   echo 0 >"$STUB/fail_comments"
   : >"$STUB/requests"

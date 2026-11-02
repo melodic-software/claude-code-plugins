@@ -5,6 +5,12 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-11-02
+
+### Added
+
+- A malformed `zones.json` (a file that does not parse, or a band shape that fails validation) now shows the person one toast naming the file and the malformed shape, once per distinct file content. Claude gets no line about it, the shipped defaults still apply, and `context_guard_toast` turns it off (#6156).
+
 ## [1.1.11] - 2026-10-31
 
 ### Fixed

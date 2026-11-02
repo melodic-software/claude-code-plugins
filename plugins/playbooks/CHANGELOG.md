@@ -4,6 +4,22 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.27.5] - 2026-11-02
+
+### Changed
+
+- **skill-authoring:** the negative-control step in `rewrite-a-plugin.md` passes `--own-copy-search-warns` to the run-validity gate on the degraded side only, so its search of its own copy for the removed text no longer leaves the control unmeasured.
+
+### Fixed
+
+- `fable-5`'s Mythos 5 worked instance in the calibration chapter now reads as dated history from 2026-08-03. Its registry reading had passed its own recheck trigger, the next Claude model release, without a fresh read. The chapter keeps the lesson, says the registry state is not current, and tells the reader to read the current build's registry before stating where Mythos 5 stands. The 2026-11-01 dates for the overview and matrix sections stay.
+
+## [0.27.4] - 2026-11-02
+
+### Changed
+
+- The rewrite runbook's negative control says to merge each version's per-case result files into one file before the compare, since the noise report calls no `case drop` on fewer than 3 cases. It also says that a guard that denies the degraded copy's commands leaves those cases INVALID and unread, so the degradation should invite no denied command, or the part counts as unmeasurable.
+
 ## [0.27.3] - 2026-11-02
 
 ### Changed

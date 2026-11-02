@@ -125,7 +125,7 @@ ghq list -p | bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-audit.s
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install repo-hygiene@<marketplace>
+/plugin install repo-hygiene@melodic-software
 ```
 
 ## Configuration

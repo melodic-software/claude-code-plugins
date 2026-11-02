@@ -78,6 +78,21 @@ function Test-ApprovalGranted {
     return [bool]$entry.Value.approved
 }
 
+function Get-ReviewedCheckId {
+    # Check ids under reviewed_checks with reviewed true: the custom checks the
+    # owner reviewed, which the custom-check clamp leaves at their own severity.
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param([Parameter(Mandatory = $true)] [AllowNull()] $State)
+
+    if ($null -eq $State) { return [string[]]@() }
+    $prop = $State.PSObject.Properties['reviewed_checks']
+    if ($null -eq $prop -or $null -eq $prop.Value) { return [string[]]@() }
+    return [string[]]@($prop.Value.PSObject.Properties |
+            Where-Object { $_.Value -and $_.Value.PSObject.Properties['reviewed'] -and $_.Value.reviewed -is [bool] -and $_.Value.reviewed } |
+            ForEach-Object { $_.Name })
+}
+
 function Get-ServiceExclusion {
     # Service names from check_overrides.services.service_exclusions; @() when any
     # level of that path is absent, since StrictMode 3.0 throws on a missing property.

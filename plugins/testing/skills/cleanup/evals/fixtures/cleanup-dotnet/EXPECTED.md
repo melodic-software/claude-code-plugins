@@ -6,7 +6,7 @@ What `/testing:cleanup Shop.Tests` must do over this fixture, in cannot-fail-onl
 ## Setup per run
 
 The fixture is committed on `main`; the run happens on a feature branch with a clean tree. The
-fixture has no `.claude/mutation-testing.md`, so no mutation run is possible until the gated eval
+fixture has no `docs/conventions/mutation-testing.yaml`, so no mutation run is possible until the gated eval
 adds one. In cannot-fail-only mode nothing is built or run: the mode runs no test.
 
 ## Scanner findings (mode step 1)
@@ -44,7 +44,7 @@ build the test project. Nothing is committed before the user approves the batch.
 
 ## Gated run
 
-The `dotnet_gate_runs` eval copies `../mutation-testing-dotnet.md` to `.claude/mutation-testing.md`
+The `dotnet_gate_runs` eval copies `../mutation-testing-dotnet.yaml` to `docs/conventions/mutation-testing.yaml`
 (`test-command: dotnet test {tests}`, `mutate: Shop/*.cs`) and
 `Shop.Tests/PriceFeedTests.cs.fixture` to `Shop.Tests/PriceFeedTests.cs`, commits both on `main`,
 and runs `/testing:cleanup Shop.Tests` with the `mutation-testing` plugin enabled. This run builds

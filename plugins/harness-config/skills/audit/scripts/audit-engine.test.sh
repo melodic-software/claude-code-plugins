@@ -1691,6 +1691,54 @@ for lane in c3-autonomous adopted human-only none; do
   esac
 done
 
+# The team YAML alone: babysit_loop_merge in docs/conventions/source-control.yaml, or
+# only a non-merge loop-lane key there (the c2-mechanical baseline), with no legacy file.
+for lane in yaml-merge yaml-adopted yaml-human-only; do
+  m="$(make_machine "lane-$lane")"
+  printf '%s\n' "$lane_settings" >"$m/project/.claude/settings.json"
+  mkdir -p "$m/project/docs/conventions"
+  case "$lane" in
+  yaml-merge) printf 'babysit_loop_tier: worker\nbabysit_loop_merge: c3-autonomous\n' ;;
+  yaml-adopted) printf 'babysit_loop_fixing: worker\n' ;;
+  *) printf 'babysit_loop_merge: human-only\n' ;;
+  esac >"$m/project/docs/conventions/source-control.yaml"
+  rc=0
+  out=$(run "$m" --json 2>&1) || rc=$?
+  case "$lane" in
+  yaml-merge)
+    assert_eq "case 49 ($lane): ask row is info" "info" "$(ask_row "$out" severity)"
+    assert_contains "case 49 ($lane): the YAML signal is named" "$(ask_row "$out" detail)" "babysit_loop_merge: c3-autonomous in the team-tracked docs/conventions/source-control.yaml"
+    ;;
+  yaml-adopted)
+    assert_eq "case 49 ($lane): ask row is info" "info" "$(ask_row "$out" severity)"
+    assert_contains "case 49 ($lane): the baseline rung is named" "$(ask_row "$out" detail)" "baseline c2-mechanical"
+    ;;
+  *)
+    assert_eq "case 49 ($lane): ask row stays warning" "warning" "$(ask_row "$out" severity)"
+    ;;
+  esac
+done
+
+# A YAML rung wins over the legacy H2 for the same key.
+m="$(make_machine "lane-yaml-over-legacy")"
+printf '%s\n' "$lane_settings" >"$m/project/.claude/settings.json"
+mkdir -p "$m/project/docs/conventions"
+printf 'babysit_loop_merge: human-only\n' >"$m/project/docs/conventions/source-control.yaml"
+printf '## babysit_loop_merge\n\nc3-autonomous\n' >"$m/project/.claude/source-control.md"
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_eq "case 49 (yaml-over-legacy): ask row stays warning" "warning" "$(ask_row "$out" severity)"
+
+# A YAML the shared parser rejects (a repeated key) is not read past to the legacy H2.
+m="$(make_machine "lane-yaml-rejected")"
+printf '%s\n' "$lane_settings" >"$m/project/.claude/settings.json"
+mkdir -p "$m/project/docs/conventions"
+printf 'babysit_loop_tier: worker\nbabysit_loop_tier: safe\n' >"$m/project/docs/conventions/source-control.yaml"
+printf '## babysit_loop_merge\n\nc3-autonomous\n' >"$m/project/.claude/source-control.md"
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_eq "case 49 (yaml-rejected): ask row stays warning" "warning" "$(ask_row "$out" severity)"
+
 # CRLF + backticked rung (mawk-safe parse).
 m="$(make_machine "lane-crlf-bt")"
 printf '%s\n' "$lane_settings" >"$m/project/.claude/settings.json"

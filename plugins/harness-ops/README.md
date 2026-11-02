@@ -339,7 +339,7 @@ root carries its own `*` `.gitignore`, so nothing under it reaches
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install harness-ops@<marketplace>
+/plugin install harness-ops@melodic-software
 ```
 
 ## How the skills adapt to your repo

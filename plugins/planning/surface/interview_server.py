@@ -14,9 +14,11 @@ under a one-watcher lease; responses.json is the event log it delivers.
 
 import argparse
 import hashlib
+import heapq
 import html
 import json
 import os
+import re
 import secrets
 import sys
 import tempfile
@@ -51,8 +53,9 @@ EMPTY_RESPONSES = {
 # One-line free-text cap; a hedged decision's condition is one.
 LINE_CAP = 500
 DECISIONS = {"accept", "alt", "own", "defer", "hedged", "reopen"}
-# Requests to Claude that record no decision. `research` and `cancel-research` name no skill or plugin.
-REQUESTS = {"ask", "rephrase", "research", "cancel-research"}
+# Requests to Claude that record no decision. `research` and `cancel-research` name no skill or plugin;
+# `confirm-reading` confirms Claude's read-back of the user's answer.
+REQUESTS = {"ask", "rephrase", "research", "cancel-research", "confirm-reading"}
 # Events not tied to a question; `confirm-understanding` answers the restatement, and
 # `accept-audit` lists the questions one click accepted (each also gets its own `accept`).
 FREE = {"note", "wrapup", "confirm-understanding", "accept-audit"}
@@ -131,6 +134,7 @@ DEFAULT_SETTINGS = {
     "readingWindow": READING_WINDOW,
     "frontierLock": "confirm",
     "requireDepends": False,
+    "orderThreshold": 25,
 }
 SETTING_RULES = {
     "port": ("int", 0, 65535),
@@ -150,6 +154,7 @@ SETTING_RULES = {
     "readingWindow": ("int", 5, 600),
     "frontierLock": ("enum", ("confirm", "hard", "off")),
     "requireDepends": ("bool",),
+    "orderThreshold": ("int", 0, 1000),
 }
 REPO_KEYS = set(DEFAULT_SETTINGS) - {"displayName"}
 USER_ONLY = {"browserCommand"}  # read by ensure-running, never sent to the page
@@ -369,6 +374,60 @@ def unchecked_constraints(doc):
             if missing:
                 gaps[q["id"]] = missing
     return gaps
+
+
+def answer_order(questions, threshold):
+    """The recommended answering order of the open questions (on the path, and held or not
+    answered, as frontierLock reads a prerequisite), or [] while there are `threshold` or fewer.
+    Prerequisites come first (topological by dependsOn); among the questions ready next, the
+    larger blast radius (the count of transitive dependents through dependsOn) goes first, then
+    the lower id. A dependsOn cycle is broken by the same keys. Advisory: it changes no state and
+    no frontierLock check."""
+    from exporters import natural  # exporters imports this module at its top
+
+    path = [
+        q
+        for q in questions
+        if isinstance(q, dict)
+        and isinstance(q.get("id"), str)
+        and q.get("state") not in ("archived", "proposed")
+        and not q.get("supersededBy")
+    ]
+    open_ids = [q["id"] for q in path if q.get("waiting") or not q.get("answered")]
+    if len(open_ids) <= threshold:
+        return []
+    deps = {q["id"]: set(q.get("dependsOn") or []) - {q["id"]} for q in path}
+    children = {}
+    for qid, parents in deps.items():
+        for p in parents:
+            children.setdefault(p, set()).add(qid)
+
+    def blast(qid):
+        seen, todo = set(), [qid]
+        while todo:
+            fresh = children.get(todo.pop(), set()) - seen - {qid}
+            seen |= fresh
+            todo += fresh
+        return len(seen)
+
+    rank = {qid: (-blast(qid), natural(qid)) for qid in open_ids}
+    waits = {qid: len(deps[qid] & rank.keys()) for qid in open_ids}
+    ready = [(rank[qid], qid) for qid, n in waits.items() if not n]
+    heapq.heapify(ready)
+    order = []
+    while waits:
+        if not ready:  # only a cycle is left: take its best-ranked question
+            best = min(waits, key=rank.__getitem__)
+            ready = [(rank[best], best)]
+        qid = heapq.heappop(ready)[1]
+        order.append(qid)
+        del waits[qid]
+        for c in children.get(qid, ()):
+            if c in waits:
+                waits[c] -= 1
+                if not waits[c]:
+                    heapq.heappush(ready, (rank[c], c))
+    return order
 
 
 def derive_states(doc, r):
@@ -1000,6 +1059,29 @@ def check_understanding(doc, alt, text, rev):
         raise Conflict({"error": "stale", "contentRev": current})
 
 
+READ_BACK = re.compile(r"^\s*Understood as:", re.I)
+
+
+def check_reading(q, response, answer_seq, read_rev):
+    """ValueError (400) or Conflict (409 stale) for a confirm-reading event: it names the answer
+    (its seq) and the read-back it confirms (readRev, the count of Claude's `Understood as:` replies
+    to that answer up to the one shown), so a reading Claude replaced after the tab drew it is refused."""
+    if not isinstance(answer_seq, int) or not isinstance(read_rev, int):
+        raise ValueError(
+            "confirm-reading needs answerSeq and readRev: the read-back it confirms"
+        )
+    current = (response or {}).get("seq")
+    rev = sum(
+        1
+        for h in q.get("history") or []
+        if h.get("by") == "claude"
+        and h.get("replyTo") == answer_seq
+        and READ_BACK.match(h.get("text") or "")
+    )
+    if answer_seq != current or read_rev != rev or not rev:
+        raise Conflict({"error": "stale", "answerSeq": current, "readRev": rev})
+
+
 def repeat_of(events, event, since_seq=None):
     """The event a repeated Confirm duplicates, or None; the server answers a repeat with that
     event's seq. A commitment's confirm repeats any live confirm of it after `since_seq` (the
@@ -1166,6 +1248,13 @@ class Hub(LoopbackWatcher):
                     for a in x.get("alternatives") or []:
                         if isinstance(a, dict) and restates(a.get("text"), rec):
                             a["restates"] = True
+            order = answer_order(
+                q.get("questions") or [], settings["orderThreshold"]["value"]
+            )
+            if order:
+                q["answerOrder"] = order
+            else:
+                q.pop("answerOrder", None)
             self._last_state = {
                 "questions": q,
                 "responses": r,
@@ -1263,6 +1352,14 @@ class Hub(LoopbackWatcher):
                 qid = event["id"]
             elif kind == "confirm-understanding":
                 event["contentRev"] = msg["contentRev"]
+            elif kind == "confirm-reading":
+                check_reading(
+                    qs[qid],
+                    r["responses"].get(qid),
+                    msg.get("answerSeq"),
+                    msg.get("readRev"),
+                )
+                event["answerSeq"], event["readRev"] = msg["answerSeq"], msg["readRev"]
             elif kind == "accept-audit":
                 accepted, skipped = split_accept_audit(doc, r, items)
                 if not accepted:

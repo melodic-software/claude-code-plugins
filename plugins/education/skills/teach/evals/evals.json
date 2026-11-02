@@ -173,6 +173,20 @@
         "Does not add script or splice quiz.js into the codebase lesson, and asks the learner to answer quiz questions in chat",
         "Passes the raw concept name as the concept field so the page carries the concept meta tag"
       ]
+    },
+    {
+      "id": 15,
+      "name": "topic-lesson-terminal-medium-writes-markdown",
+      "prompt": "/education:teach explain borrow-checker (Fixture: a topic-mode workspace for rust-ownership exists; the learner is at a desktop with a browser and the Artifact tool is present; ~/.claude/rendered-views.md contains only 'medium: terminal'; the repo has no rendered-views layer; no --medium argument was given.)",
+      "expected_output": "Resolves medium before the format decision, reads medium: terminal from the user-global layer, and writes the concept's lesson as lesson.md rather than lesson.html even though the host can render HTML. Makes no offer to publish the lesson as an artifact, and names ~/.claude/rendered-views.md as the source of the medium.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Resolves medium from the rendered-views layers before deciding the lesson format",
+        "Writes lesson.md, not lesson.html",
+        "Does not offer to publish the lesson as an artifact",
+        "Names ~/.claude/rendered-views.md as the source of the medium"
+      ]
     }
   ]
 }

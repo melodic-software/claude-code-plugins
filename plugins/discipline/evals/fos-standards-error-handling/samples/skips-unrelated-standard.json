@@ -19,6 +19,10 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Grep\",\"input\":{\"pattern\":\".\",\"path\":\"docs/standards/frontend-css.md\",\"output_mode\":\"content\"}}]}}\n",
       "why": "Grep that dumps the unrelated doc"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Grep\",\"input\":{\"pattern\":\"^## \",\"path\":\"docs/standards/\",\"output_mode\":\"content\"}}]}}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"toolu_01\",\"type\":\"tool_result\",\"content\":\"docs/standards/error-handling.md:3:## EH-1 Never swallow an exception\\ndocs/standards/frontend-css.md:3:## CSS-1 Class names follow BEM\"}]}}\n",
+      "why": "Grep over the whole standards directory that returns the unrelated doc's content"
     }
   ]
 }

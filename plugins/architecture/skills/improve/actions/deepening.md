@@ -82,6 +82,13 @@ The report is one self-contained HTML file under the OS temp directory, one per 
 
 **Another repository's files are not rendered to HTML until this lane is wired through the rendered-views escape helper.** When the scanned repository is not the user's own work (a freshly cloned third-party checkout, a vendored or fetched tree), skip the HTML report: the durable candidate artifact below is the deliverable, and say in one line why no page was produced. This is the baseline's third bullet applied to this skill; it overrides the report step above, not the scan.
 
+**Resolve `medium` before writing the report.** The `rendered-views` preference is one of `auto`, `terminal`, `file`, `artifact` or `hosted`. A `--medium` argument naming one decides. Otherwise read whichever layers exist, in order: user-global `~/.claude/rendered-views.md`, team `<root>/.claude/rendered-views.md`, overlay `<root>/.claude/rendered-views.local.md`. `<root>` is `${CLAUDE_PROJECT_DIR}` when set, else `git rev-parse --show-toplevel`; outside a work tree, read only the user-global layer. The last layer that sets `medium` wins. Count the overlay only when `git ls-files` does not list it and `git check-ignore` matches it; otherwise report it and ignore it. This plugin has no `medium` option, so no rung sits between the argument and the layers. `auto`, an empty value or no value leaves the shipped default, the local report above; any other value is reported and read as `auto`. Then:
+
+- `terminal` skips the HTML report: the durable candidate artifact and the reply are the deliverable.
+- `file` writes the local report, as does `artifact` or `hosted`: this lane publishes nothing, so say that the value was read as `file`.
+
+Name the source of `medium` in the reply: the argument, the layer's path, or "shipped default".
+
 Each candidate gets a card with: files involved, problem (one sentence), solution (one sentence), before/after diagram, benefits in terms of **leverage** and **locality**, recommendation badge (`Strong` / `Worth exploring` / `Speculative`), dependency category badge.
 
 **Order and band the cards by badge, at every count.** Cards render in one band per badge, `Strong` first, then `Worth exploring`, then `Speculative`, and an empty band is left out. The banding is unconditional: no cap, no pagination, and no card behind a collapsed disclosure, since a reader who ran the scan needs every candidate and the bands already say how far each claim can be trusted.
@@ -117,7 +124,7 @@ End the file with two lines: `phase-1.5: downgraded=<n> dropped=<n> corrected=<n
 
 **ADR conflicts**: check each candidate against the recorded architecture decisions. One that contradicts a decision is dropped unless its friction would justify reopening that decision; one that stays names the decision on its card.
 
-Phase 2 proposes no interfaces. Once the report is written, the reply opens with the decision now up to the user, names the top recommendation, gives the report and artifact paths, and asks: "Which candidate should we explore?"
+Phase 2 proposes no interfaces. Once the report is written, the reply opens with the decision now up to the user, names the top recommendation, gives the report path (when one was written) and the artifact path, and asks: "Which candidate should we explore?"
 
 ## Phase 3: Interview loop on selected candidates
 

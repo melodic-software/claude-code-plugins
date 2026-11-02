@@ -3,6 +3,39 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## The genre rubric applied to the remaining candidates, 2026-11-02
+
+- **`codebase-health:audit` offers a rendered view.** Its report is in the reports genre and feeds
+  a fix pass, so it offers to render the report through `visualization:visualize` and never builds a
+  page itself. It reads `medium` from a `--medium` argument, then the three layers; `artifact` or
+  `hosted` from the team layer passes `file`, so a team layer cannot publish.
+- **`harness-ops:morning-brief` is listed as a shared-builder emitter.** It already built its status
+  page from the printed brief; the contract now names it. A publishing `medium` from the team
+  layer now keeps its page local, as the cascade concern requires.
+- **Five more candidates are recorded with no lane.** `education:explain`, three knowledge skills
+  and `testing:audit` were assessed and get none, each with its reason under Wave-1 adoption and
+  grandfathered surfaces.
+
+## `adhd:clarify` adopts the shared chrome reference, 2026-11-02
+
+- **The chrome reference has a second adopter and is registered.** `adhd:clarify` carries a
+  byte-identical copy at `plugins/adhd/reference/html-chrome.html` and cites it for its decision
+  page. `scripts/cross-plugin-source-registry.txt` now lists `reference/html-chrome.html`, so the
+  drift checker fails when the two copies differ.
+
+## The grandfathered emitters resolve `medium`, 2026-11-02
+
+- **No emitter is grandfathered on its ladder or `medium`.** `architecture:improve`,
+  `education:teach` (topic mode), `prototype:explore-directions`, `prototype:pressure-test`,
+  planning's interview decision table, PRD pitch view and design topology view, and
+  `overengineering:audit` read `medium` from the argument, then the three `rendered-views` layers,
+  and keep their shipped behavior when no layer sets it. None publishes a page itself. Each one's
+  row implications are under Wave-1 adoption and grandfathered surfaces.
+- **`ai-briefing:generate` keeps `--format` as its only selector.** No layer starts its HTML or
+  PPTX build.
+- **Two stale rows are removed.** `machine-health:audit` writes no model-written view, and
+  `visualization:visualize` already reads the argument, its `medium` option and the cascade.
+
 ## The shared builder writes the page title, 2026-11-01
 
 - **Rule 5 allows one builder-written title.** `buildView()` takes an optional `title` and

@@ -128,10 +128,11 @@ A missing `markdownlint-cli2` stays quiet here, since the `SessionStart` probe r
   target escapes the repository's `node_modules` tree. The plugin never falls back to
   `npx`, installs a package, or touches the network.
 
-A missing `markdownlint-cli2` or `jq` is reported once per session by the `SessionStart`
-probe (`lib/prerequisites.mjs probe`), which also reports a missing, stale or edited
-git-hook entry. The probe honors `markdown_format_enabled` and does not look for a
-markdownlint config, so it can report in a repository that has none.
+With harness-ops enabled, a missing `markdownlint-cli2` or `jq` is reported once per session by
+this plugin's `lib/prerequisites.mjs probe`, which harness-ops' `SessionStart` runner starts and
+which also reports a missing, stale or edited git-hook entry. The runner skips it while
+`markdown_format_enabled` is false. The probe does not look for a markdownlint config, so it can
+report in a repository that has none.
 
 ### Hook budget accounting
 
@@ -164,7 +165,7 @@ wall and the 1 s per-fire ceiling, and the spawn count is what any reduction wou
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install markdown-format@<marketplace>
+/plugin install markdown-format@melodic-software
 ```
 
 Then verify the runtime prerequisites with `/markdown-format:setup check`;

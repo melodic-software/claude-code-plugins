@@ -44,7 +44,7 @@ wrapper is MIT-licensed and copies no upstream content.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install playgrounds@<marketplace>
+/plugin install playgrounds@melodic-software
 ```
 
 Installing this plugin declares a dependency on `playground@claude-plugins-official`;

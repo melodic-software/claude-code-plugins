@@ -3,6 +3,25 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.3.2] - 2026-11-02
+
+### Fixed
+
+- **`/harness-ops:morning-brief` no longer publishes its status page on a team layer's say-so.** A `medium: artifact` or `hosted` in the repository's tracked `.claude/rendered-views.md`, which any checked-out branch can write, now keeps the page in a local file and says why. The same value from `~/.claude/rendered-views.md` or an untracked, gitignored overlay still publishes.
+
+## [5.3.1] - 2026-11-02
+
+### Fixed
+
+- `inventory.py --reader parser` no longer parses Bun's own `// @bun` bootstrap stub as a bundle module. When Bun's module table decodes, a `// @bun` run outside it is left out, and the binary source's `marker_runs_outside_graph` counts it. On Claude Code 2.1.316 that stub, with the runtime's string literals joined onto it, failed with `Unexpected token (4:7)` and made every name read as used. A module that does not parse still reads every name.
+
+## [5.3.0] - 2026-11-02
+
+### Changed
+
+- `control-claude-code` runs unattended as well as attended, on the session it launches only; it still never signs in, never attaches to a session it did not start, and never drives Claude Desktop. Ready still requires `apiKeySource` `none` on every run.
+- The driver's launch sets `CLAUDE_CODE_HIDE_CWD=1`, so the startup screen in a capture does not show the working directory, and `config/defaults.json` sets `maxCaptures: 20`, the screenshots and videos a run takes before it records further captures as blocked (the run keeps the count; the driver does not enforce it).
+
 ## [5.2.4] - 2026-11-02
 
 ### Security

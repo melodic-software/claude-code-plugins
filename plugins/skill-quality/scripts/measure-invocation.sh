@@ -40,8 +40,9 @@
 # listing-overlap is a FLOOR, not a model-graded auto-invocation rate. It
 # ranks the request against the target description and named competitors by
 # quoted-trigger hits plus content-token overlap. The live method is
-# emit-plugin-eval + `claude plugin eval` (within one plugin) or a headless
-# `claude -p` session (cross-plugin); replay those results through compare.
+# emit-plugin-eval + `claude plugin eval`; each emitted case lists the target
+# plugin and its competitors' plugins under `plugins:`, and emit exits 2 when
+# one of those is not under plugins/. Replay the results through compare.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -206,7 +207,7 @@ cmd_validate() {
     plugin="$(jq -r '.plugin // empty' "$f")"
     if [[ -n "$plugin" ]]; then
       while IFS= read -r competitor; do
-        warn "$f ($skill): competitor '$competitor' is not from plugin '$plugin'; list same-plugin competitors only, so a rewrite in another plugin cannot move this score"
+        warn "$f ($skill): competitor '$competitor' is not from plugin '$plugin'; a rewrite in that plugin moves this probe's listing-overlap score (fine for a live emit-plugin-eval set, which loads it as a rival)"
       done < <(jq -r --arg p "$plugin:" '.competitors[]? | select((type == "string" and startswith($p)) | not) | tostring' "$f")
     fi
     if ! jq -e '.queries | type == "array" and length > 0' "$f" >/dev/null; then
@@ -527,6 +528,27 @@ cmd_compare() {
   printf '%s\n' "$report"
 }
 
+# rival_plugins <probe-file>: distinct plugins of the plugin:skill competitors,
+# sorted, without the file's own plugin.
+rival_plugins() {
+  jq -r '(.plugin // "") as $own
+    | [.competitors[]? | select(type == "string" and contains(":")) | split(":")[0] | select(. != $own)]
+    | unique[]' "$1"
+}
+
+# rel_path <from> <to>: relative path between two absolute, symlink-free paths.
+rel_path() {
+  local from="$1" to="$2" up=""
+  while [[ -n "$from" && "$to" != "$from" && "$to" != "$from/"* ]]; do
+    from="${from%/*}"
+    up="../$up"
+  done
+  local rest="${to#"$from"}"
+  rest="${up}${rest#/}"
+  rest="${rest%/}"
+  printf '%s\n' "${rest:-.}"
+}
+
 cmd_emit() {
   local runs=3
   if [[ "${1:-}" == "--runs" ]]; then
@@ -543,15 +565,53 @@ cmd_emit() {
     printf 'Error: emit-plugin-eval needs an empty or new <out-dir>; stale cases would still run\n' >&2
     exit 2
   fi
-  mkdir -p "$out" || return 2
-  local f
+  local f root missing=0
   local -a files
   mapfile -t files < <(probe_files "$dir")
+  root="$(repo_root)"
   for f in "${files[@]}"; do
-    local skill plugin leaf
+    local p
+    local -a need
+    mapfile -t need < <(rival_plugins "$f")
+    ((${#need[@]})) && need+=("$(jq -r '.plugin // empty' "$f")")
+    for p in "${need[@]}"; do
+      if [[ ! -d "$root/plugins/$p" ]]; then
+        printf 'Error: emit-plugin-eval: %s needs plugin %s at %s, which does not exist; a case cannot load it\n' "$f" "$p" "$root/plugins/$p" >&2
+        missing=1
+      fi
+    done
+  done
+  ((missing)) && exit 2
+  local made=0
+  [[ -d "$out" ]] || made=1
+  mkdir -p "$out" || return 2
+  local out_abs root_abs
+  out_abs="$(cd "$out" && pwd -P)" || return 2
+  root_abs="$(cd "$root" && pwd -P)" || return 2
+  for f in "${files[@]}"; do
+    if [[ -n "$(rival_plugins "$f")" && "$out_abs" != "$root_abs"/* ]]; then
+      printf 'Error: emit-plugin-eval: %s lists cross-plugin rivals, so <out-dir> must sit inside %s; the CLI loads a case'"'"'s plugins only from inside the run target\n' "$f" "$root_abs" >&2
+      ((made)) && rmdir "$out" 2>/dev/null
+      exit 2
+    fi
+  done
+  for f in "${files[@]}"; do
+    local skill plugin leaf plugins_line=""
     skill="$(jq -r '.skill' "$f")"
     plugin="$(jq -r '.plugin // empty' "$f")"
     leaf="${skill#*:}"
+    local -a rivals
+    mapfile -t rivals < <(rival_plugins "$f")
+    if ((${#rivals[@]})); then
+      # Every case sits one level below out_abs; paths are relative to the case directory.
+      local -a paths
+      paths=("$(rel_path "$out_abs/_" "$(cd "$root/plugins/$plugin" && pwd -P)")") || return 2
+      for p in "${rivals[@]}"; do
+        paths+=("$(rel_path "$out_abs/_" "$(cd "$root/plugins/$p" && pwd -P)")")
+      done
+      plugins_line="$(jq -rn '"plugins: [" + ($ARGS.positional | map(tojson) | join(", ")) + "]"' --args "${paths[@]}")
+"
+    fi
     local nq i
     nq="$(jq '.queries | length' "$f")"
     for ((i = 0; i < nq; i++)); do
@@ -565,7 +625,7 @@ cmd_emit() {
       printf '%s\n' "---
 description: invocation probe ${skill} ${id} (${split}, expect_trigger=${expect})
 tags: [invocation-probe, ${split}]
-runs: ${runs}
+${plugins_line}runs: ${runs}
 max_turns: 8
 allowed_tools: [Skill, Read, Glob, Grep]
 expected_outcome: Skill ${skill} $(if [[ "$expect" == "true" ]]; then echo fires; else echo does not fire; fi)
@@ -601,7 +661,7 @@ arm: both
   cat >"$out/README.md" <<'EOF' || return 2
 Plugin-eval cases generated by `measure-invocation.sh emit-plugin-eval`.
 
-Run within one plugin at a time (the CLI loads a single plugin):
+Run one plugin's cases at a time:
 
 ```
 claude plugin eval plugins/<plugin> --eval-dir <this-dir-filtered-to-that-plugin> --trust-plugin \
@@ -615,8 +675,14 @@ the denied calls and timed-out runs make the run INVALID.
 A with-only `tool_used: Skill` grader is a plugin-fired indicator, not a score.
 Copy the per-case predicted fire/quiet bits into a report JSON matching
 `measure-invocation.sh score` output, then `compare` against a baseline.
-Cross-plugin competitors need a headless `claude -p` session with those
-plugins enabled; plugin eval cannot load them.
+A probe with competitors in other plugins gets a `plugins:` line in each
+case, listing the target plugin and those plugins relative to the case
+directory, so the run loads the rivals too; keep the cases where they were
+emitted. The CLI loads a case's plugins only from inside the run target, so
+run those cases against the directory that holds plugins/, with
+`--eval-dir` set to this directory relative to it (for example
+`probe-evals/<plugin>`, which git ignores; the CLI refuses an --eval-dir segment that starts
+with a dot, so not .work/; delete it after the run).
 EOF
 }
 

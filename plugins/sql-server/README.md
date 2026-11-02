@@ -9,6 +9,13 @@ stdio MCP server with its five tools, the executor that runs each call on SQL Se
 registration is read-only unless it opts in to [writes](#writes), which a person approves on
 every call. The plugin is off by default.
 
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install sql-server@melodic-software
+```
+
 ## Setup
 
 1. Create a read-only principal on the server (for Azure SQL Database, see

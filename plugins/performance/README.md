@@ -3,6 +3,13 @@
 Measurement-first optimization for an arbitrary target, built around refusing to report what the
 data does not support.
 
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install performance@melodic-software
+```
+
 ## Why this exists
 
 This plugin was generalized from one end-to-end optimization run done by hand against the
@@ -21,8 +28,8 @@ it:
 
 None of those are knowledge gaps. They are all "the measurement was wrong in a way that looked
 right", which is what enforced gates prevent and a checklist does not. Four of the five were in
-checks written specifically to avoid being fooled: the meta-checks were less reliable than the thing
-they were checking.
+checks written specifically to avoid being fooled. Those checks were less reliable than the
+thing they were checking.
 
 A workflow that measures without enforcing these rules mostly generates confident numbers, which is
 worse than generating none.
@@ -119,6 +126,6 @@ missing fails worse than the duplication it was avoiding.
 
 Durations are never committed; a counter ceiling for `/performance:protect` may be. Baselines live
 in the topic's memory tier (`.work/<topic-slug>/baselines/`) and are machine-bound, matching
-`/verification:measure`. A committed duration is a number that outlives the conditions that made it
-true. A ceiling on a deterministic counter does not drift with host load, which is why it is the one
+`/verification:measure`. A committed duration goes stale once the conditions that produced it
+change. A ceiling on a deterministic counter does not drift with host load, which is why it is the one
 number that is checked in.

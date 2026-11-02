@@ -9,17 +9,24 @@ session succeed, and making its failures legible.
 | `/computer-use:diagnose` | Symptom-to-cause for a screen-control session. Covers the screenshot pixel budget and when `zoom` recovers detail, the ladders for capture and input failures, and the per-OS quirks that make synthesized input behave unlike a human's. A symptom guide answers the common cases with no file load. |
 | `/computer-use:setup` | Read-only preflight. Confirms the surface and tool availability, then reports the screensaver, display-sleep, and lock timeouts that end a session mid-run regardless of how busy Claude is. Check-only: every prerequisite is external or a system setting this plugin must not write. |
 
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install computer-use@melodic-software
+```
+
 ## Why this exists
 
 The computer-use tool descriptions already document the mechanics: the actions, the allowlist
 gate, the permission tiers, the ladder that prefers a dedicated MCP over Chrome over screen
 control. **This plugin restates none of that**, on purpose: a standing instruction that repeats
-what the surface already says is a per-session tax for zero gain.
+what the surface already says costs context tokens every session and adds nothing.
 
 What it carries instead is the material that is not derivable from the tool surface and is not
 documented upstream:
 
-- **The idle timer does not see Claude.** Synthesized input does not reset the OS idle timer, so
+- **Claude's input does not reset the idle timer.** Synthesized input does not reset the OS idle timer, so
   a long session hits the screensaver or display-sleep timeout no matter how much Claude is
   clicking, and cannot recover itself once it does. Measured, not inferred.
 - **Screenshot quality is a fixed pixel budget, not a scale factor**, so the intuitive fixes

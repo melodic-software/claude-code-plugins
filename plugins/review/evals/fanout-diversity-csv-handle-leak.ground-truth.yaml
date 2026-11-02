@@ -1,0 +1,10 @@
+fixture: csv-handle-leak
+source_case: none
+defect:
+  location: src/import-csv.js:10
+  summary: "countRows drops its try/finally and throws on a wrong header before file.close() runs"
+  failure: "a CSV whose first row is not sku,qty,price, or one whose read fails, throws with its file handle still open; importAll catches each file's error and goes on, so a nightly batch with many bad uploads leaves one handle open per bad file until garbage collection, and enough of them make later opens fail with EMFILE"
+axis: standards
+not_defects:
+  - "a CSV with the expected header now gets a different row count (main also counted only the rows after the header)"
+  - "importAll stops at the first bad file (it catches each file's error and goes on)"

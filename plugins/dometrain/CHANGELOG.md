@@ -3,6 +3,12 @@
 All notable changes to the `dometrain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.9] - 2026-11-02
+
+### Changed
+
+- **README**: the `headers` and `headersHelper` pointer record links two sections of the MCP page instead of the whole page. "Use dynamic headers for custom authentication" covers the `headersHelper` contract, and "Environment variable expansion in `.mcp.json`" covers `headers` expansion. Its as-of date is now 2026-11-02.
+
 ## [0.8.8] - 2026-11-02
 
 ### Changed

@@ -11,12 +11,12 @@ and skills a repository ships so work runs the same way for every person and age
 
 ## Install
 
-```text
+```shell
 /plugin marketplace add melodic-software/claude-code-plugins
+/plugin install developer-experience@melodic-software
 ```
 
-Then install `developer-experience` from that marketplace. Issues and questions:
-<https://github.com/melodic-software/claude-code-plugins/issues>.
+Issues and questions: <https://github.com/melodic-software/claude-code-plugins/issues>.
 
 ## What setup writes
 

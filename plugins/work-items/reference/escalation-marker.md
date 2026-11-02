@@ -57,9 +57,8 @@ item plus marker comment is the escalation of record when the record write fails
 
 ## Proposed work class (optional body line, `kind=escalated`)
 
-When a lane that may not record a class escalates an item for class stamping
-(`/work-items:triage`'s "Lane barred from recording a class" branch), the comment body carries
-one line of the form
+When a lane that may not record a class proposes one on an escalated item, the comment body
+carries one line of the form
 
 ```text
 Proposed work class: <label>
@@ -67,5 +66,4 @@ Proposed work class: <label>
 
 where `<label>` is exactly one live `work-class:` label string as the repository spells it (for
 example `work-class: scoped`), followed by its one-line basis. It is a proposal for
-the operator, never an admission input: `attend-queue` reads it to pre-fill the stamp question,
-and no consumer admits, dispatches, or merges on it. The marker `kind` stays `escalated`.
+the operator, never an admission input: no consumer admits, dispatches, or merges on it. The marker `kind` stays `escalated`.

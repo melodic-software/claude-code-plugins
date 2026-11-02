@@ -12,8 +12,8 @@ that match. This harness does, in two layers:
 | Method | What it is | When to run |
 |---|---|---|
 | `listing-overlap` | Deterministic floor: quoted-trigger hits plus content-token overlap against the target listing and named competitors | By hand, before and after a rewrite (`score` then `compare`). CI validates the probe schema and runs the harness tests only. The committed baseline uses this method. |
-| `emit-plugin-eval` | Writes `claude plugin eval` cases (`tool_used: Skill`) per probe | On demand, within one plugin. Cross-plugin competitors are out of scope for this method (why: the pointer under [Report fields](#report-fields); as of 2026-10-11; recheck trigger: that pointer moving or that heading being renamed). |
-| Headless `claude -p` | Live cross-plugin selection | On demand, documented, not wrapped here. Replay its fire/quiet bits through `compare`. |
+| `emit-plugin-eval` | Writes `claude plugin eval` cases (`tool_used: Skill`) per probe | On demand, one plugin's cases per run. Each case's `plugins:` list loads the target plugin and every competitor's plugin, so cross-plugin rivals compete (field: the pointer under [Report fields](#report-fields)); emit exits 2 when a competitor's plugin is not under `plugins/`. Run such cases against the repo root, as the emitted README shows. |
+| Headless `claude -p` | Live selection with the whole installed set | On demand, documented, not wrapped here. Replay its fire/quiet bits through `compare`. |
 
 `listing-overlap` is **not** a model-graded auto-invocation rate. A high floor
 means the listing text already contains the request's nouns; a low floor means
@@ -40,7 +40,7 @@ bash plugins/skill-quality/scripts/measure-invocation.sh compare \
 
 # Emit plugin-eval cases for a live run
 bash plugins/skill-quality/scripts/measure-invocation.sh emit-plugin-eval \
-  plugins/skill-quality/probes /tmp/invocation-eval-cases
+  plugins/skill-quality/probes probe-evals/skill-quality
 ```
 
 From a session, `/skill-quality:check measure-invocation` is the same script.
@@ -121,6 +121,38 @@ No script ingests `plugin-eval` or `claude -p` results. Turning them into a repo
 that matches `score` output, so `compare` can diff it against the baseline, is a manual step
 today.
 
+## Description controls
+
+A description change ships only when its control drops clearly below the shipped text:
+a generic description, in the same competitor listing, must draw a noise-report `case drop`
+that reproduces, or a mean fall of 0.15 or more. Without that drop the part is unmeasurable,
+and the before text ships. This is the description case of the negative-control step in
+`/playbooks:skill-authoring`'s rewrite-a-plugin reference.
+
+- **Competitor set:** the probe file's `competitors[]`. Emit reads that field and writes each
+  case's `plugins:` from it, so the run's listing and the recorded set cannot drift apart.
+- **The swap:** stage two copies of the repository's `plugins/` (`git archive HEAD plugins`),
+  each under its own directory. In the control copy, replace only the skill's `description:`
+  line with a generic one, such as `"Helper for repository maintenance tasks."`, and leave
+  the shipped SKILL.md as it is. Emit each copy's cases into that copy's
+  `probe-evals/<plugin>`, then run both copies together against their own roots.
+
+Recorded runs (2026-11-02: Claude Code 2.1.316, Sonnet 5.5, 3 runs per probe, all passes VALID,
+every competitor present on each with-arm init line):
+
+| Skill | Competitor plugins | Should-trigger fired, shipped / control | Should-not quiet | Mean | Verdict |
+|---|---|---|---|---|---|
+| `naming:name-it-better` | docs-hygiene, docs-naming, domain-driven-design | 30/30 / 11/30 | 30/30 / 30/30 | 1.000 / 0.683 | measurable: 7 case drops |
+| `domain-driven-design:curate-language` | planning, naming, docs-hygiene, architecture | 27/27 / 27/27 | 27/27 / 26/27 | 1.000 / 0.981 | unmeasurable: one drop that did not reproduce |
+| `domain-driven-design:curate-language` | the same plus knowledge | 27/27 / 27/27 | 27/27 / 27/27 | 1.000 / 1.000 | unmeasurable: no case drop |
+
+Why `curate-language` cannot drop: in both listings no competitor took any of its
+should-trigger probes, even against the generic description, so the skill still won them by
+elimination. Competitors did take near-miss should-not probes on both sides
+(`docs-hygiene:rename-references`, `planning:design`, `naming:name-it-better`), and
+no `knowledge` skill was called. Its probe set needs should-trigger queries that a
+neighboring skill could plausibly take, frozen before any description cut.
+
 ## Outside the marketplace checkout
 
 The shipped seed probes name skills of this marketplace checkout (`plugins/skill-quality/...`
@@ -150,11 +182,18 @@ interval has zero width, so read the probe count before trusting it.
 
 `emit-plugin-eval` writes `runs: 3` per case; `--runs N` changes it.
 
-- **Pointer**: for what one `claude plugin eval` run loads and how many times a case runs by
-  default, fetch <https://code.claude.com/docs/en/plugin-evals#choose-what-to-evaluate> and
+- **Pointer**: for what one `claude plugin eval` run loads, the case-level `plugins` field, and
+  how many times a case runs by default, fetch
+  <https://code.claude.com/docs/en/plugin-evals#choose-what-to-evaluate>,
+  <https://code.claude.com/docs/en/plugin-evals#prompt-md-frontmatter> and
   <https://code.claude.com/docs/en/plugin-evals#how-a-case-is-scored> live. **As of**:
-  2026-10-11. **Recheck trigger**: either section changing what one run loads or the default run
-  count.
+  2026-11-02. **Recheck trigger**: any of those sections changing what one run loads, how
+  `plugins` paths resolve, or the default run count.
+- **Pointer**: the plugin-evals page does not say which directories a case's `plugins` may name;
+  the CLI's load error does ("outside the containment root ... Only plugins under it can be
+  loaded"), so a case naming a sibling plugin runs against the directory holding `plugins/`.
+  **As of**: 2026-11-02, Claude Code 2.1.316. **Recheck trigger**: the page documents the
+  containment root, or a `plugins/<plugin>` target loads a sibling plugin.
 
 ## Trigger-phrase preservation
 

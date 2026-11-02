@@ -78,6 +78,47 @@
         "Stops there, without a four-part briefing or invented content",
         "Writes nothing"
       ]
+    },
+    {
+      "id": 7,
+      "name": "zoom-out-timeline-from-handoff-chain",
+      "prompt": "Zoom out for me: when did we start on the invoice export, and what did we do each day? (The working tree is on branch feat/invoice-export. The handoffs directory holds the four handoff files in this case's fixtures, one chain on topic invoice-export. No spec container is linked and no plan file is named.)",
+      "expected_output": "The skill runs the zoom-out scope. Its first line names the boundary it used: the branch feat/invoice-export, since no spec container resolves. It reads the newest handoff (2026-09-04) and its four-entry chain, and lists all four sessions with date, session id, did and left matching the handoffs: 2026-09-01 (1b6f2c3e, endpoint scaffolded / rounding and pagination left), 2026-09-02 twice (4c8d9e10 rounding fixed; 7e0a1b22 pagination landed and PR #41 opened), and 2026-09-04 (9f1b2c33, review fixes pushed / docs page and release note left). It says the effort started 2026-09-01, groups sessions by day, and checks git, merged PRs and /session-flow:recall for 2026-09-03, which has no handoff, showing that day only if a source has something for it. Near term lists the docs page and release note from the newest handoff's remaining actions. Every claim carries a source label, and the reply ends with the newest handoff's one open question (whether the export includes voided invoices) restated with both options, their costs and the recommendation to include them with a status column. A timeline visual is only offered and routed to /visualization:visualize, and nothing is written.",
+      "files": [
+        "evals/fixtures/four-session-chain/handoffs/20260901T164000Z-handoff-invoice-export.md",
+        "evals/fixtures/four-session-chain/handoffs/20260902T111500Z-handoff-invoice-export.md",
+        "evals/fixtures/four-session-chain/handoffs/20260902T190500Z-handoff-invoice-export.md",
+        "evals/fixtures/four-session-chain/handoffs/20260904T103000Z-handoff-invoice-export.md"
+      ],
+      "expectations": [
+        "Names the effort boundary it used (the branch feat/invoice-export) and says the effort started on 2026-09-01",
+        "Lists all four sessions, each with its date, session id, did and left matching the handoff files, grouped by day with both 2026-09-02 sessions under that day",
+        "Checks git and merged pull requests for 2026-09-03, the day with no handoff, and runs /session-flow:recall for it, without opening a transcript file",
+        "Labels every claim with its source (handoff file, git, tracker, plan, recall or conversation)",
+        "Near term matches the newest handoff's remaining actions (docs page, release note)",
+        "Ends with the recorded open question on voided invoices, restated with both options, their costs and a recommendation, and invents no other decision",
+        "Writes nothing, and only offers a timeline visual through /visualization:visualize rather than writing one to disk"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "zoom-out-container-plan-and-disagreement",
+      "prompt": "/session-flow:orient zoom-out. (The working tree is on branch feat/ledger-sync. Its work item #212 links the open spec container #200, created 2026-10-03, which /work-items:track can read. The conversation names the plan file in this case's fixtures. The handoffs directory holds the two handoff files in the fixtures, one chain on topic ledger-sync.)",
+      "expected_output": "The skill runs the zoom-out scope. Its first line names the boundary it used: the spec container #200, which wins over the branch feat/ledger-sync and the plan file because it comes first in the boundary order. It says the effort started 2026-10-03, the container's creation, and gives the chain root's 2026-10-05 as the other candidate. It lists both sessions (2026-10-05 2a7c4e51 and 2026-10-07 5d8e9f02) and reports that the 2026-10-07 handoff's Prior sessions row for 2026-10-05 (conflict resolution done, backfill left) disagrees with the 2026-10-05 file it names (retry policy agreed, webhook receiver and conflict resolution left), giving both with their labels and pointing to /session-flow:reanchor. It runs /session-flow:recall for the days with no handoff. Near term lists the plan's open Phase 2 (conflict resolution, with its precondition) beside the newest handoff's remaining action (wire the receiver to the sync worker); long term lists Phase 3 (backfill). It says no open decision is recorded, and writes nothing.",
+      "files": [
+        "evals/fixtures/plan-and-container/plans/ledger-sync-plan.md",
+        "evals/fixtures/plan-and-container/handoffs/20261005T170000Z-handoff-ledger-sync.md",
+        "evals/fixtures/plan-and-container/handoffs/20261007T120000Z-handoff-ledger-sync.md"
+      ],
+      "expectations": [
+        "Names the spec container #200 as the effort boundary, not the branch or the plan file",
+        "Says the effort started on 2026-10-03, the container's creation, and gives the chain root's 2026-10-05 as the other candidate",
+        "Reports that the 2026-10-07 handoff's Prior sessions row for 2026-10-05 disagrees with the 2026-10-05 handoff file, gives both versions with their source labels, and points to /session-flow:reanchor",
+        "Near term includes the plan's open Phase 2 (conflict resolution) as well as the newest handoff's remaining action (wire the webhook receiver to the sync worker)",
+        "Long term includes the plan's later Phase 3 (backfill)",
+        "Runs /session-flow:recall for the days with no handoff, without opening a transcript file",
+        "Says no open decision is recorded and invents none, and writes nothing"
+      ]
     }
   ]
 }

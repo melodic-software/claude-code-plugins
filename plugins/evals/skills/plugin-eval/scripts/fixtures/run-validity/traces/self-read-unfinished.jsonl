@@ -1,0 +1,3 @@
+{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill","Read"],"plugins":[{"name":"demo","path":"/tmp/eval-ctl/plugins/demo","source":"demo@inline"}]}
+{"type":"assistant","message":{"content":[{"type":"tool_use","id":"r1","name":"Read","input":{"file_path":"/tmp/eval-ctl/plugins/demo/skills/manage/SKILL.md"}}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"r1","is_error":true,"content":"File is in a directory that is denied by your permission settings."}]}}

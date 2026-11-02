@@ -3,6 +3,12 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0] - 2026-11-02
+
+### Added
+
+- **`/overengineering:audit` honors the `rendered-views` `medium` preference.** A `--medium terminal` argument, or `medium: terminal` in a `rendered-views` layer, drops the offer to render the findings through `/visualization:visualize`. `file` keeps the offer and passes `file` to that skill, so the view stays local. A value given as the `--medium` argument is passed to that skill too, so a lower setting there cannot override it. Every other value keeps the offer, and the terminal summary names the source of `medium`.
+
 ## [0.8.0] - 2026-10-31
 
 ### Changed

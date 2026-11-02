@@ -1033,7 +1033,8 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
     ),
     "pr-review-hosted.yml": { "resolve-model": "github-token", "kill-switch": "github-token" },
     "pr-review-security-hosted.yml": { "resolve-model": "github-token", "kill-switch": "github-token" },
-    // Not run (head code) or scan (a key, and no other action from a checkout).
+    // Not run, which logs before its head checkout, or scan, which writes its
+    // own notice (a key, and no other action from a checkout); both pinned below.
     "pr-run-activity-read.yml": { "broker-check": "github-token", "issue-fields": "github-token", summary: "github-token", report: "github-token" },
     "pr-run-activity-write.yml": { report: "github-token" },
   };
@@ -1094,7 +1095,114 @@ test("pr-review-main's record job ends with its own api-calls notice in the emit
     assert.equal(emitted(), shape, "no count file is 0, as the emitter writes with no reading");
     assert.equal(emitted(2), shape.replace("github-token=0", "github-token=2"));
     assert.equal(emitted("2; rm"), shape, "anything but a count is 0");
+    // The stop step's POSTs add to the count step's: 1 stop and 2 counts send 3.
+    writeFileSync(join(dir, "pr-review-main-stop-calls"), "1\n");
+    assert.equal(emitted("02"), shape.replace("github-token=0", "github-token=3"), "a count with a leading 0 is decimal");
   }));
+
+// Run a job's last step's run block as Actions runs `shell: bash`.
+const lastRun = (file, job, env, extra = {}) => {
+  const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
+  const block = new RegExp(`\\n  ${job}:\\n([\\s\\S]*?)(?=\\n  [a-z0-9-]+:\\n|$)`).exec(text)?.[1] ?? "";
+  const last = block.split(/\n {6}- name: /).at(-1);
+  assert.match(last, /^Log the API calls at the end\n {8}if: always\(\)\n/, `${file} ${job} ends with its notice step`);
+  const run = /\n {8}run: \|\n((?: {10}[^\n]*\n?)+)/.exec(last)?.[1].replace(/^ {10}/gm, "");
+  assert.ok(run, `${file} ${job}'s notice step has a run block`);
+  return execFileSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", run], { encoding: "utf8", env: { PATH: process.env.PATH, ...env, ...extra } });
+};
+
+// intake-triage's dispatch jobs have no checkout and no contents: read, so each
+// counts its dispatch POSTs and ends with the notice in the emitter's shape.
+test("intake-triage's dispatch jobs end with their own api-calls notice in the emitter's shape", () =>
+  withDir((dir) => {
+    const shape = execFileSync("bash", ["-c", `. "${LIB}"; api_budget_emit_calls github-token`], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir, TMPDIR: dir } });
+    const env = { RUNNER_TEMP: dir, TMPDIR: dir };
+    for (const job of ["redispatch-refined", "triage-split-children"]) {
+      rmSync(join(dir, "intake-dispatch-calls"), { force: true });
+      assert.equal(lastRun("intake-triage.yml", job, env), shape, `${job}: no count file is 0`);
+      writeFileSync(join(dir, "intake-dispatch-calls"), "3\n");
+      assert.equal(lastRun("intake-triage.yml", job, env), shape.replace("github-token=0", "github-token=3"), job);
+      writeFileSync(join(dir, "intake-dispatch-calls"), "x\n");
+      assert.equal(lastRun("intake-triage.yml", job, env), shape, `${job}: anything but a count is 0`);
+    }
+    // Each dispatch step writes the count of POSTs it sent, a failed one included.
+    const text = readFileSync(new URL("../../workflows/intake-triage.yml", import.meta.url), "utf8");
+    const bin = join(dir, "bin");
+    mkdirSync(bin);
+    for (const [job, step, extra, sent, gh] of [
+      ["redispatch-refined", "Triage the refined issue again", { ISSUE_NUMBER: "7" }, "1", "exit 0"],
+      ["triage-split-children", "Triage each sub-issue", { CHILDREN: "4 5 6" }, "3", "exit 0"],
+      ["triage-split-children", "Triage each sub-issue", { CHILDREN: "4 5 6" }, "1", "exit 1"],
+    ]) {
+      writeFileSync(join(bin, "gh"), `#!/bin/sh\n${gh}\n`);
+      chmodSync(join(bin, "gh"), 0o755);
+      rmSync(join(dir, "intake-dispatch-calls"), { force: true });
+      const block = new RegExp(`\\n  ${job}:\\n([\\s\\S]*?)(?=\\n  [a-z0-9-]+:\\n|$)`).exec(text)?.[1] ?? "";
+      const found = block.split(/\n {6}- name: /).find((s) => s.startsWith(`${step}\n`));
+      const run = /\n {8}run: \|\n((?: {10}[^\n]*\n?|\n)+)/.exec(found)?.[1].replace(/^ {10}/gm, "");
+      spawnSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", run], { encoding: "utf8", env: { PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_REPOSITORY: "o/r", ...extra } });
+      assert.equal(readFileSync(join(dir, "intake-dispatch-calls"), "utf8"), `${sent}\n`, `${job} with gh ${gh}`);
+    }
+  }));
+
+// The scan job holds the scan-carrier key and loads no other action from a
+// checkout, and its only job-token calls are github-script's, which no counter
+// sees: a 0 count, with the steps that ran named as uncounted.
+test("pr-run-activity-read's scan job ends with a 0 api-calls notice naming its uncounted steps", () =>
+  withDir((dir) => {
+    const env = { RUNNER_TEMP: dir, TMPDIR: dir };
+    const calls = "::notice title=api-calls::github-token=0 not-modified=0 graphql=0\n";
+    assert.equal(
+      lastRun("pr-run-activity-read.yml", "scan", env, { STAGED: "success", SCANNED: "failure" }),
+      `${calls}::notice title=api-uncounted::github-token stage-scanner:branches/contents leak-scan:branches/contents\n`,
+    );
+    assert.equal(
+      lastRun("pr-run-activity-read.yml", "scan", env, { STAGED: "success", SCANNED: "skipped" }),
+      `${calls}::notice title=api-uncounted::github-token stage-scanner:branches/contents\n`,
+    );
+    assert.equal(lastRun("pr-run-activity-read.yml", "scan", env, { STAGED: "skipped", SCANNED: "skipped" }), calls);
+    const text = readFileSync(new URL("../../workflows/pr-run-activity-read.yml", import.meta.url), "utf8");
+    const last = (/\n  scan:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n|$)/.exec(text)?.[1] ?? "").split(/\n {6}- name: /).at(-1);
+    assert.match(last, /\n {10}STAGED: \$\{\{ steps\.stage-scanner\.outcome \}\}\n {10}SCANNED: \$\{\{ steps\.leak-scan\.outcome \}\}\n/);
+    assert.match(text, /\n {6}- name: Stage the upload scanner\n {8}id: stage-scanner\n/);
+  }));
+
+// Head code runs in the activity run jobs after their head checkout, which
+// also replaces .base, so the log step comes right before it and no step after
+// it loads the log action.
+test("each activity run job logs its budget right before the head checkout and never after it", () => {
+  for (const file of ["pr-run-activity-read.yml", "pr-run-activity-write.yml"]) {
+    const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
+    // The run job, not the defaults block's run key above jobs:.
+    const jobs = text.slice(text.indexOf("\njobs:\n"));
+    const block = /\n  run:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n|$)/.exec(jobs)?.[1] ?? "";
+    const steps = block.split(/\n {6}- name: /);
+    const checkout = steps.findIndex((s) => s.startsWith("Check out the PR head\n"));
+    assert.ok(checkout > 0, `${file} run has a head checkout`);
+    const log = steps[checkout - 1].replace(/(\n *(#[^\n]*)?)+$/, "");
+    assert.match(
+      log,
+      /^Log the API budget before the head checkout\n {8}id: api-budget\n {8}if: always\(\)\n {8}continue-on-error: true\n {8}timeout-minutes: 1\n {8}uses: \.\/\.base\/\.github\/actions\/log-api-budget # zizmor: ignore\[self-repository\]\n {8}with:\n {10}tokens: github-token\n {10}outside: >-\n/,
+      `${file} run logs right before its head checkout`,
+    );
+    assert.ok(!steps.slice(checkout).some((s) => /log-api-budget/.test(s)), `${file} run loads no log action after its head checkout`);
+  }
+});
+
+// post-merge-test-mutation's prep job reads the range artifact through
+// download-artifact's own client, named so its count reads as a floor.
+test("post-merge-test-mutation's prep job ends with the log step, naming the range download", () => {
+  const text = readFileSync(new URL("../../workflows/post-merge-test-mutation.yml", import.meta.url), "utf8");
+  const block = /\n  prep:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n|$)/.exec(text)?.[1] ?? "";
+  assert.match(block, /\n {12}\/\.github\/actions\/log-api-budget\/\n/, "the sparse checkout holds the action");
+  const last = block.split(/\n {6}- name: /).at(-1).replace(/(\n *(#[^\n]*)?)+$/, "");
+  assert.equal(
+    last,
+    "Log the API budget at the end\n        if: always()\n        continue-on-error: true\n        timeout-minutes: 1\n" +
+      "        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]\n        with:\n          tokens: github-token\n" +
+      "          outside: ${{ steps.download-range.outcome != 'skipped' && 'download-range:actions/runs/artifacts' || '' }}",
+  );
+});
 
 // Jobs that hold the job token but call GitHub only through actions the
 // counter cannot see still end by logging it, so each run carries its

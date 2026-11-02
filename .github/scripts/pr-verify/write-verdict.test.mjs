@@ -23,6 +23,7 @@ import {
   buildVerdict,
   checkChunk,
   checkKeyLeg,
+  failIndexNames,
   HEAD_REF_DIGEST_HEX,
   headRefDigest,
   localLoop,
@@ -56,6 +57,26 @@ const ids = { pr: "41", headSha: HEAD, baseSha: BASE, runId: "9001", headRef: "f
 const ok = JSON.stringify({ verdict: "pass", summary: "s", notes: [] });
 const NO_APP = { capture: "no-app", reason: "no app check ran", capture_count: 0, features: [], local_loop: null };
 const BLOCKED = { capture: "blocked", reason: "the capture summary is unreadable or outside its schema", capture_count: 0, features: [], local_loop: null };
+
+test("a FAIL's index names each tie the merge gate looks up, none like a verdict name", () => {
+  const fail = (linkedIssues) =>
+    buildVerdict({ ...ids, linkedIssues, output: JSON.stringify({ verdict: "fail", summary: "s", notes: [] }) });
+  const digest = headRefDigest("feat/x");
+  assert.deepEqual(failIndexNames(fail([])), [
+    "pr-verify-index-pr-41",
+    `pr-verify-index-sha-${HEAD}`,
+    `pr-verify-index-ref-${digest}`,
+  ]);
+  const issues = [9, 7, 9].map((number) => ({ ...ISSUE, number }));
+  assert.deepEqual(failIndexNames(fail(issues)).slice(3), ["pr-verify-index-issue-7", "pr-verify-index-issue-9"]);
+  for (const name of failIndexNames(fail(issues))) {
+    // babysit_verify_evidence.FAIL_PREFIX_RE holds anything that starts like a FAIL.
+    assert.doesNotMatch(name, /^pr-verify-[0-9]+-[0-9a-f]{40}-fail/);
+  }
+  // Issues no name can carry: the plain name, whose index ties none of them.
+  const eleven = Array.from({ length: 11 }, (_, i) => ({ ...ISSUE, number: i + 1 }));
+  assert.deepEqual(failIndexNames(fail(eleven)), failIndexNames(fail([])));
+});
 
 test("each verdict names its artifact with the PR, the head and the verdict", () => {
   for (const verdict of ["pass", "pass-notes", "fail"]) {
@@ -489,6 +510,7 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
     HEAD_REF: "feat/x",
     SPEC_FILE: spec,
     GITHUB_RUN_ID: "9001",
+    FAIL_INDEX: "1",
     VERDICT_DIR: path.join(dir, "verdict"),
     GITHUB_OUTPUT: path.join(dir, "out"),
   };
@@ -498,7 +520,17 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
   assert.equal(written.summary, "wrong");
   assert.deepEqual(written.linked_issues, [ISSUE]);
   assert.deepEqual(written.evidence, NO_APP);
-  assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), `name=pr-verify-41-${HEAD}-fail-i7\nverdict=fail\nretention-days=90\n`);
+  assert.equal(
+    readFileSync(env.GITHUB_OUTPUT, "utf8"),
+    `name=pr-verify-41-${HEAD}-fail-i7\nverdict=fail\nretention-days=90\n` +
+      `index-names<<INDEX_NAMES\npr-verify-index-pr-41\npr-verify-index-sha-${HEAD}\npr-verify-index-ref-${headRefDigest("feat/x")}\npr-verify-index-issue-7\nINDEX_NAMES\n`,
+  );
+  // Each index artifact holds the FAIL's name.
+  assert.equal(readFileSync(path.join(env.VERDICT_DIR, "fail-index.txt"), "utf8"), `pr-verify-41-${HEAD}-fail-i7\n`);
+  // A job with no index step (a re-run of a pr-verify.yml from before it) writes no FAIL.
+  const unindexed = { ...env, FAIL_INDEX: undefined, VERDICT_DIR: path.join(dir, "unindexed"), GITHUB_OUTPUT: path.join(dir, "out-unindexed") };
+  assert.throws(() => main({ ...unindexed, EXECUTION_FILES: execution("fail-unindexed", { verdict: "fail", summary: "wrong", notes: [] }) }), /needs its index step/);
+  assert.equal(existsSync(unindexed.GITHUB_OUTPUT), false);
 
   // The capture summary and the trusted PR text: a missing summary file is
   // no-app, an unparsable one blocked, and neither fails the verdict.
@@ -527,7 +559,13 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
   for (const [relink, days] of [["false", 7], ["true", 90], [undefined, 90]]) {
     const passed = { ...env, VERDICT_DIR: path.join(dir, `verdict-ok-${relink}`), GITHUB_OUTPUT: path.join(dir, `out-ok-${relink}`), EXECUTION_FILES: okFile, RELINK_SINCE_HEAD: relink };
     main(passed);
-    assert.equal(readFileSync(passed.GITHUB_OUTPUT, "utf8"), `name=pr-verify-41-${HEAD}-${okVerdict}\nverdict=${okVerdict}\nretention-days=${days}\n`, String(relink));
+    assert.equal(
+      readFileSync(passed.GITHUB_OUTPUT, "utf8"),
+      `name=pr-verify-41-${HEAD}-${okVerdict}\nverdict=${okVerdict}\nretention-days=${days}\nindex-names<<INDEX_NAMES\n\nINDEX_NAMES\n`,
+      String(relink),
+    );
+    // A pass has no index.
+    assert.equal(existsSync(path.join(passed.VERDICT_DIR, "fail-index.txt")), false, String(relink));
   }
   const unparsable = path.join(dir, "unparsable.json");
   writeFileSync(unparsable, "{not json");
@@ -647,6 +685,7 @@ test("main writes one verdict from every chunk, and none when a chunk leaves non
     HEAD_REF: "feat/x",
     SPEC_FILE: spec,
     GITHUB_RUN_ID: "9001",
+    FAIL_INDEX: "1",
     CHUNKS: "2",
     DIFF_DIR: diff,
   };
@@ -900,6 +939,7 @@ test("a head of twelve chunks gets a verdict from every chunk, and none when one
     HEAD_REF: "feat/x",
     SPEC_FILE: spec,
     GITHUB_RUN_ID: "9001",
+    FAIL_INDEX: "1",
     CHUNKS: String(COUNT),
     DIFF_DIR: diff,
     VERDICT_DIR: path.join(dir, `verdict-${label}`),

@@ -93,7 +93,7 @@ The ceiling for a per-batch formatter row is 1 s median per fire. Fences:
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install eol-normalizer@<marketplace>
+/plugin install eol-normalizer@melodic-software
 ```
 
 Then verify prerequisites with `/eol-normalizer:setup check`. `/eol-normalizer:check` reports whether `node` and `jq` resolve.

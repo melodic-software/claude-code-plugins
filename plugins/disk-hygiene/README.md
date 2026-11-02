@@ -13,6 +13,13 @@ Recycle Bin and refuses one the shell reports it cannot recycle. The engine then
 only the entries captured in the snapshot, except the Git metadata contents `handoff-apply` empties
 (see the safety contract); it never follows links or recursively deletes an unvalidated tree.
 
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install disk-hygiene@melodic-software
+```
+
 ## Safety contract
 
 - The side-effecting skill is model-invocable (`disable-model-invocation: false`), so Claude can
@@ -82,12 +89,10 @@ Backups remain the recovery boundary for user data.
 - Node.js on `PATH`, a prerequisite separate from Claude Code itself
   ([Install with npm](https://code.claude.com/docs/en/setup#install-with-npm), as of 2026-10-11;
   recheck when that section lists Node as bundled or required at runtime). Every guard and detector registration runs `node hooks/exec-bash.mjs`, so without
-  `node` no hook launches and no guard is enforced. A `SessionStart` row in shell form
-  (no `shell` field and no `args`) runs `lib/prerequisites.sh node-notice`, or
-  `lib/prerequisites.ps1` where there is no `sh`, and needs no node itself. When node is
-  absent it exits 0 with a `systemMessage` JSON field, so the warning reaches the user once per
-  session across plugins, and the notice names `/disk-hygiene:check`.
-  `disk_hygiene_enabled` set to false silences it. It prints nothing when node is present.
+  `node` no hook launches and no guard is enforced. With harness-ops enabled, its shell-form
+  `SessionStart` row warns the user once per session that `node` is missing; without
+  harness-ops nothing does, and `/disk-hygiene:check` reports it
+  ([prerequisites convention](../../docs/contracts/prerequisites/README.md#hook-notices)).
   - **Pointer**: when checking the shell-form rule, where `SessionStart` output goes, or who sees
     `systemMessage`, fetch [Exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form),
     [Exit code 0](https://code.claude.com/docs/en/hooks#exit-code-0) and

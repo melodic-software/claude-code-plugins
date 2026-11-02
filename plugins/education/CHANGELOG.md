@@ -3,6 +3,12 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.0] - 2026-11-02
+
+### Added
+
+- **`/education:teach` topic lessons honor the `rendered-views` `medium` preference.** A `--medium` argument or a `rendered-views` layer can set the lesson format: `terminal` writes `lesson.md`, `file` keeps the host-aware format choice without the artifact-share offer, and `artifact` or `hosted` keeps the offer. With no value set, the host-aware default is unchanged, and the lesson hand-back names the source of `medium`.
+
 ## [0.22.0] - 2026-11-01
 
 ### Added

@@ -3,6 +3,33 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.0] - 2026-11-02
+
+### Changed
+
+- **babysit-prs**: a demotion record `babysit_postmerge.py --remediate` files keeps the human-gated label, which holds intake admission off the lanes App's issue, and its text keeps the fix-issue rule: the detail names each newly failing check by job name only, never a gate's annotation title, and the record carries no `git revert` command. The record says how it clears: a schedule or dispatch record once a full run passes on main at a later commit, any other only on a person's direct close. A suite quarantine issue is filed with no label and no assignee, so intake triage hands it to a lane, and no longer goes to the suite's CODEOWNERS user.
+
+### Fixed
+
+- **babysit-prs**: the merge gate reads the green full runs that clear a red-main record one week at a time from the record, oldest first, and stops at the first week that clears it. A record that cleared long ago no longer overflows the 500-run listing and demotes again while main is green.
+
+## [5.1.0] - 2026-11-02
+
+### Added
+
+- The pr-merge verdict reader has an index mode: once `verify-legacy-fails.json` sits beside it, a judgment finds every FAIL by exact-name reads of the FAIL index (`pr-verify-index-pr-<n>`, `-sha-<head>`, `-ref-<digest>`, `-issue-<i>`) and the runs they name, instead of paging the whole artifact listing. Any read that fails or misses its own count refuses.
+- `babysit_verify_evidence.py legacy-fails --merge-sha <sha>` builds that file. It reads every pr-verify run in one-day `created` windows up to the cutover the merge commit sets, and each run's artifacts, each read holding its own `total_count`. It then adds every run a whole artifact listing names, and refuses when a listed FAIL is still missing. Its calls are paced, capped per rate-limit window and resumable from a checkpoint.
+
+### Changed
+
+- `pull-request ready`: a direct dispatch of the `review` plugin's reviewer agents passes a findings path and reads the report back from that file, per that plugin's reviewer handback.
+
+## [5.0.6] - 2026-11-02
+
+### Fixed
+
+- **babysit-prs**: the pr-verify verdict reader reads a short incremental artifact listing again after a wait when no whole listing fits the caller's limit, instead of falling back to a whole listing that can only refuse. Under the dispatchers' FAIL-cap reads at about 13,600 artifacts, that fallback refused the PR's round after spending its reads. A listing is still kept only when it holds GitHub's live count.
+
 ## [5.0.5] - 2026-11-02
 
 ### Fixed

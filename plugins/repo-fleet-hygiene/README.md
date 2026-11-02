@@ -30,6 +30,13 @@ interactive work:
 - `/source-control:worktree cleanup --dry-run` for worktree cleanup planning; and
 - `git worktree repair` only as a manually reviewed option for an administrative mismatch.
 
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install repo-fleet-hygiene@melodic-software
+```
+
 ## Fleet capability contract
 
 The epic's fleet architecture is intentionally split from the current implementation status:

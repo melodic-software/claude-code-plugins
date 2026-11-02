@@ -6,12 +6,12 @@ file.
 ## Setup per run
 
 The fixture is committed on `main`; the run happens on a feature branch with a clean tree. The
-`testing` and `mutation-testing` plugins are enabled, and `.claude/mutation-testing.md` sets
-`tool: manual` with `test-command: python -m unittest {tests}`. The user names
+`testing` and `mutation-testing` plugins are enabled, and `docs/conventions/mutation-testing.yaml`
+sets `tool: manual` with `test-command: python -m unittest {tests}`. The user names
 `shop_tests/test_receipt.py::test_total_is_computed_quickly` as flaky unless a case says otherwise.
 
-The bash-harness case runs on `shop_scripts` instead, with `../mutation-testing-bash.md` copied over
-`.claude/mutation-testing.md` and `shop_scripts/total.test.sh.fixture` copied to
+The bash-harness case runs on `shop_scripts` instead, with `../mutation-testing-bash.yaml` copied over
+`docs/conventions/mutation-testing.yaml` and `shop_scripts/total.test.sh.fixture` copied to
 `shop_scripts/total.test.sh`; the suffix keeps this repository's own test runner from running it.
 
 ## Scanner findings (step 1)

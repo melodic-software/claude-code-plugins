@@ -372,10 +372,11 @@ function credentialExpansionProblem(entry, expanded) {
 
 // Guardrail-matrix floors: min-isolation level per class (L2 is the floor for
 // ANY autonomous dispatch; C5 requires L3), and the auto-merge-eligible
-// cells (C2 and C3, each after its own promotion — C4/C5 merge human always,
-// C1 human per the matrix).
+// classes, each keyed to the promotion cell that gates its auto-merge. C4
+// shares the reviewed rung's C3-auto-merge cell; C5 merges human always and
+// C1 makes no repository change to merge.
 const MIN_ISOLATION = { C1: 2, C2: 2, C3: 2, C4: 2, C5: 3 };
-const AUTO_MERGE_ELIGIBLE = new Set(["C2", "C3"]);
+const AUTO_MERGE_PROMOTION_CELL = { C2: "C2-auto-merge", C3: "C3-auto-merge", C4: "C3-auto-merge" };
 
 // The security-review leaf's shipped per-class defaults are FLOORS: a binding
 // may tighten a cell but never weaken it — the admission-rule
@@ -428,14 +429,16 @@ const PROMOTION_DEPENDENCIES = { "C3-auto-merge": ["C2-auto-merge", "C3-ai-revie
 
 // Admission shipped defaults per work class (the admission-policy leaf), and
 // the leaf's permissiveness order: autonomous-eligible > human-gated >
-// audited-rejection.
+// audited-rejection. The leaf's surface-class row holds channel-feed
+// human-gated too (ADMISSION_GATED_SURFACES).
 const ADMISSION_DEFAULTS = {
   C1: "autonomous-eligible",
   C2: "autonomous-eligible",
-  C3: "human-gated",
-  C4: "human-gated",
+  C3: "autonomous-eligible",
+  C4: "autonomous-eligible",
   C5: "human-gated",
 };
+const ADMISSION_GATED_SURFACES = { "channel-feed": "human-gated" };
 const PERMISSIVENESS = { "audited-rejection": 0, "human-gated": 1, "autonomous-eligible": 2 };
 
 const findings = [];
@@ -1878,14 +1881,14 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
   const posture = binding.dispatch_posture ?? "autonomous-enabled";
   const autonomous = posture === "autonomous-enabled";
 
-  // Merge caps: the matrix caps apply (only C2 and C3 are auto-merge
+  // Merge caps: the matrix caps apply (only C2, C3 and C4 are auto-merge
   // eligible). executor_class is deprecated and caps nothing.
   if (isPlainObject(binding.merge_policy)) {
     for (const workClass of WORK_CLASSES) {
       if (binding.merge_policy[workClass] !== "auto") continue;
-      if (!AUTO_MERGE_ELIGIBLE.has(workClass)) {
+      if (!Object.hasOwn(AUTO_MERGE_PROMOTION_CELL, workClass)) {
         findings.push(
-          `merge_policy.${workClass}: "auto" exceeds the matrix cap — ${workClass === "C4" || workClass === "C5" ? "C4/C5 merge is human always" : "the matrix merges this class human; only the C2 and C3 cells are auto-merge eligible"}`,
+          `merge_policy.${workClass}: "auto" exceeds the matrix cap — ${workClass === "C5" ? "C5 merge is human always" : "the matrix merges this class human; only the C2, C3 and C4 cells are auto-merge eligible"}`,
         );
       }
     }
@@ -2013,7 +2016,7 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
     for (const cell of Object.keys(binding.promotion_state)) {
       if (!PROMOTABLE_CELLS.has(cell)) {
         findings.push(
-          `promotion_state.${cell}: not a promotable cell — promotable cells are ${[...PROMOTABLE_CELLS].join(", ")}; C4/C5 merge never promotes`,
+          `promotion_state.${cell}: not a promotable cell — promotable cells are ${[...PROMOTABLE_CELLS].join(", ")}; C4 auto-merge reads C3-auto-merge, and C5 merge never promotes`,
         );
       }
     }
@@ -2027,14 +2030,14 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
     isPlainObject(binding.promotion_state) &&
     isPlainObject(binding.promotion_state[cell]) &&
     binding.promotion_state[cell].state === "promoted";
-  for (const workClass of AUTO_MERGE_ELIGIBLE) {
+  for (const [workClass, cell] of Object.entries(AUTO_MERGE_PROMOTION_CELL)) {
     if (
       isPlainObject(binding.merge_policy) &&
       binding.merge_policy[workClass] === "auto" &&
-      !ratifiedPromoted(`${workClass}-auto-merge`)
+      !ratifiedPromoted(cell)
     ) {
       findings.push(
-        `merge_policy.${workClass}: "auto" without a ratified promotion_state.${workClass}-auto-merge entry (state "promoted") — promotion is a human-ratified knob flip recorded on the governance surface; an earned value without its ratification record bypasses the promotion discipline`,
+        `merge_policy.${workClass}: "auto" without a ratified promotion_state.${cell} entry (state "promoted") — promotion is a human-ratified knob flip recorded on the governance surface; an earned value without its ratification record bypasses the promotion discipline`,
       );
     }
   }
@@ -2145,12 +2148,12 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
   // is enforced where escalation_severity entries are walked above.
 
   if (isPlainObject(binding.admission) && Array.isArray(binding.admission.rules)) {
-    checkAdmissionSemantics(binding.admission.rules);
+    checkAdmissionSemantics(binding.admission.rules, binding.admission.classification);
   }
   return verdicts;
 }
 
-function checkAdmissionSemantics(rules) {
+function checkAdmissionSemantics(rules, classification) {
   const validRules = rules.filter(
     (rule) =>
       isPlainObject(rule) &&
@@ -2161,13 +2164,25 @@ function checkAdmissionSemantics(rules) {
   );
 
   // A rule more permissive than the shipped default for ANY cell it matches
-  // requires a recorded override_justification; tightening needs none.
+  // requires a recorded override_justification; tightening needs none. A
+  // gated surface's signal carries a class only when the binding classifies
+  // that surface, so a wildcard-surface rule binding a work class reaches
+  // the surface's cell only then.
   validRules.forEach((rule) => {
     const index = rules.indexOf(rule);
     const covered = rule.work_class === "*" ? WORK_CLASSES : [rule.work_class];
     const weakened = covered.filter(
       (workClass) => PERMISSIVENESS[rule.disposition] > PERMISSIVENESS[ADMISSION_DEFAULTS[workClass]],
     );
+    for (const [surface, disposition] of Object.entries(ADMISSION_GATED_SURFACES)) {
+      const surfaceClassified = isPlainObject(classification) && Object.hasOwn(classification, surface);
+      const matchesSurface =
+        rule.signal_class === surface ||
+        (rule.signal_class === "*" && (rule.work_class === "*" || surfaceClassified));
+      if (matchesSurface && PERMISSIVENESS[rule.disposition] > PERMISSIVENESS[disposition]) {
+        weakened.push(surface);
+      }
+    }
     if (weakened.length > 0 && !isNonEmptyString(rule.override_justification)) {
       findings.push(
         `admission.rules[${index}]: disposition ${JSON.stringify(rule.disposition)} is more permissive than the shipped default for ${weakened.join(", ")} — invalid without override_justification`,

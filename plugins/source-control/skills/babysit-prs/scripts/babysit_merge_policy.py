@@ -920,11 +920,12 @@ def _team_loop_merge(text: str) -> tuple[str | None, str | None]:
 def _resolve_loop_merge(
     file_at: Callable[[str, str], str | None], base_sha: str, notes: list[str]
 ) -> str | None:
-    """`babysit_loop_merge` at `base_sha`. The legacy file must exist and
-    set the key, else None (off), so a raise needs both files; the result is
-    the lower of the two, or the legacy value when the YAML sets none. Either
-    file unreadable or untrustworthy yields None (off), never the other
-    file's value alone."""
+    """`babysit_loop_merge` at `base_sha`. With no legacy file the YAML value
+    sets the rung by itself, and None (off) when it sets none. While the
+    legacy file exists it must set the key, else None (off), so a raise needs
+    both files; the result is the lower of the two, or the legacy value when
+    the YAML sets none. Either file unreadable or untrustworthy yields None
+    (off), never the other file's value alone."""
     try:
         source = file_at(SOURCE_CONTROL_PATH, base_sha)
     except PolicyReadError as exc:
@@ -943,10 +944,7 @@ def _resolve_loop_merge(
         notes.append(note)
         return None
     if source is None:
-        # Off with no legacy file: the YAML alone never raises the gate. The
-        # cleanup slice that deletes the legacy file decides deliberately
-        # whether the YAML may then set the rung by itself.
-        return None
+        return team
     if legacy is None or team is None:
         return legacy
     return min(team, legacy, key=lambda v: RUNG_RANK[LOOP_MERGE_RUNG.get(v, "off")])
@@ -958,8 +956,9 @@ def read_config_at(
     file_at: Callable[[str, str], str | None] | None = None,
 ) -> PipelineConfig:
     """`merge:` from `docs/conventions/pr-pipeline.yaml` and `babysit_loop_merge`
-    (`_resolve_loop_merge`: the lower of `docs/conventions/source-control.yaml`
-    and `.claude/source-control.md`), all read at `base_sha` through
+    (`_resolve_loop_merge`: `docs/conventions/source-control.yaml` alone when
+    `.claude/source-control.md` is absent, else the lower of the two), all read
+    at `base_sha` through
     `file_at(path, sha)` (text, or None when absent), by default a local clone
     holding `base_sha` (`_clones_holding`), else a checkout of `base_sha`
     (`_config_checkout`), else the contents API. A pipeline
@@ -1694,15 +1693,20 @@ RED_MAIN_RECORD = re.compile(
 # The holds a red-main record's later green lifts: how it was closed, never
 # what its edit history or a failed read says.
 RECOVERABLE_HOLDS = ("open", "closed-by-non-human", "closed-by-reference")
-# Green full runs on main of one event created since a record, a page at a
-# time: the whole window is read, so its earliest run stays put as newer runs
-# arrive, and other events never take its slots.
+# Green full runs on main of one event created in one span after a record, a
+# page at a time: each span is read whole, so its earliest run stays put as
+# newer runs arrive, and other events never take its slots. Spans are read
+# oldest first and stop at the first that clears the record, so a record
+# that cleared long ago reads one span however many runs came since.
 GREEN_RUNS = (
     "repos/{}/{}/actions/workflows/pr-require-checks.yml/runs"
     "?branch=main&event={}&status=success&created={}&per_page=100&page={}"
 )
 GREEN_EVENTS = ("schedule", "workflow_dispatch")
 GREEN_PAGES = 5
+GREEN_SPAN = timedelta(days=7)
+# Spans read before giving up (holding the record), about a year.
+GREEN_SPANS = 53
 
 
 @dataclass(frozen=True)
@@ -1837,12 +1841,12 @@ class _GreenMain:
             raise PolicyReadError(f"{endpoint}: {status}")
         return answer
 
-    def _window(self, since: str) -> list[dict[str, Any]]:
+    def _window(self, since: str, until: str) -> list[dict[str, Any]]:
         """Every green schedule and workflow_dispatch full run on main
-        created at or after `since`; more than `GREEN_PAGES` pages of either
-        raises, so the earliest is never a guess."""
+        created from `since` to `until`; more than `GREEN_PAGES` pages of
+        either raises, so the earliest is never a guess."""
         found: list[dict[str, Any]] = []
-        created = quote(f">={since}", safe=":")
+        created = quote(f"{since}..{until}", safe=":")
         for event in GREEN_EVENTS:
             for page in range(1, GREEN_PAGES + 1):
                 answer = self._read(
@@ -1858,19 +1862,30 @@ class _GreenMain:
                 )
         return found
 
-    def listed(self, since: datetime) -> list[dict[str, Any]]:
+    def listed(self, since: datetime, now: datetime) -> Iterator[dict[str, Any]]:
         """The green full runs on main created since `since`, oldest first,
-        kept as newer-green.bash and `babysit_postmerge._Context.superseded`
-        keep them: attempt 1, this repository's main, and a schedule or the
-        lane's github-actions[bot] dispatch (a person dispatching until a run
-        passes is no recovery)."""
-        stamp = since.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        one `GREEN_SPAN` at a time up to now, kept as newer-green.bash and
+        `babysit_postmerge._Context.superseded` keep them: attempt 1, this
+        repository's main, and a schedule or the lane's github-actions[bot]
+        dispatch (a person dispatching until a run passes is no recovery).
+        More than `GREEN_SPANS` spans raises."""
+        for span in range(GREEN_SPANS):
+            start = since + span * GREEN_SPAN
+            if start > now:
+                return
+            yield from self._span(start, start + GREEN_SPAN)
+        raise PolicyReadError(f"green runs: more than {GREEN_SPANS} spans")
+
+    def _span(self, start: datetime, end: datetime) -> list[dict[str, Any]]:
+        """`listed`'s runs created from `start` to `end`, read once."""
+        stamp = start.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        until = end.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         if stamp not in self.runs:
             repo = f"{self.owner}/{self.name}"
             self.runs[stamp] = sorted(
                 (
                     run
-                    for run in self._window(stamp)
+                    for run in self._window(stamp, until)
                     if run.get("conclusion") == "success"
                     and run.get("run_attempt") == 1
                     and run.get("head_branch") == "main"
@@ -1913,7 +1928,10 @@ class _GreenMain:
 
 
 def _recovered_at(
-    issue: dict[str, Any], human: Callable[[Any], bool], green: _GreenMain
+    issue: dict[str, Any],
+    human: Callable[[Any], bool],
+    green: _GreenMain,
+    now: datetime,
 ) -> datetime | None:
     """When main went green again past a red-main record: the creation of
     the earliest green full run
@@ -1926,7 +1944,7 @@ def _recovered_at(
     if marker is None or _edits_refusal(issue, human):
         return None
     created = _time(issue.get("createdAt"))
-    for run in green.listed(created):
+    for run in green.listed(created, now):
         if _time(run.get("created_at")) <= created:
             continue
         head = str(run["head_sha"])
@@ -1941,6 +1959,7 @@ def read_demotion(
     agent_identity: str | None,
     self_logins: Collection[str] = frozenset(),
     permission: Permission | None = None,
+    now: datetime | None = None,
 ) -> Demotion:
     """Whether a demotion record holds the rung off.
 
@@ -1968,6 +1987,8 @@ def read_demotion(
     created: list[datetime] = []
     cleared: list[datetime] = []
     green = _GreenMain(owner, name)
+    # One clock for every record's green-run spans (`_GreenMain.listed`).
+    clock = now or datetime.now(UTC)
     try:
         candidates = sorted(
             {n for f in filers for n in _candidate_issues(owner, name, f)}
@@ -2006,7 +2027,7 @@ def read_demotion(
             recovered = None
             if hold in RECOVERABLE_HOLDS:
                 try:
-                    recovered = _recovered_at(issue, human, green)
+                    recovered = _recovered_at(issue, human, green, clock)
                 except PolicyReadError:
                     recovered = None
             if hold and recovered is None:

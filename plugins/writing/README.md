@@ -6,6 +6,13 @@ One skill, `/writing:be-concise`. It reshapes text so the bottom line comes
 first, no more words than the meaning needs survive, the structure holds up
 under scanning, and the tone stays factual.
 
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install writing@melodic-software
+```
+
 ## Why this exists
 
 Agents write a lot of prose that people have to read: tracker tickets and

@@ -22,6 +22,13 @@ that open in any browser.
 /pixel-art:scene the knight walks to a campfire at dusk and says one line, 240x160
 ```
 
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install pixel-art@melodic-software
+```
+
 ## How it works
 
 1. The model records a `brief.md` beside the spec (subject, style references, proportions, palette,

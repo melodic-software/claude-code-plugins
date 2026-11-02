@@ -31,7 +31,7 @@
       "additionalProperties": { "$ref": "#/$defs/SurfaceLevels" }
     },
     "merge_policy": {
-      "description": "Per-class merge disposition, capped by the guardrail matrix: only the C2 and C3 cells are auto-merge ELIGIBLE (each after its own promotion); every other class merges human, and C4/C5 human always.",
+      "description": "Per-class merge disposition, capped by the guardrail matrix: only the C2, C3 and C4 cells are auto-merge ELIGIBLE (C2 and C3 each after its own promotion, C4 after the C3-auto-merge promotion); every other class merges human, and C5 human always.",
       "type": "object",
       "additionalProperties": false,
       "required": ["C1", "C2", "C3", "C4", "C5"],
@@ -66,7 +66,7 @@
       }
     },
     "promotion_state": {
-      "description": "Keyed by PROMOTABLE cell id only (C2-auto-merge, C3-auto-merge, C3-ai-review-blocking); an entry for a non-promotable cell (C4/C5 merge never promotes) makes the binding invalid. The bound state is a CEILING: consumers must resolve the effective state against live promotion-evidence telemetry before every autonomous dispatch/merge decision, fail-closing to unpromoted when evidence is unavailable. The babysit unattended merge gate reads the cells by its effective rung, never by work class.",
+      "description": "Keyed by PROMOTABLE cell id only (C2-auto-merge, C3-auto-merge, C3-ai-review-blocking); an entry for a non-promotable cell (C5 merge never promotes) makes the binding invalid. C4 auto-merge reads the C3-auto-merge cell. The bound state is a CEILING: consumers must resolve the effective state against live promotion-evidence telemetry before every autonomous dispatch/merge decision, fail-closing to unpromoted when evidence is unavailable. The babysit unattended merge gate reads the cells by its effective rung, never by work class.",
       "type": "object",
       "additionalProperties": { "$ref": "#/$defs/PromotionEntry" }
     },
@@ -138,7 +138,7 @@
       "required": ["classification", "rules", "autonomous_concurrency", "items_per_run"],
       "properties": {
         "classification": {
-          "description": "Signal-to-work-class classification rules, homed per signal-surface class — the mappings adapters stamp signal.work_class from (e.g. label string to class for tracker-vcs-event). A signal these rules cannot resolve is fail-closed human-gated before table evaluation.",
+          "description": "Signal-to-work-class classification rules, homed per signal-surface class — the mappings adapters stamp signal.work_class from (e.g. label string to class for tracker-vcs-event). A signal these rules cannot resolve carries no class and is evaluated against the decision table with the work-class axis \"*\", after the C5 untrusted-provenance trust tests have run.",
           "type": "object",
           "additionalProperties": false,
           "properties": {
@@ -149,7 +149,7 @@
           }
         },
         "rules": {
-          "description": "Decision-table rules; matching is most-specific-wins (full triple > two axes > one axis > default human-gated). Two matching rules of equal specificity with different dispositions make the binding invalid — fail-closed. A rule more permissive than the shipped default for its cell is invalid without override_justification; tightening needs none.",
+          "description": "Decision-table rules; matching is most-specific-wins (full triple > two axes > one axis); where no rule matches, the shipped C5 and channel-feed human-gated rows apply, then the default autonomous-eligible within caps. Two matching rules of equal specificity with different dispositions make the binding invalid — fail-closed. A rule more permissive than the shipped default for its cell is invalid without override_justification; tightening needs none.",
           "type": "array",
           "items": { "$ref": "#/$defs/AdmissionRule" }
         },

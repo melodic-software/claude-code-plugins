@@ -1,0 +1,29 @@
+{
+  "negatives": false,
+  "findings": [
+    {
+      "class": "restated-fact",
+      "tier": "source-fetched-similar",
+      "span": {
+        "start_line": 10,
+        "end_line": 15
+      },
+      "rule": "attribution/audit/rule-restated-upstream-fact"
+    }
+  ],
+  "adjudication": {
+    "verdict": "STANDS",
+    "panel": "real panel: two of three blind judges returned restated-fact and one cleared it on carve-out 1; synthetic panel: three of three returned restated-fact; labeled restated-fact by an agent decision under the owner's standing direction, reversing an earlier not-a-finding decision",
+    "rubric": "restated-fact",
+    "rubric_version": 1,
+    "nomination": "evals/nominations/2026-11-02-larger-sample.json k17"
+  },
+  "notes": {
+    "shape": "A Claim bullet stating an external product's loader behavior, inside a file that declares its claims are recorded in the drift shape. The Basis bullet names both page sections, but the recheck trigger names only the table, so the record's trigger does not cover the facts drawn from the other section.",
+    "carve_outs": "None applies. Conforming pointer or record was considered and rejected: a record covers a fact only where its trigger names the fact's topic, and this trigger names only the table.",
+    "rubric": "R1 holds: the product's documentation owns the loader behavior. R2 holds: hook firing, folder loading, import approval and nested attachment are behaviors the owner can change. R3 holds: stated as how the loader works now. R4 holds: the record's trigger watches only the table, so a change to the section behind the nested-attachment fact sends nothing back for a recheck.",
+    "measured": "fingerprint.mjs at k=5 against its source.md: containment 0.024, jaccard 0.014, longest matched span 6 words; the separation rule does not fire. Case and source each stay below both limbs against the real passage's file and its real source (highest containment 0.048, longest span 9 words).",
+    "carries": "A restated fact inside a record whose trigger is narrower than its basis. Labeled a finding by an agent decision under the owner's standing direction, reversing an earlier not-a-finding decision: five of six blind judges across the real and synthetic panels returned restated-fact, all on the trigger naming only the table.",
+    "tier_reason": "A source was supplied, and this class never reaches fingerprint-confirmed, so the tier is source-fetched-similar. The finding is report-only and never fix-eligible."
+  }
+}

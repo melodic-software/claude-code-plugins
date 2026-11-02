@@ -9,6 +9,11 @@ state and records that binding.
 skills produced a commit); see
 [`docs/out-of-scope/agent-run-artifact-attestation.md`](../../docs/out-of-scope/agent-run-artifact-attestation.md).
 
+## Install
+
+Add the marketplace and install `autonomy` as the root README's
+[Use this marketplace](../../README.md#use-this-marketplace) section shows.
+
 ## Requirements
 
 Node.js on PATH. Every hook row runs through `node hooks/exec-bash.mjs`, and this plugin does not

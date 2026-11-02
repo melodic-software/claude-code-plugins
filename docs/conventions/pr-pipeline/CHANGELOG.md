@@ -1,5 +1,27 @@
 # Changelog for the PR pipeline convention
 
+## [8.35.1] - 2026-11-02
+
+### Changed
+
+- Lane scripts follow element 1 of the outage posture: each API call gets at most 3 attempts. The shared retry under `createGitHub` and `budgetedFetch` (`retryServerErrors` in check-trusted-trigger.mjs) resends a failed read twice, not three times, after a full-jitter wait (a random share of 2 s, then of 4 s), where they used to wait at least half of each step. enable-auto-merge's `withRetry` resends only a GraphQL mutation and leaves a query to the client's own retry, so a query goes out at most 3 times instead of 12.
+- `retry-fetch.mjs` (apply-patch, pr-unblock and work-resolve-issue) resends a read refused on a rate limit, within the same 3 attempts, after the wait GitHub asks for: `retry-after`'s seconds, else the `x-ratelimit-reset` time when `x-ratelimit-remaining` is 0, else 60 s for a secondary limit. Those waits stay within 60 s per client. A longer wait is not taken, and the answer goes back as a failed read. A write the caller did not mark `safeToResend` is returned at once, and a fetch the rate guard already wraps (`budgetedFetch`, or the latch's `guard`) is left to the guard.
+- pr-unblock's `report-escalation.sh` posts its escalation and lane-stopped comments once instead of up to three times, since a comment POST is not idempotent. When the POST fails, the job fails with the label on, and the next run posts the explanation.
+
+## [8.35.0] - 2026-11-02
+
+### Changed
+
+- `post-merge-demotion-alert.yml` treats a record as a state marker, never lane work: no record is sent to intake triage, and its text names each newly failing check by job name only and carries no revert command. A schedule or dispatch record, demotion or post-merge-failure, is filed with no `needs-human` label unless a failing check got no fix issue (over the cap or outside the name charset), since it clears itself once main is green at a later commit. Canary and revert records keep the label, since only a person's close clears one.
+- A new `close-cleared` job runs on a green attempt 1 of a scheduled full run on main and closes as completed each open schedule or dispatch record, from `github-actions[bot]` or `merge.agent-identity`, created before that run, at a commit behind its head, and never edited.
+- Each quarantine issue the suite judge files is locked and sent to intake triage. A quarantine or fix issue not delivered gets `needs-human`, the record does when a failing check got no fix issue, whether over the cap, outside the charset, or not filed, and the job fails on an undelivered issue; a fix issue reopened on a repeat failure keeps its labels, so one labeled `needs-human` stays with a person.
+
+## [8.34.0] - 2026-11-02
+
+### Changed
+
+- A pr-verify FAIL first uploads one index artifact per tie the merge gate counts (`.github/actions/upload-fail-index`), and uploads only once every index did; a job without the index step writes no FAIL. The gate reads those exact names instead of the whole artifact listing once the legacy FAILs file is committed.
+
 ## [8.33.1] - 2026-11-02
 
 ### Fixed

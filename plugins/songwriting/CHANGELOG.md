@@ -3,6 +3,12 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.7.13] - 2026-11-02
+
+### Changed
+
+- The `eight-plus-candidates` grader in `rh-window-menu-no-winner` and `rh-release-identity-menu` is now LLM-judged and counts candidates however a reply lays them out. The regex it replaces counted list lines and table rows, so it failed a tier table with several candidates per row and a list line with several candidates. Its samples add those layouts and inline candidates, and a one-line inline list of eight now passes.
+
 ## [1.7.12] - 2026-11-02
 
 ### Changed

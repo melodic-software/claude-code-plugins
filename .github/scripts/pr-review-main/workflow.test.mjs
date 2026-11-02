@@ -496,8 +496,9 @@ function recordStops(env) {
     chmodSync(path.join(dir, "gh"), 0o755);
     writeFileSync(log, "");
     const blank = { CODE_STOP: "", CODE_HEAD: "", SECURITY_STOP: "", SECURITY_HEAD: "" };
-    const result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", run], { encoding: "utf8", env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, GITHUB_REPOSITORY: "o/r", ...blank, ...env } });
-    return { status: result.status, calls: readFileSync(log, "utf8") };
+    const result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", run], { encoding: "utf8", env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, GITHUB_REPOSITORY: "o/r", RUNNER_TEMP: dir, ...blank, ...env } });
+    const count = path.join(dir, "pr-review-main-stop-calls");
+    return { status: result.status, calls: readFileSync(log, "utf8"), ...(env.COUNTED ? { counted: readFileSync(count, "utf8") } : {}) };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -521,6 +522,8 @@ test("the record job posts each stop as a neutral verdict=none record, from a cl
   }
   assert.doesNotMatch(posted.calls, /claude-review\n/);
   assert.ok(recordStops({ CODE_STOP: "chunk-failed", CODE_HEAD: SHA_A }).calls.split("\n").includes("output[title]=verdict=none reason=chunk-failed"));
+  // Each POST is counted for the job's api-calls notice: two stops, two calls.
+  assert.equal(recordStops({ COUNTED: "1", CODE_STOP: "binary", CODE_HEAD: SHA_A, SECURITY_STOP: "too-large", SECURITY_HEAD: SHA_B }).counted, "2\n");
   // No stop, nothing posted; a reason or head outside the closed set fails.
   assert.deepEqual(recordStops({}), { status: 0, calls: "" });
   for (const bad of [{ CODE_STOP: "other", CODE_HEAD: SHA_A }, { CODE_STOP: "too-large", CODE_HEAD: "main" }, { CODE_STOP: "too-large\nx", CODE_HEAD: SHA_A }]) {

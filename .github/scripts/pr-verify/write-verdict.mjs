@@ -505,6 +505,24 @@ export function artifactName(verdict) {
   return name;
 }
 
+// The exact names under which a FAIL's index artifacts upload, one per tie the
+// merge gate's reader looks up (babysit_verify_evidence.INDEX_PREFIX and
+// `Reader._targeted`): the pull request, the head, the head branch's digest,
+// then each issue the FAIL's name carries (`artifactName`), as the reader ties
+// a FAIL only to those. The API's name filter matches whole names across runs,
+// so each lookup returns every FAIL so tied without the whole listing. None
+// starts like a verdict name, which the reader would hold.
+export const INDEX_PREFIX = "pr-verify-index-";
+export function failIndexNames(verdict) {
+  const issues = NAME.exec(artifactName(verdict))?.[4]?.split(".") ?? [];
+  return [
+    `${INDEX_PREFIX}pr-${verdict.pr}`,
+    `${INDEX_PREFIX}sha-${verdict.head_sha}`,
+    `${INDEX_PREFIX}ref-${headRefDigest(verdict.head_ref)}`,
+    ...issues.map((n) => `${INDEX_PREFIX}issue-${n}`),
+  ];
+}
+
 // How many days the verdict's artifact lasts. A PASS or PASS-NOTES judged
 // after no body edit or issue connect or disconnect since the head commit
 // (resolve-pr.mjs relinkedSince, RELINK_SINCE_HEAD `false`) is read only at
@@ -802,7 +820,21 @@ export function main(env = process.env) {
   mkdirSync(env.VERDICT_DIR, { recursive: true });
   writeFileSync(path.join(env.VERDICT_DIR, "verdict.json"), `${JSON.stringify(verdict, null, 2)}\n`);
   const name = artifactName(verdict);
-  appendFileSync(env.GITHUB_OUTPUT, `name=${name}\nverdict=${verdict.verdict}\nretention-days=${retentionDays(verdict.verdict, env.RELINK_SINCE_HEAD !== "false")}\n`);
+  // A FAIL's index (failIndexNames): each artifact holds the FAIL's name. A
+  // job without FAIL_INDEX (a re-run of a pr-verify.yml from before the
+  // index, on this script from main) has no index step, so it writes no FAIL.
+  if (verdict.verdict === "fail" && env.FAIL_INDEX !== "1") {
+    throw new Error("a FAIL needs its index step (FAIL_INDEX), which this job lacks");
+  }
+  const index = verdict.verdict === "fail" ? failIndexNames(verdict) : [];
+  if (index.length > 0) {
+    writeFileSync(path.join(env.VERDICT_DIR, "fail-index.txt"), `${name}\n`);
+  }
+  appendFileSync(
+    env.GITHUB_OUTPUT,
+    `name=${name}\nverdict=${verdict.verdict}\nretention-days=${retentionDays(verdict.verdict, env.RELINK_SINCE_HEAD !== "false")}\n` +
+      `index-names<<INDEX_NAMES\n${index.join("\n")}\nINDEX_NAMES\n`,
+  );
   results.forEach(({ k, output: one }) => console.log(`::notice title=pr-verify chunk::pr=${verdict.pr} chunk=${k}/${count} verdict=${one?.verdict ?? "none"}`));
   console.log(`write-verdict: ${name}`);
 }
