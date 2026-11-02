@@ -72,10 +72,10 @@ a regular file). `apply` is the fix.
 **`apply`.**
 
 1. **Resolve the values.** With complete `<key>=<value>` arguments, use them. Otherwise ask one key
-   at a time, recommendation first, from the table in `${CLAUDE_PLUGIN_ROOT}/reference/config.md` (`ratchet_offer`:
-   unused, since no skill in this plugin reads it; to keep ratchet offers off, set `ratchet_offer`
-   on the corrections plugin (its plugin option or `docs/conventions/corrections.yaml`);
-   `downstream_probe`: `run`, the default, unless the team wants `/review:quality-gate downstream`
+   at a time, recommendation first, from the table in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`,
+   skipping `ratchet_offer`, which no skill in this plugin reads (to keep ratchet offers off, set
+   `ratchet_offer` on the corrections plugin: its plugin option or `docs/conventions/corrections.yaml`)
+   (`downstream_probe`: `run`, the default, unless the team wants `/review:quality-gate downstream`
    to state its probe without running it, in which case `report`; `fanout_diversity`: `lens`, the
    default, unless the team wants `/review:fanout run-everything` to run each review prompt on
    several model tiers, in which case `model`). Never invent a key the schema
@@ -84,7 +84,7 @@ a regular file). `apply` is the fix.
 2. **Write.** One call with every value:
 
    ```bash
-   node "${CLAUDE_SKILL_DIR}/scripts/setup-apply.mjs" ratchet_offer=false
+   node "${CLAUDE_SKILL_DIR}/scripts/setup-apply.mjs" downstream_probe=report
    ```
 
    Pass a key the operator accepts at the plugin default as `--default <key>` instead of
