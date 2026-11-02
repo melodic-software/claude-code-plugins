@@ -214,7 +214,8 @@ class IndexMode(unittest.TestCase):
         self.assertEqual(self.judge(fake).refusal, ve.EARLIER_FAIL)
 
     def test_a_fail_naming_a_live_issue_counts_toward_the_cap(self) -> None:
-        # PR 60 closes nothing; its FAIL names issue 7, which PR 41 closes.
+        # Pull request 60 closes nothing; its FAIL's name carries the issue
+        # the judged pull request closes.
         own = fail(PR, HEAD, 3)
         other = fail(60, UNRELATED, 4, "-i7")
         fake = self.passing(*own, *other, runs={3: run(3), 4: run(4)})
