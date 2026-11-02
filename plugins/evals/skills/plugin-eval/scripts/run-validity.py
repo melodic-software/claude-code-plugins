@@ -81,9 +81,10 @@ one line per check, detail lines indented under it:
                       of its case names that tool, such as the broken side of
                       a negative control searching for the text it lacks; a
                       Glob pattern that is rooted or holds `..` never
-                      qualifies; so is a with-arm denied compound Bash call
-                      whose plugin part a later Bash call in the same trace
-                      ran alone and was not denied: split at ;, &&, || and
+                      qualifies. A with-arm denied compound Bash call whose
+                      plugin part a later Bash call in the same trace ran
+                      alone and was not denied is set aside the same way:
+                      split at ;, &&, || and
                       newlines, its assignment-only and cd commands dropped
                       and, after that part, ls, echo or cat (piped only into
                       head or tail), exactly one command must remain, naming
