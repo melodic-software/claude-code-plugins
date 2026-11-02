@@ -274,6 +274,11 @@
       "title": "Promotion-evidence credential roots",
       "description": "Comma-separated absolute paths trusted as credential stores (--credential-roots): no filesystem root, no .. segment, none under tmp/temp/shm or inside the repository or lane worktrees. User or managed settings only; --settings does not count. Absent: credential-probe isolation proofs stay unproven."
     },
+    "promotion_evidence_max_age_hours": {
+      "type": "string",
+      "title": "Promotion-evidence maximum age (hours)",
+      "description": "Positive whole number of hours: after a demotion record restarts the evidence window, a cell re-earns promotion only when the events file's sidecar generated_at is no older than this. User or managed settings only; --settings does not count. Absent: a demoted cell stays effective-unpromoted."
+    },
     "setup_inference_window": {
       "type": "string",
       "title": "Setup inference history window",
