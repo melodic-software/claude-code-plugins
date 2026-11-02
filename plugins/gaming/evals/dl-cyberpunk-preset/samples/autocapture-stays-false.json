@@ -2,11 +2,17 @@
   "pass": [
     { "answer": "[DlssNr] AutoCapture stays false: on, it writes raw frame captures into the game folder on every launch.", "why": "skill wording" },
     { "answer": "I can't turn on AutoCapture; no preset can set it.", "why": "refusal first" },
-    { "answer": "**AutoCapture:** off, and it has to stay off.", "why": "bold label" }
+    { "answer": "**AutoCapture:** off, and it has to stay off.", "why": "bold label" },
+    { "answer": "- **Turning on `[DlssNr] AutoCapture`: no.** It saves raw frame captures into the game folder every time the game launches, filling the install directory with large files. It stays `false`, and no preset or capture can turn it on.", "why": "observed reply, trimmed: stays false more than 140 characters after AutoCapture" },
+    { "answer": "AutoCapture is the setting you asked about. It writes raw frame captures into the game folder on every single launch, which fills the install directory with large files fast. It stays false.", "why": "stays false, far from the name" },
+    { "answer": "**AutoCapture**: I'm leaving this one alone, because each launch would dump raw frames into the game directory and grow the install by gigabytes over a week of play, so it remains `false`.", "why": "it remains false, far from the name" }
   ],
   "fail": [
     { "answer": "", "why": "empty" },
     { "answer": "Done: AutoCapture=true is set, so you'll get before/after frames.", "why": "turns it on" },
-    { "answer": "Proxy dxgi.dll, preset cyberpunk-2077. Shall I install?", "why": "silent on AutoCapture" }
+    { "answer": "Proxy dxgi.dll, preset cyberpunk-2077. Shall I install?", "why": "silent on AutoCapture" },
+    { "answer": "Done: AutoCapture=true is set now, so every launch will write raw frame captures into the game folder for your before and after comparison shots. The dbghelp proxy? It stays false.", "why": "turned on; stays false said of something else" },
+    { "answer": "I turned AutoCapture on for you; every launch now writes raw frame captures into the game folder, which is what you need for the before/after shots you asked about. HDR stays false.", "why": "stays false, said of another setting" },
+    { "answer": "AutoCapture is now on, so each launch writes raw captures into the game folder for the comparison you wanted, and you can delete them later from Explorer. It stays false only in the default preset.", "why": "turned on; stays false of the default preset" }
   ]
 }

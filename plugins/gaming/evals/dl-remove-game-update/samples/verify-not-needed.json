@@ -4,7 +4,11 @@
     { "answer": "You don't need to run Verify integrity.", "why": "don't need" },
     { "answer": "Skip Verify; offer the refresh instead.", "why": "skip" },
     { "answer": "**Verify integrity of game files**\n- You don't need it for this drift: the exe already matches Steam's build.", "why": "observed reply, reworded: heading, then the answer on the next line" },
-    { "answer": "## Verify integrity\n\nYou don't need to run it; the refresh is the fix.", "why": "markdown heading and a blank line" }
+    { "answer": "## Verify integrity\n\nYou don't need to run it; the refresh is the fix.", "why": "markdown heading and a blank line" },
+    { "answer": "**Should you run Verify integrity of game files?** No. That advice only applies when drift has no launcher update behind it.", "why": "observed reply, trimmed: question answered No. inline" },
+    { "answer": "**Should you run Verify integrity of game files?**\nNo. That line only appears when there's no update explanation.", "why": "observed reply, trimmed: No. on the line under the question" },
+    { "answer": "Do you need Verify integrity?\n\nNo: the exe already matches Steam's build.", "why": "No: after a blank line" },
+    { "answer": "Run Verify integrity first? No; offer the refresh.", "why": "No; inline" }
   ],
   "fail": [
     { "answer": "", "why": "empty" },
@@ -12,6 +16,11 @@
     { "answer": "The game was updated by Steam since the apply.", "why": "silent on verify" },
     { "answer": "**Verify integrity**\n- Don't forget to run it after the refresh.", "why": "heading then a bare don't that recommends it" },
     { "answer": "**Verify integrity**\n- You don't need to wait: run it now, then rerun remove.", "why": "don't need to, about something else" },
-    { "answer": "**Verify integrity**\n\nRun it first.\nYou don't need it after that.", "why": "the answer is not the line under the heading" }
+    { "answer": "**Verify integrity**\n\nRun it first.\nYou don't need it after that.", "why": "the answer is not the line under the heading" },
+    { "answer": "Run Verify after this. Is the game corrupted? No.", "why": "No answers a different question" },
+    { "answer": "**Should you run Verify integrity?** Yes.\n**Is the mod still installed?** No.", "why": "Verify answered Yes; No answers the next question" },
+    { "answer": "Should you run Verify integrity? No idea; try it and see.", "why": "No idea is not an answer" },
+    { "answer": "Should you run Verify integrity?\n\nRun it first, then remove. No.", "why": "No is not the start of the answer" },
+    { "answer": "Will a Verify integrity check keep the mod files? No.", "why": "the question names Verify but asks something else" }
   ]
 }
