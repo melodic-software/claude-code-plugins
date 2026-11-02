@@ -68,7 +68,8 @@
 //   re-run still clears it.
 // - Pending: any PR whose newest pr-require-checks run failed, at attempt 1,
 //   only in ci-status, and only on its notes that a review lane had not
-//   finished (PENDING_REVIEW_NOTE), while the newest pull_request run of each
+//   finished or had no run yet (PENDING_REVIEW_NOTE, MISSING_REVIEW_NOTE),
+//   while the newest pull_request run of each
 //   hosted review on the head has since completed, the last of them at least
 //   PENDING_BACKOFF_MINUTES ago. rerun-ci-status re-runs that ci-status when
 //   the review completes, unless it was lost or held it: it holds a lanes App
@@ -435,23 +436,28 @@ export const unblockStopNoted = (annotations) => {
   const exits = failures.filter((m) => EXIT_NOTE.test(m)).length;
   return stops > 0 && exits <= 1 && stops + exits === failures.length;
 };
-// The error ci-status's review-lane step writes for a review still running
-// when it read the head (pr-require-checks.yml; reconcile.test.mjs pins it there).
+// The errors ci-status's review-lane step writes for a review still running,
+// or with no run yet, when it read the head (pr-require-checks.yml;
+// reconcile.test.mjs pins both there).
 export const PENDING_REVIEW_NOTE = /^'[^']+' has not finished on [0-9a-f]{40} \(https:\/\/[^ ]+\)\. ci-status re-runs when the review finishes\.$/;
-// True when ci-status's only failure is its review-lane step on running
-// reviews: one or more pending notes and that step's one exit note.
+export const MISSING_REVIEW_NOTE = /^'[^']+' is missing: no [a-z-]+\.yml run on [0-9a-f]{40} yet\. ci-status re-runs when the review finishes\.$/;
+// True when ci-status's only failure is its review-lane step on reviews not
+// done: one or more pending or missing notes and that step's one exit note.
 export const pendingReviewNoted = (annotations) => {
   const failures = (Array.isArray(annotations) ? annotations : []).filter((a) => a?.annotation_level === "failure").map((a) => String(a.message ?? ""));
-  const pending = failures.filter((m) => PENDING_REVIEW_NOTE.test(m)).length;
+  const pending = failures.filter((m) => PENDING_REVIEW_NOTE.test(m) || MISSING_REVIEW_NOTE.test(m)).length;
   const exits = failures.filter((m) => EXIT_NOTE.test(m)).length;
   return pending > 0 && exits <= 1 && pending + exits === failures.length;
 };
 // How long after the last review completes before a Pending re-run: at least
 // rerun-ci-status's `timeout-minutes: 15` (reconcile.test.mjs pins it), so its
 // own re-run has had the time to land. Under its `queue: max` concurrency that
-// job may still start later, so this narrows the race without closing it; the
-// two final reads keep it safe: rerun-ci-status re-runs only on its
-// `"completed $attempt"` re-read, and act only on lostNow's attempt check.
+// job may still start later, so this narrows the race without closing it. A
+// late rerun-ci-status does not re-run again: its started_at check ends it on
+// a ci-status attempt that started after the lanes finished. What overlap
+// remains is two POSTs inside check-then-act gaps (its `"completed $attempt"`
+// re-read, act's lostNow attempt check), which GitHub would refuse while the
+// first re-run is going (UNVERIFIED) rather than start a third attempt.
 export const PENDING_BACKOFF_MINUTES = 20;
 // True when the newest status of a `pr-unblock/*` context on the head, by
 // github-actions[bot], is failure or error: ci-status's own read. Statuses
@@ -910,12 +916,13 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         } else if (isFailedChecks(checks) && notes && pendingReviewNoted(notes)) {
           // Every PR, not only the lanes App's: a lost rerun-ci-status strands
           // a person's head the same way. ci-status's own pick of each review:
-          // the newest pull_request run on the head.
-          const reviews = [...GATED_REVIEWS]
-            .map((path) => own.filter((r) => r.path === path && r.event === "pull_request").reduce((a, r) => (a && a.id > r.id ? a : r), undefined))
-            .filter(Boolean);
-          const last = Math.max(...reviews.map((r) => Date.parse(r.updated_at)));
-          if (reviews.length > 0 && reviews.every((r) => r.status === "completed") && now - last >= PENDING_BACKOFF_MINUTES * 60_000) {
+          // the newest pull_request run on the head. Every lane must have one,
+          // completed: a lane with none would fail the re-run again.
+          const reviews = [...GATED_REVIEWS].map((path) =>
+            own.filter((r) => r.path === path && r.event === "pull_request").reduce((a, r) => (a && a.id > r.id ? a : r), undefined),
+          );
+          const last = Math.max(...reviews.map((r) => Date.parse(r?.updated_at)));
+          if (reviews.every((r) => r?.status === "completed") && now - last >= PENDING_BACKOFF_MINUTES * 60_000) {
             set.push({ kind: "pending", pr: pull.number, id: checks.id, path: checks.path, conclusion: "failure (review since finished)", attempt: 1, head: pull.head.sha });
           }
         }

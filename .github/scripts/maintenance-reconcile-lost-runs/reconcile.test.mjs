@@ -19,7 +19,7 @@ import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CI_WORKFLOWS, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, main, NPM_STATUS_URL, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, PR_UNBLOCK_STOP_NOTE, prefilterSpec, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, SETTLED_VERSION, TOO_OLD_DAYS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
+import { CI_WORKFLOWS, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, PR_UNBLOCK_STOP_NOTE, prefilterSpec, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, SETTLED_VERSION, TOO_OLD_DAYS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
 import { switchHold } from "../pr-merge/merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -2243,12 +2243,14 @@ test("a failed job that lost its runner with no steps listed is held but not set
 
 // Any PR whose newest pr-require-checks run failed only in ci-status, on its
 // first attempt, on the review-lane step's notes that a review had not
-// finished: once the newest run of each hosted review on the head has
-// completed, PENDING_BACKOFF_MINUTES ago or more, that ci-status is re-run,
-// recorded as attempt 2. The note is the one pr-require-checks.yml writes
-// (pinned below).
+// finished or had no run yet: once the newest run of each hosted review on the
+// head has completed, PENDING_BACKOFF_MINUTES ago or more, that ci-status is
+// re-run, recorded as attempt 2. The notes are the ones pr-require-checks.yml
+// writes (pinned below).
 const PENDING_LINE = (check = "pr-review / claude-review-status", head = sha(1)) =>
   `'${check}' has not finished on ${head} (https://github.com/${REPO}/actions/runs/201). ci-status re-runs when the review finishes.`;
+const MISSING_LINE = (check = "pr-review / claude-review-status", file = "pr-review-hosted.yml", head = sha(1)) =>
+  `'${check}' is missing: no ${file} run on ${head} yet. ci-status re-runs when the review finishes.`;
 const pendingJobs = (notes = [PENDING_LINE()]) => stopJobs({ notes });
 // Both hosted reviews' runs on the head, completed at `updated` unless `status` says otherwise.
 const reviewRuns = ({ updated = "2026-10-19T19:30:00Z", status = "completed" } = {}) => [
@@ -2256,30 +2258,48 @@ const reviewRuns = ({ updated = "2026-10-19T19:30:00Z", status = "completed" } =
   run(202, sha(1), { path: SECURITY_REVIEW, conclusion: status === "completed" ? "success" : null, status, updated }),
 ];
 
-test("a ci-status a running review failed is re-run once the reviews finished past the backoff, recorded, for any PR", async () => {
-  for (const pull of [pr(1), lanePr(1)]) {
-    const runs = [failed(101, sha(1), { jobs: pendingJobs() }), ...reviewRuns()];
-    const { code, outputs, reruns, failedJobReruns } = await reconcile({ pulls: [pull], runs });
+test("a ci-status a running or missing review failed is re-run once both reviews finished past the backoff, recorded, for any PR", async () => {
+  const notes = [[PENDING_LINE()], [PENDING_LINE(), PENDING_LINE("pr-review-security / security-review")], [MISSING_LINE()], [PENDING_LINE(), MISSING_LINE("pr-review-security / security-review", "pr-review-security-hosted.yml")]];
+  for (const lines of notes) {
+    const { code, outputs, reruns, failedJobReruns } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: pendingJobs(lines) }), ...reviewRuns()] });
     assert.equal(code, 0);
     assert.deepEqual(failedJobReruns, [101]);
     assert.deepEqual(reruns, []);
     assert.deepEqual(records(outputs), [`reconcile-rerun-101-2-${sha(1)}`, "", ""]);
   }
-  // Both lanes pending, one note each.
-  const both = [PENDING_LINE(), PENDING_LINE("pr-review-security / security-review")];
-  const { failedJobReruns } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: pendingJobs(both) }), ...reviewRuns()] });
-  assert.deepEqual(failedJobReruns, [101]);
 });
 
-test("a pending-review ci-status is not re-run inside the backoff, while a review runs, at attempt 2, or beside another failure", async () => {
+test("a lanes App PR's pending-review ci-status is a Pending re-run, not a Switch one, and names no person", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  await withLaneList(async (env) => {
+    const { code, outputs, failedJobReruns } = await reconcile({ pulls: [lanePr(1)], runs: [failed(101, sha(1), { jobs: pendingJobs() }), ...reviewRuns()], env });
+    assert.equal(code, 0);
+    assert.deepEqual(failedJobReruns, [101]);
+    assert.deepEqual(records(outputs), [`reconcile-rerun-101-2-${sha(1)}`, "", ""]);
+  });
+  const lines = log.mock.calls.map((c) => String(c.arguments[0]));
+  assert.ok(lines.includes("reconcile: #1: re-ran the failed jobs of run 101 (.github/workflows/pr-require-checks.yml) attempt 1: ci-status failed on a review that has since finished"));
+  assert.ok(!lines.some((l) => l.includes("kill switch")));
+});
+
+test("the pending backoff ends exactly PENDING_BACKOFF_MINUTES after the last review completed", async () => {
+  const at = (ms) => new Date(NOW - ms).toISOString().replace(".000Z", "Z");
+  const edge = PENDING_BACKOFF_MINUTES * 60_000;
+  const ready = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: pendingJobs() }), ...reviewRuns({ updated: at(edge) })] });
+  assert.deepEqual(ready.failedJobReruns, [101]);
+  const early = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: pendingJobs() }), ...reviewRuns({ updated: at(edge - 1000) })] });
+  assert.deepEqual(early.failedJobReruns, []);
+});
+
+test("a pending-review ci-status is not re-run inside the backoff, while a review runs or never ran, at attempt 2, or beside another failure", async () => {
   // 19:50 is ten minutes before NOW, inside the twenty-minute backoff.
   const cases = [
     { runs: [failed(101, sha(1), { jobs: pendingJobs() }), ...reviewRuns({ updated: "2026-10-19T19:50:00Z" })] },
     { runs: [failed(101, sha(1), { jobs: pendingJobs() }), ...reviewRuns({ status: "in_progress" })] },
+    { runs: [failed(101, sha(1), { jobs: pendingJobs([MISSING_LINE("pr-review-security / security-review", "pr-review-security-hosted.yml")]) }), reviewRuns()[0]] },
     { runs: [failed(101, sha(1), { jobs: pendingJobs(), attempt: 2 }), ...reviewRuns()] },
     { runs: [failed(101, sha(1), { jobs: pendingJobs([PENDING_LINE(), "the pull request title is not in Conventional Commits form"]) }), ...reviewRuns()] },
     { runs: [failed(101, sha(1), { jobs: pendingJobs([PENDING_LINE(), STOP_LINE()]) }), ...reviewRuns()], statuses: cleared() },
-    { runs: [failed(101, sha(1), { jobs: pendingJobs([`'pr-review / claude-review-status' is missing: no pr-review-hosted.yml run on ${sha(1)} yet. ci-status re-runs when the review finishes.`]) }), ...reviewRuns()] },
   ];
   for (const setup of cases) {
     const { code, calls } = await reconcile({ pulls: [pr(1)], ...setup });
@@ -2299,7 +2319,7 @@ test("a lanes App PR's ci-status the kill switch failed at attempt 2 is named fo
   assert.ok(lines.includes("reconcile: #1: ci-status failed on the kill switch at attempt 2; a re-run needs a person on the trusted-actor list"));
 });
 
-test("ci-status's review-lane step still writes the pending note the reconciler matches", () => {
+test("ci-status's review-lane step still writes the pending and missing notes the reconciler matches", () => {
   const workflow = readFileSync(new URL("../../workflows/pr-require-checks.yml", import.meta.url), "utf8");
   const step = /- name: Require both review lanes on this head\n(?:(?:[ ]{8,}.*)?\n)+/.exec(workflow)?.[0] ?? "";
   const line = step.split("\n").find((l) => l.includes(`has not finished on $HEAD_SHA ($url)`));
@@ -2308,6 +2328,11 @@ test("ci-status's review-lane step still writes the pending note the reconciler 
   const written = text.replace("$check", "pr-review / claude-review-status").replace("$HEAD_SHA", sha(1)).replace("$url", `https://github.com/${REPO}/actions/runs/201`);
   assert.match(written, PENDING_REVIEW_NOTE);
   assert.equal(written, PENDING_LINE());
+  const missing = step.split("\n").find((l) => l.includes("is missing: no $file run on $HEAD_SHA yet."));
+  assert.ok(missing, "the missing error line is in the step");
+  const absent = (/echo "::error::(.*)"$/.exec(missing.trim())?.[1] ?? "").replace("$check", "pr-review / claude-review-status").replace("$file", "pr-review-hosted.yml").replace("$HEAD_SHA", sha(1));
+  assert.match(absent, MISSING_REVIEW_NOTE);
+  assert.equal(absent, MISSING_LINE());
   assert.match(step, /\n[ ]+exit "\$failed"\n/);
 });
 

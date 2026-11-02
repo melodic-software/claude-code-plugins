@@ -221,7 +221,8 @@ SEC=.github/workflows/pr-review-security-hosted.yml
 # This lane finished at DONE, the other lane at LATER; ci-status started at
 # EARLY unless a case says otherwise. AFTER is just past the 60 s margin.
 EARLY=2026-10-23T09:50:00Z DONE=2026-10-23T10:00:00Z LATER=2026-10-23T10:05:00Z AFTER=2026-10-23T10:06:01Z
-pr() { jq -cn --arg st "${1:-open}" --arg sha "${2:-$HEAD}" '{state: $st, head: {sha: $sha}}'; }
+# A person's PR unless a case says otherwise.
+pr() { jq -cn --arg st "${1:-open}" --arg sha "${2:-$HEAD}" --argjson by "$KYLE" '{state: $st, head: {sha: $sha}, user: {id: $by, type: "User"}}'; }
 # run <id> [status] [sha] [path] [event] [updated_at] [run_attempt] [head repository]
 run() {
   jq -cn --argjson id "$1" --arg st "${2:-completed}" --arg sha "${3:-$HEAD}" --arg p "${4:-$RCF}" --arg ev "${5:-pull_request}" --arg at "${6:-$LATER}" \
@@ -666,6 +667,15 @@ LANES_PROCEED=true APP_SENDER_ID=$LANES_APP expect "switch off: a lanes App PR i
 check_reran 1 "switch off: a lanes App PR gets its job id and record"
 LANES_PROCEED=false APP_SENDER_ID='' expect "no App id: no PR reads as the lanes App's, as in ci-status" 0 "Re-running ci-status (job 77)"
 check_reran 1 "no App id: re-run"
+# An author that does not read counts as the App's, as ci-status reads it.
+STUB_PR='{"state":"open","head":{"sha":"'$HEAD'"}}'
+LANES_PROCEED=false APP_SENDER_ID=$LANES_APP expect "proceed 'false': an unreadable author is held as the App's" 0 "is not re-run; the lost-run reconciler"
+check_reran 0 "an unreadable author: no job id or record"
+# Only attempt 1 is held: at a later attempt the re-run goes ahead, recorded.
+STUB_PR="$(lanes_pr)" STUB_RUNS="$(runs "$(run 9 completed "$HEAD" "$RCF" pull_request "$LATER" 2)")" STUB_RUN_SEQ="$(run 9 completed "$HEAD" "$RCF" pull_request "$LATER" 2)"
+LANES_PROCEED=false APP_SENDER_ID=$LANES_APP expect "proceed 'false': a lanes App PR's ci-status at attempt 2 is re-run" 0 "Re-running ci-status (job 77) of run 9 on $HEAD as attempt 3."
+check_reran 1 "attempt 2: job id and the attempt-3 record" "rerun-ci-status-9-3-$HEAD"
+STUB_RUN_SEQ='' STUB_RUNS="$(runs "$(run 9)")"
 STUB_PR="$(pr)" STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC")")"
 
 # Without the library (a failed checkout) the job runs as before and keeps no reading.

@@ -724,7 +724,12 @@ jobs:
           # re-runs a ci-status this job leaves stale (a later lane's
           # completion exists only while the other lane is running), and
           # maintenance-reconcile-lost-runs re-runs one red only on a pending
-          # review just at attempt 1 and after its PENDING_BACKOFF_MINUTES.
+          # or missing review, at attempt 1, after its PENDING_BACKOFF_MINUTES.
+          # Should both re-run it, the started_at check below ends this job on
+          # an attempt that started after the lanes finished; what overlap
+          # remains is two POSTs inside check-then-act gaps, which GitHub
+          # would refuse while the first re-run is going (UNVERIFIED) rather
+          # than start a third attempt.
           # Any other failure is read three times, then fails.
           # A path read again (the poll below) is sent as a conditional GET
           # with the ETag of its last 200; a 304 (gh exits 1 on it) gives that
@@ -883,21 +888,27 @@ jobs:
             echo "#$PR_NUMBER is closed or no longer at $HEAD_SHA; nothing to re-run."
             exit 0
           fi
-          # A lanes App PR (merge-holds.mjs switchHold: a Bot author whose id is
-          # the App's) is left while the kill switch is on, for every upstream:
-          # its re-run would fail on the switch and spend attempt 2, the only one
-          # pr-verify's gate trusts. At attempt 1 the lost-run reconciler re-runs
-          # it once the switch is off (its Switch and Pending kinds). An unread
-          # switch counts as on: no re-run is safer than a spent attempt.
-          if [[ $LANES_PROCEED != true && $APP_SENDER_ID =~ ^[1-9][0-9]*$ ]] &&
-            jq -e --argjson id "$APP_SENDER_ID" '.user.type == "Bot" and .user.id == $id' <<<"$pr" >/dev/null; then
-            echo "::notice::the lanes kill switch is on or unread, so ci-status on lanes App #$PR_NUMBER is not re-run; the lost-run reconciler re-runs it once the switch is off."
-            exit 0
-          fi
           attempt=$(jq -r '.run_attempt // empty' <<<"$run")
           if [[ ! $attempt =~ ^[1-9][0-9]{0,4}$ ]]; then
             echo "::error::run $id on $HEAD_SHA reports no attempt number."
             exit 1
+          fi
+          # A lanes App PR's attempt-1 ci-status (merge-holds.mjs switchHold: a
+          # Bot author whose id is the App's) is left while the kill switch is
+          # on, for every upstream: its re-run would fail on the switch and
+          # spend attempt 2, the only re-run the lost-run reconciler makes. Left
+          # at attempt 1, the reconciler re-runs it once the switch is off, by
+          # the red it holds (its Switch, Stop, Review or Pending kind). A later
+          # attempt is re-run as any other: this job's record covers attempt 2
+          # and up (check-trusted-trigger.mjs ciStatusRerunRecorder), and a red
+          # on the switch there is named for a person by the reconciler. An
+          # unread switch counts as on, and an unread author as the App's, as
+          # ci-status reads it: no re-run is safer than a spent attempt.
+          if [[ $attempt == 1 && $LANES_PROCEED != true ]] &&
+            jq -e --arg id "$APP_SENDER_ID" '(.user.id | type) != "number"
+              or ($id | test("^[1-9][0-9]*$")) and .user.type == "Bot" and .user.id == ($id | tonumber)' <<<"$pr" >/dev/null; then
+            echo "::notice::the lanes kill switch is on or unread, so ci-status on lanes App #$PR_NUMBER is not re-run; the lost-run reconciler re-runs it once the switch is off."
+            exit 0
           fi
           next=$((attempt + 1))
           # Another upstream's run of this job (a lane's and a pr-unblock run's
