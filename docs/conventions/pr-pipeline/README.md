@@ -3717,9 +3717,10 @@ and reports by run and attempt.
    green when it passed. The culprit is the one merge that is red while its parent is green (the
    last green run for the oldest). A range of one merge always pins it. Two such merges, or none
    (a merge with no full run of its own breaks the chain), pin no culprit: the report names the
-   untested merges, and a person picks from the post-merge record.
-3. **Who reverts.** The bot may revert the culprit only when every guard holds; otherwise a
-   person gets a draft revert pull request, labeled `needs-human`. The guards: the lanes App
+   untested merges, and the fix issues fix `main` forward.
+3. **Who reverts.** The bot may revert the culprit only when every guard holds; otherwise no
+   revert is planned and the post-merge fix issues fix `main` forward through the issue lane
+   (owner, 2026-11-02, "(c) All to lanes", on #11022). The guards: the lanes App
    (`merge.agent-identity`) put it in the merge queue, so an owner or other human merge never
    auto-reverts while a lane merge pinned inside a mixed range may; it merged under
    `max-culprit-age-hours` ago; it is no revert itself (a `revert` subject, a `This reverts
@@ -3734,11 +3735,11 @@ and reports by run and attempt.
 
 | Key | Default | What it sets |
 |---|---|---|
-| `dry-run` | `true` | Report only: the step summary and one comment per confirmed red on the log issue (first body line `<!-- red-main-revert-log -->`), each starting `<!-- red-main-report run=<id> attempt=<n> culprit=<sha or none> decision=<auto-revert, human or none> -->`. A run that posts no report, because its red is unconfirmed or the log already reports it, adds a note naming any unreported red full runs, starting `<!-- red-main-unreported-note run=<id> attempt=<n> -->`; a note counts as neither a report nor a cap decision, and none creates the log issue. Nothing is pushed, opened or merged. This version has no revert path, so `false` reports too. |
-| `daily-cap` | 3 | Auto-reverts decided in any 24 hours; 0 to 10, and 0 sends every culprit to a person. |
-| `max-culprit-age-hours` | 24 | Hours since the culprit merged past which a person decides; 1 to 168. |
+| `dry-run` | `true` | Report only: the step summary and one comment per confirmed red on the log issue (first body line `<!-- red-main-revert-log -->`), each starting `<!-- red-main-report run=<id> attempt=<n> culprit=<sha or none> decision=<auto-revert, fix-forward or none> -->` (older reports name `fix-forward` as `human`). A run that posts no report, because its red is unconfirmed or the log already reports it, adds a note naming any unreported red full runs, starting `<!-- red-main-unreported-note run=<id> attempt=<n> -->`; a note counts as neither a report nor a cap decision, and none creates the log issue. Nothing is pushed, opened or merged. This version has no revert path, so `false` reports too. |
+| `daily-cap` | 3 | Auto-reverts decided in any 24 hours; 0 to 10, and 0 fixes every culprit forward. |
+| `max-culprit-age-hours` | 24 | Hours since the culprit merged past which it is fixed forward, not reverted; 1 to 168. |
 | `confirm-wait-minutes` | 40 | Minutes the job waits for the re-run to finish; 0 to 45. |
-| `remedy` | `rollback` | `rollback` applies rules 3 and 4. `fail-forward` plans no revert: the report's decision is `human`, it names the remedy as the reason, and a person or a fix pull request repairs `main`. |
+| `remedy` | `rollback` | `rollback` applies rules 3 and 4. `fail-forward` plans no revert: the report's decision is `fix-forward`, it names the remedy as the reason, and the fix issues repair `main`. |
 
 The job reads the leaf through the base checkout's resolve-config (`redMainFromBase`), so a config
 the resolver refuses fails it. It holds the job's own `GITHUB_TOKEN` (`actions`, `checks`,
