@@ -373,6 +373,13 @@ test("the last blocker closing adds agent-ready", async () => {
   assert.deepEqual(writes(calls), [labeled(20)]);
 });
 
+test("the last blocker closing mirrors agent-ready into the Work status field after the label write", async () => {
+  const { github, calls } = oneDependent();
+  const mirrorStatus = async (number, labels) => calls.push(`MIRROR ${number} ${JSON.stringify(labels)}`);
+  assert.equal(await main({ env: envFor(), github, mirrorStatus }), 0);
+  assert.deepEqual(writes(calls), [labeled(20), 'MIRROR 20 ["agent-ready"]']);
+});
+
 test("the last blocker closing leaves an umbrella with an open sub-issue unlabeled, and labels it once none is open", async () => {
   const umbrella = (subs) =>
     world({
