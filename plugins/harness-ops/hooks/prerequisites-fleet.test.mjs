@@ -124,6 +124,29 @@ describe("prerequisites-fleet", { skip: !posix && "the claude stub is a POSIX sh
     assert.match(await f.run("s8"), /^alpha: /);
   });
 
+  test("the install record of the current project wins over another project's and over the user record", async () => {
+    const f = fleet({ plugins: [gated("alpha")] });
+    const current = path.join(f.config, "plugins", "cache", "mkt", "alpha", "1.0.0");
+    // Another install without session_probe: probing it would drop the current install's notices.
+    const other = path.join(f.config, "plugins", "cache", "mkt", "alpha", "0.9.0");
+    mkdirSync(path.join(other, "lib"), { recursive: true });
+    copyFileSync(checker, path.join(other, "lib", "prerequisites.mjs"));
+    writeFileSync(path.join(other, "prerequisites.json"), JSON.stringify({ requires: [] }));
+    const projA = tempDir("prereq-fleet-a-");
+    const projB = tempDir("prereq-fleet-b-");
+    const records = [
+      { scope: "user", installPath: other },
+      { scope: "local", projectPath: projA, installPath: current },
+      { scope: "local", projectPath: projB, installPath: other },
+    ];
+    writeFileSync(
+      path.join(f.config, "plugins", "installed_plugins.json"),
+      JSON.stringify({ plugins: { "alpha@mkt": records } }),
+    );
+    assert.match(await f.run("p1", { CLAUDE_PROJECT_DIR: projA }), /^alpha: /);
+    assert.equal(await f.run("p2", { CLAUDE_PROJECT_DIR: projB }), "");
+  });
+
   test("the hook prints one systemMessage document and exits 0", () => {
     const f = fleet({ plugins: [gated("alpha")] });
     // Run the script itself from a copy placed as harness-ops in the fake cache.

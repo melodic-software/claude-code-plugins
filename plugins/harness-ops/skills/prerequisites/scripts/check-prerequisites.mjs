@@ -12,7 +12,8 @@
 // settings.json and settings.local.json in ~/.claude (or $CLAUDE_CONFIG_DIR) and
 // the project's .claude directory instead, skipping a whole file whose
 // enabledPlugins holds a non-Boolean value (Claude Code ignores that file's
-// keys); that fallback does not read the managed scope. Output that is not a
+// keys), and pick install records by the same project and scope rule; that
+// fallback does not read the managed scope. Output that is not a
 // JSON list is an error (exit 2), never a fallback. Only when none of that state
 // exists and this repo has plugins/*/prerequisites.json, scan those.
 //
@@ -122,14 +123,9 @@ export function rootsFromSettings(config, project) {
     for (const key of enabled.sort()) {
       let records = installed[key] ?? [];
       if (!Array.isArray(records)) records = [records];
-      let installPath = "";
-      for (const record of records) {
-        if (record && typeof record === "object" && record.installPath) {
-          installPath = record.installPath;
-          if (record.scope === "user") break;
-        }
-      }
-      if (installPath) roots.push(installPath);
+      // The listing's rule: another project's records drop out, and the most specific scope wins.
+      const rows = records.filter((r) => r && typeof r === "object").map((r) => ({ ...r, id: key, enabled: true }));
+      roots.push(...rootsFromListing(rows, project));
     }
   }
   return { read, roots };

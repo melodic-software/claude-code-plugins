@@ -8,5 +8,6 @@ bump: minor
 
 ### Changed
 
+- `/harness-ops:prerequisites`' settings fallback, which the new row also uses, picks a plugin's install record the way `claude plugin list` does (#6633): a project or local record for another project is skipped, and the most specific scope wins.
 - Shared `prerequisites.mjs` synced where this plugin carries it (#6633): a manifest may declare an optional `session_probe`, which opts the plugin into harness-ops' session-start probe.
 - Shared `plugin-options.mjs` synced (#6633): `readOperatorOptions` can read a boolean option stored as a JSON boolean when the caller asks for it; existing callers are unchanged.
