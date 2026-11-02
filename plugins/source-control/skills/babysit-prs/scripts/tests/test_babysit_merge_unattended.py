@@ -5511,6 +5511,53 @@ def tearDownModule() -> None:
     _role_label.stop()
 
 
+class AnUnreadableVerdictKeepsAQueuedEntry(unittest.TestCase):
+    """The queued-entry sweep dequeues an entry its verdict holds, but keeps
+    one whose verdict it could not read: the merge queue's own reader refuses
+    that fail-closed. Run 41496022715 dequeued #12432 and #12435 on an
+    unreadable listing while enable-auto-merge re-armed them on a pass."""
+
+    REPO = "owner/repo"
+
+    def test_only_a_read_hold_dequeues(self) -> None:
+        holds = {5: "verify:fail", 6: merge.verify_evidence.UNREADABLE, 8: None}
+        reader = mock.Mock()
+        reader.queued_hold.side_effect = holds.get
+        dequeued: list[set[int] | None] = []
+        kept: list[str] = []
+        with (
+            mock.patch.object(
+                postmerge, "identity_queue", return_value=([5, 6, 8], 0)
+            ),
+            mock.patch.object(
+                postmerge,
+                "dequeue_identity_entries",
+                side_effect=lambda *a, numbers, **k: dequeued.append(numbers) or 0,
+            ),
+            mock.patch.object(policy, "entry_hold", return_value=None),
+            mock.patch.object(
+                run_cache, "put", side_effect=lambda ns, key, at: kept.append(key)
+            ),
+        ):
+            out = merge.unattended_writes(
+                self.REPO,
+                7,
+                policy.UnattendedPolicy(
+                    "ineligible:x",
+                    "agent-lanes[bot]",
+                    {},
+                    inputs={
+                        "identity": "agent-lanes[bot]",
+                        "branch": "main",
+                        "verify_reader": reader,
+                    },
+                ),
+            )
+        self.assertEqual(out["holds"], {5: "verify:fail"})
+        self.assertEqual(dequeued, [{5}])
+        self.assertEqual([k.rsplit("|", 1)[1] for k in kept], ["8"])
+
+
 class DependabotMajorEscalation(unittest.TestCase):
     """A Dependabot major held under `merge.dependabot.majors: hold` gets the
     escalation contract: one marked comment, then the tracker's human-gated
