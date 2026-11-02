@@ -60,20 +60,24 @@ own contract, because the seed-hash slug needs one stable home per topic and see
 seam the tree is shape-unified to the artifact protocol's slice and `INDEX.md` rules. The root self-ignores
 (a `.gitignore` containing `*`); nothing this skill writes is ever committed. Graduating any artifact to a
 tracked repo is a separate, human-gated act. `<slug>` is the slugified topic plus `-<hash8>`, the
-first 8 hex of the SHA-256 of the sorted, normalized seed list, so the same topic+seeds resume
-one slice and different seed sets never share one.
+first 8 hex of the SHA-256 of `seeds.txt`: the sorted, normalized seed list, followed, when a
+repository seed is present, by one `include <glob>` line per sorted `--include` and one
+`exclude <glob>` line per sorted `--exclude`. A repository seed's globs decide its URL set as much
+as the seed does, so the same topic, seeds and globs resume one slice, and different seed sets or
+different globs never share one.
 
 **Collision check, before the first write.** If the slice directory exists, read the `Seeds`
-line from its `map-corpus-checklist.md`: same normalized seed set → resume from the first
-unticked phase; different seeds, or no checklist → refuse and stop, naming both. Existing
+line, and for a repository seed the `Include` and `Exclude` lines, from its
+`map-corpus-checklist.md`: same normalized seed set and same sorted globs → resume from the first
+unticked phase; different seeds, different globs, or no checklist → refuse and stop, naming both. Existing
 `discovery/` and `resources/*/source.*` snapshots are immutable originals, never re-fetch over.
 
 Slice layout:
 
 ```text
 <slice>/
-  map-corpus-checklist.md      # canonical seeds, resolved root, phase ticks
-  seeds.txt                    # sorted normalized seeds (the slug-hash input)
+  map-corpus-checklist.md      # canonical seeds, repo globs, resolved root, phase ticks
+  seeds.txt                    # sorted normalized seeds + repo globs (the slug-hash input)
   discovery/                   # rung snapshots + parse_discovery outputs
   link-map.json                # classified map (gate-checked, user-approved)
   resources/<res-slug>/        # per in-corpus resource:
