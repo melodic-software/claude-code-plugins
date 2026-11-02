@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [8.35.2] - 2026-11-02
+
+### Changed
+
+- The `skill-reply-*` artifact is kept 3 days instead of 7 in both run-activity files, which still covers a weekend of reading denials by hand.
+
 ## [8.35.1] - 2026-11-02
 
 ### Changed
