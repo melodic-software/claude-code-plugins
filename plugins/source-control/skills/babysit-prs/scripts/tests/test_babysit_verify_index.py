@@ -651,6 +651,18 @@ class PerRunLegacyFails(unittest.TestCase):
         self.assertIn("list 1 of [9]", err)
         self.assertFalse(self.out.exists())
 
+    def test_a_window_at_the_search_cap_splits_down_to_a_minute_then_refuses(
+        self,
+    ) -> None:
+        # Each left half keeps the day's start, so it stays at the cap until
+        # it spans a minute (`split_created_window`), and the build refuses.
+        fake = RunsGitHub()
+        fake.window_total["2026-10-14T00:00:00Z"] = 1000
+        code, err = self.run_build(fake)
+        self.assertEqual(code, 1, err)
+        self.assertIn("1000 verifier runs created 2026-10-14T00:00:00Z..", err)
+        self.assertFalse(self.out.exists())
+
     def test_a_run_whose_artifacts_miss_their_count_refuses(self) -> None:
         fake = RunsGitHub()
         fake.run_total[5] = 2

@@ -287,11 +287,13 @@ import babysit_postmerge as postmerge
 import babysit_run_cache as run_cache
 from babysit_classify import is_dependency_author
 from babysit_gh import (
+    RUN_SEARCH_CAP,
     fetch_paginated_api,
     flatten_paginated_items,
     gh_api_with_headers,
     gh_http_status,
     pull_request_commits_once,
+    split_created_window,
 )
 from babysit_util import is_json_array, is_json_object, json_array, json_object
 
@@ -5295,9 +5297,8 @@ LISTING_FAILS_PAGES_CAP = 600
 # How long after the merge commit that brought FAIL_INDEX a run may still have
 # been triggered on the older workflow; a later cutover only reads more runs.
 CUTOVER_MARGIN = timedelta(hours=1)
-# GitHub returns at most 1,000 results for a filtered run search, so a window
-# whose count reaches it is split.
-RUN_SEARCH_RESULTS_CAP = 1000
+# A window whose run search reaches RUN_SEARCH_CAP is split down to this span.
+RUN_WINDOW_MINIMUM = timedelta(minutes=1)
 RUN_FIELDS_KEPT = (
     "id",
     "status",
@@ -5564,10 +5565,10 @@ class _PerRunBuild:
             runs, count = body.get("workflow_runs"), body.get("total_count")
             if not is_json_array(runs) or type(count) is not int:
                 raise _Unreadable(f"the verifier runs created {created} are malformed")
-            if count >= RUN_SEARCH_RESULTS_CAP:
-                if end - start <= timedelta(minutes=1):
+            if count >= RUN_SEARCH_CAP:
+                middle = split_created_window(start, end, RUN_WINDOW_MINIMUM)
+                if middle is None:
                     raise _Unreadable(f"{count} verifier runs created {created}")
-                middle = start + (end - start) / 2
                 return self._window(start, middle) + self._window(middle, end, last=last)
             totals.add(count)
             for run in map(json_object, runs):
