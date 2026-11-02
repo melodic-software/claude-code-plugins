@@ -919,6 +919,14 @@ test('the usage screen loses its cost, token counts, meter and reset time', () =
   for (const kept of ['Total cost:', 'Current week (all models)', 'Total duration (wall): 14s']) assert.ok(text.includes(kept), `${kept} stays`);
 });
 
+test('the startup banner keeps the model and loses the plan tier', () => {
+  for (const name of ['status-screen.txt', 'usage-screen.txt']) {
+    const [banner] = driver.maskCells(toCells(fixture(name)), MASKS, []).text.split('\n');
+    assert.ok(banner.includes('Opus 5.5 · '), `${name} keeps the model`);
+    assert.ok(!banner.includes('Max'), `${name} loses the tier`);
+  }
+});
+
 test('a value wrapped across rows and split by a border is masked; the rest of the row is not', () => {
   const { text } = driver.maskCells(toCells('│ team: Example\n│ Org │ ok'), MASKS, ['Example Org']);
   assert.equal(text, '│ team: *******\n│ *** │ ok');
