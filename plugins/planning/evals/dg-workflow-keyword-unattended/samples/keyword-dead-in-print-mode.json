@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {"answer": "No: the `ultracode` keyword is honored only in a prompt a person types, so in a `-p` prompt it does not start a workflow.\n", "why": "states the keyword is dead under -p"},
+    {"answer": "The ultracode prefix won't work from cron: a prompt passed with -p is ignored as an opt-in.\n", "why": "contraction, cron named"},
+    {"answer": "- `ultracode:` in a non-interactive prompt has no effect.\n", "why": "no effect phrasing"}
+  ],
+  "fail": [
+    {"answer": "Yes, start the -p prompt with `ultracode:` and it will run as a workflow.\n", "why": "recommends the dead form"},
+    {"answer": "Yes: start the -p prompt with `ultracode:`; you only need the Dynamic workflows row on in /config first.\n", "why": "recommends the dead form with only"},
+    {"answer": "Don't worry, ultracode: works in -p.\n", "why": "recommends the dead form with don't"},
+    {"answer": "The ultracode keyword runs one task as a workflow.\n\nIn a -p prompt it is not honored.\n", "why": "keyword and -p on separate lines"},
+    {"answer": "Use a saved workflow command instead.\n", "why": "never names the keyword"}
+  ]
+}

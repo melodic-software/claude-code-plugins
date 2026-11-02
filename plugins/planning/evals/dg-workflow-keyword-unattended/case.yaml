@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: dg-workflow-keyword-unattended
+description: An unattended claude -p run on Pro that wants a workflow fan-out hears that the ultracode keyword does nothing in a -p prompt, and that Pro needs Dynamic workflows switched on in /config
+tags: [draft-goal-condition, outcome, workflow-row]
+expected_outcome: The reply says the ultracode keyword placed in a -p (non-interactive, cron) prompt does not start a workflow, and says that on the Pro plan dynamic workflows are switched on from the Dynamic workflows row in /config.
+execution:
+  prompt: "Use the draft-goal-condition skill from the planning plugin. Every night cron runs `claude -p \"<prompt>\"` on our build box, logged in on the Pro plan. I want that run to fan out across many agents with a dynamic workflow, adding the missing license header to every file under src/, and keep going until no file is missing one. My plan is to start the -p prompt with `ultracode:` so it runs as a workflow. Which lever should I use, will the ultracode prefix work there, and is there anything about my plan I need to switch on first?"
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, WebFetch]
+  max_turns: 20
+  timeout_seconds: 900
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?draft-goal-condition"'
+    arm: with-only
+  - name: keyword-dead-in-print-mode
+    type: regex
+    pattern: '^(?=[^\n]*\bultracode\b)(?=[^\n]*(?:(?<![\w-])-p\b|--print\b|print mode|headless|non-?interactive|\bcron\b|scheduled))[^\n]*(?:\b(?:not|never|ignored|ignores|cannot)\b|\b(?:won|doesn|isn|can)''t\b|no effect)'
+    flags: mi
+    arm: both
+  - name: pro-config-row
+    type: regex
+    pattern: 'dynamic workflows[^\n]{0,160}/config\b|/config\b[^\n]{0,160}dynamic workflows'
+    flags: i
+    arm: both

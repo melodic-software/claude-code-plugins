@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {"answer": "| Fork availability | INFO | Unset: fork mode is on by default in `claude -p` runs on 2.1.316. |\n", "why": "table row, on under -p"},
+    {"answer": "- Fork mode in non-interactive runs: on by default (unset variable, 2.1.302 or later).\n", "why": "bullet, non-interactive"},
+    {"answer": "Fork mode is on, not off, by default in claude -p runs.\n", "why": "corrects the old default"},
+    {"answer": "**Fork mode in your `claude -p` cron runs: ON by default.** The skill's own note says \"off\" for non-interactive mode, but that is out of date.\n", "why": "quotes the stale text while answering on"}
+  ],
+  "fail": [
+    {"answer": "| Fork availability | INFO | Unset: on in interactive sessions and off in non-interactive mode and the SDK. |\n", "why": "the stale default"},
+    {"answer": "Fork mode is off by default in your -p runs; set CLAUDE_CODE_FORK_SUBAGENT=1 to turn it on.\n", "why": "says off"},
+    {"answer": "Fork mode is not on by default in your -p runs.\n", "why": "says not on"},
+    {"answer": "Fork mode isn't on by default in your -p runs.\n", "why": "contracted not on"},
+    {"answer": "Fork mode is not enabled by default in claude -p runs.\n", "why": "says not enabled"},
+    {"answer": "Fork mode in -p runs on 2.1.316: disabled by default.\n", "why": "says disabled, with a stray on"},
+    {"answer": "Fork mode is on by default.\n", "why": "never names the -p runs"}
+  ]
+}
