@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "On Pro, turn on the **Dynamic workflows** row in `/config` first.\n", "why": "row then /config"},
+    {"answer": "Open /config and switch Dynamic workflows on; Pro has it off.\n", "why": "/config then row"}
+  ],
+  "fail": [
+    {"answer": "Dynamic workflows are available on all paid plans.\n", "why": "no /config step"},
+    {"answer": "Run /config to check your model.\n", "why": "no Dynamic workflows row"}
+  ]
+}

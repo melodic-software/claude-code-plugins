@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:draft-goal-condition", "args": "nightly claude -p workflow fan-out"}}], "why": "qualified name"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "draft-goal-condition"}}], "why": "unqualified name"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "loop"}}], "why": "a different lever"},
+    {"answer": [], "why": "no tool call"}
+  ]
+}

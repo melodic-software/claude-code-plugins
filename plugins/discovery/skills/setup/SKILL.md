@@ -61,16 +61,19 @@ Report a PASS/INFO/WARN table. Do not write anything. No row is ever a FAIL or a
      a running session is
      [env vars: set variables in settings files](https://code.claude.com/docs/en/env-vars#set-variables-in-settings-files)'s
      to state. As of 2026-11-01; recheck when that section changes what a running session picks up.
-   - **Fork availability.** Report it as a control, not a gate: `CLAUDE_CODE_FORK_SUBAGENT=1` turns fork
-     mode on in non-interactive mode and the SDK as well, and `=0` turns it off in every kind of
-     session. When the variable is unset, the documented default is on in interactive sessions and
-     off in non-interactive mode and the SDK, and the interactive default needs **2.1.232** or
-     later. A default is not a runtime guarantee, so the only authoritative probe is still a live
-     inheritance check (see `discipline:sweep-all`'s preflight). Report the env var when set; never
-     claim forks are unconditionally available on every build. The user-facing command is
-     `/subtask` as of **2.1.212**. Verified 2026-09-06 against Claude Code 2.1.263, the subagents
-     documentation page and the environment-variables page as fetched that day; recheck when either
-     page states a different default or a release note names fork mode.
+   - **Fork availability.** Report it as a control, not a gate. Report `CLAUDE_CODE_FORK_SUBAGENT`
+     when set; when unset, read the default for the observed version and session kind (interactive,
+     `claude -p`, the SDK) from the pointer below and report that, never one remembered here. A
+     default is not a runtime guarantee, so the only authoritative probe is still a live
+     inheritance check (see `discipline:sweep-all`'s preflight); never claim forks are
+     unconditionally available on every build. The user-facing command is `/subtask` as of
+     **2.1.212**.
+     - **Pointer**: [Turn fork mode off](https://code.claude.com/docs/en/sub-agents#turn-fork-mode-off)
+       for the default and the versions it changed in, and the variable's row in
+       [env vars](https://code.claude.com/docs/en/env-vars) for what each value does.
+     - **As of**: 2026-11-01
+     - **Recheck trigger**: that section states a different default or version, or a release note
+       names fork mode.
 2. **Gate allow rules.** The acceptance-gate scripts prompt on every run unless the operator's
    `~/.claude/settings.json` allows them. Read its `permissions.allow` (a missing file or key reads
    as no rules; read only, never write) and compare it with these eight rules for this install root:

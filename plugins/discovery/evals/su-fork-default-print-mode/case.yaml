@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: su-fork-default-print-mode
+description: 'setup SKILL.md "Fork availability": with CLAUDE_CODE_FORK_SUBAGENT unset on Claude Code 2.1.316, /discovery:setup reports fork mode on by default in claude -p runs, not off.'
+tags: [setup, fork-mode, outcome]
+plugins: ["../.."]
+expected_outcome: 'The check reports that with CLAUDE_CODE_FORK_SUBAGENT unset, fork mode is on by default in non-interactive (claude -p) runs on Claude Code 2.1.316, and does not say the unset default is off there.'
+execution:
+  prompt: '/discovery:setup check. CLAUDE_CODE_FORK_SUBAGENT is unset everywhere, and I run this plugin''s research from `claude -p` cron jobs on Claude Code 2.1.316. In those -p runs, is fork mode on or off by default? Answer that in its own line of the report.'
+  allowed_tools: [Bash, Read, Glob, Grep, Skill, WebFetch]
+  max_turns: 16
+  timeout_seconds: 600
+graders:
+  - name: fork-on-in-print-mode
+    type: regex
+    pattern: '^(?=[^\n]*\bforks?\b)(?=[^\n]*(?:(?<![\w-])-p\b|--print\b|print mode|headless|non-?interactive))(?![^\n]*\boff\b)[^\n]*\bon\b'
+    flags: mi
+    arm: both
