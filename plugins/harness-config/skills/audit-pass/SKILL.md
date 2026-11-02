@@ -119,10 +119,8 @@ is unchanged.
 is what makes this phase a mechanism rather than a description of one:
 
 ```bash
-S="${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh"
-D="${CLAUDE_PLUGIN_DATA}"
-bash "$S" paths --plugin-data "$D" --run-id "<run-id>"
-bash "$S" lease acquire --run-dir "<run-dir>" --run-id "<run-id>" --plugin-data "$D"
+bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh" paths --plugin-data "${CLAUDE_PLUGIN_DATA}" --run-id "<run-id>"
+bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh" lease acquire --run-dir "<run-dir>" --run-id "<run-id>" --plugin-data "${CLAUDE_PLUGIN_DATA}"
 ```
 
 `paths` derives `<plugin-data>/runs/<state-key>/<run-id>` through the plugin's own `lib/state-key.sh`,
@@ -251,8 +249,7 @@ its attempt id so an abandoned re-attempt is discardable rather than merely olde
 call per record, and it goes through the guard rather than past it:
 
 ```bash
-FI="${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/finding-identity.sh"
-bash "$FI" guarded-append --run-dir "<run-dir>" --record '<json-line>' --epoch "<held>"
+bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/finding-identity.sh" guarded-append --run-dir "<run-dir>" --record '<json-line>' --epoch "<held>"
 ```
 
 `guarded-append` runs `validate-record` and appends only if it passes, so **no record reaches the
