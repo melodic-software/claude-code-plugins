@@ -105,6 +105,16 @@ inputs:
     description: The run job's lane-profile output, the models profile resolve-config gave the skill.
     required: false
     default: ""
+  lane-outcome:
+    description: >
+      The run job's lane-outcome record, report-lane-outcome's `record`
+      output (one JSON object). Its known fields are validated against the
+      v1 shape, its lane must equal `lane`, and it is written with `activity`
+      as the first line of output.text after the marker `lane-outcome `,
+      which .github/scripts/pr-unblock/limit-stop.mjs reads before the
+      summary line. Empty, malformed or another lane's writes nothing.
+    required: false
+    default: ""
   verdict-path:
     description: Path of the downloaded verdict.json. A missing file posts failure.
     required: false
@@ -146,6 +156,7 @@ runs:
         LANE_MAX_TURNS: ${{ inputs.lane-max-turns }}
         LANE_MODELS: ${{ inputs.lane-models }}
         LANE_PROFILE: ${{ inputs.lane-profile }}
+        LANE_OUTCOME: ${{ inputs.lane-outcome }}
         VERDICT_PATH: ${{ inputs.verdict-path }}
         BASE_PATH: ${{ inputs.base-path }}
         HEAD_SHA_FALLBACK: ${{ inputs.head-sha-fallback }}

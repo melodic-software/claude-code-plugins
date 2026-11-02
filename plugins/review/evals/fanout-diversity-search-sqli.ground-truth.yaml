@@ -1,0 +1,10 @@
+fixture: search-sqli
+source_case: qg-security-search-sqli
+defect:
+  location: src/routes/search.js:11
+  summary: "the new public /search route concatenates the q query parameter into its SQL LIKE clause"
+  failure: "an unauthenticated caller can inject SQL through q, for example a UNION SELECT that returns the users table's emails and password hashes; the fix binds the term as a parameter, as src/routes/products.js does"
+axis: standards
+not_defects:
+  - "the sort parameter is injectable (it is checked against the SORTABLE allowlist)"
+  - "src/routes/products.js is injectable (it binds req.params.id as a parameter)"

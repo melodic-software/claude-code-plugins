@@ -1,8 +1,7 @@
 # audit-automation-gaps: observed failure modes
 
-Every entry below is a failure this skill actually produced when it was run against a real
-repository, not a hazard imagined for the list. Read before Phase 1 when the run will end in
-verdicts a human acts on.
+Each entry is a failure this skill produced on a real repository, not an imagined hazard. Read
+before Phase 1 when the run will end in verdicts a human acts on.
 
 ## Contents
 
@@ -17,16 +16,16 @@ verdicts a human acts on.
 
 Observed on 2026-09-13: the pre-computed inventory reported 3 hook scripts for a repository that
 carried 143 of them, and every candidate generated afterwards was shaped by the small number. The
-model did not re-derive the count; it reasoned from the figure it had been handed, and produced
-"this repo has almost no hook automation" candidates against a repository that is dense with it.
+model did not re-derive the count; it reasoned from the figure it was handed, and produced
+"this repo has almost no hook automation" candidates against a repository dense with it.
 
 The failure class is the pre-computed number, not the particular bug. A count injected before
-Phase 1 is an anchor, and a wrong anchor is not corrected by later reading because nothing in the
-procedure asks for the count again. So: before generating candidates, re-derive any count the
-verdicts will lean on with your own command, and where the re-derived number disagrees with the
-injected one, say both in the report and use yours. A count and a wired mechanism are also
-different facts. A hook script present on disk that no settings file or manifest registers is not
-an active hook, and counting the two together overstates coverage in the opposite direction.
+Phase 1 is an anchor, and later reading does not correct a wrong one because nothing in the
+procedure asks for the count again. Before generating candidates, re-derive any count the verdicts
+will lean on with your own command, and where it disagrees with the injected one, say both in the
+report and use yours. A count and a wired mechanism are also different facts: a hook script on disk
+that no settings file or manifest registers is not an active hook, and counting the two together
+overstates coverage in the opposite direction.
 
 ## A keyword count is a ceiling, never a frequency
 
@@ -35,14 +34,14 @@ Observed on 2026-09-13 against this marketplace at merged main `49912c63`:
 and `git log --oneline -E --grep='secret|gitleaks'` returns 209, about 9 percent. Reading the first
 15 of those 209 shows dependency bumps, component syncs and CI pins. Not one is a leaked secret.
 
-Two gates read those numbers directly, so the error is not cosmetic. **Zero incidents** treats a
-count as incidents that happened, and **YAGNI** treats a count as a frequency. A `--grep` count is
-neither. It is the number of commits whose message mentions a word, which is an upper bound on the
-incidents and usually a loose one. Cite a frequency only after reading a sample of the matching
-commits and saying how many of them were the concern.
+Two gates read those numbers directly. **Zero incidents** treats a count as incidents that
+happened, and **YAGNI** treats a count as a frequency. A `--grep` count is neither: it is the number
+of commits whose message mentions a word, an upper bound on the incidents and usually a loose one.
+Cite a frequency only after reading a sample of the matching commits and saying how many of them
+were the concern.
 
-The asymmetry is what makes this cheap rather than onerous. A ceiling that already sits below the
-**YAGNI** threshold settles the gate on its own: if at most 4 percent of commits could be the
+The asymmetry keeps this cheap. A ceiling already below the **YAGNI** threshold settles the gate on
+its own: if at most 4 percent of commits could be the
 concern, the frequency is under 4 percent whatever the sample says, and no sample is needed. Only a
 PASS, or an affirmative claim that the concern is frequent, has to pay for a sample.
 
@@ -58,11 +57,10 @@ beyond), the same placement the shift-left carve-out's second conjunct requires.
 
 ## An `exit 2` gate on `PermissionRequest` is silently inert
 
-This is the same shape one rung worse, because it fails without any signal. `PermissionRequest`
-does not honor exit code 2 at all: the permission flow proceeds unchanged and denial goes through a
-JSON `decision` object instead. A hook written as `exit 2` there is not a weak gate or a slow gate.
-It is no gate, it reports nothing, and the repository keeps a row in its enforcement inventory for a
-mechanism that never fires. Any candidate whose mechanism is a per-event exit code gets its event's
+The same shape one rung worse, because it fails without any signal. `PermissionRequest` does not
+honor exit code 2 at all: the permission flow proceeds unchanged and denial goes through a JSON
+`decision` object instead. A hook written as `exit 2` there is no gate at all; it reports nothing,
+and the repository keeps a row in its enforcement inventory for a mechanism that never fires. Any candidate whose mechanism is a per-event exit code gets its event's
 exit-code semantics confirmed against the hooks reference in the Phase 2.2 mandatory batch, before
 the verdict, not after.
 
@@ -74,9 +72,8 @@ The hooks documentation names 33 events. This skill's own candidate guidance nam
 `PostToolBatch` and `PermissionRequest`. Everything else, session lifecycle,
 compaction, subagent and task boundaries, file and config change, model switch, elicitation, is
 absent from the questions the skill asks, so a genuine gap on one of those events cannot surface as
-a candidate at all. That is a recall ceiling in the generator, and it is invisible in the output: a
-clean bill of health is reported the same way whether the events were considered and dismissed or
-never considered. When a run reports no gaps in the hooks category, say which events were actually
+a candidate. That recall ceiling is invisible in the output: a clean bill of health reads the same
+whether the events were considered and dismissed or never considered. When a run reports no gaps in the hooks category, say which events were actually
 examined.
 
 ## Upstream records

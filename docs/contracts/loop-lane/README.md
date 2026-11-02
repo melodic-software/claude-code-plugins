@@ -517,7 +517,7 @@ Three rules make the signal deterministic:
   event, which the seam's `Write` matcher never sees.
 - **One record per newly filed escalation.** What suppresses a duplicate is the read the lane
   already performs before escalating: an item that already carries its marker for this kind, such as
-  a still-unratified `ratify-c3` or an idempotent label re-convergence, is not a new escalation, so
+  an idempotent label re-convergence, is not a new escalation, so
   the cycle files no second comment and writes no second record. Within that rule the
   `<UTC-stamp>-<item>` filename is unique, so each newly filed escalation is a fresh `Write`
   (never an `Edit`) producing exactly one hook event.
@@ -797,7 +797,7 @@ genuinely independent second opinion, not the original author or reviewer re-aff
 the *only* one this contract imposes, and there is deliberately **no** routine per-cycle independent
 review of ordinary loop output. The rationale: independence is the substitute for a *human
 decision*, and the ordinary path takes none. Its correctness rests on deterministic gates, the
-merge gate, CI, and the work-class admission test, which are unbiased by construction, so a reviewer
+merge gate, CI, and the admission gate, which are unbiased by construction, so a reviewer
 spending a frontier-tier dispatch every cycle would re-check machine-checkable facts and buy no
 independence that is not already there. The one path that does carry the requirement is precisely
 the one where no gate can decide and an agent's judgment stands in for a person's. A lane's conflict
@@ -868,6 +868,18 @@ the **same** session, so "runs fresh every time" describes the prompt and never 
 prompt never assumes a fresh one, and what carries forward also degrades, since auto-compaction
 summarizes earlier history in place rather than preserving it (the `harness-ops:lanes` skill owns the
 mechanism).
+
+**Forge writes converge on rerun.** Every step that writes to the forge (a label, comment, branch or
+pull request) leaves the same forge state when it runs again after a stop at any point: it reads
+the current forge state first, compares it with the state it is meant to leave, and writes only the
+difference. The reason is that lanes restart and are re-dispatched: a budget hit, an expiry, a
+crash or a later dispatch reruns a step whose earlier run may have stopped partway, and a step
+that writes from what an earlier run intended rather than what the forge holds now duplicates a
+comment or undoes a later change. Restart adoption under "Instance-collision detection" below and
+§2 "Escalation record write" (its "One record per newly filed escalation" rule) are cases of this
+rule (pstack's `make-operations-idempotent` principle). Reading first covers a rerun that follows a
+stop, not two runs that overlap; §7 "Confirm-then-record" and [`posting-lanes.md`](posting-lanes.md)
+own that case.
 
 **Cycle budget (#691).** A per-session cycle budget bounds one session; a budget hit **always**
 emits a restart-request into the #502 telemetry block and stops the loop cleanly, because a running loop
@@ -1170,8 +1182,8 @@ trigger: a Claude Code release note changes either `/loop` shape or the jitter r
   lane launched that way cannot honor its own stop condition (Pointer:
   [Stop a loop](https://code.claude.com/docs/en/scheduled-tasks#stop-a-loop). As of: 2026-07-27.
   Recheck trigger: that section changes how a fixed-interval or self-paced loop ends).
-  Self-paced is
-  the lane shape by construction, not by preference. Two of the lane's other per-cycle signals,
+  The lane shape
+  is therefore self-paced because those two invariants require it. Two of the lane's other per-cycle signals,
   the adaptive-cap streak and seam exit 8 counted as dirty, govern *how much work a cycle takes
   on*, not when the next one fires, and are unaffected by either shape. The drain-exit snapshot is
   not one of them: it is the pacing signal named above, the input deciding whether the cycle calls

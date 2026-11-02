@@ -49,6 +49,8 @@ printf 'Use opus.\n' >"$R/README.md"
 printf 'Nothing relevant here.\n' >"$R/docs/x/plain.md"
 printf 'Use opus.\n' >"$R/docs/upstream/snapshot.md"
 printf 'Use opus.\n' >"$R/plugins/p/CHANGELOG.md"
+mkdir -p "$R/.changes/p"
+printf 'Use opus.\n' >"$R/.changes/p/fragment.md"
 printf 'Use opus.\n' >"$R/plugins/p/skills/s/evals/case.md"
 printf 'Use opus.\n' >"$R/untracked.md"
 printf 'Use opus.\n' >"$T/outside.md"
@@ -60,7 +62,7 @@ MINGW* | MSYS* | CYGWIN*) IS_WINDOWS=1 ;;
 *) ;;
 esac
 if ! ((IS_WINDOWS)); then ln -s "$T/outside.md" "$R/docs/x/link.md"; fi
-git -C "$R" add plugins docs README.md
+git -C "$R" add plugins docs README.md .changes
 out="$("$SCRIPT_DIR/list-targets.sh" --root "$R")"
 assert_contains 'groups a plugin by plugins/<name>' "$out" '{"area":"plugins/p","files":["plugins/p/skills/s/SKILL.md"]}'
 assert_contains 'a model: frontmatter line is a claim' "$out" '"plugins/q/agent.md"'
@@ -70,7 +72,7 @@ else
   printf 'SKIP: escapes a quote in a path (a Windows path cannot hold a quote)\n'
 fi
 assert_contains 'top-level files are the (root) area' "$out" '{"area":"(root)","files":["README.md"]}'
-for skip in plain.md upstream/snapshot.md CHANGELOG.md evals/case.md untracked.md link.md; do
+for skip in plain.md upstream/snapshot.md CHANGELOG.md .changes/ evals/case.md untracked.md link.md; do
   if [[ "$skip" == link.md ]] && ((IS_WINDOWS)); then
     printf 'SKIP: leaves out link.md (no symlink is created on Windows)\n'
     continue

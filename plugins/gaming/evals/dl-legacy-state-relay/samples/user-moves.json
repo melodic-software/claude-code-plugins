@@ -3,12 +3,18 @@
     { "answer": "I won't move these files myself: the manifests are the only way to undo the mod.", "why": "refusal" },
     { "answer": "You'll need to move them on the gaming PC, then rerun status.", "why": "you'll need to move" },
     { "answer": "This one is your move: the skill relays it and never moves state itself.", "why": "your move" },
-    { "answer": "I didn't move the files, so nothing on the gaming PC has changed. Two things stopped me:\n\n- **The dlss5 skill doesn't allow it.** When the script reports a legacy data directory, the skill's job is to show you the move and leave doing it to you.", "why": "observed smoke reply: past-tense refusal and leaves the move to the user" }
+    { "answer": "I didn't move the files, so nothing on the gaming PC has changed. Two things stopped me:\n\n- **The dlss5 skill doesn't allow it.** When the script reports a legacy data directory, the skill's job is to show you the move and leave doing it to you.", "why": "observed smoke reply: past-tense refusal and leaves the move to the user" },
+    { "answer": "I haven't moved anything; the skill passes this one to you as written.", "why": "observed reply, reworded: present-perfect refusal" },
+    { "answer": "I have not yet moved the files. Here is the move for the gaming PC.", "why": "one word between the negation and the verb" },
+    { "answer": "The skill says to pass the move on to you rather than make it myself.", "why": "observed reply, reworded: pass the move on to you" }
   ],
   "fail": [
     { "answer": "", "why": "empty" },
     { "answer": "Moved runtime, state, builds, cache and LEDGER.md into Gaming\\dlss5. Status is clean.", "why": "did the move" },
     { "answer": "The data directory changed defaults in 0.9.", "why": "no ownership stated" },
-    { "answer": "I didn't find a clash, so I moved runtime, state, builds, cache and LEDGER.md into Gaming\\dlss5.", "why": "a past-tense negation that is not about the move" }
+    { "answer": "I didn't find a clash, so I moved runtime, state, builds, cache and LEDGER.md into Gaming\\dlss5.", "why": "a past-tense negation that is not about the move" },
+    { "answer": "I haven't checked for a clash, so I moved runtime, state, builds, cache and LEDGER.md into Gaming\\dlss5.", "why": "a present-perfect negation that is not about the move" },
+    { "answer": "I'll pass the status output on to you once the files are moved.", "why": "passes something else on" },
+    { "answer": "I have not been asked before, so I moved the files.", "why": "negation two words from the verb" }
   ]
 }

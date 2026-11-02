@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/titles\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | titles.py:2 | code-reviewer | Every short title now gets an ellipsis: 'Desk lamp' becomes 'Desk lamp…'. | Restore the length check |\n| 2 | SUGGESTION | low | listing.py:3 | code-reviewer | Consider loading titles from the catalogue. | Load titles from data |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "the only CRITICAL finding is the planted defect"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/titles\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | titles.py:2 | code-reviewer | Every short title now gets an ellipsis. | Restore the length check |\n| 2 | CRITICAL | medium | titles.py:2 | security-reviewer | Slicing a title shorter than the limit raises IndexError, so the listing crashes. | Guard the slice |\n\n## Surfaces\n\nRan: [code-reviewer@high, security-reviewer@high]. Returned no result: [].",
+      "why": "a CRITICAL finding claims slicing past the end raises an error"
+    }
+  ]
+}

@@ -39,7 +39,10 @@ moves in lockstep with the first. The coupling remains, plus a layer.
   - *Rung 1, split the write target.* When several writers update one file, table row or cache
     key and someone proposes a lock, test the store first. If no reader needs the writers' values
     to agree at the moment of writing, the store is only a meeting point: split it, then decide
-    whether any lock is still needed.
+    whether any lock is still needed. Instructions and conventions are not concurrency control.
+    A comment or rule telling writers to take turns guards nothing at run time, so a write target
+    that must stay shared needs a lock, a phased order or a single writer (pstack's
+    `separate-before-serializing-shared-state` principle).
 
     | What the writers store | Do | Example |
     |---|---|---|

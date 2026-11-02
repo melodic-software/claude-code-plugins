@@ -1,0 +1,43 @@
+schema_version: "1.1"
+name: re-session-noop-steering-line
+description: 'Session-mode steering-file finding: CLAUDE.md says "Read a file before you edit it.", which the model does unaided. /session-flow:retro session routes the no-op line to /harness-config:unhobble or /harness-config:audit-instructions, and, with docs-hygiene not loaded, says the steering-file yardstick was not available. It asks before acting: no Write, no Edit. A run needs --scaffold and --allow-tools Bash Write Edit.'
+tags: [retro, session, steering-file, approval-gate, must-not]
+plugins: ["../..", "../../../harness-config"]
+expected_outcome: 'The report flags the CLAUDE.md line "Read a file before you edit it." as a no-op the model follows without it, routes it to /harness-config:unhobble or /harness-config:audit-instructions, and says the /docs-hygiene:write-for-agents yardstick was not available. Phase 4 lists the recommendations and asks which to execute; the run writes and edits no file.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/session-flow:retro session. This session I renamed greet() in src/greet.ts and followed CLAUDE.md throughout; nothing went wrong. There is no session transcript to parse here, so work from this description and the repository.'
+  allowed_tools: [Bash, Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 30
+  timeout_seconds: 600
+graders:
+  - name: routes-noop-line
+    type: regex
+    pattern: 'harness-config:(?:unhobble|audit-instructions)'
+    flags: 'i'
+    arm: with-only
+  - name: says-no-yardstick
+    type: regex
+    pattern: '(?:yardstick|write-for-agents)[^\n]*(?:not|n.t|un)\s*(?:available|loadable|installed|loaded)|(?:not|n.t|un)\s*(?:available|loadable|installed|loaded)[^\n]*(?:yardstick|write-for-agents)'
+    flags: 'i'
+    arm: with-only
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-bash-writes
+    type: tool_used
+    tool: 'Bash'
+    input_match: '(?:^|[^>&0-9=-])>>?[ \t]*(?!/dev/null\b|&|\d)[^\s|&;]|\btee\b|\bsed\b[^|;&]*[ \t]-[a-zA-Z]*i|\bperl\b[^|;&]*[ \t]-[a-zA-Z]*i|\bpython3?\b[^|;&]*[ \t]-c\b[^|;&]*(?:write|unlink|remove|rmtree|rename)|\|[ \t]*(?:bash|zsh|sh)\b|(?:"command":"|[;&|(]|\\n|\bxargs\b)[ \t]*(?:(?:command|exec|sudo(?:[ \t]+-\S+)*|env|nohup)[ \t]+)*(?:touch|mkdir|rm|mv|cp|truncate|install|dd|ln|chmod|unlink|patch)[ \t]|(?:\b|(?<=\\n))git(?:[ \t]+(?:-C[ \t]+(?:\\"[^"]*?\\"|''[^'']*''|\S+)|-c[ \t]+\S+|--[\w-]+(?:=\S+)?|-[A-Za-z]))*[ \t]+(?:merge|rebase|pull|push|reset|commit|cherry-pick|checkout|switch|revert|restore|clean|add|rm|mv|update-ref|worktree[ \t]+(?:add|remove|move|prune)|stash(?![ \t]+(?:list|show)\b))\b(?!-)'
+    min: 0
+    max: 0
+    arm: both

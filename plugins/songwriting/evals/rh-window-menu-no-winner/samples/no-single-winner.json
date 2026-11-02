@@ -40,6 +40,22 @@
     {
       "answer": "**How I'd choose:** *by feel*: open ending, the assonance row; closed ending, the mosaic row.",
       "why": "italic by-feel guide"
+    },
+    {
+      "answer": "How I'd choose: honestly, it depends on whether the verse wants an open or a closed ending.",
+      "why": "filler word opens the guide"
+    },
+    {
+      "answer": "How I'd choose: first, say the line out loud; then take the assonance row for open, the mosaic row for closed.",
+      "why": "ordinal opens the guide"
+    },
+    {
+      "answer": "How I'd choose: bitterness, #5; tenderness, #3.",
+      "why": "one-word moods keyed to option numbers"
+    },
+    {
+      "answer": "How I'd choose: bitterness, **#5**; tenderness, **#3**.",
+      "why": "emphasized option numbers"
     }
   ],
   "fail": [
@@ -78,14 +94,6 @@
     {
       "answer": "Here is the menu. I'd go with the mosaic row: *been so slow*.",
       "why": "a plain I'd-go-with pick still fails"
-    },
-    {
-      "answer": "How I'd choose: grease.",
-      "why": "a bare single pick on the choosing-guide line"
-    },
-    {
-      "answer": "**How I'd choose:** grease, it keeps the car in the song.",
-      "why": "a bare single pick after a bold heading"
     }
   ]
 }

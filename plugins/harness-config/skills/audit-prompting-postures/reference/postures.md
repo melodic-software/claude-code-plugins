@@ -64,11 +64,6 @@ carries the Sonnet 5.5 condition.
 - **Recheck trigger**: a cited heading disappears from that subpage, or another model's subpage
   covers self-started review rounds, which re-opens P12's model condition.
 
-A row that names the "Sonnet 5.5 subpage" means
-<https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5>.
-It is fetched lazily, like the other subpages. Which of its rows carry a model condition is stated
-above: only P12.
-
 ## Purpose classification vocabulary
 
 Classify each component by what its body has the model DO (multiple or none):
@@ -78,10 +73,9 @@ Classify each component by what its body has the model DO (multiple or none):
 - **codebase-answering**: answers questions about existing code
 - **long-running**: states or invites autonomous/unattended/multi-hour operation
 - **destructive-capable**: the body has the model delete, reset, force-push, publish, or mutate
-  shared state, or instructs it to. Read this as this section's opening line says: what the body
-  has the model DO, not what a tool grant would make possible. A component that merely holds Bash
-  access is not `destructive-capable`; if it were, this predicate would match everything with a
-  shell and P7 would fire on all of it
+  shared state, or instructs it to: what the body has the model DO, not what a tool grant makes
+  possible. A component that merely holds Bash access is not `destructive-capable`; otherwise this
+  predicate would match everything with a shell and P7 would fire on all of it
 - **context-surfacing**: displays token budgets, context occupancy, or remaining-window figures
 - **multi-window**: spans sessions/windows via saved state, handoffs, or resumability
 - **parallelism-steering**: instructs when/how to parallelize tool calls
@@ -172,9 +166,9 @@ Classify each component by what its body has the model DO (multiple or none):
   default hook or script gate satisfies this without any prose. That is evidence Phase B's
   instruction-text inventory cannot hold, so SKILL.md Phase C requires looking in three places before
   this row may be judged MISSING: settings rules, hook configuration, and **the script the component
-  delegates the destructive step to**, followed and read. The script gate is the one most easily
-  missed, because nothing in the component's own text announces it. This is the only row whose
-  presence evidence is allowed to live outside the inventory.
+  delegates the destructive step to**, followed and read. The script gate is the easiest to miss,
+  because nothing in the component's own text announces it. This is the only row whose presence
+  evidence may live outside the inventory.
 - **Pointer:** main page, "Balancing autonomy and safety".
 
 ### P8: Context-budget reassurance

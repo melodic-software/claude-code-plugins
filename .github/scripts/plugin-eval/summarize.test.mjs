@@ -42,6 +42,28 @@ test("the health line reads whether the skill loaded and how many with-arm runs 
   assert.match(out.stdout, /- writes-a-test: skill loaded: yes; fired in 1 of 2 runs with a kept trace \(2 runs\)/);
 });
 
+test("a prompt that slash-invokes a loaded plugin skill counts as fired with no Skill call", () => {
+  const doc = JSON.parse(readFileSync(fixture("scored.json"), "utf8"));
+  doc.cases[0].promptMarkdown = "/testing:write add a test for add()";
+  doc.cases[0].arms.with = [doc.cases[0].arms.with[1]];
+  const text = (plugin) => spawnSync(process.execPath, ["--input-type=module", "-e", `
+    import { summarize } from ${JSON.stringify(join(HERE, "summarize.mjs"))};
+    console.log(summarize(${JSON.stringify(doc)}, { plugin: ${JSON.stringify(plugin)}, base: ${JSON.stringify(join(HERE, "fixtures"))} }).text);
+  `], { encoding: "utf8" }).stdout;
+  assert.match(text("testing"), /- writes-a-test: skill loaded: yes; fired in 1 of 1 runs with a kept trace \(1 runs; the prompt slash-invokes testing:write\)/);
+  assert.match(text("other"), /- writes-a-test: skill loaded: no; fired in 0 of 1 runs with a kept trace \(1 runs\)$/m);
+});
+
+test("a run that dispatches one of the plugin's agents counts as fired", () => {
+  const doc = JSON.parse(readFileSync(fixture("scored.json"), "utf8"));
+  doc.cases[0].arms.with = [{ ...doc.cases[0].arms.with[1], tracePath: "traces/with-agent.jsonl" }];
+  const out = spawnSync(process.execPath, ["--input-type=module", "-e", `
+    import { summarize } from ${JSON.stringify(join(HERE, "summarize.mjs"))};
+    console.log(summarize(${JSON.stringify(doc)}, { plugin: "testing", base: ${JSON.stringify(join(HERE, "fixtures"))} }).text);
+  `], { encoding: "utf8" });
+  assert.match(out.stdout, /- writes-a-test: skill loaded: yes; fired in 1 of 1 runs with a kept trace \(1 runs\)$/m);
+});
+
 test("with no kept trace the health line says so rather than reporting zero", () => {
   const doc = JSON.parse(readFileSync(fixture("scored.json"), "utf8"));
   for (const r of doc.cases[0].arms.with) r.tracePath = "traces/deleted-by-the-runner.jsonl";
