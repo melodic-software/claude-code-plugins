@@ -70,10 +70,11 @@ const NATIVE_LOAD = /failed to load the @microsoft\/tui-test native (?:addon|lib
 
 // Launch flags and the variables cleared before Claude Code starts.
 // Pointer: the Variables table lists ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN,
-// ANTHROPIC_CUSTOM_HEADERS, the CLAUDE_CODE_USE_* provider switches and
-// CLAUDE_CODE_FORCE_SESSION_PERSISTENCE: https://code.claude.com/docs/en/env-vars#variables
-// As of: 2026-10-24. Recheck trigger: a Claude Code release adds or renames a
-// provider switch or credential variable, or changes the persistence variable.
+// ANTHROPIC_CUSTOM_HEADERS, the CLAUDE_CODE_USE_* provider switches,
+// CLAUDE_CODE_FORCE_SESSION_PERSISTENCE and CLAUDE_CODE_HIDE_CWD:
+// https://code.claude.com/docs/en/env-vars#variables
+// As of: 2026-11-02. Recheck trigger: a Claude Code release adds or renames a
+// provider switch or credential variable, or changes the persistence or cwd variable.
 // Pointer: with only ANTHROPIC_BASE_URL set, requests route through the gateway
 // carrying the saved claude.ai login:
 // https://code.claude.com/docs/en/llm-gateway#subscriptions-and-gateways
@@ -95,7 +96,7 @@ export const UNSET_VARS = [
 /** The Claude Code command line and environment; pure, so it tests with no packages installed. */
 export function buildLaunch(config, env) {
   if (!config?.pluginDir) throw new UsageError('launch needs --plugin-dir <dir>');
-  const childEnv = { ...env, CLAUDE_CODE_FORCE_SESSION_PERSISTENCE: '1' };
+  const childEnv = { ...env, CLAUDE_CODE_FORCE_SESSION_PERSISTENCE: '1', CLAUDE_CODE_HIDE_CWD: '1' };
   for (const name of UNSET_VARS) delete childEnv[name];
   return { argv: ['claude', ...LAUNCH_FLAGS, '--plugin-dir', config.pluginDir], env: childEnv };
 }

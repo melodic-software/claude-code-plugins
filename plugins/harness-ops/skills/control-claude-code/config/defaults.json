@@ -1,6 +1,7 @@
 {
   "environment": "local",
   "pluginDir": "plugins/context-budget",
+  "maxCaptures": 20,
   "timeouts": {
     "launchSeconds": 30,
     "readyMs": 120000,
