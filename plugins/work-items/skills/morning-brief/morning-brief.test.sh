@@ -2647,13 +2647,23 @@ cost_brief --usage-alert-percent 100 "${CLEAR_COST_ARGS[@]}" >/dev/null
 assert_exit "validation: a percent of 100 is accepted" 0 "$?"
 
 # --- Cost settings: flag, personal file, team file, default ----------------------
-# A checkout whose team file sets every key, a personal file that overrides two
-# and holds one invalid value, and a flag that overrides one.
+# A checkout whose team file sets every key beside the plugin's other settings,
+# a personal file that overrides two and holds one invalid value, and a flag
+# that overrides one.
 if have git; then
   CFG="$TMP/cfg-repo"
   mkdir -p "$CFG/docs/conventions"
   git -C "$CFG" init -q 2>/dev/null
-  cat >"$CFG/docs/conventions/harness-ops.yaml" <<'EOF'
+  cat >"$CFG/docs/conventions/work-items.yaml" <<'EOF'
+ai_disclaimer: false
+work_priority_order:
+  - "priority: high"
+  - "priority: low"
+tracker:
+  schema_version: "1.0"
+  provider: github
+  config:
+    lease_ttl_hours: 4
 morning_brief:
   org: team-org
   actions_included_minutes: 3000
@@ -2675,8 +2685,8 @@ EOF
   assert_contains "settings: a team list applies" "$COST_TEAM" \
     "OK         Azure budget and anomaly alerts: budget budget-example ends 2030-01-01"
   assert_contains "settings: the layer of each value is reported" "$COST_TEAM" \
-    "settings: org=team-org (harness-ops.yaml) actions_included_minutes=3000 (harness-ops.yaml)"
-  cat >"$CFG/docs/conventions/harness-ops.local.yaml" <<'EOF'
+    "settings: org=team-org (work-items.yaml) actions_included_minutes=3000 (work-items.yaml)"
+  cat >"$CFG/docs/conventions/work-items.local.yaml" <<'EOF'
 morning_brief:
   usage_alert_percent: 90
   actions_included_minutes: lots
@@ -2686,35 +2696,35 @@ EOF
   assert_contains "settings: the personal file beats the team file" "$COST_LOCAL" \
     "OK         GitHub Actions storage 2026-07, private repos: 100 of 1488 GB-hours included (7%)"
   assert_contains "settings: an invalid personal value is named" "$OUT_LOCAL" \
-    "morning-brief: harness-ops.local.yaml: morning_brief.actions_included_minutes has an invalid value (lots); the default is used"
+    "morning-brief: work-items.local.yaml: morning_brief.actions_included_minutes has an invalid value (lots); the default is used"
   assert_contains "settings: an invalid value takes the default, never the team file's" "$COST_LOCAL" \
     "INFO       GitHub Actions minutes 2026-07, private repos: 400 minutes used; included amount not configured"
   COST_FLAG="$(section "$(cd "$CFG" && bash "$BRIEF" "${CFG_BRIEF[@]}" --usage-alert-percent 5 --actions-included-minutes 4000 2>&1)" "== Cost")"
   assert_contains "settings: a flag beats both files" "$COST_FLAG" \
     "ALERT      GitHub Actions minutes 2026-07, private repos: 400 of 4000 minutes included (10%)"
   assert_contains "settings: a flag is reported with its value as the flag" "$COST_FLAG" "usage_alert_percent=5 (flag)"
-  printf 'morning_brief:\n  org: [unclosed\n' >"$CFG/docs/conventions/harness-ops.local.yaml"
+  printf 'morning_brief:\n  org: [unclosed\n' >"$CFG/docs/conventions/work-items.local.yaml"
   OUT_BROKEN="$(cd "$CFG" && bash "$BRIEF" "${CFG_BRIEF[@]}" 2>&1)"
   assert_contains "settings: a file that cannot be parsed is named and skipped" "$OUT_BROKEN" \
-    "harness-ops.local.yaml could not be parsed"
+    "work-items.local.yaml could not be parsed"
   assert_contains "settings: the team file still applies beside it" "$(section "$OUT_BROKEN" "== Cost")" \
     "of 3000 minutes included"
-  rm "$CFG/docs/conventions/harness-ops.local.yaml"
+  rm "$CFG/docs/conventions/work-items.local.yaml"
   printf 'morning_brief:\n  required_budgets: budget-example\n' >"$TMP/cfg-scalar.yaml"
   mkdir -p "$TMP/cfg-home"
-  cp "$TMP/cfg-scalar.yaml" "$TMP/cfg-home/harness-ops.yaml"
+  cp "$TMP/cfg-scalar.yaml" "$TMP/cfg-home/work-items.yaml"
   OUT_SCALAR="$(bash "$BRIEF" "${CFG_BRIEF[@]}" --config-home "$TMP/cfg-home" 2>&1)"
   assert_contains "settings: a list key given a scalar is invalid" "$OUT_SCALAR" \
     "morning_brief.required_budgets has an invalid value"
   assert_contains "settings: --config-home names the home" "$(section "$(bash "$BRIEF" "${CFG_BRIEF[@]}" --config-home "$CFG/docs/conventions" 2>&1)" "== Cost")" \
-    "settings: org=team-org (harness-ops.yaml)"
+    "settings: org=team-org (work-items.yaml)"
   # Run by bare filename from its own directory, the parser is still found.
   OUT_BARE="$(cd "${BRIEF%/*}" && bash "${BRIEF##*/}" "${CFG_BRIEF[@]}" --config-home "$CFG/docs/conventions" 2>&1)"
   assert_contains "settings: a bare-filename run reads the team file" "$(section "$OUT_BARE" "== Cost")" \
-    "settings: org=team-org (harness-ops.yaml)"
+    "settings: org=team-org (work-items.yaml)"
   assert_not_contains "settings: a bare-filename run parses the team file" "$OUT_BARE" "could not be parsed"
   assert_contains "settings: outside a checkout no file is read" "$(section "$(bash "$BRIEF" "${CFG_BRIEF[@]}" 2>&1)" "== Cost")" \
-    "settings: defaults (no harness-ops.yaml read)"
+    "settings: defaults (no morning_brief key in work-items.yaml or work-items.local.yaml)"
   # A settings file never turns a fixture run live: no gh or az call is made.
   NET_BIN="$TMP/net-bin"
   mkdir -p "$NET_BIN"
@@ -2724,7 +2734,7 @@ EOF
   done
   printf 'morning_brief:\n  org: team-org\n  subscription: 00000000-0000-0000-0000-000000000009\n' >"$TMP/cfg-net.yaml"
   mkdir -p "$TMP/cfg-net"
-  cp "$TMP/cfg-net.yaml" "$TMP/cfg-net/harness-ops.yaml"
+  cp "$TMP/cfg-net.yaml" "$TMP/cfg-net/work-items.yaml"
   : >"$TMP/net-log"
   OUT_NET="$(PATH="$NET_BIN:$PATH" bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" --behind-json "$TMP/behind.json" \
     --decisions-json "$TMP/decisions.json" --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \
@@ -2733,16 +2743,16 @@ EOF
   assert_contains "settings: the GitHub lines say the run was not live" "$(section "$OUT_NET" "== Cost")" \
     "UNREADABLE GitHub usage 2026-07: not read live in a fixture run; pass --org or the billing and org-scan fixtures"
   # An org setting that is not a GitHub owner name, and a percent above 100, take the default.
-  printf 'morning_brief:\n  org: "bad org;x"\n  log_cap_alert_percent: 101\n' >"$TMP/cfg-net/harness-ops.yaml"
+  printf 'morning_brief:\n  org: "bad org;x"\n  log_cap_alert_percent: 101\n' >"$TMP/cfg-net/work-items.yaml"
   OUT_BAD_VALUES="$(bash "$BRIEF" "${CFG_BRIEF[@]}" --config-home "$TMP/cfg-net" 2>&1)"
   assert_contains "settings: an org that is not a GitHub owner name is invalid" "$OUT_BAD_VALUES" \
     "morning_brief.org has an invalid value"
   assert_contains "settings: a percent above 100 is invalid" "$OUT_BAD_VALUES" \
     "morning_brief.log_cap_alert_percent has an invalid value"
   # A parse error quoting a key with control characters prints them escaped.
-  printf 'morning_brief:\n  "org\033[2J":1\n' >"$TMP/cfg-net/harness-ops.yaml"
+  printf 'morning_brief:\n  "org\033[2J":1\n' >"$TMP/cfg-net/work-items.yaml"
   OUT_ESC_KEY="$(bash "$BRIEF" "${CFG_BRIEF[@]}" --config-home "$TMP/cfg-net" 2>&1)"
-  assert_contains "settings: a parse error quoting a key is reported" "$OUT_ESC_KEY" "harness-ops.yaml could not be parsed"
+  assert_contains "settings: a parse error quoting a key is reported" "$OUT_ESC_KEY" "work-items.yaml could not be parsed"
   assert_eq "settings: no ESC from a key reaches the terminal" "0" "$(grep -c $'\x1b' <<<"$OUT_ESC_KEY")"
 fi
 
