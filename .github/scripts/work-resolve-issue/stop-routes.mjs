@@ -117,7 +117,7 @@ const CAPABILITY = new RegExp(
 // a count releases nothing in a reason that also says what was done with
 // tokens (TOKEN_HANDLING): "rotate the 1,200 tokens" holds.
 const TOKEN_COUNT = /(?<![\w.,])(?:\d{1,3}(?:,\d{3})+|\d{4,}|\d+(?:\.\d+)?[kKM])\s?tokens?\b/g;
-const TOKEN_HANDLING = /rotat|revok|leak|expos|upload|paste|print|commit|push|dump|reveal|email|copie|gist|screenshot|\b(?:post(?:ed|s)?|shar(?:e|ed|es|ing)|logged|visible|shown|reus\w*|stol\w*)\b/i;
+const TOKEN_HANDLING = /rotat|revok|leak|expos|upload|paste|print|commit|push|dump|reveal|email|cop(?:y|ie[ds])|gist|screenshot|\b(?:post(?:ed|s)?|shar(?:e|ed|es|ing)|logged|visible|shown|reus\w*|stol\w*)\b/i;
 const withoutCounts = (text) => (TOKEN_HANDLING.test(text) ? text : text.replace(TOKEN_COUNT, " "));
 // The only words a reason that names a secret noun may hold beside its
 // capability phrasings. Fail closed: any other word, so any exposure however
