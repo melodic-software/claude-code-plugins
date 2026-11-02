@@ -7,7 +7,7 @@ allowed_tools: [Skill]
 expected_outcome: "The revised rule file keeps the label rule, has no line asking the model to show, write out or reproduce its full reasoning or to reason step by step in the reply, and holds a bounded request for why the label was chosen: a rationale of a stated length, or the evidence as a list"
 ---
 
-Our triage lane runs on Claude Opus 5.5 in Claude Code and loads the `.claude/rules/triage-report.md` file below. Reviewers say they cannot tell why the lane picked a label. Fix the file so the report gives them what they need. Reply with the revised file in full inside one ```markdown fenced block, then one line per change saying why.
+Use the docs-hygiene:write-for-agents skill for this. Our triage lane runs on Claude Opus 5.5 in Claude Code and loads the `.claude/rules/triage-report.md` file below. Reviewers say they cannot tell why the lane picked a label. Fix the file so the report gives them what they need. Reply with the revised file in full inside one ```markdown fenced block, then one line per change saying why.
 
 ```markdown
 # Triage report

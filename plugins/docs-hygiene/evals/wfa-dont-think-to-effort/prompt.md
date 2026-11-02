@@ -7,7 +7,7 @@ allowed_tools: [Skill]
 expected_outcome: "The revised rule file has no line telling the model not to think or to skip its thinking, keeps the customer's-language and help-center-link rules, and the reply names a lower effort level as the way to make replies faster"
 ---
 
-Our support-reply lane runs on Claude Opus 5.5 in Claude Code and loads the `.claude/rules/support-replies.md` file below. Its replies are slow to start. Fix the file. Reply with the revised file in full inside one ```markdown fenced block, then one line per change saying why.
+Use the docs-hygiene:write-for-agents skill for this. Our support-reply lane runs on Claude Opus 5.5 in Claude Code and loads the `.claude/rules/support-replies.md` file below. Its replies are slow to start. Fix the file. Reply with the revised file in full inside one ```markdown fenced block, then one line per change saying why.
 
 ```markdown
 # Support replies

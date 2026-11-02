@@ -136,13 +136,13 @@ alternative in the same sentence. A design exclusion is the exception that stays
 the specific styles to leave out ("no hero banner, no pill-shaped buttons"),
 since "avoid a generic look" swaps one default for another.
 
-Ask for outcomes, not thinking. Set how much the model thinks with the effort level, not with a
-line in saved text telling it to think carefully, think less, or not think: more depth is a
-higher effort level, a faster answer a lower one. Whether such a line still earns a place depends
-on the model the text runs on, so check `/harness-config:audit-instructions` criteria I8-f
-(think-carefully) and I8-c (don't-think) for that model before keeping one. Ask for what the
-reader needs from the reply, such as the rationale in two or three sentences or the evidence as a
-list, never the model's reasoning itself (criterion I10).
+Ask for outcomes, not thinking. Prefer the effort level to a line in saved text telling the model
+to think carefully, think less, or not think: more depth is a higher level, a faster answer a lower
+one, tried before any answer-directly line. Whether such a line still helps depends on the model
+the text runs on, so check `/harness-config:audit-instructions` criteria I8-f (think-carefully)
+and I8-c (don't-think) for that model before keeping one. Ask for what the reader needs from the
+reply, such as the rationale in two or three sentences or the evidence as a list, never the
+model's reasoning itself (criterion I10).
 
 - **Pointer**: Opus 5.5 prompting guide,
   [Thinking instructions in chat system prompts](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#thinking-instructions-in-chat-system-prompts),

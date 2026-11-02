@@ -7,7 +7,7 @@ allowed_tools: [Skill]
 expected_outcome: "The revised section has no think-carefully or think-step-by-step line, keeps the three review steps (make test, src/billing/, file and line), and the reply names the effort setting as the place to ask for more depth"
 ---
 
-Our review agent runs on Claude Opus 5.5 in Claude Code, and the `AGENTS.md` section below loads in every session. Trim it to what earns its place. Reply with the revised section in full inside one ```markdown fenced block, then one line per change saying why.
+Use the docs-hygiene:write-for-agents skill for this. Our review agent runs on Claude Opus 5.5 in Claude Code, and the `AGENTS.md` section below loads in every session. Trim it to what earns its place. Reply with the revised section in full inside one ```markdown fenced block, then one line per change saying why.
 
 ```markdown
 ## Code review
