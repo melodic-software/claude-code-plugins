@@ -175,7 +175,7 @@ BASH_READERS = {
     "cat": ("nbsvetAET", "", False),
     "head": ("qv", "nc", False),
     "wc": ("lcwmL", "", False),
-    "grep": ("nicvwxoqsHhlLEFGPaIz", "ABCm", True),
+    "grep": ("nicvwxoqszHhlLEFGPaI", "ABCm", True),
     "sed": ("nEr", "", True),
 }
 PIPE = "|"
