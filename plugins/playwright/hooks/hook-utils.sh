@@ -485,7 +485,7 @@ hook::prereq_notice_to() {
   fi
   ((__hu_prn_inst_set)) || __hu_prn_inst="${__hu_prn_i:+Install ($__hu_prn_i).}"
   local __hu_prn_head="$__hu_prn_label: $__hu_prn_id $__hu_prn_where. $__hu_prn_d"
-  local __hu_prn_tail="No further notice this session; $__hu_prn_c diagnoses."
+  local __hu_prn_tail="No further notice this session; diagnose with: node \"${CLAUDE_PLUGIN_ROOT:-}/lib/prerequisites.mjs\" check \"${CLAUDE_PLUGIN_ROOT:-}\""
   ((__hu_prn_path)) && printf 'PATH probed: %s\n' "${PATH:-<unset>}" >&2
   [[ "$HOOK_NOTICE_TO_MODEL" == 1 ]] && printf -v "$__hu_prn_m" '%s' "$__hu_prn_head $__hu_prn_tail"
   [[ "$HOOK_NOTICE_TO_USER" == 1 ]] &&

@@ -3,12 +3,24 @@
     {
       "answer": "---\ntype: review-findings\nbranch: refactor/ratings\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | ratings.py:2 | code-reviewer | An empty reviews list now raises ZeroDivisionError, so Cable tray breaks the product page. | Restore the early return |\n| 2 | SUGGESTION | low | ratings.py:2 | code-reviewer | Consider a type hint for reviews. | Add a type hint |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
       "why": "the only CRITICAL finding is the planted defect"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/ratings\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | ratings.py:2 | code-reviewer | An empty reviews list now raises ZeroDivisionError, so Cable tray breaks the product page. | Restore the early return |\n| 2 | IMPORTANT | medium | ratings.py:2 | architecture-guardian | A product with reviews now gets a different average, because round now applies to the whole expression. | Revert |\n\n## Surfaces\n\nRan: [code-reviewer@high, architecture-guardian@high]. Returned no result: [].",
+      "why": "the non-empty-average claim is IMPORTANT, and only CRITICAL findings count"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/ratings\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | ratings.py:2 | code-reviewer | average_rating([]) raises ZeroDivisionError for Cable tray. | Restore the early return |\n| 2 | SUGGESTION | low | products.json:3 | code-reviewer | This branch gave Cable tray an empty reviews list; seed it with a review. | Add a review |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "the claim that products.json changed is SUGGESTION, so it does not count, and the planted defect never counts"
     }
   ],
   "fail": [
     {
       "answer": "---\ntype: review-findings\nbranch: refactor/ratings\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | ratings.py:2 | code-reviewer | An empty reviews list now raises ZeroDivisionError. | Restore the early return |\n| 2 | CRITICAL | medium | ratings.py:2 | architecture-guardian | Products with reviews now get an average rounded to a whole number instead of one decimal place. | Revert |\n\n## Surfaces\n\nRan: [code-reviewer@high, architecture-guardian@high]. Returned no result: [].",
       "why": "a CRITICAL finding claims the non-empty average changed"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/ratings\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | medium | product_page.py:8 | architecture-guardian | This branch changes render in product_page.py to drop the product name from each line. | Revert product_page.py |\n\n## Surfaces\n\nRan: [architecture-guardian@high]. Returned no result: [].",
+      "why": "a CRITICAL finding claims product_page.py changed on this branch"
     }
   ]
 }
