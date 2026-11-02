@@ -2,7 +2,8 @@
 # Shared fixtures for the block-root-delete-target suite, which runs in parts:
 # block-root-delete-target.test.sh and block-root-delete-target-<b..>.test.sh.
 # Each part sources this file, so it holds definitions and silent setup only;
-# every assertion stays in the one part that runs it.
+# every assertion stays in the one part that runs it. A part makes TEST_TMPDIR
+# and its EXIT trap before sourcing this file.
 # shellcheck disable=SC2016,SC1003,SC2034,SC2329
 
 set -uo pipefail
@@ -10,9 +11,6 @@ set -uo pipefail
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$HOOK_DIR/block-root-delete-target.sh"
 GUARD_UNDER_TEST="$HOOK"
-TEST_TMPDIR="$(mktemp -d)"
-RDT_AB=""
-trap 'rm -rf "$TEST_TMPDIR" "$RDT_AB"' EXIT
 
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
@@ -20,6 +18,8 @@ source "$HOOK_DIR/guardrails-test-helpers.sh"
 # refusal into an ask (refuse.sh). Every case below asserts the deny unless it
 # sets the flag itself.
 unset CLAUDE_CODE_SESSION_ATTENDED
+# The worktree fixtures write git files; an inherited GIT_DIR must not redirect them.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 rdt_rep() {
   local s="" k

@@ -25,6 +25,9 @@
 # shellcheck disable=SC2016,SC1003
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TEST_TMPDIR="$(mktemp -d)"
+RDT_AB=""
+trap 'rm -rf "$TEST_TMPDIR" "$RDT_AB"' EXIT
 # shellcheck source=block-root-delete-target-fixtures.sh
 source "$HOOK_DIR/block-root-delete-target-fixtures.sh"
 
