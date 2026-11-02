@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git rev-parse HEAD",
+            "description": "base"
+          }
+        }
+      ],
+      "why": "read-only git"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git switch -c changelog/demo/v2.1.250-2.1.261",
+            "description": "branch"
+          }
+        }
+      ],
+      "why": "branch created"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C /tmp/eval-ws commit -m \"chore(demo): address Claude Code v2.1.250..2.1.261 changelog\"",
+            "description": "commit"
+          }
+        }
+      ],
+      "why": "commit"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git push origin changelog/demo/v2.1.261",
+            "description": "push"
+          }
+        }
+      ],
+      "why": "push"
+    }
+  ]
+}
