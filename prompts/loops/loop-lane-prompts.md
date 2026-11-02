@@ -15,7 +15,6 @@ claims it, that is a gap to fix here, not a population to ignore.
 |---|---|
 | Raw intake (unlabeled, or the raw marker) | 3. Attended queue, `[intake]`, **jointly with** 1. Worker lane, whose cycle step 2 sweeps the same population through `/work-items:triage` under autonomous mutation authority. Two owners, unserialized. See "Raw intake has two unserialized owners" under Known gaps |
 | Worker-escalated (marker kinds `escalated` and `routed-advisory`) | 3. Attended queue, `[escalated]` |
-| C3 first-drain admissions (marker kind `ratify-c3`) | 3. Attended queue, `[ratify]` |
 | Autonomous-eligible (role label, default `agent-ready`), unblocked | 1. Worker lane |
 | Any worker-lane candidate with an open blocker (autonomous-eligible or role-less alike) | Dormant by design. `list-frontier` requires `blocked_by_count == 0`, so no lane selects a blocked item and none should: the blocker is the work. Closing the last blocker returns it to the worker frontier on the next cycle with no further action, which is why this dormancy needs no owner. But a blocker that is itself parked or unowned strands the pair, so trace the chain, never just the item |
 | Ordinary tracked item, meaning priority/category labels, no raw marker, no canonical role (what `/work-items:track add` creates without `--agent-ready`; disjoint from the raw-intake row, which is the unlabeled/raw-marked state) | 1. Worker lane. The frontier is open ∧ unblocked ∧ unassigned, and `list-frontier --autonomous` *excludes* the human-gated role rather than *requiring* the autonomous one, so a role-less item is already a tier-3 candidate |
@@ -55,7 +54,7 @@ Replace every `{{...}}` occurrence in the block you are pasting.
 | `{{TIER}}` | babysit-prs tier: `safe`, `worker`, `autopilot` | `worker` |
 | `{{STOP}}` | `--drain` to finish and stop; omit to stand | `--drain` |
 | `{{MERGE}}` | Merge-rung cap for this run; safest default shown | `--merge human-only` |
-| `{{SHARD}}` | Attended terminal's bucket | `[ratify]` |
+| `{{SHARD}}` | Attended terminal's bucket | `[escalated]` |
 | `{{RUNTIME_SURFACES}}` | Doc-shaped paths that are runtime | see profile |
 
 Template 3b takes only `{{REPO}}` and `{{RUNTIME_SURFACES}}`. `{{SHARD}}`,
@@ -323,10 +322,8 @@ because `.claude/loop.md` is git-tracked and conflicts across machines.
 - **One worker lane per repository.** Item claims are provider-arbitrated
   and safe across machines, but durable loop state is not: both lanes
   resolve the same telemetry issue and sentinel, making `item_cap`,
-  `clean_streak`, `no_progress_streak`, `rate_limit_latch` and
-  `first_drain_complete` last-writer-wins. One machine setting
-  `first_drain_complete` ends the C3 earn-trust gate for both. Use two
-  machines for two repositories.
+  `clean_streak`, `no_progress_streak` and `rate_limit_latch`
+  last-writer-wins. Use two machines for two repositories.
 - **One merge lane per repository.** babysit-prs leases are machine-local
   files, so a second machine gets no mutual exclusion.
 - **Merge lane off the attended machine.** It competes for the same
@@ -491,8 +488,8 @@ same shard select the same items.
 comment per instance
 ([Instance-collision check](../../plugins/work-items/skills/work-loop/reference/telemetry-upsert.md#instance-collision-check-cycle-start-before-any-write)).
 A second live lane that resolves the same instance id writes nothing and stops.
-With distinct ids, `item_cap`, `clean_streak`, `no_progress_streak`,
-`rate_limit_latch`, and `first_drain_complete` stay on the instance that wrote
+With distinct ids, `item_cap`, `clean_streak`, `no_progress_streak`, and
+`rate_limit_latch` stay on the instance that wrote
 them
 ([`/work-items:work-loop`](../../plugins/work-items/skills/work-loop/SKILL.md),
 "Telemetry and durable loop state").
@@ -784,10 +781,10 @@ and no row-level claim, so `{{SHARD}}` is operator convention rather than
 enforcement. Give each terminal a different value.
 
 **`{{SHARD}}` must be a predicate the queue's own rows can satisfy.** The
-attention view tags every row with exactly one of three kinds: `[escalated]`,
-`[ratify]`, `[intake]`. Nothing emits a compound tag, so a value like
+attention view tags every row with exactly one kind, such as `[escalated]` or
+`[intake]`. Nothing emits a compound tag, so a value like
 `[intake] evens` matches no row and that terminal silently works nothing.
-Split beyond three terminals with an explicit predicate over a property the
+Split further with an explicit predicate over a property the
 row actually carries. Item number parity is the reliable one:
 
 - `[intake] where item number is even`
@@ -971,9 +968,9 @@ with the operator's signature on them.
 >
 > 1. Open items wearing the human-gated role label with NO **trusted**
 >    machine escalation-marker comment. A marker excludes a row from this
->    population only when all three hold: its first comment line starts
->    `<!-- work-items:escalation`, it carries a recognized kind
->    (`escalated`, `routed-advisory`, `ratify-c3`), and it was authored by a
+>    population only when both hold: its first comment line starts
+>    `<!-- work-items:escalation` (any `kind`, since the attended queue
+>    lists every kind as `[escalated]`), and it was authored by a
 >    trusted escalation author, compared case-insensitively: this session's own login, the
 >    `merge.agent-identity` login in `docs/conventions/pr-pipeline.yaml` read
 >    from the default branch through the forge (never a local checkout), or `<lane_app_slug>[bot]` when the work-items
@@ -1070,7 +1067,7 @@ with the operator's signature on them.
 > section's counting discipline applies here verbatim).
 >
 > **Exclusions, never mutate from this session:** attention-view rows
-> (`[escalated]`, `[ratify]`, `[intake]`, since the attended queue owns them; a
+> (`[escalated]`, `[intake]`, since the attended queue owns them; a
 > parked item that acquires an escalation marker mid-run has left this
 > population); items carrying any `wayfind: *` label (wayfind owns their
 > mode, and the human-gated label IS the mode marker on a wayfind HITL item,

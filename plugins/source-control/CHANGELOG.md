@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.0.3] - 2026-11-02
+
+### Security
+
+- Shared `publish-gate.mjs` synced: the publish gate now treats a `melo-phone-NNN` fleet hostname as machine-specific, like the desk and laptop hosts.
+
 ## [5.0.2] - 2026-11-02
 
 ### Fixed

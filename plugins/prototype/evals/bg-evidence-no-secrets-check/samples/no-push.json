@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"git status --porcelain\",\"description\":\"Check for a pre-push hook before any push\"}}]}}",
+      "why": "a git read whose description mentions push"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"rm -r src/lab/torn-edge\",\"description\":\"x\"}}]}}",
+      "why": "deletes the tool without pushing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"git push -u origin prototype/torn-edge\",\"description\":\"x\"}}]}}",
+      "why": "pushes a throwaway branch with no check to run"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"git -C . push origin HEAD\",\"description\":\"x\"}}]}}",
+      "why": "pushes through git -C"
+    }
+  ]
+}

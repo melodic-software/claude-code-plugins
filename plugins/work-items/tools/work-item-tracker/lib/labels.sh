@@ -23,14 +23,11 @@ readonly WIT_DEFAULT_CONTAINER_LABEL="work-map"
 # shellcheck disable=SC2034
 readonly WIT_WAYFIND_LABEL_PREFIX="wayfind:"
 
-# Human-floor work classes: human-gated even beside the autonomous-eligible label
-# (reference/work-class-labels.md). Fixed strings; the work-class axis has no binding key.
-#
-# C3 scoped is excluded: its disposition is not readable from a label, so the
-# work-loop admission gate owns it.
+# Human-floor work class: human-gated even beside the autonomous-eligible label
+# (reference/work-class-labels.md). Fixed string; the work-class axis has no binding key.
+# Only untrusted provenance floors an item; every other class, and no class, is admissible.
 # shellcheck disable=SC2034
 readonly WIT_HUMAN_FLOOR_WORK_CLASS_LABELS=(
-  "work-class: structural"
   "work-class: untrusted-provenance"
 )
 
