@@ -462,7 +462,7 @@ reader which one happened and whether the arms were comparable at all (pointer: 
   names the limit, rerun those cases with `--case` once the limit resets. It is neither a
   regression nor flaky cases, and leaving the cases out of the trend is not enough on its own.
   When `error` is null, run the validity gate and the noise report before drawing any conclusion,
-  and say nothing yet about the cases themselves. A run whose sandbox never started fails the gate's `session started` check; the `TMPDIR` route is in [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start).
+  and say nothing yet about the cases themselves. A run whose sandbox never started fails the gate's `session started` check; the `TMPDIR` route is in [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start). On Claude Code 2.1.316, when cases grant Bash or load a skill with a pre-computed (``!`command` ``) line, a run's `TMPDIR` must not sit under `/tmp` or `/var/tmp`; the run step's `$HOME` directory avoids it. The gate fails a run whose failed Bash result reports a read-only file system in the run's workspace or `TMPDIR`, or whose pre-computed command failed; recheck when a release note touches `plugin eval` sandbox paths or `TMPDIR` ([records.md](reference/records.md#sandbox-and-credential-store)).
 - A run from inside a Claude Code session keeps its report local and says `kept local`; from a
   terminal it may publish to claude.ai unless `--no-publish` is passed.
 - The sandbox limits what the agent under test can reach. It is not a boundary against the
