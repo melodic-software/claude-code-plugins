@@ -18,7 +18,7 @@ graders:
     target: last_message
   - name: added-count-3
     type: regex
-    pattern: '\b(?:3|three)\b[^\n]{0,40}\b(?:added|adds|new|additions?)\b|\b(?:adds|added|additions?)\b[^\n]{0,40}\b(?:3|three)\b'
+    pattern: '\b(?:3|three)\b(?![.):]\**[ \t])[^\n]{0,40}\b(?:added|adds|new|additions?)\b|\b(?:adds|added|new|additions?)\b[^\n]{0,40}\b(?:3|three)\b'
     flags: 'i'
     target: last_message
   - name: dropped-host-named

@@ -1,0 +1,10 @@
+fixture: price-cents
+source_case: none
+defect:
+  location: src/invoice.js:4
+  summary: "parsePrice now returns integer cents, and the commit message says every caller now works in cents, but invoiceLine in src/invoice.js still reads the result as dollars"
+  failure: "an invoice line with qty 2 and price 12.34 now prints $2468.00 instead of $24.68, so every invoice line is 100 times too large"
+axis: spec
+not_defects:
+  - "cartTotal is wrong (it divides the cents by 100 before formatting)"
+  - "parsePrice rounds a price like 0.29 to the wrong cent (Math.round turns 28.999999999999996 into 29)"

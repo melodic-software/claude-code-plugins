@@ -1,0 +1,18 @@
+{
+  "negatives": true,
+  "findings": [],
+  "adjudication": {
+    "verdict": "CLEARED",
+    "panel": "three blind judges, unanimous: CLEARED",
+    "rubric": "copy",
+    "rubric_version": 5,
+    "nomination": "evals/nominations/2026-11-02-larger-sample.json k05"
+  },
+  "notes": {
+    "shape": "A registry entry whose evidence list quotes one native description word for word, labeled as the native description and dated by the extraction and a docs cross-check, among evidence lines the source does not have.",
+    "carve_outs": "None needed; the criteria clear it.",
+    "rubric": "C1 and C2 hold on the description line. C3 FAILS: the line is labeled as the surface's own description, and the entry dates and names where it came from. C4 holds for the line alone; the score, origin and invocation mode around it are local but do not transform it. C3 decides the verdict.",
+    "measured": "fingerprint.mjs at k=5 against its source.md: containment 0.130, jaccard 0.095, longest matched span 28 words; the separation rule fires. Case and source each stay below both limbs against the real passage's file and its real source (highest containment 0.022, longest span 6 words).",
+    "carries": "A quoted native description inside an evidence record. A run that flags it treats a labeled, dated piece of evidence as an unattributed copy."
+  }
+}

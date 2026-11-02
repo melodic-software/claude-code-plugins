@@ -43,7 +43,7 @@
 #       `P2b` returned nothing (#4149 defect 3).
 #
 # CHECK ID -> SEVERITY, the whole mapping in one place (it is what the gate modes
-# below partition on): error = P2, P2b, P4; warning = P1, P3.
+# below partition on): error = P2, P2b, P4, P5; warning = P1, P3.
 #
 # Advisory about FINDINGS by DEFAULT: they never fail the run, so a scan that
 # completes exits 0 in report and `--count` mode whether or not it found anything.
@@ -101,8 +101,8 @@ Usage: permission-rule-check.sh [--count|--check|--strict|--help]
   (no arg)   print one finding line per fragile grant, then the coverage block; exit 0
   --count    print the integer finding count on stdout, coverage block on stderr; exit 0
   --check    gate mode: print findings and the coverage block exactly as the
-             default does, then exit 1 if any ERROR-tier finding (P2, P2b, P4)
-             was emitted, else 0
+             default does, then exit 1 if any ERROR-tier finding (P2, P2b, P4,
+             P5) was emitted, else 0
   --strict   gate mode: as --check, and WARNING-tier findings (P1, P3) also exit 1
   --help     this message
 
@@ -883,7 +883,7 @@ coverage_block
 #     statement about the grants and must not pass a gate. This is the same
 #     judgment the fail-closed half of the house pattern already makes for a
 #     missing jq or an unresolvable root; it is the finding-side limb of it.
-#   any error-tier finding (P2, P2b, P4)          -> 1 in both gate modes
+#   any error-tier finding (P2, P2b, P4, P5)      -> 1 in both gate modes
 #   any warning-tier finding (P1, P3)             -> 1 in --strict only
 #   a PARTIALLY BLIND scan (blocked > 0)          -> 2, never 0
 #   NO FRONTMATTER AUDITED (every candidate excluded as non-loadable)
