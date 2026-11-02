@@ -750,21 +750,41 @@ const workSections = (prose, text, workHeadings) => {
   return { known, lines };
 };
 
+// A clause that says the work will create, raise, extend, enable or take on
+// something that bills (owner decision 2026-10-31 Q1: what the issue will do,
+// not background text). A charge word in any other clause, such as "shorten
+// their retention" or "set a retention policy", names no charge.
+const CHARGING =
+  /\b(?:buy|buys|buying|bought|purchas\w*|pay|pays|paying|add|adds|adding|added|creat\w*|provision\w*|deploy\w*|enabl\w*|turn(?:s|ed|ing)? on|rais\w*|increas\w*|extend\w*|lengthen\w*|upgrad\w*|take|takes|taking|mov(?:e|es|ed|ing)|switch\w*|migrat\w*|adopt\w*|subscrib\w*|needs?|requires?|uses?|using|(?:runs?|running) on)\b/i;
+// A billing account admission reads as a charge beside the shared words.
+const ADMIT_CHARGES = /\bazure\b/gi;
+// A clause ends at a sentence end, or at a line break before a blank line or
+// a list item.
+const clausesOf = (text) => String(text).split(/[.;!?](?=\s|$)|\n(?=\s*(?:$|[-*+]\s|\d+[.)]\s))/);
+
 // The charge words in what an issue will do, each once: its `title`, and its
 // `body`'s task items and work sections (workSections), or the whole body with
-// neither. Each is read alone, so a fence one leaves open never closes in the
-// other. Comments are not read. Pure.
+// neither, each counted only in a CHARGING clause. Each is read alone, so a
+// fence one leaves open never closes in the other. Comments are not read.
+// Pure.
 export function workCharges({ title, body }, charges, isPublic, taskList) {
   const read = (text) => withoutCode(text, charges.code);
   const prose = read(body);
   const lines = prose.split("\n");
   // An item's extent comes from `body`: a line of code alone blanks to
   // nothing, which would end the item. Its words come from outside code.
-  const items = taskItems(body, taskList).flatMap(({ line, more }) => [line, ...more].map((index) => lines[index]));
+  const items = taskItems(body, taskList).map(({ line, more }) => [line, ...more].map((index) => lines[index]).join(" "));
   const sections = workSections(prose, body, charges.workHeadings);
   const whole = !sections.known && !hasTaskLine(prose, taskList);
-  const parts = [read(title), ...items, ...(whole ? [prose] : sections.lines)];
-  return [...new Set(parts.flatMap((part) => chargeWordsIn(part, charges, isPublic)))];
+  const parts = [read(title), ...items, ...(whole ? [prose] : [sections.lines.join("\n")])];
+  return [
+    ...new Set(
+      parts
+        .flatMap(clausesOf)
+        .filter((clause) => CHARGING.test(clause))
+        .flatMap((clause) => [...chargeWordsIn(clause, charges, isPublic), ...[...clause.matchAll(ADMIT_CHARGES)].map((m) => m[0].toLowerCase())]),
+    ),
+  ];
 }
 
 const tally = (words) => words.reduce((counts, word) => counts.set(word, (counts.get(word) ?? 0) + 1), new Map());

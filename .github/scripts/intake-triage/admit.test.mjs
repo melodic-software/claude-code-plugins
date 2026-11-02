@@ -823,7 +823,7 @@ describe("decide", () => {
 
     test("refuses and holds for a person, naming each word once", () => {
       for (const [issue, words] of [
-        [issueOf({ body: `${BODY}\n\nMove the job to larger runners and a paid Azure SKU. Larger runners are faster.` }), "larger runners, sku"],
+        [issueOf({ body: `${BODY}\n\nMove the job to larger runners and a paid Azure SKU. Larger runners are faster.` }), "larger runners, sku, azure"],
         [issueOf({ title: "chore: raise the Actions spending limit" }), "spending limit"],
       ]) {
         const result = decide(facts({ issue }));
@@ -843,8 +843,8 @@ describe("decide", () => {
       for (const [body, words] of [
         ["This needs a plan or seat change.", "seat"],
         ["This needs a paid subscription purchase.", "subscription"],
-        ["Create a new Azure subscription for the lane.", "subscription"],
-        ["Reduce the Azure subscription usage.", "subscription"],
+        ["Create a new Azure subscription for the lane.", "subscription, azure"],
+        ["Add an Azure storage account for the lane.", "azure"],
         ["Upgrade the Claude subscription to a higher plan.", "subscription"],
         ["Buy a new Claude subscription for the lane.", "subscription"],
         ["The lane raises Copilot subscription usage-based pricing.", "subscription"],
@@ -950,7 +950,7 @@ describe("decide", () => {
       const inBody = (body) => word({ issue: issueOf({ body }) });
 
       test("the title", () => {
-        assert.equal(word({ issue: issueOf({ title: "chore: drop the billing alert" }) }), "billing");
+        assert.equal(word({ issue: issueOf({ title: "chore: raise the billing cap" }) }), "billing");
       });
 
       test("a task item and its deeper lines", () => {
@@ -994,7 +994,7 @@ describe("decide", () => {
       test("the real use of each word", () => {
         for (const [item, found] of [
           ["Raise the billing cap.", "billing"],
-          ["Runs are billed per job.", "billed"],
+          ["Switch to runs billed per job.", "billed"],
           ["Raise the spending limit.", "spending limit"],
           ["Take the subscription upgrade.", "subscription"],
           ["Run a pass on the subscription tier we buy.", "subscription"],
@@ -1015,6 +1015,31 @@ describe("decide", () => {
 
       test("names each word once across the title and body", () => {
         assert.deepEqual(workCharges({ title: "Buy a seat", body: "- [ ] Buy a seat." }, chargePattern(), false, RULES["task-list"]), ["seat"]);
+      });
+
+      test("raising retention and adding an Azure resource still charge", () => {
+        assert.equal(inBody("- [ ] Raise retention to 400 days."), "retention");
+        assert.equal(inBody("- [ ] Add an Azure storage account."), "azure");
+      });
+    });
+
+    // Owner decision 2026-10-31 Q1: the check reads what the issue will do,
+    // not background text, so a charge word counts only where the work
+    // creates, raises, extends or enables something that bills.
+    describe("stays quiet on a charge word the work does not take on", () => {
+      const admitted = (issue) => assert.deepEqual(decide(facts({ issue })), { verdict: "admit", reasons: [] });
+
+      test("a title that shortens retention (#8295)", () => {
+        admitted(issueOf({ title: "fix(lanes): secret-scan lane artifacts before upload and shorten their retention" }));
+      });
+
+      test("a criterion that bounds a check by the artifact retention (#7479), or sets a retention policy", () => {
+        admitted(issueOf({ body: "## Done when\n\n- [ ] Bound the check to merges newer than the artifact retention, with a reason for why older merges are settled." }));
+        admitted(issueOf({ body: "## Done when\n\n- [ ] Set a retention policy so nothing grows unbounded." }));
+      });
+
+      test("a title that drops a billing alert", () => {
+        admitted(issueOf({ title: "chore: drop the billing alert" }));
       });
     });
 
