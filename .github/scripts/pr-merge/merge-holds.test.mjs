@@ -973,8 +973,18 @@ test("in the merge queue, a reader that refuses only on the pass leaves that to 
 test("in the merge queue, a FAIL the reader counts holds a passed head", async () => {
   const { code, out } = await queued(report("verify:fail", { detail: "fails at the head" }));
   assert.equal(code, 1, out);
-  assert.match(out, /::error::#99: pr-verify's reader refuses this head \(verify:fail: fails at the head\); push a new head/);
+  assert.match(out, /::error title=pr-verify hold::#99: pr-verify's reader refuses this head \(verify:fail: fails at the head\); push a new head/);
   assert.doesNotMatch(out, /no pr-verify FAIL hold/);
+  // A verifier hold is not a body hold: no untitled error line.
+  assert.doesNotMatch(out, /^::error::/m);
+  assert.match(out, /^#99: no body hold, no member veto and no hold path\.$/m);
+});
+
+test("in the merge queue, the reader's verify:unreadable is a pr-verify hold beside a body hold", async () => {
+  const { code, out } = await queued(report("verify:unreadable", { detail: "1 whole listing never held" }));
+  assert.equal(code, 1, out);
+  assert.match(out, /^::error title=pr-verify hold::#99: pr-verify's reader refuses this head \(verify:unreadable: 1 whole listing never held\)/m);
+  assert.doesNotMatch(out, /^::error::/m);
 });
 
 test("in the merge queue, a trusted approval of the head lifts a FAIL hold", async () => {
@@ -993,7 +1003,7 @@ test("in the merge queue, a missing or unreadable reader report holds", async ()
   for (const evidence of [undefined, "", "not json", JSON.stringify(report(null, { head: OLD }))]) {
     const { code, out } = await queued(evidence);
     assert.equal(code, 1, `${evidence}: ${out}`);
-    assert.match(out, /::error::#99: its pr-verify FAILs could not be read/, String(evidence));
+    assert.match(out, /::error title=pr-verify hold::#99: its pr-verify FAILs could not be read/, String(evidence));
   }
 });
 

@@ -2671,7 +2671,9 @@ kept only when it holds exactly that page's `total_count`. A count above it firs
 around kept entries near expiry, up to a page cap, since GitHub can delete an artifact up to an hour
 before its `expires_at` (`EARLY_DELETION_LEAD`, `NEAR_EXPIRY_PAGE_CAP`). Those pages can skip an
 entry at a boundary, so an entry they omit is dropped only when its own read answers 404, up to an
-id-read cap (`NEAR_EXPIRY_ID_READ_CAP`). Any count still other than it, a missing, older or
+id-read cap (`NEAR_EXPIRY_ID_READ_CAP`); the whole listings' top-ups get both caps again. A count
+those pages leave short is a skip in the fresh pages and is read again after a wait while the caps
+left cover another such read. Any count still other than it, a missing, older or
 malformed base, or any failed read lists every page, so a carried listing that leaves out a FAIL
 lists every page too (the rule and its basis: `babysit_verify_evidence.py`, "Carried reads").
 A whole listing is held to the same count: deduplicated by id, added to the whole listings read
