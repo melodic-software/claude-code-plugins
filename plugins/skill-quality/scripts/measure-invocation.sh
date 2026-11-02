@@ -680,7 +680,8 @@ case, listing the target plugin and those plugins relative to the case
 directory, so the run loads the rivals too; keep the cases where they were
 emitted. The CLI loads a case's plugins only from inside the run target, so
 run those cases against the directory that holds plugins/, with
-`--eval-dir plugins/<plugin>/<this-dir>`.
+`--eval-dir` set to this directory relative to it (for example
+`.work/probe-evals/<plugin>`, which git ignores; delete it after the run).
 EOF
 }
 
