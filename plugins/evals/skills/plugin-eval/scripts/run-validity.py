@@ -227,9 +227,14 @@ MAX_TURNS_ERROR = re.compile(
 )
 TRACE_ERRORS = "errors"  # on the result line
 TRACE_TOOLS = "tools"  # on the init line: the tools the session could call
-# On the init line: plugins[] {name, path} loaded, and plugin_errors[] {plugin,
-# type, message, path?}, absent when no plugin failed (Agent SDK SDKSystemMessage).
-# A name may carry an @marketplace suffix.
+# The init line lists the plugins the session loaded and the ones that failed
+# to load; the check reads both by these keys, takes a missing failure list as
+# none failed, and matches a loaded name with or without an @marketplace suffix.
+# - Pointer: when the init line's plugin fields may have changed, fetch
+#   https://code.claude.com/docs/en/agent-sdk/typescript#sdksystemmessage live.
+# - As of: 2026-11-01
+# - Recheck trigger: the init message renames or drops plugins or
+#   plugin_errors, or renames a field these keys read from their entries.
 TRACE_PLUGINS, LOADED_NAME, LOADED_PATH = "plugins", "name", "path"
 TRACE_PLUGIN_ERRORS = "plugin_errors"
 ERROR_PLUGIN, ERROR_TYPE, ERROR_MESSAGE, ERROR_PATH = "plugin", "type", "message", "path"
