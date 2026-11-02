@@ -123,6 +123,28 @@ test("a cut the parser cannot confirm drops the case", () => {
   });
 });
 
+test("a paid grader named to leave the copy drops the case and deletes nothing outside it", () => {
+  const files = {
+    "evals/escape/case.yaml": MIXED_YAML.replace("  - name: kind", "  - name: ../../../outside").replace(
+      "    criteria: >-\n      The reply is kind.",
+      '    criteria: "The reply is kind."',
+    ),
+    "evals/escape/prompt.md": "Say hi.\n",
+    "outside.json": "{}\n",
+  };
+  withPlugin(files, (dir) => {
+    const warnings = [];
+    const result = deterministicSuite(dir, "evals-deterministic", (line) => warnings.push(line));
+    assert.ok(existsSync(join(dir, "outside.json")), "the file outside the copy was deleted");
+    assert.deepEqual(result, { evalDir: "evals", kept: [], dropped: ["escape"], stripped: {} });
+    assert.match(warnings[0], /^deterministic-suite: escape dropped: .*\.\.\/\.\.\/\.\.\/outside/);
+    assert.ok(!existsSync(join(dir, "evals-deterministic/escape")));
+    for (const [path, text] of Object.entries(files)) {
+      assert.equal(readFileSync(join(dir, path), "utf8"), text, path);
+    }
+  });
+});
+
 test("the source eval dir is left byte for byte", () => {
   withPlugin({ ...SUITE, ...MIXED }, (dir) => {
     deterministicSuite(dir, "evals-deterministic", () => {});

@@ -158,6 +158,10 @@ export function stripCaseYaml(text) {
     throw new Error("the cut changed more than the paid graders");
   }
   const names = graders.filter((_, index) => paid[index]).map((grader) => String(grader?.name));
+  const bad = names.find((name) => !NAME.test(name));
+  if (bad !== undefined) {
+    throw new Error(`the paid grader name ${JSON.stringify(bad)} is not a plain file name`);
+  }
   return { text: stripped, names, left: expected.graders?.length ?? 0 };
 }
 
