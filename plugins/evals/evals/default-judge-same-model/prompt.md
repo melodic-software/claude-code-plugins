@@ -1,9 +1,10 @@
 ---
-description: "Hard case. Why hard: The base model assumes the judge follows --model. The skill owns that the judge resolves from --judge-model, not --model, and where to read its current default; the default's value is a volatile CLI fact the skill points at rather than restates, so naming it is not required. Read and Skill reach the hub and its spokes; Grep and Glob are left out because a search of the plugin root hits the sandbox's hidden case directory. That the same-model preflight line is advice, not a refusal, is this plugin's own preflight (warns-not-refuses is self-reference)."
+description: "Hard case. Why hard: The base model assumes the judge follows --model. The skill owns that the judge resolves from --judge-model, not --model, and where to read its current default; the default's value is a volatile CLI fact the skill points at rather than restates, so naming it is not required. Read and Skill reach the hub and its spokes. A search of the plugin root hits the sandbox's hidden case directory and is denied, and leaving Grep and Glob out of allowed_tools does not stop the model calling them, so append_system_prompt tells it not to search. That the same-model preflight line is advice, not a refusal, is this plugin's own preflight (warns-not-refuses is self-reference)."
 tags: [preflight, hard, self-reference]
 runs: 3
 max_turns: 10
 allowed_tools: [Read, Skill]
+append_system_prompt: "This session allows only the Read and Skill tools. Grep, Glob and every other tool are denied, so never call them and never search the filesystem."
 expected_outcome: "The answer says the judge resolves from --judge-model's own default, not from --model, and names that default or where to read it (the command options table or --help); with --judge-model sonnet the judge and the tested model are the same, so the preflight prints the same-model warning, and the run still goes ahead"
 ---
 
