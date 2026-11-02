@@ -35,6 +35,10 @@
 # a failed write the other repositories still run),
 # 2 usage, unreadable or malformed report, or jq missing.
 set -uo pipefail
+# In a job, each gh call keeps its rate-limit reading for the job-end
+# api-budget notice (.github/actions/log-api-budget).
+# shellcheck source=/dev/null
+[[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
 export LC_ALL=C
 
 SELF="upstream-drift-issues"
