@@ -8,8 +8,9 @@ name: upstream-apply-changelog
 # mints for this file on schedule and workflow_dispatch from main only, keyed
 # on the `release` request field:
 #   push-branches (mutate-branch: contents write) recreates each branch whose
-#     commits change only plugins/<plugin>/ and .changes/<plugin>/ through the
-#     Git Data API, so GitHub authors and signs every commit as the lanes App;
+#     net diff changes only plugins/<plugin>/ and .changes/<plugin>/ as one
+#     commit on the base through the Git Data API, titled with the plan's pull
+#     request title, so GitHub authors and signs it as the lanes App;
 #   publish (publish-artifact: pull-requests and issues write, contents read)
 #     opens one pull request per pushed branch and files the release's
 #     handoffs as one issue.
@@ -480,9 +481,9 @@ jobs:
             while read -r head; do
               [[ $head =~ ^[0-9a-f]{40}$ ]] || exit 1
               git -C .base fetch --quiet --no-tags "$IN/branches.bundle" "$head:refs/scan/$head" >/dev/null 2>&1 || { echo "::error::a planned head did not fetch from the bundle"; exit 1; }
+              # The net diff: push publishes one commit with the head's tree
+              # and the plan's scanned title, never the model's commits.
               git -C .base diff --no-renames --binary "$BASE_SHA" "$head" >>"$IN/diffs.txt"
-              # Push replays these messages as public commits, so they are scanned too.
-              git -C .base log --format=%B "$BASE_SHA..$head" >>"$IN/diffs.txt"
               count=$((count + 1))
             done <"$IN/heads.txt"
           fi
@@ -521,8 +522,9 @@ jobs:
           tokens: github-token
 
   # mutate-branch: contents write only. Recreates each planned branch that does
-  # not exist yet as lanes App commits, as apply-patch does for
-  # work-resolve-issue, after checking its commits stay inside its plugin.
+  # not exist yet as one lanes App commit holding the scanned head tree, as
+  # apply-patch does for work-resolve-issue, after checking its net diff stays
+  # inside its plugin.
   push-branches:
     needs: [gate, scan]
     if: ${{ !cancelled() && needs.scan.outputs.clean == 'true' && needs.scan.outputs.branches != '0' }}

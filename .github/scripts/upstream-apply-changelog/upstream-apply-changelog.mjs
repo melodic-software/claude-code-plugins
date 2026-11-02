@@ -4,11 +4,11 @@
 //   gate     picks the release, skips one already processed, applies the
 //            per-day cap (read-only GITHUB_TOKEN with actions: read)
 //   push     checks each planned branch and recreates it through the Git Data
-//            API as lanes App commits (mutate-branch token)
+//            API as one lanes App commit on the base (mutate-branch token)
 //   publish  opens one PR per pushed branch and files the release's handoffs
 //            as one issue (publish-artifact token)
 // The plan and the bundle come from the model job, so every field is data:
-// names are held to fixed shapes and every commit to its plugin's paths.
+// names are held to fixed shapes and each branch's net diff to its plugin's paths.
 import { execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -250,44 +250,38 @@ export function checkRawLog(raw, plugin, index = 0) {
 const git = (repo, args, extra = {}) => execFileSync("git", ["-C", repo, ...args], { encoding: "utf8", ...extra }).trim();
 const MAX_BLOB = 64 * 1024 * 1024;
 
-// The commits in base..head, oldest first, each as its message and the files
-// it changes: a deleted file has content null. A merge commit is refused.
-export function readCommits(repoDir, baseSha, headSha) {
-  if (git(repoDir, ["rev-list", "--min-parents=2", `${baseSha}..${headSha}`])) throw new Error("a planned branch holds a merge commit");
-  return git(repoDir, ["rev-list", "--reverse", `${baseSha}..${headSha}`])
+// The net raw diff base..head: what the one published commit changes, and
+// what the scan job scanned. Intermediate commits are never published.
+export const netRawDiff = (repoDir, baseSha, headSha) =>
+  git(repoDir, ["diff-tree", "-r", "--no-renames", "--raw", "--no-abbrev", baseSha, headSha]);
+
+// The files the net diff changes: a deleted file has content null.
+export function readNetChanges(repoDir, baseSha, headSha) {
+  return netRawDiff(repoDir, baseSha, headSha)
     .split("\n")
-    .filter(Boolean)
-    .map((sha) => ({
-      message: execFileSync("git", ["-C", repoDir, "show", "-s", "--format=%B", sha], { encoding: "utf8" }),
-      entries: git(repoDir, ["diff-tree", "-r", "--no-renames", "--raw", "--no-abbrev", "--no-commit-id", sha])
-        .split("\n")
-        .filter((line) => line.startsWith(":"))
-        .map((line) => {
-          const [meta, path] = line.split("\t");
-          const [srcMode, dstMode, , dstSha] = meta.slice(1).split(" ");
-          if (dstMode === "000000") return { path, mode: srcMode, content: null };
-          return { path, mode: dstMode, content: execFileSync("git", ["-C", repoDir, "cat-file", "blob", dstSha], { maxBuffer: MAX_BLOB }) };
-        }),
-    }));
+    .filter((line) => line.startsWith(":"))
+    .map((line) => {
+      const [meta, path] = line.split("\t");
+      const [srcMode, dstMode, , dstSha] = meta.slice(1).split(" ");
+      if (dstMode === "000000") return { path, mode: srcMode, content: null };
+      return { path, mode: dstMode, content: execFileSync("git", ["-C", repoDir, "cat-file", "blob", dstSha], { maxBuffer: MAX_BLOB }) };
+    });
 }
 
-// Replays the commits through the Git Data API with no author or committer,
-// so GitHub authors and signs each as the lanes App, as apply-patch does
-// (apply-patch.mjs createGitHubApi). Returns the new head, whose tree must be
-// the planned head's: what is pushed is exactly what the scan job scanned.
-export async function replayCommits(commits, { baseSha, baseTree, headTree, api }) {
-  let parent = baseSha;
-  let tree = baseTree;
-  for (const { message, entries } of commits) {
-    const blobs = [];
-    for (const { path, mode, content } of entries) {
-      blobs.push({ path, mode, type: "blob", sha: content === null ? null : await api.createBlob(Buffer.from(content).toString("base64")) });
-    }
-    if (blobs.length) tree = await api.createTree(tree, blobs);
-    parent = await api.createCommit(message, tree, [parent]);
+// One commit on the base, with no author or committer, so GitHub authors and
+// signs it as the lanes App, as apply-patch does (apply-patch.mjs
+// createGitHubApi). Its message is the scanned pull request title and its
+// tree must be the planned head's: what is pushed is exactly what the scan
+// job scanned. Returns the new commit.
+export async function commitNetTree(changes, { message, baseSha, baseTree, headTree, api }) {
+  if (!changes.length) throw new Error("a planned branch changes nothing against the base");
+  const entries = [];
+  for (const { path, mode, content } of changes) {
+    entries.push({ path, mode, type: "blob", sha: content === null ? null : await api.createBlob(Buffer.from(content).toString("base64")) });
   }
-  if (tree !== headTree) throw new Error(`the replayed tree ${tree} is not the planned head's ${headTree}`);
-  return parent;
+  const tree = await api.createTree(baseTree, entries);
+  if (tree !== headTree) throw new Error(`the built tree ${tree} is not the planned head's ${headTree}`);
+  return api.createCommit(message, tree, [baseSha]);
 }
 
 async function gate(env) {
@@ -339,9 +333,9 @@ async function push(env) {
   for (const [i, b] of plan.branches.entries()) {
     const local = `refs/upstream-apply-changelog/${b.plugin}`;
     git(repoDir, ["fetch", "--no-tags", BUNDLE_FILE, `${b.head_sha}:${local}`]);
-    if (git(repoDir, ["rev-parse", local]) !== b.head_sha) throw new Error(`${b.branch} is not at its planned head`);
-    if (git(repoDir, ["merge-base", baseSha, b.head_sha]) !== baseSha) throw new Error(`${b.branch} does not start at the base`);
-    checkRawLog(git(repoDir, ["log", "--format=", "--raw", "--no-renames", "--no-abbrev", `${baseSha}..${b.head_sha}`]), b.plugin, i);
+    if (git(repoDir, ["rev-parse", local]) !== b.head_sha) throw new Error(`branches[${i}] is not at its planned head`);
+    if (git(repoDir, ["merge-base", baseSha, b.head_sha]) !== baseSha) throw new Error(`branches[${i}] does not start at the base`);
+    checkRawLog(netRawDiff(repoDir, baseSha, b.head_sha), b.plugin, i);
     const headTree = git(repoDir, ["rev-parse", `${b.head_sha}^{tree}`]);
     const existing = await api(`/repos/${repo}/git/ref/heads/${b.branch}`, { allow404: true });
     if (existing) {
@@ -352,7 +346,8 @@ async function push(env) {
       console.log(`${b.branch} already exists${heads[b.branch] ? "" : " with another tree"}; not pushed`);
       continue;
     }
-    const head = await replayCommits(readCommits(repoDir, baseSha, b.head_sha), {
+    const head = await commitNetTree(readNetChanges(repoDir, baseSha, b.head_sha), {
+      message: b.pr.title,
       baseSha,
       baseTree: git(repoDir, ["rev-parse", `${baseSha}^{tree}`]),
       headTree,

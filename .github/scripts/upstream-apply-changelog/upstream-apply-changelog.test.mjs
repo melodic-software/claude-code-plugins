@@ -9,15 +9,16 @@ import {
   alreadyProcessed,
   branchFor,
   checkRawLog,
+  commitNetTree,
   fileReleaseHandoffs,
   handoffMarker,
+  netRawDiff,
   newestRelease,
-  releaseMarker,
-  renderItems,
-  readCommits,
+  readNetChanges,
   readPlan,
+  releaseMarker,
   releasesFromStatus,
-  replayCommits,
+  renderItems,
   startedInWindow,
   validatePlan,
 } from "./upstream-apply-changelog.mjs";
@@ -153,26 +154,28 @@ function fakeApi() {
   };
 }
 
-test("the replay makes one App commit per planned commit, chained from the base, and deletes a removed file", async () => {
+test("a branch becomes one App commit on the base, titled with its pull request title, deleting a removed file", async () => {
   const api = fakeApi();
-  const commits = [
-    { message: "first\n", entries: [{ path: "plugins/p/a.md", mode: "100644", content: Buffer.from("a") }] },
-    { message: "second\n", entries: [{ path: "plugins/p/a.md", mode: "100644", content: null }] },
+  const changes = [
+    { path: "plugins/p/a.md", mode: "100644", content: Buffer.from("a") },
+    { path: "plugins/p/old.md", mode: "100644", content: null },
   ];
-  const tree1 = "tree:t0:plugins/p/a.md=blob:YQ==-1-2";
-  const tree2 = `tree:${tree1}:plugins/p/a.md=null-4`;
-  const head = await replayCommits(commits, { baseSha: BASE, baseTree: "t0", headTree: tree2, api });
-  assert.equal(api.calls[2], `commit:first:${tree1}:${BASE}`);
-  assert.equal(api.calls[4], `commit:second:${tree2}:commit:first:${tree1}:${BASE}-3`);
-  assert.equal(head, `${api.calls[4]}-5`);
+  const tree = "tree:t0:plugins/p/a.md=blob:YQ==-1,plugins/p/old.md=null-2";
+  const head = await commitNetTree(changes, { message: "chore(p): title", baseSha: BASE, baseTree: "t0", headTree: tree, api });
+  assert.equal(api.calls.length, 3);
+  assert.equal(api.calls[2], `commit:chore(p): title:${tree}:${BASE}`);
+  assert.equal(head, `${api.calls[2]}-3`);
 });
 
-test("a replay whose tree is not the planned head's is refused before any ref is made", async () => {
-  const commits = [{ message: "m", entries: [{ path: "plugins/p/a.md", mode: "100644", content: Buffer.from("a") }] }];
-  await assert.rejects(replayCommits(commits, { baseSha: BASE, baseTree: "t0", headTree: "other", api: fakeApi() }), /not the planned head's/);
+test("a built tree that is not the planned head's, or an empty change, makes no commit", async () => {
+  const changes = [{ path: "plugins/p/a.md", mode: "100644", content: Buffer.from("a") }];
+  const api = fakeApi();
+  await assert.rejects(commitNetTree(changes, { message: "m", baseSha: BASE, baseTree: "t0", headTree: "other", api }), /not the planned head's/);
+  assert.ok(!api.calls.some((c) => c.startsWith("commit:")));
+  await assert.rejects(commitNetTree([], { message: "m", baseSha: BASE, baseTree: "t0", headTree: "t0", api: fakeApi() }), /changes nothing/);
 });
 
-test("the planned commits are read oldest first with their files, and a merge commit is refused", (t) => {
+test("the net change reads each file once at its head content, whatever the commits in between", (t) => {
   const dir = mkdtempSync(join(tmpdir(), "uac-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const env = { PATH: process.env.PATH, HOME: dir, GIT_CONFIG_NOSYSTEM: "1", GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" };
@@ -182,21 +185,25 @@ test("the planned commits are read oldest first with their files, and a merge co
   git("add", ".");
   git("commit", "-qm", "base");
   const base = git("rev-parse", "HEAD");
-  writeFileSync(join(dir, "new.md"), "n");
+  writeFileSync(join(dir, "new.md"), "n1");
   git("add", ".");
   git("commit", "-qm", "add new");
+  writeFileSync(join(dir, "new.md"), "n2");
+  git("add", ".");
+  git("commit", "-qm", "edit new");
   git("rm", "-q", "keep.md");
   git("commit", "-qm", "drop keep");
-  const commits = readCommits(dir, base, git("rev-parse", "HEAD"));
-  assert.deepEqual(commits.map((c) => c.message.trim()), ["add new", "drop keep"]);
-  assert.deepEqual(commits[0].entries.map((e) => [e.path, e.mode, String(e.content)]), [["new.md", "100644", "n"]]);
-  assert.deepEqual(commits[1].entries, [{ path: "keep.md", mode: "100644", content: null }]);
+  const changes = readNetChanges(dir, base, git("rev-parse", "HEAD"));
+  assert.deepEqual(
+    changes.map((e) => [e.path, e.mode, e.content === null ? null : String(e.content)]),
+    [["keep.md", "100644", null], ["new.md", "100644", "n2"]],
+  );
+  // A merge commit's change shows in the net diff, so the path check sees it.
   git("checkout", "-qb", "side", base);
-  writeFileSync(join(dir, "side.md"), "s");
-  git("add", ".");
+  git("checkout", "-q", "main", "--", "new.md");
   git("commit", "-qm", "side");
   git("merge", "-q", "--no-edit", "main");
-  assert.throws(() => readCommits(dir, base, git("rev-parse", "HEAD")), /merge commit/);
+  assert.match(netRawDiff(dir, base, git("rev-parse", "HEAD")), /\tnew\.md$/m);
 });
 
 const REPO = "o/r";
