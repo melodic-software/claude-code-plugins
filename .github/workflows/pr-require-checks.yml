@@ -3738,7 +3738,7 @@ jobs:
           echo "Advisory nonce: $nonce"
           while IFS= read -r suite; do
             workers=()
-            [[ $suite == plugins/planning/surface/* || $suite == plugins/planning/shared/tests/test_share.py ]] && workers=(-n auto --dist loadscope)
+            [[ $suite == plugins/planning/surface/* || $suite == plugins/planning/shared/tests/test_share.* ]] && workers=(-n auto --dist loadscope)
             echo "python -m pytest -q -o tmp_path_retention_policy=none ${workers[*]} -- $suite # nonce $nonce" >&2
             suite_rc=0
             python -m pytest -q -o tmp_path_retention_policy=none "${workers[@]}" -- "$suite" || suite_rc=$?
