@@ -109,7 +109,7 @@ Six escalation event classes:
 | `gate-failure` | a blocking verification gate fails |
 | `verification-divergence` | a verification outcome diverges from the expected or claimed result, or two checkers of one class disagree |
 | `admission-rejection` | the admission seam rejects a signal as an audited rejection |
-| `demotion` | contrary evidence automatically demotes a promoted cell; its record routes to a lane, not to the human gate |
+| `demotion` | contrary evidence automatically demotes a promoted cell |
 | `structural-plan-approval` | a `C4` item requires upfront plan approval before execution |
 | `untrusted-provenance` | always, for every `C5` item |
 
@@ -123,7 +123,9 @@ the escalation is queryable from the event.
 
 **Mechanism.** The governed queue itself: an escalation lands as a human-gated work item on
 the one queue, with an optional channel notification delivered through the trigger contract's
-closed-loop acknowledgment symmetry ([trigger-dispatch](trigger-dispatch.md)).
+closed-loop acknowledgment symmetry ([trigger-dispatch](trigger-dispatch.md)). A `demotion`
+is the exception: its record is filed with no human-gated label, and intake triage hands it to a
+lane.
 
 **The one-channel invariant.** No second escalation channel exists. It is this contract's
 own, distinct from and narrower than the claim and dispatch paths, which the

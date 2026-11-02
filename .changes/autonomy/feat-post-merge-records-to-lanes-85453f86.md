@@ -4,4 +4,4 @@ bump: patch
 
 ### Changed
 
-- The work-class guardrails say a demotion's record routes to a lane, not to the human gate. A demotion lifts with no person only once its evidence clears (a red main branch once main is green at a later commit), and lifting restores the ratified state with no second flip.
+- The guardrails say a demotion's record is filed with no human-gated label and intake triage hands it to a lane. The record stops holding with no person only once its evidence clears (a red main branch once main is green at a later commit); evidence a green main cannot clear holds until a person clears it.
