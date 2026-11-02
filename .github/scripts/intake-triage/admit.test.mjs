@@ -2245,6 +2245,8 @@ describe("unrunnableCriteria", () => {
     ["a bot's results posted as a comment on this issue", "The bot's results are posted as a comment on this issue.", /comment instead/],
     ["a breakdown by lane in a comment", "Token spend is broken down by lane in a comment.", /comment instead/],
     ["an attribution by hook in a comment", "The startup gap is attributed by hook in a comment.", /comment instead/],
+    ["a conditional labeled comment on this issue", "Once the probe runs, its result is posted as a `Probe result:` comment on this issue.", /comment instead/],
+    ["a conditional breakdown in a comment on this issue", "When the run ends, token spend is broken down by lane in a comment on this issue.", /comment instead/],
   ];
   for (const [name, line, kind] of positives) {
     test(`flags ${name}`, () => {

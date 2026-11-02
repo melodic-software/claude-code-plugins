@@ -498,7 +498,7 @@ const UNRUNNABLE = [
   // resolve-issue cannot write the tracker, and its pull request is the deliverable.
   // The comment must carry a payload the lane collects, and an output a named
   // script owns (work-unblock's result) is that script's behavior. A comment
-  // above, in or beside code is a file change. Without "on this issue", a
+  // above, in or beside code is a file change. Unless it ends "on this issue", a
   // conditional item and a result an automation posts itself (a workflow's
   // findings, posted by a lane) stay with the lane; a script's output is still a
   // run the session records, and "broken down by lane" names a dimension.
@@ -513,7 +513,9 @@ const UNRUNNABLE = [
       test(text) {
         if (this.anchored.test(text)) return true;
         const match = this.posted.exec(text);
-        return Boolean(match) && !CONDITIONAL.test(text) && !BY_SCRIPT.test(text.slice(match.index + match[0].length));
+        if (!match) return false;
+        const rest = text.slice(match.index + match[0].length);
+        return /^ on this issue\b/i.test(rest) || (!CONDITIONAL.test(text) && !BY_SCRIPT.test(rest));
       },
     },
   ],
