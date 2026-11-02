@@ -486,7 +486,8 @@ jobs:
               [[ $head =~ ^[0-9a-f]{40}$ ]] || exit 1
               git -C .base fetch --quiet --no-tags "$IN/branches.bundle" "$head:refs/scan/$head" >/dev/null 2>&1 || { echo "::error::a planned head did not fetch from the bundle"; exit 1; }
               # The scanners read text, so a binary file is refused, unnamed.
-              if git -C .base diff --numstat --no-renames "$BASE_SHA" "$head" | grep -q $'^-\t-\t'; then
+              numstat=$(git -C .base diff --numstat --no-renames "$BASE_SHA" "$head")
+              if grep -q $'^-\t-\t' <<<"$numstat"; then
                 echo "::error::a planned branch changes a binary file; only text is published"
                 exit 1
               fi
@@ -739,9 +740,9 @@ jobs:
           base-path: .base
           output-path: ${{ runner.temp }}/resolved-config.json
 
-      # Before the mint: the scan job's artifact, by id, and the plan's
-      # SHA-256 (publish reads no bundle). A missing or altered plan fails
-      # the job, so nothing is minted.
+      # Before the mint: the scan job's artifact, by id, and the SHA-256 it
+      # recorded for each file; with no bundle hash there must be no bundle.
+      # A missing or altered file fails the job, so nothing is minted.
       - name: Download the plan
         if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -749,22 +750,33 @@ jobs:
           artifact-ids: ${{ needs.scan.outputs.artifact-id }}
           path: ${{ runner.temp }}/plan
 
-      - name: Check the plan
+      - name: Check the plan and the branches
         id: verify
         if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
         env:
-          PLAN_FILE: ${{ runner.temp }}/plan/plan.json
+          DIR: ${{ runner.temp }}/plan
           PLAN_SHA256: ${{ needs.scan.outputs.plan-sha256 }}
+          BUNDLE_SHA256: ${{ needs.scan.outputs.bundle-sha256 }}
         run: |
-          if [ -L "$PLAN_FILE" ] || [ ! -f "$PLAN_FILE" ] || [ "$(stat -c %s "$PLAN_FILE")" -gt 1048576 ]; then
-            echo "::error::the plan artifact holds no plan.json of at most 1 MiB"
+          pairs=("plan.json:$PLAN_SHA256")
+          if [ -n "$BUNDLE_SHA256" ]; then
+            pairs+=("branches.bundle:$BUNDLE_SHA256")
+          elif [ -e "$DIR/branches.bundle" ] || [ -L "$DIR/branches.bundle" ]; then
+            echo "::error::the plan artifact holds a bundle the scan job recorded no SHA-256 for"
             exit 1
           fi
-          sum=$(sha256sum <"$PLAN_FILE")
-          if ! [[ $PLAN_SHA256 =~ ^[0-9a-f]{64}$ ]] || [ "${sum%% *}" != "$PLAN_SHA256" ]; then
-            echo "::error::plan.json does not match the SHA-256 the scan job recorded"
-            exit 1
-          fi
+          for pair in "${pairs[@]}"; do
+            file="$DIR/${pair%%:*}" want="${pair#*:}"
+            if [ -L "$file" ] || [ ! -f "$file" ] || [ "$(stat -c %s "$file")" -gt 1048576 ]; then
+              echo "::error::the plan artifact holds no ${pair%%:*} of at most 1 MiB"
+              exit 1
+            fi
+            sum=$(sha256sum <"$file")
+            if ! [[ $want =~ ^[0-9a-f]{64}$ ]] || [ "${sum%% *}" != "$want" ]; then
+              echo "::error::${pair%%:*} does not match the SHA-256 the scan job recorded"
+              exit 1
+            fi
+          done
 
       - name: Request the lane token
         id: lane-token
