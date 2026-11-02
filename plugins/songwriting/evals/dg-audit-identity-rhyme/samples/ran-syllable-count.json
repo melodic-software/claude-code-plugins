@@ -1,0 +1,189 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/plugins/songwriting/context/pat-pattison/scripts/datamuse.sh\" syllables lonely",
+            "description": "count syllables"
+          }
+        }
+      ],
+      "why": "quoted script path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "for w in rearview empty highway; do bash /x/scripts/datamuse.sh syllables \"$w\"; done",
+            "description": "count syllables per word"
+          }
+        }
+      ],
+      "why": "a loop over the candidate's words"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "S=/x/scripts/datamuse.sh; for w in harmony mirror; do echo \"== $w\"; \"$S\" syllables \"$w\" 2>&1 | head -5; done",
+            "description": "count syllables"
+          }
+        }
+      ],
+      "why": "script path in a variable, quoted call in a loop"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "S=/x/scripts/datamuse.sh; for w in coffee holder; do printf '%s: ' \"$w\"; $S syllables \"$w\" 2>&1 | head -2; done",
+            "description": "count syllables"
+          }
+        }
+      ],
+      "why": "script path in a variable, bare call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "S=/x/scripts/datamuse.sh\nfor w in reach across; do printf \"%s: \" $w; $S syllables $w; done",
+            "description": "count syllables"
+          }
+        }
+      ],
+      "why": "variable set on its own line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /x/context/pat-pattison/scripts/datamuse.sh syllables delight",
+            "description": "count syllables in the audited line's end word"
+          }
+        }
+      ],
+      "why": "the audit's meter box counted with datamuse.sh"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call: the count was estimated"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/x/scripts/datamuse.sh rhyme sad",
+            "description": "rhymes"
+          }
+        }
+      ],
+      "why": "a rhyme lookup, not a syllable count"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/x/scripts/datamuse.sh"
+          }
+        }
+      ],
+      "why": "read the script without running it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo 'syllables: 11 13 12 13'",
+            "description": "restate the counts"
+          }
+        }
+      ],
+      "why": "restates the writer's counts"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /x/scripts/datamuse.sh | grep -n syllables",
+            "description": "search the script"
+          }
+        }
+      ],
+      "why": "searched, not run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /x/scripts/datamuse.sh --help 2>&1 | grep syllables",
+            "description": "read the usage"
+          }
+        }
+      ],
+      "why": "help only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/x/scripts/datamuse.sh rhyme sad; echo \"syllables: 11 13 12 13\"",
+            "description": "rhymes, then restate the counts"
+          }
+        }
+      ],
+      "why": "another mode, then printed counts"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "S=/x/scripts/datamuse.sh; \"$S\" rhyme sad",
+            "description": "rhymes"
+          }
+        }
+      ],
+      "why": "the variable runs another mode"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "S=/x/scripts/datamuse.sh; echo $S syllables",
+            "description": "print the path"
+          }
+        }
+      ],
+      "why": "the variable is echoed, not run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "T=/x/scripts/datamuse.sh; \"$S\" syllables lonely",
+            "description": "count syllables"
+          }
+        }
+      ],
+      "why": "the variable run is not the one holding the script path"
+    }
+  ]
+}
