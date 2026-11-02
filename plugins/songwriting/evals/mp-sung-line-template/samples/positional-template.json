@@ -1,0 +1,44 @@
+{
+  "pass": [
+    {
+      "answer": "§3 Critique filter: run. The melody is fixed, so this is a fit question, answered in notes, not a length question.\n\nPositional template for line 2, from the recording:\n\n```text\nline: I  left  the  porch  light  burn-  ing  ev-  ery  night  for  you\nscan: u  u     u    /      u      /      u    u    u    /      u    u\nsyl:  1  2     3    [4]    5      [6]    7    8    9    [10]   11   12\n```\n\nTwelve notes, three strong slots at 4, 6 and 10. A car line has to put a meaning carrier on each bracketed slot and keep road signs off them. Writing that line is `/songwriting:co-write` line-brainstorm's job; take this template there."
+    },
+    {
+      "answer": "| syl | 1 | 2 | 3 | [4] | 5 | [6] | 7 | 8 | 9 | [10] | 11 | 12 |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+      "why": "template as a table row"
+    },
+    {
+      "answer": "syl: 1 2 3 [ 4 ] 5 [ 6 ] 7 8 9 [ 10 ] 11 12",
+      "why": "spaces inside the brackets"
+    },
+    {
+      "answer": "| syl | word | stress |\n| --- | --- | --- |\n| 1 | I | u |\n| 2 | left | u |\n| 3 | the | u |\n| [4] | porch | / |\n| 5 | light | u |\n| [6] | burn- | / |\n| 7 | ing | u |\n| 8 | ev- | u |\n| 9 | ery | u |\n| [10] | night | / |\n| 11 | for | u |\n| 12 | you | u |",
+      "why": "vertical table, one bracketed slot per row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Your line has 12 syllables and three stresses (porch, burn, night). Here's a car line that fits: \"I keep the engine running every night for you.\"",
+      "why": "counts but no positional template"
+    },
+    {
+      "answer": "Stressed syllables: [4], then 6 and 10.",
+      "why": "only one bracketed slot"
+    },
+    {
+      "answer": "I left the [PORCH] light [BURN]-ing every [NIGHT] for you",
+      "why": "brackets words, not numbered slots"
+    },
+    {
+      "answer": "See the meter notes [1] and the phrasing chapter [2].\nAlso [3] for greedy spots.",
+      "why": "citation markers on separate lines are not a template"
+    },
+    {
+      "answer": "| syl | word |\n| --- | --- |\n| [4] | porch |\n| 5 | light |\n| [6] | burn |",
+      "why": "only two bracketed rows"
+    }
+  ]
+}

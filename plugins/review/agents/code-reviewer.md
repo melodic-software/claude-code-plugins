@@ -81,6 +81,8 @@ The cap is `maxTurns: 30` and a large change set can exhaust it. Finish reading 
 
 The repeat-run, side-effect and cast-or-debug-output items above are SUGGESTION findings; raise one higher only when the change shows the behavior it causes is wrong.
 
+**Type questions.** When the diff declares or changes a type, or a finding turns on how a value is typed, read `${CLAUDE_PLUGIN_ROOT}/context/type-discipline.md` and judge the type against its matching row. A change that departs from that row is a SUGGESTION finding citing the row, raised higher only when the change shows the behavior it causes is wrong; the items above still apply as written.
+
 **Design-smell baseline** (Fowler, *Refactoring* 2nd ed., ch. 3). Check the diff for the smells below and report a match as a possible smell, not a rule violation. Where the project's documented standards endorse a pattern a smell would flag, the standards win; a pattern any tooling already enforces (a linter, formatter, compiler setting, architecture test, or another automated check) is not reported:
 
 - Mysterious Name: understanding the name requires reading the body → pick a name that states the purpose

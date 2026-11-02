@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: dg-audit-identity-rhyme
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: ran-syllable-count
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:datamuse\.sh(?:\\")?\s+syllables\b|\b([A-Za-z_]\w*)=(?:\\"|'')?[^\s"'';\\]*datamuse\.sh(?:[^"\\]|\\.)*?(?:[;&|(]|\\n|\bdo|\bthen)\s*(?:\\")?\$\{?\1\}?(?:\\")?\s+syllables\b)'
+    min: 1
+  - name: identity-flagged
+    type: regex
+    pattern: '\bidentit(?:y|ies)\b[^\n]{0,80}?(?:\bfail(?:s|ed)?\b|✗|❌|\breject(?:s|ed)?\b|\b(?:not|isn[''’]t|aren[''’]t)\s+(?:a\s+)?(?:true\s+|real\s+)?rhymes?\b)|(?:\bfail(?:s|ed)?\b|✗|❌)[^\n]{0,60}?\bidentit(?:y|ies)\b|\b(?:is|are|it[''’]s|that[''’]s|they[''’]re)\s+(?:an\s+)?identit(?:y|ies)\b(?!\s+check)'
+    flags: 'i'
+    target: last_message
+  - name: box-verdicts
+    type: regex
+    pattern: '(?:[\s\S]*?(?:\b(?:pass(?:es|ed)?|fail(?:s|ed)?|skip(?:s|ped)?)\b|✅|❌|✓|✗)){3}'
+    flags: 'i'
+    target: last_message
+  - name: register-gate-skipped
+    type: regex
+    pattern: '\bvoiceprint\b[^\n]{0,80}?(?:(?<!n[''’]t )(?<!not )\bskip(?:s|ped|ping)?|\b(?:can[''’]t|cannot|won[''’]t) (?:judge|rule on|check))\b|\bregister\b[^\n]{0,80}?(?<!n[''’]t )(?<!not )\bskip(?:s|ped|ping)?\b|(?<!n[''’]t )(?<!not )\bskip(?:s|ped|ping)?\b[^\n]{0,80}?\bregister\b'
+    flags: 'i'
+    target: last_message
