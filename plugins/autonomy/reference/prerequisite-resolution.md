@@ -169,8 +169,8 @@ The resolution is never admission data. Its two consumers are:
    setup slice prepares, never writes, that surface.
 2. A **narrowing-only** influence on the repo-local `routines.enabled` section, which existing
    envelope conformance already validates claims against. An identity may be enabled only when
-   its verdict clears; an identity with no protected classification entry stays unclassified and
-   fail-closed human-gated regardless.
+   its verdict clears; an identity with no protected classification entry fails the routine
+   identity trust hold and enqueues human-gated regardless.
 
 A repo-local input to a protected path would be the precise agent-writable bypass the
 classification obligation forbids.

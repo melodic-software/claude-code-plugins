@@ -115,7 +115,7 @@ resolution order.
    | Key | Value |
    |---|---|
    | `surfaces` | object keyed by scheduling-surface id, the same shape the [trigger slice](../SKILL.md#triggerdispatch-slice)'s `surfaces` map uses (`{"class": "temporal", "transport": "poll"\|"push-lifecycle", "scheduler_class": "ci-cron"\|"local-scheduler", "execution_surface": "<recorded id>"}`; a `local-scheduler` surface using an org artifact store also declares `artifact_schemes`). Record a surface here only when the trigger slice has not already recorded it. [`scripts/check-signal-envelope.mjs`](../scripts/check-signal-envelope.mjs)'s resolver merges every section's `surfaces` map and refuses an id recorded in two sections as ambiguous; a routine riding an already-recorded surface references its id, it does not re-declare it |
-   | `enabled` | object keyed by the full routine identity (`<class-token>` or `<class-token>/<posture-token>`). Each entry `{"source_surface": "<surfaces-map id>", "cadence": "<schedule expression or token>", "enabled": <bool>}`; cadence, enablement, and surface choice only. Its `source_surface` must agree with the same identity's `source_surface` in the security binding's `admission.classification.temporal`. Binding review and the envelope checker catch drift. The class, its `run_link_prefix`, and its `producer_identity` are not here; an identity with no protected classification entry, or one whose surface disagrees, stays unclassified and fail-closed human-gated |
+   | `enabled` | object keyed by the full routine identity (`<class-token>` or `<class-token>/<posture-token>`). Each entry `{"source_surface": "<surfaces-map id>", "cadence": "<schedule expression or token>", "enabled": <bool>}`; cadence, enablement, and surface choice only. Its `source_surface` must agree with the same identity's `source_surface` in the security binding's `admission.classification.temporal`. Binding review and the envelope checker catch drift. The class, its `run_link_prefix`, and its `producer_identity` are not here; an identity with no protected classification entry, or one whose surface disagrees, fails the routine identity trust hold and enqueues human-gated |
 
 6. **Conformance**, the wired state is reached when
    [`scripts/check-signal-envelope.mjs`](../scripts/check-signal-envelope.mjs), run with both
@@ -127,4 +127,5 @@ resolution order.
    falls under that entry's ratified `run_link_prefix`, and that the attested
    `signal.producer_identity` equals that entry's ratified `producer_identity`; a missing
    `signal.routine`, an unresolvable surface, an identity↔surface mismatch, a raw link outside the
-   ratified prefix, a `producer_identity` mismatch, or an unclassified class is a finding.
+   ratified prefix, a `producer_identity` mismatch, or a stamped class with no protected
+   classification entry is a finding.
