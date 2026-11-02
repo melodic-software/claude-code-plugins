@@ -644,8 +644,12 @@ Assessed under the genre rubric and given no lane:
   dual-audience, since later phases re-read the approved `link-map.json`): the person approves or
   narrows a map of at most `max_resources` in-corpus rows (default 30), shown as tallies, the
   in-corpus list with reasons, bounds and batch plan, which the text rung serves without loss.
-  `queue.json` lists the URLs handed to the `knowledge:docpage-digest` runs and
-  `mapper-handoff.md` is a handoff; both are records, so neither gets a view.
+  `queue.json` lists the URLs handed to the `knowledge:docpage-digest` runs; it is a record, so
+  it gets no view. `mapper-handoff.md` (genre: reports) goes to `planning:interview` when that
+  plugin is installed, and its read-only decision table (above) is the view of what comes next;
+  otherwise the person reads it directly. It is a short markdown summary of tallies, `uncertain`
+  verdicts with evidence, companion and external lists, and drop candidates, so the text rung
+  serves those drop decisions without loss.
 - `testing:audit`: the scanner's output, presented as the script prints it: one rule-tagged
   `path:line` row per finding and a coverage block. Its gate (`--check`) and its fix-pass file
   (`--persist-findings`) are separate script modes. The text rung loses nothing a page would add.
