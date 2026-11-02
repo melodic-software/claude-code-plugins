@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { pathToFileURL } from "node:url";
 
-import { causeName, HOLD_CLASSES, runCode, STOP_ROUTES, stopReasonCode, stopRetries, stopRoute } from "./stop-routes.mjs";
+import { causeName, HOLD_CLASSES, runCode, securityWord, STOP_ROUTES, stopReasonCode, stopRetries, stopRoute } from "./stop-routes.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 test("a reason the table does not list names no owner reason, so it fails, to no person", () => {
@@ -215,6 +215,33 @@ test("an ending reason that names a secret noun as a capability keeps its route"
   ]) {
     assert.equal(runCode(reason), "security-risk", reason);
     assert.equal(stopRoute(runCode(reason)), "hold", reason);
+  }
+});
+
+// A large token count is a measure, not a credential: run 41380225807 held a
+// host-only reason as security on the "tokens" in its count.
+test("an ending reason that names a large token count keeps its route", () => {
+  for (const reason of [
+    "host-only: Attributing the startup gap (76,888 tokens headless vs 45,141 interactive) by source means re-running headless `claude -p` ...",
+    "host-only: the startup payload is 120k tokens",
+    "host-only: the startup payload is 1.5M tokens",
+    "host-only: the run spent 1500000 tokens",
+    "manual-external: 76,888 tokens headless vs 45,141 interactive",
+  ]) {
+    assert.equal(runCode(reason), reason.split(":")[0], reason);
+    assert.equal(securityWord(reason), "", reason);
+  }
+  for (const reason of [
+    "host-only: 3 tokens leaked in the log",
+    "host-only: 2 tokens in the run output",
+    "host-only: rotate the 1,200 tokens",
+    "host-only: 76,888 tokens and the deploy key was posted",
+    "host-only: 120k tokens, and the secret is in the log",
+    "host-only: 1500000 tokens were uploaded to a gist",
+    "host-only: 76,888 tokens; an attacker read the output",
+    "host-only: needs the token to be rotated",
+  ]) {
+    assert.equal(runCode(reason), "security-risk", reason);
   }
 });
 

@@ -111,6 +111,14 @@ const CAPABILITY = new RegExp(
   `\\b(?:(?:a|the)\\s+)?host\\s+with\\s+(?:(?:model|an?|the)\\s+)*${N}${END}|\\b(?:needs?|requires?|lacks?)\\s+(?:(?:an?|the|model|deploy)\\s+)*${N}${END}|\\btokens?\\s+(?:per|spent|count|usage|budget)\\b|,\\s*tokens\\s*,`,
   "gi",
 );
+// A token count of a thousand or more ("76,888 tokens", "1500000 tokens",
+// "120k tokens") is a measure, not a credential, so after an ending code its
+// "tokens" names no secret. A small count ("3 tokens leaked") still holds, and
+// a count releases nothing in a reason that also says what was done with
+// tokens (TOKEN_HANDLING): "rotate the 1,200 tokens" holds.
+const TOKEN_COUNT = /(?<![\w.,])(?:\d{1,3}(?:,\d{3})+|\d{4,}|\d+(?:\.\d+)?[kKM])\s?tokens?\b/g;
+const TOKEN_HANDLING = /rotat|revok|leak|expos|upload|paste|print|commit|push|dump|reveal|email|copie|gist|screenshot|\b(?:post(?:ed|s)?|shar(?:e|ed|es|ing)|logged|visible|shown|reus\w*|stol\w*)\b/i;
+const withoutCounts = (text) => (TOKEN_HANDLING.test(text) ? text : text.replace(TOKEN_COUNT, " "));
 // The only words a reason that names a secret noun may hold beside its
 // capability phrasings. Fail closed: any other word, so any exposure however
 // worded ("uploaded", "posted", "the key was ..."), a pronoun that could point
@@ -133,8 +141,9 @@ const capabilityOnly = (text) => {
 // to the lane anyway, except after a pushback (runCode's anyCodeEnds).
 const ENDING_ROUTES = new Set(["close", "host-run", "attended"]);
 const endingRiskWord = (text) => {
-  const rest = text.replace(CAPABILITY, " ");
-  return SECURITY_CONCERN.exec(text)?.[0] ?? SECURITY_WORD.exec(rest)?.[0] ?? (capabilityOnly(rest) ? "" : (SECURITY_WORD.exec(text)?.[0] ?? ""));
+  const counted = withoutCounts(text);
+  const rest = counted.replace(CAPABILITY, " ");
+  return SECURITY_CONCERN.exec(text)?.[0] ?? SECURITY_WORD.exec(rest)?.[0] ?? (capabilityOnly(rest) ? "" : (SECURITY_WORD.exec(counted)?.[0] ?? ""));
 };
 const namesEndingRisk = (text) => endingRiskWord(text) !== "";
 
