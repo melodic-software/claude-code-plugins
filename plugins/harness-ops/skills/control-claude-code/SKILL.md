@@ -74,17 +74,17 @@ case, whitespace, `|` and box drawing), with `*`. Shapes as of Claude Code 2.1.3
 `driver/fixtures/`, rewrites of real screens with every value invented; recheck when a release
 changes `/status`, `/usage`, the startup banner or the usage-limit notice.
 
-- email | [\w.+-]+@[\w-]+(?:\.[\w-]+)+
-- organization | (?<=Organization:\s+)\S(?:.*\S)?
-- login method | (?<=Login method:\s+)\S(?:.*\S)?
-- session id | (?<=Session ID:\s+)\S+
-- cwd | (?<=cwd:\s+)\S(?:.*\S)?
-- home path | (?:/home|/Users|[a-z]:\\Users)[/\\]\S+
-- usage limit | \d+% of your [^·]*limit
-- usage meter | [█▉▊▋▌▍▎▏]*\s*\d+% used
-- usage reset | resets [^·]*[^·\s]
-- cost | (?<=Total cost:\s+)\S+
-- token usage | (?<=Usage:\s+)\d(?:.*\S)?
+- email | [A-Za-z0-9_.+-]+@[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+
+- organization | (?<=Organization:[ \t]+)[^ \t](?:.*[^ \t])?
+- login method | (?<=Login method:[ \t]+)[^ \t](?:.*[^ \t])?
+- session id | (?<=Session ID:[ \t]+)[^ \t]+
+- cwd | (?<=cwd:[ \t]+)[^ \t](?:.*[^ \t])?
+- home path | (?:/home|/Users|[a-z]:\\Users)[/\\][^ \t]+
+- usage limit | [0-9]+% of your [^·]*limit
+- usage meter | [█▉▊▋▌▍▎▏]*[ \t]*[0-9]+% used
+- usage reset | resets [^·]*[^· \t]
+- cost | (?<=Total cost:[ \t]+)[^ \t]+
+- token usage | (?<=Usage:[ \t]+)[0-9](?:.*[^ \t])?
 
 values: `cli/account.mjs`
 
