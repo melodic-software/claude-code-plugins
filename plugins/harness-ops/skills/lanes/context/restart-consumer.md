@@ -187,7 +187,7 @@ parity claim.
   `Lane telemetry: restart-consumer` and opened by the write identity, which the brief reads only when both
   tools are pinned to it (each has a `--telemetry-issue`). When the comment
   lands on the brief's issue, the consumer appears in
-  `/harness-ops:morning-brief` with no reader change and inherits its
+  `/work-items:morning-brief` with no reader change and inherits its
   `STALE (>Nh)` detection. A consumer whose schedule stops firing surfaces as
   a stale lane, which is exactly the failure a run log alone would miss. With
   no resolvable issue at all, the run degrades loudly to ledger-only with a
