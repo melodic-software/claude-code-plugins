@@ -159,9 +159,10 @@ concurrency:
 # that ran all of its steps and more, 15; test-bash per leg about 230 on the
 # whole tree (171 s of suites estimated from scripts/suite-seconds.txt, a 158 s
 # suite among them, plus about 55 s of setup), 9; test-python per leg about
-# 310 on the whole tree (255 s of suites over 5 legs estimated from
-# scripts/suite-seconds.txt, a 201 s suite among them, plus up to 56 s of
-# setup), 7; test-node about 50 (31 s
+# 240 on the whole tree (1462 s of suites over 9 legs estimated from
+# scripts/suite-seconds.txt, which main measured 10 to 25% higher, plus 30 to
+# 75 s of setup; at 5 legs main's job p95 reached 414), 7;
+# test-node about 50 (31 s
 # of package chains measured on a warm npm cache), sized for a cold install, 5;
 # check-tests about 140 on the whole tree, measured, 4; ci-status 9 / 42, 3.
 # A job that outgrows its timeout is made faster or split,
@@ -3599,14 +3600,16 @@ jobs:
           scripts/run-plugin-tests.sh --jobs 3 --suites-from "$RUNNER_TEMP/leg-suites.txt"
 
   # THE PYTHON SUITES THE CHANGE SELECTS, one pytest process per module, on one
-  # to four legs of about 180 suite-seconds (one module at a time). Every module
+  # to nine legs of about 180 suite-seconds (one module at a time). Every module
   # on the whole tree or after a change to a Python pin. The pinned pytest
   # collects unittest.TestCase suites as well as pytest-style ones, the
   # disk-hygiene module among them. Suites in different directories import
   # same-named helpers (`from conftest import ...`), and a shared process hands
   # each the first one loaded, hence a process per module. A planning surface
-  # module spreads its tests over pytest-xdist workers, one test class to a
-  # worker (`--dist loadscope`), since a class's tests share ordered state.
+  # module and the planning share module, which alone ran 234 s serially on
+  # main and would hold its leg near the 280 s that 1.5 x p95 allows, spread
+  # their tests over pytest-xdist workers, one test class to a worker
+  # (`--dist loadscope`), since a class's tests share ordered state.
   # Node and the root
   # npm install come too: Python suites run the claude CLI from
   # node_modules/.bin and the inventory's parser packages through node.
@@ -3735,7 +3738,7 @@ jobs:
           echo "Advisory nonce: $nonce"
           while IFS= read -r suite; do
             workers=()
-            [[ $suite == plugins/planning/surface/* ]] && workers=(-n auto --dist loadscope)
+            [[ $suite == plugins/planning/surface/* || $suite == plugins/planning/shared/tests/test_share.* ]] && workers=(-n auto --dist loadscope)
             echo "python -m pytest -q -o tmp_path_retention_policy=none ${workers[*]} -- $suite # nonce $nonce" >&2
             suite_rc=0
             python -m pytest -q -o tmp_path_retention_policy=none "${workers[@]}" -- "$suite" || suite_rc=$?
