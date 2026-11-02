@@ -23,6 +23,18 @@
         }
       ],
       "why": "rank 2 and its single surface carry over unchanged to the Spec row"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/ws/.work/reviews/feat-orders-csv-export/20261101T120000Z-orders-csv.md",
+            "content": "---\ntype: review-findings\n---\n\n## Findings\n\n| Rank | Tier     | Confidence | Location               | Surface(s)        | Finding                                              | Action |\n|------|----------|------------|------------------------|-------------------|------------------------------------------------------|--------|\n| 1    | CRITICAL | high       | src/export-orders.js:4 | security-reviewer | The CSV writes PII the commit says it leaves out.    | Drop the email column |\n\n## By axis\n\n### Spec\n\n| 1 | CRITICAL | high | src/export-orders.js:4 | security-reviewer | The CSV writes PII the commit says it leaves out. | Drop the email column |\n\n### Standards\n\nnone\n"
+          }
+        }
+      ],
+      "why": "a column-aligned ## Findings row and an unpadded Spec row carry the same rank and surface; the finding names PII"
     }
   ],
   "fail": [

@@ -14,7 +14,7 @@ graders:
   - name: axis-row-keeps-rank-and-surfaces
     type: tool_used
     tool: Write
-    input_match: '^(?=.*\.work/reviews/[^"]*\.md")(?=.*## Findings(?:(?!\\n## ).)*\\n\| *(\d+) *\|[^|]*\|[^|]*\|[^|]*\|([^|]*)\|[^|]*(?:[Rr]edact|REDACT|[Mm]ask|MASK)(?:(?!\\n## ).)*.*## By axis(?:(?!\\n## ).)*### Spec(?:(?!### Standards)(?!\\n## ).)*\\n\| *\1 *\|[^|]*\|[^|]*\|[^|]*\|\2\|)'
+    input_match: '^(?=.*\.work/reviews/[^"]*\.md")(?=.*## Findings(?:(?!\\n## ).)*\\n\| *(\d+) *\|[^|]*\|[^|]*\|[^|]*\| *([^|]*?) *\|(?:(?!\\n).)*?(?:[Rr]edact|REDACT|[Mm]ask|MASK|PII|[Pp]ersonal data)(?:(?!\\n## ).)*.*## By axis(?:(?!\\n## ).)*### Spec(?:(?!### Standards)(?!\\n## ).)*\\n\| *\1 *\|[^|]*\|[^|]*\|[^|]*\| *\2 *\|)'
   - name: defect-under-standards
     type: tool_used
     tool: Write
