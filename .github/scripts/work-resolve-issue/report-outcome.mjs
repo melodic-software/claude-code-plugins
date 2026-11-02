@@ -2341,11 +2341,17 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
             pull = await github("POST", `${repo}/pulls`, fields);
           } catch (error) {
             // A create that failed on the network may have opened the PR, so
-            // it is read back first, and created once more only when absent.
+            // it is read back. A create is a non-idempotent write, which the
+            // outage posture never sends twice (docs/outage-posture-audit.md,
+            // element 1): when the read finds none, the run fails, and a
+            // rerun's findOpen reuses the PR or opens it.
             if (!networkError(error)) {
               throw error;
             }
-            pull = (await findOpen()) ?? (await github("POST", `${repo}/pulls`, fields));
+            pull = await findOpen();
+            if (!pull) {
+              throw new Error(`the PR create from ${plan.branch} failed on the network and no open PR from it reads back; the create is not sent again`, { cause: error });
+            }
           }
         }
         // A held PR carries the hold label from its opening; one the label

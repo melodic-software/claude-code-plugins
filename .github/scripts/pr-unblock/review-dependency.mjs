@@ -220,7 +220,11 @@ export async function select({ api, pr, headSha, appId, dependabotId, config = n
     return { decision: "skip", skipReason: "not-applicable", classification };
   }
   const comments = await api.listIssueComments(pr);
-  const checkRuns = await Promise.all(commits.map((commit) => api.listCheckRuns(commit.sha, MODEL_CHECK)));
+  // One commit's check runs at a time: element 6's serial reads.
+  const checkRuns = [];
+  for (const commit of commits) {
+    checkRuns.push(await api.listCheckRuns(commit.sha, MODEL_CHECK));
+  }
   // The commits listing stops at 250: a partial one cannot show a head is gone.
   const whole = commits.length === pull.commits && commits.at(-1)?.sha === headSha;
   const shas = whole ? commits.map((commit) => commit.sha) : null;
