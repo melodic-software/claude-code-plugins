@@ -133,7 +133,7 @@ concurrency:
 #
 # A DOMAIN IS A JOB ONLY WHEN THAT SHORTENS THE CRITICAL PATH BY MORE THAN A
 # JOB COSTS: about 15 s of fixed setup bare, about 40 s with a toolchain, or
-# when a job that outgrows its timeout is split (see the timeout rule). The
+# when a job that outgrows its work budget is split (see the work budget rule). The
 # three test lanes are jobs for a different reason: each runs only when the
 # change selects suites of its ecosystem, and skips otherwise, so a change to
 # shell code starts no Python or Node runner and a C# or docs change starts
@@ -141,20 +141,29 @@ concurrency:
 # .github/workflows/pr-test-platforms.yml: nothing gates on it, and in this file it
 # held the run open past its own required lanes.
 #
-# EVERY JOB'S TIMEOUT IS ceil(max(1.5 x p95, 1.1 x max) / 60) MINUTES, at least
-# 3 and never above 16, from the job's wall over 117 pull-request and 100 push
+# EVERY JOB'S WORK BUDGET IS ceil(max(1.5 x p95, 1.1 x max) / 60) MINUTES, at
+# least 3 and never above 16. Its work is the time from job start to the end of
+# its last step. Its timeout is that budget plus 3 minutes, but never less than
+# 6. The 3 minutes cover the runner's tail after the last step, which no step
+# can shorten: in merge group run 41462032858 `check-plugins` ended its last
+# step 62 s in, then waited 152 s on "Cleaning up orphan processes" with no
+# orphan left, and was cancelled at its old 3-minute timeout. Each merge-group
+# job's tail is recorded in the ci-status job summary. A job whose work
+# outgrows its budget is made faster or split, not given a bigger budget. A
+# job whose budget is above 3 keeps its timeout until its own tail is measured.
+# The p95 / max figures below were measured from the job's wall over 117 pull-request and 100 push
 # runs (2026-09-30 to 10-02), check 25 counted in full on every pull request
 # (the case a checker change and the scheduled run pay). Until a job has runs
 # of its own, its wall is the sum of the measured seconds of the steps it
 # holds, plus the setup of the job whose toolchain it copies. Job, p95 / max
-# seconds, minutes: select-tests 24 / 35 plus the planner (up to 21 s measured), 3;
+# seconds, budget minutes: mark-lanes 5 / 5 of work over 10 merge-group runs
+# of 2026-11-02, 3; select-tests 24 / 35 plus the planner (up to 21 s
+# measured; work 47 / 47 over those 10 runs), 3;
 # lint-repo 244 / 265, 7, sized for its whole-tree load (the scheduled runs);
 # lint-shell 345 / 385 with a whole-repository ShellCheck, 9; check-plugins
-# 74 / 82 over its 97 runs of 2026-10-28 04:27 to 10:59Z, its wall less the
-# composite schema steps it then ran plus 3 s for their pip-installed
-# replacement (those steps alone reached 121 s on a stalled uv download), 2,
-# held at the floor of 3; check-catalog about 77, the sum of its steps (setup
-# and checkout included) in the 125 s run of the job it was split from, 3;
+# work 81 / 94 over 39 runs (main, pull-request and merge-group) of
+# 2026-11-02 09:24 to 14:32Z, 2, held at the floor of 3; check-catalog work
+# 64 / 65 over the same 39 runs, 2, held at 3;
 # check-skills at most 585 / 645, the wall of a measured job
 # that ran all of its steps and more, 15; test-bash per leg about 230 on the
 # whole tree (171 s of suites estimated from scripts/suite-seconds.txt, a 158 s
@@ -165,8 +174,8 @@ concurrency:
 # test-node about 50 (31 s
 # of package chains measured on a warm npm cache), sized for a cold install, 5;
 # check-tests about 140 on the whole tree, measured, 4; ci-status 9 / 42, 3.
-# A job that outgrows its timeout is made faster or split,
-# not given a longer one.
+# The four jobs with a 3-minute budget (mark-lanes, select-tests,
+# check-plugins, check-catalog) carry a 6-minute timeout.
 #
 # CACHES ARE SAVED FROM MAIN ONLY. Each cache restores through
 # actions/cache/restore, and its save step runs only on refs/heads/main (the
@@ -257,7 +266,7 @@ jobs:
     # The contract-only gate, verbatim (see `select-tests`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 3
+    timeout-minutes: 6
     permissions:
       statuses: write
     steps:
@@ -869,7 +878,7 @@ jobs:
     # answered and `ci-status` carries that answer forward instead.
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 3
+    timeout-minutes: 6
     # The detect-changes action lists the pull request's files through the
     # API. Nothing else in this workflow needs that read, so it is granted here
     # and nowhere else. The queue-hold step reads the queued pull request and
@@ -2244,7 +2253,7 @@ jobs:
   # copies. The steps that read the root npm install (`claude plugin validate`
   # and the rendered-view HTML assets), with the copy and prerequisite gates
   # moved beside them, are `check-catalog`'s: as one job the two took up to
-  # 125 s against a 3-minute cap that holds a p95 of at most 120.
+  # 125 s against a 3-minute work budget that holds a p95 of at most 120.
   #
   # The hook, catalog and changelog gates run first, on Python with the pinned
   # requirements, then the manifest schema steps, whose composite leaves uv on
@@ -2262,7 +2271,7 @@ jobs:
     # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 3
+    timeout-minutes: 6
     # pull-requests: read lets "Resolve the queued pull request" read the
     # queued pull request in a merge group.
     permissions:
@@ -2776,13 +2785,13 @@ jobs:
   # runs) and the rendered-view HTML assets, plus the shared-library copy and
   # declared-prerequisite gates, which moved with them and need Node at most.
   #
-  # ITS OWN JOB BECAUSE OF THE 3-MINUTE CAP. Inside `check-plugins` these
+  # ITS OWN JOB BECAUSE OF THE 3-MINUTE WORK BUDGET. Inside `check-plugins` these
   # steps took 54 s of a job that ran 99 to 125 s on the scheduled runs of
   # 2026-10-23 to 10-26, and 1.5 x 125 is over 180. Apart, each job's steps,
   # its own setup and checkout included, summed to under 80 s on the slowest
   # of those runs. Neither job sets the critical path, which `check-skills`
-  # holds: this is the split the timeout rule asks of a job that outgrows its
-  # cap, not a domain that shortens the critical path.
+  # holds: this is the split the work budget rule asks of a job that outgrows
+  # its budget, not a domain that shortens the critical path.
   #
   # Every step, the checkout included, is gated like the steps that read the
   # install, so a docs-only diff pays for no checkout or install. None is a
@@ -2795,7 +2804,7 @@ jobs:
     # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 3
+    timeout-minutes: 6
     permissions:
       contents: read
     steps:
@@ -4795,6 +4804,29 @@ jobs:
           # gh_read's included, leaves its rate-limit reading for the notices
           # the job's last step writes.
           { echo 'exec 9>&2'; declare -f gh_read pr_read pr_read_file pr_read_put pr_read_forget trusted_humans; printf '%s\n' "${API_BUDGET_SH:-}" '! declare -F api_budget_wrap_gh >/dev/null || api_budget_wrap_gh github-token'; } >"$RUNNER_TEMP/gh-read.sh"
+
+      # THE RUNNER TAIL OF EACH MERGE-GROUP JOB: seconds from a job's last step
+      # to its completion, the part of its timeout no step can shorten (see the
+      # work budget rule). Every needed job has completed when this runs, so one
+      # read of the attempt's jobs measures them all. It is written to this
+      # job's summary, kept with the run; a failed read warns and fails nothing.
+      - name: Record each job's runner tail
+        if: github.event_name == 'merge_group'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAIL_ROWS: >-
+            .jobs[] | select(.completed_at and .started_at and .name != "ci-status")
+            | ([.steps[] | .completed_at // empty] | max) as $last
+            | select($last)
+            | "| \(.name) | \(($last | fromdate) - (.started_at | fromdate)) | \((.completed_at | fromdate) - ($last | fromdate)) |"
+        run: |
+          . "$RUNNER_TEMP/gh-read.sh"
+          {
+            echo '| job | work s | tail s |'
+            echo '|---|---|---|'
+            gh_read "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs?per_page=100" --jq "$TAIL_ROWS" ||
+              echo "::warning::Could not read this attempt's jobs; no runner tails recorded." >&2
+          } >>"$GITHUB_STEP_SUMMARY"
       - name: Check the pull-request contract
         uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
