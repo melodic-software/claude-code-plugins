@@ -169,7 +169,7 @@ ratchet-break-glass(<counter name>): reason=<why>; expires=<YYYY-MM-DD>; approve
 - **The setting is the ceilings file's `break_glass` key**, `true` or `false`, and CI's `check`
   reads it there. When the file has no key, pass `--break-glass` from the `ratchet_break_glass`
   option, rendered here as `${user_config.ratchet_break_glass}`: `true` passes `on`, `false` passes
-  `off`, and a value still reading `${user_config.…}` or empty passes `on`, the option's default.
+  `off`, and a value still reading `${user_config.…}` or empty passes `off`, the option's default.
   When the file has the key, omit `--break-glass`: the repository's setting wins.
 - **An exception missing the reason, the expiry or the approving person, or past its expiry,
   fails the check**, printed as `BROKEN` with its file and line, even in a file at its ceiling.
