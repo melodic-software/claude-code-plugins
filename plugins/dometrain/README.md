@@ -22,11 +22,14 @@ Claude Code expands the variable from its own environment at connect time, so a 
 it started needs a new session. To resolve the key from a secret store instead, give the server a
 `headersHelper` script that prints the `Authorization` header as JSON.
 
-- **Pointer**: for the `headers` expansion and `headersHelper` contract, fetch
-  [MCP server configuration](https://code.claude.com/docs/en/mcp) live.
-- **As of**: 2026-10-20
-- **Recheck trigger**: that page changes how `headers` variables expand or how `headersHelper`
-  runs.
+- **Pointer**: for the `headersHelper` contract, fetch
+  [Use dynamic headers for custom authentication](https://code.claude.com/docs/en/mcp#use-dynamic-headers-for-custom-authentication)
+  live; for the `headers` expansion, fetch
+  [Environment variable expansion in `.mcp.json`](https://code.claude.com/docs/en/mcp#environment-variable-expansion-in-mcp-json)
+  live.
+- **As of**: 2026-11-02
+- **Recheck trigger**: either section moves or is renamed, or changes how `headers` variables
+  expand or how `headersHelper` runs.
 
 A same-named `dometrain` server defined at another scope can win over this user-scope one, so the
 skills may reach a different definition than the one registered above.
