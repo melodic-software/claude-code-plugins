@@ -6782,6 +6782,7 @@ def _recompute_shared(
 CHECK_CODE_PATHS = (
     "plugins/source-control/skills/babysit-prs/scripts",
     "docs/conventions/pr-pipeline.yaml",
+    "plugins/source-control/lib/yaml-subset.awk",
 )
 # Inside those paths but deciding no report: a change here keeps it.
 CHECK_CODE_EXCLUDES = ("plugins/source-control/skills/babysit-prs/scripts/tests",)
@@ -6792,6 +6793,10 @@ CHECK_CODE_ROOT = Path(__file__).resolve().parents[5]
 # A block scalar indicator (`key: |`, `- >-`), under which a `#` line is
 # content, not a comment.
 _BLOCK_SCALAR = re.compile(r"(^|[\s:-])[|>][-+0-9]*\s*(#.*)?$")
+# A control or line-separator character the config parser
+# (plugins/source-control/lib/yaml-subset.awk) reads as neither a line break
+# nor a blank, though Python's `splitlines` or `strip` would.
+_FOREIGN = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f  ]")
 
 
 def _opens_quote(line: str) -> bool:
@@ -6823,25 +6828,30 @@ def _yaml_meaning(text: str) -> str:
     line opens a block scalar or leaves a quote open (a quoted value going on
     to the next line), where a `#` line is content. Indentation and an
     inline comment stay: one is structure, and a `#` in a quoted value is
-    not a comment."""
-    lines = [line.rstrip() for line in text.splitlines()]
-    kept = [line for line in lines if line and not line.lstrip().startswith("#")]
+    not a comment. Lines, blanks and comments follow the config parser's
+    rules: lines split on `\\n` only, one trailing `\\r` dropped, and only a
+    space or tab is a blank; `text` itself when a line holds any other
+    control or line-separator character."""
+    lines = [line.removesuffix("\r") for line in text.split("\n")]
+    if any(_FOREIGN.search(line) for line in lines):
+        return text
+    lines = [line.rstrip(" \t") for line in lines]
+    kept = [line for line in lines if line and not line.lstrip(" \t").startswith("#")]
     if any(_BLOCK_SCALAR.search(line) or _opens_quote(line) for line in kept):
         return text
     return "\n".join(kept)
 
 
 def _git_show(root: Path, sha: str, path: str) -> str:
-    """`path` at commit `sha` in `root`. Raises `subprocess.SubprocessError`
-    when it cannot be read."""
+    """`path` at commit `sha` in `root`, its line endings as stored (text
+    mode would turn every `\\r` into `\\n`). Raises
+    `subprocess.SubprocessError` when it cannot be read."""
     return subprocess.run(
         ["git", "-C", str(root), "show", f"{sha}:{path}"],
         capture_output=True,
         timeout=60,
         check=True,
-        text=True,
-        encoding="utf-8",
-    ).stdout
+    ).stdout.decode("utf-8")
 
 
 def check_code_unchanged(code_sha: str, *, root: Path = CHECK_CODE_ROOT) -> bool:

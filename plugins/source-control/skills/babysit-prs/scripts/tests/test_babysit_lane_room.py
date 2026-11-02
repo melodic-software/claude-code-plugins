@@ -1282,9 +1282,10 @@ class IdleRefusal(unittest.TestCase):
 
 class CheckCodeUnchanged(unittest.TestCase):
     """`check_code_unchanged`: whether the check's code (the babysit-prs
-    scripts and docs/conventions/pr-pipeline.yaml) at HEAD is the code at the
-    kept commit. Expected outcomes are the brief's: the same commit or a
-    change elsewhere only allows reuse; a change in either path, a missing,
+    scripts, docs/conventions/pr-pipeline.yaml and the yaml-subset.awk parser
+    that reads it) at HEAD is the code at the kept commit. Expected outcomes
+    are the brief's: the same commit or a change elsewhere only allows reuse;
+    a change in any of those paths, a missing,
     malformed or unknown commit, or a git failure refuses."""
 
     def setUp(self) -> None:
@@ -1294,10 +1295,13 @@ class CheckCodeUnchanged(unittest.TestCase):
         # Repo-local, as in test_prune_babysit_worktrees.py: a global
         # commit.gpgsign would sign every fixture commit with the machine's key.
         self.git("config", "commit.gpgsign", "false")
+        # The CRLF case needs the bytes stored as written.
+        self.git("config", "core.autocrlf", "false")
         self.commits: dict[str, str] = {}
         for name, path in (
             ("init", "plugins/source-control/skills/babysit-prs/scripts/a.py"),
             ("init", "docs/conventions/pr-pipeline.yaml"),
+            ("init", "plugins/source-control/lib/yaml-subset.awk"),
             ("base", "README.md"),
             ("elsewhere", "README.md"),
             ("scripts", "plugins/source-control/skills/babysit-prs/scripts/a.py"),
@@ -1306,6 +1310,7 @@ class CheckCodeUnchanged(unittest.TestCase):
                 "tests",
                 "plugins/source-control/skills/babysit-prs/scripts/tests/test_a.py",
             ),
+            ("parser", "plugins/source-control/lib/yaml-subset.awk"),
         ):
             file = self.root / path
             file.parent.mkdir(parents=True, exist_ok=True)
@@ -1338,6 +1343,10 @@ class CheckCodeUnchanged(unittest.TestCase):
     def test_a_change_to_the_scripts_or_the_pipeline_config_refuses(self) -> None:
         self.assertFalse(self.unchanged(self.commits["elsewhere"], "scripts"))
         self.assertFalse(self.unchanged(self.commits["scripts"], "config"))
+
+    def test_a_change_to_the_config_parser_refuses(self) -> None:
+        # yaml-subset.awk decides what the config means.
+        self.assertFalse(self.unchanged(self.commits["tests"], "parser"))
 
     def commit_config(self, text: str) -> str:
         (self.root / "docs/conventions/pr-pipeline.yaml").write_text(text)
@@ -1373,6 +1382,33 @@ class CheckCodeUnchanged(unittest.TestCase):
             with self.subTest(edited):
                 self.commit_config(edited)
                 self.assertFalse(policy.check_code_unchanged(kept, root=self.root))
+
+    def test_a_change_the_config_parser_reads_differently_refuses(self) -> None:
+        # yaml-subset.awk splits lines on \n only, drops one trailing \r and
+        # takes only space and tab as blanks; Python's splitlines and strip
+        # would hide each of these edits.
+        body = (
+            "merge:\n  rung: autonomous\n  diff-check:\n    denied-paths:\n"
+            "      - secrets/**\nred-main:\n  confirm-wait-minutes: 30\n"
+        )
+        kept = self.commit_config(body)
+        for edited in (
+            body.replace("secrets/**", "secrets/**\xa0"),
+            body.replace("30\n", "30 # x\n"),
+            body.replace("autonomous", "autonomous\x0b"),
+            body.replace("autonomous\n", "autonomous\r# c\n"),
+            body + "\x0c# note\n",
+        ):
+            with self.subTest(edited):
+                self.commit_config(edited)
+                self.assertFalse(policy.check_code_unchanged(kept, root=self.root))
+
+    def test_a_crlf_only_change_allows_reuse(self) -> None:
+        # The parser drops each line's trailing \r.
+        body = "merge:\n  rung: merge\n  x: 1\n"
+        kept = self.commit_config(body)
+        self.commit_config(body.replace("\n", "\r\n"))
+        self.assertTrue(policy.check_code_unchanged(kept, root=self.root))
 
     def test_a_hash_line_inside_a_block_or_quoted_scalar_is_content(self) -> None:
         for before, after in (
