@@ -541,7 +541,8 @@ export function readMasks(text) {
 
 /**
  * The signed-in account's email and organization name from `claude auth status`, run in
- * `env`: the session's launch environment, else an attended launch's. The output is never echoed, so no value reaches a log or an error message.
+ * `env`: the session's launch environment, else an attended launch's. The output is never
+ * echoed, so no value reaches a log or an error message.
  */
 export function accountValues(env = buildLaunch({ pluginDir: '.' }, process.env).env) {
   const run = spawnSync('claude', ['auth', 'status', '--json'], {
