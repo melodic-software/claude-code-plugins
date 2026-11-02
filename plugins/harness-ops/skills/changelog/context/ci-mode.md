@@ -9,8 +9,8 @@ handoff in the plan: never a guess, never a prompt.
 ## Range
 
 `--ci` needs an explicit release or range; pasted text and the default range are not accepted. With
-none, or when the status script reports the range `not computed`, the plan is written with status
-`stopped`. A single release `X` is the range `X..X`.
+none, the run writes no plan (see The plan); when the status script reports the range
+`not computed`, the plan is written with status `stopped`. A single release `X` is the range `X..X`.
 
 Branch names cannot hold `..` (git-check-ref-format(1)), so a branch carries the range's ref form
 `<ref>`: `X` for a single release and `A-B` for a range. Keys, the plan directory and commit subjects
@@ -124,7 +124,7 @@ always false: the marker moves in the ledger pull request once every row is in a
 }
 ```
 
-`status` is `stopped` (no rows were derived; `stop_reason` is `cap-exceeded`, `no-range` or
+`status` is `stopped` (no rows were derived; `stop_reason` is `cap-exceeded` or
 `range-not-computed`) or `planned` (rows were derived; `branches` and `handoffs` may each be empty).
 Handoff bodies carry item ids and the required sentence, never changelog text, matching the ledger
 rule in [decisions.md](decisions.md). PR bodies follow the consuming repository's pull request
