@@ -2,13 +2,18 @@
 """run-validity - decide whether a `claude plugin eval` run's score may count.
 
     run-validity <aggregate-result.json> --runs N [--scaffolded] [--measured-fire CASE]...
+                 [--own-copy-search-warns]
 
 --runs is the run count the eval was invoked with (its --runs, else the case
 default). --scaffolded records that the eval was invoked with --scaffold, which
 the result file does not record. --measured-fire names a should-trigger case
 whose firing is the quantity a comparison measures, such as the base side of a
 change that makes a skill fire; the skill-fired check reports its misses as a
-measured rate, as for an invocation probe, and every other check is unchanged. Reads the result file, each case's case.yaml,
+measured rate, as for an invocation probe, and every other check is unchanged.
+--own-copy-search-warns is for the broken side of a negative control, whose
+gutted skill searches its own plugin copy for the text it lost; without it such
+a denial fails, since in a normal run it usually means the skill references a
+file it cannot read. Reads the result file, each case's case.yaml,
 and, where each run's tracePath resolves, the kept trace (`--keep-temp`). A
 relative tracePath or suite root is read relative to the result file. Prints
 one line per check, detail lines indented under it:
@@ -68,7 +73,15 @@ one line per check, detail lines indented under it:
                       Code persists a large tool result the session already
                       received, and a Bash pipeline of cat, head, wc, grep and
                       sed -n reading only there, with no redirect, other
-                      operator or unquoted expansion. The run's score was
+                      operator or unquoted expansion; with
+                      --own-copy-search-warns, so is a Read, Grep or
+                      Glob aimed only at or under the plugin copy the run's
+                      init line lists as loaded (a suite.root or suite.plugins
+                      path), in a run that finished, when no tool_used grader
+                      of its case names that tool, such as the broken side of
+                      a negative control searching for the text it lacks; a
+                      Glob pattern that is rooted or holds `..` never
+                      qualifies. The run's score was
                       taken under such a denial, so compare it only with
                       runs denied the same way. Otherwise a
                       with-arm denial aimed at or under the plugin's
@@ -1492,6 +1505,81 @@ def own_results_denial(run, denial):
     return all(in_tool_results(p, projects) for p in reads)
 
 
+def own_copies(run, roots):
+    """The plugin directories the run's init line lists as loaded whose path is
+    the suite root or a suite.plugins path: the copy of the plugin this run
+    loaded. [] when the init line lists none of them, as in a without-arm run."""
+    wanted = {os.path.realpath(root) for root in roots}
+    return [
+        p[LOADED_PATH]
+        for p in as_list(init_line(run).get(TRACE_PLUGINS))
+        if isinstance(p.get(LOADED_PATH), str)
+        and rooted(p[LOADED_PATH])
+        and os.path.realpath(p[LOADED_PATH]) in wanted
+    ]
+
+
+def finished(run):
+    """True when the run ended normally: no row error, not aborted, and its trace
+    holds a result line and none that is an error."""
+    return (
+        run.row.get(RUN_ERROR) is None
+        and not run.row.get(RUN_ABORTED)
+        and not trace_errored(run)
+        and any(
+            line.get(LINE_TYPE) == TRACE_RESULT and line.get(TRACE_RESULT_ERROR) is False
+            for line in run.trace or []
+        )
+    )
+
+
+def graded_tools(case):
+    """The tools the case's tool_used graders name."""
+    return {
+        as_dict(g.get(GRADER_CONFIG)).get(CONFIG_TOOL)
+        for g in as_list(case.get(CASE_GRADER_DEFS))
+        if g.get(GRADER_TYPE) == FIRE_GRADER_TYPE
+    }
+
+
+def own_input(run, denial):
+    """The denied call's input: its permission_denials entry's, else its tool_use's."""
+    use_id, found = denial[3], {}
+    for line in run.trace or []:
+        for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
+            if block.get(BLOCK_TYPE) == TOOL_USE and block.get(USE_ID) == use_id:
+                found = as_dict(block.get(USE_INPUT))
+        if line.get(LINE_TYPE) == TRACE_RESULT:
+            for entry in as_list(line.get(TRACE_DENIALS)):
+                if entry.get(DENIAL_ID) == use_id:
+                    return as_dict(entry.get(DENIAL_INPUT))
+    return found
+
+
+def own_copy_denial(run, denial, roots):
+    """True when the denial is a Read, Grep or Glob whose every target path is at
+    or under the plugin copy this run loaded (own_copies), the run finished, and
+    no tool_used grader of its case names the denied tool. A session whose skill
+    lacks the text it needs, as the broken side of a negative control does,
+    searches its own plugin copy for it; the denial leaves the score to what the
+    run then did. A Glob pattern that is rooted or holds a `..` segment may search
+    elsewhere, so it never qualifies; nor does any other tool or path."""
+    _, paths, name, _, _, _ = denial
+    if name not in TOOL_RESULTS_READERS or not paths or name in graded_tools(run.case):
+        return False
+    pattern = own_input(run, denial).get(GLOB_PATTERN)
+    if name == GLOB_TOOL and isinstance(pattern, str) and (
+        rooted(pattern) or ".." in re.split(r"[\\/]", pattern)
+    ):
+        return False
+    copies = own_copies(run, roots)
+    return (
+        bool(copies)
+        and finished(run)
+        and all(any(under(p, c) for c in copies) for p in paths)
+    )
+
+
 def probe_denial(run, found, runs, root):
     """True when a run of an invocation-probe case was denied only named calls other
     than Skill, none of which could have steered the graded decision. The probe
@@ -1537,19 +1625,35 @@ def probe_split(case, runs, found, root):
     )
 
 
-def check_denials(runs, roots, root):
+def check_denials(runs, roots, root, own_copy_search_warns=False):
     traced = [r for r in runs if r.trace is not None]
     every = {r: denials(r) for r in traced}
-    # Plugin-data denials and reads of the session's own tool results are
-    # environment: they warn and never count toward a FAIL, so every other rule
-    # judges a run on the denials left.
+    # Plugin-data denials, reads of the session's own tool results and, under
+    # --own-copy-search-warns, a finished run's ungraded searches of its own plugin
+    # copy warn and never count toward a FAIL, so every other rule judges a run on
+    # the denials left.
     data = {r: [d for d in every[r] if own_data_denial(r, d)] for r in traced}
     results = {
         r: [d for d in every[r] if d not in data[r] and own_results_denial(r, d)]
         for r in traced
     }
+    searched = {
+        r: [
+            d
+            for d in every[r]
+            if own_copy_search_warns
+            and d not in data[r]
+            and d not in results[r]
+            and own_copy_denial(r, d, roots)
+        ]
+        for r in traced
+    }
     found = {
-        r: [d for d in every[r] if d not in data[r] and d not in results[r]]
+        r: [
+            d
+            for d in every[r]
+            if d not in data[r] and d not in results[r] and d not in searched[r]
+        ]
         for r in traced
     }
     denied = [r for r in traced if every[r]]
@@ -1574,6 +1678,12 @@ def check_denials(runs, roots, root):
         summary += "; %s of the session's own tool results, not counted" % plural(
             read_back, "denied read"
         )
+    self_search = sum(len(searched[r]) for r in denied)
+    if self_search:
+        summary += "; %d %s of the run's own plugin copy in a finished run, not counted" % (
+            self_search,
+            "denied read or search" if self_search == 1 else "denied reads or searches",
+        )
     warned_cases = sorted({r.case.get(CASE_NAME) for r in warned}, key=str)
     probe_cases = []
     for r in denied:
@@ -1590,11 +1700,16 @@ def check_denials(runs, roots, root):
             " run of its case was denied in both arms, none inside the plugin; and"
             " any named call other than Skill aimed only under the run's own"
             " plugin-data directory, or a Read, Grep, Glob or read-only Bash pipeline"
-            " aimed only at the session's own tool-results directory, which never"
+            " aimed only at the session's own tool-results directory,%s which never"
             " counts toward a"
             " FAIL; a run's score was taken under such a denial, so compare it only"
             " with runs denied the same way): %s"
-            % ", ".join(warned_cases)
+            % (
+                " or, under --own-copy-search-warns, a Read, Grep or Glob aimed only"
+                " at the plugin copy a finished run loaded that no tool_used grader of"
+                " its case names," if own_copy_search_warns else "",
+                ", ".join(warned_cases),
+            )
         )
     if failed:
         reason = "%s in the traces" % plural(
@@ -1945,6 +2060,12 @@ def main(argv=None):
         metavar="CASE",
         help="a should-trigger case whose firing is the quantity compared (repeatable)",
     )
+    parser.add_argument(
+        "--own-copy-search-warns",
+        action="store_true",
+        help="a negative control's broken copy: a finished run's ungraded denied"
+        " Read, Grep or Glob of its own plugin copy warns",
+    )
     args = parser.parse_args(argv)
     if args.runs < 1:
         sys.stderr.write("error: --runs must be 1 or more\n")
@@ -2007,7 +2128,10 @@ def main(argv=None):
     later = [
         ("session started", check_started(runs)),
         ("plugins loaded", check_plugins_loaded(runs, suite_plugins(suite, base))),
-        ("permission denials", check_denials(runs, plugin_roots, root)),
+        (
+            "permission denials",
+            check_denials(runs, plugin_roots, root, args.own_copy_search_warns),
+        ),
         ("skill fired", check_fired(cases, runs, root, frozenset(args.measured_fire))),
         ("probe tools", check_probe_tools(runs, root)),
         ("models", check_models(result, runs)),
