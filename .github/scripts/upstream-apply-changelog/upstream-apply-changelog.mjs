@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// release-intake: the scripted halves of .github/workflows/release-intake.yml.
+// upstream-apply-changelog: the scripted halves of .github/workflows/upstream-apply-changelog.yml.
 // No model runs here. Subcommands:
 //   gate     picks the release, skips one already processed, applies the
 //            per-day cap (read-only GITHUB_TOKEN with actions: read)
@@ -19,9 +19,10 @@ const KEY = /^changelog:[0-9.]+\.\.[0-9.]+:[a-z-]+:[A-Za-z0-9_./-]{1,200}$/;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const branchFor = (plugin, release) => `changelog/${plugin}/v${release}`;
-export const startedArtifact = (release, runId) => `release-intake-started-${release}-${runId}`;
-export const doneArtifact = (release) => `release-intake-done-${release}`;
-export const handoffMarker = (key) => `<!-- release-intake key=${key} -->`;
+export const startedArtifact = (release, runId) => `upstream-apply-changelog-started-${release}-${runId}`;
+export const doneArtifact = (release) => `upstream-apply-changelog-done-${release}`;
+export const alreadyProcessed = (artifacts) => (artifacts?.total_count ?? 0) > 0;
+export const handoffMarker = (key) => `<!-- upstream-apply-changelog key=${key} -->`;
 
 function output(name, value) {
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `${name}=${value}\n`);
@@ -43,6 +44,19 @@ async function api(path, { method = "GET", body, allow404 = false } = {}) {
   return res.status === 204 ? null : res.json();
 }
 
+// The unread releases, oldest first, from changelog-status.sh's status file
+// (the file scripts/claude-code-release-issues.sh reads): `range: up to date`
+// is none; `cap: within budget` lists them on `releases:`; any other shape
+// (cap exceeded, range not computed) throws, so a person handles it.
+export function releasesFromStatus(text) {
+  const value = (key) => text.match(new RegExp(`^${key}: (.*)$`, "m"))?.[1]?.trim() ?? "";
+  if (value("range") === "up to date") return [];
+  if (value("cap") !== "within budget") throw new Error(`changelog-status.sh reports cap: ${value("cap") || "missing"}`);
+  const versions = value("releases").split(/[\s,]+/).filter(Boolean);
+  if (!versions.length || !versions.every((v) => RELEASE.test(v))) throw new Error("the status file's releases line is malformed");
+  return versions;
+}
+
 // The newest release by version, from the release list (newest first is not
 // guaranteed, so it sorts). Tags are `v<MAJOR.MINOR.PATCH>`; any other tag is skipped.
 export function newestRelease(releases) {
@@ -61,7 +75,7 @@ export function newestRelease(releases) {
 // artifacts, as red-main counts reverts "in any 24 hours".
 export function startedInWindow(artifacts, now) {
   return artifacts.filter(
-    (a) => a?.name?.startsWith("release-intake-started-") && now - Date.parse(a.created_at) < DAY_MS,
+    (a) => a?.name?.startsWith("upstream-apply-changelog-started-") && now - Date.parse(a.created_at) < DAY_MS,
   ).length;
 }
 
@@ -124,28 +138,38 @@ const git = (repo, args, extra = {}) => execFileSync("git", ["-C", repo, ...args
 
 async function gate(env) {
   const repo = env.GITHUB_REPOSITORY;
-  let release = env.RELEASE_INPUT ?? "";
+  let candidates;
   if (env.EVENT_NAME === "workflow_dispatch") {
-    if (!RELEASE.test(release)) throw new Error("the release input is not one MAJOR.MINOR.PATCH");
+    if (!RELEASE.test(env.RELEASE_INPUT ?? "")) throw new Error("the release input is not one MAJOR.MINOR.PATCH");
+    candidates = [env.RELEASE_INPUT];
   } else {
-    release = newestRelease(await api("/repos/anthropics/claude-code/releases?per_page=20"));
-    if (!release) throw new Error("no Claude Code release could be read");
+    candidates = releasesFromStatus(readFileSync(env.STATUS_FILE, "utf8")).reverse();
   }
-  output("release", release);
-  const done = await api(`/repos/${repo}/actions/artifacts?per_page=1&name=${doneArtifact(release)}`);
-  const refs = await api(`/repos/${repo}/git/matching-refs/heads/changelog/`);
-  const branches = (refs ?? []).filter((r) => r.ref.endsWith(`/v${release}`));
-  if ((done?.total_count ?? 0) > 0 || branches.length > 0) {
-    console.log(`Claude Code ${release} was already processed; nothing to do`);
+  let release = "";
+  for (const candidate of candidates) {
+    const done = await api(`/repos/${repo}/actions/artifacts?per_page=1&name=${doneArtifact(candidate)}`);
+    // Only the done marker skips a release: push skips a branch that exists
+    // and publish opens a pull request a pushed branch lacks, so a run after a
+    // failed publish finishes the work instead of stranding the branch.
+    if (alreadyProcessed(done)) {
+      console.log(`Claude Code ${candidate} was already processed`);
+      continue;
+    }
+    release = candidate;
+    break;
+  }
+  if (!release) {
+    console.log("no unprocessed Claude Code release; nothing to do");
     output("proceed", "false");
     return;
   }
+  output("release", release);
   const cap = Number(env.DAILY_CAP);
   if (!Number.isInteger(cap) || cap < 1) throw new Error("the per-day cap is not a positive whole number");
   const recent = await api(`/repos/${repo}/actions/artifacts?per_page=100`);
   const started = startedInWindow(recent?.artifacts ?? [], Date.now());
   if (started >= cap) {
-    console.log(`::notice::release-intake started ${started} runs in the last 24 hours, at its cap of ${cap}; Claude Code ${release} waits`);
+    console.log(`::notice::upstream-apply-changelog started ${started} runs in the last 24 hours, at its cap of ${cap}; Claude Code ${release} waits`);
     output("proceed", "false");
     return;
   }
@@ -158,7 +182,7 @@ async function push(env) {
   const pushed = [];
   if (plan.branches.length && !existsSync(BUNDLE_FILE)) throw new Error("the plan names branches and the run left no bundle");
   for (const b of plan.branches) {
-    const local = `refs/release-intake/${b.plugin}`;
+    const local = `refs/upstream-apply-changelog/${b.plugin}`;
     git(repoDir, ["fetch", "--no-tags", BUNDLE_FILE, `${b.head_sha}:${local}`]);
     if (git(repoDir, ["rev-parse", local]) !== b.head_sha) throw new Error(`${b.branch} is not at its planned head`);
     if (git(repoDir, ["merge-base", baseSha, b.head_sha]) !== baseSha) throw new Error(`${b.branch} does not start at the base`);
@@ -219,7 +243,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const commands = { gate, push, publish };
   const run = commands[process.argv[2]];
   if (!run) {
-    console.error("usage: release-intake.mjs gate|push|publish");
+    console.error("usage: upstream-apply-changelog.mjs gate|push|publish");
     process.exit(2);
   }
   run(process.env).catch((error) => {

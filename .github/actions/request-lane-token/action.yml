@@ -47,7 +47,7 @@ inputs:
     default: ""
   release:
     description: >-
-      The Claude Code release a release-intake.yml job works, one
+      The Claude Code release a upstream-apply-changelog.yml job works, one
       MAJOR.MINOR.PATCH; sent as `release`, a string, which the broker needs
       from that caller and refuses from any other. Never with `pr-number`,
       `issue-number` or `dispatcher-run-id`. `token` mode only.

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { branchFor, checkRawLog, newestRelease, startedInWindow, validatePlan } from "./release-intake.mjs";
+import { alreadyProcessed, branchFor, releasesFromStatus, checkRawLog, newestRelease, startedInWindow, validatePlan } from "./upstream-apply-changelog.mjs";
 
 const BASE = "a".repeat(40);
 const HEAD = "b".repeat(40);
@@ -39,9 +39,9 @@ test("the newest release is the highest version, skipping drafts, prereleases an
 test("the per-day cap counts only start records from the last 24 hours", () => {
   const now = Date.parse("2026-11-02T12:00:00Z");
   const artifacts = [
-    { name: "release-intake-started-2.1.300-1", created_at: "2026-11-02T01:00:00Z" },
-    { name: "release-intake-started-2.1.299-2", created_at: "2026-11-01T11:00:00Z" },
-    { name: "release-intake-done-2.1.300", created_at: "2026-11-02T02:00:00Z" },
+    { name: "upstream-apply-changelog-started-2.1.300-1", created_at: "2026-11-02T01:00:00Z" },
+    { name: "upstream-apply-changelog-started-2.1.299-2", created_at: "2026-11-01T11:00:00Z" },
+    { name: "upstream-apply-changelog-done-2.1.300", created_at: "2026-11-02T02:00:00Z" },
   ];
   assert.equal(startedInWindow(artifacts, now), 1);
 });
@@ -71,4 +71,17 @@ test("a commit outside its plugin, or writing a link or submodule, is refused", 
   assert.throws(() => checkRawLog(":100644 100644 1 2 M\t.github/workflows/x.yml", "hooks-kit"), /outside/);
   assert.throws(() => checkRawLog(":000000 120000 0 2 A\tplugins/hooks-kit/link", "hooks-kit"), /mode 120000/);
   assert.throws(() => checkRawLog(":000000 160000 0 2 A\tplugins/hooks-kit/sub", "hooks-kit"), /mode 160000/);
+});
+
+test("only the done marker skips a release, so a run after a failed publish finishes the work", () => {
+  assert.equal(alreadyProcessed({ total_count: 1, artifacts: [{ name: "upstream-apply-changelog-done-2.1.300" }] }), true);
+  assert.equal(alreadyProcessed({ total_count: 0, artifacts: [] }), false);
+  assert.equal(alreadyProcessed(null), false);
+});
+
+test("the status file gives the unread releases, none when up to date, and stops on anything else", () => {
+  assert.deepEqual(releasesFromStatus("range: 2.1.299..2.1.300\ncap: within budget\nreleases: 2.1.299 2.1.300\n"), ["2.1.299", "2.1.300"]);
+  assert.deepEqual(releasesFromStatus("range: up to date\n"), []);
+  assert.throws(() => releasesFromStatus("range: 2.1.1..2.1.90\ncap: exceeded\n"), /cap: exceeded/);
+  assert.throws(() => releasesFromStatus("range: a..b\ncap: within budget\nreleases: v2\n"), /malformed/);
 });

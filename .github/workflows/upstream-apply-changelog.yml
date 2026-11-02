@@ -1,4 +1,4 @@
-name: release-intake
+name: upstream-apply-changelog
 
 # The release intake lane (#7407): for one Claude Code release, a model job
 # runs `/harness-ops:changelog apply --ci <release>`, which commits one local
@@ -14,10 +14,11 @@ name: release-intake
 # The broker never grants contents and pull-requests write in one mint, nor
 # merge or actions, so no job here can merge.
 #
-# A schedule run takes the newest Claude Code release; a dispatch names one.
-# A release is skipped when a changelog/<plugin>/v<release> branch or this
-# workflow's release-intake-done-<release> artifact already exists, since
-# --ci never moves the read marker. At most limits.release-intake-per-day
+# A schedule run takes the newest unread release changelog-status.sh lists
+# that is not done yet; a dispatch names one.
+# A release is skipped only when this workflow's
+# upstream-apply-changelog-done-<release> artifact exists, since --ci never
+# moves the read marker; existing branches and PRs are skipped per item. At most limits.upstream-apply-changelog-per-day
 # runs start in any 24 hours (docs/conventions/pr-pipeline.yaml).
 #
 # How to stop it: set the organization or repository lanes kill-switch
@@ -40,7 +41,7 @@ permissions: {}
 
 # One run at a time; a later run waits and is never cancelled.
 concurrency:
-  group: release-intake
+  group: upstream-apply-changelog
   cancel-in-progress: false
 
 defaults:
@@ -107,14 +108,20 @@ jobs:
         if: >-
           steps.kill.outputs.proceed == 'true'
           && (steps.who.outcome == 'skipped' || steps.who.outputs.proceed == 'true')
+        working-directory: .base
         env:
           GH_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
           RELEASE_INPUT: ${{ inputs.release }}
+          STATUS_FILE: ${{ runner.temp }}/changelog-status.txt
         run: |
-          DAILY_CAP=$(yq '.limits."release-intake-per-day" // 2' .base/docs/conventions/pr-pipeline.yaml)
+          # The unread releases, as maintenance-file-claude-code-release-issues.yml reads them.
+          if [ "$EVENT_NAME" = schedule ]; then
+            bash plugins/harness-ops/skills/changelog/scripts/changelog-status.sh --ledger docs/upstream/claude-code.md >"$STATUS_FILE"
+          fi
+          DAILY_CAP=$(yq '.limits."upstream-apply-changelog-per-day" // 2' docs/conventions/pr-pipeline.yaml)
           export DAILY_CAP
-          node .base/.github/scripts/release-intake/release-intake.mjs gate
+          node .github/scripts/upstream-apply-changelog/upstream-apply-changelog.mjs gate
 
       # The per-day cap counts these, so it counts runs that reached the model.
       - name: Record the start
@@ -130,7 +137,7 @@ jobs:
         if: steps.gate.outputs.proceed == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: release-intake-started-${{ steps.gate.outputs.release }}-${{ github.run_id }}
+          name: upstream-apply-changelog-started-${{ steps.gate.outputs.release }}-${{ github.run_id }}
           path: ${{ runner.temp }}/started/release.txt
           retention-days: 2
           if-no-files-found: error
@@ -198,7 +205,7 @@ jobs:
         with:
           model-route: resolve-issue
           base-path: .base
-          output-path: ${{ runner.temp }}/release-intake-models.json
+          output-path: ${{ runner.temp }}/upstream-apply-changelog-models.json
 
       # Everything a later step of this job runs, copied out of main before
       # the root checkout replaces .base: the sealer, its key, and the
@@ -206,7 +213,7 @@ jobs:
       - name: Stage the base files
         if: steps.models.outcome == 'success'
         env:
-          STAGE: ${{ runner.temp }}/release-intake-stage
+          STAGE: ${{ runner.temp }}/upstream-apply-changelog-stage
         run: |
           mkdir -p "$STAGE/seal" "$STAGE/plugins"
           cp .base/.github/actions/seal-lane-output/seal.mjs .base/.github/lane-keys/scan-carrier.pub "$STAGE/seal/"
@@ -239,13 +246,13 @@ jobs:
         id: prepare
         if: steps.models.outcome == 'success'
         env:
-          STAGE: ${{ runner.temp }}/release-intake-stage
+          STAGE: ${{ runner.temp }}/upstream-apply-changelog-stage
           RELEASE: ${{ needs.gate.outputs.release }}
           MODEL: ${{ steps.models.outputs.model }}
         run: |
           [ -n "$MODEL" ] || { echo "::error::the resolve-issue route's model is default, which run-claude-cli cannot pass"; exit 1; }
-          git config user.name "release-intake"
-          git config user.email "release-intake@users.noreply.github.com"
+          git config user.name "upstream-apply-changelog"
+          git config user.email "upstream-apply-changelog@users.noreply.github.com"
           printf '.lane/\n' >>.git/info/exclude
           # Head instruction, settings and server files stay out of the
           # session; skip-worktree keeps their removal out of every commit.
@@ -257,7 +264,7 @@ jobs:
           mkdir -p .lane/memory
           cp -R "$STAGE/plugins" .lane/plugins
           chmod -R a-w .lane/plugins
-          cat >"$RUNNER_TEMP/release-intake-prompt.md" <<PROMPT
+          cat >"$RUNNER_TEMP/upstream-apply-changelog-prompt.md" <<PROMPT
           Run the Skill tool with skill \`harness-ops:changelog\` and arguments \`apply --ci $RELEASE\`.
           Your memory directory is $GITHUB_WORKSPACE/.lane/memory: write ci-plan.json under it, as
           the skill's ci mode says. Leave every branch the skill commits in place; push nothing, open
@@ -274,10 +281,10 @@ jobs:
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
-          lane: release-intake
+          lane: upstream-apply-changelog
           role: issue-lane
-          prompt-file: ${{ runner.temp }}/release-intake-prompt.md
-          preamble: You run unattended as the release-intake CI lane, and no one can answer a question.
+          prompt-file: ${{ runner.temp }}/upstream-apply-changelog-prompt.md
+          preamble: You run unattended as the upstream-apply-changelog CI lane, and no one can answer a question.
           api-key: ${{ secrets.ISSUE_LANE_CLAUDE_API_KEY }}
           model: ${{ steps.models.outputs.model }}
           effort: ${{ steps.models.outputs.effort }}
@@ -326,8 +333,8 @@ jobs:
         env:
           RELEASE: ${{ needs.gate.outputs.release }}
           BASE_SHA: ${{ needs.gate.outputs.base-sha }}
-          STAGE: ${{ runner.temp }}/release-intake-stage
-          OUT: ${{ runner.temp }}/release-intake-out
+          STAGE: ${{ runner.temp }}/upstream-apply-changelog-stage
+          OUT: ${{ runner.temp }}/upstream-apply-changelog-out
           JOB_ID: model
           MAX_CHUNKS: "6"
         run: |
@@ -410,7 +417,7 @@ jobs:
           [ -f "$IN/plan.json" ] || { echo "::error::the model job left no ci-plan.json"; exit 1; }
           node --input-type=module -e '
             import { readFileSync } from "node:fs";
-            import { validatePlan } from "./.base/.github/scripts/release-intake/release-intake.mjs";
+            import { validatePlan } from "./.base/.github/scripts/upstream-apply-changelog/upstream-apply-changelog.mjs";
             const plan = validatePlan(JSON.parse(readFileSync(process.env.IN + "/plan.json", "utf8")),
               { release: process.env.RELEASE, baseSha: process.env.BASE_SHA });
             console.log(`${plan.branches.length} branches, ${plan.handoffs.length} handoffs`);
@@ -445,7 +452,7 @@ jobs:
         if: steps.scan-plan.outputs.clean == 'true' && steps.scan-diffs.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: release-intake-plan-${{ github.run_attempt }}
+          name: upstream-apply-changelog-plan-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/scan-in/plan.json
             ${{ runner.temp }}/scan-in/branches.bundle
@@ -500,8 +507,8 @@ jobs:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
-          lane: release-intake
-          activity: push-changelog-branches
+          lane: upstream-apply-changelog
+          activity: apply-changelog-branches
           base-path: .base
           output-path: ${{ runner.temp }}/resolved-config.json
 
@@ -514,8 +521,8 @@ jobs:
         with:
           broker-url: ${{ vars.LANES_BROKER_URL }}
           audience: ${{ vars.LANES_BROKER_AUDIENCE }}
-          lane: release-intake
-          activity: push-changelog-branches
+          lane: upstream-apply-changelog
+          activity: apply-changelog-branches
           release: ${{ needs.gate.outputs.release }}
           effect: ${{ steps.config.outputs.effect }}
           contents: ${{ steps.config.outputs.contents }}
@@ -527,7 +534,7 @@ jobs:
         if: steps.lane-token.outputs.token != ''
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: release-intake-plan-${{ github.run_attempt }}
+          name: upstream-apply-changelog-plan-${{ github.run_attempt }}
           path: ${{ runner.temp }}/plan
 
       - name: Push the branches
@@ -540,7 +547,7 @@ jobs:
           PLAN_FILE: ${{ runner.temp }}/plan/plan.json
           BUNDLE_FILE: ${{ runner.temp }}/plan/branches.bundle
           REPO_DIR: ${{ github.workspace }}/.base
-        run: node .base/.github/scripts/release-intake/release-intake.mjs push
+        run: node .base/.github/scripts/upstream-apply-changelog/upstream-apply-changelog.mjs push
 
       - name: Revoke the lane token
         if: always() && steps.lane-token.outputs.token != ''
@@ -602,7 +609,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
-          lane: release-intake
+          lane: upstream-apply-changelog
           activity: publish-changelog-intake
           base-path: .base
           output-path: ${{ runner.temp }}/resolved-config.json
@@ -614,7 +621,7 @@ jobs:
         with:
           broker-url: ${{ vars.LANES_BROKER_URL }}
           audience: ${{ vars.LANES_BROKER_AUDIENCE }}
-          lane: release-intake
+          lane: upstream-apply-changelog
           activity: publish-changelog-intake
           release: ${{ needs.gate.outputs.release }}
           effect: ${{ steps.config.outputs.effect }}
@@ -627,7 +634,7 @@ jobs:
         if: steps.lane-token.outputs.token != ''
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: release-intake-plan-${{ github.run_attempt }}
+          name: upstream-apply-changelog-plan-${{ github.run_attempt }}
           path: ${{ runner.temp }}/plan
 
       - name: Open the pull requests and file the handoffs
@@ -639,7 +646,7 @@ jobs:
           RELEASE: ${{ needs.gate.outputs.release }}
           BASE_SHA: ${{ needs.gate.outputs.base-sha }}
           PLAN_FILE: ${{ runner.temp }}/plan/plan.json
-        run: node .base/.github/scripts/release-intake/release-intake.mjs publish
+        run: node .base/.github/scripts/upstream-apply-changelog/upstream-apply-changelog.mjs publish
 
       - name: Revoke the lane token
         if: always() && steps.lane-token.outputs.token != ''
@@ -658,7 +665,7 @@ jobs:
         if: steps.publish.outcome == 'success'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: release-intake-done-${{ needs.gate.outputs.release }}
+          name: upstream-apply-changelog-done-${{ needs.gate.outputs.release }}
           path: ${{ runner.temp }}/plan/plan.json
           retention-days: 90
           if-no-files-found: error
