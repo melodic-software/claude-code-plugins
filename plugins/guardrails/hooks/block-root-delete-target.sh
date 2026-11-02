@@ -749,15 +749,17 @@
 #     after it refused instead. `builtin cd` is not seen at all, because
 #     `builtin` is not in the launcher table. A literal directory is collapsed
 #     lexically, so `cd link/..` is read as `cd .`.
-#   * A difference from the user-level destructive-removal engine, on purpose:
+#   * A difference from the local delete guard #5946 describes, on purpose:
 #     an unresolvable expansion is left alone rather than refused. This was
 #     measured (#9770): over one operator's recorded corpus, refusing an
 #     operand that still holds an expansion (`rm -rf "$X/build"`) fired on 900
 #     of 5,926 delete-shaped commands that this guard otherwise passed, and in
 #     at least 145 of them the target, with the value the command itself assigned
 #     substituted, sat inside an allowed root. A blocking check ships with zero
-#     false positives (ADR 0080), so the refusal stays out. Like the
-#     engine, the git toplevel itself, `.git`, another worktree's root and
+#     false positives (ADR 0080), so the refusal stays out. The retired
+#     user-level destructive-removal engine left it alone too; its 207 cases
+#     are replayed in the suite (#9770). Like that local guard, the git
+#     toplevel itself, `.git`, another worktree's root and
 #     another session's scratchpad are refused even inside an allowed root,
 #     and every target is judged against the payload cwd's tree, so an
 #     absolute path into another worktree is refused.
