@@ -48,6 +48,17 @@ else
   fail "sh stub: node present gave rc=$rc out=$out"
 fi
 
+# A missing hook dependency's notice ends with the command that runs the plugin's own checker.
+PROBE="$WORK/probe-plug"
+mkdir -p "$PROBE"
+printf '%s' '{"requires":[{"id":"zz-tool","kind":"cli","need":"required","for":["hook:a.sh"],"detect":{"any":["zz-absent-x9"]},"degrade":"D.","install":{"docs":"https://example.invalid"},"check":"/probe-plug:check"}]}' >"$PROBE/prerequisites.json"
+out="$(printf '%s' '{"session_id":"probe-1"}' | CLAUDE_PLUGIN_DATA="" "$SH" "$LIB/prerequisites.sh" probe "$PROBE")"
+if [[ "$out" == *"; diagnose with: node \\\"$PROBE/lib/prerequisites.mjs\\\" check \\\"$PROBE\\\"\"}" ]]; then
+  pass "sh stub: a probe notice ends with the plugin's own checker command"
+else
+  fail "sh stub: probe notice gave $out"
+fi
+
 if PWSH="$(command -v pwsh)"; then
   # A version-manager shim (mise, asdf) puts its tools, node included, back on PATH: run the real binary.
   real="$("$PWSH" -NoProfile -NonInteractive -Command '[Environment]::ProcessPath')"
