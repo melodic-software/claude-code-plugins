@@ -166,6 +166,52 @@ test("a malformed run attempt posts the record without an external_id", async ()
   assert.match(calls[0].body.output.summary, /^lane=pr-refine activity=simplify class=rate-limit /);
 });
 
+// A record shaped as docs/lane-outcome.md's rate-limit example, for the lane
+// this harness posts (pr-refine / simplify).
+const OUTCOME = {
+  v: 1,
+  lane: "pr-refine",
+  outcome: "failure",
+  class: "rate-limit",
+  credential: { secret: "CLAUDE_CODE_OAUTH_TOKEN", kind: "oauth-token" },
+  resets: { at: "2026-10-17T16:00:00Z", window: "five_hour" },
+  turns: 3,
+};
+
+test("a valid lane-outcome record opens output.text with activity added, ahead of the legacy record", async () => {
+  const { calls } = await run({ ...LIMIT, LANE_OUTCOME: JSON.stringify(OUTCOME) });
+  const [first, blank, ...rest] = calls[0].body.output.text.split("\n");
+  assert.equal(first.startsWith("lane-outcome {"), true);
+  assert.deepEqual(JSON.parse(first.slice("lane-outcome ".length)), { ...OUTCOME, activity: "simplify" });
+  assert.equal(blank, "");
+  assert.match(rest.join("\n"), /^```json\n\{"lane":"pr-refine"/);
+  assert.match(calls[0].body.output.summary, /^lane=pr-refine activity=simplify class=rate-limit /);
+  const posted = { ...calls[0].body, id: 1, completed_at: "2026-10-17T12:00:00Z" };
+  assert.equal(limitResetsAt(posted), Date.parse("2026-10-17T16:00:00Z"), "limit-stop reads the record's reset, not the summary's");
+});
+
+test("the record line is written with no legacy record, and drops keys it does not know", async () => {
+  const { calls } = await run({ ACT_OUTCOME: "failure", LANE_OUTCOME: JSON.stringify({ ...OUTCOME, host: "runner-7", resets: { ...OUTCOME.resets, path: "/var/tmp/x" } }) });
+  const { output } = calls[0].body;
+  assert.equal(output.text.startsWith("lane-outcome {"), true);
+  assert.deepEqual(JSON.parse(output.text.slice("lane-outcome ".length)), { ...OUTCOME, activity: "simplify" });
+  assert.doesNotMatch(output.summary, /lane=/);
+});
+
+test("a record out of shape, of another lane, or not JSON writes no record line", async () => {
+  for (const [label, raw] of [
+    ["a value-shaped secret", JSON.stringify({ ...OUTCOME, credential: { secret: "sk-ant-x", kind: "api-key" } })],
+    ["a class outside the enum", JSON.stringify({ ...OUTCOME, class: "free text" })],
+    ["another lane", JSON.stringify({ ...OUTCOME, lane: "pr-unblock" })],
+    ["not JSON", "lane-outcome {"],
+    ["an array", "[]"],
+  ]) {
+    const { calls } = await run({ ...LIMIT, LANE_OUTCOME: raw });
+    assert.match(calls[0].body.output.text, /^```json\n/, label);
+    assert.doesNotMatch(calls[0].body.output.text, /lane-outcome /, label);
+  }
+});
+
 test("no lane record POSTs no annotations, text or record line, and still names its run in external_id", async () => {
   const { calls } = await run();
   const { output } = calls[0].body;

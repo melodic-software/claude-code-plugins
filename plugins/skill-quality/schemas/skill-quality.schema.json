@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/skill-quality/schemas/skill-quality.schema.json",
+  "title": "skill-quality team config",
+  "description": "Schema for a repository's <home>/skill-quality.yaml, the team layer of the skill-quality plugin's settings, and its personal overlay <home>/skill-quality.local.yaml. Read by scripts/check-skill.sh check 30. Contract: docs/contracts/config-cascade/README.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "description_target": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1024,
+      "default": 250,
+      "description": "A skill description longer than this many characters prints an INFO line."
+    },
+    "description_warn": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1024,
+      "default": 419,
+      "description": "A skill description longer than this many characters warns. The 1,024-character field maximum stays a fixed FAIL."
+    }
+  }
+}
