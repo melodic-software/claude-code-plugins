@@ -5,7 +5,7 @@
 #   (the excerpt holds lines 295-345). Adding mergeStateStatus to the 500-PR
 #   `gh pr list --json` request made the listing time out with HTTP 502.
 # source: revert commit 6d6b30018ea4b5b092816eb06bba39ba126bb972 (#8303)
-# confirmed-by: verifier-agent (owner spot-check pending)
+# confirmed-by: verifier-agent, owner spot-check 2026-11-02 (#8990)
 # rebuilt: the prefilter script whole at base and head; pr-merge.yml as its
 #   candidate-listing step; the test file and changelog fragment are left out.
 schema_version: "1.1"

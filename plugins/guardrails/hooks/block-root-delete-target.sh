@@ -245,7 +245,8 @@
 #   * Start-Process (saps, start): -FilePath is the program and -ArgumentList
 #     is joined by spaces into the one command line it gets (Start-Process,
 #     learn.microsoft.com), split as cmd splits one and judged as that
-#     program's statement (cmd /c rd /s, robocopy, rm, pwsh, powershell).
+#     program's statement (cmd /c rd /s, robocopy, rm, pwsh, powershell,
+#     bash -c).
 #     A literal -WorkingDirectory on Start-Process, pwsh or powershell adds a
 #     directory a relative target may land from, as a literal cd does in the
 #     Bash lane; one it cannot place changes nothing.
@@ -260,6 +261,12 @@
 #     when it names none and no pipe feeds it. A recursive removal or an item
 #     removal fed by anything else, a listing a pipe feeds included, is
 #     refused, because its target cannot be named.
+#   * A shell (bash, sh, zsh, dash, ksh, mksh) or wsl: its -c operand, or
+#     the command line wsl hands the distribution's shell, is judged as the
+#     Bash tool judges it, because Git Bash or WSL runs it. A cmd /c or /k
+#     line is split into statements at `&`, `&&`, `|` and `||`, each with its
+#     %NAME% read as ${NAME}, and a pwsh, powershell, shell or wsl statement
+#     in it is read as one given to the PowerShell tool.
 #   * .NET deletes: [IO.Directory]::Delete and [IO.File]::Delete (any
 #     `[<type>]::Delete(` call) have their first argument judged, and
 #     `(Get-Item X).Delete()` its listing's path, with or without the
@@ -331,8 +338,11 @@
 #     splits one; several are its words, which are also judged as that
 #     command from the Bash tool (rm, robocopy). Each statement of the line,
 #     ended by a word that is `&`, `&&`, `|` or `||`, is judged as the
-#     PowerShell lane judges cmd's: rd or rmdir with /s, and robocopy (cmd
-#     and rd, learn.microsoft.com).
+#     PowerShell lane judges cmd's: rd or rmdir with /s, del or erase with /s
+#     (a switch word holding /s; /a takes attributes, so `/as` is not one),
+#     and robocopy (cmd, rd and del, learn.microsoft.com, read 2026-11-02). A
+#     %NAME% cmd expands is read as ${NAME}: refused bare, left alone with a
+#     named subpath.
 #   * A code heredoc, and a shell piped its program: a shell or source that
 #     reads its program from stdin (no -c and no script operand, or -s, `-` or
 #     /dev/stdin) runs the heredoc or here-string its last redirection of fd 0
@@ -425,7 +435,8 @@
 #     A directory holding a protected tree, or a glob whose matches do, is
 #     refused too; a glob is read as bash reads it with dotglob off, unless the
 #     command names dotglob, GLOBIGNORE or globdots, and on the PowerShell
-#     tool, whose `*` matches dot names. A `.git` is matched in any case, and
+#     tool, whose `*` matches dot names, outside a bash, sh, dash or mksh
+#     child it runs. A `.git` is matched in any case, and
 #     on Windows with a trailing dot or space, which Win32 trims. A path named
 #     under a `.git`, the toplevel or a worktree root is not refused
 #     (`rm -rf .git/rebase-merge`), and neither is the bash glob of a toplevel
@@ -593,8 +604,9 @@
 #     classifier's sink-attempt budget). Matched: Remove-Item and its aliases
 #     (ri, rm, del, erase, rd, rmdir) with -Recurse on any unambiguous prefix
 #     (-r, -rec, -Recurse) or the bash-in-PS cluster -rf; cmd /c (and /k)
-#     rd /s and rmdir /s; a pipeline into Remove-Item with no path; the
-#     indirection forms POWERSHELL INDIRECTION AND PIPELINES lists; and
+#     rd /s, rmdir /s, del /s and erase /s; a pipeline into Remove-Item with
+#     no path; the indirection forms POWERSHELL INDIRECTION AND PIPELINES
+#     lists, a bash -c or wsl among them; and
 #     Move-Item, Clear-Content and a Set-Content of several files (MOVES AND
 #     CONTENT DESTROYERS).
 #     A statement ends at `; | & && ||` and at an unquoted newline (LF, CRLF or
@@ -630,9 +642,9 @@
 #     string), a -WorkingDirectory that is not a literal path, whose program's
 #     relative targets are judged from the payload cwd, a pipe into iex from
 #     any stage but one word or Write-Output of one, `pwsh
-#     -Command -` (stdin) and -File, Start-Process of a shell that is not
-#     PowerShell (`bash -c`), a .Delete() on an object held in a variable or
-#     built another way (`[IO.DirectoryInfo]::new(x).Delete($true)`,
+#     -Command -` (stdin) and -File, a program a shell reads from stdin or
+#     a script file (`'rm -rf ~' | bash`, `bash x.sh`), a .Delete() on an
+#     object held in a variable or built another way (`[IO.DirectoryInfo]::new(x).Delete($true)`,
 #     `New-Object`), items a ForEach-Object stage changes before a removal, a
 #     Set-Location before the delete, and an argument list whose quoted
 #     element holds a comma (read as two words).
@@ -711,10 +723,11 @@
 #     without the trailing-components lookup.
 #   * From the Bash tool, `powershell -Command Remove-Item -Recurse <dir>`,
 #     which is judged in the PowerShell lane only (#6626), and in a cmd /c
-#     line: a command other than rd, rmdir and robocopy (`del /s`), a
-#     `%NAME%` cmd expands (read as a literal name), a relative target after a
-#     `cd` on the line (judged from the payload cwd), and a separator written
-#     inside a word (`x&rd`), whose two statements are read as one.
+#     line: a command other than rd, rmdir, del, erase and robocopy, a
+#     `%NAME%` whose name holds anything but letters, digits and _ (read as a
+#     literal name), a relative target after a `cd` on the line (judged from
+#     the payload cwd), and a separator written inside a word (`x&rd`), whose
+#     two statements are read as one.
 #   * In a shell reading its program from stdin: a file (`sh < x.sh`, `cat
 #     x.sh | sh`), text a filter changes on its way (`echo x | tr a b | sh`),
 #     a printf conversion other than %s and %b, an echo or cat behind a
@@ -727,7 +740,10 @@
 #     `$X/{a,b}` (its alternatives `$X/a` and `$X/b` are each left alone the
 #     same way; the quoted `"$X"/{a,b}` is refused as a partly quoted brace)
 #     and `$(printf 'r%s' 'm') -rf /`, whose substitution body is parsed (its
-#     command word is `printf`) but whose RESULT is not. The root arm matches
+#     command word is `printf`) but whose RESULT is not. A command word that
+#     is `$SHELL`, `${SHELL}`, `$BASH` or `${BASH}`, quoted or not, is read
+#     as sh, so its -c operand is judged; any other expansion-built command
+#     word (`$X -c '...'`) is not. The root arm matches
 #     `$HOME` and `${HOME}` as the literal text they are written as; only the
 #     outside-tree arm expands them, from the hook's own HOME.
 #   * In the Bash lane, a TYPED operand whose real file name holds a literal `$`
@@ -780,7 +796,8 @@
 #     `link/..` is read as the directory holding `link`.
 #   * A child shell this guard does not recognize as one. `bash -c`, `sh -c`,
 #     their siblings, `su`'s `-c` / `--command` / `--session-command` operand,
-#     GNU `env`'s `-S` / `--split-string` operand, and what eval, watch, wsl
+#     GNU `env`'s `-S` / `--split-string` operand, a `$SHELL -c` operand, a
+#     `bash -c` or wsl given to the PowerShell tool, and what eval, watch, wsl
 #     and cmd /c run (SHELLS AND LAUNCHERS FROM BASH) ARE unwrapped and
 #     re-parsed; an interpreter that is not a shell (`python -c`, `perl -e`)
 #     is read by INTERPRETER DELETES instead, for its deleter calls and the
@@ -1162,10 +1179,11 @@ fi
 # interpreter delete, move or content destroyer must hold (`npm run format`
 # still reaches the tokenizer and is allowed on its command word),
 # `base64`, `base32`, `basenc` or `xxd`, which a decoder sink holds, or `cmd`
-# followed by `rd`, which a `cmd /c rd /s` holds.
+# followed by `rd`, `del` or `erase`, which a `cmd /c rd /s` or `del /s` holds.
 # PowerShell: Remove-Item, rmdir, erase, cmd, rd, del (which `.Delete(`
 # holds), rm, robocopy, FromBase64, pwsh and powershell (an -EncodedCommand
-# hides its text), move, mv, Clear-Content and Set-Content, and `ri`, `mi` or
+# hides its text), move, mv, Clear-Content and Set-Content, the Bash words
+# above for a bash -c or wsl, and `ri`, `mi` or
 # `clc` as a command word (not the `ri` inside Write/string). Over-inclusive
 # on purpose; the tokenizer decides.
 if [[ "$TOOL_NAME" == "PowerShell" ]]; then
@@ -1174,6 +1192,8 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   case "$rdt_ps_pre" in
   *rm* | *remove-item* | *erase* | *cmd* | *rd* | *del* | *robocopy* | *frombase64* | *pwsh* | *powershell* | \
     *move* | *mv* | *clear-content* | *set-content*) rdt_ps_hit=1 ;;
+  # The Bash lane's words, for the program a bash -c or wsl runs.
+  *unlink* | *rsync* | *worktree* | *truncate* | *shred* | *of=* | *base64* | *base32* | *basenc* | *xxd*) rdt_ps_hit=1 ;;
   *) ;;
   esac
   if ((rdt_ps_hit == 0)) && [[ "$rdt_ps_pre" =~ (^|[^[:alnum:]_])(ri|mi|clc)([^[:alnum:]_]|$) ]]; then
@@ -1183,7 +1203,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
 else
   case "${COMMAND,,}" in
   *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove* | *mv* | *truncate* | \
-    *shred* | *of=* | *base64* | *base32* | *basenc* | *xxd* | *cmd*rd*) ;;
+    *shred* | *of=* | *base64* | *base32* | *basenc* | *xxd* | *cmd*rd* | *cmd*del* | *cmd*erase*) ;;
   *) exit 0 ;;
   esac
 fi
@@ -1787,6 +1807,10 @@ RDT_P_REF=()
 RDT_P_SUB=()
 RDT_P_WT=()
 RDT_WTRM=0
+# RDT_PS_BASHC is 1 while a bash, sh, dash or mksh child of the PowerShell tool
+# is parsed; RDT_P_PSDOT is 1 once an operand is queued outside one.
+RDT_PS_BASHC=0
+RDT_P_PSDOT=0
 RDT_WIN=0
 case "${OSTYPE:-}" in
 msys* | cygwin* | win32) RDT_WIN=1 ;;
@@ -2467,7 +2491,8 @@ rdt_within() {
 # rdt_pat_hits <name> <pattern>: true when globbing <pattern> in a directory
 # would match the entry <name>. A leading `.` is matched only by a pattern that
 # starts with one, as bash and zsh glob by default, unless RDT_DOTS is 1 (the
-# PowerShell tool, whose `*` matches dot names, or a command that names
+# PowerShell tool, whose `*` matches dot names, outside a bash, sh, dash or
+# mksh child it runs, or a command that names
 # dotglob, GLOBIGNORE or zsh's globdots). On Windows both are folded to lower
 # case, so a pattern bash would match case-sensitively can match more here,
 # never less.
@@ -3108,10 +3133,11 @@ rdt_judge_pending() {
     RDT_PROT_A+=("$t")
     RDT_PROT_AW+=("a tree in block_root_delete_target_protected_trees")
   done
-  # A glob matches dot names on the PowerShell tool, and in bash or zsh once
-  # the command turns on dotglob, GLOBIGNORE or globdots.
+  # A glob matches dot names on the PowerShell tool, unless every operand sits
+  # in a bash, sh, dash or mksh child it runs, and in bash or zsh once the
+  # command turns on dotglob, GLOBIGNORE or globdots.
   RDT_DOTS=0
-  [[ "$TOOL_NAME" == PowerShell ]] && RDT_DOTS=1
+  [[ "$TOOL_NAME" == PowerShell ]] && ((RDT_P_PSDOT)) && RDT_DOTS=1
   case "${COMMAND,,}" in
   *dotglob* | *globignore* | *globdots* | *glob_dots*) RDT_DOTS=1 ;;
   *) ;;
@@ -3657,6 +3683,18 @@ rdt_check_segment() {
     rdt_parse "$HOOK_SHELL_C_OPERAND"
     return 0
   fi
+  # $SHELL and $BASH name a shell wherever this guard runs, so a command word
+  # that is one of them, quoted or not, is read as sh (#12386).
+  # shellcheck disable=SC2016  # the literal text the tokenizer hands over
+  case "${words[i]}" in
+  '$SHELL' | '${SHELL}' | '$BASH' | '${BASH}')
+    if hook::shell_c_operand sh ${words[@]+"${words[@]:i+1}"}; then
+      rdt_parse "$HOOK_SHELL_C_OPERAND"
+      return 0
+    fi
+    ;;
+  *) ;;
+  esac
 
   base="${words[i]##*/}"
   # Lowercased before the suffix strip, for the reason given at the walk above.
@@ -4084,41 +4122,55 @@ rdt_cmd_check() {
       ((${#st[@]})) && rdt_ps_cmd_rd "${st[@]}"
       st=()
       ;;
-    *) st+=("$w") ;;
+    *)
+      rdt_cmd_pct_to w "$w"
+      st+=("$w")
+      ;;
     esac
   done
   return 0
 }
 
 # rdt_cmd_rd_bash <first index> <index past the last>: one statement of the
-# words cmd /c runs from the Bash tool, when it is rd or rmdir. Its switches
-# are /s and /q, alone or run together (`/s/q`), and any word with two leading
-# slashes; every other word is a path, a POSIX one included, which MSYS
-# converts before cmd reads it. With a switch holding `s`, each path is
-# judged as an operand of a recursive rm, and none at all is an empty
-# operand. Reads words and q0 from rdt_cmd_check through bash's dynamic scope.
+# words cmd /c runs from the Bash tool, when it is rd or rmdir, or del or
+# erase. Its switches are /s and /q (and /p and /f for del), alone or run
+# together (`/s/q`), and any word with two leading slashes; every other word
+# is a path, a POSIX one included, which MSYS converts before cmd reads it.
+# With a switch holding `s`, each path is judged as an operand of a recursive
+# rm, a %NAME% in it read as ${NAME} (rdt_cmd_pct_to), and none at all is an
+# empty operand for rd. Reads words and q0 from rdt_cmd_check through bash's
+# dynamic scope.
 # shellcheck disable=SC2329  # invoked from rdt_cmd_check
 rdt_cmd_rd_bash() {
-  local j b lw rec=0
+  local j b lw p sw='^(/[sq?]+)+$' rec=0 dl=0
   local -a pi=()
   b="${words[$1]##*[\\/]}"
   b="${b,,}"
   case "${b%.exe}" in
   rd | rmdir) ;;
+  del | erase)
+    sw='^(/[sqpf?]+)+$'
+    dl=1
+    ;;
   *) return 0 ;;
   esac
   for ((j = $1 + 1; j < $2; j++)); do
     lw="${words[j],,}"
-    if [[ "$lw" =~ ^//[^/]+$ || "$lw" =~ ^(/[sq?]+)+$ ]]; then
+    if [[ "$lw" =~ ^//[^/]+$ || "$lw" =~ $sw ]]; then
       [[ "${lw//\//}" == *s* ]] && rec=1
     else
       pi+=("$j")
     fi
   done
   ((rec)) || return 0
-  ((${#pi[@]})) || rdt_block "empty-operand"
+  ((${#pi[@]} || dl)) || rdt_block "empty-operand"
   for j in ${pi[@]+"${pi[@]}"}; do
-    rdt_delete_operand "${words[j]}" "${q0[j]:-0}"
+    rdt_cmd_pct_to p "${words[j]}"
+    if [[ "$p" == "${words[j]}" ]]; then
+      rdt_delete_operand "$p" "${q0[j]:-0}"
+    else
+      rdt_delete_operand "$p" 0
+    fi
   done
   return 0
 }
@@ -6162,6 +6214,7 @@ rdt_check_operand() {
     RDT_P_REF+=("$rdt_cd_refuse")
     RDT_P_SUB+=("$rdt_in_subst")
     RDT_P_WT+=("$RDT_WTRM")
+    ((RDT_PS_BASHC)) || RDT_P_PSDOT=1
   fi
   return 0
 }
@@ -6836,11 +6889,15 @@ rdt_ps_robocopy_check() {
 rdt_ps_cmd_rd() {
   local -a __cw=("$@")
   ((${#__cw[@]})) || return 0
-  local __base="${__cw[0],,}" __i __rec=0
+  local __base="${__cw[0],,}" __i __rec=0 __del=0
   __base="${__base##*[\\/]}"
   __base="${__base%.exe}"
   case "$__base" in
   rd | rmdir) ;;
+  # del and erase with /s delete the files they name in every subdirectory
+  # too (del, learn.microsoft.com), run together too (`/qs`); /a takes
+  # attributes, so `/as` is no /s.
+  del | erase) __del=1 ;;
   robocopy)
     rdt_ps_robocopy_check "${__cw[@]:1}"
     return 0
@@ -6849,6 +6906,13 @@ rdt_ps_cmd_rd() {
   esac
   local -a __paths=()
   for ((__i = 1; __i < ${#__cw[@]}; __i++)); do
+    if ((__del)); then
+      case "${__cw[__i]}" in
+      /*) [[ "${__cw[__i],,}" =~ (^|/)[^a/]*s ]] && __rec=1 ;;
+      *) __paths+=("${__cw[__i]}") ;;
+      esac
+      continue
+    fi
     case "${__cw[__i],,}" in
     /s | /s/q | /q/s | /sq | /qs) __rec=1 ;;
     /q | /f) ;;
@@ -6859,6 +6923,7 @@ rdt_ps_cmd_rd() {
     esac
   done
   ((__rec)) || return 0
+  ((__del && ${#__paths[@]} == 0)) && return 0
   if ((${#__paths[@]} == 0)); then
     rdt_block "empty-operand"
   fi
@@ -6869,6 +6934,78 @@ rdt_ps_cmd_rd() {
     fi
     rdt_ps_operand "$__p"
   done
+}
+
+# rdt_cmd_pct_to <var> <word>: the word with each %NAME% cmd expands written
+# as ${NAME}, so it is judged as the Bash lane judges that variable: refused
+# bare, left alone with a named subpath (#12386). A name holding anything but
+# letters, digits and _ stays literal.
+rdt_cmd_pct_to() {
+  local __pw="$2" __po="" __pm __re='%([A-Za-z_][A-Za-z0-9_]*)%'
+  while [[ "$__pw" =~ $__re ]]; do
+    __pm="${BASH_REMATCH[0]}"
+    __po+="${__pw%%"$__pm"*}\${${BASH_REMATCH[1]}}"
+    __pw="${__pw#*"$__pm"}"
+  done
+  printf -v "$1" '%s' "$__po$__pw"
+}
+
+# rdt_ps_cmd_line <word>...: the words a cmd /c or /k runs from the PowerShell
+# tool. Each statement, ended by a word that is `&`, `&&`, `|` or `||`, has its
+# %NAME% expanded as cmd expands it and is judged: pwsh and powershell through
+# rdt_ps_shell_from, a shell (bash, sh, zsh, dash, ksh, mksh) or wsl through
+# rdt_ps_bash_from, anything else through rdt_ps_cmd_rd.
+rdt_ps_cmd_line() {
+  local __w __b
+  local -a __st=()
+  for __w in "$@" '&'; do
+    case "$__w" in
+    '&' | '&&' | '|' | '||')
+      if ((${#__st[@]})); then
+        __b="${__st[0],,}"
+        __b="${__b##*[\\/]}"
+        __b="${__b%.exe}"
+        case "$__b" in
+        pwsh | powershell) rdt_ps_shell_from "${__st[@]:1}" ;;
+        bash | sh | zsh | dash | ksh | mksh | wsl) rdt_ps_bash_from "$__b" "${__st[@]:1}" ;;
+        *) rdt_ps_cmd_rd "${__st[@]}" ;;
+        esac
+      fi
+      __st=()
+      ;;
+    *)
+      rdt_cmd_pct_to __w "$__w"
+      __st+=("$__w")
+      ;;
+    esac
+  done
+  return 0
+}
+
+# rdt_ps_bash_from <shell> <word>...: a shell or wsl run from the PowerShell
+# tool, which hands its -c operand (or wsl's command line) to Git Bash or a
+# WSL distribution. That text is judged as the Bash tool judges it, its
+# substitutions included, charged to the depth and text budgets (#12386). A
+# literal `$` the walker marked reaches the shell as `$`.
+rdt_ps_bash_from() {
+  local -a __bw=("$@")
+  local __k
+  if [[ -n "$RDT_PS_LIT" ]]; then
+    for ((__k = 0; __k < ${#__bw[@]}; __k++)); do
+      __bw[__k]="${__bw[__k]//"$RDT_PS_LIT"/\$}"
+    done
+  fi
+  hook::shell_c_operand "${__bw[@]}" || return 0
+  local rdt_depth=$((rdt_depth + 1))
+  ((rdt_depth > MAX_SEGMENT_DEPTH)) && rdt_block "nesting-too-deep-launcher"
+  # bash, sh, dash and mksh glob `*` without dot names; zsh, ksh and wsl's
+  # default shell keep the PowerShell reading.
+  local RDT_PS_BASHC=$RDT_PS_BASHC
+  case "$1" in
+  bash | sh | dash | mksh) RDT_PS_BASHC=1 ;;
+  *) ;;
+  esac
+  rdt_shell_prog "$HOOK_SHELL_C_OPERAND" 0
 }
 
 # rdt_ps_cmd_from: argv after a cmd/cmd.exe command word.
@@ -6884,15 +7021,15 @@ rdt_ps_cmd_from() {
       ((__i < ${#__a[@]})) || return 0
       if ((__i == ${#__a[@]} - 1)); then
         rdt_ps_cmd_split_to __parts "${__a[__i]}"
-        rdt_ps_cmd_rd ${__parts[@]+"${__parts[@]}"}
+        rdt_ps_cmd_line ${__parts[@]+"${__parts[@]}"}
       else
-        rdt_ps_cmd_rd "${__a[@]:__i}"
+        rdt_ps_cmd_line "${__a[@]:__i}"
       fi
       return 0
       ;;
     /c?* | /k?*)
       rdt_ps_cmd_split_to __parts "${__a[__i]:2}"
-      rdt_ps_cmd_rd ${__parts[@]+"${__parts[@]}"}
+      rdt_ps_cmd_line ${__parts[@]+"${__parts[@]}"}
       return 0
       ;;
     *) ;;
@@ -7481,7 +7618,7 @@ rdt_ps_iex() {
 # array its commas join) is joined by spaces into the one command line the
 # program gets (Start-Process, learn.microsoft.com). That line is split as cmd
 # splits one and judged as the program's statement: cmd /c rd /s, robocopy, a
-# Remove-Item spelling such as rm, or pwsh and powershell. -WorkingDirectory
+# Remove-Item spelling such as rm, pwsh and powershell, or a bash -c. -WorkingDirectory
 # adds the directory a relative target may land from. A program or argument
 # list held in a variable names nothing.
 rdt_ps_start() {
@@ -7602,6 +7739,7 @@ rdt_ps_statement() {
   invoke-expression | iex) rdt_ps_iex "${__w[@]:__i}" ;;
   start-process | saps | start) rdt_ps_start "${__w[@]:__i}" ;;
   pwsh | powershell) rdt_ps_shell_from "${__w[@]:__i}" ;;
+  bash | sh | zsh | dash | ksh | mksh | wsl) rdt_ps_bash_from "$__cmd" "${__w[@]:__i}" ;;
   # A filter passes on items of the stage before, so what a removal after it
   # deletes is still what that stage lists (rdt_ps_feed is kept).
   where-object | where | '?' | sort-object | sort) ((rdt_ps_piped)) && rdt_ps_pass=1 ;;
