@@ -109,9 +109,11 @@ substitutes directly here — no need for ``destructive_guard.py``'s
 ``--plugin-root`` derivation dance (a literal unsubstituted
 ``${CLAUDE_PLUGIN_DATA}`` token is still treated as absent, matching that
 module's placeholder idiom). Fallback is a subdirectory under
-``tempfile.gettempdir()``. The bookkeeping degrades toward *re-warning*,
-never toward silence: if both the primary and fallback marker writes fail,
-the warning is still emitted this run rather than suppressed — over-warning
+``tempfile.gettempdir()``, read or written only when it is a real directory
+this user owns, so another local user cannot plant a ``.warned`` or
+``.cursor`` there to silence the warning. The bookkeeping degrades toward
+*re-warning*, never toward silence: if both the primary and fallback marker
+writes fail, the warning is still emitted this run rather than suppressed — over-warning
 is the safe failure direction for a module that exists specifically to kill
 a silent-suppression defect class.
 """
@@ -199,8 +201,14 @@ def _marker_path_candidates(
     return candidates
 
 
+def _trusted_candidates(paths: list[Path]) -> list[Path]:
+    """``paths`` without the tmp fallback unless this user owns its directory."""
+    *rooted, tmp = paths
+    return rooted + ([tmp] if _owned_dir(tmp.parent) else [])
+
+
 def _already_warned(marker_paths: list[Path]) -> bool:
-    for path in marker_paths:
+    for path in _trusted_candidates(marker_paths):
         try:
             if path.is_file():
                 return True
@@ -209,20 +217,31 @@ def _already_warned(marker_paths: list[Path]) -> bool:
     return False
 
 
-def _write_marker(marker_paths: list[Path]) -> None:
-    """Best-effort write. Failure here must never suppress a real finding."""
-    for path in marker_paths:
+def _write_first(paths: list[Path], text: str) -> None:
+    """Best-effort: write ``text`` to the first candidate that takes it.
+
+    The tmp fallback takes it only in a directory this user owns.
+    """
+    tmp = paths[-1]
+    for path in paths:
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text("1", encoding="utf-8")
+            if path is tmp and not _owned_dir(path.parent):
+                continue
+            path.write_text(text, encoding="utf-8")
             return
         except OSError:
             continue
 
 
+def _write_marker(marker_paths: list[Path]) -> None:
+    """Best-effort write. Failure here must never suppress a real finding."""
+    _write_first(marker_paths, "1")
+
+
 def _read_cursor(cursor_paths: list[Path], transcript_path: str) -> int:
     """Return the offset a clean scan of this transcript reached, or 0."""
-    for path in cursor_paths:
+    for path in _trusted_candidates(cursor_paths):
         try:
             text = path.read_text(encoding="utf-8")
         except OSError:
@@ -237,13 +256,7 @@ def _read_cursor(cursor_paths: list[Path], transcript_path: str) -> int:
 
 def _write_cursor(cursor_paths: list[Path], offset: int, transcript_path: str) -> None:
     """Best-effort: a cursor that cannot be written only costs a rescan."""
-    for path in cursor_paths:
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(f"b{offset}\n{transcript_path}\n", encoding="utf-8")
-            return
-        except OSError:
-            continue
+    _write_first(cursor_paths, f"b{offset}\n{transcript_path}\n")
 
 
 def _owned_dir(path: Path) -> bool:
@@ -265,9 +278,10 @@ def _read_launches(
     data_root: str | None, session_id: str
 ) -> list[tuple[Path, bytes]]:
     """Each ``.launched`` marker that holds a launch token, with that token."""
-    *rooted, tmp = _marker_path_candidates(data_root, session_id, ".launched")
     launches: list[tuple[Path, bytes]] = []
-    for path in rooted + ([tmp] if _owned_dir(tmp.parent) else []):
+    for path in _trusted_candidates(
+        _marker_path_candidates(data_root, session_id, ".launched")
+    ):
         try:
             if not stat.S_ISREG(os.stat(path).st_mode):
                 continue
