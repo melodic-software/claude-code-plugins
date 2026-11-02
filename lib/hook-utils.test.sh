@@ -4045,7 +4045,42 @@ bps_segments_are 'the extglob-on reading keeps a pending here-doc body out of co
     'echo `:;:`#; git reset --hard' 'echo' ':' ':' '#' 'git reset --hard'
   bps_segments_are 'a comment inside backticks ends at the closing backtick' \
     'echo `#`; git reset --hard' 'echo' 'git reset --hard'
+  bps_segments_are 'an escaped backtick inside a backtick comment does not close it' \
+    $'echo `# \\`; git reset --hard\n:`' 'echo' ':'
+  bps_segments_are 'a backtick after an escaped backslash closes the substitution' \
+    $'echo `# \\\\`; git reset --hard\n:`' 'echo' 'git reset --hard' ':'
+  bps_segments_are 'case inside $((…)) is a variable, not a case statement' \
+    'echo $((case))#; git reset --hard' 'echo $' 'case' '#' 'git reset --hard'
+  bps_segments_are 'esac inside $((…)) closes no case frame' \
+    'case x in x) echo $((esac))#; git reset --hard;; esac' \
+    'case x in x' 'echo $' 'esac' '#' 'git reset --hard' 'esac'
+  bps_segments_are 'a ( group inside $((…)) keeps the arithmetic frame' \
+    'echo $(( (1) ))#; git reset --hard' 'echo $' '1' '#' 'git reset --hard'
+  bps_segments_are 'a $(…) inside $((…)) is a command context again' \
+    'echo $(( $(case x in x) echo 1;; esac) ))#; git reset --hard' \
+    'echo $' '$' 'case x in x' 'echo 1' 'esac' '#' 'git reset --hard'
+  bps_segments_are '# after a ((…)) command is a comment' \
+    '((case))#; git reset --hard' 'case'
 }
+
+# bps_heredocs_are <desc> <command> <entry>...: HOOK_HEREDOC_BODIES after the parse.
+bps_heredocs_are() {
+  local desc="$1" cmd="$2" got want
+  shift 2
+  bps_all=()
+  hook::bash_parse_segments "$cmd" bps_collect_all
+  got="$(printf '%s|' ${HOOK_HEREDOC_BODIES[@]+"${HOOK_HEREDOC_BODIES[@]}"})"
+  want="$(printf '%s|' "$@")"
+  if [[ "$got" == "$want" ]]; then
+    ok "bash_parse_segments: $desc"
+  else
+    fail "bash_parse_segments $desc: got [$got], want [$want]"
+  fi
+}
+bps_heredocs_are 'a here-doc both extglob readings see is listed once' \
+  $'cat <<EOF; !(x)#; :\nbody\nEOF\necho done' '20 29 0 1 EOF'
+bps_heredocs_are 'here-docs from both extglob readings come in source order' \
+  $'!(x)#\'\ncat <<B\nb\nB\n\' ; cat <<C\nc\nC' '15 19 0 1 B' '31 34 0 1 C'
 bps_segments_are 'a quote inside backticks ends at the closing backtick' \
   "echo \`'\`; git reset --hard #'" 'echo' '' 'git reset --hard'
 bps_segments_are 'process substitution ) leaves a # after it literal' \

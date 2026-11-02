@@ -9,9 +9,11 @@ bump: patch
   --hard`. The shared `hook-utils.sh` Bash command parser keeps a `#` right after the closing `)`
   of an array assignment, an extglob, `$(…)`, `$((…))` or `<(…)`, or after a closing backtick, in
   its word, as Bash does. Those frames now stay open across `;`, `|`, `&` and newlines inside
-  them, and a `case` pattern's `)` no longer closes one.
+  them, a `case` pattern's `)` no longer closes one, and `case` or `esac` inside arithmetic is
+  read as a variable name, so `echo $((case))#; git reset --hard` is blocked.
 - A comment or quote inside backticks now ends at the closing backtick, as in Bash, so
-  ``echo `#`; git reset --hard`` is blocked.
+  ``echo `#`; git reset --hard`` is blocked; an escaped backtick does not close it.
 - For `!(x)#` and `f@()#`, where the `#` is literal with `shopt -s extglob` and a comment
   without it, the parser now reports the commands of both readings, so a command after the `#`
-  is checked either way.
+  is checked either way. `HOOK_HEREDOC_BODIES` still lists each here-doc body once, in source
+  order.

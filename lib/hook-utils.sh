@@ -4482,8 +4482,12 @@ hook::_bps_close_word() {
     pend=0
   else
     # An unquoted `case` or `esac` in command position opens or closes a case
-    # frame, so a pattern's `)` pops no `(` frame below it.
-    if ((!_bps_q)) && [[ "$word" == 'case' || "$word" == 'esac' ]]; then
+    # frame, so a pattern's `)` pops no `(` frame below it. Inside arithmetic
+    # (innermost frame `r`) either is a variable name, and an `esac` closes
+    # only a case frame that is innermost.
+    _bps_w=${pstk//0/}
+    if ((!_bps_q)) && [[ "$_bps_w" != *r ]] &&
+      [[ "$word" == 'case' || ("$word" == 'esac' && "$_bps_w" == *c) ]]; then
       _bps_last=1
       for _bps_w in ${seg[@]+"${seg[@]}"}; do
         case "$_bps_w" in
@@ -4495,7 +4499,7 @@ hook::_bps_close_word() {
         esac
       done
       if ((_bps_last)); then
-        if [[ "$word" == 'case' ]]; then pstk+=c; elif [[ "$pstk" == *c* ]]; then pstk=${pstk%c*}; fi
+        if [[ "$word" == 'case' ]]; then pstk+=c; else pstk=${pstk%c*}; fi
       fi
     fi
     seg+=("$word")
@@ -4507,6 +4511,18 @@ hook::_bps_close_word() {
   wq_plain=0
   wq_esc=0
   wq_open=0
+}
+
+# True when chars[<k>] closes an open backtick substitution: a backtick, a `b`
+# frame open, and an even run of backslashes before it (bash reads `\`` as an
+# escaped backtick and `\\` as one backslash). Dynamic scope, like
+# hook::_bps_close_word.
+# shellcheck disable=SC2154,SC1003  # `chars` and `pstk` are locals of hook::bash_parse_segments_uncached; '\' is a literal backslash
+hook::_bps_bt_closes() {
+  local _bps_k=$(($1 - 1))
+  [[ "${chars[$1]}" == '`' && "$pstk" == *b* ]] || return 1
+  while ((_bps_k >= 0)) && [[ "${chars[_bps_k]}" == '\' ]]; do ((_bps_k--)); done
+  ((($1 - 1 - _bps_k) % 2 == 0))
 }
 
 # Hand the finished segment to the callback and start the next one. A pending
@@ -4613,7 +4629,7 @@ hook::bash_parse_segments() {
 #
 # Once the parse returns, HOOK_HEREDOC_BODIES holds one
 # `<start> <end> <quoted> <closed> <delimiter>` entry per here-doc body skipped,
-# in source order within each reading above: the byte offsets in the command of the body's first byte and
+# in source order, one per body even when both readings above see it: the byte offsets in the command of the body's first byte and
 # of the byte just past its delimiter line; 1 when the delimiter was quoted or
 # escaped (`<<'EOF'`, `<<\EOF`), so bash expands nothing in the body; 1 when a
 # delimiter line ended the body, 0 when it ran to the end of the command; and
@@ -4654,13 +4670,15 @@ hook::bash_parse_segments_uncached() {
   # word (an array assignment `a=(…)` or an extglob `@(…)`), `s` the `(` of a
   # substitution (`$(…)`, `$((…))`, `<(…)`, `>(…)`), `b` a backtick
   # substitution, `a` a `(` whose reading depends on extglob (a bare `!(…)` or
-  # `f@()`), `c` a `case` statement, `0` any other `(`. Every `(`, `)` and
+  # `f@()`), `c` a `case` statement, `r` arithmetic (the second `(` of `$((`
+  # or `((`), `0` any other `(`. Every `(`, `)` and
   # backtick still splits, so no text leaves a segment; bash keeps the closing
   # `)` or backtick of `1` `s` `b` in its word, so a `#` right after it
   # (`hash_at`) is literal, not a comment. A `)` under a `c` frame is a case
   # pattern's and pops nothing.
   local pstk="" wpar j hash_at=-1 sub_at=-1 amb_at=-1 dbrace="\${" wpar_re='^[A-Za-z_][A-Za-z0-9_]*(\[[^]]*\])?\+?=$'
-  local amb_seen=0 __hu_bps_rest __hu_bps_e
+  local amb_seen=0 __hu_bps_rest __hu_bps_e __hu_bps_k
+  local -a __hu_bps_hb=()
   # The extglob-on reading of the text after an ambiguous `)#`: the caller's
   # open frames and pending here-docs carry over, and byte 0 is the `#` that
   # continues the word.
@@ -4680,7 +4698,7 @@ hook::bash_parse_segments_uncached() {
       while ((i < n)) && [[ "${chars[i]}" != "'" ]]; do
         # Bash ends a backtick substitution at its first unescaped backtick,
         # before it reads the quotes inside.
-        if [[ "${chars[i]}" == '`' && "$pstk" == *b* && "${chars[i - 1]}" != '\' ]]; then
+        if [[ "${chars[i]}" == '`' ]] && hook::_bps_bt_closes "$i"; then
           ((i--))
           break
         fi
@@ -4790,15 +4808,15 @@ hook::bash_parse_segments_uncached() {
           local -a __hu_bps_hdq=(${hd_quoted[@]+"${hd_quoted[@]}"})
           printf -v __hu_bps_rest '%s' "${chars[@]:i}"
           hook::bash_parse_segments_uncached "$__hu_bps_rest" "$cb" 1
-          # Its here-doc bodies too, at offsets in this command.
+          # Its here-doc bodies too, at offsets in this command, merged at the end.
           for __hu_bps_e in ${HOOK_HEREDOC_BODIES[@]+"${HOOK_HEREDOC_BODIES[@]}"}; do
             __hu_bps_rest=${__hu_bps_e#* }
-            hd_bodies+=("$((${__hu_bps_e%% *} + i)) $((${__hu_bps_rest%% *} + i)) ${__hu_bps_rest#* }")
+            __hu_bps_hb+=("$((${__hu_bps_e%% *} + i)) $((${__hu_bps_rest%% *} + i)) ${__hu_bps_rest#* }")
           done
         fi
         # Inside a backtick substitution a comment ends at its closing backtick.
         while ((i + 1 < n)) && [[ "${chars[i + 1]}" != $'\n' ]] &&
-          ! [[ "${chars[i + 1]}" == '`' && "$pstk" == *b* ]]; do
+          { [[ "${chars[i + 1]}" != '`' ]] || ! hook::_bps_bt_closes $((i + 1)); }; do
           ((i++))
         done
       fi
@@ -4928,10 +4946,17 @@ hook::bash_parse_segments_uncached() {
       # A `(` inside an open `${…}` is literal pattern text. A bare `!` (the
       # negation keyword when extglob is off) and `f@()` (a function
       # definition when extglob is off) are extglobs only when it is on.
+      # Inside arithmetic every `(` but a substitution's is a plain group.
       if [[ "$c" == '(' ]]; then
         wpar=0
+        j=${pstk//0/}
         if ((i == sub_at)); then
           wpar=s
+        elif [[ "$j" == *r ]]; then
+          :
+        elif ((i > 0)) && [[ "${chars[i - 1]}" == '(' && "$pstk" == *[s0] ]]; then
+          # The second `(` of `$((` or `((` opens arithmetic.
+          wpar=r
         elif ((have)); then
           if [[ "$word" =~ $wpar_re ]]; then
             wpar=1
@@ -5004,6 +5029,16 @@ hook::bash_parse_segments_uncached() {
   done
   ((have)) && hook::_bps_close_word
   hook::_bps_flush_segment
+  # Merge the extglob-on pass's bodies into this reading's, which are already
+  # in source order: one entry per start offset, in increasing order.
+  for __hu_bps_e in ${__hu_bps_hb[@]+"${__hu_bps_hb[@]}"}; do
+    for ((__hu_bps_k = 0; __hu_bps_k < ${#hd_bodies[@]}; __hu_bps_k++)); do
+      ((${hd_bodies[__hu_bps_k]%% *} < ${__hu_bps_e%% *})) || break
+    done
+    ((__hu_bps_k < ${#hd_bodies[@]})) &&
+      ((${hd_bodies[__hu_bps_k]%% *} == ${__hu_bps_e%% *})) && continue
+    hd_bodies=("${hd_bodies[@]:0:__hu_bps_k}" "$__hu_bps_e" "${hd_bodies[@]:__hu_bps_k}")
+  done
   # Set last: a callback's own parse would overwrite it.
   # shellcheck disable=SC2034  # result global is consumed by the sourcing guard
   HOOK_HEREDOC_BODIES=(${hd_bodies[@]+"${hd_bodies[@]}"})

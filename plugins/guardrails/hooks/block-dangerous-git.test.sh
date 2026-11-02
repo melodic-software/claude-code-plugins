@@ -634,6 +634,16 @@ run "!(x)##; git reset --hard (second # in the extglob word, blocked)" "!(x)##; 
 run "!(x)#' then a quote closing on the next line (extglob-on reading, blocked)" $'!(x)#\'\n\'; git reset --hard' 2
 run "!(x)#; git backslash-newline reset --hard (extglob-on reading, blocked)" $'!(x)#; git \\\nreset --hard' 2
 run "echo \$(:) #; git reset --hard (comment after whitespace, allowed)" "echo \$(:) #; git reset --hard" 0
+# Inside arithmetic, case and esac are variable names.
+run "echo \$((case))#; git reset --hard (case as an arithmetic variable, blocked)" "echo \$((case))#; git reset --hard" 2
+run "a=( \$((case)) )#; git reset --hard (arithmetic case inside an array assignment, blocked)" \
+  "a=( \$((case)) )#; git reset --hard" 2
+run "case x in x) echo \$((esac))#; git reset --hard;; esac (arithmetic esac in a case arm, blocked)" \
+  "case x in x) echo \$((esac))#; git reset --hard;; esac" 2
+run "echo \`# \\\`; git reset --hard⏎:\` (escaped backtick inside a backtick comment, allowed)" \
+  $'echo `# \\`; git reset --hard\n:`' 0
+run "echo \`# \\\\\\\\\`; git reset --hard⏎:\` (backtick after an escaped backslash closes it, blocked)" \
+  $'echo `# \\\\`; git reset --hard\n:`' 2
 run "heredoc body with git reset (stdin, not a command, allowed)" $'cat >notes <<EOF\ngit reset --hard\nEOF' 0
 run "quoted-delimiter heredoc with git push --force (allowed)" $'cat <<\'EOF\'\ngit push --force\nEOF' 0
 run "tab-indented heredoc <<- body (allowed)" $'cat <<-EOF\n\tgit reset --hard\n\tEOF' 0
