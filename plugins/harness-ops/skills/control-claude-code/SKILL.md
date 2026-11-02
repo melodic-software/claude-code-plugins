@@ -28,7 +28,13 @@ as `blocked: maxCaptures reached`.
 `node <skill-dir>/driver/driver.mjs launch --plugin-dir <plugin-dir> --session <session>`
 
 The launch clears every API-key, gateway and provider variable and hides the working directory on
-the startup screen.
+the startup screen. An unattended run adds `--unattended` to `launch`, `ready` and `logs`: the one
+variable that `credentials.ci` in `config/defaults.json` names and the job has set is kept, with
+`CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` so hooks, Bash and MCP servers of the plugin under test never
+see it; two set at once is refused before anything starts. A kept `ANTHROPIC_API_KEY` opens the
+interactive session on a one-time key-approval prompt
+(<https://code.claude.com/docs/en/env-vars#variables>, as of 2026-11-02; recheck when that row
+changes).
 
 ## Ready
 
@@ -37,8 +43,8 @@ the startup screen.
 It prints the driver's doctor lines (engine, signatures, font) and whether the session answers, then
 starts one print-mode turn with the launch's flags and environment and stops it at the init event,
 whose `claude_code_version` is the build, `plugins` the data and `apiKeySource` the key in use. It
-exits 0 only when `apiKeySource` is `none` and the plugin under test is listed; any other exit
-means drive nothing. Telemetry: the stream-json files `logs` writes. The init event's fields and
+exits 0 only when `apiKeySource` is `none` (under `--unattended` with a kept credential, that
+credential's source) and the plugin under test is listed; any other exit means drive nothing. Telemetry: the stream-json files `logs` writes. The init event's fields and
 key sources: <https://code.claude.com/docs/en/agent-sdk/typescript#sdksystemmessage> and
 <https://code.claude.com/docs/en/agent-sdk/typescript#apikeysource> (as of 2026-10-26; recheck
 when either section renames a field or changes the values `apiKeySource` reports).
