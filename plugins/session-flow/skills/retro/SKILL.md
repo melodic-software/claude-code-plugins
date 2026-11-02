@@ -1,6 +1,6 @@
 ---
-description: "Structured session retrospective: transcript metrics, quality across five dimensions, feedback-memory regression check, and codified learnings. Use when: 'retro', 'what did we learn', 'show trends', or at end of session. Mid-session: /session-flow:running-retro."
-argument-hint: "[session [--pattern '<regex>']|trends|quick] [--unattended]"
+description: "Structured session retrospective: transcript metrics, quality across five dimensions, feedback-memory regression check, and codified learnings. Use when: 'retro', 'what did we learn', or at end of session. Mid-session: /session-flow:running-retro."
+argument-hint: "[session [--pattern '<regex>']|quick] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Structured session retrospective with codified learnings
 ---
 
-**Arguments.** `[session [--pattern '<regex>']|trends|quick] [--unattended]`. e.g., /retro, /retro session, /retro session --pattern 'PROJ-\d+', /retro trends, /retro quick, /retro quick --unattended
+**Arguments.** `[session [--pattern '<regex>']|quick] [--unattended]`. e.g., /retro, /retro session, /retro session --pattern 'PROJ-\d+', /retro quick, /retro quick --unattended
 
 ## Context. Gather first
 
@@ -64,8 +64,13 @@ Resolve at runtime, never hardcode machine-specific paths:
 | Signal | Mode | Context file |
 |--------|------|-------------|
 | End of session, bare `/session-flow:retro`, post-merge | **session** | `context/session.md`, full 5-phase analysis |
-| "trends", "scores", "how am I doing" | **trends** | `context/trends.md`, cross-session score history, plus delivery metrics from `/work-items:measure-delivery` when it is available |
 | "quick retro", short session, limited context | **quick** | `context/quick.md`, abbreviated pass |
+
+Score history across sessions names no retro mode. Before reading any mode, stop on a bare "how am
+I doing", a request for scores, or a `trends` argument, and name `/session-flow:audit-sessions trends`;
+"how did I do this session", a question about this one session, still runs a retro.
+That action reads the history this skill writes and adds delivery metrics; this skill analyzes no
+session for it.
 
 A `codify` argument, "codify reviews" or "mine review comments" names no retro mode: one recurring
 mistake, or the lessons in recent merged pull requests' review comments, go to
@@ -106,7 +111,6 @@ After the retrospective:
 | Condition | Suggestion |
 |-----------|-----------|
 | End-of-session, retro complete | Suggest any wrap-up steps the consuming repo defines |
-| Trends mode, analysis presented | Suggest focus areas for next session |
 | Session mode, follow-ups queued | Suggest filing them in the consumer's work-item tracker |
 
 ## Multi-session awareness
@@ -158,8 +162,7 @@ Both look back at how sessions went, so "how did I do" can land on either.
   transcript metrics, five quality dimensions, feedback-memory regressions, and codification into
   rules or memory behind approval.
 
-**Routing.** When the person asks about patterns across many sessions, or `trends` mode runs,
-offer it to the person: If /insights is available in your session (gate basis: ungated, though
+**Routing.** When the person asks about patterns across many sessions, offer it to the person: If /insights is available in your session (gate basis: ungated, though
 some hosts lack it; records in [reference/native-insights.md](reference/native-insights.md)), you
 can run it instead of or alongside this skill for a cross-session usage report. Make the offer at the end of the run. Prefer this skill for what one
 session taught and for codifying it. When the caller passes `--unattended`, the run records the
@@ -196,6 +199,8 @@ writing it into a brief: a `${…}` token in a spoke reaches the Bash tool unsub
 
 ## Next
 
+- /session-flow:audit-sessions trends: the score history session and quick modes write, across
+  sessions, with delivery metrics.
 - /session-flow:audit-sessions sweep: checks whether what this retro found recurs across every
   session on the machine.
 - /session-flow:audit-sessions ticket --pattern '<regex>': every stored session for one work item.

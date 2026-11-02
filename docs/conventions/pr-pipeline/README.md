@@ -1076,11 +1076,11 @@ the rules that only tighten in
   claude-review or a lower security one, is listed in the reasons and does not hold.
 - **Review evidence.** For each review lane, the newest run of the lane's caller workflow on the
   pinned head SHA concluded success and carries the lane's completion record for that SHA.
-- **Effective rung.** The lowest of `merge.rung`, the `babysit_loop_merge` key (the lower of
-  `docs/conventions/source-control.yaml` and `.claude/source-control.md`; a legacy file without the
-  key, or either file the wrapper cannot read or trust, means `off`; a YAML without it leaves the
-  legacy value, and with no legacy file the rung is `off`, so the YAML alone never raises it), the
-  cap variable, and `off` while any demotion issue is open.
+- **Effective rung.** The lowest of `merge.rung`, the `babysit_loop_merge` key (with no
+  `.claude/source-control.md`, the value in `docs/conventions/source-control.yaml`, `off` when it
+  sets none; while the legacy file exists, the lower of the two files, a legacy file without the key
+  means `off` and a YAML without it leaves the legacy value; either file the wrapper cannot read or
+  trust means `off`), the cap variable, and `off` while any demotion issue is open.
 - **Cap variable.** `CLAUDE_LANES_MERGE_RUNG_CAP` (`off`, `merge` or `merge-reviewed`, or the
   aliases `C2` and `C3`) is a repository variable
   only a human sets, and it can only lower the rung. The wrapper never writes it, and the identity
@@ -1198,7 +1198,9 @@ the rules that only tighten in
     what agents may do unattended or what later reviews judge against: `**/.claude/**` and
     `**/.claude-lane/**` whole (settings, hooks and the scripts settings registers, skills, agents,
     commands, rules, output styles and memory, under owner decision Q11, which supersedes the
-    2026-10-22 direction for rules), `docs/conventions/instruction-exception-register/**` and
+    2026-10-22 direction for rules), `docs/conventions/source-control.yaml` (the babysit loop's
+    team layer, trusted bot logins included, read before `.claude/source-control.md`),
+    `docs/conventions/instruction-exception-register/**` and
     `docs/conventions/untrusted-content/**` (the security review's criteria), `**/.mcp.json`, `**/CLAUDE.md`, `**/CLAUDE.local.md`,
     `**/AGENTS.md`, `REVIEW.md` and `docs/standards/**`. On a pull
     request a person on the trusted-actor list opened, a `gate` path only that person's own
