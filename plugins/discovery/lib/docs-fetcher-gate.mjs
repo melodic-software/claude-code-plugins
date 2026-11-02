@@ -35,11 +35,14 @@
 // (as of 2026-10-30; recheck when that section changes what counts as a
 // failure). Which rows set the key: docs/contracts/hook-budget/README.md.
 
-import { createHash } from 'node:crypto'
-import { closeSync, lstatSync, mkdirSync, openSync, readdirSync, rmSync, statSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+
+// node:fs and node:crypto load only when a marker is written, inside the named
+// agent, so every other Bash call skips their load time.
+const require = createRequire(import.meta.url)
 
 // A public DNS name or a public dotted-quad IPv4: the same check the workflows
 // run on the URLs they hand this agent.
@@ -131,6 +134,7 @@ export function markerDir(env = process.env) {
 // owns and no one else can reach: on a shared /tmp another user could have made
 // it first, to delete markers or plant them.
 export function privateDir(dir, uid = UID) {
+  const { lstatSync, mkdirSync } = require('node:fs')
   mkdirSync(dir, { recursive: true, mode: 0o700 })
   const s = lstatSync(dir)
   if (!s.isDirectory()) throw new Error(dir + ' is not a directory')
@@ -141,6 +145,8 @@ export function privateDir(dir, uid = UID) {
 // Records the first allowed call of one agent run: true the first time an id is
 // claimed, false after. Markers older than a day are pruned on each claim.
 export function claimOnce(id, dir = markerDir(), uid = UID) {
+  const { closeSync, openSync, readdirSync, rmSync, statSync } = require('node:fs')
+  const { createHash } = require('node:crypto')
   privateDir(dir, uid)
   for (const f of readdirSync(dir)) {
     try {
