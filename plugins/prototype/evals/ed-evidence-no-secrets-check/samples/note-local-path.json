@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "# /shipments\n\nDirection: B (Cards).\n\nMockup was at mockup-run/explore-directions.html.\nnot pushed: no secrets check in this repository\n",
+      "why": "names the mockup's local path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no note"
+    },
+    {
+      "answer": "# /shipments\n\nDirection: B (Cards).\n\nnot pushed: no secrets check in this repository\n",
+      "why": "reason without the local path"
+    }
+  ]
+}

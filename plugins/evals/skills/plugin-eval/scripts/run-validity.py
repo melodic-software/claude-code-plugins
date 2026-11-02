@@ -19,7 +19,11 @@ one line per check, detail lines indented under it:
                       an invocation-probe case, a max-turns error in a run whose
                       trace holds a Skill call is a warning, since the graded
                       call already happened
-    row count         every case holds N rows per arm; runsPerCase is ignored
+    row count         every case holds N rows per arm; runsPerCase is ignored. A
+                      case whose case.yaml sets context.history_file and whose
+                      result records no without-arm key at all ran single-arm by
+                      design (a path target runs it with-arm only): a warning
+                      with no delta. An empty or short without-arm still fails
     scaffold          no case sets context.scaffold_script in its case.yaml,
                       or the pass ran with --scaffold (--scaffolded); without
                       it, both arms of such a case ran in an empty workspace.
@@ -212,6 +216,12 @@ COMPOUND = frozenset(
 )
 # The operators after which an assignment that ran stays set in the shell.
 KEEPS_ASSIGNMENT = (None, ";", "\n", "&&")
+# A redirect word that names no file the command reads or writes: an fd
+# duplication or close (2>&1, >&2, 2>&-) or a redirect to /dev/null, with or
+# without its fd (>/dev/null, 2>/dev/null, &>/dev/null). A bare operator (2>)
+# takes the next word as its operand, dropped only when it is /dev/null.
+REDIRECT = re.compile(r"(?:\d*|&)(?:>>?|<)(&(?:\d+|-)|/dev/null)?")
+DEV_NULL = "/dev/null"
 
 # The suite's skill-fired convention and the no-trigger control markers.
 SKILL_TOOL = "Skill"
@@ -235,15 +245,13 @@ TRACE_TOOLS = "tools"  # on the init line: the tools the session could call
 # The init line names the Agent tool Task.
 PROBE_REMOVED_TOOLS = ("Read", "Glob", "Grep", "Agent", "Task")
 
-# case.yaml's context.scaffold_script, in block or flow form, read without a
-# YAML parser. Any uncommented mention of scaffold_script outside these shapes,
-# a quoted key or an empty value continued on the next line among them, leaves
-# the case UNCHECKED.
-SCAFFOLD_KEY = re.compile(r"^[^#\n]*scaffold_script", re.MULTILINE)
+# A case.yaml context key (scaffold_script, history_file), in block or flow
+# form, read without a YAML parser. Any uncommented mention of the key outside
+# these shapes, a quoted key or an empty value continued on the next line among
+# them, leaves the case UNCHECKED.
+SCAFFOLD_SCRIPT, HISTORY_FILE = "scaffold_script", "history_file"
 CONTEXT_BLOCK = re.compile(r"context:\s*(?:#.*)?")
 CONTEXT_FLOW = re.compile(r"context:\s*\{(.*)\}\s*(?:#.*)?")
-BLOCK_SCRIPT = re.compile(r"\s+scaffold_script:\s*(.*?)\s*(?:#.*)?")
-FLOW_SCRIPT = re.compile(r"\bscaffold_script:\s*([^,}]*)")
 NO_VALUE = ("", "null", "~")
 
 PASS, WARN, FAIL, UNCHECKED = "PASS", "WARN", "FAIL", "UNCHECKED"
@@ -444,8 +452,14 @@ def continues(lines, index):
 
 def scaffold_script(case, root):
     """(the case's context.scaffold_script or None, why its case.yaml could not
-    be read or None). An existing case dir with no case.yaml has no script; a
-    missing suite root or case dir leaves the case.yaml unread."""
+    be read or None)."""
+    return context_value(case, root, SCAFFOLD_SCRIPT)
+
+
+def context_value(case, root, key):
+    """(the case's context.<key> or None, why its case.yaml could not be read or
+    None). An existing case dir with no case.yaml has no value; a missing suite
+    root or case dir leaves the case.yaml unread."""
     case_dir = case.get(CASE_DIR)
     if not root or not isinstance(case_dir, str) or not case_dir:
         return None, (
@@ -462,14 +476,16 @@ def scaffold_script(case, root):
         return None, "case dir %s does not exist" % os.path.dirname(path)
     except (OSError, ValueError) as error:
         return None, "cannot read %s (%s)" % (path, error)
-    if not SCAFFOLD_KEY.search(text):
+    if not re.search(r"^[^#\n]*" + key, text, re.MULTILINE):
         return None, None
+    block_key = re.compile(r"\s+%s:\s*(.*?)\s*(?:#.*)?" % key)
+    flow_key = re.compile(r"\b%s:\s*([^,}]*)" % key)
     lines = text.splitlines()
     in_context = False
     for index, line in enumerate(lines):
         flow = CONTEXT_FLOW.fullmatch(line)
         if flow:
-            found = FLOW_SCRIPT.search(flow.group(1))
+            found = flow_key.search(flow.group(1))
             if found:
                 return script_value(found.group(1)), None
             in_context = False
@@ -478,15 +494,13 @@ def scaffold_script(case, root):
         elif line[:1] not in ("", " ", "\t", "#"):
             in_context = False
         elif in_context:
-            found = BLOCK_SCRIPT.fullmatch(line)
+            found = block_key.fullmatch(line)
             if found:
                 value = script_value(found.group(1))
                 if value is None and continues(lines, index):
                     break
                 return value, None
-    return None, (
-        "%s names scaffold_script outside a context block this check reads" % path
-    )
+    return None, "%s names %s outside a context block this check reads" % (path, key)
 
 
 def check_scaffold(cases, root, scaffolded):
@@ -749,10 +763,22 @@ def check_started(runs):
     return PASS, summary, forked, None
 
 
-def check_rows(cases, runs_wanted, arms):
-    details, per_case = [], set()
+def single_arm(case, root):
+    """True when the result records no without-arm for the case at all and its
+    case.yaml sets context.history_file: claude plugin eval runs such a case
+    with-arm only from a path target, whatever --ablation says."""
+    if "without" in as_dict(case.get(CASE_ARMS)):
+        return False
+    return context_value(case, root, HISTORY_FILE)[0] is not None
+
+
+def check_rows(cases, runs_wanted, arms, root):
+    details, per_case, one_arm = [], set(), []
     for case in cases:
         for arm in arms:
+            if arm == "without" and single_arm(case, root):
+                one_arm.append(case.get(CASE_NAME))
+                continue
             count = len(as_list(as_dict(case.get(CASE_ARMS)).get(arm)))
             if count != runs_wanted:
                 details.append(
@@ -766,6 +792,11 @@ def check_rows(cases, runs_wanted, arms):
         ignored = "; runsPerCase reads %s and is not used" % ", ".join(
             str(v) for v in sorted(stated, key=str)
         )
+    if one_arm:
+        ignored += (
+            "; single-arm by design (context.history_file, no without-arm recorded),"
+            " so no delta: %s" % ", ".join(one_arm)
+        )
     if details:
         return (
             FAIL,
@@ -773,6 +804,14 @@ def check_rows(cases, runs_wanted, arms):
             details,
             "%s hold a row count other than --runs %d"
             % (plural(len(details), "arm"), runs_wanted),
+        )
+    if one_arm:
+        return (
+            WARN,
+            "%s per arm as --runs %d asked%s"
+            % (plural(runs_wanted, "row"), runs_wanted, ignored),
+            [],
+            "%s single-arm by design, with no delta" % plural(len(one_arm), "case"),
         )
     return (
         PASS,
@@ -941,13 +980,28 @@ def shell_words(command):
 def bash_paths(command):
     """The paths a Bash command names: each rooted word, split at quotes,
     redirects, pipes, parentheses and `=` so --flag=/x, >/x and '/x' count, after
-    shell_words puts each same-command variable it resolves in place. A word
-    UNRESOLVED matches, a relative path with a slash or any word that is neither
-    rooted, a flag nor the command or variable name opening a lead word
-    (cwd-relative, so possibly the plugin), a path OWN_PROCESS matches, no rooted
-    word, or a command that does not parse adds None, which inside() counts as
-    inside."""
+    shell_words puts each same-command variable it resolves in place. A REDIRECT
+    word naming no file (2>&1, 2>/dev/null) is dropped first. A word UNRESOLVED
+    matches, a relative path with a slash or any word that is neither rooted, a
+    flag nor the command or variable name opening a lead word (cwd-relative, so
+    possibly the plugin), a path OWN_PROCESS matches, no rooted word, or a
+    command that does not parse adds None, which inside() counts as inside."""
     words = shell_words(command) if isinstance(command, str) else None
+    if not words:
+        return (None,)
+    kept, skip = [], False
+    for index, (text, lead) in enumerate(words):
+        if skip:
+            skip = False
+            continue
+        redirect = REDIRECT.fullmatch(text)
+        if redirect and redirect.group(1):
+            continue
+        if redirect and [w for w, _ in words[index + 1 : index + 2]] == [DEV_NULL]:
+            skip = True
+            continue
+        kept.append((text, lead))
+    words = kept
     if not words:
         return (None,)
     values = []
@@ -1662,7 +1716,7 @@ def main(argv=None):
         ("complete", check_complete(result, runs)),
         ("paid graders", check_paid(runs)),
         ("run errors", check_errors(runs, root)),
-        ("row count", check_rows(cases, args.runs, arms)),
+        ("row count", check_rows(cases, args.runs, arms, root)),
         ("scaffold", check_scaffold(cases, root, args.scaffolded)),
     ]
     lines = []

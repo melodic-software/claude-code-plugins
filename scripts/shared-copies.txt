@@ -564,3 +564,6 @@ lib/prerequisites.mjs plugins/sql-server/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/sql-server/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/sql-server/lib/prerequisites.ps1
 lib/check-convention-facts.mjs plugins/developer-experience/lib/check-convention-facts.mjs
+lib/parse-concern-value.sh plugins/skill-quality/lib/parse-concern-value.sh
+lib/yaml-subset.awk plugins/skill-quality/lib/yaml-subset.awk
+lib/resolve-convention-home.sh plugins/skill-quality/lib/resolve-convention-home.sh
