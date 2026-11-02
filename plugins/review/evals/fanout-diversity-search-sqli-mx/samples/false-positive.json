@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/product-search\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/routes/search.js:11 | security-reviewer | q is concatenated into the LIKE clause, so a caller can UNION SELECT the users table. | Bind the term as a parameter |\n| 2 | SUGGESTION | low | src/routes/search.js:8 | code-reviewer | Consider a minimum length for q. | Add a length check |\n\n## Surfaces\n\nRan: [security-reviewer@high, code-reviewer@high]. Returned no result: [].",
+      "why": "the only CRITICAL finding is the planted defect"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/product-search\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/routes/search.js:11 | security-reviewer | q is concatenated into the LIKE clause, so a caller can UNION SELECT the users table. | Bind the term as a parameter |\n| 2 | CRITICAL | medium | src/routes/search.js:15 | code-reviewer | The sort parameter is concatenated into ORDER BY, so a caller can inject SQL through sort. | Bind sort |\n\n## Surfaces\n\nRan: [security-reviewer@high, code-reviewer@high]. Returned no result: [].",
+      "why": "a CRITICAL finding calls the allowlisted sort column injectable"
+    }
+  ]
+}

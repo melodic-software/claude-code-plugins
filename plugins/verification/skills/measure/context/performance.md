@@ -41,13 +41,23 @@ When a plan claims a perf improvement:
    |--------|--------------------|--------------------|-------|----------|
    | <metric> | <baseline> | <current> | <diff> | <%> |
 
+   ### What limits the number
+   Limiter:    <what stops the after arm doing better, and the run that shows it> | unknown
+   Ruled out:  <another explanation for the delta: the evidence that excludes it> | unknown
+   Handed off: no | /performance:verify, <why>
+
    ### Assessment
    <statistically meaningful? methodology sound?>
    ```
 
+   Fill `Limiter:` and `Ruled out:` from this compare's own runs, or hand the compare to `/performance:verify` when the `performance` plugin is enabled, and say which on the `Handed off:` line. A handed-off report writes `see /performance:verify` on the other two lines and gives no verdict of its own: `/performance:verify`'s report carries the verdict, and the compare skips SKILL.md's verdict record ("Record the verdict for the head it judged"). The reason: a number with no known limit cannot be trusted, because nothing in a printed delta tells a sound run from one held by the harness, a warm cache or skipped work.
+   - **`Limiter:`** names what bounds the after figure (a sleep or poll interval, a lock both arms wait on, a saturated core, disk or network throughput, the load driver). A measured run confirms it, such as a profiled extra run or OS counters recorded while it ran; reading the code only suggests one.
+   - **`Ruled out:`** names at least one other thing the delta could reflect (arms on different build modes or settings, one arm left on defaults while the other was tuned, a cache the after arm found warm, failed or skipped work, run-to-run spread), each with the evidence that excludes it.
+   - Hand off when filling either line needs a profiler, a fresh-context re-derivation or a cold-start run of each arm that this compare lacks.
+
 4. **Verdict:**
-   - **CONFIRMED**: measurements show clear improvement with sound methodology
-   - **INCONCLUSIVE**: variance too high, conditions differ, or sample too small
+   - **CONFIRMED**: measurements show clear improvement with sound methodology, and `Limiter:` and `Ruled out:` are both filled
+   - **INCONCLUSIVE**: variance too high, conditions differ, sample too small, or `Limiter:` or `Ruled out:` reads `unknown` (an `unknown` line only blocks CONFIRMED; NOT CONFIRMED and DEGRADED stand without either line)
    - **NOT CONFIRMED**: no baseline, or measurements don't support the claim
    - **DEGRADED**: performance got worse (flag immediately)
 

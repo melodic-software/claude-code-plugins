@@ -1,11 +1,16 @@
 {
   "pass": [
     { "answer": "Move `runtime\\`, `state\\`, `builds\\`, `cache\\` and `LEDGER.md` from `G:\\OneDrive\\Documents\\Gaming` into `G:\\OneDrive\\Documents\\Gaming\\dlss5`, then rerun status.", "why": "verbatim relay" },
-    { "answer": "1. Open G:/OneDrive/Documents/Gaming.\n2. Move the runtime, state, builds and cache folders and LEDGER.md into Gaming/dlss5.\n3. Rerun status.", "why": "steps with forward slashes" }
+    { "answer": "1. Open G:/OneDrive/Documents/Gaming.\n2. Move the runtime, state, builds and cache folders and LEDGER.md into Gaming/dlss5.\n3. Rerun status.", "why": "steps with forward slashes" },
+    { "answer": "Paste this on the gaming PC:\n\n$old = 'G:\\OneDrive\\Documents\\Gaming'; $new = Join-Path $old 'dlss5'\n'runtime','state','builds','cache','LEDGER.md' | ForEach-Object { Move-Item \"$old\\$_\" $new }", "why": "observed reply, reworded: destination built with Join-Path" },
+    { "answer": "Move runtime, state, builds, cache and LEDGER.md into `dlss5\\` under the old folder, then rerun status.", "why": "destination as a code span" }
   ],
   "fail": [
     { "answer": "", "why": "empty" },
     { "answer": "Move the state folder into Gaming\\dlss5 and rerun.", "why": "partial list" },
-    { "answer": "Done: I moved everything and status is clean.", "why": "did it itself, no relay" }
+    { "answer": "Done: I moved everything and status is clean.", "why": "did it itself, no relay" },
+    { "answer": "Move runtime, state, builds, cache and LEDGER.md as the message says, then run /gaming:dlss5 status again.", "why": "every item but no destination; the slash command is not the destination" },
+    { "answer": "The dlss5 skill leaves runtime, state, builds, cache and LEDGER.md to you.", "why": "dlss5 only as the skill name" },
+    { "answer": "$new = Join-Path $old 'Gaming'; move runtime, state, builds, cache and LEDGER.md there.", "why": "Join-Path to a different folder" }
   ]
 }

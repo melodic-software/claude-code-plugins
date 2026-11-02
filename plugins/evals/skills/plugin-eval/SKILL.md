@@ -350,25 +350,26 @@ and check each verdict against what the output does. A pass on a wrong output, o
 correct one, makes the grader or its rubric the finding: fix it and rerun before quoting the
 number, and say which run showed it.
 
-What the number means:
+Check that every counted run did the task before its case's delta counts. A run that stopped early,
+answered a different request or never reached the case's subject still gets a score, so averaging it
+in moves the delta for a reason that is not the plugin. The test: each counted run's grader
+explanations or kept trace show it attempted the task the prompt set and produced a result for it.
+Name each run that did not, and report its case as not comparable, as step 3 does.
 
-- A case at 1.00 in both arms proves the plugin contributed nothing to that case. It is a passing
-  case and a null measurement at the same time.
-- A grader that cannot pass without the plugin (every `tool_used` on `tool: Skill`, plus anything
-  `arm: with-only`) is excluded from scoring in both arms and reported in the with-arm as an
-  indicator carrying `scored: false`. A `passed: false` grader inside a 1.00 run is that exclusion,
-  by design. When every grader in a case is such a grader, they are scored normally instead.
-- `arm: both` forces scoring in both arms, which is what a must-not-invoke check (`min: 0` **and**
-  `max: 0`) needs.
-- Hold the ablation mode fixed. Under `--ablation none` nothing is excluded, so absolute scores are
-  not comparable across modes and mixing them silently breaks a trend line.
-- Copy a plugin whose directory is named `evals` under another name before a run. Pointer: the probe pair in [records.md](reference/records.md#spoke-reach), as of 2026-10-31; recheck on a Claude Code release by re-running one case with `--keep-temp`.
-  Check the trace for a denied `Read` before crediting a spoke.
+A gap holds for the model it ran on. A gap claimed for more than that model needs a run on a second
+model (the same suite with a different `--model`), because one model's delta can come from that
+model's habits rather than from the plugin's content. The test: the second run's noise report also
+reads `verdict: the interval excludes 0` with a delta of the same sign. Without that run, the report
+names the one model the gap was measured on.
+
+A case at 1.00 in both arms is a passing case and a null measurement at once. What else the number
+means (with-only graders, `arm: both`, the ablation mode, a plugin directory named `evals`):
+[reading-results.md, What a delta does and does not say](reference/reading-results.md#what-a-delta-does-and-does-not-say).
 
 End the reading with one line on the change under test: `promote` only when the run is VALID, the
-noise report's verdict is that the interval excludes 0 with the with-arm ahead, and the spot-read
-found no verdict it disagrees with; otherwise `do not promote`, followed by the first of those
-conditions that failed. Then remove the run's sandboxes, once its traces are no longer needed: [sandboxes.md](reference/sandboxes.md#removing-a-reads-sandboxes).
+noise report's verdict is that the interval excludes 0 with the with-arm ahead, the spot-read found
+no verdict it disagrees with, every counted run did the task, and a gap claimed beyond one model has
+its second-model run; otherwise `do not promote`, followed by the first condition that failed. Then remove the run's sandboxes, once its traces are no longer needed: [sandboxes.md](reference/sandboxes.md#removing-a-reads-sandboxes).
 
 ## Iterating
 

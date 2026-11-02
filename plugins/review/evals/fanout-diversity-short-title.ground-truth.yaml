@@ -1,0 +1,10 @@
+fixture: short-title
+source_case: guard-removal-short-title
+defect:
+  location: titles.py:2
+  summary: "shorten drops its check that returns a title at or under the limit unchanged, on the commit message's claim that slicing makes it redundant"
+  failure: "every short title now gets a trailing ellipsis (Desk lamp becomes Desk lamp…), and a title of exactly 40 characters loses its last character"
+axis: spec
+not_defects:
+  - "slicing past the end of a Python string raises an error (it does not; the commit message is right about that)"
+  - "titles over the limit are now cut differently (that path is unchanged)"

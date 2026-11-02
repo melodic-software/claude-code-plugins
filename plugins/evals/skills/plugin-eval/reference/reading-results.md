@@ -164,6 +164,14 @@ case complete), read 2026-09-13.
   excluded, so the same suite scores differently. Hold the mode fixed or the trend line is fiction.
 - A single run is a smoke test. The defaults exist because a non-deterministic agent tells you
   little in one sample, and pinning both models buys comparability, not determinism.
+- A grader that cannot pass without the plugin (every `tool_used` on `tool: Skill`, plus anything
+  `arm: with-only`) is excluded from scoring in both arms ([Per-grader fields](#per-grader-fields)).
+  `arm: both` forces scoring in both arms, which is what a must-not-invoke check (`min: 0` **and**
+  `max: 0`) needs.
+- Copy a plugin whose directory is named `evals` under another name before a run. Pointer: the
+  probe pair in [records.md](records.md#spoke-reach), as of 2026-10-31; recheck on a Claude Code
+  release by re-running one case with `--keep-temp`. Check the trace for a denied `Read` before
+  crediting a spoke.
 
 ## Noise report
 

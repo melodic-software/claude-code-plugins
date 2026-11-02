@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/display-name\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/display-name.js:2 | code-reviewer | displayName(null) now throws TypeError, and renderHeader passes a null session.user before sign-in. | Restore the Guest fallback |\n| 2 | SUGGESTION | low | src/header.js:5 | code-reviewer | Consider escaping the name before it goes into HTML. | Escape the name |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "the only CRITICAL finding is the planted defect"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/display-name\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/display-name.js:2 | code-reviewer | displayName(null) now throws TypeError for a signed-out visitor. | Restore the Guest fallback |\n| 2 | CRITICAL | medium | src/display-name.js:2 | security-reviewer | Signed-in users with a profile now see their full name instead of their nickname. | Revert |\n\n## Surfaces\n\nRan: [code-reviewer@high, security-reviewer@high]. Returned no result: [].",
+      "why": "a CRITICAL finding claims the signed-in path changed"
+    }
+  ]
+}
