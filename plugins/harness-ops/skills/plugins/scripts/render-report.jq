@@ -250,6 +250,8 @@ def block($d):
          "    predicted against the unrefreshed catalog (lastUpdated \(.catalog_last_updated // "unknown")), a lower bound on what sync would update"
        elif .refresh.rc != null and .refresh.rc != 0 then
          "  refresh failed (exit \(.refresh.rc)): \(.refresh | reported)"
+       elif .refresh.skipped != null then
+         "  refresh skipped: the clone is at \(.refresh.skipped.head | short_sha), where origin \(.refresh.skipped.ref) points"
        else empty end),
 
       # In-repo: a fixed row with three variants, picked by two digest fields.
