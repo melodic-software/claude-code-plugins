@@ -1,5 +1,5 @@
 {
-  "description": "Records session observability telemetry: nine audit rows (API errors, config changes, instruction loads, permission denials, compactions, skill usage, tool failures, unsurfaced hook failures) that emit the hook-telemetry envelope, seven of them dispatched by event from one emitter and two in their own scripts. The module records the default-off per-session hook event log and its SessionEnd retention; while the log is off it hooks nothing.",
+  "description": "Records session observability telemetry: nine audit rows (API errors, config changes, instruction loads, permission denials, compactions, skill usage, tool failures, unsurfaced hook failures) that emit the hook-telemetry envelope, seven of them dispatched by event from one emitter and two in their own scripts. The module records the default-off per-session hook event log and its SessionEnd retention; while the log is off it hooks nothing. At session start it reports a missing node, and runs the prerequisites probe of each enabled plugin whose prerequisites.json declares session_probe, as one notice.",
   "modules": [
     "./register.ts"
   ],
@@ -158,6 +158,20 @@
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /harness-ops:check; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /harness-ops:check",
             "timeout": 10,
             "statusMessage": "Checking that node is on PATH..."
+          }
+        ]
+      },
+      {
+        "matcher": "startup|resume|clear|fork",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/prerequisites-fleet.mjs"
+            ],
+            "timeout": 15,
+            "statusMessage": "Checking the enabled plugins' prerequisites..."
           }
         ]
       }

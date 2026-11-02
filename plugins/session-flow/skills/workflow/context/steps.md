@@ -186,8 +186,9 @@ Prove the change achieved its intent, with evidence.
 
 ## 12. Retrospective (optional)
 
-Session analysis, learning codification, and trend tracking: the self-improvement loop. Invoke the
-sibling `retro` skill (`/session-flow:retro`, or `/session-flow:retro quick` under context pressure).
+Session analysis and learning codification: the self-improvement loop. Invoke the sibling `retro`
+skill (`/session-flow:retro`, or `/session-flow:retro quick` under context pressure). Score trends
+across sessions are `/session-flow:audit-sessions trends`.
 
 - **Effort:** reviewing the session's own record, every finding going to the human to accept or
   reject

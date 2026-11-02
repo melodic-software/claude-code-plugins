@@ -1,5 +1,5 @@
 {
-  "description": "Rewrites Markdown with markdownlint-cli2 once per batch of tool calls, checks the uncommitted changes when a turn ends, and reports a missing markdownlint-cli2 or a drifted git-hook entry at session start.",
+  "description": "Rewrites Markdown with markdownlint-cli2 once per batch of tool calls, checks the uncommitted changes when a turn ends; harness-ops reports a missing markdownlint-cli2 or a drifted git-hook entry at session start, from this plugin's prerequisites.json.",
   "hooks": {
     "PostToolBatch": [
       {
@@ -37,37 +37,6 @@
             ],
             "timeout": 30,
             "statusMessage": "Checking Markdown in uncommitted changes..."
-          }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "matcher": "startup|resume|clear|fork",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs",
-              "probe",
-              "${CLAUDE_PLUGIN_ROOT}",
-              "--run-if-unset-or-true",
-              "MARKDOWN_FORMAT_ENABLED"
-            ],
-            "timeout": 10,
-            "statusMessage": "Checking markdownlint-cli2..."
-          }
-        ]
-      },
-      {
-        "matcher": "startup|resume|clear|fork",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /markdown-format:check MARKDOWN_FORMAT_ENABLED; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /markdown-format:check MARKDOWN_FORMAT_ENABLED",
-            "timeout": 10,
-            "statusMessage": "Checking that node is on PATH..."
           }
         ]
       }

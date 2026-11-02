@@ -920,11 +920,12 @@ def _team_loop_merge(text: str) -> tuple[str | None, str | None]:
 def _resolve_loop_merge(
     file_at: Callable[[str, str], str | None], base_sha: str, notes: list[str]
 ) -> str | None:
-    """`babysit_loop_merge` at `base_sha`. The legacy file must exist and
-    set the key, else None (off), so a raise needs both files; the result is
-    the lower of the two, or the legacy value when the YAML sets none. Either
-    file unreadable or untrustworthy yields None (off), never the other
-    file's value alone."""
+    """`babysit_loop_merge` at `base_sha`. With no legacy file the YAML value
+    sets the rung by itself, and None (off) when it sets none. While the
+    legacy file exists it must set the key, else None (off), so a raise needs
+    both files; the result is the lower of the two, or the legacy value when
+    the YAML sets none. Either file unreadable or untrustworthy yields None
+    (off), never the other file's value alone."""
     try:
         source = file_at(SOURCE_CONTROL_PATH, base_sha)
     except PolicyReadError as exc:
@@ -943,10 +944,7 @@ def _resolve_loop_merge(
         notes.append(note)
         return None
     if source is None:
-        # Off with no legacy file: the YAML alone never raises the gate. The
-        # cleanup slice that deletes the legacy file decides deliberately
-        # whether the YAML may then set the rung by itself.
-        return None
+        return team
     if legacy is None or team is None:
         return legacy
     return min(team, legacy, key=lambda v: RUNG_RANK[LOOP_MERGE_RUNG.get(v, "off")])
@@ -958,8 +956,9 @@ def read_config_at(
     file_at: Callable[[str, str], str | None] | None = None,
 ) -> PipelineConfig:
     """`merge:` from `docs/conventions/pr-pipeline.yaml` and `babysit_loop_merge`
-    (`_resolve_loop_merge`: the lower of `docs/conventions/source-control.yaml`
-    and `.claude/source-control.md`), all read at `base_sha` through
+    (`_resolve_loop_merge`: `docs/conventions/source-control.yaml` alone when
+    `.claude/source-control.md` is absent, else the lower of the two), all read
+    at `base_sha` through
     `file_at(path, sha)` (text, or None when absent), by default a local clone
     holding `base_sha` (`_clones_holding`), else a checkout of `base_sha`
     (`_config_checkout`), else the contents API. A pipeline

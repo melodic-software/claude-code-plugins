@@ -561,10 +561,10 @@ class ReadConfigAt(unittest.TestCase):
             # A demotion written only to the legacy file still holds it.
             ("babysit_loop_merge: c3-autonomous\n", SOURCE_CONTROL, "c2-mechanical"),
             ("babysit_loop_merge: c2-mechanical\n", loose, "c2-mechanical"),
-            # With no legacy file the gate stays off whatever the YAML sets:
-            # the YAML alone never raises it.
-            ("babysit_loop_merge: c2-mechanical\n", None, None),
-            ("babysit_loop_merge: c3-autonomous\n", None, None),
+            # With no legacy file the YAML sets the rung by itself.
+            ("babysit_loop_merge: c2-mechanical\n", None, "c2-mechanical"),
+            ("babysit_loop_merge: c3-autonomous\n", None, "c3-autonomous"),
+            ("babysit_loop_stop_mode: standing\n", None, None),
             # A YAML without the key falls back to the legacy value.
             (None, SOURCE_CONTROL, "c2-mechanical"),
             ("babysit_loop_stop_mode: standing\n", SOURCE_CONTROL, "c2-mechanical"),
@@ -579,6 +579,26 @@ class ReadConfigAt(unittest.TestCase):
                 config = policy.read_config_at(REPO, SHA)
                 self.assertEqual(config.loop_merge, expected)
                 self.assertEqual(config.notes, ())
+
+    def test_the_effective_rung_from_the_yaml_alone_both_files_or_neither(
+        self,
+    ) -> None:
+        for team, source, expected in (
+            ("babysit_loop_merge: c2-mechanical\n", None, "C2"),
+            ("babysit_loop_merge: human-only\n", SOURCE_CONTROL, "off"),
+            ("babysit_loop_merge: c3-autonomous\n", SOURCE_CONTROL, "C2"),
+            (None, None, "off"),
+        ):
+            with self.subTest(team=team, source=source):
+                config_fake(self, "merge:\n  rung: C3\n", source, team)
+                config = policy.read_config_at(REPO, SHA)
+                effective = policy.effective_rung(
+                    config_rung=config.rung,
+                    loop_merge=config.loop_merge,
+                    cap=None,
+                    demoted=False,
+                )
+                self.assertEqual(effective.rung, expected)
 
     def test_an_untrustworthy_team_yaml_holds_the_gate_over_the_legacy_value(
         self,
