@@ -50,4 +50,4 @@ If zero findings, report "No <slice-name> issues found in changed files."
 
 ## When a dedicated agent exists
 
-For concerns this plugin ships a dedicated agent for (code quality → `code-reviewer`, security → `security-reviewer`, architecture → `architecture-guardian`), prefer the dedicated agent. It adds persistent memory across sessions. Slice mode still works for those concerns when the user names them explicitly.
+For concerns this plugin ships a dedicated agent for (code quality → `code-reviewer`, security → `security-reviewer`, architecture → `architecture-guardian`), prefer the dedicated agent. It adds persistent memory across sessions. Dispatch `code-reviewer` and `security-reviewer` per SKILL.md "Shared inputs" "Reviewer handback". Slice mode still works for those concerns when the user names them explicitly.
