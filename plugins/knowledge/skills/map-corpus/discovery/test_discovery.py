@@ -440,5 +440,127 @@ class TestLinkMapGate(LinkMapHarness):
         self.assertIn(b"not_a_real_key", proc.stderr)
 
 
+# Synthetic listing in the documented shape of GitHub's recursive trees API
+# (a stand-in for cursor/plugins: no capture, placeholder SHAs throughout).
+TREE_FIXTURE = os.path.join(HERE, "fixtures", "github-tree-pstack.json")
+REF = "1" * 40
+PSTACK_GLOBS = [
+    "--include", "pstack/skills/**",
+    "--include", "pstack/agents/**",
+    "--include", "pstack/docs/**",
+    "--exclude", "**/.DS_Store",
+]
+RAW = f"https://raw.githubusercontent.com/cursor/plugins/{REF}/"
+REPO_SEED = f"https://github.com/cursor/plugins/tree/{REF}"
+
+
+class TestRepoTreeRung(Base):
+    def run_tree(self, snapshot=TREE_FIXTURE, extra=(), expect_code=0, ref=REF):
+        cmd = [
+            sys.executable, PARSER, snapshot, "--rung", "repo-tree",
+            "--owner", "cursor", "--repo", "plugins", "--ref", ref,
+        ] + list(extra)
+        proc = subprocess.run(cmd, capture_output=True)
+        if proc.returncode != expect_code:
+            raise AssertionError(
+                f"exit {proc.returncode}, expected {expect_code}; stderr: {proc.stderr!r}"
+            )
+        return proc
+
+    def discovery(self):
+        out = os.path.join(self.dir, "d-tree.json")
+        self.run_tree(extra=PSTACK_GLOBS + ["--out", out])
+        return out, read_json(out)
+
+    def test_blobs_filtered_by_globs(self):
+        _, doc = self.discovery()
+        self.assertEqual(doc["rung"], "repo-tree")
+        self.assertEqual(doc["base_url"], RAW)
+        self.assertEqual(doc["repository"]["seed_url"], REPO_SEED)
+        self.assertEqual(
+            doc["urls"],
+            [
+                RAW + "pstack/agents/reviewer.md",
+                RAW + "pstack/docs/getting%20started.md",
+                RAW + "pstack/skills/plan/SKILL.md",
+                RAW + "pstack/skills/plan/reference/steps.md",
+                RAW + "pstack/skills/review/SKILL.md",
+            ],
+        )
+
+    def test_truncated_listing_fails(self):
+        doc = read_json(TREE_FIXTURE)
+        doc["truncated"] = True
+        snap = write(self.dir, "tree-truncated.json", doc)
+        proc = self.run_tree(snap, PSTACK_GLOBS, expect_code=2)
+        self.assertIn(b"truncated", proc.stderr)
+
+    def test_unpinned_ref_fails(self):
+        proc = self.run_tree(extra=PSTACK_GLOBS, expect_code=2, ref="main")
+        self.assertIn(b"full commit SHA", proc.stderr)
+
+    def test_no_include_fails(self):
+        proc = self.run_tree(expect_code=2)
+        self.assertIn(b"--include", proc.stderr)
+
+    def test_no_match_fails(self):
+        proc = self.run_tree(extra=["--include", "nope/**"], expect_code=2)
+        self.assertIn(b"matched", proc.stderr)
+
+    def test_one_dead_include_fails(self):
+        extra = PSTACK_GLOBS + ["--include", "pstack/skill/**"]
+        proc = self.run_tree(extra=extra, expect_code=2)
+        self.assertIn(b"'pstack/skill/**' matched no blob", proc.stderr)
+
+    def test_repo_seed_only_map_passes_with_every_file_classified(self):
+        path, doc = self.discovery()
+        rows = [
+            {
+                "url": REPO_SEED,
+                "rungs": ["seed"],
+                "classification": "ignore",
+                "reason": "repository seed; its files are enumerated by repo-tree",
+            }
+        ] + [
+            {
+                "url": url,
+                "rungs": ["repo-tree"],
+                "classification": "in-corpus",
+                "reason": "pstack skill, agent or doc file",
+            }
+            for url in doc["urls"]
+        ]
+        linkmap = {
+            "schema": "link-map/v1",
+            "seeds": [REPO_SEED],
+            "bounds": {"max_resources": 10},
+            "rows": rows,
+        }
+        mpath = write(self.dir, "map-tree.json", linkmap)
+        proc = self.run_gate(mpath, [path], expect_code=0)
+        self.assertIn(b"repo-tree: 5 urls", proc.stdout)
+
+        dropped = copy.deepcopy(linkmap)
+        dropped["rows"].pop()
+        mpath = write(self.dir, "map-tree-drop.json", dropped)
+        proc = self.run_gate(mpath, [path], expect_code=1)
+        self.assertIn(b"unclassified", proc.stderr)
+
+    def test_undeclared_repository_seed_rejected(self):
+        path, doc = self.discovery()
+        linkmap = {
+            "schema": "link-map/v1",
+            "seeds": ["https://agent-plugins.org"],
+            "bounds": {"max_resources": 10},
+            "rows": [
+                {"url": u, "rungs": ["repo-tree"], "classification": "ignore", "reason": "r"}
+                for u in doc["urls"]
+            ],
+        }
+        mpath = write(self.dir, "map-tree-noseed.json", linkmap)
+        proc = self.run_gate(mpath, [path], expect_code=2)
+        self.assertIn(b"does not declare", proc.stderr)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

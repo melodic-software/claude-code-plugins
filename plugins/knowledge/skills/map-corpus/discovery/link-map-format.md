@@ -8,7 +8,7 @@ The same denominator discipline as the node manifest, one layer up: the set of U
 classified is produced by a script over immutable discovery snapshots, never by an agent's recall
 of what it saw. An agent classifies; it does not get to choose what needs classifying.
 
-## Discovery ladder (V1: rungs 1–2 only)
+## Discovery ladder (rungs 1–2, plus `repo-tree`)
 
 1. **Rung 1, `llms.txt`**: fetch `<origin>/llms.txt` (and `llms-full.txt` when the profile or
    user says so), snapshot it into the slice under `discovery/`.
@@ -18,6 +18,15 @@ of what it saw. An agent classifies; it does not get to choose what needs classi
    requires either a presence-gated `/firecrawl:firecrawl map` call or a recorded reason to
    reimplement. The trigger is the first corpus whose seeds resolve neither an
    `llms.txt` nor a sitemap. Until then a corpus with neither artifact stops loudly at discovery.
+
+**Repository-tree rung, `repo-tree`**: for a repository seed, not an origin. The skill snapshots
+the forge's recursive tree listing at a commit SHA into `discovery/`, through the forge's adapter
+(`reference/providers/<forge>/repo-tree.md` at the plugin root; the parsing half is the forge's
+entry in `repo_tree_adapters.py`). `parse_discovery.py --rung repo-tree` keeps the listed files
+(not directories or submodules) whose paths match an `--include` glob and no `--exclude` glob, and
+emits each one's raw URL. `**` spans directories; `*` and `?` stay inside one path segment. It
+refuses a ref that is not a full commit SHA, a listing the forge marked truncated, and a glob set
+that selects no file.
 
 Fetching is the skill's job (WebFetch/curl per the skill's own text, channel recorded); parsing
 the snapshots is `parse_discovery.py`'s job and is deterministic: same snapshot bytes, same
@@ -38,11 +47,26 @@ WebFetch only finds which page to read; read the page itself by the [fetch-route
 }
 ```
 
-- `rung`: `llms-txt` | `sitemap-xml` | `sitemap-md`.
+- `rung`: `llms-txt` | `sitemap-xml` | `sitemap-md` | `repo-tree`.
 - `base_url`: the URL the snapshot was fetched from, supplied by the caller; relative links
-  resolve against it.
+  resolve against it. For `repo-tree`, the adapter's raw-file base at the pinned SHA.
+- `repository`: present only, and required, when `rung` is `repo-tree`. Exactly the keys
+  `forge`, `owner`, `repo`, `ref` (the full commit SHA), `seed_url` (the normalized repository
+  seed URL the adapter builds), `include` and `exclude` (the globs, as given).
+
+  ```json
+  {"forge": "github", "owner": "cursor", "repo": "plugins", "ref": "<sha40>",
+   "seed_url": "https://github.com/cursor/plugins/tree/<sha40>",
+   "include": ["pstack/skills/**"], "exclude": []}
+  ```
+
 - `urls`: normalized (see below), deduplicated, sorted lexicographically. Sorting is part of the
   determinism contract.
+
+**Schema change, kept at v1.** The `repo-tree` rung value (in discovery outputs and in link-map
+row `rungs`) and the `repository` key are additions to `discovery-output/v1` and `link-map/v1`.
+Every output and map that passed the gate before still passes; a gate from before the addition
+rejects a `repo-tree` output as an unknown rung, so the parser and gate ship together.
 
 URL normalization (mirrors `docpage-digest`'s canonical-URL rules, minus the redirect step a
 offline script cannot take): scheme+host lowercased, fragment dropped, tracking-only query
@@ -92,8 +116,8 @@ nobody parsed.
   maximum number of `in-corpus` rows the run may fetch and digest. Optional `notes` string.
 - `rows`: exactly one row per distinct URL across seeds + every discovery output. Each row:
   - `url`: normalized URL.
-  - `rungs`: non-empty subset of `seed` | `llms-txt` | `sitemap-xml` | `sitemap-md`, the
-    provenance of every appearance. (`in-page` joins this enum only when the deferred rung-3
+  - `rungs`: non-empty subset of `seed` | `llms-txt` | `sitemap-xml` | `sitemap-md` |
+    `repo-tree`, the provenance of every appearance. (`in-page` joins this enum only when the deferred rung-3
     decision above is made.)
   - `classification`: exactly one of:
     - `in-corpus`, fetched, snapshotted, node-extracted, inventoried, queued for digestion.
@@ -107,13 +131,15 @@ nobody parsed.
 ## Gate contract (`check_linkmap.py`)
 
 Inputs: the link map and every discovery-output JSON for the slice (at least one is required,
-because a map with no discovery basis cannot demonstrate coverage; a corpus consisting solely of
-resource seeds, with no origin seed and so no discovery output, is outside V1 gate scope, the
-same recorded deferral as the repo-tree enumeration rung). Checks:
+because a map with no discovery basis cannot demonstrate coverage). A corpus whose only seed is a
+repository seed passes on its `repo-tree` output. A corpus of resource seeds only, with no origin
+or repository seed and so no discovery output, is outside gate scope: route it to direct
+`docpage-digest` runs, or name its repository as a repository seed. Checks:
 
 1. All inputs parse (duplicate JSON keys rejected at any depth); unknown or missing keys rejected
    in the link map, its rows, AND each discovery output; schema literals exact; seeds and row
-   URLs must be in normalized form. Failures name the file/row; exit 2 for unusable input.
+   URLs must be in normalized form. A `repo-tree` output's `repository.seed_url` must be one of
+   the map's `seeds`. Failures name the file/row; exit 2 for unusable input.
 2. **Classification coverage**, this gate's reason to exist: every URL in every discovery output
    and every seed has exactly one row; every row's URL traces back to at least one discovery
    output or the seed list (no phantom rows); every row carries a valid classification and

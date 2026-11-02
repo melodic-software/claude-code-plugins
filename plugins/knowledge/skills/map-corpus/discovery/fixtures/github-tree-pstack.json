@@ -1,0 +1,24 @@
+{
+  "sha": "2222222222222222222222222222222222222222",
+  "url": "https://api.github.com/repos/cursor/plugins/git/trees/2222222222222222222222222222222222222222",
+  "tree": [
+    {"path": "README.md", "mode": "100644", "type": "blob", "sha": "3000000000000000000000000000000000000001", "size": 120, "url": "https://api.github.com/repos/cursor/plugins/git/blobs/3000000000000000000000000000000000000001"},
+    {"path": "other", "mode": "040000", "type": "tree", "sha": "3000000000000000000000000000000000000002", "url": "https://api.github.com/repos/cursor/plugins/git/trees/3000000000000000000000000000000000000002"},
+    {"path": "other/skills/x/SKILL.md", "mode": "100644", "type": "blob", "sha": "3000000000000000000000000000000000000003", "size": 80, "url": "https://api.github.com/repos/cursor/plugins/git/blobs/3000000000000000000000000000000000000003"},
+    {"path": "pstack", "mode": "040000", "type": "tree", "sha": "3000000000000000000000000000000000000004", "url": "https://api.github.com/repos/cursor/plugins/git/trees/3000000000000000000000000000000000000004"},
+    {"path": "pstack/README.md", "mode": "100644", "type": "blob", "sha": "3000000000000000000000000000000000000005", "size": 300, "url": "https://api.github.com/repos/cursor/plugins/git/blobs/3000000000000000000000000000000000000005"},
+    {"path": "pstack/agents", "mode": "040000", "type": "tree", "sha": "3000000000000000000000000000000000000006", "url": "https://api.github.com/repos/cursor/plugins/git/trees/3000000000000000000000000000000000000006"},
+    {"path": "pstack/agents/reviewer.md", "mode": "100644", "type": "blob", "sha": "3000000000000000000000000000000000000007", "size": 410, "url": "https://api.github.com/repos/cursor/plugins/git/blobs/3000000000000000000000000000000000000007"},
+    {"path": "pstack/docs", "mode": "040000", "type": "tree", "sha": "3000000000000000000000000000000000000008", "url": "https://api.github.com/repos/cursor/plugins/git/trees/3000000000000000000000000000000000000008"},
+    {"path": "pstack/docs/getting started.md", "mode": "100644", "type": "blob", "sha": "3000000000000000000000000000000000000009", "size": 900, "url": "https://api.github.com/repos/cursor/plugins/git/blobs/3000000000000000000000000000000000000009"},
+    {"path": "pstack/docs/vendor", "mode": "160000", "type": "commit", "sha": "300000000000000000000000000000000000000a"},
+    {"path": "pstack/skills", "mode": "040000", "type": "tree", "sha": "300000000000000000000000000000000000000b", "url": "https://api.github.com/repos/cursor/plugins/git/trees/300000000000000000000000000000000000000b"},
+    {"path": "pstack/skills/plan", "mode": "040000", "type": "tree", "sha": "300000000000000000000000000000000000000c", "url": "https://api.github.com/repos/cursor/plugins/git/trees/300000000000000000000000000000000000000c"},
+    {"path": "pstack/skills/plan/SKILL.md", "mode": "100644", "type": "blob", "sha": "300000000000000000000000000000000000000d", "size": 1500, "url": "https://api.github.com/repos/cursor/plugins/git/blobs/300000000000000000000000000000000000000d"},
+    {"path": "pstack/skills/plan/reference/steps.md", "mode": "100644", "type": "blob", "sha": "300000000000000000000000000000000000000e", "size": 700, "url": "https://api.github.com/repos/cursor/plugins/git/blobs/300000000000000000000000000000000000000e"},
+    {"path": "pstack/skills/review", "mode": "040000", "type": "tree", "sha": "300000000000000000000000000000000000000f", "url": "https://api.github.com/repos/cursor/plugins/git/trees/300000000000000000000000000000000000000f"},
+    {"path": "pstack/skills/review/.DS_Store", "mode": "100644", "type": "blob", "sha": "3000000000000000000000000000000000000010", "size": 6148, "url": "https://api.github.com/repos/cursor/plugins/git/blobs/3000000000000000000000000000000000000010"},
+    {"path": "pstack/skills/review/SKILL.md", "mode": "100644", "type": "blob", "sha": "3000000000000000000000000000000000000011", "size": 1200, "url": "https://api.github.com/repos/cursor/plugins/git/blobs/3000000000000000000000000000000000000011"}
+  ],
+  "truncated": false
+}

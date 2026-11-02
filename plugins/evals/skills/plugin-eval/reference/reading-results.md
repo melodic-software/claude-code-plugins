@@ -55,15 +55,25 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   names no absolute argument, a redirect's file or a prefix assignment's value aside (`ls`,
   `PYTHONPATH=/x pytest`, `cat /x | ls`), also adds no path, unless it is `cat`, `head`, `wc`,
   `grep` or `sed` reading a pipe.
-- Two kinds of denial are set aside before any other rule judges the run, each a warning that never
+- Up to three kinds of denial are set aside before any other rule judges the run, each a warning that never
   counts toward a FAIL: a named call other than Skill aimed only under the run's own plugin-data
   directory (`<sandbox>/config/plugins/data`), and a `Read`, `Grep` or `Glob` aimed only under the
   session's own `<sandbox>/config/projects/*/*/tool-results/`, where it reads back output it already
   received. A Bash pipeline of `cat`, `head`, `wc`, `grep` and `sed -n` that reads only there is set
-  aside the same way. Compare such a run's score only with runs denied the same way. Any other Bash call (a
+  aside the same way. Any other Bash call (a
   redirect, another command or operator, an unquoted glob, brace or `$`, or a path outside that
   directory), a write, or any other
-  path in the config directory (`settings.json` included) keeps the rules below.
+  path in the config directory (`settings.json` included) keeps the rules below. The third applies
+  only under `--own-copy-search-warns`, which the broken side of a negative control passes: a
+  `Read`, `Grep` or `Glob` aimed only at or under the plugin copy the run's init line lists as loaded
+  (a `suite.root` or `suite.plugins` path), in a run that finished, when no `tool_used` grader of its
+  case names that tool. The gutted skill sends the session searching its own copy for the text it
+  lost. Without the flag that denial is a FAIL, since in a normal run it usually means the skill
+  references a file it cannot read. A rooted `Glob` pattern or one holding `..`, any other tool,
+  and a run that did not finish keep the rules below even with the flag. Compare a run with any of
+  these denials only with runs denied the same way. A negative control compares the degraded side
+  against a before run that has no such denial, so there a case whose degraded runs carry an
+  own-copy search cannot decide the control: its drop must hold with those cases left out.
 - One exception overrides that FAIL: a denial of the same named call other than Skill (tool and
   target) in every run of its case, in both arms, is a warning, with or without an absolute path,
   unless an absolute path it names is at, under or above the plugin's directory. The environment
