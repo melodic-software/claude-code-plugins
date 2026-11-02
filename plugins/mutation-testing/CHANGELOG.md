@@ -3,6 +3,12 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.2] - 2026-11-02
+
+### Changed
+
+- Point the audit skill's fork-versus-fresh-context reason at its upstream section, with an as-of date and recheck trigger.
+
 ## [0.12.1] - 2026-11-01
 
 ### Changed
