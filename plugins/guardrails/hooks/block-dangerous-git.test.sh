@@ -751,6 +751,24 @@ bdg_t0=${EPOCHREALTIME/./}
 run "git reset --hard, then an unquoted heredoc body of 20 \$(: <<X lines (blocked)" "git reset --hard; cat <<EOF$(hd_lines '$(: <<X' 20)"$'\nEOF' 2
 bdg_ms=$(((${EPOCHREALTIME/./} - bdg_t0) / 1000))
 if ((bdg_ms < 10000)); then ok "20 nested \$(: <<X lines finish in ${bdg_ms} ms (under 10000)"; else bad "20 nested \$(: <<X lines took ${bdg_ms} ms (limit 10000)"; fi
+hd_nest_amb() { # <levels> <inner> [<after>]: hd_nest with <after> (default `; !(x)#`) after each opener
+  local s=$2 i
+  for ((i = 1; i <= $1; i++)); do s=$'cat <<E'"$i${3-; !(x)#}"$'\n$('"$s"$'\n)\nE'"$i"; done
+  printf '%s' "$s"
+}
+# An extglob-ambiguous `)#` after each nested opener: the extglob-on reading
+# and the extglob-off one both see every body, and its substitutions must still
+# be parsed once, not once per reading at each level.
+run "here-docs nested four deep, a \`!(x)#\` at each opener, innermost git reset --hard (blocked)" "$(hd_nest_amb 4 'git reset --hard')" 2
+bdg_pad=$(hd_lines ': padding padding padding padding padding padding' 60)
+bdg_t0=${EPOCHREALTIME/./}
+run "here-docs nested nine deep, a \`!(x)#\` at each opener, padding innermost (allowed)" "$(hd_nest_amb 9 "${bdg_pad#?}")" 0
+bdg_ms=$(((${EPOCHREALTIME/./} - bdg_t0) / 1000))
+if ((bdg_ms < 10000)); then ok "nine nested !(x)# here-docs finish in ${bdg_ms} ms (under 10000)"; else bad "nine nested !(x)# here-docs took ${bdg_ms} ms (limit 10000)"; fi
+bdg_t0=${EPOCHREALTIME/./}
+run "here-docs nested nine deep, a \`!(x)#<<F\` at each opener, padding innermost (allowed)" "$(hd_nest_amb 9 "${bdg_pad#?}" '; !(x)#<<F')" 0
+bdg_ms=$(((${EPOCHREALTIME/./} - bdg_t0) / 1000))
+if ((bdg_ms < 10000)); then ok "nine nested !(x)#<<F here-docs finish in ${bdg_ms} ms (under 10000)"; else bad "nine nested !(x)#<<F here-docs took ${bdg_ms} ms (limit 10000)"; fi
 run "unquoted heredoc body \$((1 + 2)) (allowed)" $'cat <<EOF\n$((1 + 2))\nEOF' 0
 run "second heredoc on the line, unquoted, \$(git reset --hard) (blocked)" $'cat <<\'A\' - <<B\nx\nA\n$(git reset --hard)\nB' 2
 run "quoted-delimiter heredoc body \$(git reset --hard) (data, allowed)" $'cat <<\'EOF\'\n$(git reset --hard)\nEOF' 0

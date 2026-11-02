@@ -4685,8 +4685,12 @@ hook::_bps_ext_pass() {
   # The suffix sits in as many unquoted here-doc bodies as this text, so the
   # pass keeps its depth and the cap past 8 still holds.
   __hu_hdd_in=$__hu_hdd
+  # The pass leaves its body substitutions in __hu_bps_xs (no local of its
+  # own there) for the caller to parse once, beside its own.
+  local -a __hu_bps_xs=()
   hook::bash_parse_segments_uncached "$__hu_bps_r" "$cb" 1
   __hu_hdd_in=""
+  hd_subs_ext+=(${__hu_bps_xs[@]+"${__hu_bps_xs[@]}"})
   # Its here-doc bodies too, at offsets in this command, merged at the end.
   for __hu_bps_e in ${HOOK_HEREDOC_BODIES[@]+"${HOOK_HEREDOC_BODIES[@]}"}; do
     __hu_bps_r=${__hu_bps_e#* }
@@ -5104,7 +5108,7 @@ hook::bash_parse_segments_uncached() {
   # flags. A heredoc body is the command's stdin, not commands — recorded when
   # `<<` is seen and skipped at the command-line newline, all but the
   # substitutions an unquoted body holds (hd_subs, hook::_bps_hd_spans).
-  local -a hd_delims=() hd_strip=() hd_quoted=() hd_level=() hd_bodies=() hd_subs=()
+  local -a hd_delims=() hd_strip=() hd_quoted=() hd_level=() hd_bodies=() hd_subs=() hd_subs_ext=()
   # How many unquoted bodies enclose this text: the caller's __hu_hdd_in, then
   # cleared so a callback's own parse starts at 0. Past 8 a here-doc opener
   # records no body, so every line after it is parsed as top-level commands
@@ -5693,8 +5697,21 @@ hook::bash_parse_segments_uncached() {
   # Each substitution an unquoted body holds runs as a command. It is parsed
   # here, in source order and after the last top-level segment, so a callback
   # that reads the segment before (a pipe into a shell) still reads the
-  # top-level one.
-  local hsub
+  # top-level one. The extglob-on pass hands its substitutions back instead of
+  # parsing them: it reads the same bodies at the same depth, so parsing both
+  # readings' copies would double the parses at every nesting level. Only one
+  # this reading lacks is added.
+  local hsub hx
+  if ((ext)); then
+    __hu_bps_xs=(${hd_subs[@]+"${hd_subs[@]}"})
+    hd_subs=()
+  fi
+  for hx in ${hd_subs_ext[@]+"${hd_subs_ext[@]}"}; do
+    for hsub in ${hd_subs[@]+"${hd_subs[@]}"}; do
+      [[ "$hsub" == "$hx" ]] && continue 2
+    done
+    hd_subs+=("$hx")
+  done
   for hsub in ${hd_subs[@]+"${hd_subs[@]}"}; do
     __hu_hdd_in=$((__hu_hdd + 1))
     hook::bash_parse_segments_uncached "$hsub" "$cb"
