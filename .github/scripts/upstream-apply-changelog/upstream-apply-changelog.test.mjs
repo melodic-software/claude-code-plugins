@@ -15,6 +15,7 @@ import {
   releaseMarker,
   renderItems,
   readCommits,
+  readPlan,
   releasesFromStatus,
   replayCommits,
   startedInWindow,
@@ -74,12 +75,45 @@ test("a plan for another release, base or branch name is refused", () => {
   assert.throws(() => validatePlan(plan({ base_sha: HEAD }), ctx), /base_sha/);
   const renamed = plan();
   renamed.branches[0].branch = "main";
-  assert.throws(() => validatePlan(renamed, ctx), /branch is not changelog\/hooks-kit\/v2\.1\.300/);
+  assert.throws(() => validatePlan(renamed, ctx), /branches\[0\]\.branch is not changelog\/<plugin>\/v<release>/);
   const titled = plan();
   titled.branches[0].pr.title = "feat(other): x";
-  assert.throws(() => validatePlan(titled, ctx), /title/);
-  assert.throws(() => validatePlan(plan({ handoffs: [{ key: "changelog:2.1.1..2.1.1:adopt:x", title: "t", body: "b" }] }), ctx), /key/);
+  assert.throws(() => validatePlan(titled, ctx), /branches\[0\]\.pr\.title/);
+  assert.throws(() => validatePlan(plan({ handoffs: [{ key: "changelog:2.1.1..2.1.1:adopt:x", title: "t", body: "b" }] }), ctx), /handoffs\[0\]\.key/);
+  const empty = plan();
+  empty.branches[0].head_sha = BASE;
+  assert.throws(() => validatePlan(empty, ctx), /branches\[0\]\.head_sha/);
   assert.equal(branchFor("hooks-kit", "2.1.300"), "changelog/hooks-kit/v2.1.300");
+});
+
+test("a refusal names the field and index, never the plan's value", () => {
+  const SECRET = "zzPLANTEDzz";
+  const cases = [];
+  const renamed = plan();
+  renamed.branches[0].branch = SECRET;
+  cases.push([renamed, /branches\[0\]\.branch/]);
+  const twice = plan();
+  twice.branches.push({ ...twice.branches[0], branch: SECRET });
+  cases.push([twice, /branches\[1\]\.plugin/]);
+  const titled = plan();
+  titled.branches[0].pr.title = `chore(hooks-kit): ${SECRET}\n`;
+  cases.push([titled, /branches\[0\]\.pr\.title/]);
+  const keyed = plan({ handoffs: [{ key: `changelog:2.1.300..2.1.300:adopt:${SECRET}`, title: "t", body: "b" }, { key: `changelog:2.1.300..2.1.300:adopt:${SECRET}`, title: "t", body: "b" }] });
+  cases.push([keyed, /handoffs\[1\]\.key/]);
+  const handTitled = plan({ handoffs: [{ key: "changelog:2.1.300..2.1.300:adopt:x", title: `${SECRET}\n`, body: "b" }] });
+  cases.push([handTitled, /handoffs\[0\]\.title/]);
+  for (const [p, want] of cases) {
+    assert.throws(
+      () => validatePlan(p, ctx),
+      (e) => want.test(e.message) && !e.message.includes(SECRET),
+    );
+  }
+  assert.throws(() => readPlan(`{"schema": ${SECRET}}`, ctx), (e) => /not valid JSON/.test(e.message) && !e.message.includes(SECRET));
+  assert.equal(readPlan(JSON.stringify(plan()), ctx).branches.length, 1);
+  assert.throws(
+    () => checkRawLog(`:100644 100644 1 2 M\tplugins/hooks-kit/a\n:100644 100644 1 2 M\t${SECRET}`, "hooks-kit", 3),
+    (e) => /branches\[3\] raw line 2/.test(e.message) && !e.message.includes(SECRET),
+  );
 });
 
 test("a commit outside its plugin, or writing a link or submodule, is refused", () => {
@@ -87,8 +121,8 @@ test("a commit outside its plugin, or writing a link or submodule, is refused", 
   assert.doesNotThrow(() => checkRawLog(ok, "hooks-kit"));
   assert.throws(() => checkRawLog(":100644 100644 1 2 M\tplugins/other/SKILL.md", "hooks-kit"), /outside/);
   assert.throws(() => checkRawLog(":100644 100644 1 2 M\t.github/workflows/x.yml", "hooks-kit"), /outside/);
-  assert.throws(() => checkRawLog(":000000 120000 0 2 A\tplugins/hooks-kit/link", "hooks-kit"), /mode 120000/);
-  assert.throws(() => checkRawLog(":000000 160000 0 2 A\tplugins/hooks-kit/sub", "hooks-kit"), /mode 160000/);
+  assert.throws(() => checkRawLog(":000000 120000 0 2 A\tplugins/hooks-kit/link", "hooks-kit"), /mode other than a regular file/);
+  assert.throws(() => checkRawLog(":000000 160000 0 2 A\tplugins/hooks-kit/sub", "hooks-kit"), /mode other than a regular file/);
 });
 
 test("only the done marker skips a release, so a run after a failed publish finishes the work", () => {

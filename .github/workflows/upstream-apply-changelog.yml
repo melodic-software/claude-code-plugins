@@ -450,25 +450,41 @@ jobs:
           BASE_SHA: ${{ needs.gate.outputs.base-sha }}
         run: |
           [ -f "$IN/plan.json" ] || { echo "::error::the model job left no ci-plan.json"; exit 1; }
+          # Nothing here prints model text before the scans below: the
+          # plan's checks name fields, and git runs quiet.
           node --input-type=module -e '
-            import { readFileSync } from "node:fs";
-            import { validatePlan } from "./.base/.github/scripts/upstream-apply-changelog/upstream-apply-changelog.mjs";
-            const plan = validatePlan(JSON.parse(readFileSync(process.env.IN + "/plan.json", "utf8")),
+            import { readFileSync, writeFileSync } from "node:fs";
+            import { readPlan } from "./.base/.github/scripts/upstream-apply-changelog/upstream-apply-changelog.mjs";
+            const plan = readPlan(readFileSync(process.env.IN + "/plan.json", "utf8"),
               { release: process.env.RELEASE, baseSha: process.env.BASE_SHA });
+            writeFileSync(process.env.IN + "/heads.txt", plan.branches.map((b) => b.head_sha + "\n").join(""));
             console.log(plan.branches.length + " branches, " + plan.handoffs.length + " handoffs");
           '
           : >"$IN/diffs.txt"
           count=0
-          if [ -f "$IN/branches.bundle" ]; then
-            git -C .base bundle verify "$IN/branches.bundle"
+          if [ -s "$IN/heads.txt" ] && [ ! -f "$IN/branches.bundle" ]; then
+            echo "::error::the plan names branches and the model job left no bundle"
+            exit 1
+          fi
+          if [ -s "$IN/heads.txt" ]; then
+            git -C .base bundle verify --quiet "$IN/branches.bundle" >/dev/null 2>&1 || { echo "::error::the branches bundle does not verify against the base"; exit 1; }
+            # Every planned head must be a head of the bundle; its ref names
+            # are model text and are never printed.
+            mapfile -t have < <(git -C .base bundle list-heads "$IN/branches.bundle" 2>/dev/null | cut -d' ' -f1 | sort -u)
+            mapfile -t want < <(sort -u "$IN/heads.txt")
+            missing=$(comm -13 <(printf '%s\n' "${have[@]}") <(printf '%s\n' "${want[@]}") | grep -c . || true)
+            if [ "$missing" != 0 ]; then
+              echo "::error::$missing of ${#want[@]} planned heads are not heads of the bundle"
+              exit 1
+            fi
             while read -r head; do
               [[ $head =~ ^[0-9a-f]{40}$ ]] || exit 1
-              git -C .base fetch --no-tags "$IN/branches.bundle" "$head:refs/scan/$head"
+              git -C .base fetch --quiet --no-tags "$IN/branches.bundle" "$head:refs/scan/$head" >/dev/null 2>&1 || { echo "::error::a planned head did not fetch from the bundle"; exit 1; }
               git -C .base diff --no-renames --binary "$BASE_SHA" "$head" >>"$IN/diffs.txt"
               # Push replays these messages as public commits, so they are scanned too.
               git -C .base log --format=%B "$BASE_SHA..$head" >>"$IN/diffs.txt"
               count=$((count + 1))
-            done < <(jq -r '.branches[]?.head_sha' "$IN/plan.json")
+            done <"$IN/heads.txt"
           fi
           echo "branches=$count" >>"$GITHUB_OUTPUT"
 

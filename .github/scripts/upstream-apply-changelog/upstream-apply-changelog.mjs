@@ -170,59 +170,81 @@ export function startedInWindow(artifacts, now) {
   ).length;
 }
 
+// The plan file parsed and checked. A parse error names no input: Node
+// quotes the text it could not parse, and the plan is model output.
+export function readPlan(text, ctx) {
+  let plan;
+  try {
+    plan = JSON.parse(text);
+  } catch {
+    throw new Error("ci-plan.json: not valid JSON");
+  }
+  return validatePlan(plan, ctx);
+}
+
+// Every message names a field and its index, never a value: the plan is
+// model output and the scan job reports these before it scans anything.
 export function validatePlan(plan, { release, baseSha }) {
   const fail = (why) => {
     throw new Error(`ci-plan.json: ${why}`);
   };
-  if (plan?.schema !== "changelog-ci-plan/1") fail("not a changelog-ci-plan/1 plan");
+  if (plan?.schema !== "changelog-ci-plan/1") fail("schema is not changelog-ci-plan/1");
   if (plan.status === "stopped") return { branches: [], handoffs: [] };
   if (plan.status !== "planned") fail("status is neither planned nor stopped");
-  if (plan.range !== `${release}..${release}`) fail("its range is not this run's release");
-  if (plan.base_sha !== baseSha) fail("its base_sha is not the commit the run checked out");
+  if (plan.range !== `${release}..${release}`) fail("range is not this run's release");
+  if (plan.base_sha !== baseSha) fail("base_sha is not the commit the run checked out");
   const branches = Array.isArray(plan.branches) ? plan.branches : fail("branches is not a list");
   const handoffs = Array.isArray(plan.handoffs) ? plan.handoffs : fail("handoffs is not a list");
   const seen = new Set();
-  for (const b of branches) {
-    if (!PLUGIN.test(b?.plugin ?? "")) fail("a branch names a malformed plugin");
-    if (seen.has(b.plugin)) fail(`plugin ${b.plugin} has two branches`);
+  branches.forEach((b, i) => {
+    const at = `branches[${i}]`;
+    if (!PLUGIN.test(b?.plugin ?? "")) fail(`${at}.plugin is malformed`);
+    if (seen.has(b.plugin)) fail(`${at}.plugin repeats an earlier branch's plugin`);
     seen.add(b.plugin);
-    if (b.branch !== branchFor(b.plugin, release)) fail(`${b.plugin}'s branch is not ${branchFor(b.plugin, release)}`);
-    if (b.base_sha !== baseSha || !SHA.test(b.head_sha ?? "")) fail(`${b.branch} has a wrong base or head`);
+    if (b.branch !== branchFor(b.plugin, release)) fail(`${at}.branch is not changelog/<plugin>/v<release>`);
+    if (b.base_sha !== baseSha) fail(`${at}.base_sha is not the run's base`);
+    if (!SHA.test(b.head_sha ?? "") || b.head_sha === baseSha) fail(`${at}.head_sha is not a commit after the base`);
     const title = b.pr?.title;
     if (typeof title !== "string" || !title.startsWith(`chore(${b.plugin}): `) || title.length > 200 || /[\r\n]/.test(title)) {
-      fail(`${b.branch}'s pull request title is not chore(${b.plugin}): ...`);
+      fail(`${at}.pr.title is not chore(<plugin>): ... on one line of at most 200 characters`);
     }
-    if (typeof b.pr?.body !== "string" || b.pr.body.length > 60000) fail(`${b.branch}'s pull request body is missing or too long`);
-  }
+    if (typeof b.pr?.body !== "string" || b.pr.body.length > 60000) fail(`${at}.pr.body is missing or too long`);
+  });
   const keys = new Set();
-  for (const h of handoffs) {
-    if (!KEY.test(h?.key ?? "") || !h.key.startsWith(`changelog:${release}..${release}:`)) fail("a handoff key is malformed");
-    if (keys.has(h.key)) fail(`handoff ${h.key} appears twice`);
+  handoffs.forEach((h, i) => {
+    const at = `handoffs[${i}]`;
+    if (!KEY.test(h?.key ?? "") || !h.key.startsWith(`changelog:${release}..${release}:`)) fail(`${at}.key is malformed`);
+    if (keys.has(h.key)) fail(`${at}.key repeats an earlier handoff's key`);
     keys.add(h.key);
-    if (typeof h.title !== "string" || !h.title || h.title.length > 256 || /[\r\n]/.test(h.title)) fail(`${h.key} has a bad title`);
-    if (typeof h.body !== "string" || h.body.length > 60000) fail(`${h.key} has a bad body`);
-  }
+    if (typeof h.title !== "string" || !h.title || h.title.length > 256 || /[\r\n]/.test(h.title)) fail(`${at}.title is bad`);
+    if (typeof h.body !== "string" || h.body.length > 60000) fail(`${at}.body is bad`);
+  });
   return { branches, handoffs };
 }
 
-// Every path a commit in base..head changes, either side of a rename, must
-// sit under plugins/<plugin>/ or .changes/<plugin>/, as a regular file.
-export function checkRawLog(raw, plugin) {
+// Every path the raw diff changes, either side of a rename, must sit under
+// plugins/<plugin>/ or .changes/<plugin>/, as a regular file. Messages name
+// the branch index and the raw line number, never a path.
+export function checkRawLog(raw, plugin, index = 0) {
   const allowed = [`plugins/${plugin}/`, `.changes/${plugin}/`];
-  for (const line of raw.split("\n").filter((l) => l.startsWith(":"))) {
-    const [meta, ...paths] = line.split("\t");
-    const [srcMode, dstMode] = meta.slice(1).split(" ");
-    for (const mode of [srcMode, dstMode]) {
-      if (mode !== "000000" && mode !== "100644" && mode !== "100755") {
-        throw new Error(`a commit writes mode ${mode}; only regular files may change`);
+  raw
+    .split("\n")
+    .filter((l) => l.startsWith(":"))
+    .forEach((line, n) => {
+      const at = `branches[${index}] raw line ${n + 1}`;
+      const [meta, ...paths] = line.split("\t");
+      const [srcMode, dstMode] = meta.slice(1).split(" ");
+      for (const mode of [srcMode, dstMode]) {
+        if (mode !== "000000" && mode !== "100644" && mode !== "100755") {
+          throw new Error(`${at} writes a mode other than a regular file; only regular files may change`);
+        }
       }
-    }
-    for (const p of paths) {
-      if (!allowed.some((prefix) => p.startsWith(prefix)) || p.split("/").includes("..")) {
-        throw new Error(`a commit changes ${p}, outside plugins/${plugin}/ and .changes/${plugin}/`);
+      for (const p of paths) {
+        if (!allowed.some((prefix) => p.startsWith(prefix)) || p.split("/").includes("..")) {
+          throw new Error(`${at} changes a path outside plugins/${plugin}/ and .changes/${plugin}/`);
+        }
       }
-    }
-  }
+    });
 }
 
 const git = (repo, args, extra = {}) => execFileSync("git", ["-C", repo, ...args], { encoding: "utf8", ...extra }).trim();
@@ -310,16 +332,16 @@ async function gate(env) {
 
 async function push(env) {
   const { RELEASE: release, BASE_SHA: baseSha, PLAN_FILE, BUNDLE_FILE, REPO_DIR: repoDir, GITHUB_REPOSITORY: repo } = env;
-  const plan = validatePlan(JSON.parse(readFileSync(PLAN_FILE, "utf8")), { release, baseSha });
+  const plan = readPlan(readFileSync(PLAN_FILE, "utf8"), { release, baseSha });
   const writer = createGitHubApi({ token: env.GH_TOKEN, repository: repo, apiUrl: env.GITHUB_API_URL || "https://api.github.com" });
   const heads = {};
   if (plan.branches.length && !existsSync(BUNDLE_FILE)) throw new Error("the plan names branches and the run left no bundle");
-  for (const b of plan.branches) {
+  for (const [i, b] of plan.branches.entries()) {
     const local = `refs/upstream-apply-changelog/${b.plugin}`;
     git(repoDir, ["fetch", "--no-tags", BUNDLE_FILE, `${b.head_sha}:${local}`]);
     if (git(repoDir, ["rev-parse", local]) !== b.head_sha) throw new Error(`${b.branch} is not at its planned head`);
     if (git(repoDir, ["merge-base", baseSha, b.head_sha]) !== baseSha) throw new Error(`${b.branch} does not start at the base`);
-    checkRawLog(git(repoDir, ["log", "--format=", "--raw", "--no-renames", "--no-abbrev", `${baseSha}..${b.head_sha}`]), b.plugin);
+    checkRawLog(git(repoDir, ["log", "--format=", "--raw", "--no-renames", "--no-abbrev", `${baseSha}..${b.head_sha}`]), b.plugin, i);
     const headTree = git(repoDir, ["rev-parse", `${b.head_sha}^{tree}`]);
     const existing = await api(`/repos/${repo}/git/ref/heads/${b.branch}`, { allow404: true });
     if (existing) {
@@ -345,7 +367,7 @@ async function push(env) {
 
 async function publish(env) {
   const { RELEASE: release, BASE_SHA: baseSha, PLAN_FILE, GITHUB_REPOSITORY: repo } = env;
-  const plan = validatePlan(JSON.parse(readFileSync(PLAN_FILE, "utf8")), { release, baseSha });
+  const plan = readPlan(readFileSync(PLAN_FILE, "utf8"), { release, baseSha });
   const owner = repo.split("/")[0];
   // push's heads output: each branch it pushed or found at the planned tree.
   const heads = JSON.parse(env.HEADS || "{}");
