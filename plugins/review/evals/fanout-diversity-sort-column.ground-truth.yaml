@@ -1,0 +1,8 @@
+fixture: sort-column
+source_case: none
+defect: none
+axis: none
+not_defects:
+  - "the ORDER BY clause interpolates req.query.sort into the SQL (only a value from the SORT_COLUMNS map reaches the query, and an unknown sort falls back to name)"
+  - "the search term q is injectable (it is bound as a ? parameter)"
+  - "a sort such as constructor or toString reaches the SQL (SORT_COLUMNS is a Map, so get returns undefined for it and the query sorts by name)"
