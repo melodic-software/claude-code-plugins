@@ -1173,6 +1173,8 @@ jobs:
       # closes an issue may fail this step red.
       - name: Select the trusted PR text
         if: steps.go.outputs.run == 'true' && steps.config.outputs.reads-untrusted == 'true' && inputs.issue-number == ''
+        env:
+          API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
         with:
           pr-number: ${{ steps.gate.outputs.pr-number }}
@@ -1215,6 +1217,7 @@ jobs:
           && steps.config.outputs.kind == 'skill'
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
           ISSUE_NUMBER: ${{ inputs.issue-number }}
           ISSUE_FILE: ${{ runner.temp }}/lane-stage/scratch/issue.json
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
@@ -1331,6 +1334,23 @@ jobs:
             exit 1
           fi
           echo "no-progress=$no_progress" >>"$GITHUB_OUTPUT"
+
+      # Every job-token call this job makes is above, from base code, so the
+      # budget is logged here, before the head checkout replaces .base: no
+      # step after head code loads an action from a checkout. The trusted
+      # base's dispatch read (gh in a composite action) and the prior-work
+      # check (report-outcome's own fetch) go through no counted client.
+      - name: Log the API budget before the head checkout
+        id: api-budget
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+          outside: >-
+            ${{ steps.trusted-base.outcome != 'skipped' && !contains(fromJSON('["issues","pull_request"]'), github.event_name) && 'trusted-base:pulls' || '' }}
+            ${{ steps.issue-prior.outcome != 'skipped' && 'issue-prior:report-outcome' || '' }}
 
       # Issue mode checks out the trusted base, the default branch tip, or on
       # a resume the tip of the earlier run's lane branch that issue-prior
@@ -2660,6 +2680,7 @@ jobs:
       # a failure here leaves no scanner, and that scan then withholds the
       # verdict.
       - name: Stage the upload scanner
+        id: stage-scanner
         continue-on-error: true
         timeout-minutes: 2
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -3086,6 +3107,24 @@ jobs:
           retention-days: 1
           if-no-files-found: error
           overwrite: false
+
+      # The hub's api-calls notice, in log-api-budget's shape, written here
+      # since this job holds the scan-carrier key and loads no other action
+      # from a checkout. Its only job-token calls are the two github-script
+      # steps' branch and content reads, which no counter sees, so the count
+      # is 0 and api-uncounted names them.
+      - name: Log the API calls at the end
+        if: always()
+        continue-on-error: true
+        env:
+          STAGED: ${{ steps.stage-scanner.outcome }}
+          SCANNED: ${{ steps.leak-scan.outcome }}
+        run: |
+          echo "::notice title=api-calls::github-token=0 not-modified=0 graphql=0"
+          outside=()
+          [[ $STAGED == skipped || -z $STAGED ]] || outside+=(stage-scanner:branches/contents)
+          [[ $SCANNED == skipped || -z $SCANNED ]] || outside+=(leak-scan:branches/contents)
+          ((${#outside[@]} == 0)) || echo "::notice title=api-uncounted::github-token ${outside[*]}"
 
   # The scan job's refusal, as an artifact a job that succeeds uploads. A
   # failed scan fails the caller's job for this whole workflow, and no

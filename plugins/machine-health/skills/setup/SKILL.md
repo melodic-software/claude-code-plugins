@@ -5,7 +5,7 @@ user-invocable: true
 disable-model-invocation: true
 ---
 
-**Arguments.** `[check|apply|picks|schedule] [disable=<check>|approve=<remediation>|exclude-service=<name>…]`; the full set: `[check|apply|picks|schedule] [disable=<check>|deprecate=<check>|demote=<check>|approve=<remediation>|revoke=<remediation>|unmute=<key>|exclude-service=<name>|include-service=<name>]`, `picks` followed by the pasted `checkup-picks` payload, or `schedule`.
+**Arguments.** `[check|apply|picks|schedule] [disable=<check>|approve=<remediation>|exclude-service=<name>…]`; the full set: `[check|apply|picks|schedule] [disable=<check>|deprecate=<check>|demote=<check>|approve=<remediation>|revoke=<remediation>|review-check=<check>|unreview-check=<check>|unmute=<key>|exclude-service=<name>|include-service=<name>]`, `picks` followed by the pasted `checkup-picks` payload, or `schedule`.
 
 ## Purpose
 
@@ -20,7 +20,7 @@ existing files and offers updates rather than overwriting blind.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then applies
 the requested changes. When `apply` is given complete write arguments (`disable=`, `deprecate=`, `demote=`,
-`approve=`, `revoke=`, `unmute=`, `exclude-service=`, `include-service=`) it applies them non-interactively; with no arguments in an interactive session it runs
+`approve=`, `revoke=`, `review-check=`, `unreview-check=`, `unmute=`, `exclude-service=`, `include-service=`) it applies them non-interactively; with no arguments in an interactive session it runs
 the full interview below. Custom-check registration is inherently interactive (it authors a script)
 and always interviews. `picks` runs the check first, then the [`picks`](#picks-from-a-decision-page)
 steps below; it needs an interactive session, because every write waits for the owner's yes.
@@ -119,8 +119,9 @@ shipped catalog, no remediations approved), so an absent overlay or absent appro
    `${CLAUDE_PLUGIN_ROOT}/skills/audit/catalog/schemas/approvals.schema.json` (shape and examples in
    `${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/shared/approvals.md`) and confirm each approval names a real remediation
    (`restart-stopped-service`, `clear-temp-files`). FAIL a malformed file or an approval for an
-   unknown remediation; otherwise report which remediations are approved and which services
-   `check_overrides.services.service_exclusions` keeps `restart-stopped-service` from starting.
+   unknown remediation; otherwise report which remediations are approved, which services
+   `check_overrides.services.service_exclusions` keeps `restart-stopped-service` from starting,
+   and which custom checks `reviewed_checks` records as reviewed (the clamp no longer holds them).
    **Finding mutes** (`<StateBase>/state/mutes.json`), in the same step: INFO when absent (nothing is
    muted). When present, validate against
    `${CLAUDE_PLUGIN_ROOT}/skills/audit/catalog/schemas/mutes.schema.json` and FAIL a malformed file, a
@@ -178,7 +179,8 @@ Never report success on the write alone. Only write entries that differ from the
 the overlay stays minimal.
 
 **Non-interactive write paths** (named in the argument-hint; each targets a shipped check or
-remediation, a muted key or a service name the owner gave, so no interview is needed):
+remediation, a custom check, a muted key or a service name the owner gave, so no interview is
+needed):
 
 - `disable=<check-id>`. Write `"enabled": false` for that check to the overlay.
 - `deprecate=<check-id>`. Write `"deprecated": true` plus a `deprecation_reason` (from a
@@ -189,6 +191,14 @@ remediation, a muted key or a service name the owner gave, so no interview is ne
   explicit user decision; never approve a remediation not named in the arguments or the interview.
 - `revoke=<remediation-id>`. Set the remediation back to not approved
   (`Set-ApprovalState -Action revoke -RemediationId <id>`).
+- `review-check=<check-id>`. Record the owner's review of one custom check in
+  `<StateBase>/state/approvals.json` (`Set-ApprovalState -Action review-check -CheckId <id>`), so
+  the custom-check clamp no longer caps its CRIT at WARN. The id must be a custom check the overlay
+  registers. A supplied `review-check=` argument IS the owner's decision that they read the check's
+  script; never record a review for a check not named in the arguments or the interview, and never
+  for "all" or a list.
+- `unreview-check=<check-id>`. Withdraw that review, so the clamp holds the check again
+  (`Set-ApprovalState -Action unreview-check -CheckId <id>`); a check with no review throws.
 - `unmute=<key>`. Remove the muted finding with that FindingKey (`<kind>:<16 hex>`) under every
   check id in `<StateBase>/state/mutes.json` (`Set-ApprovalState -Action unmute -FindingKey <key>`).
 - `exclude-service=<name>`. Add the service name to
@@ -204,7 +214,7 @@ literal. Before running anything, refuse a name holding a single quote (`'` or U
 each of which PowerShell reads as one) or a line break: the first would end the quoted string and
 the second the one-line command, so such a name never reaches the command line.
 
-Approvals, mutes and service exclusions are written only through `Set-ApprovalState`, under the rule in
+Approvals, check reviews, mutes and service exclusions are written only through `Set-ApprovalState`, under the rule in
 `${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/shared/approvals.md`, "Writing approvals and mutes".
 Run it appended to the [roots block](#resolving-the-state-root), replacing `<action> <arguments>`
 with the action and its arguments from the list above:
@@ -233,7 +243,12 @@ Reject an argument targeting an unknown check id, remediation or muted key with 
    write the script to `<StateBase>/scripts/windows/checks/Test-<Thing>.ps1` (single JSON object per
    `${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/shared/output-schema.md`, `-Human` mode included), then add a full schema-valid
    overlay entry with `script` set to `scripts/windows/checks/Test-<Thing>.ps1`. Merge and resolution
-   semantics: `${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/shared/catalog-overlay.md`.
+   semantics: `${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/shared/catalog-overlay.md`. A new
+   custom check starts clamped (CRIT capped at WARN until 3 clean runs). Offer the owner a review
+   of an existing custom check one check at a time: show its script, and on an explicit yes to
+   that check write `Set-ApprovalState -Action review-check` (above). Never record a review the
+   owner did not give for that check, and never for a check you just authored in this session
+   before the owner has read it.
 5. **Offer remediation approvals.** The two shipped remediations (`restart-stopped-service`,
    `clear-temp-files`) default to not approved. Present each with its risk posture from
    `${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/windows/remediation-policy.md`; on an explicit yes, write the approval through
@@ -447,4 +462,6 @@ yes to refreshing.
   `include-service=` argument.
 - Approve remediations silently. Every approval is an explicit user decision (an `approve=`
   argument, an interview yes, or a yes to one `picks` approval).
+- Record a custom check's review silently. Every review is the owner's decision on one named
+  check (a `review-check=` argument or an interview yes to that check).
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.

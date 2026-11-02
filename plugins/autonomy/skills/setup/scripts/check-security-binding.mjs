@@ -428,14 +428,16 @@ const PROMOTION_DEPENDENCIES = { "C3-auto-merge": ["C2-auto-merge", "C3-ai-revie
 
 // Admission shipped defaults per work class (the admission-policy leaf), and
 // the leaf's permissiveness order: autonomous-eligible > human-gated >
-// audited-rejection.
+// audited-rejection. The leaf's surface-class row holds channel-feed
+// human-gated too (ADMISSION_GATED_SURFACES).
 const ADMISSION_DEFAULTS = {
   C1: "autonomous-eligible",
   C2: "autonomous-eligible",
-  C3: "human-gated",
-  C4: "human-gated",
+  C3: "autonomous-eligible",
+  C4: "autonomous-eligible",
   C5: "human-gated",
 };
+const ADMISSION_GATED_SURFACES = { "channel-feed": "human-gated" };
 const PERMISSIVENESS = { "audited-rejection": 0, "human-gated": 1, "autonomous-eligible": 2 };
 
 const findings = [];
@@ -2145,12 +2147,12 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
   // is enforced where escalation_severity entries are walked above.
 
   if (isPlainObject(binding.admission) && Array.isArray(binding.admission.rules)) {
-    checkAdmissionSemantics(binding.admission.rules);
+    checkAdmissionSemantics(binding.admission.rules, binding.admission.classification);
   }
   return verdicts;
 }
 
-function checkAdmissionSemantics(rules) {
+function checkAdmissionSemantics(rules, classification) {
   const validRules = rules.filter(
     (rule) =>
       isPlainObject(rule) &&
@@ -2161,13 +2163,25 @@ function checkAdmissionSemantics(rules) {
   );
 
   // A rule more permissive than the shipped default for ANY cell it matches
-  // requires a recorded override_justification; tightening needs none.
+  // requires a recorded override_justification; tightening needs none. A
+  // gated surface's signal carries a class only when the binding classifies
+  // that surface, so a wildcard-surface rule binding a work class reaches
+  // the surface's cell only then.
   validRules.forEach((rule) => {
     const index = rules.indexOf(rule);
     const covered = rule.work_class === "*" ? WORK_CLASSES : [rule.work_class];
     const weakened = covered.filter(
       (workClass) => PERMISSIVENESS[rule.disposition] > PERMISSIVENESS[ADMISSION_DEFAULTS[workClass]],
     );
+    for (const [surface, disposition] of Object.entries(ADMISSION_GATED_SURFACES)) {
+      const surfaceClassified = isPlainObject(classification) && Object.hasOwn(classification, surface);
+      const matchesSurface =
+        rule.signal_class === surface ||
+        (rule.signal_class === "*" && (rule.work_class === "*" || surfaceClassified));
+      if (matchesSurface && PERMISSIVENESS[rule.disposition] > PERMISSIVENESS[disposition]) {
+        weakened.push(surface);
+      }
+    }
     if (weakened.length > 0 && !isNonEmptyString(rule.override_justification)) {
       findings.push(
         `admission.rules[${index}]: disposition ${JSON.stringify(rule.disposition)} is more permissive than the shipped default for ${weakened.join(", ")} — invalid without override_justification`,

@@ -17,12 +17,11 @@ resolved in this order over the bundled defaults (`scripts/config-defaults.json`
 | 2 | team | `<repo>/docs/conventions/code-metrics.yaml` | the repository, tracked |
 | 3 | local overlay | `<repo>/.claude/code-metrics.local.yaml` | one operator in one repository, gitignored |
 
-The team layer is one file. `<repo>/.claude/code-metrics.yaml`, the team file of earlier releases,
-is read in its place only while `docs/conventions/code-metrics.yaml` is absent; with both present
-the docs file is the whole team layer, the older file's keys are not merged in, and every run
-prints one warning that the older file is ignored and can be deleted once no older release reads
-it. `/code-metrics:setup apply` carries every declared key of the older file into the docs file in
-the same write, and drops and names any other key.
+The team layer is `docs/conventions/code-metrics.yaml` alone. The team file earlier releases read
+from the repository's `.claude/` directory is retired and never read. `/code-metrics:setup check`
+reports it, and `/code-metrics:setup apply`, run while the docs file is absent, carries every
+declared key of the retired file into the docs file in one write and drops and names any other
+key; then delete the retired file.
 
 **An invalid layer never stops the run.** A file outside the YAML subset is named with its line
 and read as absent. A value of the wrong shape is named with its file, key and value, and that

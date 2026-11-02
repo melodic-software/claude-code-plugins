@@ -4528,6 +4528,25 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
         self.assertEqual(fake.full_listings(), 1)
         self.assertEqual(self.sleep.call_args_list, [])
 
+    def test_a_skip_no_whole_listing_fits_the_callers_limit_is_read_again(
+        self,
+    ) -> None:
+        # Run 41402303868's shape: verify-cap.mjs leaves 105 s, and at 10 s a
+        # page the 11-page whole listing needs 110 s, as 13.6k artifacts need
+        # 143 s at 1 s, so falling back to it can only refuse. Read again
+        # after one wait, the pages hold the FAIL and the count.
+        fake = self.early_deletion_and_a_new_fail()
+        with (
+            mock.patch.dict("os.environ", verify_cap_env()),
+            mock.patch.object(ve, "_elapsed", return_value=0.0),
+            mock.patch.object(ve, "LISTING_PAGE_SECONDS", 10.0),
+        ):
+            reader, evidence = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:fail", evidence.detail)
+        self.assertEqual(reader.listing_mode, "incremental")
+        self.assertEqual(fake.full_listings(), 0)
+        self.assertEqual([c.args[0] for c in self.sleep.call_args_list], [15.0])
+
     def test_a_skip_the_caps_left_cannot_read_again_takes_a_whole_listing(
         self,
     ) -> None:

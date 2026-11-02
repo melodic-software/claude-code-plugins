@@ -210,6 +210,107 @@ Describe 'Set-ApprovalState' -Tag 'lib' {
         }
     }
 
+    Context 'review-check and unreview-check' {
+        BeforeEach {
+            # Two custom checks and a partial override of a shipped one.
+            $catalogDir = Join-Path $script:base 'catalog'
+            New-Item -ItemType Directory -Path $catalogDir -Force | Out-Null
+            [System.IO.File]::WriteAllText((Join-Path $catalogDir 'checks.local.jsonc'),
+                '{ "checks": [ { "id": "my-check" }, { "id": "other-check" }, { "id": "services", "enabled": false } ] }')
+        }
+
+        It 'records the review of a registered custom check and keeps remediations' {
+            New-Item -ItemType Directory -Path $script:stateDir -Force | Out-Null
+            [System.IO.File]::WriteAllText((Join-Path $script:stateDir 'approvals.json'),
+                '{"schema_version":"1.0","remediations":{"clear-temp-files":{"approved":true}}}')
+
+            $out = Set-ApprovalState -StateBase $script:base -Action review-check -CheckId 'my-check' -Notes 'read the script'
+
+            $out.Changed | Should -BeTrue
+            $doc = Read-State 'approvals.json'
+            $entry = $doc.reviewed_checks.'my-check'
+            $entry.reviewed | Should -BeTrue
+            $entry.reviewed_by | Should -Be 'setup apply'
+            $entry.notes | Should -Be 'read the script'
+            Read-StateString 'approvals.json' @('reviewed_checks', 'my-check', 'reviewed_at') | Should -Match '^\d{4}-\d{2}-\d{2}T'
+            @($doc.reviewed_checks.PSObject.Properties.Name) | Should -Be @('my-check')
+            $doc.remediations.'clear-temp-files'.approved | Should -BeTrue
+        }
+
+        It 'refuses a blanket review (<Case>) and writes nothing' -ForEach @(
+            @{ Case = 'a wildcard'; CheckId = '*' }
+            @{ Case = 'the word all'; CheckId = 'all' }
+            @{ Case = 'a comma-separated list'; CheckId = 'my-check,other-check' }
+            @{ Case = 'a space-separated list'; CheckId = 'my-check other-check' }
+            @{ Case = 'no check id'; CheckId = $null }
+            @{ Case = 'an empty check id'; CheckId = '' }
+        ) {
+            { Set-ApprovalState -StateBase $script:base -Action review-check -CheckId $CheckId } | Should -Throw
+            Test-Path -LiteralPath (Join-Path $script:stateDir 'approvals.json') | Should -BeFalse
+        }
+
+        It 'refuses <Case>, which the clamp never holds, and writes nothing' -ForEach @(
+            @{ Case = 'a shipped check the overlay patches'; CheckId = 'services' }
+            @{ Case = 'a shipped check the overlay leaves alone'; CheckId = 'disk-space' }
+            @{ Case = 'a check id no overlay registers'; CheckId = 'not-a-check' }
+        ) {
+            { Set-ApprovalState -StateBase $script:base -Action review-check -CheckId $CheckId } |
+                Should -Throw -ExpectedMessage '*not a custom check*'
+            Test-Path -LiteralPath (Join-Path $script:stateDir 'approvals.json') | Should -BeFalse
+        }
+
+        It 'refuses a review when no overlay exists' {
+            Remove-Item -LiteralPath (Join-Path $script:base 'catalog') -Recurse -Force
+
+            { Set-ApprovalState -StateBase $script:base -Action review-check -CheckId 'my-check' } |
+                Should -Throw -ExpectedMessage '*not a custom check*'
+        }
+
+        It 'unreview-check sets reviewed false, refreshes reviewed_at and keeps the rest' {
+            New-Item -ItemType Directory -Path $script:stateDir -Force | Out-Null
+            [System.IO.File]::WriteAllText((Join-Path $script:stateDir 'approvals.json'),
+                ('{"schema_version":"1.0","remediations":{},"reviewed_checks":{' +
+                    '"my-check":{"reviewed":true,"reviewed_at":"2026-01-01T00:00:00Z","reviewed_by":"me","notes":"n"},' +
+                    '"other-check":{"reviewed":true}}}'))
+
+            $out = Set-ApprovalState -StateBase $script:base -Action unreview-check -CheckId 'my-check'
+
+            $out.Changed | Should -BeTrue
+            $doc = Read-State 'approvals.json'
+            $doc.reviewed_checks.'my-check'.reviewed | Should -BeFalse
+            $doc.reviewed_checks.'my-check'.reviewed_by | Should -Be 'me'
+            Read-StateString 'approvals.json' @('reviewed_checks', 'my-check', 'reviewed_at') | Should -Not -Be '2026-01-01T00:00:00Z'
+            $doc.reviewed_checks.'other-check'.reviewed | Should -BeTrue
+        }
+
+        It 'unreview-check refuses <Case> and leaves the file as it is' -ForEach @(
+            @{ Case = 'a check with no review'; CheckId = 'other-check'; Message = '*no review recorded*' }
+            @{ Case = 'a wildcard'; CheckId = '*'; Message = '*not one check id*' }
+        ) {
+            New-Item -ItemType Directory -Path $script:stateDir -Force | Out-Null
+            $path = Join-Path $script:stateDir 'approvals.json'
+            $seed = '{"schema_version":"1.0","remediations":{},"reviewed_checks":{"my-check":{"reviewed":true}}}'
+            [System.IO.File]::WriteAllText($path, $seed)
+
+            { Set-ApprovalState -StateBase $script:base -Action unreview-check -CheckId $CheckId } |
+                Should -Throw -ExpectedMessage $Message
+
+            [System.IO.File]::ReadAllText($path) | Should -Be $seed
+        }
+
+        It 'validates the reviewed_checks shape before replacing' {
+            New-Item -ItemType Directory -Path $script:stateDir -Force | Out-Null
+            $path = Join-Path $script:stateDir 'approvals.json'
+            $invalid = '{"schema_version":"1.0","remediations":{},"reviewed_checks":{"other-check":{"reviewed":"yes"}}}'
+            [System.IO.File]::WriteAllText($path, $invalid)
+
+            { Set-ApprovalState -StateBase $script:base -Action review-check -CheckId 'my-check' } |
+                Should -Throw -ExpectedMessage '*approvals.schema.json*'
+
+            [System.IO.File]::ReadAllText($path) | Should -Be $invalid
+        }
+    }
+
     Context 'exclude-service and include-service' {
         It 'creates check_overrides.services.service_exclusions in a new approvals.json' {
             $out = Set-ApprovalState -StateBase $script:base -Action exclude-service -ServiceName 'Spooler'

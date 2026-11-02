@@ -114,6 +114,44 @@ const upstreamRun = (overrides = {}) => ({
   },
 });
 
+// upload-fail-index's "Split the names" step, run with a stand-in gh that
+// answers the run's artifacts read with `held` (or fails), returning its exit
+// status and the outputs it wrote.
+const ACTION = readFileSync(new URL("../../actions/upload-fail-index/action.yml", import.meta.url), "utf8");
+const splitNames = (names, held, { total, fail = false } = {}) => {
+  const script = /\n {6}run: \|\n([\s\S]*?)\n {4}- name: /.exec(ACTION)[1].replace(/^ {8}/gm, "");
+  const dir = tempDir("upload-fail-index-");
+  const bin = path.join(dir, "bin");
+  mkdirSync(bin);
+  const body = JSON.stringify({ total_count: total ?? held.length, artifacts: held.map((name) => ({ name })) });
+  writeFileSync(path.join(bin, "gh"), fail ? "#!/bin/sh\nexit 1\n" : `#!/bin/sh\ncat <<'JSON'\n${body}\nJSON\n`, { mode: 0o755 });
+  const out = path.join(dir, "out");
+  writeFileSync(out, "");
+  const run = spawnSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", script], {
+    env: { PATH: `${bin}:${process.env.PATH}`, NAMES: names.join("\n"), RETENTION: "90", GITHUB_OUTPUT: out, REPO: "o/r", RUN_ID: "1", GH_TOKEN: "t" },
+    encoding: "utf8",
+  });
+  return { status: run.status, outputs: readFileSync(out, "utf8") };
+};
+
+test("a FAIL index never replaces or keeps a name its run already holds", () => {
+  const names = ["pr-verify-index-pr-41", `pr-verify-index-sha-${"a".repeat(40)}`, "pr-verify-index-ref-0123456789abcdef"];
+  assert.equal(splitNames(names, []).outputs, `retention-days=90\n${names.map((n, i) => `n${i + 1}=${n}`).join("\n")}\n`);
+  // A re-run attempt: an earlier attempt's index name fails the step, so no
+  // new FAIL outlives that index, and nothing replaces it.
+  const rerun = splitNames(names, [names[0], "pr-verify-41-x-fail"]);
+  assert.notEqual(rerun.status, 0);
+  assert.doesNotMatch(rerun.outputs, /^n\d+=/m);
+  // Another name the run holds (the verdict's own) uploads every index.
+  assert.equal(splitNames(names, ["pr-verify-41-x-fail"]).outputs, `retention-days=90\n${names.map((n, i) => `n${i + 1}=${n}`).join("\n")}\n`);
+  // A read that fails or does not hold its count uploads nothing.
+  assert.notEqual(splitNames(names, [], { fail: true }).status, 0);
+  assert.notEqual(splitNames(names, [names[0]], { total: 2 }).status, 0);
+  assert.doesNotMatch(ACTION, /overwrite/);
+  assert.equal((ACTION.match(/uses: actions\/upload-artifact@/g) ?? []).length, 13);
+  assert.equal((ACTION.match(/if: \$\{\{ steps\.slots\.outputs\.n\d+ != '' \}\}/g) ?? []).length, 13);
+});
+
 test("the upload is each job's only artifact step and follows the written verdict", () => {
   for (const job of JOBS) {
     const uploads = STEPS[job].filter((s) => /uses: actions\/upload-artifact@/.test(s.block));
@@ -125,19 +163,37 @@ test("the upload is each job's only artifact step and follows the written verdic
     assert.ok(index("Judge the pull request", job) >= 0 && index("Write the verdict", job) > index("Judge the pull request", job), job);
     // The written verdict is scanned just before it uploads, and uploads only on the scan's clean output.
     assert.ok(index("Scan the upload for credentials", job) > index("Write the verdict", job), job);
+    // A FAIL's index uploads before the scan, and the verdict is scanned and
+    // uploads only when it is no FAIL or every index uploaded
+    // (write-verdict.mjs failIndexNames).
+    assert.equal(index("Upload the FAIL index", job), index("Write the verdict", job) + 1, job);
+    assert.equal(index("Scan the upload for credentials", job), index("Upload the FAIL index", job) + 1, job);
     assert.equal(index("Upload the verdict", job), index("Scan the upload for credentials", job) + 1, job);
+    const indexed = "steps\\.verdict\\.outcome == 'success' && \\(steps\\.verdict\\.outputs\\.verdict != 'fail' \\|\\| steps\\.fail-index\\.outcome == 'success'\\)";
     const scan = step("Scan the upload for credentials", job);
-    assert.match(scan, /^ {8}id: scan-upload\n {8}if: >-\n {10}\$\{\{ !cancelled\(\) && steps\.verdict\.outcome == 'success' \}\}$/m, job);
+    assert.match(scan, new RegExp(`^ {8}id: scan-upload\\n {8}if: >-\\n {10}\\$\\{\\{ !cancelled\\(\\) && ${indexed} \\}\\}$`, "m"), job);
     assert.match(scan, /^ {10}path: \$\{\{ runner\.temp \}\}\/pr-verify-verdict\/verdict\.json$/m, job);
+    const failIndex = step("Upload the FAIL index", job);
+    assert.match(
+      failIndex,
+      /^ {8}id: fail-index\n {8}if: >-\n {10}\$\{\{ !cancelled\(\) && steps\.verdict\.outcome == 'success' && steps\.verdict\.outputs\.verdict == 'fail' \}\}$/m,
+      job,
+    );
+    assert.match(failIndex, /^ {8}uses: \.\/\.base\/\.github\/actions\/upload-fail-index /m, job);
+    assert.equal(input(failIndex, "names"), "${{ steps.verdict.outputs.index-names }}", job);
+    assert.equal(input(failIndex, "retention-days"), "${{ steps.verdict.outputs.retention-days }}", job);
+    assert.equal(input(failIndex, "github-token"), "${{ github.token }}", job);
     assert.match(
       uploads[0].block,
-      /^ {8}if: >-\n {10}\(!cancelled\(\) && steps\.verdict\.outcome == 'success'\) && steps\.scan-upload\.outputs\.clean == 'true'$/m,
+      new RegExp(`^ {8}if: >-\\n {10}\\(!cancelled\\(\\) && ${indexed}\\) && steps\\.scan-upload\\.outputs\\.clean == 'true'$`, "m"),
       job,
     );
     // The verdict step names the retention (write-verdict.mjs retentionDays).
     assert.equal(input(uploads[0].block, "retention-days"), "${{ steps.verdict.outputs.retention-days }}", job);
     // A pass's retention follows this job's resolver (resolve-pr.mjs relinkedSince).
     assert.match(step("Write the verdict", job), /^ {10}RELINK_SINCE_HEAD: \$\{\{ steps\.pr\.outputs\.relink-since-head \}\}$/m, job);
+    // Only a job with the index step may write a FAIL (write-verdict.mjs FAIL_INDEX).
+    assert.match(step("Write the verdict", job), /^ {10}FAIL_INDEX: "1"$/m, job);
     // A verdict needs a judge step that succeeded, which run-claude-cli never
     // reports with a lane-class, so a credit stop writes none.
     assert.match(step("Write the verdict", job), /^ {8}if: \$\{\{ !cancelled\(\) && \(/m, job);

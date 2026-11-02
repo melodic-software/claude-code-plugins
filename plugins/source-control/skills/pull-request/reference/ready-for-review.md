@@ -174,13 +174,16 @@ The bullets below are the steps.
   the result.
 - **Code review of the pull request's diff (`code-review`)**, for any diff that is not docs-only
   whose `code-review` venue reads `local`: `/code-review`
-  against the pull request, or the `review` plugin's reviewer agents when that resolves instead.
+  against the pull request, or the `review` plugin's reviewer agents when that resolves instead,
+  each dispatched with a findings path and read back from that file per the review plugin's
+  [reviewer handback](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/review/reference/reviewer-handback.md).
   Fix each verified finding (prep.md §1.3), or record why it stays in the pull request body. It
   repeats prep's review because the diff that ships includes the base merge and every fix since.
 - **Security review of the same diff (`security-review`)**, for any diff that is not docs-only
   whose `security-review` venue reads `local`. It runs here rather than
   in prep because it needs the PR to exist. Run `/review:security-review` over that diff when the
-  `review` plugin is installed. Without it, run a security-reviewer agent when your environment
+  `review` plugin is installed. When you dispatch `review:security-reviewer` yourself, follow the
+  same reviewer handback. Without the plugin, run a security-reviewer agent when your environment
   ships one, and otherwise a fresh-context subagent over the diff for the security scope the
   repository's `REVIEW.md` names (trust boundaries, injection, credential exposure, authorization
   gaps, Actions and hook permissions).

@@ -586,11 +586,19 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
         Write-MachineHealthLog "correlation_failed $($_.Exception.Message)"
     }
 
+    # Get-ApprovalState creates the state folder, so a synced StateBase skips it.
+    $approvalState = if ($stateWritable) {
+        Get-ApprovalState -StateDir $stateDir -LogPath $runLog
+    } else {
+        New-DefaultApprovalState
+    }
+
     # Custom-check clamp: after every upgrade path, so no rule can lift a custom
-    # check past WARN before it has a clean record (reference/shared/catalog-overlay.md).
+    # check past WARN before it has a clean record or the owner's recorded review
+    # (reference/shared/catalog-overlay.md).
     try {
         $checkResults = @(Invoke-CustomCheckClamp -CheckResults $checkResults -CustomIds $customIds `
-                -HistoryTail $historyTail)
+                -HistoryTail $historyTail -ReviewedIds @(Get-ReviewedCheckId -State $approvalState))
     } catch {
         Write-MachineHealthLog "custom_clamp_failed $($_.Exception.Message)"
     }
@@ -601,12 +609,6 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
 
     $todoPath = Get-TodoPath -StateBase $StateBase
     $queuedTodoTitles = [System.Collections.Generic.List[string]]::new()
-    # Get-ApprovalState creates the state folder, so a synced StateBase skips it.
-    $approvalState = if ($stateWritable) {
-        Get-ApprovalState -StateDir $stateDir -LogPath $runLog
-    } else {
-        New-DefaultApprovalState
-    }
 
     function Invoke-Remediation {
         [CmdletBinding()]

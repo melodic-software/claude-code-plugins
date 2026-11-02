@@ -54,7 +54,7 @@ Reserve the full multi-agent run for large (≥500 LOC) or security-sensitive ch
 
 ## Fallback: this plugin's `code-reviewer` agent
 
-When `pr-review-toolkit` is absent, dispatch this plugin's `code-reviewer` agent inline instead. It covers the core quality/convention/design dimensions in a single pass; note in the report that orchestrator breadth (dedicated error-handling, type-design, test, and comment analyzers) was skipped.
+When `pr-review-toolkit` is absent, dispatch this plugin's `code-reviewer` agent inline instead, with a findings path and the read-back per SKILL.md "Shared inputs" "Reviewer handback". It covers the core quality/convention/design dimensions in a single pass; note in the report that orchestrator breadth (dedicated error-handling, type-design, test, and comment analyzers) was skipped.
 
 ## When to use
 

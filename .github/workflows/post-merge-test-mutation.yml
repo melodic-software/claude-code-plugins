@@ -72,6 +72,7 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             /.github/actions/check-kill-switch/
+            /.github/actions/log-api-budget/
             /.github/actions/setup-pinned-node/
             /.node-version
           sparse-checkout-cone-mode: false
@@ -95,6 +96,7 @@ jobs:
         run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing mutated"
 
       - name: Download the range
+        id: download-range
         if: steps.kill.outputs.proceed == 'true'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -123,6 +125,17 @@ jobs:
             echo "after=$after"
             echo "proceed=true"
           } >>"$GITHUB_OUTPUT"
+
+      # The range download reads another run's artifacts through
+      # download-artifact's own client, which no counter sees.
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+          outside: ${{ steps.download-range.outcome != 'skipped' && 'download-range:actions/runs/artifacts' || '' }}
 
   audit:
     needs: prep

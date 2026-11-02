@@ -75,8 +75,8 @@ run continues.
 
 This plugin has no `userConfig`. Everything tunable lives in three layers: user-global
 (`~/.claude/code-metrics.yaml`), team (`docs/conventions/code-metrics.yaml`, tracked, checked by
-[`schemas/code-metrics.schema.json`](schemas/code-metrics.schema.json); the older
-`.claude/code-metrics.yaml` is read while that file is absent), and local overlay (`.claude/code-metrics.local.yaml`, gitignored; recommended line
+[`schemas/code-metrics.schema.json`](schemas/code-metrics.schema.json); the retired team file
+under `.claude/` is not read, and `/code-metrics:setup apply` moves its keys), and local overlay (`.claude/code-metrics.local.yaml`, gitignored; recommended line
 `.claude/**/*.local.*`) with per-key override, and every key has a bundled default
 (`scripts/config-defaults.json`), so the plugin works with no configuration at all; the one
 opinionated default is `scope.exclude`, which drops `node_modules`, `vendor`, `dist`, and `build`

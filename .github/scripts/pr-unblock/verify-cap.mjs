@@ -153,8 +153,9 @@ export const final = (answer) => typeof answer === "string" && answer.startsWith
 
 // The workflow annotation for a skip because the listing did not fit in the
 // caller's limit (a `verify:unreadable` whose detail starts with
-// DEADLINE_UNREADABLE), else null: with no fresh carried listing that skip
-// recurs every run, so it is surfaced rather than logged as a plain skip.
+// DEADLINE_UNREADABLE), else null: it comes with no fresh carried listing, or
+// with one whose reads stay short of the live count through every wait, and
+// can recur every run, so it is surfaced rather than logged as a plain skip.
 export function deadlineWarning(number, answer) {
   return typeof answer === "string" && answer.startsWith(`${UNREADABLE}: ${DEADLINE_UNREADABLE}`) ? `::warning title=verify-deadline-skip::#${number}: ${oneLine(answer, 1000)}` : null;
 }

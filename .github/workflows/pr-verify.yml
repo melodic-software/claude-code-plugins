@@ -6,7 +6,10 @@ name: pr-verify
 # head), against its linked issue, and the run uploads
 # its verdict as the artifact pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>, a
 # FAIL's followed by -i<issues> (write-verdict.mjs artifactName); its readers also
-# accept the -<ref-digest> before that (write-verdict.mjs headRefDigest).
+# accept the -<ref-digest> before that (write-verdict.mjs headRefDigest). A
+# FAIL first uploads its index (upload-fail-index, write-verdict.mjs
+# failIndexNames), which the gate reads by exact name instead of the whole
+# artifact listing, and uploads only once every index did.
 # Only steps of a run of this file on main can upload that run's artifacts, so
 # the pr-merge lane counts a verdict only through its run record
 # (plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py).
@@ -1863,19 +1866,35 @@ jobs:
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
+          # This job uploads a FAIL's index (write-verdict.mjs FAIL_INDEX).
+          FAIL_INDEX: "1"
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
+
+      # A FAIL uploads its index first (write-verdict.mjs failIndexNames), and
+      # the FAIL only after every index uploaded: the merge gate finds a FAIL
+      # by its index alone, so a failed index upload leaves no verdict.
+      - name: Upload the FAIL index
+        id: fail-index
+        if: >-
+          ${{ !cancelled() && steps.verdict.outcome == 'success' && steps.verdict.outputs.verdict == 'fail' }}
+        uses: ./.base/.github/actions/upload-fail-index # zizmor: ignore[self-repository]
+        with:
+          names: ${{ steps.verdict.outputs.index-names }}
+          path: ${{ runner.temp }}/pr-verify-verdict/fail-index.txt
+          retention-days: ${{ steps.verdict.outputs.retention-days }}
+          github-token: ${{ github.token }}
 
       - name: Scan the upload for credentials
         id: scan-upload
         if: >-
-          ${{ !cancelled() && steps.verdict.outcome == 'success' }}
+          ${{ !cancelled() && steps.verdict.outcome == 'success' && (steps.verdict.outputs.verdict != 'fail' || steps.fail-index.outcome == 'success') }}
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/pr-verify-verdict/verdict.json
 
       - name: Upload the verdict
         if: >-
-          (!cancelled() && steps.verdict.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
+          (!cancelled() && steps.verdict.outcome == 'success' && (steps.verdict.outputs.verdict != 'fail' || steps.fail-index.outcome == 'success')) && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.verdict.outputs.name }}
@@ -3669,19 +3688,35 @@ jobs:
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
+          # This job uploads a FAIL's index (write-verdict.mjs FAIL_INDEX).
+          FAIL_INDEX: "1"
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
+
+      # A FAIL uploads its index first (write-verdict.mjs failIndexNames), and
+      # the FAIL only after every index uploaded: the merge gate finds a FAIL
+      # by its index alone, so a failed index upload leaves no verdict.
+      - name: Upload the FAIL index
+        id: fail-index
+        if: >-
+          ${{ !cancelled() && steps.verdict.outcome == 'success' && steps.verdict.outputs.verdict == 'fail' }}
+        uses: ./.base/.github/actions/upload-fail-index # zizmor: ignore[self-repository]
+        with:
+          names: ${{ steps.verdict.outputs.index-names }}
+          path: ${{ runner.temp }}/pr-verify-verdict/fail-index.txt
+          retention-days: ${{ steps.verdict.outputs.retention-days }}
+          github-token: ${{ github.token }}
 
       - name: Scan the upload for credentials
         id: scan-upload
         if: >-
-          ${{ !cancelled() && steps.verdict.outcome == 'success' }}
+          ${{ !cancelled() && steps.verdict.outcome == 'success' && (steps.verdict.outputs.verdict != 'fail' || steps.fail-index.outcome == 'success') }}
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/pr-verify-verdict/verdict.json
 
       - name: Upload the verdict
         if: >-
-          (!cancelled() && steps.verdict.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
+          (!cancelled() && steps.verdict.outcome == 'success' && (steps.verdict.outputs.verdict != 'fail' || steps.fail-index.outcome == 'success')) && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.verdict.outputs.name }}
@@ -5209,19 +5244,35 @@ jobs:
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
+          # This job uploads a FAIL's index (write-verdict.mjs FAIL_INDEX).
+          FAIL_INDEX: "1"
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
+
+      # A FAIL uploads its index first (write-verdict.mjs failIndexNames), and
+      # the FAIL only after every index uploaded: the merge gate finds a FAIL
+      # by its index alone, so a failed index upload leaves no verdict.
+      - name: Upload the FAIL index
+        id: fail-index
+        if: >-
+          ${{ !cancelled() && steps.verdict.outcome == 'success' && steps.verdict.outputs.verdict == 'fail' }}
+        uses: ./.base/.github/actions/upload-fail-index # zizmor: ignore[self-repository]
+        with:
+          names: ${{ steps.verdict.outputs.index-names }}
+          path: ${{ runner.temp }}/pr-verify-verdict/fail-index.txt
+          retention-days: ${{ steps.verdict.outputs.retention-days }}
+          github-token: ${{ github.token }}
 
       - name: Scan the upload for credentials
         id: scan-upload
         if: >-
-          ${{ !cancelled() && steps.verdict.outcome == 'success' }}
+          ${{ !cancelled() && steps.verdict.outcome == 'success' && (steps.verdict.outputs.verdict != 'fail' || steps.fail-index.outcome == 'success') }}
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/pr-verify-verdict/verdict.json
 
       - name: Upload the verdict
         if: >-
-          (!cancelled() && steps.verdict.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
+          (!cancelled() && steps.verdict.outcome == 'success' && (steps.verdict.outputs.verdict != 'fail' || steps.fail-index.outcome == 'success')) && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.verdict.outputs.name }}

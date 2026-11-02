@@ -140,6 +140,26 @@ once it starts paging (`OVERCOUNT_FALLBACK_SUFFIX`), and a later Reader of the
 job whose pages over-count refuses without another, whatever that listing's
 outcome.
 
+Index mode. Before a FAIL uploads, its run uploads one index artifact per
+tie, `INDEX_PREFIX` then `pr-<n>`, `sha-<head>`, `ref-<head-ref digest>` and
+`issue-<i>` for each issue the FAIL records (write-verdict.mjs
+`failIndexNames`), and the FAIL uploads only if every index did; a job with
+no index step (`FAIL_INDEX` unset: a re-run of an older pr-verify.yml) writes
+no FAIL at all. When the
+legacy FAILs file (`LEGACY_FAILS_FILE`, every FAIL uploaded before the index,
+built by `legacy-fails` from the verifier's runs and their artifacts) loads, a
+judgment reads no listing (`Reader._targeted`): the name filter returns every
+artifact of an exact name across runs, so it reads the index names of this
+pull request's number and each other pull request that closes one of its
+live issues, of its head and each of its commits, of its head branch, and of
+each live issue, then each run those name (one read each), then the passes
+at the head and at each FAILed head by their exact names. Each read must
+hold its own `total_count`, which one name's few artifacts do; every rule
+above then judges what those reads and the legacy file hold, as it judges a
+listing. A run holding an index and no FAIL that has not completed refuses;
+one that has completed failed its FAIL upload. A failed read refuses. With
+no legacy file the whole listing below is read, as before.
+
 Carried reads. What an earlier run read is used only where it counts a FAIL
 (a carried record counts the FAIL when it shows origin; any other answer from
 it could turn the FAIL away, so it is read again), with one exception: the
@@ -243,6 +263,7 @@ its null `refusal` at the head it read.
 from __future__ import annotations
 
 import argparse
+import base64
 import contextlib
 import hashlib
 import io
@@ -254,7 +275,7 @@ import tempfile
 import time
 import urllib.parse
 import zipfile
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from email.utils import parsedate_to_datetime
@@ -286,6 +307,21 @@ LISTING_CARRY_ENV = "BABYSIT_VERIFY_LISTING_CARRY"
 # `1`: no wait between incremental reads (`no_incremental_waits`).
 NO_INCREMENTAL_WAITS_ENV = "BABYSIT_VERIFY_NO_INCREMENTAL_WAITS"
 HEAD_REFS_ENV = "BABYSIT_VERIFY_HEAD_REFS"
+# A FAIL's index artifacts (write-verdict.mjs failIndexNames), one per tie:
+# `pr-<n>`, `sha-<head>`, `ref-<head-ref digest>`, `issue-<i>`.
+INDEX_PREFIX = "pr-verify-index-"
+# The FAILs uploaded before the index (`Reader._legacy`), committed beside
+# this module once built (`legacy-fails`); its presence turns the index on.
+LEGACY_FAILS_FILE = "verify-legacy-fails.json"
+LEGACY_FAILS_ENV = "BABYSIT_VERIFY_LEGACY_FAILS"
+LEGACY_FAILS_VERSION = 1
+# The verifier runs one judgment's index reads may lead to, more refusing,
+# and the names past which it reads the whole listing instead: each costs
+# a read, and a whole listing was about 135 pages on 2026-11-02.
+INDEX_RUNS_CAP = 120
+INDEX_NAMES_CAP = 100
+# One line per judgment on stderr: the exact-name reads it made.
+INDEX_READS_PREFIX = "babysit-index-reads"
 # A file holding the pull request's REST record as the caller read it
 # (`merge_policy.cached_pull_request`).
 PULL_ENV = "BABYSIT_VERIFY_PULL"
@@ -1339,6 +1375,28 @@ class Reader:
     _linked: dict[int, dict[str, Any]] = field(default_factory=dict)
     # The issue number `link_refusal` took for each pull request.
     linked_issue: dict[int, Any] = field(default_factory=dict)
+    # The legacy FAILs file (`_legacy`): when it loads, judgments read the
+    # FAIL index by exact name instead of the whole listing. `LEGACY_FAILS_ENV`
+    # names another file, or none when empty.
+    legacy_path: str | None = field(
+        default_factory=lambda: os.environ.get(
+            LEGACY_FAILS_ENV, str(Path(__file__).with_name(LEGACY_FAILS_FILE))
+        )
+        or None
+    )
+    _legacy_entries: list[dict[str, Any]] | None = None
+    _legacy_loaded: bool = False
+    # Each legacy FAIL's recorded head branch, by artifact id.
+    _legacy_refs: dict[int, str] = field(default_factory=dict)
+    # The live issues `_targeted` read, taken by the next `_elsewhere`.
+    _live_issues: dict[int, dict[Any, Any]] = field(default_factory=dict)
+    # A targeted listing read for the answer key, taken by the next judgment
+    # of the same pull request and head (`_verdict_artifacts`).
+    _handoff: dict[tuple[int, str], list[dict[str, Any]]] = field(
+        default_factory=dict
+    )
+    # The exact-name and run-artifact reads this Reader made.
+    index_reads: int = 0
 
     def _listing(self) -> list[dict[str, Any]]:
         """`_current_listing`, noting when it began to be read
@@ -1428,7 +1486,9 @@ class Reader:
 
     def refresh(self) -> None:
         """Drop a saved listing: the next judgment pages the API itself (and
-        saves that listing for the rest of the run)."""
+        saves that listing for the rest of the run). In index mode every
+        judgment reads the index afresh; this drops a kept one too."""
+        self._handoff.clear()
         if self._saved:
             self._artifacts, self._saved, self._own = None, False, True
 
@@ -1743,20 +1803,24 @@ class Reader:
         # page boundary (#10486), which a read after a wait can restore, as
         # for any short count. It is read again only while the caps left
         # cover another read like this one, and a caller's limit still fits
-        # that read, the longest wait and one whole listing; else a whole
-        # listing. A top-up's exact count left short goes to another whole
-        # listing, which can restore a skip outside those pages.
+        # that read, the longest wait and one whole listing (only the read
+        # and the wait when no whole listing fits it, since falling back to
+        # one could only refuse); else a whole listing. A top-up's exact
+        # count left short goes to another whole listing, which can restore a
+        # skip outside those pages.
         if stage == "incremental" and (over or near):
             pages = self._near_expiry_reads - spent[0]
             ids = self._artifact_reads - spent[1]
             cap = listing_cap()[0]
             took = _listing_clock() - started
+            fits = listing_timeout(total, cap) is not None
+            fallback = listing_seconds(total) if fits else 0.0
             if (
                 NEAR_EXPIRY_PAGE_CAP - self._near_expiry_reads < pages
                 or NEAR_EXPIRY_ID_READ_CAP - self._artifact_reads < ids
                 or (
                     cap < LISTING_TIMEOUT_SECONDS
-                    and cap < took + max(INCREMENTAL_WAITS) + listing_seconds(total)
+                    and cap < took + max(INCREMENTAL_WAITS) + fallback
                 )
             ):
                 return COUNT_OVER
@@ -2260,6 +2324,8 @@ class Reader:
         dated = run_cache.get_dated(RECORD_SECTION, key, None) if shared else None
         if dated is not None and is_json_object(dated[0]):
             return dated[0].get("head_ref")
+        if shared and artifact_id in self._legacy_refs:
+            return self._legacy_refs[artifact_id]
         if shared:
             if self._mapped is None:
                 self._mapped = load_head_refs(self.head_refs_path, self.repo)
@@ -2619,6 +2685,275 @@ class Reader:
                     )
         return live
 
+    def index_mode(self) -> bool:
+        """Whether judgments read the FAIL index (`_targeted`): only once the
+        legacy FAILs file loads, which holds every FAIL uploaded before the
+        index existed."""
+        return self._legacy() is not None
+
+    def _legacy(self) -> list[dict[str, Any]] | None:
+        """The legacy FAILs file's entries, once loaded: listing-shaped
+        artifacts, each recording its run's verified origin and its verdict's
+        head branch. A missing, malformed or other repository's file is none,
+        so judgments use the whole listing as before. The file is committed
+        code (`legacy-fails` builds it from every verifier run and its
+        artifacts), so its origins and head branches are taken as read."""
+        if self._legacy_loaded:
+            return self._legacy_entries
+        self._legacy_loaded = True
+        if not self.legacy_path:
+            return None
+        try:
+            saved = json_object(
+                json.loads(Path(self.legacy_path).read_text(encoding="utf-8"))
+            )
+        except (OSError, ValueError):
+            return None
+        entries = saved.get("artifacts")
+        if (
+            saved.get("version") != LEGACY_FAILS_VERSION
+            or saved.get("repo") != self.repo
+            or not is_json_array(entries)
+        ):
+            return None
+        for entry in entries:
+            run_id = json_object(json_object(entry).get("workflow_run")).get("id")
+            if (
+                not _listed_entry(entry)
+                or entry.get("origin") is not True
+                or not isinstance(entry.get("name"), str)
+                or not _is_id(run_id, run_id)
+                or not (entry.get("head_ref") is None or isinstance(entry["head_ref"], str))
+            ):
+                return None
+        for entry in entries:
+            run_id = entry["workflow_run"]["id"]
+            self._runs.setdefault(run_id, ORIGIN)
+            self._shared_runs.add(run_id)
+            if isinstance(entry.get("head_ref"), str):
+                self._legacy_refs[entry["id"]] = entry["head_ref"]
+        self._legacy_entries = entries
+        return entries
+
+    def _live_legacy(self) -> list[dict[str, Any]]:
+        """The legacy FAILs whose `expires_at` has not passed."""
+        now = self.now or _wall_clock()
+        return [
+            a
+            for a in self._legacy() or []
+            if a["expires_at"] is None or _when(a["expires_at"]) > now
+        ]
+
+    def _named(self, name: str, deadline: float) -> list[dict[str, Any]]:
+        """Every unexpired artifact named exactly `name`, under any run: the
+        API's name filter matches whole names. The pages must hold, each id
+        once, the `total_count` every page states; anything else, read twice,
+        raises `_Unreadable`."""
+        for _ in range(2):
+            found: dict[int, dict[str, Any]] = {}
+            totals: set[Any] = set()
+            page = 1
+            while True:
+                read = self._api_object(
+                    f"repos/{self.repo}/actions/artifacts"
+                    f"?name={urllib.parse.quote(name)}&per_page={LISTING_PAGE_SIZE}&page={page}",
+                    deadline,
+                )
+                self.index_reads += 1
+                if not isinstance(read, tuple):
+                    raise _Unreadable(f"the artifacts named {name} could not be read")
+                items, count = read[0].get("artifacts"), read[0].get("total_count")
+                if (
+                    not is_json_array(items)
+                    or type(count) is not int
+                    or not all(map(_listed_entry, items))
+                    or any(a.get("name") != name for a in items)
+                ):
+                    raise _Unreadable(f"the artifacts named {name} are malformed")
+                totals.add(count)
+                found.update((a["id"], a) for a in items)
+                if len(items) < LISTING_PAGE_SIZE or page * LISTING_PAGE_SIZE >= count:
+                    break
+                if page >= LISTING_TOP_UP_PAGES:
+                    raise _Unreadable(f"the artifacts named {name} run past {page} pages")
+                page += 1
+            if totals == {len(found)}:
+                return [a for a in found.values() if a["expired"] is False]
+        raise _Unreadable(f"the artifacts named {name} do not hold their count")
+
+    def _run_artifacts(self, run_id: int, deadline: float) -> list[dict[str, Any]]:
+        """The unexpired artifacts of a run an index artifact names, in one
+        read that must hold its `total_count`. A run that holds an index but
+        no FAIL-shaped name may still be uploading its FAIL: while it has not
+        completed, `_Unreadable`; once it is seen completed, its artifacts are
+        read again, since the FAIL may have uploaded between the two reads,
+        and that read decides (no FAIL then: its FAIL upload failed)."""
+
+        def read() -> list[dict[str, Any]]:
+            answer = self._api_object(
+                f"repos/{self.repo}/actions/runs/{run_id}/artifacts"
+                f"?per_page={LISTING_PAGE_SIZE}",
+                deadline,
+            )
+            self.index_reads += 1
+            items = answer[0].get("artifacts") if isinstance(answer, tuple) else None
+            if (
+                not is_json_array(items)
+                or answer[0].get("total_count") != len(items)
+                or not all(map(_listed_entry, items))
+                or any(
+                    json_object(a.get("workflow_run")).get("id") != run_id for a in items
+                )
+            ):
+                raise _Unreadable(f"the artifacts of run {run_id} could not be read")
+            return [a for a in items if a["expired"] is False]
+
+        items = read()
+        if not any(FAIL_PREFIX_RE.match(str(a.get("name") or "")) for a in items):
+            record = json_object(
+                self._actions(
+                    ["api", f"repos/{self.repo}/actions/runs/{run_id}"], f"run {run_id}"
+                )
+            )
+            self.index_reads += 1
+            if record.get("status") != "completed":
+                raise _Unreadable(f"run {run_id} holds a FAIL index and is still running")
+            items = read()
+        return items
+
+    def _index_hits(self, names: Iterable[str], deadline: float) -> list[dict[str, Any]]:
+        """The artifacts, but the index ones, of every run that uploaded an
+        artifact named one of `names`. An index from any run only points: each
+        FAIL it leads to is judged by its own run, as in the listing."""
+        runs: set[int] = set()
+        for name in dict.fromkeys(names):
+            for item in self._named(name, deadline):
+                run_id = json_object(item.get("workflow_run")).get("id")
+                if _is_id(run_id, run_id):
+                    runs.add(run_id)
+        if len(runs) > INDEX_RUNS_CAP:
+            raise _Unreadable(f"the FAIL index names {len(runs)} runs, over {INDEX_RUNS_CAP}")
+        return [
+            a
+            for run_id in sorted(runs)
+            for a in self._run_artifacts(run_id, deadline)
+            if not str(a.get("name") or "").startswith(INDEX_PREFIX)
+        ]
+
+    def _passes_named(
+        self, number: int, shas: Iterable[str], deadline: float
+    ) -> list[dict[str, Any]]:
+        """This pull request's passes at each of `shas`, by the exact names
+        write-verdict.mjs `artifactName` writes for a pass (no digest yet; a
+        pass this misses leaves a refusal, never an allow)."""
+        return [
+            a
+            for sha in sorted(set(shas))
+            for verdict in PASSES
+            for a in self._named(f"pr-verify-{number}-{sha}-{verdict}", deadline)
+        ]
+
+    def _targeted(
+        self, number: int, head: str, head_ref: str, commits: set[str]
+    ) -> list[dict[str, Any]]:
+        """Every verdict artifact a judgment of this pull request at `head`
+        can count, read by exact name instead of the whole listing: the
+        legacy FAILs (`_legacy`) and, through the FAIL index, each FAIL tied
+        by this pull request's number, by its head or one of its commits, by
+        its head branch, by one of its live issues (`_closing_issues`), or by
+        the number of another pull request that closes one, with the passes
+        at the head and at each FAILed head of this pull request. Past
+        `INDEX_NAMES_CAP` names it is the whole listing. Any read that fails
+        raises `_Unreadable`."""
+        deadline = _listing_clock() + listing_cap()[0]
+        reads = self.index_reads
+        live = self._closing_issues(number)
+        self._live_issues[number] = live
+        closers = {p for issue in live.values() for p in self._closers(issue)}
+        names = [f"{INDEX_PREFIX}pr-{n}" for n in sorted({number, *closers})]
+        names += [f"{INDEX_PREFIX}sha-{sha}" for sha in sorted(commits | {head})]
+        if head_ref:
+            names.append(f"{INDEX_PREFIX}ref-{head_ref_digest(head_ref)}")
+        names += [f"{INDEX_PREFIX}issue-{n}" for n in sorted(live) if type(n) is int]
+        if len(names) > INDEX_NAMES_CAP:
+            # More reads than one whole listing costs: read that instead.
+            return self._listing()
+        found = {a["id"]: a for a in self._live_legacy()}
+        found.update((a["id"], a) for a in self._index_hits(names, deadline))
+        failed = {
+            match[2]
+            for a in found.values()
+            if (match := verdict_name(str(a.get("name") or ""))) is not None
+            and int(match[1]) == number
+            and match[3] == "fail"
+        }
+        found.update(
+            (a["id"], a) for a in self._passes_named(number, failed | {head}, deadline)
+        )
+        print(
+            f"{INDEX_READS_PREFIX} "
+            + json.dumps(
+                {"pr": number, "names": len(names), "reads": self.index_reads - reads}
+            ),
+            file=sys.stderr,
+        )
+        return list(found.values())
+
+    def targeted(self, number: int, head: str) -> list[dict[str, Any]]:
+        """`_targeted` for the answer key, kept for this pull request's next
+        judgment at `head`. Raises `RuntimeError` when it cannot be read."""
+        try:
+            pr = merge_policy.pull_request(self.repo, number)
+            head_ref = str(json_object(json_object(pr).get("head")).get("ref") or "")
+            listing = self._targeted(
+                number, head, head_ref, self._commits(number, head) | {head}
+            )
+        except (_Unreadable, merge_policy.PolicyReadError, postmerge.PostMergeReadError) as exc:
+            raise RuntimeError(str(exc)) from exc
+        self._handoff[(number, head)] = listing
+        return listing
+
+    def own_verdicts(self, number: int, head: str) -> list[dict[str, Any]]:
+        """The verdict artifacts naming this pull request or `head`, through
+        the FAIL index and the legacy FAILs, with the passes at the head and
+        at each FAILed head: babysit_merge_skip.py's key. Raises
+        `RuntimeError` when a read fails."""
+        deadline = _listing_clock() + listing_cap()[0]
+        try:
+            found = {a["id"]: a for a in self._live_legacy()}
+            found.update(
+                (a["id"], a)
+                for a in self._index_hits(
+                    [f"{INDEX_PREFIX}pr-{number}", f"{INDEX_PREFIX}sha-{head}"], deadline
+                )
+            )
+            failed = {
+                match[2]
+                for a in found.values()
+                if (match := verdict_name(str(a.get("name") or ""))) is not None
+                and int(match[1]) == number
+                and match[3] == "fail"
+            }
+            found.update(
+                (a["id"], a)
+                for a in self._passes_named(number, failed | {head}, deadline)
+            )
+        except _Unreadable as exc:
+            raise RuntimeError(str(exc)) from exc
+        return list(found.values())
+
+    def _verdict_artifacts(
+        self, number: int, head: str, head_ref: str, commits: set[str]
+    ) -> list[dict[str, Any]]:
+        """What a judgment iterates: the whole listing, or in index mode the
+        targeted one (the answer key's, when it read one for this head)."""
+        if not self.index_mode():
+            return self._listing()
+        handed = self._handoff.pop((number, head), None)
+        if handed is not None:
+            return handed
+        return self._targeted(number, head, head_ref, commits)
+
     def fail_findings(self, number: int) -> list[dict[str, Any]]:
         """What each counted FAIL of the pull request the last judgment of it
         counted wrote: head, run, and the verdict file's summary and notes
@@ -2656,9 +2991,20 @@ class Reader:
         """The pull request's own FAIL artifacts in the listing, by head,
         whose runs are not of another origin and did not judge a run that
         started on the draft (`_draft_judged`); one whose run cannot be read
-        is kept, so `fail_findings` names it unreadable."""
+        is kept, so `fail_findings` names it unreadable. In index mode the
+        legacy FAILs and the `pr-<n>` index stand in for the listing."""
         own: dict[str, list[tuple[int, str, Any]]] = {}
-        for item in map(json_object, self._listing()):
+        artifacts = (
+            [
+                *self._live_legacy(),
+                *self._index_hits(
+                    [f"{INDEX_PREFIX}pr-{number}"], _listing_clock() + listing_cap()[0]
+                ),
+            ]
+            if self.index_mode()
+            else self._listing()
+        )
+        for item in map(json_object, artifacts):
             match = verdict_name(str(item.get("name") or ""))
             run_id = json_object(item.get("workflow_run")).get("id")
             if (
@@ -2873,7 +3219,9 @@ class Reader:
         # request and head, for the cap's fresh-attempt floor (`_elsewhere`).
         fail_times: dict[tuple[int, str], list[Any]] = {}
         self._fail_runs = {}
-        for item in map(json_object, self._listing()):
+        for item in map(
+            json_object, self._verdict_artifacts(number, head, head_ref, commits)
+        ):
             name = str(item.get("name") or "")
             match = verdict_name(name)
             if item.get("expired") is not False:
@@ -3085,8 +3433,11 @@ class Reader:
         one of its FAILs could count, a failed read raising `_Unreadable`. A
         FAIL of a counted one whose run cannot be read (`unread_prs`, by
         upload time) raises `_Unreadable` (`SIBLING_UNREADABLE`) unless it
-        predates the record on every issue that pull request is for."""
-        live = self._closing_issues(number)
+        predates the record on every issue that pull request is for. In
+        index mode the issues are those `_targeted` read its index by."""
+        live = self._live_issues.pop(number, None)
+        if live is None:
+            live = self._closing_issues(number)
         closers = {n: self._closers(issue) for n, issue in live.items()}
         floors = {n: self._attempt_floor(issue) for n, issue in live.items()}
 
@@ -3873,10 +4224,11 @@ def _decides(report: dict[str, Any]) -> tuple[Any, ...]:
 
 
 def _code_digest() -> str:
-    """The reader's code: every module beside this one. A deploy that
-    changes any of them invalidates every kept answer."""
+    """The reader's code: every module beside this one, and the legacy FAILs
+    file. A deploy that changes any of them invalidates every kept answer."""
     digest = hashlib.sha256()
-    for path in sorted(Path(__file__).resolve().parent.glob("*.py")):
+    here = Path(__file__).resolve().parent
+    for path in sorted([*here.glob("*.py"), *here.glob(LEGACY_FAILS_FILE)]):
         digest.update(path.name.encode("utf-8") + b"\0" + path.read_bytes() + b"\0")
     return digest.hexdigest()
 
@@ -4046,7 +4398,12 @@ def _answer_key(
             config = merge_policy.with_default_branch(args.repo, base)
             parts["config"] = asdict(config)
             bot = (config.agent_identity or "").removesuffix("[bot]") or None
-        listing = reader.listing()
+        # In index mode only the verdict artifacts this judgment can count.
+        listing = (
+            reader.targeted(args.number, args.head)
+            if reader.index_mode()
+            else reader.listing()
+        )
         # `_task_list` reads the rules at the default branch, whatever the base.
         default = merge_policy._default_branch(args.repo, shared=True)
     except (merge_policy.PolicyReadError, RuntimeError) as exc:
@@ -4932,6 +5289,616 @@ def _capped_close_main(args: argparse.Namespace, now: datetime | None) -> int:
     return 0
 
 
+LEGACY_CHECKPOINT_VERSION = 2
+# The pages the build's whole listing may read (about 135 on 2026-11-02).
+LISTING_FAILS_PAGES_CAP = 600
+# How long after the merge commit that brought FAIL_INDEX a run may still have
+# been triggered on the older workflow; a later cutover only reads more runs.
+CUTOVER_MARGIN = timedelta(hours=1)
+# GitHub returns at most 1,000 results for a filtered run search, so a window
+# whose count reaches it is split.
+RUN_SEARCH_RESULTS_CAP = 1000
+RUN_FIELDS_KEPT = (
+    "id",
+    "status",
+    "path",
+    "event",
+    "head_branch",
+    "head_sha",
+    "created_at",
+    "updated_at",
+)
+# A run can be re-run up to 30 days after its first run
+# (https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs,
+# "Re-running workflows and jobs", read 2026-11-02; recheck when that limit
+# changes), keeping its `created_at`: so the runs created this long before
+# `--since` are listed too, and each one updated since is read. A day over
+# the limit covers its boundary.
+RERUN_LOOKBACK = timedelta(days=31)
+# The statuses of a verifier run not completed yet.
+RUNNING_STATUSES = ("queued", "in_progress", "waiting", "requested", "pending")
+RATE_LIMIT_SIGNS = (
+    "rate limit",
+    "HTTP 429",
+    "retry-after",
+    "Retry-After",
+    "x-ratelimit-remaining: 0",
+)
+
+
+class _BuildStopped(Exception):
+    """The per-run build stopped for a limit; its checkpoint resumes it."""
+
+
+@dataclass
+class _Pacer:
+    """Every GitHub call the per-run build makes, paced and counted: at most
+    `per_second` calls a second and `window_cap` calls a rate-limit window
+    (the core `reset` the `rate_limit` read gives), stopping on the first
+    rate-limit or secondary-limit answer. A new window starts only after one
+    `rate_limit` read that shows at least `min_remaining` and no
+    `breaker_file`."""
+
+    real: Callable[..., Any]
+    per_second: float
+    window_cap: int
+    min_remaining: int
+    breaker_file: str | None
+    # Where the window's reset and calls are kept, so a resume inside the
+    # same reset window keeps counting toward its cap.
+    state_file: str | None = None
+    calls: int = 0
+    window_calls: int = 0
+    window_reset: int | None = None
+    limited: str | None = None
+    # Why the build stopped, kept as well as raised: a read that wraps any
+    # error (`Reader._record`) would otherwise turn a stop into a refusal.
+    stopped: str | None = None
+    _last: float | None = None
+
+    def _stop(self, why: str) -> _BuildStopped:
+        self.stopped = why
+        return _BuildStopped(why)
+
+    def _pace(self) -> None:
+        if self._last is not None and self.per_second > 0:
+            wait = self._last + 1.0 / self.per_second - time.monotonic()
+            if wait > 0:
+                _listing_sleep(wait)
+        self._last = time.monotonic()
+
+    def _raw(self, args: list[str], **kwargs: Any) -> Any:
+        self._pace()
+        self.calls += 1
+        self.window_calls += 1
+        proc = self.real(args, **kwargs)
+        detail = proc.stderr if isinstance(proc.stderr, str) else ""
+        if proc.returncode != 0 and any(s in detail for s in RATE_LIMIT_SIGNS):
+            self.limited = detail.strip()[:300] or "a rate-limit answer"
+        return proc
+
+    def open_window(self) -> None:
+        """Read the rate limit and start a window, or raise `_BuildStopped`."""
+        if self.breaker_file and Path(self.breaker_file).exists():
+            raise self._stop(f"the breaker is on ({self.breaker_file})")
+        proc = self._raw(["api", "rate_limit"])
+        if self.limited:
+            raise self._stop(f"rate limited: {self.limited}")
+        try:
+            core = json_object(json_object(json.loads(proc.stdout)).get("resources")).get("core")
+            remaining, reset = json_object(core)["remaining"], json_object(core)["reset"]
+        except (ValueError, KeyError, TypeError) as exc:
+            raise self._stop(f"the rate limit could not be read: {exc}") from exc
+        if type(remaining) is not int or type(reset) is not int:
+            raise self._stop("the rate limit could not be read")
+        if remaining < self.min_remaining:
+            raise self._stop(f"core remaining {remaining} is under {self.min_remaining}")
+        if self.window_reset is not None:
+            self.report()
+        kept = 0
+        if self.state_file:
+            try:
+                saved = json_object(json.loads(Path(self.state_file).read_text()))
+            except (OSError, ValueError):
+                saved = {}
+            if saved.get("reset") == reset and type(saved.get("calls")) is int:
+                kept = saved["calls"]
+        self.window_reset, self.window_calls = reset, kept + 1
+        self._keep()
+        if self.window_calls > self.window_cap:
+            raise self._stop(
+                f"{self.window_calls - 1} calls in the window that resets at "
+                f"{datetime.fromtimestamp(reset, UTC).isoformat()}, the cap"
+            )
+
+    def _keep(self) -> None:
+        if self.state_file and self.window_reset is not None:
+            Path(self.state_file).write_text(
+                json.dumps({"reset": self.window_reset, "calls": self.window_calls})
+            )
+
+    def report(self) -> None:
+        reset = (
+            datetime.fromtimestamp(self.window_reset, UTC).isoformat()
+            if self.window_reset is not None
+            else None
+        )
+        print(
+            f"legacy-fails: window reset={reset} calls={self.window_calls} total={self.calls}",
+            file=sys.stderr,
+        )
+
+    def __call__(self, args: list[str], **kwargs: Any) -> Any:
+        if self.limited:
+            raise self._stop(f"rate limited: {self.limited}")
+        if self.window_reset is None or _wall_clock().timestamp() >= self.window_reset:
+            self.open_window()
+        if self.window_calls >= self.window_cap:
+            raise self._stop(
+                f"{self.window_calls} calls in the window that resets at "
+                f"{datetime.fromtimestamp(self.window_reset or 0, UTC).isoformat()}, the cap"
+            )
+        proc = self._raw(args, **kwargs)
+        self._keep()
+        if self.limited:
+            raise self._stop(f"rate limited: {self.limited}")
+        return proc
+
+
+def _kept_run(run: dict[str, Any]) -> dict[str, Any]:
+    """The fields of a run record the build keeps: its status and origin."""
+    return {
+        **{k: run.get(k) for k in RUN_FIELDS_KEPT},
+        "repository": {"full_name": json_object(run.get("repository")).get("full_name")},
+        "head_repository": {
+            "full_name": json_object(run.get("head_repository")).get("full_name")
+        },
+    }
+
+
+def cutover_of(reader: Reader, merge_sha: str) -> datetime:
+    """When FAIL_INDEX reached main: the committer date of `merge_sha`, a
+    commit main holds whose pr-verify.yml sets FAIL_INDEX, plus
+    `CUTOVER_MARGIN`. Raises `_Unreadable` otherwise."""
+    if merge_policy.SHA_RE.fullmatch(merge_sha) is None:
+        raise _Unreadable("--merge-sha must be a full commit SHA")
+    commit = json_object(
+        reader._actions(["api", f"repos/{reader.repo}/commits/{merge_sha}"], "merge commit")
+    )
+    date = _when(json_object(json_object(commit.get("commit")).get("committer")).get("date"))
+    if date is None:
+        raise _Unreadable(f"commit {merge_sha} has no committer date")
+    if not reader._contains(merge_sha):
+        raise _Unreadable(f"commit {merge_sha} is not on {reader.branch}")
+    workflow = json_object(
+        reader._actions(
+            ["api", f"repos/{reader.repo}/contents/{WORKFLOW_PATH}?ref={merge_sha}"],
+            "pr-verify.yml at the merge commit",
+        )
+    )
+    try:
+        text = base64.b64decode(str(workflow.get("content") or "")).decode("utf-8")
+    except ValueError as exc:
+        raise _Unreadable(f"pr-verify.yml at {merge_sha}: {exc}") from exc
+    if 'FAIL_INDEX: "1"' not in text:
+        raise _Unreadable(f"pr-verify.yml at {merge_sha} sets no FAIL_INDEX")
+    return date + CUTOVER_MARGIN
+
+
+def _windows(since: datetime, until: datetime) -> list[tuple[datetime, datetime]]:
+    """Whole UTC days from `since` up to `until`, the last cut at `until`."""
+    out, start = [], since
+    while start < until:
+        end = min(start + timedelta(days=1), until)
+        out.append((start, end))
+        start = end
+    return out
+
+
+def _stamp(at: datetime) -> str:
+    return at.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+@dataclass
+class _PerRunBuild:
+    """`build_legacy_fails`, resumable from a checkpoint file."""
+
+    reader: Reader
+    since: datetime
+    cutover: datetime
+    checkpoint_path: Path
+    lookback: timedelta = RERUN_LOOKBACK
+    state: dict[str, Any] = field(default_factory=dict)
+
+    def load(self) -> None:
+        fresh = {
+            "version": LEGACY_CHECKPOINT_VERSION,
+            "repo": self.reader.repo,
+            "since": self.since.isoformat(),
+            "cutover": self.cutover.isoformat(),
+            "lookback": self.lookback.total_seconds(),
+            "windows": {},
+            "lookbackWindows": {},
+            "runs": {},
+        }
+        try:
+            saved = json_object(json.loads(self.checkpoint_path.read_text(encoding="utf-8")))
+        except FileNotFoundError:
+            self.state = fresh
+            return
+        except (OSError, ValueError) as exc:
+            raise _Unreadable(f"the checkpoint cannot be read: {exc}") from exc
+        if any(
+            saved.get(k) != fresh[k]
+            for k in ("version", "repo", "since", "cutover", "lookback")
+        ):
+            raise _Unreadable("the checkpoint is for another repository, range or cutover")
+        self.state = saved
+
+    def save(self) -> None:
+        tmp = self.checkpoint_path.with_name(self.checkpoint_path.name + ".tmp")
+        tmp.write_text(json.dumps(self.state), encoding="utf-8")
+        os.replace(tmp, self.checkpoint_path)
+
+    def _window(
+        self, start: datetime, end: datetime, *, last: bool = False
+    ) -> list[dict[str, Any]]:
+        """Every verifier run created in [start, end), or [start, end] for
+        the `last` window, so the cutover's own second is read: each page
+        holds the same `total_count`, and the ids, each once, equal it."""
+        created = f"{_stamp(start)}..{_stamp(end if last else end - timedelta(seconds=1))}"
+        found: dict[int, dict[str, Any]] = {}
+        totals: set[Any] = set()
+        page = 1
+        while True:
+            body = json_object(
+                self.reader._actions(
+                    [
+                        "api",
+                        f"repos/{self.reader.repo}/actions/workflows/{Path(WORKFLOW_PATH).name}"
+                        f"/runs?created={created}&per_page={LISTING_PAGE_SIZE}&page={page}",
+                    ],
+                    f"verifier runs created {created}",
+                )
+            )
+            runs, count = body.get("workflow_runs"), body.get("total_count")
+            if not is_json_array(runs) or type(count) is not int:
+                raise _Unreadable(f"the verifier runs created {created} are malformed")
+            if count >= RUN_SEARCH_RESULTS_CAP:
+                if end - start <= timedelta(minutes=1):
+                    raise _Unreadable(f"{count} verifier runs created {created}")
+                middle = start + (end - start) / 2
+                return self._window(start, middle) + self._window(middle, end, last=last)
+            totals.add(count)
+            for run in map(json_object, runs):
+                if not _is_id(run.get("id"), run.get("id")):
+                    raise _Unreadable(f"a verifier run created {created} has no id")
+                found[run["id"]] = _kept_run(run)
+            if len(runs) < LISTING_PAGE_SIZE or page * LISTING_PAGE_SIZE >= count:
+                break
+            page += 1
+        if totals != {len(found)}:
+            raise _Unreadable(
+                f"the verifier runs created {created} list {len(found)} of {sorted(totals)}"
+            )
+        # Refused before the caller keeps the window, so a resume lists it
+        # again once the run has completed.
+        for record in found.values():
+            if record.get("status") != "completed":
+                raise _Unreadable(f"verifier run {record['id']} is {record.get('status')}")
+        return list(found.values())
+
+    def _run(self, record: dict[str, Any]) -> dict[str, Any]:
+        """The FAILs of one completed verifier run, from its artifacts read in
+        one page that must hold its `total_count`, and why it holds none
+        (`why`: `none`, `indexed` for a run that uploaded a FAIL index,
+        `foreign` for one of another origin, else `kept`)."""
+        run_id = record["id"]
+        if record.get("status") != "completed":
+            raise _Unreadable(f"verifier run {run_id} is {record.get('status')}")
+        body = json_object(
+            self.reader._actions(
+                [
+                    "api",
+                    f"repos/{self.reader.repo}/actions/runs/{run_id}/artifacts"
+                    f"?per_page={LISTING_PAGE_SIZE}",
+                ],
+                f"artifacts of run {run_id}",
+            )
+        )
+        items, count = body.get("artifacts"), body.get("total_count")
+        if (
+            not is_json_array(items)
+            or type(count) is not int
+            or count != len({json_object(a).get("id") for a in items})
+            or count != len(items)
+            or count >= LISTING_PAGE_SIZE
+            or not all(map(_listed_entry, items))
+            or any(json_object(a.get("workflow_run")).get("id") != run_id for a in items)
+        ):
+            raise _Unreadable(f"the artifacts of run {run_id} do not hold their count")
+        names = [str(a.get("name") or "") for a in items]
+        fails = [
+            a
+            for a, name in zip(items, names, strict=True)
+            if FAIL_PREFIX_RE.match(name) and a["expired"] is False
+        ]
+        if not fails:
+            return {"why": "none", "entries": []}
+        if any(n.startswith(INDEX_PREFIX) for n in names):
+            return {"why": "indexed", "entries": []}
+        try:
+            origin = self.reader._origin(record, run_id, shared=False)
+        except _Unreadable as exc:
+            raise _Unreadable(f"the origin of run {run_id}: {exc}") from exc
+        if not origin:
+            return {"why": "foreign", "entries": []}
+        return {"why": "kept", "entries": [
+            {
+                "id": a["id"],
+                "name": a["name"],
+                "created_at": a.get("created_at"),
+                "expires_at": a.get("expires_at"),
+                "expired": False,
+                "workflow_run": {"id": run_id},
+                "origin": True,
+                "head_ref": self.reader._head_ref(run_id, a["name"], a["id"], ""),
+            }
+            for a in fails
+        ]}
+
+    def _listing_fails(self) -> list[dict[str, Any]]:
+        """Every unexpired FAIL-shaped artifact one whole listing shows, by
+        id, name and run, read page by page. No count is checked: the listing
+        only adds runs to read, so a page it skips hides nothing the windows
+        hold."""
+        found: dict[Any, dict[str, Any]] = {}
+        page = 1
+        while True:
+            body = json_object(
+                self.reader._actions(
+                    [
+                        "api",
+                        f"repos/{self.reader.repo}/actions/artifacts"
+                        f"?per_page={LISTING_PAGE_SIZE}&page={page}",
+                    ],
+                    f"artifact listing page {page}",
+                )
+            )
+            items, count = body.get("artifacts"), body.get("total_count")
+            if not is_json_array(items) or type(count) is not int:
+                raise _Unreadable(f"artifact listing page {page} is malformed")
+            for item in map(json_object, items):
+                name = str(item.get("name") or "")
+                if FAIL_PREFIX_RE.match(name) and item.get("expired") is False:
+                    found[item.get("id")] = {
+                        "id": item.get("id"),
+                        "name": name,
+                        "run": json_object(item.get("workflow_run")).get("id"),
+                    }
+            if len(items) < LISTING_PAGE_SIZE or page * LISTING_PAGE_SIZE >= count:
+                break
+            if page >= LISTING_FAILS_PAGES_CAP:
+                raise _Unreadable(f"the artifact listing runs past {page} pages")
+            page += 1
+        return list(found.values())
+
+    def _run_record(self, run_id: int) -> dict[str, Any]:
+        """A run the listing named outside every window, read by id."""
+        record = json_object(
+            self.reader._actions(
+                ["api", f"repos/{self.reader.repo}/actions/runs/{run_id}"],
+                f"run {run_id}",
+            )
+        )
+        if not _is_id(record.get("id"), run_id):
+            raise _Unreadable(f"run {run_id} could not be read")
+        return _kept_run(record)
+
+    def _running_check(self) -> None:
+        """No verifier run created before the cutover is still to finish: it
+        could upload a FAIL with no index after its window was read. Each
+        status's runs are read in one page that must hold its own
+        `total_count`, never kept in the checkpoint."""
+        for status in RUNNING_STATUSES:
+            body = json_object(
+                self.reader._actions(
+                    [
+                        "api",
+                        f"repos/{self.reader.repo}/actions/workflows/{Path(WORKFLOW_PATH).name}"
+                        f"/runs?status={status}&per_page={LISTING_PAGE_SIZE}",
+                    ],
+                    f"{status} verifier runs",
+                )
+            )
+            listed, count = body.get("workflow_runs"), body.get("total_count")
+            if (
+                not is_json_array(listed)
+                or type(count) is not int
+                or count != len(listed)
+                or count >= LISTING_PAGE_SIZE
+            ):
+                raise _Unreadable(f"the {status} verifier runs do not hold their count")
+            for run in map(json_object, listed):
+                created = _when(run.get("created_at"))
+                if created is None or created <= self.cutover:
+                    raise _Unreadable(
+                        f"verifier run {run.get('id')} from before the cutover is {status}"
+                    )
+
+    def build(self) -> dict[str, Any]:
+        self.load()
+        windows, runs = self.state["windows"], self.state["runs"]
+        self._running_check()
+        # Runs created up to `lookback` before `since` and updated since: a
+        # re-run keeps its creation time. Each window holds its count.
+        early = self.state["lookbackWindows"]
+        for start, end in _windows(self.since - self.lookback, self.since):
+            key = _stamp(start)
+            if key not in early:
+                early[key] = self._window(start, end)
+                self.save()
+            for record in early[key]:
+                updated = _when(record.get("updated_at"))
+                if (updated is None or updated >= self.since) and str(
+                    record["id"]
+                ) not in runs:
+                    runs[str(record["id"])] = self._run(record)
+                    self.save()
+        spans = _windows(self.since, self.cutover)
+        for n, (start, end) in enumerate(spans):
+            key = _stamp(start)
+            if key not in windows:
+                windows[key] = self._window(start, end, last=n == len(spans) - 1)
+                self.save()
+            for record in windows[key]:
+                if str(record["id"]) not in runs:
+                    runs[str(record["id"])] = self._run(record)
+                    self.save()
+        # The listing's FAILs: a run created before `since` (a re-run keeps
+        # its creation time, and a judgment can upload hours after it) is
+        # read here, so the file is the union of the windows and the listing.
+        self._running_check()
+        if "listed" not in self.state:
+            self.state["listed"] = self._listing_fails()
+            self.save()
+        self._running_check()
+        added = []
+        for item in self.state["listed"]:
+            run_id = item["run"]
+            if not _is_id(run_id, run_id):
+                continue  # No run to authenticate it: every judgment ignores it.
+            if str(run_id) not in runs:
+                runs[str(run_id)] = self._run(self._run_record(run_id))
+                added.append(run_id)
+                self.save()
+        entries = [e for held in runs.values() for e in held["entries"]]
+        kept = {e["id"] for e in entries}
+        missing = sorted(
+            {
+                item["run"]
+                for item in self.state["listed"]
+                if _is_id(item["run"], item["run"])
+                and item["id"] not in kept
+                and runs[str(item["run"])]["why"] not in ("indexed", "foreign")
+            }
+        )
+        if missing:
+            raise _Unreadable(
+                f"the listing holds FAILs no run read holds, in runs {missing}"
+            )
+        return {
+            "version": LEGACY_FAILS_VERSION,
+            "repo": self.reader.repo,
+            "cutover": self.cutover.isoformat(),
+            "since": self.since.isoformat(),
+            "runs": len(runs),
+            "listedFails": len(self.state["listed"]),
+            "addedFromListing": sorted(added),
+            "artifacts": sorted(entries, key=lambda e: e["id"]),
+        }
+
+
+def build_legacy_fails(
+    reader: Reader,
+    since: datetime,
+    cutover: datetime,
+    now: datetime,
+    checkpoint: Path,
+    lookback: timedelta = RERUN_LOOKBACK,
+) -> dict[str, Any]:
+    """The legacy FAILs file (`Reader._legacy`), the union of two reads. The
+    runs: every pr-verify.yml run created from `since` to the cutover (the
+    cutover's own second included), listed in one-day `created` windows
+    (split while a window's count reaches GitHub's 1,000-result cap) whose
+    listed ids must equal each window's `total_count`, which holds for a past
+    window since runs are not deleted inside retention, then each run's
+    artifacts, one page that must hold its own `total_count`. The listing:
+    one whole artifact listing, whose FAILs' runs outside every window (a
+    re-run keeps its creation time, and a FAIL can upload hours after it)
+    are read the same way. It keeps every unexpired FAIL-shaped artifact of a
+    run of verifier origin that uploaded no FAIL index, with its verdict's
+    head branch. A run not completed, a read that fails or does not hold its
+    count, an origin or head branch that cannot be read, and a listed FAIL
+    no run read holds raise `_Unreadable`; every finished window and run is
+    kept in `checkpoint`, so a stopped build resumes where it stopped."""
+    if not since < cutover <= now:
+        raise _Unreadable("the range must run from --since to a cutover in the past")
+    return _PerRunBuild(reader, since, cutover, checkpoint, lookback).build()
+
+
+def _legacy_fails_main(args: argparse.Namespace, now: datetime | None) -> int:
+    """`legacy-fails`: write the legacy FAILs file to `--out`. Exit 0 written,
+    1 refused (nothing written), 2 usage, 3 stopped on a limit (resume from
+    the checkpoint)."""
+    reader = Reader(args.repo, args.branch, now=now, legacy_path=None)
+    since = _when(args.since)
+    asked = _when(args.cutover) if args.cutover else None
+    if since is None or (args.cutover and asked is None):
+        print("legacy-fails: --since and --cutover must be times with a zone", file=sys.stderr)
+        return 2
+    pacer = _Pacer(
+        postmerge.gh_capture,
+        args.calls_per_second,
+        args.window_cap,
+        args.min_remaining,
+        args.breaker_file,
+        f"{args.checkpoint}.window",
+    )
+    try:
+        with _paced_gh(pacer):
+            pacer.open_window()
+            cutover = cutover_of(reader, args.merge_sha)
+            if asked is not None:
+                if asked < cutover:
+                    raise _Unreadable(
+                        f"--cutover {asked.isoformat()} is before {cutover.isoformat()}, "
+                        "when FAIL_INDEX reached main (with its margin)"
+                    )
+                cutover = asked
+            built = build_legacy_fails(
+                reader,
+                since,
+                cutover,
+                now or _wall_clock(),
+                Path(args.checkpoint),
+                timedelta(days=args.rerun_lookback_days),
+            )
+    except _BuildStopped as exc:
+        pacer.report()
+        print(f"legacy-fails: stopped, resume from {args.checkpoint}: {exc}", file=sys.stderr)
+        return 3
+    except _Unreadable as exc:
+        pacer.report()
+        if pacer.stopped:
+            print(
+                f"legacy-fails: stopped, resume from {args.checkpoint}: {pacer.stopped}",
+                file=sys.stderr,
+            )
+            return 3
+        print(f"legacy-fails: refused, nothing written: {exc}", file=sys.stderr)
+        return 1
+    pacer.report()
+    Path(args.out).write_text(json.dumps(built, indent=1) + "\n", encoding="utf-8")
+    print(
+        f"legacy-fails: {len(built['artifacts'])} FAILs from {built['runs']} runs, "
+        f"{pacer.calls} calls",
+        file=sys.stderr,
+    )
+    return 0
+
+
+@contextlib.contextmanager
+def _paced_gh(pacer: _Pacer) -> Iterator[None]:
+    """Route the reader's gh calls (`postmerge.gh_capture`) through `pacer`."""
+    real = postmerge.gh_capture
+    postmerge.gh_capture = pacer
+    try:
+        yield
+    finally:
+        postmerge.gh_capture = real
+
+
 def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     """`evidence <number> <head>`: one pull request's evidence at `head` as
     one JSON line (`Evidence.report`), as pr-merge's gate judges it.
@@ -5032,7 +5999,26 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     settle.add_argument("--postmerge-result", required=True)
     settle.add_argument("--code-sha", required=True)
     settle.add_argument("--idle-tick", action="store_true")
+    legacy = sub.add_parser("legacy-fails", allow_abbrev=False)
+    legacy.add_argument("--repo", required=True)
+    legacy.add_argument("--branch", default="main")
+    legacy.add_argument("--since", required=True)
+    legacy.add_argument("--merge-sha", required=True)
+    legacy.add_argument("--cutover", default=None)
+    legacy.add_argument("--out", required=True)
+    legacy.add_argument("--checkpoint", required=True)
+    # The owner token's 5,000 an hour is shared by every session: about one
+    # call each 2 s, at most 1,800 a reset window, none under 2,000 left.
+    legacy.add_argument("--calls-per-second", type=float, default=0.5)
+    legacy.add_argument("--window-cap", type=int, default=1800)
+    legacy.add_argument("--min-remaining", type=int, default=2000)
+    legacy.add_argument("--breaker-file", default=None)
+    legacy.add_argument(
+        "--rerun-lookback-days", type=float, default=RERUN_LOOKBACK.days
+    )
     args = parser.parse_args(argv)
+    if args.command == "legacy-fails":
+        return _legacy_fails_main(args, now)
     if args.command == "capped-close":
         if not (
             merge_policy.SHA_RE.fullmatch(args.head)

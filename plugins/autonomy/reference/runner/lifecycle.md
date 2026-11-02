@@ -24,23 +24,8 @@ Two states are terminal: `escalated` and `complete`.
 A stop at any non-terminal state resolves to `escalated` rather than advancing; the mapping
 from a stop reason to its terminal outcome is [the escalation leaf](escalation.md)'s subject.
 Only a run that reaches `disposing` and successfully lands its class's disposition becomes
-`complete`: a queue artifact for a read-only class, the plan-approval item for a `C4` planning
-run, a per-item PR for a mutating class. Every other ending is `escalated`.
-
-### C4 pre-execution plan approval
-
-A `C4` (structural) item never travels `leased → executing` into structural work on ordinary
-admission alone: the [guardrail escalation contract](../guardrails.md#escalation) fires its
-`structural-plan-approval` event class for a `C4` item BEFORE execution, and the runner honors
-that as a two-phase drain through the one queue. The first leased run plans only: its
-disposition is the `structural-plan-approval` item (the inherited class, on its own route and
-severity, with the produced plan attached), and it completes without touching the structure.
-The structural execution is a second run, admitted only from the human-approved item; its
-`leased → executing` transition requires that recorded approval, and absent one the run
-fail-closes through the missing-plan-approval stop, a `runner-owned` stop reason resolving to
-`needs-human` in [the escalation leaf](escalation.md)'s mapping, rather than executing. No second approval channel exists. The
-approval item is ordinary human-gated queue work, and the terminal-handoff shape
-([escalation leaf](escalation.md)) is untouched: neither phase pauses mid-run.
+`complete`: a queue artifact for a read-only class, a per-item PR for a mutating class. Every
+other ending is `escalated`.
 
 ## Transition telemetry
 

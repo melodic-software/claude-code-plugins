@@ -5,7 +5,7 @@ live runs grade against this file.
 
 ## Setup per run
 
-`app.py` and `.claude/mutation-testing.md` are committed on `main`; one scenario's `test_app.py` is
+`app.py` and `docs/conventions/mutation-testing.yaml` are committed on `main`; one scenario's `test_app.py` is
 added on a branch (committed, or left uncommitted for `no_assertion_uncommitted`). The changed-test
 set is that one file. The `testing` plugin's `py-unittest` or `py-pytest` adapter claims it.
 

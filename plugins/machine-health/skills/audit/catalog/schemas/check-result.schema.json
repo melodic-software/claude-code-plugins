@@ -79,6 +79,10 @@
         }
       }
     },
+    "clamped_from": {
+      "$ref": "#/$defs/Severity",
+      "description": "Set by the orchestrator, never by a check: the severity a custom check computed before the custom-check clamp capped it. Absent on every result the clamp did not cap."
+    },
     "notes": {
       "type": ["string", "null"],
       "description": "Caveats, reason for severity adjustment, missing-cmdlet context. Never used for primary findings - that's summary."

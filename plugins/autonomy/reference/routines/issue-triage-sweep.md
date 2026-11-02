@@ -6,7 +6,7 @@ items.
 
 ## Purpose
 
-Untriaged intake is the toil addressed: new tracker items sit unclassified, with no component,
+Untriaged intake is the toil addressed: new tracker items sit with no class, component,
 type, or routing, until a human finds the time, and the queue rots while they wait. The
 sweep does the recurring semantic pass (classify, route, suggest fields, flag ambiguity) so
 human attention lands only where judgment beyond the sweep's is needed.

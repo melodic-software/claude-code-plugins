@@ -1339,6 +1339,7 @@ jobs:
           RESOLVED: ${{ runner.temp }}/resolved-config.json
           HUMAN_GATE: ${{ steps.config.outputs.prepare == 'apply-patch' && inputs.patch-human-gate || '' }}
           GITHUB_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
@@ -1472,6 +1473,27 @@ jobs:
             cp ".base/$file" "$DEST/$file"
           done
           echo "ready=true" >>"$GITHUB_OUTPUT"
+
+      # Logged here, before the head checkout replaces .base: no step after
+      # head code loads an action from a checkout. The job-token calls of the
+      # branch re-read (github-script), the broker step's compare and the
+      # trusted base's dispatch read (gh in composite actions) go through no
+      # counted client, and so do the promote step's pull and label reads,
+      # which come later; each is named, so the count reads as a floor. The
+      # lanes App token's calls, most of them after head code, are not logged.
+      - name: Log the API budget before the head checkout
+        id: api-budget
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+          outside: >-
+            ${{ steps.trusted-base.outcome != 'skipped' && !contains(fromJSON('["issues","pull_request"]'), github.event_name) && 'trusted-base:pulls' || '' }}
+            ${{ steps.head-recheck.outcome != 'skipped' && steps.config.outputs.effect == 'mutate-branch' && inputs.issue-number == '' && 'head-recheck:git/ref' || '' }}
+            ${{ steps.lane-token.outcome != 'skipped' && inputs.issue-number == '' && github.event_name == 'pull_request' && 'lane-token:compare' || '' }}
+            ${{ steps.lane-token.outcome == 'success' && inputs.issue-number == '' && 'promote:pulls promote:issues/labels' || '' }}
 
       - name: Check out the PR head
         if: steps.lane-token.outputs.token != ''

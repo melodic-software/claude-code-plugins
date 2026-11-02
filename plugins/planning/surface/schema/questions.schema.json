@@ -145,6 +145,11 @@
           "at": {"type": "string"}
         }
       }
+    },
+    "answerOrder": {
+      "description": "Derived by the server when more questions are open than the orderThreshold setting: the open question ids in recommended answering order, prerequisites first (topological by dependsOn), then the most transitive dependents, then the lower id. Advisory; never written",
+      "type": "array",
+      "items": {"type": "string"}
     }
   },
   "$defs": {

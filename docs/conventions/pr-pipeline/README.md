@@ -2682,6 +2682,13 @@ network error is read again, three reads in all with backoff, all inside the one
 read would get; any other failure, a timeout, a 429 or a rate-limit 403 included, is not. A failed listing is never
 saved, and is kept for that candidate's gate run: the pull request and every queued entry refuse `verify:unreadable` without the
 listing being paged again, so a listing outage holds the whole queue rather than merging blind.
+Once the legacy FAILs file (`verify-legacy-fails.json` beside the reader) is committed, the gate
+reads no listing at all: each FAIL's run uploads index artifacts first (`pr-verify-index-pr-<n>`,
+`-sha-<head>`, `-ref-<digest>`, `-issue-<i>`; `.github/actions/upload-fail-index`), the FAIL only
+after every index did, and a judgment reads those exact names for the pull request's number, its
+head and commits, its head branch, its live issues and their other closing pull requests, then each
+run they name and the pass names at each FAILed head; the file holds every FAIL from before the
+index. The module docstring's "Index mode" states the rule. Until then the listing below applies.
 A listing read from the API builds on the newest whole listing begun within three hours (the
 reader's own, the run's saved one, or the `pr-merge-verify-listing` artifact the last scheduled or
 hand-started run of main's pr-merge.yml uploaded, which `.github/scripts/pr-merge/listing-carry.mjs`

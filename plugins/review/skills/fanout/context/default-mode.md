@@ -48,6 +48,13 @@ the base counts 0). Each file below the reference at the base and at or
 above it at the head goes into the `code-reviewer` brief as `<path>: <base count> -> <head count>,
 size.file_lines <reference> (<layer>)`. Without code-metrics the brief lists none.
 
+## Reviewer findings files
+
+The `code-reviewer` and `security-reviewer` leaves each get a `Findings path:` line under the
+findings location (SKILL.md "Shared inputs"), on the terms of
+[`reviewer-handback.md`](../../../reference/reviewer-handback.md). Stage 0 of the normalization
+pipeline reads each of those leaves' reports from your own copy of its path, not from the reply.
+
 ## Tier transparency (mandatory)
 
 Before dispatch emit ONE line:
