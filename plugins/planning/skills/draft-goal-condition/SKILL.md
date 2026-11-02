@@ -75,7 +75,9 @@ Two caveats on the workflow row, each of which turns a plausible recommendation 
   setting that plans a workflow for each substantive task; for what it does to the effort level,
   see [Let Claude decide with ultracode](https://code.claude.com/docs/en/workflows#let-claude-decide-with-ultracode)
   (as of 2026-10-02; recheck when that section changes ultracode's effort interaction). The
-  standing setting needs a model that offers `xhigh` effort. Before recommending either form,
+  standing setting needs a model that offers `xhigh` effort (see
+  [When ultracode is available](https://code.claude.com/docs/en/model-config#when-ultracode-is-available),
+  as of 2026-11-02; recheck when that section adds or drops a condition). Before recommending either form,
   apply the routing decisions in [reference/workflow-row.md](reference/workflow-row.md): which
   prompt sources the keyword fits (a `-p`, Agent SDK, scheduled or relayed prompt among them), and
   which plans reach the workflow lever and what a plan must switch on first.
