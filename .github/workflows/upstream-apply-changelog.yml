@@ -456,10 +456,12 @@ jobs:
           # plan's checks name fields, and git runs quiet.
           node --input-type=module -e '
             import { readFileSync, writeFileSync } from "node:fs";
-            import { readPlan } from "./.base/.github/scripts/upstream-apply-changelog/upstream-apply-changelog.mjs";
+            import { publishText, readPlan } from "./.base/.github/scripts/upstream-apply-changelog/upstream-apply-changelog.mjs";
             const plan = readPlan(readFileSync(process.env.IN + "/plan.json", "utf8"),
               { release: process.env.RELEASE, baseSha: process.env.BASE_SHA });
             writeFileSync(process.env.IN + "/heads.txt", plan.branches.map((b) => b.head_sha + "\n").join(""));
+            // What publish posts, decoded from JSON, so the scan reads it as posted.
+            writeFileSync(process.env.IN + "/publish.txt", publishText(plan, process.env.RELEASE));
             console.log(plan.branches.length + " branches, " + plan.handoffs.length + " handoffs");
           '
           : >"$IN/diffs.txt"
@@ -517,10 +519,18 @@ jobs:
         with:
           path: ${{ runner.temp }}/scan-in/diffs.txt
 
+      - name: Scan the pull request and issue text for credentials
+        id: scan-publish
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/scan-in/publish.txt
+
       # The plan and the rebuilt bundle, scan-out's only files.
       - name: Upload the plan and the branches
         id: upload
-        if: steps.scan-plan.outputs.clean == 'true' && steps.scan-diffs.outputs.clean == 'true'
+        if: >-
+          steps.scan-plan.outputs.clean == 'true' && steps.scan-diffs.outputs.clean == 'true'
+          && steps.scan-publish.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: upstream-apply-changelog-plan-${{ github.run_attempt }}

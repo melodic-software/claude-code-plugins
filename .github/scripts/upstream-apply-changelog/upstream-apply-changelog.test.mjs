@@ -14,9 +14,11 @@ import {
   handoffMarker,
   netRawDiff,
   newestRelease,
+  publishText,
   readNetChanges,
   readPlan,
   refuseBinary,
+  releaseIssue,
   releaseMarker,
   releasesFromStatus,
   renderItems,
@@ -116,6 +118,29 @@ test("a refusal names the field and index, never the plan's value", () => {
     () => checkRawLog(`:100644 100644 1 2 M\tplugins/hooks-kit/a\n:100644 100644 1 2 M\t${SECRET}`, "hooks-kit", 3),
     (e) => /branches\[3\] raw line 2/.test(e.message) && !e.message.includes(SECRET),
   );
+});
+
+test("the publish text holds every pull request and issue string publish can post, decoded", async () => {
+  const p = plan({
+    handoffs: [
+      { key: "changelog:2.1.300..2.1.300:adopt:a", kind: "adopt", title: "first \"quoted\"", body: "line one\nline two" },
+      { key: "changelog:2.1.300..2.1.300:adopt:b", kind: "adopt", title: "second", body: "z".repeat(50000) },
+      { key: "changelog:2.1.300..2.1.300:adopt:c", kind: "adopt", title: "third", body: "y".repeat(50000) },
+    ],
+  });
+  p.branches[0].pr.body = "Refs: #7407\nwith \"quotes\" and a tab\t.";
+  const v = validatePlan(p, ctx);
+  const text = publishText(v, "2.1.300");
+  assert.ok(text.includes(v.branches[0].pr.title));
+  assert.ok(text.includes("with \"quotes\" and a tab\t."));
+  const f = issueApi();
+  await fileReleaseHandoffs({ repo: REPO, release: "2.1.300", handoffs: v.handoffs, api: f.api });
+  const posted = f.writes()[0].body;
+  assert.deepEqual(posted, releaseIssue("2.1.300", v.handoffs));
+  assert.ok(text.includes(posted.title) && text.includes(posted.body));
+  assert.ok(posted.body.includes("truncated proportionally"));
+  assert.ok(text.includes(renderItems(v.handoffs, Number.POSITIVE_INFINITY)));
+  assert.equal(publishText(validatePlan(plan({ handoffs: [] }), ctx), "2.1.300").includes(releaseMarker("2.1.300")), false);
 });
 
 test("a commit outside its plugin, or writing a link or submodule, is refused", () => {

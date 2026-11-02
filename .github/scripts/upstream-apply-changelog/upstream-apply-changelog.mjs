@@ -55,6 +55,24 @@ export function renderItems(handoffs, budget) {
   return `${TRUNCATED}\n\n${handoffs.map((h, i) => item(h, cut[i])).join("\n")}`;
 }
 
+// The new release issue's title and body, as publish posts them.
+export function releaseIssue(release, handoffs) {
+  const head = `${releaseMarker(release)}\n\n`;
+  return { title: releaseTitle(release, handoffs.length), body: head + renderItems(handoffs, ISSUE_BODY_MAX - head.length) };
+}
+
+// Every string publish can post from the plan, as plain text for the scan
+// job: each pull request title and body, the new release issue, and the
+// handoff items untruncated, as an append or a comment posts them.
+export function publishText(plan, release) {
+  const parts = plan.branches.flatMap((b) => [b.pr.title, b.pr.body]);
+  if (plan.handoffs.length) {
+    const issue = releaseIssue(release, plan.handoffs);
+    parts.push(issue.title, issue.body, renderItems(plan.handoffs, Number.POSITIVE_INFINITY));
+  }
+  return `${parts.join("\n\n")}\n`;
+}
+
 // Files a release's handoffs as one issue, found again by its release marker
 // in any state. Only an issue the lanes App opened counts, and only key
 // markers in its body and the App's comments: anyone can type a marker. An
@@ -70,9 +88,7 @@ export async function fileReleaseHandoffs({ repo, release, handoffs, api }) {
     (i) => i?.user?.login === LANES_APP_LOGIN && typeof i.body === "string" && i.body.includes(marker),
   );
   if (!issue) {
-    const head = `${marker}\n\n`;
-    const body = head + renderItems(handoffs, ISSUE_BODY_MAX - head.length);
-    await api(`/repos/${repo}/issues`, { method: "POST", body: { title: releaseTitle(release, handoffs.length), body } });
+    await api(`/repos/${repo}/issues`, { method: "POST", body: releaseIssue(release, handoffs) });
     return `filed ${handoffs.length} handoffs as one issue`;
   }
   if (issue.state !== "open") return `the release issue #${issue.number} is closed; nothing filed`;
