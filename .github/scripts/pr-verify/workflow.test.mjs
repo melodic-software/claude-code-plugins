@@ -134,11 +134,16 @@ const splitNames = (names, held, { total, fail = false } = {}) => {
   return { status: run.status, outputs: readFileSync(out, "utf8") };
 };
 
-test("a FAIL index skips the names its run already holds, and never overwrites one", () => {
+test("a FAIL index never replaces or keeps a name its run already holds", () => {
   const names = ["pr-verify-index-pr-41", `pr-verify-index-sha-${"a".repeat(40)}`, "pr-verify-index-ref-0123456789abcdef"];
   assert.equal(splitNames(names, []).outputs, `retention-days=90\n${names.map((n, i) => `n${i + 1}=${n}`).join("\n")}\n`);
-  // A re-run attempt: the earlier attempt's pr index stays, and only the rest upload.
-  assert.equal(splitNames(names, [names[0], "pr-verify-41-x-fail"]).outputs, `retention-days=90\nn1=${names[1]}\nn2=${names[2]}\n`);
+  // A re-run attempt: an earlier attempt's index name fails the step, so no
+  // new FAIL outlives that index, and nothing replaces it.
+  const rerun = splitNames(names, [names[0], "pr-verify-41-x-fail"]);
+  assert.notEqual(rerun.status, 0);
+  assert.doesNotMatch(rerun.outputs, /^n\d+=/m);
+  // Another name the run holds (the verdict's own) uploads every index.
+  assert.equal(splitNames(names, ["pr-verify-41-x-fail"]).outputs, `retention-days=90\n${names.map((n, i) => `n${i + 1}=${n}`).join("\n")}\n`);
   // A read that fails or does not hold its count uploads nothing.
   assert.notEqual(splitNames(names, [], { fail: true }).status, 0);
   assert.notEqual(splitNames(names, [names[0]], { total: 2 }).status, 0);

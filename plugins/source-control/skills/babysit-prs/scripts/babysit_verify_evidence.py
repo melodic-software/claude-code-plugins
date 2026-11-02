@@ -2781,22 +2781,30 @@ class Reader:
         """The unexpired artifacts of a run an index artifact names, in one
         read that must hold its `total_count`. A run that holds an index but
         no FAIL-shaped name may still be uploading its FAIL: while it has not
-        completed, `_Unreadable`; once it has, its FAIL upload failed and
-        there is none."""
-        read = self._api_object(
-            f"repos/{self.repo}/actions/runs/{run_id}/artifacts?per_page={LISTING_PAGE_SIZE}",
-            deadline,
-        )
-        self.index_reads += 1
-        items = read[0].get("artifacts") if isinstance(read, tuple) else None
-        if (
-            not is_json_array(items)
-            or read[0].get("total_count") != len(items)
-            or not all(map(_listed_entry, items))
-            or any(json_object(a.get("workflow_run")).get("id") != run_id for a in items)
-        ):
-            raise _Unreadable(f"the artifacts of run {run_id} could not be read")
-        items = [a for a in items if a["expired"] is False]
+        completed, `_Unreadable`; once it is seen completed, its artifacts are
+        read again, since the FAIL may have uploaded between the two reads,
+        and that read decides (no FAIL then: its FAIL upload failed)."""
+
+        def read() -> list[dict[str, Any]]:
+            answer = self._api_object(
+                f"repos/{self.repo}/actions/runs/{run_id}/artifacts"
+                f"?per_page={LISTING_PAGE_SIZE}",
+                deadline,
+            )
+            self.index_reads += 1
+            items = answer[0].get("artifacts") if isinstance(answer, tuple) else None
+            if (
+                not is_json_array(items)
+                or answer[0].get("total_count") != len(items)
+                or not all(map(_listed_entry, items))
+                or any(
+                    json_object(a.get("workflow_run")).get("id") != run_id for a in items
+                )
+            ):
+                raise _Unreadable(f"the artifacts of run {run_id} could not be read")
+            return [a for a in items if a["expired"] is False]
+
+        items = read()
         if not any(FAIL_PREFIX_RE.match(str(a.get("name") or "")) for a in items):
             record = json_object(
                 self._actions(
@@ -2806,6 +2814,7 @@ class Reader:
             self.index_reads += 1
             if record.get("status") != "completed":
                 raise _Unreadable(f"run {run_id} holds a FAIL index and is still running")
+            items = read()
         return items
 
     def _index_hits(self, names: Iterable[str], deadline: float) -> list[dict[str, Any]]:
@@ -5331,6 +5340,9 @@ class _Pacer:
     window_cap: int
     min_remaining: int
     breaker_file: str | None
+    # Where the window's reset and calls are kept, so a resume inside the
+    # same reset window keeps counting toward its cap.
+    state_file: str | None = None
     calls: int = 0
     window_calls: int = 0
     window_reset: int | None = None
@@ -5379,7 +5391,27 @@ class _Pacer:
             raise self._stop(f"core remaining {remaining} is under {self.min_remaining}")
         if self.window_reset is not None:
             self.report()
-        self.window_reset, self.window_calls = reset, 1
+        kept = 0
+        if self.state_file:
+            try:
+                saved = json_object(json.loads(Path(self.state_file).read_text()))
+            except (OSError, ValueError):
+                saved = {}
+            if saved.get("reset") == reset and type(saved.get("calls")) is int:
+                kept = saved["calls"]
+        self.window_reset, self.window_calls = reset, kept + 1
+        self._keep()
+        if self.window_calls > self.window_cap:
+            raise self._stop(
+                f"{self.window_calls - 1} calls in the window that resets at "
+                f"{datetime.fromtimestamp(reset, UTC).isoformat()}, the cap"
+            )
+
+    def _keep(self) -> None:
+        if self.state_file and self.window_reset is not None:
+            Path(self.state_file).write_text(
+                json.dumps({"reset": self.window_reset, "calls": self.window_calls})
+            )
 
     def report(self) -> None:
         reset = (
@@ -5403,6 +5435,7 @@ class _Pacer:
                 f"{datetime.fromtimestamp(self.window_reset or 0, UTC).isoformat()}, the cap"
             )
         proc = self._raw(args, **kwargs)
+        self._keep()
         if self.limited:
             raise self._stop(f"rate limited: {self.limited}")
         return proc
@@ -5544,6 +5577,11 @@ class _PerRunBuild:
             raise _Unreadable(
                 f"the verifier runs created {created} list {len(found)} of {sorted(totals)}"
             )
+        # Refused before the caller keeps the window, so a resume lists it
+        # again once the run has completed.
+        for record in found.values():
+            if record.get("status") != "completed":
+                raise _Unreadable(f"verifier run {record['id']} is {record.get('status')}")
         return list(found.values())
 
     def _run(self, record: dict[str, Any]) -> dict[str, Any]:
@@ -5801,6 +5839,7 @@ def _legacy_fails_main(args: argparse.Namespace, now: datetime | None) -> int:
         args.window_cap,
         args.min_remaining,
         args.breaker_file,
+        f"{args.checkpoint}.window",
     )
     try:
         with _paced_gh(pacer):

@@ -83,6 +83,8 @@ class IndexGitHub(base.FakeGitHub):
         super().__init__(*args, **kwargs)
         self.name_total: dict[str, int] = {}
         self.still_running: set[int] = set()
+        # Answers to a run's artifact reads in turn, before its artifacts.
+        self.run_reads: dict[int, list[list[dict[str, Any]]]] = {}
         # The verifier runs not completed, as the workflow's run list gives them.
         self.running: list[dict[str, Any]] = []
 
@@ -105,6 +107,9 @@ class IndexGitHub(base.FakeGitHub):
             of_run = re.fullmatch(
                 rf"repos/{REPO}/actions/runs/([0-9]+)/artifacts\?per_page=100", path
             )
+            if of_run and self.run_reads.get(int(of_run[1])):
+                held = self.run_reads[int(of_run[1])].pop(0)
+                return ok({"total_count": len(held), "artifacts": held})
             if of_run:
                 held = [
                     a
@@ -269,6 +274,14 @@ class IndexMode(unittest.TestCase):
         # Once that run completes with no FAIL, its upload failed: none counts.
         fake.still_running.clear()
         self.assertIsNone(self.judge(fake).refusal)
+
+    def test_a_fail_uploaded_while_its_run_completes_still_counts(self) -> None:
+        # The first read of run 3 holds only its index; by the time the run is
+        # seen completed its FAIL has uploaded.
+        items = fail(90, HEAD, 3)
+        fake = self.passing(*items, runs={3: run(3)})
+        fake.run_reads[3] = [items[1:]]
+        self.assertEqual(self.judge(fake).refusal, ve.FAIL)
 
     def test_a_name_read_that_fails_or_misses_its_count_refuses(self) -> None:
         fake = self.passing()
@@ -609,6 +622,26 @@ class PerRunLegacyFails(unittest.TestCase):
             f"repos/{REPO}/actions/runs/5/artifacts?per_page=100", resumed.calls
         )
         self.assertEqual(len(json.loads(self.out.read_text())["artifacts"]), 1)
+
+    def test_a_run_unfinished_at_the_first_build_is_listed_again_on_resume(
+        self,
+    ) -> None:
+        fake = RunsGitHub()
+        fake.runs[2] = run(1, created_at="2026-10-15T02:00:00Z", status="in_progress")
+        code, err = self.run_build(fake)
+        self.assertEqual(code, 1, err)
+        # Run 1 completed since: the resume reads its window afresh.
+        code, err = self.run_build(RunsGitHub())
+        self.assertEqual(code, 0, err)
+
+    def test_a_resume_inside_the_same_reset_window_keeps_its_cap(self) -> None:
+        code, err = self.run_build(RunsGitHub(), "--window-cap", "4")
+        self.assertEqual(code, 3, err)
+        resumed = RunsGitHub()
+        code, err = self.run_build(resumed, "--window-cap", "4")
+        self.assertEqual(code, 3, err)
+        self.assertEqual(resumed.calls, ["rate_limit"])
+        self.assertIn("calls in the window", err)
 
     def test_a_rate_limit_inside_a_verdict_download_still_stops(self) -> None:
         # The download's reader wraps every error; the stop is kept anyway.
