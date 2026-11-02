@@ -722,7 +722,7 @@ export async function applyRefinement({ github, repository, number, appId, human
   const issue = await github("GET", base);
   const labels = labelNames(issue);
   // The Work status field mirrors the labels a branch leaves (write-status.mjs).
-  const mirror = (add, remove = []) => mirrorStatus(number, [...new Set([...labels, ...add])].filter((name) => !remove.includes(name)));
+  const mirror = (add, remove = []) => mirrorStatus(number, { had: labels, add, remove });
   const skip = (why, redispatch = false) => {
     log(`refine: #${number} ${why}; nothing written${redispatch ? ", triage asked again" : ""}`);
     return { outcome: "skipped", redispatch };

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { labelsAfter } from "../../actions/resolve-config/write-status.mjs";
 import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
 import { linesDigest, renderSplitRecord, SCOPE_PREFIX, SIZE_SPLIT_MARKER, SPLIT_CHILD_MARKER, splitChildBody, splitRecord, splitSourceLine } from "./admit.mjs";
@@ -358,7 +359,7 @@ describe("applyRefinement", () => {
   test("an exact refinement mirrors the labels it leaves into the Work status field after its label writes", async () => {
     const fake = fakeGitHub({ issue: issueOf(), comments: [laneComment()], events: labeledBy(APP), spec: CONFIRMED });
     const mirrored = [];
-    const mirrorStatus = async (number, labels) => mirrored.push({ number, labels, after: writes(fake.calls).length });
+    const mirrorStatus = async (number, change) => mirrored.push({ number, labels: labelsAfter(change.had, change.add, change.remove), after: writes(fake.calls).length });
     await applyRefinement({ github: fake.github, repository: "o/r", number: 7, appId: APP, humans, rules, output: validateOutput(EXACT, new Set([3])), context, mirrorStatus, log: () => {} });
     assert.equal(mirrored.length, 1);
     assert.equal(mirrored[0].after, 2, "after the add and the removal, before the comment");

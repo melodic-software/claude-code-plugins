@@ -281,7 +281,7 @@ import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTEND
 import { clearedPastReport, retriageNote, doneReason, judgedSince, mergedRefsReader, splitLeftOpen, splitParentClosed } from "../intake-triage/admit.mjs";
 import { budgetLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createJobLogReader } from "./job-log.mjs";
-import { statusMirror } from "../../actions/resolve-config/write-status.mjs";
+import { FIELD_API, statusMirror } from "../../actions/resolve-config/write-status.mjs";
 
 const LABEL = "agent-ready";
 const HUMAN_LABEL = "needs-human";
@@ -380,8 +380,6 @@ const INFRA = /^<!-- work-unblock infrastructure ([0-9a-f]{40}-[0-9a-f]{40}) -->
 // The longest wait between backoff re-fires.
 export const BACKOFF_CAP_HOURS = 24;
 const backoffDue = (since, refires) => since + Math.min(STRANDED_HOURS * 2 ** refires, BACKOFF_CAP_HOURS) * HOUR_MS;
-// The REST version that documents issue-field-values.
-const FIELD_API = { "X-GitHub-Api-Version": "2026-03-10" };
 const DIMENSIONS = ["size", "complexity", "uncertainty"];
 
 // Whether the account that closed the issue (ACTOR_ID) and the one that
@@ -682,7 +680,7 @@ async function admit({ github, repo, number, gate, deferred, confirmed = false, 
   if (!(await gate.take())) {
     if (!deferred) {
       await github("POST", `${base}/labels`, { labels: [DEFERRED_LABEL] });
-      await mirror(number, leaves(had, [DEFERRED_LABEL]));
+      await mirror(number, change(had, [DEFERRED_LABEL]));
     }
     console.log(`label-unblocked: #${number} admission deferred: ${gate.why()}`);
     return;
@@ -694,7 +692,7 @@ async function admit({ github, repo, number, gate, deferred, confirmed = false, 
   if (confirmed) {
     await github("DELETE", `${base}/labels/${encodeURIComponent(CONFIRMED)}`);
   }
-  await mirror(number, leaves(had, [LABEL], [...(deferred ? [DEFERRED_LABEL] : []), ...(confirmed ? [CONFIRMED] : [])]));
+  await mirror(number, change(had, [LABEL], [...(deferred ? [DEFERRED_LABEL] : []), ...(confirmed ? [CONFIRMED] : [])]));
   console.log(`label-unblocked: #${number} labeled ${LABEL}`);
 }
 
@@ -714,7 +712,7 @@ async function parkDone({ github, repo, number, lower, pulls, mirror = noMirror 
   if (lower.includes(DEFERRED_LABEL)) {
     await github("DELETE", `${base}/labels/${DEFERRED_LABEL}`);
   }
-  await mirror(number, leaves(lower, [CONFIRMED], [READY, DEFERRED_LABEL]));
+  await mirror(number, change(lower, [CONFIRMED], [READY, DEFERRED_LABEL]));
   console.log(`label-unblocked: #${number} parked for a done-check: merged Refs pull request ${pulls.map((n) => `#${n}`).join(", ")}`);
 }
 
@@ -766,7 +764,7 @@ async function unpark({ github, repo, parked, humans, appId, admission, mirror =
   for (const number of going) {
     try {
       await github("DELETE", `/repos/${repo}/issues/${number}/labels/${encodeURIComponent(CONFIRMED)}`);
-      await mirror(number, leaves(labelNames(parked.find((issue) => issue.number === number)), [], [CONFIRMED]));
+      await mirror(number, change(labelNames(parked.find((issue) => issue.number === number)), [], [CONFIRMED]));
       console.log(`label-unblocked: #${number} ${CONFIRMED} removed; intake-reenter sends it to intake`);
     } catch (error) {
       failed += 1;
@@ -832,7 +830,7 @@ async function admitDeferred({ github, repo, humans, bot, gate, appId, admission
         console.log(`label-unblocked: #${number} refused: ${reason}`);
       } else {
         await github("DELETE", `/repos/${repo}/issues/${number}/labels/${DEFERRED_LABEL}`);
-        await mirror(number, leaves(labelNames(current), [], [DEFERRED_LABEL]));
+        await mirror(number, change(labelNames(current), [], [DEFERRED_LABEL]));
         console.log(`label-unblocked: #${number} deferral dropped: ${reason}`);
       }
     } catch (error) {
@@ -848,12 +846,8 @@ const labelNames = (issue) => (issue?.labels ?? []).map((label) => String(typeof
 // What a helper called with no mirror writes to the Work status field: nothing.
 const noMirror = async () => {};
 
-// The labels an issue that had `had` holds once `add` lands and `remove`
-// comes off; names compare without case, as GitHub's do.
-const leaves = (had = [], add = [], remove = []) => {
-  const off = new Set(remove.map((name) => name.toLowerCase()));
-  return [...new Set([...had, ...add])].filter((name) => !off.has(name.toLowerCase()));
-};
+// A label change as the status mirror takes it (write-status.mjs statusMirror).
+const change = (had = [], add = [], remove = []) => ({ had, add, remove });
 
 // The verdict intake's admission reads, from the issue itself: each of Size,
 // Complexity and Uncertainty as the config's key for the option a listed
@@ -939,7 +933,7 @@ async function refuseDeferred({ github, repo, number, comments, reasons, labels,
   await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
   await dropParked(github, base, labels, had);
   await github("DELETE", `${base}/labels/${DEFERRED_LABEL}`);
-  await mirror(number, leaves(had, labels, [READY, DEFERRED_LABEL, ...(labels.includes(NEEDS_DECISION) ? [CONFIRMED] : [])]));
+  await mirror(number, change(had, labels, [READY, DEFERRED_LABEL, ...(labels.includes(NEEDS_DECISION) ? [CONFIRMED] : [])]));
 }
 
 // Runs intake's admission rules on an issue a listed human marked, and admits
@@ -964,20 +958,20 @@ async function admitMarked({ github, repo, number, issue, events, humans, bot, a
   } else if (decision.retriage) {
     await sendToTriage({ github, repo, base, comments: facts.comments, decision, reasons });
     await github("DELETE", `${base}/labels/${DEFERRED_LABEL}`);
-    await mirror(number, leaves(labelNames(issue), [], [READY, DEFERRED_LABEL]));
+    await mirror(number, change(labelNames(issue), [], [READY, DEFERRED_LABEL]));
     console.log(`label-unblocked: #${number}, marked by a person, sent back to intake: ${reasons}`);
   } else if (decision.verdict === "wait") {
     await sayWhy(github, repo, base, facts.comments, `Not admitted to the issue lane yet: ${reasons}.`);
     if (decision.pulls.length === 0) {
       await github("DELETE", `${base}/labels/${DEFERRED_LABEL}`);
-      await mirror(number, leaves(labelNames(issue), [], [DEFERRED_LABEL]));
+      await mirror(number, change(labelNames(issue), [], [DEFERRED_LABEL]));
     }
     console.log(`label-unblocked: #${number}, marked by a person, waits: ${reasons}`);
   } else {
     // A skip drops the person's mark, so the comment tells them why.
     await sayWhy(github, repo, base, facts.comments, skipText(reasons));
     await github("DELETE", `${base}/labels/${DEFERRED_LABEL}`);
-    await mirror(number, leaves(labelNames(issue), [], [DEFERRED_LABEL]));
+    await mirror(number, change(labelNames(issue), [], [DEFERRED_LABEL]));
     console.log(`label-unblocked: #${number} deferral dropped: ${reasons}`);
   }
 }
@@ -1087,19 +1081,19 @@ async function readmitReady({ github, repo, listed: open, humans, bot, gate, app
         await github("POST", `${base}/labels`, { labels: decision.attended ? [status, ATTENDED] : [status] });
         await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
         await dropParked(github, base, [status], labelNames(issue));
-        await mirror(number, leaves(labelNames(issue), decision.attended ? [status, ATTENDED] : [status], [READY, ...(status === NEEDS_DECISION ? [CONFIRMED] : [])]));
+        await mirror(number, change(labelNames(issue), decision.attended ? [status, ATTENDED] : [status], [READY, ...(status === NEEDS_DECISION ? [CONFIRMED] : [])]));
         await sayWhy(github, repo, base, facts.comments, refusalText(reasons));
         console.log(`label-unblocked: #${number} refused: ${reasons}`);
       } else if (decision.fields) {
         console.log(`label-unblocked: #${number} waits: ${reasons}`);
       } else if (decision.retriage) {
         await sendToTriage({ github, repo, base, comments: facts.comments, decision, reasons });
-        await mirror(number, leaves(labelNames(issue), [], [READY]));
+        await mirror(number, change(labelNames(issue), [], [READY]));
         console.log(`label-unblocked: #${number} sent back to intake: ${reasons}`);
       } else if (decision.verdict === "wait") {
         if (decision.pulls.length > 0) {
           await github("POST", `${base}/labels`, { labels: [DEFERRED_LABEL] });
-          await mirror(number, leaves(labelNames(issue), [DEFERRED_LABEL]));
+          await mirror(number, change(labelNames(issue), [DEFERRED_LABEL]));
         }
         await sayWhy(github, repo, base, facts.comments, `Not admitted to the issue lane yet: ${reasons}.`);
         console.log(`label-unblocked: #${number} waits: ${reasons}`);
@@ -1934,7 +1928,7 @@ async function restartLimited({ github, actions, jobLog, repo, bot, humans, now,
           await github("POST", `${base}/comments`, { body: failedComment(fail) });
         }
         await github("DELETE", `${base}/labels/${LABEL}`);
-        await mirror(Number(issue.number), leaves(labelNames(issue), [], [LABEL]));
+        await mirror(Number(issue.number), change(labelNames(issue), [], [LABEL]));
         console.log(`label-unblocked: #${issue.number} failed: ${reason}`);
         continue;
       }
@@ -1975,7 +1969,7 @@ async function restartLimited({ github, actions, jobLog, repo, bot, humans, now,
           }
         });
         await github("DELETE", `${base}/labels/${LABEL}`);
-        await mirror(number, leaves(had, [], [LABEL, READY, ...(release ? [HUMAN_LABEL] : [])]));
+        await mirror(number, change(had, [], [LABEL, READY, ...(release ? [HUMAN_LABEL] : [])]));
         console.log(`label-unblocked: #${number} handed to triage: lane PR #${pr} ${handOff === "merged" ? "merged with Refs:" : "closed unmerged"}`);
       } catch (error) {
         failed += 1;

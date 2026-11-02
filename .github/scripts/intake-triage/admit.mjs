@@ -2233,8 +2233,7 @@ async function removeLabel(github, base, name) {
 export async function admit({ github, repository, number, verdict, rules, humans, appId, status, webHosts, mirrorStatus = async () => {}, log = console.log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
-  const mirror = (add, remove = []) =>
-    mirrorStatus(number, [...new Set([...names(issue.labels), ...add])].filter((name) => !remove.includes(name)));
+  const mirror = (add, remove = []) => mirrorStatus(number, { had: names(issue.labels), add, remove });
   const facts = await admissionFacts({
     github,
     repository,
@@ -2335,17 +2334,18 @@ export async function admit({ github, repository, number, verdict, rules, humans
       await removeLabel(github, base, DEFERRED);
     }
     await github("POST", `${base}/labels`, { labels: [DEFERRED] });
-    await mirror([DEFERRED]);
     let ahead;
     try {
       ahead = admissionsAhead(await admissionsSince(github, repository, checkedAt - RACE_WINDOW_MS), number);
     } catch (error) {
       const why = `the admissions racing it could not be read (${String(error?.message ?? error).replaceAll("\n", " ")})`;
+      await mirror([DEFERRED]);
       log(`admit: #${number} deferred: ${why}`);
       return { outcome: "deferred", reasons: [why] };
     }
     if (ahead >= s.admission_room) {
       const why = `${ahead} issue(s) entered admission ahead of it since check-wip-cap's count, which takes the room of ${s.admission_room} it read`;
+      await mirror([DEFERRED]);
       log(`admit: #${number} deferred: ${why}`);
       return { outcome: "deferred", reasons: [why] };
     }

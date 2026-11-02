@@ -96,7 +96,7 @@ import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { admit, authorAdmitted, CONFIRMED, earlierFlags, EARLIER, isAppId as isApp, loadRules, noteUnrunnable, ownVerdict, UNRECORDED, UNTRUSTED, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
 import { MAX_TEXT_BLOCKERS, parseBlockedBy, textBlockers, writeEdges } from "./edges.mjs";
 import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
-import { statusMirror } from "../../actions/resolve-config/write-status.mjs";
+import { FIELD_API, statusMirror } from "../../actions/resolve-config/write-status.mjs";
 
 export const MARKER = "<!-- claude-lane intake-triage -->";
 const LANE_BOT = "github-actions[bot]";
@@ -136,7 +136,6 @@ export const OLD_BASIS = "Basis: automated intake triage; a maintainer confirms 
 export const NEW_BASIS = "Basis: automated intake triage; the lanes App applied this class.";
 export const OLD_FOOTER = "<sub>Automated triage. A maintainer reviews it.</sub>";
 export const NEW_FOOTER = "<sub>Automated triage, applied by the lanes App.</sub>";
-const FIELD_API = { "X-GitHub-Api-Version": "2026-03-10" };
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 
 const capitalize = (key) => key.charAt(0).toUpperCase() + key.slice(1);
@@ -576,12 +575,13 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   // the first read, and admission never reads outside-actor, so a refusal
   // reads the labels once more, right before the label writes, and is
   // dropped when a late hold landed.
+  let lateHolds = [];
   if (plan.refused.length > 0) {
     const now = ((await github("GET", base)).labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
-    const late = LATE_HOLDS.filter((label) => now.includes(label) && !labels.includes(label));
-    if (late.length > 0) {
-      log(`apply-verdict: ${late.join(", ")} landed after the first read; nothing triage applied is refused`);
-      plan = planFor([...new Set([...labels, ...late])]);
+    lateHolds = LATE_HOLDS.filter((label) => now.includes(label) && !labels.includes(label));
+    if (lateHolds.length > 0) {
+      log(`apply-verdict: ${lateHolds.join(", ")} landed after the first read; nothing triage applied is refused`);
+      plan = planFor([...new Set([...labels, ...lateHolds])]);
     }
   }
   const waits = plan.ready && (edges?.missed.length ?? 0) > 0;
@@ -616,10 +616,10 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   } else {
     await removeLabels(github, base, unready);
   }
-  // The Work status field mirrors the labels this run left; admission's own
-  // label writes mirror again. The field values read above skip a match.
-  const left = labeled ? [...new Set([...labels, ...add])].filter((name) => !remove.includes(name)) : labels.filter((name) => !unready.includes(name));
-  await mirrorStatus(number, left, fields);
+  // The Work status field mirrors the labels this run left, a late hold
+  // included; admission's own label writes mirror again. The field values
+  // read above skip a match.
+  await mirrorStatus(number, { had: [...labels, ...lateHolds], add: labeled ? add : [], remove: labeled ? remove : unready, fields });
   // Before the reword: whether the App may edit github-actions[bot]'s
   // comment is unproven, and a refused edit must not stop admission. An
   // admission error stops neither the reword nor the summary; the caller
@@ -828,9 +828,9 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
       });
       const repository = env.GITHUB_REPOSITORY;
       const { humans, logins } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
+      const mirrorStatus = await statusMirror({ env, github, repository });
       // Read only when admitting, so a malformed rules file stops
       // admission and not the verdict.
-      const mirrorStatus = await statusMirror({ env, github, repository });
       const admitIssue = (verdict) =>
         admit({
           mirrorStatus,

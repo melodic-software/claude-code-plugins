@@ -8,7 +8,7 @@ import { test } from "node:test";
 
 import { parse } from "yaml";
 
-import { statusMirror, writeStatus } from "./write-status.mjs";
+import { labelsAfter, statusMirror, writeStatus } from "./write-status.mjs";
 
 const CONFIG = parse(readFileSync(new URL("../../../docs/conventions/pr-pipeline.yaml", import.meta.url), "utf8")).models[
   "issue-status"
@@ -115,7 +115,7 @@ test("statusMirror over this checkout's config writes through the client it was 
     repository: "o/r",
     log: (line) => lines.push(line),
   });
-  assert.equal((await mirror(7, ["agent-ready"])).outcome, "written");
+  assert.equal((await mirror(7, { add: ["agent-ready"] })).outcome, "written");
   assert.equal(calls[0].path, "/repos/o/r/issues/7/issue-field-values");
   assert.deepEqual(lines, []);
 });
@@ -124,8 +124,31 @@ test("statusMirror with no readable config warns once and its mirror writes noth
   const { calls, github } = fake();
   const lines = [];
   const mirror = await statusMirror({ env: { BASE_PATH: "/nonexistent-base" }, github, repository: "o/r", log: (line) => lines.push(line) });
-  assert.equal((await mirror(7, ["agent-ready"])).outcome, "failed");
+  assert.equal((await mirror(7, { add: ["agent-ready"] })).outcome, "failed");
   assert.equal(calls.length, 0);
   assert.equal(lines.length, 1);
   assert.match(lines[0], /^::warning title=work-status::models.issue-status could not be read/);
+});
+
+const mirrorOver = (github) =>
+  statusMirror({ env: { BASE_PATH: new URL("../../..", import.meta.url).pathname }, github, repository: "o/r", log: () => {} });
+
+test("statusMirror writes nothing for a change that leaves the label set as it was", async () => {
+  const { calls, github } = fake();
+  const mirror = await mirrorOver(github);
+  assert.equal((await mirror(7, { had: [{ name: "Agent-Ready" }], add: ["agent-ready"], remove: ["status: ready"] })).outcome, "unchanged");
+  assert.equal(calls.length, 0);
+});
+
+test("statusMirror skips an option it already wrote for the issue in this process", async () => {
+  const { calls, github } = fake();
+  const mirror = await mirrorOver(github);
+  assert.equal((await mirror(7, { add: ["agent-ready"] })).outcome, "written");
+  assert.equal((await mirror(7, { had: ["agent-ready"], add: ["priority: high"] })).outcome, "unchanged");
+  assert.equal((await mirror(8, { add: ["agent-ready"] })).outcome, "written");
+  assert.equal(calls.length, 2);
+});
+
+test("labelsAfter adds, removes and dedupes without case", () => {
+  assert.deepEqual(labelsAfter([{ name: "Status: Ready" }, "bug"], ["BUG", "agent-ready"], ["status: ready"]), ["bug", "agent-ready"]);
 });

@@ -7,6 +7,15 @@
 export const FIELD_API = { "X-GitHub-Api-Version": "2026-03-10" };
 
 const annotate = (line) => String(line).replaceAll(/[\r\n%]/g, " ");
+const fold = (name) => String(typeof name === "string" ? name : name?.name).toLowerCase();
+
+// The label names an issue that had `had` holds once `add` lands and `remove`
+// comes off; names compare without case, as GitHub's do.
+export function labelsAfter(had = [], add = [], remove = []) {
+  const off = new Set(remove.map(fold));
+  const names = [...had, ...add].map((label) => (typeof label === "string" ? label : label?.name));
+  return names.filter((name, i) => !off.has(fold(name)) && names.findIndex((other) => fold(other) === fold(name)) === i);
+}
 
 // `labels` is the issue's label set after the change, as names or REST label
 // objects; `config` the models.issue-status leaf, or null when unset, which
@@ -27,7 +36,7 @@ export async function writeStatus({ github, repository, number, labels, config, 
     const state = collapseStatus(labels, config);
     const option = statusOption(state, config);
     if (current !== undefined && current !== null && Number(current) === option) {
-      return { outcome: "unchanged", state };
+      return { outcome: "unchanged", state, option };
     }
     const fieldId = config["field-id"];
     const written = await github(
@@ -40,15 +49,18 @@ export async function writeStatus({ github, repository, number, labels, config, 
     if (row?.single_select_option?.id !== option) {
       return warn(`GitHub kept option ${row?.single_select_option?.id ?? "none"} for \`${state}\`, not ${option}; models.issue-status has drifted from the field`);
     }
-    return { outcome: "written", state };
+    return { outcome: "written", state, option };
   } catch (error) {
     return warn(error?.message ?? error);
   }
 }
 
-// What a writer's entry point hands its run: `mirror(number, labels, fields)`
-// over the base config's models.issue-status, where `fields`, when the writer
-// already read them, maps a field id to {option}. A config that cannot be
+// What a writer's entry point hands its run: `mirror(number, {had, add,
+// remove, fields})` over the base config's models.issue-status, `had` the
+// labels the writer read and `add`/`remove` what it wrote. A change that
+// leaves the label set as it was writes nothing; so does an option this
+// process already wrote for the issue, or one `fields` (field id -> {option},
+// when the writer already read them) shows it holds. A config that cannot be
 // read warns once and every mirror call then writes nothing.
 export async function statusMirror({ env, github, repository, log = console.log }) {
   let config;
@@ -59,6 +71,18 @@ export async function statusMirror({ env, github, repository, log = console.log 
     log(`::warning title=work-status::models.issue-status could not be read, so no Work status field is written: ${annotate(error?.message ?? error)}`);
     return async () => ({ outcome: "failed" });
   }
-  return (number, labels, fields) =>
-    writeStatus({ github, repository, number, labels, config, current: fields?.[String(config?.["field-id"])]?.option, log });
+  const wrote = new Map();
+  return async (number, { had = [], add = [], remove = [], fields } = {}) => {
+    const labels = labelsAfter(had, add, remove);
+    const before = new Set(labelsAfter(had).map(fold));
+    if (labels.length === before.size && labels.every((name) => before.has(fold(name)))) {
+      return { outcome: "unchanged" };
+    }
+    const current = wrote.get(number) ?? fields?.[String(config?.["field-id"])]?.option;
+    const result = await writeStatus({ github, repository, number, labels, config, current, log });
+    if (result.option !== undefined) {
+      wrote.set(number, result.option);
+    }
+    return result;
+  };
 }
