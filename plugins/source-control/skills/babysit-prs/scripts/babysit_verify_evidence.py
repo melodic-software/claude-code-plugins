@@ -140,6 +140,24 @@ once it starts paging (`OVERCOUNT_FALLBACK_SUFFIX`), and a later Reader of the
 job whose pages over-count refuses without another, whatever that listing's
 outcome.
 
+Index mode. Before a FAIL uploads, its run uploads one index artifact per
+tie, `INDEX_PREFIX` then `pr-<n>`, `sha-<head>`, `ref-<head-ref digest>` and
+`issue-<i>` for each issue the FAIL records (write-verdict.mjs
+`failIndexNames`), and the FAIL uploads only if every index did. When the
+legacy FAILs file (`LEGACY_FAILS_FILE`, every FAIL uploaded before the index,
+built by `legacy-fails` from a listing that holds the live count) loads, a
+judgment reads no listing (`Reader._targeted`): the name filter returns every
+artifact of an exact name across runs, so it reads the index names of this
+pull request's number and each other pull request that closes one of its
+live issues, of its head and each of its commits, of its head branch, and of
+each live issue, then each run those name (one read each), then the passes
+at the head and at each FAILed head by their exact names. Each read must
+hold its own `total_count`, which one name's few artifacts do; every rule
+above then judges what those reads and the legacy file hold, as it judges a
+listing. A run holding an index and no FAIL that has not completed refuses;
+one that has completed failed its FAIL upload. A failed read refuses. With
+no legacy file the whole listing below is read, as before.
+
 Carried reads. What an earlier run read is used only where it counts a FAIL
 (a carried record counts the FAIL when it shows origin; any other answer from
 it could turn the FAIL away, so it is read again), with one exception: the
@@ -286,6 +304,21 @@ LISTING_CARRY_ENV = "BABYSIT_VERIFY_LISTING_CARRY"
 # `1`: no wait between incremental reads (`no_incremental_waits`).
 NO_INCREMENTAL_WAITS_ENV = "BABYSIT_VERIFY_NO_INCREMENTAL_WAITS"
 HEAD_REFS_ENV = "BABYSIT_VERIFY_HEAD_REFS"
+# A FAIL's index artifacts (write-verdict.mjs failIndexNames), one per tie:
+# `pr-<n>`, `sha-<head>`, `ref-<head-ref digest>`, `issue-<i>`.
+INDEX_PREFIX = "pr-verify-index-"
+# The FAILs uploaded before the index (`Reader._legacy`), committed beside
+# this module once built (`legacy-fails`); its presence turns the index on.
+LEGACY_FAILS_FILE = "verify-legacy-fails.json"
+LEGACY_FAILS_ENV = "BABYSIT_VERIFY_LEGACY_FAILS"
+LEGACY_FAILS_VERSION = 1
+# The verifier runs one judgment's index reads may lead to, more refusing,
+# and the names past which it reads the whole listing instead: each costs
+# a read, and a whole listing was about 135 pages on 2026-11-02.
+INDEX_RUNS_CAP = 120
+INDEX_NAMES_CAP = 100
+# One line per judgment on stderr: the exact-name reads it made.
+INDEX_READS_PREFIX = "babysit-index-reads"
 # A file holding the pull request's REST record as the caller read it
 # (`merge_policy.cached_pull_request`).
 PULL_ENV = "BABYSIT_VERIFY_PULL"
@@ -1339,6 +1372,28 @@ class Reader:
     _linked: dict[int, dict[str, Any]] = field(default_factory=dict)
     # The issue number `link_refusal` took for each pull request.
     linked_issue: dict[int, Any] = field(default_factory=dict)
+    # The legacy FAILs file (`_legacy`): when it loads, judgments read the
+    # FAIL index by exact name instead of the whole listing. `LEGACY_FAILS_ENV`
+    # names another file, or none when empty.
+    legacy_path: str | None = field(
+        default_factory=lambda: os.environ.get(
+            LEGACY_FAILS_ENV, str(Path(__file__).with_name(LEGACY_FAILS_FILE))
+        )
+        or None
+    )
+    _legacy_entries: list[dict[str, Any]] | None = None
+    _legacy_loaded: bool = False
+    # Each legacy FAIL's recorded head branch, by artifact id.
+    _legacy_refs: dict[int, str] = field(default_factory=dict)
+    # The live issues `_targeted` read, taken by the next `_elsewhere`.
+    _live_issues: dict[int, dict[Any, Any]] = field(default_factory=dict)
+    # A targeted listing read for the answer key, taken by the next judgment
+    # of the same pull request and head (`_verdict_artifacts`).
+    _handoff: dict[tuple[int, str], list[dict[str, Any]]] = field(
+        default_factory=dict
+    )
+    # The exact-name and run-artifact reads this Reader made.
+    index_reads: int = 0
 
     def _listing(self) -> list[dict[str, Any]]:
         """`_current_listing`, noting when it began to be read
@@ -1428,7 +1483,9 @@ class Reader:
 
     def refresh(self) -> None:
         """Drop a saved listing: the next judgment pages the API itself (and
-        saves that listing for the rest of the run)."""
+        saves that listing for the rest of the run). In index mode every
+        judgment reads the index afresh; this drops a kept one too."""
+        self._handoff.clear()
         if self._saved:
             self._artifacts, self._saved, self._own = None, False, True
 
@@ -2260,6 +2317,8 @@ class Reader:
         dated = run_cache.get_dated(RECORD_SECTION, key, None) if shared else None
         if dated is not None and is_json_object(dated[0]):
             return dated[0].get("head_ref")
+        if shared and artifact_id in self._legacy_refs:
+            return self._legacy_refs[artifact_id]
         if shared:
             if self._mapped is None:
                 self._mapped = load_head_refs(self.head_refs_path, self.repo)
@@ -2619,6 +2678,267 @@ class Reader:
                     )
         return live
 
+    def index_mode(self) -> bool:
+        """Whether judgments read the FAIL index (`_targeted`): only once the
+        legacy FAILs file loads, which holds every FAIL uploaded before the
+        index existed."""
+        return self._legacy() is not None
+
+    def _legacy(self) -> list[dict[str, Any]] | None:
+        """The legacy FAILs file's entries, once loaded: listing-shaped
+        artifacts, each recording its run's verified origin and its verdict's
+        head branch. A missing, malformed or other repository's file is none,
+        so judgments use the whole listing as before. The file is committed
+        code (`legacy-fails` builds it from a listing holding GitHub's live
+        count), so its origins and head branches are taken as read."""
+        if self._legacy_loaded:
+            return self._legacy_entries
+        self._legacy_loaded = True
+        if not self.legacy_path:
+            return None
+        try:
+            saved = json_object(
+                json.loads(Path(self.legacy_path).read_text(encoding="utf-8"))
+            )
+        except (OSError, ValueError):
+            return None
+        entries = saved.get("artifacts")
+        if (
+            saved.get("version") != LEGACY_FAILS_VERSION
+            or saved.get("repo") != self.repo
+            or not is_json_array(entries)
+        ):
+            return None
+        for entry in entries:
+            run_id = json_object(json_object(entry).get("workflow_run")).get("id")
+            if (
+                not _listed_entry(entry)
+                or entry.get("origin") is not True
+                or not isinstance(entry.get("name"), str)
+                or not _is_id(run_id, run_id)
+                or not (entry.get("head_ref") is None or isinstance(entry["head_ref"], str))
+            ):
+                return None
+        for entry in entries:
+            run_id = entry["workflow_run"]["id"]
+            self._runs.setdefault(run_id, ORIGIN)
+            self._shared_runs.add(run_id)
+            if isinstance(entry.get("head_ref"), str):
+                self._legacy_refs[entry["id"]] = entry["head_ref"]
+        self._legacy_entries = entries
+        return entries
+
+    def _named(self, name: str, deadline: float) -> list[dict[str, Any]]:
+        """Every unexpired artifact named exactly `name`, under any run: the
+        API's name filter matches whole names. The pages must hold, each id
+        once, the `total_count` every page states; anything else, read twice,
+        raises `_Unreadable`."""
+        for _ in range(2):
+            found: dict[int, dict[str, Any]] = {}
+            totals: set[Any] = set()
+            page = 1
+            while True:
+                read = self._api_object(
+                    f"repos/{self.repo}/actions/artifacts"
+                    f"?name={urllib.parse.quote(name)}&per_page={LISTING_PAGE_SIZE}&page={page}",
+                    deadline,
+                )
+                self.index_reads += 1
+                if not isinstance(read, tuple):
+                    raise _Unreadable(f"the artifacts named {name} could not be read")
+                items, count = read[0].get("artifacts"), read[0].get("total_count")
+                if (
+                    not is_json_array(items)
+                    or type(count) is not int
+                    or not all(map(_listed_entry, items))
+                    or any(a.get("name") != name for a in items)
+                ):
+                    raise _Unreadable(f"the artifacts named {name} are malformed")
+                totals.add(count)
+                found.update((a["id"], a) for a in items)
+                if len(items) < LISTING_PAGE_SIZE or page * LISTING_PAGE_SIZE >= count:
+                    break
+                if page >= LISTING_TOP_UP_PAGES:
+                    raise _Unreadable(f"the artifacts named {name} run past {page} pages")
+                page += 1
+            if totals == {len(found)}:
+                return [a for a in found.values() if a["expired"] is False]
+        raise _Unreadable(f"the artifacts named {name} do not hold their count")
+
+    def _run_artifacts(self, run_id: int, deadline: float) -> list[dict[str, Any]]:
+        """The unexpired artifacts of a run an index artifact names, in one
+        read that must hold its `total_count`. A run that holds an index but
+        no FAIL-shaped name may still be uploading its FAIL: while it has not
+        completed, `_Unreadable`; once it has, its FAIL upload failed and
+        there is none."""
+        read = self._api_object(
+            f"repos/{self.repo}/actions/runs/{run_id}/artifacts?per_page={LISTING_PAGE_SIZE}",
+            deadline,
+        )
+        self.index_reads += 1
+        items = read[0].get("artifacts") if isinstance(read, tuple) else None
+        if (
+            not is_json_array(items)
+            or read[0].get("total_count") != len(items)
+            or not all(map(_listed_entry, items))
+            or any(json_object(a.get("workflow_run")).get("id") != run_id for a in items)
+        ):
+            raise _Unreadable(f"the artifacts of run {run_id} could not be read")
+        items = [a for a in items if a["expired"] is False]
+        if not any(FAIL_PREFIX_RE.match(str(a.get("name") or "")) for a in items):
+            record = json_object(
+                self._actions(
+                    ["api", f"repos/{self.repo}/actions/runs/{run_id}"], f"run {run_id}"
+                )
+            )
+            self.index_reads += 1
+            if record.get("status") != "completed":
+                raise _Unreadable(f"run {run_id} holds a FAIL index and is still running")
+        return items
+
+    def _index_hits(self, names: Iterable[str], deadline: float) -> list[dict[str, Any]]:
+        """The artifacts, but the index ones, of every run that uploaded an
+        artifact named one of `names`. An index from any run only points: each
+        FAIL it leads to is judged by its own run, as in the listing."""
+        runs: set[int] = set()
+        for name in dict.fromkeys(names):
+            for item in self._named(name, deadline):
+                run_id = json_object(item.get("workflow_run")).get("id")
+                if _is_id(run_id, run_id):
+                    runs.add(run_id)
+        if len(runs) > INDEX_RUNS_CAP:
+            raise _Unreadable(f"the FAIL index names {len(runs)} runs, over {INDEX_RUNS_CAP}")
+        return [
+            a
+            for run_id in sorted(runs)
+            for a in self._run_artifacts(run_id, deadline)
+            if not str(a.get("name") or "").startswith(INDEX_PREFIX)
+        ]
+
+    def _passes_named(
+        self, number: int, shas: Iterable[str], deadline: float
+    ) -> list[dict[str, Any]]:
+        """This pull request's passes at each of `shas`, by the exact names
+        write-verdict.mjs `artifactName` writes for a pass (no digest yet; a
+        pass this misses leaves a refusal, never an allow)."""
+        return [
+            a
+            for sha in sorted(set(shas))
+            for verdict in PASSES
+            for a in self._named(f"pr-verify-{number}-{sha}-{verdict}", deadline)
+        ]
+
+    def _targeted(
+        self, number: int, head: str, head_ref: str, commits: set[str]
+    ) -> list[dict[str, Any]]:
+        """Every verdict artifact a judgment of this pull request at `head`
+        can count, read by exact name instead of the whole listing: the
+        legacy FAILs (`_legacy`) and, through the FAIL index, each FAIL tied
+        by this pull request's number, by its head or one of its commits, by
+        its head branch, by one of its live issues (`_closing_issues`), or by
+        the number of another pull request that closes one, with the passes
+        at the head and at each FAILed head of this pull request. Past
+        `INDEX_NAMES_CAP` names it is the whole listing. Any read that fails
+        raises `_Unreadable`."""
+        deadline = _listing_clock() + listing_cap()[0]
+        reads = self.index_reads
+        live = self._closing_issues(number)
+        self._live_issues[number] = live
+        closers = {p for issue in live.values() for p in self._closers(issue)}
+        names = [f"{INDEX_PREFIX}pr-{n}" for n in sorted({number, *closers})]
+        names += [f"{INDEX_PREFIX}sha-{sha}" for sha in sorted(commits | {head})]
+        if head_ref:
+            names.append(f"{INDEX_PREFIX}ref-{head_ref_digest(head_ref)}")
+        names += [f"{INDEX_PREFIX}issue-{n}" for n in sorted(live) if type(n) is int]
+        if len(names) > INDEX_NAMES_CAP:
+            # More reads than one whole listing costs: read that instead.
+            return self._listing()
+        now = self.now or _wall_clock()
+        found = {
+            a["id"]: a
+            for a in (self._legacy() or [])
+            if a["expires_at"] is None or _when(a["expires_at"]) > now
+        }
+        found.update((a["id"], a) for a in self._index_hits(names, deadline))
+        failed = {
+            match[2]
+            for a in found.values()
+            if (match := verdict_name(str(a.get("name") or ""))) is not None
+            and int(match[1]) == number
+            and match[3] == "fail"
+        }
+        found.update(
+            (a["id"], a) for a in self._passes_named(number, failed | {head}, deadline)
+        )
+        print(
+            f"{INDEX_READS_PREFIX} "
+            + json.dumps(
+                {"pr": number, "names": len(names), "reads": self.index_reads - reads}
+            ),
+            file=sys.stderr,
+        )
+        return list(found.values())
+
+    def targeted(self, number: int, head: str) -> list[dict[str, Any]]:
+        """`_targeted` for the answer key, kept for this pull request's next
+        judgment at `head`. Raises `RuntimeError` when it cannot be read."""
+        try:
+            pr = merge_policy.pull_request(self.repo, number)
+            head_ref = str(json_object(json_object(pr).get("head")).get("ref") or "")
+            listing = self._targeted(
+                number, head, head_ref, self._commits(number, head) | {head}
+            )
+        except (_Unreadable, merge_policy.PolicyReadError, postmerge.PostMergeReadError) as exc:
+            raise RuntimeError(str(exc)) from exc
+        self._handoff[(number, head)] = listing
+        return listing
+
+    def own_verdicts(self, number: int, head: str) -> list[dict[str, Any]]:
+        """The verdict artifacts naming this pull request or `head`, through
+        the FAIL index and the legacy FAILs, with the passes at the head and
+        at each FAILed head: babysit_merge_skip.py's key. Raises
+        `RuntimeError` when a read fails."""
+        deadline = _listing_clock() + listing_cap()[0]
+        now = self.now or _wall_clock()
+        try:
+            found = {
+                a["id"]: a
+                for a in (self._legacy() or [])
+                if a["expires_at"] is None or _when(a["expires_at"]) > now
+            }
+            found.update(
+                (a["id"], a)
+                for a in self._index_hits(
+                    [f"{INDEX_PREFIX}pr-{number}", f"{INDEX_PREFIX}sha-{head}"], deadline
+                )
+            )
+            failed = {
+                match[2]
+                for a in found.values()
+                if (match := verdict_name(str(a.get("name") or ""))) is not None
+                and int(match[1]) == number
+                and match[3] == "fail"
+            }
+            found.update(
+                (a["id"], a)
+                for a in self._passes_named(number, failed | {head}, deadline)
+            )
+        except _Unreadable as exc:
+            raise RuntimeError(str(exc)) from exc
+        return list(found.values())
+
+    def _verdict_artifacts(
+        self, number: int, head: str, head_ref: str, commits: set[str]
+    ) -> list[dict[str, Any]]:
+        """What a judgment iterates: the whole listing, or in index mode the
+        targeted one (the answer key's, when it read one for this head)."""
+        if not self.index_mode():
+            return self._listing()
+        handed = self._handoff.pop((number, head), None)
+        if handed is not None:
+            return handed
+        return self._targeted(number, head, head_ref, commits)
+
     def fail_findings(self, number: int) -> list[dict[str, Any]]:
         """What each counted FAIL of the pull request the last judgment of it
         counted wrote: head, run, and the verdict file's summary and notes
@@ -2656,9 +2976,20 @@ class Reader:
         """The pull request's own FAIL artifacts in the listing, by head,
         whose runs are not of another origin and did not judge a run that
         started on the draft (`_draft_judged`); one whose run cannot be read
-        is kept, so `fail_findings` names it unreadable."""
+        is kept, so `fail_findings` names it unreadable. In index mode the
+        legacy FAILs and the `pr-<n>` index stand in for the listing."""
         own: dict[str, list[tuple[int, str, Any]]] = {}
-        for item in map(json_object, self._listing()):
+        artifacts = (
+            [
+                *(self._legacy() or []),
+                *self._index_hits(
+                    [f"{INDEX_PREFIX}pr-{number}"], _listing_clock() + listing_cap()[0]
+                ),
+            ]
+            if self.index_mode()
+            else self._listing()
+        )
+        for item in map(json_object, artifacts):
             match = verdict_name(str(item.get("name") or ""))
             run_id = json_object(item.get("workflow_run")).get("id")
             if (
@@ -2873,7 +3204,9 @@ class Reader:
         # request and head, for the cap's fresh-attempt floor (`_elsewhere`).
         fail_times: dict[tuple[int, str], list[Any]] = {}
         self._fail_runs = {}
-        for item in map(json_object, self._listing()):
+        for item in map(
+            json_object, self._verdict_artifacts(number, head, head_ref, commits)
+        ):
             name = str(item.get("name") or "")
             match = verdict_name(name)
             if item.get("expired") is not False:
@@ -3085,8 +3418,11 @@ class Reader:
         one of its FAILs could count, a failed read raising `_Unreadable`. A
         FAIL of a counted one whose run cannot be read (`unread_prs`, by
         upload time) raises `_Unreadable` (`SIBLING_UNREADABLE`) unless it
-        predates the record on every issue that pull request is for."""
-        live = self._closing_issues(number)
+        predates the record on every issue that pull request is for. In
+        index mode the issues are those `_targeted` read its index by."""
+        live = self._live_issues.pop(number, None)
+        if live is None:
+            live = self._closing_issues(number)
         closers = {n: self._closers(issue) for n, issue in live.items()}
         floors = {n: self._attempt_floor(issue) for n, issue in live.items()}
 
@@ -3873,10 +4209,11 @@ def _decides(report: dict[str, Any]) -> tuple[Any, ...]:
 
 
 def _code_digest() -> str:
-    """The reader's code: every module beside this one. A deploy that
-    changes any of them invalidates every kept answer."""
+    """The reader's code: every module beside this one, and the legacy FAILs
+    file. A deploy that changes any of them invalidates every kept answer."""
     digest = hashlib.sha256()
-    for path in sorted(Path(__file__).resolve().parent.glob("*.py")):
+    here = Path(__file__).resolve().parent
+    for path in sorted([*here.glob("*.py"), *here.glob(LEGACY_FAILS_FILE)]):
         digest.update(path.name.encode("utf-8") + b"\0" + path.read_bytes() + b"\0")
     return digest.hexdigest()
 
@@ -4046,7 +4383,12 @@ def _answer_key(
             config = merge_policy.with_default_branch(args.repo, base)
             parts["config"] = asdict(config)
             bot = (config.agent_identity or "").removesuffix("[bot]") or None
-        listing = reader.listing()
+        # In index mode only the verdict artifacts this judgment can count.
+        listing = (
+            reader.targeted(args.number, args.head)
+            if reader.index_mode()
+            else reader.listing()
+        )
         # `_task_list` reads the rules at the default branch, whatever the base.
         default = merge_policy._default_branch(args.repo, shared=True)
     except (merge_policy.PolicyReadError, RuntimeError) as exc:
@@ -4932,6 +5274,103 @@ def _capped_close_main(args: argparse.Namespace, now: datetime | None) -> int:
     return 0
 
 
+RUNNING_STATUSES = ("queued", "in_progress", "waiting", "requested", "pending")
+
+
+def build_legacy_fails(reader: Reader, cutover: datetime, now: datetime) -> dict[str, Any]:
+    """The legacy FAILs file (`Reader._legacy`): every unexpired FAIL-shaped
+    artifact whose run uploaded no FAIL index, from one listing that holds
+    GitHub's live count (`Reader.listing`), each with its run's origin
+    verified and its verdict's head branch. The cutover is when the index
+    reached main; a verifier run created before it may still upload a FAIL
+    with none, so one still running refuses. A run of another origin is left
+    out, as every judgment ignores it; one that cannot be read, or a head
+    branch that cannot be read, refuses (`_Unreadable`), so the file never
+    holds less than a judgment would count."""
+    if cutover > now:
+        raise _Unreadable("the cutover is in the future")
+    for status in RUNNING_STATUSES:
+        page = json_object(
+            reader._actions(
+                [
+                    "api",
+                    f"repos/{reader.repo}/actions/workflows/{Path(WORKFLOW_PATH).name}"
+                    f"/runs?status={status}&per_page={LISTING_PAGE_SIZE}",
+                ],
+                f"{status} verifier runs",
+            )
+        )
+        runs = page.get("workflow_runs")
+        if not is_json_array(runs) or page.get("total_count") != len(runs):
+            raise _Unreadable(f"the {status} verifier runs could not be read")
+        for run in map(json_object, runs):
+            created = _when(run.get("created_at"))
+            if created is None or created < cutover:
+                raise _Unreadable(f"verifier run {run.get('id')} from before the cutover is {status}")
+    try:
+        listing = reader.listing()
+    except RuntimeError as exc:
+        raise _Unreadable(str(exc)) from exc
+    indexed = {
+        json_object(a.get("workflow_run")).get("id")
+        for a in map(json_object, listing)
+        if str(a.get("name") or "").startswith(INDEX_PREFIX)
+    }
+    entries = []
+    for item in map(json_object, listing):
+        name = str(item.get("name") or "")
+        run_id = json_object(item.get("workflow_run")).get("id")
+        if (
+            not FAIL_PREFIX_RE.match(name)
+            or item.get("expired") is not False
+            or run_id in indexed
+        ):
+            continue
+        if not _is_id(run_id, run_id):
+            continue  # No run record to authenticate it: every judgment ignores it.
+        state = reader._run_state(run_id, shared=True)
+        if state == FOREIGN:
+            continue
+        if state == UNREAD:
+            raise _Unreadable(f"the run of {name} cannot be read")
+        entries.append(
+            {
+                "id": item["id"],
+                "name": name,
+                "created_at": item.get("created_at"),
+                "expires_at": item.get("expires_at"),
+                "expired": False,
+                "workflow_run": {"id": run_id},
+                "origin": True,
+                "head_ref": reader._head_ref(run_id, name, item["id"], ""),
+            }
+        )
+    return {
+        "version": LEGACY_FAILS_VERSION,
+        "repo": reader.repo,
+        "cutover": cutover.isoformat(),
+        "listedAt": reader._fetched_at.isoformat() if reader._fetched_at else None,
+        "artifacts": sorted(entries, key=lambda e: e["id"]),
+    }
+
+
+def _legacy_fails_main(args: argparse.Namespace, now: datetime | None) -> int:
+    """`legacy-fails`: write the legacy FAILs file to `--out`, or exit 1."""
+    reader = Reader(args.repo, args.branch, now=now, legacy_path=None)
+    cutover = _when(args.cutover)
+    if cutover is None:
+        print("legacy-fails: --cutover must be a time with a zone", file=sys.stderr)
+        return 2
+    try:
+        built = build_legacy_fails(reader, cutover, now or _wall_clock())
+    except _Unreadable as exc:
+        print(f"legacy-fails: {exc}", file=sys.stderr)
+        return 1
+    Path(args.out).write_text(json.dumps(built, indent=1) + "\n", encoding="utf-8")
+    print(f"legacy-fails: {len(built['artifacts'])} FAILs", file=sys.stderr)
+    return 0
+
+
 def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     """`evidence <number> <head>`: one pull request's evidence at `head` as
     one JSON line (`Evidence.report`), as pr-merge's gate judges it.
@@ -5032,7 +5471,14 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     settle.add_argument("--postmerge-result", required=True)
     settle.add_argument("--code-sha", required=True)
     settle.add_argument("--idle-tick", action="store_true")
+    legacy = sub.add_parser("legacy-fails", allow_abbrev=False)
+    legacy.add_argument("--repo", required=True)
+    legacy.add_argument("--branch", default="main")
+    legacy.add_argument("--cutover", required=True)
+    legacy.add_argument("--out", required=True)
     args = parser.parse_args(argv)
+    if args.command == "legacy-fails":
+        return _legacy_fails_main(args, now)
     if args.command == "capped-close":
         if not (
             merge_policy.SHA_RE.fullmatch(args.head)

@@ -471,12 +471,15 @@ def keys_for(
     rung_cap: str,
     listing: Callable[[], list[Any]],
     graphql: Callable[[list[str]], Any] | None = None,
+    own_verdicts: Callable[[int, str], list[Any]] | None = None,
 ) -> tuple[dict[int, dict[str, Any]], int]:
     """Each candidate's key, head and whether it may be skipped at all, and
-    the GraphQL cost spent. Raises `RuntimeError` when the clone or the
-    artifact listing cannot be read, so nothing is skipped."""
+    the GraphQL cost spent. With `own_verdicts` (the reader's index mode,
+    `Reader.own_verdicts`) each candidate's verdicts are read by exact name
+    instead of from the whole listing. Raises `RuntimeError` when the clone
+    or the artifact reads fail, so nothing is skipped."""
     main = main_inputs(base)
-    artifacts = listing()
+    artifacts = listing() if own_verdicts is None else []
     numbers = [c["number"] for c in candidates if isinstance(c.get("number"), int)]
     states, cost = read_states(repo, numbers, graphql)
     keys: dict[int, dict[str, Any]] = {}
@@ -486,7 +489,11 @@ def keys_for(
         state = pr_state(node) if node is not None else None
         if state is None or state["head"] != head:
             continue
-        found = verdicts(artifacts, number, head)
+        found = verdicts(
+            artifacts if own_verdicts is None else own_verdicts(number, head),
+            number,
+            head,
+        )
         keys[number] = {
             "key": state_key(candidate, state, found, main, rung_cap),
             "head": head,
@@ -547,6 +554,7 @@ def run_filter(args: argparse.Namespace) -> int:
             base=args.base,
             rung_cap=args.rung_cap,
             listing=reader.listing,
+            own_verdicts=reader.own_verdicts if reader.index_mode() else None,
         )
     except RuntimeError as exc:
         print(f"::warning::no candidate is skipped: {exc}")
