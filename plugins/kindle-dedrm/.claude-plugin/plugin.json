@@ -1,11 +1,11 @@
 {
   "name": "kindle-dedrm",
-  "version": "0.8.18",
   "description": "Manage the Kindle for PC 2.8.0 + Calibre DeDRM workflow for personal-use ebook DRM removal on books the user owns (Windows only). Action router with setup, sync, update, cleanup, and status, each state mutation paired with a documented compensating reversal.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
+  "version": "0.8.18",
   "license": "MIT",
   "keywords": [
     "kindle",
