@@ -246,7 +246,7 @@
           "minLength": 1
         },
         "ratified_at": {
-          "description": "Ratification instant — anchors the promotion epoch: contrary evidence predating it belongs to a previous epoch, already consumed by the re-earn that produced this ratification.",
+          "description": "Ratification instant — anchors the promotion epoch: contrary evidence predating it belongs to a previous epoch, which this ratification closed.",
           "type": "string",
           "format": "date-time"
         }
