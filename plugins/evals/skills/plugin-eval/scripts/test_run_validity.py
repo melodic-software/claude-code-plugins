@@ -914,7 +914,7 @@ class RunValidityTest(unittest.TestCase):
             )
 
     def test_a_with_arm_bash_denial_with_no_rooted_path_is_a_fail(self):
-        for command in ("ls -la", "cat notes.txt", ""):
+        for command in ("ls -la", "cat notes.txt", "", "ls -la /proc; ls"):
             proc = self.denied_second_run("with", 1, root=self.PLUGIN, command=command)
             self.assertVerdict(proc, "INVALID", 1)
 
@@ -1182,6 +1182,34 @@ class RunValidityTest(unittest.TestCase):
             ([("Read", {"file_path": lease})], ("claude-eval-ab",)),
         ):
             proc = self.denied_in_sandbox(calls, *([trace_at] if trace_at else []))
+            self.assertDenials(proc, "FAIL")
+
+    def test_a_bash_denial_through_a_same_command_variable_under_plugin_data_is_a_warning(
+        self,
+    ):
+        data = self.own_data("harness-config-inline")
+        for command in (
+            'D="%s"; R=$D/runs/ap-1; ls -la "$R"' % data,
+            'PD="%s"; ls -la "$PD/audit-instructions/runs"; touch "$PD/probe"' % data,
+            "PD='%s' && cat ${PD}/lease" % data,
+        ):
+            proc = self.denied_in_sandbox([("Bash", {"command": command})])
+            self.assertDenials(proc, "WARN")
+            self.assertIn("aimed only under the run's own plugin-data directory", proc.stdout)
+
+    def test_a_bash_denial_through_a_variable_outside_plugin_data_or_unresolved_is_a_fail(
+        self,
+    ):
+        data = self.own_data("p")
+        for command in (
+            'R="%s"; cat "$R/settings.json"' % (self.dir / "claude-eval-ab" / "config"),
+            'PD="%s"; ls -d "$PD"/../*' % data,
+            'PD="%s"; cat "$PD"/../../settings.json' % data,
+            'cat "$CLAUDE_PLUGIN_DATA/p/lease"',
+            'D=$(pwd); cat "$D/lease"',
+            'cat "$D/lease"; D="%s"' % data,
+        ):
+            proc = self.denied_in_sandbox([("Bash", {"command": command})])
             self.assertDenials(proc, "FAIL")
 
     def own_results(self, *parts, sandbox="claude-eval-ab"):
@@ -1883,6 +1911,85 @@ class WindowsPathTest(unittest.TestCase):
     def test_a_drive_relative_or_relative_path_is_inside(self):
         for path in ("C:tmp\\x", "tmp/x"):
             self.assertTrue(self.inside(path, "C:\\eval\\plugins\\evals"), path)
+
+
+class BashPathsTest(unittest.TestCase):
+    """bash_paths on same-command shell variables: a $NAME it resolves is judged
+    as the literal path it stands for, and any other expansion still adds None."""
+
+    D = "/s/config/plugins/data/p"
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("run_validity", SCRIPT)
+        cls.module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.module)
+
+    def paths(self, command):
+        return self.module.bash_paths(command.replace("<d>", self.D))
+
+    def test_a_resolved_variable_gives_the_paths_it_stands_for(self):
+        d = self.D
+        for command, paths in (
+            ('D=<d>; R=$D/runs; ls -la "$R"', (d, d + "/runs", d + "/runs")),
+            ("PD='<d>' && cat ${PD}/a \"$PD\"/b", (d, d + "/a", d + "/b")),
+            ('D="<d>"\nR=$D/x S=$R/y\ncat $S', (d, d + "/x", d + "/x/y", d + "/x/y")),
+            ("R=/p/skills/x; cat $R/f", ("/p/skills/x", "/p/skills/x/f")),
+            ("cat /a; cat /b | head", ("/a", "/b")),
+            ("(cat /a) >/tmp/x", ("/a", "/tmp/x")),
+        ):
+            self.assertEqual(self.paths(command), paths, command)
+
+    def test_a_later_command_naming_no_rooted_argument_adds_none(self):
+        for command, paths in (
+            ("ls -la /proc; ls", ("/proc", None)),
+            ("cat /proc/v && make", ("/proc/v", None)),
+            ("ls /proc; find -type f", ("/proc", None)),
+            ("cd /proc && cd - && ls", ("/proc", None)),
+            ("cat /proc/v; ls >/tmp/x", ("/proc/v", "/tmp/x", None)),
+            ("cat /proc/v; ls > /tmp/x", ("/proc/v", "/tmp/x", None)),
+            ("PYTHONPATH=/opt/lib pytest -q", ("/opt/lib", None)),
+            ("TMPDIR=/tmp make", ("/tmp", None)),
+            ("cat /proc/v | ls", ("/proc/v", None)),
+            ("cat /proc/v | find -type f", ("/proc/v", None)),
+            ("cat /proc/v | wc -l", ("/proc/v",)),
+        ):
+            self.assertEqual(self.paths(command), paths, command)
+
+    def test_a_variable_it_cannot_resolve_still_adds_none(self):
+        for command in (
+            'cat "$D/a"',
+            'cat "$D/a"; D=<d>',
+            'D=$(pwd); cat "$D/a"',
+            'D=`pwd`; cat "$D/a"',
+            "D=<d>/*; cat $D",
+            'D=~/p; cat "$D/a"',
+            'D="<d> x"; cat $D',
+            'D=<d> cat "$D/a"',
+            '(D=<d>); cat "$D/a"',
+            'false && D=<d>; cat "$D/a"',
+            'true || D=<d>; cat "$D/a"',
+            'D=<d> | true; cat "$D/a"',
+            "D=<d>; cat '$D/a'",
+            'D=<d>; cat \\$D/a',
+            'D=<d>; D+=/x; cat "$D/a"',
+            'D=<d>\n{\nD=/e\n}\ncat "$D/a"',
+            'D=<d>; . /dev/null; cat "$D/a"',
+            "D=<d>; IFS=/; cat $D/a",
+            '_=<d>; cat "$_/a"',
+            'PD=<d>; ls -d "$PD"/../*',
+            "cat <(true) notes /a",
+            '#; D=<d>\ncat "$D/a"',
+            'D=<d>; ((x,D=-1)); ls -- "$D/a"',
+            'D=<d>; printf -vD -- -x; ls -- "$D/a"',
+            'GROUPS=<d>; cat "$GROUPS/a"',
+            'D=<d>\r\ncat "$D/a"',
+            'D=<d>; E="$((D=5))"; cat "$D/a"',
+            'D=<d>; E=$[D=5]; cat "$D/a"',
+            'D=<d>; X=D; read "$X"; cat "$D/a"',
+            'D=<d>; X=D; declare "$X=/e"; cat "$D/a"',
+        ):
+            self.assertIn(None, self.paths(command), command)
 
 
 if __name__ == "__main__":
