@@ -4,4 +4,4 @@ bump: patch
 
 ### Changed
 
-- The `multiple-falsifiable-hypotheses` eval's `states-predictions` grader also credits a hypothesis table whose prediction column (such as "Refuted if" or "Prediction") is filled in, not only an `if ... then` sentence. It checks each cell one way, so a long table with a blank cell no longer stalls grading.
+- The `multiple-falsifiable-hypotheses` eval's `states-predictions` grader also credits a hypothesis table whose prediction column (such as "Refuted if" or "Prediction") is filled in, not only an `if ... then` sentence.
