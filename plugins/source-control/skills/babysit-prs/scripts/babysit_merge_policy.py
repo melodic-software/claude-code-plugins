@@ -1717,7 +1717,8 @@ class Demotion:
     # The newest record's creation, which restarts the promotion evidence
     # window, and the newest clear among cleared records (a human close, or
     # main's recovery from a red-main record), which restarts the post-merge
-    # floor. Read only while no record holds.
+    # floor. The creation is read only while no record holds; the clear is
+    # read while one holds too, so a new record does not reopen the floor.
     newest_created: datetime | None = None
     cleared_at: datetime | None = None
 
@@ -1968,8 +1969,11 @@ def read_demotion(
     marker or the label hides none. A record holds the rung off unless its
     latest `ClosedEvent` has no `closer` and a human actor, and no non-human
     ever edited it, or, for a red-main record however it stands, main went
-    green past it (`_recovered_at`), whose time clears it. Any read failure
-    holds it off. Records are read
+    green past it (`_recovered_at`), whose time clears it. The first holding
+    record names the reason and ends `records`; the rest are still read, so
+    the hold carries the newest clear among the cleared records (the
+    post-merge floor). Any read failure holds it off, and after a hold keeps
+    that hold with no clear. Records are read
     `DEMOTION_BATCH` to a query (`_demotion_records`), and one the batch did
     not return is read on its own, so the answer is the per-issue read's.
     """
@@ -1986,6 +1990,9 @@ def read_demotion(
     records: list[int] = []
     created: list[datetime] = []
     cleared: list[datetime] = []
+    # The first holding record, as found; later records are read for their
+    # clears alone.
+    held: Demotion | None = None
     green = _GreenMain(owner, name)
     # One clock for every record's green-run spans (`_GreenMain.listed`).
     clock = now or datetime.now(UTC)
@@ -2031,7 +2038,8 @@ def read_demotion(
                 except PolicyReadError:
                     recovered = None
             if hold and recovered is None:
-                return Demotion(True, f"#{number} {hold}", tuple(records))
+                held = held or Demotion(True, f"#{number} {hold}", tuple(records))
+                continue
             created.append(_time(issue.get("createdAt")))
             if recovered is not None:
                 cleared.append(recovered)
@@ -2039,7 +2047,9 @@ def read_demotion(
             closes = json_array(json_object(issue.get("timelineItems")).get("nodes"))
             cleared.append(_time(json_object(closes[-1]).get("createdAt")))
     except PolicyReadError as exc:
-        return Demotion(True, f"demotion-unreadable: {exc}", tuple(records))
+        return held or Demotion(True, f"demotion-unreadable: {exc}", tuple(records))
+    if held:
+        return replace(held, cleared_at=max(cleared, default=None))
     return Demotion(
         False,
         None,
@@ -5477,8 +5487,9 @@ def merged_since_floor(
 ) -> datetime:
     """The post-merge floor: the later of the enabling commit of `authority`
     (`enabled_since`) and the newest clear of a demotion record (a human
-    close, or main's recovery from a red-main record), so a clear restarts
-    the window and a deleted or transferred record moves nothing. Raises
+    close, or main's recovery from a red-main record), whether or not another
+    record holds, so a clear restarts the window, a new record does not
+    reopen it, and a deleted or transferred record moves nothing. Raises
     `PolicyReadError` when the enabling commit cannot be read."""
     floor = enabled_since(repo, base_sha, authority)
     if demotion.cleared_at is not None:

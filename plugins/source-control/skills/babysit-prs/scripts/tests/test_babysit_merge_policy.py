@@ -1630,8 +1630,9 @@ class ReadDemotionBatched(unittest.TestCase):
                 self.assertEqual(batched, expected)
                 singles = batched_fake.queries.count("PolicyDemotionRecord")
                 if failing:
-                    # The failed chunk's records, each read on its own up to the hold.
-                    self.assertEqual(singles, 3)
+                    # The failed chunk's records, each read on its own: past
+                    # the hold too, for the clears that set the floor.
+                    self.assertEqual(singles, policy.DEMOTION_BATCH)
                 if dropped:
                     self.assertEqual(singles, len(dropped))
 
@@ -1646,6 +1647,53 @@ class ReadDemotionBatched(unittest.TestCase):
         records[30] = None  # type: ignore[assignment]
         reason = self.read(RecordsFake(records)).reason
         self.assertEqual(reason, "demotion-unreadable: issue #30 returned nothing")
+
+    OPEN = {"state": "OPEN", "timelineItems": {"nodes": []}}
+
+    def test_a_hold_keeps_the_newest_clear_as_the_floor(self) -> None:
+        # The hold, its reason and its records are the first holding record's,
+        # in either order; the clear is the newest among the cleared records.
+        cases = {
+            "open after the cleared ones": (4, (1, 2, 3, 4), "12:03"),
+            "open before the cleared ones": (1, (1,), "12:04"),
+        }
+        for name, (held, records, clear) in cases.items():
+            with self.subTest(name):
+                fake = RecordsFake(
+                    {
+                        n: demotion_record(n, **(self.OPEN if n == held else {}))
+                        for n in range(1, 5)
+                    }
+                )
+                newest = policy.datetime.fromisoformat(f"2026-10-12T{clear}:00Z")
+                self.assertEqual(
+                    self.read(fake),
+                    policy.Demotion(True, f"#{held} open", records, None, newest),
+                )
+
+    def test_a_read_failure_after_a_hold_keeps_the_hold_with_no_clear(self) -> None:
+        records = {n: demotion_record(n) for n in range(1, 31)}
+        records[5] |= self.OPEN
+        records[22] = None  # type: ignore[assignment]
+        self.assertEqual(
+            self.read(RecordsFake(records)),
+            policy.Demotion(True, "#5 open", (1, 2, 3, 4, 5)),
+        )
+
+    def test_a_hold_with_no_cleared_record_keeps_the_enabling_commit(self) -> None:
+        fake = RecordsFake({1: demotion_record(1, **self.OPEN)})
+        result = self.read(fake)
+        self.assertEqual(result, policy.Demotion(True, "#1 open", (1,)))
+        enabled = policy.datetime.fromisoformat("2026-10-01T00:00:00Z")
+        with mock.patch.object(policy, "enabled_since", return_value=enabled):
+            self.assertEqual(policy.merged_since_floor(REPO, "a" * 40, result), enabled)
+        cleared = policy.replace(
+            result, cleared_at=policy.datetime.fromisoformat("2026-10-12T12:03:00Z")
+        )
+        with mock.patch.object(policy, "enabled_since", return_value=enabled):
+            self.assertEqual(
+                policy.merged_since_floor(REPO, "a" * 40, cleared), cleared.cleared_at
+            )
 
 
 class ResolveIdentity(unittest.TestCase):
