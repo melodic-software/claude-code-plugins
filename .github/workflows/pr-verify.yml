@@ -284,6 +284,8 @@ jobs:
       - name: Resolve the verifier's model
         id: models
         if: steps.agree.outcome == 'success'
+        env:
+          API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           model-route: verify-pr
@@ -2106,6 +2108,8 @@ jobs:
       - name: Resolve the verifier's model
         id: models
         if: steps.agree.outcome == 'success'
+        env:
+          API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           model-route: verify-pr
@@ -3901,6 +3905,8 @@ jobs:
       - name: Resolve the verifier's model
         id: models
         if: steps.agree.outcome == 'success'
+        env:
+          API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           model-route: verify-pr

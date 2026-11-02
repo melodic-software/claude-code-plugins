@@ -367,6 +367,44 @@ else
 fi
 rm -rf "$outside"
 
+# --- a checkout's own script syncs its checkout, whatever the caller's cwd -------
+# A session standing in the main checkout runs a worktree's script by path.
+fixture
+git_init_test_repo "$root" >/dev/null || exit 2
+git -C "$root" add -A && git -C "$root" commit -qm base
+cwd_tree="$root"
+fixture
+git_init_test_repo "$root" >/dev/null || exit 2
+git -C "$root" add -A && git -C "$root" commit -qm base
+own() { (cd "$cwd_tree" && bash "$root/scripts/sync-shared-copies.sh" "$@" 2>&1); }
+out="$(own)"
+expect "a checkout's own script run from another checkout exits 0" 0 $? "$out"
+if [[ -f "$root/plugins/alpha/lib/esc.mjs" && -f "$root/plugins/beta/lib/esc.mjs" ]]; then
+  pass "a checkout's own script writes its own checkout's copies"
+else
+  bad "a checkout's own script writes its own checkout's copies" "out: $out"
+fi
+if [[ -z "$(git -C "$cwd_tree" status --porcelain)" ]]; then
+  pass "a checkout's own script leaves the caller's checkout unchanged"
+else
+  bad "a checkout's own script leaves the caller's checkout unchanged" "$(git -C "$cwd_tree" status --porcelain)"
+fi
+printf '// hand edit\n' >>"$root/plugins/beta/lib/esc.mjs"
+out="$(own --check)"
+expect "--check from another checkout's cwd checks the script's own checkout" 1 $? "$out"
+LAST_OUTPUT="$out"
+assert_output_contains "--check from another checkout's cwd names the own checkout's drift" "DRIFT: plugins/beta/lib/esc.mjs"
+own >/dev/null
+git -C "$root" add -A && git -C "$root" commit -qm synced
+base="$(git -C "$root" rev-parse HEAD)"
+printf 'export const esc = (s) => String(s ?? "");\n' >"$root/lib/esc.mjs"
+own >/dev/null
+out="$(own --check-bump "$base")"
+expect "--check-bump from another checkout's cwd checks the script's own checkout" 1 $? "$out"
+LAST_OUTPUT="$out"
+assert_output_contains "--check-bump from another checkout's cwd names the own checkout's stale carrier" \
+  "STALE VERSION: lib/esc.mjs or its copy plugins/alpha/lib/esc.mjs changed vs $base"
+
 # --- a copy of scripts/ run from outside the checkout syncs the checkout ---------
 # The issue lane runs a read-only copy of only scripts/, with the working
 # directory at the pull request's checkout.
@@ -400,6 +438,28 @@ LAST_OUTPUT="$out"
 assert_output_contains "an outside copy refuses --check-bump, with the reason" "refused: --check-bump"
 chmod -R u+w "$tools"
 rm -rf "$tools"
+
+# --- a copy of scripts/ staged inside the checkout is still an outside copy ------
+# The issue lane stages its copy at .lane/verify/scripts inside the pull request's
+# checkout (collect-base-activity/action.yml), so the probe finds that checkout as
+# the copy's own top level; only the <top>/scripts comparison keeps it outside.
+fixture
+git_init_test_repo "$root" >/dev/null || exit 2
+git -C "$root" add -A && git -C "$root" commit -qm base
+mkdir -p "$root/.lane/verify"
+cp -R "$root/scripts" "$root/.lane/verify/scripts"
+staged() { (cd "$root" && bash "$root/.lane/verify/scripts/sync-shared-copies.sh" "$@" 2>&1); }
+out="$(staged)"
+expect "a copy staged inside the checkout regenerates the checkout's copies" 0 $? "$out"
+if [[ -f "$root/plugins/alpha/lib/esc.mjs" && -f "$root/plugins/beta/lib/esc.mjs" ]]; then
+  pass "a copy staged inside the checkout writes the registered copies into the checkout"
+else
+  bad "a copy staged inside the checkout writes the registered copies into the checkout" "out: $out"
+fi
+out="$(staged --check-bump HEAD)"
+expect "a copy staged inside the checkout refuses --check-bump" 2 $? "$out"
+LAST_OUTPUT="$out"
+assert_output_contains "a copy staged inside the checkout refuses --check-bump, with the reason" "refused: --check-bump"
 
 # --- with no work tree to resolve, --check-bump is refused (fails closed) -------
 fixture

@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# The branch commit says only "wip", and the prompt states no purpose, so a non-interactive fanout
+# run writes `Intent: not stated`. The commit adds a CSV export that writes raw customer emails and
+# breaks isWeekend (Sunday is getDay() 0, not 7): both findings must land under ### Standards.
+set -euo pipefail
+
+git init -q -b main
+git config user.name eval
+git config user.email eval@example.invalid
+mkdir -p src
+
+cat >src/calendar.js <<'JS'
+export function isWeekend(date) {
+  const day = date.getDay();
+  return day === 0 || day === 6;
+}
+JS
+
+cat >src/shipping.js <<'JS'
+import { isWeekend } from "./calendar.js";
+
+// Orders placed on a weekend ship on the next working day.
+export function shipsSameDay(placedAt) {
+  return !isWeekend(placedAt);
+}
+JS
+
+cat >package.json <<'JSON'
+{ "name": "orders-service", "type": "module", "private": true }
+JSON
+
+git add .
+git commit -q -m "chore: initial import"
+git remote add origin "$PWD"
+git fetch -q origin
+git remote set-head origin main >/dev/null
+
+git checkout -q -b wip-1
+cat >src/export-orders.js <<'JS'
+export function exportOrdersCsv(orders) {
+  const lines = ["id,email,total"];
+  for (const order of orders) {
+    lines.push(`${order.id},${order.customer.email},${order.total.toFixed(2)}`);
+  }
+  return lines.join("\n");
+}
+JS
+
+cat >src/calendar.js <<'JS'
+export function isWeekend(date) {
+  return [6, 7].includes(date.getDay());
+}
+JS
+
+git add .
+git commit -q -m "wip"

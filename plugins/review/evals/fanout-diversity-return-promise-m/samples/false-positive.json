@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/return-await\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | low | src/users.js:9 | code-reviewer | loadProfile now only forwards findUser; the route could call findUser directly. | Consider inlining loadProfile |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "no finding has CRITICAL in its Tier column"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/return-await\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/users.js:9 | code-reviewer | Dropping the await means a rejected database query is no longer caught and now crashes the process as an unhandled rejection. | Restore the await |\n\n## Surfaces\n\nRan: [code-reviewer@high, security-reviewer@high]. Returned no result: [].",
+      "why": "a CRITICAL finding makes the wrong claim that a rejection now goes unhandled"
+    }
+  ]
+}

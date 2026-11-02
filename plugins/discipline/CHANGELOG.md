@@ -5,6 +5,12 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.24.1] - 2026-11-02
+
+### Changed
+
+- `/discipline:script-the-deterministic-work`'s lever check now has the pilot run the lever a second time on the piloted site and expect no diff, because a lever that changes its own output on a rerun cannot be rerun safely across the remaining sites. Its audit list gains an item: work that says a lever made its change but has no script in its diff applied no lever. Both come from pstack's `build-the-lever` principle (`docs/upstream/cursor-pstack.md`).
+
 ## [0.24.0] - 2026-11-01
 
 ### Added
