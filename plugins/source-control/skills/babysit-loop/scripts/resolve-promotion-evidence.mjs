@@ -9,8 +9,10 @@
 // --window-start restarts the evidence window after a demotion: the checker reads a copy of the
 // evidence source, written to a fresh temporary directory outside the checkout and every
 // worktree root and removed on exit, with one gate-failure event per promotable cell at that
-// instant appended, so a cell stays unpromoted until it is re-ratified after it. An empty or
-// malformed value, or a source that cannot be read as a JSON array, fails closed.
+// instant appended, so a cell stays unpromoted until the source holds a `re-earned` event for it
+// whose `since` is at or after that instant (the publisher's `since` is the later of the demotion
+// record's creation and its discovery, so it never precedes the restart). An empty or malformed
+// value, or a source that cannot be read as a JSON array, fails closed.
 //
 // The four bootstrap values (promotion_evidence_binding, promotion_evidence_root,
 // promotion_evidence_source, promotion_evidence_checker) are not arguments: the helper reads

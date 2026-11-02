@@ -3930,6 +3930,16 @@ list. The config reader reads the synced copy from the base SHA's
   rejects any value until a second repository adopts.
 - The post-merge failure remedy, revert or fail forward, is the per-repository `red-main.remedy`
   key ([Red main](#red-main)), not a choice by change type.
+- Holds converge on one label. `ci-status` enforces holds in seven places
+  ([Review-lane holds](#review-lane-holds)), and in a 2026-11-01 sample holds, not code, made 17 of 24 red
+  pull request runs and 10 of 12 red merge groups red
+  ([#12284 audit](https://github.com/melodic-software/claude-code-plugins/issues/12284#issuecomment-6582114885)).
+  The direction: a hold our own actors place is `do-not-merge`, read once per run; only the
+  review lanes' critical-security and cost holds and the trust-path holds stay person-only. The
+  slices are tracked as #12445 (pr-merge wakes per pull request), #12446 (fold own-actor holds),
+  #12447 (review requirement off ci-status's first pass), #12448 (per-completion run fan-out),
+  #12449 (queue-time hold read once), #12456 (parent close-out) and #12438 (duplicate ruleset
+  `pull_request` rule).
 
 ## Versioning
 

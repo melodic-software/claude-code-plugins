@@ -132,7 +132,7 @@ test("signal 3: a rate-limited deny, a 429 and an exhausted reading are one thro
     failedRuns: [
       denied(
         5,
-        "lane-token-denied: the broker answered 503 with reason github-rate-limited; GitHub's primary rate limit (core) resets at 2026-10-19T16:00:00Z, past the 8-minute retry budget",
+        "lane-token-denied: the broker answered 503 with reason github-rate-limited; GitHub's primary rate limit (core) resets at 2026-10-19T16:00:00Z, past the 1-minute retry budget",
       ),
       denied(6, "gh: HTTP 429: too many requests", "pr-unblock"),
     ],

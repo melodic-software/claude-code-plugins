@@ -755,11 +755,25 @@ class PerRunLegacyFails(unittest.TestCase):
         self.assertIn("refused, nothing written", err)
 
     def test_calls_are_paced(self) -> None:
-        with mock.patch.object(ve, "_listing_sleep") as slept:
-            self.run_build(RunsGitHub(), pace=True)
-        # The default 0.5 calls a second: about 2 s before each call after the first.
-        self.assertEqual(slept.call_count, BUILD_CALLS - 1)
-        self.assertTrue(all(1.9 < c.args[0] <= 2.0 for c in slept.call_args_list))
+        # A fake clock that only the mocked sleep advances: no real time passes,
+        # so every requested wait is exact however slow the runner is. Seeded
+        # from the real clock, so `_elapsed()` stays sane; whole seconds keep
+        # each 2.0 s difference exact.
+        clock = [float(int(ve.time.monotonic()))]
+
+        def sleep(seconds: float) -> None:
+            clock[0] += seconds
+
+        with (
+            mock.patch.object(ve.time, "monotonic", side_effect=lambda: clock[0]),
+            mock.patch.object(ve, "_listing_sleep", side_effect=sleep) as slept,
+        ):
+            code, err = self.run_build(RunsGitHub(), pace=True)
+        self.assertEqual(code, 0, err)
+        # The default 0.5 calls a second: 2 s before each call after the first.
+        self.assertEqual(
+            [c.args[0] for c in slept.call_args_list], [2.0] * (BUILD_CALLS - 1)
+        )
 
     def test_the_window_cap_stops(self) -> None:
         code, err = self.run_build(RunsGitHub(), "--window-cap", "4")
