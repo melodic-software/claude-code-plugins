@@ -224,3 +224,12 @@ clean 9a2307c431ad22b2e8f758976109bf4e59010d6b [3584ae1fa00ec73208ccbc2725674607
 # #2692 → #2690; rebased onto `main`") and the blamed lines trace to the
 # commit that landed #2715.
 clean c8470efd09d78d924a962483ff8a0b7809180e11 [6370a44e75986a12ec2a79a2e8deec39558f6f53=136] docs(conventions) rewrote 136 lines of a doc #2715 had just added
+
+# A release's `bump: none` cleanup (#12353). #12349's release commit deleted the
+# 56 `bump: none` fragments a6ad1a5ab (#12339) had added 5 commits earlier,
+# releasing only evals from its own patch fragment; none of those 56 plugins'
+# CHANGELOG.md changed, so the per-plugin CHANGELOG skip did not cover them and
+# the canary fired on 280 lines. With none fragments skipped in a CHANGELOG-changing commit, what
+# is left is the one `"version"` line of plugins/evals/.claude-plugin/plugin.json
+# that bb0f08bf8 (#12320, the previous release) had written.
+clean fbdf2ec7e33548d58168a16304771740fcc7253d [bb0f08bf8ebb7db22a145964d54d80f3b92a5a2b=1] chore(release) deleted 56 bump: none fragments #12339 had added

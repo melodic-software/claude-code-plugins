@@ -91,14 +91,67 @@ const CODES = Object.keys(STOP_ROUTES)
   .filter((reason) => STOP_ROUTES[reason].code === true)
   .sort((a, b) => b.length - a.length)
   .map((code) => [code, code === "security-risk" ? /^security[-_\s]*risk/i : new RegExp(`^${code}(?![\\w-])`, "i")]);
-// A reason that names a security concern, even inside a word; the short
-// acronyms (XSS, RCE, CVE) only as whole words, so "source" names none.
+// A reason that names a security concern, even inside a word (but not wholly
+// inside a listed name, KNOWN_NAMES below); the short acronyms (XSS, RCE, CVE)
+// only as whole words, so "source" names none.
 const SECURITY_CONCERN =
   /security|vuln|inject|exfiltrat|malicious|backdoor|exploit|branch[\s_-]?protection|attack|unauthori[sz]|hijack|\btake[\s-]?over\b|took\s+over|\bstol(?:e|en)\b|\bstranger|\boutsider|\b(?:xss|rce|cve)\b|ignore\b.{0,40}\binstructions?\b/i;
 // The secret nouns: a security word everywhere, released only after an
 // ending code and only in a capability phrasing (CAPABILITY below).
 const SECRET_NOUN = String.raw`credential|secret|token|passw(?:or)?d|api[\s_-]?key|private[\s_-]?key|deploy[\s_-]?key|ssh[\s_-]?key|access[\s_-]?key|\bpat\b(?!-)`;
 const SECURITY_WORD = new RegExp(`${SECURITY_CONCERN.source}|${SECRET_NOUN}`, "i");
+// known-names.json: identifiers (a skill id, a principle name) that hold a
+// security word but name no risk, each with a why. A security word that lies
+// wholly inside one, written exactly as listed as a whole identifier (not next
+// to a letter, digit, `-`, `_` or `:`), names none; one that runs past its edge
+// ("github-deploy key") still does. Fail closed: a listed name joins at least
+// two parts with `-`, `_` or `:`, so a bare word such as "attack" cannot be
+// listed, and holds no secret noun, so it never releases a credential mention.
+// A checkout without the file (a sparse one that lists only this module and
+// its table) reads no names, which only holds more.
+const readKnownNames = () => {
+  try {
+    return JSON.parse(readFileSync(new URL("./known-names.json", import.meta.url), "utf8"));
+  } catch (error) {
+    if (error?.code === "ENOENT") return {};
+    throw error;
+  }
+};
+const KNOWN_NAMES = readKnownNames();
+if (KNOWN_NAMES === null || typeof KNOWN_NAMES !== "object" || Array.isArray(KNOWN_NAMES)) {
+  throw new Error("known-names.json: needs an object of name to why");
+}
+for (const [name, why] of Object.entries(KNOWN_NAMES)) {
+  if (!/^[a-z0-9]+(?:[-_:][a-z0-9]+)+$/.test(name) || new RegExp(SECRET_NOUN, "i").test(name) || typeof why !== "string" || why === "") {
+    throw new Error(`known-names.json: ${name} needs to join lowercase parts with -, _ or :, hold no secret noun, and have a why`);
+  }
+}
+const NAME_EDGE = String.raw`[\p{L}\p{N}_:-]`;
+const LISTED_NAME = Object.keys(KNOWN_NAMES).length
+  ? new RegExp(
+      `(?<!${NAME_EDGE})(?:${Object.keys(KNOWN_NAMES)
+        .sort((a, b) => b.length - a.length)
+        .join("|")})(?!${NAME_EDGE})`,
+      "gu",
+    )
+  : null;
+// The first match of `pattern` in `text` that does not lie wholly inside a
+// listed name. Each match start is tried, so a match that starts inside a name
+// and runs past it is still found.
+const outsideNames = (pattern) => {
+  const global = new RegExp(pattern.source, `${pattern.flags}g`);
+  return (text) => {
+    const spans = LISTED_NAME ? [...text.matchAll(LISTED_NAME)].map((name) => [name.index, name.index + name[0].length]) : [];
+    global.lastIndex = 0;
+    for (let found = global.exec(text); found; found = global.exec(text)) {
+      if (!spans.some(([start, end]) => found.index >= start && found.index + found[0].length <= end)) return found[0];
+      global.lastIndex = found.index + 1;
+    }
+    return undefined;
+  };
+};
+const concernOutsideNames = outsideNames(SECURITY_CONCERN);
+const wordOutsideNames = outsideNames(SECURITY_WORD);
 // The phrasings that name a secret only as something a run needs ("a host
 // with model credentials", "needs an API key the lane does not hold", "tokens
 // per task"). Fail closed: the phrasing counts only when the secret noun,
@@ -148,7 +201,9 @@ const ENDING_ROUTES = new Set(["close", "host-run", "attended"]);
 const endingRiskWord = (text) => {
   const counted = withoutCounts(text);
   const rest = counted.replace(CAPABILITY, " ");
-  return SECURITY_CONCERN.exec(text)?.[0] ?? SECURITY_WORD.exec(rest)?.[0] ?? (capabilityOnly(rest) ? "" : (SECURITY_WORD.exec(counted)?.[0] ?? ""));
+  // A listed name counts only for the word match: CAPABILITY and
+  // capabilityOnly still read it, so a name beside a secret noun holds.
+  return concernOutsideNames(text) ?? wordOutsideNames(rest) ?? (capabilityOnly(rest) ? "" : (wordOutsideNames(counted) ?? ""));
 };
 const namesEndingRisk = (text) => endingRiskWord(text) !== "";
 
@@ -192,7 +247,7 @@ export const runCode = (reason, { anyCodeEnds = false } = {}) => {
       return (anyCodeEnds || ENDING_ROUTES.has(STOP_ROUTES[name].route)) && namesEndingRisk(text.slice(match[0].length)) ? "security-risk" : name;
     }
   }
-  return SECURITY_WORD.test(text) ? "security-risk" : "stopped";
+  return wordOutsideNames(text) !== undefined ? "security-risk" : "stopped";
 };
 // The security word runCode, with `anyCodeEnds`, reads in `reason`, as text
 // safe to show in a code span of a public comment: a match can hold free text
@@ -201,6 +256,6 @@ export const runCode = (reason, { anyCodeEnds = false } = {}) => {
 export const securityWord = (reason) => {
   const text = reasonText(reason);
   const found = CODES.find(([, code]) => code.test(text));
-  const word = found ? endingRiskWord(text.slice(found[1].exec(text)[0].length)) : (SECURITY_WORD.exec(text)?.[0] ?? "");
+  const word = found ? endingRiskWord(text.slice(found[1].exec(text)[0].length)) : (wordOutsideNames(text) ?? "");
   return word.replaceAll(/[^A-Za-z0-9_-]+/g, " ").trim();
 };

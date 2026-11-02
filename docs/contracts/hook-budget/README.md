@@ -171,9 +171,9 @@ Every shipped hook row, except the shell-form rows named under "Scope", is exec 
   unresolvable, the launcher exits 1: a non-blocking hook error and not a guard block, and the guard
   script does not run (the header of
   [`lib/exec-bash.mjs`](../../../lib/exec-bash.mjs)).
-- **Scope.** The `SessionStart` node-notice row of every hook plugin (the [prerequisites convention](../prerequisites/README.md#hook-notices)) and the `hook-failure-audit` Stop row in `harness-ops` stay shell form so they can report a missing `node`.
+- **Scope.** The fleet's one `SessionStart` node-notice row, in `harness-ops` (the [prerequisites convention](../prerequisites/README.md#hook-notices)), and the `hook-failure-audit` Stop row in `harness-ops` stay shell form so they can report a missing `node`.
   Neither check script inspects a shell-form row; `scripts/node-notice-rows.test.sh` pins the node-notice
-  rows (and the matcher that skips them on compaction) and the hook test of `harness-ops` pins its Stop row, so a sweep back to `node` fails them. A plugin hook config carries no
+  row (and the matcher that skips it on compaction) and the hook test of `harness-ops` pins its Stop row, so a sweep back to `node` fails them. A plugin hook config carries no
   `${user_config.*}` token (the [philosophy Hooks row](../../plugin-philosophy.md#component-stances)),
   so no `userConfig` rule requires exec form and exec form fleet-wide is this sweep's choice.
 - **Measurement.** The reference figures above (Windows, 2026-07-31 and 2026-09-02) were taken before
@@ -285,15 +285,15 @@ them, and `plugins/guardrails/hooks/onfailure-rows.test.sh` fails when a row gai
 The docs-fetcher and drift-checker gates match every `Bash` or `WebFetch` call in every session,
 and outside their agent they allow every call. With `block`, a gate that cannot start or times out
 (10 s) denies the main thread's call too. A host with no `node` loses its guardrails `Bash` the
-same way. Each plugin's `SessionStart` node notice says `node` is missing and names the plugin's
-check skill. The check skill's own `Bash` call is denied too, and the denial names the missing
+same way. With harness-ops enabled, its `SessionStart` node notice says `node` is missing and names
+`/harness-ops:check`. The check skill's own `Bash` call is denied too, and the denial names the missing
 `node`.
 
 These rows do not set `block`:
 
 | Row | Why not |
 | --- | --- |
-| Every `SessionStart` row, the shell-form node-notice rows included | `SessionStart` cannot block: exit 2 only shows stderr to the user, so the key changes nothing. The node-notice row has to stay a notice so that it can report a missing `node` |
+| Every `SessionStart` row, the shell-form node-notice row included | `SessionStart` cannot block: exit 2 only shows stderr to the user, so the key changes nothing. The node-notice row has to stay a notice so that it can report a missing `node` |
 | `Stop` rows, such as disk-hygiene's guard-launch monitor and the gated end-of-turn checks, and rows with `async` or `asyncRewake`, such as harness-ops' hook-failure audit | The hooks page lists `Stop`, `SubagentStop`, `TaskCompleted`, `TeammateIdle` and background hooks as ignoring the key |
 | Advisory rows: guardrails `Workflow`, discovery's `PostToolUse` `WebFetch` truncation note, disk-hygiene's `PreToolUse` `Skill` marker row, and disk-hygiene's `UserPromptExpansion` engine-context row | These rows judge nothing. With `block`, a row that only adds context or writes a marker would deny the call or expansion it was meant to annotate. The `Skill` row matches every Skill call. The engine-context row hands the skill its interpreter, and the `hygiene.py` rows above deny the engine call |
 | disk-hygiene `PreToolUse` `PowerShell(*python*$*)` and `PowerShell(*& $*)` | These rows match commands that do not name the engine. With no Python, the launcher lets such a call go ahead with a notice, because denying every `& $` call on a host without Python stops work (the header of `plugins/disk-hygiene/hooks/run-python-hook.sh`). `block` would deny them on every launch failure |
@@ -345,15 +345,23 @@ call. A control call counts as run when its marker or its tool output appears.
 | guardrails | GitHub MCP comment | `mcp__github__add_issue_comment` | Denied, same message | Ran |
 | guardrails | `Bash\|PowerShell` | `Bash` `touch` | Denied, same message | Marker written |
 | disk-hygiene | `Bash(*hygiene.py*)` | engine `inventory` of an empty directory | Denied, same message | Ran, report returned |
-| disk-hygiene | `PowerShell(*hygiene.py*)` | not probed | WSL sessions have no `PowerShell` tool | not probed |
+| disk-hygiene | `PowerShell(*hygiene.py*)` | `PowerShell` `Write-Output` of a string naming `hygiene.py` (Windows) | Denied, same message | Guard launched, output returned |
 | discovery | `Bash`, docs-fetcher gate | `Bash` `touch` | Denied: `Executable not found in $PATH: "node"`, then the blocking message | Marker written |
 | multi-agent | `Bash`, docs-fetcher gate | `Bash` `touch` | Denied, same message | Marker written |
 | multi-agent | `WebFetch`, drift-checker gate | `WebFetch` of `example.com` | Denied, same message | Page fetched |
 
-Each adopted row probed denies its matched call when `node` is missing, and with `node` present it
-lets a normal call through. The disk-hygiene `PowerShell` row still needs a probe on a Windows host.
-A control environment with no `jq` is not a normal call: there the guardrails dispatcher denies
-with its own `jq is not on PATH` verdict, and that is a guard's choice, not an `onFailure` block.
+The disk-hygiene `PowerShell` row ran on the same host's Windows side (2026-11-02, Claude Code
+2.1.316), from an empty working directory with `--setting-sources project,local`, so no installed
+plugin loaded; the init event lists `PowerShell` and only the probed disk-hygiene copy. The `block`
+arm drops the `node` directories from `PATH` (`where.exe node` finds none). The control call names
+the engine only as string data, which the guard lets through; its session's guard-launch marker
+shows the guard ran. An engine invocation through `PowerShell` is denied by the guard itself with
+`node` present ("must go through the Bash tool's exact guarded command shapes"), so it cannot serve
+as the control.
+
+Each adopted row denies its matched call when `node` is missing, and with `node` present it lets a
+normal call through. A control environment with no `jq` is not a normal call: there the
+guardrails dispatcher denies with its own `jq is not on PATH` verdict, and that is a guard's choice, not an `onFailure` block.
 
 ## Gated Stop rows at the exec-form floor
 

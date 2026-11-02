@@ -3,6 +3,19 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.7] - 2026-11-02
+
+### Added
+
+- evals: `browser-mcp-probe`, an environment probe that drives Chromium through `@playwright/mcp` 0.0.83 from a case-local plugin, for the browser lane's MCP path (run with `allow-real-servers` and an `mcp__plugin_pw-mcp_playwright__*` grant; see the case README).
+
+## [2.0.6] - 2026-11-02
+
+### Changed
+
+- The `SessionStart` node-notice row is gone (#6633): harness-ops' row reports a missing `node` for the whole fleet, once per session. Without harness-ops, no session-start notice says `node` is missing.
+- Shared `prerequisites.mjs` synced where this plugin carries it (#6633): a manifest may declare an optional `session_probe`, which opts the plugin into harness-ops' session-start probe.
+
 ## [2.0.5] - 2026-11-02
 
 ### Changed

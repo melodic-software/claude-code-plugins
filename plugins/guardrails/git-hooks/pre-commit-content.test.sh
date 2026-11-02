@@ -5,8 +5,9 @@
 # in a symlinked file, an ordinary binary, or under an exempt path does not;
 # a token in a file holding a NUL byte, UTF-16LE text included, blocks; a staged
 # gitignored file is judged and an untracked one is not; files judged in one
-# commit keep each file's own findings; a merge in progress is judged like any
-# commit; --worktree covers uncommitted and untracked files; and the plugin's vendored
+# commit keep each file's own findings; a merge in progress is judged on the
+# lines it adds against every parent, so what the merged branch already holds
+# passes; --worktree covers uncommitted and untracked files; and the plugin's vendored
 # installer wires the entry, pattern libraries included, so `git commit` runs it.
 # test-scope: plugins/guardrails/git-hooks/content-scan.sh plugins/guardrails/git-hooks/entries.json plugins/guardrails/lib/git-hooks/check-lib.sh plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/lib/secret-detection/secret-patterns.sh plugins/guardrails/lib/path-detection/hardcoded-path-patterns.sh
 # test-scope: plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/git-hooks/commit-msg-convention.sh plugins/guardrails/git-hooks/reference-verify.sh
@@ -91,6 +92,13 @@ printf 'line one\nline two\nsee %s here\n' "$FAKE_LINUX" >"$REPO/notes.md"
 git -C "$REPO" add notes.md
 expect "a home path on an added line blocks, naming that line" "1|notes.md:3: machine-specific path (Linux user path detected)
 $HINT" "$(check "$REPO")"
+
+# The GitHub-hosted runner's home is the same on every hosted runner, so a line
+# holding it, bare or with a child path, passes.
+new_repo
+printf 'line one\nline two\n"cwd": "%s"\nsee %s here\n' "${SL}home${SL}runner" "${SL}home${SL}runner${SL}work${SL}demo${SL}demo" >"$REPO/notes.md"
+git -C "$REPO" add notes.md
+expect "the hosted runner's home on an added line passes" "0|" "$(check "$REPO")"
 
 # The Edit semantics check-bash-file-changes used: only the lines the change adds.
 new_repo
@@ -257,27 +265,37 @@ git -C "$REPO" add -A
 expect "files judged together keep each file's findings" "$want
 $HINT" "$(check "$REPO")"
 
-# A merge in progress is judged like any commit: what the merged branch brings
-# and what the conflict resolution writes.
+# A merge in progress is judged on the lines it adds against every parent, its
+# conflict resolution: what the merged branch already holds, in a file of its
+# own, a NUL-byte file or a line of a file both sides changed, does not block.
 new_repo
 git -C "$REPO" checkout -q -b side
-printf 'line one\nside change\n' >"$REPO/notes.md"
+printf 'line one\nside change\nsee %s here\n' "$FAKE_LINUX" >"$REPO/notes.md"
 printf 'token=%s\n' "$FAKE_GHP" >"$REPO/side.txt"
-git -C "$REPO" add notes.md side.txt
+printf 'MZ\0token=%s\n' "$FAKE_GHP" >"$REPO/side.bin"
+git -C "$REPO" add notes.md side.txt side.bin
 git -C "$REPO" commit -q -m side --no-verify
 git -C "$REPO" checkout -q main
 printf 'line one\nmain change\n' >"$REPO/notes.md"
 git -C "$REPO" commit -q -am main --no-verify
 git -C "$REPO" merge -q --no-commit side >/dev/null 2>&1
 expect "the merge stops on the conflict" yes "$(test -f "$REPO/.git/MERGE_HEAD" && echo yes)"
-printf 'line one\nresolved\n' >"$REPO/notes.md"
+printf 'line one\nresolved\nsee %s here\n' "$FAKE_LINUX" >"$REPO/notes.md"
 git -C "$REPO" add notes.md
-expect "a merge: a secret the merged branch brings blocks" "1|side.txt:1: secret or credential pattern: GitHub PAT
+expect "a merge: a path and secrets the merged branch already holds pass" "0|" "$(check "$REPO")"
+FAKE_LINUX_NEW="${SL}home${SL}bob${SL}build${SL}out.log"
+printf 'line one\nresolved at %s\nsee %s here\n' "$FAKE_LINUX_NEW" "$FAKE_LINUX" >"$REPO/notes.md"
+git -C "$REPO" add notes.md
+expect "a merge: a path the conflict resolution writes blocks, naming that line" "1|notes.md:2: machine-specific path (Linux user path detected)
 $HINT" "$(check "$REPO")"
-git -C "$REPO" rm -q --cached side.txt
-printf 'line one\nresolved %s\n' "$FAKE_GHP" >"$REPO/notes.md"
+printf 'line one\nresolved %s\nsee %s here\n' "$FAKE_GHP" "$FAKE_LINUX" >"$REPO/notes.md"
 git -C "$REPO" add notes.md
 expect "a merge: a secret the conflict resolution writes blocks" "1|notes.md:2: secret or credential pattern: GitHub PAT
+$HINT" "$(check "$REPO")"
+printf 'line one\nresolved\nsee %s here\n' "$FAKE_LINUX" >"$REPO/notes.md"
+printf 'token=%s\nmerge adds %s\n' "$FAKE_GHP" "$FAKE_LINUX_NEW" >"$REPO/side.txt"
+git -C "$REPO" add notes.md side.txt
+expect "a merge: a path the merge adds to a file the merged branch brings blocks" "1|side.txt:2: machine-specific path (Linux user path detected)
 $HINT" "$(check "$REPO")"
 
 # A text tool that fails mid-scan (gawk's "fatal error: internal error" on a

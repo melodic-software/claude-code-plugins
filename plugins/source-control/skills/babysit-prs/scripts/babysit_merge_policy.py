@@ -920,11 +920,12 @@ def _team_loop_merge(text: str) -> tuple[str | None, str | None]:
 def _resolve_loop_merge(
     file_at: Callable[[str, str], str | None], base_sha: str, notes: list[str]
 ) -> str | None:
-    """`babysit_loop_merge` at `base_sha`. The legacy file must exist and
-    set the key, else None (off), so a raise needs both files; the result is
-    the lower of the two, or the legacy value when the YAML sets none. Either
-    file unreadable or untrustworthy yields None (off), never the other
-    file's value alone."""
+    """`babysit_loop_merge` at `base_sha`. With no legacy file the YAML value
+    sets the rung by itself, and None (off) when it sets none. While the
+    legacy file exists it must set the key, else None (off), so a raise needs
+    both files; the result is the lower of the two, or the legacy value when
+    the YAML sets none. Either file unreadable or untrustworthy yields None
+    (off), never the other file's value alone."""
     try:
         source = file_at(SOURCE_CONTROL_PATH, base_sha)
     except PolicyReadError as exc:
@@ -943,10 +944,7 @@ def _resolve_loop_merge(
         notes.append(note)
         return None
     if source is None:
-        # Off with no legacy file: the YAML alone never raises the gate. The
-        # cleanup slice that deletes the legacy file decides deliberately
-        # whether the YAML may then set the rung by itself.
-        return None
+        return team
     if legacy is None or team is None:
         return legacy
     return min(team, legacy, key=lambda v: RUNG_RANK[LOOP_MERGE_RUNG.get(v, "off")])
@@ -958,8 +956,9 @@ def read_config_at(
     file_at: Callable[[str, str], str | None] | None = None,
 ) -> PipelineConfig:
     """`merge:` from `docs/conventions/pr-pipeline.yaml` and `babysit_loop_merge`
-    (`_resolve_loop_merge`: the lower of `docs/conventions/source-control.yaml`
-    and `.claude/source-control.md`), all read at `base_sha` through
+    (`_resolve_loop_merge`: `docs/conventions/source-control.yaml` alone when
+    `.claude/source-control.md` is absent, else the lower of the two), all read
+    at `base_sha` through
     `file_at(path, sha)` (text, or None when absent), by default a local clone
     holding `base_sha` (`_clones_holding`), else a checkout of `base_sha`
     (`_config_checkout`), else the contents API. A pipeline
@@ -1718,7 +1717,9 @@ class Demotion:
     # The newest record's creation, which restarts the promotion evidence
     # window, and the newest clear among cleared records (a human close, or
     # main's recovery from a red-main record), which restarts the post-merge
-    # floor. Read only while no record holds.
+    # floor. The creation is read only while no record holds; while one does,
+    # the clear is the newest before it, so a new record does not reopen the
+    # floor and a later clear does not skip the merges it cites.
     newest_created: datetime | None = None
     cleared_at: datetime | None = None
 
@@ -1969,8 +1970,12 @@ def read_demotion(
     marker or the label hides none. A record holds the rung off unless its
     latest `ClosedEvent` has no `closer` and a human actor, and no non-human
     ever edited it, or, for a red-main record however it stands, main went
-    green past it (`_recovered_at`), whose time clears it. Any read failure
-    holds it off. Records are read
+    green past it (`_recovered_at`), whose time clears it. The first holding
+    record names the reason and ends `records`; the rest are still read, so
+    the hold carries the newest clear before that record's creation (the
+    post-merge floor in force when the hold began). Any read failure holds it
+    off, and after a hold any failure keeps that hold with no clear. Records
+    are read
     `DEMOTION_BATCH` to a query (`_demotion_records`), and one the batch did
     not return is read on its own, so the answer is the per-issue read's.
     """
@@ -1987,6 +1992,10 @@ def read_demotion(
     records: list[int] = []
     created: list[datetime] = []
     cleared: list[datetime] = []
+    # The first holding record, as found; later records are read for their
+    # clears alone.
+    held: Demotion | None = None
+    held_since: datetime | None = None
     green = _GreenMain(owner, name)
     # One clock for every record's green-run spans (`_GreenMain.listed`).
     clock = now or datetime.now(UTC)
@@ -2032,7 +2041,10 @@ def read_demotion(
                 except PolicyReadError:
                     recovered = None
             if hold and recovered is None:
-                return Demotion(True, f"#{number} {hold}", tuple(records))
+                if held is None:
+                    held = Demotion(True, f"#{number} {hold}", tuple(records))
+                    held_since = _time(issue.get("createdAt"))
+                continue
             created.append(_time(issue.get("createdAt")))
             if recovered is not None:
                 cleared.append(recovered)
@@ -2040,7 +2052,17 @@ def read_demotion(
             closes = json_array(json_object(issue.get("timelineItems")).get("nodes"))
             cleared.append(_time(json_object(closes[-1]).get("createdAt")))
     except PolicyReadError as exc:
-        return Demotion(True, f"demotion-unreadable: {exc}", tuple(records))
+        return held or Demotion(True, f"demotion-unreadable: {exc}", tuple(records))
+    except Exception:
+        # Past the hold, any failure keeps it, as the early return did.
+        if held:
+            return held
+        raise
+    if held:
+        # The floor in force when the hold began: a later clear would skip
+        # the merges the holding record cites.
+        earlier = (t for t in cleared if held_since is not None and t < held_since)
+        return replace(held, cleared_at=max(earlier, default=None))
     return Demotion(
         False,
         None,
@@ -5478,8 +5500,9 @@ def merged_since_floor(
 ) -> datetime:
     """The post-merge floor: the later of the enabling commit of `authority`
     (`enabled_since`) and the newest clear of a demotion record (a human
-    close, or main's recovery from a red-main record), so a clear restarts
-    the window and a deleted or transferred record moves nothing. Raises
+    close, or main's recovery from a red-main record; while a record holds,
+    the newest before it), so a clear restarts the window, a new record does
+    not reopen it, and a deleted or transferred record moves nothing. Raises
     `PolicyReadError` when the enabling commit cannot be read."""
     floor = enabled_since(repo, base_sha, authority)
     if demotion.cleared_at is not None:
@@ -5943,8 +5966,9 @@ def read_promotion(
     Every worktree of the checkout is a `--worktree-root`, so a surface in a
     sibling worktree refuses. With a demotion record, `--window-start` is its
     creation: the checker reads the source's events plus one `gate-failure`
-    per promotable cell then, so a cell stays unpromoted until it is
-    re-ratified after the demotion. A value the resolver reports, or the
+    per promotable cell then, so a cell stays unpromoted until the evidence
+    holds a `re-earned` event for it counted from that creation or later. A
+    value the resolver reports, or the
     settings file it came from, that the lane user can write refuses.
     Anything doubtful is unpromoted."""
     roots = worktrees(checkout)
@@ -6213,7 +6237,11 @@ def shared_refusal(
                     return f"new-merge:#{merge.number}"
         except PolicyReadError:
             return "merged-unreadable"
-    if not shared.demotion.active and _demotion_changed(owner, name, shared, identity):
+    # A hold with no clear leaves the floor at the enabling commit, which no
+    # record change moves; a hold that carries a clear does not.
+    if (
+        not shared.demotion.active or shared.demotion.cleared_at is not None
+    ) and _demotion_changed(owner, name, shared, identity):
         return "demotion-changed"
     return None
 

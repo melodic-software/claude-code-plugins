@@ -318,6 +318,12 @@ class IndexMode(unittest.TestCase):
 
 MERGE_SHA = "9" * 40
 MERGED_AT = "2026-10-15T20:00:00Z"  # its cutover, with the margin: 21:00
+SINCE = "2026-10-14T00:00:00Z"  # the build's `--since`
+
+
+def uploaded(items: list[dict[str, Any]], at: str) -> list[dict[str, Any]]:
+    """`items`, each uploaded at `at`."""
+    return [{**item, "created_at": at} for item in items]
 
 
 class RunsGitHub:
@@ -335,11 +341,12 @@ class RunsGitHub:
                 6, created_at="2026-10-15T03:00:00Z", path=".github/workflows/other.yml"
             ),
         ]
+        # Each uploaded within its run's hour.
         self.artifacts = {
-            5: [artifact(named(EARLIER, "fail"), 5)],
-            3: fail(PR, UNRELATED, 3),
-            1: [artifact(named(HEAD, "pass"), 1)],
-            6: [artifact(named(HEAD, "fail", 90), 6)],
+            5: uploaded([artifact(named(EARLIER, "fail"), 5)], "2026-10-14T03:30:00Z"),
+            3: uploaded(fail(PR, UNRELATED, 3), "2026-10-15T01:30:00Z"),
+            1: uploaded([artifact(named(HEAD, "pass"), 1)], "2026-10-15T02:30:00Z"),
+            6: uploaded([artifact(named(HEAD, "fail", 90), 6)], "2026-10-15T03:30:00Z"),
         }
         # Runs outside every window, read only by id.
         self.other_runs: dict[int, dict[str, Any]] = {}
@@ -385,13 +392,14 @@ class RunsGitHub:
             return ok({"total_count": len(listed), "workflow_runs": listed})
         window = re.fullmatch(
             rf"repos/{REPO}/actions/workflows/pr-verify\.yml/runs\?created=(\S+)\.\.(\S+)"
-            r"&per_page=100&page=1",
+            r"&per_page=100&page=([0-9]+)",
             path,
         )
         if window:
             listed = [r for r in self.runs if window[1] <= r["created_at"] <= window[2]]
             total = self.window_total.get(window[1], len(listed))
-            return ok({"total_count": total, "workflow_runs": listed})
+            first = (int(window[3]) - 1) * 100
+            return ok({"total_count": total, "workflow_runs": listed[first : first + 100]})
         of_run = re.fullmatch(
             rf"repos/{REPO}/actions/runs/([0-9]+)/artifacts\?per_page=100", path
         )
@@ -451,7 +459,7 @@ class PerRunLegacyFails(unittest.TestCase):
                     "--repo",
                     REPO,
                     "--since",
-                    "2026-10-14T00:00:00Z",
+                    SINCE,
                     "--merge-sha",
                     MERGE_SHA,
                     "--cutover",
@@ -493,10 +501,13 @@ class PerRunLegacyFails(unittest.TestCase):
     def test_a_fail_of_a_run_from_before_since_is_added_through_the_listing(
         self,
     ) -> None:
-        # A re-run keeps its creation time, so no window holds run 8.
+        # A re-run keeps its creation time, so no window holds run 8; its
+        # FAIL uploaded after `--since`, so the listing adds it.
         fake = RunsGitHub()
         fake.other_runs[8] = run(8, created_at="2026-10-13T23:00:00Z")
-        fake.artifacts[8] = [artifact(named(IN_PR, "fail"), 8)]
+        fake.artifacts[8] = uploaded(
+            [artifact(named(IN_PR, "fail"), 8)], "2026-10-14T01:00:00Z"
+        )
         fake.records[named(IN_PR, "fail")] = record(sha=IN_PR, verdict="fail")
         code, err = self.run_build(fake)
         self.assertEqual(code, 0, err)
@@ -505,6 +516,56 @@ class PerRunLegacyFails(unittest.TestCase):
         self.assertEqual(
             sorted(a["name"] for a in built["artifacts"]),
             sorted([named(EARLIER, "fail"), named(IN_PR, "fail")]),
+        )
+
+    def test_a_listed_fail_uploaded_before_since_refuses_naming_the_earliest(
+        self,
+    ) -> None:
+        # Runs 8 and 9 sit outside every window and their FAILs predate
+        # `--since`: `--since` is too late, so nothing is written.
+        fake = RunsGitHub()
+        for run_id, at in ((8, "2026-10-13T22:00:00Z"), (9, "2026-10-13T20:00:00Z")):
+            fake.other_runs[run_id] = run(run_id, created_at="2026-10-13T19:00:00Z")
+            fake.artifacts[run_id] = uploaded(
+                [artifact(named(IN_PR, "fail", 40 + run_id), run_id)], at
+            )
+        code, err = self.run_build(fake)
+        self.assertEqual(code, 1, err)
+        self.assertIn(
+            "2 listed FAIL(s) uploaded before --since 2026-10-14T00:00:00Z, the "
+            "earliest artifact 90 of run 9 at 2026-10-13T20:00:00Z: lower --since "
+            "to at most 2026-10-13T20:00:00Z, remove the checkpoint file and run "
+            "again",
+            err,
+        )
+        self.assertFalse(self.out.exists())
+        # Nothing outside the windows was read for them.
+        self.assertNotIn(f"repos/{REPO}/actions/runs/9", fake.calls)
+
+    def test_a_listed_fail_with_no_creation_time_refuses(self) -> None:
+        fake = RunsGitHub()
+        fake.artifacts[5] = uploaded(fake.artifacts[5], None)  # type: ignore[arg-type]
+        code, err = self.run_build(fake)
+        self.assertEqual(code, 1, err)
+        self.assertIn("listed FAIL 50 of run 5 has no creation time", err)
+
+    def test_a_checkpoint_listing_without_upload_times_is_listed_again(self) -> None:
+        # A checkpoint from before the listing kept `created_at`.
+        fake = RunsGitHub()
+        self.assertEqual(self.run_build(fake)[0], 0)
+        saved = json.loads(self.checkpoint.read_text())
+        saved["listed"] = [
+            {k: v for k, v in item.items() if k != "created_at"}
+            for item in saved["listed"]
+        ]
+        self.checkpoint.write_text(json.dumps(saved))
+        resumed = RunsGitHub()
+        resumed.artifacts[5] = uploaded(resumed.artifacts[5], "2026-10-13T12:00:00Z")
+        code, err = self.run_build(resumed)
+        self.assertEqual(code, 1, err)
+        self.assertIn("the earliest artifact 50 of run 5", err)
+        self.assertIn(
+            f"repos/{REPO}/actions/artifacts?per_page=100&page=1", resumed.calls
         )
 
     def test_a_run_created_before_since_and_updated_after_it_is_read(self) -> None:
@@ -518,7 +579,9 @@ class PerRunLegacyFails(unittest.TestCase):
                 7, created_at="2026-10-02T00:00:00Z", updated_at="2026-10-02T01:00:00Z"
             ),
         ]
-        fake.artifacts[9] = [artifact(named(IN_PR, "fail"), 9)]
+        fake.artifacts[9] = uploaded(
+            [artifact(named(IN_PR, "fail"), 9)], "2026-10-14T05:00:00Z"
+        )
         fake.records[named(IN_PR, "fail")] = record(sha=IN_PR, verdict="fail")
         code, err = self.run_build(fake)
         self.assertEqual(code, 0, err)
@@ -560,7 +623,7 @@ class PerRunLegacyFails(unittest.TestCase):
 
     def test_a_listed_fail_no_run_read_holds_refuses(self) -> None:
         fake = RunsGitHub()
-        ghost = artifact(named(IN_PR, "fail"), 5)
+        (ghost,) = uploaded([artifact(named(IN_PR, "fail"), 5)], "2026-10-14T04:00:00Z")
         ghost["id"] = 51
         fake.listed_only.append(ghost)
         code, err = self.run_build(fake)
@@ -587,6 +650,38 @@ class PerRunLegacyFails(unittest.TestCase):
         code, err = self.run_build(fake)
         self.assertEqual(code, 1, err)
         self.assertIn("list 1 of [9]", err)
+        self.assertFalse(self.out.exists())
+
+    def window_below_its_runs(self, size: int, total: int) -> None:
+        """A window of `size` runs whose pages claim `total`: pages are read
+        while full, never stopped at the claimed count, so the build refuses."""
+        fake = RunsGitHub()
+        fake.runs += [
+            run(1000 + n, created_at=f"2026-10-14T04:{n // 60:02d}:{n % 60:02d}Z")
+            for n in range(size - 1)
+        ]
+        fake.window_total["2026-10-14T00:00:00Z"] = total
+        code, err = self.run_build(fake)
+        self.assertEqual(code, 1, err)
+        self.assertIn(f"list {size} of [{total}]", err)
+        self.assertFalse(self.out.exists())
+
+    def test_a_window_count_on_a_page_boundary_below_its_runs_refuses(self) -> None:
+        self.window_below_its_runs(200, 100)
+
+    def test_a_window_count_off_a_page_boundary_below_its_runs_refuses(self) -> None:
+        self.window_below_its_runs(150, 120)
+
+    def test_a_window_at_the_search_cap_splits_down_to_a_minute_then_refuses(
+        self,
+    ) -> None:
+        # Each left half keeps the day's start, so it stays at the cap until
+        # it spans a minute (`split_created_window`), and the build refuses.
+        fake = RunsGitHub()
+        fake.window_total["2026-10-14T00:00:00Z"] = 1000
+        code, err = self.run_build(fake)
+        self.assertEqual(code, 1, err)
+        self.assertIn("1000 verifier runs created 2026-10-14T00:00:00Z..", err)
         self.assertFalse(self.out.exists())
 
     def test_a_run_whose_artifacts_miss_their_count_refuses(self) -> None:
@@ -660,11 +755,25 @@ class PerRunLegacyFails(unittest.TestCase):
         self.assertIn("refused, nothing written", err)
 
     def test_calls_are_paced(self) -> None:
-        with mock.patch.object(ve, "_listing_sleep") as slept:
-            self.run_build(RunsGitHub(), pace=True)
-        # The default 0.5 calls a second: about 2 s before each call after the first.
-        self.assertEqual(slept.call_count, BUILD_CALLS - 1)
-        self.assertTrue(all(1.9 < c.args[0] <= 2.0 for c in slept.call_args_list))
+        # A fake clock that only the mocked sleep advances: no real time passes,
+        # so every requested wait is exact however slow the runner is. Seeded
+        # from the real clock, so `_elapsed()` stays sane; whole seconds keep
+        # each 2.0 s difference exact.
+        clock = [float(int(ve.time.monotonic()))]
+
+        def sleep(seconds: float) -> None:
+            clock[0] += seconds
+
+        with (
+            mock.patch.object(ve.time, "monotonic", side_effect=lambda: clock[0]),
+            mock.patch.object(ve, "_listing_sleep", side_effect=sleep) as slept,
+        ):
+            code, err = self.run_build(RunsGitHub(), pace=True)
+        self.assertEqual(code, 0, err)
+        # The default 0.5 calls a second: 2 s before each call after the first.
+        self.assertEqual(
+            [c.args[0] for c in slept.call_args_list], [2.0] * (BUILD_CALLS - 1)
+        )
 
     def test_the_window_cap_stops(self) -> None:
         code, err = self.run_build(RunsGitHub(), "--window-cap", "4")

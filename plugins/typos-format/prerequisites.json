@@ -1,4 +1,7 @@
 {
+  "session_probe": {
+    "run_if_unset_or_true": "TYPOS_FORMAT_ENABLED"
+  },
   "requires": [
     {
       "id": "typos",

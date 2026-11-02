@@ -77,6 +77,9 @@ export const UPSTREAM_JOBS = Object.freeze([
   "ci-status",
 ]);
 
+// A job's page, as the jobs API's html_url gives it.
+export const jobUrl = (runId, jobId) => `https://github.com/${REPOSITORY}/actions/runs/${runId}/job/${jobId}`;
+
 // The ci-workflows SHA pr-verify.yml pins run-claude-cli and
 // apply-claude-managed-settings to. cliArgs, LEG_ENV, CLI_VERSION and
 // MANAGED_SETTINGS were read from that SHA; the parity test fails when the
@@ -296,7 +299,12 @@ export function scenario(testCase, index, { owner, lane, outsider }) {
       head_repository: { full_name: REPOSITORY },
     },
     // A ready pull request's run: ci-status skipped its draft step (resolve-pr draftRun).
-    jobs: UPSTREAM_JOBS.map((name) => ({ name, conclusion: "success", ...(name === "ci-status" && { steps: [{ name: "Note a draft", conclusion: "skipped" }] }) })),
+    jobs: UPSTREAM_JOBS.map((name, i) => ({
+      name,
+      conclusion: "success",
+      html_url: jobUrl(runId, 8000 + i),
+      ...(name === "ci-status" && { steps: [{ name: "Note a draft", conclusion: "skipped" }] }),
+    })),
     issueRest: { number: issueNumber, ...rest("issues", issueNumber, issue.by ?? "owner", issue.body) },
     issueComments,
     prComments,
@@ -352,12 +360,18 @@ export function stubGitHub(s) {
       if (query.includes("closingIssuesReferences(first: 10)")) {
         return { data: { repository: { pullRequest: { closingIssuesReferences: { totalCount: 1, nodes: [s.issueGraph] } } } } };
       }
+      // select-trusted-text's closing issues and title renames, each the
+      // query asks for, in one answer.
+      const pullRequest = {};
       if (query.includes("closingIssuesReferences(first: 100")) {
         const nodes = [{ number: s.issueNumber, repository: { nameWithOwner: s.repository } }];
-        return { data: { repository: { pullRequest: { closingIssuesReferences: { nodes, pageInfo: { hasNextPage: false, endCursor: null } } } } } };
+        pullRequest.closingIssuesReferences = { nodes, pageInfo: { hasNextPage: false, endCursor: null } };
       }
       if (query.includes("timelineItems")) {
-        return { data: { repository: { pullRequest: { timelineItems: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } } };
+        pullRequest.timelineItems = { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } };
+      }
+      if (Object.keys(pullRequest).length > 0) {
+        return { data: { repository: { pullRequest } } };
       }
       if (query.includes("nodes(ids:")) {
         return { data: { nodes: body.variables.ids.map((id) => ({ id, lastEditedAt: null, editor: null })) } };

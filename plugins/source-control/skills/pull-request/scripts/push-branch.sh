@@ -471,7 +471,7 @@ sync_stale_base() {
   if [[ "$(git -C "$wd" config --bool commit.gpgsign)" != true && "$out" =~ (^|$'\n')gpgsig(-sha256)?\  ]]; then
     sign=(-S)
   fi
-  if git -C "$wd" merge --no-edit ${sign[@]+"${sign[@]}"} "$ref" >&2; then
+  if git -C "$wd" merge --no-edit --no-stat ${sign[@]+"${sign[@]}"} "$ref" >&2; then
     echo "push-branch.sh: merged $ref into '$BRANCH' (stale base with overlapping paths); HEAD is now $(git -C "$wd" rev-parse HEAD)" >&2
     return 0
   fi

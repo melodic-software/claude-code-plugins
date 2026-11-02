@@ -1633,6 +1633,15 @@ test("main keeps the run's jobs in RUNNER_TEMP for upstream-jobs.mjs only when i
   await main(env, { github: fake({ jobs }) });
   assert.deepEqual(JSON.parse(readFileSync(kept, "utf8")), shapeJobs(RUN, jobs.jobs));
   assert.deepEqual(keptJobs(env, RUN), shapeJobs(RUN, jobs.jobs));
+  // Each kept job carries its html_url as url, and keptJobs reads it back.
+  const jobPage = `https://github.com/${REPO}/actions/runs/${RUN}/job/9002`;
+  const linked = { ...env, RUNNER_TEMP: tempDir("pr-verify-temp-") };
+  const withUrl = { ...jobs, jobs: jobs.jobs.map((job) => (job.id === 9002 ? { ...job, html_url: jobPage } : job)) };
+  await main(linked, { github: fake({ jobs: withUrl }) });
+  const keptLinked = JSON.parse(readFileSync(path.join(linked.RUNNER_TEMP, KEPT_JOBS), "utf8")).jobs;
+  assert.deepEqual(keptLinked.find((job) => job.name === "lint-repo"), { name: "lint-repo", conclusion: "success", url: jobPage });
+  assert.equal(keptLinked.find((job) => job.name === "ci-status").url, null);
+  assert.deepEqual(keptJobs(linked, RUN).jobs.find((job) => job.name === "lint-repo"), { name: "lint-repo", conclusion: "success", url: jobPage });
   // A head already judged, after its jobs were read, leaves no file.
   const skipped = { ...env, RUNNER_TEMP: tempDir("pr-verify-temp-") };
   await main(skipped, { github: fake({ jobs, artifacts: [artifact(`pr-verify-41-${HEAD}-fail-i7`, 77)], runs: { 77: verifyRun(77) } }) });
@@ -1824,6 +1833,23 @@ test("each path through the resolver makes a pinned number of API calls", async 
   const own = await calls({ pulls: [HUMAN_PR], issues: [] }, { verifyAuthors: "lane-or-owner", ownerIds: [100] });
   assert.equal(own.reason, "ok");
   assert.equal(own.paths.length, 7, own.paths.join("\n"));
+});
+
+test("a failed run whose jobs are not a hold's skips on the run and its jobs alone, never reading the commit's pull requests", async () => {
+  const readLog = async (id) => (id === 9001 ? logOf(PATH_HOLD) : "");
+  const failedLane = heldJobs(ciJob(), [{ id: 9002, name: "lint-repo", conclusion: "failure" }]);
+  const jobsPath = `/repos/${REPO}/actions/runs/${RUN}/jobs?filter=latest&per_page=100`;
+  // Accepted precedence: such a run of a draft or another author's pull
+  // request skips as not-a-passing-run, which no pull request read decides.
+  for (const [label, pulls] of [["a lane PR", [pull()]], ["a draft", [pull({ draft: true })]], ["another author's", [HUMAN_PR]]]) {
+    const { reason: got, paths } = await calls({ run: upstream({ conclusion: "failure" }), jobs: failedLane, pulls }, { readLog });
+    assert.equal(got, "not-a-passing-run", label);
+    assert.deepEqual(paths, [`/repos/${REPO}/actions/runs/${RUN}`, jobsPath], label);
+  }
+  // With no log reader a failed run is never judged, and nothing past the run is read.
+  const unread = await calls({ run: upstream({ conclusion: "failure" }), jobs: heldJobs() });
+  assert.equal(unread.reason, "not-a-passing-run");
+  assert.deepEqual(unread.paths, [`/repos/${REPO}/actions/runs/${RUN}`]);
 });
 
 test("FAIL names first and a pass decided before the issue-named lookups give the same reasons as the old order", async () => {

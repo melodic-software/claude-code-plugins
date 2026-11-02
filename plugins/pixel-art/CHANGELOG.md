@@ -3,6 +3,12 @@
 All notable changes to the `pixel-art` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.10] - 2026-11-02
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#6633): a manifest may declare an optional `session_probe`, which opts the plugin into harness-ops' session-start probe.
+
 ## [0.7.9] - 2026-10-30
 
 ### Changed

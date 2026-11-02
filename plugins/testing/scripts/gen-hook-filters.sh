@@ -44,16 +44,10 @@ json="$(jq -R . <<<"$globs" | jq -s '. as $globs |
     hooks: [$globs[] as $g | ("Write", "Edit") | {if: "\(.)(\($g))"} as $if
       | cmd(["TEST_GUARDS_ENABLED"]; $script) + $if + $extra]
   }];
-  # The node-notice row runs without node, so it is shell form; the prerequisites convention owns it,
-  # including the matcher that skips compaction.
-  def notice: [{matcher: "startup|resume|clear|fork", hooks: [{type: "command",
-    command: "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /testing:check; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /testing:check",
-    timeout: 10, statusMessage: "Checking that node is on PATH..."}]}];
   {
     description: "Names what a Write or Edit to a test file removes: test blocks, assertions, a changed expected value or an added skip (opt-in: test_guards_enabled).",
     hooks: {
-      PreToolUse: rows("test-weaken.sh"; {timeout: 10, statusMessage: "Checking the edit for removed assertions or skipped tests..."}),
-      SessionStart: notice
+      PreToolUse: rows("test-weaken.sh"; {timeout: 10, statusMessage: "Checking the edit for removed assertions or skipped tests..."})
     }
   }')" || exit 2
 

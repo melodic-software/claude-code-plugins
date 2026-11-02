@@ -601,7 +601,8 @@ jobs:
       # PR head, the reconciler-record check, the api-budget library and the
       # upload scanner. A failed checkout leaves no list and no scanner:
       # ci-status is still re-run, unrecorded unless the review run is a first
-      # attempt, and no reading is logged.
+      # attempt, and no reading is logged; a lanes App PR's is not re-run, as
+      # its kill switch reads as on.
       - name: Check out the trusted-actors list
         continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -628,10 +629,23 @@ jobs:
         with:
           node-version-file: .base/.node-version
 
+      # While either switch is on, ci-status fails every lanes App PR, so its
+      # re-run would fail too. A failed checkout or check emits no proceed,
+      # which the find step reads as on.
+      - name: Check the kill switch
+        id: kill
+        continue-on-error: true
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
       - name: Find the ci-status to re-run
         id: find
         env:
           GH_TOKEN: ${{ github.token }}
+          LANES_PROCEED: ${{ steps.kill.outputs.proceed }}
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
           LANE_PATH: ${{ github.event.workflow_run.path }}
@@ -706,11 +720,20 @@ jobs:
           # x-ratelimit-remaining 0, until one second past x-ratelimit-reset,
           # both read from the refused response's headers, when the wait fits
           # in what is left of POLL_LIMIT_SECONDS, shared with the poll below.
-          # A wait past it fails the job, naming the reset: no other run
+          # A wait past it fails the job, naming the reset: no other run here
           # re-runs a ci-status this job leaves stale (a later lane's
-          # completion exists only while the other lane is running, and
-          # maintenance-reconcile-lost-runs leaves a run where only ci-status
-          # failed alone). Any other failure is read three times, then fails.
+          # completion exists only while the other lane is running), and
+          # maintenance-reconcile-lost-runs re-runs one red only on a pending
+          # or missing review, at attempt 1, after its PENDING_BACKOFF_MINUTES.
+          # Should both re-run it, the started_at check below ends this job,
+          # for a review-lane upstream, on an attempt that started after the
+          # lanes finished (a pr-unblock run with a full status page skips that
+          # check). What overlap remains is two POSTs inside check-then-act
+          # gaps, which GitHub would refuse while the first re-run is going
+          # (UNVERIFIED) rather than start a third attempt. Should both land,
+          # the extra attempt has no record of its own, so pr-verify refuses
+          # it: the head is stranded for a person, never let through.
+          # Any other failure is read three times, then fails.
           # A path read again (the poll below) is sent as a conditional GET
           # with the ETag of its last 200; a 304 (gh exits 1 on it) gives that
           # 200's body back, as request-budget.mjs does. Its reading is kept,
@@ -872,6 +895,25 @@ jobs:
           if [[ ! $attempt =~ ^[1-9][0-9]{0,4}$ ]]; then
             echo "::error::run $id on $HEAD_SHA reports no attempt number."
             exit 1
+          fi
+          # A lanes App PR's attempt-1 ci-status (merge-holds.mjs switchHold: a
+          # Bot author whose id is the App's) is left while the kill switch is
+          # on, for every upstream: its re-run would fail on the switch and
+          # spend attempt 2, the only re-run the lost-run reconciler makes. Left
+          # at attempt 1, the reconciler re-runs it once the switch is off when
+          # its red matches one of its kinds (Switch, Stop, Review, Pending); a
+          # red that mixes a pending review with a pr-unblock stop matches
+          # neither of those kinds and waits for a person. A later
+          # attempt is re-run as any other: this job's record covers attempt 2
+          # and up (check-trusted-trigger.mjs ciStatusRerunRecorder), and a red
+          # on the switch there is named for a person by the reconciler. An
+          # unread switch counts as on, and an unread author as the App's, as
+          # ci-status reads it: no re-run is safer than a spent attempt.
+          if [[ $attempt == 1 && $LANES_PROCEED != true ]] &&
+            jq -e --arg id "$APP_SENDER_ID" 'try ((.user.id | type) != "number" or (.user.type | type) != "string"
+              or ($id | test("^[1-9][0-9]*$")) and .user.type == "Bot" and .user.id == ($id | tonumber)) catch true' <<<"$pr" >/dev/null; then
+            echo "::notice::the lanes kill switch is on or unread, so ci-status on lanes App #$PR_NUMBER is not re-run; the lost-run reconciler re-runs it once the switch is off."
+            exit 0
           fi
           next=$((attempt + 1))
           # Another upstream's run of this job (a lane's and a pr-unblock run's

@@ -1,19 +1,6 @@
 {
   "description": "Normalizes the line endings of the files a batch of tool calls wrote, once per batch, so a checkout's own EOL policy holds in the working tree.",
   "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "startup|resume|clear|fork",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /eol-normalizer:check EOL_NORMALIZER_ENABLED; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /eol-normalizer:check EOL_NORMALIZER_ENABLED",
-            "timeout": 10,
-            "statusMessage": "Checking that node is on PATH..."
-          }
-        ]
-      }
-    ],
     "PostToolBatch": [
       {
         "hooks": [

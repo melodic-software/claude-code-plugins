@@ -1,5 +1,72 @@
 # Changelog for the PR pipeline convention
 
+## [8.38.2] - 2026-11-02
+
+### Changed
+
+- `enable-auto-merge` holds when more than 1000 pull requests are open into main, where it used to
+  end red. It arms, disarms and notes nothing, prints a notice and a step summary line, and ends
+  green, and the next run reads the listing again.
+- `request-lane-token` sends at most 3 requests to the broker and waits at most 60 seconds in all,
+  down from 4 requests and 8 minutes. A `github-unavailable` retry waits a random 0 to 20 seconds,
+  then 0 to 40, or a longer `Retry-After`. A `github-rate-limited` wait that does not fit the
+  60 seconds fails red at once, naming the limit and its reset, as a wait past 8 minutes did before.
+
+## [8.38.1] - 2026-11-02
+
+### Fixed
+
+- The issue lane's security-word stop no longer holds an issue for a word that lies wholly inside a known name: a skill id or principle name listed in `.github/scripts/work-resolve-issue/known-names.json` (starting with `attack-the-premise` and `review:security-review`), written exactly as listed as a whole identifier. A word that runs past a listed name's edge, and any security word or credential mention elsewhere in the reason, still holds. A listed name joins at least two parts with `-`, `_` or `:` and holds no secret noun.
+
+## [8.38.0] - 2026-11-02
+
+### Changed
+
+- The main-run review (`pr-review-main.yml`) folds a diff line over 1800 bytes onto lines that start `\ continued:`, never inside a UTF-8 character, so every byte reaches a whole Read and the lane gives a verdict. It no longer stops as `verdict=none reason=long-line`. The prompt says a continuation line is the rest of the line before it and adds no line to the file's numbering, so a finding's line number holds, and the verdict's credential scan also reads model text with its folds joined.
+
+### Fixed
+
+- pr-verify no longer fails a head on a test-run claim the head's CI already settled. Each job in
+  `upstream-jobs.json` now carries its job page URL, and the prompt says a suite's job that
+  concluded `success` on the judged head meets a done-when "X exits 0" item and settles any "not
+  run" or "likely fails" doubt about that suite; the diff is still judged for a test that cannot
+  fail or was weakened. The judging jobs' permissions and tool rules do not change.
+
+## [8.37.0] - 2026-11-02
+
+### Changed
+
+- apply-patch's `ci-context` row (fix-ci) and `review-threads` row (address-feedback) refuse a patch that changes a `.gitattributes` file at any depth, anything under `.husky/` or the root `lefthook.yml`, in any case and through any `..` segment, a rename onto one included. Each changes what git, or a hook it runs, does on the next checkout or commit. The three new optional refusals are `gitattributes`, `husky` and `lefthook`; no other row names them, and the `issue` row is unchanged.
+
+## [8.36.0] - 2026-11-02
+
+### Changed
+
+- `select-trusted-text` reads a listed author's pull request title renames in the same GraphQL request as its closing issues, one request fewer per judged job. Later pages of either list are still read on their own under the same 50-page cap, and the renames are still weighed only when the title could be kept. A GraphQL error on the renames now fails the step even when the title would be dropped, where it was not read before; this fails closed.
+- pr-verify's resolver checks a failed upstream run's jobs before it reads the commit's pull requests, so a run that did not fail only on holds an approval lifts or `do-not-merge` skips with one API call fewer. Such a run now reports `not-a-passing-run` even when its pull request is a draft or another author's, where it reported `draft` or `author-not-lane` before.
+
+- The red-main report plans no revert when a guard fails (not the lanes App's merge, past `max-culprit-age-hours`, itself a revert, already decided, over `daily-cap`, a suspected platform fault, or a revert that does not apply): the post-merge fix issues fix `main` forward through the issue lane, and no draft revert labeled `needs-human` is planned for a person. The report's decision for that case is `fix-forward`; the log still reads `human` in older reports as the same decision. The guards are unchanged.
+
+- pr-merge's credential scan of the carried artifact listing takes under a second instead of about 10 minutes, so it no longer holds the pr-merge concurrency group. Every credential scan step in pr-merge.yml now times out after 2 minutes; a timed-out scan sets no `clean` output, so the upload it guards is skipped.
+
+## [8.35.3] - 2026-11-02
+
+### Fixed
+
+- `upload-fail-index` reads the run's artifacts up to three times, 5 s then 10 s apart, before failing on a read that fails or misses its own count, so one transient API error no longer leaves a FAIL judgment with no verdict. Every other check is unchanged.
+
+## [8.35.2] - 2026-11-02
+
+### Changed
+
+- The effective-rung rule now says that with no `.claude/source-control.md` at the base SHA,
+  `babysit_loop_merge` in `docs/conventions/source-control.yaml` sets the rung by itself. While both
+  files exist, the lower value still binds.
+- The hold floor names `docs/conventions/source-control.yaml` as a `gate` path, which holds a
+  change to it for a person.
+
+- The `skill-reply-*` artifact is kept 3 days instead of 7 in both run-activity files, which still covers a weekend of reading denials by hand.
+
 ## [8.35.1] - 2026-11-02
 
 ### Changed

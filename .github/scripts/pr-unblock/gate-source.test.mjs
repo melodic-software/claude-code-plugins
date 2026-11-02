@@ -373,6 +373,37 @@ test("prHold's review reader asks for the review comments since a second before 
   ]);
 });
 
+// Element 6 of the outage posture (docs/outage-posture-audit.md): reads are
+// serial, so the reviews read starts only after the comments read ends, and a
+// failed comments read sends no reviews read.
+test("the review reader sends its two reads one after the other, and stops after a failed first read", async () => {
+  const events = [];
+  const api = {
+    listReviewComments: async () => {
+      events.push("comments start");
+      await new Promise((resolve) => setImmediate(resolve));
+      events.push("comments end");
+      return [];
+    },
+    listReviews: async () => {
+      events.push("reviews start");
+      return [];
+    },
+  };
+  await reviewReader(api, 7)("2026-10-18T09:59:59Z");
+  assert.deepEqual(events, ["comments start", "comments end", "reviews start"]);
+
+  let reviewsRead = 0;
+  const failing = {
+    listReviewComments: async () => {
+      throw Object.assign(new Error("GET pulls/7/comments returned 502"), { status: 502 });
+    },
+    listReviews: async () => (reviewsRead += 1, []),
+  };
+  await assert.rejects(reviewReader(failing, 7)("2026-10-18T09:59:59Z"), /returned 502/);
+  assert.equal(reviewsRead, 0);
+});
+
 test("prHold holds when the review comments or the reviews read fails, or reads no array", async () => {
   const readTimeline = async () => [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("feedback-disputed")];
   const failed = async () => {

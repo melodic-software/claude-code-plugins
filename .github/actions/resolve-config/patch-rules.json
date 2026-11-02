@@ -1,6 +1,6 @@
 {
   "ci-context": {
-    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "lane-grants", "symlink", "gitlink", "rename-into-refused"],
+    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "lane-grants", "symlink", "gitlink", "rename-into-refused", "gitattributes", "husky", "lefthook"],
     "allow": ["any"],
     "max-files": 300,
     "requires": [],
@@ -11,7 +11,7 @@
     "escalations": ["ci-fix-empty", "ci-fix-escalated", "ci-fix-invalid", "ci-fix-not-applied", "ci-fix-protected-path"]
   },
   "review-threads": {
-    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "lane-grants", "symlink", "gitlink", "rename-into-refused", "new-exec-bit"],
+    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "lane-grants", "symlink", "gitlink", "rename-into-refused", "new-exec-bit", "gitattributes", "husky", "lefthook"],
     "allow": ["kept-threads"],
     "max-files": 300,
     "requires": [],

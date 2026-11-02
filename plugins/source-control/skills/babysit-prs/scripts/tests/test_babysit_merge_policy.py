@@ -561,10 +561,10 @@ class ReadConfigAt(unittest.TestCase):
             # A demotion written only to the legacy file still holds it.
             ("babysit_loop_merge: c3-autonomous\n", SOURCE_CONTROL, "c2-mechanical"),
             ("babysit_loop_merge: c2-mechanical\n", loose, "c2-mechanical"),
-            # With no legacy file the gate stays off whatever the YAML sets:
-            # the YAML alone never raises it.
-            ("babysit_loop_merge: c2-mechanical\n", None, None),
-            ("babysit_loop_merge: c3-autonomous\n", None, None),
+            # With no legacy file the YAML sets the rung by itself.
+            ("babysit_loop_merge: c2-mechanical\n", None, "c2-mechanical"),
+            ("babysit_loop_merge: c3-autonomous\n", None, "c3-autonomous"),
+            ("babysit_loop_stop_mode: standing\n", None, None),
             # A YAML without the key falls back to the legacy value.
             (None, SOURCE_CONTROL, "c2-mechanical"),
             ("babysit_loop_stop_mode: standing\n", SOURCE_CONTROL, "c2-mechanical"),
@@ -579,6 +579,26 @@ class ReadConfigAt(unittest.TestCase):
                 config = policy.read_config_at(REPO, SHA)
                 self.assertEqual(config.loop_merge, expected)
                 self.assertEqual(config.notes, ())
+
+    def test_the_effective_rung_from_the_yaml_alone_both_files_or_neither(
+        self,
+    ) -> None:
+        for team, source, expected in (
+            ("babysit_loop_merge: c2-mechanical\n", None, "C2"),
+            ("babysit_loop_merge: human-only\n", SOURCE_CONTROL, "off"),
+            ("babysit_loop_merge: c3-autonomous\n", SOURCE_CONTROL, "C2"),
+            (None, None, "off"),
+        ):
+            with self.subTest(team=team, source=source):
+                config_fake(self, "merge:\n  rung: C3\n", source, team)
+                config = policy.read_config_at(REPO, SHA)
+                effective = policy.effective_rung(
+                    config_rung=config.rung,
+                    loop_merge=config.loop_merge,
+                    cap=None,
+                    demoted=False,
+                )
+                self.assertEqual(effective.rung, expected)
 
     def test_an_untrustworthy_team_yaml_holds_the_gate_over_the_legacy_value(
         self,
@@ -1610,8 +1630,9 @@ class ReadDemotionBatched(unittest.TestCase):
                 self.assertEqual(batched, expected)
                 singles = batched_fake.queries.count("PolicyDemotionRecord")
                 if failing:
-                    # The failed chunk's records, each read on its own up to the hold.
-                    self.assertEqual(singles, 3)
+                    # The failed chunk's records, each read on its own: past
+                    # the hold too, for the clears that set the floor.
+                    self.assertEqual(singles, policy.DEMOTION_BATCH)
                 if dropped:
                     self.assertEqual(singles, len(dropped))
 
@@ -1626,6 +1647,104 @@ class ReadDemotionBatched(unittest.TestCase):
         records[30] = None  # type: ignore[assignment]
         reason = self.read(RecordsFake(records)).reason
         self.assertEqual(reason, "demotion-unreadable: issue #30 returned nothing")
+
+    OPEN = {"state": "OPEN", "timelineItems": {"nodes": []}}
+
+    def test_a_hold_keeps_the_newest_clear_as_the_floor(self) -> None:
+        # The hold, its reason and its records are the first holding record's,
+        # in either order; the clear is the newest among the cleared records,
+        # all of them before the holding record was opened.
+        opened_later = self.OPEN | {"createdAt": "2026-10-12T13:00:00Z"}
+        cases = {
+            "open after the cleared ones": (4, (1, 2, 3, 4), "12:03"),
+            "open before the cleared ones": (1, (1,), "12:04"),
+        }
+        for name, (held, records, clear) in cases.items():
+            with self.subTest(name):
+                fake = RecordsFake(
+                    {
+                        n: demotion_record(n, **(opened_later if n == held else {}))
+                        for n in range(1, 5)
+                    }
+                )
+                newest = policy.datetime.fromisoformat(f"2026-10-12T{clear}:00Z")
+                self.assertEqual(
+                    self.read(fake),
+                    policy.Demotion(True, f"#{held} open", records, None, newest),
+                )
+
+    def test_a_clear_after_the_hold_began_does_not_raise_the_floor(self) -> None:
+        # Merge M, then record #3 citing it opens and holds, then #2 clears:
+        # the floor stays at #1's clear, before #3 opened, so M is still judged.
+        records = {n: demotion_record(n) for n in range(1, 4)}
+        records[3] |= self.OPEN | {"createdAt": "2026-10-12T12:01:30Z"}
+        self.assertEqual(
+            self.read(RecordsFake(records)),
+            policy.Demotion(
+                True,
+                "#3 open",
+                (1, 2, 3),
+                None,
+                policy.datetime.fromisoformat("2026-10-12T12:01:00Z"),
+            ),
+        )
+        # With every clear after the hold began, the floor keeps the
+        # enabling commit.
+        records[3] |= {"createdAt": "2026-10-12T12:00:30Z"}
+        self.assertEqual(
+            self.read(RecordsFake(records)),
+            policy.Demotion(True, "#3 open", (1, 2, 3)),
+        )
+
+    def test_any_failure_after_a_hold_keeps_the_hold(self) -> None:
+        # A failure that is not a read error keeps the hold once it is found,
+        # and before the hold still escapes, as the early return let it.
+        records = {n: demotion_record(n) for n in range(1, 6)}
+        records[2] |= self.OPEN
+        real = policy._record_hold
+
+        def broken_at(number: int) -> Any:
+            def judge(issue: Any, human: Any) -> Any:
+                if issue["number"] == number:
+                    raise RuntimeError("unexpected shape")
+                return real(issue, human)
+
+            return judge
+
+        with mock.patch.object(policy, "_record_hold", broken_at(4)):
+            self.assertEqual(
+                self.read(RecordsFake(records)),
+                policy.Demotion(True, "#2 open", (1, 2)),
+            )
+        with (
+            mock.patch.object(policy, "_record_hold", broken_at(1)),
+            self.assertRaises(RuntimeError),
+        ):
+            self.read(RecordsFake(records))
+
+    def test_a_read_failure_after_a_hold_keeps_the_hold_with_no_clear(self) -> None:
+        records = {n: demotion_record(n) for n in range(1, 31)}
+        records[5] |= self.OPEN
+        records[22] = None  # type: ignore[assignment]
+        self.assertEqual(
+            self.read(RecordsFake(records)),
+            policy.Demotion(True, "#5 open", (1, 2, 3, 4, 5)),
+        )
+
+    def test_a_hold_with_no_cleared_record_keeps_the_enabling_commit(self) -> None:
+        fake = RecordsFake({1: demotion_record(1, **self.OPEN)})
+        result = self.read(fake)
+        self.assertEqual(result, policy.Demotion(True, "#1 open", (1,)))
+        enabled = policy.datetime.fromisoformat("2026-10-01T00:00:00Z")
+        with mock.patch.object(policy, "enabled_since", return_value=enabled):
+            self.assertEqual(policy.merged_since_floor(REPO, "a" * 40, result), enabled)
+        cleared = policy.replace(
+            result, cleared_at=policy.datetime.fromisoformat("2026-10-12T12:03:00Z")
+        )
+        with mock.patch.object(policy, "enabled_since", return_value=enabled):
+            self.assertEqual(
+                policy.merged_since_floor(REPO, "a" * 40, cleared), cleared.cleared_at
+            )
 
 
 class ResolveIdentity(unittest.TestCase):
@@ -3814,7 +3933,7 @@ class Assess(unittest.TestCase):
                 promotion=lambda start: seen.append(start) or PROMOTED,
             )
             # The restarted window holds the rung's cells unpromoted until a
-            # human re-ratifies them after the demotion: the merge refuses.
+            # publisher re-earns them after the demotion: the merge refuses.
             restarted = policy.Promotion(
                 dict.fromkeys(policy.PROMOTABLE_CELLS, "unpromoted"), None
             )
@@ -7658,6 +7777,26 @@ class SharedPostMergeAnswer(unittest.TestCase):
             shared=self.shared(gate(), demotion=demoted),
         )
         self.assertEqual(result.details["postMergeShared"], "used")
+
+    def test_a_demoted_answer_with_a_clear_re_reads_a_changed_record(self) -> None:
+        # Its floor came from another record's clear, which a reopen or an
+        # edit since can move, so the change check still runs.
+        gh = self.bound()
+        gh.rest[self.issues_since()] = [
+            {"number": 3, "user": {"login": OPERATOR}, "state": "open"}
+        ]
+        self.flight()
+        demoted = policy.Demotion(
+            True,
+            "#5 open",
+            (3, 5),
+            cleared_at=policy.datetime.fromisoformat("2026-10-12T12:00:00Z"),
+        )
+        result = self.lane_assess(
+            post_merge=lambda floor, who: gate(),
+            shared=self.shared(gate(), demotion=demoted),
+        )
+        self.assertEqual(result.details["postMergeShared"], "unused:demotion-changed")
 
     def test_an_unbound_answer_is_not_used(self) -> None:
         late = policy.datetime.now(policy.UTC) - policy.timedelta(minutes=31)

@@ -51,11 +51,11 @@
     "pr-merge-dispatched-*": {
       "retention-days": 30,
       "readers": [
-        "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py _Context.lane_dispatched (LANE_DISPATCH_ARTIFACT) reads the record of each dispatch run covering a lane merge not yet settled (only a merge carrying the identity's babysit-merge-settled marker reads none; a merge with a red, superseded or flaked full run in its window is never settled and still reads it), on every check, back to merged_since with no cursor; the run listing it reads from stops at RUN_SEARCH_CAP",
+        "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py _Context.lane_dispatched (LANE_DISPATCH_ARTIFACT) reads the record of each dispatch run covering a lane merge not yet settled (only a merge carrying the identity's babysit-merge-settled marker reads none; a merge with a red, superseded or flaked full run in its window is never settled and still reads it), on every check, back to merged_since with no cursor; the run listing it reads from is read in created windows under RUN_SEARCH_CAP, at most RUN_WINDOW_READS of them",
         "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py _lane_reruns reads records of runs created within confirm-wait-minutes plus FULL_RUN_ALLOWANCE",
         ".github/scripts/pr-merge/lane-records.mjs carries the records the post-merge check proved, each only until its artifact's expires_at, so the carry adds no lifetime"
       ],
-      "reason": "The look-back is merged_since, the later of the enabling commit and the newest demotion clear, with no bound in days. It stops at the post-merge check's 1000-run listing cap (babysit_gh.py RUN_SEARCH_CAP): past that the check is unreadable and holds the lane whatever this row says. At the 48 and 57 dispatch runs in the two days to 2026-10-31T05:00Z, after the 30-minute cap and its bypass landed, that is about 19 days, and demotion clears had come at most 4.8 days apart; 30 days leaves about 11 more for a stopped check, whose runs then accumulate only at the human merge rate. This holds while the listing reaches 1000 runs, or a clear moves the floor, within 30 days: at least 34 runs a day. A record that has left the listing never verifies a merge: its run stops counting as the lane's, so the merge holds as an unlisted record until a later recorded run covers it, and a flaked or in-between red run can read red and demote.",
+      "reason": "The look-back is merged_since, the later of the enabling commit and the newest demotion clear, with no bound in days: the post-merge check reads its run listings in created windows under the 1000-run search cap (babysit_postmerge.py RUN_WINDOW_READS), so the cap no longer stops it. A merge not settled within 30 days finds its record expired, which reads as a record that has left the listing. A record that has left the listing never verifies a merge: its run stops counting as the lane's, so the merge holds as an unlisted record until a later recorded run covers it, and a flaked or in-between red run can read red and demote.",
       "scan": "upload"
     },
     "pr-merge-rerun-*": {
@@ -162,20 +162,19 @@
     "lane-transcript-*": {
       "retention-days": 7,
       "readers": [
-        ".github/actions/upload-lane-transcript/README.md the transcript puller, a daily task outside CI that copies each sealed transcript to its sink"
+        "scripts/lane-transcripts/pull.mjs the transcript puller, a daily task on the laptop that copies each sealed transcript to its sink"
       ],
       "reason": "A recorded owner decision on the lane transcript store: CI keeps each encrypted transcript 7 days and a daily puller copies it to the sink, so a week of missed pulls loses nothing.",
       "scan": "plaintext"
     },
     "skill-reply-*": {
-      "retention-days": 7,
+      "retention-days": 3,
       "readers": [
         ".github/workflows/pr-run-activity-write.yml reply-attempt download, same run",
         ".github/workflows/pr-run-activity-read.yml a person reading act-turns.json denials by hand"
       ],
-      "reason": "A person reads the denials by hand, and 1 day would lose them over a weekend; 7 days in both lanes is a recorded owner decision.",
-      "scan": "upload",
-      "pending-cut": "3 days would still cover a weekend; changing the recorded owner decision needs the owner."
+      "reason": "A person reads the denials by hand, and 1 day would lose them over a weekend; 3 days in both lanes still covers a weekend and is a recorded owner decision.",
+      "scan": "upload"
     },
     "patch-*": {
       "retention-days": 3,

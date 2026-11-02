@@ -81,7 +81,7 @@ CONFIG="$WORK/config"
 PROJECT="$WORK/project"
 mkdir -p "$CONFIG/plugins" "$PROJECT/.claude"
 manifest "$WORK/plugin-b" plugin-b "$(entry absent-b required)"
-printf '{"plugins":{"plugin-b@m":[{"scope":"local","installPath":"%s"}]}}\n' "$WORK/plugin-b" >"$CONFIG/plugins/installed_plugins.json"
+printf '{"plugins":{"plugin-b@m":[{"scope":"local","projectPath":"%s","installPath":"%s"}]}}\n' "$PROJECT" "$WORK/plugin-b" >"$CONFIG/plugins/installed_plugins.json"
 printf '%s\n' '{"enabledPlugins":{"plugin-b@m":false}}' >"$CONFIG/settings.json"
 printf '%s\n' '{"enabledPlugins":{"plugin-b@m":true}}' >"$PROJECT/.claude/settings.local.json"
 # NOCLAUDE_PATH holds only git, so no claude resolves and the settings fallback

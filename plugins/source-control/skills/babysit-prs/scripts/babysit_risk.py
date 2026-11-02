@@ -346,6 +346,10 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py", "enforcement"),
     ("**/.claude/**", "gate"),
+    # The team layer the babysit loop reads before `.claude/source-control.md`
+    # (`babysit_repo_config.fetch_repo_config`), trusted bot logins included,
+    # so it keeps the hold the `.claude/**` row gave that file.
+    ("docs/conventions/source-control.yaml", "gate"),
     ("**/.claude-lane/**", "gate"),
     ("**/.mcp.json", "gate"),
     ("**/CLAUDE.md", "gate"),
@@ -415,6 +419,7 @@ _NO_AUTHOR_LIFT = frozenset(
     {
         "**/.claude/**",
         "**/.claude-lane/**",
+        "docs/conventions/source-control.yaml",
         "**/.mcp.json",
         "**/CLAUDE.md",
         "**/CLAUDE.local.md",
@@ -2089,60 +2094,12 @@ def _cost_reasons(
     return reasons
 
 
-# The longest diff line, in bytes, the main-run review reads whole. Read may
-# cut a long line short, so a pull request that review binds
-# (`needs_main_review`, as `bind()` decides) with a longer line in its patch
-# holds for a person (`long-line-review:`), pr-review-main.yml writes
-# no verdict for it, and the binder counts no verdict past it
+# The longest diff line, in bytes, the main-run review reads whole.
+# pr-review-main.yml folds a longer line onto `\ continued: ` lines, and the
+# binder counts no verdict whose longest line is past it
 # (babysit_review_evidence `_main_review_counted`). Bytes are at least
 # characters, so the cap is never looser than a character count.
 LONG_LINE_BYTES = 1800
-LONG_LINE_PREFIX = "long-line-review:"
-
-
-def _long_line_reasons(
-    inp: RiskInput, files: list[_File], raw_files: list[Any]
-) -> list[Reason]:
-    """`long-line-review:<path>` (HIGH, a person's) per changed file of a pull
-    request only the main-run review binds (`needs_main_review` over the
-    changed paths, the head text `with_contents` read and `inp.base_sha`),
-    whose patch holds a line, added, removed or context, longer than
-    `LONG_LINE_BYTES`. The pull_request lanes that bind any other read the
-    whole diff."""
-    from babysit_review_evidence import needs_main_review
-
-    heads = {
-        getattr(raw, "path", None): getattr(raw, "contents", None)
-        for raw in raw_files
-        if getattr(raw, "contents_error", None) is None
-    }
-
-    def head_file(path: str, _base: str) -> str | None:
-        contents = heads.get(path)
-        if isinstance(contents, tuple) and len(contents) == 2:
-            return contents[1] if isinstance(contents[1], str) else None
-        return None
-
-    paths = [p for f in files for p in f.paths] if inp.files_complete is True else None
-    if not needs_main_review(paths, head_file, inp.base_sha, floor_for(inp.floor_rows)):
-        return []
-    reasons = []
-    for f, raw in zip(files, raw_files):
-        patch = getattr(raw, "patch", None)
-        if not isinstance(patch, str):
-            continue
-        long = [
-            line
-            for line in patch.split("\n")
-            if len(line[1:].encode("utf-8")) > LONG_LINE_BYTES
-        ]
-        if long:
-            detail = (
-                f"{len(long)} diff line(s) over {LONG_LINE_BYTES} bytes, more than the"
-                " main-run review reads whole; a person reads them"
-            )
-            reasons.append(Reason(f"{LONG_LINE_PREFIX}{f.path}", Risk.HIGH, detail))
-    return reasons
 
 
 _UNREAD_DETAIL = (
@@ -2327,7 +2284,6 @@ def _score(inp: RiskInput) -> RiskResult:
         *(r for r in paths if r not in skipped),
         *_cost_reasons(inp, files or [], list(raw_files or ())),
         *_trust_gate_reasons(files or [], list(raw_files or ())),
-        *_long_line_reasons(inp, files or [], list(raw_files or ())),
     ]
     reasons.sort(key=lambda reason: (-reason.severity, reason.code))
     worst = max((reason.severity for reason in reasons), default=Risk.LOW)
@@ -2405,7 +2361,6 @@ PERSON_CODES = frozenset(
 PERSON_PREFIXES = (
     TRUST_GATE_PREFIX,
     UNREVIEWED_PATCH_PREFIX,
-    LONG_LINE_PREFIX,
 )
 
 

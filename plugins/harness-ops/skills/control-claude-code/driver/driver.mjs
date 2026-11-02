@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Drives Claude Code's TUI for the control-claude-code skill.
 //
-//   node driver.mjs launch --plugin-dir <dir> [--session <name>] [--ttl <seconds>] [--deps-dir <dir>]
+//   node driver.mjs launch --plugin-dir <dir> [--session <name>] [--ttl <seconds>] [--deps-dir <dir>] [--unattended]
 //   node driver.mjs wait-for <text> [--timeout <ms>] [--session <name>]
 //   node driver.mjs type [<text>] [--key <Name>]... [--session <name>]
 //   node driver.mjs screenshot <path.png|path.svg> [--session <name>]
@@ -9,8 +9,19 @@
 //   node driver.mjs record stop [--session <name>]
 //   node driver.mjs stop [--session <name>]
 //   node driver.mjs doctor [--deps-dir <dir>]
-//   node driver.mjs ready --plugin-dir <dir> --out <path.jsonl> [--timeout <ms>] [--session <name>] [--deps-dir <dir>]
-//   node driver.mjs log <prompt> --plugin-dir <dir> --out <path.jsonl> [--timeout <ms>]
+//   node driver.mjs ready --plugin-dir <dir> --out <path.jsonl> [--timeout <ms>] [--session <name>] [--deps-dir <dir>] [--unattended]
+//   node driver.mjs log <prompt> --plugin-dir <dir> --out <path.jsonl> [--timeout <ms>] [--unattended]
+//   node driver.mjs plugins [<changed file>...]
+//
+// `screenshot` and `record` never capture the live terminal: the holder reads
+// its cells, hides every `## Mask` match in SKILL.md and every signed-in
+// account value, redraws the masked cells in a second terminal, captures that
+// one, and writes the text it drew beside the capture as `<path>.txt`. A frame
+// that does not redraw exactly fails the verb with nothing written.
+//
+// `plugins` prints the plugin directory of each changed file, once each, at
+// most `maxEntryPoints` of them; with no file it prints the configured
+// `pluginDir`.
 //
 // The terminal engine lives in one process, so `launch` starts a detached
 // holder that owns the session and listens on a local socket in a 0700
@@ -22,9 +33,10 @@
 // `ready` and `log` run Claude Code in print mode with the launch's flags and
 // environment and write its stream-json to --out. `ready` prints doctor's lines,
 // whether the session answers, and the init event's fields, stops Claude Code
-// once the init event arrives, and exits 1 unless `apiKeySource` is "none" and
-// the init event lists the plugin under test. `log` runs the prompt to the end,
-// stopping Claude Code early only when the init event names an API key. Both
+// once the init event arrives, and exits 1 unless `apiKeySource` is the source
+// the launch expects ("none", or under --unattended the kept CI credential's)
+// and the init event lists the plugin under test. `log` runs the prompt to the end,
+// stopping Claude Code early only when the init event names another key source. Both
 // stop Claude Code at --timeout (ready 120000, log 600000 by default).
 //
 // Exit: 0 done, 1 the step failed, 2 usage, 3 no session, 4 broken install
@@ -48,7 +60,7 @@ import {
 } from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
-import { basename, dirname, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { StringDecoder } from 'node:string_decoder';
 import { parseArgs } from 'node:util';
@@ -93,12 +105,48 @@ export const UNSET_VARS = [
   'CLAUDE_CODE_USE_ANTHROPIC_AWS',
 ];
 
-/** The Claude Code command line and environment; pure, so it tests with no packages installed. */
+// The CI credential variables an --unattended run may keep, each with the apiKeySource Ready then
+// accepts. Print mode always uses ANTHROPIC_API_KEY when it is set (env-vars Variables table, above).
+// UNVERIFIED: that CLAUDE_CODE_OAUTH_TOKEN, a claude.ai subscription token, reports "none" as the
+// signed-in login does; until the owner's #11386 spike leg records it, a token that reports any
+// other source is refused. The CLAUDE_CODE_SUBPROCESS_ENV_SCRUB row and "What the subprocess
+// environment scrub removes" (same page) remove a kept credential from the environment hooks, Bash
+// and MCP servers inherit; whether plugin code can still read it elsewhere is #8651's S7 probe.
+// As of: 2026-11-02. Recheck trigger: the spike records the token's apiKeySource, or the scrub's
+// table changes which variables it removes.
+const NO_KEY = 'none';
+const CI_KEY_SOURCES = { ANTHROPIC_API_KEY: 'ANTHROPIC_API_KEY', CLAUDE_CODE_OAUTH_TOKEN: NO_KEY };
+const CI_NAMES = Object.keys(CI_KEY_SOURCES);
+const CONFIG = join(HERE, '..', 'config', 'defaults.json');
+
+/** The variable names committed config lists under `credentials.ci`; each must be one CI_KEY_SOURCES knows. */
+export function ciCredentials(file = CONFIG) {
+  const names = Object.values(JSON.parse(readFileSync(file, 'utf8')).credentials?.ci ?? {});
+  const unknown = names.filter((n) => !Object.hasOwn(CI_KEY_SOURCES, n));
+  if (unknown.length) throw new UsageError(`credentials.ci names ${unknown.join(', ')}, which the driver cannot vouch for`);
+  return names;
+}
+
+/**
+ * The Claude Code command line, environment and the apiKeySource Ready accepts; pure, so it tests
+ * with no packages installed. Attended, the API-key, gateway and provider variables are cleared and
+ * the source must be "none"; CLAUDE_CODE_OAUTH_TOKEN, the person's own login, passes through as it
+ * always has. Unattended, the one `config.credentials` variable that is set is kept, the scrub keeps it
+ * from the processes Claude Code starts, and two set at once is refused before anything runs.
+ */
 export function buildLaunch(config, env) {
   if (!config?.pluginDir) throw new UsageError('launch needs --plugin-dir <dir>');
   const childEnv = { ...env, CLAUDE_CODE_FORCE_SESSION_PERSISTENCE: '1', CLAUDE_CODE_HIDE_CWD: '1' };
-  for (const name of UNSET_VARS) delete childEnv[name];
-  return { argv: ['claude', ...LAUNCH_FLAGS, '--plugin-dir', config.pluginDir], env: childEnv };
+  const set = config.unattended ? (config.credentials ?? []).filter((n) => env[n]) : [];
+  if (set.length > 1) throw new Refused(`refused: ${set.join(' and ')} are both set; an unattended run takes one credential`);
+  const [kept] = set;
+  for (const name of [...UNSET_VARS, ...(config.credentials ?? [])]) if (name !== kept) delete childEnv[name];
+  if (kept) childEnv.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB = '1';
+  return {
+    argv: ['claude', ...LAUNCH_FLAGS, '--plugin-dir', config.pluginDir],
+    env: childEnv,
+    keySource: kept ? CI_KEY_SOURCES[kept] : NO_KEY,
+  };
 }
 
 // Print-mode flags, and the init event's key source that Ready requires to be "none".
@@ -108,7 +156,6 @@ export function buildLaunch(config, env) {
 // As of: 2026-10-26. Recheck trigger: a Claude Code release changes the
 // stream-json flags or the values the init event reports in apiKeySource.
 export const PRINT_FLAGS = ['-p', '--output-format', 'stream-json', '--verbose'];
-const NO_KEY = 'none';
 const READY_PROMPT = 'Reply with the single word ok.';
 const READY_TIMEOUT_MS = 120_000;
 const LOG_TIMEOUT_MS = 600_000;
@@ -118,12 +165,22 @@ const STOP_GRACE_MS = 5000;
 export function buildPrint(config, env, prompt) {
   if (!prompt) throw new UsageError('print mode needs a prompt');
   if (prompt.startsWith('-')) throw new UsageError('a prompt may not start with -');
-  const { argv, env: childEnv } = buildLaunch(config, env);
-  return { argv: [...argv, ...PRINT_FLAGS, prompt], env: childEnv };
+  const launch = buildLaunch(config, env);
+  return { ...launch, argv: [...launch.argv, ...PRINT_FLAGS, prompt] };
 }
+
+/** The launch config a verb's options select: `--unattended` reads `credentials.ci` from committed config. */
+const launchConfig = (opts, pluginDir) => ({
+  pluginDir,
+  unattended: Boolean(opts.unattended),
+  credentials: opts.unattended ? ciCredentials() : [],
+});
 
 class UsageError extends Error {
   code = 2;
+}
+class Refused extends Error {
+  code = 1;
 }
 class NoSession extends Error {
   code = 3;
@@ -410,6 +467,257 @@ function request(session, verb, args = {}) {
   });
 }
 
+// ---- config and changed plugins ----
+
+const CONFIG_DIR = join(HERE, '..', 'config');
+
+/** config/defaults.json, then config/local.json over it. */
+export function readConfig(dir = CONFIG_DIR) {
+  const layer = (name) => {
+    try {
+      return JSON.parse(readFileSync(join(dir, name), 'utf8'));
+    } catch (err) {
+      if (err.code === 'ENOENT') return {};
+      throw new UsageError(`config/${name} is not valid JSON`);
+    }
+  };
+  const config = { ...layer('defaults.json'), ...layer('local.json') };
+  if (!Number.isInteger(config.maxEntryPoints) || config.maxEntryPoints < 1) {
+    throw new UsageError('config maxEntryPoints must be a whole number above 0');
+  }
+  return config;
+}
+
+/** The plugin directory (the nearest one holding .claude-plugin/plugin.json) of each changed file, once each, in order. */
+export function changedPlugins(files, root = process.cwd()) {
+  const dirs = [];
+  for (const file of files) {
+    if (isAbsolute(file) || file.split(/[\\/]/).includes('..')) throw new UsageError(`a changed file must be a path inside the repository: ${file}`);
+    for (let dir = dirname(file); dir !== '.' && dir !== dirname(dir); dir = dirname(dir)) {
+      if (existsSync(join(root, dir, '.claude-plugin', 'plugin.json'))) {
+        if (!dirs.includes(dir)) dirs.push(dir);
+        break;
+      }
+    }
+  }
+  return dirs;
+}
+
+/** Each changed plugin to launch, at most maxEntryPoints, since each one drives at least one entry point. */
+function plugins(files, config = readConfig()) {
+  const dirs = files.length ? changedPlugins(files) : [config.pluginDir].filter(Boolean);
+  if (!files.length && !dirs.length) throw new UsageError('plugins got no changed file and config sets no pluginDir');
+  if (files.length && !dirs.length) console.error('no changed file is inside a plugin; launch nothing');
+  for (const dir of dirs.slice(config.maxEntryPoints)) console.error(`blocked: maxEntryPoints reached: ${dir}`);
+  return { text: dirs.slice(0, config.maxEntryPoints).join('\n'), status: 0 };
+}
+
+// ---- masks: what a capture hides ----
+
+const SKILL_FILE = join(HERE, '..', 'SKILL.md');
+const MASK_CHAR = '*'; // drive's credential pattern takes no value made of it
+const BOX = /[─-╿]/;
+const MIRROR_READY = 'ccd-mirror-ready';
+const MIRROR_MS = 5000;
+const FRAME_MS = 250;
+
+/** The `- <label> | <regex>` lines under SKILL.md's `## Mask`, as case-insensitive regular expressions. */
+export function readMasks(text) {
+  const masks = [];
+  let inside = false;
+  let fence = false;
+  for (const line of text.split(/\r?\n/)) {
+    if (/^\s*(```|~~~)/.test(line)) fence = !fence;
+    else if (fence) continue;
+    else if (line.startsWith('## ')) inside = line.trim() === '## Mask';
+    else if (inside) {
+      const m = /^- ([^|]*[^|\s])\s*\|\s*(\S.*)$/.exec(line);
+      if (m) masks.push({ label: m[1].trim(), pattern: new RegExp(m[2].trimEnd(), 'gi') });
+    }
+  }
+  if (!masks.length) throw new Error('SKILL.md ## Mask holds no mask line; capture nothing');
+  return masks;
+}
+
+/**
+ * The signed-in account's email and organization name from `claude auth status`, run in
+ * `env`: the session's launch environment, else an attended launch's. The output is never
+ * echoed, so no value reaches a log or an error message.
+ */
+export function accountValues(env = buildLaunch({ pluginDir: '.' }, process.env).env) {
+  const run = spawnSync('claude', ['auth', 'status', '--json'], {
+    env,
+    encoding: 'utf8',
+    timeout: 30_000,
+    shell: process.platform === 'win32',
+  });
+  if (run.error) throw new Error('claude auth status did not run; cannot read the signed-in account to mask it');
+  let status;
+  try {
+    status = JSON.parse(run.stdout);
+  } catch {
+    throw new Error('claude auth status printed no JSON; cannot read the signed-in account to mask it');
+  }
+  const values = [status?.email, status?.orgName].filter((v) => typeof v === 'string' && v.trim());
+  return [...new Set(values)];
+}
+
+const unitsOf = (cell) => cell.char.length;
+
+/**
+ * Hides each mask match within a screen row, and each value anywhere on the screen
+ * ignoring case, whitespace, `|` and box drawing, so a value wrapped across rows or
+ * split by a border is still hidden. Returns the masked rows of cells and their text.
+ */
+export function maskCells(cells, masks, values = []) {
+  const byRow = new Map();
+  for (const cell of cells) {
+    const copy = { ...cell, link: '', link_id: '' };
+    if (!byRow.has(copy.y)) byRow.set(copy.y, []);
+    byRow.get(copy.y).push(copy);
+  }
+  const rows = [...byRow.keys()].sort((a, b) => a - b).map((y) => byRow.get(y).sort((a, b) => a.x - b.x));
+  const hide = new Set();
+  for (const row of rows) {
+    const text = row.map((c) => c.char).join('');
+    const at = row.flatMap((c) => Array(unitsOf(c)).fill(c));
+    for (const { pattern } of masks) {
+      for (const m of text.matchAll(pattern)) for (let i = m.index; i < m.index + m[0].length; i++) hide.add(at[i]);
+    }
+  }
+  let flat = '';
+  const stream = [];
+  for (const cell of rows.flat()) {
+    if (!cell.char || /\s/.test(cell.char) || cell.char === '|' || BOX.test(cell.char)) continue;
+    const low = cell.char.toLowerCase();
+    flat += low;
+    for (let i = 0; i < low.length; i++) stream.push(cell);
+  }
+  for (const value of values) {
+    const needle = value.toLowerCase().replace(/[\s|]/g, '');
+    if (!needle) continue;
+    for (let i = flat.indexOf(needle); i >= 0; i = flat.indexOf(needle, i + 1)) {
+      for (let k = i; k < i + needle.length; k++) hide.add(stream[k]);
+    }
+  }
+  // A masked cell loses its style too: a meter's colored cells show its level without any text.
+  const blank = (cell) => {
+    Object.assign(cell, { char: MASK_CHAR, fg: 'default', bg: 'default' });
+    for (const [name] of ATTRS) cell[name] = false;
+  };
+  for (const row of rows) {
+    row.forEach((cell, i) => {
+      if (!hide.has(cell) || cell.char === '') return;
+      blank(cell);
+      for (let j = i + 1; row[j]?.char === ''; j++) blank(row[j]); // keep a wide glyph's columns
+    });
+  }
+  return { rows, text: rows.map((row) => row.map((c) => c.char).join('')).join('\n') };
+}
+
+const color = (value, base) => {
+  if (typeof value === 'number') return [`${base};5;${value}`];
+  const hex = /^#([0-9a-f]{6})$/i.exec(value ?? '')?.[1];
+  if (!hex) return [];
+  const n = Number.parseInt(hex, 16);
+  return [`${base};2;${n >> 16};${(n >> 8) & 255};${n & 255}`];
+};
+const ATTRS = [
+  ['bold', 1],
+  ['dim', 2],
+  ['italic', 3],
+  ['underline', 4],
+  ['blink', 5],
+  ['inverse', 7],
+  ['invisible', 8],
+  ['strike', 9],
+];
+const sgr = (cell) => {
+  const parts = ['0', ...ATTRS.filter(([name]) => cell[name]).map(([, code]) => String(code))];
+  return `\x1b[${[...parts, ...color(cell.fg, 38), ...color(cell.bg, 48)].join(';')}m`;
+};
+
+/** The escape sequence that draws masked rows of cells, colors and attributes kept, links dropped. */
+export function renderFrame(rows) {
+  let out = '\x1b[0m\x1b[2J';
+  for (const row of rows) {
+    if (!row.length) continue;
+    out += `\x1b[${row[0].y + 1};1H`;
+    let last = '';
+    for (const cell of row) {
+      if (cell.char === '') continue;
+      const style = sgr(cell);
+      if (style !== last) out += style;
+      last = style;
+      out += cell.char;
+    }
+  }
+  return `${out}\x1b[0m`;
+}
+
+const settled = (text) =>
+  text
+    .split('\n')
+    .map((l) => l.trimEnd())
+    .join('\n')
+    .trimEnd();
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// The second terminal draws only what the holder writes to it, cursor hidden.
+const MIRROR_JS = `process.stdin.setRawMode(true);process.stdin.on('data',(d)=>process.stdout.write(d));process.stdout.write('\\x1b[?25l${MIRROR_READY}');`;
+
+async function openMirror(ctx, size) {
+  const mirror = ctx.TuiTest.ephemeral(`${COMPONENT}-mirror`);
+  try {
+    await mirror.run(process.execPath, ['-e', MIRROR_JS], { cols: size.cols, rows: size.rows });
+    await mirror.getByText(MIRROR_READY).first().wait({ state: 'visible', timeout: MIRROR_MS });
+  } catch (err) {
+    await mirror.closeQuiet().catch(() => {});
+    throw err;
+  }
+  return mirror;
+}
+
+/** The live screen, masked. */
+async function maskedFrame(t, ctx) {
+  ctx.mask ??= { masks: readMasks(readFileSync(SKILL_FILE, 'utf8')), values: accountValues(ctx.env) };
+  const size = await t.getSize();
+  const { rows, text } = maskCells(await t.cells(0, 0, size.cols, size.rows), ctx.mask.masks, ctx.mask.values);
+  return { size, text, draw: renderFrame(rows) };
+}
+
+/** Draws a masked frame in the mirror and waits until the mirror shows exactly its text. */
+async function show(mirror, frame) {
+  await mirror.write(frame.draw);
+  const want = settled(frame.text);
+  for (const deadline = Date.now() + MIRROR_MS; settled(await mirror.text()) !== want; await sleep(50)) {
+    if (Date.now() > deadline) throw new Error('the masked frame did not redraw; nothing captured');
+  }
+}
+
+const removeCapture = (path) => {
+  rmSync(path, { force: true });
+  rmSync(`${path}.txt`, { force: true });
+};
+
+/** Redraws the next masked frame while a recording runs; a failure ends in record stop's error. */
+async function syncFrame(t, ctx, rec) {
+  if (rec.busy || rec.error) return;
+  rec.busy = true;
+  try {
+    const frame = await maskedFrame(t, ctx);
+    if (frame.draw !== rec.last) {
+      await show(rec.mirror, frame);
+      rec.last = frame.draw;
+      if (rec.frames.at(-1) !== frame.text) rec.frames.push(frame.text);
+    }
+  } catch (err) {
+    rec.error = err;
+  } finally {
+    rec.busy = false;
+  }
+}
+
 // ---- holder: owns the terminal session (internal verb `serve`) ----
 
 const HANDLERS = {
@@ -423,15 +731,57 @@ const HANDLERS = {
     if (keys?.length) await t.press(...keys);
     return 'typed';
   },
-  screenshot: async (t, { path }) => {
-    await t.screenshot(path);
+  screenshot: async (t, { path }, ctx) => {
+    const frame = await maskedFrame(t, ctx);
+    const mirror = await openMirror(ctx, frame.size);
+    try {
+      await show(mirror, frame);
+      await mirror.screenshot(path);
+      writeFileSync(`${path}.txt`, `${settled(await mirror.text())}\n`);
+    } catch (err) {
+      removeCapture(path);
+      throw err;
+    } finally {
+      await mirror.closeQuiet().catch(() => {});
+    }
     return path;
   },
-  'record-start': async (t, { path }) => {
-    await t.startRecording(path);
+  'record-start': async (t, { path }, ctx) => {
+    if (ctx.recording) throw new Error('a recording is running; run record stop first');
+    const frame = await maskedFrame(t, ctx);
+    const mirror = await openMirror(ctx, frame.size);
+    const rec = { mirror, path, frames: [frame.text], last: frame.draw };
+    try {
+      await show(mirror, frame); // the first recorded frame is already masked
+      await mirror.startRecording(path);
+    } catch (err) {
+      await mirror.closeQuiet().catch(() => {});
+      removeCapture(path);
+      throw err;
+    }
+    rec.timer = setInterval(() => syncFrame(t, ctx, rec), FRAME_MS);
+    ctx.recording = rec;
     return `recording: ${path}`;
   },
-  'record-stop': async (t) => t.stopRecording(),
+  'record-stop': async (t, _args, ctx) => {
+    const rec = ctx.recording;
+    if (!rec) throw new Error('no recording is running');
+    ctx.recording = undefined;
+    clearInterval(rec.timer);
+    while (rec.busy) await sleep(20);
+    try {
+      await syncFrame(t, ctx, rec);
+      const out = await rec.mirror.stopRecording();
+      if (rec.error) throw rec.error;
+      writeFileSync(`${rec.path}.txt`, `${rec.frames.map(settled).join('\n\n')}\n`);
+      return out;
+    } catch (err) {
+      removeCapture(rec.path);
+      throw err;
+    } finally {
+      await rec.mirror.closeQuiet().catch(() => {});
+    }
+  },
 };
 
 /** Whether Claude Code has exited; a state read that fails is not taken as an exit. */
@@ -447,15 +797,19 @@ async function childExited(terminal) {
 async function serve(opts) {
   const { sock, nameFile } = endpoint(opts.session);
   const lock = lockFile(opts.session);
-  const launch = buildLaunch({ pluginDir: opts['plugin-dir'] }, process.env);
+  const launch = buildLaunch(launchConfig(opts, opts['plugin-dir']), process.env);
   // The launch reserved the session, so a socket left here belongs to a holder that is gone;
   // one that still answers is refused, before claude starts, rather than unlinked.
   const stale = process.platform !== 'win32' && existsSync(sock);
   if (stale && (await listening(sock))) throw new Error(`another process is serving ${sock}`);
-  for (const name of UNSET_VARS) delete process.env[name]; // the engine merges onto this env
+  for (const name of Object.keys(process.env)) if (!(name in launch.env)) delete process.env[name]; // the engine merges onto this env
   const { TuiTest } = await import(pathToFileURL(join(opts.install, 'node_modules', ENGINE, 'dist', 'index.js')).href);
   const terminal = TuiTest.ephemeral(COMPONENT);
+  const ctx = { TuiTest, env: launch.env };
   await terminal.run(launch.argv[0], launch.argv.slice(1), { env: launch.env, cols: 120, rows: 40 });
+  // claude has its copy: later children and in-process reads no longer see the key. /proc/<pid>/environ
+  // still shows the environment the holder started with, which #8651's isolation probe covers.
+  for (const name of CI_NAMES) delete process.env[name];
   if (await childExited(terminal)) throw new Error('claude exited as soon as it started');
   if (stale) rmSync(sock, { force: true });
   const server = net.createServer((conn) => {
@@ -469,6 +823,7 @@ async function serve(opts) {
       try {
         const { verb, args } = JSON.parse(buf);
         if (verb === 'stop') {
+          await ctx.recording?.mirror.closeQuiet().catch(() => {});
           await terminal.closeQuiet();
           free(); // before the reply, so a launch right after stop finds the session free
           conn.end(`${JSON.stringify({ ok: true, result: 'stopped' })}\n`, () => process.exit(0));
@@ -476,7 +831,7 @@ async function serve(opts) {
         }
         const handler = HANDLERS[verb];
         if (!handler) throw new Error(`unknown verb ${verb}`);
-        reply = { ok: true, result: await handler(terminal, args) };
+        reply = { ok: true, result: await handler(terminal, args, ctx) };
       } catch (err) {
         reply = { ok: false, error: err.message };
       }
@@ -493,6 +848,7 @@ async function serve(opts) {
     process.exit(0);
   };
   const closeAndExit = async () => {
+    await ctx.recording?.mirror.closeQuiet().catch(() => {});
     await terminal.closeQuiet();
     exit();
   };
@@ -513,7 +869,8 @@ async function serve(opts) {
 
 async function launch(opts) {
   const pluginDir = opts['plugin-dir'] && resolve(opts['plugin-dir']);
-  buildLaunch({ pluginDir }, process.env); // usage check before any install
+  const config = launchConfig(opts, pluginDir);
+  buildLaunch(config, process.env); // usage and credential checks before any install
   if (!/^[1-9]\d*$/.test(opts.ttl) || Number(opts.ttl) > MAX_TTL_S) {
     throw new UsageError(`--ttl takes a whole number of seconds up to ${MAX_TTL_S}`);
   }
@@ -536,8 +893,20 @@ async function launch(opts) {
     try {
       holder = spawn(
         process.execPath,
-        [fileURLToPath(import.meta.url), 'serve', '--session', opts.session, '--plugin-dir', pluginDir, '--install', install, '--ttl', opts.ttl],
-        { detached: true, stdio: ['ignore', fd, fd], env: buildLaunch({ pluginDir }, process.env).env },
+        [
+          fileURLToPath(import.meta.url),
+          'serve',
+          '--session',
+          opts.session,
+          '--plugin-dir',
+          pluginDir,
+          '--install',
+          install,
+          '--ttl',
+          opts.ttl,
+          ...(config.unattended ? ['--unattended'] : []),
+        ],
+        { detached: true, stdio: ['ignore', fd, fd], env: buildLaunch(config, process.env).env },
       );
     } finally {
       closeSync(fd);
@@ -618,8 +987,8 @@ function doctor(opts) {
  * `timeoutMs`. Claude Code and every process it started are stopped as soon as
  * `stopAt(init)` holds or the time is up: SIGTERM, then SIGKILL after a grace.
  */
-function runPrint({ pluginDir, out, prompt, stopAt, timeoutMs }) {
-  const { argv, env } = buildPrint({ pluginDir }, process.env, prompt);
+function runPrint({ config, out, prompt, stopAt, timeoutMs }) {
+  const { argv, env } = buildPrint(config, process.env, prompt);
   const fd = openSync(out, 'w', 0o600);
   let open = true;
   const closeOut = () => {
@@ -701,11 +1070,12 @@ function printTarget(opts, verb, defaultTimeout) {
   }
   if (!existsSync(pluginDir)) throw new UsageError(`--plugin-dir ${pluginDir} does not exist`);
   const timeoutMs = Math.min(opts.timeout === undefined ? defaultTimeout : Number(opts.timeout), MAX_TTL_S * 1000);
-  return { pluginDir, out: resolve(opts.out), timeoutMs };
+  const config = launchConfig(opts, pluginDir);
+  return { config, keySource: buildLaunch(config, process.env).keySource, out: resolve(opts.out), timeoutMs };
 }
 
-const keyLine = (init) =>
-  init.apiKeySource === NO_KEY ? [] : [`refused: apiKeySource is ${JSON.stringify(init.apiKeySource)}, not "none"; drive nothing`];
+const keyLine = (init, want) =>
+  init.apiKeySource === want ? [] : [`refused: apiKeySource is ${JSON.stringify(init.apiKeySource)}, not ${JSON.stringify(want)}; drive nothing`];
 
 /** The name in a plugin directory's manifest, or undefined when it has none. */
 function manifestName(pluginDir) {
@@ -742,10 +1112,11 @@ async function sessionLine(session) {
 }
 
 async function ready(opts) {
-  const { pluginDir, out, timeoutMs } = printTarget(opts, 'ready', READY_TIMEOUT_MS);
+  const { config, keySource, out, timeoutMs } = printTarget(opts, 'ready', READY_TIMEOUT_MS);
+  const { pluginDir } = config;
   const health = doctor(opts);
   const lines = [health.text, await sessionLine(opts.session)];
-  const { init, timedOut } = await runPrint({ pluginDir, out, prompt: READY_PROMPT, stopAt: () => true, timeoutMs });
+  const { init, timedOut } = await runPrint({ config, out, prompt: READY_PROMPT, stopAt: () => true, timeoutMs });
   lines.push(`stream: ${out}`);
   if (!init) {
     lines.push(timedOut ? `init: no init event within ${timeoutMs} ms` : 'init: no init event');
@@ -753,18 +1124,20 @@ async function ready(opts) {
   }
   const plugins = (init.plugins ?? []).map((p) => p?.name).join(', ') || 'none';
   const hasPlugin = loaded(init, pluginDir);
-  lines.push(`claude_code_version: ${init.claude_code_version}`, `apiKeySource: ${init.apiKeySource}`, `plugins: ${plugins}`, ...keyLine(init));
+  const keys = keyLine(init, keySource);
+  lines.push(`claude_code_version: ${init.claude_code_version}`, `apiKeySource: ${init.apiKeySource}`, `plugins: ${plugins}`, ...keys);
   if (!hasPlugin) lines.push(`refused: the init event does not list the plugin at ${pluginDir}; drive nothing`);
-  return { text: lines.join('\n'), status: health.status || (init.apiKeySource === NO_KEY && hasPlugin ? 0 : 1) };
+  return { text: lines.join('\n'), status: health.status || (!keys.length && hasPlugin ? 0 : 1) };
 }
 
 async function log(opts, prompt) {
-  const { pluginDir, out, timeoutMs } = printTarget(opts, 'log', LOG_TIMEOUT_MS);
-  const run = await runPrint({ pluginDir, out, prompt, stopAt: (i) => i.apiKeySource !== NO_KEY, timeoutMs });
+  const { config, keySource, out, timeoutMs } = printTarget(opts, 'log', LOG_TIMEOUT_MS);
+  const run = await runPrint({ config, out, prompt, stopAt: (i) => i.apiKeySource !== keySource, timeoutMs });
   const ended = run.timedOut ? `stopped after ${timeoutMs} ms` : run.signal ? `stopped by ${run.signal}` : `exit ${run.code}`;
   if (!run.init) return { text: `log: ${out} (claude ${ended}); init: no init event`, status: 1 };
-  const lines = [`log: ${out} (claude ${ended}, apiKeySource ${run.init.apiKeySource})`, ...keyLine(run.init)];
-  const clean = run.init.apiKeySource === NO_KEY && run.code === 0 && !run.timedOut;
+  const keys = keyLine(run.init, keySource);
+  const lines = [`log: ${out} (claude ${ended}, apiKeySource ${run.init.apiKeySource})`, ...keys];
+  const clean = !keys.length && run.code === 0 && !run.timedOut;
   return { text: lines.join('\n'), status: clean ? 0 : 1 };
 }
 
@@ -779,6 +1152,7 @@ const OPTIONS = {
   timeout: { type: 'string' },
   key: { type: 'string', multiple: true },
   out: { type: 'string' },
+  unattended: { type: 'boolean' },
 };
 
 const VERBS = {
@@ -805,10 +1179,11 @@ const VERBS = {
   doctor: (o) => doctor(o),
   ready: (o) => ready(o),
   log: (o, [prompt]) => log(o, prompt),
+  plugins: (_o, files) => plugins(files),
   serve: (o) => serve(o),
 };
 
-const ARITY = { 'wait-for': 1, type: 1, screenshot: 1, record: 2, log: 1 };
+const ARITY = { 'wait-for': 1, type: 1, screenshot: 1, record: 2, log: 1, plugins: Number.POSITIVE_INFINITY };
 
 async function main(argv) {
   let parsed;
@@ -823,7 +1198,7 @@ async function main(argv) {
   if (rest.length > (ARITY[verb] ?? 0)) throw new UsageError(`${verb} got extra arguments: ${rest.join(' ')}`);
   const out = await run(parsed.values, rest);
   if (out && typeof out === 'object') {
-    console.log(out.text);
+    if (out.text) console.log(out.text);
     return out.status;
   }
   if (out !== undefined) console.log(out);

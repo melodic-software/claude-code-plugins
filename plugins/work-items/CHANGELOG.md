@@ -3,6 +3,30 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.0.4] - 2026-11-02
+
+### Fixed
+
+- The `tr-config-ref-dotdot-rejected` eval case's `ref-rejected` grader now accepts replies that say the ref "isn't valid" or "isn't accepted", and its samples cover both directions.
+
+## [8.0.3] - 2026-11-02
+
+### Changed
+
+- Shared `view-bridge/watch.sh` synced: on an exit-0 wake the watcher also writes its JSON line alone to `.watch-wake.json` (mode 0600) in the data dir, without the background task's stderr and exit footer. The line it prints is unchanged, and the triage board's wake still reads it from the task's output.
+
+## [8.0.2] - 2026-11-02
+
+### Changed
+
+- Shared `publish-gate.mjs` synced: the R2 key pair pattern now finds a 32-hex and a 64-hex word on one line in time linear in the line, so a large one-line JSON file no longer takes minutes to scan. It matches exactly what it matched before.
+
+## [8.0.1] - 2026-11-02
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#6633): a manifest may declare an optional `session_probe`, which opts the plugin into harness-ops' session-start probe.
+
 ## [8.0.0] - 2026-11-02
 
 ### Changed

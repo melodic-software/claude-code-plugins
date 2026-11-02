@@ -4,19 +4,6 @@
     "./register.ts"
   ],
   "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "startup|resume|clear|fork",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /desktop-notification:check; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /desktop-notification:check",
-            "timeout": 10,
-            "statusMessage": "Checking that node is on PATH..."
-          }
-        ]
-      }
-    ],
     "Notification": [
       {
         "matcher": "permission_prompt|idle_prompt|plugin_notification",

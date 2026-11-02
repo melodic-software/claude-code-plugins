@@ -79,7 +79,7 @@ test('a ttl that is not a whole number of seconds is refused before any install'
 test('an unknown verb is a usage error naming the verbs', async () => {
   await assert.rejects(main(['dance']), {
     code: 2,
-    message: 'verbs: launch, wait-for, type, screenshot, record, stop, doctor, ready, log',
+    message: 'verbs: launch, wait-for, type, screenshot, record, stop, doctor, ready, log, plugins',
   });
 });
 
@@ -125,8 +125,66 @@ test('the control skill config keeps local.json out of git and ships every floor
   assert.equal(typeof defaults.pluginDir, 'string');
   assert.ok(defaults.pluginDir.length > 0);
   assert.equal(defaults.maxCaptures, 20);
-  assert.deepEqual(defaults.credentials, {});
+  assert.equal(defaults.maxEntryPoints, 6);
+  assert.deepEqual(defaults.credentials, { ci: { apiKey: 'ANTHROPIC_API_KEY', oauthToken: 'CLAUDE_CODE_OAUTH_TOKEN' } });
+  assert.deepEqual(driver.ciCredentials(), ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN']);
   assert.deepEqual(defaults.safety, { recipients: {}, signInAttempts: {}, production: {}, unattendedWrites: false });
+});
+
+test('credentials.ci naming a variable the driver has no key source for is refused', () => {
+  const file = join(RUNTIME, 'defaults.json');
+  writeFileSync(file, JSON.stringify({ credentials: { ci: { other: 'ANTHROPIC_AUTH_TOKEN' } } }));
+  assert.throws(() => driver.ciCredentials(file), { code: 2, message: /credentials\.ci names ANTHROPIC_AUTH_TOKEN/ });
+});
+
+const CI = ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN'];
+
+test('attended clears the API key, passes the person\'s own OAuth token through, and requires "none"', () => {
+  // The config an attended verb builds: no --unattended, no CI names.
+  const { env, keySource } = buildLaunch({ pluginDir: '/p' }, { ANTHROPIC_API_KEY: 'fake', CLAUDE_CODE_OAUTH_TOKEN: 'fake' });
+  assert.equal('ANTHROPIC_API_KEY' in env, false);
+  assert.equal(env.CLAUDE_CODE_OAUTH_TOKEN, 'fake');
+  assert.equal('CLAUDE_CODE_SUBPROCESS_ENV_SCRUB' in env, false);
+  assert.equal(keySource, 'none');
+});
+
+test('unattended keeps the one CI credential set, scrubs it from subprocesses, and accepts its key source', () => {
+  for (const [name, source] of [
+    ['ANTHROPIC_API_KEY', 'ANTHROPIC_API_KEY'],
+    ['CLAUDE_CODE_OAUTH_TOKEN', 'none'],
+  ]) {
+    const { env, keySource } = buildLaunch({ pluginDir: '/p', unattended: true, credentials: CI }, { [name]: 'fake', ANTHROPIC_AUTH_TOKEN: 'x' });
+    assert.equal(env[name], 'fake', name);
+    assert.equal(env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, '1', name);
+    assert.equal('ANTHROPIC_AUTH_TOKEN' in env, false, 'every other auth variable is still cleared');
+    assert.equal(keySource, source, name);
+  }
+});
+
+test('unattended with no CI credential set runs as attended does', () => {
+  const { env, keySource } = buildLaunch({ pluginDir: '/p', unattended: true, credentials: CI }, { PATH: '/usr/bin' });
+  assert.equal('CLAUDE_CODE_SUBPROCESS_ENV_SCRUB' in env, false);
+  assert.equal(keySource, 'none');
+});
+
+test('unattended refuses two CI credentials set at once, before anything runs', async () => {
+  const saved = { ...process.env };
+  process.env.ANTHROPIC_API_KEY = 'fake';
+  process.env.CLAUDE_CODE_OAUTH_TOKEN = 'fake';
+  try {
+    for (const args of [
+      ['launch', '--plugin-dir', '/p', '--unattended'],
+      ['ready', '--plugin-dir', HERE, '--out', join(RUNTIME, 'x.jsonl'), '--unattended'],
+    ]) {
+      await assert.rejects(main(args), { code: 1, message: /ANTHROPIC_API_KEY and CLAUDE_CODE_OAUTH_TOKEN are both set/ });
+    }
+    assert.equal(existsSync(join(RUNTIME, 'x.jsonl')), false, 'ready started no claude');
+  } finally {
+    for (const name of CI) {
+      if (saved[name] === undefined) delete process.env[name];
+      else process.env[name] = saved[name];
+    }
+  }
 });
 
 test('the Windows repair line enters the install dir instead of passing it to npm.cmd', () => {
@@ -472,6 +530,40 @@ export const TuiTest = { ephemeral: () => ({
   }
 });
 
+test('an unattended launch hands claude the one CI credential with the subprocess scrub on', posixOnly, async () => {
+  const box = sandbox();
+  const seen = join(box.root, 'seen.json');
+  const records = `import { writeFileSync } from 'node:fs';
+export const TuiTest = { ephemeral: () => ({
+  run: async (cmd, args, opts) => writeFileSync(${JSON.stringify(seen)}, JSON.stringify({
+    key: opts.env.ANTHROPIC_API_KEY ?? null, scrub: opts.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB ?? null,
+  })),
+  state: async () => ({ exited: null, exit_signal: null }),
+  type: async () => writeFileSync(${JSON.stringify(seen)} + '.holder', process.env.ANTHROPIC_API_KEY ?? 'unset'),
+  close: async () => {},
+  closeQuiet: async () => {},
+}) };
+`;
+  placeEngine(box.target, records, { marked: true });
+  const name = session();
+  const saved = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_API_KEY = 'fake-ci';
+  try {
+    await withPath(box.bin, () => main(['launch', '--plugin-dir', '/p', '--deps-dir', box.deps, '--session', name, '--ttl', '60', '--unattended']));
+    const got = JSON.parse(readFileSync(seen, 'utf8'));
+    assert.equal(got.key, 'fake-ci');
+    assert.equal(got.scrub, '1');
+    assert.equal(await main(['type', 'x', '--session', name]), 0);
+    assert.equal(readFileSync(`${seen}.holder`, 'utf8'), 'unset', 'the holder drops the key once claude has it');
+    assert.equal(await main(['stop', '--session', name]), 0);
+  } finally {
+    if (saved === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = saved;
+    await main(['stop', '--session', name]).catch(() => {});
+    rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
 const isAlive = (pid) => {
   try {
     process.kill(pid, 0);
@@ -714,6 +806,47 @@ test('log stops claude and every process it started when the init event names an
   }
 });
 
+test('unattended with the CI API key: ready and log accept that source and hand claude the key', posixOnly, async () => {
+  const saved = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_API_KEY = 'fake-ci';
+  try {
+    const box = sandbox();
+    try {
+      stubClaude(box, 'ANTHROPIC_API_KEY', 'exec sleep 30');
+      const args = ['ready', '--plugin-dir', pluginDir(box), '--out', join(box.root, 'init.jsonl'), '--deps-dir', box.deps];
+      const unattended = await withPath(box.bin, () => quietly(() => main([...args, '--unattended'])));
+      assert.equal(unattended.result, 0);
+      assert.doesNotMatch(unattended.text, /refused/);
+      assert.equal(readFileSync(join(box.root, 'key'), 'utf8'), 'fake-ci');
+      const attended = await withPath(box.bin, () => quietly(() => main(args)));
+      assert.equal(attended.result, 1, 'attended still requires "none"');
+      assert.equal(readFileSync(join(box.root, 'key'), 'utf8'), 'unset');
+      stubClaude(box, 'ANTHROPIC_API_KEY', `printf '%s\\n' '{"type":"result"}'\nexit 0`);
+      const logged = await withPath(box.bin, () =>
+        quietly(() => main(['log', 'run /demo', '--plugin-dir', pluginDir(box), '--out', join(box.root, 'run.jsonl'), '--unattended'])),
+      );
+      assert.equal(logged.result, 0);
+      assert.match(logged.text, /exit 0, apiKeySource ANTHROPIC_API_KEY\)$/);
+    } finally {
+      rmSync(box.root, { recursive: true, force: true });
+    }
+    const box2 = sandbox();
+    try {
+      stubClaude(box2, 'none', 'exec sleep 30');
+      const { result, text } = await withPath(box2.bin, () =>
+        quietly(() => main(['ready', '--plugin-dir', pluginDir(box2), '--out', join(box2.root, 'init.jsonl'), '--deps-dir', box2.deps, '--unattended'])),
+      );
+      assert.equal(result, 1, 'a kept API key that reports "none" is not the source the driver expects');
+      assert.match(text, /refused: apiKeySource is "none", not "ANTHROPIC_API_KEY"; drive nothing/);
+    } finally {
+      rmSync(box2.root, { recursive: true, force: true });
+    }
+  } finally {
+    if (saved === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = saved;
+  }
+});
+
 test('log reports a claude missing from PATH', posixOnly, async () => {
   const box = sandbox();
   const saved = process.env.PATH;
@@ -753,4 +886,208 @@ test('a reservation left by a process that is gone is reclaimed, and a launch ri
     await main(['stop', '--session', name]).catch(() => {});
     rmSync(box.root, { recursive: true, force: true });
   }
+});
+
+// ---- masks ----
+// The fixtures are rewrites of real /status and /usage screens with every value invented; the
+// values each test expects hidden are the invented ones, read off the fixture by hand.
+
+const fixture = (name) => readFileSync(join(HERE, 'fixtures', name), 'utf8').replace(/\n$/, '');
+const MASKS = driver.readMasks(readFileSync(join(HERE, '..', 'SKILL.md'), 'utf8'));
+const VALUES = ['user@example.com', 'Example Org'];
+
+/** Terminal cells for screen text, one per code point, default colors. */
+function toCells(text) {
+  return text.split('\n').flatMap((line, y) =>
+    Array.from(line).map((char, x) => ({ x, y, char, fg: 'default', bg: 'default', bold: false, link: '', link_id: '' })),
+  );
+}
+
+test('the status screen keeps its labels and loses the account, session, cwd and usage values', () => {
+  const { text } = driver.maskCells(toCells(fixture('status-screen.txt')), MASKS, VALUES);
+  for (const hidden of ['user@example.com', 'Example Org', '00000000-0000', '/home/<user>/project', '42%', 'Jan 7', 'Claude Max account']) {
+    assert.ok(!text.includes(hidden), `${hidden} is masked`);
+  }
+  for (const kept of ['Version:           2.1.316', 'Email:             ****************', 'Organization:      *******', 'Esc to cancel']) {
+    assert.ok(text.includes(kept), `${kept} stays`);
+  }
+});
+
+test('the usage screen loses its cost, token counts, meter and reset time', () => {
+  const { text } = driver.maskCells(toCells(fixture('usage-screen.txt')), MASKS, []);
+  for (const hidden of ['$1.2345', '120 input', '42% used', '███', 'Jan 7']) assert.ok(!text.includes(hidden), `${hidden} is masked`);
+  for (const kept of ['Total cost:', 'Current week (all models)', 'Total duration (wall): 14s']) assert.ok(text.includes(kept), `${kept} stays`);
+});
+
+test('the startup banner keeps the model and loses the plan tier', () => {
+  for (const name of ['status-screen.txt', 'usage-screen.txt']) {
+    const [banner] = driver.maskCells(toCells(fixture(name)), MASKS, []).text.split('\n');
+    assert.ok(banner.includes('Opus 5.5 · '), `${name} keeps the model`);
+    assert.ok(!banner.includes('Max'), `${name} loses the tier`);
+  }
+});
+
+test('a value wrapped across rows and split by a border is masked; the rest of the row is not', () => {
+  const { text } = driver.maskCells(toCells('│ team: Example\n│ Org │ ok'), MASKS, ['Example Org']);
+  assert.equal(text, '│ team: *******\n│ *** │ ok');
+});
+
+test('a home path outside the cwd line is masked to its end', () => {
+  const { text } = driver.maskCells(toCells('see /home/<user>/x here'), MASKS, []);
+  assert.equal(text, 'see ************** here');
+});
+
+test('a masked cell loses its colors and attributes, so a colored meter shows no level', () => {
+  const cells = toCells('42% used').map((c) => ({ ...c, bg: '#ff0000', inverse: true }));
+  const { rows } = driver.maskCells(cells, MASKS, []);
+  assert.deepEqual(
+    rows[0].map((c) => [c.char, c.bg, c.inverse]),
+    Array(8).fill(['*', 'default', false]),
+  );
+});
+
+test('a masked frame redraws with its colors and attributes and without its links', () => {
+  const [cell] = toCells('a');
+  const draw = driver.renderFrame([[{ ...cell, fg: '#d77757', bg: 1, bold: true, link: 'mailto:user@example.com' }]]);
+  assert.ok(draw.includes('\x1b[1;1H\x1b[0;1;38;2;215;119;87;48;5;1ma'), JSON.stringify(draw));
+  assert.ok(!draw.includes('example.com'));
+});
+
+// An engine whose live terminal shows `screen`, and whose second terminal (the mirror) keeps what it
+// is sent in `<box>/drawn`, shows the rows of the last frame as its text, and "renders" that text.
+const MIRROR_ENGINE = (screen, box, { stuck = false } = {}) => `import { appendFileSync, writeFileSync } from 'node:fs';
+const cells = ${JSON.stringify(toCells(screen))};
+const rows = (frame) => frame.replace(/\\x1b\\[[0-9;?]*[mJl]/g, '').split(/\\x1b\\[\\d+;1H/).slice(1).join('\\n');
+export const TuiTest = { ephemeral: (prefix) => {
+  if (!prefix.endsWith('mirror')) return {
+    run: async () => {}, state: async () => ({ exited: null, exit_signal: null }),
+    getSize: async () => ({ cols: 120, rows: ${screen.split('\n').length} }), cells: async () => cells,
+    close: async () => {}, closeQuiet: async () => {},
+  };
+  let shown = 'ccd-mirror-ready';
+  return {
+    run: async () => {}, getByText: () => ({ first: () => ({ wait: async () => {} }) }),
+    write: async (d) => { appendFileSync(${JSON.stringify(join(box.root, 'drawn'))}, d); if (!${stuck}) shown = rows(d); },
+    text: async () => shown,
+    screenshot: async (p) => writeFileSync(p, shown),
+    startRecording: async (p) => writeFileSync(p, shown), stopRecording: async () => 'stopped',
+    closeQuiet: async () => {},
+  };
+} };
+`;
+
+/** A sandbox with a stub claude whose `auth status --json` names the invented account. */
+function maskBox(screen, opts) {
+  const box = sandbox();
+  placeEngine(box.target, MIRROR_ENGINE(screen, box, opts), { marked: true });
+  const status = JSON.stringify({ loggedIn: true, email: 'user@example.com', orgName: 'Example Org' });
+  writeFileSync(join(box.bin, 'claude'), `#!/bin/sh\nprintf '%s\\n' '${status}'\n`, { mode: 0o755 });
+  return box;
+}
+
+test('screenshot hands the renderer the masked screen and writes a sidecar without the account', posixOnly, async () => {
+  const box = maskBox(fixture('status-screen.txt'));
+  const name = session();
+  const png = join(box.root, 'status-01.png');
+  try {
+    await withPath(box.bin, async () => {
+      await main(['launch', '--plugin-dir', '/p', '--deps-dir', box.deps, '--session', name, '--ttl', '60']);
+      assert.equal(await quietly(() => main(['screenshot', png, '--session', name])).then((r) => r.result), 0);
+    });
+    const drawn = readFileSync(join(box.root, 'drawn'), 'utf8');
+    const sidecar = readFileSync(`${png}.txt`, 'utf8');
+    for (const [what, text] of [['renderer input', drawn], ['sidecar', sidecar], ['capture', readFileSync(png, 'utf8')]]) {
+      assert.ok(!text.includes('user@example.com'), `${what} lacks the email`);
+      assert.ok(!text.includes('Example Org'), `${what} lacks the organization`);
+      assert.ok(text.includes('Version:'), `${what} still shows the screen`);
+    }
+  } finally {
+    await main(['stop', '--session', name]).catch(() => {});
+    rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
+test('a recording draws only masked frames and its sidecar holds their text', posixOnly, async () => {
+  const box = maskBox(fixture('status-screen.txt'));
+  const name = session();
+  const mp4 = join(box.root, 'status-01.mp4');
+  try {
+    await withPath(box.bin, async () => {
+      await main(['launch', '--plugin-dir', '/p', '--deps-dir', box.deps, '--session', name, '--ttl', '60']);
+      await quietly(() => main(['record', 'start', mp4, '--session', name]));
+      await quietly(() => main(['record', 'stop', '--session', name]));
+    });
+    const sidecar = readFileSync(`${mp4}.txt`, 'utf8');
+    assert.ok(sidecar.includes('Email:             ****************'), sidecar);
+    assert.ok(!readFileSync(join(box.root, 'drawn'), 'utf8').includes('user@example.com'));
+  } finally {
+    await main(['stop', '--session', name]).catch(() => {});
+    rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
+test('a masked frame that never redraws fails the screenshot with no capture and no sidecar', posixOnly, async () => {
+  const box = maskBox(fixture('status-screen.txt'), { stuck: true });
+  const name = session();
+  const png = join(box.root, 'status-01.png');
+  try {
+    await withPath(box.bin, async () => {
+      await main(['launch', '--plugin-dir', '/p', '--deps-dir', box.deps, '--session', name, '--ttl', '60']);
+      await assert.rejects(main(['screenshot', png, '--session', name]), { code: 1, message: 'the masked frame did not redraw; nothing captured' });
+    });
+    assert.equal(existsSync(png), false);
+    assert.equal(existsSync(`${png}.txt`), false);
+  } finally {
+    await main(['stop', '--session', name]).catch(() => {});
+    rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
+// ---- changed plugins ----
+
+test('plugins names each changed plugin once, in order, and nothing for a file outside a plugin', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ccd-repo-'));
+  try {
+    for (const name of ['alpha', 'beta']) {
+      mkdirSync(join(root, 'plugins', name, '.claude-plugin'), { recursive: true });
+      writeFileSync(join(root, 'plugins', name, '.claude-plugin', 'plugin.json'), '{}');
+    }
+    const files = ['plugins/beta/hooks/x.sh', 'docs/readme.md', 'plugins/alpha/skills/a/SKILL.md', 'plugins/beta/README.md'];
+    assert.deepEqual(driver.changedPlugins(files, root), ['plugins/beta', 'plugins/alpha']);
+    assert.deepEqual(driver.changedPlugins(['docs/readme.md'], root), []);
+    assert.throws(() => driver.changedPlugins(['../outside/x'], root), { code: 2 });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('plugins lists at most maxEntryPoints plugins and names the rest blocked', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'ccd-repo-'));
+  const cwd = process.cwd();
+  const errors = [];
+  const error = console.error;
+  try {
+    const names = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7'];
+    for (const name of names) {
+      mkdirSync(join(root, 'plugins', name, '.claude-plugin'), { recursive: true });
+      writeFileSync(join(root, 'plugins', name, '.claude-plugin', 'plugin.json'), '{}');
+    }
+    process.chdir(root);
+    console.error = (s) => errors.push(s);
+    const { result, text } = await quietly(() => main(['plugins', ...names.map((n) => `plugins/${n}/x.md`)]));
+    assert.equal(result, 0);
+    assert.deepEqual(text.split('\n'), ['plugins/p1', 'plugins/p2', 'plugins/p3', 'plugins/p4', 'plugins/p5', 'plugins/p6']);
+    assert.deepEqual(errors, ['blocked: maxEntryPoints reached: plugins/p7']);
+  } finally {
+    console.error = error;
+    process.chdir(cwd);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('plugins with no changed file names the configured plugin dir', async () => {
+  const defaults = JSON.parse(readFileSync(join(HERE, '..', 'config', 'defaults.json'), 'utf8'));
+  const { result, text } = await quietly(() => main(['plugins']));
+  assert.equal(result, 0);
+  assert.equal(text, defaults.pluginDir);
 });

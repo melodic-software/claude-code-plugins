@@ -73,8 +73,9 @@ Contract enforced here (encoded as code, not convention):
   failing is just another blocker, so the caller falls back to the human
   merge-ready list. Absent the flag the gate is byte-for-byte its prior self.
 - The merge method, dependency-manager logins, and block labels are resolved for
-  the PR's own repository from its default-branch `.claude/source-control.md`
-  (`babysit_repo_config`); the matching flags are the deprecated `userConfig`
+  the PR's own repository from its default-branch
+  `docs/conventions/source-control.yaml`, then `.claude/source-control.md` for a
+  key the YAML lacks (`babysit_repo_config`); the matching flags are the deprecated `userConfig`
   fallback. The review-settle pair stays `userConfig`-only: a repository
   declaration of either key is ignored. A repository config that cannot be read
   refuses the run at exit 2.
@@ -4315,7 +4316,9 @@ def unattended_writes(
         else:
             queued, _ = postmerge.identity_queue(repo, branch, identity)
             # In the pr-merge lane a queued entry also leaves without a
-            # passing verifier verdict at its head now.
+            # passing verifier verdict at its head now; a lanes App entry
+            # whose verdict cannot be read stays for the merge queue's own
+            # reader (`verify_evidence.QUEUE_READS`).
             config = inputs.get("config")
             verifier = inputs.get("verify_reader") or (
                 verify_evidence.Reader(
@@ -4349,6 +4352,11 @@ def unattended_writes(
                         if verifier is not None and n != number
                         else None
                     )
+                if hold == verify_evidence.QUEUE_READS:
+                    # A lanes App entry whose verdict this run could not read:
+                    # the merge queue's own reader refuses it fail-closed, so
+                    # it stays, neither dequeued nor counted as kept.
+                    return None
                 kept_at[n] = min([began, *taken])
                 return hold
 
