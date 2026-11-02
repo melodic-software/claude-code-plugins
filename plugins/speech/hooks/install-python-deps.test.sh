@@ -244,6 +244,39 @@ invalidated "a newer pydeps.py" newer "$root/scripts/pydeps.py"
 invalidated "a newer pydeps.json" newer "$root/scripts/pydeps.json"
 invalidated "a missing installed set" target_missing
 
+# Under Git Bash, Windows Python writes the stamp with backslashes, its own letter case and .EXE suffixes, while the
+# hook sees POSIX paths without them. A stamp in that shape holds under OSTYPE=msys and, paired, not elsewhere.
+# windows_form <path> -> the path with backslashes; upper-cased with .EXE appended when a second argument is given.
+windows_form() {
+  local p="${1//\//\\}"
+  [[ -n "${2:-}" && -n "$p" ]] && p="${p^^}.EXE"
+  printf '%s' "$p"
+}
+target="$(find "$data/python" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+py_at="$(PATH="$logged:$PATH" command -v py 2>/dev/null || true)"
+{
+  printf 'pydeps-hook-ready 1\n%s\n%s\n' "$(windows_form "${root^^}")" "$(windows_form "$target")"
+  for name in python3.13 python3.12 python3 python; do
+    printf '%s=%s\n' "$name" "$(windows_form "$logged/$name" upper)"
+  done
+  printf 'py=%s\n' "$(windows_form "$py_at" upper)"
+} >"$WORK/good-stamp"
+starts_under=""
+for ostype in msys linux-gnu; do
+  restore_stamp
+  touch "$stamp" # newer than a real py this PATH may hold
+  rm -f "$WORK/starts.log"
+  run_hook "$root" "$WHEELS" OSTYPE="$ostype" CLAUDE_PLUGIN_DATA="$data" PATH="$logged:$PATH"
+  STARTS=0
+  [[ -f "$WORK/starts.log" ]] && STARTS="$(wc -l <"$WORK/starts.log" | tr -d '[:space:]')"
+  starts_under+="$ostype=$STARTS "
+done
+if [[ "$starts_under" == "msys=0 linux-gnu="[1-9]* ]]; then
+  ok "a stamp in Windows path form holds under Git Bash and nowhere else"
+else
+  fail "Windows-form stamp: starts under $starts_under"
+fi
+
 echo "---"
 echo "passed: $PASS, failed: $FAIL"
 [[ "$FAIL" -eq 0 ]]
