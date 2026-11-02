@@ -71,6 +71,26 @@
     {
       "answer": "I couldn't confirm the details against the live docs. The fetch of `code.claude.com` was blocked by the sandbox's network filter, and the skill says not to fill gaps from memory. So the lever choice below is solid, but the part about this model needs checking on one docs page before you rely on it.\n\n## Which lever fits\n\nYou want a standing behavior: Claude plans a workflow for every substantive task in an interactive session. That rules out `/goal`, `/loop`, routines and Stop hooks, because none of them decides how a task gets carried out. The setting that does this is **`/effort ultracode`**, which applies to the whole session. The `ultracode` keyword in a prompt is different: it runs that one task as a workflow and changes nothing else. So `/effort ultracode` is the right kind of lever for what you described.\n\n## Will it work on your model? Probably not\n\n- **`/effort ultracode`:** I understand it as more than \"plan workflows.\" It also raises the session's effort level, and I believe it requires a model that supports xhigh. Your slider stops at high, so I expect the option to be missing or refused. This is the claim to check. The section is [\"Let Claude decide with ultracode\"](https://code.claude.com/docs/en/workflows#let-claude-decide-with-ultracode), and if it says something different, it's right and I'm wrong.\n- **`\"ultracode\": true` in settings:** I can't confirm this key exists. Don't count on it until you find it on the [settings page](https://code.claude.com/docs/en/settings). Even if it does exist, it would likely have the same xhigh requirement, since it would turn on the same thing.\n\n## What to do instead\n\n1. **Opt in per task.** Put `ultracode` in the prompt, or just say \"use a workflow.\" Each one runs that single task as a workflow and leaves your effort level alone, so the xhigh limit shouldn't matter. Set `/effort high` separately if you want the highest level your model offers.\n2. **To get it on every task without typing it each time,** add a line to your project or user `CLAUDE.md` for the week, for example: \"For every substantive task this week, use a workflow.\" Claude would treat that as a standing request. I haven't verified that the docs count a `CLAUDE.md` line as the same opt-in as asking in the prompt. If Claude doesn't plan workflows with it, fall back to option 1. Delete the line at the end of the week.\n3. **One limit to know about:** the `Workflow` tool isn't available to ordinary subagents, only to the main conversation or a fork. This fits your interactive use, but it means a task you hand to a subagent won't become a workflow.\n\n`/goal` isn't the right lever here, so I didn't draft a goal condition. If you allow `code.claude.com` through the sandbox's network filter, I can re-run the check and confirm or correct the ultracode/xhigh point and the settings key.\n",
       "why": "eval reply: 'Probably not', believes it requires a model that supports xhigh"
+    },
+    {
+      "answer": "**Standing setting:** `/effort ultracode` needs a model with xhigh.\n",
+      "why": "bold label before the clause"
+    },
+    {
+      "answer": "Per workflow-row.md, /effort ultracode requires xhigh.\n",
+      "why": "a file name's dot inside the clause"
+    },
+    {
+      "answer": "Per code.claude.com/docs/en/model-config, ultracode only works with xhigh.\n",
+      "why": "a URL's dots inside the clause"
+    },
+    {
+      "answer": "As of 2.1.316, /effort ultracode needs a model with xhigh.\n",
+      "why": "a version's dots inside the clause"
+    },
+    {
+      "answer": "The standing setting `/effort ultracode` only works when two things hold:\n1. workflows are on, and\n2. the model supports `xhigh` effort.\nYour model stops at high, so it won't work.\n",
+      "why": "the xhigh condition sits in a numbered list under the clause"
     }
   ],
   "fail": [
@@ -121,6 +141,22 @@
     {
       "answer": "I couldn't confirm whether your plan works on this model. The skill requires checking the live docs, and the sandbox blocked the fetch from `code.claude.com` (\"user denied\"), with no cached copy to use. So I won't guess how ultracode behaves on a model whose effort tops out at high.\n\n**Which lever fits:** a dynamic workflow, not `/goal`. You want parallel planning on every task, not a \"keep going until X is done\" condition, so there's no goal condition to draft.\n\n**Which form of ultracode** (from the skill's notes, last checked against the docs on 2026-10-02, not re-checked today):\n- **`/effort ultracode`** is the standing session setting: it plans a workflow for each substantive task. That's the form that matches \"every substantive task, all week.\"\n- **The `ultracode` keyword in a prompt** (or just saying \"use a workflow\") runs only that one task as a workflow. It changes nothing else, including your effort level.\n- **`\"ultracode\": true` in settings:** the skill doesn't list this as a setting and I couldn't check the docs, so I can't confirm it exists. Don't rely on it until you've seen it documented.\n- You run sessions from the main prompt, which is where workflows are available. Ordinary subagents can't start them, so that part of your setup is fine.\n\n**Will `/effort ultracode` work on a model without xhigh?** I don't know. How ultracode affects the effort level is covered in the \"Let Claude decide with ultracode\" section of https://code.claude.com/docs/en/workflows, and that's the page I couldn't read. If ultracode needs an effort level your model doesn't have, the standing setting may be rejected or run differently than you expect.\n\n**What to do:**\n1. **Something that works now regardless:** put `ultracode` (or \"use a workflow\") in each substantive prompt. It's per task and doesn't touch effort, so the high cap doesn't matter. The cost is typing it each time.\n2. **To settle the standing setting:**\n   - Read that \"Let Claude decide with ultracode\" section yourself and paste it here, or allow `code.claude.com` in the sandbox and I'll fetch it.\n   - Or just run `/effort ultracode` once at the start of a session and see whether it's accepted and what effort level it reports.\n3. **If it's supported,** run it at the start of each session. Treat it as per-session, not a set-once setting, until the docs or an existing settings key say otherwise.\n\nDocs used: none. Both https://code.claude.com/docs/en/workflows and https://code.claude.com/docs/en/goal were blocked by the sandbox on 2026-11-02, with no cached copy.\n",
       "why": "eval reply: doesn't know; only a conditional 'If ultracode needs an effort level'"
+    },
+    {
+      "answer": "**What to do instead:** start each substantive prompt with the word `ultracode`, or just say \"use a workflow.\" The skill says this runs only that one task as a workflow and doesn't change the effort level. So it shouldn't depend on your model supporting xhigh.\n",
+      "why": "only and xhigh sit in different sentences; the reply denies the condition"
+    },
+    {
+      "answer": "I couldn't confirm whether `/effort ultracode` needs xhigh.\n",
+      "why": "whether hedge"
+    },
+    {
+      "answer": "Unless /effort ultracode requires xhigh, it should work.\n",
+      "why": "unless hedge"
+    },
+    {
+      "answer": "I couldn't confirm whether `/effort ultracode` only works when:\n1. workflows are on, and\n2. the model supports xhigh.\nCheck the docs first.\n",
+      "why": "whether hedge before a list"
     }
   ]
 }
