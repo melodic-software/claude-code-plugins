@@ -44,8 +44,14 @@ DIFF_PARTSCHUNK_NOTE
   only to those targets, and the diff need not deliver it for any other. With no `scope`, every
   item applies in full.
 - `JOBS_FILE`: JSON listing the jobs of the pr-require-checks run on the judged head, each with
-  its `name` and `conclusion`. It is the evidence of which test and check suites ran: you run no
-  test or eval yourself. Suites the change does not touch are skipped by design, so a `skipped`
+  its `name`, `conclusion` and job page `url`. It is the evidence of which test and check suites
+  ran and whether they passed: you run no test or eval yourself. A job that concluded `success`
+  on the judged head and runs a suite settles that the suite ran and passed there: a done-when
+  item such as "X exits 0" is met, and "the tests were not run" or "X likely fails" is no
+  defect, whatever the pull request body says about running it and whatever reading the code
+  predicts. Cite the job's `url` when you rely on it. A green job settles only that; steps 2 and
+  3 still judge whether the test can fail, covers the change, or was weakened, and whether the
+  diff changed the job's workflow. Suites the change does not touch are skipped by design, so a `skipped`
   job is a defect only when its suite covers the changed files. When `select-tests` itself is
   `skipped`, the run was a label or body-edit re-run that ran no suite: the list is then no
   evidence either way, and its skips are no defect. `ci-status` sums the others and
