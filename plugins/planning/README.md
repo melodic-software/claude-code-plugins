@@ -2,7 +2,7 @@
 
 A Claude Code plugin for the **pre-implementation planning pipeline**: everything
 between a rough idea and approved, executable work. Eleven pipeline skills covering
-charting a too-big, foggy effort as a decision map, divergence, product intent, the
+charting a too-big, foggy effort as a map of decision items, divergence, product intent, the
 engineering contract, contract validation, hand-off of a decision another person
 holds, goal authoring, design exploration, the design→plan gate, adversarial review,
 and the implementation plan itself, plus a re-runnable `setup` action that settles
@@ -10,7 +10,7 @@ where artifacts land in the consuming repo.
 
 | Skill | Stage | What it does |
 |---|---|---|
-| `/planning:wayfind` | Chart | Charts a too-big-AND-foggy effort as a shared decision map on the work-item tracker, then works its frontier one decision at a time, routing each to the right skill until the fog clears and a Brief / PRD / PLAN can be handed onward. An escalation from an interview that outgrew one session, never the first step. |
+| `/planning:wayfind` | Chart | Charts a too-big-AND-foggy effort as a shared map of decision items on the work-item tracker, then works its frontier one decision at a time, routing each to the right skill until the fog clears and the map closes to `/planning:prd`, `/work-items:decompose` or `/work-items:work`. An escalation from an interview that outgrew one session, never the first step. |
 | `/planning:brainstorm` | Diverge | Turns a rough problem into codebase-grounded candidate approaches ordered cheapest→most ambitious; the user reacts, then work routes onward scoped. |
 | `/planning:prd` | Product intent | Produces a Product Requirements Document (problem, users, success metrics) in three tiers (one-pager, consumer-feature, B2B-internal) with a synthesize path and a review mode. Acceptance-criteria capture asks once about missing unwanted-behavior and state-driven cases (skipped and reported unexamined on the `synthesize` path). |
 | `/planning:interview` | Engineering contract | Locks a task contract (goal, constraints, acceptance criteria, named assumptions) into a PLAN.md Brief, synthesizing when intent is clear, running frontier-rounds Q&A when it isn't, or interviewing relentlessly on request. Acceptance-criteria capture asks once about missing unwanted-behavior and state-driven cases, and emits EARS-tagged criteria when the team's convention selects that format. The `surface` option can render rounds on a local page the session watches. The `product` action interviews a product idea against product principles and ends in a verdict. |
