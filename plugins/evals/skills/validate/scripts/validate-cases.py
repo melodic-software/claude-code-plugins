@@ -89,8 +89,10 @@ AS OF: 2026-10-01. Recheck on the next Claude Code release.
 Drift record. CLAIM: a regex grader whose pattern uses `\\A`, `\\Z`, `\\z`, a
 possessive quantifier, an atomic group, a `(?P<name>` group, a `(?P=name)`
 backreference, a `(?#` comment or a `(?(` conditional is a FAIL naming the
-grader and the token. Where `node` is on PATH, every regex grader is also
-compiled with JavaScript's `RegExp` and its samples are graded by it, so a
+grader and the token. Where `node` is on PATH, every regex grader and every
+tool_used `input_match` is also compiled with JavaScript's `RegExp` and its
+samples are graded by it (an `input_match` against each call input's
+`JSON.stringify`), so a
 pattern that does not compile, or a sample the JavaScript verdict sorts the
 other way, is a FAIL; with no `node`, only the token check runs. BASIS: the
 grader's regex engine, from the regex row of
@@ -276,9 +278,11 @@ PY_ONLY_GROUPS = (
 )
 BRACE_QUANTIFIER = re.compile(r"\{[0-9]+(?:,[0-9]*)?\}")
 
-# Run once per case with the case's regex graders as JSON on stdin; prints one
-# result per grader: a compile error, or per answer whether it matched and how
-# many global matches it holds.
+# Run once per case with the case's regex and tool_used graders as JSON on
+# stdin; prints one result per grader: a compile error, or per answer whether it
+# matched and how many matches it holds. A text answer counts global matches; a
+# tool_used answer is the list of the grader tool's call inputs, each encoded as
+# compact JSON the way the binary does, and counts the calls that match.
 NODE_TIMEOUT_SECONDS = 30
 NODE_PROBE = r"""
 let raw = "";
@@ -297,6 +301,13 @@ process.stdin.on("end", () => {
     }
     return {
       answers: job.answers.map((answer) => {
+        if (Array.isArray(answer)) {
+          const count = answer.filter((input) => {
+            regex.lastIndex = 0;
+            return regex.test(JSON.stringify(input));
+          }).length;
+          return { found: count > 0, count };
+        }
         regex.lastIndex = 0;
         const found = regex.test(answer);
         counter.lastIndex = 0;
@@ -1127,76 +1138,114 @@ def run_node_probe(jobs):
     return results, None
 
 
-def check_js_engine(case, graders, samples, findings):
-    """Compile each regex grader with JavaScript's RegExp and grade its samples
-    there, the engine `claude plugin eval` uses. Skipped when node is absent."""
+def _whole(value):
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def js_jobs(case, graders, samples):
+    """One JavaScript job per regex grader and per tool_used grader with an
+    `input_match`: its pattern, flags, how to read a match, and its samples."""
     jobs = []
     for name, options, grader_path in graders:
-        if not isinstance(options, dict) or options.get("type") != "regex":
+        if not isinstance(options, dict):
             continue
-        pattern, flags = options.get("pattern"), options.get("flags") or ""
+        kind = options.get("type")
+        if kind == "regex":
+            pattern, flags = options.get("pattern"), options.get("flags") or ""
+            mode = options.get("match", "contains")
+            count = COUNT_MATCH.match(str(mode))
+            if mode not in ("contains", "not_contains") and not count:
+                continue  # the Python check already reports the unknown mode
+            bounds = None
+        elif kind == "tool_used" and options.get("input_match"):
+            pattern, flags, mode, count = options.get("input_match"), "", None, None
+            low, high = options.get("min"), options.get("max")
+            low = 1 if low is None else low
+            if not _whole(low) or not (high is None or _whole(high)):
+                continue  # the Python check already reports the bounds
+            bounds = (low, high)
+        else:
+            continue
         if not isinstance(pattern, str) or not isinstance(flags, str):
             continue
-        mode = options.get("match", "contains")
-        count = COUNT_MATCH.match(str(mode))
-        if mode not in ("contains", "not_contains") and not count:
-            continue  # the Python check already reports the unknown mode
         entries = []
         sample_path = None
         if name in samples:
             sample_path, data = samples[name]
             for key in SAMPLE_KEYS:
                 for number, item in enumerate(data.get(key) or [], start=1):
-                    if isinstance(item["answer"], str):
-                        entries.append((key, number, item))
+                    answer = item["answer"]
+                    if answer_error(kind, answer):
+                        continue  # the Python check already reports the shape
+                    if kind == "tool_used":
+                        answer = [
+                            call.get("input", {})
+                            for call in answer
+                            if call["tool"] == options.get("tool")
+                        ]
+                    entries.append((key, number, item, answer))
         jobs.append(
-            (name, grader_path, sample_path, mode, count, entries, pattern, flags)
+            {
+                "case": case,
+                "name": name,
+                "grader_path": grader_path,
+                "sample_path": sample_path,
+                "mode": mode,
+                "count": count,
+                "bounds": bounds,
+                "entries": entries,
+                "pattern": pattern,
+                "flags": flags,
+            }
         )
+    return jobs
+
+
+def run_js_jobs(jobs):
+    """Grade every job under node in one process: (results, problem)."""
     if not jobs:
-        return
-    results, problem = run_node_probe(
+        return [], None
+    return run_node_probe(
         [
             {
-                "pattern": job[6],
-                "flags": job[7],
-                "answers": [e[2]["answer"] for e in job[5]],
+                "pattern": job["pattern"],
+                "flags": job["flags"],
+                "answers": [entry[3] for entry in job["entries"]],
             }
             for job in jobs
         ]
     )
-    if results is None:
-        if problem:
-            findings.append(
-                Finding(
-                    "WARN",
-                    case,
-                    "graders/",
-                    "regex graders not checked under JavaScript: node failed (%s)"
-                    % problem,
-                )
-            )
-        return
+
+
+def js_passed(job, seen):
+    if job["bounds"] is not None:
+        low, high = job["bounds"]
+        return seen["count"] >= low and (high is None or seen["count"] <= high)
+    if job["count"]:
+        return seen["count"] == int(job["count"].group(1))
+    if job["mode"] == "contains":
+        return seen["found"]
+    return not seen["found"]
+
+
+def judge_js_jobs(jobs, results, findings):
+    """A FAIL for each pattern JavaScript cannot compile and each sample it sorts
+    the other way from its label."""
     for job, result in zip(jobs, results):
-        name, grader_path, sample_path, mode, count, entries, _, _ = job
+        case, name = job["case"], job["name"]
         if "error" in result:
             findings.append(
                 Finding(
                     "FAIL",
                     case,
-                    grader_path,
+                    job["grader_path"],
                     'grader "%s" pattern does not compile under JavaScript (%s)'
                     % (name, result["error"]),
                 )
             )
             continue
-        for (key, number, item), seen in zip(entries, result["answers"]):
-            if count:
-                passed = seen["count"] == int(count.group(1))
-            elif mode == "contains":
-                passed = seen["found"]
-            else:
-                passed = not seen["found"]
-            if passed == (key == "pass"):
+        for (key, number, item, _), seen in zip(job["entries"], result["answers"]):
+            if js_passed(job, seen) == (key == "pass"):
                 continue
             label = "must-%s sample %d" % (key, number)
             if item.get("why"):
@@ -1205,7 +1254,7 @@ def check_js_engine(case, graders, samples, findings):
                 Finding(
                     "FAIL",
                     case,
-                    sample_path,
+                    job["sample_path"],
                     '%s %s grader "%s" under JavaScript (%d matches)'
                     % (
                         label,
@@ -1215,6 +1264,26 @@ def check_js_engine(case, graders, samples, findings):
                     ),
                 )
             )
+
+
+def check_js_engine(case, graders, samples, findings):
+    """Compile each regex grader and tool_used `input_match` with JavaScript's
+    RegExp and grade its samples there, the engine `claude plugin eval` uses.
+    Skipped when node is absent."""
+    jobs = js_jobs(case, graders, samples)
+    results, problem = run_js_jobs(jobs)
+    if results is None:
+        if problem:
+            findings.append(
+                Finding(
+                    "WARN",
+                    case,
+                    "graders/",
+                    "graders not checked under JavaScript: node failed (%s)" % problem,
+                )
+            )
+        return
+    judge_js_jobs(jobs, results, findings)
 
 
 def js_regex(pattern, flags=""):

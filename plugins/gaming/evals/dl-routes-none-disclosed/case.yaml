@@ -7,10 +7,9 @@ graders:
     input_match: '"skill"\s*:\s*"(?:gaming:)?dlss5"'
     arm: 'with-only'
   - name: not-proof-of-none
-    type: regex
-    pattern: '\bno (?:kernel(?:[- ]mode)? )?anti-?cheat (?:was |is |has been )?(?:disclosed|declared|listed|reported)\b|\b(?:doesn''t|does[\s*_]+not|don''t|isn''t|is[\s*_]+not)[\s*_]+(?:mean|prove|guarantee|imply)\b[^\n.]{0,60}\b(?:no|none|safe|clean|there''s no|has no|without)\b|\bnot (?:a )?(?:proof|guarantee)\b|\bnot the same as\b[^\n.]{0,40}\b(?:no|none|safe)\b|\babsence of (?:a )?disclosure\b'
-    flags: 'i'
-    target: last_message
+    type: llm
+    focus: last_message
+    criteria: "The assess output's anti-cheat status was none-disclosed. PASS if the reply says none-disclosed means no kernel anti-cheat was disclosed or found, not that the game has none, or that it is not proof or a guarantee of no anti-cheat. FAIL if the reply reads none-disclosed as the game having no anti-cheat, calls the game safe on that basis, or never says the status falls short of proof. Judge only how the reply reads the anti-cheat status."
   - name: solo-or-offline
     type: regex
     pattern: '\b(?:solo|offline|single[- ]player)\b'
