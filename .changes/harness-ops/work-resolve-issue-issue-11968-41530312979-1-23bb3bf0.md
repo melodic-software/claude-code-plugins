@@ -8,4 +8,4 @@ bump: major
 
 ### Added
 
-- Retirement records `harness-ops-r002` and `harness-ops-r003`. When `docs/conventions/harness-ops.yaml` or `docs/conventions/harness-ops.local.yaml` still holds a `morning_brief:` block, `/harness-ops:setup check` reports it as FAIL. `apply` then offers to move the block to `work-items.yaml` or `work-items.local.yaml`, and cleans the old file once you confirm the move.
+- Retirement records `harness-ops-r002` and `harness-ops-r003`. When `harness-ops.yaml` or `harness-ops.local.yaml` in the convention home still holds a `morning_brief:` block, `/harness-ops:setup check` reports it as FAIL. `apply` then offers to move the block to `work-items.yaml` or `work-items.local.yaml`, and cleans the old file once you confirm the move.
