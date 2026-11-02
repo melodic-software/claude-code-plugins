@@ -15,6 +15,10 @@ Sources:
 The per-plugin lists come from `plugins/*/hooks/hooks.json`. No hook in these lists was tested
 one by one in Cursor, so each no-op below is predicted from the Cursor docs.
 
+The event and matcher tables are a snapshot of those files at commit `208b23ae`, taken
+2026-11-02. No check keeps them in sync, so a hook added or moved since then may be missing:
+re-derive them from `plugins/*/hooks/hooks.json` before relying on them.
+
 ## What runs
 
 The Cursor docs map these Claude Code events: `PreToolUse`, `PostToolUse`, `UserPromptSubmit`,
