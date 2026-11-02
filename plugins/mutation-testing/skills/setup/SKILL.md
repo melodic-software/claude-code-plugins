@@ -28,7 +28,7 @@ The config resolves across three layers, lowest first: the user layer (`userConf
 `${CLAUDE_PLUGIN_ROOT}/schemas/mutation-testing.schema.json`) → local overlay
 (`.claude/mutation-testing.local.md`), later layers overriding scalars and unioning lists.
 
-The team file of earlier releases, `.claude/mutation-testing.md`, is retired and never read as a
+The team file of earlier releases, .claude/mutation-testing.md, is retired and never read as a
 layer. While it exists, `check` probe 6 reports it as WARN, naming `apply` as the move, or, once
 the YAML file exists, deleting it; `apply` step 7 carries its keys over.
 
@@ -93,7 +93,7 @@ run a mutation analysis. That is `/mutation-testing:audit`.
    and `/plugin configure` as the fix. Nothing readable →
    INFO naming the audit's fallback: `tool: manual`, the diff target from `origin/HEAD`, the
    changed source files, the effort cap, and a test command the user supplies or confirms at run
-   time. `apply` writes a config that replaces it. The retired `.claude/mutation-testing.md`
+   time. `apply` writes a config that replaces it. The retired .claude/mutation-testing.md
    present → WARN, as the merge model says; it never counts as a layer here.
 7. **Diff target resolves**, the configured target must resolve in this repository
    (`git rev-parse --verify <target>`). Unresolvable → FAIL naming it; a stale default here silently
@@ -191,7 +191,7 @@ unambiguous; ask only where the answer is genuinely the user's.
    without its Markdown, following
    [`${CLAUDE_PLUGIN_ROOT}/skills/setup/templates/config-template.md`](templates/config-template.md).
    Keep every key name as the template spells it. When that file does not exist yet and the
-   retired `.claude/mutation-testing.md` does, this first write carries every key of the retired
+   retired .claude/mutation-testing.md does, this first write carries every key of the retired
    file's `yaml` block with its value unchanged, a value settled in steps 2 to 6 replacing it; with
    nothing to settle, the write is that move alone. Leave the retired file in place and tell the
    user to delete it once the YAML file is committed, since the plugin does not read it.
