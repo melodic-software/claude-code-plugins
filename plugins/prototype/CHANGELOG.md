@@ -3,6 +3,12 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.0] - 2026-11-02
+
+### Added
+
+- `/prototype:explore-directions` and `/prototype:build-generator` now run the shared discipline's evidence step before their throwaway code is deleted, as `/prototype:pressure-test` does. For `/prototype:explore-directions`, the default `file://` mockup lives outside the repository, so it is not copied onto the evidence branch: the note records its local path and `not pushed: <reason>`. Real-stack variant files go through the step as usual. For `/prototype:build-generator`, the evidence pushed is the generating tool's files (its route, controls and save endpoint), while the saved configuration and export stay in the project. Two new eval cases, `ed-evidence-no-secrets-check` and `bg-evidence-no-secrets-check`, cover the path where the repository has no secrets check ([#12030](https://github.com/melodic-software/claude-code-plugins/issues/12030)).
+
 ## [0.22.0] - 2026-11-01
 
 ### Added

@@ -1282,9 +1282,10 @@ class IdleRefusal(unittest.TestCase):
 
 class CheckCodeUnchanged(unittest.TestCase):
     """`check_code_unchanged`: whether the check's code (the babysit-prs
-    scripts and docs/conventions/pr-pipeline.yaml) at HEAD is the code at the
-    kept commit. Expected outcomes are the brief's: the same commit or a
-    change elsewhere only allows reuse; a change in either path, a missing,
+    scripts, docs/conventions/pr-pipeline.yaml and the yaml-subset.awk parser
+    and parse-concern-value.sh wrapper that read it) at HEAD is the code at the kept commit. Expected outcomes
+    are the brief's: the same commit or a change elsewhere only allows reuse;
+    a change in any of those paths, a missing,
     malformed or unknown commit, or a git failure refuses."""
 
     def setUp(self) -> None:
@@ -1294,10 +1295,14 @@ class CheckCodeUnchanged(unittest.TestCase):
         # Repo-local, as in test_prune_babysit_worktrees.py: a global
         # commit.gpgsign would sign every fixture commit with the machine's key.
         self.git("config", "commit.gpgsign", "false")
+        # The CRLF case needs the bytes stored as written.
+        self.git("config", "core.autocrlf", "false")
         self.commits: dict[str, str] = {}
         for name, path in (
             ("init", "plugins/source-control/skills/babysit-prs/scripts/a.py"),
             ("init", "docs/conventions/pr-pipeline.yaml"),
+            ("init", "plugins/source-control/lib/yaml-subset.awk"),
+            ("init", "plugins/source-control/lib/parse-concern-value.sh"),
             ("base", "README.md"),
             ("elsewhere", "README.md"),
             ("scripts", "plugins/source-control/skills/babysit-prs/scripts/a.py"),
@@ -1306,6 +1311,8 @@ class CheckCodeUnchanged(unittest.TestCase):
                 "tests",
                 "plugins/source-control/skills/babysit-prs/scripts/tests/test_a.py",
             ),
+            ("parser", "plugins/source-control/lib/yaml-subset.awk"),
+            ("wrapper", "plugins/source-control/lib/parse-concern-value.sh"),
         ):
             file = self.root / path
             file.parent.mkdir(parents=True, exist_ok=True)
@@ -1338,6 +1345,100 @@ class CheckCodeUnchanged(unittest.TestCase):
     def test_a_change_to_the_scripts_or_the_pipeline_config_refuses(self) -> None:
         self.assertFalse(self.unchanged(self.commits["elsewhere"], "scripts"))
         self.assertFalse(self.unchanged(self.commits["scripts"], "config"))
+
+    def test_a_change_to_the_config_parser_refuses(self) -> None:
+        # yaml-subset.awk decides what the config means.
+        self.assertFalse(self.unchanged(self.commits["tests"], "parser"))
+
+    def test_a_change_to_the_config_parser_wrapper_refuses(self) -> None:
+        # parse-concern-value.sh turns the awk's records into the values read.
+        self.assertFalse(self.unchanged(self.commits["parser"], "wrapper"))
+
+    def commit_config(self, text: str) -> str:
+        (self.root / "docs/conventions/pr-pipeline.yaml").write_text(text)
+        self.git("commit", "-q", "--allow-empty", "-am", "edit")
+        return self.git("rev-parse", "HEAD").strip()
+
+    def test_a_comment_or_blank_line_edit_to_the_pipeline_config_allows_reuse(
+        self,
+    ) -> None:
+        # 41344350944 ran the check again for a YAML comment edit: no parser
+        # reads a whole-line comment, a blank line or trailing whitespace.
+        # An apostrophe inside a plain value and closed quotes open nothing.
+        body = 'merge:\n  rung: merge\n  why: a repository\'s flow\n  l: [a, "b: c"]\n'
+        kept = self.commit_config("# one\n" + body)
+        for edited in (
+            "# one, reworded\n#  and a second line\n" + body,
+            "# one\n\n" + body.replace("merge:\n", "merge:   \n\n"),
+            body.replace("  rung", "    # indented comment\n  rung"),
+        ):
+            with self.subTest(edited):
+                self.commit_config(edited)
+                self.assertTrue(policy.check_code_unchanged(kept, root=self.root))
+
+    def test_a_value_indentation_or_inline_comment_edit_refuses(self) -> None:
+        kept = self.commit_config("merge:\n  rung: merge\n  x: 1\n")
+        for edited in (
+            "merge:\n  rung: off\n  x: 1\n",
+            # Indentation is structure: x leaves merge.
+            "merge:\n  rung: merge\nx: 1\n",
+            # A `#` after a value may sit inside a quoted string.
+            "merge:\n  rung: merge  # note\n  x: 1\n",
+        ):
+            with self.subTest(edited):
+                self.commit_config(edited)
+                self.assertFalse(policy.check_code_unchanged(kept, root=self.root))
+
+    def test_a_change_the_config_parser_reads_differently_refuses(self) -> None:
+        # yaml-subset.awk splits lines on \n only, drops one trailing \r and
+        # takes only space and tab as blanks; Python's splitlines and strip
+        # would hide each of these edits.
+        body = (
+            "merge:\n  rung: autonomous\n  diff-check:\n    denied-paths:\n"
+            "      - secrets/**\nred-main:\n  confirm-wait-minutes: 30\n"
+        )
+        kept = self.commit_config(body)
+        for edited in (
+            body.replace("secrets/**", "secrets/**\xa0"),
+            body.replace("30\n", "30 # x\n"),
+            body.replace("autonomous", "autonomous\x0b"),
+            body.replace("autonomous\n", "autonomous\r# c\n"),
+            body + "\x0c# note\n",
+        ):
+            with self.subTest(edited):
+                self.commit_config(edited)
+                self.assertFalse(policy.check_code_unchanged(kept, root=self.root))
+
+    def test_a_crlf_only_change_allows_reuse(self) -> None:
+        # The parser drops each line's trailing \r.
+        body = "merge:\n  rung: merge\n  x: 1\n"
+        kept = self.commit_config(body)
+        self.commit_config(body.replace("\n", "\r\n"))
+        self.assertTrue(policy.check_code_unchanged(kept, root=self.root))
+
+    def test_a_hash_line_inside_a_block_or_quoted_scalar_is_content(self) -> None:
+        for before, after in (
+            # A blank line folds a plain scalar's continuation as a newline.
+            ("a: one\n  two\n", "a: one\n\n  two\n"),
+            ("a: one\n  two\n", "a: one\n  # x\n  two\n"),
+            ("- one\n  two\n", "- one\n\n  two\n"),
+            ("a: |\n  text\nb: 1\n", "a: |\n  text\n  # more text\nb: 1\n"),
+            ("a: >-\n  text\n", "a: >-\n  text\n  # more\n"),
+            ('a: "text\n  more"\n', 'a: "text\n  # x\n  more"\n'),
+            ("a: 'text\n  more'\n", "a: 'text\n  # x\n  more'\n"),
+        ):
+            with self.subTest(after):
+                kept = self.commit_config(before)
+                self.commit_config(after)
+                self.assertFalse(policy.check_code_unchanged(kept, root=self.root))
+
+    def test_the_pipeline_config_unreadable_at_the_kept_commit_refuses(self) -> None:
+        # The kept commit predates the file: `git show` fails, so not unchanged.
+        self.git("checkout", "-q", "--detach", self.commits["config"])
+        with mock.patch.object(policy, "CHECK_CODE_YAML", ("docs/absent.yaml",)):
+            self.assertFalse(
+                policy.check_code_unchanged(self.commits["config"], root=self.root)
+            )
 
     def test_a_missing_malformed_or_unknown_commit_refuses(self) -> None:
         for kept in ("", "HEAD", "--output=x", "c" * 39, "f" * 40):
@@ -1385,13 +1486,34 @@ class SettleCommand(unittest.TestCase):
         config_error: Exception | None = None,
         code_sha: str = MAIN,
         idle: str | None = None,
+        idle_report: str | list[str | None] | None = None,
+        idle_runs: str | None = None,
+        note: dict[str, str | None] | None = None,
         extra: tuple[str, ...] = (),
     ) -> tuple[int, dict, dict]:
         seen: dict[str, object] = {}
-        self.idle = mock.Mock(return_value=idle)
+        # The idle rule's parts, in the order they read: the report (no
+        # read), the verifying runs, then the quarantine issues and pins.
+        self.order: list[str] = []
+
+        def part(name: str, answer: str | list[str | None] | None) -> mock.Mock:
+            answers = iter(answer) if isinstance(answer, list) else None
+
+            def call(*_: object, **__: object) -> str | None:
+                self.order.append(name)
+                return next(answers) if answers is not None else answer  # type: ignore[return-value]
+
+            return mock.Mock(side_effect=call)
+
+        self.idle_report = part("report", idle_report)
+        self.idle_runs = part("runs", idle_runs)
+        self.idle = part("marks", idle)
 
         def settle(repo: str, answer: object, **kwargs: object) -> object:
+            self.order.append("settle")
             seen.update(kwargs, repo=repo, answer=answer)
+            if note is not None:
+                kwargs["outcome"].update(note)  # type: ignore[union-attr]
             return settled
 
         out = io.StringIO()
@@ -1408,7 +1530,9 @@ class SettleCommand(unittest.TestCase):
                 return_value=cfg or config(base_sha=NEW_MAIN),
             ) as read_config,
             mock.patch.object(policy, "settle_shared", side_effect=settle),
-            mock.patch.object(ve.postmerge, "idle_refusal", self.idle),
+            mock.patch.object(ve.postmerge, "idle_report_refusal", self.idle_report),
+            mock.patch.object(ve.postmerge, "idle_runs_refusal", self.idle_runs),
+            mock.patch.object(ve.postmerge, "idle_marks_refusal", self.idle),
             contextlib.redirect_stdout(out),
         ):
             exit_code = ve.main(
@@ -1428,7 +1552,9 @@ class SettleCommand(unittest.TestCase):
 
     def test_it_exits_0_when_the_answer_stands_and_1_when_refused(self) -> None:
         code, out, seen = self.main(("answer", None))
-        self.assertEqual((code, out), (0, {"reuse": True, "reason": None}))
+        self.assertEqual(
+            (code, out), (0, {"reuse": True, "reason": None, "outcome": None})
+        )
         self.code.assert_called_once_with(MAIN)
         # Bound as the room binds: the default branch head and its config's
         # agent identity, never a recompute.
@@ -1449,14 +1575,42 @@ class SettleCommand(unittest.TestCase):
         code, out, _ = self.main((None, "post-merge answer unverified-stale"))
         self.assertEqual(
             (code, out),
-            (1, {"reuse": False, "reason": "post-merge answer unverified-stale"}),
+            (
+                1,
+                {
+                    "reuse": False,
+                    "reason": "post-merge answer unverified-stale",
+                    "outcome": None,
+                },
+            ),
         )
+
+    def test_it_prints_what_moved_as_settle_shared_found_it(self) -> None:
+        # 41341833807 logged `unverified-stale` and nothing of what moved.
+        moved = {
+            "answer": "refused",
+            "reason": "unverified-stale",
+            "moved": "runs-moved",
+        }
+        _, out, _ = self.main(
+            (None, "post-merge answer unverified-stale"),
+            note=moved,
+            extra=("--idle-tick",),
+        )
+        self.assertEqual(out["outcome"], moved)
 
     def test_changed_check_code_is_refused_before_any_read(self) -> None:
         code, out, seen = self.main(("answer", None), code_unchanged=False, code_sha="")
         self.assertEqual(
             (code, out),
-            (1, {"reuse": False, "reason": "post-merge answer code-changed"}),
+            (
+                1,
+                {
+                    "reuse": False,
+                    "reason": "post-merge answer code-changed",
+                    "outcome": None,
+                },
+            ),
         )
         self.code.assert_called_once_with("")
         self.read_config.assert_not_called()
@@ -1494,27 +1648,93 @@ class SettleCommand(unittest.TestCase):
         self.assertIn("head 502", out["reason"])
 
     def test_an_idle_tick_also_needs_the_idle_rule(self) -> None:
-        # post-merge-dispatch's reuse of an earlier tick's report: the lane
-        # room's rule first, then `idle_refusal` on the same answer, at the
-        # default branch with the head config's confirm wait.
+        # post-merge-dispatch's reuse of an earlier tick's report: every part
+        # of `idle_refusal` on the same answer as well as the lane room's
+        # rule, at the default branch with the head config's confirm wait.
         idle = ("--idle-tick",)
         code, out, _ = self.main(("answer", None), extra=idle)
-        self.assertEqual((code, out), (0, {"reuse": True, "reason": None}))
-        self.idle.assert_called_once_with(
+        self.assertEqual(
+            (code, out), (0, {"reuse": True, "reason": None, "outcome": None})
+        )
+        self.assertEqual(self.order, ["report", "runs", "settle", "marks", "report"])
+        self.idle_runs.assert_called_once_with(
             REPO, "answer", "main", confirm_wait_minutes=config().confirm_wait_minutes
         )
-        code, out, _ = self.main(("answer", None), extra=idle, idle="runs-changed")
+        self.idle.assert_called_once_with(REPO, "answer")
+        code, out, _ = self.main(("answer", None), extra=idle, idle="pins-changed")
         self.assertEqual(
-            (code, out), (1, {"reuse": False, "reason": "idle tick runs-changed"})
+            (code, out),
+            (1, {"reuse": False, "reason": "idle tick pins-changed", "outcome": None}),
         )
-        # A report the lane room's rule refuses is never offered to it.
+        # A report the lane room's rule refuses is never offered to the
+        # quarantine and pin reads.
         code, out, _ = self.main((None, "post-merge answer stale"), extra=idle)
         self.assertEqual(code, 1)
         self.idle.assert_not_called()
         # Without the flag (the merge job's reuse of this run's report), no
         # idle rule.
         self.assertEqual(self.main(("answer", None), idle="runs-changed")[0], 0)
-        self.idle.assert_not_called()
+        self.assertEqual(self.order, ["settle"])
+
+    def test_an_idle_refusal_the_report_decides_reads_nothing(self) -> None:
+        # The report's own refusals need no read, so neither the config nor
+        # the lane room's rule is read for them.
+        code, out, seen = self.main(
+            ("answer", None), extra=("--idle-tick",), idle_report="needs-dispatch"
+        )
+        self.assertEqual((code, out["reason"]), (1, "idle tick needs-dispatch"))
+        self.assertEqual(self.order, ["report"])
+        self.read_config.assert_not_called()
+        self.assertEqual(seen, {})
+
+    def test_a_report_asking_for_a_full_run_spends_no_read(self) -> None:
+        # The real report rule on a real report: no GitHub read at all.
+        out = io.StringIO()
+        report = shared(report={**SETTLED, "needsDispatch": True})
+        with (
+            mock.patch.object(ve.postmerge, "read_shared", return_value=report),
+            mock.patch.object(policy, "check_code_unchanged", return_value=True),
+            mock.patch.object(policy, "_get", side_effect=AssertionError("read")),
+            mock.patch.object(pm, "_read", side_effect=AssertionError("read")),
+            mock.patch.object(policy, "settle_shared") as settle,
+            contextlib.redirect_stdout(out),
+        ):
+            code = ve.main(
+                [
+                    "settle",
+                    "--idle-tick",
+                    "--repo",
+                    REPO,
+                    "--postmerge-result",
+                    "/tmp/x.json",
+                    "--code-sha",
+                    MAIN,
+                ]
+            )
+        self.assertEqual(code, 1)
+        self.assertEqual(
+            json.loads(out.getvalue())["reason"], "idle tick needs-dispatch"
+        )
+        settle.assert_not_called()
+
+    def test_changed_verifying_runs_refuse_before_the_lane_rooms_reads(self) -> None:
+        # 41345813084: `runs-changed` after settle_shared's 22 calls. The two
+        # run listings now come first.
+        code, out, seen = self.main(
+            ("answer", None), extra=("--idle-tick",), idle_runs="runs-changed"
+        )
+        self.assertEqual((code, out["reason"]), (1, "idle tick runs-changed"))
+        self.assertEqual(self.order, ["report", "runs"])
+        self.assertEqual(seen, {})
+
+    def test_the_report_checks_run_again_after_the_reads(self) -> None:
+        # A report that turned stale-soon during the reads is refused, as it
+        # was when the whole idle rule ran after the lane room's rule.
+        code, out, _ = self.main(
+            ("answer", None), extra=("--idle-tick",), idle_report=[None, "stale-soon"]
+        )
+        self.assertEqual((code, out["reason"]), (1, "idle tick stale-soon"))
+        self.assertEqual(self.order, ["report", "runs", "settle", "marks", "report"])
 
 
 class LaneRoomCommand(unittest.TestCase):

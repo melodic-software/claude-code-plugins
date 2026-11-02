@@ -379,7 +379,7 @@ to name, `labeler check failed: #<item> (<reason>)`. A refusal is not progress a
 the no-progress streak. The contract for the operation is in
 [`tools/work-item-tracker/CONTRACT.md`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md)
 "Verbs (core public surface)". One refused only on its body edit time is escalated once instead: read [reference/body-edit-escalation.md](reference/body-edit-escalation.md).
-**Rule admission** then runs as a second path, through `${CLAUDE_PLUGIN_ROOT}/scripts/rule-admit.sh`: read [reference/rule-admission.md](reference/rule-admission.md).
+The gate admits no other way: a candidate with no admitted autonomous-eligible role label is not dispatched.
 
 Pointer: for the permission each GitHub role maps to (`admin`, `write`, `read`, `none`; maintain
 maps to `write`, triage to `read`), see

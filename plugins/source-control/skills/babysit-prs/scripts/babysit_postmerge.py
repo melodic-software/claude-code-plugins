@@ -4139,7 +4139,23 @@ def idle_refusal(
     - pins: each recorded one reads the same again, so an edited, new or
       deleted pin refuses.
 
-    Any read that fails refuses (`unreadable`)."""
+    Any read that fails refuses (`unreadable`). The parts in reading order:
+    `idle_report_refusal` (no read), `idle_runs_refusal` (two),
+    `idle_marks_refusal` (quarantine issues and pins)."""
+    return (
+        idle_report_refusal(shared, now=now)
+        or idle_runs_refusal(
+            repo, shared, branch, confirm_wait_minutes=confirm_wait_minutes
+        )
+        or idle_marks_refusal(repo, shared)
+    )
+
+
+def idle_report_refusal(
+    shared: policy.SharedPostMerge, *, now: datetime | None = None
+) -> str | None:
+    """`idle_refusal`'s parts that read nothing: the report itself, its age
+    and an unverified merge past `DISPATCH_DEADLINE`."""
     report = shared.gate.report
     now = now or datetime.now(UTC)
     warnings = json_array(report.get("warnings"))
@@ -4168,28 +4184,56 @@ def idle_refusal(
     refusal = next((text for refused, text in unsettled if refused), None)
     if refusal:
         return refusal
-    since = shared.computed_at - policy.SINCE_CLOCK_MARGIN
+    try:
+        pending = _pending_merges(report)
+        if pending and now > (
+            min(_time(m.get("mergedAt")) for m in pending) + DISPATCH_DEADLINE
+        ):
+            return "dispatch-deadline"
+    except (PostMergeReadError, ValueError) as exc:
+        return f"unreadable: {exc}"
+    return None
+
+
+def idle_runs_refusal(
+    repo: str,
+    shared: policy.SharedPostMerge,
+    branch: str,
+    *,
+    confirm_wait_minutes: int,
+) -> str | None:
+    """`idle_refusal`'s verifying runs, in two one-page listings
+    (`_verifying_runs_unchanged`), for a report `idle_report_refusal` passed."""
+    report = shared.gate.report
     try:
         created = shared.computed_at - (
             timedelta(minutes=confirm_wait_minutes) + 2 * FULL_RUN_ALLOWANCE
         )
         pending = _pending_merges(report)
         if pending:
-            earliest = min(_time(m.get("mergedAt")) for m in pending)
-            if now > earliest + DISPATCH_DEADLINE:
-                return "dispatch-deadline"
-            created = min(created, earliest)
+            created = min(created, *(_time(m.get("mergedAt")) for m in pending))
         if report["outstandingSince"] is not None:
             created = min(created, _time(report["outstandingSince"]))
+        since = shared.computed_at - policy.SINCE_CLOCK_MARGIN
         if not _verifying_runs_unchanged(repo, branch, created=created, since=since):
             return "runs-changed"
-        if _quarantine_touched(repo, since):
+    except (PostMergeReadError, ValueError, KeyError) as exc:
+        return f"unreadable: {exc}"
+    return None
+
+
+def idle_marks_refusal(repo: str, shared: policy.SharedPostMerge) -> str | None:
+    """`idle_refusal`'s quarantine issues (one listing) and pins
+    (`read_pins`), for a report `idle_report_refusal` passed."""
+    report = shared.gate.report
+    try:
+        if _quarantine_touched(repo, shared.computed_at - policy.SINCE_CLOCK_MARGIN):
             return "quarantine-changed"
         recorded = report["pins"]
         pins = read_pins(repo, (int(n) for n in recorded), shared.identity)
         if {str(n): sha for n, sha in pins.items()} != recorded:
             return "pins-changed"
-    except (PostMergeReadError, ValueError) as exc:
+    except (PostMergeReadError, ValueError, KeyError, TypeError) as exc:
         return f"unreadable: {exc}"
     return None
 

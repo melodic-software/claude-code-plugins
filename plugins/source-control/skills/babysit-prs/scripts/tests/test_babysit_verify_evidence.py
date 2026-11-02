@@ -4422,19 +4422,124 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
         # Out of expiry order, the region takes two pages (3 and 4). Capped
         # at one, the count stays over: one whole listing, whose top-up
         # (page 1) holds the count, and no INCREMENTAL_WAITS. That top-up
-        # keeps 500, near expiry, with the cap spent: an exact count it
-        # cannot settle may lack a FAIL, so the gate refuses.
+        # keeps 500, near expiry, and reads its page under a cap of its own,
+        # which the incremental read did not spend: it settles and allows.
         base = self.tail((500, 30), (400, 20))
         self.write_carry(base)
         fake = self.fake(base=[a for a in base if a["id"] != 400])
         with mock.patch.object(ve, "NEAR_EXPIRY_PAGE_CAP", 1):
             reader, evidence = self.judge(fake)
-        self.assertEqual(evidence.refusal, "verify:unreadable")
-        self.assertIn("could not be checked against", evidence.detail or "")
+        self.assertIsNone(evidence.refusal, evidence.detail)
         self.assertEqual(reader.listing_mode, "full")
         self.assertEqual(fake.full_listings(), 1)
-        # Page 1, one capped region page, then the top-up's page 1.
-        self.assertEqual(fake.pages(), 3)
+        # Page 1, one capped region page, the top-up's page 1 and its one
+        # region page.
+        self.assertEqual(fake.pages(), 4)
+        self.assertEqual(reader._near_expiry_reads, 1)
+        self.assertEqual(self.sleep.call_args_list, [])
+
+    def skips_once(self, fake: FakeGitHub, artifact_id: int) -> None:
+        """The first single page read leaves `artifact_id` out, as a page
+        read while an artifact above it is deleted skips the one at its
+        boundary (#10486)."""
+        rest = fake.rest
+        skipped = False
+
+        def first_page_skips(args: list[str], *rest_args: Any) -> Any:
+            nonlocal skipped
+            if skipped or not args[-1].endswith("&page=1"):
+                return rest(args, *rest_args)
+            skipped = True
+            held, live = fake.artifacts, fake.live_total
+            # The live count still holds it.
+            fake.live_total = len({a["id"] for a in held})
+            fake.artifacts = [a for a in held if a["id"] != artifact_id]
+            try:
+                return rest(args, *rest_args)
+            finally:
+                fake.artifacts, fake.live_total = held, live
+
+        fake.rest = first_page_skips  # type: ignore[method-assign]
+
+    def early_deletion_and_a_new_fail(self) -> FakeGitHub:
+        """A carry holding 500, which GitHub deleted 30 minutes before its
+        expiry, and a FAIL at the head uploaded since (1100) that the first
+        page read skips once: the first read holds the live count, 500's
+        own read answers 404, and it is one short."""
+        base = self.tail((500, 30))
+        self.write_carry(base)
+        fail = dated(named(HEAD, "fail"), 2, 1100, LISTED_AT)
+        fake = self.fake(fail, base=[a for a in base if a["id"] != 500])
+        self.skips_once(fake, 1100)
+        return fake
+
+    def test_a_skip_after_the_pages_near_expiry_is_read_again_after_a_wait(
+        self,
+    ) -> None:
+        # The ci-status and enable-auto-merge refusals of 2026-11-02: one to
+        # three short once the pages near expiry were read, then 134 to 293
+        # whole-listing pages. Read again after one wait, the pages hold the
+        # FAIL and the count, with no whole listing.
+        fake = self.early_deletion_and_a_new_fail()
+        reader, evidence = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:fail", evidence.detail)
+        self.assertEqual(reader.listing_mode, "incremental")
+        self.assertEqual(fake.full_listings(), 0)
+        self.assertEqual([c.args[0] for c in self.sleep.call_args_list], [15.0])
+        ids = [a["id"] for a in json.loads(self.saved.read_text())["artifacts"]]
+        self.assertEqual(ids, [1100, 1000, 900, 800, 700, 600, 400, 300])
+
+    def test_an_over_count_left_short_by_a_skip_is_read_again_after_a_wait(
+        self,
+    ) -> None:
+        # ci-status job 125052787044's shape: the carry holds 500 and 400,
+        # both deleted early, so the first read over-counts; the pages near
+        # expiry drop both and leave it one short of the FAIL the first page
+        # skipped. Read again after one wait, it holds the count: no whole
+        # listing, so the job's over-count slot and failure note stay unused.
+        base = self.tail((500, 30), (400, 40))
+        self.write_carry(base)
+        fail = dated(named(HEAD, "fail"), 2, 1100, LISTED_AT)
+        fake = self.fake(fail, base=[a for a in base if a["id"] not in (500, 400)])
+        self.skips_once(fake, 1100)
+        reader, evidence = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:fail", evidence.detail)
+        self.assertEqual(reader.listing_mode, "incremental")
+        self.assertEqual(fake.full_listings(), 0)
+        self.assertEqual([c.args[0] for c in self.sleep.call_args_list], [15.0])
+        overcount = pathlib.Path(f"{self.saved}{ve.OVERCOUNT_FALLBACK_SUFFIX}")
+        self.assertFalse(overcount.exists())
+        self.assertFalse(self.failed.exists())
+
+    def test_a_skip_a_callers_limit_cannot_wait_for_takes_a_whole_listing(
+        self,
+    ) -> None:
+        # Under a 50 s caller limit, 35 s are left: not enough for the 30 s
+        # wait and a 12 s whole listing (5 pages and the top-up's 7), so the
+        # whole listing comes at once.
+        fake = self.early_deletion_and_a_new_fail()
+        with (
+            mock.patch.dict("os.environ", {ve.DEADLINE_ENV: "50"}),
+            mock.patch.object(ve, "_elapsed", return_value=0.0),
+        ):
+            reader, evidence = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:fail", evidence.detail)
+        self.assertEqual(reader.listing_mode, "full")
+        self.assertEqual(fake.full_listings(), 1)
+        self.assertEqual(self.sleep.call_args_list, [])
+
+    def test_a_skip_the_caps_left_cannot_read_again_takes_a_whole_listing(
+        self,
+    ) -> None:
+        # As above with one region page a listing: the first read spends it,
+        # so no read on this base could settle 500 again. The whole listing,
+        # with no wait, holds the FAIL.
+        fake = self.early_deletion_and_a_new_fail()
+        with mock.patch.object(ve, "NEAR_EXPIRY_PAGE_CAP", 1):
+            reader, evidence = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:fail", evidence.detail)
+        self.assertEqual(reader.listing_mode, "full")
+        self.assertEqual(fake.full_listings(), 1)
         self.assertEqual(self.sleep.call_args_list, [])
 
     def test_two_readers_that_over_count_take_one_whole_listing_a_job(
@@ -5355,16 +5460,18 @@ class AnExactCountChecksItsEntriesNearExpiry(unittest.TestCase):
         # The carry lacks FAIL 750 and still holds 600, which GitHub deleted
         # 30 minutes before its expiry: five against a live count of five.
         # Page 3 (700) does not reach 750, but 600's own read answers 404,
-        # so the count is one short and the whole listing holds the FAIL.
-        # No wait on this base could restore it: no INCREMENTAL_WAITS.
+        # so the count is one short. A short count reads again after each
+        # wait, as for a skip in the fresh pages; this one is the carry's, so
+        # every read stays short and the whole listing holds the FAIL.
         self.write_carry([*self.base, self.entry(600, timedelta(minutes=30))])
         fake = self.fake(self.earlier_fail(750))
         reader, evidence = self.judge(fake)
         self.assertEqual(evidence.refusal, "verify:earlier-fail", evidence.detail)
         self.assertEqual(reader.listing_mode, "full")
         self.assertEqual(fake.full_listings(), 1)
-        self.assertEqual(len(self.by_id(fake)), 1)
-        self.assertEqual(self.sleep.call_args_list, [])
+        self.assertEqual(len(self.by_id(fake)), ve.INCREMENTAL_READS)
+        waits = [c.args[0] for c in self.sleep.call_args_list]
+        self.assertEqual(waits, list(ve.INCREMENTAL_WAITS))
         # An exact count is not an over-count: the job's slot stays free.
         overcount = pathlib.Path(f"{self.saved}{ve.OVERCOUNT_FALLBACK_SUFFIX}")
         self.assertFalse(overcount.exists())
@@ -5383,11 +5490,10 @@ class AnExactCountChecksItsEntriesNearExpiry(unittest.TestCase):
         self.assertFalse(self.failed.exists())
 
     def test_a_dropped_entry_does_not_spend_the_top_ups_page_cap(self) -> None:
-        # As above, with 650 live and near expiry too: the incremental read
-        # takes pages 3 and 4, and the whole listing's top-up, which keeps
-        # 650, takes page 3 again: three of a cap of six. Re-read after each
-        # wait on the same base, the incremental read would take all six and
-        # leave the top-up unsettled.
+        # As above, with 650 live and near expiry too: each incremental read
+        # takes pages 3 and 4, all six of the cap after the two waits. The
+        # whole listing's top-up, which keeps 650, takes page 3 again under a
+        # cap of its own, and settles.
         near = self.entry(650, timedelta(minutes=30))
         self.write_carry([*self.base, near, self.entry(600, timedelta(minutes=30))])
         fake = self.fake(self.earlier_fail(750), near)
@@ -5395,8 +5501,9 @@ class AnExactCountChecksItsEntriesNearExpiry(unittest.TestCase):
             reader, evidence = self.judge(fake)
         self.assertEqual(evidence.refusal, "verify:earlier-fail", evidence.detail)
         self.assertEqual(reader.listing_mode, "full")
-        self.assertEqual(self.sleep.call_args_list, [])
-        self.assertEqual(reader._near_expiry_reads, 3)
+        waits = [c.args[0] for c in self.sleep.call_args_list]
+        self.assertEqual(waits, list(ve.INCREMENTAL_WAITS))
+        self.assertEqual(reader._near_expiry_reads, 1)
         self.assertFalse(self.failed.exists())
 
     def test_a_short_count_reads_no_pages_near_expiry(self) -> None:
@@ -5582,16 +5689,16 @@ class TheColdReadHeadroomCoversTheListingCaps(unittest.TestCase):
                     + ve.INCREMENTAL_READS * 13
                     + 1
                     + ve.LISTING_READS * (attempts * pages + ve.LISTING_TOP_UP_PAGES)
-                    + ve.NEAR_EXPIRY_PAGE_CAP
-                    + ve.NEAR_EXPIRY_ID_READ_CAP
+                    # Once for the incremental reads, once for the top-ups.
+                    + 2 * (ve.NEAR_EXPIRY_PAGE_CAP + ve.NEAR_EXPIRY_ID_READ_CAP)
                 )
                 self.assertEqual(self.cold_cost(total, fails), worst)
 
     def test_the_cost_of_two_listings_differs_by_hand(self) -> None:
         # 10,450 artifacts (106 pages) and 300 FAILs against 7,522 (77) and
-        # 264: 2,079 against 1,681, worked by hand in ci-lanes-pr-hold.test.sh.
-        self.assertEqual(self.cold_cost(10_450, 300), 2_079)
-        self.assertEqual(self.cold_cost(7_522, 264), 1_681)
+        # 264: 2,137 against 1,739, worked by hand in ci-lanes-pr-hold.test.sh.
+        self.assertEqual(self.cold_cost(10_450, 300), 2_137)
+        self.assertEqual(self.cold_cost(7_522, 264), 1_739)
 
 
 # --- The --authority pr-merge path ------------------------------------------------
