@@ -177,6 +177,22 @@ expect "a token a merge's own resolution adds blocks" \
   "1|side.md:2: secret or credential pattern: GitHub PAT (commit $(short HEAD))
 $HINT" "$(new_push)"
 
+# In one file both sides changed, the path the remote's main brings passes and
+# the path the merge's resolution adds blocks.
+new_repo
+git -C "$REPO" switch -q main
+commit_text notes.md $'line one\nmain change\nsee '"$FAKE_LINUX"$' here\n' "main path"
+git -C "$REPO" push -q --no-verify origin main 2>/dev/null
+git -C "$REPO" switch -q "$BRANCH"
+commit_text notes.md $'line one\nbranch change\n' "branch"
+git -C "$REPO" merge -q --no-commit origin/main >/dev/null 2>&1
+printf 'line one\nresolved at %s\nsee %s here\n' "${SL}home${SL}bob${SL}build${SL}out.log" "$FAKE_LINUX" >"$REPO/notes.md"
+git -C "$REPO" add notes.md
+git -C "$REPO" commit -q --no-edit --no-verify
+expect "a path a merge's own resolution adds blocks beside one the remote's main brings" \
+  "1|notes.md:2: machine-specific path (Linux user path detected) (commit $(short HEAD))
+$HINT" "$(new_push)"
+
 new_repo
 commit_text notes.md $'line one\nline two\ntoken='"$FAKE_GHP"$'\n' "plant"
 git -C "$REPO" config checks.guardrails.pre-push-content.declined true

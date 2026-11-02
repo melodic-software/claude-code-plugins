@@ -207,7 +207,12 @@ label anything else as author-claimed and unverified.
 
 Report only findings a careful senior reviewer would block or flag. Each finding
 gives the file and line, why it is wrong, and how to show it fails (the input,
-caller, or command that produces the wrong result). Exclude:
+caller, or command that produces the wrong result). A finding's `file:line`
+is the line in that file at the PR head, never a position in the diff file.
+Read it from the file at head, or count it from the hunk header
+`@@ -a,b +c,d @@`: the line after the header is line `c`, and only context and
+`+` lines advance the count. A finding on a removed line cites the base file's
+line, counted from `a` over context and `-` lines. Exclude:
 
 - Anything a linter, formatter, typechecker, or trivial static check catches
 - Pre-existing issues on untouched lines

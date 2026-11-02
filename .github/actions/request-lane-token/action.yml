@@ -287,20 +287,22 @@ runs:
         # Two 503s come before the broker reserves anything, so they are retried,
         # each with a fresh OIDC token, as GitHub's rate-limit guidance asks:
         # https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#exceeding-the-rate-limit
-        # github-rate-limited carries GitHub's wait as Retry-After: the retry
-        # waits exactly that (a minute when absent) plus jitter, never less, and
-        # a wait that would end past the budget fails at once. github-unavailable
-        # backs off exponentially from a minute, or waits a longer Retry-After.
+        # At most 3 requests, and at most 60 s of waiting in all (the outage
+        # posture's element 1 budget, docs/outage-posture-audit.md): a wait
+        # past it is not taken, and the step fails as it does on any final
+        # answer. github-rate-limited carries GitHub's wait as Retry-After: the
+        # retry waits exactly that (a minute when absent) plus jitter cut to fit
+        # the budget, never less. github-unavailable backs off with full jitter,
+        # up to 20 s and then 40 s, or waits a longer Retry-After.
         # mint-unavailable is a failed mint after the job's one reservation, so
         # it is final, as is every other answer and no answer: a 200 lost in
-        # transit is revoked by nobody. No retry starts more than 8 minutes
-        # after the first request, so with its 30 s OIDC and 60 s broker
-        # timeouts the last answer comes within 9.5 minutes. A check is never
+        # transit is revoked by nobody. With its 30 s OIDC and 60 s broker
+        # timeouts the last answer comes within 5.5 minutes. A check is never
         # reserved, so re-running all jobs asks again; "Re-run failed jobs"
         # reuses an earlier allow, which the read file's run job refuses.
-        backoff=(60 120 240)
-        budget=480
-        attempt=0 start=$SECONDS retried="" rate_limit=""
+        backoff=(20 40)
+        budget=60
+        attempt=0 waited=0 retried="" rate_limit=""
         while :; do
           oidc=$(printf 'Authorization: bearer %s\n' "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" |
             curl -sS --fail --max-time 30 -H @- "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$AUDIENCE" |
@@ -316,10 +318,9 @@ runs:
           [[ $status == 503 && $attempt -lt ${#backoff[@]} && $reason =~ ^github-(unavailable|rate-limited)$ ]] || break
           after=$(tr -d '\r' <"$headers" 2>/dev/null |
             awk -F': *' 'tolower($1) == "retry-after" && $2 ~ /^[0-9]+$/ && length($2) <= 6 { v = $2 + 0 } END { print v }') || after=""
-          elapsed=$((SECONDS - start))
           if [ "$reason" = github-rate-limited ]; then
             delay=${after:-60}
-            if [ $((elapsed + delay)) -gt "$budget" ]; then
+            if [ $((waited + delay)) -gt "$budget" ]; then
               # The anchored allowlists below are what keep broker text out of
               # the ::error:: command and $GITHUB_OUTPUT: never loosen them.
               limit=$(jq -r 'if (.limit | type) == "string" then .limit else "" end' "$response" 2>/dev/null) || limit=""
@@ -329,20 +330,21 @@ runs:
               resets=$(jq -rn --argjson s "$delay" 'now + $s | ceil | todate')
               when="resets at"
               [ -n "$after" ] || when="sent no Retry-After, so its earliest retry is"
-              rate_limit="; GitHub's $limit rate limit${resource:+ ($resource)} $when $resets, past the 8-minute retry budget"
+              rate_limit="; GitHub's $limit rate limit${resource:+ ($resource)} $when $resets, past the 1-minute retry budget"
               break
             fi
             jitter=$((RANDOM % 21))
-            [ "$jitter" -le $((budget - elapsed - delay)) ] || jitter=$((budget - elapsed - delay))
+            [ "$jitter" -le $((budget - waited - delay)) ] || jitter=$((budget - waited - delay))
             delay=$((delay + jitter))
           else
-            delay=$((backoff[attempt] + RANDOM % 21))
+            delay=$((RANDOM % (backoff[attempt] + 1)))
             [[ -z $after || $after -le $delay ]] || delay=$after
-            [ $((elapsed + delay)) -le "$budget" ] || break
+            [ $((waited + delay)) -le "$budget" ] || break
           fi
           detail=$(detail_of)
           retried="503 with reason $reason${detail:+: $detail}"
           attempt=$((attempt + 1))
+          waited=$((waited + delay))
           echo "::warning::lane-token-retry: the broker answered $retried; retry $attempt of ${#backoff[@]} in ${delay}s"
           sleep "$delay"
         done

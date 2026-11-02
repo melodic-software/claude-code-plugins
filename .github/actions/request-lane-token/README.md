@@ -45,20 +45,21 @@ run, and mints nothing ([Check mode](#check-mode)).
    each of `contents`, `pull-requests` and `issues`, or when the job lacks `id-token: write`.
 2. Requests an OIDC token for `audience` and masks it.
 3. Sends a `POST` to `broker-url` with `Authorization: Bearer <OIDC token>` and the body
-   `{"lane", "activity", "pr_number"?, "issue_number"?, "release"?, "dispatcher_run_id"?}`. It retries, up to
-   three times and each with a fresh OIDC token, only two 503s that come before the broker reserves
-   the job's mint, as GitHub's
+   `{"lane", "activity", "pr_number"?, "issue_number"?, "release"?, "dispatcher_run_id"?}`. It sends
+   at most three requests, each with a fresh OIDC token, and retries only two 503s that come before
+   the broker reserves the job's mint, as GitHub's
    [rate-limit guidance](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#exceeding-the-rate-limit)
    asks:
    - `github-rate-limited`: GitHub rate-limited the broker. The retry waits exactly the
-     `Retry-After` header (a minute when it is absent) plus up to 20 seconds of jitter. When that
-     wait would end more than 8 minutes after the first request, it fails red at once, naming the
-     limit kind (`primary` or `secondary`), its resource and the time it resets. On an issue lane,
+     `Retry-After` header (a minute when it is absent) plus up to 20 seconds of jitter, cut to fit
+     the budget below. When that wait does not fit, it fails red at once, naming the limit kind
+     (`primary` or `secondary`), its resource and the time it resets. On an issue lane,
      work-unblock's hourly sweep re-fires such a run once the reset has passed.
-   - `github-unavailable`: another broker call to GitHub failed. The retry waits 60, 120 and 240
-     seconds plus up to 20 seconds of jitter, or a longer `Retry-After`.
+   - `github-unavailable`: another broker call to GitHub failed. The retry waits a random 0 to 20
+     seconds, then 0 to 40 (full jitter), or a longer `Retry-After`.
 
-   No retry starts more than 8 minutes after the first request. `mint-unavailable`, a failed mint
+   The waits add up to at most 60 seconds, the per-step budget of the outage posture's retry rule
+   ([the audit](../../../docs/outage-posture-audit.md), element 1); a wait past it is not taken. `mint-unavailable`, a failed mint
    after the broker reserved the job's one mint, is final, and its failure says so; a retry would
    be denied `already-minted`, and a failure after a retry names the 503 before it. Every other
    answer is final, and no response at all fails red with `broker-unreachable`, since a 200 lost in
