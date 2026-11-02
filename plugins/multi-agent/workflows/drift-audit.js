@@ -68,7 +68,7 @@ const isRepoPath = p => typeof p === 'string' && p.length <= 300 &&
 // the finders fetch; nothing about what they say is restated here.
 const DEFAULT_UPSTREAM = [
   'https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence',
-  'https://platform.claude.com/docs/en/about-claude/models/overview',
+  'https://platform.claude.com/docs/en/models/overview',
   'https://code.claude.com/docs/en/sub-agents',
   'https://code.claude.com/docs/en/model-config',
   'https://code.claude.com/docs/en/workflows',
