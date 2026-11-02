@@ -15,8 +15,9 @@
 // through, sha256, prev_sha256}). Both temp files are written before either rename, the events
 // file renamed first. It refuses when an existing evidence.json is not a JSON array, has no
 // sidecar or does not match the sidecar's sha256, holds a contrary event the new array lacks, or
-// holds an event whose `discovered` the new array changes; a re-earned event the new array lacks
-// is carried forward instead.
+// holds an event whose `discovered` the new array changes, except a contrary event published
+// without one gaining the previous generated_at; a re-earned event the new array lacks is carried
+// forward instead.
 //
 // Cost: every run pages the repository's whole closed-PR history (one REST page per 100 closed
 // PRs, created ascending, so no merge is skipped while paging), then reads, per merged PR in the
@@ -94,8 +95,9 @@
 //   binding update.
 // - discovered: with `prior` (the published events, which main reads for --out), each contrary
 //   event carries {cell, event, at, discovered}: the run's `now` rounded up to a whole second the
-//   first time its key is published, else the value the prior file holds (none for an event
-//   published before the field existed). Report mode passes no prior and sets none.
+//   first time its key is published, else the value the prior file holds. An event that file
+//   holds without one (published before the field existed) is stamped once with that file's
+//   generated_at, rounded up to a whole second. Report mode passes no prior and sets none.
 //
 // Event shape and vocabulary: the autonomy plugin's check-security-binding.mjs (/autonomy:setup),
 // CONTRARY_EVIDENCE_EVENTS and resolveEffectivePromotion; restated here, not imported, because
@@ -281,6 +283,10 @@ const DISPATCH_DEADLINE_MS = 6 * 3_600_000;
 function isoSeconds(msValue) {
   return new Date(msValue).toISOString().replace(/\.000Z$/, "Z");
 }
+
+const ceilSecond = (msValue) => Math.ceil(msValue / 1000) * 1000;
+// The one `discovered` an event published without one may gain: its file's generated_at.
+const legacyDiscovered = (generatedMs) => isoSeconds(ceilSecond(generatedMs));
 
 // babysit_postmerge.py read_pin: the newest comment by the identity whose first line is the pin
 // marker, read through at most PIN_PAGE_LIMIT pages; none, an edited one, or a longer thread is
@@ -816,11 +822,9 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
 
   const sorted = [...events.values()].sort(byInstant);
   // The previous publish's generated_at: a stamp is never at or before one the prior file holds,
-  // even when this run's clock is behind (publish() then refuses), and an event that file holds
-  // with no `discovered` was first published no later than then.
+  // even when this run's clock is behind (publish() then refuses).
   const priorGeneratedMs = priorGeneratedAt === null ? Number.NaN : instant(priorGeneratedAt, "the previous generated_at");
   if (Array.isArray(prior)) {
-    const ceilSecond = (msValue) => Math.ceil(msValue / 1000) * 1000;
     const floor = Number.isNaN(priorGeneratedMs) ? -Infinity : ceilSecond(priorGeneratedMs) + 1000;
     const found = isoSeconds(Math.max(ceilSecond(now.getTime()), floor));
     const published = new Map(prior.filter((e) => e && typeof e === "object").map((e) => [eventKey(e), e]));
@@ -828,13 +832,16 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
       const before = published.get(eventKey(e));
       if (!before) e.discovered = found;
       else if (before.discovered !== undefined) e.discovered = before.discovered;
+      // An event a file from before `discovered` holds was first published no later than that
+      // file's generated_at: stamped with it once, which publish() allows only on that upgrade.
+      else if (!Number.isNaN(priorGeneratedMs)) e.discovered = legacyDiscovered(priorGeneratedMs);
     }
   }
   return {
     repo,
     since,
     through: new Date(throughMs).toISOString(),
-    events: [...sorted, ...reEarned(tracked, sorted, reviewers.size > 0, priorGeneratedMs)].sort(byInstant),
+    events: [...sorted, ...reEarned(tracked, sorted, reviewers.size > 0)].sort(byInstant),
     unresolvedReverts,
     gateFailures,
     unclassedAutonomous: [...details.values()]
@@ -914,16 +921,13 @@ function report(counted, events, reviewsMeasured) {
 // event found after a re-earn was published starts a new window after that run, and the checker
 // voids the earlier re-earn. A re-earn is not contrary.
 const PROMOTION_DEPENDENCIES = { "C3-auto-merge": ["C2-auto-merge", "C3-ai-review-blocking"] };
-// A published event with no `discovered` (written before the field existed) counts as found at the
-// previous publish's generated_at, the latest it can have been first published.
-const knownAt = (event, priorGeneratedMs) =>
-  Math.max(Date.parse(event.at), event.discovered !== undefined ? Date.parse(event.discovered) : Number.isNaN(priorGeneratedMs) ? -Infinity : priorGeneratedMs);
+const knownAt = (event) => Math.max(Date.parse(event.at), event.discovered !== undefined ? Date.parse(event.discovered) : -Infinity);
 
-function reEarned(counted, contrary, reviewsMeasured, priorGeneratedMs = Number.NaN) {
+function reEarned(counted, contrary, reviewsMeasured) {
   const out = [];
   for (const cell of CELLS) {
     const against = [cell, ...(PROMOTION_DEPENDENCIES[cell] ?? [])];
-    const times = contrary.filter((e) => against.includes(e.cell)).map((e) => knownAt(e, priorGeneratedMs));
+    const times = contrary.filter((e) => against.includes(e.cell)).map(knownAt);
     if (times.length === 0) continue;
     const sinceMs = Math.ceil(Math.max(...times) / 1000) * 1000;
     const after = counted.filter((r) => Date.parse(r.mergedAt) > sinceMs).sort((a, b) => Date.parse(a.mergedAt) - Date.parse(b.mergedAt) || a.number - b.number);
@@ -991,7 +995,13 @@ export function publish(outDir, derived, through, now = new Date(), { rename = r
     if (dropped.length > 0) {
       throw new PublishError(`refusing to publish: the new events drop ${dropped.length} previously published event(s): ${dropped.map(eventKey).join(", ")}`);
     }
-    const redated = prior.filter((event) => byKey.has(eventKey(event)) && byKey.get(eventKey(event)).discovered !== event?.discovered);
+    // The one change allowed: a contrary event the previous file holds with no `discovered` gains
+    // that file's generated_at, the upgrade collect() makes.
+    const upgrade = (event, next) => event?.discovered === undefined && event?.event !== "re-earned" && next.discovered === legacyDiscovered(previousAt);
+    const redated = prior.filter((event) => {
+      const next = byKey.get(eventKey(event));
+      return next !== undefined && next.discovered !== event?.discovered && !upgrade(event, next);
+    });
     if (redated.length > 0) {
       throw new PublishError(`refusing to publish: the new events change the discovered time of ${redated.length} published event(s): ${redated.map(eventKey).join(", ")}`);
     }

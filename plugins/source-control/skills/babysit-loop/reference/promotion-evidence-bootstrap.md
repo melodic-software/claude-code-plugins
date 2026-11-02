@@ -151,7 +151,8 @@ A fresh `--out` directory, or a `--since` moved earlier, stamps every event the 
 first time with that run's time, so re-earns wait until enough merges land after that run. A run
 whose clock is behind the previous publish's `generated_at` is refused, and a new stamp always
 falls at least a second after it. An event a file from before `discovered` holds without one
-counts, for the publisher's window, as found at that file's `generated_at`.
+counts as found at that file's `generated_at`: the first publish over that file stamps it with
+that time, and the stamp then stays fixed like any other.
 
 Publication requirements:
 
@@ -198,8 +199,8 @@ judgment mappings and how to set `--lane-login` for merge-queue merges.
   (`generated_at`, `through`, `sha256` of the events file, `prev_sha256`), each by a temp file
   and a rename. It refuses to publish when the previous events file does not match its sidecar's
   `sha256`, when the new events drop a contrary event the previous file held, or when they change
-  a published event's `discovered`. A `re-earned` event the new run no longer derives is carried
-  forward instead.
+  a published event's `discovered` (other than that one stamp on an event published without
+  one). A `re-earned` event the new run no longer derives is carried forward instead.
 
 Run it as the operator, never from the lane, and point `--out` at a directory the lane cannot
 write. Which host runs it, under which identity and on what schedule is the operator's
