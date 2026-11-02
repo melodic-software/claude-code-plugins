@@ -286,7 +286,7 @@ md_trust() {
     if common="$(git -C "$root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"; then
       base="$common/markdown-format"
     fi
-    if [[ "$base" == [A-Za-z]:\\* ]] && command -v cygpath >/dev/null 2>&1; then
+    if [[ "$base" == [A-Za-z]:[\\/]* ]] && command -v cygpath >/dev/null 2>&1; then
       base="$(cygpath -u "$base" 2>/dev/null)" || base=""
     fi
     [[ -n "$base" ]] || MD_TRUST=nostore
