@@ -185,7 +185,7 @@ def parse_yaml_policy(text: str, yaml_values: YamlReader | None = None) -> RepoL
     scalar value, or a merge method outside `MERGE_METHODS` raises
     `RepoConfigError`.
     """
-    yaml_values = yaml_values or _shared_yaml_values
+    yaml_values = yaml_values or _policy_yaml_values
     found = yaml_values(text, [(key, key in LIST_KEYS) for key in POLICY_KEYS])
     if found is None:
         raise RepoConfigError("the shared YAML reader rejects it")
@@ -560,6 +560,34 @@ def _shared_yaml_values(
         return policy._concern_values(text, keys)
     except policy.PolicyReadError as exc:
         raise RepoConfigError(str(exc)) from exc
+
+
+def _policy_yaml_values(
+    text: str, keys: list[tuple[str, bool]]
+) -> dict[str, list[str]] | None:
+    """`_shared_yaml_values`, with each value taken from the parser's raw
+    records: the shared reader drops a trailing slash, which would rename a
+    check context such as `ci/` that the gate compares exactly."""
+    import babysit_merge_policy as policy
+
+    if _shared_yaml_values(text, keys) is None:
+        return None
+    try:
+        records = policy.yaml_records(text)
+    except policy.PolicyReadError as exc:
+        raise RepoConfigError(str(exc)) from exc
+    found: dict[str, list[str]] = {}
+    for key, as_list in keys:
+        if as_list:
+            items = sorted(
+                (int(k[len(key) + 1 :]), v)
+                for k, v in records.items()
+                if k.startswith(f"{key}.") and k[len(key) + 1 :].isdigit()
+            )
+            found[key] = [v for _, v in items if v]
+        else:
+            found[key] = [records[key]] if records.get(key) else []
+    return found
 
 
 def resolve_loop_keys(

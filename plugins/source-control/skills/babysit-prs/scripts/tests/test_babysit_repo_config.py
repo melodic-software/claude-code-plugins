@@ -450,6 +450,18 @@ class PolicyYamlTests(unittest.TestCase):
         rc.reset_cache()
         self.assertEqual(self.resolve({}).skip_downgrade_logins, frozenset())
 
+    def test_a_yaml_policy_string_keeps_its_trailing_slash(self) -> None:
+        self.fake(
+            yaml="babysit_ci_gateway_context: ci/\n"
+            "babysit_review_gate_context: 'review/'\n"
+            "babysit_merge_block_labels: [hold/]\n"
+        )
+        eff = self.resolve({})
+        self.assertEqual(
+            (eff.ci_gateway_context, eff.review_gate_context, eff.merge_block_labels),
+            ("ci/", "review/", {"hold/"}),
+        )
+
     def test_a_rejected_yaml_is_an_error_with_no_legacy_fallback(self) -> None:
         gh = self.fake(
             legacy="## babysit_merge_method\nsquash\n",

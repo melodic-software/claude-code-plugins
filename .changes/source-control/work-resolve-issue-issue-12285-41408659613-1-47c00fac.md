@@ -20,7 +20,9 @@ bump: minor
 - `/source-control:babysit-prs` reads the seven repository-policy keys from the target
   repository's default-branch `docs/conventions/source-control.yaml` first. A YAML the shared
   reader rejects, or one that gives a key the wrong shape, is a repository config error and does
-  not fall back to `.claude/source-control.md`. The merge modes against `userConfig` are unchanged.
+  not fall back to `.claude/source-control.md`. Each value is read as written, a trailing slash
+  included, so a check context such as `ci/` keeps its name. The merge modes against `userConfig`
+  are unchanged.
 - Any `babysit_loop_*` key in the team YAML now counts as tracked adoption, so a YAML carrying only
   a non-merge loop-lane key gives the `c2-mechanical` baseline rung.
 - With no `.claude/source-control.md` at the base SHA, the unattended merge gate now takes
