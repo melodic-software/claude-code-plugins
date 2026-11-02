@@ -21,32 +21,38 @@ function trustedSetters(trustedActors) {
   );
 }
 
+// The config's key for the option a single-select field holds, or null when
+// no trusted account set it. `facts.fieldValues` is the REST issue-field-values
+// rows as {field, option} ids; `facts.fieldSetters` maps a field id to the
+// account id that last set it (GraphQL field events), or null. An untrusted
+// setter's value is ignored, mapped or not, so it cannot fail the read; a
+// trusted option `field.options` does not map throws `unmapped(option)`.
+export function trustedOption(facts, field, trustedActors, unmapped) {
+  const fieldId = field["field-id"];
+  const row = facts.fieldValues.find((value) => value.field === fieldId);
+  if (row === undefined || !trustedSetters(trustedActors).has(facts.fieldSetters[String(fieldId)])) {
+    return null;
+  }
+  const option = String(row.option);
+  if (!Object.hasOwn(field.options, option)) {
+    throw unmapped(option);
+  }
+  return field.options[option];
+}
+
 // {size, complexity, uncertainty}, each the config's key for the issue's
-// option, or UNSET's when no trusted account set the field. `facts.fieldValues` is the REST
-// issue-field-values rows as {field, option} ids; `facts.fieldSetters` maps a
-// field id to the account id that last set it (GraphQL field events), or null.
-// A value counts only when its setter is trusted; a trusted option the config
-// does not map stops the run.
+// option (trustedOption), or UNSET's when no trusted account set the field.
 export function issueDimensions(facts, config, trustedActors) {
-  const trusted = trustedSetters(trustedActors);
   const result = {};
   for (const name of DIMENSIONS) {
-    const { "field-id": fieldId, options } = config.fields[name];
-    const row = facts.fieldValues.find((value) => value.field === fieldId);
-    // An untrusted setter's value is ignored, mapped or not, so it cannot
-    // fail the resolve.
-    if (row === undefined || !trusted.has(facts.fieldSetters[String(fieldId)])) {
-      result[name] = UNSET[name];
-      continue;
-    }
-    const option = String(row.option);
-    if (!Object.hasOwn(options, option)) {
-      throw new Rejection(
-        "unmapped-dimension",
-        `issue field ${fieldId} (${name}) holds option ${option}, which models.issue-dimensions does not map`,
-      );
-    }
-    result[name] = options[option];
+    const field = config.fields[name];
+    result[name] =
+      trustedOption(facts, field, trustedActors, (option) =>
+        new Rejection(
+          "unmapped-dimension",
+          `issue field ${field["field-id"]} (${name}) holds option ${option}, which models.issue-dimensions does not map`,
+        ),
+      ) ?? UNSET[name];
   }
   return result;
 }

@@ -11,7 +11,9 @@
 // threshold, PASS or FAIL. A NOT COMPARABLE case shows no score. The health
 // line reads each with-arm run's kept trace (--keep-temp): whether the
 // plugin's skills were loaded (the init message's skill list) and how many
-// runs called one of them through the Skill tool. --plugin names the plugin;
+// runs called one of them through the Skill tool, called one of the plugin's
+// agents through the Agent tool, or had a skill slash-invoked by the case
+// prompt, which makes no Skill call. --plugin names the plugin;
 // without it, suite.root's last segment does.
 //
 // --redact, for a pull request run whose prompts the pull request supplies,
@@ -56,9 +58,16 @@ const readTrace = (path) => {
 
 const ownSkill = (plugin) => (name) => typeof name === "string" && (plugin ? name.startsWith(`${plugin}:`) : true);
 
+// The plugin skill a case prompt opens with as a slash command, such as
+// improvement:find, else null. A slash-invoked skill makes no Skill tool call.
+export const slashSkill = (prompt) => (typeof prompt === "string" ? (/^\s*\/([A-Za-z0-9][\w.-]*:[A-Za-z0-9][\w.-]*)/.exec(prompt)?.[1] ?? null) : null);
+
 // {kept, loaded, fired} over a case's with-arm runs: kept counts the traces
-// read, loaded is true, false, or null when no kept trace lists skills.
-export function health(runs, { plugin, base }) {
+// read, loaded is true, false, or null when no kept trace lists skills. A run
+// fires when it calls one of the plugin's skills through the Skill tool or
+// one of its agents through the Agent tool, or when the case prompt
+// slash-invokes one of its skills (`invoked`) that its init lists.
+export function health(runs, { plugin, base, invoked = null }) {
   const own = ownSkill(plugin);
   let kept = 0;
   let fired = 0;
@@ -77,8 +86,10 @@ export function health(runs, { plugin, base }) {
     const calls = trace
       .filter((line) => line.type === "assistant")
       .flatMap((line) => list(line.message?.content))
-      .filter((part) => part?.type === "tool_use" && part.name === "Skill");
-    if (calls.some((part) => own(part.input?.skill))) {
+      .filter((part) => part?.type === "tool_use");
+    const slashed = invoked !== null && own(invoked) && Array.isArray(init?.skills) && init.skills.includes(invoked);
+    const called = calls.some((part) => (part.name === "Skill" ? own(part.input?.skill) : part.name === "Agent" && own(part.input?.subagent_type)));
+    if (slashed || called) {
       fired += 1;
     }
   }
@@ -136,9 +147,11 @@ export function summarize(result, { plugin, base, redact = false }) {
     "",
     ...list(result.cases).map((c, index) => {
       const runs = list(c?.arms?.with);
-      const h = health(runs, { plugin: owner, base });
+      const invoked = slashSkill(c?.promptMarkdown);
+      const h = health(runs, { plugin: owner, base, invoked });
       const loaded = h.loaded === null ? "unknown (no kept trace lists skills)" : h.loaded ? "yes" : "no";
-      const fired = h.kept === 0 ? `no kept trace of ${runs.length} runs` : `fired in ${h.fired} of ${h.kept} runs with a kept trace (${runs.length} runs)`;
+      const how = invoked && ownSkill(owner)(invoked) ? `; the prompt slash-invokes ${redact ? "a plugin skill" : cell(invoked)}` : "";
+      const fired = h.kept === 0 ? `no kept trace of ${runs.length} runs` : `fired in ${h.fired} of ${h.kept} runs with a kept trace (${runs.length} runs${how})`;
       return `- ${cell(rows[index].name)}: skill loaded: ${loaded}; ${fired}`;
     }),
     "",
