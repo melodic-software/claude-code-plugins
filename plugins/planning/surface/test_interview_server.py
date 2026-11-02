@@ -1749,6 +1749,31 @@ class TestHedged(WaitCase):
         self.assertEqual(rc, 0, out)
 
 
+class TestConfirmReading(WaitCase):
+    """`confirm-reading` confirms Claude's read-back of an answer and records no decision."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(cls.dir, question("A"))
+
+    def test_confirm_reading_is_kept_unhandled_and_leaves_the_decision(self):
+        from interview_server import rebuild_responses
+
+        self.assertEqual(self.post({"id": "A", "kind": "own", "text": "fee chair flag"})[0], 200)
+        before = self.state()["responses"]["responses"]["A"]
+        code, data = self.post({"id": "A", "kind": "confirm-reading"})
+        self.assertEqual(code, 200, data)
+        r = self.state()["responses"]
+        ev = next(e for e in r["events"] if e["seq"] == data["seq"])
+        self.assertEqual((ev["kind"], ev["id"]), ("confirm-reading", "A"))
+        self.assertNotIn("autoHandled", ev)
+        self.assertEqual(r["responses"]["A"], before)
+        self.assertEqual(rebuild_responses(r["events"]), (r["responses"], r["history"]))
+        self.assertEqual(self.post({"id": "nope", "kind": "confirm-reading"})[0], 400)
+        rc, out = self.rp("validate")
+        self.assertEqual(rc, 0, out)
+
+
 class TestQuestionState(WaitCase):
     """AC19: stale direct dependents, upstream-pending descendants, archived, revising."""
 

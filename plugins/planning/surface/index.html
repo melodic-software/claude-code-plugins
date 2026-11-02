@@ -192,7 +192,7 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 #actLog>summary{cursor:pointer}
 #actLog[open]>summary{margin-bottom:10px}
 .nudge-q{font-size:13px;color:var(--chg);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.ustate textarea{display:block;width:100%;margin-top:8px;min-height:56px}
+.ustate #offText{display:block;width:100%;margin-top:8px}
 .chip.plain{color:var(--muted);background:transparent;border:1px solid var(--line-strong)}
 .chip.plain::before{display:none}
 .chip.hot{color:var(--chg);background:transparent;border:1px solid var(--chg)}
@@ -289,6 +289,8 @@ section.answer[hidden]{display:none}
 .cur .when{font-size:12.5px;color:var(--faint)}
 .cur .earlier{flex:1 0 100%;display:grid;gap:2px;max-height:9em;overflow-y:auto;overflow-wrap:anywhere}
 .cur .earlier q{white-space:pre-wrap;color:var(--ink)}
+.cur .readback{flex:1 0 100%;display:grid;gap:4px;border-left:3px solid var(--accent);padding:2px 10px;overflow-wrap:anywhere}
+.recbox .flip{margin:0}
 .cur .aside-why{flex:1 1 20em}
 .agrid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:14px;flex:1 1 auto;min-height:0}
 .compose{align-content:start}
@@ -730,6 +732,12 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     return c[0] || null;
   }
   const counted = q => { const d = decisionOf(q); return d && d.decision && !d.aside ? d : null; };
+  function readBack(q, d){ // Claude's newest "Understood as:" reply to this page answer, and whether the user confirmed it since
+    if (!d || d.src !== "page" || d.seq == null) return null;
+    const h = (q.history || []).filter(x => x.by === "claude" && x.replyTo === d.seq && /^\s*Understood as:/i.test(x.text || "")).pop();
+    return h ? {text: h.text, at: h.at, confirmed: events().some(e => e.kind === "confirm-reading" && e.id === q.id && !e.withdrawn && e.seq > d.seq && String(e.at) >= String(h.at))} : null; // a confirm older than a corrected read-back does not confirm it
+  }
+  const flipsIf = q => { const m = String(q.basis || "").match(/^[ \t>*-]*(?:\*\*)?Flips if:(?:\*\*)?[ \t]*(.+)$/im); return m ? m[1].trim() : ""; }; // the basis's Flips if: line
   function asideRec(q, d){ // the recommendation a set-aside accept was given against, when a revision set it aside (exporters.aside_rec)
     const a = q.asideRecommendation;
     return a && d && d.aside && a.decidedAt === d.updatedAt && (a.seq ?? null) === (d.seq ?? null) ? a.text : "";
@@ -1220,7 +1228,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const actTarget = e => e.notes ? "notes" : isRestate(e) && !uState() ? SUMMARY : (e.ids || []).find(id => Q[id]) || (isRestate(e) ? SUMMARY : null); // a restatement still to confirm leads to the summary, not to a question the same write touched
 
   // ---------- history thread ----------
-  const VERB = {accept: "accepted", hedged: "accepted with a condition", own: "answered", defer: "deferred", reopen: "reopened", ask: "asked Claude", rephrase: "asked for a rephrase", research: "asked Claude to research", "cancel-research": "cancelled the research", undo: "undid a save", note: "wrote", wrapup: "asked to wrap up"};
+  const VERB = {accept: "accepted", hedged: "accepted with a condition", own: "answered", defer: "deferred", reopen: "reopened", ask: "asked Claude", rephrase: "asked for a rephrase", research: "asked Claude to research", "cancel-research": "cancelled the research", "confirm-reading": "confirmed Claude's reading", undo: "undid a save", note: "wrote", wrapup: "asked to wrap up"};
   function whoLabel(h){
     if (h.by === "claude") {
       if (h.kind === "rephrase") return "Claude rephrased";
@@ -1454,7 +1462,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (src) { facts = facts.slice(sm[0].length); h += '<details class="src" id="src"' + (lsGet("srcOpen", true) ? " open" : "") + "><summary>Source text</summary>" + mdHtml(src.replace(/^/gm, "> ")) + "</details>"; }
     if (String(q.context || "").trim()) h += '<section class="blk" id="qContext"><h4>Context</h4>' + mdHtml(q.context) + "</section>"; // what drives the decision, read before the recommendation
     if (q.recommendation) h += '<section class="blk"><h4>' + (withheld(q) ? "Recommendation withheld" : (marks ? "➡️ " : "") + "Recommendation (Rec)") + (basisLabel(q) && !withheld(q) ? ' <span class="chip basis basis-' + basisLabel(q) + '" title="Basis: ' + basisLabel(q) + '">' + (basisLabel(q) === "verified" ? "Verified" : "Judgment") + "</span>" : "") + '</h4><div class="recbox">' + // the Rec row under Decide carries the whole recommendation (#5815), so the card does not repeat it
-      (withheld(q) ? mdHtml(q.recommendation) : '<p id="recWhere">The full recommendation is the Rec row under Decide.</p>') + "</div></section>";
+      (withheld(q) ? mdHtml(q.recommendation) : '<p id="recWhere">The full recommendation is the Rec row under Decide.</p><p class="flip" id="flipIf"><b>Flips if:</b> ' + (flipsIf(q) ? lineHtml(flipsIf(q)) : '<span class="kbd">not stated</span>') + "</p>") + "</div></section>";
     if (q.commits && q.commits.length) {
       const cf = confirmed(q), acc = accepted(q);
       h += '<section class="blk"><h4>Accepting commits you to: ' + (acc ? "confirm each" : stateOf(q) === "own" ? "replaced by your own answer" : "confirm each once accepted") + '</h4><div class="crows">' + q.commits.map((c, i) => {
@@ -1468,7 +1476,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (facts.trim()) more += '<section class="blk"><h4>What we know</h4>' + mdHtml(facts) + "</section>";
     if (altsOf(q).length) more += '<section class="blk"><h4>Alternatives</h4><div class="alts">' + altsOf(q).map(a =>
       '<div class="alt' + (d && d.decision === "alt" && d.alt === a.key ? " chosen" : "") + '"><span class="k">(' + esc(a.key) + ")</span><span>" + lineHtml(a.text) + (a.tradeoff ? '<span class="to">' + lineHtml(a.tradeoff) + "</span>" : "") + "</span></div>").join("") + "</div></section>";
-    const why = q.recommendation && q.basis ? mdHtml(q.basis) : "", tab = (id, label, open) => '<button type="button" class="dtab" id="' + id + 'Btn" data-discl="' + id + '" aria-expanded="' + open + '" aria-controls="' + id + '">' + label + "</button>";
+    const whyText = String(q.basis || "").replace(/^[ \t>*-]*(?:\*\*)?Flips if:.*(?:\n|$)/im, "").trim(); // the Flips if: line shows in the recommendation block
+    const why = q.recommendation && whyText ? mdHtml(whyText) : "", tab = (id, label, open) => '<button type="button" class="dtab" id="' + id + 'Btn" data-discl="' + id + '" aria-expanded="' + open + '" aria-controls="' + id + '">' + label + "</button>";
     const whyOpen = lsGet("whyOpen", false) === true, moreOpen = !S.moreShut.has(q.id) && (lsGet("moreOpen", false) === true || (st !== "arch" && !isAnswered(st))); // one toggle row, the panels below it: opening Why never moves Details; an unanswered question opens Details until the user closes it there
     if (why || more) h += '<div class="discl" id="discl"><div class="dtabs">' + (why ? tab("why", "Why", whyOpen) : "") + (more ? tab("more", "Details: what we know, alternatives", moreOpen) : "") + "</div>" +
       (why ? '<div class="dpanel" id="why" role="region" aria-labelledby="whyBtn"' + (whyOpen ? "" : " hidden") + ">" + why + "</div>" : "") +
@@ -1507,6 +1516,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
         (st === "wait" ? '<span class="kbd">Counts once Claude\'s research on ' + esc(q.id) + " returns.</span>" : "")
       : '<span class="kbd">No decision yet.' + (setting("shortcuts") ? " Number keys pick; Ctrl+Enter saves." : " Ctrl+Enter saves.") + "</span>" + (last ? receipts(last) : "");
     if (d && !d.aside && d.text) $("cur").innerHTML += '<div class="earlier" id="earlier"><span class="kbd">Your earlier answer</span><q>' + esc(d.text) + "</q></div>"; // read-only; the note box never takes it
+    const rb = d && !d.aside ? readBack(q, d) : null;
+    if (rb) $("cur").innerHTML += '<div class="readback" id="readback"><span class="kbd">Claude read your answer as</span> ' + mdHtml(rb.text) +
+      (rb.confirmed ? '<span class="chip s-accept" id="readOk">You confirmed this reading</span>' : '<div class="arow"><button type="button" class="act" data-confirmreading="' + esc(q.id) + '" data-submit="1"' + (can && !off ? "" : " disabled") + ">Confirm reading</button><span class=\"kbd\">Or answer again to correct it.</span></div>") + "</div>";
     const cs = choicesOf(q), cur = d && d.decision && !d.aside ? cs.find(c => !c.re && c.kind === d.decision && (c.kind !== "alt" || c.alt === d.alt) && !!c.who === personOf(d)) : null;
     const letter = c => c.re ? " a" : c.kind === "accept" ? (cs[0].re || c.wn ? "" : " a") : c.kind === "own" ? " o" : c.kind === "defer" && !c.who ? " d" : c.kind === "hedged" ? " h" : "";
     const armed = armedOf(cs);
@@ -1664,9 +1676,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
         (na ? '<p class="kbd" id="uCommit">Confirming the understanding does not tick commitments. ' + ("The " + na + (na === 1 ? " unticked commitment becomes a named risk" : " unticked commitments become named risks")) + " in the Brief unless you tick " + (na === 1 ? "it" : "them") + '. <button type="button" class="tbtn small" data-toconfirm="">Open the commitment list</button></p>' : "")
       : u ? '<div class="banner" id="uDone"><b>You flagged:</b> ' + lineHtml(u.text) + " (" + esc(fmt(u.at)) + "). Claude fixes the understanding and restates it.</div>"
       : reDiffHtml() + (wrapSent() ? '<p class="kbd" id="uDone">Not confirmed; wrap-up already sent.</p>'
-      : '<div class="ustate">' + preConfirmHtml() + '<textarea id="offText" rows="2" aria-label="What is off" placeholder="What is off? Required to flag it."></textarea>' +
-        '<div class="arow"><button class="act primary" data-understand="confirm" data-submit="1">Confirm</button>' + (tickRows().length ? '<button class="act" data-understand="tick" data-submit="1">Tick these and confirm</button>' : "") + '<button class="act" data-understand="off" data-submit="1">Something\'s off</button>' +
-        '<span class="kbd">Or say what is off, then flag it.</span>' + (S.uMsg ? '<span class="toast bad">' + esc(S.uMsg) + "</span>" : "") + "</div></div>");
+      : '<div class="ustate">' + preConfirmHtml() + '<p id="uAsk"><b>Confirm, or give the numbers to change.</b></p><input type="text" id="offText" aria-label="Question numbers to change" placeholder="Numbers to change, such as Q3, Q7" autocomplete="off">' +
+        '<div class="arow"><button class="act primary" data-understand="confirm" data-submit="1">Confirm</button>' + (tickRows().length ? '<button class="act" data-understand="tick" data-submit="1">Tick these and confirm</button>' : "") + '<button class="act" data-understand="off" data-submit="1">Change these</button>' +
+        (S.uMsg ? '<span class="toast bad">' + esc(S.uMsg) + "</span>" : "") + "</div></div>");
     return '<section class="blk" id="restate"><h4>Shared understanding, restated ' + esc(fmt(r.at)) + "</h4>" + body + foot + "</section>";
   }
   function cBoxHtml(){ // only what is still to confirm; Claude's confirmations are listed with their reasons below it
@@ -2264,6 +2276,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const id = S.sel;
     if (await sendFree(kind, "", {id})) { toast(kind === "research" ? "Sent. Claude researches " + id + " and replies in its thread." : "Sent. Claude releases " + id + " and ignores the pending result."); renderAll(); }
   }
+  async function confirmReading(id){ // no decision: Claude settles the answer as read back
+    if (await sendFree("confirm-reading", "", {id})) { toast("Sent. Claude records " + id + " as read back."); renderAll(); }
+  }
   async function confirmCommit(id, i){ // records only this commitment; idempotent
     const q = Q[id]; if (!q || S.busy || !accepted(q) || confirmed(q).has(String(i))) return false;
     if (await sendFree("confirm", "", {id: q.id, alt: String(i), contentRev: q.contentRev || 0})) { toast("Confirmed on " + q.id + "."); renderAll(); return true; }
@@ -2273,9 +2288,16 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     for (const r of commitRows().filter(x => !x.on)) if (!(await confirmCommit(r.q.id, r.i))) break;
   }
   async function confirmUnderstanding(alt){
-    const r = S.doc.restatement, ta = $("offText"), text = ta ? ta.value.trim() : "";
+    const r = S.doc.restatement, ta = $("offText"), raw = ta ? ta.value.trim() : "";
     if (!r) return;
-    if (alt === "off" && !text) { S.uMsg = "Say what is off first."; renderSummary(); if ($("offText")) $("offText").focus(); return; }
+    let text = "";
+    if (alt === "off") { // question numbers only: "Q3, 7" reads as Q3 and Q7
+      const parts = raw.split(/[\s,;]+|\band\b/i).filter(Boolean), bad = parts.filter(p => !/^Q?\d+$/i.test(p));
+      const ids = [...new Set(parts.filter(p => !bad.includes(p)).map(p => "Q" + parseInt(p.replace(/^Q/i, ""), 10)))], unknown = ids.filter(id => !Q[id]);
+      const why = !parts.length ? "Give the numbers to change first." : bad.length ? "Give question numbers only, such as Q3, Q7." : unknown.length ? "No question " + unknown.join(", ") + " on this page." : "";
+      if (why) { S.uMsg = why; renderSummary(); if ($("offText")) $("offText").focus(); return; }
+      text = "Change " + ids.join(", ");
+    }
     if (S.api < 2 || S.busy) return;
     if (alt === "tick") { // one confirm per listed commitment, then the Confirm; a failed tick stops before the Confirm
       for (const x of tickRows()) if (!confirmed(x.q).has(String(x.i)) && !(await confirmCommit(x.q.id, x.i))) { S.uMsg = "Could not tick " + x.q.id + ", so the understanding is not confirmed."; renderSummary(); return; }
@@ -2505,6 +2527,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (t.name === "choice") { arm(+t.value, viaKeys); return; } // click, not change: the pre-checked Your answer row fires no change
     const cb = t.closest("[data-confirm]"); if (cb) { e.preventDefault(); confirmCommit(cb.dataset.cq, cb.dataset.confirm); return; } // the next state render ticks it
     if (t.closest("[data-confirmall]")) { confirmAll(); return; }
+    const cr = t.closest("[data-confirmreading]"); if (cr) { confirmReading(cr.dataset.confirmreading); return; }
     const un = t.closest("[data-understand]"); if (un) { confirmUnderstanding(un.dataset.understand); return; }
     if (t.closest("[data-auditaccepted]")) { auditAccepted(); return; }
     const nt = t.closest("#needToast button");

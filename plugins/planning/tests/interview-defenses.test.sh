@@ -541,11 +541,12 @@ pin_section "SKILL.md interview-loop preamble is unchanged (it governs every ste
 # Rounds gain topic groups, a closing index, a Held line, origin labels, single pacing and a discussing status that blocks like open; partial-round resolution, the no-silent-resolve rule, the confirmation-gate exemption, late commitment ids and the register gate are unchanged.
 # Merge of main with the #11857 rounds change: both sides kept (main's out-of-band full restate, this branch's topic groups, index, Held, Origin, single pacing and discussing); the drift check now keeps an unaddressed row's status, so a discussing row stays discussing, and a discussing row goes back to open before a page import; neither resolves a row, and the no-silent-resolve, gap and blocker defenses are unchanged
 # Review round on the rounds change: the out-of-band check and its full restate now cover discussing rows (restated as under discussion, never read as an answer), and discussing is limited to the terminal lane, the page keeping the row open; each widens what is checked or restated, resolves no row, and the no-silent-resolve, gap and blocker defenses are unchanged
+# R-D pointer (#12103): the read-back paragraph's closing sentence now says the rule holds in every lane and R-D adds only the page's display and confirmation; the read-back row still stays open until the user confirms, so it resolves no row on the user's behalf, and the gap and blocker bindings are unchanged
 pin_section "loop.md open-question register section is unchanged (it binds gaps and blockers to the gate)" \
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "7e236534483059352a4e531dea87d1e44b1e404359cf96d00731148fac63ecb2"
+  "755c47df4991d4a173cea4110394a9f7e009649c6b6c70df48805eb363f24d02"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate `lock` line ("`lock` confirms the problem … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
