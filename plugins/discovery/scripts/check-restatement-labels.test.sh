@@ -171,6 +171,28 @@ run 1 "a fetch-log heading inside a code fence does not open a skip" --err 'RESE
 
 See M1.')"
 
+# --- sweep words ------------------------------------------------------------
+# An index line that cites a claim ID carries no sweep word: "every", "all",
+# "none" or "only" there widens the claim it points at.
+
+run 1 "a sweep word beside a cited ID fails" --err 'RESEARCH.md:6: M1 cited beside the sweep word "every"' \
+  "$(mkslice sweep "$FLAGGED" 'M1 (HIGH (single source)) holds for every version.')"
+expect_out "sweep summary line" 'status=fail violations=1 ids=1 labeled=1 mentions=1'
+run 0 "an ID pointer with its label passes" \
+  "$(mkslice pointer "$FLAGGED" 'Settled: M1 (HIGH (single source)).')"
+run 1 "a plain HIGH claim's line is checked for sweep words too" --err 'K9 cited beside the sweep word "All"' \
+  "$(mkslice sweep-plain "$PLAIN" 'All hooks follow K9.')"
+run 1 "one line citing two IDs is one violation" --err 'CI-02, K9 cited beside the sweep word "only"' \
+  "$(mkslice sweep-two "$MEDIUM
+$PLAIN" 'K9 and CI-02 (MEDIUM) are the only answers.')"
+expect_out "two IDs on one sweep line count once" 'status=fail violations=1 ids=2 labeled=1 mentions=1'
+run 0 "a word that only contains a sweep word passes" \
+  "$(mkslice overall "$PLAIN" 'Overall, K9 is settled; nonetheless it is small.')"
+run 0 "a sweep word with no cited ID passes" \
+  "$(mkslice no-cite "$PLAIN" 'None of this is settled.')"
+run 0 "a sidecar body line may carry a sweep word" \
+  "$(mkslice sweep-sidecar "$PLAIN" 'Index.' 'K9: every hook reads JSON on stdin.')"
+
 # --- ungradeable ------------------------------------------------------------
 
 run 2 "missing slice" "$WORK/does-not-exist"

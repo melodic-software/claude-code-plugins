@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Advisory check: a line that names a labeled claim keeps the claim's label.
+"""Check that a line naming a claim cites it and keeps its label.
 
 Reads the claims: list in the front matter of every <slice>/RESEARCH-*.md
 sidecar (no recursion into sub-slices), with check-source-applicability.py's
@@ -12,18 +12,24 @@ bullet, a table row and a sidecar abstract are each one line here, so a
 restatement that dropped its label is caught wherever it sits. A plain HIGH
 claim needs no label, and a claim with no id: is not looked for.
 
+A line of RESEARCH.md that names any claim's ID must not also carry a sweep
+word (every, all, none, only, any case): the index points at claims, and a
+sweep word on a pointer line widens the claim it names. Sidecar bodies are
+where a claim is said in full, so this rule reads the index only.
+
 Lines under a heading that names the fetch log are skipped, down to the next
 heading at the same or a higher level: the fetch log keys its rows by claim
 and restates nothing.
 
 Rule: skills/research/context/artifact-shape.md, "Restatements cite; they do
-not restate". The research parent runs this check after the acceptance gate
-and briefs the verifier on what it reports; it is advisory until it runs clean
-on real slices, so a non-zero exit does not halt the run.
+not restate". The researcher runs this check before hand-back and fixes every
+line it reports; the research parent re-runs it in the acceptance gate.
 
-Exit 0 = every line naming a labeled claim carries its label (status=pass)
-Exit 1 = at least one line drops a label (status=fail), each on stderr as
+Exit 0 = every line naming a labeled claim carries its label and no index
+         line naming a claim carries a sweep word (status=pass)
+Exit 1 = at least one violation (status=fail), each on stderr as
          <file>:<line>: <id> (<label>) appears without its label
+         <file>:<line>: <id>[, <id>...] cited beside the sweep word "<word>"
 Exit 2 = ungradeable, FAIL CLOSED: missing slice dir, no RESEARCH.md, no
          sidecar, a sidecar header the parser cannot read, an id: that is not
          a claim ID, one ID declared twice in the slice, an unreadable or
@@ -67,6 +73,13 @@ LABEL_ON_LINE = {
     label: re.compile(r"(?<![A-Za-z])" + re.escape(label) + r"(?![A-Za-z])")
     for label in LABELS
 }
+SWEEP = re.compile(r"(?<![A-Za-z])(?:every|all|none|only)(?![A-Za-z])", re.IGNORECASE)
+
+
+def id_pattern(ids) -> re.Pattern:
+    """Match any of ids as a whole token, longest first."""
+    alternatives = "|".join(map(re.escape, sorted(ids, key=len, reverse=True)))
+    return re.compile(r"(?<![A-Za-z0-9_])(" + alternatives + r")(?![A-Za-z0-9_])")
 
 
 def load_parser():
@@ -148,11 +161,8 @@ def grade(csa, slice_dir: Path) -> tuple[int, str]:
 
     violations: list[str] = []
     mentions = 0
-    if labeled:
-        ids = sorted(labeled, key=len, reverse=True)
-        pattern = re.compile(
-            r"(?<![A-Za-z0-9_])(" + "|".join(map(re.escape, ids)) + r")(?![A-Za-z0-9_])"
-        )
+    if declared:
+        pattern = id_pattern(declared)
         for path in [index, *sidecars]:
             lines = csa.read_text(path).splitlines()
             block = skip.get(path, range(0))
@@ -179,7 +189,16 @@ def grade(csa, slice_dir: Path) -> tuple[int, str]:
                             fetch_level = level
                 if fetch_level:
                     continue
-                for cid in sorted({m.group(1) for m in pattern.finditer(line)}):
+                cited = sorted({m.group(1) for m in pattern.finditer(line)})
+                sweep = SWEEP.search(line) if path == index and cited else None
+                if sweep:
+                    violations.append(
+                        f"{path}:{i + 1}: {', '.join(cited)} cited beside the sweep word "
+                        f'"{sweep.group(0)}"'
+                    )
+                for cid in cited:
+                    if cid not in labeled:
+                        continue
                     mentions += 1
                     label = labeled[cid]
                     if not LABEL_ON_LINE[label].search(line):

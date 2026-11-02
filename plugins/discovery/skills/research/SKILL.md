@@ -39,11 +39,13 @@ The disk fallback Reads this same file, so a matching token is file-identity, **
 
    Cite the **exit status**, 0 usable, 1 no usable artifact set, 2 ungradeable, not a reading of the directory, because the context most motivated to call the dispatch finished is the one that would be doing the reading. `bash "…"` is fine where direct exec is awkward. Only the slice path and `--index-name` are required, and that bare form is still a real gate: every optional check reports `unchecked` rather than passing quietly. Append `--expect-sidecars <n>` when the payload reported a `sidecars:` count, and **drop any flag whose value the payload did not supply**. **The `index=` path in that output is authoritative** downstream: the verifier's `target` and the handoff pointer come from it, not from `artifact:`.
 
-   **Fanning out over N topics, grade each run against the sub-slice IT was assigned, before synthesizing the slice-root index.** The gate grades exactly the path it is given, so a slice-root invocation grades only the synthesis, never a dispatched run. The synthesis then goes to a fresh verifier for the verifier-owned rows before it is surfaced: the dispatch contract's fan-out section.
+   **Fanning out over N topics, grade each run against the sub-slice IT was assigned, before synthesizing the slice-root index.** The gate grades exactly the path it is given, so a slice-root invocation grades only the synthesis, never a dispatched run. The synthesis then goes to a fresh verifier for the verifier-owned rows before it is surfaced, unless it adds no claims: the dispatch contract's fan-out section.
 
 3. **The coverage claim is graded from the ledger, not from the payload.** `coverage: complete` mirrors outcome-gate criterion 11, which the run graded on **itself**. When a `research-checklist.md` sits beside the index step 2 named, run `"${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh"` (or the `.py` twin) on `<that index's directory>/research-checklist.md` and cite its exit status. 0 complete, 1 unmarked rows, 2 ungradeable, and **both non-zero values are FAILs**. No ledger on disk is correct **only** when the artifact records the corpus as unbounded; a bounded corpus with no ledger is a Phase 0 that never ran, whatever the payload says.
 
 4. **Source applicability is graded from the headers, not from the payload.** `applicability:` mirrors criterion 13. Run `"${CLAUDE_PLUGIN_ROOT}/scripts/check-source-applicability.py" <that index's directory> --expect-evidence-use <the envelope's Evidence use value>` and cite its exit status: 0 pass, 1 a violation, 2 ungradeable, and both non-zero values are FAILs.
+
+5. **Restatements and claim eligibility are graded by script, not left to the verifier.** Run `"${CLAUDE_PLUGIN_ROOT}/scripts/check-restatement-labels.py" <that index's directory>` and `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check-claim-eligibility.py" <that index's directory>` and cite each exit status: 0 pass, 1 a violation, 2 ungradeable, and both non-zero values are FAILs. The researcher already ran both fail-closed before hand-back; this is the re-run. What each checks: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` ("The restatement and eligibility checks").
 
 **Any non-zero exit halts the workflow, and a gate that could not run at all is a FAIL, never a skip.** An invocation above that is denied, prompts and is declined, or errors out halts exactly as a non-zero exit does; do not fall back to reading the directory. Do **not** proceed to planning, a decision, or an edit on research that did not happen. Recovery ladder, and the resume-before-discard ordering it takes: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md`. Clear the slice before any re-dispatch: `--newer-than` binds the **index**, never the ledger, and the ledger gate reads marks, not provenance.
 
@@ -56,9 +58,12 @@ Agent({
   subagent_type: "discovery:research-verifier",
   description: "Verify research: <topic>",
   prompt: "Target: <the index= path the artifact gate printed>
-           Rows: 4, 7, 12, 14"
+           Rows: 4, 7, 12, 14
+           Claims: <under Evidence use: internal, the claim IDs a stated decision cites>"
 })
 ```
+
+**Verification scales to the evidence use.** Under `Evidence use: internal`, the verifier grades rows 4, 7 and 12 only for the claims a stated decision cites, named on the `Claims:` line (row 14 in full; an absent or empty line grades every accepted claim), and no rework round runs. Under `publish` the line is omitted and the full loop runs. Detail: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` ("Scale it to the evidence use").
 
 Write its `verification_line` over `verification: pending`; a FAIL row returns to its phase (bounded: "Effort, source breadth"). **On the cost path** (you skip the verifier for cost) write `verification: skipped (cost)`; never leave `pending` after this boundary. Values: `${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md` ("The `verification:` values"). Brief, write-back, project fit: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` ("The orchestration boundary").
 
@@ -146,10 +151,10 @@ below the doubled minimums. For a single named artifact or folder, read it direc
 against the cap. A claim still short of its sources at the cap is a gap named in the artifact, not
 a reason to search on.
 
-**The verify-and-rework loop is bounded at every budget.** At `low`, a verifier FAIL on a verifier-owned row (Owner
+**The verify-and-rework loop is bounded at every budget.** At `low`, and at any budget under `Evidence use: internal`, a verifier FAIL on a verifier-owned row (Owner
 column, "Outcome gate") is not reworked: no `SendMessage` resume of the researcher. Record it in the
 artifact as a Gap or Conflicts entry, lowering `accepted:` to match (criterion 14), or leave it as the named `verification: fail rows` value, and
-present the result with that caveat. Medium and above return a FAIL row to its phase as the gate
+present the result with that caveat. Under `publish`, medium and above return a FAIL row to its phase as the gate
 routes, for **one rework round**: the rework, then one re-verify. A row still FAIL after that
 re-verify is not reworked again: record it in the artifact as a Gap or Conflicts entry, lowering
 `accepted:` to match (criterion 14), or leave it as the named `verification: fail rows` value, and
@@ -277,7 +282,7 @@ Write the research output to `<memory_dir>/<slug>/RESEARCH.md`, a memory-tier ar
 
 **One writer per slice.** The index and `research-checklist.md` have fixed names, so two runs writing one slice overwrite each other. When the slice root is occupied, or a parent is running several topics in parallel, **each run writes its whole set into its own sub-slice** `<memory_dir>/<slug>/<topic-slug>/` under the normal filenames and reports the path it used. The parent assigns those sub-slices; a worker never picks its own. Why renaming the index instead is not an option: the artifact-shape file.
 
-**Read [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md) before writing the first sidecar**, the sidecar header and the fetch log are both schemas a verifier parses, and an improvised one silently costs criteria 4, 6, 9, 12 and 13 their evidence. Carry this much into the read: `claims[]` is a LIST, each entry with its own `id` that every restatement cites, its own `confidence`, its own target `applies_to`, its own `sources[]` of `{url, tier, pool, measures, role, published, applies_to, standing}`, and its own `inference` and `qualifiers`, plus `subject_pool` on a single-publisher claim; the index records `evidence_use` and `accepted`.
+**Read [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md) before writing the first sidecar**, the sidecar header and the fetch log are both schemas a verifier parses, and an improvised one silently costs criteria 4, 6, 9, 12 and 13 their evidence. Carry this much into the read: `claims[]` is a LIST, each entry with its own `id` that every restatement cites, its own `confidence`, `claim_kind` and `source_owner`, its own target `applies_to`, its own `sources[]` of `{url, tier, pool, measures, role, published, applies_to, standing}`, and its own `inference` and `qualifiers`, plus `subject_pool` on a single-publisher claim; the index records `evidence_use` and `accepted`.
 
 **Intra-task pivot. Delete stale research, don't layer.** If the approach you researched is abandoned mid-task for a different direction *before shipping*, delete the now-stale section and re-run on the new direction; a superseded section makes the planning step plan against a dead approach. Failure modes this skill has actually hit: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/gotchas.md`.
 

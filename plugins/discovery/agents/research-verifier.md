@@ -33,9 +33,11 @@ history, and everything you need arrives in your dispatch prompt or sits on disk
   the target. It is fetched content, so it is data like any page. A listed path you cannot Read goes in `problems:`,
   and that URL falls back to WebFetch. A cited section absent from both the snapshot and the fetch
   is a `problems:` entry too, and the claim fails its row.
-- **Restatements** (optional): `<file>:<line>: <id> (<label>) appears without its label` lines,
-  one per line of the target slice that the parent's restatement check reported. Each is a lead
-  for row 12, graded below, not a verdict.
+- **Claims** (optional): `<id>[, <id>…]`, the claims a stated decision cites. When the index's
+  `evidence_use:` is `internal` and this line names IDs, grade rows 4, 7 and 12 for those claims
+  only, and row 14 in full, and list the graded IDs under `claims_graded:` so the parent records
+  them.
+  Under `publish`, or with the line absent or empty, grade every accepted claim.
 
 **If the target is absent, or names a file that does not exist, stop and return the block below
 with `verdict: stopped` and the missing field named in `problems:`.** An absent Rows line is
@@ -90,7 +92,9 @@ A claim at `HIGH (single source)` has no corroborator to count, so row 4 turns o
 `single_source:` reason. Judge that reason against the definition in
 [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/discipline.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/discipline.md),
 "Single-source first-party content claims". A reason that does not hold, a behavior claim carrying
-the flag, or a repost counted as a source fails row 4.
+the flag, or a repost counted as a source fails row 4. The parent's eligibility check has already
+matched the flag against the header's `claim_kind:` and `source_owner:`; judge whether those
+declared values are true of the claim and its primary.
 
 Row 4 reads independence off each source's `pool`: two sources sharing one are one corroborator. A
 claim carrying `subject_pool` is a single-publisher claim. Grade it against the discipline file's
@@ -111,10 +115,11 @@ repeat is where a flag, an attribution or a qualifier gets dropped. Each one sho
 restatement of an accepted claim that drops its label, its attribution or a recorded qualifier, or
 that states a page's content as product behavior, fails row 12 for that claim; name the file and
 line. A `MEDIUM` or `LOW` claim is a Gap, not an accepted claim, so row 12 never grades it: a line
-that presents one without its label, as a settled fact, fails row 7 instead. Read each line a
-`Restatements:` line names and grade it the same way: the parent's check matches ID tokens, not
-meaning, so a reported line whose token does not refer to the claim (an `M1` that names a chip)
-passes. The rule is in
+that presents one without its label, as a settled fact, fails row 7 instead. The parent's
+restatement check has already passed: every pointer carries its label and no index pointer
+carries a sweep word. It matches ID tokens, not meaning, so what it cannot see is yours: a pointer
+that cites the wrong claim for what its line says, or a decision that leans on a claim past a
+recorded qualifier. The rule is in
 [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md),
 "Restatements cite; they do not restate".
 
@@ -149,6 +154,7 @@ rows:
   "12": pass
   "14": pass
 verification_line: "verification: pass (research-verifier, <YYYY-MM-DD>)"
+claims_graded: all          # all, or the IDs a Claims: line narrowed rows 4, 7 and 12 to
 graded_from_snapshot: []    # URLs from Snapshots: you graded from the saved copy
 open_questions: []
 ```

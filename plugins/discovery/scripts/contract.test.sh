@@ -1232,7 +1232,7 @@ assert_absent 'no gate row 4 quantified over every claim' \
 assert_present 'gate row 14 grades the accepted count and the inconclusive line, owned by the verifier' \
   'skills/research/SKILL.md' '^\| 14 \|.*`accepted:`.*`Inconclusive: no claim accepted\.`.*A zero with that line passes.*\| \*\*verifier\*\* \|'
 assert_present 'the verifier dispatch block names row 14' \
-  'skills/research/SKILL.md' '^ +Rows: 4, 7, 12, 14"$'
+  'skills/research/SKILL.md' '^ +Rows: 4, 7, 12, 14$'
 assert_present 'the Summary opens with the inconclusive line at zero accepted' \
   'skills/research/SKILL.md' '^1\. \*\*Summary\*\*.*`Inconclusive: no claim accepted\.`'
 assert_present 'the index frontmatter carries accepted:' \
@@ -1318,8 +1318,8 @@ assert_present 'the dispatch brief keeps snapshots where the verifier Read reach
 # A fan-out's verifier rounds kept failing on restatements of accepted claims
 # (Summary, Settled, handoff, catalog cells, abstracts) that dropped a flag, an
 # attribution or a qualifier. The rule extends the verbatim-abstract rule, the
-# header gives each claim an id: to cite, and an advisory script reports a line
-# that names a labeled claim without its label.
+# header gives each claim an id: to cite, and a script reports a line that
+# names a labeled claim without its label.
 # ---------------------------------------------------------------------------
 assert_present 'artifact-shape states the cite-not-restate rule' \
   'skills/research/context/artifact-shape.md' '^\*\*Restatements cite; they do not restate\.\*\* The verbatim rule for abstracts extends'
@@ -1329,16 +1329,10 @@ assert_present 'artifact-shape names the restatement checker' \
   'skills/research/context/artifact-shape.md' 'scripts/check-restatement-labels\.py'
 assert_present 'dispatch.md runs the restatement check and reads its exit status' \
   'skills/research/context/dispatch.md' '^"<plugin-root>/scripts/check-restatement-labels\.py" <that index.s directory>$'
-assert_present 'dispatch.md keeps the restatement check advisory' \
-  'skills/research/context/dispatch.md' '^\*\*No exit halts the workflow, and none is a gate FAIL\.\*\*'
-assert_present 'dispatch.md briefs the verifier with Restatements: lines' \
-  'skills/research/context/dispatch.md' '^   Restatements: <file>:<line>: <id> \(<label>\) appears without its label$'
 assert_present 'the researcher cites claim IDs in restatements' \
   'agents/researcher.md' '^\*\*Restatements cite; they do not restate\.\*\*'
 assert_present 'the verifier grades restatements under row 12' \
   'agents/research-verifier.md' '^\*\*Row 12 reaches every restatement of an accepted claim\.\*\*'
-assert_present 'the verifier contract documents an optional Restatements: field' \
-  'agents/research-verifier.md' '^- \*\*Restatements\*\* \(optional\):'
 assert_present 'the hub points the gate result line at the rework bounds' \
   'skills/research/SKILL.md' 'what you re-ran\); rework bounds: "Effort, source breadth"'
 assert_absent 'no file leaves run-owned rows unbounded' \
@@ -1348,6 +1342,75 @@ if [[ -f "$PLUGIN_ROOT/scripts/check-restatement-labels.py" ]]; then
 else
   fail 'the restatement checker ships'
 fi
+
+# ---------------------------------------------------------------------------
+# 25. Format and calibration rules are checked at write time (#12517)
+#
+# A six-topic fan-out spent about two thirds of each topic's time in verify,
+# rework and re-verify, and no verifier pass converged: the failures were
+# restatement drift (row 12), single-source flag eligibility (row 4) and the
+# tier mix behind HIGH (row 7). Scripts now catch those before hand-back, and
+# verification scales to the evidence use.
+# ---------------------------------------------------------------------------
+assert_present 'artifact-shape makes handoff lines ID pointers with labels only' \
+  'skills/research/context/artifact-shape.md' '^So the Summary, the Settled list and the rest of the handoff are ID pointers with their labels'
+assert_present 'artifact-shape bans sweep words on index lines that name a claim ID' \
+  'skills/research/context/artifact-shape.md' 'carries no sweep word \(`every`, `all`, `none`, `only`\)'
+assert_present 'artifact-shape runs the restatement check fail-closed at the researcher' \
+  'skills/research/context/artifact-shape.md' '^index line that names any claim.s ID beside a sweep word\. It fails closed: the researcher runs it$'
+assert_absent 'no file calls the restatement check advisory' \
+  'restatement check (is|stays) advisory|advisory for now'
+assert_present 'artifact-shape declares claim_kind in the claim header' \
+  'skills/research/context/artifact-shape.md' '^ {4}claim_kind: behavior +# content \| behavior'
+assert_present 'artifact-shape declares source_owner in the claim header' \
+  'skills/research/context/artifact-shape.md' '^ {4}source_owner: '
+assert_present 'artifact-shape names the eligibility checker' \
+  'skills/research/context/artifact-shape.md' 'scripts/check-claim-eligibility\.py` fails a claim missing either'
+assert_present 'dispatch.md runs both checks fail-closed at the researcher' \
+  'skills/research/context/dispatch.md' '^\*\*They fail closed at the researcher\.\*\*'
+assert_present 'dispatch.md runs the eligibility check as one plain command' \
+  'skills/research/context/dispatch.md' '^python3 "<plugin-root>/scripts/check-claim-eligibility\.py" <that index.s directory>$'
+assert_present 'the hub runs both checks as acceptance-gate step 5' \
+  'skills/research/SKILL.md' '^5\. \*\*Restatements and claim eligibility are graded by script'
+assert_present 'the researcher requires both checks to exit 0 before hand-back' \
+  'agents/researcher.md' '^\*\*Both write-time checks exit 0 before you hand back\.\*\*'
+assert_present 'the researcher fixes and re-runs on a non-zero exit' \
+  'agents/researcher.md' '^A non-zero exit means fix and re-run'
+assert_present 'the hub scales verification to the evidence use' \
+  'skills/research/SKILL.md' '^\*\*Verification scales to the evidence use\.\*\* Under `Evidence use: internal`, the verifier grades rows 4, 7 and 12 only for the claims a stated decision cites'
+assert_present 'the hub runs no rework round under internal' \
+  'skills/research/SKILL.md' 'At `low`, and at any budget under `Evidence use: internal`, a verifier FAIL'
+assert_present 'the hub keeps one rework round under publish' \
+  'skills/research/SKILL.md' 'Under `publish`, medium and above return a FAIL row to its phase'
+assert_present 'dispatch.md scales the verifier brief to the evidence use' \
+  'skills/research/context/dispatch.md' '^   \*\*Scale it to the evidence use\.\*\* Under `Evidence use: internal`'
+assert_present 'dispatch.md names the decision claims on a Claims: line' \
+  'skills/research/context/dispatch.md' '^   Claims: <id>\[, <id>…\]$'
+assert_present 'dispatch.md runs no rework round under internal' \
+  'skills/research/context/dispatch.md' '^   No rework round runs under `internal`'
+assert_present 'the verifier contract documents an optional Claims: field' \
+  'agents/research-verifier.md' '^- \*\*Claims\*\* \(optional\):'
+assert_present 'the verifier returns the claims it graded' \
+  'agents/research-verifier.md' '^claims_graded: all '
+assert_present 'parent-contract skips rework under internal' \
+  'reference/parent-contract.md' '^`evidence_use: internal`, which does not resume the researcher'
+assert_present 'dispatch.md needs no verifier for a claim-free synthesis' \
+  'skills/research/context/dispatch.md' '^\*\*A synthesis that adds no claims needs no verifier\.\*\*'
+assert_present 'setup prints the eligibility checker allow rule' \
+  'skills/setup/SKILL.md' 'Bash\(python3 "\$\{CLAUDE_PLUGIN_ROOT\}/scripts/check-claim-eligibility\.py" \*\)'
+assert_present 'parent-contract lists the eligibility checker allow rule' \
+  'reference/parent-contract.md' 'check-claim-eligibility\.py'
+assert_present 'research evals cover internal-tier verification' \
+  'skills/research/evals/evals.json' '"name": "internal-evidence-use-verifies-decision-claims-without-rework"'
+assert_present 'research evals cover the claim-free synthesis exemption' \
+  'skills/research/evals/evals.json' '"name": "claim-free-synthesis-skips-the-verifier"'
+for script in check-claim-eligibility.py check-claim-eligibility.test.sh; do
+  if [[ -f "$PLUGIN_ROOT/scripts/$script" ]]; then
+    pass "$script ships"
+  else
+    fail "$script ships"
+  fi
+done
 
 printf '\n'
 if [[ "$fails" -eq 0 ]]; then

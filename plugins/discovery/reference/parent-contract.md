@@ -790,7 +790,9 @@ path this plugin's skills render for `${CLAUDE_PLUGIN_ROOT}`:
       "Bash(<plugin root>/scripts/check-dispatch-artifact.sh *)",
       "Bash(<plugin root>/scripts/check-coverage-complete.sh *)",
       "Bash(<plugin root>/scripts/check-source-applicability.py *)",
-      "Bash(<plugin root>/scripts/check-restatement-labels.py *)"
+      "Bash(<plugin root>/scripts/check-restatement-labels.py *)",
+      "Bash(python3 \"<plugin root>/scripts/check-claim-eligibility.py\" *)",
+      "Bash(python3 <plugin root>/scripts/check-claim-eligibility.py *)"
     ]
   }
 }
@@ -877,8 +879,8 @@ acceptance gate prints this value as `verification=<value>`. `pending` left in p
 boundary closed is the one wrong value: a later reader cannot tell it from a run still waiting. A
 `fail` sends the run back to the phase or dimension the failed criterion names, the family's own
 routing, and the value is rewritten when the re-run is verified. It is not a place to annotate an
-artifact with its own failure and ship it. The one exception is research at `Budget: low`, which
-does not resume the researcher on a verifier-owned FAIL row: the artifact keeps the `fail` value
+artifact with its own failure and ship it. The one exception is research at `Budget: low` or under
+`evidence_use: internal`, which does not resume the researcher on a verifier-owned FAIL row: the artifact keeps the `fail` value
 with the failed rows named, and the result is presented with that caveat (`skills/research/SKILL.md`,
 "Effort, source breadth").
 

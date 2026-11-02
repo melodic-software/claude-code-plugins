@@ -322,6 +322,8 @@ The evidence-table `Confidence` column must be set per claim:
 
 The `> 30d` and `> 90d` age clauses do not apply to a version-independent pattern-definition claim, whose primary is the canonical source however old it is (see "Canonical pattern sources").
 
+`<plugin-root>/scripts/check-claim-eligibility.py` checks the header side of these levels before hand-back: a HIGH claim with fewer than three `current` Tier 0/1 sources in distinct pools, and a HIGH (single source) claim whose `claim_kind:` is not `content` or whose primary's pool is not its `source_owner:` (the artifact-shape file's sidecar header).
+
 Only HIGH and HIGH (single source) claims are accepted (the outcome gate enforces this). A MEDIUM or LOW claim is a **Gap**: return to Phase 4 follow-up and iterate until HIGH, or report it as a gap; never a basis for code edits.
 
 ## Single-publisher facts
