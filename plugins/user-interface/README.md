@@ -13,6 +13,13 @@ project's existing look, reuses the design tools already installed, and fills on
 | `/user-interface:glossary` | Name the design or front-end term for an effect, detail or behavior someone describes, tell near-synonyms apart, and ask for a reference image when no term fits |
 | `/user-interface:setup` | Show each setting's value and the layer it came from, or change one key in one layer (user-invoked) |
 
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install user-interface@melodic-software
+```
+
 ## How it routes
 
 For each concern the order is:

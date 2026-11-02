@@ -97,7 +97,7 @@ the rest of the knowledge stack.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install knowledge@<marketplace>
+/plugin install knowledge@melodic-software
 ```
 
 ## Configuration

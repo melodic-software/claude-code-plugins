@@ -18,6 +18,13 @@ the reviewer to confirm the description still names that intent, or to restore t
 | `/skill-quality:check-prerequisites` | Read-only report of whether the tools the plugin declares in `prerequisites.json` resolve. Installs nothing. |
 | `/skill-quality:setup` | Check-only: resolves and verifies the skills directory and prints the guidance for routing a non-default `skills_root` change through Claude Code. |
 
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install skill-quality@melodic-software
+```
+
 ## Checks
 
 `check` runs `check-skill.sh`. Thirty checks, reported as `FAIL:` (blocking) or `WARN:` (advisory):

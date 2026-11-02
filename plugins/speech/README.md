@@ -4,6 +4,13 @@ Text-to-speech narration for Claude Code. `/speech:narrate` turns a script into 
 plus `words.json`, which gives a start and end time for every word. A video, a caption track or an
 interactive page can then follow the voice word by word.
 
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install speech@melodic-software
+```
+
 ## Skills
 
 | Skill | What it does |

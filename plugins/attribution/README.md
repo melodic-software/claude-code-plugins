@@ -7,6 +7,13 @@ a pointer, a citation, or a dated stamped record.
 This is prose provenance, not software supply chain. It says nothing about build artifacts,
 signing, or SLSA.
 
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install attribution@melodic-software
+```
+
 ## Why
 
 A copied paragraph starts accurate and silently stops being accurate the next time the upstream

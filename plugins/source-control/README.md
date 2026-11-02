@@ -397,7 +397,7 @@ them ([hooks: WorktreeRemove](https://code.claude.com/docs/en/hooks#worktreeremo
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install source-control@<marketplace>
+/plugin install source-control@melodic-software
 ```
 
 ## Configuration

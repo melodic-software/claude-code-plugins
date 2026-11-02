@@ -8,6 +8,13 @@ instruction files. Using it goes wrong easily, because no mistake
 raises an error. This plugin finds the content worth moving, validates the move mechanically
 before proposing it, and executes it behind a human gate.
 
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install instruction-placement@melodic-software
+```
+
 ## Skills
 
 | Skill | Verb contract | What it does |

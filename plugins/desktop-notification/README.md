@@ -99,7 +99,7 @@ skipped while notifications still fire.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install desktop-notification@<marketplace>
+/plugin install desktop-notification@melodic-software
 ```
 
 Then verify prerequisites with `/desktop-notification:setup check`. `/desktop-notification:check` reports whether `node` and `jq` resolve.

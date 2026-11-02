@@ -329,7 +329,7 @@ Defender real-time protection, and a timeout caps a stalled hook without speedin
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install context-guard@<marketplace>
+/plugin install context-guard@melodic-software
 ```
 
 Install at user scope (the default), so every session on the machine writes its snapshot. Nothing

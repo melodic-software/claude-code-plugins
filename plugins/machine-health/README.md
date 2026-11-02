@@ -8,7 +8,7 @@ them, and every finding carries reproduction commands.
 
 Windows is fully implemented (27 checks, PowerShell 7.x). macOS and Linux are scaffolded as
 `not-implemented.md` stubs. On those hosts the skill reports UNKNOWN and stops rather than
-pretending coverage.
+claiming coverage it does not have.
 
 | Skill | What it does |
 |---|---|
@@ -65,7 +65,7 @@ run log; a call that bypasses the wrapper is neither. No telemetry, no other net
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install machine-health@<marketplace>
+/plugin install machine-health@melodic-software
 ```
 
 ## Migrating from an in-repo copy

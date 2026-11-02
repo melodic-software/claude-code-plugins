@@ -99,7 +99,7 @@ refreshed before they're taught. See the skill body for the full pedagogy.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install education@<marketplace>
+/plugin install education@melodic-software
 ```
 
 ## Configuration

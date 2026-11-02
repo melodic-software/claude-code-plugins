@@ -8,6 +8,13 @@ terminals.
 |---|---|
 | `/fleet:reach` | Resolve a target lane from the fleet manifest, then run a script, prompt, query and wait, message a session, or start a named session there: the other lane on this machine (WSL or native Windows) or either lane on another machine |
 
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install fleet@melodic-software
+```
+
 ## Why not the peer tools
 
 A **lane** is one Claude Code install with its own sign-in: a WSL distro or native Windows, on each

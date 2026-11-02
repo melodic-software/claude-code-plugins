@@ -1510,7 +1510,7 @@ guards behave exactly as before.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install guardrails@<marketplace>
+/plugin install guardrails@melodic-software
 ```
 
 Then verify the runtime prerequisites and the active guards with

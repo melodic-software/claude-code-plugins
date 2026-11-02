@@ -3,6 +3,13 @@
 A Claude Code plugin for hand-drawn-style 2D animation made as code. Scenes are deterministic
 Canvas 2D modules (`renderFrame(t)`), headless Chromium draws the frames, and ffmpeg encodes them.
 
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install animation@melodic-software
+```
+
 ## Skills
 
 | Skill | What it does |

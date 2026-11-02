@@ -11,6 +11,13 @@ measured against a stated standard, as one small draft PR.
 | `/improvement:find` | Evidence-first improvement finder. Point it at a repo, a feature, a concept, or a process surface, with a vague or specific prompt, and it produces a ranked, evidence-cited list of improvement candidates led by the highest value-to-effort, deliberates on the picked candidate through an interview, and hands off to the planning pipeline. Runnable unattended as a tech-debt-sweep routine. |
 | `/improvement:setup` | Verifies or writes the `.claude/improvement.md` config cascade and reports the effective evidence-source configuration. `check` (default) is read-only across all three layers; `apply` interviews and writes the team file. Key contract: [reference/config.md](reference/config.md). |
 
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install improvement@melodic-software
+```
+
 ## Evidence-first identity
 
 Every candidate cites its evidence: repo-native signals such as churn hotspots and CI health,
