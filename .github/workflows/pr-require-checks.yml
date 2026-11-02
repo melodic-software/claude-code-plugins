@@ -2769,6 +2769,10 @@ jobs:
         with:
           tokens: github-token
 
+      - name: List processes alive at job end
+        if: always()
+        run: ps -eo pid,ppid,pgid,sid,stat,etimes,args --sort=start_time | cut -c1-200
+
   # THE PLUGIN CHECKS THAT READ THE ROOT NPM INSTALL: `claude plugin validate`
   # over the plugins and the catalog (with the contract, catalog, cheatsheet
   # and native-overlap drift checks and the mod tests scripts/validate-plugins.sh
@@ -2910,6 +2914,10 @@ jobs:
         uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
           tokens: github-token
+
+      - name: List processes alive at job end
+        if: always()
+        run: ps -eo pid,ppid,pgid,sid,stat,etimes,args --sort=start_time | cut -c1-200
 
   # SKILL AND EVAL CONTRACTS: check 25 and the changed-skills gate, the
   # portability lint, leaf names, spoke paths, the listing budgets, the eval
