@@ -99,10 +99,7 @@ security governance surface; the adapter stamps, never defines, and no repo-loca
   which are `temporal` regardless of wake source. A temporal poll-fallback detector emission,
   one claiming no routine identity, derives no class: it carries no stamped class, and a stamped
   `signal.work_class` (or a producer identity) on it is rejected fail-closed, as is a claimed
-  identity that no enabled routine records or whose recorded surface disagrees. Admission runs
-  the [`C5` trust tests](guardrails/work-classes.md#executable-provenance-tests) on the state
-  the detector observed: a PR or an issue runs that surface's tests, and any other observed
-  state, such as a backstop detector for a `channel-feed` surface, fails closed to `C5`.
+  identity that no enabled routine records or whose recorded surface disagrees.
 - `agent-internal` items must prove protected provenance: the envelope serializes the
   emitting session's own admitted source item as `signal.parent_item`, and the admission
   seam verifies the session-to-parent association against protected dispatch data, the
@@ -122,7 +119,10 @@ security governance surface; the adapter stamps, never defines, and no repo-loca
 An item with no stamped class is evaluated with the work-class axis `"*"` once the
 [`C5` trust tests](guardrails/work-classes.md#executable-provenance-tests) have run, so it
 matches only admission rules whose work class is `"*"`; an item those tests mark untrusted is
-`C5`.
+`C5`. The tests run on the state the item observed: a PR or an issue runs that surface's tests,
+and any other observed state fails closed to `C5`, such as a detector-fired `temporal` item
+backstopping a `channel-feed` surface or a `tracker-vcs-event` on a discussion. A `channel-feed`
+signal is the exception, held by its surface row instead.
 
 **Authenticated run context.** Envelope fields are agent-claimable, so a temporal adapter
 resolves `signal.source_surface`, `signal.raw_link`, and `signal.producer_identity` from the

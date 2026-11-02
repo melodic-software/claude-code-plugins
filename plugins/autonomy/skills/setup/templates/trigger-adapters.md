@@ -162,8 +162,8 @@ interval of 5 minutes, delays under load, and 60-day public-repo auto-disable, p
   detector-fired temporal signal carries NO `signal.routine` and never stamps
   `signal.work_class`. It carries no stamped class, and a routine identity or a stamped class
   on it is rejected fail-closed. Admission runs the `C5` trust tests on the observed state: a PR
-  or an issue runs that surface's tests, and any other state (a chat backstop included) is `C5`,
-  human-gated. State-based detections with no instance
+  or an issue runs that surface's tests, and any other state (a chat backstop included) fails
+  closed to `C5`, human-gated. State-based detections with no instance
   identity bound dedup retention to open items, and re-detection after closure is a new signal.
 
 The scheduled-ROUTINE shape is the temporal surface's other producer, wired per

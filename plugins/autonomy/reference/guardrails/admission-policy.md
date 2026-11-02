@@ -28,8 +28,9 @@ One table, three axes, one disposition per decision:
 An item with no stamped class is evaluated with the work-class axis `"*"` once the
 [`C5` trust tests](work-classes.md#executable-provenance-tests) have run: it matches only
 rules whose work class is `"*"`. An item those tests mark untrusted is `C5`
-(trigger-dispatch rule), and so is a detector-fired `temporal` item whose observed state is
-neither a PR nor an issue: no test can read its provenance, so it fails closed to `C5`.
+(trigger-dispatch rule), and so is a classless item other than a `channel-feed` signal whose
+observed state is neither a PR nor an issue: no test can read its provenance, so it fails
+closed to `C5`.
 
 ### Wildcards and precedence
 
