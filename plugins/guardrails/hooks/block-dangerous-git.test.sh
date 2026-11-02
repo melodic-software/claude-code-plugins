@@ -620,6 +620,9 @@ run "unquoted heredoc body, a heredoc inside \$( ) (blocked)" $'cat <<EOF\n$(cat
 run "unquoted heredoc body, a quoted } inside \${ cmd; } (blocked)" $'cat <<EOF\n${ echo "}"; git reset --hard; }\nEOF' 2
 run "unquoted heredoc body, a quoted ) inside \$(( ) ) (blocked)" $'cat <<EOF\n$((echo \')\' \')\'; git reset --hard) )\nEOF' 2
 run "unquoted heredoc body, a case pattern ) inside \$(( ) ) (blocked)" $'cat <<EOF\n$((case x in y) ;; x) git reset --hard;; esac) )\nEOF' 2
+run "unquoted heredoc body, a backslash-newline inside \$( (blocked)" $'cat <<EOF\n$\\\n(git reset --hard)\nEOF' 2
+run "unquoted heredoc body, a backslash-newline before a comment in \$( ) (blocked)" $'cat <<EOF\n$(: \\\n# )\ngit reset --hard)\nEOF' 2
+run "unquoted heredoc body, a backslash-newline inside a case word (blocked)" $'cat <<EOF\n$(cas\\\ne x in x) git reset --hard;; esac)\nEOF' 2
 run "unquoted heredoc body \$((1 + 2)) (allowed)" $'cat <<EOF\n$((1 + 2))\nEOF' 0
 run "second heredoc on the line, unquoted, \$(git reset --hard) (blocked)" $'cat <<\'A\' - <<B\nx\nA\n$(git reset --hard)\nB' 2
 run "quoted-delimiter heredoc body \$(git reset --hard) (data, allowed)" $'cat <<\'EOF\'\n$(git reset --hard)\nEOF' 0

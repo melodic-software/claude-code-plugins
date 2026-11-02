@@ -4566,8 +4566,11 @@ hook::_bps_hd_brace_open() {
 # `hd_spans` one `<from> <to>` byte range of `chars` for each substitution bash
 # runs in the unquoted here-doc body chars[start..end). bash expands such a body
 # as it expands a double-quoted string, `"` aside (Here Documents, Bash
-# Reference Manual): a `\` before `$`, a backtick, `\` or a newline escapes it,
-# and `$(...)`, a backtick pair, `${...}` and `$[...]` run what they hold. A
+# Reference Manual): a `\` before `$`, a backtick or `\` escapes it, a
+# `\`-newline is removed before anything is read, and `$(...)`, a backtick
+# pair, `${...}` and `$[...]` run what they hold. A body holding a `\`-newline,
+# which can join an opener or a comment across lines, is one range from start
+# to end, so its parse reads all of it as commands. A
 # `$(` range starts at its `(`, so its parse reads a subshell; the others keep
 # their `$`, so their parse reads the word the same text reads at top level.
 # Inside `$( )` the quotes, `$'...'` spans, comments and nested openers are
@@ -4588,6 +4591,12 @@ hook::_bps_hd_spans() {
   # the end of the body, never at a `}`, which bash ends only in command
   # position.
   local -a st=()
+  for ((j = k; j + 1 < e; j++)); do
+    if [[ ${chars[j]} == '\' && ${chars[j + 1]} == $'\n' ]]; then
+      hd_spans+=("$k $e")
+      return 0
+    fi
+  done
   while ((k < e)); do
     ch=${chars[k]}
     nx=""
@@ -4596,7 +4605,7 @@ hook::_bps_hd_spans() {
       case $ch in
       '\')
         case $nx in
-        '$' | '`' | '\' | $'\n')
+        '$' | '`' | '\')
           k=$((k + 2))
           continue
           ;;
