@@ -43,7 +43,9 @@ function laneRecord(run) {
   if (!record || record.handoff === true || run.name !== `${record.lane} / ${record.activity}`) {
     return summaryRecord(run);
   }
-  return { failureClass: record.class ?? "", resets: record.resets?.at ?? "" };
+  // Only a usage limit states when it resets, as lane-record.mjs writes it; an
+  // auth stop always waits fallback-reset.
+  return { failureClass: record.class ?? "", resets: record.class === "rate-limit" ? (record.resets?.at ?? "") : "" };
 }
 
 // The lane record on the first line of `run`'s output.summary, or null when

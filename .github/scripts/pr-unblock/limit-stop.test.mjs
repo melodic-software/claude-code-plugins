@@ -245,6 +245,10 @@ test("the lane-outcome record in output.text is read before the legacy summary l
   assert.equal(limitResetsAt(withText({ ...RECORD, class: "auth", resets: undefined })), ended + 5 * HOUR);
 });
 
+test("an auth stop waits fallback-reset even when its record states a reset, as the legacy line does", () => {
+  assert.equal(limitResetsAt(withText({ ...RECORD, class: "auth" })), ended + 5 * HOUR);
+});
+
 test("a record's Claude model ids, with the [1m] suffix, are read", () => {
   const models = { ...RECORD, models: ["claude-opus-5-5", "claude-haiku-5-5[1m]"] };
   assert.equal(limitResetsAt(withText(models, LIMIT_LINE)), Date.parse("2026-10-17T14:00:00Z"));
