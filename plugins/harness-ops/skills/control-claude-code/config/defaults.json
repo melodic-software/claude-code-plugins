@@ -8,7 +8,9 @@
     "stepMs": 15000,
     "logMs": 600000
   },
-  "credentials": {},
+  "credentials": {
+    "ci": { "apiKey": "ANTHROPIC_API_KEY", "oauthToken": "CLAUDE_CODE_OAUTH_TOKEN" }
+  },
   "safety": {
     "recipients": {},
     "signInAttempts": {},

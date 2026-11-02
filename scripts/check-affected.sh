@@ -280,7 +280,7 @@ fi
 gates_file="$tools/scripts/check-affected-gates.txt"
 declare -a passed=() skipped=() failed=()
 out="$(mktemp)" || exit 2
-trap 'rm -f "$out" "$out.failures" "$out.patterns" "$out.not-run" "$out.node"' EXIT
+trap 'rm -rf "$out" "$out.failures" "$out.patterns" "$out.not-run" "$out.node" "$out.md"' EXIT
 
 skip() { skipped+=("$1 ($2)"); }
 
@@ -383,7 +383,8 @@ elif ((foreign)); then
   # config is refused with a SKIP line saying why, leaving the tooling tree's.
   markdown_staged() {
     local stage f kind mode data rc=0
-    stage="$(mktemp -d)" || return 2
+    stage="$out.md"
+    mkdir "$stage" || return 2
     while IFS= read -r f; do
       mkdir -p "$stage/${f%/*}" && cp "$tools/$f" "$stage/$f" || rc=2
     done < <(cd "$tools" && find . -name node_modules -prune -o -name .git -prune -o -name '.markdownlint*' -type f -print)

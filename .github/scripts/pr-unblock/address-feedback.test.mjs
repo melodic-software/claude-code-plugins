@@ -458,6 +458,33 @@ test("a fix request works a thread whose review is on an earlier head, in the se
   assert.deepEqual(kept.map((row) => row.id), ["PRRT_1"]);
 });
 
+// Element 6 of the outage posture (docs/outage-posture-audit.md): reads are
+// serial, so each of the re-read's reads starts after the one before it ends.
+test("currentThreads sends its reads one after the other", async () => {
+  const api = fakeApi({ ...asked([[101, HUMAN, REQUEST]]), ...OLD_REVIEW });
+  const events = [];
+  for (const name of ["listIssueComments", "listReviews", "listReviewComments", "listThreads"]) {
+    const read = api[name];
+    api[name] = async (...args) => {
+      events.push(`${name} start`);
+      await new Promise((resolve) => setImmediate(resolve));
+      events.push(`${name} end`);
+      return read(...args);
+    };
+  }
+  await currentThreads({ api, pr: 42, reviewerId: REVIEWER, appId: APP, trustedHumans: new Set([HUMAN]) });
+  assert.deepEqual(events, [
+    "listIssueComments start",
+    "listIssueComments end",
+    "listReviews start",
+    "listReviews end",
+    "listReviewComments start",
+    "listReviewComments end",
+    "listThreads start",
+    "listThreads end",
+  ]);
+});
+
 test("a kept thread's is_outdated is true only when GitHub reports isOutdated true", async () => {
   for (const [isOutdated, expected] of [[true, true], [false, false], [undefined, false], ["true", false]]) {
     const result = await run(fakeApi({ threads: [thread("PRRT_1", [100], { isOutdated })] }));

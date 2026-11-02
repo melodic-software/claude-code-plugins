@@ -3,6 +3,12 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.7] - 2026-11-02
+
+### Changed
+
+- Shared `publish-gate.mjs` synced: the R2 key pair pattern now finds a 32-hex and a 64-hex word on one line in time linear in the line, so a large one-line JSON file no longer takes minutes to scan. It matches exactly what it matched before.
+
 ## [0.13.6] - 2026-11-02
 
 ### Changed

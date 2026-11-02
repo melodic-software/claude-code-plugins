@@ -1233,13 +1233,53 @@ test("a dispatch that failed skips the record", () => {
     const scan = before.split("\n      - name: ").at(-1);
     assert.ok(
       scan.startsWith(
-        `Scan the upload for credentials\n        id: ${scanId}\n        if: >-\n          steps.dispatch.outputs.run-id != ''\n        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]\n        with:\n          path: \${{ runner.temp }}/dispatched.json\n`,
+        `Scan the upload for credentials\n        id: ${scanId}\n        if: >-\n          steps.dispatch.outputs.run-id != ''\n        timeout-minutes: 2\n        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]\n        with:\n          path: \${{ runner.temp }}/dispatched.json\n`,
       ),
       id,
     );
     assert.doesNotMatch(record.split("\n      - name: ")[0], /continue-on-error/, id);
     assert.ok(record.includes("\n          path: ${{ runner.temp }}/dispatched.json\n"), id);
   }
+});
+
+// A scan that runs past its timeout fails before scan-upload.mjs appends clean=true, so the
+// upload it guards is skipped: a slow scan withholds the upload and frees the job, and the
+// concurrency group behind it, within minutes. Best-effort scans keep continue-on-error, so a
+// timeout skips only their upload; the scans before a dispatch record carry none, so a timeout
+// there fails the job as a failed record upload does (the test above).
+test("every credential scan has a timeout of at most 2 minutes, and the upload it guards needs its clean output", () => {
+  const bestEffort = {
+    "post-merge-dispatch": ["scan-upload"],
+    merge: ["scan-upload-2", "scan-upload-3", "scan-upload-4", "scan-upload-5", "scan-upload-6", "scan-upload-7"],
+    "enable-auto-merge": ["scan-upload", "scan-upload-2"],
+    "dispatch-full-run": [],
+  };
+  let scans = 0;
+  for (const [id, expected] of Object.entries(bestEffort)) {
+    const steps = job(id).split("\n      - name: ").slice(1);
+    const found = [];
+    for (const [i, step] of steps.entries()) {
+      if (!step.startsWith("Scan the upload for credentials\n")) continue;
+      scans += 1;
+      const scanId = /\n {8}id: (scan-upload(?:-\d+)?)\n/.exec(step)?.[1];
+      assert.ok(scanId, `${id}: a scan step names its id`);
+      const minutes = Number(/\n {8}timeout-minutes: (\d+)\n/.exec(step)?.[1]);
+      assert.ok(minutes >= 1 && minutes <= 2, `${id} ${scanId}: timeout-minutes ${minutes}`);
+      if (/\n {8}continue-on-error: true\n/.test(step)) found.push(scanId);
+      const guard = `steps.${scanId}.outputs.clean == 'true'`;
+      const upload = steps.slice(i + 1).find((s) => s.includes(guard));
+      assert.ok(upload, `${id} ${scanId}: a later step reads its clean output`);
+      assert.match(upload, new RegExp(`\\n {8}if: >-\\n {10}\\(.*\\) && ${guard.replace(/[.()']/g, "\\$&")}\\n`), `${id} ${scanId}`);
+    }
+    assert.deepEqual(found, expected, `${id}: the scans that keep continue-on-error`);
+  }
+  assert.equal(scans, (merge.match(/- name: Scan the upload for credentials\n/g) ?? []).length, "every scan step is in a job above");
+  // clean is the scan step's own output, which scan-upload.mjs writes only after the last file.
+  const action = readFileSync(new URL("../../actions/scan-upload/action.yml", import.meta.url), "utf8");
+  assert.match(action, /\n {4}value: \$\{\{ steps\.scan\.outputs\.clean \}\}\n/);
+  const scanner = readFileSync(new URL("../../actions/scan-upload/scan-upload.mjs", import.meta.url), "utf8");
+  assert.equal(scanner.match(/appendFileSync\(/g)?.length, 1, "one write to GITHUB_OUTPUT");
+  assert.ok(scanner.indexOf('appendFileSync(env.GITHUB_OUTPUT, "clean=true\\n")') > scanner.indexOf("result = scanPaths(entries)"));
 });
 
 // Each job's "Check who started the run" step, run under bash from a directory

@@ -125,8 +125,65 @@ test('the control skill config keeps local.json out of git and ships every floor
   assert.equal(typeof defaults.pluginDir, 'string');
   assert.ok(defaults.pluginDir.length > 0);
   assert.equal(defaults.maxCaptures, 20);
-  assert.deepEqual(defaults.credentials, {});
+  assert.deepEqual(defaults.credentials, { ci: { apiKey: 'ANTHROPIC_API_KEY', oauthToken: 'CLAUDE_CODE_OAUTH_TOKEN' } });
+  assert.deepEqual(driver.ciCredentials(), ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN']);
   assert.deepEqual(defaults.safety, { recipients: {}, signInAttempts: {}, production: {}, unattendedWrites: false });
+});
+
+test('credentials.ci naming a variable the driver has no key source for is refused', () => {
+  const file = join(RUNTIME, 'defaults.json');
+  writeFileSync(file, JSON.stringify({ credentials: { ci: { other: 'ANTHROPIC_AUTH_TOKEN' } } }));
+  assert.throws(() => driver.ciCredentials(file), { code: 2, message: /credentials\.ci names ANTHROPIC_AUTH_TOKEN/ });
+});
+
+const CI = ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN'];
+
+test('attended clears the API key, passes the person\'s own OAuth token through, and requires "none"', () => {
+  // The config an attended verb builds: no --unattended, no CI names.
+  const { env, keySource } = buildLaunch({ pluginDir: '/p' }, { ANTHROPIC_API_KEY: 'fake', CLAUDE_CODE_OAUTH_TOKEN: 'fake' });
+  assert.equal('ANTHROPIC_API_KEY' in env, false);
+  assert.equal(env.CLAUDE_CODE_OAUTH_TOKEN, 'fake');
+  assert.equal('CLAUDE_CODE_SUBPROCESS_ENV_SCRUB' in env, false);
+  assert.equal(keySource, 'none');
+});
+
+test('unattended keeps the one CI credential set, scrubs it from subprocesses, and accepts its key source', () => {
+  for (const [name, source] of [
+    ['ANTHROPIC_API_KEY', 'ANTHROPIC_API_KEY'],
+    ['CLAUDE_CODE_OAUTH_TOKEN', 'none'],
+  ]) {
+    const { env, keySource } = buildLaunch({ pluginDir: '/p', unattended: true, credentials: CI }, { [name]: 'fake', ANTHROPIC_AUTH_TOKEN: 'x' });
+    assert.equal(env[name], 'fake', name);
+    assert.equal(env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, '1', name);
+    assert.equal('ANTHROPIC_AUTH_TOKEN' in env, false, 'every other auth variable is still cleared');
+    assert.equal(keySource, source, name);
+  }
+});
+
+test('unattended with no CI credential set runs as attended does', () => {
+  const { env, keySource } = buildLaunch({ pluginDir: '/p', unattended: true, credentials: CI }, { PATH: '/usr/bin' });
+  assert.equal('CLAUDE_CODE_SUBPROCESS_ENV_SCRUB' in env, false);
+  assert.equal(keySource, 'none');
+});
+
+test('unattended refuses two CI credentials set at once, before anything runs', async () => {
+  const saved = { ...process.env };
+  process.env.ANTHROPIC_API_KEY = 'fake';
+  process.env.CLAUDE_CODE_OAUTH_TOKEN = 'fake';
+  try {
+    for (const args of [
+      ['launch', '--plugin-dir', '/p', '--unattended'],
+      ['ready', '--plugin-dir', HERE, '--out', join(RUNTIME, 'x.jsonl'), '--unattended'],
+    ]) {
+      await assert.rejects(main(args), { code: 1, message: /ANTHROPIC_API_KEY and CLAUDE_CODE_OAUTH_TOKEN are both set/ });
+    }
+    assert.equal(existsSync(join(RUNTIME, 'x.jsonl')), false, 'ready started no claude');
+  } finally {
+    for (const name of CI) {
+      if (saved[name] === undefined) delete process.env[name];
+      else process.env[name] = saved[name];
+    }
+  }
 });
 
 test('the Windows repair line enters the install dir instead of passing it to npm.cmd', () => {
@@ -472,6 +529,40 @@ export const TuiTest = { ephemeral: () => ({
   }
 });
 
+test('an unattended launch hands claude the one CI credential with the subprocess scrub on', posixOnly, async () => {
+  const box = sandbox();
+  const seen = join(box.root, 'seen.json');
+  const records = `import { writeFileSync } from 'node:fs';
+export const TuiTest = { ephemeral: () => ({
+  run: async (cmd, args, opts) => writeFileSync(${JSON.stringify(seen)}, JSON.stringify({
+    key: opts.env.ANTHROPIC_API_KEY ?? null, scrub: opts.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB ?? null,
+  })),
+  state: async () => ({ exited: null, exit_signal: null }),
+  type: async () => writeFileSync(${JSON.stringify(seen)} + '.holder', process.env.ANTHROPIC_API_KEY ?? 'unset'),
+  close: async () => {},
+  closeQuiet: async () => {},
+}) };
+`;
+  placeEngine(box.target, records, { marked: true });
+  const name = session();
+  const saved = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_API_KEY = 'fake-ci';
+  try {
+    await withPath(box.bin, () => main(['launch', '--plugin-dir', '/p', '--deps-dir', box.deps, '--session', name, '--ttl', '60', '--unattended']));
+    const got = JSON.parse(readFileSync(seen, 'utf8'));
+    assert.equal(got.key, 'fake-ci');
+    assert.equal(got.scrub, '1');
+    assert.equal(await main(['type', 'x', '--session', name]), 0);
+    assert.equal(readFileSync(`${seen}.holder`, 'utf8'), 'unset', 'the holder drops the key once claude has it');
+    assert.equal(await main(['stop', '--session', name]), 0);
+  } finally {
+    if (saved === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = saved;
+    await main(['stop', '--session', name]).catch(() => {});
+    rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
 const isAlive = (pid) => {
   try {
     process.kill(pid, 0);
@@ -711,6 +802,47 @@ test('log stops claude and every process it started when the init event names an
     assert.equal(readFileSync(out, 'utf8').trim(), initLine('ANTHROPIC_API_KEY'));
   } finally {
     rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
+test('unattended with the CI API key: ready and log accept that source and hand claude the key', posixOnly, async () => {
+  const saved = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_API_KEY = 'fake-ci';
+  try {
+    const box = sandbox();
+    try {
+      stubClaude(box, 'ANTHROPIC_API_KEY', 'exec sleep 30');
+      const args = ['ready', '--plugin-dir', pluginDir(box), '--out', join(box.root, 'init.jsonl'), '--deps-dir', box.deps];
+      const unattended = await withPath(box.bin, () => quietly(() => main([...args, '--unattended'])));
+      assert.equal(unattended.result, 0);
+      assert.doesNotMatch(unattended.text, /refused/);
+      assert.equal(readFileSync(join(box.root, 'key'), 'utf8'), 'fake-ci');
+      const attended = await withPath(box.bin, () => quietly(() => main(args)));
+      assert.equal(attended.result, 1, 'attended still requires "none"');
+      assert.equal(readFileSync(join(box.root, 'key'), 'utf8'), 'unset');
+      stubClaude(box, 'ANTHROPIC_API_KEY', `printf '%s\\n' '{"type":"result"}'\nexit 0`);
+      const logged = await withPath(box.bin, () =>
+        quietly(() => main(['log', 'run /demo', '--plugin-dir', pluginDir(box), '--out', join(box.root, 'run.jsonl'), '--unattended'])),
+      );
+      assert.equal(logged.result, 0);
+      assert.match(logged.text, /exit 0, apiKeySource ANTHROPIC_API_KEY\)$/);
+    } finally {
+      rmSync(box.root, { recursive: true, force: true });
+    }
+    const box2 = sandbox();
+    try {
+      stubClaude(box2, 'none', 'exec sleep 30');
+      const { result, text } = await withPath(box2.bin, () =>
+        quietly(() => main(['ready', '--plugin-dir', pluginDir(box2), '--out', join(box2.root, 'init.jsonl'), '--deps-dir', box2.deps, '--unattended'])),
+      );
+      assert.equal(result, 1, 'a kept API key that reports "none" is not the source the driver expects');
+      assert.match(text, /refused: apiKeySource is "none", not "ANTHROPIC_API_KEY"; drive nothing/);
+    } finally {
+      rmSync(box2.root, { recursive: true, force: true });
+    }
+  } finally {
+    if (saved === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = saved;
   }
 });
 

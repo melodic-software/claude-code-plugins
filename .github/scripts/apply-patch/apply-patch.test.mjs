@@ -458,10 +458,11 @@ test("refuses a path under a skills/ directory at any depth, in any case, and a 
   }
 });
 
-test("only the docs row names the skills and skill-md refusals, only review-threads new-exec-bit, and no row has to", () => {
+test("only the docs row names the skills and skill-md refusals, only review-threads new-exec-bit, only ci-context and review-threads the git hook and attribute refusals, and no row has to", () => {
+  const hooks = ["gitattributes", "husky", "lefthook"];
   for (const name of Object.keys(RULES)) {
     const named = RULES[name].refuse.filter((refusal) => REFUSALS[refusal].optional);
-    assert.deepEqual(named, { docs: ["skills", "skill-md"], "review-threads": ["new-exec-bit"] }[name] ?? [], name);
+    assert.deepEqual(named, { docs: ["skills", "skill-md"], "review-threads": ["new-exec-bit", ...hooks], "ci-context": hooks }[name] ?? [], name);
   }
   const refuse = RULES.docs.refuse.filter((name) => !REFUSALS[name].optional);
   assert.doesNotThrow(() => checkRow(row("docs", { refuse })));
@@ -599,11 +600,14 @@ test("a fix-ci patch that edits CLAUDE.md pushes", async (t) => {
   assert.equal((await pushWith(fix, fakeApi(fix.repo, fix.head), { row: row("ci-context") })).outcome, "pushed");
 });
 
-test("without PATCH_PREPARE a fix-ci patch falls to the default row, which refuses the same paths and gives other reasons", () => {
+test("without PATCH_PREPARE a fix-ci patch falls to the default row, which refuses the same universal paths and gives other reasons", () => {
   const unset = rowFor(RULES, { prepare: "" });
   const fixCi = rowFor(RULES, { prepare: "ci-context" });
   assert.equal(unset.name, "default");
-  assert.deepEqual(unset.refuse, fixCi.refuse);
+  assert.deepEqual(
+    fixCi.refuse.filter((name) => !REFUSALS[name].optional),
+    unset.refuse,
+  );
   assert.equal(unset["reads-report"], null);
   assert.equal(fixCi["reads-report"], "ci-escalations");
   assert.ok(!unset.escalations.includes("ci-fix-protected-path"));
@@ -936,6 +940,80 @@ test("review-threads: a protected path the PR changes is still refused", async (
     );
     assert.deepEqual(await docPush(fix, ["README.md", path]), { outcome: "escalate", escalationReason: "patch-protected-path" }, path);
   }
+});
+
+// --- git hook and attribute files: fix-ci (ci-context) and address-feedback
+// (review-threads) may not change what git, or a hook it runs, does on the
+// next checkout or commit ---
+
+const HOOK_PATHS = [
+  [".gitattributes", "gitattributes"],
+  ["sub/dir/.gitattributes", "gitattributes"],
+  [".husky/pre-commit", "husky"],
+  [".HUSKY/x", "husky"],
+  ["lefthook.yml", "lefthook"],
+];
+const HOOK_ROWS = [
+  ["ci-context", "ci-fix-protected-path", (fix, api, extra) => pushWith(fix, api, { row: row("ci-context"), ...extra })],
+  ["review-threads", "patch-protected-path", (fix, api, extra) => pushWith(fix, api, { row: row("review-threads"), context: { keptThreads: keptOf([{ path: "notes.md" }]), fixedThreads: [] }, ...extra })],
+];
+
+test("the ci-context and review-threads rows refuse .gitattributes at any depth, .husky/ and the root lefthook.yml, in any case and through any .. segment", () => {
+  for (const [path, refusal] of [...HOOK_PATHS, ["Sub/.GitAttributes", "gitattributes"], ["a/../lefthook.yml", "lefthook"], ["a/../.husky/_/h", "husky"]]) {
+    for (const [name] of HOOK_ROWS) {
+      assert.deepEqual(refusalsOf(entry(path), RULES[name].refuse), [refusal], `${name} ${path}`);
+    }
+  }
+});
+
+test("docs/husky.md, docs/lefthook.md and sub/lefthook.yml are not refused, and the issue row refuses none of the hook and attribute paths", () => {
+  for (const path of ["docs/husky.md", "docs/lefthook.md", "sub/lefthook.yml"]) {
+    for (const name of Object.keys(RULES)) {
+      assert.deepEqual(refusalsOf(entry(path), RULES[name].refuse), [], `${name} ${path}`);
+    }
+  }
+  for (const [path] of HOOK_PATHS) {
+    assert.deepEqual(refusalsOf(entry(path), RULES.issue.refuse), [], `issue ${path}`);
+  }
+});
+
+for (const [path, refusal] of HOOK_PATHS) {
+  for (const [name, reason, pushOn] of HOOK_ROWS) {
+    test(`under the ${name} row a patch that writes ${path} is refused ${reason} before any API call`, async (t) => {
+      const fix = repoWithPatch(t, (repo) => {
+        writeFileSync(join(repo, "notes.md"), "notes\nfixed\n");
+        mkdirSync(dirname(join(repo, path)), { recursive: true });
+        writeFileSync(join(repo, path), "* text=auto\n");
+      });
+      const api = fakeApi(fix.repo, fix.head);
+      const lines = [];
+      assert.deepEqual(await pushOn(fix, api, { log: (line) => lines.push(line) }), { outcome: "escalate", escalationReason: reason });
+      assert.deepEqual(lines, [`refused (${refusal}): ${path}`]);
+      assert.deepEqual(api.calls, []);
+    });
+
+    test(`under the ${name} row a rename onto ${path} is refused ${reason} before any API call`, async (t) => {
+      const fix = repoWithPatch(
+        t,
+        (repo) => {
+          mkdirSync(dirname(join(repo, path)), { recursive: true });
+          renameSync(join(repo, "notes.md"), join(repo, path));
+        },
+        { renames: true },
+      );
+      assert.match(readFileSync(fix.patchFile, "utf8"), new RegExp(`^rename to ${path.replaceAll(".", "\\.")}$`, "m"));
+      const api = fakeApi(fix.repo, fix.head);
+      const lines = [];
+      assert.deepEqual(await pushOn(fix, api, { log: (line) => lines.push(line) }), { outcome: "escalate", escalationReason: reason });
+      assert.deepEqual(lines, [`refused (${refusal}): ${path}`]);
+      assert.deepEqual(api.calls, []);
+    });
+  }
+}
+
+test("under the ci-context row a patch that writes docs/husky.md, docs/lefthook.md and sub/lefthook.yml pushes", async (t) => {
+  const fix = threadPatch(t, ["docs/husky.md", "docs/lefthook.md", "sub/lefthook.yml"]);
+  assert.equal((await pushWith(fix, fakeApi(fix.repo, fix.head), { row: row("ci-context") })).outcome, "pushed");
 });
 
 test("review-threads: a symbolic link at an in-scope path is refused patch-invalid", async (t) => {
