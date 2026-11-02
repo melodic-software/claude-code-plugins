@@ -3,6 +3,12 @@
 All notable changes to the `domain-driven-design` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.13] - 2026-11-02
+
+### Changed
+
+- The `curate-language` description is back to its earlier text. The shorter one shipped on an eval that a negative control showed cannot tell it from a one-line generic description, so the cut was never measured.
+
 ## [0.4.12] - 2026-11-01
 
 ### Changed

@@ -3,6 +3,12 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.17] - 2026-11-02
+
+### Changed
+
+- The `manage` skill body is back to its earlier text. The shorter one shipped on an eval that a negative control showed cannot tell it from a copy with its procedure sections emptied, so the cut was never measured. The shorter description and the `setup` body stay: their controls passed.
+
 ## [0.8.16] - 2026-11-01
 
 ### Changed

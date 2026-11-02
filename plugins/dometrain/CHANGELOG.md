@@ -3,6 +3,12 @@
 All notable changes to the `dometrain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.8] - 2026-11-02
+
+### Changed
+
+- The `sync` skill body is back to its earlier text. The shorter one shipped on an eval that a negative control showed cannot tell it from a body with its check and Output sections emptied, so the cut was never measured.
+
 ## [0.8.7] - 2026-11-01
 
 ### Changed
