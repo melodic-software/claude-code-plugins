@@ -3,6 +3,14 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.2] - 2026-11-02
+
+### Fixed
+
+- Eval case `bs-no-task-tools-fallback` drops its `tool_used: Skill` grader: its prompt
+  slash-invokes `/code-tidying:batch-simplify`, which loads the skill without a Skill call, so the
+  grader failed every run.
+
 ## [0.35.1] - 2026-11-01
 
 ### Changed
