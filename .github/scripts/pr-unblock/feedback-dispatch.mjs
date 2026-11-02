@@ -310,7 +310,9 @@ async function requestEvidence({ api, number, pull, comments, threads, reviewerI
   if (!listed) {
     return { mentions: [], reviews: [], triggers: null };
   }
-  const [reviews, triggers] = await Promise.all([api.listReviews(number), readTriggers({ api, pr: number, pull })]);
+  // Serial reads: the outage posture's element 6 (docs/outage-posture-audit.md).
+  const reviews = await api.listReviews(number);
+  const triggers = await readTriggers({ api, pr: number, pull });
   return {
     triggers,
     mentions: [
@@ -398,7 +400,12 @@ export const MERGE_WORKFLOW = ".github/workflows/pr-merge.yml";
 // reviewed something (not skipped or cancelled), or null. A fork PR at the
 // same SHA lists its runs too; one must not stand in for this repository's.
 export async function reviewRunAt({ api, head, repository, settings = DEFAULTS }) {
-  const runs = (await Promise.all(settings.reviewWorkflows.map((path) => api.listCompletedRuns(path, head))))
+  // One workflow's listing at a time: element 6's serial reads.
+  const listings = [];
+  for (const path of settings.reviewWorkflows) {
+    listings.push(await api.listCompletedRuns(path, head));
+  }
+  const runs = listings
     .flat()
     .filter(
       (run) =>

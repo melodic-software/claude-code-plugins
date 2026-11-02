@@ -313,6 +313,10 @@ function world({
         return other;
       }
     }
+    // admit.mjs admissionFacts' visibility read: a private repository.
+    if (method === "GET" && route === `/repos/${REPO}`) {
+      return { visibility: "private" };
+    }
     throw new Error(`unexpected ${method} ${path}`);
   };
   return { github, calls };
