@@ -54,50 +54,50 @@ runs:
         done
     - name: Upload index 1
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-      with: { name: "${{ steps.slots.outputs.n1 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error }
+      with: { name: "${{ steps.slots.outputs.n1 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error, overwrite: true }
     - name: Upload index 2
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-      with: { name: "${{ steps.slots.outputs.n2 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error }
+      with: { name: "${{ steps.slots.outputs.n2 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error, overwrite: true }
     - name: Upload index 3
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-      with: { name: "${{ steps.slots.outputs.n3 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error }
+      with: { name: "${{ steps.slots.outputs.n3 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error, overwrite: true }
     - name: Upload index 4
       if: ${{ steps.slots.outputs.n4 != '' }}
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-      with: { name: "${{ steps.slots.outputs.n4 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error }
+      with: { name: "${{ steps.slots.outputs.n4 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error, overwrite: true }
     - name: Upload index 5
       if: ${{ steps.slots.outputs.n5 != '' }}
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-      with: { name: "${{ steps.slots.outputs.n5 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error }
+      with: { name: "${{ steps.slots.outputs.n5 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error, overwrite: true }
     - name: Upload index 6
       if: ${{ steps.slots.outputs.n6 != '' }}
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-      with: { name: "${{ steps.slots.outputs.n6 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error }
+      with: { name: "${{ steps.slots.outputs.n6 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error, overwrite: true }
     - name: Upload index 7
       if: ${{ steps.slots.outputs.n7 != '' }}
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-      with: { name: "${{ steps.slots.outputs.n7 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error }
+      with: { name: "${{ steps.slots.outputs.n7 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error, overwrite: true }
     - name: Upload index 8
       if: ${{ steps.slots.outputs.n8 != '' }}
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-      with: { name: "${{ steps.slots.outputs.n8 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error }
+      with: { name: "${{ steps.slots.outputs.n8 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error, overwrite: true }
     - name: Upload index 9
       if: ${{ steps.slots.outputs.n9 != '' }}
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-      with: { name: "${{ steps.slots.outputs.n9 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error }
+      with: { name: "${{ steps.slots.outputs.n9 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error, overwrite: true }
     - name: Upload index 10
       if: ${{ steps.slots.outputs.n10 != '' }}
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-      with: { name: "${{ steps.slots.outputs.n10 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error }
+      with: { name: "${{ steps.slots.outputs.n10 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error, overwrite: true }
     - name: Upload index 11
       if: ${{ steps.slots.outputs.n11 != '' }}
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-      with: { name: "${{ steps.slots.outputs.n11 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error }
+      with: { name: "${{ steps.slots.outputs.n11 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error, overwrite: true }
     - name: Upload index 12
       if: ${{ steps.slots.outputs.n12 != '' }}
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-      with: { name: "${{ steps.slots.outputs.n12 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error }
+      with: { name: "${{ steps.slots.outputs.n12 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error, overwrite: true }
     - name: Upload index 13
       if: ${{ steps.slots.outputs.n13 != '' }}
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-      with: { name: "${{ steps.slots.outputs.n13 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error }
+      with: { name: "${{ steps.slots.outputs.n13 }}", path: "${{ inputs.path }}", retention-days: "${{ steps.slots.outputs.retention-days }}", if-no-files-found: error, overwrite: true }

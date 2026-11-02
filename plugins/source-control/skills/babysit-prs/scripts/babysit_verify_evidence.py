@@ -263,6 +263,7 @@ its null `refusal` at the head it read.
 from __future__ import annotations
 
 import argparse
+import base64
 import contextlib
 import hashlib
 import io
@@ -2730,6 +2731,15 @@ class Reader:
         self._legacy_entries = entries
         return entries
 
+    def _live_legacy(self) -> list[dict[str, Any]]:
+        """The legacy FAILs whose `expires_at` has not passed."""
+        now = self.now or _wall_clock()
+        return [
+            a
+            for a in self._legacy() or []
+            if a["expires_at"] is None or _when(a["expires_at"]) > now
+        ]
+
     def _named(self, name: str, deadline: float) -> list[dict[str, Any]]:
         """Every unexpired artifact named exactly `name`, under any run: the
         API's name filter matches whole names. The pages must hold, each id
@@ -2855,12 +2865,7 @@ class Reader:
         if len(names) > INDEX_NAMES_CAP:
             # More reads than one whole listing costs: read that instead.
             return self._listing()
-        now = self.now or _wall_clock()
-        found = {
-            a["id"]: a
-            for a in (self._legacy() or [])
-            if a["expires_at"] is None or _when(a["expires_at"]) > now
-        }
+        found = {a["id"]: a for a in self._live_legacy()}
         found.update((a["id"], a) for a in self._index_hits(names, deadline))
         failed = {
             match[2]
@@ -2901,13 +2906,8 @@ class Reader:
         at each FAILed head: babysit_merge_skip.py's key. Raises
         `RuntimeError` when a read fails."""
         deadline = _listing_clock() + listing_cap()[0]
-        now = self.now or _wall_clock()
         try:
-            found = {
-                a["id"]: a
-                for a in (self._legacy() or [])
-                if a["expires_at"] is None or _when(a["expires_at"]) > now
-            }
+            found = {a["id"]: a for a in self._live_legacy()}
             found.update(
                 (a["id"], a)
                 for a in self._index_hits(
@@ -2983,7 +2983,7 @@ class Reader:
         own: dict[str, list[tuple[int, str, Any]]] = {}
         artifacts = (
             [
-                *(self._legacy() or []),
+                *self._live_legacy(),
                 *self._index_hits(
                     [f"{INDEX_PREFIX}pr-{number}"], _listing_clock() + listing_cap()[0]
                 ),
@@ -5276,89 +5276,12 @@ def _capped_close_main(args: argparse.Namespace, now: datetime | None) -> int:
     return 0
 
 
-RUNNING_STATUSES = ("queued", "in_progress", "waiting", "requested", "pending")
-
-
-def build_legacy_fails_from_listing(
-    reader: Reader, cutover: datetime, now: datetime
-) -> dict[str, Any]:
-    """`legacy-fails --cross-check-listing`, only a cross-check: every FAIL-shaped
-    unexpired artifact whose run uploaded no FAIL index, from one listing that holds
-    GitHub's live count (`Reader.listing`), each with its run's origin
-    verified and its verdict's head branch. The cutover is when the index
-    reached main; a verifier run created before it may still upload a FAIL
-    with none, so one still running refuses. A run of another origin is left
-    out, as every judgment ignores it; one that cannot be read, or a head
-    branch that cannot be read, refuses (`_Unreadable`), so the file never
-    holds less than a judgment would count."""
-    if cutover > now:
-        raise _Unreadable("the cutover is in the future")
-    for status in RUNNING_STATUSES:
-        page = json_object(
-            reader._actions(
-                [
-                    "api",
-                    f"repos/{reader.repo}/actions/workflows/{Path(WORKFLOW_PATH).name}"
-                    f"/runs?status={status}&per_page={LISTING_PAGE_SIZE}",
-                ],
-                f"{status} verifier runs",
-            )
-        )
-        runs = page.get("workflow_runs")
-        if not is_json_array(runs) or page.get("total_count") != len(runs):
-            raise _Unreadable(f"the {status} verifier runs could not be read")
-        for run in map(json_object, runs):
-            created = _when(run.get("created_at"))
-            if created is None or created < cutover:
-                raise _Unreadable(f"verifier run {run.get('id')} from before the cutover is {status}")
-    try:
-        listing = reader.listing()
-    except RuntimeError as exc:
-        raise _Unreadable(str(exc)) from exc
-    indexed = {
-        json_object(a.get("workflow_run")).get("id")
-        for a in map(json_object, listing)
-        if str(a.get("name") or "").startswith(INDEX_PREFIX)
-    }
-    entries = []
-    for item in map(json_object, listing):
-        name = str(item.get("name") or "")
-        run_id = json_object(item.get("workflow_run")).get("id")
-        if (
-            not FAIL_PREFIX_RE.match(name)
-            or item.get("expired") is not False
-            or run_id in indexed
-        ):
-            continue
-        if not _is_id(run_id, run_id):
-            continue  # No run record to authenticate it: every judgment ignores it.
-        state = reader._run_state(run_id, shared=True)
-        if state == FOREIGN:
-            continue
-        if state == UNREAD:
-            raise _Unreadable(f"the run of {name} cannot be read")
-        entries.append(
-            {
-                "id": item["id"],
-                "name": name,
-                "created_at": item.get("created_at"),
-                "expires_at": item.get("expires_at"),
-                "expired": False,
-                "workflow_run": {"id": run_id},
-                "origin": True,
-                "head_ref": reader._head_ref(run_id, name, item["id"], ""),
-            }
-        )
-    return {
-        "version": LEGACY_FAILS_VERSION,
-        "repo": reader.repo,
-        "cutover": cutover.isoformat(),
-        "listedAt": reader._fetched_at.isoformat() if reader._fetched_at else None,
-        "artifacts": sorted(entries, key=lambda e: e["id"]),
-    }
-
-
-LEGACY_CHECKPOINT_VERSION = 1
+LEGACY_CHECKPOINT_VERSION = 2
+# The pages the build's whole listing may read (about 135 on 2026-11-02).
+LISTING_FAILS_PAGES_CAP = 600
+# How long after the merge commit that brought FAIL_INDEX a run may still have
+# been triggered on the older workflow; a later cutover only reads more runs.
+CUTOVER_MARGIN = timedelta(hours=1)
 # GitHub returns at most 1,000 results for a filtered run search, so a window
 # whose count reaches it is split.
 RUN_SEARCH_RESULTS_CAP = 1000
@@ -5371,7 +5294,13 @@ RUN_FIELDS_KEPT = (
     "head_sha",
     "created_at",
 )
-RATE_LIMIT_SIGNS = ("rate limit", "HTTP 429", "HTTP 403", "retry-after", "Retry-After")
+RATE_LIMIT_SIGNS = (
+    "rate limit",
+    "HTTP 429",
+    "retry-after",
+    "Retry-After",
+    "x-ratelimit-remaining: 0",
+)
 
 
 class _BuildStopped(Exception):
@@ -5469,6 +5398,46 @@ class _Pacer:
         return proc
 
 
+def _kept_run(run: dict[str, Any]) -> dict[str, Any]:
+    """The fields of a run record the build keeps: its status and origin."""
+    return {
+        **{k: run.get(k) for k in RUN_FIELDS_KEPT},
+        "repository": {"full_name": json_object(run.get("repository")).get("full_name")},
+        "head_repository": {
+            "full_name": json_object(run.get("head_repository")).get("full_name")
+        },
+    }
+
+
+def cutover_of(reader: Reader, merge_sha: str) -> datetime:
+    """When FAIL_INDEX reached main: the committer date of `merge_sha`, a
+    commit main holds whose pr-verify.yml sets FAIL_INDEX, plus
+    `CUTOVER_MARGIN`. Raises `_Unreadable` otherwise."""
+    if merge_policy.SHA_RE.fullmatch(merge_sha) is None:
+        raise _Unreadable("--merge-sha must be a full commit SHA")
+    commit = json_object(
+        reader._actions(["api", f"repos/{reader.repo}/commits/{merge_sha}"], "merge commit")
+    )
+    date = _when(json_object(json_object(commit.get("commit")).get("committer")).get("date"))
+    if date is None:
+        raise _Unreadable(f"commit {merge_sha} has no committer date")
+    if not reader._contains(merge_sha):
+        raise _Unreadable(f"commit {merge_sha} is not on {reader.branch}")
+    workflow = json_object(
+        reader._actions(
+            ["api", f"repos/{reader.repo}/contents/{WORKFLOW_PATH}?ref={merge_sha}"],
+            "pr-verify.yml at the merge commit",
+        )
+    )
+    try:
+        text = base64.b64decode(str(workflow.get("content") or "")).decode("utf-8")
+    except ValueError as exc:
+        raise _Unreadable(f"pr-verify.yml at {merge_sha}: {exc}") from exc
+    if 'FAIL_INDEX: "1"' not in text:
+        raise _Unreadable(f"pr-verify.yml at {merge_sha} sets no FAIL_INDEX")
+    return date + CUTOVER_MARGIN
+
+
 def _windows(since: datetime, until: datetime) -> list[tuple[datetime, datetime]]:
     """Whole UTC days from `since` up to `until`, the last cut at `until`."""
     out, start = [], since
@@ -5518,10 +5487,13 @@ class _PerRunBuild:
         tmp.write_text(json.dumps(self.state), encoding="utf-8")
         os.replace(tmp, self.checkpoint_path)
 
-    def _window(self, start: datetime, end: datetime) -> list[dict[str, Any]]:
-        """Every verifier run created in [start, end): each page holds the
-        same `total_count`, and the ids, each once, equal it."""
-        created = f"{_stamp(start)}..{_stamp(end - timedelta(seconds=1))}"
+    def _window(
+        self, start: datetime, end: datetime, *, last: bool = False
+    ) -> list[dict[str, Any]]:
+        """Every verifier run created in [start, end), or [start, end] for
+        the `last` window, so the cutover's own second is read: each page
+        holds the same `total_count`, and the ids, each once, equal it."""
+        created = f"{_stamp(start)}..{_stamp(end if last else end - timedelta(seconds=1))}"
         found: dict[int, dict[str, Any]] = {}
         totals: set[Any] = set()
         page = 1
@@ -5543,20 +5515,12 @@ class _PerRunBuild:
                 if end - start <= timedelta(minutes=1):
                     raise _Unreadable(f"{count} verifier runs created {created}")
                 middle = start + (end - start) / 2
-                return self._window(start, middle) + self._window(middle, end)
+                return self._window(start, middle) + self._window(middle, end, last=last)
             totals.add(count)
             for run in map(json_object, runs):
                 if not _is_id(run.get("id"), run.get("id")):
                     raise _Unreadable(f"a verifier run created {created} has no id")
-                found[run["id"]] = {
-                    **{k: run.get(k) for k in RUN_FIELDS_KEPT},
-                    "repository": {
-                        "full_name": json_object(run.get("repository")).get("full_name")
-                    },
-                    "head_repository": {
-                        "full_name": json_object(run.get("head_repository")).get("full_name")
-                    },
-                }
+                found[run["id"]] = _kept_run(run)
             if len(runs) < LISTING_PAGE_SIZE or page * LISTING_PAGE_SIZE >= count:
                 break
             page += 1
@@ -5566,10 +5530,11 @@ class _PerRunBuild:
             )
         return list(found.values())
 
-    def _run(self, record: dict[str, Any]) -> list[dict[str, Any]]:
+    def _run(self, record: dict[str, Any]) -> dict[str, Any]:
         """The FAILs of one completed verifier run, from its artifacts read in
-        one page that must hold its `total_count`: none for a run that
-        uploaded a FAIL index or is of another origin."""
+        one page that must hold its `total_count`, and why it holds none
+        (`why`: `none`, `indexed` for a run that uploaded a FAIL index,
+        `foreign` for one of another origin, else `kept`)."""
         run_id = record["id"]
         if record.get("status") != "completed":
             raise _Unreadable(f"verifier run {run_id} is {record.get('status')}")
@@ -5600,15 +5565,17 @@ class _PerRunBuild:
             for a, name in zip(items, names, strict=True)
             if FAIL_PREFIX_RE.match(name) and a["expired"] is False
         ]
-        if not fails or any(n.startswith(INDEX_PREFIX) for n in names):
-            return []
+        if not fails:
+            return {"why": "none", "entries": []}
+        if any(n.startswith(INDEX_PREFIX) for n in names):
+            return {"why": "indexed", "entries": []}
         try:
             origin = self.reader._origin(record, run_id, shared=False)
         except _Unreadable as exc:
             raise _Unreadable(f"the origin of run {run_id}: {exc}") from exc
         if not origin:
-            return []
-        return [
+            return {"why": "foreign", "entries": []}
+        return {"why": "kept", "entries": [
             {
                 "id": a["id"],
                 "name": a["name"],
@@ -5620,27 +5587,107 @@ class _PerRunBuild:
                 "head_ref": self.reader._head_ref(run_id, a["name"], a["id"], ""),
             }
             for a in fails
-        ]
+        ]}
+
+    def _listing_fails(self) -> list[dict[str, Any]]:
+        """Every unexpired FAIL-shaped artifact one whole listing shows, by
+        id, name and run, read page by page. No count is checked: the listing
+        only adds runs to read, so a page it skips hides nothing the windows
+        hold."""
+        found: dict[Any, dict[str, Any]] = {}
+        page = 1
+        while True:
+            body = json_object(
+                self.reader._actions(
+                    [
+                        "api",
+                        f"repos/{self.reader.repo}/actions/artifacts"
+                        f"?per_page={LISTING_PAGE_SIZE}&page={page}",
+                    ],
+                    f"artifact listing page {page}",
+                )
+            )
+            items, count = body.get("artifacts"), body.get("total_count")
+            if not is_json_array(items) or type(count) is not int:
+                raise _Unreadable(f"artifact listing page {page} is malformed")
+            for item in map(json_object, items):
+                name = str(item.get("name") or "")
+                if FAIL_PREFIX_RE.match(name) and item.get("expired") is False:
+                    found[item.get("id")] = {
+                        "id": item.get("id"),
+                        "name": name,
+                        "run": json_object(item.get("workflow_run")).get("id"),
+                    }
+            if len(items) < LISTING_PAGE_SIZE or page * LISTING_PAGE_SIZE >= count:
+                break
+            if page >= LISTING_FAILS_PAGES_CAP:
+                raise _Unreadable(f"the artifact listing runs past {page} pages")
+            page += 1
+        return list(found.values())
+
+    def _run_record(self, run_id: int) -> dict[str, Any]:
+        """A run the listing named outside every window, read by id."""
+        record = json_object(
+            self.reader._actions(
+                ["api", f"repos/{self.reader.repo}/actions/runs/{run_id}"],
+                f"run {run_id}",
+            )
+        )
+        if not _is_id(record.get("id"), run_id):
+            raise _Unreadable(f"run {run_id} could not be read")
+        return _kept_run(record)
 
     def build(self) -> dict[str, Any]:
         self.load()
         windows, runs = self.state["windows"], self.state["runs"]
-        for start, end in _windows(self.since, self.cutover):
+        spans = _windows(self.since, self.cutover)
+        for n, (start, end) in enumerate(spans):
             key = _stamp(start)
             if key not in windows:
-                windows[key] = self._window(start, end)
+                windows[key] = self._window(start, end, last=n == len(spans) - 1)
                 self.save()
             for record in windows[key]:
                 if str(record["id"]) not in runs:
                     runs[str(record["id"])] = self._run(record)
                     self.save()
-        entries = [e for listed in runs.values() for e in listed]
+        # The listing's FAILs: a run created before `since` (a re-run keeps
+        # its creation time, and a judgment can upload hours after it) is
+        # read here, so the file is the union of the windows and the listing.
+        if "listed" not in self.state:
+            self.state["listed"] = self._listing_fails()
+            self.save()
+        added = []
+        for item in self.state["listed"]:
+            run_id = item["run"]
+            if not _is_id(run_id, run_id):
+                continue  # No run to authenticate it: every judgment ignores it.
+            if str(run_id) not in runs:
+                runs[str(run_id)] = self._run(self._run_record(run_id))
+                added.append(run_id)
+                self.save()
+        entries = [e for held in runs.values() for e in held["entries"]]
+        kept = {e["id"] for e in entries}
+        missing = sorted(
+            {
+                item["run"]
+                for item in self.state["listed"]
+                if _is_id(item["run"], item["run"])
+                and item["id"] not in kept
+                and runs[str(item["run"])]["why"] not in ("indexed", "foreign")
+            }
+        )
+        if missing:
+            raise _Unreadable(
+                f"the listing holds FAILs no run read holds, in runs {missing}"
+            )
         return {
             "version": LEGACY_FAILS_VERSION,
             "repo": self.reader.repo,
             "cutover": self.cutover.isoformat(),
             "since": self.since.isoformat(),
             "runs": len(runs),
+            "listedFails": len(self.state["listed"]),
+            "addedFromListing": sorted(added),
             "artifacts": sorted(entries, key=lambda e: e["id"]),
         }
 
@@ -5652,18 +5699,21 @@ def build_legacy_fails(
     now: datetime,
     checkpoint: Path,
 ) -> dict[str, Any]:
-    """The legacy FAILs file (`Reader._legacy`), built from runs, never from
-    the artifact listing: every pr-verify.yml run created from `since` to the
-    cutover, listed in one-day `created` windows (split while a window's count
-    reaches GitHub's 1,000-result cap) whose listed ids must equal each
-    window's `total_count`, which holds for a past window since runs are not
-    deleted inside retention; then each run's artifacts, one page that must
-    hold its own `total_count`. It keeps every unexpired FAIL-shaped artifact
-    of a run of verifier origin that uploaded no FAIL index, with its
-    verdict's head branch. A run not completed, a read that fails or does
-    not hold its count, an origin or head branch that cannot be read raise
-    `_Unreadable`; every finished window and run is kept in `checkpoint`, so
-    a stopped build resumes where it stopped."""
+    """The legacy FAILs file (`Reader._legacy`), the union of two reads. The
+    runs: every pr-verify.yml run created from `since` to the cutover (the
+    cutover's own second included), listed in one-day `created` windows
+    (split while a window's count reaches GitHub's 1,000-result cap) whose
+    listed ids must equal each window's `total_count`, which holds for a past
+    window since runs are not deleted inside retention, then each run's
+    artifacts, one page that must hold its own `total_count`. The listing:
+    one whole artifact listing, whose FAILs' runs outside every window (a
+    re-run keeps its creation time, and a FAIL can upload hours after it)
+    are read the same way. It keeps every unexpired FAIL-shaped artifact of a
+    run of verifier origin that uploaded no FAIL index, with its verdict's
+    head branch. A run not completed, a read that fails or does not hold its
+    count, an origin or head branch that cannot be read, and a listed FAIL
+    no run read holds raise `_Unreadable`; every finished window and run is
+    kept in `checkpoint`, so a stopped build resumes where it stopped."""
     if not since < cutover <= now:
         raise _Unreadable("the range must run from --since to a cutover in the past")
     return _PerRunBuild(reader, since, cutover, checkpoint).build()
@@ -5674,8 +5724,9 @@ def _legacy_fails_main(args: argparse.Namespace, now: datetime | None) -> int:
     1 refused (nothing written), 2 usage, 3 stopped on a limit (resume from
     the checkpoint)."""
     reader = Reader(args.repo, args.branch, now=now, legacy_path=None)
-    since, cutover = _when(args.since), _when(args.cutover)
-    if since is None or cutover is None:
+    since = _when(args.since)
+    asked = _when(args.cutover) if args.cutover else None
+    if since is None or (args.cutover and asked is None):
         print("legacy-fails: --since and --cutover must be times with a zone", file=sys.stderr)
         return 2
     pacer = _Pacer(
@@ -5688,16 +5739,17 @@ def _legacy_fails_main(args: argparse.Namespace, now: datetime | None) -> int:
     try:
         with _paced_gh(pacer):
             pacer.open_window()
+            cutover = cutover_of(reader, args.merge_sha)
+            if asked is not None:
+                if asked < cutover:
+                    raise _Unreadable(
+                        f"--cutover {asked.isoformat()} is before {cutover.isoformat()}, "
+                        "when FAIL_INDEX reached main (with its margin)"
+                    )
+                cutover = asked
             built = build_legacy_fails(
                 reader, since, cutover, now or _wall_clock(), Path(args.checkpoint)
             )
-            if args.cross_check_listing:
-                listed = build_legacy_fails_from_listing(reader, cutover, now or _wall_clock())
-                missing = {a["id"] for a in listed["artifacts"]} - {
-                    a["id"] for a in built["artifacts"]
-                }
-                if missing:
-                    raise _Unreadable(f"the listing holds FAILs the runs lack: {sorted(missing)}")
     except _BuildStopped as exc:
         pacer.report()
         print(f"legacy-fails: stopped, resume from {args.checkpoint}: {exc}", file=sys.stderr)
@@ -5837,7 +5889,8 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     legacy.add_argument("--repo", required=True)
     legacy.add_argument("--branch", default="main")
     legacy.add_argument("--since", required=True)
-    legacy.add_argument("--cutover", required=True)
+    legacy.add_argument("--merge-sha", required=True)
+    legacy.add_argument("--cutover", default=None)
     legacy.add_argument("--out", required=True)
     legacy.add_argument("--checkpoint", required=True)
     # The owner token's 5,000 an hour is shared by every session: about one
@@ -5846,7 +5899,6 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     legacy.add_argument("--window-cap", type=int, default=1800)
     legacy.add_argument("--min-remaining", type=int, default=2000)
     legacy.add_argument("--breaker-file", default=None)
-    legacy.add_argument("--cross-check-listing", action="store_true")
     args = parser.parse_args(argv)
     if args.command == "legacy-fails":
         return _legacy_fails_main(args, now)

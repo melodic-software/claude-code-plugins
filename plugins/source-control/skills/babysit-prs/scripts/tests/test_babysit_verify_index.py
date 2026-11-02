@@ -12,6 +12,7 @@ and any read that fails or does not hold its count refuses.
 
 from __future__ import annotations
 
+import base64
 import contextlib
 import io
 import json
@@ -21,7 +22,6 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from datetime import UTC, datetime
 from typing import Any
 from unittest import mock
 
@@ -34,10 +34,12 @@ import test_babysit_verify_evidence as base
 from test_babysit_verify_evidence import (
     EARLIER,
     HEAD,
+    IN_PR,
     NOW,
     PR,
     REPO,
     UNRELATED,
+    WORKFLOW,
     artifact,
     named,
     pull,
@@ -252,6 +254,13 @@ class IndexMode(unittest.TestCase):
             [old | {"workflow_run": {"id": 5}, "origin": True, "head_ref": "feat/x"}]
         )
         self.assertIsNone(self.judge(self.passing()).refusal)
+        # Nor is it a finding of the pull request's own FAILs.
+        fake = self.passing()
+        with (
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+            mock.patch.object(ve.merge_policy, "gh_capture", side_effect=fake),
+        ):
+            self.assertEqual(self.reader().fail_findings(PR), [])
 
     def test_an_index_whose_run_still_uploads_refuses(self) -> None:
         fake = self.passing(index(f"pr-{PR}", 3, 1), runs={3: run(3)})
@@ -294,93 +303,15 @@ class IndexMode(unittest.TestCase):
         self.assertEqual(fake.whole(), 0)
 
 
-class LegacyFailsBuild(unittest.TestCase):
-    CUTOVER = datetime(2026, 10, 15, tzinfo=UTC)
-
-    def build(self, fake: IndexGitHub) -> dict[str, Any]:
-        with (
-            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
-            mock.patch.object(ve.merge_policy, "gh_capture", side_effect=fake),
-        ):
-            reader = ve.Reader(
-                REPO,
-                "main",
-                now=NOW,
-                legacy_path=None,
-                listing_path=None,
-                carry_path=None,
-            )
-            return ve.build_legacy_fails_from_listing(reader, self.CUTOVER, NOW)
-
-    def fake(self) -> IndexGitHub:
-        fake = IndexGitHub(
-            [
-                artifact(named(EARLIER, "fail"), 5),  # before the index
-                *fail(PR, UNRELATED, 3),  # indexed: found by its names
-                artifact(named(HEAD, "fail", 90), 6),  # another workflow's
-                artifact(named(HEAD, "pass"), 1),
-            ],
-            {
-                1: run(1),
-                3: run(3),
-                5: run(5),
-                6: run(6, path=".github/workflows/other.yml"),
-            },
-            {named(EARLIER, "fail"): record(sha=EARLIER, verdict="fail")},
-        )
-        return fake
-
-    def test_it_holds_each_unindexed_fail_of_verifier_origin_with_its_branch(
-        self,
-    ) -> None:
-        built = self.build(self.fake())
-        self.assertEqual(
-            [
-                (a["name"], a["workflow_run"], a["origin"], a["head_ref"])
-                for a in built["artifacts"]
-            ],
-            [(named(EARLIER, "fail"), {"id": 5}, True, "feat/x")],
-        )
-        self.assertEqual(built["repo"], REPO)
-        # What it writes, the reader takes.
-        with tempfile.TemporaryDirectory() as tmp:
-            path = pathlib.Path(tmp, "legacy.json")
-            path.write_text(json.dumps(built))
-            self.assertTrue(ve.Reader(REPO, "main", legacy_path=str(path)).index_mode())
-
-    def test_a_verifier_run_from_before_the_cutover_still_running_refuses(self) -> None:
-        fake = self.fake()
-        fake.running = [
-            run(
-                9,
-                status="in_progress",
-                conclusion=None,
-                created_at="2026-10-14T23:00:00Z",
-            )
-        ]
-        with self.assertRaisesRegex(ve._Unreadable, "before the cutover"):
-            self.build(fake)
-        fake.running = [
-            run(
-                9,
-                status="in_progress",
-                conclusion=None,
-                created_at="2026-10-15T01:00:00Z",
-            )
-        ]
-        self.build(fake)
-
-    def test_an_unreadable_branch_refuses(self) -> None:
-        fake = self.fake()
-        fake.records.clear()
-        with self.assertRaises(ve._Unreadable):
-            self.build(fake)
+MERGE_SHA = "9" * 40
+MERGED_AT = "2026-10-15T20:00:00Z"  # its cutover, with the margin: 21:00
 
 
 class RunsGitHub:
-    """GitHub as the per-run build reads it: the verifier's runs by
-    `created` window, each run's artifacts, the rate limit, a compare of a
-    run head against main, and a verdict archive by artifact id."""
+    """GitHub as the per-run build reads it: the merge commit and its
+    pr-verify.yml, the verifier's runs by `created` window and by id, each
+    run's artifacts, one whole artifact listing, the rate limit, a compare of
+    a commit against main, and a verdict archive by artifact id."""
 
     def __init__(self) -> None:
         self.runs = [
@@ -397,11 +328,17 @@ class RunsGitHub:
             1: [artifact(named(HEAD, "pass"), 1)],
             6: [artifact(named(HEAD, "fail", 90), 6)],
         }
+        # Runs outside every window, read only by id.
+        self.other_runs: dict[int, dict[str, Any]] = {}
+        # Listed artifacts no run's own read holds.
+        self.listed_only: list[dict[str, Any]] = []
         self.records = {named(EARLIER, "fail"): record(sha=EARLIER, verdict="fail")}
+        self.workflow = 'env:\n  FAIL_INDEX: "1"\n'
         self.window_total: int | None = None
         self.run_total: dict[int, int] = {}
         self.remaining = 4000
         self.limit_from: int | None = None  # the call that answers rate limited
+        self.limit_text = "gh: API rate limit exceeded (HTTP 403)"
         self.calls: list[str] = []
 
     def __call__(self, args: list[str], **kwargs: Any) -> subprocess.CompletedProcess:
@@ -412,14 +349,17 @@ class RunsGitHub:
             return subprocess.CompletedProcess(args, 0, json.dumps(payload), "")
 
         if self.limit_from is not None and len(self.calls) >= self.limit_from:
-            return subprocess.CompletedProcess(
-                args, 1, "", "gh: API rate limit exceeded (HTTP 403)"
-            )
+            return subprocess.CompletedProcess(args, 1, "", self.limit_text)
         if path == "rate_limit":
             reset = 4_000_000_000
             return ok(
                 {"resources": {"core": {"remaining": self.remaining, "reset": reset}}}
             )
+        if path == f"repos/{REPO}/commits/{MERGE_SHA}":
+            return ok({"sha": MERGE_SHA, "commit": {"committer": {"date": MERGED_AT}}})
+        if path == f"repos/{REPO}/contents/{WORKFLOW}?ref={MERGE_SHA}":
+            content = base64.b64encode(self.workflow.encode()).decode()
+            return ok({"content": content, "encoding": "base64"})
         window = re.fullmatch(
             rf"repos/{REPO}/actions/workflows/pr-verify\.yml/runs\?created=(\S+)\.\.(\S+)"
             r"&per_page=100&page=1",
@@ -436,6 +376,13 @@ class RunsGitHub:
             held = self.artifacts.get(int(of_run[1]), [])
             total = self.run_total.get(int(of_run[1]), len(held))
             return ok({"total_count": total, "artifacts": held})
+        by_id = re.fullmatch(rf"repos/{REPO}/actions/runs/([0-9]+)", path)
+        if by_id:
+            return ok(self.other_runs[int(by_id[1])])
+        if path == f"repos/{REPO}/actions/artifacts?per_page=100&page=1":
+            items = [a for held in self.artifacts.values() for a in held]
+            items += self.listed_only
+            return ok({"total_count": len(items), "artifacts": items})
         if path.startswith(f"repos/{REPO}/compare/"):
             return ok({"status": "ahead"})
         zips = re.fullmatch(rf"repos/{REPO}/actions/artifacts/([0-9]+)/zip", path)
@@ -452,6 +399,12 @@ class RunsGitHub:
         raise AssertionError(f"unexpected gh call: {args}")
 
 
+# Calls of a whole build: rate limit, merge commit, its compare, its
+# pr-verify.yml; window 1, run 5, its compare and download; window 2, runs 3,
+# 1 and 6; the listing page.
+BUILD_CALLS = 13
+
+
 class PerRunLegacyFails(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
@@ -459,7 +412,9 @@ class PerRunLegacyFails(unittest.TestCase):
         self.out = pathlib.Path(self.tmp.name, "legacy.json")
         self.checkpoint = pathlib.Path(self.tmp.name, "checkpoint.json")
 
-    def run_build(self, fake: RunsGitHub, *extra: str) -> tuple[int, str]:
+    def run_build(
+        self, fake: RunsGitHub, *extra: str, pace: bool = False
+    ) -> tuple[int, str]:
         stderr = io.StringIO()
         with (
             mock.patch.object(postmerge, "gh_capture", side_effect=fake),
@@ -472,14 +427,15 @@ class PerRunLegacyFails(unittest.TestCase):
                     REPO,
                     "--since",
                     "2026-10-14T00:00:00Z",
+                    "--merge-sha",
+                    MERGE_SHA,
                     "--cutover",
                     "2026-10-16T00:00:00Z",
                     "--out",
                     str(self.out),
                     "--checkpoint",
                     str(self.checkpoint),
-                    "--calls-per-second",
-                    "0",
+                    *([] if pace else ["--calls-per-second", "0"]),
                     *extra,
                 ],
                 now=NOW,
@@ -495,11 +451,59 @@ class PerRunLegacyFails(unittest.TestCase):
             [(a["name"], a["head_ref"], a["origin"]) for a in built["artifacts"]],
             [(named(EARLIER, "fail"), "feat/x", True)],
         )
-        self.assertEqual(built["runs"], 4)
-        # One rate-limit read, two day windows, four runs, one compare, one download.
-        self.assertEqual(len(fake.calls), 9)
-        self.assertIn("calls=9 total=9", err)
+        self.assertEqual((built["runs"], built["addedFromListing"]), (4, []))
+        self.assertEqual(len(fake.calls), BUILD_CALLS)
+        self.assertIn(f"calls={BUILD_CALLS} total={BUILD_CALLS}", err)
         self.assertTrue(ve.Reader(REPO, "main", legacy_path=str(self.out)).index_mode())
+
+    def test_the_last_window_reads_the_cutovers_own_second(self) -> None:
+        fake = RunsGitHub()
+        self.run_build(fake)
+        self.assertIn(
+            f"repos/{REPO}/actions/workflows/pr-verify.yml/runs"
+            "?created=2026-10-15T00:00:00Z..2026-10-16T00:00:00Z&per_page=100&page=1",
+            fake.calls,
+        )
+
+    def test_a_fail_of_a_run_from_before_since_is_added_through_the_listing(
+        self,
+    ) -> None:
+        # A re-run keeps its creation time, so no window holds run 8.
+        fake = RunsGitHub()
+        fake.other_runs[8] = run(8, created_at="2026-10-13T23:00:00Z")
+        fake.artifacts[8] = [artifact(named(IN_PR, "fail"), 8)]
+        fake.records[named(IN_PR, "fail")] = record(sha=IN_PR, verdict="fail")
+        code, err = self.run_build(fake)
+        self.assertEqual(code, 0, err)
+        built = json.loads(self.out.read_text())
+        self.assertEqual(built["addedFromListing"], [8])
+        self.assertEqual(
+            sorted(a["name"] for a in built["artifacts"]),
+            sorted([named(EARLIER, "fail"), named(IN_PR, "fail")]),
+        )
+
+    def test_a_listed_fail_no_run_read_holds_refuses(self) -> None:
+        fake = RunsGitHub()
+        ghost = artifact(named(IN_PR, "fail"), 5)
+        ghost["id"] = 51
+        fake.listed_only.append(ghost)
+        code, err = self.run_build(fake)
+        self.assertEqual(code, 1, err)
+        self.assertIn("the listing holds FAILs no run read holds, in runs [5]", err)
+        self.assertFalse(self.out.exists())
+
+    def test_a_cutover_before_the_merge_commit_refuses(self) -> None:
+        code, err = self.run_build(RunsGitHub(), "--cutover", "2026-10-15T20:30:00Z")
+        self.assertEqual(code, 1, err)
+        self.assertIn("when FAIL_INDEX reached main", err)
+        self.assertFalse(self.out.exists())
+
+    def test_a_merge_commit_without_fail_index_refuses(self) -> None:
+        fake = RunsGitHub()
+        fake.workflow = "env: {}\n"
+        code, err = self.run_build(fake)
+        self.assertEqual(code, 1, err)
+        self.assertIn("sets no FAIL_INDEX", err)
 
     def test_a_window_that_misses_its_count_refuses_and_writes_nothing(self) -> None:
         fake = RunsGitHub()
@@ -526,9 +530,7 @@ class PerRunLegacyFails(unittest.TestCase):
 
     def test_a_rate_limit_stops_and_the_checkpoint_resumes(self) -> None:
         fake = RunsGitHub()
-        # Calls: rate limit, window 1, run 5, its compare and download, then
-        # window 2, which answers rate limited.
-        fake.limit_from = 6
+        fake.limit_from = 9  # window 2
         code, err = self.run_build(fake)
         self.assertEqual(code, 3, err)
         self.assertIn("stopped, resume from", err)
@@ -548,36 +550,24 @@ class PerRunLegacyFails(unittest.TestCase):
     def test_a_rate_limit_inside_a_verdict_download_still_stops(self) -> None:
         # The download's reader wraps every error; the stop is kept anyway.
         fake = RunsGitHub()
-        fake.limit_from = 5
+        fake.limit_from = 8
         code, err = self.run_build(fake)
         self.assertEqual(code, 3, err)
         self.assertEqual(json.loads(self.checkpoint.read_text())["runs"], {})
 
+    def test_a_permission_403_refuses_and_does_not_wait(self) -> None:
+        fake = RunsGitHub()
+        fake.limit_from = 6  # run 5's artifacts
+        fake.limit_text = "gh: Resource not accessible by integration (HTTP 403)"
+        code, err = self.run_build(fake)
+        self.assertEqual(code, 1, err)
+        self.assertIn("refused, nothing written", err)
+
     def test_calls_are_paced(self) -> None:
         with mock.patch.object(ve, "_listing_sleep") as slept:
-            stderr = io.StringIO()
-            with (
-                mock.patch.object(postmerge, "gh_capture", side_effect=RunsGitHub()),
-                contextlib.redirect_stderr(stderr),
-            ):
-                ve.main(
-                    [
-                        "legacy-fails",
-                        "--repo",
-                        REPO,
-                        "--since",
-                        "2026-10-14T00:00:00Z",
-                        "--cutover",
-                        "2026-10-16T00:00:00Z",
-                        "--out",
-                        str(self.out),
-                        "--checkpoint",
-                        str(self.checkpoint),
-                    ],
-                    now=NOW,
-                )
+            self.run_build(RunsGitHub(), pace=True)
         # The default 0.5 calls a second: about 2 s before each call after the first.
-        self.assertEqual(slept.call_count, 8)
+        self.assertEqual(slept.call_count, BUILD_CALLS - 1)
         self.assertTrue(all(1.9 < c.args[0] <= 2.0 for c in slept.call_args_list))
 
     def test_the_window_cap_stops(self) -> None:
@@ -599,7 +589,7 @@ class PerRunLegacyFails(unittest.TestCase):
 
     def test_a_checkpoint_for_another_range_refuses(self) -> None:
         self.checkpoint.write_text(
-            json.dumps({"version": 1, "repo": REPO, "since": "x"})
+            json.dumps({"version": 2, "repo": REPO, "since": "x"})
         )
         code, err = self.run_build(RunsGitHub())
         self.assertEqual(code, 1, err)

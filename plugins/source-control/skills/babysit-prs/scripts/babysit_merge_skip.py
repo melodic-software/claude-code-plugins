@@ -22,7 +22,8 @@ refused, with its earlier verdict marked carried, and is never enqueued.
 - the ids of the unexpired `pr-verify-<pr>-<sha>-<verdict>` artifacts naming
   this pull request or its head, from the repository listing the verdict
   reader saves for the gate's first candidate (`Reader.listing`), so the read
-  is not added;
+  is not added, or, in the reader's index mode, from that candidate's exact
+  name reads (`Reader.own_verdicts`);
 - the default branch's blob or tree ids of the gate's config, trusted list,
   tracker config, the pr-merge workflow, the config resolver that picks the
   gate's script and flags, and the gate's scripts, read from the `.base`
