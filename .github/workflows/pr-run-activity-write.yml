@@ -755,6 +755,9 @@ jobs:
       - name: Check the trigger
         id: gate
         if: steps.kill.outputs.proceed == 'true'
+        env:
+          API_BUDGET_TOKEN: github-token
+          API_BUDGET_SCRIPT: check-trigger
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
@@ -800,6 +803,9 @@ jobs:
       - name: Resolve the config
         id: config
         if: steps.trusted-base.outcome == 'success'
+        env:
+          API_BUDGET_TOKEN: github-token
+          API_BUDGET_SCRIPT: resolve-config
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           lane: ${{ inputs.lane }}
