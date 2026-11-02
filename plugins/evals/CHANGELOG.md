@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.14.4] - 2026-11-02
+
+### Fixed
+
+- **plugin-eval:** the validity gate's new `plugins loaded` check marks a run INVALID when a with-arm trace reports a `plugin_errors` entry for a `suite.plugins` plugin, or does not list that plugin as loaded. Such a run ran without the plugin under test and had passed as VALID. The verdict names the plugin and the error, such as `dependency-unsatisfied`. A with-arm trace with no init `plugins` list is a warning.
+
 ## [0.14.3] - 2026-11-02
 
 ### Fixed
