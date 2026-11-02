@@ -1367,11 +1367,16 @@ assert_contains "heredoc row: the root-delete guard refused it" "$ERR" "filesyst
 hd_row "a <<-EOF body's \$(rm -rf /) is refused" 2 "cat <<-EOF${NL}${TAB}\$(rm -rf /)${NL}${TAB}EOF"
 hd_row "a \$[...] that runs a root delete in an unquoted body is refused" 2 "cat <<EOF${NL}\$[\$(rm -rf /)]${NL}EOF"
 assert_contains "heredoc row: the root-delete guard refused the \$[...] one" "$ERR" "filesystem root"
+hd_row "a \${...} that runs a root delete in an unquoted body is refused" 2 "cat <<EOF${NL}\${x:-\$(rm -rf /)}${NL}EOF"
+assert_contains "heredoc row: the root-delete guard refused the \${...} one" "$ERR" "filesystem root"
 hd_row "a body holding \$(date) is allowed" 0 "cat <<EOF${NL}today: \$(date)${NL}EOF"
 hd_row "a body holding \$HOME is allowed" 0 "cat <<EOF${NL}home: \$HOME${NL}EOF"
 hd_row "a quoted body holding \$(rm -rf /) is allowed" 0 "cat <<'EOF'${NL}\$(rm -rf /)${NL}EOF"
+# No guard reads `${x@P}` or `$[1 + 2]`, so those rows hold whether or not the
+# body is scanned; the two rows whose top-level verdict is a refusal are the
+# ones that can fail.
 # shellcheck disable=SC2016  # literal shell text under test
-for hd_expr in '${x@P}' '$[1 + 2]' '$[$(rm -rf /)]'; do
+for hd_expr in '${x@P}' '$[1 + 2]' '$[$(rm -rf /)]' '${x:-$(rm -rf /)}'; do
   cap_run "$(tool_payload Bash "$hd_expr")" "${BASH_ROW_ARGS[@]}"
   hd_top=$RC
   cap_run "$(tool_payload Bash "cat <<EOF${NL}$hd_expr${NL}EOF")" "${BASH_ROW_ARGS[@]}"
