@@ -463,7 +463,7 @@ else
   fail "no default-branch checkout named 'Check out main's Node pin and verdict reader' without kept credentials"
 fi
 sparse="$(awk '/sparse-checkout: \|/ { on = 1; next } on && /^            \// { print substr($0, 13); next } on { exit }' <<<"$base_step")"
-want_sparse=(/.node-version '/plugins/source-control/skills/babysit-prs/scripts/*.py' /plugins/source-control/lib/parse-concern-value.sh /plugins/source-control/lib/yaml-subset.awk)
+want_sparse=(/.node-version '/plugins/source-control/skills/babysit-prs/scripts/*.py' /plugins/source-control/skills/babysit-prs/scripts/verify-legacy-fails.json /plugins/source-control/lib/parse-concern-value.sh /plugins/source-control/lib/yaml-subset.awk)
 # Every module head-ref-map.mjs, carry-run-cache.mjs and listing-carry.mjs
 # import, transitively.
 queue=(.github/scripts/pr-merge/head-ref-map.mjs .github/scripts/pr-merge/carry-run-cache.mjs .github/scripts/pr-merge/listing-carry.mjs)

@@ -1866,6 +1866,8 @@ jobs:
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
+          # This job uploads a FAIL's index (write-verdict.mjs FAIL_INDEX).
+          FAIL_INDEX: "1"
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
 
       # A FAIL uploads its index first (write-verdict.mjs failIndexNames), and
@@ -3685,6 +3687,8 @@ jobs:
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
+          # This job uploads a FAIL's index (write-verdict.mjs FAIL_INDEX).
+          FAIL_INDEX: "1"
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
 
       # A FAIL uploads its index first (write-verdict.mjs failIndexNames), and
@@ -5238,6 +5242,8 @@ jobs:
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
+          # This job uploads a FAIL's index (write-verdict.mjs FAIL_INDEX).
+          FAIL_INDEX: "1"
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
 
       # A FAIL uploads its index first (write-verdict.mjs failIndexNames), and

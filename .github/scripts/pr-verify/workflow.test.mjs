@@ -153,6 +153,8 @@ test("the upload is each job's only artifact step and follows the written verdic
     assert.equal(input(uploads[0].block, "retention-days"), "${{ steps.verdict.outputs.retention-days }}", job);
     // A pass's retention follows this job's resolver (resolve-pr.mjs relinkedSince).
     assert.match(step("Write the verdict", job), /^ {10}RELINK_SINCE_HEAD: \$\{\{ steps\.pr\.outputs\.relink-since-head \}\}$/m, job);
+    // Only a job with the index step may write a FAIL (write-verdict.mjs FAIL_INDEX).
+    assert.match(step("Write the verdict", job), /^ {10}FAIL_INDEX: "1"$/m, job);
     // A verdict needs a judge step that succeeded, which run-claude-cli never
     // reports with a lane-class, so a credit stop writes none.
     assert.match(step("Write the verdict", job), /^ {8}if: \$\{\{ !cancelled\(\) && \(/m, job);

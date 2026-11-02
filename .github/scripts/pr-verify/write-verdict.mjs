@@ -508,17 +508,13 @@ export function artifactName(verdict) {
 // The exact names under which a FAIL's index artifacts upload, one per tie the
 // merge gate's reader looks up (babysit_verify_evidence.INDEX_PREFIX and
 // `Reader._targeted`): the pull request, the head, the head branch's digest,
-// then each issue the FAIL records. The API's name filter matches whole names
-// across runs, so each lookup returns every FAIL so tied without the whole
-// listing. None starts like a verdict name, which the reader would hold.
+// then each issue the FAIL's name carries (`artifactName`), as the reader ties
+// a FAIL only to those. The API's name filter matches whole names across runs,
+// so each lookup returns every FAIL so tied without the whole listing. None
+// starts like a verdict name, which the reader would hold.
 export const INDEX_PREFIX = "pr-verify-index-";
 export function failIndexNames(verdict) {
-  const issues = [...new Set((verdict.linked_issues ?? []).map((issue) => issue.number))]
-    .filter((n) => Number.isSafeInteger(n) && n > 0)
-    .sort((a, b) => a - b);
-  if (issues.length > NAMED_ISSUES_MAX) {
-    throw new Error(`the FAIL records ${issues.length} issues, more than its index carries`);
-  }
+  const issues = NAME.exec(artifactName(verdict))?.[4]?.split(".") ?? [];
   return [
     `${INDEX_PREFIX}pr-${verdict.pr}`,
     `${INDEX_PREFIX}sha-${verdict.head_sha}`,
@@ -824,7 +820,12 @@ export function main(env = process.env) {
   mkdirSync(env.VERDICT_DIR, { recursive: true });
   writeFileSync(path.join(env.VERDICT_DIR, "verdict.json"), `${JSON.stringify(verdict, null, 2)}\n`);
   const name = artifactName(verdict);
-  // A FAIL's index (failIndexNames): each artifact holds the FAIL's name.
+  // A FAIL's index (failIndexNames): each artifact holds the FAIL's name. A
+  // job without FAIL_INDEX (a re-run of a pr-verify.yml from before the
+  // index, on this script from main) has no index step, so it writes no FAIL.
+  if (verdict.verdict === "fail" && env.FAIL_INDEX !== "1") {
+    throw new Error("a FAIL needs its index step (FAIL_INDEX), which this job lacks");
+  }
   const index = verdict.verdict === "fail" ? failIndexNames(verdict) : [];
   if (index.length > 0) {
     writeFileSync(path.join(env.VERDICT_DIR, "fail-index.txt"), `${name}\n`);

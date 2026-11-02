@@ -4943,6 +4943,7 @@ jobs:
             /.node-version
             /.github/actions/setup-pinned-node/
             /plugins/source-control/skills/babysit-prs/scripts/*.py
+            /plugins/source-control/skills/babysit-prs/scripts/verify-legacy-fails.json
             /plugins/source-control/lib/parse-concern-value.sh
             /plugins/source-control/lib/yaml-subset.awk
             /.github/scripts/pr-merge/head-ref-map.mjs

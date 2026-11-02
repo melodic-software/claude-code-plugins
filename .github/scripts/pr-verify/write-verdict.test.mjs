@@ -73,8 +73,9 @@ test("a FAIL's index names each tie the merge gate looks up, none like a verdict
     // babysit_verify_evidence.FAIL_PREFIX_RE holds anything that starts like a FAIL.
     assert.doesNotMatch(name, /^pr-verify-[0-9]+-[0-9a-f]{40}-fail/);
   }
+  // Issues no name can carry: the plain name, whose index ties none of them.
   const eleven = Array.from({ length: 11 }, (_, i) => ({ ...ISSUE, number: i + 1 }));
-  assert.throws(() => failIndexNames({ pr: 41, head_sha: HEAD, head_ref: "feat/x", linked_issues: eleven }), /more than its index carries/);
+  assert.deepEqual(failIndexNames(fail(eleven)), failIndexNames(fail([])));
 });
 
 test("each verdict names its artifact with the PR, the head and the verdict", () => {
@@ -509,6 +510,7 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
     HEAD_REF: "feat/x",
     SPEC_FILE: spec,
     GITHUB_RUN_ID: "9001",
+    FAIL_INDEX: "1",
     VERDICT_DIR: path.join(dir, "verdict"),
     GITHUB_OUTPUT: path.join(dir, "out"),
   };
@@ -525,6 +527,10 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
   );
   // Each index artifact holds the FAIL's name.
   assert.equal(readFileSync(path.join(env.VERDICT_DIR, "fail-index.txt"), "utf8"), `pr-verify-41-${HEAD}-fail-i7\n`);
+  // A job with no index step (a re-run of a pr-verify.yml from before it) writes no FAIL.
+  const unindexed = { ...env, FAIL_INDEX: undefined, VERDICT_DIR: path.join(dir, "unindexed"), GITHUB_OUTPUT: path.join(dir, "out-unindexed") };
+  assert.throws(() => main({ ...unindexed, EXECUTION_FILES: execution("fail-unindexed", { verdict: "fail", summary: "wrong", notes: [] }) }), /needs its index step/);
+  assert.equal(existsSync(unindexed.GITHUB_OUTPUT), false);
 
   // The capture summary and the trusted PR text: a missing summary file is
   // no-app, an unparsable one blocked, and neither fails the verdict.
@@ -679,6 +685,7 @@ test("main writes one verdict from every chunk, and none when a chunk leaves non
     HEAD_REF: "feat/x",
     SPEC_FILE: spec,
     GITHUB_RUN_ID: "9001",
+    FAIL_INDEX: "1",
     CHUNKS: "2",
     DIFF_DIR: diff,
   };
@@ -932,6 +939,7 @@ test("a head of twelve chunks gets a verdict from every chunk, and none when one
     HEAD_REF: "feat/x",
     SPEC_FILE: spec,
     GITHUB_RUN_ID: "9001",
+    FAIL_INDEX: "1",
     CHUNKS: String(COUNT),
     DIFF_DIR: diff,
     VERDICT_DIR: path.join(dir, `verdict-${label}`),

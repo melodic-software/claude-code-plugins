@@ -143,7 +143,9 @@ outcome.
 Index mode. Before a FAIL uploads, its run uploads one index artifact per
 tie, `INDEX_PREFIX` then `pr-<n>`, `sha-<head>`, `ref-<head-ref digest>` and
 `issue-<i>` for each issue the FAIL records (write-verdict.mjs
-`failIndexNames`), and the FAIL uploads only if every index did. When the
+`failIndexNames`), and the FAIL uploads only if every index did; a job with
+no index step (`FAIL_INDEX` unset: a re-run of an older pr-verify.yml) writes
+no FAIL at all. When the
 legacy FAILs file (`LEGACY_FAILS_FILE`, every FAIL uploaded before the index,
 built by `legacy-fails` from a listing that holds the live count) loads, a
 judgment reads no listing (`Reader._targeted`): the name filter returns every

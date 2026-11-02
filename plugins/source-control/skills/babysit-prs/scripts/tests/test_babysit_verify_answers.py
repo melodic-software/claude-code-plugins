@@ -259,6 +259,29 @@ def key(world: World, **overrides: Any) -> str:
 class KeyTest(unittest.TestCase):
     """Each input the read takes moves the key; the lane's own writes do not."""
 
+    def test_in_index_mode_the_key_reads_the_targeted_artifacts_not_the_listing(
+        self,
+    ) -> None:
+        def indexed(world: World) -> tuple[str, mock.MagicMock]:
+            with (
+                mock.patch.object(ve.Reader, "index_mode", return_value=True),
+                mock.patch.object(
+                    ve.Reader, "targeted", return_value=world.listing
+                ) as targeted,
+                mock.patch.object(
+                    ve.Reader, "listing", side_effect=AssertionError("listed")
+                ),
+            ):
+                return key(world), targeted
+
+        world = World()
+        found, targeted = indexed(world)
+        targeted.assert_called_once_with(PR, HEAD)
+        # The same artifacts give the key the listing gives.
+        self.assertEqual(found, key(World()))
+        world.listing.append(artifact(f"pr-verify-9-{HEAD}-fail", 5))
+        self.assertNotEqual(indexed(world)[0], found)
+
     def moved(self, change: Callable[[World], None], **overrides: Any) -> bool:
         before = World()
         after = World()
