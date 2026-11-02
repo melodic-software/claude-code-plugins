@@ -83,72 +83,16 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" ]]; then
   # false to stand in for.
   expect "hooks.json: the end-of-turn option is a boolean with no default" "boolean false" \
     "$(jq -r '.userConfig.markdown_format_end_of_turn | "\(.type) \(has("default"))"' "$PLUGIN_ROOT/.claude-plugin/plugin.json")"
-  expect "hooks.json: SessionStart holds only the two prerequisite probes" "2" \
-    "$(jq '[.hooks.SessionStart[].hooks[]] | length' "$HOOKS_JSON")"
+  expect "hooks.json: no SessionStart row; harness-ops runs the probe" "false" "$(jq '.hooks | has("SessionStart")' "$HOOKS_JSON")"
 else
   fail "hooks.json assertions need jq and $HOOKS_JSON"
 fi
 
-# --- SessionStart probe honors markdown_format_enabled -------------------------
-# Runs the hooks.json SessionStart row as the harness spawns it: `node` with the
-# row's args, ${CLAUDE_PLUGIN_ROOT} expanded, from an empty cwd, on a PATH that
-# holds the system tools and no markdownlint-cli2. The gate is
-# `--run-if-unset-or-true` in exec-bash.mjs, so a row without it prints the
-# notice for a disabled plugin. A missing node fails the suite instead of
-# skipping the cases: every hook row launches through it.
-NODE_BIN="$(command -v node 2>/dev/null)"
-if [[ -z "$NODE_BIN" ]]; then
-  fail "probe-gate: node is not on PATH, and every hook row launches through node hooks/exec-bash.mjs"
-else
-  PG_WORK="$(mktemp -d)"
-  mkdir -p "$PG_WORK/sysbin" "$PG_WORK/cwd"
-  for dir in /usr/local/bin /usr/bin /bin; do
-    for exe in "$dir"/*; do
-      base="${exe##*/}"
-      [[ -x "$exe" && "$base" != markdownlint-cli2 && ! -e "$PG_WORK/sysbin/$base" ]] || continue
-      MSYS=winsymlinks:nativestrict ln -s "$exe" "$PG_WORK/sysbin/$base"
-    done
-  done
-  PG_ARGS=()
-  # jq on Windows ends each line with CRLF; the CR is not part of the value.
-  while IFS= read -r pg_arg; do
-    pg_arg="${pg_arg%$'\r'}"
-    # shellcheck disable=SC2016  # the placeholder is matched literally, as Claude Code substitutes it
-    PG_ARGS+=("${pg_arg//\$\{CLAUDE_PLUGIN_ROOT\}/$PLUGIN_ROOT}")
-  done < <(jq -r '.hooks.SessionStart[0].hooks[0].args[]' "$HOOKS_JSON")
-  IFS=$'\t' read -r PG_NAME PG_CHECK PG_INSTALL < <(jq -r '.requires[0] | [.id, .check, (.install | to_entries[0].value)] | @tsv' "$PLUGIN_ROOT/prerequisites.json")
-  PG_INSTALL="${PG_INSTALL%$'\r'}"
-
-  # run_probe <value|__unset__> -> run the row with markdown_format_enabled set to <value> (or unset).
-  run_probe() {
-    local v="$1"
-    local -a opt=(env -u CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED)
-    [[ "$v" == "__unset__" ]] || opt=(env "CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=$v")
-    (cd "$PG_WORK/cwd" && printf '{"session_id":"s1"}' |
-      "${opt[@]}" PATH="$PG_WORK/sysbin" CLAUDE_PLUGIN_DATA="$(mktemp -d "$PG_WORK/data.XXXXXX")" \
-        "$NODE_BIN" "${PG_ARGS[@]}" 2>&1)
-  }
-
-  OUT_PG=$(run_probe false)
-  RC_PG=$?
-  if [[ $RC_PG -eq 0 && -z "$OUT_PG" ]]; then
-    ok "probe-gate: markdown_format_enabled=false -> exit 0 and no notice"
-  else
-    fail "probe-gate: markdown_format_enabled=false should print nothing and exit 0 (rc=$RC_PG out=$OUT_PG)"
-  fi
-  for v in __unset__ true; do
-    label="markdown_format_enabled=$v"
-    [[ "$v" == "__unset__" ]] && label="markdown_format_enabled unset"
-    OUT_PG=$(run_probe "$v")
-    RC_PG=$?
-    if [[ $RC_PG -eq 0 && "$OUT_PG" == *"$PG_NAME"* && "$OUT_PG" == *"$PG_CHECK"* && "$OUT_PG" == *"$PG_INSTALL"* ]]; then
-      ok "probe-gate: $label -> notice names $PG_NAME, $PG_CHECK and the install line"
-    else
-      fail "probe-gate: $label should print the missing-markdownlint-cli2 notice (rc=$RC_PG out=$OUT_PG)"
-    fi
-  done
-  rm -rf "${PG_WORK:?}"
-fi
+# --- SessionStart probe: run by harness-ops behind markdown_format_enabled -----
+# harness-ops' prerequisites-fleet.mjs runs this plugin's probe and skips it when the
+# option is set to anything but true; that runner's own test covers the gate.
+expect "prerequisites.json: session_probe is gated on markdown_format_enabled" "MARKDOWN_FORMAT_ENABLED" \
+  "$(jq -r '.session_probe.run_if_unset_or_true' "$PLUGIN_ROOT/prerequisites.json" | tr -d '\r')"
 
 # Resolve a real markdownlint-cli2. Skip the rest of the suite when none is available.
 REAL_MD="$(command -v markdownlint-cli2 || true)"
