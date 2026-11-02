@@ -2326,9 +2326,11 @@ pass (`verify:spec-changed`) when the issue is now linked the other way. The mod
 on ci-workflows' `run-claude-cli` as the `pr-verify` role ([Funding](#funding)), with the Read
 tool alone, allowed only on the data files in the working directory's `pr-verify-data`. One of
 them, `upstream-jobs.json` (`upstream-jobs.mjs`), lists the jobs of the pr-require-checks run the
-judgment was started by, each with its name and conclusion, read with the job's own token: the
-verifier judges from it whether the suites that cover the changed files ran, and runs no test or
-eval itself. Its `wrapped_node_suites` lists each Node suite in the judged head's tree that has a
+judgment was started by, each with its name, conclusion and job page URL, read with the job's own
+token: the verifier judges from it whether the suites that cover the changed files ran, and runs no
+test or eval itself. A suite's job that concluded `success` on the judged head settles a done-when
+"X exits 0" item and any "not run" or "likely fails" doubt about it; the diff is still judged for
+a test that cannot fail or was weakened. Its `wrapped_node_suites` lists each Node suite in the judged head's tree that has a
 sibling `.test.sh`, which CI runs only through that wrapper in `test-bash`
 (`scripts/plan-test-lanes.sh`), so a skipped `test-node` does not read as that suite unrun. A
 label or body-edit re-run skips `select-tests` and every suite, so its list is no
