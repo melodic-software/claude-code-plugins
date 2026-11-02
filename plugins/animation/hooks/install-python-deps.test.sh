@@ -292,6 +292,61 @@ else
   fail "Windows-form stamp: starts under $starts_under"
 fi
 
+# Git Bash on Windows can report OSTYPE=cygwin while it mounts drives at /c/, not /cygdrive/c/. Inside a user and
+# mount namespace whose root holds a /c directory (this suite's WORK bound there), a stamp in Windows drive-letter
+# form holds under OSTYPE=cygwin and under OSTYPE=msys, and starts no Python. Skipped where unprivileged user
+# namespaces are not allowed.
+drive_case() {
+  local nr="$WORK/newroot" d
+  mkdir -p "$nr"
+  mount -t tmpfs drives "$nr" || return 1
+  for d in /*; do
+    [[ "$d" == /proc || "$d" == /sys || "$d" == /dev ]] && continue
+    if [[ -L "$d" ]]; then
+      cp -P "$d" "$nr$d"
+    elif [[ -d "$d" ]]; then
+      mkdir "$nr$d" && mount --rbind "$d" "$nr$d"
+    fi
+  done
+  mkdir "$nr/proc" "$nr/dev" "$nr/c"
+  mount --rbind /dev "$nr/dev"
+  mount --rbind "$WORK/drive" "$nr/c"
+  chroot "$nr" /bin/bash -c "$1"
+}
+mkdir -p "$WORK/drive/plugin" "$WORK/drive/data/python/0123456789ab-cpython-399" "$WORK/drive/bin"
+cp -R "$root/hooks" "$root/scripts" "$root/requirements.txt" "$WORK/drive/plugin/"
+for name in python3.13 python3.12 python3 python; do
+  printf '#!/bin/sh\necho "%s $*" >>/c/starts.log\nexec "%s" "$@"\n' "$name" "$real_py" >"$WORK/drive/bin/$name"
+done
+chmod +x "$WORK/drive/bin/"*
+{
+  printf 'pydeps-hook-ready 1\nC:\\PLUGIN\nC:\\data\\python\\0123456789ab-cpython-399\n'
+  for name in python3.13 python3.12 python3 python; do
+    printf '%s=C:\\BIN\\%s.EXE\n' "$name" "${name^^}"
+  done
+  printf 'py=\n'
+} >"$WORK/drive/data/python/.hook-ready"
+touch -t 202001010000 "$WORK/drive/plugin/requirements.txt" "$WORK/drive/plugin/scripts/"* "$WORK/drive/bin/"*
+drive_starts=""
+for ostype in cygwin msys; do
+  rm -f "$WORK/drive/starts.log"
+  # shellcheck disable=SC2016  # expands inside the namespace
+  if ! unshare -rm bash -c "$(declare -f drive_case); WORK='$WORK'; drive_case 'OSTYPE=$ostype CLAUDE_PLUGIN_DATA=/c/data PATH=/c/bin:/usr/bin:/bin bash /c/plugin/hooks/install-python-deps.sh </dev/null >/dev/null 2>&1'" 2>/dev/null; then
+    drive_starts="unavailable"
+    break
+  fi
+  n=0
+  [[ -f "$WORK/drive/starts.log" ]] && n="$(wc -l <"$WORK/drive/starts.log" | tr -d '[:space:]')"
+  drive_starts+="$ostype=$n "
+done
+if [[ "$drive_starts" == unavailable ]]; then
+  echo "SKIP: no unprivileged user and mount namespace here -- the /c/ drive-mount case is skipped"
+elif [[ "$drive_starts" == "cygwin=0 msys=0 " ]]; then
+  ok "a drive-letter stamp holds where drives mount at /c/, whether the shell reports cygwin or msys"
+else
+  fail "drive-letter stamp under a /c/ mount: starts $drive_starts"
+fi
+
 echo "---"
 echo "passed: $PASS, failed: $FAIL"
 [[ "$FAIL" -eq 0 ]]

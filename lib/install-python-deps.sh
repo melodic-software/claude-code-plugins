@@ -55,15 +55,23 @@ case "${OSTYPE:-}" in
 esac
 
 # as_posix <path> -> REPLY: a drive-letter path (C:\x or C:/x) in this shell's POSIX form under Git Bash or Cygwin,
-# by string operations alone: cygpath would cost a process start. Any other path is returned as is.
+# by builtins alone: cygpath would cost a process start. The drive mounts at /c/ or /cygdrive/c/, whichever exists:
+# OSTYPE does not tell them apart, since Git Bash can report cygwin. Fails when neither exists. Any other path is
+# returned as is.
 as_posix() {
   REPLY="$1"
   case "${OSTYPE:-}" in
     msys* | cygwin*)
       REPLY="${REPLY//\\//}"
       if [[ "$REPLY" =~ ^([A-Za-z]):(/.*)?$ ]]; then
-        REPLY="/${BASH_REMATCH[1],,}${BASH_REMATCH[2]}"
-        [[ "$OSTYPE" == cygwin* ]] && REPLY="/cygdrive$REPLY"
+        local drive="${BASH_REMATCH[1],,}" rest="${BASH_REMATCH[2]}"
+        if [[ -d "/$drive" ]]; then
+          REPLY="/$drive$rest"
+        elif [[ -d "/cygdrive/$drive" ]]; then
+          REPLY="/cygdrive/$drive$rest"
+        else
+          return 1
+        fi
       fi
       ;;
     *) ;;
@@ -71,9 +79,9 @@ as_posix() {
 }
 
 # path_key <path> -> REPLY: the path as compared. Under Git Bash or Cygwin, paths are case-insensitive and a
-# command -v result may drop the .exe that Python's shutil.which keeps.
+# command -v result may drop the .exe that Python's shutil.which keeps. Fails as as_posix does.
 path_key() {
-  as_posix "$1"
+  as_posix "$1" || return 1
   case "${OSTYPE:-}" in
     msys* | cygwin*)
       REPLY="${REPLY,,}"
@@ -91,25 +99,25 @@ path_key() {
 stamp_holds() {
   ((BASH_VERSINFO[0] >= 4)) || return 1
   local stamp lines name got want i=3 f
-  as_posix "$data"
+  as_posix "$data" || return 1
   stamp="$REPLY/python/.hook-ready"
   [[ -f "$stamp" ]] || return 1
   mapfile -t lines <"$stamp" || return 1
   lines=("${lines[@]%$'\r'}")
   ((${#lines[@]} == 3 + ${#candidates[@]})) && [[ "${lines[0]}" == 'pydeps-hook-ready 1' ]] || return 1
-  path_key "${lines[1]}"
+  path_key "${lines[1]}" || return 1
   want="$REPLY"
-  path_key "$ROOT"
+  path_key "$ROOT" || return 1
   [[ "$want" == "$REPLY" ]] || return 1
-  as_posix "${lines[2]}"
+  as_posix "${lines[2]}" || return 1
   [[ -d "$REPLY" ]] || return 1
   for name in "${candidates[@]}"; do
     [[ "${lines[i]%%=*}" == "$name" ]] || return 1
-    path_key "${lines[i]#*=}"
+    path_key "${lines[i]#*=}" || return 1
     want="$REPLY"
     got=""
     hash -- "$name" 2>/dev/null && got="${BASH_CMDS[$name]-}"
-    path_key "$got"
+    path_key "$got" || return 1
     [[ "$want" == "$REPLY" ]] || return 1
     [[ -n "$got" && "$got" -nt "$stamp" ]] && return 1
     i=$((i + 1))
