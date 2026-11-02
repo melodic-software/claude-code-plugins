@@ -10,6 +10,7 @@
 // (plugins/autonomy/reference/guardrails/work-classes.md, "Demotion evidence set").
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { copyFileSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { after, describe, test } from "node:test";
@@ -77,6 +78,19 @@ function writeJson(value, name = `file-${++written}.json`, dir = ops) {
 }
 const events = (...list) => writeJson(list);
 const EMPTY = join(FIXTURES, "evidence-empty.json");
+
+// An events file (empty by default) with the publisher's sidecar beside it, generated `ageHours`
+// ago: the resolver reads the sidecar under --window-start, where every promoted cell is a re-earn.
+const BOUND = { promotion_evidence_max_age_hours: "24" };
+function published(ageHours = 0, list = []) {
+  const dir = join(ops, `published-${++written}`);
+  mkdirSync(dir);
+  const text = JSON.stringify(list);
+  const generatedAt = new Date(Date.now() - ageHours * 3_600_000).toISOString();
+  const sha256 = createHash("sha256").update(text).digest("hex");
+  writeJson({ generated_at: generatedAt, through: generatedAt, sha256, prev_sha256: null }, "evidence.meta.json", dir);
+  return { path: writeJson(text, "evidence.json", dir), generatedAt };
+}
 
 function operatorOptions(overrides = {}) {
   const options = {
@@ -183,28 +197,52 @@ describe("demoted", () => {
   });
 
   test("--window-start after ratification restarts the window and demotes every cell", cli, () => {
-    const result = resolveWith({}, { args: ["--window-start", "2026-10-11T07:00:00Z"] });
+    const result = resolveWith({ ...BOUND, promotion_evidence_source: published().path }, { args: ["--window-start", "2026-10-11T07:00:00Z"] });
     assert.equal(result.failClosedReason, null);
     assert.deepEqual(effective(result), ALL("unpromoted"));
   });
 
-  test("--window-start before every ratification leaves the cells promoted", cli, () => {
-    const result = resolveWith({}, { args: ["--window-start", "2026-06-01T00:00:00Z"] });
+  // Every cell ratified after the restart has re-earned its promotion.
+  test("--window-start before every ratification leaves the cells re-earned from fresh evidence promoted", cli, () => {
+    const result = resolveWith({ ...BOUND, promotion_evidence_source: published().path }, { args: ["--window-start", "2026-06-01T00:00:00Z"] });
     assert.equal(result.failClosedReason, null);
     assert.deepEqual(effective(result), ALL("promoted"));
   });
 
+  const escapeRe = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const staleReason = ({ path, generatedAt }) =>
+    new RegExp(`^promotion_evidence_source ${escapeRe(path)} is stale: generated_at ${escapeRe(generatedAt)} is older than promotion_evidence_max_age_hours 24$`);
+
+  test("a re-earn read from evidence older than the bound keeps every cell demoted", cli, () => {
+    const { path, generatedAt } = published(25);
+    const result = resolveWith({ ...BOUND, promotion_evidence_source: path }, { args: ["--window-start", "2026-06-01T00:00:00Z"] });
+    assertFailClosed(result, staleReason({ path, generatedAt }));
+  });
+
   // A re-earn counted from the demotion record's creation lifts the resolver's restart failure at
   // that same instant; one counted from before it does not.
-  const reearned = (since) => events(...CELLS.map((cell) => ({ cell, event: "re-earned", at: "2026-10-20T00:00:00Z", since })));
+  const reearnEvents = (since) => CELLS.map((cell) => ({ cell, event: "re-earned", at: "2026-10-20T00:00:00Z", since }));
+  const reearned = (since) => published(0, reearnEvents(since)).path;
+
+  test("a re-earn per cell read from evidence older than the bound keeps every cell demoted", cli, () => {
+    const stale = published(25, reearnEvents("2026-10-11T07:00:00Z"));
+    const result = resolveWith({ ...BOUND, promotion_evidence_source: stale.path }, { args: ["--window-start", "2026-10-11T07:00:00Z"] });
+    assertFailClosed(result, staleReason(stale));
+  });
+
+  test("without --window-start a re-earn lifting a contrary event in evidence older than the bound fails closed", cli, () => {
+    const contrary = { cell: "C2-auto-merge", event: "gate-failure", at: IN_EPOCH, discovered: IN_EPOCH };
+    const stale = published(25, [contrary, { cell: "C2-auto-merge", event: "re-earned", at: "2026-10-20T00:00:00Z", since: IN_EPOCH }]);
+    assertFailClosed(resolveWith({ ...BOUND, promotion_evidence_source: stale.path }), staleReason(stale));
+  });
   test("a re-earn per cell whose since is the --window-start re-promotes every cell", cli, () => {
-    const result = resolveWith({ promotion_evidence_source: reearned("2026-10-11T07:00:00Z") }, { args: ["--window-start", "2026-10-11T07:00:00Z"] });
+    const result = resolveWith({ ...BOUND, promotion_evidence_source: reearned("2026-10-11T07:00:00Z") }, { args: ["--window-start", "2026-10-11T07:00:00Z"] });
     assert.equal(result.failClosedReason, null);
     assert.deepEqual(effective(result), ALL("promoted"));
   });
 
   test("a re-earn whose since precedes the --window-start leaves every cell unpromoted", cli, () => {
-    const result = resolveWith({ promotion_evidence_source: reearned("2026-10-11T06:59:59Z") }, { args: ["--window-start", "2026-10-11T07:00:00Z"] });
+    const result = resolveWith({ ...BOUND, promotion_evidence_source: reearned("2026-10-11T06:59:59Z") }, { args: ["--window-start", "2026-10-11T07:00:00Z"] });
     assert.equal(result.failClosedReason, null);
     assert.deepEqual(effective(result), ALL("unpromoted"));
   });
