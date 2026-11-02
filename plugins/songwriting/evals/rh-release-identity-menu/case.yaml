@@ -7,9 +7,9 @@ graders:
     flags: 'i'
     target: last_message
   - name: eight-plus-candidates
-    type: regex
-    pattern: '(?:[\s\S]*?(?:^|\n)[ \t]*(?:(?:[-*+•]|\d{1,2}[.)]|\*\*\d{1,2}[.)]\*\*)[ \t]+(?!\*\*[^*\n]+\*\*:?[ \t]*(?:\n|$))\S|\|(?![ \t]*:?-{2})[^\n]*(?![^\n])(?!\n[ \t]*\|[ \t]*:?-{2}))){8}'
-    target: last_message
+    type: llm
+    focus: last_message
+    criteria: "The writer asked for rhymes for 'release'. Count the distinct rhyme candidates the reply offers: words or phrases put forward for the writer to use. PASS only if it offers at least eight, however they are laid out: one per list line or table row, several per line or row, or inline and comma-separated. Count each distinct candidate once, and do not judge how well it rhymes. Header rows, bold tier headings and tier labels (such as Perfect, Family, Additive or Mosaic) are not candidates, and neither is a word the reply names only to reject it, as an identity such as 'police' or 'lease'; every word or phrase the reply offers counts, even a weak rhyme. FAIL if it offers seven or fewer."
   - name: no-single-winner
     type: regex
     pattern: '\b(?:the|my)\s+(?:single\s+)?(?:best|top|strongest)\s+(?:one|rhyme|metaphor|option|choice|pick|fit|candidate)\s+(?:here\s+)?(?:is|would be)\b(?!\s+(?:whichever|the one that|the one you|up to you|yours|your call|a matter))|\bmy\s+(?:top\s+|one\s+|single\s+|own\s+)?(?:pick|choice|recommendation|vote|favorite)\s*(?:is|would be|:)(?!(?:\*\*)?\s*(?:neither|none)\b)|(?<!\bhow )\bI(?:[''’]d| would)\s+(?:go with|pick|choose|use)\b(?!\s+(?:neither|none)\b)|\bhow I(?:[''’]d| would)\s+(?:go with|pick|choose|use)\b(?:\*\*)?[ \t]*:?(?:\*\*)?[ \t]*(?:#\d|\d[.)]|option\s*#?\d|["“]|[*_]+(?!(?:for|if|when|by|depends|it depends)[^A-Za-z])[A-Za-z"“])|^[ \t>*#-]*(?:\*\*)?winner(?:\*\*)?\s*:(?!(?:\*\*)?\s*(?:skipped|declined|none)\b)|\bthe answer is\b(?!\s+(?:neither|none)\b)|\bgo with\s+[\"“*_]'
