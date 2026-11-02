@@ -1,5 +1,19 @@
 # Changelog for the PR pipeline convention
 
+## [8.39.1] - 2026-11-02
+
+### Changed
+
+- The main-run review (`pr-review-main.yml`) no longer reviews a head again when both lanes already have a verdict the merge gate binds there: pr-require-checks completes several times on one head, and each completion started both model reviews. The trigger job reads each lane's verdict artifacts, their runs and the head's record check runs, and decides with the gate's own predicate, counting a verdict only when its run's main commit has main's current review criteria (`criteria.txt`, which the copy steps also read); a verdict judged under other criteria, a failed or cancelled review, another head of the same tree, or any failed read reviews again. No review leg or record job starts for a pull request that changes no lane source, or for a head already reviewed.
+
+## [8.39.0] - 2026-11-02
+
+### Changed
+
+- "Not settled yet" records the direction from the merge-flow friction audit: holds our own actors place converge on `do-not-merge`, and only the review lanes' critical-security and cost holds and the trust-path holds stay person-only. No lane behavior changes.
+
+- The `close-cleared` job runs on every completed scheduled full run on main, whatever it concluded. It closes each open, never-edited schedule or dispatch record that a later green full run on main cleared by the merge gate's own rule (`_recovered_at`): attempt 1, a schedule or a `github-actions[bot]` dispatch, created after the record, at a commit ahead of its SHA and on main. Before, only the triggering green scheduled attempt 1 could clear a record, so records that a dispatched green run had cleared stayed open.
+
 ## [8.38.2] - 2026-11-02
 
 ### Changed
