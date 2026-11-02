@@ -71,6 +71,8 @@ graphql)
 */check-runs/[0-9]*/annotations*) f="annotations_$(cut -d/ -f5 <<<"$endpoint").json" ;;
 */check-runs\?*) f=checks.json ;;
 */status\?*) f=status.json ;;
+*/pulls/[0-9]*/files*) f=files.json ;;
+*/rules/branches/*) f=rules.json ;;
 */pulls\?*) f=pulls_list.json ;;
 */pulls/[0-9]*) f=pr.json ;;
 *) echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
@@ -401,6 +403,75 @@ assert_contains "names the other app's merge check" "$ERR" "Pending checks (use 
 scenario none none merge-lane-pending green
 run "an empty ignore list judges the merge lane's check" 'gh pr merge 42 --squash' 2 CLAUDE_PLUGIN_OPTION_MERGE_GUARD_IGNORED_CHECKS=
 assert_contains "empty ignore list -> names merge" "$ERR" "Pending checks (use --auto to merge once they pass): merge"
+
+# --- 3b. a PR that changes a workflow or action definition file ---------------
+# Modeled on ci-workflows#951: both review lanes failed because they ran the
+# base branch's broken copy of the action the PR fixes, and ci-status, the one
+# check the base branch's rules require, passed.
+# wf_scenario <threads> <changes> <files> <rules> <ci-status> [statuses]
+#   files:     action | workflow | renamed | source | unreadable
+#   rules:     ci-status | none | unreadable
+#   ci-status: success | failure
+wf_scenario() {
+  scenario "$1" "$2" green "${6:-green}"
+  echo '{"state":"open","head":{"sha":"abc123"},"base":{"ref":"main","repo":{"full_name":"acme/widgets"}}}' >"$FIX/pr.json"
+  echo '{"total_count":3,"check_runs":[{"id":901,"name":"ci-status","app":{"id":15368,"slug":"github-actions"},"check_suite":{"id":1},"status":"completed","conclusion":"'"$5"'"},{"id":902,"name":"pr-review / claude-review-status","app":{"id":15368,"slug":"github-actions"},"check_suite":{"id":2},"status":"completed","conclusion":"failure"},{"id":903,"name":"pr-review-security / security-review","app":{"id":15368,"slug":"github-actions"},"check_suite":{"id":3},"status":"completed","conclusion":"failure"}]}' >"$FIX/checks.json"
+  case "$3" in
+  action) echo '[{"filename":"src/app.py","status":"modified"},{"filename":".github/actions/report-lane-outcome/outcome-step.cjs","status":"modified"}]' >"$FIX/files.json" ;;
+  workflow) echo '[{"filename":".github/workflows/pr-review.yml","status":"modified"}]' >"$FIX/files.json" ;;
+  renamed) echo '[{"filename":"old/pr-review.yml","previous_filename":".github/workflows/pr-review.yml","status":"renamed"}]' >"$FIX/files.json" ;;
+  # A workflow path that is not at the repository root does not count.
+  source) echo '[{"filename":"src/app.py","status":"modified"},{"filename":"docs/.github/workflows/x.yml","status":"added"}]' >"$FIX/files.json" ;;
+  *) ;;
+  esac
+  case "$4" in
+  ci-status) echo '[{"type":"pull_request","parameters":{}},{"type":"required_status_checks","parameters":{"strict_required_status_checks_policy":false,"required_status_checks":[{"context":"ci-status"}]}}]' >"$FIX/rules.json" ;;
+  none) echo '[{"type":"pull_request","parameters":{}}]' >"$FIX/rules.json" ;;
+  *) ;;
+  esac
+}
+WF_MERGE='gh pr merge 42 -R acme/widgets --squash --match-head-commit abc123'
+wf_scenario none none source ci-status success
+run "no workflow change: a non-required failing check blocks" "$WF_MERGE" 2
+assert_contains "no workflow change -> names both review checks" "$ERR" "Failing checks: pr-review / claude-review-status, pr-review-security / security-review"
+assert_absent "no workflow change -> the rules are not read" "$(calls)" "rules/branches"
+wf_scenario none none source ci-status failure
+run "no workflow change: a required failing check blocks" "$WF_MERGE" 2
+assert_contains "no workflow change, required failure -> names ci-status" "$ERR" "Failing checks: ci-status"
+wf_scenario none none action ci-status success
+run "action change: non-required failing checks warn and do not block" "$WF_MERGE" 0
+assert_contains "action change -> the warning names claude-review-status" "$OUT" "pr-review / claude-review-status"
+assert_contains "action change -> the warning names security-review" "$OUT" "pr-review-security / security-review"
+assert_contains "action change -> says not blocking" "$OUT" "not blocking"
+assert_contains "action change -> user channel too" "$OUT" '"systemMessage"'
+assert_contains "action change -> the base branch's rules were read" "$(calls)" "repos/acme/widgets/rules/branches/main"
+wf_scenario none none workflow ci-status failure
+run "workflow change: a required failing check still blocks" "$WF_MERGE" 2
+assert_eq "workflow change, required failure -> names only ci-status as failing" "Failing checks: ci-status" "$(grep 'Failing checks:' <<<"$ERR")"
+assert_contains "workflow change, required failure -> the others are not blocking" "$ERR" "not blocking"
+wf_scenario none none renamed ci-status success
+run "a workflow renamed away counts as a workflow change" "$WF_MERGE" 0
+assert_contains "renamed workflow -> warns" "$OUT" "not blocking"
+wf_scenario none none action unreadable success
+run "rules unreadable: the exemption does not apply" "$WF_MERGE" 2
+assert_contains "rules unreadable -> names the review checks" "$ERR" "Failing checks: pr-review / claude-review-status"
+assert_absent "rules unreadable -> does not fail open" "$OUT" "will run unchecked"
+wf_scenario none none action none success
+run "rules require no check: the exemption does not apply" "$WF_MERGE" 2
+assert_contains "no required check -> names the review checks" "$ERR" "Failing checks: pr-review / claude-review-status"
+wf_scenario none none unreadable ci-status success
+run "changed files unreadable: the exemption does not apply" "$WF_MERGE" 2
+assert_absent "changed files unreadable -> the rules are not read" "$(calls)" "rules/branches"
+wf_scenario unresolved none action ci-status success
+run "action change: an unresolved thread still blocks" "$WF_MERGE" 2
+assert_contains "action change, open thread -> lists the thread" "$ERR" "src/app.py:12"
+assert_absent "action change, open thread -> no check is failing" "$ERR" "Failing checks: "
+wf_scenario none requested action ci-status success
+run "action change: a change request still blocks" "$WF_MERGE" 2
+assert_contains "action change, change request -> names the reviewer" "$ERR" "Changes requested by: bob"
+wf_scenario none none action ci-status success failed
+run "action change: a non-required failing commit status warns" "$WF_MERGE" 0
+assert_contains "action change, failed status -> the warning names it" "$OUT" "ci/legacy"
 
 # --- 4. REST, GraphQL and curl merge paths -------------------------------------
 scenario unresolved none green green
