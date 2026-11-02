@@ -9,9 +9,10 @@ measure.
 ## What it loads
 
 - `pw-mcp/`, a case-local plugin (`plugins: ["pw-mcp"]`), declares one MCP server, `playwright`.
-  Its `start.sh` refuses any `playwright-mcp` on PATH other than `@playwright/mcp` 0.0.83, which the
-  root `package.json` locks, and starts it headless on the Chromium the lane installs under
-  `/opt/pw`. The testing plugin itself ships no MCP server.
+  Its `start.sh` refuses any `playwright-mcp` on PATH other than the `@playwright/mcp` version the
+  root `package.json` locks (0.0.83 when this case was written), and starts it headless on the
+  Chromium the lane installs under `/opt/pw`, by path, so a version bump does not depend on a
+  matching browser revision. The testing plugin itself ships no MCP server.
 - The tools are `mcp__plugin_pw-mcp_playwright__browser_navigate`, `..._browser_take_screenshot`
   and `..._browser_close`, plus `Read`. No Bash.
 
@@ -42,5 +43,6 @@ outside the eval's sandbox.
 - `diag-tool-error` is reused from browser-probe unchanged; the other graders are browser-probe's
   with MCP tool names and this case's page titles.
 
-UNVERIFIED until a measured run: that the server starts with the run's workspace as its working
-directory, and that the eval passes `start.sh` a PATH that holds `/opt/tools/node_modules/.bin`.
+The screenshot step passes an absolute path in the workspace, so it does not depend on the
+server's working directory. UNVERIFIED until a measured run: that the eval passes `start.sh` a
+PATH that holds `/opt/tools/node_modules/.bin`.

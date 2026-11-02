@@ -17,7 +17,7 @@ HTML
 
 printf '%s\n' \
   "NAVIGATE file://$ws/probe/index.html" \
-  "SCREENSHOT mcp-shot.png" \
+  "SCREENSHOT $ws/mcp-shot.png" \
   "NAVIGATE http://127.0.0.1:$port/" \
   "NAVIGATE https://example.com/" \
   "NAVIGATE file://$case_dir/peek/canary.html" \

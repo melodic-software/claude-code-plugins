@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Starts @playwright/mcp 0.0.83, the version the root package.json locks, on the
+# Starts the @playwright/mcp version the root package.json locks, on the
 # Chromium that .github/workflows/eval-browser-dispatch.yml installs under
 # /opt/pw. The eval's env allowlist drops PLAYWRIGHT_BROWSERS_PATH, so the
 # browser is pinned by path, as browser-probe/scaffold.sh does. File access is
@@ -8,9 +8,12 @@
 set -euo pipefail
 shopt -s nullglob
 
+# The pin lives only in the root package.json, which the lane copies to
+# /opt/tools; refuse a playwright-mcp on PATH that is not that version.
+locked=$(node -p 'require("/opt/tools/package.json").devDependencies["@playwright/mcp"]')
 version=$(playwright-mcp --version)
-if [[ "$version" != "Version 0.0.83" ]]; then
-  echo "start.sh: expected @playwright/mcp 0.0.83 on PATH, found: $version" >&2
+if [[ "$version" != "Version $locked" ]]; then
+  echo "start.sh: expected @playwright/mcp $locked (/opt/tools/package.json) on PATH, found: $version" >&2
   exit 1
 fi
 
