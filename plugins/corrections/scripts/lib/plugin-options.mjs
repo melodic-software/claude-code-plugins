@@ -8,7 +8,8 @@
 // %ProgramFiles% and the CLAUDE_PLUGIN_OPTION_* mirror are never consulted, and neither is any
 // file in the checkout (a project .claude/settings.json).
 //
-//   readOperatorOptions(resolveInstall(<plugin root, from the caller's own real path>), managedSettingsFiles(), keys)
+//   readOperatorOptions(resolveInstall(<plugin root, from the caller's own real path>), managedSettingsFiles(), keys
+//                       [, { booleans: true }])
 //     -> {<key>: {value, scope: "user" | "managed", file}} for each key a source sets
 //
 // Sources, highest precedence first (managed settings page, "How Claude Code combines managed
@@ -118,15 +119,17 @@ function optionsIn(file, install) {
 // Throws OptionsError when a source that could hold a value cannot be read, its pluginConfigs,
 // this plugin's entry or its options is not an object, or a configured value is not a string
 // (null included): either way the operator's value is not known, and the caller fails closed.
-export function readOperatorOptions(install, managedFiles, keys) {
+// With booleans, a JSON boolean (how a boolean userConfig option is stored) reads as "true" or "false".
+export function readOperatorOptions(install, managedFiles, keys, { booleans = false } = {}) {
   const user = {};
   const managed = {};
   const take = (file, scope, into) => {
     for (const options of optionsIn(file, install)) {
       for (const key of keys) {
         if (!Object.hasOwn(options, key)) continue;
-        if (typeof options[key] !== "string") throw new OptionsError(`${key} in ${file} is not a string`);
-        into[key] = { value: options[key], scope, file };
+        const value = booleans && typeof options[key] === "boolean" ? String(options[key]) : options[key];
+        if (typeof value !== "string") throw new OptionsError(`${key} in ${file} is not a string`);
+        into[key] = { value, scope, file };
       }
     }
   };

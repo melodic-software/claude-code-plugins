@@ -251,13 +251,9 @@ grep -q '^PreToolUse: .*block-no-verify\.sh$' <<<"$caught" || fail "PreToolUse s
 grep -q '^PostToolUse: .*block-credential-read\.sh$' <<<"$caught" || fail "block-* skip row not caught: $caught"
 grep -q 'cli-flag-verify' <<<"$caught" && fail "an advisory verify row was flagged: $caught"
 
-# --- SessionStart node notice: shell form, needs no node ---------------------
-# The row's behavior, with and without node and under PowerShell, is run by
-# scripts/node-notice-rows.test.sh; this pins that guardrails keeps it shell form.
-# The other SessionStart row is the git-hooks probe, which git-hooks-notice.test.sh runs.
-notice=$(jq -c '.hooks.SessionStart[].hooks[] | select(.command != "node")' "$HOOKS_JSON")
-[[ "$(jq -s 'length' <<<"$notice")" -eq 1 ]] || fail "expected one shell-form SessionStart row"
-jq -e '.type == "command" and (has("args") | not) and (.command | startswith("sh ") and contains("prerequisites.sh\" node-notice /guardrails:check"))' \
-  <<<"$notice" >/dev/null || fail "SessionStart row is not the shell-form node notice: $notice"
+# --- No SessionStart row --------------------------------------------------------
+# harness-ops reports a missing node and runs this plugin's prerequisites probe
+# (scripts/node-notice-rows.test.sh pins both), so guardrails registers no SessionStart row.
+[[ "$(jq '.hooks | has("SessionStart")' "$HOOKS_JSON")" == false ]] || fail "guardrails still registers a SessionStart row"
 
 echo "exec-bash: stdin, exit 2, --fail-closed, --require-verdict, Git Bash resolution, and hooks.json shape passed ($dispatcher dispatcher rows)."

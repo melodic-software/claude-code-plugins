@@ -274,6 +274,7 @@ jobs:
         plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py
         **/.claude/**
+        docs/conventions/source-control.yaml
         **/.claude-lane/**
         **/.mcp.json
         **/CLAUDE.md

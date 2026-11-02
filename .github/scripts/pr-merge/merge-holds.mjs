@@ -306,6 +306,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py", "enforcement"],
   ["**/.claude/**", "gate"],
+  ["docs/conventions/source-control.yaml", "gate"],
   ["**/.claude-lane/**", "gate"],
   ["**/.mcp.json", "gate"],
   ["**/CLAUDE.md", "gate"],
