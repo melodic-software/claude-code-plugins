@@ -193,6 +193,14 @@
     {
       "answer": "`/effort ultracode` only works when:\n- workflows are on, and\n- you are on a paid plan.\n\nThe model does not need xhigh.\n",
       "why": "the list holds no xhigh condition; a later line denies it"
+    },
+    {
+      "answer": "Put `ultracode` in each prompt instead. It needs no `xhigh` model.\n",
+      "why": "needs no denies the condition"
+    },
+    {
+      "answer": "## Will `/effort ultracode` work on this model?\n\nYes. It needs no `xhigh` support.\n",
+      "why": "needs no under a heading"
     }
   ]
 }
