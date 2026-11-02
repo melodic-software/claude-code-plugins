@@ -1890,8 +1890,8 @@ test("createGitHub opted into keepGraphQLErrors returns the answer with its erro
   assert.deepEqual(await github("POST", "/graphql", { query: "{}" }), answer);
 });
 
-// A GET that GitHub answers 5xx, or that never gets an answer, is sent again
-// after 2 s, 4 s and 8 s, each with equal jitter (half fixed, half random), and
+// A GET that GitHub answers 5xx, or that never gets an answer, is sent at most
+// 3 times, after a full-jitter wait (a random share of 2 s, then of 4 s), and
 // no client waits more than 60 s in all (runs 39786710017 and 39788855311 each
 // failed a lane on one 500 from GET /commits/{sha}/pulls).
 function flaky(answers) {
@@ -1912,17 +1912,28 @@ const PULLS_PATH = "/repos/o/r/commits/b71c10a14e3a918023100604e2272592ed11f677/
 
 test("createGitHub sends a GET that answered 500 again and returns the next answer", async () => {
   const gh = flaky([{ status: 500 }, { status: 200, body: '[{"number":7}]' }]);
-  const github = createGitHub({ ...gh.options, random: () => 0 });
+  const github = createGitHub({ ...gh.options, random: () => 0.5 });
   assert.deepEqual(await github("GET", PULLS_PATH), [{ number: 7 }]);
   assert.deepEqual(gh.sent, [`GET ${PULLS_PATH}`, `GET ${PULLS_PATH}`]);
   assert.deepEqual(gh.slept, [1000]);
+});
+
+// Outage posture element 1: full jitter, so a wait is any share of its cap,
+// none of it fixed.
+test("createGitHub's resend waits are full jitter: none when random is 0, the whole cap when it is 1", async () => {
+  for (const [random, waits] of [[0, [0, 0]], [1, [2000, 4000]]]) {
+    const gh = flaky([{ status: 500 }, { status: 502 }, { status: 200, body: "[]" }]);
+    const github = createGitHub({ ...gh.options, random: () => random });
+    assert.deepEqual(await github("GET", PULLS_PATH), []);
+    assert.deepEqual(gh.slept, waits, String(random));
+  }
 });
 
 // GitHub Support's probe on 2026-10-22: GET /commits/{sha}/pulls
 // answered 200 with an empty body ("unexpected end of JSON input").
 test("createGitHub sends a GET answered 200 with an empty body again", async () => {
   const gh = flaky([{ status: 200, body: "" }, { status: 200, body: '[{"number":7}]' }]);
-  const github = createGitHub({ ...gh.options, random: () => 0 });
+  const github = createGitHub({ ...gh.options, random: () => 0.5 });
   assert.deepEqual(await github("GET", PULLS_PATH), [{ number: 7 }]);
   assert.deepEqual(gh.slept, [1000]);
 });
@@ -1942,12 +1953,12 @@ test("createGitHub sends a GET whose fetch threw again", async () => {
   assert.deepEqual(gh.slept, [2000]);
 });
 
-test("createGitHub gives up on a GET after four 5xx answers and raises the last status", async () => {
-  const gh = flaky([{ status: 500 }, { status: 502 }, { status: 503 }, { status: 504 }, { status: 200 }]);
-  const github = createGitHub({ ...gh.options, random: () => 0 });
-  await assert.rejects(github("GET", PULLS_PATH), (error) => error instanceof GitHubError && error.status === 504);
-  assert.equal(gh.sent.length, 4);
-  assert.deepEqual(gh.slept, [1000, 2000, 4000]);
+test("createGitHub gives up on a GET after three 5xx answers and raises the last status", async () => {
+  const gh = flaky([{ status: 500 }, { status: 502 }, { status: 503 }, { status: 200 }]);
+  const github = createGitHub({ ...gh.options, random: () => 0.5 });
+  await assert.rejects(github("GET", PULLS_PATH), (error) => error instanceof GitHubError && error.status === 503);
+  assert.equal(gh.sent.length, 3);
+  assert.deepEqual(gh.slept, [1000, 2000]);
 });
 
 test("createGitHub sends a 404, a 403 and a POST answered 500 once", async () => {
@@ -1965,7 +1976,7 @@ const dropped = () => Object.assign(new TypeError("fetch failed"), { cause: { co
 
 test("createGitHub sends a GraphQL query that answered 502 or lost its socket again", async () => {
   const gh = flaky([{ status: 502 }, dropped(), { status: 200, body: '{"data":{"ok":true}}' }]);
-  const github = createGitHub({ ...gh.options, random: () => 0 });
+  const github = createGitHub({ ...gh.options, random: () => 0.5 });
   assert.deepEqual(await github("POST", "/graphql", { query: ISSUE_QUERY, variables: { n: 1 } }), { data: { ok: true } });
   assert.deepEqual(gh.sent, ["POST /graphql", "POST /graphql", "POST /graphql"]);
   assert.deepEqual(gh.slept, [1000, 2000]);
@@ -1996,16 +2007,16 @@ test("createGitHub sends a GraphQL mutation once, on a 500 and on a dropped sock
 });
 
 test("createGitHub waits at most 60 s on 5xx answers across all its calls", async () => {
-  const gh = flaky(Array.from({ length: 30 }, () => ({ status: 500 })));
-  const github = createGitHub({ ...gh.options, random: () => 1 });
-  for (let call = 0; call < 5; call += 1) {
+  const gh = flaky(Array.from({ length: 40 }, () => ({ status: 500 })));
+  const github = createGitHub({ ...gh.options, random: () => 1, now: () => 0 });
+  for (let call = 0; call < 11; call += 1) {
     await assert.rejects(github("GET", PULLS_PATH), (error) => error.status === 500);
   }
-  // Four calls wait 2 + 4 + 8 s each; the fifth waits 2 s, and its next 4 s
-  // would pass 60, so it raises after its second answer.
-  assert.deepEqual(gh.slept.slice(-2), [8000, 2000]);
-  assert.equal(gh.slept.reduce((sum, ms) => sum + ms, 0), 58000);
-  assert.equal(gh.sent.length, 4 * 4 + 2);
+  // Ten calls wait 2 + 4 s each, 60 s in all; the eleventh's 2 s would pass
+  // 60, so it raises after its first answer.
+  assert.deepEqual(gh.slept.slice(-2), [2000, 4000]);
+  assert.equal(gh.slept.reduce((sum, ms) => sum + ms, 0), 60000);
+  assert.equal(gh.sent.length, 10 * 3 + 1);
 });
 
 // A connection that never answers: undici would wait its own header timeout
@@ -2024,12 +2035,12 @@ test("createGitHub aborts a GET that never answers and sends it again", async ()
     fetchImpl: hung(sent),
     attemptTimeoutMs: 5,
     sleep: async (ms) => slept.push(ms),
-    random: () => 0,
+    random: () => 0.5,
     log: () => {},
   });
   await assert.rejects(github("GET", PULLS_PATH), (error) => error.name === "TimeoutError");
-  assert.equal(sent.length, 4);
-  assert.deepEqual(slept, [1000, 2000, 4000]);
+  assert.equal(sent.length, 3);
+  assert.deepEqual(slept, [1000, 2000]);
 });
 
 // A write GitHub accepts slowly must not look failed: a dispatch retried
@@ -2067,12 +2078,12 @@ test("createGitHub aborts a GraphQL query that never answers and sends it again"
     fetchImpl: hung(sent),
     attemptTimeoutMs: 5,
     sleep: async (ms) => slept.push(ms),
-    random: () => 0,
+    random: () => 0.5,
     log: () => {},
   });
   await assert.rejects(github("POST", "/graphql", { query: "query { viewer { login } }" }), (error) => error.name === "TimeoutError");
-  assert.equal(sent.length, 4);
-  assert.deepEqual(slept, [1000, 2000, 4000]);
+  assert.equal(sent.length, 3);
+  assert.deepEqual(slept, [1000, 2000]);
 });
 
 test("createGitHub never aborts a slow GraphQL mutation and sends it once", async () => {
@@ -2098,21 +2109,22 @@ test("createGitHub never aborts a slow GraphQL mutation and sends it once", asyn
 
 test("createGitHub sends a GraphQL query answered 502 again and a GraphQL mutation answered 502 once", async () => {
   const gh = flaky([{ status: 502 }, { status: 200, body: '{"data":{"n":1}}' }, { status: 502 }, { status: 200 }]);
-  const github = createGitHub({ ...gh.options, random: () => 0 });
+  const github = createGitHub({ ...gh.options, random: () => 0.5 });
   assert.deepEqual(await github("POST", "/graphql", { query: "query { n }" }), { data: { n: 1 } });
   await assert.rejects(github("POST", "/graphql", { query: "mutation { a }" }), (error) => error instanceof GitHubError && error.status === 502);
   assert.deepEqual(gh.sent, ["POST /graphql", "POST /graphql", "POST /graphql"]);
   assert.deepEqual(gh.slept, [1000]);
 });
 
-// enable-auto-merge's withRetry resends a GraphQL call that fails on the
-// network up to three sends, and each send of a query goes through this
-// client's own four: 3 × 4 = 12 for a query, 3 × 1 = 3 for a mutation.
-test("withRetry over createGitHub sends a query that keeps failing on the network 12 times and a mutation 3 times", async () => {
-  for (const [query, sends] of [["query { n }", 12], ["mutation { a }", 3]]) {
+// Outage posture element 1, at most 3 attempts per call: enable-auto-merge's
+// withRetry resends only a GraphQL mutation that fails on the network, up to
+// three sends, and leaves a query to this client's own three.
+test("withRetry over createGitHub sends a query or a mutation that keeps failing on the network 3 times", async () => {
+  // attempts counts withRetry's own sends: one for the query, three for the mutation.
+  for (const [query, sends, attempts] of [["query { n }", 3, 1], ["mutation { a }", 3, 3]]) {
     const gh = flaky(Array.from({ length: 20 }, () => new TypeError("fetch failed")));
     const github = withRetry(createGitHub({ ...gh.options, random: () => 0 }), { sleep: async () => {}, random: () => 0 });
-    await assert.rejects(github("POST", "/graphql", { query }), (error) => error.message === "fetch failed" && error.attempts === 3);
+    await assert.rejects(github("POST", "/graphql", { query }), (error) => error.message === "fetch failed" && error.attempts === attempts);
     assert.equal(gh.sent.length, sends, query);
   }
 });
@@ -2137,10 +2149,10 @@ test("createGitHub counts the time a failed attempt took against the 60 s budget
   const github = createGitHub({
     token: "t",
     apiUrl: "https://api.example",
-    // Each attempt takes 20 s of the clock, then times out.
+    // Each attempt takes 28 s of the clock, then times out.
     fetchImpl: async (url) => {
       sent.push(url);
-      clock += 20_000;
+      clock += 28_000;
       throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
     },
     now: () => clock,
@@ -2148,13 +2160,13 @@ test("createGitHub counts the time a failed attempt took against the 60 s budget
       slept.push(ms);
       clock += ms;
     },
-    random: () => 0,
+    random: () => 1,
     log: () => {},
   });
   await assert.rejects(github("GET", PULLS_PATH), (error) => error.name === "TimeoutError");
-  // 20 + 1 + 20 + 2 + 20 s is 63 s: the third attempt's 4 s wait is not taken.
-  assert.equal(sent.length, 3);
-  assert.deepEqual(slept, [1000, 2000]);
+  // 28 + 2 + 28 + 4 s is 62 s: the second attempt's 4 s wait is not taken.
+  assert.equal(sent.length, 2);
+  assert.deepEqual(slept, [2000]);
 });
 
 const FAKE_TOKEN = "fake-secret-marker-9c41";

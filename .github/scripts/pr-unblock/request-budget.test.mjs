@@ -240,7 +240,7 @@ const PULLS = "https://api.example/repos/o/r/commits/db53ee51744631cd5ee03d76bf8
 test("a GET answered 500 is sent again after a backoff and the next answer returned", async () => {
   const gh = github([{ status: 500 }, { status: 200, body: '[{"number":7}]', headers: rate(3994) }]);
   const time = clock(RESET - 3000);
-  const budget = budgeted({ fetch: gh.fetch, log: () => {}, random: () => 0, ...time });
+  const budget = budgeted({ fetch: gh.fetch, log: () => {}, random: () => 0.5, ...time });
   const response = await budget.fetch(PULLS, { headers: {} });
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), [{ number: 7 }]);
@@ -248,20 +248,20 @@ test("a GET answered 500 is sent again after a backoff and the next answer retur
   assert.equal(gh.sent.length, 2);
 });
 
-test("a GET that keeps answering 503 returns the fourth 503", async () => {
-  const gh = github([{ status: 503 }, { status: 503 }, { status: 503 }, { status: 503 }, { status: 200 }]);
+test("a GET that keeps answering 503 returns the third 503", async () => {
+  const gh = github([{ status: 503 }, { status: 503 }, { status: 503 }, { status: 200 }]);
   const time = clock(RESET - 3000);
-  const budget = budgeted({ fetch: gh.fetch, log: () => {}, random: () => 0, ...time });
+  const budget = budgeted({ fetch: gh.fetch, log: () => {}, random: () => 0.5, ...time });
   assert.equal((await budget.fetch(PULLS, { headers: {} })).status, 503);
-  assert.deepEqual(time.slept, [1000, 2000, 4000]);
-  assert.equal(gh.sent.length, 4);
+  assert.deepEqual(time.slept, [1000, 2000]);
+  assert.equal(gh.sent.length, 3);
 });
 
 test("a GraphQL query answered 502 is sent again; a GraphQL mutation answered 502 is returned at once", async () => {
   const graphql = "https://api.example/graphql";
   const query = github([{ status: 502 }, { status: 200, body: '{"data":{}}', headers: rate(4000, "graphql") }]);
   const time = clock(RESET - 3000);
-  const reads = budgeted({ fetch: query.fetch, log: () => {}, random: () => 0, ...time });
+  const reads = budgeted({ fetch: query.fetch, log: () => {}, random: () => 0.5, ...time });
   const body = JSON.stringify({ query: "query($n: Int!) { viewer { login } }", variables: { n: 1 } });
   assert.equal((await reads.fetch(graphql, { method: "POST", headers: {}, body })).status, 200);
   assert.equal(query.sent.length, 2);

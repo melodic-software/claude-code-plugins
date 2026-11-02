@@ -63,6 +63,78 @@ test("a 4xx is returned and an error with no network cause raised, each at once"
   assert.deepEqual(h.slept, []);
 });
 
+// Outage posture element 1: a rate-limited read waits as long as GitHub asks,
+// within the 3 attempts and a 60 s budget per wrapper, and a write is sent once.
+function limited(answers, { clock = 0 } = {}) {
+  const sent = [];
+  const slept = [];
+  const fetchImpl = async (url, init) => {
+    sent.push(init.method ?? "GET");
+    const { status, headers = {}, body = "{}" } = answers.shift();
+    return new Response(body, { status, headers });
+  };
+  const send = retryFetch(fetchImpl, { sleep: async (ms) => slept.push(ms), random: () => 1, log: () => {}, now: () => clock });
+  return { send, sent, slept };
+}
+
+test("a read refused on a rate limit waits for retry-after, the reset, or 60 s for a secondary limit, then is sent again", async () => {
+  const after = limited([{ status: 429, headers: { "retry-after": "7" } }, { status: 200 }]);
+  assert.equal((await after.send("https://api/x")).status, 200);
+  assert.deepEqual(after.slept, [7000]);
+  const reset = limited([{ status: 403, headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1030" } }, { status: 200 }], { clock: 1_000_000 });
+  assert.equal((await reset.send("https://api/x")).status, 200);
+  assert.deepEqual(reset.slept, [30_000]);
+  const secondary = limited([{ status: 403, body: '{"message":"You have exceeded a secondary rate limit."}' }, { status: 200 }]);
+  assert.equal((await secondary.send("https://api/x")).status, 200);
+  assert.deepEqual(secondary.slept, [60_000]);
+  const bare = limited([{ status: 429 }, { status: 200 }]);
+  assert.equal((await bare.send("https://api/x")).status, 200);
+  assert.deepEqual(bare.slept, [60_000]);
+});
+
+test("a 403 that names no rate limit, and a write refused on one, are returned at once", async () => {
+  const h = limited([{ status: 403, body: '{"message":"Resource not accessible by integration"}' }, { status: 429, headers: { "retry-after": "1" } }]);
+  assert.equal((await h.send("https://api/x")).status, 403);
+  assert.equal((await h.send("https://api/x", { method: "POST", body: "{}" })).status, 429);
+  assert.deepEqual(h.sent, ["GET", "POST"]);
+  assert.deepEqual(h.slept, []);
+});
+
+test("a rate-limit wait past the 60 s budget is not taken: the answer goes back as a failed read", async () => {
+  const long = limited([{ status: 429, headers: { "retry-after": "61" } }, { status: 200 }]);
+  assert.equal((await long.send("https://api/x")).status, 429);
+  assert.deepEqual(long.slept, []);
+  // 40 s, then 30 s more would pass 60: the second call returns its 429.
+  const spent = limited([{ status: 429, headers: { "retry-after": "40" } }, { status: 200 }, { status: 429, headers: { "retry-after": "30" } }, { status: 200 }]);
+  assert.equal((await spent.send("https://api/x")).status, 200);
+  assert.equal((await spent.send("https://api/y")).status, 429);
+  assert.deepEqual(spent.slept, [40_000]);
+  assert.equal(spent.sent.length, 3);
+});
+
+// budgetedFetch and the rate guard's latch mark their fetch counted and handle
+// a rate limit themselves, so a wait here would stack on theirs.
+test("a fetch that already counts its answers is left to the rate guard on a rate limit", async () => {
+  const sent = [];
+  const slept = [];
+  const fetchImpl = async () => {
+    sent.push("GET");
+    return new Response("{}", { status: 429, headers: { "retry-after": "1" } });
+  };
+  fetchImpl[Symbol.for("api-budget.counted")] = true;
+  const send = retryFetch(fetchImpl, { sleep: async (ms) => slept.push(ms), log: () => {} });
+  assert.equal((await send("https://api/x")).status, 429);
+  assert.equal(sent.length, 1);
+  assert.deepEqual(slept, []);
+});
+
+test("a read refused on a rate limit counts against the 3 attempts", async () => {
+  const h = limited([{ status: 429, headers: { "retry-after": "1" } }, { status: 502 }, { status: 429, headers: { "retry-after": "1" } }, { status: 200 }]);
+  assert.equal((await h.send("https://api/x")).status, 429);
+  assert.equal(h.sent.length, 3);
+  assert.deepEqual(h.slept, [1000, 8000]);
+});
+
 test("a write is sent once unless the caller marks it safeToResend, which never reaches fetch", async () => {
   const h = harness([dropped(), dropped(), 200]);
   await assert.rejects(h.send("https://api/x", { method: "POST", body: "{}" }), TypeError);

@@ -244,16 +244,33 @@ The lane has no workflow or script in this repository. It is declared at
 
 ## Remaining
 
-This change fixes no gap. The **workflow** gaps below need a workflow-file change, which this lane
-cannot push. The **script** gaps are part 2 of #12283, which fixes them with a test for each
-element. #12282 builds element 4's self-close.
+Part 1 (#12291) fixed no gap. The **workflow** gaps below need a workflow-file change, which this
+lane cannot push. The **script** gaps are part 2 of #12283 (#12292). #12282 builds element 4's
+self-close.
+
+Part 2 fixed these element 1 gaps, each with a test:
+
+- **Shared client.** `createGitHub` and `budgetedFetch` send a read at most 3 times, with full
+  jitter (`.github/actions/check-trusted-trigger/check-trusted-trigger.mjs`).
+- **pr-merge.** `withRetry` resends only a GraphQL mutation, so a query goes out at most 3 times,
+  not 12 (`.github/scripts/pr-merge/enable-auto-merge.mjs`).
+- **retry-fetch.** The apply-patch, pr-unblock and work-resolve-issue copies wait out a rate limit
+  before a resend: `retry-after`, else the reset, else 60 s. A wait past 60 s per client is not
+  taken (`.github/scripts/work-resolve-issue/retry-fetch.mjs`).
+- **pr-unblock.** The escalation and lane-stopped comment POSTs go out once
+  (`.github/scripts/pr-unblock/report-escalation.sh`).
+
+The other script rows below are still open. Part 2 also found one row that is not a script-only
+fix: holding work-unblock's sweep green on a failed listing (element 2) would let the next sweep
+start its window after this run (`sweepSince` in `.github/scripts/work-unblock/label-unblocked.mjs`),
+so the closes this run missed would never be read. That fix also changes how the window is chosen.
 
 | Lane | Element | Kind | File to change |
 |---|---|---|---|
-| shared | 1 | script | `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs` (`SERVER_RETRY_DELAYS_MS`, full jitter, wait on the rate latch) |
+| shared | 1 | script | `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs` (wait on the rate latch; part 2 fixed the attempt count and jitter) |
 | shared | 1, 2 | script | `.github/actions/log-api-budget/rate-guard.mjs` (wait out a short reset; hold instead of failing) |
 | shared | 2 | script | `.github/actions/log-api-budget/api-budget.bash` (a notice instead of `::error::` when the caller holds) |
-| work-resolve-issue | 1, 2, 4 | script | `.github/scripts/work-resolve-issue/retry-fetch.mjs`, `report-outcome.mjs`, `stop-routes.json` |
+| work-resolve-issue | 1, 2, 4 | script | `.github/scripts/work-resolve-issue/report-outcome.mjs` (the PR create sent again after a read-back), `stop-routes.json`; part 2 fixed `retry-fetch.mjs`'s rate-limit wait |
 | work-resolve-issue, pr-refine | 6 | script | `.github/scripts/lib/handoff-evidence.sh` (`etag` on the repeated job-listing poll) |
 | work-resolve-issue | 2, 3, 5 | workflow | `.github/workflows/work-resolve-issue.yml` (WIP check fails open, cached pause, status gate) |
 | intake-triage | 2, 4 | script | `.github/scripts/intake-triage/apply-verdict.mjs`, `admit.mjs` |
@@ -268,9 +285,9 @@ element. #12282 builds element 4's self-close.
 | pr-verify | 2, 6 | script | `.github/scripts/pr-verify/resolve-pr.mjs`, `check-trusted-trigger.mjs` |
 | pr-verify | 2, 3 | workflow | `.github/workflows/pr-verify.yml` |
 | pr-require-checks | 1, 2, 3, 4, 5, 6 | workflow | `.github/workflows/pr-require-checks.yml` |
-| pr-unblock | 1, 2, 3, 4, 6 | script | `.github/scripts/pr-unblock/report-escalation.sh`, `request-budget.mjs`, `dispatch.mjs`, `limit-stop.mjs`, `escalation-routes.json`, `gate-source.mjs` |
+| pr-unblock | 1, 2, 3, 4, 6 | script | `.github/scripts/pr-unblock/request-budget.mjs` (a rate-limited POST sent again, waits up to 6 minutes), `dispatch.mjs`, `limit-stop.mjs`, `escalation-routes.json`, `gate-source.mjs`; part 2 fixed `report-escalation.sh`'s comment resends |
 | pr-unblock | 5, 6 | workflow | `.github/workflows/pr-unblock-dispatch.yml`, `pr-feedback-dispatch.yml` |
-| pr-merge | 1, 2 | script | `.github/scripts/pr-merge/enable-auto-merge.mjs`, `.github/actions/request-lane-token/action.yml` |
+| pr-merge | 1, 2 | script | `.github/scripts/pr-merge/enable-auto-merge.mjs` (element 2), `.github/actions/request-lane-token/action.yml` (its 480 s sleep); part 2 fixed `withRetry`'s stacked resends |
 | pr-merge | 2, 6 | workflow | `.github/workflows/pr-merge.yml` (listing-full and rate-limit exits, cover-read dispatch, `queue: max`) |
 | pr-merge | 2 | workflow | `.github/workflows/pr-merge.yml:1192`: hold green on a full listing and count it toward the monitor signal, so 1000 or more open pull requests reaches a person the way a held listing does |
 | pr-merge | 3 | larger | the hub's lane breaker and kill switch, outside this repository |

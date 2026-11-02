@@ -126,14 +126,15 @@ export async function responseDetail(response) {
 export const detailSuffix = (error) => (typeof error?.detail === "string" && error.detail ? ` [${error.detail}]` : "");
 
 // Wraps a fetch so an idempotent request (a GET, or a GraphQL query) has each
-// attempt aborted after attemptTimeoutMs, and is sent again after 2 s, 4 s and
-// 8 s, each with equal jitter (half fixed, half random), when GitHub answers it
-// 5xx, answers a GET 200 with an empty body or with JSON that does not parse,
-// or it fails on the network (a timeout, "fetch failed", an error with a cause
-// code). The time failed attempts took plus the waits, summed over every call
-// through one wrapper, is capped at 60 s: a wait past the cap is not taken,
-// though a call's first attempt always goes out. With 20 s attempts, retrying adds at most
-// about 80 s to one call, inside the shortest step that runs one (3 minutes,
+// attempt aborted after attemptTimeoutMs, and is sent again, at most 3
+// attempts in all, after a full-jitter wait (a random share of 2 s, then of
+// 4 s), when GitHub answers it 5xx, answers a GET 200 with an empty body or
+// with JSON that does not parse, or it fails on the network (a timeout, "fetch
+// failed", an error with a cause code). The time failed attempts took plus the
+// waits, summed over every call through one wrapper, is capped at 60 s: a wait
+// past the cap is not taken, though a call's first attempt always goes out.
+// With 20 s attempts, retrying adds at most about 46 s to one call, inside the
+// shortest step that runs one (3 minutes,
 // pr-merge.yml's gate-check and clear-escalations). The last answer is
 // returned, or the last error thrown. Any other request, a mutation among
 // them, is sent once and never timed out; a 4xx is the caller's to handle, a
@@ -142,7 +143,7 @@ export const detailSuffix = (error) => (typeof error?.detail === "string" && err
 // once. A retry line names an error's name and cause code only: undici puts a
 // whole header value, the token included, in some messages. createGitHub and
 // budgetedFetch both use it.
-const SERVER_RETRY_DELAYS_MS = [2000, 4000, 8000];
+const SERVER_RETRY_DELAYS_MS = [2000, 4000];
 const SERVER_RETRY_BUDGET_MS = 60_000;
 const ATTEMPT_TIMEOUT_MS = 20_000;
 // A GraphQL query: a POST to /graphql whose document starts with `query` or
@@ -230,7 +231,7 @@ export function retryServerErrors(
       const failed = error !== undefined ? networkFailure(error) && !init.signal?.aborted : response.status >= 500 || broken;
       spent += failed ? now() - started : 0;
       const delay = SERVER_RETRY_DELAYS_MS[attempt];
-      const wait = delay === undefined ? 0 : Math.round(delay / 2 + (random() * delay) / 2);
+      const wait = delay === undefined ? 0 : Math.round(random() * delay);
       if (!failed || !idempotent || delay === undefined || spent + wait > SERVER_RETRY_BUDGET_MS) {
         if (error !== undefined) {
           throw error;
