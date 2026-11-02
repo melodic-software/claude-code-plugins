@@ -157,14 +157,16 @@ alone.
   the container's creation; give each candidate when they differ. Find the first commit with no
   date bound, so it can be older than the other two: for a branch boundary it is the first line of
   `git log <default branch>..HEAD --reverse --format='%h %as %s'`; otherwise it is the first line
-  of `git log --reverse --fixed-strings --grep=<boundary term> --format='%h %as %s'`, the term
-  being the container id, the plan file's name or the topic slug.
+  of `git log --reverse <boundary match> --format='%h %as %s'`. The boundary match is
+  `--fixed-strings --grep=<term>` for the plan file's name or the topic slug. For the container
+  id it is `--extended-regexp --grep='<container id>([^0-9]|$)'`, so the search for `#200` does
+  not also match `#2001` or `#20000`.
 - Group the rows by day, from the effort's start to today. Fill each day with no handoff row from
   git, one command per call, and merged pull requests. For a branch boundary run
   `git log <default branch>..HEAD --format='%h %as %s'`; otherwise run
-  `git log --since=<effort start> --fixed-strings --grep=<boundary term> --format='%h %as %s'`,
-  the effort start being the earliest date found above, and keep the commits that name the
-  boundary. Then run `/session-flow:recall` once, its topic the
+  `git log --since=<effort start> <boundary match> --format='%h %as %s'`, with the same boundary
+  match as above and the effort start being the earliest date found above, and keep the commits
+  that name the boundary. Then run `/session-flow:recall` once, its topic the
   boundary's topic slug or the branch's distinctive words, and place its dated results on those
   days. Show a day only when a source has something for it, except inside the last N days, where
   an empty day is shown as empty. Transcripts reach this scope only through handoff rows and
