@@ -294,13 +294,7 @@ Read in this order. Stopping early at any step is the finding.
 
    A with-arm denial aimed at or under the plugin's directory, at a directory above it (which covers
    its files), or with no absolute path or no known plugin directory, is a FAIL: the agent reached
-   for a plugin file it could not read, so the fact belongs in the hub. On the broken side of a
-   negative control only, add `--own-copy-search-warns`: a gutted skill searches its own copy for
-   the text it lost, so a denied Read, Grep or Glob aimed only at the plugin copy the run loaded, in
-   a run that finished, then warns when no `tool_used` grader of its case names that tool; compare
-   that score only with runs denied the same way. Never pass it on a normal run, where that denial
-   usually means the skill references a file it cannot read, and stays a FAIL.
-   The other exceptions that turn a
+   for a plugin file it could not read, so the fact belongs in the hub. The exceptions that turn a
    denial into a warning (a denial the environment makes in both arms, such as a user-scope read of
    `~/.claude/standards`; a denial in a case whose denial-free runs scored the same; an invocation
    probe's denial), Bash denial paths, A/B gating, the 0-turn `context: fork` run the gate passes,
