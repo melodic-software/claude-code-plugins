@@ -90,16 +90,16 @@ jobs:
           REASON: ${{ steps.kill.outputs.reason }}
         run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing read or written"
 
-      # A dispatch, and any re-run, must come from a listed human; the broker
-      # checks the same, so this only keeps the model from running for nothing.
+      # A dispatch, and any re-run of one, must come from a listed human; the
+      # broker checks the same, so this only keeps the model from running for
+      # nothing. Actor-only mode takes no schedule event, so a re-run of a
+      # scheduled run stops here: dispatch the release instead.
       - name: Check who started the run
         id: who
         if: steps.kill.outputs.proceed == 'true' && (github.event_name == 'workflow_dispatch' || github.run_attempt != '1')
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
           denied-actor-ids: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
-          triggering-actor: ${{ github.triggering_actor }}
           require-pr: "false"
           require-kind: human
 
