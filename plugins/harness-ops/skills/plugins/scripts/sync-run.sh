@@ -763,10 +763,11 @@ cli_json() {
   while IFS= read -r __line || [[ -n "$__line" ]]; do
     [[ "$__line" == '{'* ]] && __lines+="$__line"$'\n'
   done <<<"$__text"
-  # One jq for every candidate line, not one per line.
+  # One jq reads every candidate line. `values`: jq 1.7's last() of nothing is
+  # null, and a found null would read as a result line.
   [[ -z "$__lines" ]] ||
     jq_to __found -c -R -n \
-      'last(inputs | (try fromjson catch null) | select(type == "object" and has("command")))' \
+      'last(inputs | (try fromjson catch null) | select(type == "object" and has("command"))) | values' \
       <<<"$__lines" 2>/dev/null || __found=""
   printf -v "$__var" '%s' "$__found"
 }
@@ -864,7 +865,7 @@ cli_move_result() {
 }
 
 # cli_move_result into $1 and cli_reported_version into $2 from one read of the
-# result line: one jq per update call instead of four.
+# result line: one jq per update call.
 cli_update_result() {
   local __ur_res="$1"
   local __ur_new="$2"
@@ -877,7 +878,7 @@ cli_update_result() {
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   [[ -z "$__ur_lines" ]] ||
     jq_to __ur_pair -r -R -n '
-      last(inputs | (try fromjson catch null) | select(type == "object" and has("command")))
+      last(inputs | (try fromjson catch null) | select(type == "object" and has("command"))) | values
       | (.updateOutcome // "") as $o
       | (if $o == "updated" then "updated" elif $o == "up_to_date" then "noop" else "other" end)
         + "\u001f"
@@ -1295,7 +1296,7 @@ settings_state() {
   if ((SS_GIT_IN == 1)); then
     st=$(git --no-optional-locks -C "$dir" status --porcelain -- .claude/ 2>&1)
   fi
-  # The files' own bytes, read with a builtin, rather than a checksum process.
+  # The files' own bytes, read with a builtin: no process per call.
   for f in settings.json settings.local.json; do
     text="absent"
     if [[ -f "$dir/.claude/$f" ]]; then
@@ -1837,8 +1838,7 @@ run_marketplace() {
     if ((rc != 0)); then
       mp_error "user-scope projection failed (exit $rc), sweep not run: $(proj_err)"
     else
-      # Each id with its installed version, from one read of the snapshot rather
-      # than one jq per id.
+      # Each id with its installed version, from one read of the snapshot.
       local sweep_rows=""
       # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
       jq_to sweep_rows -r --rawfile ids "$RUN_DIR/ids.mid.$mp.txt" '
