@@ -847,3 +847,42 @@ test("an issue number missing inside the window refuses with issue-deleted on 41
   // Only numbers between items created inside the window are read.
   assert.deepEqual(run({ issueList: [issueItem(7100, "2026-07-01T00:00:00Z"), ...listed.slice(1)], goneIssues: [7101, 7102] }).events, []);
 });
+
+// Re-earn after a demotion: the C2 predicate (work-classes.md "Suggested default predicates") is
+// >= 20 autonomous C2 completions over >= 14 days, all gates passed, none reverted, counted only
+// over merges after the latest contrary event, here the demotion record filed 2026-08-10.
+const c2Merges = (count, day0) => Array.from({ length: count }, (_, i) => pr(900 + day0 + i, `2026-09-${String(day0 + i).padStart(2, "0")}T00:00:00Z`, { labels: [MECHANICAL] }));
+const DEMOTED = "2026-08-10T00:00:00Z";
+const reearnRun = (pulls) => run({ pulls, workflowRuns: verifiedEach(pulls), demotionIssues: [demotionIssue(7301, DEMOTED)] });
+
+test("a cell whose predicate passes again over the merges after its demotion gets one re-earn, at the merge that met it", () => {
+  const pulls = c2Merges(20, 1);
+  const result = reearnRun(pulls);
+  assert.deepEqual(result.events, [...gateEvents(DEMOTED, ...ALL), { cell: "C2-auto-merge", event: "re-earned", at: "2026-09-20T00:00:00Z", since: DEMOTED }]);
+  // The C3 cells' predicates do not pass, and the re-earn is not counted as a C2 demotion event.
+  assert.equal(termOf(result, "C3-auto-merge", "C2 demotion events").value, 1);
+  assert.deepEqual(reearnRun(pulls).events, result.events);
+});
+
+test("merges before the demotion do not count toward a re-earn", () => {
+  const before = Array.from({ length: 5 }, (_, i) => pr(950 + i, `2026-08-0${i + 2}T00:00:00Z`, { labels: [MECHANICAL] }));
+  const pulls = [...before, ...c2Merges(19, 1)];
+  assert.equal(run({ pulls, workflowRuns: verifiedEach(pulls), demotionIssues: [demotionIssue(7301, DEMOTED)] }).events.some((e) => e.event === "re-earned"), false);
+  assert.equal(reearnRun(c2Merges(19, 1)).events.some((e) => e.event === "re-earned"), false);
+});
+
+test("a contrary event after the merge that met the predicate moves the window, and no re-earn is derived", () => {
+  const pulls = c2Merges(20, 1);
+  const result = run({ pulls, workflowRuns: verifiedEach(pulls), demotionIssues: [demotionIssue(7301, DEMOTED), demotionIssue(7302, "2026-09-25T00:00:00Z")] });
+  assert.equal(result.events.some((e) => e.event === "re-earned"), false);
+});
+
+test("a published re-earn the next run no longer derives is kept; a dropped contrary event still refuses", () => {
+  const out = mkdtempSync(join(base, "out-"));
+  const reearn = { cell: "C2-auto-merge", event: "re-earned", at: "2026-09-20T00:00:00Z", since: DEMOTED };
+  const later = { cell: "C2-auto-merge", event: "gate-failure", at: "2026-09-25T00:00:00Z" };
+  publish(out, [A, reearn], THROUGH);
+  publish(out, [A, later], THROUGH);
+  assert.deepEqual(JSON.parse(readFileSync(join(out, "evidence.json"), "utf8")), [A, reearn, later]);
+  assert.throws(() => publish(out, [reearn, later], THROUGH), (error) => error instanceof PublishError && /refusing.*drop 1/.test(error.message));
+});

@@ -14,7 +14,8 @@
 // writes <dir>/evidence.json (the events array) and <dir>/evidence.meta.json ({generated_at,
 // through, sha256, prev_sha256}). Both temp files are written before either rename, the events
 // file renamed first. It refuses when an existing evidence.json is not a JSON array, has no
-// sidecar or does not match the sidecar's sha256, or holds an event the new array lacks.
+// sidecar or does not match the sidecar's sha256, or holds a contrary event the new array lacks;
+// a re-earned event the new array lacks is carried forward instead.
 //
 // Cost: every run pages the repository's whole closed-PR history (one REST page per 100 closed
 // PRs, created ascending, so no merge is skipped while paging), then reads, per merged PR in the
@@ -86,6 +87,9 @@
 //   PR (cell C2-auto-merge), read from the label timeline, so removing the label later does not
 //   undo it.
 // - A cell's window runs from its first counted merge to its last.
+// - re-earned: {cell, event: "re-earned", at, since}, emitted when the cell's report() predicate
+//   passes over only the merges after `since`, the latest contrary event against the cell or a
+//   prerequisite (reEarned). It lets a demoted cell re-promote with no binding update.
 //
 // Event shape and vocabulary: the autonomy plugin's check-security-binding.mjs (/autonomy:setup),
 // CONTRARY_EVIDENCE_EVENTS and resolveEffectivePromotion; restated here, not imported, because
@@ -238,8 +242,10 @@ function labelsAsOf(current, events, atMs) {
 }
 
 function eventKey(event) {
-  return JSON.stringify([event.cell, event.event, event.at]);
+  return JSON.stringify(event.since === undefined ? [event.cell, event.event, event.at] : [event.cell, event.event, event.at, event.since]);
 }
+
+const byInstant = (a, b) => Date.parse(a.at) - Date.parse(b.at) || eventKey(a).localeCompare(eventKey(b));
 
 // The post-merge gate's workflow runs, read as babysit-prs/scripts/babysit_postmerge.py check()
 // and _judge() read them (same plugin, mirrored rather than imported across languages):
@@ -802,12 +808,12 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
     gateFailures.push({ issue: record.issue, check: "babysit-merge-demotion", conclusion: record.conclusion, at: record.at });
   }
 
-  const sorted = [...events.values()].sort((a, b) => Date.parse(a.at) - Date.parse(b.at) || eventKey(a).localeCompare(eventKey(b)));
+  const sorted = [...events.values()].sort(byInstant);
   return {
     repo,
     since,
     through: new Date(throughMs).toISOString(),
-    events: sorted,
+    events: [...sorted, ...reEarned(tracked, sorted, reviewers.size > 0)].sort(byInstant),
     unresolvedReverts,
     gateFailures,
     unclassedAutonomous: [...details.values()]
@@ -874,6 +880,33 @@ function report(counted, events, reviewsMeasured) {
   };
 }
 
+// After a demotion a cell re-promotes from run evidence (check-security-binding.mjs reads the
+// event): its window restarts at the latest contrary event against it or a prerequisite, which
+// takes in each demotion record's creation, rounded up to a whole second as
+// babysit_merge_policy.py _window_start rounds the resolver's --window-start. `report()` runs over
+// only the merges after that instant, and the first merge at which the cell's predicate passes is
+// the re-earn's `at`. The same evidence gives the same event; changing what that prefix shows
+// takes a new contrary event, which moves the window instead. A re-earn is not contrary.
+const PROMOTION_DEPENDENCIES = { "C3-auto-merge": ["C2-auto-merge", "C3-ai-review-blocking"] };
+
+function reEarned(counted, contrary, reviewsMeasured) {
+  const out = [];
+  for (const cell of CELLS) {
+    const against = [cell, ...(PROMOTION_DEPENDENCIES[cell] ?? [])];
+    const times = contrary.filter((e) => against.includes(e.cell)).map((e) => Date.parse(e.at));
+    if (times.length === 0) continue;
+    const sinceMs = Math.ceil(Math.max(...times) / 1000) * 1000;
+    const after = counted.filter((r) => Date.parse(r.mergedAt) > sinceMs).sort((a, b) => Date.parse(a.mergedAt) - Date.parse(b.mergedAt) || a.number - b.number);
+    const later = contrary.filter((e) => Date.parse(e.at) > sinceMs);
+    for (let k = 1; k <= after.length; k += 1) {
+      if (!report(after.slice(0, k), later, reviewsMeasured)[cell].pass) continue;
+      out.push({ cell, event: "re-earned", at: isoSeconds(Date.parse(after[k - 1].mergedAt)), since: isoSeconds(sinceMs) });
+      break;
+    }
+  }
+  return out;
+}
+
 function sha256(text) {
   return createHash("sha256").update(text).digest("hex");
 }
@@ -894,7 +927,8 @@ function readIfPresent(path) {
   }
 }
 
-export function publish(outDir, events, through, now = new Date(), { rename = renameSync } = {}) {
+export function publish(outDir, derived, through, now = new Date(), { rename = renameSync } = {}) {
+  let events = derived;
   const file = join(outDir, "evidence.json");
   const metaFile = join(outDir, "evidence.meta.json");
   const previous = readIfPresent(file);
@@ -916,10 +950,14 @@ export function publish(outDir, events, through, now = new Date(), { rename = re
       throw new PublishError(`refusing to publish: ${file} does not match the sha256 in its sidecar ${metaFile} (missing, unreadable or different)`);
     }
     const keys = new Set(events.map(eventKey));
-    const dropped = prior.filter((event) => !keys.has(eventKey(event)));
+    const missing = prior.filter((event) => !keys.has(eventKey(event)));
+    const dropped = missing.filter((event) => event?.event !== "re-earned");
     if (dropped.length > 0) {
       throw new PublishError(`refusing to publish: the new events drop ${dropped.length} previously published event(s): ${dropped.map(eventKey).join(", ")}`);
     }
+    // A re-earn the run no longer derives (a later contrary event moved its window) is kept: the
+    // checker honors one only while no contrary event follows its `since`.
+    if (missing.length > 0) events = [...events, ...missing].sort(byInstant);
   }
   const text = `${JSON.stringify(events, null, 2)}\n`;
   const meta = { generated_at: now.toISOString(), through, sha256: sha256(text), prev_sha256: previous === null ? null : sha256(previous) };

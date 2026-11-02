@@ -127,9 +127,17 @@ entry as unproven. Outside the target repository's blast radius, for the same re
 ### `promotion_evidence_source`
 
 The events file: a JSON array of `{cell, event, at}` records, `event` one of `gate-failure`,
-`reverted-merge`, `verification-divergence`, and `at` an ISO 8601 instant. The checker scopes the
-events to each cell's promotion epoch and propagates prerequisite demotions (its evaluation-mode
-header comment owns the rules).
+`reverted-merge`, `verification-divergence`, and `at` an ISO 8601 instant, plus
+`{cell, event: "re-earned", at, since}` records. The checker scopes the contrary events to each
+cell's promotion epoch and propagates prerequisite demotions (its evaluation-mode header comment
+owns the rules).
+
+A demotion lifts without a person: the publisher emits a `re-earned` event when the cell's
+existing predicate passes over only the merges after `since`, the latest contrary event against
+the cell or a prerequisite (a demotion record's creation among them). The checker then treats the
+cell as promoted again while every contrary event in its epoch is at or before `since`. Nothing
+writes the binding or `ratified_at`; the lane still cannot write the file, so it cannot produce a
+re-earn.
 
 Publication requirements:
 
@@ -175,7 +183,8 @@ judgment mappings and how to set `--lane-login` for merge-queue merges.
 - **`--out <dir>`** writes `evidence.json` and the sidecar `evidence.meta.json`
   (`generated_at`, `through`, `sha256` of the events file, `prev_sha256`), each by a temp file
   and a rename. It refuses to publish when the previous events file does not match its sidecar's
-  `sha256`, or when the new events drop one the previous file held.
+  `sha256`, or when the new events drop a contrary event the previous file held. A `re-earned`
+  event the new run no longer derives is carried forward instead.
 
 Run it as the operator, never from the lane, and point `--out` at a directory the lane cannot
 write. Which host runs it, under which identity and on what schedule is the operator's
