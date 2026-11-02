@@ -111,6 +111,7 @@ import json
 import os
 import posixpath
 import re
+import shlex
 import sys
 
 MIN_PYTHON = (3, 8)
