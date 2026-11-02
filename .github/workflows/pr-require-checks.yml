@@ -3975,16 +3975,6 @@ jobs:
           fetch-depth: 0
       - name: Guard managed files
         uses: melodic-software/ci-workflows/.github/actions/check-managed-files@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
-      # The guard's calls (setup-node's manifest read, and its github-script
-      # reads in merge-group, Dependabot and sync mode) go through clients no
-      # counter sees, so the step names it.
-      - name: Log the API budget at the end
-        if: always()
-        timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          tokens: github-token
-          outside: check-managed-files
 
   # THE WHOLE-TREE CAN'T-FAIL SCAN, WHENEVER THERE IS NO DIFF BASE: the
   # schedule, a dispatch, and a pull request or merge group that
