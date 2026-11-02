@@ -954,9 +954,9 @@ test("the report steps only record, so a broken one cannot stop the judgment", (
   assert.doesNotMatch(text, /steps\.report/);
 });
 
-// Issue #12445 (owner design, 2026-11-02): after the verdict jobs, one job
-// holding only actions: write starts a PR-scoped pr-merge run on a pass or
-// pass-notes that uploaded, and nothing else.
+// After the verdict jobs, one job holding only actions: write starts a
+// PR-scoped pr-merge run on a pass or pass-notes that uploaded, and nothing
+// else.
 const WAKE = "wake-pr-merge";
 test("wake-pr-merge runs after every verdict job, only on an uploaded pass, holding only actions: write", () => {
   const job = jobText(WAKE);
