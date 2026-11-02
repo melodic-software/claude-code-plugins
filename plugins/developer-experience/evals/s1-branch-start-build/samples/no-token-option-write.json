@@ -63,6 +63,18 @@
         }
       ],
       "why": "a list of refused flags"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs",
+            "content": "if (args[i] == \"--token\")\n{\n    Console.Error.WriteLine(\"use TARNQUILL_FORGE_TOKEN\");\n    return 2;\n}\nif (args[i] == \"--title\")\n{\n    title = args[++i];\n}\n"
+          }
+        }
+      ],
+      "why": "Allman-style rejection, then another option reads args"
     }
   ],
   "fail": [
@@ -125,6 +137,30 @@
         }
       ],
       "why": "the forge-token spelling"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs",
+            "content": "if (args[i] == \"--token\")\n{\n    token = args[++i];\n}\n"
+          }
+        }
+      ],
+      "why": "Allman-style if reads the next argument"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs",
+            "content": "case \"--token\" when i + 1 < args.Length:\n    token = args[++i];\n    break;\n"
+          }
+        }
+      ],
+      "why": "guarded case label"
     }
   ]
 }

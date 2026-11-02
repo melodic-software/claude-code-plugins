@@ -51,6 +51,18 @@
         }
       ],
       "why": "not a Python file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "bfk/migrate.py",
+            "content": "import os, sys, json as j\n"
+          }
+        }
+      ],
+      "why": "a list of standard-library modules"
     }
   ],
   "fail": [
@@ -101,6 +113,30 @@
         }
       ],
       "why": "aliased third-party import"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "bfk/migrate.py",
+            "content": "import os, requests\n"
+          }
+        }
+      ],
+      "why": "standard-library module, then a third-party one"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "bfk/migrate.py",
+            "content": "import os.path as osp, json, yaml\n"
+          }
+        }
+      ],
+      "why": "third-party module last in a longer list"
     }
   ]
 }
