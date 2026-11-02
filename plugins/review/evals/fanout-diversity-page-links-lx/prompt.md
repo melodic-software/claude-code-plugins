@@ -1,5 +1,5 @@
 ---
-description: "Reviewer-diversity eval, decoy fixture page-links, arm L+X (fanout_diversity lens, plus Codex): /review:fanout run-everything on a correct commit that rewrites pageNumbers' loop to count 1-based pages with a <= bound"
+description: "Reviewer-diversity eval, decoy fixture page-links, arm L+X (fanout_diversity lens, plus Codex): /review:fanout run-everything on a correct commit that rewrites pageNumbers' loop to count 1-based pages with a <= bound Probe result (#12151, 2026-11-02): L and M tie at 24/24 recall, so lens stays the default; the Codex arms are not measurable under codex 1.0.6 (#12495)."
 tags: [review, fanout-diversity, arm-lx, decoy]
 runs: 3
 max_turns: 80

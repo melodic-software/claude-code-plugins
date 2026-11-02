@@ -15,17 +15,25 @@ placement and the act-on cap. This file is the shape every slice of that eval fo
 
 - Each arm's `scaffold.sh` commits `docs/conventions/review.yaml` with the arm's
   `fanout_diversity` on `main`, before the branch. The reviewed diff never edits it, so the skill
-  reads the repository layer and reports `fanout_diversity: <value> (docs/conventions/review.yaml)`.
+  reads the repository layer and reports `fanout_diversity: <value> (<layer>)`, where the layer
+  reads `repository` or `docs/conventions/review.yaml`.
 - The M arms load `multi-agent` so `/multi-agent:route` gives the role map that `model` spreads
   the review over. With fewer than two distinct tiers the sweep runs `lens`, and the arm check
   fails. Run every arm with the same `--model`, one whose role map resolves two or more distinct
   fan-out tiers.
-- The X arms cannot pass as committed. A `claude plugin eval` run loads only the plugins in its
-  `plugins` list and gets a temporary home and a withheld environment, so an installed `codex`
-  plugin (`codex@openai-codex`) and its login are absent
+- The X arms cannot run. Every command of `codex@openai-codex` 1.0.6, `/codex:review` included,
+  sets `disable-model-invocation: true`, so the model cannot start fanout's Codex surface in any
+  harness (#12495). A `claude plugin eval` run also loads only the plugins under its target and
+  gets a temporary home, so the Codex plugin and its login are absent
   ([How runs are isolated](https://code.claude.com/docs/en/plugin-evals#how-runs-are-isolated)).
-  The host run has to add the Codex plugin's directory to the X cases' `plugins` and make its
-  login reachable. Without that, Codex reports a skip and the arm check marks the run invalid.
+  The X arms' arm check also passes a run that lists Codex as skipped; tighten it before the X
+  arms are run.
+- Run every arm with `--scaffold --allow-tools Bash Write Workflow`. Without `Workflow` the sweep
+  runs fanout's main-thread fallback, not `review:fanout-sweep`. Keep `TMPDIR` out of `/tmp` and
+  `/var/tmp`, where the run's Bash cannot write its workspace (#12422).
+- The M arms load a plugin outside `review`, so the eval target must contain both: stage
+  `review` and `multi-agent` under one directory holding a `.claude-plugin/plugin.json`, and run
+  `claude plugin eval <that directory> --eval-dir plugins/review/evals`.
 
 ## Case directory
 
@@ -104,10 +112,10 @@ ran or did not run against the arm), so count the run as invalid rather than as 
 
 | Arm | `pattern` |
 |---|---|
-| `l` | `^(?=[\s\S]*fanout_diversity: lens \(docs/conventions/review\.yaml\))(?=[\s\S]*## Surfaces[\s\S]*Ran: \[[^\]]*code-reviewer)(?![\s\S]*Ran: \[[^\]]*[Cc]odex)` |
-| `m` | `^(?=[\s\S]*fanout_diversity: model \(docs/conventions/review\.yaml\))(?=[\s\S]*## Surfaces[\s\S]*Ran: \[(?:(?:[^\]]*?model:(?![Cc]odex)){2}\|(?:[^\]]*?lane-verifier){2}))(?![\s\S]*Ran: \[[^\]]*[Cc]odex)` |
-| `mx` | `^(?=[\s\S]*fanout_diversity: model \(docs/conventions/review\.yaml\))(?=[\s\S]*## Surfaces[\s\S]*Ran: \[(?:(?:[^\]]*?model:(?![Cc]odex)){2}\|(?:[^\]]*?lane-verifier){2}))(?=[\s\S]*## Surfaces[\s\S]*Ran: \[[^\]]*[Cc]odex)` |
-| `lx` | `^(?=[\s\S]*fanout_diversity: lens \(docs/conventions/review\.yaml\))(?=[\s\S]*## Surfaces[\s\S]*Ran: \[[^\]]*code-reviewer)(?=[\s\S]*## Surfaces[\s\S]*Ran: \[[^\]]*[Cc]odex)` |
+| `l` | `^(?=[\s\S]*fanout_diversity: lens \((?:repository\|docs/conventions/review\.yaml)[^)]*\))(?=[\s\S]*## Surfaces[\s\S]*Ran: \[[^\]]*code-reviewer)(?![\s\S]*Ran: \[[^\]]*[Cc]odex)` |
+| `m` | `^(?=[\s\S]*fanout_diversity: model \((?:repository\|docs/conventions/review\.yaml)[^)]*\))(?=[\s\S]*## Surfaces[\s\S]*Ran: \[(?:(?:[^\]]*?model:(?![Cc]odex)){2}\|(?:[^\]]*?lane-verifier){2}))(?![\s\S]*Ran: \[[^\]]*[Cc]odex)` |
+| `mx` | `^(?=[\s\S]*fanout_diversity: model \((?:repository\|docs/conventions/review\.yaml)[^)]*\))(?=[\s\S]*## Surfaces[\s\S]*Ran: \[(?:(?:[^\]]*?model:(?![Cc]odex)){2}\|(?:[^\]]*?lane-verifier){2}))(?=[\s\S]*## Surfaces[\s\S]*Ran: \[[^\]]*[Cc]odex)` |
+| `lx` | `^(?=[\s\S]*fanout_diversity: lens \((?:repository\|docs/conventions/review\.yaml)[^)]*\))(?=[\s\S]*## Surfaces[\s\S]*Ran: \[[^\]]*code-reviewer)(?=[\s\S]*## Surfaces[\s\S]*Ran: \[[^\]]*[Cc]odex)` |
 
 The `\|` in the `m` and `mx` rows is a table escape; the grader file holds a bare `|`. Under
 `model`, the sweep labels its leaves `model:<tier>` (`plugins/review/workflows/fanout-sweep.js`)
