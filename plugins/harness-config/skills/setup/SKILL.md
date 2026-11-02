@@ -52,7 +52,7 @@ The runtime scripts and their tools:
 
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-plugin-drift.sh`: jq **and** curl
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-structure.sh`, `check-hook-coverage.sh` and `fix-plugin-drift.sh`: jq
-- `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/audit-engine.sh`: jq plus awk and sort; `check-effort-pins.sh`: awk
+- `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/audit-engine.sh`: jq plus awk and sort; `check-effort-pins.sh`: jq plus awk
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-automation-gaps/scripts/inventory.sh`: jq plus awk
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-grants/scripts/permission-rule-check.sh`: jq plus awk and sort
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/*.sh`: jq (required; `permission-state.sh` exits 2 without it), awk and sort; `automode-block-lint.sh` and `automode-entry-diff.sh` add python3 for an optional lane
