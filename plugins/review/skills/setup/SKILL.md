@@ -135,8 +135,8 @@ Plugin-side notes on top of the binding's procedure:
 
 1. **State reading order:** `.claude/standards.yaml` → index presence test at the resolved
    `<standards_dir>/README.md` → inference sources (existing review docs such as a repo-root
-   `REVIEW.md` or `docs/review*` directory, other docs directories, ecosystem configs, ambient
-   `CLAUDE.md` content). Pre-existing review documentation is an inference source for proposing
+   `REVIEW.md` or `docs/review*` directory, other docs directories, ecosystem configs, a root
+   `CODING_STANDARDS.md` and `CONTRIBUTING.md`, ambient `CLAUDE.md` content). Pre-existing review documentation is an inference source for proposing
    index rows. Converting it requires the binding's explicit-confirmation gate.
 2. **Bootstrap writes** (interactive, user-accepted. No silent writes): the skeleton index with
    its `standards-contract` frontmatter at the binding's version, and the setup-owned

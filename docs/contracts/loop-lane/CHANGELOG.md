@@ -15,6 +15,16 @@ the top of this file). No lane mechanic changes.
   when rerun after a stop at any point, because lanes restart and are re-dispatched. Restart
   adoption and the escalation duplicate check are named as cases of the rule (#12147).
 
+## [14.0.1] - 2026-11-01
+
+Patch. A default changed; no topology, escalation-contract mechanism, capability-tier or §4
+invariant changed.
+
+- **Lane-instance default.** An unset `lane_instance` falls back to a random id made once and kept
+  in the plugin data dir, not the machine hostname, which the public telemetry marker published.
+  The id stays stable across restarts and distinct per machine. A supplied instance the leak scan
+  reads as a hostname is refused before any write.
+
 ## [14.0.0] - 2026-11-01
 
 Major: the autonomy ladder's merge authority changes for a work class (§1).
