@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"### Page\\n- Page URL: http://127.0.0.1:48217/\\n- Page Title: browser-mcp-probe-localhost-page\"}",
+      "why": "scaffold server reached"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"### Error\\nError: page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:48217/\",\"is_error\":true}",
+      "why": "loopback unreachable"
+    },
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"- Page Title: browser-mcp-probe-file-page\"}",
+      "why": "only the file page loaded"
+    }
+  ]
+}

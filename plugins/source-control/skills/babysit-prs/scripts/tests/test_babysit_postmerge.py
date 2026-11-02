@@ -27,8 +27,9 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
+from urllib.parse import parse_qsl
 from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
@@ -182,6 +183,18 @@ def completed(
     return subprocess.CompletedProcess(["gh"], returncode, text, stderr)
 
 
+def created_in(created_at: str, query: str) -> bool:
+    """Whether a run created at `created_at` matches a `created` qualifier
+    `_runs` sends, `>=start` or the inclusive `start..end`; any other form
+    matches every run."""
+    if query.startswith(">="):
+        return created_at >= query[2:]
+    if ".." in query:
+        start, end = query.split("..")
+        return start <= created_at <= end
+    return True
+
+
 class FakeGh:
     """Serves the GitHub reads and records every call, writes included."""
 
@@ -288,10 +301,18 @@ class FakeGh:
                     for r in runs + self.unlisted.get((workflow, event), [])
                     if r["head_sha"] == sha
                 ]
-            page = {
-                "total_count": self.total_counts.get((workflow, event), len(runs)),
-                "workflow_runs": runs,
-            }
+            query = dict(parse_qsl(endpoint.split("?", 1)[1]))
+            if "created" in query:
+                runs = [r for r in runs if created_in(r["created_at"], query["created"])]
+            total = self.total_counts.get((workflow, event), len(runs))
+            # A filtered search serves only its newest RUN_SEARCH_CAP runs.
+            if len(runs) > pm.RUN_SEARCH_CAP:
+                runs = sorted(runs, key=lambda r: r["created_at"], reverse=True)
+                runs = runs[: pm.RUN_SEARCH_CAP]
+            if "page" in query:
+                size, number = int(query["per_page"]), int(query["page"])
+                runs = runs[(number - 1) * size : number * size]
+            page = {"total_count": total, "workflow_runs": runs}
             return completed([page] if "--slurp" in args else page)
         if endpoint.split("?")[0].endswith("/jobs"):
             run_id = int(endpoint.split("/actions/runs/")[1].split("/")[0])
@@ -1463,7 +1484,7 @@ class DroppedDispatchListing(CheckCase):
     def red_canary_listing(self, size: int, total: int | None = None) -> None:
         """A canary listing of `size` runs, the first red, and a green
         dispatch run: read as complete, the merge fails on the canary."""
-        self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
+        self.gh.runs[("pr-require-checks.yml", "workflow_dispatch")] = [dispatch_run(11)]
         self.gh.runs[("post-merge-detect-silent-revert.yml", "push")] = [
             canary_run(21, conclusion="failure")
         ] + [canary_run(22 + i) for i in range(size - 1)]
@@ -1478,9 +1499,106 @@ class DroppedDispatchListing(CheckCase):
         self.assertTrue(verdict.readable, verdict.reason)
         self.assertEqual([f.signal for f in verdict.failures], ["canary"])
 
+    def spread_canary_listing(self, size: int) -> None:
+        """A canary listing of `size` runs one second apart, the oldest red:
+        past the cap, one search serves only the newest 1,000, without it."""
+        self.gh.runs[("pr-require-checks.yml", "workflow_dispatch")] = [dispatch_run(11)]
+        start = datetime(2026, 10, 12, 10, 0, 30, tzinfo=UTC)
+        self.gh.runs[("post-merge-detect-silent-revert.yml", "push")] = [
+            canary_run(
+                21 + i,
+                conclusion="failure" if i == 0 else "success",
+                created_at=f"{start + timedelta(seconds=i):%Y-%m-%dT%H:%M:%SZ}",
+            )
+            for i in range(size)
+        ]
+
+    def canary_listing_calls(self) -> list[str]:
+        return [
+            " ".join(c)
+            for c in self.gh.calls
+            if "post-merge-detect-silent-revert.yml/runs?" in " ".join(c)
+        ]
+
+    def test_a_listing_past_the_search_cap_is_read_whole_in_windows(self) -> None:
+        # 1,792 canary runs, as on 2026-11-02: the red one is the oldest, past
+        # the newest 1,000 a single search returns, so only a split finds it.
+        self.spread_canary_listing(1792)
+        verdict = self.check()
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertEqual([f.signal for f in verdict.failures], ["canary"])
+        calls = self.canary_listing_calls()
+        # Runs 10:00:30 to 10:30:21, read to 11:00: the whole range and its
+        # older half each reach the cap on their first page (one call each),
+        # then 22, 870 and 900 runs are read whole, a page per 100, and the
+        # 900 one more, empty page, since its ninth is full.
+        self.assertEqual(len(calls), 2 + 1 + 9 + 10)
+        self.assertTrue(all("created=" in c for c in calls))
+
+    def test_a_listing_under_the_search_cap_reads_its_pages_once(self) -> None:
+        # No split: the same pages a single listing read before the windows.
+        self.spread_canary_listing(999)
+        verdict = self.check()
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertEqual(len(self.canary_listing_calls()), 10)
+
+    def test_a_count_below_the_runs_listed_is_unreadable(self) -> None:
+        # 250 runs, the oldest red, on pages that claim fewer: paging stops at
+        # a page that is not full, never at the claimed count, and the runs
+        # must equal it, so the red run is never silently cut off.
+        for total in (150, 200, 0):
+            with self.subTest(total=total):
+                self.gh.calls.clear()
+                self.spread_canary_listing(250)
+                self.gh.total_counts[("post-merge-detect-silent-revert.yml", "push")] = (
+                    total
+                )
+                verdict = self.check()
+                self.assertFalse(verdict.readable)
+                self.assertIn(f"total_count {total}, but 250 returned", verdict.reason)
+                self.assertEqual(verdict.failures, ())
+                self.assertEqual(len(self.canary_listing_calls()), 3)
+
+    def test_a_count_on_a_page_boundary_reads_one_empty_page(self) -> None:
+        # 200 runs fill two pages, so a third, empty one shows nothing follows.
+        self.spread_canary_listing(200)
+        verdict = self.check()
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertEqual([f.signal for f in verdict.failures], ["canary"])
+        self.assertEqual(len(self.canary_listing_calls()), 3)
+
+    def test_a_split_past_the_window_read_bound_is_unreadable(self) -> None:
+        self.spread_canary_listing(1792)
+        with mock.patch.object(pm, "RUN_WINDOW_READS", 2):
+            verdict = self.check()
+        self.assertFalse(verdict.readable)
+        self.assertIn("search cap", verdict.reason)
+        self.assertIn("past 2 window reads", verdict.reason)
+        self.assertEqual(verdict.failures, ())
+
+    def test_a_full_run_listing_past_the_search_cap_is_read_whole(self) -> None:
+        start = datetime(2026, 10, 12, 10, 5, tzinfo=UTC)
+        self.gh.runs[("pr-require-checks.yml", "workflow_dispatch")] = [
+            dispatch_run(
+                100 + i,
+                created_at=f"{start + timedelta(seconds=i):%Y-%m-%dT%H:%M:%SZ}",
+            )
+            for i in range(1500)
+        ]
+        runs = pm._runs(
+            *REPO.split("/"),
+            pm.FULL_RUN_WORKFLOW,
+            "workflow_dispatch",
+            "main",
+            SINCE,
+            datetime(2026, 10, 12, 17, 0, tzinfo=UTC),
+        )
+        self.assertEqual(sorted(r.id for r in runs), list(range(100, 1600)))
+
     def test_a_listing_at_the_search_cap_is_unreadable(self) -> None:
-        # GitHub returns at most 1,000 runs per filtered search, so a listing
-        # that reached 1,000 may be missing runs.
+        # GitHub returns at most 1,000 runs per filtered search. These runs
+        # share one second, a window no split can narrow, so the listing may
+        # be missing runs.
         for total in (1000, 1500):
             with self.subTest(total=total):
                 self.red_canary_listing(1000, total)
@@ -1488,6 +1606,27 @@ class DroppedDispatchListing(CheckCase):
                 self.assertFalse(verdict.readable)
                 self.assertIn("search cap", verdict.reason)
                 self.assertEqual(verdict.failures, ())
+
+    def test_a_one_second_window_at_the_search_cap_cannot_split(self) -> None:
+        # 1,000 runs in one second: the window holding it reaches the cap and
+        # no split can narrow it, so the listing refuses rather than read short.
+        self.red_canary_listing(1000)
+        second = datetime(2026, 10, 12, 10, 0, 30, tzinfo=UTC)
+        with self.assertRaises(pm.PostMergeReadError) as raised:
+            pm._runs(
+                *REPO.split("/"),
+                pm.CANARY_WORKFLOW,
+                "push",
+                "main",
+                second,
+                second + timedelta(seconds=1),
+            )
+        self.assertIn(
+            "runs created 2026-10-12T10:00:30Z..2026-10-12T10:00:30Z: "
+            "total_count 1000, at the 1000-run search cap",
+            str(raised.exception),
+        )
+        self.assertNotIn("window reads", str(raised.exception))
 
     def test_a_listing_at_the_search_cap_files_no_record_under_remediate(
         self,

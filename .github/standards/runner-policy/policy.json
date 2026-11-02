@@ -157,7 +157,8 @@
         "incremental-review",
         "cli-version",
         "hold-label",
-        "hold-paths"
+        "hold-paths",
+        "generated-copies"
       ],
       "allowedSecrets": {
         "CLAUDE_API_KEY": "${{ secrets.REVIEWS_CLAUDE_API_KEY }}",

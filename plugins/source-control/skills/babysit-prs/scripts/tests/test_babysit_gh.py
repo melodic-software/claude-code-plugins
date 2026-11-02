@@ -11,6 +11,7 @@ import pathlib
 import subprocess
 import sys
 import unittest
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest import mock
 
@@ -1639,6 +1640,31 @@ class FetchPullRequestAuthorTests(unittest.TestCase):
                 self.assertRaises(RuntimeError),
             ):
                 gh.fetch_pull_request_author("o/r", 1)
+
+
+class SplitCreatedWindowTests(unittest.TestCase):
+    """A capped `created` window halves at a whole second until it spans the
+    reader's minimum, where it cannot split and the reader refuses."""
+
+    START = datetime(2026, 10, 22, 0, 40, 38, tzinfo=UTC)
+    SECOND = timedelta(seconds=1)
+
+    def test_a_window_halves_at_a_whole_second(self) -> None:
+        end = self.START + timedelta(seconds=7)
+        middle = gh.split_created_window(self.START, end, self.SECOND)
+        self.assertEqual(middle, self.START + timedelta(seconds=3))
+
+    def test_a_window_at_or_under_the_minimum_does_not_split(self) -> None:
+        for span in (timedelta(0), self.SECOND, timedelta(milliseconds=1500)):
+            with self.subTest(span=span):
+                self.assertIsNone(
+                    gh.split_created_window(self.START, self.START + span, self.SECOND)
+                )
+
+    def test_two_seconds_split_into_one_each(self) -> None:
+        end = self.START + 2 * self.SECOND
+        middle = gh.split_created_window(self.START, end, self.SECOND)
+        self.assertEqual(middle, self.START + self.SECOND)
 
 
 if __name__ == "__main__":

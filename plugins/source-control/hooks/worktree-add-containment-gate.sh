@@ -12,7 +12,7 @@
 # nested inside their repository and ~245 more at other non-conforming
 # locations. This hook is the seam for the raw-Bash path. The invariant itself
 # is owned, measured and dated in exactly one place, not restated here:
-# skills/worktree/SKILL.md § "The nesting invariant, dated measurement".
+# skills/worktree/reference/nesting-invariant.md § "The nesting invariant, dated measurement".
 #
 # WHAT IT BLOCKS — precisely the nesting class, nothing else. The resolved
 # target's nearest existing ancestor is asked (via `git rev-parse`) whether it
