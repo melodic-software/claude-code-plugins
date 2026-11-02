@@ -20,7 +20,7 @@ With `--risk-only`, or when asked for the risk map alone, follow [reference/risk
 
 ## 1. Decide whether to run
 
-Make a fresh directory under the OS temp directory (`mktemp -d`), never in the working tree; call it `<dir>`. Read the pull request's facts into it through `/source-control:pull-request view <n> [--repo <owner/repo>] --out <dir>/facts.json`, invoked via the Skill tool, so the file holds the forge's bytes rather than a copy of tool output. Without the `source-control` plugin, write the same fields there with the forge's own tooling, or report that the read is unavailable and stop; on that path the `url` is yours, not the forge's, so keep the page as a file and do not publish it. Then let the script decide:
+Make a fresh directory under the OS temp directory (`mktemp -d`), never in the working tree; call it `<dir>`. It holds only this run's inputs, never the page, so remove it with `rm -rf -- <dir>` (the literal path) when the run ends at any step, after the reader is done with a connected view. Read the pull request's facts into it through `/source-control:pull-request view <n> [--repo <owner/repo>] --out <dir>/facts.json`, invoked via the Skill tool, so the file holds the forge's bytes rather than a copy of tool output. Without the `source-control` plugin, write the same fields there with the forge's own tooling, or report that the read is unavailable and stop; on that path the `url` is yours, not the forge's, so keep the page as a file and do not publish it. Then let the script decide:
 
 ```bash
 "${CLAUDE_SKILL_DIR}/scripts/digest-policy.mjs" [--event ready] [--blast-radius HIGH] [--policy offer] [--requested] < <dir>/facts.json

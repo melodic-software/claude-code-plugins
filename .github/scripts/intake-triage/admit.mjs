@@ -2162,12 +2162,10 @@ export async function admissionFacts({ github, repository, number, issue, rules,
   }
   const decisionOpen =
     typed && parent !== null && names(parent.labels).includes(NEEDS_DECISION) ? await parentDecisionOpen({ github, repository, parent, humans, appId }) : undefined;
-  // Only a visibility that reads public skips the cost_private charge words;
-  // a failed read counts the repository as private.
-  const isPublic = await github("GET", `/repos/${repository}`).then(
-    (repo) => repo?.visibility === "public",
-    () => false,
-  );
+  // Only a visibility that reads public skips the cost_private charge words.
+  // A failed read throws, like the reads above, so no verdict rests on a
+  // visibility it did not read (docs/outage-posture-audit.md, element 4).
+  const isPublic = (await github("GET", `/repos/${repository}`))?.visibility === "public";
   return {
     issue,
     // Read for the admission comment's own earlier copy (sayWhy).

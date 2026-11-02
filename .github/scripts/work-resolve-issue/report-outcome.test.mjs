@@ -1664,9 +1664,10 @@ test("main on done with Refs opens the PR and writes nothing to the issue", asyn
 });
 
 // A create that fails on the network may still have opened the PR: it is read
-// back, and created once more only when the read finds none. A read that
-// lost its socket is sent again.
-test("main after a dropped PR create reads the PR back, and creates it again only when absent", async () => {
+// back, and never sent again, since a create is a non-idempotent write
+// (element 1 of docs/outage-posture-audit.md). When the read finds none, the
+// run fails for a rerun to settle. A read that lost its socket is sent again.
+test("main after a dropped PR create reads the PR back, and never creates it again", async () => {
   const dropped = () => Object.assign(new TypeError("fetch failed"), { cause: { code: "UND_ERR_SOCKET" } });
   for (const landed of [true, false]) {
     await withDir(
@@ -1700,9 +1701,9 @@ test("main after a dropped PR create reads the PR back, and creates it again onl
           }
           return inner(url, init);
         };
-        assert.equal(await main({ env: env(dir), fetch, sleep: async () => {} }), 0);
+        assert.equal(await main({ env: env(dir), fetch, sleep: async () => {} }), landed ? 0 : 1, `landed=${landed}`);
         const sends = (method, suffix) => calls.filter((c) => c.method === method && c.path.endsWith(suffix)).length;
-        assert.equal(sends("POST", "/pulls"), landed ? 1 : 2, `landed=${landed}`);
+        assert.equal(sends("POST", "/pulls"), 1, `landed=${landed}`);
         assert.equal(sends("GET", "/pulls"), 2, `landed=${landed}`);
         assert.equal(calls.filter((c) => c.path.includes("/compare/")).length, 1, "the dropped compare read was sent again");
       },

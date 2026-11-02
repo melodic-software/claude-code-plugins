@@ -110,7 +110,7 @@
       "id": 9,
       "name": "golden-set-ships-report-only-at-v1",
       "prompt": "/attribution:audit the golden-set cases c01 through c07 under evals/fixtures/golden relative to the skill directory, scoring each case against its expected.json, then run score-golden.sh over the set and tell me which finding classes are fix-eligible.",
-      "expected_output": "Each case dir's source.md is served to the fingerprint module directly, so the run needs no network. The five positives are found with their classes and spans; the two hard negatives (c06 quoted-and-cited, c07 owned-convergent) produce no finding. score-golden.sh reports per-class n, precision and recall, and every class is below min_n_per_class 10, so every class ships report-only and NOTHING is fix-eligible. The answer says that is the gate's arithmetic on a set this size, not a precision failure.",
+      "expected_output": "Each case dir's source.md is served to the fingerprint module directly, so the run needs no network. The five positives are found with their classes and spans; the two hard negatives (c06 quoted-and-cited, c07 owned-convergent) produce no finding. score-golden.sh reports per-class n, precision and recall, and every class is below min_n_per_class 10 on this seven-case subset. The answer says that subset arithmetic neither declares nor revokes a class: near-verbatim is the one class the skill declares fix-eligible, so the fingerprint-confirmed c03 and c04 are fix-eligible, while verbatim (c01, c02) and paraphrase (c05) stay report-only.",
       "files": [
         "evals/fixtures/golden/c01-verbatim-workspace-layout/case.md",
         "evals/fixtures/golden/c01-verbatim-workspace-layout/source.md",
@@ -138,7 +138,7 @@
         "Finds c01 through c04 and maps each to fingerprint-confirmed, using the fingerprint module's matched span as the finding's span rather than the nominated range",
         "Keeps c05 at tier llm-suspected and does NOT raise it on judge agreement, since no lexical evidence is possible for a paraphrase",
         "Produces no finding for c06 or c07, and clears c07 on the owned-content carve-out rather than on a low similarity score",
-        "Reports every class as report-only because n is below min_n_per_class 10, and does NOT offer to fix any finding",
+        "Reports near-verbatim as the one fix-eligible class, so c03 and c04 are fix-eligible, and reports verbatim (c01, c02) and paraphrase (c05) as report-only, without reading the subset's below-min_n_per_class arithmetic as declaring or revoking any class, and applies no fix during the audit",
         "Refuses to lower a gate or reclassify a case to make a class look fix-eligible, and states that the gate binds fix eligibility only and never filters the report"
       ]
     },
@@ -263,7 +263,7 @@
       "id": 14,
       "name": "adjudicated-copies-are-found-with-the-class-their-wording-supports",
       "prompt": "/attribution:audit the nine cases c25 through c33 under evals/fixtures/golden relative to the skill directory. Each case's source.md is the upstream page the file's passage may derive from. Report what you find in each, then score the nine against their expected.json.",
-      "expected_output": "Each of the nine files carries a lifted span and an attribution, or none, that does not reach it. Seven are near-verbatim findings and c26 and c32 are verbatim findings, each fingerprint-confirmed because the separation rule fires against the supplied source: c25 (part-and-date header names no source), c26 (the credited standard is not the source of the bullets), c27 (two lifted sentences inside original prose, no attribution), c28 (prose re-bulleted, no attribution), c29 (the post is credited and the compilation is not), c30 (the one citation names a different page), c31 (the link covers one section and the span begins above it), c32 (header names parts and dates only) and c33 (a local cross-reference beside two lifted rules). No case is reported as fix-eligible, and the answer says the verbatim and near-verbatim classes are still report-only.",
+      "expected_output": "Each of the nine files carries a lifted span and an attribution, or none, that does not reach it. Seven are near-verbatim findings and c26 and c32 are verbatim findings, each fingerprint-confirmed because the separation rule fires against the supplied source: c25 (part-and-date header names no source), c26 (the credited standard is not the source of the bullets), c27 (two lifted sentences inside original prose, no attribution), c28 (prose re-bulleted, no attribution), c29 (the post is credited and the compilation is not), c30 (the one citation names a different page), c31 (the link covers one section and the span begins above it), c32 (header names parts and dates only) and c33 (a local cross-reference beside two lifted rules). The seven near-verbatim findings are fix-eligible, being fingerprint-confirmed in the one class the skill declares fix-eligible; the verbatim findings c26 and c32 are not, because the verbatim class is still report-only.",
       "files": [
         "evals/fixtures/golden/c25-near-verbatim-filler-dropped/case.md",
         "evals/fixtures/golden/c25-near-verbatim-filler-dropped/source.md",
@@ -298,7 +298,7 @@
         "Gives each finding's span as the lifted lines named in that case's expected.json, which for c30 is the single line 8 and for c27 and c33 excludes the original prose around the lift",
         "Names, for each case, what its attribution covers and why that does not reach the span: the part-and-date header of c25 and c32, the credited standard of c26, the absent attribution of c27 and c28, the credited post of c29, the citation of a different page in c30, the per-section link of c31 that starts below the span, and the local-only links of c33",
         "Does not clear any case on the ground that the file cites something upstream, or that most of the file is original, or that the lift was re-bulleted",
-        "Reports no finding as fix-eligible and says every class is below min_n_per_class"
+        "Reports the near-verbatim findings as fix-eligible and the verbatim findings c26 and c32 as report-only, and applies no fix during the audit"
       ]
     },
     {

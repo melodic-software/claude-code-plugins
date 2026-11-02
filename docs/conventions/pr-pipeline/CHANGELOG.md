@@ -1,5 +1,34 @@
 # Changelog for the PR pipeline convention
 
+## [8.36.0] - 2026-11-02
+
+### Changed
+
+- `select-trusted-text` reads a listed author's pull request title renames in the same GraphQL request as its closing issues, one request fewer per judged job. Later pages of either list are still read on their own under the same 50-page cap, and the renames are still weighed only when the title could be kept. A GraphQL error on the renames now fails the step even when the title would be dropped, where it was not read before; this fails closed.
+- pr-verify's resolver checks a failed upstream run's jobs before it reads the commit's pull requests, so a run that did not fail only on holds an approval lifts or `do-not-merge` skips with one API call fewer. Such a run now reports `not-a-passing-run` even when its pull request is a draft or another author's, where it reported `draft` or `author-not-lane` before.
+
+- The red-main report plans no revert when a guard fails (not the lanes App's merge, past `max-culprit-age-hours`, itself a revert, already decided, over `daily-cap`, a suspected platform fault, or a revert that does not apply): the post-merge fix issues fix `main` forward through the issue lane, and no draft revert labeled `needs-human` is planned for a person. The report's decision for that case is `fix-forward`; the log still reads `human` in older reports as the same decision. The guards are unchanged.
+
+- pr-merge's credential scan of the carried artifact listing takes under a second instead of about 10 minutes, so it no longer holds the pr-merge concurrency group. Every credential scan step in pr-merge.yml now times out after 2 minutes; a timed-out scan sets no `clean` output, so the upload it guards is skipped.
+
+## [8.35.3] - 2026-11-02
+
+### Fixed
+
+- `upload-fail-index` reads the run's artifacts up to three times, 5 s then 10 s apart, before failing on a read that fails or misses its own count, so one transient API error no longer leaves a FAIL judgment with no verdict. Every other check is unchanged.
+
+## [8.35.2] - 2026-11-02
+
+### Changed
+
+- The effective-rung rule now says that with no `.claude/source-control.md` at the base SHA,
+  `babysit_loop_merge` in `docs/conventions/source-control.yaml` sets the rung by itself. While both
+  files exist, the lower value still binds.
+- The hold floor names `docs/conventions/source-control.yaml` as a `gate` path, which holds a
+  change to it for a person.
+
+- The `skill-reply-*` artifact is kept 3 days instead of 7 in both run-activity files, which still covers a weekend of reading denials by hand.
+
 ## [8.35.1] - 2026-11-02
 
 ### Changed

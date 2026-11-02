@@ -3,6 +3,13 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.2] - 2026-11-02
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#6633): a manifest may declare an optional `session_probe`, which opts the plugin into harness-ops' session-start probe.
+- Shared `plugin-options.mjs` synced (#6633): `readOperatorOptions` can read a boolean option stored as a JSON boolean when the caller asks for it; existing callers are unchanged.
+
 ## [0.9.1] - 2026-11-01
 
 ### Changed

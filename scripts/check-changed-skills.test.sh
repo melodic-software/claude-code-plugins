@@ -543,6 +543,31 @@ else
 fi
 rm -rf "$t" "$d"
 
+# The gate's temp files go under TMPDIR and none outlives the run: on success,
+# and when the untracked listing fails and the gate exits early.
+mk_lane_pair t d
+b="$(base_sha "$d")"
+git_test_config "$d" update-ref refs/remotes/origin/main "$b"
+add_skill "$d" p2 fresh
+own_tmp="$TMP_ROOT/own-tmp"
+mkdir -p "$own_tmp" "$TMP_ROOT/bin-git"
+TMPDIR="$own_tmp" run_lane "$t" "$d" --merge-base >/dev/null 2>&1
+if [[ -z "$(ls -A "$own_tmp")" ]]; then
+  ok "a lane run leaves nothing in TMPDIR"
+else
+  fail "a lane run left: $(ls -A "$own_tmp")"
+fi
+printf '#!/usr/bin/env bash\n[[ " $* " == *" --others "* ]] && exit 1\nexec %q "$@"\n' "$(command -v git)" >"$TMP_ROOT/bin-git/git"
+chmod +x "$TMP_ROOT/bin-git/git"
+rc=0
+PATH="$TMP_ROOT/bin-git:$PATH" TMPDIR="$own_tmp" run_lane "$t" "$d" --merge-base >/dev/null 2>&1 || rc=$?
+if [[ "$rc" == 2 && -z "$(ls -A "$own_tmp")" ]]; then
+  ok "a failed untracked listing exits 2 and leaves nothing in TMPDIR"
+else
+  fail "a failed untracked listing: rc=$rc, left: $(ls -A "$own_tmp")"
+fi
+rm -rf "$t" "$d" "$TMP_ROOT/bin-git"
+
 mk_lane_pair t d
 git_test_config "$d" branch -q -m lanework # no origin/main, origin/master, main or master
 add_skill "$d" p1 alpha SKILL.md

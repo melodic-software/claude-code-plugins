@@ -5,7 +5,7 @@ import { test } from "node:test";
 
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, parseRecord, serializeRecord } from "./dispatch-record.mjs";
-import { createGitHubApi, dispatchFeedback, failureAnnotation, FAILED_RUN_WINDOW_HOURS, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, SWEEP_HEAD_CAP, sweepReleased } from "./feedback-dispatch.mjs";
+import { createGitHubApi, dispatchFeedback, failureAnnotation, FAILED_RUN_WINDOW_HOURS, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, reviewRunAt, SWEEP_HEAD_CAP, sweepReleased } from "./feedback-dispatch.mjs";
 import { onReviewedHead, threadAuthors } from "./address-feedback.mjs";
 import { verifyReader } from "./verify-cap.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -3114,4 +3114,23 @@ test("an owner PR's Codex thread answering an untrusted or missing @codex reques
     assert.match(lines.at(-1), /has no thread the lane works/, label);
     assert.deepEqual(api.calls.dispatch, [], label);
   }
+});
+
+// Element 6 of the outage posture (docs/outage-posture-audit.md): reads are
+// serial, so each review workflow's run listing starts after the last ends.
+test("reviewRunAt lists each review workflow's runs one after the other and picks the newest", async () => {
+  const events = [];
+  const run = (id, created_at) => ({ id, head_sha: HEAD, event: "pull_request", head_repository: { full_name: REPOSITORY }, conclusion: "success", created_at });
+  const listings = { "a.yml": [run(1, "2026-10-28T07:00:00Z")], "b.yml": [run(2, "2026-10-28T08:00:00Z")] };
+  const api = {
+    listCompletedRuns: async (path) => {
+      events.push(`${path} start`);
+      await new Promise((resolve) => setImmediate(resolve));
+      events.push(`${path} end`);
+      return listings[path];
+    },
+  };
+  const upstream = await reviewRunAt({ api, head: HEAD, repository: REPOSITORY, settings: { reviewWorkflows: ["a.yml", "b.yml"] } });
+  assert.equal(upstream.id, 2);
+  assert.deepEqual(events, ["a.yml start", "a.yml end", "b.yml start", "b.yml end"]);
 });

@@ -401,6 +401,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             ".github/scripts/pr-review-main/**",
             "**/.claude/**",
             "**/.claude-lane/**",
+            "docs/conventions/source-control.yaml",
             "docs/conventions/instruction-exception-register/**",
             "docs/conventions/untrusted-content/**",
             "**/.mcp.json",
@@ -441,7 +442,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             check=True,
         )
         self.assertEqual(tuple(json.loads(proc.stdout)), FLOOR.high)
-        self.assertEqual(len(FLOOR.high), 71)
+        self.assertEqual(len(FLOOR.high), 72)
 
     def test_the_floor_holds_what_its_actions_load(self) -> None:
         files = import_closure(FLOOR_ENTRIES)

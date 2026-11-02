@@ -554,6 +554,21 @@ if command -v markdownlint-cli2 >/dev/null 2>&1; then
     '[[ $RC == 1 && $ERR == *"FAIL markdown"* && $ERR == *"MD022"* ]]'
   check "a copy run elsewhere says why it refused a JavaScript markdownlint config" \
     '[[ $ERR == *"SKIP markdown: config docs/.markdownlint-cli2.cjs (refused:"* ]]'
+  # The staged markdown copy is removed on a normal exit and when the run is
+  # terminated while markdownlint runs in it.
+  md_tmp="$tmp/md-tmp"
+  mkdir -p "$md_tmp" "$tmp/md-term"
+  RC=0
+  ERR="$(cd "$tmp" && CHECK_DATA_ROOT="$repo" TMPDIR="$md_tmp" bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
+  check "a copy run's markdown stage leaves nothing in TMPDIR" '[[ $ERR == *"FAIL markdown"* && -z $(ls -A "$md_tmp") ]]'
+  # The stub terminates its nearest check-affected.sh ancestor.
+  printf '%s\n' '#!/usr/bin/env bash' 'p=$PPID' \
+    'while ((p > 1)) && [[ "$(ps -o args= -p "$p")" != *check-affected.sh* ]]; do p=$(ps -o ppid= -p "$p"); p=${p// /}; done' \
+    '((p > 1)) && kill -TERM "$p"' 'exit 1' >"$tmp/md-term/markdownlint-cli2"
+  chmod +x "$tmp/md-term/markdownlint-cli2"
+  RC=0
+  ERR="$(cd "$tmp" && CHECK_DATA_ROOT="$repo" TMPDIR="$md_tmp" PATH="$tmp/md-term:$PATH" bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
+  check "a copy run terminated during markdownlint leaves nothing in TMPDIR" '[[ $RC == 143 && -z $(ls -A "$md_tmp") ]]'
   pre_md="$(git_test_config "$repo" rev-parse HEAD)"
 
   # A branch-only nested config that is data exempts the files it covers.
