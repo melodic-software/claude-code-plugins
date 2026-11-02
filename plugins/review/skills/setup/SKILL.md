@@ -73,7 +73,8 @@ a regular file). `apply` is the fix.
 
 1. **Resolve the values.** With complete `<key>=<value>` arguments, use them. Otherwise ask one key
    at a time, recommendation first, from the table in `${CLAUDE_PLUGIN_ROOT}/reference/config.md` (`ratchet_offer`:
-   `true`, the default, unless the team does not want stubs to offer `/toolchain:ratchet`;
+   unused, since no skill in this plugin reads it; to keep ratchet offers off, set `ratchet_offer`
+   on the corrections plugin (its plugin option or `docs/conventions/corrections.yaml`);
    `downstream_probe`: `run`, the default, unless the team wants `/review:quality-gate downstream`
    to state its probe without running it, in which case `report`; `fanout_diversity`: `lens`, the
    default, unless the team wants `/review:fanout run-everything` to run each review prompt on
