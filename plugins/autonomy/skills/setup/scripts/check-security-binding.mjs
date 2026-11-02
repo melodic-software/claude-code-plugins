@@ -2501,12 +2501,14 @@ function resolveEffectivePromotion(binding, evidencePath) {
         (event.cell === cell || dependencyCells.includes(event.cell)) &&
         CONTRARY_EVIDENCE_EVENTS.has(event.event),
     );
-    // Contrary evidence is scoped to the promotion epoch: an event predating
-    // the cell's ratified_at belongs to a previous epoch, which that
-    // ratification closed. An event
-    // whose `at` is not strict ISO (or missing) cannot be assigned to an
-    // epoch and is treated as contrary (fail-closed) — dropping it silently
-    // would let malformed telemetry mask a real demotion signal.
+    // Contrary evidence is scoped to the promotion epoch: an event whose `at`
+    // and `discovered` both predate the cell's ratified_at belongs to a
+    // previous epoch, which that ratification closed. An event discovered at
+    // or after ratified_at is in-epoch whatever its `at`, since a revert's
+    // committer date or a merge time can be backdated. An event whose `at` or
+    // `discovered` is not strict ISO cannot be shown to predate the epoch and
+    // is treated as contrary (fail-closed) — dropping it silently would let
+    // malformed telemetry mask a real demotion signal.
     const ratifiedAt = parseIsoStrict(entry.ratified_at);
     const inEpoch = [];
     const inEpochTimes = [];
@@ -2521,11 +2523,11 @@ function resolveEffectivePromotion(binding, evidencePath) {
       if (Number.isNaN(at)) {
         inEpoch.push(`${source}${event.event} with non-ISO or unparsable at ${JSON.stringify(event.at)} — cannot be assigned to an epoch, treated as contrary (fail-closed)`);
         inEpochTimes.push(at);
-      } else if (Number.isNaN(ratifiedAt) || at >= ratifiedAt) {
+      } else if (Number.isNaN(ratifiedAt) || Number.isNaN(discovered) || Math.max(at, discovered) >= ratifiedAt) {
         inEpoch.push(`${source}${event.event} at ${event.at}${found}`);
         inEpochTimes.push(Number.isNaN(discovered) ? discovered : Math.max(at, discovered));
       } else {
-        preEpoch.push(`${source}${event.event} at ${event.at}`);
+        preEpoch.push(`${source}${event.event} at ${event.at}${found}`);
       }
     }
     // A re-earn lifts the demotion when the predicate was met again over evidence counted from
