@@ -4,7 +4,7 @@ tags: [actionlint, setup, apply, outcome, regression-guard]
 max_turns: 14
 timeout_seconds: 360
 allowed_tools: [Bash, Read, Write, Edit]
-expected_outcome: "A Bash call probes actionlint live; no install, Write or Edit; the reply reports the probe's actual result for actionlint (found, PASS, FAIL or missing) rather than taking the user's word."
+expected_outcome: "A Bash call probes actionlint live; no install, Write or Edit; the reply reports evidence from the probe for actionlint (a resolved path, a three-part version, or a live negative such as still not on PATH) rather than taking the user's word; a bare PASS, FAIL or found does not count."
 ---
 /actionlint:setup apply
 

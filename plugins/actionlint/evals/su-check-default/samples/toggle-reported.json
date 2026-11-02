@@ -40,6 +40,38 @@
     {
       "answer": "| 5a | `actionlint_enabled` | INFO | Not set, so the default `true` applies |",
       "why": "smoke row shape"
+    },
+    {
+      "answer": "actionlint_enabled defaults to true.",
+      "why": "reviewer input: defaults to connector"
+    },
+    {
+      "answer": "`actionlint_enabled`: unexpanded, so the default `true` applies",
+      "why": "reviewer input: unexpanded as the value (setup:71-72)"
+    },
+    {
+      "answer": "| actionlint_enabled | INFO | Default `true` (unexpanded) |",
+      "why": "reviewer input: capital Default"
+    },
+    {
+      "answer": "| actionlint_enabled | ✅ PASS | true |",
+      "why": "reviewer input: two-token verdict cell"
+    },
+    {
+      "answer": "actionlint_enabled defaults to `true` (unexpanded).",
+      "why": "defaults to, backticked value"
+    },
+    {
+      "answer": "| actionlint_enabled | ⚠️ INFO | Empty, so the default true applies |",
+      "why": "emoji with variation selector, capital Empty"
+    },
+    {
+      "answer": "**actionlint_enabled**: Unexpanded (default true)",
+      "why": "bold key, capital Unexpanded"
+    },
+    {
+      "answer": "| `actionlint_enabled` | **✅ PASS** | `true` |",
+      "why": "bold two-token verdict cell"
     }
   ],
   "fail": [
@@ -93,6 +125,26 @@
     {
       "answer": "actionlint_enabled controls whether the hooks are enabled.",
       "why": "enabled later in the line, no connector"
+    },
+    {
+      "answer": "actionlint_enabled defaults to whatever the config says on this host.",
+      "why": "defaults to, then no value"
+    },
+    {
+      "answer": "| actionlint_enabled | ✅ PASS | not read on this host |",
+      "why": "two-token verdict cell, then no value"
+    },
+    {
+      "answer": "I could not read actionlint_enabled; the default is probably on.",
+      "why": "semicolon is not a connector"
+    },
+    {
+      "answer": "actionlint_enabled: Defaulting is unclear on this host.",
+      "why": "Default only as a word prefix"
+    },
+    {
+      "answer": "actionlint_enabled | ✅ ❌ | unknown |",
+      "why": "verdict cell of icons, then no value"
     }
   ]
 }

@@ -47,6 +47,6 @@ graders:
     target: 'last_message'
   - name: 'toggle-reported'
     type: 'regex'
-    pattern: '^[^\n]*?actionlint_enabled\b[`*]*[ \t]*(?:[:=(]|->|→|\bis\b|\|(?:[ \t]*\**(?:PASS|FAIL|INFO|WARN|✅|❌|⚠)\**[ \t]*\|)?)[ \t]*(?:currently[ \t]+|set[ \t]+to[ \t]+|[`*])*(?:true|True|false|False|on|On|off|Off|enabled|Enabled|disabled|Disabled|unset|Unset|not[ \t]+set|Not[ \t]+set|empty|default)\b'
+    pattern: '^[^\n]*?actionlint_enabled\b[`*]*[ \t]*(?:[:=(]|->|→|\bis\b|\bdefaults[ \t]+to\b|\|(?:[ \t]*(?:\**(?:PASS|FAIL|INFO|WARN|✅|❌|⚠️?)\**[ \t]*)+\|)?)[ \t]*(?:currently[ \t]+|set[ \t]+to[ \t]+|[`*])*(?:true|True|false|False|on|On|off|Off|enabled|Enabled|disabled|Disabled|unset|Unset|not[ \t]+set|Not[ \t]+set|empty|Empty|default|Default|unexpanded|Unexpanded)\b'
     flags: 'm'
     target: 'last_message'
