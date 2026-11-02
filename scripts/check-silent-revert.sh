@@ -344,6 +344,11 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.." || {
   echo "check-silent-revert: cannot load scripts/lib/changed-files.sh" >&2
   exit 2
 }
+# shellcheck source=lib/changelog-fragments.sh
+. "${_SILENT_REVERT_LIB%/*}/changelog-fragments.sh" || {
+  echo "check-silent-revert: cannot load scripts/lib/changelog-fragments.sh" >&2
+  exit 2
+}
 
 # Tunables. Defaults are the measured values; the env vars exist so the
 # self-test can drive small synthetic repos without shipping a second code path.
@@ -881,10 +886,37 @@ scan_commit() {
     p="${p#plugins/}"
     scope+=(":(exclude,literal).changes/${p%/CHANGELOG.md}/")
   done <"$enum_list"
+  # A release also deletes every `bump: none` fragment, including those of a
+  # plugin it does not release, whose CHANGELOG.md it leaves alone
+  # (scripts/release-plugins.sh). A none fragment never reaches a CHANGELOG,
+  # so deleting it loses no shipped content. In a commit that changes some
+  # fragment root's CHANGELOG.md, the release shape (the release workflow
+  # opens no pull request when nothing released), each deleted
+  # .changes/<p>/<name>.md whose front matter at the parent reads exactly
+  # `bump: none` is skipped. Every other deletion still counts.
+  local file
+  run_attributing_git "$enum_list" \
+    "git diff --name-only failed enumerating fragment-root CHANGELOG changes in $sha" \
+    diff --name-only --no-renames "$parent" "$sha" -- ':(glob)plugins/*/CHANGELOG.md' \
+    ':(glob)docs/contracts/*/CHANGELOG.md' ':(glob)docs/conventions/*/CHANGELOG.md'
+  if [[ -s "$enum_list" ]]; then
+    local frag_body
+    frag_body="$(mktemp)" || die "mktemp failed"
+    run_attributing_git "$enum_list" \
+      "git diff --name-only failed enumerating deleted fragments in $sha" \
+      diff --name-only -z --no-renames --diff-filter=D "$parent" "$sha" -- ':(glob).changes/*/*.md'
+    while IFS= read -r -d '' file; do
+      [[ "$file" =~ ^\.changes/[A-Za-z0-9._-]+/[^/]+\.md$ ]] || continue
+      run_attributing_git "$frag_body" "git cat-file failed reading $file at $parent" \
+        cat-file blob "$parent:$file"
+      [[ "$(changelog_fragments::bump_of "$frag_body")" == none ]] || continue
+      scope+=(":(exclude,literal)$file")
+    done <"$enum_list"
+    rm -f "$frag_body"
+  fi
   run_attributing_git "$enum_list" \
     "git diff --name-only failed enumerating $sha" \
     diff --name-only -z -M -l0 --diff-filter=MD "$parent" "$sha" "${scope[@]}"
-  local file
   while IFS= read -r -d '' file; do
     attribute_file "$parent" "$sha" "$file" >"$file_attr"
     awk -v f="$file" -F '\t' '{printf "%s\t%s\t%s\n", $1, f, $2}' \
