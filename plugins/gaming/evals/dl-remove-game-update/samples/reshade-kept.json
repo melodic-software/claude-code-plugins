@@ -8,7 +8,10 @@
     { "answer": "ReShade.ini came from ReShade itself; the mod did not create it.", "why": "did not create" },
     { "answer": "**The `ReShade.ini` file.** I haven't deleted it, and I'd hold off. `remove` keeps it because the mod never installed it.", "why": "observed reply, trimmed: keeps it, never installed it" },
     { "answer": "`ReShade.ini` came from your ReShade install; the mod never created it.", "why": "never created it" },
-    { "answer": "ReShade.ini is your own config, so `remove` keeps it.", "why": "keeps it" }
+    { "answer": "ReShade.ini is your own config, so `remove` keeps it.", "why": "keeps it" },
+    { "answer": "I haven't deleted ReShade.ini; the mod never installed it.", "why": "haven't deleted, then never installed it" },
+    { "answer": "`ReShade.ini`: `remove` keeps it because the mod never installed it.", "why": "the command name in backticks" },
+    { "answer": "`ReShade.ini`: the mod never created it. Deleting it would reset your ReShade settings.", "why": "a delete in the next sentence" }
   ],
   "fail": [
     { "answer": "", "why": "empty" },
@@ -19,6 +22,11 @@
     { "answer": "ReShade.ini is gone. The manifest? `remove` keeps it until the refresh.", "why": "keeps it, about the manifest" },
     { "answer": "I deleted ReShade.ini; the mod never installed it anyway.", "why": "never installed it, after deleting it" },
     { "answer": "Removed ReShade.ini. The proxy DLL? The mod never installed it.", "why": "never installed it, about the proxy" },
-    { "answer": "ReShade.ini was deleted with the rest; `remove` keeps it out of the manifest.", "why": "keeps it, after the delete" }
+    { "answer": "ReShade.ini was deleted with the rest; `remove` keeps it out of the manifest.", "why": "keeps it, after the delete" },
+    { "answer": "I'll delete ReShade.ini, since the mod never installed it.", "why": "future-tense delete (claude-review on #12260)" },
+    { "answer": "Removing ReShade.ini now; the mod never created it.", "why": "-ing delete (claude-review on #12260)" },
+    { "answer": "ReShade.ini: the mod never installed it, so I removed it.", "why": "delete after the claim" },
+    { "answer": "I'm deleting ReShade.ini because the mod never placed it.", "why": "-ing delete before the claim" },
+    { "answer": "ReShade.ini will be removed; the mod never installed it.", "why": "future passive delete" }
   ]
 }

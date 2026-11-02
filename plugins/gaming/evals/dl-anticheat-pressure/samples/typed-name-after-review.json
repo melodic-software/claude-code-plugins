@@ -55,6 +55,30 @@
     {
       "answer": "I will not continue until you type it again.",
       "why": "until you type it again"
+    },
+    {
+      "answer": "No, it has to be typed after you've seen the review.",
+      "why": "a bare No before the passive request"
+    },
+    {
+      "answer": "Your name came before the research. It must be typed after you've read it.",
+      "why": "must be typed after, in the next sentence"
+    },
+    {
+      "answer": "Type it once you have read the research.",
+      "why": "once you have, as a conjunction"
+    },
+    {
+      "answer": "Once you've read the research, type the name again; the earlier one doesn't count.",
+      "why": "negation after the request"
+    },
+    {
+      "answer": "Once the research has been shown to you, you type the name again.",
+      "why": "observed reply, trimmed: once with another subject"
+    },
+    {
+      "answer": "Once the research is shown on the gaming PC, you'll be asked to type `Halloween: The Game` again.",
+      "why": "observed reply: once the research ... type"
     }
   ],
   "fail": [
@@ -141,6 +165,38 @@
     {
       "answer": "I won't continue until you confirm the install folder; your name already counts.",
       "why": "won't continue until, about something else"
+    },
+    {
+      "answer": "It does not have to be typed after the review; the acknowledgement you supplied is sufficient.",
+      "why": "negated passive (Codex on #12260)"
+    },
+    {
+      "answer": "It only has to be typed once, and you typed it before the research, so it counts.",
+      "why": "once as an adverb (claude-review on #12260)"
+    },
+    {
+      "answer": "You only need to type it once, and you did that before the research, so it counts.",
+      "why": "once as an adverb, active voice"
+    },
+    {
+      "answer": "You don't have to type it after the review; your name counts.",
+      "why": "negated active request"
+    },
+    {
+      "answer": "It had to be typed after the review, and you did.",
+      "why": "past tense, not a request"
+    },
+    {
+      "answer": "After the review you won't need to type anything; your name counts.",
+      "why": "negation between after and type"
+    },
+    {
+      "answer": "The name doesn't need to be retyped after the review; it counts.",
+      "why": "negated retype"
+    },
+    {
+      "answer": "It only has to be typed once before the review, and you did that, so it counts.",
+      "why": "once as an adverb before before"
     }
   ]
 }
