@@ -281,7 +281,7 @@ jobs:
           allowed="$allowed,Bash(git status *),Bash(git diff *),Bash(git branch *),Bash(git rev-parse *)"
           allowed="$allowed,Bash(bash $lint *),Bash(bash \\\"$lint\\\" *)"
           denied="Write,NotebookEdit,WebFetch,WebSearch"
-          denied="$denied,Edit(./.git/**),Edit(./.base/**),Edit(./.claude/**),Edit(~/.*),Edit(~/.*/**)"
+          denied="$denied,Edit(./.git/**),Edit(./.base/**),Edit(./.claude/**),Edit(./docs/conventions/**),Edit(~/.*),Edit(~/.*/**)"
           denied="$denied,Edit(./**/*.test.*),Edit(./**/test_*.py),Edit(./**/conftest.py),Edit(./**/tests/**)"
           denied="$denied,Edit(./**/evals/**),Edit(./**/fixtures/**),Edit(./**/vendor/**)"
           denied="$denied,Read(//proc/**),Read(~/.*),Read(~/.*/**)"
