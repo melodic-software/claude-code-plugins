@@ -18,6 +18,9 @@
     "powershell",
     "skill"
   ],
+  "metadata": {
+    "category": "personal"
+  },
   "userConfig": {
     "data_dir": {
       "type": "directory",

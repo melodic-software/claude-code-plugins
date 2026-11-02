@@ -301,7 +301,7 @@ test("the model edits only checkout files a mutant can land in", () => {
   assert.ok(allowed.includes("Edit(./**)"));
   assert.ok(!allowed.includes("Edit"), "a bare Edit reaches files outside the checkout");
   const denied = [...audit.matchAll(/\n {10}denied="([^\n]*)"/g)].map((m) => m[1]).join(",");
-  const config = readFileSync(new URL("../../../.claude/mutation-testing.md", import.meta.url), "utf8");
+  const config = readFileSync(new URL("../../../docs/conventions/mutation-testing.yaml", import.meta.url), "utf8");
   const excluded = [...config.split("\nmutate:\n")[1].split("\n\n")[0].matchAll(/^ {2}- "!([^"]+)"$/gm)].map((m) => m[1]);
   assert.ok(excluded.length > 0);
   for (const glob of excluded) {
@@ -310,7 +310,7 @@ test("the model edits only checkout files a mutant can land in", () => {
 });
 
 test("the gate's path filter equals the config's mutate globs", () => {
-  const config = readFileSync(new URL("../../../.claude/mutation-testing.md", import.meta.url), "utf8");
+  const config = readFileSync(new URL("../../../docs/conventions/mutation-testing.yaml", import.meta.url), "utf8");
   const mutate = [...config.split("\nmutate:\n")[1].split("\n\n")[0].matchAll(/^ {2}- "([^"]+)"$/gm)].map((m) => m[1]);
   const paths = [...GATE.split("\n    paths:\n")[1].split("\n\n")[0].matchAll(/^ {6}- "([^"]+)"$/gm)].map((m) => m[1]);
   assert.ok(mutate.length > 0);

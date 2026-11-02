@@ -697,6 +697,12 @@ expect_both "unquoted heredoc ahead of a quoted one on the same line blocks" 2 -
 expect_both "backticked rm after a quoted heredoc ends blocks" 2 --command $'cat <<\'EOF\'\nnote\nEOF\necho `rm -rf /`'
 expect_both 'arithmetic shift is not a heredoc opener' 2 --command $'echo $((1<<2))\necho `rm -rf /`'
 expect_both 'here-string is not a heredoc opener' 2 --command $'cat <<<x\necho `rm -rf /`'
+# Bash re-reads `((…) )` and `$((…) )` as nested subshells, so their redirections are real.
+expect_both "here-string inside a ((…) ) subshell blocks" 2 --command "((bash <<< 'rm -rf ~') )"
+expect_both "here-string inside a \$((…) ) substitution blocks" 2 --command "echo \$((bash <<< 'rm -rf ~') )"
+# A `))` inside backticks does not end the ((…) ) text.
+expect_both "here-string in a ((…) ) holding a backticked )) blocks" 2 --command "((\`:))\`; bash <<< 'rm -rf ~') )"
+expect_both "here-string in a \$((…) ) holding a backticked )) blocks" 2 --command "echo \$((\`:))\`; bash <<< 'rm -rf ~') )"
 # A live substitution nested three deep whose innermost command is harmless is
 # parsed all the way down and still allowed, so the depth cap is not a blanket.
 expect_both 'benign 3-deep substitution allowed' 0 --command 'echo "$(echo "$(echo rm)")"'

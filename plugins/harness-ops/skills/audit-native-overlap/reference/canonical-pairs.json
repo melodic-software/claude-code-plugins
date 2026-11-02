@@ -49,7 +49,7 @@
     },
     {
       "native": { "name": "morning", "class": "session-skill" },
-      "component": { "plugin": "harness-ops", "skill": "morning-brief", "kind": "skill" },
+      "component": { "plugin": "work-items", "skill": "morning-brief", "kind": "skill" },
       "why": "Both assemble an operator morning view. Session-provided, so it is observation-only: absent from the vendored binary's bundled set."
     },
     {

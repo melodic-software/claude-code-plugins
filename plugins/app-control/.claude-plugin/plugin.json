@@ -15,5 +15,8 @@
     "capture",
     "e2e",
     "skill"
-  ]
+  ],
+  "metadata": {
+    "category": "testing"
+  }
 }
