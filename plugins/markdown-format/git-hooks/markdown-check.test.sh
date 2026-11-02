@@ -222,7 +222,7 @@ expect "an unapproved config never runs: the file keeps its bytes" "$(printf '# 
 out="$(cd "$REPO" && CLAUDE_PLUGIN_DATA="$DATA" bash "$CHECK" 2>&1)"
 marker="$(printf '%s' "$out" | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
 expect "the approval store is the git directory even when CLAUDE_PLUGIN_DATA names another" yes \
-  "$([[ -n "$marker" && "$marker" == "$REPO"/.git/markdown-format/trust-approvals/md-* ]] && echo yes)"
+  "$([[ -n "$marker" && "$marker" == "$(cd "$REPO" && pwd -P)"/.git/markdown-format/trust-approvals/md-* ]] && echo yes)"
 mkdir -p "$marker"
 out="$(cd "$REPO" && CLAUDE_PLUGIN_DATA="$DATA" bash "$CHECK" 2>"$WORK/stderr")"
 expect "an approved state is linted and rewritten" "0|a.md|" "$?|$out|$(cat "$WORK/stderr")"
@@ -244,7 +244,7 @@ expect "a changed module the config requires revokes the approval" "$(printf '# 
 (cd "$REPO" && bash "$CHECK" >"$WORK/stdout" 2>"$WORK/stderr")
 marker="$(sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p" "$WORK/stderr")"
 expect "outside a session the approval store is the git directory" yes \
-  "$([[ "$marker" == "$REPO"/.git/markdown-format/trust-approvals/md-* ]] && echo yes)"
+  "$([[ "$marker" == "$(cd "$REPO" && pwd -P)"/.git/markdown-format/trust-approvals/md-* ]] && echo yes)"
 
 new_repo NONE
 printf '{ "config": { "default": true }, "customRules": ["./rule.cjs"] }\n' >"$REPO/.markdownlint-cli2.jsonc"
@@ -317,7 +317,8 @@ expect "--worktree: no uncommitted change passes" "0||" "$(check "$REPO" --workt
 NOMD="$WORK/nomd"
 mkdir -p "$NOMD"
 for t in git bash sed awk cat mktemp rm dirname grep tr readlink env sh node; do
-  ln -s "$(command -v "$t")" "$NOMD/$t"
+  printf '#!/bin/sh\nexec "%s" "$@"\n' "$(command -v "$t")" >"$NOMD/$t"
+  chmod +x "$NOMD/$t"
 done
 MDHELP='npm i -D markdownlint-cli2, or another method at https://github.com/DavidAnson/markdownlint-cli2'
 new_repo

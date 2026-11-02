@@ -775,7 +775,10 @@ export function codexRequest({ authorId, submittedAt, reviews, mentions, trigger
 // already read it. A failed read is null, which codexRequest fails closed on.
 export async function readTriggers({ api, pr, pull }) {
   try {
-    const [read, timeline, history] = await Promise.all([pull ?? api.getPull(pr), api.listTimeline(pr), api.listRequestHistory(pr)]);
+    // Serial reads: the outage posture's element 6 (docs/outage-posture-audit.md).
+    const read = pull ?? (await api.getPull(pr));
+    const timeline = await api.listTimeline(pr);
+    const history = await api.listRequestHistory(pr);
     return {
       opened: { actorId: read?.user?.id, at: read?.created_at },
       ready: timeline.filter((event) => event?.event === "ready_for_review").map((event) => ({ actorId: event.actor?.id, at: event.created_at })),
@@ -982,14 +985,13 @@ export async function select({
   ci = async () => undefined,
   log = () => {},
 }) {
-  const [pull, files, issueComments, reviews, reviewComments, threads] = await Promise.all([
-    api.getPull(pr),
-    api.listPullFiles(pr),
-    api.listIssueComments(pr),
-    api.listReviews(pr),
-    api.listReviewComments(pr),
-    api.listThreads(pr),
-  ]);
+  // Serial reads: element 6.
+  const pull = await api.getPull(pr);
+  const files = await api.listPullFiles(pr);
+  const issueComments = await api.listIssueComments(pr);
+  const reviews = await api.listReviews(pr);
+  const reviewComments = await api.listReviewComments(pr);
+  const threads = await api.listThreads(pr);
   // An owner PR whose body gained a `Hold:` line after dispatch is held, as
   // feedback-dispatch.mjs ownerSkip holds it at dispatch.
   const owner = ownerAuthored(pull, adoption);
@@ -1079,8 +1081,11 @@ export async function select({
     return { decision: "escalate", escalationReason: "feedback-protected-path", threads: kept };
   }
   const commits = await api.listPullCommits(pr);
-  const checkRuns = await Promise.all(commits.map((commit) => api.listCheckRuns(commit.sha, MODEL_CHECK)));
-  const rounds = Math.max(countRounds(issueComments, appId), countCheckRounds(checkRuns));
+  const checkRuns = [];
+  for (const commit of commits) {
+    checkRuns.push(await api.listCheckRuns(commit.sha, MODEL_CHECK));
+  }
+  const rounds =Math.max(countRounds(issueComments, appId), countCheckRounds(checkRuns));
   // The most automatic rounds a PR gets: the cap and the fresh fixer's round.
   const bound = maxRounds + FRESH_FIXER_ROUNDS;
   let worked = kept;
@@ -1178,12 +1183,10 @@ export function runRecord(file, reviewedHeads, ci) {
 // against `heads` (the select job's reviewed heads) when given, else the
 // markers as they are now.
 export async function currentThreads({ api, pr, reviewerId, reviewerIds = [], appId, trustedHumans, heads, log = () => {} }) {
-  const [issueComments, reviews, reviewComments, threads] = await Promise.all([
-    api.listIssueComments(pr),
-    api.listReviews(pr),
-    api.listReviewComments(pr),
-    api.listThreads(pr),
-  ]);
+  const issueComments = await api.listIssueComments(pr);
+  const reviews = await api.listReviews(pr);
+  const reviewComments = await api.listReviewComments(pr);
+  const threads = await api.listThreads(pr);
   const fixers = await reviewFixers({ reviewComments, trustedHumans, permission: api.getPermission });
   const triggers = anyListed(reviewComments.map((row) => row.user?.id), reviewerIds) ? await readTriggers({ api, pr }) : null;
   return {

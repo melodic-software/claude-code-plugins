@@ -1090,19 +1090,26 @@ class RunValidityTest(unittest.TestCase):
         self.assertVerdict(proc, "INVALID", 1)
         self.assertIn("check permission denials: FAIL", proc.stdout)
 
-    def denied_in_sandbox(self, calls, trace_at=("claude-eval-ab", "out")):
+    def denied_in_sandbox(self, calls, trace_at=("claude-eval-ab", "out"), allowed=()):
         """The clean result at two runs per arm, measurable-criterion's second
         with-arm run scoring 0 against its sibling's 1 and denied each (tool,
-        input) in calls, its trace at <dir>/<trace_at...>/trace.jsonl. The
-        sandbox's own plugin-data directory is <dir>/claude-eval-ab/config/plugins/data."""
+        input) in calls, its trace at <dir>/<trace_at...>/trace.jsonl, after an
+        allowed Bash call for each command in allowed. The sandbox's own
+        plugin-data directory is <dir>/claude-eval-ab/config/plugins/data."""
         trace = self.dir.joinpath(*trace_at, "trace.jsonl")
         trace.parent.mkdir(parents=True, exist_ok=True)
         entries = [
             {"tool_name": tool, "tool_use_id": "d%d" % i, "tool_input": tool_input}
             for i, (tool, tool_input) in enumerate(calls)
         ]
+        uses = [
+            {"type": "tool_use", "id": "a%d" % i, "name": "Bash", "input": {"command": c}}
+            for i, c in enumerate(allowed)
+        ]
         trace.write_text(
             '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
+            + json.dumps({"type": "assistant", "message": {"content": uses}})
+            + "\n"
             + json.dumps({"type": "result", "is_error": False, "permission_denials": entries})
             + "\n",
             encoding="utf-8",
@@ -1212,6 +1219,41 @@ class RunValidityTest(unittest.TestCase):
             'cat "$D/lease"; D="%s"' % data,
         ):
             proc = self.denied_in_sandbox([("Bash", {"command": command})])
+            self.assertDenials(proc, "FAIL")
+
+    def test_a_compound_denial_explained_by_its_plugin_data_part_is_a_warning(self):
+        data = self.own_data("p", "state")
+        script = self.PLUGIN + "/skills/s/scripts/lease.py"
+        allowed = ['python3 "%s" acquire --state-dir %s' % (script, data)]
+        for command in (
+            'ls -la %s/ 2>&1; python3 "%s" release --help | head -30' % (data, script),
+            'ls %s && python3 %s --help' % (data, script),
+        ):
+            proc = self.denied_in_sandbox([("Bash", {"command": command})], allowed=allowed)
+            self.assertDenials(proc, "WARN")
+            self.assertIn("1 denial under the run's own plugin-data directory", proc.stdout)
+
+    def test_a_compound_denial_with_an_unproven_part_is_a_fail(self):
+        data = self.own_data("p", "state")
+        script = self.PLUGIN + "/skills/s/scripts/lease.py"
+        ran = ['python3 "%s" acquire' % script]
+        for command, allowed in (
+            # The plugin part never ran in an allowed call.
+            ('ls %s; python3 "%s" --help' % (data, script), []),
+            ('ls %s; python3 "%s" --help' % (data, script), ['python3 "%s.bak"' % script]),
+            # A part with an unresolved expansion, or no part only under plugin data.
+            ('ls %s; python3 "%s" "$X"' % (data, script), ran),
+            ('ls %s %s; python3 "%s"' % (data, script, script), ran),
+            ('ls %s; cat /etc/hosts' % data, ran),
+            # A part that works in the cwd: a relative path, a bare file name, a
+            # command with no rooted argument, or a redirect into a cwd file.
+            ('ls %s; cat skills/s/SKILL.md' % data, ran),
+            ('ls %s; cat SKILL.md' % data, ran),
+            ('ls %s; make' % data, ran),
+            ('ls %s; python3 "%s" > notes' % (data, script), ran),
+            ('ls %s | head skills/s/SKILL.md' % data, ran),
+        ):
+            proc = self.denied_in_sandbox([("Bash", {"command": command})], allowed=allowed)
             self.assertDenials(proc, "FAIL")
 
     def own_results(self, *parts, sandbox="claude-eval-ab"):
@@ -1948,6 +1990,51 @@ class RunValidityTest(unittest.TestCase):
                     "check plugins loaded: PASS (every with-arm run loaded playgrounds)",
                     proc.stdout,
                 )
+
+    def test_a_case_helper_plugin_is_checked_only_in_its_own_case(self):
+        result = self.clean()
+        helper = self.dir / "suite" / "evals" / "measurable-criterion" / "helper"
+        (helper / ".claude-plugin").mkdir(parents=True)
+        (helper / ".claude-plugin" / "plugin.json").write_text(
+            json.dumps({"name": "helper"}), encoding="utf-8"
+        )
+        result["suite"]["plugins"] = [{"path": "/sandbox/playgrounds"}, {"path": str(helper)}]
+        base = {"name": "playgrounds@inline", "path": "/sandbox/playgrounds"}
+        own = {"name": "helper@inline", "path": str(helper)}
+
+        def trace(name, plugins):
+            path = self.dir / name
+            path.write_text(
+                json.dumps({"type": "system", "subtype": "init", "model": "claude-opus-5-5",
+                            "tools": ["Skill"], "plugins": plugins})
+                + "\n"
+                + json.dumps({"type": "result", "subtype": "success", "is_error": False})
+                + "\n",
+                encoding="utf-8",
+            )
+            return str(path)
+
+        without_helper, with_helper = trace("bare.jsonl", [base]), trace("own.jsonl", [base, own])
+        for helper_trace, verdict in ((with_helper, "VALID"), (without_helper, "INVALID")):
+            with self.subTest(verdict=verdict):
+                data = load(self.write(result))
+                for case in data["cases"]:
+                    case["arms"]["with"][0]["tracePath"] = (
+                        helper_trace if case["name"] == "measurable-criterion" else without_helper
+                    )
+                path = self.dir / "aggregate-result.json"
+                path.write_text(json.dumps(data), encoding="utf-8")
+                proc = self.run_script(path, "--runs", "1")
+                self.assertVerdict(proc, verdict, 0 if verdict == "VALID" else 1)
+                lines = [x for x in proc.stdout.splitlines() if "is not among" in x]
+                if verdict == "VALID":
+                    self.assertEqual(lines, [])
+                else:
+                    self.assertEqual(
+                        lines,
+                        ["  case measurable-criterion, with-arm run 1: plugin helper is not"
+                         " among the loaded plugins (%s)" % without_helper],
+                    )
 
     def test_a_suite_with_no_plugins_passes_plugins_loaded(self):
         proc = self.run_script(self.write(self.clean()), "--runs", "1")

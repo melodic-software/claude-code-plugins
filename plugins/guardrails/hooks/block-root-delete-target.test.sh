@@ -4125,6 +4125,262 @@ assert_eq "attended, dispatched: outside-tree decision is ask" ask \
 expect_both "auto mode: rm -rf / still blocks" 2 \
   --payload '{"tool_name":"Bash","tool_input":{"command":"rm -rf /"},"permission_mode":"auto"}'
 
+# --- 5e. Parity with the retired user-level destructive-removal engine (#9770) --
+# Every decision case of that engine's suite (dotfiles 59c12fd^,
+# tools/claude-hooks/test-block-destructive-removal.py: 150 deny and 59 defer,
+# 207 distinct), replayed in order from the git toplevel with the engine's
+# verdict in each label. The engine is already retired (dotfiles 59c12fd), so
+# these cases are the record of what it decided. Where this guard differs, the
+# comment above the case says which side is right and why (#9770).
+# Home roots are assembled from pieces so the source holds no literal user path.
+RDT_EP_UH="/home/""user"
+RDT_EP_MH="/Users/""user"
+RDT_EP_WH='C:\''Users\user'
+expect_both $'engine parity 1 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf /'
+expect_both $'engine parity 2 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf /*'
+expect_both $'engine parity 3 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf ~'
+expect_both $'engine parity 4 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf ~/'
+expect_both $'engine parity 5 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf ~/*'
+expect_both $'engine parity 6 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -fr ~'
+expect_both $'engine parity 7 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -r -f ~'
+expect_both $'engine parity 8 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -f -r ~/*'
+expect_both $'engine parity 9 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm --recursive --force ~/*'
+expect_both $'engine parity 10 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm --force --recursive /*'
+expect_both $'engine parity 11 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -R -f ~'
+expect_both $'engine parity 12 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm --recursive -f ~'
+expect_both $'engine parity 13 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf $HOME'
+expect_both $'engine parity 14 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf "$HOME"'
+expect_both $'engine parity 15 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf ${HOME}/*'
+expect_both $'engine parity 16 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'/bin/rm -rf ~'
+expect_both $'engine parity 17 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'cd /tmp && rm -rf ~'
+# old expectation wrong: bash never expands %NAME%: a literal relative name inside the tree
+expect_both $'engine parity 18 (Bash, engine deny)' 0 "${RDT_CWD[@]}" --command $'rm -rf %USERPROFILE%'
+expect_both $'engine parity 19 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -Rf ~'
+expect_both $'engine parity 20 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -RF /'
+expect_both $'engine parity 21 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -r ~'
+expect_both $'engine parity 22 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm --recursive ~'
+expect_both $'engine parity 23 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf "~"'
+expect_both $'engine parity 24 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'sudo rm -rf ~'
+expect_both $'engine parity 25 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'command rm -rf /'
+expect_both $'engine parity 26 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'\\rm -rf ~'
+expect_both $'engine parity 27 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'\'rm\' -rf ~'
+expect_both $'engine parity 28 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'time rm -rf ~'
+expect_both $'engine parity 29 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'/usr/local/bin/rm -rf ~'
+expect_both $'engine parity 30 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf /root'
+expect_both $'engine parity 31 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf ~root'
+expect_both $'engine parity 32 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf '"$RDT_EP_UH"
+expect_both $'engine parity 33 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf '"$RDT_EP_MH"
+expect_both $'engine parity 34 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force ~'
+expect_both $'engine parity 35 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force "$env:USERPROFILE\\*"'
+expect_both $'engine parity 36 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force $HOME'
+expect_both $'engine parity 37 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'rm -Recurse -Force ~'
+expect_both $'engine parity 38 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'ri -r -For ~\\*'
+expect_both $'engine parity 39 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Rec -For $HOME'
+expect_both $'engine parity 40 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'del -Recurse -Force C:\\*'
+expect_both $'engine parity 41 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force '"$RDT_EP_WH"
+expect_both $'engine parity 42 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force "'"$RDT_EP_WH"$'"'
+expect_both $'engine parity 43 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force '"$RDT_EP_WH"$'\\'
+expect_both $'engine parity 44 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force ${env:USERPROFILE}'
+expect_both $'engine parity 45 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse ~'
+expect_both $'engine parity 46 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse D:\\'
+expect_both $'engine parity 47 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf //'
+expect_both $'engine parity 48 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf ///'
+expect_both $'engine parity 49 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf ~//'
+expect_both $'engine parity 50 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf {~,/}'
+expect_both $'engine parity 51 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf ~/{,.*}'
+expect_both $'engine parity 52 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf ~/$(whoami)'
+expect_both $'engine parity 53 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'eval "rm -rf ~"'
+expect_both $'engine parity 54 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'sh -c "rm -rf ~"'
+expect_both $'engine parity 55 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'bash -c "rm -rf /"'
+expect_both $'engine parity 56 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse:$true -Force ~'
+expect_both $'engine parity 57 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse:$true -Force $HOME'
+expect_both $'engine parity 58 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse:$true -Force C:\\'
+expect_both $'engine parity 59 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -rec:$true C:\\'
+expect_both $'engine parity 60 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'ri -Recurse:$true $HOME'
+expect_both $'engine parity 61 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force -Path:C:\\'
+expect_both $'engine parity 62 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force -LiteralPath:$HOME'
+expect_both $'engine parity 63 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force -Path:~'
+expect_both $'engine parity 64 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'eval rm -rf ~'
+expect_both $'engine parity 65 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'eval rm -rf ~/*'
+expect_both $'engine parity 66 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'sh -cx "rm -rf ~"'
+expect_both $'engine parity 67 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'bash -xc "rm -rf /"'
+expect_both $'engine parity 68 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf {~,{/}}'
+expect_both $'engine parity 69 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf {~,x{y,z}}'
+expect_both $'engine parity 70 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf {a,b,~}'
+expect_both $'engine parity 71 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force C:\\\\'
+expect_both $'engine parity 72 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force C:\\/'
+expect_both $'engine parity 73 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force C:\\\\\\\\'
+expect_both $'engine parity 74 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf ~ ";"'
+expect_both $'engine parity 75 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf "a;b" ~'
+expect_both $'engine parity 76 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf ~ "|"'
+expect_both $'engine parity 77 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'eval "true; rm -rf ~"'
+expect_both $'engine parity 78 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'eval eval eval eval "rm -rf ~"'
+# DECLARED GAP, the engine refused it: an expansion-built command word
+expect_both $'engine parity 79 (Bash, engine deny)' 0 "${RDT_CWD[@]}" --command $'$SHELL -c "rm -rf ~"'
+# DECLARED GAP, the engine refused it: an expansion-built command word
+expect_both $'engine parity 80 (Bash, engine deny)' 0 "${RDT_CWD[@]}" --command $'"$SHELL" -c "rm -rf ~"'
+expect_both $'engine parity 81 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force -Path:\'C:\\\''
+expect_both $'engine parity 82 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force -LiteralPath:"C:\\"'
+expect_both $'engine parity 83 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force -Path:"$HOME"'
+expect_both $'engine parity 84 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'env -i rm -rf ~'
+expect_both $'engine parity 85 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'env -u PATH rm -rf ~'
+expect_both $'engine parity 86 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'nice -n 10 rm -rf ~'
+expect_both $'engine parity 87 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'ionice -c 3 rm -rf ~'
+expect_both $'engine parity 88 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'stdbuf -o 0 rm -rf ~'
+expect_both $'engine parity 89 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'doas -n rm -rf ~'
+expect_both $'engine parity 90 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'setsid -w rm -rf ~'
+expect_both $'engine parity 91 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'setsid --wait rm -rf ~'
+expect_both $'engine parity 92 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'timeout 60 rm -rf ~'
+expect_both $'engine parity 93 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'timeout 60s rm -rf ~'
+expect_both $'engine parity 94 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'timeout 1.5h rm -rf ~'
+expect_both $'engine parity 95 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'timeout -k 30s 60s rm -rf ~'
+expect_both $'engine parity 96 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'timeout --foreground 60s rm -rf ~'
+expect_both $'engine parity 97 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'nice -n 10 timeout 60s rm -rf ~'
+expect_both $'engine parity 98 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf /c'
+expect_both $'engine parity 99 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf /c/'
+expect_both $'engine parity 100 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf /cygdrive/c'
+expect_both $'engine parity 101 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf /c/Users/someone'
+expect_both $'engine parity 102 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf \\\n~'
+expect_both $'engine parity 103 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf \\\n/'
+expect_both $'engine parity 104 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -r\\\nf ~'
+expect_both $'engine parity 105 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'sudo rm -rf \\\n'"$RDT_EP_UH"
+expect_both $'engine parity 106 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force `\n~'
+expect_both $'engine parity 107 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse `\n-Force '"$RDT_EP_WH"
+expect_both $'engine parity 108 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'cmd /c rd /s /q '"$RDT_EP_WH"
+expect_both $'engine parity 109 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'cmd /c "rd /s /q '"$RDT_EP_WH"$'"'
+expect_both $'engine parity 110 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'cmd.exe /c rd /s /q '"$RDT_EP_WH"
+expect_both $'engine parity 111 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'cmd /c rd /s/q '"$RDT_EP_WH"
+# DECLARED GAP, the engine refused it: cmd del /s and a %NAME% cmd expands
+expect_both $'engine parity 112 (PowerShell, engine deny)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'cmd /k del /s /q %USERPROFILE%'
+expect_both $'engine parity 113 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'cmd /c rd /s /q C:\\'
+# old expectation wrong: bash removes the backslashes, so cmd gets the drive-relative C:Usersname
+expect_both $'engine parity 114 (Bash, engine deny)' 0 "${RDT_CWD[@]}" --command $'cmd /c rd /s /q '"$RDT_EP_WH"
+expect_both $'engine parity 115 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'cmd /c rd /s /q /c/Users/someone'
+expect_both $'engine parity 116 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'powershell -c "Remove-Item -Recurse -Force ~"'
+expect_both $'engine parity 117 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'powershell.exe -Command "Remove-Item -Recurse -Force ~"'
+expect_both $'engine parity 118 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'pwsh -Command "Remove-Item -Recurse -Force ~"'
+expect_both $'engine parity 119 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'pwsh -c "rm -r -for $HOME"'
+# DECLARED GAP, the engine refused it: a bash -c run from the PowerShell tool
+expect_both $'engine parity 120 (PowerShell, engine deny)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'bash -c "rm -rf ~"'
+# old expectation wrong: a single-quoted -c text is a string literal; nothing runs
+expect_both $'engine parity 121 (PowerShell, engine deny)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'cmd /c "powershell -c \'Remove-Item -Recurse ~\'"'
+expect_both $'engine parity 122 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm.exe -rf ~'
+# old expectation wrong: the escaped quotes are part of the path, a relative name that cannot exist on Windows
+expect_both $'engine parity 123 (PowerShell, engine deny)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force `"~`"'
+# old expectation wrong: the escaped quotes are part of the path, a relative name that cannot exist on Windows
+expect_both $'engine parity 124 (PowerShell, engine deny)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force `"'"$RDT_EP_WH"$'`"'
+# old expectation wrong: the escaped quotes are part of the path, a relative name that cannot exist on Windows
+expect_both $'engine parity 125 (PowerShell, engine deny)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'ri -Recurse -Force `"$HOME`"'
+expect_both $'engine parity 126 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'echo $\'it\\\'s\' ; rm -rf ~'
+# old expectation wrong: a parse error: bash runs nothing
+expect_both $'engine parity 127 (Bash, engine deny)' 0 "${RDT_CWD[@]}" --command $'echo \'unterminated ; rm -rf ~'
+# old expectation wrong: a parse error: bash runs nothing
+expect_both $'engine parity 128 (Bash, engine deny)' 0 "${RDT_CWD[@]}" --command $'echo "unterminated && rm -rf /'
+# old expectation wrong: a parse error: PowerShell runs nothing
+expect_both $'engine parity 129 (PowerShell, engine deny)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'Write-Host \'oops ; Remove-Item -Recurse -Force ~'
+expect_both $'engine parity 130 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'xargs rm -rf ~'
+expect_both $'engine parity 131 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'xargs rm -rf /'
+expect_both $'engine parity 132 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'xargs rm -rf $HOME'
+expect_both $'engine parity 133 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'xargs rm.exe -rf ~'
+expect_both $'engine parity 134 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'sudo xargs rm -rf ~'
+expect_both $'engine parity 135 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'xargs -n 1 rm -rf ~'
+expect_both $'engine parity 136 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'xargs -I {} rm -rf ~'
+expect_both $'engine parity 137 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'xargs -P 4 rm -rf ~'
+expect_both $'engine parity 138 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'xargs -a list.txt rm -rf ~'
+expect_both $'engine parity 139 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'xargs -d , -L 1 rm -rf ~'
+expect_both $'engine parity 140 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'xargs -n1 rm -rf ~'
+expect_both $'engine parity 141 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'xargs -I{} rm -rf ~'
+expect_both $'engine parity 142 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'xargs -r rm -rf ~'
+expect_both $'engine parity 143 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'xargs -0 rm -rf ~'
+expect_both $'engine parity 144 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'xargs -t rm -rf ~'
+expect_both $'engine parity 145 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'xargs -rt rm -rf /'
+expect_both $'engine parity 146 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'xargs --replace rm -rf ~'
+expect_both $'engine parity 147 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'xargs --replace={} rm -rf ~'
+expect_both $'engine parity 148 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'xargs --max-lines rm -rf ~'
+expect_both $'engine parity 149 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'xargs --max-args=1 rm -rf ~'
+expect_both $'engine parity 150 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'xargs --max-args 1 rm -rf ~'
+expect_both $'engine parity 151 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm file.txt'
+expect_both $'engine parity 152 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm -f file.txt'
+expect_both $'engine parity 153 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm -r ./build'
+expect_both $'engine parity 154 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm -rf ./node_modules'
+# plugin stricter, kept: a target outside the session's allowed roots
+expect_both $'engine parity 155 (Bash, engine allow)' 2 "${RDT_CWD[@]}" --command $'rm -rf ~/projects/build'
+expect_both $'engine parity 156 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'git rm -rf .'
+expect_both $'engine parity 157 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'echo rm -rf ~'
+expect_both $'engine parity 158 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'ls -la ~'
+expect_both $'engine parity 159 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm -rf /tmp/scratch'
+expect_both $'engine parity 160 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'grep -rf pattern ~'
+# plugin stricter, kept: a relative operand is judged from every directory the command may run it from
+expect_both $'engine parity 161 (Bash, engine allow)' 2 "${RDT_CWD[@]}" --command $'cd / && rm -rf build'
+expect_both $'engine parity 162 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm -rf build && cp x ~'
+expect_both $'engine parity 163 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm -rf node_modules; ls ~'
+expect_both $'engine parity 164 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm -rf dist || echo failed; cd ~'
+# plugin stricter, kept: a target outside the session's allowed roots
+expect_both $'engine parity 165 (Bash, engine allow)' 2 "${RDT_CWD[@]}" --command $'rm -rf '"$RDT_EP_UH"$'/projects'
+expect_both $'engine parity 166 (PowerShell, engine allow)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force .\\dist'
+expect_both $'engine parity 167 (PowerShell, engine allow)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item ~'
+expect_both $'engine parity 168 (PowerShell, engine allow)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'Get-ChildItem ~'
+# plugin stricter, kept: a target outside the session's allowed roots
+expect_both $'engine parity 169 (PowerShell, engine allow)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force '"$RDT_EP_WH"$'\\projects\\build' # portability-ok: a Windows path, not a regex \\b
+expect_both $'engine parity 170 (PowerShell, engine allow)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force @params'
+expect_both $'engine parity 171 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm -rf $(echo ~)'
+expect_both $'engine parity 172 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm -rf $(echo /*)'
+# plugin stricter, kept: a find delete, which the engine did not read
+expect_both $'engine parity 173 (Bash, engine allow)' 2 "${RDT_CWD[@]}" --command $'find / -delete'
+# plugin stricter, kept: a find delete, which the engine did not read
+expect_both $'engine parity 174 (Bash, engine allow)' 2 "${RDT_CWD[@]}" --command $'find ~ -delete'
+expect_both $'engine parity 175 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm -rf build/{a,b}'
+expect_both $'engine parity 176 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm -rf ./$(date)'
+expect_both $'engine parity 177 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'bash -c "ls ~"'
+expect_both $'engine parity 178 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'sh -c "echo hi"'
+expect_both $'engine parity 179 (PowerShell, engine allow)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse:$false ~'
+expect_both $'engine parity 180 (PowerShell, engine allow)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force -Path:.\\dist'
+# plugin stricter, kept: a pipeline removal of what the listing names
+expect_both $'engine parity 181 (PowerShell, engine allow)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Get-ChildItem -Force C:\\ | Remove-Item -Recurse -Force'
+expect_both $'engine parity 182 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm -rf {a,b}'
+expect_both $'engine parity 183 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'eval ls ~'
+expect_both $'engine parity 184 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'sh -cx "echo hi"'
+expect_both $'engine parity 185 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm -rf a//b'
+expect_both $'engine parity 186 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm -rf .//dist'
+expect_both $'engine parity 187 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm -rf "./my;dir"'
+expect_both $'engine parity 188 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'echo "a; rm -rf ~"'
+expect_both $'engine parity 189 (PowerShell, engine allow)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force -Path:\'.\\dist\''
+expect_both $'engine parity 190 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm -rf build \\\ndist'
+expect_both $'engine parity 191 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'rm -rf \\\n./node_modules'
+expect_both $'engine parity 192 (PowerShell, engine allow)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'cmd /c dir C:\\'
+expect_both $'engine parity 193 (PowerShell, engine allow)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'cmd /c rd /s /q .\\dist'
+expect_both $'engine parity 194 (PowerShell, engine allow)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'cmd /c rd '"$RDT_EP_WH"
+expect_both $'engine parity 195 (PowerShell, engine allow)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'cmd /c del /q '"$RDT_EP_WH"$'\\notes.txt'
+expect_both $'engine parity 196 (PowerShell, engine allow)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'cmd /c echo rd /s /q '"$RDT_EP_WH"
+expect_both $'engine parity 197 (PowerShell, engine allow)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'powershell -Command "Get-ChildItem ~"'
+# plugin stricter, kept: the value is not UTF-16LE text, refused as a decoder sink
+expect_both $'engine parity 198 (PowerShell, engine allow)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'powershell -EncodedCommand cm0gLXJmIH4='
+expect_both $'engine parity 199 (PowerShell, engine allow)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'Write-Host `"~`"'
+expect_both $'engine parity 200 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'echo "unbalanced quote here'
+expect_both $'engine parity 201 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'echo \'oops ; ls ~'
+expect_both $'engine parity 202 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'xargs grep foo'
+# plugin stricter, kept: xargs items arrive on stdin, so the target cannot be placed
+expect_both $'engine parity 203 (Bash, engine allow)' 2 "${RDT_CWD[@]}" --command $'xargs rm -rf build'
+# plugin stricter, kept: xargs items arrive on stdin, so the target cannot be placed
+expect_both $'engine parity 204 (Bash, engine allow)' 2 "${RDT_CWD[@]}" --command $'xargs -n 1 rm -rf ./dist'
+# plugin stricter, kept: xargs items arrive on stdin, so the target cannot be placed
+expect_both $'engine parity 205 (Bash, engine allow)' 2 "${RDT_CWD[@]}" --command $'xargs -I {} rm -rf '"$RDT_EP_UH"$'/projects/{}'
+expect_both $'engine parity 206 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'xargs ls ~'
+# plugin stricter, kept: a listing of the git toplevel piped into a delete
+expect_both $'engine parity 207 (Bash, engine allow)' 2 "${RDT_CWD[@]}" --command $'find . -name \'*.tmp\' | xargs rm -rf'
+# The dangerous spellings the cases the engine misread were aiming at.
+expect_both 'engine parity companion: rm -rf "$USERPROFILE" blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf "$USERPROFILE"'
+expect_both 'engine parity companion: cmd /c rd /s /q with a quoted profile path blocks' 2 "${RDT_CWD[@]}" \
+  --command "cmd /c rd /s /q '$RDT_EP_WH'"
+expect_both 'engine parity companion: PS Remove-Item -Recurse "~" blocks' 2 "${RDT_CWD[@]}" --tool PowerShell \
+  --command 'Remove-Item -Recurse -Force "~"'
+# DECLARED GAP: on the PowerShell tool a cmd /c line is read for rd /s, rmdir /s
+# and robocopy only, so a powershell it runs is not judged.
+expect_both 'engine parity companion: cmd /c powershell -c unquoted is left alone' 0 "${RDT_CWD[@]}" --tool PowerShell \
+  --command 'cmd /c "powershell -c Remove-Item -Recurse ~"'
+expect_both 'engine parity companion: a balanced rm -rf ~ after echo blocks' 2 "${RDT_CWD[@]}" \
+  --command "echo 'terminated' ; rm -rf ~"
+
 # --- 6. Kill switch ----------------------------------------------------------
 expect "kill switch disables the guard" 0 --command 'rm -rf /' \
   -- "CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ENABLED=false"

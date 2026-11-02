@@ -1,5 +1,22 @@
 # Changelog: evals
 
+## [0.14.10] - 2026-11-02
+
+### Fixed
+
+- `plugin-eval`'s validity gate checks a plugin inside a case's directory (a case's own helper,
+  such as an offline `gh` stand-in) only in that case's runs, so a mixed suite where one case has
+  a helper and another has none no longer fails `plugins loaded` for the second.
+- A denied compound Bash command now counts as a plugin-data denial when one of its commands is
+  aimed only under the run's own plugin-data directory and every other absolute path it names was
+  named by an allowed Bash call of the same run.
+
+## [0.14.9] - 2026-11-02
+
+### Fixed
+
+- `run-validity.py` sets aside a with-arm denied compound Bash call as a warning when a later call in the same run ran its plugin part alone and was allowed, so a state-saving skill whose model wraps a prescribed script call in `cd`, assignments or a trailing `ls` can still score VALID; a denial whose plugin part never ran alone still fails (#12256).
+
 ## [0.14.8] - 2026-11-02
 
 ### Changed

@@ -14,16 +14,27 @@ The run uses the account Claude Code is already signed in with. It never signs i
 switches accounts, and it never drives Claude Desktop (Gotchas).
 
 In the commands below, `<skill-dir>` is this skill's folder; `<plugin-dir>` is the plugin directory
-the person names, else `pluginDir` from `config/local.json`, else from `config/defaults.json`,
-resolved from the directory the run starts in; `<run-dir>` is drive's run directory; `<session>` is
-one name for the whole run; `<file>` is the feature id with each `/` as `-`, then the entry point
-(`mods-band-01`). The `--timeout` values come from `timeouts` in the same config: `stepMs` for every
+the person names, else each line Launch's `plugins` prints, resolved from the directory the run
+starts in; `<plugin>` is the last segment of `<plugin-dir>`; `<run-dir>` is drive's run directory;
+`<session>` is one name for the whole run; `<file>` is `<plugin>`, then the feature id with each `/`
+as `-`, then the entry point (`context-budget-mods-band-01`), so two plugins driving the same entry
+point keep separate evidence. The `--timeout`
+values come from `timeouts` in `config/local.json`, else `config/defaults.json`: `stepMs` for every
 `wait-for`, `readyMs` for Ready, `logMs` for `logs`. A run takes at most `maxCaptures` screenshots
-and videos together, from the same config; the driver does not count them, so the run keeps the
-count. At the cap it takes no further screenshot or video and records each entry point it skipped
-as `blocked: maxCaptures reached`.
+and videos together, and drives at most `maxEntryPoints` entry points across all its plugins, both
+from the same config; the driver caps only the plugins Launch lists, so the run keeps both counts. At a cap it takes no
+further capture, or drives no further entry point, and records each entry point it skipped as
+`blocked: maxCaptures reached` or `blocked: maxEntryPoints reached`.
 
 ## Launch
+
+`node <skill-dir>/driver/driver.mjs plugins <changed files>` prints one `<plugin-dir>` per line: the
+plugin each changed file sits in, once each, at most `maxEntryPoints` of them, each one left out
+named on stderr as `blocked: maxEntryPoints reached: <dir>`; with no changed file, the configured
+`pluginDir`. The driver launches one plugin per session, so each line runs in turn under the one
+`<session>`: Launch, Ready, its entry points, Cleanup, then the next line. Run `plugins` only when
+the run directory holds `affected.json`; otherwise `<plugin-dir>` is the one the person names, else
+`pluginDir` from `config/local.json`, else from `config/defaults.json`.
 
 `node <skill-dir>/driver/driver.mjs launch --plugin-dir <plugin-dir> --session <session>`
 
@@ -39,7 +50,7 @@ key, and screenshots that first screen (as of 2026-11-02; recheck when that row 
 
 ## Ready
 
-`node <skill-dir>/driver/driver.mjs ready --plugin-dir <plugin-dir> --session <session> --out <run-dir>/ready-init.jsonl --timeout <readyMs>`
+`node <skill-dir>/driver/driver.mjs ready --plugin-dir <plugin-dir> --session <session> --out <run-dir>/<plugin>-ready-init.jsonl --timeout <readyMs>`
 
 It prints the driver's doctor lines (engine, signatures, font) and whether the session answers, then
 starts one print-mode turn with the launch's flags and environment and stops it at the init event,
@@ -58,6 +69,34 @@ when either section renames a field or changes the values `apiKeySource` reports
 - `logs`: `node <skill-dir>/driver/driver.mjs log "<prompt>" --plugin-dir <plugin-dir> --out <run-dir>/<file>.jsonl --timeout <logMs>`,
   a print-mode run of the prompt kept as stream-json
 - `trace`, `cpu`, `heap`, `threads`, `aria`: none
+
+`screenshot` and `video` never capture the live screen: the driver masks its text per `## Mask`,
+redraws it in a second terminal and captures that, then writes the text it drew beside the capture
+as `<path>.txt` (`<file>.png.txt`), every frame's text for a video. A frame that does not redraw
+exactly fails the command with no capture and no sidecar.
+
+## Mask
+
+Each line is a JavaScript regular expression the driver matches case-insensitively within one
+screen row. It replaces every match, and every `values:` value anywhere on the screen (ignoring
+case, whitespace, `|` and box drawing), with `*`. Shapes as of Claude Code 2.1.316, from
+`driver/fixtures/`, rewrites of real screens with every value invented; recheck when a release
+changes `/status`, `/usage`, the startup banner or the usage-limit notice.
+
+- email | [A-Za-z0-9_.+-]+@[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+
+- organization | (?<=Organization:[ \t]+)[^ \t](?:.*[^ \t])?
+- login method | (?<=Login method:[ \t]+)[^ \t](?:.*[^ \t])?
+- banner plan | (?<=· )Claude[ \t]+(?:Max|Pro|Team|Enterprise)(?![A-Za-z0-9_])
+- session id | (?<=Session ID:[ \t]+)[^ \t]+
+- cwd | (?<=cwd:[ \t]+)[^ \t](?:.*[^ \t])?
+- home path | (?:/home|/Users|[a-z]:\\Users)(?:/|\\)[^ \t]+
+- usage limit | [0-9]+% of your [^·]*limit
+- usage meter | [█▉▊▋▌▍▎▏]*[ \t]*[0-9]+% used
+- usage reset | resets [^·]*[^· \t]
+- cost | (?<=Total cost:[ \t]+)[^ \t]+
+- token usage | (?<=Usage:[ \t]+)[0-9](?:.*[^ \t])?
+
+values: `cli/account.mjs`
 
 ## Cleanup
 
@@ -86,8 +125,8 @@ is running. It stops the session this run launched; the evidence files stay.
 - Mod band | features/mods/band/README.md | entry points: 2 | sources: plugins/*/hooks/register.tsx
 - Mod toast | features/mods/toast/README.md | entry points: 2 | sources: plugins/*/hooks/register.tsx
 - Mod panel | features/mods/panel/README.md | entry points: 2 | sources: plugins/*/hooks/register.tsx
-- Skill invocation | features/skills/invoke/README.md | entry points: 4 | sources: plugins/*/skills/*/SKILL.md
-- Hook output | features/hooks/output/README.md | entry points: 3 | sources: plugins/*/hooks/hooks.json
+- Skill invocation | features/skills/invoke/README.md | entry points: 4 | sources: plugins/*/skills/*/SKILL.md, plugins/*/skills/*/reference/**, plugins/*/skills/*/scripts/**, plugins/*/agents/*.md
+- Hook output | features/hooks/output/README.md | entry points: 3 | sources: plugins/*/hooks/**
 - Slash commands | features/commands/slash/README.md | entry points: 3 | sources: plugins/*/skills/*/SKILL.md, plugins/*/hooks/register.tsx
-- Permission dialog | features/dialogs/permission/README.md | entry points: 3 | sources: plugins/*/hooks/hooks.json, plugins/*/skills/*/SKILL.md
+- Permission dialog | features/dialogs/permission/README.md | entry points: 3 | sources: plugins/*/hooks/**, plugins/*/skills/*/SKILL.md
 - Desktop through the mod test harness | features/desktop/mod-harness/README.md | entry points: 2 | sources: plugins/*/hooks/*.test.ts
