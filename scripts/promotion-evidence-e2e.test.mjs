@@ -209,16 +209,32 @@ describe("demoted", () => {
     assert.deepEqual(effective(result), ALL("promoted"));
   });
 
+  const escapeRe = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const staleReason = ({ path, generatedAt }) =>
+    new RegExp(`^promotion_evidence_source ${escapeRe(path)} is stale: generated_at ${escapeRe(generatedAt)} is older than promotion_evidence_max_age_hours 24$`);
+
   test("a re-earn read from evidence older than the bound keeps every cell demoted", cli, () => {
     const { path, generatedAt } = published(25);
     const result = resolveWith({ ...BOUND, promotion_evidence_source: path }, { args: ["--window-start", "2026-06-01T00:00:00Z"] });
-    const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    assertFailClosed(result, new RegExp(`^promotion_evidence_source ${escape(path)} is stale: generated_at ${escape(generatedAt)} is older than promotion_evidence_max_age_hours 24$`));
+    assertFailClosed(result, staleReason({ path, generatedAt }));
   });
 
   // A re-earn counted from the demotion record's creation lifts the resolver's restart failure at
   // that same instant; one counted from before it does not.
-  const reearned = (since) => published(0, CELLS.map((cell) => ({ cell, event: "re-earned", at: "2026-10-20T00:00:00Z", since }))).path;
+  const reearnEvents = (since) => CELLS.map((cell) => ({ cell, event: "re-earned", at: "2026-10-20T00:00:00Z", since }));
+  const reearned = (since) => published(0, reearnEvents(since)).path;
+
+  test("a re-earn per cell read from evidence older than the bound keeps every cell demoted", cli, () => {
+    const stale = published(25, reearnEvents("2026-10-11T07:00:00Z"));
+    const result = resolveWith({ ...BOUND, promotion_evidence_source: stale.path }, { args: ["--window-start", "2026-10-11T07:00:00Z"] });
+    assertFailClosed(result, staleReason(stale));
+  });
+
+  test("without --window-start a re-earn lifting a contrary event in evidence older than the bound fails closed", cli, () => {
+    const contrary = { cell: "C2-auto-merge", event: "gate-failure", at: IN_EPOCH, discovered: IN_EPOCH };
+    const stale = published(25, [contrary, { cell: "C2-auto-merge", event: "re-earned", at: "2026-10-20T00:00:00Z", since: IN_EPOCH }]);
+    assertFailClosed(resolveWith({ ...BOUND, promotion_evidence_source: stale.path }), staleReason(stale));
+  });
   test("a re-earn per cell whose since is the --window-start re-promotes every cell", cli, () => {
     const result = resolveWith({ ...BOUND, promotion_evidence_source: reearned("2026-10-11T07:00:00Z") }, { args: ["--window-start", "2026-10-11T07:00:00Z"] });
     assert.equal(result.failClosedReason, null);

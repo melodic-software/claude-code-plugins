@@ -98,7 +98,7 @@ whether a deployment meets the requirement; this file states it and certifies no
 | `promotion_evidence_source` | `--evidence <evidence.json>` | file: epoch-scoped promotion-evidence events |
 | `promotion_evidence_checker` | (the program it runs) | file: the `check-security-binding.mjs` that decides promoted |
 | `promotion_evidence_credential_roots` (optional) | `--credential-roots <path,path,...>`, only when set | the probe host's trusted credential locations |
-| `promotion_evidence_max_age_hours` (needed after a demotion) | (not passed; the helper reads it under `--window-start`) | how old the events file's `generated_at` may be when a re-earn is read from it |
+| `promotion_evidence_max_age_hours` (needed after a demotion) | (not passed; the helper reads it under `--window-start` or when the events file holds a `re-earned` event) | how old the events file's `generated_at` may be when a re-earn is read from it |
 
 The checker's `Usage:` comment, and its `usage:` error message, list its arguments (the autonomy
 plugin's `check-security-binding.mjs`, shipped with `/autonomy:setup`).
@@ -205,7 +205,8 @@ judgment mappings and how to set `--lane-login` for merge-queue merges.
 
 Run it as the operator, never from the lane, and point `--out` at a directory the lane cannot
 write. Which host runs it, under which identity and on what schedule is the operator's
-deployment choice. The resolver reads the sidecar only under `--window-start`
+deployment choice. The resolver reads the sidecar only under `--window-start` or when the events
+file holds a `re-earned` event
 ([`promotion_evidence_max_age_hours`](#promotion_evidence_max_age_hours)).
 
 The post-merge check dispatches its full run under the lane identity. Where the permission that
@@ -257,7 +258,11 @@ and fails closed, keeping a demoted cell demoted, when:
   future, or is older than the bound. The stale reason names the events file, its `generated_at`
   and the bound.
 
-Without `--window-start` the helper enforces neither the bound nor the sidecar. The bound is still
+Without `--window-start`, a `re-earned` event in the events file can still lift a contrary event
+the file holds, with no demotion record for the gate to restart at, so when the events file reads
+as a JSON array holding any `re-earned` event the helper applies the same sidecar and bound test
+and fails closed on the same conditions. With neither, it enforces neither the bound nor the
+sidecar. The bound is still
 read on every call, though: a value that is not a JSON string fails every read closed, and the
 merge gate refuses a settings file holding it that the lane can write. Set the bound above
 the publisher's interval, so one late run does not hold a re-earned cell down. As with the

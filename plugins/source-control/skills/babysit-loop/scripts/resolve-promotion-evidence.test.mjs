@@ -323,12 +323,36 @@ test("a re-earn without a usable age bound or sidecar fails closed", cli, () => 
   assertFailClosed(runWith(checker, BOUND, RESTART), /has no readable sidecar .*evidence\.meta\.json/);
 });
 
-test("without --window-start the age bound is not read", cli, () => {
+test("without --window-start or a re-earned event the age bound is not read", cli, () => {
   writeSidecar(1000);
   const result = runWith(stub(GOOD_OUTPUT));
   assert.equal(result.failClosedReason, null);
   assert.equal(result.cells["C2-auto-merge"].effective, "promoted");
   rmSync(sidecar);
+});
+
+test("without --window-start a re-earned event read from a stale events file fails closed", cli, () => {
+  // A contrary event lifted by a re-earn in the same file, with no demotion record to restart at.
+  const reearned = [
+    { cell: "C2-auto-merge", event: "gate-failure", at: "2026-10-01T00:00:00Z", discovered: "2026-10-01T00:00:00Z" },
+    { cell: "C2-auto-merge", event: "re-earned", at: "2026-10-20T00:00:00Z", since: "2026-10-01T00:00:00Z" },
+  ];
+  writeFileSync(surfaces.evidence, JSON.stringify(reearned));
+  try {
+    const checker = stub(GOOD_OUTPUT);
+    const stale = writeSidecar(1000);
+    assertFailClosed(runWith(checker, BOUND), new RegExp(`^promotion_evidence_source ${escapeRe(surfaces.evidence)} is stale: generated_at ${escapeRe(stale)} is older than promotion_evidence_max_age_hours 24$`));
+    assertFailClosed(runWith(checker), /^promotion_evidence_max_age_hours not set in managed or user settings/);
+    writeSidecar(23);
+    const fresh = runWith(checker, BOUND);
+    assert.equal(fresh.failClosedReason, null);
+    assert.equal(fresh.cells["C2-auto-merge"].effective, "promoted");
+    rmSync(sidecar);
+    assertFailClosed(runWith(checker, BOUND), /has no readable sidecar .*evidence\.meta\.json/);
+  } finally {
+    writeFileSync(surfaces.evidence, "[]");
+    rmSync(sidecar, { force: true });
+  }
 });
 
 test("checker exiting 1 fails closed", cli, () => {

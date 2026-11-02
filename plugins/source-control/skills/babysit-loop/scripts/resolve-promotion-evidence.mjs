@@ -19,6 +19,10 @@
 // promotion_evidence_max_age_hours, a positive whole number read from settings like the options
 // below. An unset or malformed bound, a missing, mismatched or lane-writable sidecar, or a stale
 // generated_at fails closed, so a demoted cell stays demoted while the publisher is not running.
+// Without --window-start a `re-earned` event in the source can still lift a contrary event the
+// file holds, so a source that reads as a JSON array holding any `re-earned` event must pass the
+// same freshness test; one that does not read as a JSON array goes to the checker, which reports
+// it unavailable.
 //
 // The four bootstrap values (promotion_evidence_binding, promotion_evidence_root,
 // promotion_evidence_source, promotion_evidence_checker) are not arguments: the helper reads
@@ -59,7 +63,7 @@ import { managedSettingsFiles, OptionsError, readOperatorOptions, resolveInstall
 
 // The first four are required; promotion_evidence_credential_roots is optional, and unset it
 // passes the checker no --credential-roots. promotion_evidence_max_age_hours is required only
-// with --window-start.
+// with --window-start or when the source holds a `re-earned` event.
 export const OPTION_KEYS = [
   "promotion_evidence_binding",
   "promotion_evidence_root",
@@ -192,7 +196,7 @@ const restartEvents = (events, at) => [...events, ...PROMOTABLE_CELLS.map((cell)
 // generated_at is within the operator's age bound of now.
 function requireFresh(path, text, judge) {
   const bound = options[MAX_AGE]?.value?.trim();
-  if (!bound) emit(source, `${MAX_AGE} not set in managed or user settings, so a re-earn after --window-start cannot be read`);
+  if (!bound) emit(source, `${MAX_AGE} not set in managed or user settings, so a re-earn cannot be read`);
   if (!/^[1-9]\d{0,5}$/.test(bound)) emit(source, `${MAX_AGE} ${JSON.stringify(bound)} is not a whole number of hours from 1 to 999999`);
   refuseLaneWritable(options[MAX_AGE].file, options[MAX_AGE].file, judge);
   const sidecar = `${path.replace(/\.json$/, "")}.meta.json`;
@@ -215,6 +219,23 @@ function requireFresh(path, text, judge) {
   if (age > Number(bound) * HOUR_MS) {
     emit(source, `promotion_evidence_source ${path} is stale: generated_at ${generatedAt} is older than ${MAX_AGE} ${bound}`);
   }
+}
+
+// The source as given, once a source holding a `re-earned` event has passed requireFresh: without
+// --window-start such an event lifts a contrary event the file holds with no demotion record, so
+// a stale file must not keep its cell promoted. A source that does not read as a JSON array is
+// left to the checker, which reports it unavailable.
+function checkedSource(path, judge) {
+  let text;
+  let events;
+  try {
+    text = readFileSync(path, "utf8");
+    events = JSON.parse(text);
+  } catch {
+    return path;
+  }
+  if (Array.isArray(events) && events.some((event) => event?.event === "re-earned")) requireFresh(path, text, judge);
+  return path;
 }
 
 // The source's events plus one gate-failure per promotable cell at `at`, written outside every
@@ -335,7 +356,7 @@ export function main({ platform = process.platform, ...judge } = {}) {
   const probeRoot = option("promotion_evidence_root", roots);
   const sourcePath = option("promotion_evidence_source", roots);
   const evidence =
-    values["window-start"] === undefined ? sourcePath : restartedCopy(sourcePath, values["window-start"], roots, judge);
+    values["window-start"] === undefined ? checkedSource(sourcePath, judge) : restartedCopy(sourcePath, values["window-start"], roots, judge);
   // The roots name the probe host, so only the settings file that set them is judged.
   const credentialSetting = options.promotion_evidence_credential_roots;
   if (credentialSetting) refuseLaneWritable(credentialSetting.file, credentialSetting.file, judge);
