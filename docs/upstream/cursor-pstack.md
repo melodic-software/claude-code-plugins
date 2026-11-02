@@ -122,7 +122,8 @@ is adopted by this record.
 
 - 1c, 3h, 6h, 8j, 19d: gated by decision 58, no stumble or eval evidence.
 - 24i: gated per cursor/plugins#634 (Q557).
-- 4c, 4e, 4f: owned by #7573 (the corrections plugin, `/corrections:gather` and `/corrections:codify`).
+- 4c, 4e, 4f: owned by #7573, which builds the corrections plugin's capture skill beside
+  `/corrections:codify`.
 
 ### The one deliberate departure
 
