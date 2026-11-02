@@ -6393,7 +6393,9 @@ function readPosted(t, step, listing, { fail = false, delays = "0 0 0 0 0" } = {
 // passed on as fallback-ready, in the step after its read.
 function assertFallbackPresence(job) {
   assert.deepEqual(stepSecrets(withoutPresenceChecks(job)), [], "no secret value");
-  const presence = job.steps.at(-1);
+  // The last step logs the job's api budget.
+  assert.equal(job.steps.at(-1).uses.split(" ")[0], "./.base/.github/actions/log-api-budget");
+  const presence = job.steps.at(-2);
   assert.equal(presence.id, "fallback");
   assert.deepEqual(presence.env, { PRESENT: "${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}" });
   assert.equal(job.outputs["fallback-ready"], "${{ steps.fallback.outputs.ready }}");
@@ -6406,7 +6408,7 @@ function assertHandoffEvidenceJob(job) {
   assert.equal(checkout.with.ref, "${{ github.event.repository.default_branch }}");
   assert.equal(checkout.with.path, ".base");
   assert.equal(checkout.with["persist-credentials"], false);
-  assert.equal(checkout.with["sparse-checkout"], ".github/scripts/lib/handoff-evidence.sh");
+  assert.equal(checkout.with["sparse-checkout"], ".github/scripts/lib/handoff-evidence.sh\n.github/actions/log-api-budget\n");
   // A file path, not a cone directory: cone mode would check out no file.
   assert.equal(checkout.with["sparse-checkout-cone-mode"], false);
   const read = job.steps.find((step) => step.id === "posted");
@@ -7122,7 +7124,7 @@ test("work-resolve-issue.yml: resolve-issue-subscription starts on resolve-issue
   assert.equal(evaluate(handoff.if, { "needs.admit.outputs.proceed": "false", "needs.resolve-issue.result": "success" }), false, "unadmitted");
   assert.deepEqual(handoff.permissions, { actions: "read", contents: "read" });
   assert.deepEqual(handoff.outputs, { "handed-off": "${{ steps.handoff.outputs.handed-off }}", "fallback-ready": "${{ steps.fallback.outputs.ready }}" });
-  assert.equal(handoff.steps.length, 3);
+  assert.equal(handoff.steps.length, 4);
   assert.deepEqual(handoff.steps[0], workflow("pr-unblock.yml").jobs["fix-ci-handoff"].steps[0], "the same sparse checkout");
   assertFallbackPresence(handoff);
   assert.doesNotMatch(JSON.stringify(handoff), /needs\.resolve-issue\.outputs\./);
@@ -7775,7 +7777,7 @@ test("work-resolve-issue.yml: resolve-issue-stale reads the stale stop from the 
   assert.deepEqual(job.needs, ["admit", ...STALE_CALLS]);
   assert.deepEqual(job.permissions, { actions: "read", contents: "read" });
   const [checkout, read] = job.steps;
-  assert.equal(checkout.with["sparse-checkout"], ".github/scripts/lib/handoff-evidence.sh");
+  assert.equal(checkout.with["sparse-checkout"], ".github/scripts/lib/handoff-evidence.sh\n.github/actions/log-api-budget\n");
   assert.equal(checkout.with["persist-credentials"], false);
   assert.equal(read.run, "bash .base/.github/scripts/lib/handoff-evidence.sh stale");
   assert.equal(read.env.CALLS, STALE_CALLS.join(" "));

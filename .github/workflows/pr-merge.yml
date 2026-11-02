@@ -37,9 +37,12 @@ name: pr-merge
 # One exception to the switch: when the merge queue lands any PR on main,
 # whoever enqueued it, the push starts a full CI run of main (the
 # dispatch-full-run job), even while the switch or report-only is on, since it
-# merges nothing; at most one per 30 minutes, and a merge that cap skips gets
-# its run of main's tip from the post-merge-dispatch job on the next scheduled
-# run while the lane is live. That run raises no workflow_run event
+# merges nothing; at most one per 30 minutes, counting the full runs
+# pr-require-checks.yml's schedule or a person started. A merge that cap skips
+# gets its run of main's tip from the post-merge-dispatch job on the next
+# scheduled run while the lane is live, and that job starts one inside the cap
+# for a lane merge no lane run covers while merge.full-run-cap-bypass is on
+# (docs/conventions/pr-pipeline.yaml). That run raises no workflow_run event
 # (GITHUB_TOKEN started it), so when it ends red the post-merge-dispatch job
 # on the next scheduled run while the lane is live sends its run id and head SHA to
 # post-merge-demotion-alert.yml through workflow_dispatch, which files the
@@ -335,8 +338,8 @@ jobs:
           . .base/.github/actions/log-api-budget/api-budget.bash
           . .base/.github/scripts/pr-merge/rate-stop.bash
           api_budget_wrap_gh github-token
-          if ! runs=$(gh api "repos/$REPO/actions/workflows/pr-require-checks.yml/runs?event=workflow_dispatch&branch=main&per_page=20" \
-            --jq '[.workflow_runs[] | select(.actor.login == "github-actions[bot]" and .head_branch == "main" and .conclusion != "cancelled") | {sha: .head_sha, created: .created_at}]' 2>"$RUNNER_TEMP/cover-stderr"); then
+          if ! runs=$(gh api "repos/$REPO/actions/workflows/pr-require-checks.yml/runs?branch=main&per_page=20" \
+            --jq '[.workflow_runs[] | select((.event == "schedule" or .event == "workflow_dispatch") and .head_branch == "main" and .conclusion != "cancelled") | {sha: .head_sha, created: .created_at, lane: (.event == "workflow_dispatch" and .actor.login == "github-actions[bot]")}]' 2>"$RUNNER_TEMP/cover-stderr"); then
             cat "$RUNNER_TEMP/cover-stderr" >&2
             stop=$(rate_stop_from "$RUNNER_TEMP/cover-stderr" "the read of main's full runs")
             if [ -n "$stop" ]; then
@@ -366,8 +369,9 @@ jobs:
       # the cap would wait it out before its one run. bypass=true when the
       # post-merge check that judged (exit 0 or 5) lists an unverified lane
       # merge with no dispatch run under way for it, and the cover listing
-      # holds no non-cancelled run created at or after the merge on a commit
-      # that contains it. A run at a commit this checkout lacks is newer than
+      # holds no non-cancelled github-actions[bot] dispatch (`lane`, the only
+      # run the post-merge check credits a lane merge) created at or after the
+      # merge on a commit that contains it. A run at a commit this checkout lacks is newer than
       # the checkout, so it counts as cover; a merge the checkout lacks, or
       # older than the oldest listed run, is skipped. The dispatch then starts
       # one run of main's tip for the whole batch, and the next tick finds it
@@ -386,7 +390,7 @@ jobs:
           fi
           report=$RUNNER_TEMP/post-merge.json runs=$RUNNER_TEMP/cover-runs.json
           [ -f "$report" ] && [ -f "$runs" ] || exit 0
-          oldest=$(jq -r 'map(.created) | min // ""' "$runs")
+          oldest=$(jq -r 'map(select(.lane) | .created) | min // ""' "$runs")
           uncovered=()
           while IFS=$'\t' read -r number sha at; do
             [[ $number =~ ^[1-9][0-9]*$ && $sha =~ ^[0-9a-f]{40}$ && $at =~ ^[0-9T:-]+Z$ ]] || continue
@@ -400,7 +404,7 @@ jobs:
                 covered=1
                 break
               fi
-            done < <(jq -r '.[] | [.sha, .created] | @tsv' "$runs")
+            done < <(jq -r '.[] | select(.lane) | [.sha, .created] | @tsv' "$runs")
             [ -n "$covered" ] || uncovered+=("#$number")
           done < <(jq -r '.autoMerges[]? | select(.verified != true)
             | select((.pending // []) | any(.[]; . == "dispatch-run-pending")
@@ -2682,10 +2686,12 @@ jobs:
 
       # At most one full run of main per CAP_MINUTES, each of main's tip,
       # covering every merge since the last. The step reads the newest
-      # pr-require-checks.yml dispatches on main that github-actions[bot]
-      # started, skipping a cancelled one (replaced before it started, or
-      # cancelled later, which reads red): capped=true when one was created
-      # within CAP_MINUTES, uncovered=true when none is at TIP. A failed read
+      # pr-require-checks.yml full runs on main, scheduled or dispatched by
+      # anyone (a pull request from a fork's main branch is not one), skipping
+      # a cancelled one (replaced before it started, or cancelled later, which
+      # reads red): capped=true when one was created within CAP_MINUTES,
+      # uncovered=true when none is at TIP. Each keeps `lane`, whether
+      # github-actions[bot] dispatched it, for post-merge-dispatch's bypass. A failed read
       # sets neither, so the run dispatches as it would with no cap, except a
       # read refused for a rate limit, which stops the step red with
       # rate-limited=true and sends nothing more. This job checks out only
@@ -2710,8 +2716,8 @@ jobs:
           # The read keeps its rate-limit reading for the job-end api-calls
           # notice; none when the checkout of the library failed.
           { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
-          if ! runs=$(gh api "repos/$REPO/actions/workflows/pr-require-checks.yml/runs?event=workflow_dispatch&branch=main&per_page=20" \
-            --jq '[.workflow_runs[] | select(.actor.login == "github-actions[bot]" and .head_branch == "main" and .conclusion != "cancelled") | {sha: .head_sha, created: .created_at}]' 2>"$RUNNER_TEMP/cover-stderr"); then
+          if ! runs=$(gh api "repos/$REPO/actions/workflows/pr-require-checks.yml/runs?branch=main&per_page=20" \
+            --jq '[.workflow_runs[] | select((.event == "schedule" or .event == "workflow_dispatch") and .head_branch == "main" and .conclusion != "cancelled") | {sha: .head_sha, created: .created_at, lane: (.event == "workflow_dispatch" and .actor.login == "github-actions[bot]")}]' 2>"$RUNNER_TEMP/cover-stderr"); then
             cat "$RUNNER_TEMP/cover-stderr" >&2
             if grep -qiE 'rate limit|RATE_LIMITED|abuse detection|HTTP 429' "$RUNNER_TEMP/cover-stderr"; then
               echo "::error title=GitHub rate limit::the read of main's full runs was rate limited; nothing more is sent"
