@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [4.1.1] - 2026-11-02
+
+### Changed
+
+- Retro session mode now sends each Phase 4 finding the user declines or leaves unselected to the findings buffer, one `/corrections:codify note` call per finding, so a later session can see the lesson recur. Applied findings and "Queue for follow-up" items are not sent. Without the `corrections` plugin, the unapplied findings are listed in the retro report under "Unapplied findings" and no file is written.
+
 ## [4.1.0] - 2026-11-02
 
 ### Added

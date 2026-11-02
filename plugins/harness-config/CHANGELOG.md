@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [2.4.9] - 2026-11-02
+
+### Changed
+
+- The `audit-automation-gaps` and `audit-prompting-postures` skill bodies drop flavor and repeated clauses; every rule, default, example and gate is unchanged, and no description changed.
+
 ## [2.4.8] - 2026-11-02
 
 ### Changed

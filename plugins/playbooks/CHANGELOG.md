@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.27.2] - 2026-11-02
+
+### Changed
+
+- The skill criteria's `## Descriptions` section states the description standard: one sentence saying what the skill is, "Use when" with one trigger per branch, and at most three hook terms, each one probes show moves triggering. It also states the length thresholds: a 250-character target, a warning above 419, and a fail above the spec's field maximum, with the target and warn threshold read as `/skill-quality:check` settings.
+
 ## [0.27.1] - 2026-11-01
 
 ### Changed

@@ -6,7 +6,11 @@ description: >
   token, `<name>=N not-modified=M graphql=K`: N is this job's own requests,
   which cost (the rise in a counter every concurrent job shares) is not, M
   its 304 answers, which GitHub does not count, and K the GraphQL requests
-  among N, which spend GraphQL's own pool. Then an `api-routes` notice per
+  among N, which spend GraphQL's own pool. With `outside` set, an
+  `api-uncounted` notice, `github-token <step> ...`, names the steps that
+  call GitHub with the job token through a client this action cannot count
+  (another action's own HTTP client), so the job-token api-calls count reads
+  as a floor, not a total. Then an `api-routes` notice per
   token, `<name> <route>=<count> ... rest=<count>`: N by templated request
   path, most first, at most 15 routes. Then one line for the job's
   content-creating writes (count and most in any 60 s). Last the api-budget
@@ -21,6 +25,13 @@ inputs:
       Token names, space or newline separated, in lower-case kebab case:
       `github-token` for the job token, `lanes-app` for the lanes App token.
     required: true
+  outside:
+    description: >
+      Steps that call GitHub with the job token outside the counted clients,
+      space or newline separated, each of `A-Za-z0-9._/:-` and at most 80
+      characters. Empty, the default, writes no api-uncounted notice.
+    required: false
+    default: ""
 
 outputs:
   costs:
@@ -38,6 +49,7 @@ runs:
       shell: bash
       env:
         TOKENS: ${{ inputs.tokens }}
+        OUTSIDE: ${{ inputs.outside }}
       run: |
         # shellcheck source=/dev/null
         . "$GITHUB_ACTION_PATH/api-budget.bash" || exit 0
@@ -66,6 +78,16 @@ runs:
           cost=${lines##*cost=}
           costs+=("$name-cost=${cost/na/unknown}")
         done
+        # Job-token calls no counted client sees: named, so api-calls reads as a floor.
+        outside=()
+        for step in ${OUTSIDE:-}; do
+          [[ $step =~ ^[A-Za-z0-9._/:-]{1,80}$ ]] || { echo "::warning::api-budget: skipped an outside step name with other characters"; continue; }
+          outside+=("$step")
+        done
+        if ((${#outside[@]} > 0)); then
+          echo "::notice title=api-uncounted::github-token ${outside[*]}"
+          echo "api-uncounted github-token ${outside[*]}" >>"$GITHUB_STEP_SUMMARY"
+        fi
         lines=$(api_budget_emit_routes "${names[@]}")
         if [[ -n $lines ]]; then
           printf '%s\n' "$lines"

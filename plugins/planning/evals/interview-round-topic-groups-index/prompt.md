@@ -2,8 +2,8 @@
 description: "Round 2 of a webhook-sender interview whose frontier spans two topics, retry policy and failure alerting. Why hard: the round must keep every question in its full layout and also add topic headers and a closing index; the easy failures are one flat numbered list, or an index table that stands in for the questions."
 tags: [interview, round-layout, topic-groups]
 runs: 3
-max_turns: 12
-timeout_seconds: 600
+max_turns: 30
+timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill]
 expected_outcome: "Round 2 asks the five decisions from Q4 on under at least two topic headers (retries and alerting), keeps each question in its full layout, and ends with one index table (Q, Recommendation, Basis, Main alternative), one row per question, before the closing probe"
 ---

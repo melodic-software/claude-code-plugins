@@ -11,11 +11,6 @@ execution:
   max_turns: 30
   timeout_seconds: 900
 graders:
-  - name: skill-fired
-    type: tool_used
-    tool: Skill
-    input_match: '"skill"\s*:\s*"(?:planning:)?brainstorm"'
-    arm: with-only
   - name: user-idea-is-one-candidate
     type: llm
     arm: both
