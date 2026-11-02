@@ -1095,10 +1095,11 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    checker it names, that the lane user can write, or replace through any directory above it,
    refuses; every worktree of the checkout is passed to the resolver as a `--worktree-root`, so a
    surface in a sibling worktree refuses too. After a demotion record the resolver's
-   `--window-start` adds a `gate-failure` per promotable cell at the record's creation, so no cell
-   stays promoted until it is re-ratified, and a re-ratified cell is read only from an events file
-   whose sidecar `generated_at` is within `promotion_evidence_max_age_hours`: stale evidence, or a
-   bound that is unset or whose settings file the lane can write, refuses.
+   `--window-start` adds a `gate-failure` per promotable cell at the record's creation, so each
+   cell stays unpromoted until the evidence source holds a `re-earned` event for it counted from
+   that creation or later, and a re-earned cell is read only from an events file whose sidecar
+   `generated_at` is within `promotion_evidence_max_age_hours`: stale evidence, or a bound that is
+   unset or whose settings file the lane can write, refuses.
    Past an on rung, an in-flight refusal of a pull request that has no merge-queue entry of its
    own and is not a Dependabot pull request stops the reads there: the promotion evidence,
    eligibility, and step 4 are not read, `unattended.promoted` is `null` (`true` in the pr-merge

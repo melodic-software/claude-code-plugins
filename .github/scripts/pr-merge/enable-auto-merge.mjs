@@ -252,7 +252,7 @@ const BOT_LOGIN = /^([a-z0-9][a-z0-9-]*)\[bot\]$/;
 // babysit_merge_policy.MERGE_HOLD_LABELS, plus the human-gated label.
 export const HOLD_LABELS = Object.freeze(["do-not-merge", "pr-verify-failed", HUMAN_MERGE_HOLD, OUTSIDE_ACTOR_LABEL]);
 // 100 pull requests a page; more than this many open is a listing the run
-// stops on rather than one it reads only part of.
+// holds on (ListingFull) rather than one it reads only part of.
 const MAX_PAGES = 10;
 // Changed files read per pull request, 100 a page; more is a head the run
 // does not arm on.
@@ -1618,6 +1618,10 @@ export function loadSkips(path, repo, at, { maxMinutes, maxSkips }) {
   return kept;
 }
 
+// The run arms, disarms and notes nothing on it, ends green with a notice
+// (outage posture element 2), and the next run reads the listing again.
+export class ListingFull extends Error {}
+
 async function listPulls(github, owner, name) {
   const pulls = [];
   let after = null;
@@ -1633,7 +1637,7 @@ async function listPulls(github, owner, name) {
     }
     after = connection.pageInfo.endCursor;
   }
-  throw new Error(`more than ${MAX_PAGES * 100} open pull requests into main`);
+  throw new ListingFull(`more than ${MAX_PAGES * 100} open pull requests into main`);
 }
 
 export async function main({ env = process.env, github, actions, verify, room, close, whole, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random, latch, now = Date.now, mainInputs } = {}) {
@@ -1720,7 +1724,24 @@ export async function main({ env = process.env, github, actions, verify, room, c
     const serve = cacheMode(env) === "serve";
     // A pull_request_target run handles only the pull request its event
     // names, as the listing holds it; a scheduled or hand-started run, every one.
-    const listed = await listPulls(github, repo[1], repo[2]);
+    let listed;
+    try {
+      listed = await listPulls(github, repo[1], repo[2]);
+    } catch (error) {
+      if (!(error instanceof ListingFull)) {
+        throw error;
+      }
+      const hold = `${error.message}, so the listing is not whole: nothing is armed, disarmed or noted this run, and the next run reads it again`;
+      console.log(`::notice title=enable-auto-merge hold::${hold}`);
+      if (env.GITHUB_STEP_SUMMARY) {
+        try {
+          appendFileSync(env.GITHUB_STEP_SUMMARY, `enable-auto-merge: hold: ${hold}\n`);
+        } catch (summaryError) {
+          console.log(`enable-auto-merge: the step summary was not written: ${describe(summaryError)}`);
+        }
+      }
+      return 0;
+    }
     const pulls = env.EVENT_NAME === "pull_request_target" ? listed.filter((pull) => String(pull.number) === String(env.EVENT_PR ?? "")) : listed;
     const lanes = (pull) => pull.author?.__typename === "Bot" && pull.author.login === slug;
     // Only a reader run arms, so only it reads the room.

@@ -127,10 +127,33 @@ entry as unproven. Outside the target repository's blast radius, for the same re
 
 ### `promotion_evidence_source`
 
-The events file: a JSON array of `{cell, event, at}` records, `event` one of `gate-failure`,
-`reverted-merge`, `verification-divergence`, and `at` an ISO 8601 instant. The checker scopes the
-events to each cell's promotion epoch and propagates prerequisite demotions (its evaluation-mode
-header comment owns the rules).
+The events file: a JSON array of `{cell, event, at, discovered}` records, `event` one of
+`gate-failure`, `reverted-merge`, `verification-divergence`, `at` an ISO 8601 instant, and
+`discovered` when the publisher first published the event (absent on events published before it
+recorded one), plus `{cell, event: "re-earned", at, since}` records. The checker scopes the
+contrary events to each cell's promotion epoch and propagates prerequisite demotions (its
+evaluation-mode header comment owns the rules).
+
+A demotion lifts without a person: the publisher emits a `re-earned` event when the cell's
+existing predicate passes over only the merges after `since`, the latest `at` or `discovered` of
+any contrary event against the cell or a prerequisite (a demotion record's creation among them).
+The checker treats the cell as promoted again while every contrary event in its epoch has its `at`
+and `discovered` at or before `since`, so a contrary event found after the re-earn was published
+voids it, whatever its `at`. Nothing writes the binding or `ratified_at`; the lane still cannot
+write the file, so it cannot produce a re-earn.
+
+Two settings keep a re-earn reachable. The publisher's `--lane-login` set must include the merge
+gate's `merge.agent-identity` login, and its `--since` must precede the newest demotion record:
+the gate restarts its window at every demotion record it reads (`--window-start`), and a record
+the publisher never reads leaves every re-earn before that restart, so each cell stays
+unpromoted.
+
+A fresh `--out` directory, or a `--since` moved earlier, stamps every event the run finds for the
+first time with that run's time, so re-earns wait until enough merges land after that run. A run
+whose clock is behind the previous publish's `generated_at` is refused, and a new stamp always
+falls at least a second after it. An event a file from before `discovered` holds without one
+counts as found at that file's `generated_at`: the first publish over that file stamps it with
+that time, and the stamp then stays fixed like any other.
 
 Publication requirements:
 
@@ -176,7 +199,9 @@ judgment mappings and how to set `--lane-login` for merge-queue merges.
 - **`--out <dir>`** writes `evidence.json` and the sidecar `evidence.meta.json`
   (`generated_at`, `through`, `sha256` of the events file, `prev_sha256`), each by a temp file
   and a rename. It refuses to publish when the previous events file does not match its sidecar's
-  `sha256`, or when the new events drop one the previous file held.
+  `sha256`, when the new events drop a contrary event the previous file held, or when they change
+  a published event's `discovered` (other than that one stamp on an event published without
+  one). A `re-earned` event the new run no longer derives is carried forward instead.
 
 Run it as the operator, never from the lane, and point `--out` at a directory the lane cannot
 write. Which host runs it, under which identity and on what schedule is the operator's

@@ -83,7 +83,7 @@ plugin manifests, changelogs, hook declarations, the counter ceilings and the
 shared-library bump checks; `check-catalog` holds the plugin checks that read
 the root npm install (`claude plugin validate` and the rendered-view HTML
 assets) with the shared-library copy and declared-prerequisite gates beside
-them, split from `check-plugins` to keep each under its 3-minute cap;
+them, split from `check-plugins` to keep each under its 3-minute work budget;
 `check-skills` holds the skill
 and eval contracts, check 25 included; `test-bash`, `test-python` and
 `test-node` run the shell suites, the Python suites and the Node packages the

@@ -3994,7 +3994,7 @@ class Assess(unittest.TestCase):
                 promotion=lambda start: seen.append(start) or PROMOTED,
             )
             # The restarted window holds the rung's cells unpromoted until a
-            # human re-ratifies them after the demotion: the merge refuses.
+            # publisher re-earns them after the demotion: the merge refuses.
             restarted = policy.Promotion(
                 dict.fromkeys(policy.PROMOTABLE_CELLS, "unpromoted"), None
             )

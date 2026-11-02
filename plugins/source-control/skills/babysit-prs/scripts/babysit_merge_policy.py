@@ -5970,8 +5970,9 @@ def read_promotion(
     Every worktree of the checkout is a `--worktree-root`, so a surface in a
     sibling worktree refuses. With a demotion record, `--window-start` is its
     creation: the checker reads the source's events plus one `gate-failure`
-    per promotable cell then, so a cell stays unpromoted until it is
-    re-ratified after the demotion. A value the resolver reports, or the
+    per promotable cell then, so a cell stays unpromoted until the evidence
+    holds a `re-earned` event for it counted from that creation or later. A
+    value the resolver reports, or the
     settings file it came from, that the lane user can write refuses.
     Anything doubtful is unpromoted."""
     roots = worktrees(checkout)
