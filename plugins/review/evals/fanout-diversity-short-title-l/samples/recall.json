@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/titles\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | high | titles.py:2 | code-reviewer | Slicing is safe, but the removed check was what kept short titles unchanged: shorten now always appends the ellipsis, so 'Desk lamp' becomes 'Desk lamp…' and a 40-character title loses its last character. | Restore the length check |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names the short titles and the new ellipsis at IMPORTANT"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/titles\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | low | titles.py:1 | code-reviewer | The length check was redundant since slicing is safe; consider a docstring. | Add a docstring |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "agrees the check was redundant and misses the ellipsis"
+    }
+  ]
+}
