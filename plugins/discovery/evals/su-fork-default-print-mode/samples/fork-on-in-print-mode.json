@@ -9,6 +9,8 @@
     {"answer": "| Fork availability | INFO | Unset: on in interactive sessions and off in non-interactive mode and the SDK. |\n", "why": "the stale default"},
     {"answer": "Fork mode is off by default in your -p runs; set CLAUDE_CODE_FORK_SUBAGENT=1 to turn it on.\n", "why": "says off"},
     {"answer": "Fork mode is not on by default in your -p runs.\n", "why": "says not on"},
+    {"answer": "Fork mode isn't on by default in your -p runs.\n", "why": "contracted not on"},
+    {"answer": "Fork mode is not enabled by default in claude -p runs.\n", "why": "says not enabled"},
     {"answer": "Fork mode in -p runs on 2.1.316: disabled by default.\n", "why": "says disabled, with a stray on"},
     {"answer": "Fork mode is on by default.\n", "why": "never names the -p runs"}
   ]
