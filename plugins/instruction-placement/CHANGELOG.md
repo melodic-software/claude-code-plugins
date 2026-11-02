@@ -3,6 +3,14 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.2] - 2026-11-02
+
+### Changed
+
+- The vendored git-hook check library now counts only the lines a merge's conflict resolution adds
+  as a merge commit's changed lines. This plugin's own hooks do not read changed lines, so they
+  behave as before.
+
 ## [0.29.1] - 2026-11-02
 
 ### Fixed
