@@ -1,12 +1,15 @@
 name: post-merge-demotion-alert
 
 # Files the unattended-merge demotion issue when a post-merge signal fails on
-# main, so a human hears of it while no babysit lane runs. The signals are a
+# main, so a lane hears of it while no babysit lane runs. The signals are a
 # scheduled or dispatched pr-require-checks run (the whole-tree run) and a
 # canary push run. The issue is the demotion record the babysit post-merge
 # check files under the agent identity and the merge-policy reader holds the
 # rung off on: first body line `<!-- babysit-merge-demotion sha=<S>
-# signal=<name> -->`, labeled needs-human, one per (signal, SHA). A record
+# signal=<name> -->`, one per (signal, SHA), with no label, locked and sent to
+# intake triage so a lane picks it up (to_intake). A schedule or dispatch
+# record clears once main is green at a later commit; any other clears only
+# when a person closes it (babysit_merge_policy.py read_demotion). A record
 # that already exists gets a comment naming the run attempt instead. Records
 # the agent identity filed are not read here, so one (signal, SHA) can hold a
 # record from each filer; both hold the rung off. This workflow merges,
@@ -15,8 +18,8 @@ name: post-merge-demotion-alert
 # Only a failure whose merges include one the lanes App put in the merge queue
 # demotes. When every merge in the failing range was enqueued by someone else
 # (a person, a release App), the issue's first line is `<!-- post-merge-failure
-# sha=<S> signal=<name> -->` instead: still needs-human, but no reader treats
-# it as a demotion. Anything the lookup cannot prove demotes.
+# sha=<S> signal=<name> -->` instead: sent to intake triage the same way, but
+# no reader treats it as a demotion. Anything the lookup cannot prove demotes.
 #
 # A push to main that reverts a pull request the lanes App put in the merge
 # queue files a `revert` record. Every canary push run, whatever it concluded
@@ -28,8 +31,8 @@ name: post-merge-demotion-alert
 # file it once and never again after a person closes its record. A failed
 # canary still files its canary record too. A revert of a pull request someone
 # else enqueued files nothing; an unproven one demotes, a reverted commit whose
-# pull request cannot be read included. A revert record clears only when a
-# person closes it.
+# pull request cannot be read included. A revert record is sent to intake
+# triage too, and clears only when a person closes it.
 #
 # A red full run files only after one re-run of its failed jobs, which the
 # job waits up to 20 minutes for, fails again or does not finish, and only for checks that were not already failing on main's newest
@@ -42,15 +45,15 @@ name: post-merge-demotion-alert
 # main's last green full run, or quarantined, with a failure on a re-run also
 # having passed on an earlier attempt or failed at green, files nothing but each
 # suite's quarantine issue
-# (babysit_postmerge.py --judge-run, run from main's tip).
+# (babysit_postmerge.py --judge-run, run from main's tip), which is sent to
+# intake triage as a record is.
 #
 # Beside a new record of a full run, it files one fix issue per newly failing
 # check (at most 5) and dispatches intake-triage.yml for each, so an agent can
 # fix main once the owner ratifies it. First body line `<!-- post-merge-fix
 # check=<name> -->`, no label, fixed text only; one issue per check across
 # SHAs, reopened when the check fails again, keeping agent-ready and with no
-# second intake dispatch. The record keeps needs-human, and closing a fix issue
-# changes nothing on it.
+# second intake dispatch. Closing a fix issue changes nothing on the record.
 #
 # A full run pr-merge.yml starts for main's merges uses GITHUB_TOKEN, so its
 # completion raises no workflow_run event. pr-merge's post-merge-dispatch job
@@ -309,6 +312,23 @@ jobs:
           # api-budget notice (.github/actions/log-api-budget).
           # shellcheck source=/dev/null
           { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          # to_intake <issue>: lock an issue this step filed, then dispatch
+          # intake triage for it, so a lane picks it up: an issue
+          # github-actions[bot] opens starts no issues run, and the hourly
+          # triage sweep skips that author. Locked before intake reads it, so
+          # no outsider comment reaches the triage prompt; a lock that fails
+          # sends nothing. Returns 2 for a failed lock, 1 for a failed dispatch.
+          to_intake() {
+            if ! gh api -X PUT "repos/$GITHUB_REPOSITORY/issues/$1/lock" >/dev/null; then
+              echo "::error::could not lock #$1: not sent to intake triage"
+              return 2
+            fi
+            if ! gh api -X POST "repos/$GITHUB_REPOSITORY/actions/workflows/intake-triage.yml/dispatches" \
+              -f ref=main -f "inputs[issue-number]=$1" >/dev/null; then
+              echo "::error::could not dispatch intake triage for #$1"
+              return 1
+            fi
+          }
           case "$RUN_WORKFLOW:$RUN_EVENT" in
             pr-require-checks:schedule) signal=schedule ;;
             pr-require-checks:workflow_dispatch) signal=dispatch ;;
@@ -483,6 +503,14 @@ jobs:
               --repo "$GITHUB_REPOSITORY" --judge-run "$RUN_ID" --attempt "$RUN_ATTEMPT" \
               --checks-file "$now" --baseline-checks-file "$kept" --file-quarantine)" || judged=$?
             printf '%s\n' "$judgment"
+            # Each quarantine issue the judge filed goes to intake triage; one
+            # not sent fails the job at its end.
+            quarantined="$(jq -r '.quarantine.issues[]? | select(type == "number")' <<<"$judgment" 2>/dev/null)" || quarantined=''
+            for q in $quarantined; do
+              if [[ ! "$q" =~ ^[1-9][0-9]*$ ]] || ! to_intake "$q"; then
+                trap 'rm -f -- "$now" "$now.new" "$kept" "$before"; echo "::error::a quarantine issue was not sent to intake triage"; exit 1' EXIT
+              fi
+            done
             if ((judged >= 2 && judged <= 4)); then
               error="$(jq -r '.error // empty' <<<"$judgment" 2>/dev/null)" || error=''
               [[ -n "$error" ]] || error='no error in its output'
@@ -839,7 +867,7 @@ jobs:
             done
             # A failed write still lets a failed canary file its own record;
             # the job fails at its end.
-            if ! gh api -X POST "repos/$GITHUB_REPOSITORY/issues" -f 'labels[]=needs-human' \
+            if ! revert_record="$(gh api -X POST "repos/$GITHUB_REPOSITORY/issues" \
               -f title="Post-merge revert${names:+ of $names} at ${RUN_SHA:0:12}: unattended merging demoted" \
               -f body="<!-- babysit-merge-demotion sha=$RUN_SHA signal=revert -->
 
@@ -848,11 +876,14 @@ jobs:
           $lines- Main at the push: \`$RUN_SHA\`
           - Canary run: $sighting
 
-          Find out why the pull request was reverted before closing this record." >/dev/null; then
+          Find out why the pull request was reverted before closing this record." --jq .number)"; then
               echo "::error::could not file the revert demotion issue for ${RUN_SHA:0:12}"
               trap 'echo "::error::the revert demotion issue was not filed"; exit 1' EXIT
             else
               echo "filed the revert demotion issue for ${RUN_SHA:0:12}"
+              if [[ ! "$revert_record" =~ ^[1-9][0-9]*$ ]] || ! to_intake "$revert_record"; then
+                trap 'echo "::error::the revert demotion issue was not sent to intake triage"; exit 1' EXIT
+              fi
             fi
             lane=1 reverted=()
           }
@@ -936,7 +967,7 @@ jobs:
           fi
           fence='```'
           lead="The post-merge check found a \`$signal\` failure on main."
-          revert="To revert the merge, a human runs:
+          revert="To revert the merge, run:
 
           ${fence}sh
           git revert $RUN_SHA
@@ -969,24 +1000,28 @@ jobs:
           "
             fi
             title="Post-merge $signal failure after $first..$last: $outcome"
-            revert='A human reads the failing suites in the run above, picks the merge responsible, and reverts that one.'
+            revert='Read the failing suites in the run above, pick the merge responsible, and revert that one.'
           elif [[ "$signal" != canary && "${#range[@]}" -eq 0 ]]; then
             lead="$lead $no_range"
-            revert='A human reads the failing suites in the run above and finds the merge responsible before reverting anything.'
+            revert='Read the failing suites in the run above and find the merge responsible before reverting anything.'
             if [[ "$base" == "$RUN_SHA" ]]; then
-              revert='A human reads the failing suites in the run above; no merge is there to revert.'
+              revert='Read the failing suites in the run above; no merge is there to revert.'
             fi
           fi
           rung="The unattended merge path stays at
-          rung off while any demotion record is open. Fix main first, then close every open demotion record directly (not through a pull request's closing keyword); a new sighting of the same failure reopens its record."
+          rung off while any demotion record holds. This record clears itself once a full run passes on main at a later commit: fix main. A new sighting of the same failure reopens it."
+          if [[ "$signal" == canary ]]; then
+            rung="The unattended merge path stays at
+          rung off while any demotion record holds. This record clears only when a person closes it directly (not through a pull request's closing keyword). A new sighting of the same failure reopens it."
+          fi
           if [[ -z "$lane" ]]; then
-            rung='No merge in it was put in the merge queue by the lanes App, so the lane is NOT demoted and keeps merging; a human fixes main.'
+            rung='No merge in it was put in the merge queue by the lanes App, so the lane is NOT demoted and keeps merging; a lane fixes main.'
             if [[ "${#range[@]}" -eq 1 ]]; then
               pr_line="- Pull request: $pr, by ${entry[${range[0]}]%%$'\t'*}
           "
             fi
           fi
-          # Fix issues (#7535): one per newly failing check of a full run, at
+          # Fix issues: one per newly failing check of a full run, at
           # most 5, for an agent to fix main through intake triage and the
           # owner's ratification. github-actions[bot] files them, so their text
           # is fixed: only a check name that passes fix_name_ok, hex SHAs, the
@@ -1027,12 +1062,17 @@ jobs:
 
           $revert"
           record="$(gh api -X POST "repos/$GITHUB_REPOSITORY/issues" \
-            -f title="$title" -f body="$body" -f 'labels[]=needs-human' --jq .number)"
+            -f title="$title" -f body="$body" --jq .number)"
           kind='demotion issue'
           if [[ -z "$lane" ]]; then
             kind='post-merge-failure issue (lane not demoted)'
           fi
           echo "filed the $signal $kind for $RUN_SHA"
+          # The record goes to intake triage like its fix issues; one not sent
+          # fails the job at its end.
+          if [[ ! "$record" =~ ^[1-9][0-9]*$ ]] || ! to_intake "$record"; then
+            trap 'echo "::error::the record was not sent to intake triage"; exit 1' EXIT
+          fi
 
           if [[ "${#fix_checks[@]}" -eq 0 ]]; then
             exit 0
@@ -1052,22 +1092,16 @@ jobs:
           fi
           fix_failed=''
           undelivered=()
-          # The hourly triage sweep skips github-actions[bot] issues, and a
-          # re-run takes the existing-record path, so a failed dispatch is
-          # retried by nothing: the record, which a person already handles,
-          # gets a comment naming it, and the job fails.
-          # Locked before intake reads it, so no outsider comment reaches the
-          # triage prompt; a lock that fails sends nothing.
+          # A re-run takes the existing-record path, so a failed dispatch is
+          # retried by nothing: the record gets a comment naming it, and the
+          # job fails.
           dispatch() {
-            if ! gh api -X PUT "repos/$GITHUB_REPOSITORY/issues/$1/lock" >/dev/null; then
-              echo "::error::could not lock #$1: not sent to intake triage"
+            local sent=0
+            to_intake "$1" || sent=$?
+            if [[ "$sent" -eq 2 ]]; then
               undelivered+=("#$1 could not be locked, so it was not sent to intake triage")
               fix_failed=1
-              return
-            fi
-            if ! gh api -X POST "repos/$GITHUB_REPOSITORY/actions/workflows/intake-triage.yml/dispatches" \
-              -f ref=main -f "inputs[issue-number]=$1" >/dev/null; then
-              echo "::error::could not dispatch intake triage for #$1"
+            elif [[ "$sent" -ne 0 ]]; then
               undelivered+=("#$1 was not sent to intake triage")
               fix_failed=1
             fi
@@ -1106,7 +1140,7 @@ jobs:
           - Run: $run_link
           - Merge range: $merges
 
-          Fix the check on main. Closing this issue releases nothing on $on_record; a human closes that record once main is green."
+          Fix the check on main. Closing this issue changes nothing on $on_record."
               if fix_number="$(gh api -X POST "repos/$GITHUB_REPOSITORY/issues" \
                 -f title="Fix main: $check fails since ${RUN_SHA:0:12}" -f body="$fix_body" --jq .number)" &&
                 [[ "$fix_number" =~ ^[1-9][0-9]*$ ]]; then
@@ -1121,7 +1155,7 @@ jobs:
           done
           if [[ -n "$fix_failed" ]]; then
             if [[ "${#undelivered[@]}" -gt 0 ]]; then
-              note="Fix issues not handed to intake on this run; triage them by hand:"
+              note="Fix issues not handed to intake on this run; dispatch intake triage for each:"
               for line in "${undelivered[@]}"; do
                 note+=$'\n'"- $line"
               done

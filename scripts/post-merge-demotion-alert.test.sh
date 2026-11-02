@@ -6,10 +6,11 @@
 # The step files the demotion record the babysit post-merge check and the
 # merge-policy reader also use: an issue by github-actions[bot] whose body's
 # first line is `<!-- babysit-merge-demotion sha=<S> signal=<name> -->`,
-# labeled needs-human, one per (signal, SHA). When no merge in the failing range
-# was enqueued by merge.agent-identity, it files the post-merge-failure record
-# instead (`<!-- post-merge-failure sha=<S> signal=<name> -->`, needs-human, no
-# demotion); anything unproven demotes. A matching record of either kind gets a comment
+# with no label, one per (signal, SHA), locked and sent to intake triage. When
+# no merge in the failing range was enqueued by merge.agent-identity, it files
+# the post-merge-failure record instead (`<!-- post-merge-failure sha=<S>
+# signal=<name> -->`, sent to intake the same way, no demotion); anything
+# unproven demotes. A matching record of either kind gets a comment
 # instead; a run that is not a failed scheduled or dispatched full run, or a
 # failed canary push run, on main files nothing. A full run's first failed
 # attempt is re-run instead, and a later one files only for checks green on
@@ -307,6 +308,8 @@ shutil.copy(args[args.index("--checks-file") + 1], "$TMP_ROOT/stub/judge.checks"
 if "--baseline-checks-file" in args:
     shutil.copy(args[args.index("--baseline-checks-file") + 1], "$TMP_ROOT/stub/judge.baseline")
 verdict = {"demoting": json.loads('${JUDGE_DEMOTING:-[]}')}
+if """${JUDGE_QUARANTINE:-}""":
+    verdict["quarantine"] = {"issues": json.loads("""${JUDGE_QUARANTINE:-}"""), "comments": []}
 if """${JUDGE_ERROR:-}""":
     verdict["error"] = """${JUDGE_ERROR:-}"""
 print(json.dumps(verdict))
@@ -356,9 +359,32 @@ fix_lines() {
 }
 posts() { echo $(($(grep -c '^POST ' <<<"$LOG") - $(fix_lines | grep -c .))); }
 post_fields() { cat "$TMP_ROOT/stub/post.$(grep -n '^POST ' <<<"$LOG" | head -1 | cut -d: -f1)"; }
-# fixes: the fix issues filed; dispatches: the intake dispatches sent.
+# fixes: the fix issues filed; dispatches: the intake dispatches sent for
+# anything but a record; record_dispatches: those sent for a record.
 fixes() { grep -c '^POST repos/o/r/issues$' <<<"$LOG" | awk '{ print $1 - 1 < 0 ? 0 : $1 - 1 }'; }
-dispatches() { grep -c '^POST repos/o/r/actions/workflows/intake-triage.yml/dispatches$' <<<"$LOG"; }
+# record_numbers: the number the stub gave each issue POST whose body opens
+# with a record marker.
+record_numbers() {
+  local n
+  grep -n '^POST repos/o/r/issues$' <<<"$LOG" | cut -d: -f1 | while read -r n; do
+    if grep -qE '^body=<!-- (babysit-merge-demotion|post-merge-failure) ' "$TMP_ROOT/stub/post.$n"; then
+      echo $((900 + n))
+    fi
+  done
+}
+intake_lines() { grep -n '^POST repos/o/r/actions/workflows/intake-triage.yml/dispatches$' <<<"$LOG" | cut -d: -f1; }
+# fix_dispatch_lines: the log lines of the dispatches that name no record.
+fix_dispatch_lines() {
+  local records n
+  records=" $(record_numbers | paste -sd ' ') "
+  intake_lines | while read -r n; do
+    if [[ "$records" != *" $(sed -n 's/^inputs\[issue-number\]=//p' "$TMP_ROOT/stub/post.$n") "* ]]; then
+      echo "$n"
+    fi
+  done
+}
+dispatches() { fix_dispatch_lines | grep -c .; }
+record_dispatches() { echo $(($(intake_lines | grep -c .) - $(dispatches))); }
 # fix_post <k>: the fields of the k-th fix issue filed.
 fix_post() { cat "$TMP_ROOT/stub/post.$(grep -n '^POST repos/o/r/issues$' <<<"$LOG" | sed -n "$(($1 + 1))p" | cut -d: -f1)"; }
 
@@ -384,8 +410,10 @@ files() {
     fail "$label: body lacks the failing attempt's link"
   elif [[ "$body" != *"https://github.com/o/r/pull/1234"* ]]; then
     fail "$label: body lacks the pull request link"
-  elif ! grep -qx 'labels\[\]=needs-human' <<<"$fields"; then
-    fail "$label: issue is not labeled needs-human: '$fields'"
+  elif grep -q '^labels' <<<"$fields"; then
+    fail "$label: the record carries a label: '$fields'"
+  elif [[ "$(record_dispatches)" -ne 1 ]]; then
+    fail "$label: the record was not sent to intake triage once: log='$LOG'"
   elif [[ "$signal" != canary && ("$body" != *"- Main at the failing run: \`$SHA\`"* || "$body" == *"Merge commit"*) ]]; then
     fail "$label: a $signal record must name the SHA as main at the failing run"
   elif [[ "$signal" == canary && "$body" != *"- Merge commit: \`$SHA\`"* ]]; then
@@ -420,6 +448,19 @@ if grep -qE 'status=success|/compare/' <<<"$LOG"; then
   fail "a canary record looked up a range: log='$LOG'"
 else
   ok "a canary record looks up no range"
+fi
+canary_body="$(post_fields)"
+if [[ "$canary_body" == *"This record clears only when a person closes it directly"* && "$canary_body" != *"clears itself"* ]]; then
+  ok "a canary record says only a person's close clears it"
+else
+  fail "canary record clear text: '$canary_body'"
+fi
+DISPATCH_FAIL=1 run_step "$CANARY" push failure main o/r "$SHA" '[]'
+if [[ "$RC" -ne 0 && "$(posts)" -eq 1 && "$OUT" == *"::error::could not dispatch intake triage for #"* &&
+  "$OUT" == *"::error::the record was not sent to intake triage"* ]]; then
+  ok "a record not sent to intake fails the job after it is filed"
+else
+  fail "record intake failure: rc=$RC out='$OUT' log='$LOG'"
 fi
 files "a record for another signal on the same SHA is not a match" schedule "$FULL" schedule \
   "[$(issue 7 "<!-- babysit-merge-demotion sha=$SHA signal=canary -->")]"
@@ -588,7 +629,7 @@ if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$body" == *"title=Post-merge dispatch 
   "$body" == *"https://github.com/o/r/pull/8259, merge commit \`$MID\`, by alice"* &&
   "$body" == *"https://github.com/o/r/pull/8260, merge commit \`$SHA\`, by bob"* &&
   "$body" == *"- Failing run: $RUN_URL/attempts/2"$'\n'* && "$body" != *"git revert"* &&
-  "$body" != *"- Pull request:"* && "$body" == *"picks the merge responsible, and reverts that one."* ]]; then
+  "$body" != *"- Pull request:"* && "$body" == *"pick the merge responsible, and revert that one."* ]]; then
   ok "two merges since the last green full run are both named, with no single revert"
 else
   fail "two-merge range: rc=$RC log='$LOG' fields='$body'"
@@ -611,7 +652,7 @@ GREEN='' run_step "$FULL" schedule failure main o/r "$SHA" '[]'
 body="$(post_fields)"
 if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$body" == *"No green full run on main came before this one, so the merges this failure covers are unknown"* &&
   "$body" == *"- Pull request: https://github.com/o/r/pull/1234"* && "$body" == *"- Main at the failing run: \`$SHA\`"* &&
-  "$body" != *"git revert"* && "$body" == *"finds the merge responsible before reverting anything."* ]] &&
+  "$body" != *"git revert"* && "$body" == *"find the merge responsible before reverting anything."* ]] &&
   ! grep -q '/compare/' <<<"$LOG"; then
   ok "with no green full run to start from, the record says so and names the head commit without a revert"
 else
@@ -662,11 +703,11 @@ fields="$(post_fields)"
 body="${fields#*body=}"
 if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$body" == "<!-- post-merge-failure sha=$SHA signal=dispatch -->"$'\n'* &&
   "$fields" != *babysit-merge-demotion* && "$fields" == *"title=Post-merge dispatch failure after #1234: lane not demoted"* &&
-  "$body" == *"the lane is NOT demoted"* && "$body" != *"rung off while any demotion record is open"* &&
+  "$body" == *"the lane is NOT demoted"* && "$body" != *"rung off while any demotion record holds"* &&
   "$body" == *"- Pull request: https://github.com/o/r/pull/1234, by octocat"* && "$OUT" == *"cost 1 remaining 4999"* ]] &&
-  grep -qx 'labels\[\]=needs-human' <<<"$fields" && [[ "$(grep -cx 'GET graphql' <<<"$LOG")" -eq 1 ]] &&
+  ! grep -q '^labels' <<<"$fields" && [[ "$(record_dispatches)" -eq 1 && "$(grep -cx 'GET graphql' <<<"$LOG")" -eq 1 ]] &&
   grep -q 'p1234: pullRequest(number: 1234)' "$TMP_ROOT/stub/graphql.$(grep -nx 'GET graphql' <<<"$LOG" | cut -d: -f1)"; then
-  ok "a window of human-enqueued merges files a needs-human record that does not demote"
+  ok "a window of human-enqueued merges files an unlabeled record for intake that does not demote"
 else
   fail "human-only window: rc=$RC log='$LOG' out='$OUT' fields='$fields'"
 fi
@@ -688,7 +729,7 @@ demotes() {
   local fields
   fields="$(post_fields 2>/dev/null)"
   if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "${fields#*body=}" == "<!-- babysit-merge-demotion sha=$SHA signal="* &&
-    "$fields" == *": unattended merging demoted"* && "$fields" == *"rung off while any demotion record is open"* ]]; then
+    "$fields" == *": unattended merging demoted"* && "$fields" == *"rung off while any demotion record holds"* ]]; then
     ok "$1"
   else
     fail "$1: rc=$RC log='$LOG' out='$OUT' fields='$fields'"
@@ -873,7 +914,7 @@ reverts() {
       "$body" == *"- Revert commit: \`$commit\`"$'\n'* && "$body" == *"- Main at the push: \`$HEAD_SHA\`"* &&
       "$body" == *"- Canary run: $RUN_URL/attempts/1"* &&
       "$body" == *"A person closes it directly"* && "$body" != *"git revert"* && "$body" != *"Failing run"* ]] &&
-    grep -qx 'labels\[\]=needs-human' <<<"$fields" &&
+    ! grep -q '^labels' <<<"$fields" && [[ "$(record_dispatches)" -eq 1 ]] &&
     ! grep -qE 'rerun-failed-jobs|/compare/|status=success' <<<"$LOG" &&
     grep -q "p$n: pullRequest(number: $n)" "$TMP_ROOT/stub/graphql.$(grep -nx 'GET graphql' <<<"$LOG" | cut -d: -f1)"; then
     ok "$label"
@@ -896,6 +937,13 @@ GRAPHQL="$LANE" run_push
 reverts "a revert of a pull request the lanes App enqueued files a revert demotion record"
 if ! grep -q 'actions/workflows/77/runs?event=push&branch=main&created=' <<<"$LOG"; then
   fail "the previous canary push run was not read: log='$LOG'"
+fi
+GRAPHQL="$LANE" DISPATCH_FAIL=1 run_push
+if [[ "$RC" -ne 0 && "$OUT" == *"::error::the revert demotion issue was not sent to intake triage"* ]] &&
+  grep -q 'signal=revert -->' <<<"$(post_fields)"; then
+  ok "a revert record not sent to intake fails the job after it is filed"
+else
+  fail "revert record intake failure: rc=$RC out='$OUT' log='$LOG'"
 fi
 
 GRAPHQL="$(gq "$(enq 1234 octocat User)")" run_push
@@ -1336,6 +1384,31 @@ else
   fail "excused run: rc=$RC judged='$judged' log='$LOG' out='$OUT'"
 fi
 
+# Each quarantine issue the judge filed is locked, then sent to intake triage;
+# one not sent fails the job.
+JUDGE=0 JUDGE_QUARANTINE='[77, 78]' RUNS="$(baseline_run 4141 success)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+sent="$(intake_lines | while read -r n; do sed -n 's/^inputs\[issue-number\]=//p' "$TMP_ROOT/stub/post.$n"; done | paste -sd ' ')"
+lock77="$(grep -n '^PUT repos/o/r/issues/77/lock$' <<<"$LOG" | cut -d: -f1)"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 0 && "$sent" == "77 78" && -n "$lock77" && "$lock77" -lt "$(intake_lines | head -1)" ]] &&
+  grep -qx 'PUT repos/o/r/issues/78/lock' <<<"$LOG"; then
+  ok "each quarantine issue the judge filed is locked, then sent to intake triage"
+else
+  fail "quarantine intake: rc=$RC sent='$sent' log='$LOG'"
+fi
+JUDGE=0 JUDGE_QUARANTINE='[77]' DISPATCH_FAIL=1 RUNS="$(baseline_run 4141 success)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -ne 0 && "$(posts)" -eq 0 && "$OUT" == *"::error::could not dispatch intake triage for #77"* &&
+  "$OUT" == *"::error::a quarantine issue was not sent to intake triage"* ]]; then
+  ok "a quarantine issue not sent to intake fails the job"
+else
+  fail "quarantine intake failure: rc=$RC out='$OUT'"
+fi
+JUDGE=0 RUNS="$(baseline_run 4141 success)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && -z "$(intake_lines)" ]] && ! grep -q '/lock$' <<<"$LOG"; then
+  ok "a judge that filed no quarantine issue sends nothing to intake"
+else
+  fail "no quarantine, no intake: rc=$RC log='$LOG'"
+fi
+
 for code in 1 3; do
   JUDGE=$code RUNS="$(baseline_run 4141 success)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
   if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)" == *"- Newly failing: test-bash"* ]] &&
@@ -1429,10 +1502,8 @@ fi
 record_number() { echo $((900 + $(grep -n '^POST repos/o/r/issues$' <<<"$LOG" | head -1 | cut -d: -f1))); }
 # fix_number <k>: the number the stub gave the k-th fix issue.
 fix_number() { echo $((900 + $(grep -n '^POST repos/o/r/issues$' <<<"$LOG" | sed -n "$(($1 + 1))p" | cut -d: -f1))); }
-# dispatch_post <k>: the fields of the k-th intake dispatch.
-dispatch_post() {
-  cat "$TMP_ROOT/stub/post.$(grep -n '^POST repos/o/r/actions/workflows/intake-triage.yml/dispatches$' <<<"$LOG" | sed -n "${1}p" | cut -d: -f1)"
-}
+# dispatch_post <k>: the fields of the k-th intake dispatch naming no record.
+dispatch_post() { cat "$TMP_ROOT/stub/post.$(fix_dispatch_lines | sed -n "${1}p")"; }
 fix_text() { local k out=''; for ((k = 1; k <= $(fixes); k++)); do out+="$(fix_post "$k")"$'\n'; done; printf '%s' "$out"; }
 OVERFLOW='- More checks failed than were filed as fix issues: a run files at most 5, and none for a name outside A-Z a-z 0-9 space . _ : , / ( ) -'
 
@@ -1447,7 +1518,7 @@ The check \`test-bash\` started failing on main in a \`schedule\` run of pr-requ
 - Run: https://github.com/o/r/actions/runs/4242/attempts/2
 - Merge range: \`89abcdef0123..0123456789ab\`, listed on demotion record #$r
 
-Fix the check on main. Closing this issue releases nothing on demotion record #$r; a human closes that record once main is green."
+Fix the check on main. Closing this issue changes nothing on demotion record #$r."
 if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(fixes)" -eq 2 && "$(dispatches)" -eq 2 && "$(fix_post 1)" == "$expected" &&
   "$(fix_post 2)" == "title=Fix main: lint-shell fails since 0123456789ab"$'\n'"body=<!-- post-merge-fix check=lint-shell -->"$'\n'* &&
   "$(dispatch_post 1)" == "ref=main"$'\n'"inputs[issue-number]=$(fix_number 1)" &&
@@ -1456,9 +1527,13 @@ if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(fixes)" -eq 2 && "$(dispatches)" -eq
 else
   fail "two fix issues: rc=$RC log='$LOG' out='$OUT' fix1='$(fix_post 1 2>/dev/null)'"
 fi
-if grep -qx 'labels\[\]=needs-human' <<<"$(post_fields)" && [[ "$(post_fields)" == *"body=<!-- babysit-merge-demotion sha=$SHA signal=schedule -->"* ]] &&
-  ! grep -q '^labels' <<<"$(fix_text)"; then
-  ok "the record keeps needs-human and its marker; a fix issue carries no label"
+record_lock_at="$(grep -n "^PUT repos/o/r/issues/$r/lock$" <<<"$LOG" | cut -d: -f1)"
+record_sent_at="$(intake_lines | head -1)"
+if ! grep -q '^labels' <<<"$(post_fields)" && [[ "$(post_fields)" == *"body=<!-- babysit-merge-demotion sha=$SHA signal=schedule -->"* ]] &&
+  ! grep -q '^labels' <<<"$(fix_text)" && [[ "$(record_dispatches)" -eq 1 && -n "$record_lock_at" && "$record_lock_at" -lt "$record_sent_at" ]] &&
+  [[ "$(post_fields)" == *"This record clears itself once a full run passes on main at a later commit"* ]] &&
+  [[ "$(cat "$TMP_ROOT/stub/post.$record_sent_at")" == "ref=main"$'\n'"inputs[issue-number]=$r" ]]; then
+  ok "the record keeps its marker, carries no label and is locked, then sent to intake; a fix issue carries no label"
 else
   fail "labels: record='$(post_fields)' fixes='$(fix_text)'"
 fi
@@ -1553,7 +1628,7 @@ JOBS="$(job 1 test-bash 'Run the bash tests'), $(job 2 lint-shell ShellCheck)" D
 record_n=$((900 + $(grep -n '^POST repos/o/r/issues$' <<<"$LOG" | head -1 | cut -d: -f1)))
 note_line="$(grep -n "^POST repos/o/r/issues/$record_n/comments$" <<<"$LOG" | cut -d: -f1)"
 if [[ "$RC" -ne 0 && "$(fixes)" -eq 2 && "$(dispatches)" -eq 2 && "$OUT" == *"::error::could not dispatch intake triage for #$(fix_number 2)"* &&
-  -n "$note_line" ]] && grep -q "triage them by hand" "$TMP_ROOT/stub/post.$note_line" &&
+  -n "$note_line" ]] && grep -q "dispatch intake triage for each" "$TMP_ROOT/stub/post.$note_line" &&
   grep -q -- "- #$(fix_number 2) was not sent to intake triage" "$TMP_ROOT/stub/post.$note_line"; then
   ok "a failed dispatch fails the job after every fix issue is filed, and names the issue on the record"
 else
@@ -1564,7 +1639,7 @@ fi
 # and names the issue on the record.
 JOBS="$(job 1 test-bash 'Run the bash tests')" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
 lock_at="$(grep -n "^PUT repos/o/r/issues/$(fix_number 1)/lock$" <<<"$LOG" | cut -d: -f1)"
-dispatch_at="$(grep -n '^POST repos/o/r/actions/workflows/intake-triage.yml/dispatches$' <<<"$LOG" | cut -d: -f1)"
+dispatch_at="$(fix_dispatch_lines | head -1)"
 if [[ "$RC" -eq 0 && -n "$lock_at" && -n "$dispatch_at" && "$lock_at" -lt "$dispatch_at" ]]; then
   ok "a fix issue is locked before it is sent to intake triage"
 else
@@ -1594,7 +1669,7 @@ fi
 PIPELINE="$PIPE" GRAPHQL="$(gq "$(enq 1234 octocat User)")" run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
 r="$(record_number)"
 if [[ "$RC" -eq 0 && "$(fixes)" -eq 1 && "$(dispatches)" -eq 1 && "$(post_fields)" == *"<!-- post-merge-failure sha="* &&
-  "$(fix_post 1)" == *"in a \`dispatch\` run"*"listed on failure record #$r"$'\n\n'"Fix the check on main. Closing this issue releases nothing on failure record #$r; a human closes that record once main is green." ]]; then
+  "$(fix_post 1)" == *"in a \`dispatch\` run"*"listed on failure record #$r"$'\n\n'"Fix the check on main. Closing this issue changes nothing on failure record #$r." ]]; then
   ok "a record that does not demote the lane also files fix issues"
 else
   fail "post-merge-failure fix: rc=$RC log='$LOG' fix='$(fix_post 1 2>/dev/null)'"
