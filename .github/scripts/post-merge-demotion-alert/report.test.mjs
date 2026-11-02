@@ -121,14 +121,17 @@ test("a single-merge range of a lane merge: the bot would auto-revert it, and on
   assert.match(result.body, /git revert --no-edit f{40}/);
 });
 
-test("an owner merge pinned as the culprit goes to a person, with a draft revert", async () => {
+test("an owner merge pinned as the culprit goes to a lane, with a revert ready for review", async () => {
   const w = world({ merges: [{ sha: HEAD, number: 102, by: "kyle-sexton" }] });
   const result = await run(ENV, w);
   assert.equal(decisionOf(result.body), "human");
-  assert.match(result.body, /The revert it would open \(draft\)/);
+  assert.match(result.body, /a lane decides/);
+  assert.match(result.body, /The revert it would open:\n/);
+  assert.match(result.body, /^labels: {4}auto-revert$/m);
+  assert.doesNotMatch(result.body, /needs-human|\(draft\)/);
 });
 
-test("under fail-forward a pinned lane merge goes to a person and the report plans no revert", async () => {
+test("under fail-forward a pinned lane merge goes to a lane and the report plans no revert", async () => {
   const w = world({ merges: [{ sha: HEAD, number: 101, by: LANES }] });
   const result = await run(ENV, w, { loadConfig: () => ({ redMain: { remedy: "fail-forward" }, agentIdentity: LANES }) });
   assert.equal(culpritOf(result.body), HEAD);
@@ -153,7 +156,7 @@ test("a mixed range: a lane merge pinned as the culprit may auto-revert past an 
   assert.equal(decisionOf(result.body), "auto-revert");
 });
 
-test("a mixed range whose pinned culprit is the owner's merge goes to a person", async () => {
+test("a mixed range whose pinned culprit is the owner's merge goes to a lane", async () => {
   const w = world({
     merges: [
       { sha: sha("a"), number: 201, by: "kyle-sexton", run: confirmedRed(41) },
@@ -224,7 +227,7 @@ test("a run and attempt already in the log is not reported twice", async () => {
   assert.deepEqual(w.writes, []);
 });
 
-test("three auto-revert decisions in the last day reach the cap, and the next culprit goes to a person", async () => {
+test("three auto-revert decisions in the last day reach the cap, and the next culprit goes to a lane", async () => {
   const w = world({
     merges: [{ sha: HEAD, number: 101, by: LANES }],
     issues: [LOG],

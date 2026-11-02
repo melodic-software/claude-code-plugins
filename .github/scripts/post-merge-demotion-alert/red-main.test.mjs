@@ -261,25 +261,25 @@ test("one auto-revert per culprit", () => {
   assert.equal(decideFor(laneMerge(), { culpritDecided: true }).decision, "human");
 });
 
-test("a suspected platform fault or a revert that does not apply goes to a person", () => {
+test("a suspected platform fault or a revert that does not apply goes to a lane", () => {
   assert.equal(decideFor(laneMerge(), { platformFault: "canary record #9 is open" }).decision, "human");
   assert.equal(decideFor(laneMerge(), { revertApplies: false }).decision, "human");
   assert.equal(decideFor(laneMerge(), { revertApplies: null }).decision, "human");
 });
 
-test("under fail-forward even a lane merge under every limit goes to a person, named by the remedy", () => {
+test("under fail-forward even a lane merge under every limit goes to a lane, named by the remedy", () => {
   const verdict = decideFor(laneMerge(), { config: resolveRedMain({ remedy: "fail-forward" }) });
   assert.equal(verdict.decision, "human");
   assert.equal(verdict.reasons.length, 1);
   assert.match(verdict.reasons[0], /fail-forward/);
 });
 
-test("a person's revert is a draft labeled needs-human; the bot's goes through the merge queue", () => {
-  const human = plannedRevert(laneMerge(), "human", "https://example.test/run");
-  assert.equal(human.draft, true);
-  assert.deepEqual(human.labels, ["auto-revert", "needs-human"]);
+test("a failed guard's revert goes to the lanes with no needs-human label; the bot's goes through the merge queue", () => {
+  const lane = plannedRevert(laneMerge(), "human", "https://example.test/run");
+  assert.deepEqual(lane.labels, ["auto-revert"]);
+  assert.match(lane.merge, /review lanes review it and the merge lane merges it/);
   const bot = plannedRevert(laneMerge(), "auto-revert", "https://example.test/run");
-  assert.equal(bot.draft, false);
+  assert.deepEqual(bot.labels, ["auto-revert"]);
   assert.equal(bot.command, `git revert --no-edit ${A}`);
   assert.equal(bot.title, "revert: fix(x): y");
   assert.match(bot.merge, /merge queue/);
