@@ -3,12 +3,24 @@
     {
       "answer": "---\ntype: review-findings\nbranch: refactor/display-name-type\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | low | src/display-name.ts:3 | code-reviewer | A JSDoc line saying callers must check for a signed-in user first would help a later caller. | Add a doc comment |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
       "why": "no finding has CRITICAL in its Tier column"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/display-name-type\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | high | src/display-name.ts:4 | code-reviewer | Without the null check, displayName(null) throws a TypeError for a signed-out visitor. | Restore the Guest fallback |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "decoy: only CRITICAL findings count, and the null claim here is IMPORTANT"
     }
   ],
   "fail": [
     {
       "answer": "---\ntype: review-findings\nbranch: refactor/display-name-type\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/display-name.ts:4 | code-reviewer | displayName no longer handles a null user, so the header throws a TypeError for every signed-out visitor. | Restore the Guest fallback |\n\n## Surfaces\n\nRan: [code-reviewer@high, security-reviewer@high]. Returned no result: [].",
       "why": "a CRITICAL finding makes the wrong claim that a signed-out visitor reaches displayName"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/display-name-type\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | low | src/display-name.ts:3 | code-reviewer | A doc comment would state the signed-in precondition. | Add a doc comment |\n| 2 | CRITICAL | low | src/header.ts:5 | architecture-guardian | This branch changes headerLabel's sign-in check, so the header label changes for signed-out visitors. | Revert src/header.ts |\n\n## Surfaces\n\nRan: [code-reviewer@high, architecture-guardian@high]. Returned no result: [].",
+      "why": "a CRITICAL finding claims src/header.ts changed on this branch; the low Confidence is ignored"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/display-name-type\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | medium | src/display-name.ts:4 | code-reviewer | An empty-string nickname counts as missing, so a user who cleared their nickname is shown their full name. | Check for undefined instead of falsy |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "decoy: every CRITICAL finding counts, even one outside not_defects"
     }
   ]
 }

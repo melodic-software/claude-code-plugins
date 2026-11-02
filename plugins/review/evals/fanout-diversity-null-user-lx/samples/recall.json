@@ -3,12 +3,24 @@
     {
       "answer": "---\ntype: review-findings\nbranch: refactor/display-name\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/display-name.js:2 | code-reviewer | The commit says every caller passes a signed-in user, but renderHeader passes session.user, null until sign-in. displayName(null) now throws TypeError reading `profile`, so the header breaks for every signed-out visitor. | Restore the Guest fallback |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
       "why": "names the null input and the TypeError at CRITICAL"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/display-name\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | low | src/display-name.js:2 | code-reviewer | renderHeader passes session.user, which is null until the visitor signs in. With the check gone, displayName(null) reads profile of null and throws a TypeError, so the header fails for signed-out visitors. | Restore the Guest fallback |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names the null session.user and the TypeError at IMPORTANT; the low Confidence is ignored"
     }
   ],
   "fail": [
     {
       "answer": "---\ntype: review-findings\nbranch: refactor/display-name\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | medium | src/display-name.js:1 | code-reviewer | A defensive check was removed; consider a JSDoc type for user. | Add JSDoc |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
       "why": "names the removal at SUGGESTION, without the input or the failure"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/display-name\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/display-name.js:2 | code-reviewer | The commit deletes the user and profile check from displayName, which now reads user.profile.nickname directly. | Restore the check |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names the changed lines at CRITICAL but neither the null user nor the TypeError, so it does not count"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/display-name\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/header.js:5 | security-reviewer | renderHeader puts the display name into HTML unescaped, so a nickname holding a script tag runs in the header. | Escape the name |\n| 2 | SUGGESTION | medium | src/display-name.js:2 | code-reviewer | displayName(null) now throws a TypeError, and renderHeader passes a null session.user for every signed-out visitor. | Restore the Guest fallback |\n\n## Surfaces\n\nRan: [security-reviewer@high, code-reviewer@high]. Returned no result: [].",
+      "why": "the only finding that names the defect is SUGGESTION; the CRITICAL finding is a different issue"
     }
   ]
 }

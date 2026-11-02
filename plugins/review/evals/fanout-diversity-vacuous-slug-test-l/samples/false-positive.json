@@ -3,12 +3,24 @@
     {
       "answer": "---\ntype: review-findings\nbranch: fix/slug-accents\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | test/slug.test.js:15 | code-reviewer | assert.ok(slugify(title), expected) passes for any non-empty slug, so the accent test cannot fail. | Use assert.equal |\n| 2 | SUGGESTION | low | src/slug.js:4 | code-reviewer | The combining-mark range misses marks outside U+0300 to U+036F. | Match the Unicode mark property instead |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
       "why": "the only CRITICAL finding is the planted defect"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: fix/slug-accents\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | test/slug.test.js:15 | code-reviewer | assert.ok(slugify(title), expected) passes for any non-empty slug, so the accent test cannot fail. | Use assert.equal |\n| 2 | IMPORTANT | medium | src/slug.js:3 | architecture-guardian | The NFD normalize step changes the slug of every existing ASCII title, which breaks old post URLs. | Drop the normalize call |\n\n## Surfaces\n\nRan: [code-reviewer@high, architecture-guardian@high]. Returned no result: [].",
+      "why": "the ASCII-slug claim is IMPORTANT, and only CRITICAL findings count"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: fix/slug-accents\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | test/slug.test.js:15 | code-reviewer | Because assert.ok only checks truthiness, nothing verifies that slugify strips accents; if it kept them, as main did with cr-me-br-l-e, the test would still pass. | Use assert.equal |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "the finding is the planted defect; it mentions slugify keeping accents only as a hypothetical, not as a claim about this branch"
     }
   ],
   "fail": [
     {
       "answer": "---\ntype: review-findings\nbranch: fix/slug-accents\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | test/slug.test.js:15 | code-reviewer | assert.ok(slugify(title), expected) passes for any non-empty slug, so the accent test cannot fail. | Use assert.equal |\n| 2 | CRITICAL | medium | src/slug.js:3 | architecture-guardian | normalize(\"NFD\") changes the slug of every existing ASCII title, which breaks old post URLs. | Drop the normalize call |\n\n## Surfaces\n\nRan: [code-reviewer@high, architecture-guardian@high]. Returned no result: [].",
       "why": "a CRITICAL finding claims ASCII slugs changed"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: fix/slug-accents\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | low | src/slug.js:4 | code-reviewer | The combining-mark class does not match the marks NFD produces, so slugify still keeps accents and Açaí bowl slugs to a-a-bowl. | Fix the character class |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "a CRITICAL finding claims slugify still keeps accents; the low Confidence is ignored"
     }
   ]
 }

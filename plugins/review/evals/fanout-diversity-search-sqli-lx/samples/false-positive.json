@@ -3,12 +3,24 @@
     {
       "answer": "---\ntype: review-findings\nbranch: feat/product-search\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/routes/search.js:11 | security-reviewer | q is concatenated into the LIKE clause, so a caller can UNION SELECT the users table. | Bind the term as a parameter |\n| 2 | SUGGESTION | low | src/routes/search.js:8 | code-reviewer | Consider a minimum length for q. | Add a length check |\n\n## Surfaces\n\nRan: [security-reviewer@high, code-reviewer@high]. Returned no result: [].",
       "why": "the only CRITICAL finding is the planted defect"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/product-search\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/routes/search.js:11 | security-reviewer | q is concatenated into the LIKE clause, so a caller can UNION SELECT the users table. | Bind the term as a parameter |\n| 2 | IMPORTANT | medium | src/routes/search.js:15 | code-reviewer | sort is concatenated into ORDER BY, so a caller can inject SQL through sort. | Bind sort |\n\n## Surfaces\n\nRan: [security-reviewer@high, code-reviewer@high]. Returned no result: [].",
+      "why": "the sort claim is IMPORTANT, and only CRITICAL findings count"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/product-search\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/routes/search.js:11 | security-reviewer | The search term q is concatenated into the SQL, so a caller can append a stacked statement such as '; DROP TABLE products; -- and wipe the catalogue. | Bind q as a parameter |\n\n## Surfaces\n\nRan: [security-reviewer@high]. Returned no result: [].",
+      "why": "the finding is about the planted q injection, which never counts, even with an overstated impact"
     }
   ],
   "fail": [
     {
       "answer": "---\ntype: review-findings\nbranch: feat/product-search\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/routes/search.js:11 | security-reviewer | q is concatenated into the LIKE clause, so a caller can UNION SELECT the users table. | Bind the term as a parameter |\n| 2 | CRITICAL | medium | src/routes/search.js:15 | code-reviewer | The sort parameter is concatenated into ORDER BY, so a caller can inject SQL through sort. | Bind sort |\n\n## Surfaces\n\nRan: [security-reviewer@high, code-reviewer@high]. Returned no result: [].",
       "why": "a CRITICAL finding calls the allowlisted sort column injectable"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/product-search\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | medium | src/routes/products.js:9 | security-reviewer | products.js puts req.params.id into its query, so /products/1 OR 1=1 returns archived products. | Bind the id |\n\n## Surfaces\n\nRan: [security-reviewer@high]. Returned no result: [].",
+      "why": "a CRITICAL finding claims src/routes/products.js is injectable"
     }
   ]
 }

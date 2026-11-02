@@ -1,5 +1,5 @@
 ---
-description: "Reviewer-diversity eval, fixture null-user, arm M (fanout_diversity model, no Codex): /review:fanout run-everything on a commit that drops displayName's null-user check"
+description: "Reviewer-diversity eval, fixture null-user, arm M (fanout_diversity model, no Codex): /review:fanout run-everything on a commit that drops displayName's null-user check. Probe result: L and M tie at 24/24 recall, so lens stays the default; the Codex arms are not measurable under codex 1.0.6 (#12151, 2026-11-02; #12495)."
 tags: [review, fanout-diversity, arm-m]
 runs: 3
 max_turns: 80

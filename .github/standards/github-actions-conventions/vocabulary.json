@@ -117,7 +117,13 @@
       { "name": "sync-standards", "status": "in-use" },
       { "name": "verify-governance", "status": "in-use" }
     ],
-    "upstream": []
+    "upstream": [
+      {
+        "name": "apply-changelog",
+        "status": "reserved",
+        "purpose": "Apply an upstream release's changelog: a branch and pull request per owner plugin, and handoff issues for the rest."
+      }
+    ]
   },
   "verbs": [
     "address",
