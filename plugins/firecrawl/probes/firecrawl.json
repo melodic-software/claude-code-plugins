@@ -2,14 +2,10 @@
   "skill": "firecrawl:firecrawl",
   "plugin": "firecrawl",
   "skill_dir": "plugins/firecrawl/skills/firecrawl",
-  "ranking_note": "Authored from the before description at commit b9ae6bbaed, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Siblings firecrawl:setup and firecrawl:update are user-invoked only (disable-model-invocation: true), so they cannot compete and are not listed. The competitors live in other plugins, and plugin eval loads only this plugin, so near-miss negatives test that the skill stays quiet, not competitor wins.",
+  "ranking_note": "Authored from the before description at commit b9ae6bbaed, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin siblings, per the probe template's listing-overlap rule. Both are user-invoked only (disable-model-invocation: true), so in a live run near-miss negatives test that the skill stays quiet, not competitor wins.",
   "competitors": [
-    "x:read",
-    "playwright:playwright",
-    "discovery:read-docs",
-    "context7:lookup",
-    "discovery:research",
-    "knowledge:docpage-digest"
+    "firecrawl:setup",
+    "firecrawl:update"
   ],
   "queries": [
     {
