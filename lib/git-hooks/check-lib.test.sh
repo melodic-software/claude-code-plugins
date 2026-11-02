@@ -123,6 +123,29 @@ printf 'loose\0bin\n' >"$B/loose.dat"
 expect "worktree ranges: an untracked binary file is dropped" no \
   "$(in_repo "$B" pre-commit 'checks_changed_lines; grep -q "^loose.dat" "$CHECKS_TMP/ranges" && echo yes || echo no' --worktree)"
 
+# --- a merge being committed ------------------------------------------------------
+# Pre-commit counts only the lines the merge adds against every parent: a line
+# or a file the merged branch holds is not a changed line, a resolved line is.
+new_repo; M="$REPO"
+printf 'one\ntwo\n' >"$M/a.txt"
+git -C "$M" add a.txt
+git -C "$M" commit -q -m seed
+git -C "$M" checkout -q -b side
+printf 'one\nside\nthree\n' >"$M/a.txt"
+printf 'side file\n' >"$M/s.txt"
+git -C "$M" add a.txt s.txt
+git -C "$M" commit -q -m side
+git -C "$M" checkout -q main
+printf 'one\nmain\n' >"$M/a.txt"
+git -C "$M" commit -q -am main
+git -C "$M" merge -q --no-commit side >/dev/null 2>&1
+printf 'one\nresolved\nthree\n' >"$M/a.txt"
+git -C "$M" add a.txt
+expect "pre-commit ranges in a merge: only the lines no parent holds" $'a.txt\t2\t2' \
+  "$(in_repo "$M" pre-commit 'checks_changed_lines; cat "$CHECKS_TMP/ranges"')"
+expect "worktree ranges in a merge: every line added against HEAD" $'a.txt\t2\t3\ns.txt\t1\t1' \
+  "$(in_repo "$M" pre-commit 'checks_changed_lines; cat "$CHECKS_TMP/ranges"' --worktree)"
+
 # --- a failing tool fails the hook ------------------------------------------------
 # A tool that crashes while the lib reads the changed lines or filters findings
 # leaves the ranges short, so findings would drop and the hook pass. The shims
@@ -164,6 +187,9 @@ expect "a failing tool keeps a hook's own non-zero exit" "3" \
   "$(PATH="$SHIMS:$PATH" SHIM_FAIL='/^\+\+\+ /' in_repo "$F" pre-commit 'checks_changed_lines; exit 3' 2>/dev/null; echo $?)"
 expect "tools that all succeed pass through the shims unchanged" $'a.txt:1: x\n0' \
   "$(PATH="$SHIMS:$PATH" SHIM_FAIL='no-such-marker' in_repo "$F" pre-commit 'checks_changed_lines; printf "a.txt:1: x\nb:1: y\n" | checks_filter_findings' 2>/dev/null; echo $?)"
+expect "a failing awk narrowing a merge to its own lines fails the hook" \
+  "1|checks: awk exited 2 while listing the lines the merge adds, so this change was not fully checked; fix that failure, then commit again" \
+  "$(in_repo_failing "$M" pre-commit 'NR == FNR' 'checks_changed_lines; exit 0')"
 
 # --- missing tool and skip-propagation ------------------------------------------
 new_repo; H="$REPO"
