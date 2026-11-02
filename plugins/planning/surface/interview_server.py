@@ -51,8 +51,9 @@ EMPTY_RESPONSES = {
 # One-line free-text cap; a hedged decision's condition is one.
 LINE_CAP = 500
 DECISIONS = {"accept", "alt", "own", "defer", "hedged", "reopen"}
-# Requests to Claude that record no decision. `research` and `cancel-research` name no skill or plugin.
-REQUESTS = {"ask", "rephrase", "research", "cancel-research"}
+# Requests to Claude that record no decision. `research` and `cancel-research` name no skill or plugin;
+# `confirm-reading` confirms Claude's read-back of the question's answer.
+REQUESTS = {"ask", "rephrase", "research", "cancel-research", "confirm-reading"}
 # Events not tied to a question; `confirm-understanding` answers the restatement, and
 # `accept-audit` lists the questions one click accepted (each also gets its own `accept`).
 FREE = {"note", "wrapup", "confirm-understanding", "accept-audit"}

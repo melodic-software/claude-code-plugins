@@ -262,6 +262,15 @@ class TestApi(ServerCase):
         self.assertEqual(self.post({"id": "nope", "kind": "research"})[0], 400)
         self.assertEqual(self.post({"id": "Q5", "kind": "researchh"})[0], 400)
 
+    def test_08b_confirm_reading_is_accepted_without_a_decision(self):
+        before = self.state()["responses"]["responses"].get("Q5")
+        code, data = self.post({"id": "Q5", "kind": "confirm-reading"})
+        self.assertEqual(code, 200, data)
+        ev = {e["seq"]: e for e in self.state()["responses"]["events"]}[data["seq"]]
+        self.assertEqual((ev["kind"], ev["id"], ev["alt"]), ("confirm-reading", "Q5", None))
+        self.assertEqual(self.state()["responses"]["responses"].get("Q5"), before)
+        self.assertEqual(self.post({"id": "nope", "kind": "confirm-reading"})[0], 400)
+
     def test_08_empty_note_is_400(self):
         code, _ = self.post({"kind": "note", "text": "  "})
         self.assertEqual(code, 400)

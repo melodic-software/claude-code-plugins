@@ -152,7 +152,7 @@ class TestShippedSchemas(unittest.TestCase):
 
     def test_event_kinds_include_research_and_cancel_research_but_not_others(self):
         s = schema.load("event")
-        for kind in ("research", "cancel-research"):
+        for kind in ("research", "cancel-research", "confirm-reading"):
             e = {"seq": 1, "id": "Q1", "kind": kind, "at": "t"}
             self.assertIsNone(schema.first_error(e, s), kind)
         e = {"seq": 1, "id": "Q1", "kind": "research-now", "at": "t"}
