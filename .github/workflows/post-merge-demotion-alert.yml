@@ -1323,8 +1323,11 @@ jobs:
           # attempt 1, this repository's main, a schedule or a dispatch both
           # started by github-actions[bot] (a person dispatching until a run
           # passes is no recovery), created after the record, at a commit
-          # ahead of the record's SHA and on main's history. Any failed read,
-          # or a listing past its page bound, closes nothing.
+          # ahead of the record's SHA and on main's history. Like
+          # `_GreenMain.listed`, it reads GREEN_SPAN windows oldest first, up to
+          # now and at most GREEN_SPANS of them, and stops at the first run that
+          # clears the record. Any failed read, a window past its page bound, or
+          # more windows than GREEN_SPANS closes nothing.
           identity="$(gh api -H 'Accept: application/vnd.github.raw' \
             "repos/$GITHUB_REPOSITORY/contents/docs/conventions/pr-pipeline.yaml?ref=main" |
             sed -n '/^merge:/,/^[^[:space:]#]/ s/^  agent-identity: \([^[:space:]]*\)[[:space:]]*$/\1/p')" || identity=''
@@ -1339,19 +1342,32 @@ jobs:
             echo "::warning::main's tip could not be read: no record closed"
             exit 0
           fi
-          # green <created>: the qualifying green full runs created after
-          # <created>, oldest first, as `<created_at> <head_sha> <html_url>`
-          # lines; fails on a failed read or more than 5 pages of an event.
+          # The window `_GreenMain.listed` reads and how many, from
+          # babysit_merge_policy.py on main, so the two never disagree.
+          policy="$(gh api -H 'Accept: application/vnd.github.raw' \
+            "repos/$GITHUB_REPOSITORY/contents/plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py?ref=main")" || policy=''
+          span_days="$(sed -n 's/^GREEN_SPAN = timedelta(days=\([1-9][0-9]*\))$/\1/p' <<<"$policy")"
+          spans="$(sed -n 's/^GREEN_SPANS = \([1-9][0-9]*\)$/\1/p' <<<"$policy")"
+          if [[ ! "$span_days" =~ ^[1-9][0-9]*$ || ! "$spans" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::warning::GREEN_SPAN or GREEN_SPANS could not be read from babysit_merge_policy.py: no record closed"
+            exit 0
+          fi
+          span_s=$((span_days * 86400))
+          now="$(date -u +%s)"
+          # green <since> <until> <after>: the qualifying green full runs
+          # created from <since> to <until> and after <after>, oldest first, as
+          # `<created_at> <head_sha> <html_url>` lines; fails on a failed read
+          # or more than 5 pages of an event.
           green() {
             local event page runs n
             for event in schedule workflow_dispatch; do
               for page in 1 2 3 4 5 6; do
                 if [[ "$page" -eq 6 ]]; then
-                  echo "::warning::more than 5 pages of green $event runs since $1" >&2
+                  echo "::warning::more than 5 pages of green $event runs from $1 to $2" >&2
                   return 1
                 fi
-                runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/pr-require-checks.yml/runs?branch=main&event=$event&status=success&created=%3E$1&per_page=100&page=$page")" || return 1
-                jq -r --arg e "$event" --arg repo "$GITHUB_REPOSITORY" --arg after "$1" '.workflow_runs[]
+                runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/pr-require-checks.yml/runs?branch=main&event=$event&status=success&created=$1..$2&per_page=100&page=$page")" || return 1
+                jq -r --arg e "$event" --arg repo "$GITHUB_REPOSITORY" --arg after "$3" '.workflow_runs[]
                   | select(.event == $e and .conclusion == "success" and .run_attempt == 1
                     and .head_branch == "main" and .head_repository.full_name == $repo
                     and ((.head_sha // "") | test("^[0-9a-f]{40}$")) and .created_at > $after
@@ -1387,21 +1403,41 @@ jobs:
                 echo "#$n was edited or could not be read: left open"
                 continue
               fi
-              if ! runs="$(green "$created")"; then
-                echo "::warning::could not list the green runs after #$n: left open"
-                continue
-              fi
-              cleared=''
-              while read -r _ head url; do
-                [[ -n "$head" ]] || continue
-                ahead="$(gh api "repos/$GITHUB_REPOSITORY/compare/$head...$sha" --jq .status)" || break
-                [[ "$ahead" == behind ]] || continue
-                on_main="$(gh api "repos/$GITHUB_REPOSITORY/compare/$head...$tip" --jq .status)" || break
-                if [[ "$on_main" == ahead || "$on_main" == identical ]]; then
-                  cleared="$head $url"
+              # Walk the windows oldest first; any failure ends the walk.
+              cleared='' failed='' span=0
+              from="$(date -u -d "$created" +%s)"
+              while [[ -z "$cleared$failed" ]] && ((from <= now)); do
+                if ((span == spans)); then
+                  echo "::warning::more than $spans spans of green runs after #$n: left open"
+                  failed=1
                   break
                 fi
-              done <<<"$runs"
+                since="$(date -u -d "@$from" +%Y-%m-%dT%H:%M:%SZ)"
+                until="$(date -u -d "@$((from + span_s))" +%Y-%m-%dT%H:%M:%SZ)"
+                if ! runs="$(green "$since" "$until" "$created")"; then
+                  echo "::warning::could not list the green runs after #$n: left open"
+                  failed=1
+                  break
+                fi
+                while read -r _ head url; do
+                  [[ -n "$head" ]] || continue
+                  if ! ahead="$(gh api "repos/$GITHUB_REPOSITORY/compare/$head...$sha" --jq .status)" ||
+                    { [[ "$ahead" == behind ]] &&
+                      ! on_main="$(gh api "repos/$GITHUB_REPOSITORY/compare/$head...$tip" --jq .status)"; }; then
+                    echo "#$n: a compare did not read: left open"
+                    failed=1
+                    break
+                  fi
+                  [[ "$ahead" == behind ]] || continue
+                  if [[ "$on_main" == ahead || "$on_main" == identical ]]; then
+                    cleared="$head $url"
+                    break
+                  fi
+                done <<<"$runs"
+                span=$((span + 1))
+                from=$((from + span_s))
+              done
+              [[ -z "$failed" ]] || continue
               if [[ -z "$cleared" ]]; then
                 echo "#$n: no green full run on main clears it yet"
                 continue

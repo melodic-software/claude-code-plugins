@@ -158,6 +158,12 @@ case "$endpoint" in
     # The range's base lookup: STUB_FAIL_BASE_READ fails it.
     [[ "${STUB_FAIL_BASE_READ:-}" != 1 ]] || exit 1
     fixture="$STUB_DIR/green.json"
+    # A created=<from>..<to> window lists only the runs created in it, both ends included.
+    if [[ "$endpoint" =~ [?\&]created=([^.\&]+)\.\.([^\&]+) ]]; then
+      fixture="$STUB_DIR/green.window.json"
+      jq --arg a "${BASH_REMATCH[1]}" --arg b "${BASH_REMATCH[2]}" \
+        '.workflow_runs |= map(select(.created_at >= $a and .created_at <= $b))' "$STUB_DIR/green.json" >"$fixture"
+    fi
     ;;
   */actions/workflows/*event=push*)
     # The previous canary push run: STUB_FAIL_PREV_READ fails the read.
@@ -205,6 +211,7 @@ case "$endpoint" in
     [[ "${STUB_FAIL_COMMIT_READ:-}" != 1 ]] || exit 1
     fixture="$STUB_DIR/commit.json"
     ;;
+  */contents/*/babysit_merge_policy.py\?ref=main) exec cat "$STUB_DIR/policy.py" ;;
   */contents/*) exec cat "$STUB_DIR/pipeline.yaml" ;;
   graphql)
     printf '%s\n' "${fields[@]}" >"$STUB_DIR/graphql.$n"
@@ -2086,19 +2093,27 @@ clear_run() {
     jq -c "${3:-.}"
 }
 CLEAR_AT=2026-10-17T16:26:00Z
+# The step reads now from date: pin it, so the windows it walks stay the same.
+mkdir -p "$TMP_ROOT/closebin"
+printf '#!/usr/bin/env bash\nif [[ "$*" == "-u +%%s" ]]; then echo 1793577600; else exec %q "$@"; fi\n' \
+  "$(command -v date)" >"$TMP_ROOT/closebin/date"
+chmod +x "$TMP_ROOT/closebin/date"
 # run_close <issues-json> [lastEditedAt]; GREEN is the green-run listing
 # (default one dispatch at CLEAR_AT), ANCESTRY the record SHA's compare status,
-# ON_MAIN the run head's compare against main's tip.
+# ON_MAIN the run head's compare against main's tip, POLICY_FILE the
+# babysit_merge_policy.py main serves (default this checkout's).
+POLICY_PY="$ROOT/plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py"
 run_close() {
   rm -rf "$TMP_ROOT/stub"
   mkdir -p "$TMP_ROOT/stub" "$TMP_ROOT/work"
+  cp "${POLICY_FILE:-$POLICY_PY}" "$TMP_ROOT/stub/policy.py"
   printf '%s\n' "$1" >"$TMP_ROOT/stub/issues.json"
   printf '%s\n' "${LANE_ISSUES:-[]}" >"$TMP_ROOT/stub/lane-issues.json"
   printf '%s\n' "${PIPELINE:-}" >"$TMP_ROOT/stub/pipeline.yaml"
   printf '{"workflow_runs": [%s]}\n' "${GREEN-$(clear_run "$CLEAR_AT")}" >"$TMP_ROOT/stub/green.json"
   jq -n --arg e "${2:-}" '{data: {repository: {issue: {lastEditedAt: (if $e == "" then null else $e end)}}}}' >"$TMP_ROOT/stub/graphql.json"
   : >"$TMP_ROOT/stub/log"
-  OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" STUB_RUN_SHA="$SHA" STUB_ANCESTRY="${ANCESTRY:-behind}" \
+  OUT="$(PATH="$TMP_ROOT/closebin:$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" STUB_RUN_SHA="$SHA" STUB_ANCESTRY="${ANCESTRY:-behind}" \
     STUB_ON_MAIN="${ON_MAIN:-ahead}" STUB_FAIL_BASE_READ="${FAIL_GREEN_READ:-}" \
     STUB_FAIL_READ="${FAIL_READ:-}" STUB_FAIL_LANE_READ="${FAIL_LANE_READ:-}" STUB_FAIL_GRAPHQL="${FAIL_GRAPHQL:-}" \
     GH_TOKEN=x GITHUB_REPOSITORY=o/r \
@@ -2119,7 +2134,7 @@ if [[ "$RC" -eq 0 && "$(closed)" == "7 8 11" ]] &&
   grep -qx 'state_reason=completed' "$TMP_ROOT/stub/post.$(grep -nx 'PATCH repos/o/r/issues/7' <<<"$LOG" | cut -d: -f1)" &&
   grep -q 'issues?state=open&creator=github-actions%5Bbot%5D' <<<"$LOG" &&
   grep -q 'issues?state=open&creator=melodic-automation-lanes%5Bbot%5D' <<<"$LOG" &&
-  grep -q "^GET repos/o/r/actions/workflows/pr-require-checks.yml/runs?branch=main&event=workflow_dispatch&status=success&created=%3E$BEFORE&per_page=100&page=1$" <<<"$LOG"; then
+  grep -q "^GET repos/o/r/actions/workflows/pr-require-checks.yml/runs?branch=main&event=workflow_dispatch&status=success&created=$BEFORE..2026-10-24T10:00:00Z&per_page=100&page=1$" <<<"$LOG"; then
   ok "close-cleared closes both filers' full-run records a later dispatched green run cleared, never a canary or a record newer than the run"
 else
   fail "close cleared: rc=$RC closed='$(closed)' log='$LOG' out='$OUT'"
@@ -2257,6 +2272,59 @@ if [[ "$RC" -eq 0 && -z "$(closed)" && "$OUT" == *"more than 5 pages of green"* 
   ok "close-cleared leaves a record open when the green-run listing passes its page bound"
 else
   fail "page bound: rc=$RC out='${OUT:0:400}'"
+fi
+# The listing walks seven-day windows oldest first (GREEN_SPAN, as
+# `_GreenMain.listed` does) and stops at the first that clears the record, so
+# a full page of later green runs never hides an earlier clearing one.
+later="$(for i in $(seq 99); do clear_run 2026-10-25T12:00:00Z workflow_dispatch ".id = $((5000 + i))"; done | paste -sd,)"
+WINDOW1="created=$BEFORE..2026-10-24T10:00:00Z&"
+WINDOW2="created=2026-10-24T10:00:00Z..2026-10-31T10:00:00Z&"
+GREEN="$(clear_run "$CLEAR_AT"), $later" PIPELINE="$PIPE" \
+  run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]"
+if [[ "$RC" -eq 0 && "$(closed)" == 7 && "$OUT" != *"more than 5 pages"* ]] &&
+  grep -qF "event=schedule&status=success&$WINDOW1" <<<"$LOG" &&
+  grep -qF "event=workflow_dispatch&status=success&$WINDOW1" <<<"$LOG" && ! grep -qF "$WINDOW2" <<<"$LOG"; then
+  ok "close-cleared closes a record a green run cleared before a full page of later green runs, reading only the first window"
+else
+  fail "full page after the clear: rc=$RC closed='$(closed)' out='${OUT:0:400}'"
+fi
+GREEN="$(clear_run 2026-10-26T12:00:00Z)" PIPELINE="$PIPE" \
+  run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]"
+if [[ "$RC" -eq 0 && "$(closed)" == 7 ]] && grep -qF "$WINDOW1" <<<"$LOG" && grep -qF "$WINDOW2" <<<"$LOG" &&
+  ! grep -qF 'created=2026-10-31T10:00:00Z..' <<<"$LOG"; then
+  ok "close-cleared walks past an empty window to the one that clears the record"
+else
+  fail "second window: rc=$RC closed='$(closed)' log='$LOG' out='${OUT:0:400}'"
+fi
+GREEN='' PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]"
+if [[ "$RC" -eq 0 && -z "$(closed)" && "$OUT" == *"#7: no green full run on main clears it yet"* ]] &&
+  grep -qF 'created=2026-10-31T10:00:00Z..2026-11-07T10:00:00Z&' <<<"$LOG" &&
+  ! grep -qF 'created=2026-11-07T10:00:00Z..' <<<"$LOG"; then
+  ok "close-cleared walks the windows up to now and no further"
+else
+  fail "windows up to now: rc=$RC log='$LOG' out='${OUT:0:400}'"
+fi
+# The window size and count come from babysit_merge_policy.py on main; when
+# they do not read, nothing is listed or closed.
+for policy in '' 'GREEN_SPAN = timedelta(hours=7)'; do
+  printf '%s\n' "$policy" >"$TMP_ROOT/policy.py"
+  POLICY_FILE="$TMP_ROOT/policy.py" PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]"
+  if [[ "$RC" -eq 0 && -z "$(closed)" && "$OUT" == *"could not be read from babysit_merge_policy.py: no record closed"* ]] &&
+    ! grep -q 'status=success' <<<"$LOG"; then
+    ok "close-cleared closes nothing when main's GREEN_SPAN and GREEN_SPANS do not read (policy '${policy:-empty}')"
+  else
+    fail "policy '$policy': rc=$RC log='$LOG' out='${OUT:0:400}'"
+  fi
+done
+# More windows than GREEN_SPANS before now leave the record open, as `listed` raises.
+sed 's/^GREEN_SPANS = .*/GREEN_SPANS = 2/' "$POLICY_PY" >"$TMP_ROOT/policy.py"
+POLICY_FILE="$TMP_ROOT/policy.py" GREEN='' PIPELINE="$PIPE" \
+  run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]"
+if [[ "$RC" -eq 0 && -z "$(closed)" && "$OUT" == *"more than 2 spans of green runs after #7: left open"* ]] &&
+  ! grep -qF 'created=2026-10-31T10:00:00Z..' <<<"$LOG"; then
+  ok "close-cleared leaves a record open past GREEN_SPANS windows"
+else
+  fail "span bound: rc=$RC log='$LOG' out='${OUT:0:400}'"
 fi
 for marker in "<!-- post-merge-failure sha=$OTHER signal=canary -->" "<!-- babysit-merge-demotion sha=$OTHER signal=revert -->" \
   "<!-- post-merge-fix check=lint -->" "<!-- post-merge-failure sha=${OTHER:0:12} signal=schedule -->"; do
