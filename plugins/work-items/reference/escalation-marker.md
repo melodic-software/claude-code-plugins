@@ -14,10 +14,9 @@ match.
 | Token | Values |
 | --- | --- |
 | `<lane>` | Lane id (`work-loop`, `attend-queue`, …) |
-| `<kind>` | `escalated` \| `ratify-c3` \| `ratify-first-drain` \| `routed-advisory` |
+| `<kind>` | `escalated` \| `routed-advisory` |
 
-`ratify-first-drain` is posted on a work-loop's own telemetry issue, never on a work item: it asks
-the operator to end the first-drain earn-trust period of `/work-items:work-loop`'s admission gate.
+A marker carrying any other `kind` lists as an `[escalated]` row.
 
 ## Writer / reader contract
 
@@ -30,12 +29,6 @@ the operator to end the first-drain earn-trust period of `/work-items:work-loop`
 write identity, never from marker text alone, and only while the item still wears the role label:
 an item an operator has answered and returned to the frontier has no standing escalation, so a
 later escalation of it posts a fresh marker.
-
-`kind=ratify-c3` is the exception: it is one per item, ever, and an existing `kind=ratify-c3` marker
-from the write identity suppresses another whatever labels the item wears now. Removing the role
-label does not reopen it. The C3 ratification queue
-([`${CLAUDE_PLUGIN_ROOT}/skills/work-loop/reference/c3-ratification-queue.md`](${CLAUDE_PLUGIN_ROOT}/skills/work-loop/reference/c3-ratification-queue.md))
-owns that rule.
 
 ## Trusted escalation authors
 
@@ -55,7 +48,7 @@ A source that is absent adds no login. When the lane-identity read fails by that
 rule (which also says when a not-found means no file), say so to the operator and trust only the
 other two; never guess the login. A marker from any other author is a suspected spoof that counts
 for nothing, and the reader reports it with the author named, since anyone who can comment can
-paste a marker. An item with no trusted marker counts as parked, never as escalated or ratify. Writers still suppress duplicates on their own write identity alone, as above.
+paste a marker. An item with no trusted marker counts as parked, never as escalated. Writers still suppress duplicates on their own write identity alone, as above.
 
 Loop-lane escalation record files (`.claude/lane-escalations/…`) are optional exhaust; the tracker
 item plus marker comment is the escalation of record when the record write fails (see

@@ -404,15 +404,14 @@ the partition and the evidence predicate is met.
 Each terminal launches from its own worktree of the repo. attend-queue binds
 to its working directory, and two lanes never share one.
 
-Change the `Shard` line per terminal. A non-overlapping four-way split, each
+Change the `Shard` line per terminal. A non-overlapping three-way split, each
 value a predicate the attention view's own rows satisfy:
 
-- `[ratify]`
 - `[escalated]`
 - `[intake] where item number is even`
 - `[intake] where item number is odd`
 
-No fifth floater. With no row-level claim, an overlapping bucket means two
+No fourth floater. With no row-level claim, an overlapping bucket means two
 terminals mutating the same row.
 
 > **=== COPY FROM HERE ===**
@@ -420,7 +419,7 @@ terminals mutating the same row.
 > /work-items:attend-queue
 >
 > Repository: `melodic-software/claude-code-plugins`
-> Shard: `[ratify]`
+> Shard: `[escalated]`
 > Runtime surfaces in this repo: **every tracked markdown file**
 > (`git ls-files '*.md'`). The plugin tree is the bulk of it (`SKILL.md`,
 > `agents/*.md`, `commands/*.md`, and every `reference/**`, `references/**`,
@@ -546,9 +545,9 @@ to the template re-renders here too.
 >
 > 1. Open items wearing the human-gated role label with NO **trusted**
 >    machine escalation-marker comment. A marker excludes a row from this
->    population only when all three hold: its first comment line starts
->    `<!-- work-items:escalation`, it carries a recognized kind
->    (`escalated`, `routed-advisory`, `ratify-c3`), and it was authored by an
+>    population only when both hold: its first comment line starts
+>    `<!-- work-items:escalation` (any `kind`, since the attended queue
+>    lists every kind as `[escalated]`), and it was authored by an
 >    identity the lanes in this fleet actually write as. Establish that
 >    identity with me rather than assuming it: the tracker seam assigns claims
 >    to the session's own `@me`, which anchors the check only where the lanes
@@ -644,7 +643,7 @@ to the template re-renders here too.
 > section's counting discipline applies here verbatim).
 >
 > **Exclusions, never mutate from this session:** attention-view rows
-> (`[escalated]`, `[ratify]`, `[intake]`, since the attended queue owns them; a
+> (`[escalated]`, `[intake]`, since the attended queue owns them; a
 > parked item that acquires an escalation marker mid-run has left this
 > population); items carrying any `wayfind: *` label (wayfind owns their
 > mode, and the human-gated label IS the mode marker on a wayfind HITL item,

@@ -1,7 +1,8 @@
-// Proves the read path against a real SQL Server: starts a local SQL Server
-// Linux container (Developer edition), creates a read-only login and a second
-// database, runs the plugin's stdio server on a registration confined to one
-// database, and checks #5940's S1/S2, S5, S6 and S7. Prints one PASS or FAIL
+// Proves the read and write paths against a real SQL Server: starts a local
+// SQL Server Linux container (Developer edition), creates a read-only login, a
+// write login and a second database, runs the plugin's stdio server on a
+// registration confined to one database, first without --write and then with
+// it, and checks #5940's S1/S2, S4, S5, S6 and S7. Prints one PASS or FAIL
 // line per check on stdout, progress on stderr. Without Docker it prints
 // "SKIP: docker not available" and exits 0.
 //
@@ -16,10 +17,12 @@ import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { APP_NAME } from '../src/executor.mjs';
 import { checkStatement } from '../src/statement.mjs';
+import { REQUIRES_USER_INTERACTION, WRITE_NOT_OPTED_IN } from '../src/tools.mjs';
 
 const PLUGIN_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const IMAGE = 'mcr.microsoft.com/mssql/server:2022-latest';
 const READER = 'mcp_reader';
+const WRITER = 'mcp_writer';
 const LOCK_TIMEOUT_MS = 4321;
 const ROUNDS = 2;
 const READY_TIMEOUT_MS = 240_000;
@@ -197,9 +200,10 @@ async function waitForServer(tedious, container, options) {
   }
 }
 
-async function createFixtures(sa, tedious, readerPassword) {
+async function createFixtures(sa, tedious, readerPassword, writerPassword) {
   for (const sql of [
     `CREATE LOGIN [${READER}] WITH PASSWORD = N'${readerPassword}';`,
+    `CREATE LOGIN [${WRITER}] WITH PASSWORD = N'${writerPassword}';`,
     'CREATE DATABASE [app];',
     'CREATE DATABASE [other];',
     'USE [app];',
@@ -211,6 +215,10 @@ async function createFixtures(sa, tedious, readerPassword) {
     'CREATE TRIGGER dbo.items_audit ON dbo.items AFTER INSERT AS SET NOCOUNT ON;',
     `CREATE USER [${READER}] FOR LOGIN [${READER}];`,
     `ALTER ROLE db_datareader ADD MEMBER [${READER}];`,
+    // An UPDATE with a WHERE clause reads the table, so the writer reads too.
+    `CREATE USER [${WRITER}] FOR LOGIN [${WRITER}];`,
+    `ALTER ROLE db_datareader ADD MEMBER [${WRITER}];`,
+    `ALTER ROLE db_datawriter ADD MEMBER [${WRITER}];`,
     'USE [other];',
     'CREATE TABLE dbo.ledger (id int NOT NULL PRIMARY KEY, amount int NOT NULL);',
     'INSERT INTO dbo.ledger (id, amount) VALUES (1, 100);',
@@ -232,6 +240,11 @@ async function openPluginTransactions(sa, tedious) {
 async function fingerprint(sa, tedious) {
   const { columns, rows } = await batch(sa, tedious, FINGERPRINT);
   return Object.fromEntries(columns.map((column, i) => [column, rows[0][i]]));
+}
+
+async function itemRows(sa, tedious) {
+  const { rows } = await batch(sa, tedious, 'SELECT id, name FROM app.dbo.items ORDER BY id;');
+  return JSON.stringify(rows);
 }
 
 function changed(before, after) {
@@ -316,10 +329,11 @@ async function main() {
     console.log('SKIP: docker not available');
     return 0;
   }
-  const failures = { 'S1/S2': [], S5: [], S6: [], S7: [] };
+  const failures = { 'S1/S2': [], S4: [], S5: [], S6: [], S7: [] };
   const passes = {};
   const saPassword = newPassword();
   const readerPassword = newPassword();
+  const writerPassword = newPassword();
   const container = `sql-server-read-path-${randomBytes(4).toString('hex')}`;
   const dir = mkdtempSync(join(tmpdir(), 'sql-server-read-path-'));
   let sa;
@@ -355,7 +369,7 @@ async function main() {
 
     log(`waiting for SQL Server on 127.0.0.1:${port}`);
     sa = await waitForServer(tedious, container, { port, userName: 'sa', password: saPassword, ca });
-    await createFixtures(sa, tedious, readerPassword);
+    await createFixtures(sa, tedious, readerPassword, writerPassword);
     const before = await fingerprint(sa, tedious);
     if (before.itemRows !== 3 || before.ledgerRows !== 1) throw new SetupError(`the fixtures are not in place: ${JSON.stringify(before)}`);
 
@@ -369,6 +383,9 @@ async function main() {
           port,
           databases: ['app'],
           auth: { type: 'sql-login', user: { env: 'SQL_READ_PATH_USER' }, password: { env: 'SQL_READ_PATH_PASSWORD' } },
+          write: {
+            auth: { type: 'sql-login', user: { env: 'SQL_WRITE_PATH_USER' }, password: { env: 'SQL_WRITE_PATH_PASSWORD' } },
+          },
         },
       },
     }, null, 2)}\n`);
@@ -380,22 +397,40 @@ async function main() {
       command: process.execPath,
       args: [join(PLUGIN_ROOT, 'src', 'launch.mjs'), '--config', configPath, '--environment', 'local'],
     };
-    writeFileSync(registrationPath, `${JSON.stringify({ mcpServers: { 'sql-server-read-path': registration } }, null, 2)}\n`);
+    const writeRegistration = { ...registration, args: [...registration.args, '--write'] };
+    writeFileSync(registrationPath, `${JSON.stringify({
+      mcpServers: { 'sql-server-read-path': registration, 'sql-server-write-path': writeRegistration },
+    }, null, 2)}\n`);
 
-    client = startServer(registration, {
+    // Both registrations get the write login, so a refusal without --write
+    // comes from the opt-in, not from a missing credential.
+    const serverEnv = {
       ...process.env,
       SQL_READ_PATH_USER: READER,
       SQL_READ_PATH_PASSWORD: readerPassword,
+      SQL_WRITE_PATH_USER: WRITER,
+      SQL_WRITE_PATH_PASSWORD: writerPassword,
       NODE_EXTRA_CA_CERTS: cert,
-    });
-    const init = await client.request('initialize', {
-      protocolVersion: '2025-11-25',
-      capabilities: {},
-      clientInfo: { name: 'sql-server-read-path', version: '1.0.0' },
-    });
-    if (init.error) throw new SetupError(`initialize failed: ${init.error.message}`);
-    client.notify('notifications/initialized');
-    if (init.result.capabilities?.tools?.listChanged !== false) failures.S7.push('the tools capability does not declare listChanged false');
+    };
+    const transcripts = [];
+    async function startClient(serverRegistration, label) {
+      client = startServer(serverRegistration, serverEnv);
+      const init = await client.request('initialize', {
+        protocolVersion: '2025-11-25',
+        capabilities: {},
+        clientInfo: { name: 'sql-server-read-path', version: '1.0.0' },
+      });
+      if (init.error) throw new SetupError(`initialize ${label} failed: ${init.error.message}`);
+      client.notify('notifications/initialized');
+      if (init.result.capabilities?.tools?.listChanged !== false) failures.S7.push(`the tools capability ${label} does not declare listChanged false`);
+    }
+    async function stopClient() {
+      transcripts.push(client.transcript);
+      await client.stop();
+      client = undefined;
+    }
+
+    await startClient(registration, 'without --write');
 
     const firstList = await client.request('tools/list');
     if (firstList.error) throw new SetupError(`tools/list failed: ${firstList.error.message}`);
@@ -501,24 +536,69 @@ async function main() {
     passes.S5 = 'the registration confined to app was refused the second database by the allow-list on every tool, ' +
       'and by the read-only login on three-part names';
 
-    const { transcript } = client;
-    await client.stop();
-    client = undefined;
+    // S4, first on the registration without --write.
+    const flag = (tool) => tool._meta?.[REQUIRES_USER_INTERACTION];
+    for (const tool of firstList.result.tools) {
+      if (tool.name === 'write' && flag(tool) !== true) failures.S4.push(`write does not carry _meta["${REQUIRES_USER_INTERACTION}"]: true`);
+      if (tool.name !== 'write' && flag(tool) !== undefined) failures.S4.push(`${tool.name} carries _meta["${REQUIRES_USER_INTERACTION}"]`);
+    }
+    if (!firstList.result.tools.some((tool) => tool.name === 'write')) failures.S4.push('tools/list does not list write');
+    const updateOne = { sql: "UPDATE dbo.items SET name = N'uno' WHERE id = 1", expectedRows: 1 };
+    const refused = await call('write', updateOne);
+    if (!refused.isError || refused.text !== WRITE_NOT_OPTED_IN) failures.S4.push(`write without --write was not refused for the opt-in: ${refused.text}`);
+    for (const change of changed(afterScope, await fingerprint(sa, tedious))) failures.S4.push(`the write refused without --write changed the database: ${change}`);
+    await stopClient();
+
+    // Then on the registration with --write.
+    await startClient(writeRegistration, 'with --write');
+    const relisted = await client.request('tools/list');
+    if (JSON.stringify(relisted.result) !== baseline) failures.S7.push('tools/list with --write differs from tools/list without it');
+    const reads = await call('query', { sql: 'SELECT SUSER_SNAME() AS login' });
+    if (reads.isError || rowsOf(reads)[0]?.login !== READER) failures.S4.push(`query with --write did not run as ${READER}: ${reads.text}`);
+
+    const committed = await call('write', updateOne);
+    if (committed.isError || committed.data?.committed !== true || committed.data?.rowCount !== 1) {
+      failures.S4.push(`the write affecting the expected 1 row did not commit it: ${committed.text}`);
+    }
+    const expectedItems = JSON.stringify([[1, 'uno'], [2, 'two'], [3, 'three']]);
+    const afterCommit = await itemRows(sa, tedious);
+    if (afterCommit !== expectedItems) failures.S4.push(`after the committed write dbo.items held ${afterCommit}, not ${expectedItems}`);
+    let held = await openPluginTransactions(sa, tedious);
+    if (held !== 0) failures.S4.push(`after the committed write ${held} plugin session(s) held an open transaction`);
+    const committedState = await fingerprint(sa, tedious);
+
+    const mismatch = await call('write', { sql: "UPDATE dbo.items SET name = N'all'", expectedRows: 1 });
+    if (!mismatch.isError || !mismatch.text.includes('rolled back: the statement affected 3 rows, not the expected 1')) {
+      failures.S4.push(`the write affecting 3 rows against expectedRows 1 did not roll back with a tool error: ${mismatch.text}`);
+    }
+    const afterMismatch = await itemRows(sa, tedious);
+    if (afterMismatch !== expectedItems) failures.S4.push(`after the rolled-back write dbo.items held ${afterMismatch}, not ${expectedItems}`);
+    for (const change of changed(committedState, await fingerprint(sa, tedious))) failures.S4.push(`the rolled-back write changed the database: ${change}`);
+    held = await openPluginTransactions(sa, tedious);
+    if (held !== 0) failures.S4.push(`after the rolled-back write ${held} plugin session(s) held an open transaction`);
+    passes.S4 = `write carries _meta["${REQUIRES_USER_INTERACTION}"]: true and the other tools do not; without --write it refused the call ` +
+      `and the database stayed unchanged; with --write, query still ran as ${READER}, a write affecting the expected 1 row committed, ` +
+      'a write affecting 3 rows against expectedRows 1 rolled back with a tool error and left the table unchanged, ' +
+      'and no plugin session held a transaction after either';
+    await stopClient();
 
     // S6
-    const secrets = [saPassword, readerPassword];
+    const secrets = [saPassword, readerPassword, writerPassword];
     const scanned = [configPath, registrationPath, conf, ...pluginFiles(PLUGIN_ROOT)];
     for (const file of scanned) {
       const text = readFileSync(file, 'utf8');
       if (secrets.some((secret) => text.includes(secret))) failures.S6.push(`${file} holds a password`);
     }
-    for (const [stream, text] of Object.entries(transcript)) {
-      if (secrets.some((secret) => text.includes(secret))) failures.S6.push(`the server's ${stream} holds a password`);
+    for (const transcript of transcripts) {
+      for (const [stream, text] of Object.entries(transcript)) {
+        if (secrets.some((secret) => text.includes(secret))) failures.S6.push(`the server's ${stream} holds a password`);
+      }
     }
-    passes.S6 = `no password appears in the ${scanned.length} plugin, config and registration files or in the server's output`;
+    passes.S6 = `no password appears in the ${scanned.length} plugin, config and registration files or in either server's output`;
 
     // S7
-    passes.S7 = `tools/list returned the same tools (${toolNames}) before and after each of ${toolCalls} tool calls, with listChanged false`;
+    passes.S7 = `tools/list returned the same tools (${toolNames}) with and without --write, before and after each of ${toolCalls} ` +
+      'tool calls, with listChanged false';
   } catch (error) {
     console.log(`FAIL: ${error instanceof SetupError ? 'setup' : 'run'}: ${error.message}`);
     return 1;

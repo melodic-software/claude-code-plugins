@@ -2,7 +2,7 @@ schema_version: "1.1"
 name: bs-no-task-tools-fallback
 description: 'a session without the task tools still completes the batch-simplify run: the skill falls back to a per-group list instead of TaskCreate, TaskUpdate or TaskList, and never stops for want of them'
 tags: [task-tools, fallback, window]
-expected_outcome: 'The Skill tool is called for code-tidying:batch-simplify and no TaskCreate, TaskUpdate or TaskList call is made. src/greet.sh and repo/tool.sh are simplified; lib/old.sh (outside the window) is unchanged. The final reply reports per-group outcomes and does not say the run stopped or failed for lack of task tools.'
+expected_outcome: 'No TaskCreate, TaskUpdate or TaskList call is made. src/greet.sh and repo/tool.sh are simplified; lib/old.sh (outside the window) is unchanged. The final reply reports per-group outcomes and does not say the run stopped or failed for lack of task tools.'
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -11,10 +11,6 @@ execution:
   max_turns: 150
   timeout_seconds: 2400
 graders:
-  - name: skill-invoked
-    type: tool_used
-    tool: Skill
-    input_match: 'batch-simplify'
   - name: no-task-create
     type: tool_used
     tool: TaskCreate

@@ -217,6 +217,55 @@ class RunValidityTest(unittest.TestCase):
             proc.stdout,
         )
 
+    def one_arm_case(self, text, without):
+        """Run the clean result with measurable-criterion's case.yaml holding
+        text and its without-arm replaced by without (None drops the key)."""
+        result = self.clean()
+        case = result["cases"][1]
+        if without is None:
+            del case["arms"]["without"]
+        else:
+            case["arms"]["without"] = without
+        case_yaml = self.dir / "suite" / case["dir"] / "case.yaml"
+        case_yaml.write_text(text, encoding="utf-8")
+        return self.run_script(self.write(result), "--runs", "1")
+
+    HISTORY = "name: m\ncontext:\n  history_file: turn-1.jsonl\n"
+
+    def test_a_history_file_case_with_no_without_arm_is_single_arm_by_design(self):
+        for text in (self.HISTORY, "name: m\ncontext: {history_file: turn-1.jsonl}\n"):
+            proc = self.one_arm_case(text, None)
+            self.assertVerdict(proc, "VALID", 0)
+            self.assertIn(
+                "check row count: WARN (1 row per arm as --runs 1 asked; runsPerCase"
+                " reads 3 and is not used; single-arm by design (context.history_file, no without-arm recorded), so no delta:"
+                " measurable-criterion)",
+                proc.stdout,
+                text,
+            )
+            self.assertIn("1 case single-arm by design, with no delta", proc.stdout)
+
+    def test_a_missing_without_arm_without_history_file_still_fails(self):
+        for text in (
+            "name: m\ncontext:\n  add_dirs: [resources]\n",
+            "name: m\n# history_file: x\n",
+        ):
+            proc = self.one_arm_case(text, None)
+            self.assertVerdict(proc, "INVALID", 1)
+            self.assertIn(
+                "  case measurable-criterion, without-arm: 0 rows, --runs asked for 1",
+                proc.stdout,
+                text,
+            )
+
+    def test_a_history_file_case_with_an_empty_without_arm_still_fails(self):
+        proc = self.one_arm_case(self.HISTORY, [])
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn(
+            "  case measurable-criterion, without-arm: 0 rows, --runs asked for 1",
+            proc.stdout,
+        )
+
     def test_a_case_yaml_with_no_scaffold_script_is_unaffected(self):
         for text in (
             "name: m\ncontext:\n  add_dirs: [resources]\n",
@@ -1075,6 +1124,10 @@ class RunValidityTest(unittest.TestCase):
         for calls in (
             [("Read", {"file_path": lease})],
             [("Bash", {"command": "cat " + lease})],
+            # A redirect naming no file is not a cwd-relative path.
+            [("Bash", {"command": "ls -la %s 2>&1" % lease})],
+            [("Bash", {"command": "cat %s 2>/dev/null" % lease})],
+            [("Bash", {"command": "cat %s > /dev/null" % lease})],
             [("Write", {"file_path": lease, "content": "x"}),
              ("Read", {"file_path": self.own_data("other", "last-audit.md")})],
         ):
@@ -1114,6 +1167,9 @@ class RunValidityTest(unittest.TestCase):
             ([("Read", {"file_path": str(sandbox / "config" / "plugins" / "other" / "x")})], None),
             # A Bash call with one path inside plugin data and one outside.
             ([("Bash", {"command": "cp %s /etc/hosts" % lease})], None),
+            # A redirect to a real file still names a path.
+            ([("Bash", {"command": "cat %s > out.txt" % lease})], None),
+            ([("Bash", {"command": "cat %s 2> /etc/x" % lease})], None),
             # Another sandbox's plugin data is not this run's.
             ([("Read", {"file_path": str(self.dir.joinpath(
                 "claude-eval-zz", "config", "plugins", "data", "p", "lease"))})], None),

@@ -1194,6 +1194,16 @@ jobs:
             echo "::warning::$unmapped changed file(s) map to no suite; the plan runs the whole corpus of each one's language."
             printf 'affected-tests fallback: %s unmapped file(s)\n' "$unmapped" >>"$GITHUB_STEP_SUMMARY"
           fi
+      # A merge group's hold step emits this job's notices itself. Elsewhere
+      # this step does, and on a pull request it names detect-changes, which
+      # lists the files through actions/github-script, a client no counter sees.
+      - name: Log the API budget at the end
+        if: always() && github.event_name != 'merge_group'
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+          outside: ${{ github.event_name == 'pull_request' && 'detect-changes:pulls/files' || '' }}
 
   # Public repository: every lane runs on GitHub-hosted ubuntu-24.04 (free for
   # public repositories); the local-runner selector is not permitted here.
@@ -2893,6 +2903,14 @@ jobs:
         if: needs.select-tests.outputs.run_tests == 'false'
         run: echo "The diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the plugin validation, the rendered-view HTML assets, the shared-library copies and the declared prerequisites cannot be affected — reporting success."
 
+      # A docs-only diff checks nothing out, so there is no action to load.
+      - name: Log the API budget at the end
+        if: always() && hashFiles('.github/actions/log-api-budget/action.yml') != ''
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   # SKILL AND EVAL CONTRACTS: check 25 and the changed-skills gate, the
   # portability lint, leaf names, spoke paths, the listing budgets, the eval
   # schema and quality lint, the invocation probes, the detector/eval crosswalk
@@ -3975,6 +3993,12 @@ jobs:
             exit 0
           fi
           scripts/check-cant-fail-scan.sh
+      - name: Log the API budget at the end
+        if: always()
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   ci-status:
     needs:

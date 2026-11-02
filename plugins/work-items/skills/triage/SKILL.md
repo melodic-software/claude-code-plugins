@@ -288,7 +288,7 @@ Re-apply the label to object; the sweep then leaves this item alone.
 ```
 
 Items that keep the label are `/work-items:attend-queue` rows: `[human-gated]`, or `[escalated]`
-and `[ratify]` for those with a trusted marker.
+for those with a trusted marker.
 
 ## Triage settings
 

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "# Torn edge\n\nKeeper: seed 4127, depth 18, jaggedness 0.73, fiber density 42.\n\nEvidence: src/lab/torn-edge/TornEdgeLab.jsx, src/lab/torn-edge/render.js\nnot pushed: no secrets check in this repository\n",
+      "why": "local path and a not-pushed reason"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no note"
+    },
+    {
+      "answer": "# Torn edge\n\nKeeper: seed 4127.\n\nEvidence: branch prototype/torn-edge at 3f9c2ab\n",
+      "why": "claims a pushed branch, no not-pushed reason"
+    }
+  ]
+}
