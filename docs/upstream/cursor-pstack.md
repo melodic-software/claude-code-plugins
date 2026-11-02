@@ -116,6 +116,14 @@ is adopted by this record.
 | [`create-formal-verification-skill`](https://github.com/cursor/plugins/tree/88d47514b82e7c44f00f2b2a72ff6dd12158038c/pstack/skills/create-formal-verification-skill), [`maintain-formal-verification-skill`](https://github.com/cursor/plugins/tree/88d47514b82e7c44f00f2b2a72ff6dd12158038c/pstack/skills/maintain-formal-verification-skill) | none | Not adopted (parked; see [below](#sharpen-and-the-formal-verification-pair-not-now)) | New at this pin. A formal-methods skill is parked by [`tlaplus-agentskills.md`](tlaplus-agentskills.md). | none |
 | [`docs/harness/claude-code.md`](https://github.com/cursor/plugins/blob/88d47514b82e7c44f00f2b2a72ff6dd12158038c/pstack/docs/harness/claude-code.md) | none | Not taken (nothing to reauthor) | New at this pin. An adapter page that maps pstack's Cursor tool names, subagent fields, model slugs, paths and Cursor-only features to Claude Code, so pstack itself runs there as `/pstack:<name>`. Every entry on this page is a reauthored skill of ours, not a run of an upstream skill, so the mapping applies to none of them. | none |
 
+**Principle parts check (the `principle-*` rows above).** Read at origin/main `b000bb5ce7`, decision
+58's 36 parts: 25 placed in the skill that makes each decision, 2 recorded (1b, 2h), 9 deferred, and
+`unplaced parts: 0` (#12155). The `deferred:` list:
+
+- 1c, 3h, 6h, 8j, 19d: gated by decision 58, no stumble or eval evidence.
+- 24i: gated per cursor/plugins#634 (Q557).
+- 4c, 4e, 4f: owned by #7573 (the corrections plugin, `/corrections:gather` and `/corrections:codify`).
+
 ### The one deliberate departure
 
 **This port admits no inference from the code's own shape, at any tier.** This is where we depart
