@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.4.0] - 2026-11-02
+
+### Changed
+
+- The merge gate no longer holds a pull request for a person as `long-line-review:<path>` when its patch holds a line over 1800 bytes: the main-run review now folds such a line and reads every byte. The binder still counts no main-run verdict whose recorded longest line is over 1800 bytes.
+
 ## [5.3.3] - 2026-11-02
 
 ### Fixed

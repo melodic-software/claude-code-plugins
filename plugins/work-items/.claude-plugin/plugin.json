@@ -1,6 +1,6 @@
 {
   "name": "work-items",
-  "version": "8.0.2",
+  "version": "8.0.3",
   "description": "Work items through a provider-neutral tracker seam (github, local-markdown, jira, gitea, linear adapters): track (dashboard, creation, race-safe claims, recurring checks, stale-lease audits), scan-todos, decompose (plans to vertical slices), ship (one spec container), triage (intake, unsolicited PRs), work, work-loop (autonomous drain), attend-queue (escalations), morning-brief (read-only daily view), onboard-adapter (new trackers), measure-delivery (DORA metrics), and setup (binds a provider).",
   "author": {
     "name": "Melodic Software",

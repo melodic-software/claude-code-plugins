@@ -16,7 +16,7 @@ import sys
 import time
 import zipfile
 from collections.abc import Callable, Iterable, Iterator, Mapping
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal, cast, overload
 from urllib.parse import quote, unquote, urlparse
@@ -1996,6 +1996,18 @@ def run_search_capped(payload: Any, items: list[dict[str, Any]]) -> int | None:
         default=0,
     )
     return total if max(total, len(items)) >= RUN_SEARCH_CAP else None
+
+
+def split_created_window(
+    start: datetime, end: datetime, minimum: timedelta
+) -> datetime | None:
+    """The whole second that halves the `created` window [start, end), or
+    None when the window spans `minimum` or less: a run search that still
+    reaches RUN_SEARCH_CAP there cannot be read whole, so its reader refuses."""
+    if end - start <= minimum:
+        return None
+    middle = (start + (end - start) / 2).replace(microsecond=0)
+    return middle if start < middle < end else None
 
 
 def fetch_paginated_api(
