@@ -168,14 +168,13 @@
       "scan": "plaintext"
     },
     "skill-reply-*": {
-      "retention-days": 7,
+      "retention-days": 3,
       "readers": [
         ".github/workflows/pr-run-activity-write.yml reply-attempt download, same run",
         ".github/workflows/pr-run-activity-read.yml a person reading act-turns.json denials by hand"
       ],
-      "reason": "A person reads the denials by hand, and 1 day would lose them over a weekend; 7 days in both lanes is a recorded owner decision.",
-      "scan": "upload",
-      "pending-cut": "3 days would still cover a weekend; changing the recorded owner decision needs the owner."
+      "reason": "A person reads the denials by hand, and 1 day would lose them over a weekend; 3 days in both lanes still covers a weekend and is a recorded owner decision.",
+      "scan": "upload"
     },
     "patch-*": {
       "retention-days": 3,

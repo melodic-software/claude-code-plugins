@@ -581,6 +581,20 @@ class TestWatcherScripts(BridgeCase):
         self.assertEqual((self.dir / ".watch-seq").read_text().strip(), "1")
         self.assertEqual((self.dir / ".watch-replay").read_text().strip(), "1")
 
+    def test_an_exit_0_wake_leaves_the_payload_alone_in_watch_wake_json(self):
+        self.hub.append("hello")
+        r = self.run_script("watch.sh", str(self.dir))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        text = (self.dir / ".watch-wake.json").read_text(encoding="utf-8")
+        self.assertEqual(text, r.stdout)
+        payload = json.loads(text)
+        self.assertEqual(payload["events"][0]["text"], "hello")
+        self.assertIn("wake.sh", payload["next"])
+        self.assertFalse((self.dir / ".watch-wake.json.tmp").exists())
+        if os.name != "nt":
+            mode = (self.dir / ".watch-wake.json").stat().st_mode & 0o777
+            self.assertEqual(mode, 0o600)
+
     def test_a_missing_or_malformed_conf_exits_2(self):
         (self.bin / "session-bridge.conf").write_text(
             "NAME=Bad Name\n", encoding="utf-8"
@@ -611,6 +625,7 @@ class TestWatcherScripts(BridgeCase):
         self.assertEqual(r.returncode, 4, r.stderr)
         self.assertEqual(r.stdout, "")
         self.assertIn("2 consecutive waits", r.stderr)
+        self.assertFalse((self.dir / ".watch-wake.json").exists())
         self.assertIn(f"bash '{self.bin}/wake.sh'", r.stderr.replace("\\", "/"))
 
     def test_an_event_before_the_limit_is_delivered(self):

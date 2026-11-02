@@ -5675,6 +5675,7 @@ class _PerRunBuild:
                         "id": item.get("id"),
                         "name": name,
                         "run": json_object(item.get("workflow_run")).get("id"),
+                        "created_at": item.get("created_at"),
                     }
             if len(items) < LISTING_PAGE_SIZE or page * LISTING_PAGE_SIZE >= count:
                 break
@@ -5726,6 +5727,29 @@ class _PerRunBuild:
                         f"verifier run {run.get('id')} from before the cutover is {status}"
                     )
 
+    def _uploaded_since(self) -> None:
+        """Every listed FAIL was uploaded at or after `since`, or `since` is
+        too late: refuse, naming the earliest. A FAIL of a run created before
+        `since` but uploaded after it (a re-run, a late judgment) passes."""
+        early = []
+        for item in self.state["listed"]:
+            created = _when(item.get("created_at"))
+            if created is None:
+                raise _Unreadable(
+                    f"listed FAIL {item.get('id')} of run {item.get('run')} "
+                    "has no creation time"
+                )
+            if created < self.since:
+                early.append((created, item))
+        if early:
+            created, item = min(early, key=lambda e: e[0])
+            raise _Unreadable(
+                f"{len(early)} listed FAIL(s) uploaded before --since "
+                f"{_stamp(self.since)}, the earliest artifact {item.get('id')} of run "
+                f"{item.get('run')} at {_stamp(created)}: lower --since to at most "
+                f"{_stamp(created)}, remove the checkpoint file and run again"
+            )
+
     def build(self) -> dict[str, Any]:
         self.load()
         windows, runs = self.state["windows"], self.state["runs"]
@@ -5759,10 +5783,13 @@ class _PerRunBuild:
         # its creation time, and a judgment can upload hours after it) is
         # read here, so the file is the union of the windows and the listing.
         self._running_check()
-        if "listed" not in self.state:
+        # A checkpoint whose listing kept no upload times lists again.
+        listed = self.state.get("listed")
+        if not is_json_array(listed) or any("created_at" not in i for i in listed):
             self.state["listed"] = self._listing_fails()
             self.save()
         self._running_check()
+        self._uploaded_since()
         added = []
         for item in self.state["listed"]:
             run_id = item["run"]
@@ -5819,8 +5846,9 @@ def build_legacy_fails(
     are read the same way. It keeps every unexpired FAIL-shaped artifact of a
     run of verifier origin that uploaded no FAIL index, with its verdict's
     head branch. A run not completed, a read that fails or does not hold its
-    count, an origin or head branch that cannot be read, and a listed FAIL
-    no run read holds raise `_Unreadable`; every finished window and run is
+    count, an origin or head branch that cannot be read, a listed FAIL
+    uploaded before `since` (its `since` is too late), and a listed FAIL no
+    run read holds raise `_Unreadable`; every finished window and run is
     kept in `checkpoint`, so a stopped build resumes where it stopped."""
     if not since < cutover <= now:
         raise _Unreadable("the range must run from --since to a cutover in the past")

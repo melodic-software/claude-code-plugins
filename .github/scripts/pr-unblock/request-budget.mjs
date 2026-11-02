@@ -12,22 +12,25 @@
 //
 // A rate limit is the rate guard's (rate-guard.mjs, through
 // retryServerErrors): its latch stops the pool until the reset, fails the step
-// and refuses every later call to that pool before then. Here the call that
-// hit it waits out the reset once and is sent once more, as GitHub allows: "you
-// should not make another request until after the time specified by the
-// x-ratelimit-reset header", and for retry-after "until after that many
-// seconds has elapsed"
+// and refuses every later call to that pool before then. Here a read that hit
+// it (a GET or a GraphQL query) waits out the reset once and is sent once
+// more, as GitHub allows: "you should not make another request until after the
+// time specified by the x-ratelimit-reset header", and for retry-after "until
+// after that many seconds has elapsed"
 // (https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#handle-rate-limit-errors-appropriately).
-// maxWaitMs caps the waits of the whole run, summed, so the job fits its
-// timeout: a wait that does not fit is not taken, the response is returned at
-// once, and an error line names the reset. A second rate limit after the wait
-// is returned as it is, and the latch refuses what follows. Either response it
-// gives up on carries rateLimited: true, so a caller can defer its work
-// instead of failing. A GET or GraphQL query
+// A read is what retryServerErrors resends after a 5xx (its graphqlQuery for
+// GraphQL). Any other call is a write the outage posture never resends
+// (docs/outage-posture-audit.md, element 1), so it is returned at once.
+// maxWaitMs caps the reset waits of the whole run, summed, at a minute by
+// default, the budget retry-fetch.mjs keeps: a wait that does not fit is not
+// taken, the response is returned at once, and an error line names the reset.
+// A second rate limit after the wait is returned as it is, and the latch
+// refuses what follows. Each response it gives up on carries rateLimited:
+// true, so a caller can defer its work instead of failing. A GET or GraphQL query
 // answered 5xx is first sent again by retryServerErrors, so only its last
 // answer reaches the above; serverFailure tells a caller it still failed.
 
-import { retryServerErrors } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { graphqlQuery, retryServerErrors } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { countsRequests, rateLimitLatch, resetLabel, SIGNALS } from "../../actions/log-api-budget/rate-guard.mjs";
 
 export function budgetedFetch({
@@ -36,7 +39,7 @@ export function budgetedFetch({
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   now = () => Date.now(),
   random,
-  maxWaitMs = 6 * 60 * 1000,
+  maxWaitMs = 60 * 1000,
   latch = rateLimitLatch,
 } = {}) {
   const fetch = retryServerErrors(rawFetch, { sleep, random, log, now, latch });
@@ -51,8 +54,15 @@ export function budgetedFetch({
     if (until === null || !(await refused(response))) {
       return response;
     }
-    const wait = Math.max(0, until * 1000 - now()) + 1000;
-    if (waited + wait > maxWaitMs) {
+    const method = init.method ?? "GET";
+    if (method !== "GET" && !(method === "POST" && graphqlQuery(url, init))) {
+      log(`::error::rate limited on ${method} ${url}: a write is not sent again; the limit resets ${resetLabel(until)}`);
+      return Object.assign(response, { rateLimited: true });
+    }
+    // The budget counts the reset; the extra second only lands the resend after it.
+    const reset = Math.max(0, until * 1000 - now());
+    const wait = reset + 1000;
+    if (waited + reset > maxWaitMs) {
       log(
         `::error::rate limited on ${init.method ?? "GET"} ${url}: the limit resets ${resetLabel(until)},` +
           ` past this run's ${Math.round(maxWaitMs / 1000)}s wait budget (${Math.round(waited / 1000)}s already waited)`,
@@ -60,7 +70,7 @@ export function budgetedFetch({
       return Object.assign(response, { rateLimited: true });
     }
     log(`::notice::rate limited; waiting ${Math.ceil(wait / 1000)}s for the reset, then sending once more`);
-    waited += wait;
+    waited += reset;
     await sleep(wait);
     const again = await send(url, init);
     return latch.until(url) === null || !(await refused(again)) ? again : Object.assign(again, { rateLimited: true });

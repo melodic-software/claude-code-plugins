@@ -1090,19 +1090,26 @@ class RunValidityTest(unittest.TestCase):
         self.assertVerdict(proc, "INVALID", 1)
         self.assertIn("check permission denials: FAIL", proc.stdout)
 
-    def denied_in_sandbox(self, calls, trace_at=("claude-eval-ab", "out")):
+    def denied_in_sandbox(self, calls, trace_at=("claude-eval-ab", "out"), allowed=()):
         """The clean result at two runs per arm, measurable-criterion's second
         with-arm run scoring 0 against its sibling's 1 and denied each (tool,
-        input) in calls, its trace at <dir>/<trace_at...>/trace.jsonl. The
-        sandbox's own plugin-data directory is <dir>/claude-eval-ab/config/plugins/data."""
+        input) in calls, its trace at <dir>/<trace_at...>/trace.jsonl, after an
+        allowed Bash call for each command in allowed. The sandbox's own
+        plugin-data directory is <dir>/claude-eval-ab/config/plugins/data."""
         trace = self.dir.joinpath(*trace_at, "trace.jsonl")
         trace.parent.mkdir(parents=True, exist_ok=True)
         entries = [
             {"tool_name": tool, "tool_use_id": "d%d" % i, "tool_input": tool_input}
             for i, (tool, tool_input) in enumerate(calls)
         ]
+        uses = [
+            {"type": "tool_use", "id": "a%d" % i, "name": "Bash", "input": {"command": c}}
+            for i, c in enumerate(allowed)
+        ]
         trace.write_text(
             '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
+            + json.dumps({"type": "assistant", "message": {"content": uses}})
+            + "\n"
             + json.dumps({"type": "result", "is_error": False, "permission_denials": entries})
             + "\n",
             encoding="utf-8",
@@ -1212,6 +1219,41 @@ class RunValidityTest(unittest.TestCase):
             'cat "$D/lease"; D="%s"' % data,
         ):
             proc = self.denied_in_sandbox([("Bash", {"command": command})])
+            self.assertDenials(proc, "FAIL")
+
+    def test_a_compound_denial_explained_by_its_plugin_data_part_is_a_warning(self):
+        data = self.own_data("p", "state")
+        script = self.PLUGIN + "/skills/s/scripts/lease.py"
+        allowed = ['python3 "%s" acquire --state-dir %s' % (script, data)]
+        for command in (
+            'ls -la %s/ 2>&1; python3 "%s" release --help | head -30' % (data, script),
+            'ls %s && python3 %s --help' % (data, script),
+        ):
+            proc = self.denied_in_sandbox([("Bash", {"command": command})], allowed=allowed)
+            self.assertDenials(proc, "WARN")
+            self.assertIn("1 denial under the run's own plugin-data directory", proc.stdout)
+
+    def test_a_compound_denial_with_an_unproven_part_is_a_fail(self):
+        data = self.own_data("p", "state")
+        script = self.PLUGIN + "/skills/s/scripts/lease.py"
+        ran = ['python3 "%s" acquire' % script]
+        for command, allowed in (
+            # The plugin part never ran in an allowed call.
+            ('ls %s; python3 "%s" --help' % (data, script), []),
+            ('ls %s; python3 "%s" --help' % (data, script), ['python3 "%s.bak"' % script]),
+            # A part with an unresolved expansion, or no part only under plugin data.
+            ('ls %s; python3 "%s" "$X"' % (data, script), ran),
+            ('ls %s %s; python3 "%s"' % (data, script, script), ran),
+            ('ls %s; cat /etc/hosts' % data, ran),
+            # A part that works in the cwd: a relative path, a bare file name, a
+            # command with no rooted argument, or a redirect into a cwd file.
+            ('ls %s; cat skills/s/SKILL.md' % data, ran),
+            ('ls %s; cat SKILL.md' % data, ran),
+            ('ls %s; make' % data, ran),
+            ('ls %s; python3 "%s" > notes' % (data, script), ran),
+            ('ls %s | head skills/s/SKILL.md' % data, ran),
+        ):
+            proc = self.denied_in_sandbox([("Bash", {"command": command})], allowed=allowed)
             self.assertDenials(proc, "FAIL")
 
     def own_results(self, *parts, sandbox="claude-eval-ab"):
@@ -1344,6 +1386,169 @@ class RunValidityTest(unittest.TestCase):
         ):
             proc = self.denied_in_sandbox([("Bash", {"command": command})])
             self.assertDenials(proc, "FAIL")
+
+    SCRIPTS = PLUGIN + "/skills/audit-pass/scripts"
+    RUN_STATE = SCRIPTS + "/run-state.sh"
+    DATA = "/tmp/eval-r2/sandbox/config/plugins/data/harness-config-inline"
+    RERUN = (
+        "1 denied compound Bash call whose plugin part a later call ran alone and was"
+        " allowed, not counted"
+    )
+
+    def bash_calls(self, calls):
+        """The clean result at one run per arm with PLUGIN as its suite.plugins
+        path, measurable-criterion's with-arm run making each (command, denied)
+        Bash call in calls in order: a denied one gets the permission settings'
+        refusal and a permission_denials entry, the others a plain result."""
+        lines, entries = [], []
+        for i, (command, denied) in enumerate(calls):
+            use_id = "b%d" % i
+            lines.append({"type": "assistant", "message": {"content": [
+                {"type": "tool_use", "id": use_id, "name": "Bash",
+                 "input": {"command": command}}]}})
+            text = (
+                "Permission to use Bash has been denied by your permission settings."
+                if denied else "ok"
+            )
+            lines.append({"type": "user", "message": {"content": [
+                {"type": "tool_result", "tool_use_id": use_id, "is_error": denied,
+                 "content": [{"type": "text", "text": text}]}]}})
+            if denied:
+                entries.append({"tool_name": "Bash", "tool_use_id": use_id,
+                                "tool_input": {"command": command}})
+        lines.append({"type": "result", "is_error": False, "permission_denials": entries})
+        trace = self.dir / "bash-calls.jsonl"
+        trace.write_text(
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
+            + "".join(json.dumps(line) + "\n" for line in lines),
+            encoding="utf-8",
+        )
+        data = load(self.write(self.clean()))
+        data["suite"]["plugins"] = [{"path": self.PLUGIN}]
+        data["cases"][1]["arms"]["with"][0]["tracePath"] = str(trace)
+        result = self.dir / "aggregate-result.json"
+        result.write_text(json.dumps(data), encoding="utf-8")
+        return self.run_script(result, "--runs", "1")
+
+    def test_a_denied_compound_call_whose_plugin_part_ran_alone_after_is_a_warning(self):
+        lease = "%s lease classify --run-dir %s/runs/ap-1" % (self.RUN_STATE, self.DATA)
+        for calls in (
+            # A trailing ls, then the plugin part alone, as in the #11564 run 2.
+            [("bash %s; ls -la %s/runs" % (lease, self.DATA), True),
+             ("bash " + lease, False)],
+            # Assignments, a trailing echo and an ls piped into head; the retry
+            # spells out the values and quotes them.
+            [('S=%s; PD=%s; bash $S/run-state.sh paths --plugin-data "$PD";'
+              ' echo "exit=$?"; ls -la "$PD" 2>&1 | head' % (self.SCRIPTS, self.DATA), True),
+             ('bash "%s" paths --plugin-data "%s"' % (self.RUN_STATE, self.DATA), False)],
+            # A cd before it, and extra whitespace in the retry.
+            [("cd /tmp && bash %s paths\nls /tmp" % self.RUN_STATE, True),
+             ("bash   %s  paths" % self.RUN_STATE, False)],
+        ):
+            proc = self.bash_calls(calls)
+            self.assertDenials(proc, "WARN")
+            self.assertIn(self.RERUN, proc.stdout)
+            self.assertIn("compare it only with runs denied the same way", proc.stdout)
+            self.assertIn(
+                "  case measurable-criterion, with-arm run 1: Bash " + calls[0][0],
+                proc.stdout,
+            )
+
+    def test_a_denied_compound_call_whose_plugin_part_never_ran_alone_still_fails(self):
+        lease = "bash %s lease classify --run-dir %s/runs/ap-1" % (self.RUN_STATE, self.DATA)
+        compound = "%s; ls -la %s/runs" % (lease, self.DATA)
+        for calls in (
+            # Never retried, as in the #11564 run 1 and run 3.
+            [(compound, True)],
+            # Retried with other arguments.
+            [(compound, True), (lease + "-2", False)],
+            # The plugin part ran alone before the denial, not after it.
+            [(lease, False), (compound, True)],
+            # The retry was denied too.
+            [(compound, True), (lease, True)],
+            # The retry kept a wrapper.
+            [(compound, True), ("cd /tmp && " + lease, False)],
+            # Two commands left once the wrappers are dropped.
+            [("%s; bash %s paths" % (lease, self.RUN_STATE), True), (lease, False)],
+            # A command before the plugin part that is not an assignment or cd.
+            [("echo start; " + lease, True), (lease, False)],
+            # A trailing ls piped into something other than head or tail.
+            [("%s; ls %s | sh" % (lease, self.DATA), True), (lease, False)],
+            # What is left names no path in the plugin's directory.
+            [("cd %s && bash ./run-state.sh paths" % self.SCRIPTS, True),
+             ("bash ./run-state.sh paths", False)],
+            # A variable that does not resolve, or a background or subshell operator.
+            [('S=$(pwd); bash "$S/run-state.sh" paths; ls', True),
+             ('bash "$S/run-state.sh" paths', False)],
+            [("%s & ls %s" % (lease, self.DATA), True), (lease, False)],
+            [("(%s); ls" % lease, True), (lease, False)],
+        ):
+            proc = self.bash_calls(calls)
+            self.assertDenials(proc, "FAIL")
+            self.assertNotIn(self.RERUN, proc.stdout)
+
+    def test_a_compound_denial_whose_plugin_part_expands_is_never_recovered(self):
+        run = "bash %s paths" % self.RUN_STATE
+        for denied, alone in (
+            # An unquoted glob, brace, tilde or unresolved $ in the denied part.
+            ("%s /tmp/*.json; ls /tmp" % run, '%s "/tmp/*.json"' % run),
+            ("%s /tmp/*.json; ls /tmp" % run, "%s /tmp/*.json" % run),
+            ("%s /tmp/{a,b}; ls" % run, "%s /tmp/{a,b}" % run),
+            ("%s ~/x; ls" % run, "%s ~/x" % run),
+            ("%s --run-id $RID; ls" % run, "%s --run-id $RID" % run),
+            ('%s --run-id "$RID"; ls' % run, '%s --run-id "$RID"' % run),
+            # A quoted literal is not the same word as the unquoted pattern.
+            ('%s "/tmp/*.json"; ls /tmp' % run, "%s /tmp/*.json" % run),
+        ):
+            proc = self.bash_calls([(denied, True), (alone, False)])
+            self.assertDenials(proc, "FAIL")
+            self.assertNotIn(self.RERUN, proc.stdout)
+        # Quoted the same way in both, the literal still matches.
+        proc = self.bash_calls([
+            ('%s "/tmp/*.json"; ls /tmp' % run, True), ('%s "/tmp/*.json"' % run, False)])
+        self.assertDenials(proc, "WARN")
+
+    def test_a_trailing_command_that_redirects_into_a_file_is_not_dropped(self):
+        run = "bash %s paths" % self.RUN_STATE
+        for trailing in (
+            "echo x > %s" % self.RUN_STATE,
+            "echo x >> %s/new.sh" % self.SCRIPTS,
+            "cat /etc/hosts >%s/new.sh" % self.SCRIPTS,
+            "ls 2> %s/err" % self.SCRIPTS,
+            # A redirect glued to the word before it.
+            "echo '{}'>%s/state.json" % self.SCRIPTS,
+            "ls>%s/out" % self.SCRIPTS,
+            "cat /etc/hosts>%s/new.sh" % self.SCRIPTS,
+        ):
+            proc = self.bash_calls([("%s; %s" % (run, trailing), True), (run, False)])
+            self.assertDenials(proc, "FAIL")
+            self.assertNotIn(self.RERUN, proc.stdout)
+        # A cd or an assignment that redirects into a file is not dropped either.
+        for leading in ("cd /tmp >%s/out" % self.SCRIPTS, "X=1 >%s/out" % self.SCRIPTS,
+                        "X=1>%s/out" % self.SCRIPTS):
+            proc = self.bash_calls([("%s; %s" % (leading, run), True), (run, False)])
+            self.assertDenials(proc, "FAIL")
+            self.assertNotIn(self.RERUN, proc.stdout)
+        # A redirect naming no file is still dropped with its command.
+        for trailing in ("ls %s 2>&1" % self.DATA, "ls %s >/dev/null" % self.DATA,
+                         "echo x 2> /dev/null", "ls %s 2>&-" % self.DATA):
+            proc = self.bash_calls([("%s; %s" % (run, trailing), True), (run, False)])
+            self.assertDenials(proc, "WARN")
+
+    def test_a_compound_denial_holding_a_command_substitution_is_never_recovered(self):
+        run = "bash %s paths" % self.RUN_STATE
+        for trailing in (
+            'echo "$(rm %s/state.json)"' % self.SCRIPTS,
+            "echo `touch %s/x`" % self.SCRIPTS,
+            'ls "`id`"',
+        ):
+            proc = self.bash_calls([("%s; %s" % (run, trailing), True), (run, False)])
+            self.assertDenials(proc, "FAIL")
+            self.assertNotIn(self.RERUN, proc.stdout)
+        # A $? or $VAR, or a substitution in single quotes, is no substitution.
+        for trailing in ('echo "exit=$?"', 'echo "$HOME"', "echo '$(id)'"):
+            proc = self.bash_calls([("%s; %s" % (run, trailing), True), (run, False)])
+            self.assertDenials(proc, "WARN")
 
     COPY = "/tmp/eval-ctl/plugins/demo"  # the plugin copy the self-search traces load
     SELF_SEARCH = "denied read or search of the run's own plugin copy in a finished run"
@@ -1785,6 +1990,51 @@ class RunValidityTest(unittest.TestCase):
                     "check plugins loaded: PASS (every with-arm run loaded playgrounds)",
                     proc.stdout,
                 )
+
+    def test_a_case_helper_plugin_is_checked_only_in_its_own_case(self):
+        result = self.clean()
+        helper = self.dir / "suite" / "evals" / "measurable-criterion" / "helper"
+        (helper / ".claude-plugin").mkdir(parents=True)
+        (helper / ".claude-plugin" / "plugin.json").write_text(
+            json.dumps({"name": "helper"}), encoding="utf-8"
+        )
+        result["suite"]["plugins"] = [{"path": "/sandbox/playgrounds"}, {"path": str(helper)}]
+        base = {"name": "playgrounds@inline", "path": "/sandbox/playgrounds"}
+        own = {"name": "helper@inline", "path": str(helper)}
+
+        def trace(name, plugins):
+            path = self.dir / name
+            path.write_text(
+                json.dumps({"type": "system", "subtype": "init", "model": "claude-opus-5-5",
+                            "tools": ["Skill"], "plugins": plugins})
+                + "\n"
+                + json.dumps({"type": "result", "subtype": "success", "is_error": False})
+                + "\n",
+                encoding="utf-8",
+            )
+            return str(path)
+
+        without_helper, with_helper = trace("bare.jsonl", [base]), trace("own.jsonl", [base, own])
+        for helper_trace, verdict in ((with_helper, "VALID"), (without_helper, "INVALID")):
+            with self.subTest(verdict=verdict):
+                data = load(self.write(result))
+                for case in data["cases"]:
+                    case["arms"]["with"][0]["tracePath"] = (
+                        helper_trace if case["name"] == "measurable-criterion" else without_helper
+                    )
+                path = self.dir / "aggregate-result.json"
+                path.write_text(json.dumps(data), encoding="utf-8")
+                proc = self.run_script(path, "--runs", "1")
+                self.assertVerdict(proc, verdict, 0 if verdict == "VALID" else 1)
+                lines = [x for x in proc.stdout.splitlines() if "is not among" in x]
+                if verdict == "VALID":
+                    self.assertEqual(lines, [])
+                else:
+                    self.assertEqual(
+                        lines,
+                        ["  case measurable-criterion, with-arm run 1: plugin helper is not"
+                         " among the loaded plugins (%s)" % without_helper],
+                    )
 
     def test_a_suite_with_no_plugins_passes_plugins_loaded(self):
         proc = self.run_script(self.write(self.clean()), "--runs", "1")

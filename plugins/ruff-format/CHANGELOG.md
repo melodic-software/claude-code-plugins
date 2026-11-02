@@ -3,6 +3,24 @@
 All notable changes to the `ruff-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.1] - 2026-11-02
+
+### Fixed
+
+- **A shared git-hook install stages every copy that starts with a shebang as `100755`.**
+  `install.mjs copy --scope shared` staged the check lib and shebang assets at `100644` and wrote
+  them `0644` on disk, which a consumer's hygiene check rejects. Copies with a shebang are now
+  executable on disk and in the index, every other copy is `100644`, and a rerun repairs a copy
+  whose exec bit is wrong
+  ([#9426](https://github.com/melodic-software/claude-code-plugins/issues/9426)).
+
+## [0.13.0] - 2026-11-02
+
+### Changed
+
+- The `SessionStart` probe and node-notice rows are gone (#6633): `prerequisites.json` declares `session_probe`, and harness-ops' one `SessionStart` runner starts this plugin's probe, so a missing tool or a drifted git-hook entry is still reported at session start while harness-ops is enabled. A missing `node` is reported by harness-ops' row.
+- Shared `prerequisites.mjs` synced where this plugin carries it (#6633): a manifest may declare an optional `session_probe`, which opts the plugin into harness-ops' session-start probe.
+
 ## [0.12.12] - 2026-11-01
 
 ### Fixed

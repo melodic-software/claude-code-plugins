@@ -121,18 +121,19 @@ test("a single-merge range of a lane merge: the bot would auto-revert it, and on
   assert.match(result.body, /git revert --no-edit f{40}/);
 });
 
-test("an owner merge pinned as the culprit goes to a person, with a draft revert", async () => {
+test("an owner merge pinned as the culprit fixes forward and plans no revert", async () => {
   const w = world({ merges: [{ sha: HEAD, number: 102, by: "kyle-sexton" }] });
   const result = await run(ENV, w);
-  assert.equal(decisionOf(result.body), "human");
-  assert.match(result.body, /The revert it would open \(draft\)/);
+  assert.equal(decisionOf(result.body), "fix-forward");
+  assert.match(result.body, /The fix issues fix main forward/);
+  assert.doesNotMatch(result.body, /The revert it would open|git revert|needs-human/);
 });
 
-test("under fail-forward a pinned lane merge goes to a person and the report plans no revert", async () => {
+test("under fail-forward a pinned lane merge fixes forward and the report plans no revert", async () => {
   const w = world({ merges: [{ sha: HEAD, number: 101, by: LANES }] });
   const result = await run(ENV, w, { loadConfig: () => ({ redMain: { remedy: "fail-forward" }, agentIdentity: LANES }) });
   assert.equal(culpritOf(result.body), HEAD);
-  assert.equal(decisionOf(result.body), "human");
+  assert.equal(decisionOf(result.body), "fix-forward");
   assert.match(result.body, /Culprit: `f{40}`/);
   assert.match(result.body, /fail-forward/);
   assert.doesNotMatch(result.body, /The revert it would open|git revert/);
@@ -153,14 +154,14 @@ test("a mixed range: a lane merge pinned as the culprit may auto-revert past an 
   assert.equal(decisionOf(result.body), "auto-revert");
 });
 
-test("a mixed range whose pinned culprit is the owner's merge goes to a person", async () => {
+test("a mixed range whose pinned culprit is the owner's merge fixes forward", async () => {
   const w = world({
     merges: [
       { sha: sha("a"), number: 201, by: "kyle-sexton", run: confirmedRed(41) },
       { sha: HEAD, number: 203, by: LANES },
     ],
   });
-  assert.equal(decisionOf((await run(ENV, w)).body), "human");
+  assert.equal(decisionOf((await run(ENV, w)).body), "fix-forward");
 });
 
 test("a range with no evidence run at its oldest merge pins no culprit and opens no revert", async () => {
@@ -224,7 +225,29 @@ test("a run and attempt already in the log is not reported twice", async () => {
   assert.deepEqual(w.writes, []);
 });
 
-test("three auto-revert decisions in the last day reach the cap, and the next culprit goes to a person", async () => {
+test("a human decision already in the log for a run and attempt is not reported twice", async () => {
+  const w = world({
+    merges: [{ sha: HEAD, number: 101, by: LANES }],
+    issues: [LOG],
+    comments: [logged(HEAD, "human", "2026-10-20T11:30:00Z", 500)],
+  });
+  const result = await run(ENV, w);
+  assert.equal(result.posted, false);
+  assert.deepEqual(w.writes, []);
+});
+
+test("a fix-forward decision already in the log for a run and attempt is not reported twice", async () => {
+  const w = world({
+    merges: [{ sha: HEAD, number: 101, by: LANES }],
+    issues: [LOG],
+    comments: [logged(HEAD, "fix-forward", "2026-10-20T11:30:00Z", 500)],
+  });
+  const result = await run(ENV, w);
+  assert.equal(result.posted, false);
+  assert.deepEqual(w.writes, []);
+});
+
+test("three auto-revert decisions in the last day reach the cap, and the next culprit fixes forward", async () => {
   const w = world({
     merges: [{ sha: HEAD, number: 101, by: LANES }],
     issues: [LOG],
@@ -235,7 +258,7 @@ test("three auto-revert decisions in the last day reach the cap, and the next cu
     ],
   });
   const result = await run(ENV, w);
-  assert.equal(decisionOf(result.body), "human");
+  assert.equal(decisionOf(result.body), "fix-forward");
   assert.deepEqual(w.writes.map((x) => x.path), [`/repos/${REPO}/issues/77/comments`]);
 });
 
@@ -258,13 +281,13 @@ test("an open canary record on a merge in the range is a suspected platform faul
     issues: [{ number: 12, state: "open", user: BOT, body:`<!-- babysit-merge-demotion sha=${HEAD} signal=canary -->\n\ncanary` }],
   });
   const result = await run(ENV, w);
-  assert.equal(decisionOf(result.body), "human");
+  assert.equal(decisionOf(result.body), "fix-forward");
   assert.match(result.body, /platform fault/);
 });
 
 test("a revert of a revert is never auto-reverted", async () => {
   const w = world({ merges: [{ sha: HEAD, number: 104, by: LANES, message: "revert: fix(x): y (#104)" }] });
-  assert.equal(decisionOf((await run(ENV, w)).body), "human");
+  assert.equal(decisionOf((await run(ENV, w)).body), "fix-forward");
 });
 
 test("the culprit's age is read after the wait for the re-run, not before it", async () => {
@@ -282,7 +305,7 @@ test("the culprit's age is read after the wait for the re-run, not before it", a
     },
     clock: () => new Date(start + minutes * 60_000).toISOString(),
   });
-  assert.equal(decisionOf(result.body), "human");
+  assert.equal(decisionOf(result.body), "fix-forward");
   assert.match(result.body, /past max-culprit-age-hours/);
 });
 

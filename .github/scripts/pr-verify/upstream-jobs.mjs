@@ -1,6 +1,7 @@
 // Writes JOBS_FILE, the jobs of the pr-require-checks run pr-verify.yml was
-// started by, each with its name and conclusion, for the verifier to judge
-// whether the suites that cover the changed files ran (prompt.md). It takes
+// started by, each with its name, conclusion and job page URL, for the
+// verifier to judge whether the suites that cover the changed files ran and
+// passed (prompt.md). It takes
 // the run's latest attempt as resolve-pr.mjs read it for draftRun, from
 // KEPT_JOBS in RUNNER_TEMP (keptJobs), and otherwise reads it with the job's
 // token. Names come from the pull request's copy of
@@ -41,8 +42,9 @@ export function keptJobs(env, runId) {
     RUN_ID.test(String(runId)) &&
     kept?.run_id === Number(runId) &&
     Array.isArray(kept.jobs) &&
-    kept.jobs.every((job) => typeof job?.name === "string" && (job.conclusion === null || typeof job.conclusion === "string"));
-  return valid ? shapeJobs(runId, kept.jobs) : null;
+    kept.jobs.every((job) => typeof job?.name === "string" && [job.conclusion, job.url].every((value) => value === null || typeof value === "string"));
+  // shapeJobs reads html_url, which the kept file names url.
+  return valid ? shapeJobs(runId, kept.jobs.map((job) => ({ ...job, html_url: job.url }))) : null;
 }
 
 export async function upstreamJobs(github, repository, runId) {

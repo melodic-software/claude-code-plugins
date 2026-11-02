@@ -3,6 +3,35 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.5.4] - 2026-11-02
+
+### Fixed
+
+- **`/review:explain-change` removes its temp directory.** The directory that holds the pull
+  request's `facts.json` and `pr.diff` is now removed when the run ends, at whatever step it
+  stops, after the reader is done with a connected view. The page never lives there, so nothing
+  the reader opens is lost. Each run used to leave one `tmp.*` directory in the OS temp folder
+  ([#9571](https://github.com/melodic-software/claude-code-plugins/issues/9571)).
+
+## [2.5.3] - 2026-11-02
+
+### Changed
+
+- Three `qg-security-search-sqli` eval graders no longer fail a review that names the SQL injection and its fix when the reply also says "No findings file written". That line appears when the session cannot write the reviewer's findings file, and the graders' no-findings exclusion matched it as a verdict. `gives-parameterized-fix` also accepts "Bind a parameter" as the fix.
+
+## [2.5.2] - 2026-11-02
+
+### Changed
+
+- Shared `publish-gate.mjs` synced: the R2 key pair pattern now finds a 32-hex and a 64-hex word on one line in time linear in the line, so a large one-line JSON file no longer takes minutes to scan. It matches exactly what it matched before.
+
+## [2.5.1] - 2026-11-02
+
+### Changed
+
+- The `SessionStart` node-notice row is gone (#6633): harness-ops' row reports a missing `node` for the whole fleet, once per session. Without harness-ops, no session-start notice says `node` is missing.
+- Shared `prerequisites.mjs` synced where this plugin carries it (#6633): a manifest may declare an optional `session_probe`, which opts the plugin into harness-ops' session-start probe.
+
 ## [2.5.0] - 2026-11-02
 
 ### Changed

@@ -7,7 +7,7 @@
 #   falls through to powershell and fails with "powershell: not found".
 # source: fix-forward #6131 (b4ea81d1f9073a4d436a323a839daba2b6191863), which
 #   changes this line to ${PPID:+exit}
-# confirmed-by: verifier-agent (owner spot-check pending)
+# confirmed-by: verifier-agent, owner spot-check 2026-11-02 (#8990)
 # rebuilt: this one hooks.json at base and merge; the other 24 hooks.json files
 #   with the same line, and the PR's other files, are left out.
 schema_version: "1.1"

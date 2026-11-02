@@ -3,6 +3,13 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## The genre rubric applied to `knowledge:course-digest` and `knowledge:map-corpus`, 2026-11-02
+
+- **Both are recorded with no lane.** Each has a person-facing step in a corpus genre: the
+  course's repository report, and the corpus map's approval. In both the text rung loses nothing a
+  page would add. Their other outputs are digests, records or handoffs, which stay markdown. The
+  reasons are under Wave-1 adoption and grandfathered surfaces.
+
 ## The genre rubric applied to the remaining candidates, 2026-11-02
 
 - **`codebase-health:audit` offers a rendered view.** Its report is in the reports genre and feeds

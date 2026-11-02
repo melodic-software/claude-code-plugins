@@ -4,7 +4,8 @@
 # Cases: curl missing (WATCH_CURL override), wrong token (exit 2 at once), the note: line for a
 # server recording another plugin version, a PORT that is not all digits (exit 2 naming the env
 # file), a delivery
-# (one JSON line carrying dataDir and next, .watch-seq stored), re-delivery bounds, the
+# (one JSON line carrying dataDir and next, .watch-seq stored, the same line alone in
+# .watch-wake.json), re-delivery bounds, the
 # skill's documented wake command read from context/surface.md (AC9, AC10), a dead http_proxy
 # the watcher bypasses, a data dir named with $( ), a backtick and a single quote, server gone
 # (WAIT_FAILS=1), the one-watcher lease (a second watcher exits 3 naming the holder; a stale
@@ -173,6 +174,18 @@ fi
 seq=$(tr -dc '0-9' <"$d/.watch-seq" 2>/dev/null)
 if [[ -n "$seq" && "$seq" -ge 1 ]]; then ok ".watch-seq stores the delivered seq ($seq)"; else bad ".watch-seq not stored"; fi
 if [[ ! -f "$d/.watch-replay" ]]; then ok "a blocking delivery writes no .watch-replay"; else bad ".watch-replay written after a blocking delivery"; fi
+# The documented wake read: the exit-0 payload alone in .watch-wake.json, one JSON line.
+wake_kind=$("$py" -c '
+import json, sys
+lines = open(sys.argv[1], encoding="utf-8").read().splitlines()
+assert len(lines) == 1, lines
+print(json.loads(lines[0])["events"][0]["kind"])
+' "$d/.watch-wake.json" 2>&1)
+if [[ "$rc" -eq 0 && "$wake_kind" == note ]] && cmp -s "$d/.watch-wake.json" "$tmp/c.out"; then
+  ok ".watch-wake.json holds the exit-0 payload alone, the line watch.sh printed"
+else
+  bad ".watch-wake.json: rc=$rc kind=[$wake_kind] file=$(cat "$d/.watch-wake.json" 2>&1)"
+fi
 
 post_note() {
   curl -s -o /dev/null -w '%{http_code}' --max-time 10 -H "X-Interview-Token: $TOKEN" \
