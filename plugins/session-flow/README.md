@@ -222,13 +222,12 @@ to direct `git` / `gh`.
 Structured end-of-session retrospective: extracts transcript metrics via a bundled stdlib-only
 parser (multi-session-aware: it walks the handoff chain), assesses quality across five dimensions
 against the consuming repo's own conventions, checks Claude Code auto-memory for feedback
-regressions, and codifies user-approved learnings. Health scores persist across sessions for trend
-analysis. With the `retro_lenses` option at `3`, the analysis runs as three parallel review
+regressions, and codifies user-approved learnings. Health scores persist across sessions, and
+`/session-flow:audit-sessions trends` analyzes them. With the `retro_lenses` option at `3`, the analysis runs as three parallel review
 passes merged before scoring.
 
 ```shell
 /session-flow:retro            # full 5-phase analysis (default)
-/session-flow:retro trends     # cross-session score history and delivery metrics
 /session-flow:retro quick      # abbreviated, for limited context
 ```
 
@@ -249,7 +248,9 @@ applies a finding. The `style` action reads the stored excerpts of your own type
 preferences two or more sessions show, and hands each one you confirm to `/corrections:codify` for
 a user-scope file, never a repository file. The `correction` action has the session's model judge
 which stored short turns corrected the agent and reports them in a separate, unranked `Judged`
-section beside the measured findings.
+section beside the measured findings. The `trends` action reads the health scores `retro` records
+and shows how they move across sessions, with delivery metrics beside them when the work-items
+plugin is installed.
 
 ```shell
 /session-flow:audit-sessions                                # collect, then sweep every session
@@ -257,6 +258,7 @@ section beside the measured findings.
 /session-flow:audit-sessions --scope project --write-report # this repository, saved report
 /session-flow:audit-sessions style --scope machine          # preferences seen in 2+ sessions, to corrections:codify
 /session-flow:audit-sessions correction --since 2026-09-01  # model-judged corrections, reported unranked
+/session-flow:audit-sessions trends                         # cross-session score history and delivery metrics
 ```
 
 ### audit-friction

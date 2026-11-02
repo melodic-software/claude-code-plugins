@@ -1,4 +1,4 @@
-# Trends Mode: Cross-Session Performance Analysis
+# Trends: Cross-Session Performance Analysis
 
 Analyze historical session health scores to identify patterns, improvements, and areas needing
 attention, and show the team's delivery metrics beside them when the work-items plugin is installed.
@@ -6,7 +6,8 @@ No current-session analysis; purely retrospective across sessions.
 
 ## Data source
 
-Score history persisted by session/quick mode: the file SKILL.md "Paths" names, `<project-slug>.md`.
+Score history persisted by `/session-flow:retro` session and quick modes: the score history file
+SKILL.md "Paths" names, `<project-slug>.md`.
 
 Format: `| Date | Session | Type | Workflow | Technical | Alignment | Efficiency | Errors | Overall |`
 
@@ -63,9 +64,10 @@ under that heading. When the skill runs and stops on an error, put its error lin
 when it stops because `origin/HEAD` is unset, also name `--branch` as the fix the person can rerun
 it with. The step is done when the `Delivery` heading holds the table, the not-read line or the error line.
 
-## What this mode does NOT do
+## What this action does NOT do
 
 - No current-session analysis, no transcript metrics
+- No collect or sweep: the session store under `D/audit-sessions/` is not read
 - No memory writes or rule edits
 - No skill/follow-up candidate generation
 
