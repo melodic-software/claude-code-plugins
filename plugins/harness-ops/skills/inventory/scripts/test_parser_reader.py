@@ -1103,6 +1103,79 @@ class TestModuleTable(unittest.TestCase):
         self.assertEqual(inv._graph_sources(b"no graph here"), {})
 
 
+class TestBootstrapStub(unittest.TestCase):
+    """The 2.1.316 shape (#12278): Bun's own `// @bun` REPL bootstrap stub
+    sits in the runtime's string literals, outside the module graph, with
+    no byte between its last line and the next literal, so its run fails
+    with `Unexpected token (4:7)` on line 4's `Failed to run script`."""
+
+    STUB = (
+        b"// @bun\nvar e=globalThis.process;\nexport{e};\n"
+        b'Failed to run script "<b>{}<r>"Missing script to execute. '
+        b"Pass --interactive to start the Node.js-compatible REPL."
+        + b"<r><red>error<r>: Failed to run script <b>{}<r> due to error <b>{}<r>" * 3
+    )
+    CLI = "/$bunfs/root/src/entrypoints/cli.js"
+
+    def _binary(self, body: bytes, graph: bool = True) -> pathlib.Path:
+        module = MARKER + body + BIG + DOCTOR
+        tail = (
+            TestModuleTable._graph([(self.CLI.encode(), module)])[0]
+            if graph
+            else GAP + module
+        )
+        fd, name = tempfile.mkstemp(suffix=".bin")
+        os.close(fd)
+        path = pathlib.Path(name)
+        self.addCleanup(path.unlink)
+        path.write_bytes(self.STUB + GAP + tail)
+        return path
+
+    def _read(self, binary: pathlib.Path):
+        spans: list[tuple[int, int]] = []
+        paths: dict[int, str] = {}
+        src, meta = inv.read_bundle(binary, spans, paths)
+        assert src is not None
+        return src, meta, spans, paths
+
+    def test_the_stub_outside_the_graph_is_no_module(self) -> None:
+        src, meta, spans, paths = self._read(self._binary(b""))
+        self.assertTrue(src.startswith(self.STUB.decode("latin1")))
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(paths.get(spans[0][0]), self.CLI)
+        self.assertEqual(meta["marker_runs_outside_graph"], 1)
+
+    def test_without_a_graph_the_stub_stays_a_module(self) -> None:
+        _, meta, spans, _ = self._read(self._binary(b"", graph=False))
+        self.assertEqual(spans[0], (0, len(self.STUB)))
+        self.assertEqual(len(spans), 2)
+        self.assertNotIn("marker_runs_outside_graph", meta)
+
+    def test_the_parser_reports_no_unparsed_module(self) -> None:
+        target = _require_live(self)
+        with pr.ParserReader(target) as reader:
+            ok, error = reader.parse_ok(self.STUB.decode("latin1"))
+        self.assertFalse(ok)
+        self.assertIn("(4:7)", error or "")
+        binary = self._binary(b"")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            inv.main(["--binary", str(binary), "--binary-only", "--reader", "parser"])
+        block = json.loads(out.getvalue())["reader"]
+        self.assertEqual(block["modules"], 1)
+        self.assertEqual(block["unparsed"], [])
+
+    def test_an_unparseable_module_still_reads_every_name(self) -> None:
+        target = _require_live(self)
+        for body, used in ((b"", False), (b"var =;", True)):
+            with self.subTest(body=body):
+                src, _, spans, _ = self._read(self._binary(body))
+                with pr.ParserReader(target) as reader:
+                    parsed = [reader.parse_module(src, lo, hi)[0] for lo, hi in spans]
+                    self.assertEqual(parsed, [not used])
+                    self.assertEqual(reader.keys_used(src, "sY"), used)
+
+
 class _StubReader:
     """Stands in for the helper: every module parses unless its text says not."""
 

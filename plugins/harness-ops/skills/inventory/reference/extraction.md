@@ -419,6 +419,11 @@ needs node and npm, and without them the binary source is broken with the repair
 regex answer. `compare` runs both and breaks the report on any value that differs between them;
 the changelog skill's native-drift pass reads each new build that way.
 
+A module is a printable run that opens with `// @bun`. When Bun's module table decodes, a run
+outside the module graph's bytes (module sources and table) is not a module. On 2.1.316 that run is Bun's own bootstrap stub, and the
+runtime's string literals follow it with no separator byte, so the run does not parse.
+`marker_runs_outside_graph` in the binary source counts the runs left out.
+
 The parser stays opt-in because it reads the Explore and Plan `disallowed_tools` partial on
 2.1.284 to 2.1.288 (the claim below), where the regex reader reads a literal it cannot back:
 nothing the text reader sees rules out the sinks below. Making the parser the default is tracked
