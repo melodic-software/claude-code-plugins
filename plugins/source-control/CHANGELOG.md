@@ -3,6 +3,50 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.5.0] - 2026-11-02
+
+### Changed
+
+- `publish-promotion-evidence.mjs` emits a `re-earned` event for a cell once its existing predicate passes over only the merges after the latest contrary event against it or a prerequisite, a demotion record's creation among them. `since` is that instant rounded up to a whole second, as the merge gate's `--window-start` is, so a re-earn counted from the newest demotion record lifts the resolver's restart. Each contrary event carries `discovered`, the run that first published it, and the window starts at the later of each event's `at` and `discovered`, so a contrary event found after a re-earn restarts the window at that run whatever its date. An event published before `discovered` existed is stamped once with that file's `generated_at`. `--out` refuses any other change, addition or removal of a published event's `discovered`, and refuses a run whose clock is behind the previous publish. `--out` carries forward a published re-earn the next run no longer derives, and still refuses to drop a contrary event.
+
+- `push-branch.sh`'s stale-base merge and the `/source-control:pull-request ready` local-merge fallback run `git merge --no-stat`, so a merge returns its outcome line instead of a diffstat of every changed file.
+
+## [5.4.1] - 2026-11-02
+
+### Changed
+
+- The `/source-control:worktree` skill body loads about 17% less text per invocation. The nesting invariant's dated measurement, its disputed arms and its expiry stamp move to `skills/worktree/reference/nesting-invariant.md`, read on demand, and the hub keeps a pointer. The quoted isolation-enforcement passage becomes our rules plus a pointer to the worktrees docs section. Every create, status, cleanup and audit directive is unchanged.
+
+### Fixed
+
+- The post-merge check reads its canary and full-run listings in `created` windows. Each window is read page by page, and a window whose first page reaches the 1000-run search cap is halved and read again. A one-second window still at the cap, or a listing that would pass 16 window reads, stays unreadable. A listing past 1000 runs no longer makes every check unreadable, and every window keeps the `total_count` completeness check.
+- A window's pages are read while the last one is full, never stopped at the `total_count` a page claims, and the runs must equal that count, in the post-merge check and in `babysit_verify_evidence.py legacy-fails`. A count below the runs listed refuses instead of cutting the oldest runs off.
+
+- `babysit-prs`: while a demotion record holds, the post-merge floor stays at the newest clear of the other records from before that record opened, so a clear made later no longer moves the floor past the merge the holding record cites. A read failure after a hold is found keeps the hold instead of escaping.
+
+- read a cut-short artifact listing again after every wait, as a 5xx is
+
+  The verify-evidence reader read a whole listing cut short (`unexpected end
+  of JSON input`) once more at most, so two cut-short reads in a row refused
+  the pull request with `verify:unreadable`. It now reads it again after each
+  listing wait while time is left, and a page body cut short while gh exits 0
+  (`page N is not JSON`) or that the reader cannot parse counts as cut short
+  too. A rate-limit answer is still never read again, and a listing that
+  keeps failing still refuses. A whole listing still cut short after its
+  waits is noted for the job, so later Readers refuse without paging it again.
+
+## [5.4.0] - 2026-11-02
+
+### Changed
+
+- The merge gate no longer holds a pull request for a person as `long-line-review:<path>` when its patch holds a line over 1800 bytes: the main-run review now folds such a line and reads every byte. The binder still counts no main-run verdict whose recorded longest line is over 1800 bytes.
+
+## [5.3.3] - 2026-11-02
+
+### Fixed
+
+- `babysit-prs`: while a demotion record holds, the post-merge floor stays at the newest clear among the other records instead of falling back to the commit that enabled the unattended path, so a new record no longer reopens the whole post-merge window. The hold, its reason and its records are unchanged.
+
 ## [5.3.2] - 2026-11-02
 
 ### Changed

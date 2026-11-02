@@ -81,6 +81,7 @@ from babysit_gh import (
     gh_http_status,
     is_owner_repo_pair,
     run_search_capped,
+    split_created_window,
 )
 from babysit_util import (
     is_json_array,
@@ -160,6 +161,13 @@ DEFAULT_STANDARDS_SYNC_LABEL = "standards-sync"
 # the same prefix, so either filer's note is a sighting to the other.
 FAILURE_NOTE = "The post-merge check found this failure again: "
 MERGED_PAGE_SIZE = 100
+# A run listing reads its `created` range in windows, each read page by page
+# and split in half while its search reaches RUN_SEARCH_CAP: a one-second
+# window that still reaches it, or a listing past this many window reads,
+# is unreadable.
+RUN_PAGE_SIZE = 100
+RUN_WINDOW_READS = 16
+_SECOND = timedelta(seconds=1)
 MERGED_PAGE_LIMIT = 30
 # A red full run counts against a merge only for a check that was not already
 # failing on the branch's newest completed run of the same event before it.
@@ -261,6 +269,10 @@ IsHuman = Callable[[Any], bool]
 
 class PostMergeReadError(RuntimeError):
     """A GitHub read the verdict depends on failed or returned an unknown shape."""
+
+
+class _RunSearchCapped(PostMergeReadError):
+    """A run listing reached RUN_SEARCH_CAP, so it may be missing runs."""
 
 
 HOLD_UNLISTED_RECORD = "unlisted-record"
@@ -528,7 +540,13 @@ def _paginated(
     degraded API can), so it raises rather than read as complete. A run
     listing that reached RUN_SEARCH_CAP may be missing runs, so it raises
     too."""
-    payload = _read(["api", endpoint, "--paginate", "--slurp"], label)
+    return _listed(
+        _read(["api", endpoint, "--paginate", "--slurp"], label), label, items_key
+    )
+
+
+def _listed(payload: Any, label: str, items_key: str | None) -> list[dict[str, Any]]:
+    """The items of a listing's pages, under `_paginated`'s checks."""
     try:
         items = flatten_paginated_items(payload, label, items_key=items_key)
     except RuntimeError as exc:
@@ -536,7 +554,7 @@ def _paginated(
     if items_key == "workflow_runs":
         capped = run_search_capped(payload, items)
         if capped is not None:
-            raise PostMergeReadError(
+            raise _RunSearchCapped(
                 f"{label}: total_count {capped}, {len(items)} returned, "
                 f"at the {RUN_SEARCH_CAP}-run search cap"
             )
@@ -839,6 +857,40 @@ def _run_rows(
     ]
 
 
+def _run_window(endpoint: str, label: str) -> list[dict[str, Any]]:
+    """Every run one `created` window lists, read page by page under
+    `_listed`'s checks. A first page at RUN_SEARCH_CAP raises before the
+    rest is read, so a window that must split costs one call."""
+    first = _read(["api", f"{endpoint}&page=1"], label)
+    total = json_object(first).get("total_count")
+    if type(total) is not int:
+        raise PostMergeReadError(f"{label}: no total_count")
+    if (capped := run_search_capped(first, [])) is not None:
+        raise _RunSearchCapped(
+            f"{label}: total_count {capped}, at the {RUN_SEARCH_CAP}-run search cap"
+        )
+    # Pages are read while the last one is full, never stopping at the
+    # count a page claims, which can be low; ten full pages reach the cap and
+    # split the window (`_listed`). A run counted twice across shifted pages
+    # is kept once, and the runs must equal the first page's count: a run
+    # created during the read is past it, and a dropped one fails it.
+    pages, last = [first], first
+    while (
+        len(pages) < RUN_SEARCH_CAP // RUN_PAGE_SIZE
+        and len(json_array(json_object(last).get("workflow_runs"))) == RUN_PAGE_SIZE
+    ):
+        last = _read(["api", f"{endpoint}&page={len(pages) + 1}"], label)
+        pages.append(last)
+    items = list({i.get("id"): i for i in _listed(pages, label, "workflow_runs")}.values())
+    if len(items) != total:
+        raise PostMergeReadError(f"{label}: total_count {total}, but {len(items)} returned")
+    return items
+
+
+def _stamp(at: datetime) -> str:
+    return at.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def _runs(
     owner: str,
     name: str,
@@ -846,20 +898,48 @@ def _runs(
     event: str,
     branch: str,
     since: datetime,
+    now: datetime,
 ) -> list[Run]:
-    created = quote(
-        f">={since.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}", safe=""
-    )
+    """The runs of `workflow` for `event` on `branch` created since `since`,
+    newest window first. The range is read as `created` windows: the newest
+    open (`>=start`), so a run created during the read still counts; the
+    rest whole seconds `start..end-1s`, disjoint. A window whose search
+    reaches RUN_SEARCH_CAP is halved (`split_created_window`), the open one
+    at the midpoint of `since` and `now`."""
     endpoint = (
         f"repos/{owner}/{name}/actions/workflows/{workflow}/runs"
-        f"?event={event}&branch={quote(branch, safe='')}&created={created}&per_page=100"
+        f"?event={event}&branch={quote(branch, safe='')}&per_page={RUN_PAGE_SIZE}"
     )
-    runs = _run_rows(
-        _paginated(endpoint, f"{workflow} {event} runs", "workflow_runs"),
-        event,
-        owner,
-        name,
-    )
+    label = f"{workflow} {event} runs"
+    items: list[dict[str, Any]] = []
+    windows: list[tuple[datetime, datetime | None]] = [
+        (since.astimezone(UTC).replace(microsecond=0), None)
+    ]
+    reads = 0
+    while windows:
+        start, end = windows.pop()
+        reads += 1
+        created = (
+            f">={_stamp(start)}"
+            if end is None
+            else f"{_stamp(start)}..{_stamp(end - _SECOND)}"
+        )
+        try:
+            items += _run_window(
+                f"{endpoint}&created={quote(created, safe='')}",
+                f"{label} created {created}",
+            )
+        except _RunSearchCapped as exc:
+            top = end or now.astimezone(UTC).replace(microsecond=0) + _SECOND
+            middle = split_created_window(start, top, _SECOND)
+            if middle is None:
+                raise
+            if reads + len(windows) + 2 > RUN_WINDOW_READS:
+                raise _RunSearchCapped(
+                    f"{exc}, past {RUN_WINDOW_READS} window reads"
+                ) from exc
+            windows += [(start, middle), (middle, end)]
+    runs = _run_rows(items, event, owner, name)
     return [r for r in runs if r.created_at >= since and r.head_branch == branch]
 
 
@@ -2602,6 +2682,7 @@ def _lane_reruns(
                     "schedule",
                     ctx.branch,
                     now - ctx.lane_rerun_lookback(),
+                    now,
                 )
                 if ctx.on_branch(r) and not ctx.replaced(r)
             )
@@ -2612,6 +2693,7 @@ def _lane_reruns(
             "workflow_dispatch",
             ctx.branch,
             now - ctx.lane_rerun_lookback(),
+            now,
         )
         ctx.held_full_runs.update((r.id, (SIGNAL_DISPATCH, r)) for r in runs)
         for run in sorted(runs, key=lambda r: r.created_at, reverse=True):
@@ -2753,7 +2835,9 @@ def check(
         )
         full_runs = [
             (SIGNAL_SCHEDULE, r)
-            for r in _runs(owner, name, FULL_RUN_WORKFLOW, "schedule", branch, floor)
+            for r in _runs(
+                owner, name, FULL_RUN_WORKFLOW, "schedule", branch, floor, now
+            )
         ] + [
             (SIGNAL_DISPATCH, r)
             for r in _runs(
@@ -2763,6 +2847,7 @@ def check(
                 "workflow_dispatch",
                 branch,
                 floor,
+                now,
             )
         ]
         # A listing filtered by branch name also returns runs on a tag named
@@ -2780,7 +2865,7 @@ def check(
         canary_runs = sorted(
             (
                 r
-                for r in _runs(owner, name, CANARY_WORKFLOW, "push", branch, floor)
+                for r in _runs(owner, name, CANARY_WORKFLOW, "push", branch, floor, now)
                 if ctx.on_branch(r)
             ),
             key=lambda r: r.created_at,

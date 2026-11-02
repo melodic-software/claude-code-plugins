@@ -345,15 +345,23 @@ call. A control call counts as run when its marker or its tool output appears.
 | guardrails | GitHub MCP comment | `mcp__github__add_issue_comment` | Denied, same message | Ran |
 | guardrails | `Bash\|PowerShell` | `Bash` `touch` | Denied, same message | Marker written |
 | disk-hygiene | `Bash(*hygiene.py*)` | engine `inventory` of an empty directory | Denied, same message | Ran, report returned |
-| disk-hygiene | `PowerShell(*hygiene.py*)` | not probed | WSL sessions have no `PowerShell` tool | not probed |
+| disk-hygiene | `PowerShell(*hygiene.py*)` | `PowerShell` `Write-Output` of a string naming `hygiene.py` (Windows) | Denied, same message | Guard launched, output returned |
 | discovery | `Bash`, docs-fetcher gate | `Bash` `touch` | Denied: `Executable not found in $PATH: "node"`, then the blocking message | Marker written |
 | multi-agent | `Bash`, docs-fetcher gate | `Bash` `touch` | Denied, same message | Marker written |
 | multi-agent | `WebFetch`, drift-checker gate | `WebFetch` of `example.com` | Denied, same message | Page fetched |
 
-Each adopted row probed denies its matched call when `node` is missing, and with `node` present it
-lets a normal call through. The disk-hygiene `PowerShell` row still needs a probe on a Windows host.
-A control environment with no `jq` is not a normal call: there the guardrails dispatcher denies
-with its own `jq is not on PATH` verdict, and that is a guard's choice, not an `onFailure` block.
+The disk-hygiene `PowerShell` row ran on the same host's Windows side (2026-11-02, Claude Code
+2.1.316), from an empty working directory with `--setting-sources project,local`, so no installed
+plugin loaded; the init event lists `PowerShell` and only the probed disk-hygiene copy. The `block`
+arm drops the `node` directories from `PATH` (`where.exe node` finds none). The control call names
+the engine only as string data, which the guard lets through; its session's guard-launch marker
+shows the guard ran. An engine invocation through `PowerShell` is denied by the guard itself with
+`node` present ("must go through the Bash tool's exact guarded command shapes"), so it cannot serve
+as the control.
+
+Each adopted row denies its matched call when `node` is missing, and with `node` present it lets a
+normal call through. A control environment with no `jq` is not a normal call: there the
+guardrails dispatcher denies with its own `jq is not on PATH` verdict, and that is a guard's choice, not an `onFailure` block.
 
 ## Gated Stop rows at the exec-form floor
 

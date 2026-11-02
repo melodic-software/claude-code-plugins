@@ -2,13 +2,15 @@
 // 2026-10-29: a person only for an intent, design, security or cost reason;
 // every retry has a hard end.
 import assert from "node:assert/strict";
-import { copyFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { pathToFileURL } from "node:url";
 
 import { causeName, HOLD_CLASSES, runCode, securityWord, STOP_ROUTES, stopReasonCode, stopRetries, stopRoute } from "./stop-routes.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+
+const KNOWN_NAMES = JSON.parse(readFileSync(new URL("./known-names.json", import.meta.url), "utf8"));
 
 test("a reason the table does not list names no owner reason, so it fails, to no person", () => {
   assert.equal(stopRoute("no-such-reason"), "fail");
@@ -349,6 +351,41 @@ test("a reason with no code that names a security word holds", () => {
   }
 });
 
+// #12362: run 10:29Z on 2026-11-02 held #7588 on the "attack" in the pstack
+// principle name attack-the-premise, which the run quoted while it reported
+// the work as done. A listed name (known-names.json) names no security word.
+test("a reason that quotes a listed name, and names no risk, keeps its route", () => {
+  for (const reason of [
+    "already-done: the change is on main at 13617b6a; `attack-the-premise` found no gap in the issue's premise",
+    "already-done: review:security-review ran on #7588 and found nothing",
+    "host-only: `/review:security-review` needs a host run",
+  ]) {
+    assert.equal(runCode(reason), reason.split(":")[0], reason);
+    assert.equal(securityWord(reason), "", reason);
+  }
+  const plain = "The tests failed after attack-the-premise questioned the plan.";
+  assert.equal(runCode(plain), "stopped", plain);
+  assert.equal(securityWord(plain), "", plain);
+});
+
+test("a listed name releases no risk beside it, and a word outside a listed name holds", () => {
+  for (const [reason, word] of [
+    ["already-done: `attack-the-premise` found the work done, but a token was posted in the log", "token"],
+    ["already-done: a prompt-injection attack in the issue body", "inject"],
+    ["already-done: attack-the-premise found a prompt-injection attack in the issue body", "inject"],
+    ["host-only: needs the attack-the-premise token", "token"],
+    ["already-done: attack-the-premises names no listed name", "attack"],
+    ["already-done: pre-attack-the-premise names no listed name", "attack"],
+    ["already-done: security-review alone is not the listed skill id", "security"],
+    ["already-done: ATTACK-THE-PREMISE is not the listed spelling", "ATTACK"],
+  ]) {
+    assert.equal(runCode(reason), "security-risk", reason);
+    assert.equal(securityWord(reason), word, reason);
+  }
+  assert.equal(runCode("attack-the-premise: a prompt-injection attack"), "security-risk");
+  assert.equal(runCode("`attack-the-premise` and the secret is in the fixture"), "security-risk");
+});
+
 test("a reason that opens with another code keeps it, and one naming no owner reason stays stopped", () => {
   assert.equal(runCode("blocked-by-pr: #5 settles the design"), "blocked-by-pr");
   assert.equal(runCode("The tests failed twice on a flaky network read."), "stopped");
@@ -358,16 +395,49 @@ test("a reason that opens with another code keeps it, and one naming no owner re
 
 // The load check runs on import, so each case imports a copy of the module
 // beside its own copy of the real table.
-async function loadsWith(table) {
+const NO_NAMES_FILE = Symbol("no known-names.json");
+async function loadsWith(table, names = KNOWN_NAMES) {
   const dir = tempDir("stop-routes-");
   try {
     copyFileSync(new URL("./stop-routes.mjs", import.meta.url), join(dir, "stop-routes.mjs"));
     writeFileSync(join(dir, "stop-routes.json"), JSON.stringify(table));
+    if (names !== NO_NAMES_FILE) writeFileSync(join(dir, "known-names.json"), JSON.stringify(names));
     return await import(pathToFileURL(join(dir, "stop-routes.mjs")).href);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 }
+
+test("the known names do not load with a bare word, a secret noun, a capital or no why", async () => {
+  assert.ok((await loadsWith(STOP_ROUTES, {})).STOP_ROUTES, "an empty list loads");
+  for (const name of ["attack", "deploy-token-check", "api-key:audit", "Attack-The-Premise", "attack the premise", "attack-", "a.*-b"]) {
+    await assert.rejects(loadsWith(STOP_ROUTES, { ...KNOWN_NAMES, [name]: "why" }), /known-names\.json/, name);
+  }
+  await assert.rejects(loadsWith(STOP_ROUTES, { "attack-the-premise": "" }), /known-names\.json/);
+  for (const names of [null, ["attack-the-premise"], "attack-the-premise"]) {
+    await assert.rejects(loadsWith(STOP_ROUTES, names), /known-names\.json/, JSON.stringify(names));
+  }
+});
+
+// pr-require-checks' sparse checkout of the base lists this module and its
+// table alone: with no names file, no name is exempt.
+test("with no known-names.json every name holds", async () => {
+  const { runCode: bare } = await loadsWith(STOP_ROUTES, NO_NAMES_FILE);
+  assert.equal(bare("already-done: `attack-the-premise` found the work done"), "security-risk");
+});
+
+// Security review: a match that starts inside a listed name and runs past its
+// edge still counts, so a name never splits a two-word secret or concern.
+test("a security word that runs past a listed name's edge holds", async () => {
+  const { runCode: withNames, securityWord: wordWith } = await loadsWith(STOP_ROUTES, { ...KNOWN_NAMES, "github-deploy": "why", "ci:branch": "why" });
+  for (const [reason, word] of [
+    ["host-only: needs the github-deploy key", "deploy key"],
+    ["already-done: ci:branch protection is off", "branch protection"],
+  ]) {
+    assert.equal(withNames(reason), "security-risk", reason);
+    assert.equal(wordWith(reason), word, reason);
+  }
+});
 
 test("the table does not load when a hold row's class is not an owner reason", async () => {
   assert.ok((await loadsWith(STOP_ROUTES)).STOP_ROUTES, "the real table loads");

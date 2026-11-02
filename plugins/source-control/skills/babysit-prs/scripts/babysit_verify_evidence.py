@@ -287,11 +287,13 @@ import babysit_postmerge as postmerge
 import babysit_run_cache as run_cache
 from babysit_classify import is_dependency_author
 from babysit_gh import (
+    RUN_SEARCH_CAP,
     fetch_paginated_api,
     flatten_paginated_items,
     gh_api_with_headers,
     gh_http_status,
     pull_request_commits_once,
+    split_created_window,
 )
 from babysit_util import is_json_array, is_json_object, json_array, json_object
 
@@ -567,14 +569,16 @@ NETWORK_ERRORS = (
     "unexpected eof",
     "unexpected end of json input",
 )
-# A whole listing cut short has already paged up to every artifact, so it is
-# read once more at most, not after every wait (`Reader._read_listing`).
-CUT_SHORT = "unexpected end of json input"
+# A page body cut short while gh exits 0, as babysit_gh._run_pages reports it.
+PAGE_NOT_JSON = re.compile(r"\bpage \d+ is not json$")
 FAIL = "verify:fail"
 EARLIER_FAIL = "verify:earlier-fail"
 REPEATED_FAIL = "verify:repeated-fail"
 MISSING = "verify:missing"
 UNREADABLE = "verify:unreadable"
+# `Reader.queued_hold`: a lanes App entry whose verdict this run could not
+# read. The merge queue's own reader judges it fail-closed, so it is no hold.
+QUEUE_READS = "verify:queue-reads"
 TOO_OLD = "verify:too-old"
 UNTRUSTED_SPEC = "verify:untrusted-spec"
 SPEC_CHANGED = "verify:spec-changed"
@@ -939,14 +943,22 @@ class _Transient(_Unreadable):
     """A failed read that may succeed if repeated."""
 
 
+class _CutShort(_Transient):
+    """A page body cut short: read again like a 5xx, but noted for the job
+    once its waits run out, since each later Reader would page the whole
+    listing again."""
+
+
 def _transient(detail: str) -> bool:
-    """A 5xx, or a network error with no HTTP response. A rate limit is not:
-    a fixed short wait outlasts neither a Retry-After nor an hourly reset, and
-    more requests can extend a secondary limit."""
+    """A 5xx, a network error with no HTTP response, or a page body cut
+    short. A rate limit is not: a fixed short wait outlasts neither a
+    Retry-After nor an hourly reset, and more requests can extend a secondary
+    limit."""
     status = gh_http_status(detail)
     if status is not None:
         return status >= 500
-    return any(phrase in detail.casefold() for phrase in NETWORK_ERRORS)
+    text = detail.casefold()
+    return any(p in text for p in NETWORK_ERRORS) or bool(PAGE_NOT_JSON.search(text))
 
 
 def listing_pages(total_count: int) -> int:
@@ -1459,7 +1471,9 @@ class Reader:
                 self._listing_error = str(exc)
                 if self._overcount_mine:
                     self._note_overcount(self._listing_error)
-                if self._whole_paged and not isinstance(exc, _Transient):
+                if self._whole_paged and (
+                    isinstance(exc, _CutShort) or not isinstance(exc, _Transient)
+                ):
                     self._note_failed_listing(self._listing_error)
                 raise _Unreadable(self._listing_error) from exc
             if self._overcount_mine:
@@ -2154,12 +2168,11 @@ class Reader:
     def _read_listing(
         self, deadline: float | None = None, budget: float = LISTING_TIMEOUT_SECONDS
     ) -> Any:
-        """The listing payload, read again after a 5xx or a fast network
-        error while time is left: every page, read and wait fits in
-        `budget`, so a retry adds no time to the run's worst
-        case. A read cut short (`CUT_SHORT`) is read once more, and that
-        read's failure refuses. A `deadline` set by an earlier read is kept;
-        this read's is saved as `_read_deadline`."""
+        """The listing payload, read again after each of `LISTING_WAITS` on a
+        5xx, a fast network error or a page body cut short while time is
+        left: every page, read and wait fits in `budget`, so a retry adds no
+        time to the run's worst case. A `deadline` set by an earlier read is
+        kept; this read's is saved as `_read_deadline`."""
         args = [
             "api",
             f"repos/{self.repo}/actions/artifacts?per_page=100",
@@ -2177,7 +2190,7 @@ class Reader:
         for wait in LISTING_WAITS:
             try:
                 return self._actions(args, "repository artifacts", timeout)
-            except _Transient as exc:
+            except _Transient:
                 if deadline - _listing_clock() - wait <= 0:
                     raise
                 _listing_sleep(wait)
@@ -2185,8 +2198,6 @@ class Reader:
                 timeout = deadline - _listing_clock()
                 if timeout <= 0:
                     raise
-                if CUT_SHORT in str(exc).casefold():
-                    break
         return self._actions(args, "repository artifacts", timeout)
 
     def _env(self) -> dict[str, str] | None:
@@ -2206,11 +2217,16 @@ class Reader:
             raise _Unreadable(f"{label}: {exc}") from exc
         if proc.returncode != 0:
             detail = f"{label}: {(proc.stderr or '').strip() or proc.returncode}"
-            raise (_Transient if _transient(detail) else _Unreadable)(detail)
+            if not _transient(detail):
+                raise _Unreadable(detail)
+            text = detail.casefold()
+            cut = PAGE_NOT_JSON.search(text) or "unexpected end of json input" in text
+            raise (_CutShort if cut else _Transient)(detail)
         try:
             return json.loads(proc.stdout) if proc.stdout.strip() else None
         except ValueError as exc:
-            raise _Unreadable(f"{label}: {exc}") from exc
+            # A body cut short while gh exits 0.
+            raise _CutShort(f"{label}: {exc}") from exc
 
     def _contains(self, sha: str, *, shared: bool = False) -> bool:
         """Whether the branch holds `sha`, read under the Actions token (a
@@ -3940,7 +3956,10 @@ class Reader:
 
     def queued_hold(self, number: int) -> str | None:
         """Why a queued entry must leave: no allowing verdict at its live
-        head now. An unreadable pull request is a hold. A dependency
+        head now. An unreadable pull request is a hold, but an unreadable
+        verdict on a lanes App entry is `QUEUE_READS`: the merge queue's
+        ci-status reads that entry's verdict itself and refuses it
+        fail-closed, while it reads none for any other author. A dependency
         manager's entry is the lane's Dependabot class, which pr-verify never
         judges, so it is not held here."""
         try:
@@ -3950,7 +3969,21 @@ class Reader:
         if dependency_bot(pr.get("user")):
             return None
         head = str(json_object(pr.get("head")).get("sha"))
-        return self.evidence(number, head, pr).refusal
+        refusal = self.evidence(number, head, pr).refusal
+        if refusal == UNREADABLE and self._queue_reads(pr):
+            return QUEUE_READS
+        return refusal
+
+    def _queue_reads(self, pr: dict[str, Any]) -> bool:
+        """Whether the merge queue's ci-status reads this pull request's
+        verdict: the lanes App's, matched by id and type as ci-status
+        matches it. A lanes App id that cannot be read is a no."""
+        user = json_object(pr.get("user"))
+        try:
+            app_id = self._lane_app_id()
+        except Exception:  # noqa: BLE001 -- any failure keeps the hold
+            return False
+        return app_id is not None and user.get("id") == app_id and user.get("type") == "Bot"
 
 
 def lane_risk_refusal(
@@ -5295,9 +5328,8 @@ LISTING_FAILS_PAGES_CAP = 600
 # How long after the merge commit that brought FAIL_INDEX a run may still have
 # been triggered on the older workflow; a later cutover only reads more runs.
 CUTOVER_MARGIN = timedelta(hours=1)
-# GitHub returns at most 1,000 results for a filtered run search, so a window
-# whose count reaches it is split.
-RUN_SEARCH_RESULTS_CAP = 1000
+# A window whose run search reaches RUN_SEARCH_CAP is split down to this span.
+RUN_WINDOW_MINIMUM = timedelta(minutes=1)
 RUN_FIELDS_KEPT = (
     "id",
     "status",
@@ -5564,17 +5596,20 @@ class _PerRunBuild:
             runs, count = body.get("workflow_runs"), body.get("total_count")
             if not is_json_array(runs) or type(count) is not int:
                 raise _Unreadable(f"the verifier runs created {created} are malformed")
-            if count >= RUN_SEARCH_RESULTS_CAP:
-                if end - start <= timedelta(minutes=1):
+            if count >= RUN_SEARCH_CAP:
+                middle = split_created_window(start, end, RUN_WINDOW_MINIMUM)
+                if middle is None:
                     raise _Unreadable(f"{count} verifier runs created {created}")
-                middle = start + (end - start) / 2
                 return self._window(start, middle) + self._window(middle, end, last=last)
             totals.add(count)
             for run in map(json_object, runs):
                 if not _is_id(run.get("id"), run.get("id")):
                     raise _Unreadable(f"a verifier run created {created} has no id")
                 found[run["id"]] = _kept_run(run)
-            if len(runs) < LISTING_PAGE_SIZE or page * LISTING_PAGE_SIZE >= count:
+            # Read on while the page is full, never stopping at the count a
+            # page claims, which can be low; the totals check below fails a
+            # count the runs do not equal.
+            if len(runs) < LISTING_PAGE_SIZE or page >= RUN_SEARCH_CAP // LISTING_PAGE_SIZE:
                 break
             page += 1
         if totals != {len(found)}:

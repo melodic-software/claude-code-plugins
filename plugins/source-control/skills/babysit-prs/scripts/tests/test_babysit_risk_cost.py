@@ -1254,70 +1254,18 @@ class WorkflowPrivilegeHoldsWithoutYaml(WorkflowPrivilegeHolds):
         self.addCleanup(patcher.stop)
 
 
-class LongLineHolds(unittest.TestCase):
-    """A pull request the main-run review binds (`needs_main_review`) whose
-    patch holds a line longer than that review reads whole holds for a person
-    (`long-line-review:`)."""
+class LongLineNoHold(unittest.TestCase):
+    """The main-run review folds a long diff line and reads every byte, so a
+    long line beside a lane source holds no pull request for a person."""
 
-    LONG = "+" + "x" * 2500
-    SHORT = "+" + "x" * 1000
-
-    def codes(self, *files):
-        return [
-            r.code
-            for r in babysit_risk.person_reasons(score(_input(files=files)).reasons)
-        ]
-
-    def test_a_2500_byte_line_beside_a_lane_source_holds_for_a_person(self):
-        for files in (
-            # The long line in the lane source itself.
-            (_file(".claude/rules/a.md", patch=_patch(self.LONG)),),
-            # In an ordinary file of a pull request that changes a lane source.
-            (_file("app.py", patch=_patch(self.LONG)), _file(".claude/rules/a.md")),
-            # A removed or context line is given to the review too.
-            (_file(".claude/rules/a.md", patch="@@ -1 +1 @@\n" + " " + "y" * 2500),),
-        ):
-            with self.subTest(paths=[f.path for f in files]):
-                long = [
-                    c for c in self.codes(*files) if c.startswith("long-line-review:")
-                ]
-                self.assertEqual(len(long), 1, long)
-
-    def test_a_1000_byte_line_does_not_hold(self):
-        codes = self.codes(_file(".claude/rules/a.md", patch=_patch(self.SHORT)))
-        self.assertFalse([c for c in codes if c.startswith("long-line-review:")])
-
-    def test_multibyte_text_counts_bytes(self):
-        # 700 three-byte characters are 2,100 bytes.
-        codes = self.codes(_file(".claude/rules/a.md", patch=_patch("+" + "€" * 700)))
-        self.assertIn("long-line-review:.claude/rules/a.md", codes)
-
-    def test_a_pull_request_without_a_lane_source_is_not_this_hold(self):
-        codes = self.codes(_file("app.py", patch=_patch(self.LONG)))
-        self.assertFalse([c for c in codes if c.startswith("long-line-review:")])
-
-    @unittest.skipUnless(babysit_risk._yaml(), "PyYAML not installed")
-    def test_only_a_path_the_main_run_review_binds_holds(self):
-        # A read-only workflow binds through the pull_request lanes, which read
-        # the whole diff, so its long line is no hold (`needs_main_review`).
-        from test_babysit_review_evidence import BASE, READ_ONLY
-        from test_babysit_review_evidence import WORKFLOW as LINT_DOCS
-
-        line = "-" + "x" * 2000
-
-        def codes(head, base_sha=BASE):
-            wf = _file(LINT_DOCS, patch=_patch(line), contents=(READ_ONLY, head))
-            result = score(_input(files=(wf,), base_sha=base_sha))
-            return [c for c in _codes(result) if c.startswith("long-line-review:")]
-
-        self.assertEqual(codes(READ_ONLY), [])
-        # A write scope, or no base to prove the read, needs the main-run review.
-        writer = READ_ONLY.replace(
-            "  contents: read\njobs:", "  contents: write\njobs:"
-        )
-        self.assertNotEqual(writer, READ_ONLY)
-        self.assertEqual(codes(writer), [f"long-line-review:{LINT_DOCS}"])
-        self.assertEqual(codes(READ_ONLY, None), [f"long-line-review:{LINT_DOCS}"])
+    def test_a_long_line_beside_a_lane_source_does_not_hold(self):
+        for patch in (_patch("+" + "x" * 4000), _patch("+" + "\u20ac" * 700)):
+            files = (
+                _file(".claude/rules/a.md", patch=patch),
+                _file("app.py", patch=patch),
+            )
+            codes = [r.code for r in score(_input(files=files)).reasons]
+            self.assertFalse([c for c in codes if c.startswith("long-line")], codes)
 
 
 if __name__ == "__main__":

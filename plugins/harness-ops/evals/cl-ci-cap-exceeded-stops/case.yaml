@@ -1,0 +1,43 @@
+schema_version: "1.1"
+name: cl-ci-cap-exceeded-stops
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: ran-status-with-range
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?changelog-status\.sh(?:[^"\\]|\\.)*?--range'
+    min: 1
+  - name: reports-plan-path
+    type: regex
+    pattern: '^[ \t>*-]*`?ci-plan:`?[ \t]*`?[^\s`]*ci-plan\.json'
+    flags: 'm'
+    target: last_message
+  - name: reports-stopped
+    type: regex
+    pattern: '^[ \t>*-]*`?status:`?[ \t]*`?stopped\b'
+    flags: 'mi'
+    target: last_message
+  - name: no-decision-rows
+    type: regex
+    pattern: '^[ \t]*\|[^\n]*\|[ \t]*\**(?:Lens|Owner surface|Required sentence)\**[ \t]*\||^[ \t]*\|[^\n]*\|[ \t]*\**(?:correct|replace|adopt)\**[ \t]*\|'
+    flags: 'mi'
+    match: not_contains
+    target: last_message
+  - name: no-ask
+    type: tool_used
+    tool: 'AskUserQuestion'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-branch-or-push
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?\bgit\s+(?:-C\s+\S+\s+)?(?:switch\s+-c|checkout\s+-b|commit|push)\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: plan-has-conformance-handoff
+    type: llm
+    focus: trace
+    criteria: 'PASS only if: the run wrote a ci-plan.json whose status is stopped with stop_reason cap-exceeded, whose branches list is empty, and whose handoffs hold one docs-conformance handoff recommending a docs-conformance recheck and a read marker set at 2.1.261; and the run did not move the read marker or write a ledger file. FAIL otherwise.'

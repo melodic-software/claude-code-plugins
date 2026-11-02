@@ -1,5 +1,37 @@
 # Changelog for the PR pipeline convention
 
+## [8.38.2] - 2026-11-02
+
+### Changed
+
+- `enable-auto-merge` holds when more than 1000 pull requests are open into main, where it used to
+  end red. It arms, disarms and notes nothing, prints a notice and a step summary line, and ends
+  green, and the next run reads the listing again.
+- `request-lane-token` sends at most 3 requests to the broker and waits at most 60 seconds in all,
+  down from 4 requests and 8 minutes. A `github-unavailable` retry waits a random 0 to 20 seconds,
+  then 0 to 40, or a longer `Retry-After`. A `github-rate-limited` wait that does not fit the
+  60 seconds fails red at once, naming the limit and its reset, as a wait past 8 minutes did before.
+
+## [8.38.1] - 2026-11-02
+
+### Fixed
+
+- The issue lane's security-word stop no longer holds an issue for a word that lies wholly inside a known name: a skill id or principle name listed in `.github/scripts/work-resolve-issue/known-names.json` (starting with `attack-the-premise` and `review:security-review`), written exactly as listed as a whole identifier. A word that runs past a listed name's edge, and any security word or credential mention elsewhere in the reason, still holds. A listed name joins at least two parts with `-`, `_` or `:` and holds no secret noun.
+
+## [8.38.0] - 2026-11-02
+
+### Changed
+
+- The main-run review (`pr-review-main.yml`) folds a diff line over 1800 bytes onto lines that start `\ continued:`, never inside a UTF-8 character, so every byte reaches a whole Read and the lane gives a verdict. It no longer stops as `verdict=none reason=long-line`. The prompt says a continuation line is the rest of the line before it and adds no line to the file's numbering, so a finding's line number holds, and the verdict's credential scan also reads model text with its folds joined.
+
+### Fixed
+
+- pr-verify no longer fails a head on a test-run claim the head's CI already settled. Each job in
+  `upstream-jobs.json` now carries its job page URL, and the prompt says a suite's job that
+  concluded `success` on the judged head meets a done-when "X exits 0" item and settles any "not
+  run" or "likely fails" doubt about that suite; the diff is still judged for a test that cannot
+  fail or was weakened. The judging jobs' permissions and tool rules do not change.
+
 ## [8.37.0] - 2026-11-02
 
 ### Changed

@@ -10,7 +10,8 @@
 # script beside this one, named in messages and run by wake.sh.
 # Long-polls /api/wait (each poll is the heartbeat the page shows as "Claude is listening"),
 # prints the unhandled events as one JSON line carrying "dataDir" and "next" (the exact re-arm
-# command, wake.sh beside this script), stores the seq in .watch-seq, and exits 0. Events a dead
+# command, wake.sh beside this script), writes the same line alone to .watch-wake.json in the data
+# dir, stores the seq in .watch-seq, and exits 0. Events a dead
 # turn never handled come back at once on the next arm; after that re-delivery (recorded in
 # .watch-replay) an arm waits for a new event.
 # Exits 2 when curl is missing, when session-bridge.conf is missing or malformed, when the env
@@ -156,7 +157,15 @@ while :; do
   case "$out" in
     *'"timedOut": false'*)
       next="bash $(shell_quote "$here/wake.sh") $(shell_quote "$dir")"
-      printf '%s, "dataDir": "%s", "next": "%s"}\n' "${out%\}}" "$(json_escape "$dir")" "$(json_escape "$next")"
+      printf -v payload '%s, "dataDir": "%s", "next": "%s"}' "${out%\}}" "$(json_escape "$dir")" "$(json_escape "$next")"
+      # The task's output file mixes stderr in and ends with an exit footer, so the line also goes
+      # to a file of its own (0600: it holds the events' text), written whole and then renamed into
+      # place. A failed write removes the file, so a reader never takes an earlier wake for this one.
+      { (umask 077 && rm -f "$dir/.watch-wake.json.tmp" && printf '%s\n' "$payload" >"$dir/.watch-wake.json.tmp") &&
+        mv -f "$dir/.watch-wake.json.tmp" "$dir/.watch-wake.json"; } 2>/dev/null ||
+        { rm -f "$dir/.watch-wake.json" "$dir/.watch-wake.json.tmp"
+          echo "could not write $dir/.watch-wake.json: take the JSON line from this task's output" >&2; }
+      printf '%s\n' "$payload"
       printf '%s' "$out" | sed -n 's/^{"seq": \([0-9]*\).*/\1/p' >"$dir/.watch-seq"
       case "$out" in
         '{"seq": '*', "timedOut": false, "replayed": '*)

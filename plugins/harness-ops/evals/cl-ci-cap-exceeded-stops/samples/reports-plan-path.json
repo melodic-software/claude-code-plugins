@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Cap exceeded (12 releases / cap 10); nothing applied.\n\nci-plan: .work/claude-code-changelog/2.1.250..2.1.261/ci-plan.json\nstatus: stopped"
+    },
+    {
+      "answer": "Done.\n\n- `ci-plan: /tmp/eval-ws/.work/claude-code-changelog/2.1.250..2.1.261/ci-plan.json`\n- `status: stopped`",
+      "why": "list and code spans"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The plan is written under .work.\n\nstatus: stopped",
+      "why": "no ci-plan line"
+    },
+    {
+      "answer": "ci-plan: (not written)\nstatus: stopped",
+      "why": "no path"
+    }
+  ]
+}

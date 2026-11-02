@@ -32,23 +32,15 @@ this skill uninvocable from inside a worktree. The dated record for the composit
 body time and in subagents are in [reference/gather-block.md](reference/gather-block.md),
 "Accepted command shapes for body-time and subagent Bash".
 
-The refusal is documented behavior, not a one-release quirk, so the constraint is durable. Per
-[worktrees](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation) (fetched
-2026-09-27, quoted with link markup removed), "Claude Code applies four checks": file edits into the
-main checkout, a command whose **working directory** resolves there, a **git redirect** into it
-("The redirect can come through `git -C`, `--git-dir`, a `GIT_DIR` or `GIT_WORK_TREE` variable, or a
-`cd` into the main checkout before running git."), and the **command shape**. The last bites a
-compound command and fails closed: "Claude Code blocks a Bash or Monitor command
-when it can't verify from the command text that any git the command runs stays inside the
-worktree." A block is therefore not evidence the command *would* have reached the main checkout: an
-unverifiable command, which is what a multi-command shell invocation looks like, is refused on the
-same footing. This skill takes the page's own remedy: "Claude Code tells Claude
-how to rewrite the refused command, such as splitting it into plain, separate commands." The page
-also says "The same enforcement covers every subagent Claude spawns from
-the isolated session. It applies whether the session is interactive or runs in the background.", so
-a delegated worker inherits it rather than escaping it; and "For PowerShell commands, Claude Code
-applies only the working-directory check", so PowerShell is narrower coverage, never a sanctioned
-route around the git-redirect or command-shape check.
+The refusal is documented isolation enforcement, so the constraint is durable. Our rules: treat a
+refused compound command as unverifiable, not as proof it would have reached the main checkout;
+rewrite it as plain, separate commands; expect a delegated worker to inherit the same refusal; and
+never use PowerShell, whose coverage is narrower, as a route around the git-redirect or
+command-shape check. Pointer:
+[How Claude Code enforces isolation](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation),
+which lists the checks, their scope over subagents and background runs, and PowerShell's coverage.
+As-of: 2026-09-27. Recheck trigger: a change to that section or a Claude Code release note naming
+worktree isolation checks.
 
 ## Purpose
 
@@ -56,7 +48,7 @@ Orchestrate git worktree lifecycle from creation through cleanup. **Front-half**
 
 **Why this exists:** worktrees isolate parallel code changes, so Claude Code sessions on different tasks don't step on each other. Where branch protection blocks direct commits to main, every feature, fix, or refactor starts with a worktree or branch; this skill makes that seamless.
 
-This skill canonically owns the parallel-session worktree convention **for this plugin fleet**, and [§ The nesting invariant, dated measurement](#the-nesting-invariant-dated-measurement) is the one site that states the mechanism; every other surface in this plugin points here. That is an ownership claim, not a census: consumer docs outside this repository also describe worktree placement, at least one written after the as-of date below. So ownership comes with an inbound channel: **a consumer that measures something contradicting that section should open an issue on this plugin's tracker so the owner is corrected here.** Without that back-channel the owner is the last to know.
+This skill canonically owns the parallel-session worktree convention **for this plugin fleet**, and [reference/nesting-invariant.md § The nesting invariant, dated measurement](reference/nesting-invariant.md) is the one site that states the mechanism; every other surface in this plugin points there. That is an ownership claim, not a census: consumer docs outside this repository also describe worktree placement, at least one written after that file's as-of date. So ownership comes with an inbound channel: **a consumer that measures something contradicting that file should open an issue on this plugin's tracker so the owner is corrected here.** Without that back-channel the owner is the last to know.
 
 Worktrees live at an external `worktree_root` (`<root>/<owner>-<repo>-<slug>`, outside every repository), defaulting to `<plugin-data-dir>/worktrees` when the key is unset, and never nested inside any repository's tree. Creation enforces that nesting invariant on the dated measured basis recorded below, not as a standing absolute. Keeping `worktree_root` clear of repository-discovery roots (such as a ghq root) is convention, not machine-checked: creation rejects only paths inside an existing repository, so a root inside a discovery tree still pollutes repository enumeration (`ghq list` reports each worktree as a repository, and a leading dot does not hide it). Choose a configured root accordingly. The default is already clear: the plugin data directory is harness state, never a checkout and never inside a discovery tree, which a checkout-relative default would be under a layout like `<root>/github.com/<owner>/<repo>`.
 
@@ -106,7 +98,7 @@ Create a worktree with guided naming and setup verification. Full procedure (pre
 
 **Safety invariants create MUST honor** (full detail in context/create.md):
 
-- **Create via the shared helper, not `EnterWorktree(name:)`.** `${user_config.worktree_root}` substitutes into skill content as raw text, not shell-escaped, so it must never reach a shell parser: a value containing `'`, `$`, or a backtick breaks a quoted `--root` literal, and one containing the delimiter line ends a heredoc early. Write it to a temp file with the `Write` tool (JSON string parameter, never shell-parsed) and pass the file to the helper's `--fallback-root-file` flag (plugin-option rung, below `worktreeroot.path`); full render in [context/create.md § Create the worktree](context/create.md#create-the-worktree). The helper places the worktree at the external root (`<root>/<owner>-<repo>-<slug>`), copies `.worktreeinclude` files, and prints the path. `EnterWorktree(name:)` lands in the in-repo `.claude/worktrees/`, the placement [§ The nesting invariant, dated measurement](#the-nesting-invariant-dated-measurement) exists to avoid.
+- **Create via the shared helper, not `EnterWorktree(name:)`.** `${user_config.worktree_root}` substitutes into skill content as raw text, not shell-escaped, so it must never reach a shell parser: a value containing `'`, `$`, or a backtick breaks a quoted `--root` literal, and one containing the delimiter line ends a heredoc early. Write it to a temp file with the `Write` tool (JSON string parameter, never shell-parsed) and pass the file to the helper's `--fallback-root-file` flag (plugin-option rung, below `worktreeroot.path`); full render in [context/create.md § Create the worktree](context/create.md#create-the-worktree). The helper places the worktree at the external root (`<root>/<owner>-<repo>-<slug>`), copies `.worktreeinclude` files, and prints the path. `EnterWorktree(name:)` lands in the in-repo `.claude/worktrees/`, the placement [The nesting invariant, dated measurement](reference/nesting-invariant.md) exists to avoid.
 - **On a non-zero helper exit, STOP, never fall back to `EnterWorktree(name:)`.** An unset `worktree_root` is not an error when another rung resolves: the helper may use `worktreeroot.path` or fall back to `<plugin-data-dir>/worktrees` from the value below, noting it on stderr and exiting 0. Exit 3 means no usable root (none configured or supplied), a resolved root the containment guard rejects as inside a repository, **or** (on Windows) a root on a different drive from the repo, including the unconfigured plugin-data-dir default. Surface the helper's guidance and stop; a silent in-repo fallback is the nesting regression this closes.
 - **Scripts directory (resolved): `${CLAUDE_PLUGIN_ROOT}/scripts`.** The `context/` files call it `<scripts-dir>`; substitute this resolved absolute path before any of their commands reaches Bash. Claim: `${CLAUDE_PLUGIN_ROOT}` expands in this file but stays literal in a `context/` file read via `Read`, and the Bash tool's environment does not carry it (a command with the literal token exits 127 from `/scripts/...`). Basis: two headless `claude -p` runs on a disposable `--plugin-dir` plugin, which quoted the token back from the skill body and from a context file, then ran the context file's Bash line. As-of: 2026-09-29, Claude Code 2.1.284. Recheck trigger: a Claude Code release note that changes plugin-variable substitution or the Bash tool environment, or a run of the same probe showing the token expanded in a context file.
 - **Plugin data directory: `${CLAUDE_PLUGIN_DATA}`**. THIS FILE is the only surface where that token expands (a `context/` file is read as raw bytes and carries it literally, and a Bash-tool subprocess's environment copy is not per-plugin). Pass the resolved path to the helper's `--data-root-file` flag through the same `Write`-tool temp file channel as the root above, so an unconfigured `worktree_root` still resolves outside every repository. If the token arrives unexpanded, the helper detects it and refuses rather than creating a literally-named directory.
@@ -169,29 +161,10 @@ Periodic health check for worktree infrastructure, suitable as a recurring track
 
 ### The nesting invariant, dated measurement
 
-**This section is the sole owner of the mechanism claim.** Every other statement of it in this plugin is a pointer here. It is a *dated measurement*, not a standing fact. Read the expiry below before relying on it.
-
-The eager double-load this invariant was first written against (CLAUDE.md, commands, agents, and rules all loading twice from a nested worktree) was fixed upstream in Claude Code v2.1.69, so that basis no longer holds. What replaces it, measured on 2.1.224: from a session inside a nested worktree, a read matching a `paths:` glob emits one `path_glob_match` naming the **parent** checkout's rule file, loading it alongside the worktree's own copy, both charged at roughly their own size. The same read from an externally-placed worktree emits zero such events. **That 2.1.224 measurement is disputed, not refuted:** a counter-reproduction on 2.1.227 did not observe the leak, and neither original run disclosed its fixture. An authenticated run of `fixtures/nesting-invariant-probe.sh` on **2.1.285** (2026-09-30) adjudicated the current CLI: the leak **does not reproduce**. From a dot-nested and from a plain-nested worktree, the read emits no `path_glob_match` for the owning parent checkout's rule file, and the external control emits none, with 5 `InstructionsLoaded` events on each arm (no fixture failure). Whether the leak was real on 2.1.224 cannot be re-run on that version and stays disputed, not refuted. See `fixtures/README.md`.
-
-**Three control arms narrow what the invariant rests on.** On 2.1.285 the owning-parent leak is absent on both the dot-nested and the plain-nested placement, so placement relative to the worktree's own parent no longer changes what loads. A worktree nested inside an **unrelated** repository still picks up that repository's rules: its scoped rule loaded via `path_glob_match`, and on every arm the enclosing checkout's `CLAUDE.md` and unconditional rules loaded at `session_start`, including the external arm, whose workdir sat inside an unrelated checkout. Session-start ancestor traversal therefore reaches a **different** repository, which is the surface the placement convention now rests on, so a change to it is a recheck trigger in its own right. **Arm-by-arm status**, so a fix to one arm does not silently weaken another:
-
-| Arm | Status |
-|---|---|
-| the owning-parent leak exists at all | **not reproduced on 2.1.285** (dot-nested, plain-nested and external all show no owning-parent rule); the 2.1.224 claim stays disputed, not refuted |
-| not specific to `.claude/worktrees/` | **moot on 2.1.285**: dot-nested and plain-nested behave identically (no owning-parent leak) |
-| **nested in an unrelated repo is worse** | **supported for scoped rules on 2.1.285**: the enclosing repository's scoped rule loaded via `path_glob_match`. The `session_start` half is not isolated by that run: the fixture's unrelated repository had no `CLAUDE.md` or unconditional rule |
-| lazy, not eager (no triggering read → no load) | untested |
-
-Basis: an `InstructionsLoaded` hook trace, which names loaded files rather than inferring them from token deltas, passed via `claude -p --settings <file>` because project-scope hooks in an unapproved `settings.json` do not run headlessly. **The fixture is the adjudicator**. Creation mechanism, launch mode, the exact `paths:` glob and its anchoring root, and whether the parent's rule file was committed all change the outcome, and none of them was recorded for either original run. `fixtures/nesting-invariant-probe.sh` fixes all of them and is the recheck procedure; `fixtures/README.md` records what it has and has not established, run by run.
-
-On hook registration: use the `args`-array **exec form** here, per <https://code.claude.com/docs/en/hooks> (raw markdown, fetched 2026-08-11). "Set `args` whenever the hook references a path placeholder, since each element is passed as one argument with no quoting." Both forms are documented with no event-specific carve-out, and this plugin's own `hooks/hooks.json` registers its hooks in the single-string form and they fire. Still unprobed, and therefore stated as unknown: whether the single-string form fires for an `InstructionsLoaded` hook supplied via `claude -p --settings <file>`.
-
-Upstream coverage: [#16600](https://github.com/anthropics/claude-code/issues/16600) is the live issue. OPEN, labeled `enhancement` and `memory`, asking that memory traversal respect worktree boundaries. It concerns **memory files**; the same trace found those handled correctly on 2.1.224, so the surface still leaking is path-scoped rules, which no open upstream issue covers. That "handled correctly" is a **null result from this same trace**, not a release-note fact, no 2.1.224 changelog line covers memory, worktree, or rule loading, and that changelog scan is packet-sourced and has not been re-run.
-
-**Verification stamp** ([upstream-drift convention](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/upstream-drift/README.md)), as-of **2026-09-30**, last adjudicated measurement on **2.1.285**, from an authenticated `fixtures/nesting-invariant-probe.sh` run (Linux, first-party login):
-
-- **Recheck triggers (event).** A Claude Code release note naming worktree rule-file loading or path-scoped rule resolution; `#16600` changing state; or the suppression rule above changing, since the placement convention rests on it.
-- **Unconditional expiry.** **2.1.305, or 2026-12-29. Whichever comes first.** Both event triggers are known to be incapable of firing on their own: `#16600` has not changed state since well before this as-of date, and an opaque release stanza ("Bug fixes and reliability improvements", 2.1.226) cannot fire an event-keyed trigger at all. An expiry is the only trigger that fires without upstream cooperation. On expiry, run `fixtures/nesting-invariant-probe.sh` under an **authenticated** CLI and refresh this stamp with the outcome. Drift or no drift. A zero-event run is a fixture failure, not a null.
+Worktrees stay outside every repository's tree. The measured basis, its disputed arms, the
+verification stamp and its unconditional expiry are owned by
+[reference/nesting-invariant.md](reference/nesting-invariant.md); read it before relying on
+or changing the placement rule.
 
 ## Boundary, the built-in `EnterWorktree` and `ExitWorktree` tools
 

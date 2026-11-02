@@ -239,6 +239,9 @@ jobs:
       # docs-only pull request medium and held it for a person; a review with
       # no findings binds to the head and scores low.
       docs-only-paths: ''
+      # Copies scripts/sync-shared-copies.sh generates, read at the merge base:
+      # identical changes to copies of one source are read once, hooks included.
+      generated-copies: scripts/shared-copies.txt
       # A hold adds this label and a `claude-lane-hold` marker comment; ci-status
       # fails while the label is on. The review holds only for a real-charge
       # cost or a CRITICAL security finding; hold-paths names the files the
@@ -342,6 +345,7 @@ jobs:
         .github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs
         .github/scripts/work-resolve-issue/stop-routes.json
         .github/scripts/work-resolve-issue/stop-routes.mjs
+        .github/scripts/work-resolve-issue/known-names.json
         .github/scripts/lib/stop-reason.mjs
         .github/scripts/lib/admission-comment.mjs
         .github/scripts/lib/done-evidence.mjs

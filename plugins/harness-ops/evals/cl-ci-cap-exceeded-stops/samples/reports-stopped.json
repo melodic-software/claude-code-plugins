@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "ci-plan: .work/claude-code-changelog/2.1.250..2.1.261/ci-plan.json\nstatus: stopped"
+    },
+    {
+      "answer": "- `ci-plan: .work/x/ci-plan.json`\n- `status: stopped`",
+      "why": "list and code spans"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ci-plan: .work/claude-code-changelog/2.1.250..2.1.261/ci-plan.json\nstatus: planned",
+      "why": "wrong status"
+    },
+    {
+      "answer": "The run stopped at the cap.",
+      "why": "no status line"
+    }
+  ]
+}
