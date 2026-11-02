@@ -1165,7 +1165,7 @@ class TestBootstrapStub(unittest.TestCase):
         self.assertEqual(block["modules"], 1)
         self.assertEqual(block["unparsed"], [])
 
-    def test_an_unparseable_module_still_reads_every_name(self) -> None:
+    def test_an_unparsable_module_still_reads_every_name(self) -> None:
         target = _require_live(self)
         for body, used in ((b"", False), (b"var =;", True)):
             with self.subTest(body=body):
