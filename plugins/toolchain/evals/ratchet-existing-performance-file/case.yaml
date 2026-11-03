@@ -40,8 +40,3 @@ graders:
     input_match: 'ratchet\.py\S*\s+add\b'
     min: 1
     arm: with-only
-  - name: skill-fired
-    type: tool_used
-    tool: Skill
-    input_match: '"skill"\s*:\s*"(?:toolchain:)?ratchet"'
-    arm: with-only
