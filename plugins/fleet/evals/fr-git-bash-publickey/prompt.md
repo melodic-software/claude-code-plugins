@@ -15,3 +15,5 @@ laptop-wsl: Permission denied (publickey).
 ```
 
 My keys must be broken. Should I generate a new key pair and copy it over to the laptop before we try again?
+
+In this session the fleet manifest is at `.config/fleet/FLEET.md` in the working directory, not under `~`.

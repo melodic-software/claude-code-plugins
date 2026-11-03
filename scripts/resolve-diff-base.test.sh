@@ -66,8 +66,8 @@ expect "a schedule run tests the whole tree" "" "A schedule run has no diff base
 resolve workflow_dispatch
 expect "a dispatch run tests the whole tree" "" "this workflow_dispatch run tests the whole tree."
 
-# A release bumps plugin manifests, so a group whose diff touches one tests the
-# whole tree, whatever else it changes.
+# A release bumps plugin manifests; a group whose diff touches one is scoped to
+# the queue's base like any other group.
 # commit_on_main <path>: commit a change to <path> on main.
 commit_on_main() {
   mkdir -p "$repo/$(dirname "$1")"
@@ -78,11 +78,11 @@ commit_on_main() {
 PRE="$(git -C "$repo" rev-parse HEAD)"
 commit_on_main plugins/demo/.claude-plugin/plugin.json
 resolve merge_group "$PRE"
-expect "a group that bumps a plugin manifest tests the whole tree" "" "plugins/demo/.claude-plugin/plugin.json"
+expect "a group that bumps a plugin manifest diffs against the queue's base" "$PRE" "the merge group's base"
 PRE="$(git -C "$repo" rev-parse HEAD)"
 commit_on_main .claude-plugin/marketplace.json
 resolve merge_group "$PRE"
-expect "a group that changes the marketplace manifest tests the whole tree" "" "this merge_group run tests the whole tree."
+expect "a group that changes the marketplace manifest diffs against the queue's base" "$PRE" "the merge group's base"
 PRE="$(git -C "$repo" rev-parse HEAD)"
 commit_on_main plugins/demo/hooks/hooks.json
 resolve merge_group "$PRE"

@@ -977,7 +977,44 @@ test("docs/husky.md, docs/lefthook.md and sub/lefthook.yml are not refused, and 
   }
 });
 
-for (const [path, refusal] of HOOK_PATHS) {
+// Every other file lefthook reads its config or hook scripts from; lefthook.yml
+// is in HOOK_PATHS.
+const LEFTHOOK_PATHS = [
+  "lefthook.yaml", "lefthook.toml", "lefthook.json", "lefthook.jsonc",
+  ".lefthook.yml", ".lefthook.yaml", ".lefthook.toml", ".lefthook.json", ".lefthook.jsonc",
+  "lefthook-local.yml", "lefthook-local.yaml", "lefthook-local.toml", "lefthook-local.json", "lefthook-local.jsonc",
+  ".lefthook-local.yml", ".lefthook-local.yaml", ".lefthook-local.toml", ".lefthook-local.json", ".lefthook-local.jsonc",
+  ".config/lefthook.yml", ".config/lefthook.yaml", ".config/lefthook.toml", ".config/lefthook.json", ".config/lefthook.jsonc",
+  ".config/lefthook-local.yml", ".config/lefthook-local.yaml", ".config/lefthook-local.toml", ".config/lefthook-local.json", ".config/lefthook-local.jsonc",
+  ".lefthook/pre-commit/x.sh",
+  ".lefthook-local/pre-push/x.sh",
+];
+const LEFTHOOK_LOOKALIKES = ["docs/lefthook-local.md", "sub/.lefthook-notes", "sub/lefthook.yaml", "sub/.lefthook/x", "sub/.config/lefthook.yml", ".lefthook-notes", "lefthook-local.md", "lefthook.yml.bak", ".config/sub/lefthook.yml"];
+
+test("the ci-context and review-threads rows refuse every lefthook config and script path, in any case and through any .. segment, and no other row does", () => {
+  const variants = ["LEFTHOOK.YAML", "a/../.LeftHook-Local.JSONC", ".Config/LeftHook.TOML", "x/../.config/lefthook-local.yml", ".LEFTHOOK/x", "A/../.LEFTHOOK-LOCAL/h"];
+  for (const path of [...LEFTHOOK_PATHS, ...variants]) {
+    for (const name of Object.keys(RULES)) {
+      const expected = name === "ci-context" || name === "review-threads" ? ["lefthook"] : [];
+      assert.deepEqual(refusalsOf(entry(path), RULES[name].refuse), expected, `${name} ${path}`);
+    }
+  }
+});
+
+test("paths that only look like lefthook's are refused on no row", () => {
+  for (const path of LEFTHOOK_LOOKALIKES) {
+    for (const name of Object.keys(RULES)) {
+      assert.deepEqual(refusalsOf(entry(path), RULES[name].refuse), [], `${name} ${path}`);
+    }
+  }
+});
+
+test("under the ci-context row a patch that writes paths that only look like lefthook's pushes", async (t) => {
+  const fix = threadPatch(t, LEFTHOOK_LOOKALIKES);
+  assert.equal((await pushWith(fix, fakeApi(fix.repo, fix.head), { row: row("ci-context") })).outcome, "pushed");
+});
+
+for (const [path, refusal] of [...HOOK_PATHS, ...LEFTHOOK_PATHS.map((path) => [path, "lefthook"])]) {
   for (const [name, reason, pushOn] of HOOK_ROWS) {
     test(`under the ${name} row a patch that writes ${path} is refused ${reason} before any API call`, async (t) => {
       const fix = repoWithPatch(t, (repo) => {

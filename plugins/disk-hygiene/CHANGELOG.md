@@ -3,6 +3,18 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.0] - 2026-11-03
+
+### Removed
+
+- The `check` skill is gone. To check this plugin's prerequisites, run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`. `/disk-hygiene:setup check` also covers the launcher registration and the interpreter ladder. `prerequisites.json` now declares Python, and the guard messages name the checker.
+
+## [0.50.7] - 2026-11-03
+
+### Changed
+
+- The `check` probe set drops `bash-format:check` from its competitors, because that skill is gone.
+
 ## [0.50.6] - 2026-11-03
 
 ### Changed

@@ -3,6 +3,20 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.0] - 2026-11-03
+
+### Added
+
+- implementer and scoped-implementer: one line telling the worker to write comments clean while
+  authoring (only what the code cannot say), and to document a test's steps in its assertion and
+  log strings.
+
+## [0.34.4] - 2026-11-03
+
+### Changed
+
+- The return contract (`/implementation:report`) caps a dispatched agent's whole final message at 4,096 bytes; detail that does not fit goes in the agent's artifact.
+
 ## [0.34.3] - 2026-11-02
 
 ### Changed

@@ -15,8 +15,7 @@
       "degrade": "Without playwright-cli, /playwright:playwright cannot drive a browser; it stops and asks for the install instead of substituting another surface.",
       "install": {
         "npm": "npm install -g @playwright/cli"
-      },
-      "check": "/playwright:check"
+      }
     },
     {
       "id": "python",
@@ -28,8 +27,7 @@
         "version": { "args": ["--version"], "pattern": "Python ([0-9.]+)", "min": "3.12" }
       },
       "degrade": "Without Python 3.12 or later the SessionStart hook cannot install numpy and Pillow, and /playwright:demo-video cannot build, render or quality-control a video.",
-      "install": { "docs": "https://www.python.org/downloads/", "brew": "python@3.13", "winget": "Python.Python.3.13", "apt": "python3" },
-      "check": "/playwright:check"
+      "install": { "docs": "https://www.python.org/downloads/", "brew": "python@3.13", "winget": "Python.Python.3.13", "apt": "python3" }
     },
     {
       "id": "ffmpeg",
@@ -38,8 +36,7 @@
       "for": ["skill:demo-video"],
       "detect": { "any": ["ffmpeg"] },
       "degrade": "Without ffmpeg /playwright:demo-video cannot encode the video or decode it for quality control.",
-      "install": { "docs": "https://ffmpeg.org/download.html", "apt": "ffmpeg", "brew": "ffmpeg", "winget": "Gyan.FFmpeg" },
-      "check": "/playwright:check"
+      "install": { "docs": "https://ffmpeg.org/download.html", "apt": "ffmpeg", "brew": "ffmpeg", "winget": "Gyan.FFmpeg" }
     },
     {
       "id": "ffprobe",
@@ -48,8 +45,7 @@
       "for": ["skill:demo-video"],
       "detect": { "any": ["ffprobe"] },
       "degrade": "Without ffprobe /playwright:demo-video cannot read narration clip durations or probe the rendered video.",
-      "install": { "docs": "https://ffmpeg.org/download.html", "apt": "ffmpeg", "brew": "ffmpeg", "winget": "Gyan.FFmpeg" },
-      "check": "/playwright:check"
+      "install": { "docs": "https://ffmpeg.org/download.html", "apt": "ffmpeg", "brew": "ffmpeg", "winget": "Gyan.FFmpeg" }
     },
     {
       "id": "node",
@@ -66,8 +62,7 @@
       "degrade": "Without node, playwright-cli (an npm package) cannot run and the bundled prerequisites checker only reports that node is missing, so /playwright:playwright cannot drive a browser.",
       "install": {
         "docs": "https://nodejs.org/en/download"
-      },
-      "check": "/playwright:check"
+      }
     },
     {
       "id": "gh",
@@ -87,8 +82,7 @@
         "brew": "gh",
         "winget": "GitHub.cli",
         "apt": "gh"
-      },
-      "check": "/playwright:check"
+      }
     }
   ]
 }

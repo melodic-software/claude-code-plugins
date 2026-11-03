@@ -75,10 +75,11 @@
 // An agent-ready issue left with nothing running is stranded: no hold, no open
 // lane pull request or open pull request of a listed human's for it, no
 // outcome marker since its newest agent-ready, and no work-resolve-issue run
-// for that label, or only one that ended with no report, over STRANDED_HOURS
-// ago. It is re-fired with the re-fire record below once per version of the
-// lane workflow files, and after that on a backoff (STRANDED_HOURS doubling
-// with each re-fire, at most BACKOFF_CAP_HOURS), recorded in one comment
+// for that label, or only one that ended with no report, over its cause's
+// limits.stranded-backoff-hours ago. It is re-fired with the re-fire record
+// below once per version of the lane workflow files, and after that on a
+// backoff (those hours doubling with each re-fire, at most
+// BACKOFF_CAP_HOURS), recorded in one comment
 // edited in place; it never gets needs-human. All share
 // limits.restarts-per-run.
 //
@@ -221,7 +222,10 @@
 // App or a listed human linked, not `recurring`, each open task-list item in
 // its body being one of those sub-issues: its `#N` alone or with that
 // sub-issue's title. A parent that stays open gets no comment here: admission
-// says why, in its one comment (readmitReady).
+// says why, in its one comment (readmitReady). One that admission parked on
+// SIZE_SPLIT_DONE, every sub-issue now closed as completed by a trusted close,
+// loses status: confirmed instead, so intake admits it for the issue lane's
+// one verified-done run (reenterFinished, #12456 class A).
 //
 // The App's admission comment on an open parent in no queue that waits on its
 // sub-issues alone (no blocker) is rewritten when it says only that the split
@@ -278,8 +282,9 @@ import { createGitHub, isTrustedClose as closedByHumanOrMerge, loadTrustedList, 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, LANE_HOLDS, LANE_WORKFLOWS, parseOutcomeMarker, REFIRED, refireComment as refireRecord, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
-import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorAdmitted, attendedHold, blockersOf, CONFIRMED, decide, deferralLapsed, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, SIZE_SPLIT_PENDING, specOf, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { readLimits, readWip, resolveStrandedBackoff, STRANDED_BACKOFF_MAX } from "../work-resolve-issue/limits.mjs";
+import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorAdmitted, attendedHold, blockersOf, CONFIRMED, confirmedOnly, decide, deferralLapsed, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, specOf, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { subIssueLeftOpen } from "../lib/done-evidence.mjs";
 import { clearedPastReport, retriageNote, doneReason, judgedSince, mergedRefsReader, splitLeftOpen, splitParentClosed } from "../intake-triage/admit.mjs";
 import { budgetLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createJobLogReader } from "./job-log.mjs";
@@ -323,8 +328,13 @@ const STEP_FAILED = /^\d{4}-\d\d-\d\dT[\d:.]+Z ##\[error\]Process completed with
 // minted; a MINT_STEP success with it skipped is a mint that stopped green.
 const STAGE_STEP = "Stage the activity from the base";
 // request-lane-token's notice when kill-switch-ok ends a kill-switch refusal
-// green with no token.
-const STOPPED = /^\d{4}-\d\d-\d\dT[\d:.]+Z ##\[notice\]lane-token-stopped: the broker refused the token because a lanes kill switch is on(?:,|$)/;
+// green with no token, at a mint or at broker-check's check.
+const STOPPED =
+  /^\d{4}-\d\d-\d\dT[\d:.]+Z ##\[notice\]lane-(?:token-stopped: the broker refused the token|check-stopped: the broker refused the check) because a lanes kill switch is on(?:,|$)/;
+// broker-check's step after BROKER_STEP that runs in issue mode exactly on
+// the broker's allow; a BROKER_STEP success with it skipped is a check that
+// stopped green.
+const LEASE_STEP = "Claim the issue with a lane lease";
 // The runner's markers around request-lane-token's one composite step, its
 // `Request the lane token` with id `request`; a STOPPED line counts only
 // between the job's first start marker and its end marker.
@@ -364,8 +374,6 @@ const IN_FLIGHT = ["queued", "in_progress", "waiting", "pending", "requested"];
 export const LOOKBACK_HOURS = 3;
 // The sweep reads from this long before the last good sweep started.
 export const SWEEP_MARGIN_MIN = 15;
-// How long an agent-ready issue may sit with no run working on it.
-export const STRANDED_HOURS = 3;
 // The marker issue's label: a listed human closing an issue that carries it
 // runs the sweep at once instead of waiting for the schedule (the hub reopens
 // and closes it after a rate-limit breaker clears). That sweep re-fires at
@@ -380,8 +388,10 @@ export const SWEEP_LABEL = "work-unblock-sweep";
 // last edit.
 const INFRA = /^<!-- work-unblock infrastructure ([0-9a-f]{40}-[0-9a-f]{40}) -->/;
 // The longest wait between backoff re-fires.
-export const BACKOFF_CAP_HOURS = 24;
-const backoffDue = (since, refires) => since + Math.min(STRANDED_HOURS * 2 ** refires, BACKOFF_CAP_HOURS) * HOUR_MS;
+export const BACKOFF_CAP_HOURS = STRANDED_BACKOFF_MAX;
+// When the next re-fire is due: `hours`, the cause's
+// limits.stranded-backoff-hours, doubled per re-fire so far.
+const backoffDue = (since, refires, hours) => since + Math.min(hours * 2 ** refires, BACKOFF_CAP_HOURS) * HOUR_MS;
 const DIMENSIONS = ["size", "complexity", "uncertainty"];
 
 // Whether the account that closed the issue (ACTOR_ID) and the one that
@@ -1184,11 +1194,13 @@ export const failedComment = ({ stops, run = "", onResumed = false }) =>
 const FAILED_CAUSE = `The work-resolve-issue run that \`${LABEL}\` started failed or was cancelled before it reported, or it stopped or the token broker refused it because its workflow files differ from main's.`;
 export const refireComment = (key, cause = FAILED_CAUSE) => refireRecord(key, cause);
 
-// Why a stranded issue has nothing running, as the comments say it.
+// Why a stranded issue has nothing running, as the comments say it, after
+// `hours` with nothing running.
+const hoursText = (hours) => `${hours} hour${hours === 1 ? "" : "s"}`;
 const strandedCause = {
-  "no-run": `No work-resolve-issue run started in the ${STRANDED_HOURS} hours since \`${LABEL}\` was last added.`,
-  "no-report": `The work-resolve-issue run that \`${LABEL}\` started ended over ${STRANDED_HOURS} hours ago with no report and no pull request.`,
-  "failed-again": `The work-resolve-issue run that \`${LABEL}\` started failed or was cancelled before it reported, over ${STRANDED_HOURS} hours ago.`,
+  "no-run": (hours) => `No work-resolve-issue run started in the ${hoursText(hours)} since \`${LABEL}\` was last added.`,
+  "no-report": (hours) => `The work-resolve-issue run that \`${LABEL}\` started ended over ${hoursText(hours)} ago with no report and no pull request.`,
+  "failed-again": (hours) => `The work-resolve-issue run that \`${LABEL}\` started failed or was cancelled before it reported, over ${hoursText(hours)} ago.`,
 };
 
 const MINT_CAUSE = `The work-resolve-issue run that \`${LABEL}\` started could not get its lane token, or the token broker's leave to run.`;
@@ -1250,7 +1262,8 @@ async function laneRuns(actions, repo, number, addedAt) {
 // log (`mint-failed`, which wins; the read runner resolve-issue calls has no
 // MINT_STEP, so its broker ask is the one the broker can fail), had the broker
 // refuse it for the kill switch at broker-check or a mint (failed, or stopped
-// green with its STOPPED notice), or had broker-check
+// green with its STOPPED notice: at broker-check, BROKER_STEP succeeded and
+// LEASE_STEP skipped), or had broker-check
 // skip its broker ask for the kill switch (`breaker`), was skipped by the WIP
 // cap (`capped`: pick-slot ran, resolve-issue did not), or was skipped by the
 // admit job's blocker gate (`blocked`: its BLOCKER_STEP ran and pick-slot did
@@ -1285,6 +1298,7 @@ async function didNoWork(jobsOf, refusalOf, runs) {
     const calls = RESOLVE_CALLS.flatMap(named);
     const killed = calls.some((job) => endedAt(job, KILL_STEP, "success") && endedAt(job, BROKER_STEP, "skipped"));
     const checked = calls.find((job) => failedAt(job, BROKER_STEP));
+    const checkStopped = calls.find((job) => job.conclusion === "success" && endedAt(job, BROKER_STEP, "success") && endedAt(job, LEASE_STEP, "skipped"));
     const minting = jobs.find((job) => failedAt(job, MINT_STEP));
     const stopped = jobs.find(stoppedAt);
     const capped =
@@ -1294,20 +1308,22 @@ async function didNoWork(jobsOf, refusalOf, runs) {
     const blocked =
       named("admit").some((job) => (job?.steps ?? []).some((step) => step?.name === BLOCKER_STEP && step.conclusion === "success")) &&
       named("pick-slot").every((job) => job.conclusion === "skipped");
-    // One log per run: broker-check's when it refused, else the first failed
-    // mint's, else the first stopped mint's.
+    // One log per run: broker-check's when it refused, failed or stopped
+    // green, else the first failed mint's, else the first stopped mint's.
     const refused = killed
       ? null
       : checked
         ? refusalOf(checked, "check")
-        : minting
-          ? refusalOf(minting, "token")
-          : stopped
-            ? refusalOf(stopped, "stop")
-            : null;
+        : checkStopped
+          ? refusalOf(checkStopped, "stop")
+          : minting
+            ? refusalOf(minting, "token")
+            : stopped
+              ? refusalOf(stopped, "stop")
+              : null;
     if (killed || (await refused) === BREAKER) {
-      atLeast("breaker", run, killed || checked ? "check" : "token");
-    } else if (minting || checked || stopped) {
+      atLeast("breaker", run, killed || checked || checkStopped ? "check" : "token");
+    } else if (minting || checked || checkStopped || stopped) {
       atLeast("mint-failed");
     } else if (capped) {
       atLeast("capped");
@@ -1648,10 +1664,11 @@ async function refireRefusal({ github, actions, jobLog, repo, number, issue, las
   const refiredOn = (marker, key) => marker.outcome === "refired" && !marker.breaker && marker.key === key;
   const relabeled = (marker) =>
     events.some((event) => isLabel(event, "labeled") && event.actor?.login === bot && Date.parse(event.created_at) >= marker.at);
+  const hoursFor = resolveStrandedBackoff(limits["stranded-backoff-hours"]);
   // A re-fire past the first on these workflow files waits longer each time
-  // (backoffDue from `since`), and its record is the one backoff comment,
-  // edited in place, never a new comment or a hold.
-  const backoff = (key, since, cause) => {
+  // (backoffDue from `since`, starting at `hours`), and its record is the one
+  // backoff comment, edited in place, never a new comment or a hold.
+  const backoff = (key, since, cause, hours) => {
     const first = Math.min(...markers.filter((marker) => refiredOn(marker, key)).map((marker) => marker.at));
     // Each breaker record's own re-add, the App's first after it (dated by
     // when it was posted), is that trip's, not this cause's; the backoff
@@ -1659,19 +1676,20 @@ async function refireRefusal({ github, actions, jobLog, repo, number, issue, las
     const adds = events.filter((event) => isLabel(event, "labeled") && event.actor?.login === bot);
     const trips = new Set(markers.filter((marker) => marker.breaker).map((marker) => adds.find((event) => Date.parse(event.created_at) >= marker.at)));
     const refires = adds.filter((event) => Date.parse(event.created_at) >= first && !trips.has(event)).length;
-    const due = backoffDue(since, refires);
+    const due = backoffDue(since, refires, hours);
     if (now < due) {
       return { reason: `re-fired ${refires} time(s) on workflow files ${key}; it is re-fired again after ${new Date(due).toISOString()}` };
     }
     const own = comments.filter((comment) => comment.user?.login === bot && INFRA.test(String(comment.body ?? ""))).at(-1);
     return { reason: null, resets: due, refire: key, recorded: true, infra: { id: own?.id, body: infraComment(key, cause, refires + 1) } };
   };
-  // An issue with nothing running since `since`: once STRANDED_HOURS have
+  // An issue with nothing running since `since`: once its cause's hours have
   // passed with no open lane PR and no open pull request of a listed human's
   // for it, re-fired, once per version of the lane workflow files and then on
   // a backoff.
   const stranded = async (since, why, cause) => {
-    if (now - since < STRANDED_HOURS * HOUR_MS) {
+    const hours = hoursFor[cause];
+    if (now - since < hours * HOUR_MS) {
       return { reason: why };
     }
     const open = (await lanePulls({ github, repo, number, bot })).find((item) => item.state === "open");
@@ -1685,9 +1703,9 @@ async function refireRefusal({ github, actions, jobLog, repo, number, issue, las
     const key = await workflowKey();
     const fired = markers.filter((marker) => refiredOn(marker, key));
     if (fired.some(relabeled)) {
-      return backoff(key, since, strandedCause[cause]);
+      return backoff(key, since, strandedCause[cause](hours), hours);
     }
-    return { reason: null, resets: since, refire: key, recorded: fired.length > 0, cause: strandedCause[cause] };
+    return { reason: null, resets: since, refire: key, recorded: fired.length > 0, cause: strandedCause[cause](hours) };
   };
   const { mine: runs, untitled } = await laneRuns(actions, repo, number, addedAt);
   if (runs.length === 0) {
@@ -1724,7 +1742,7 @@ async function refireRefusal({ github, actions, jobLog, repo, number, issue, las
     // kill switch off, so it re-fires now; a mint trip ran the model and
     // waits like any failed mint.
     const clamp = stalled === "breaker" && stage === "check" ? 0 : limits["reset-clamp-min"];
-    const due = over >= 0 ? backoffDue(ended, over) : ended + clamp * HOUR_MS;
+    const due = over >= 0 ? backoffDue(ended, over, hoursFor["kill-switch"]) : ended + clamp * HOUR_MS;
     if (now < due) {
       const why = stalled === "breaker" ? `the broker refused its lane run for the lanes kill switch (trip ${trips + 1})` : "its lane run did no work";
       return { reason: `${why}; it is re-fired after ${new Date(due).toISOString()}` };
@@ -1742,7 +1760,7 @@ async function refireRefusal({ github, actions, jobLog, repo, number, issue, las
     // attempt, and the cap and restarts-per-run bound it.
     const fired = markers.filter((marker) => refiredOn(marker, key)).length;
     if (stalled === "mint-failed" && !recorded && fired >= limits["limit-stops-per-issue"]) {
-      return backoff(key, ended, MINT_CAUSE);
+      return backoff(key, ended, MINT_CAUSE, hoursFor["failed-mint"]);
     }
     const trip = stalled === "breaker" ? { run: refused.id, ended: Date.parse(refused.updated_at) || ended } : undefined;
     return { reason: null, resets: due, refire: key, recorded, stall: stalled, trip };
@@ -2032,12 +2050,12 @@ async function isTrustedClose(github, repo, issue, humans, bot) {
 // For each issue in `closed` (on the sweep, only one a listed human or a
 // merge closed), closes its split parent when it is done (closeSplitParent).
 // Returns how many reads or writes failed.
-async function closeSplitParents({ github, repo, closed, sweep, humans, bot }) {
+async function closeSplitParents({ github, repo, closed, sweep, humans, bot, mirror = noMirror }) {
   const closes = new Map();
   let failed = 0;
   for (const number of closed) {
     try {
-      await closeSplitParent({ github, repo, number, humans, closes, bot, sweep });
+      await closeSplitParent({ github, repo, number, humans, closes, bot, sweep, mirror });
     } catch (error) {
       failed += 1;
       reportError(number, error);
@@ -2048,19 +2066,20 @@ async function closeSplitParents({ github, repo, closed, sweep, humans, bot }) {
 
 // Closes the open parent of issue `number` once its split is finished
 // (closeDoneParent).
-async function closeSplitParent({ github, repo, number, humans, closes, bot, sweep }) {
+async function closeSplitParent({ github, repo, number, humans, closes, bot, sweep, mirror }) {
   if (!(await github("GET", `/repos/${repo}/issues/${number}`))?.parent_issue_url || (sweep && !(await trustedClose({ github, repo, number, humans, closes, bot })))) {
     return;
   }
-  await closeDoneParent({ github, repo, parent: await github("GET", `/repos/${repo}/issues/${number}/parent`), humans, closes, bot });
+  await closeDoneParent({ github, repo, parent: await github("GET", `/repos/${repo}/issues/${number}/parent`), humans, closes, bot, mirror });
 }
 
 // On the sweep, the open issues (`listed`) whose sub_issues_summary shows
 // every sub-issue completed, whose number is the UTC hour of `now` modulo 24,
 // at most `cap` of them in listing order, each read fresh and closed when its
 // split is finished (closeDoneParent): a parent whose last sub-issue closed
-// outside the sweep window. Returns how many reads or writes failed.
-async function rescanSplitParents({ github, repo, listed, humans, bot, cap, now }) {
+// outside the sweep window, or one admission parked that now re-enters
+// (reenterFinished). Returns how many reads or writes failed.
+async function rescanSplitParents({ github, repo, listed, humans, bot, cap, now, mirror = noMirror }) {
   const hour = new Date(now).getUTCHours();
   const done =(item) => (item.sub_issues_summary?.total ?? 0) > 0 && item.sub_issues_summary.completed === item.sub_issues_summary.total;
   const due = listed.filter((item) => done(item) && Number(item.number) % 24 === hour);
@@ -2072,7 +2091,7 @@ async function rescanSplitParents({ github, repo, listed, humans, bot, cap, now 
   let failed = 0;
   for (const item of due.slice(0, cap)) {
     try {
-      await closeDoneParent({ github, repo, parent: await github("GET", `/repos/${repo}/issues/${item.number}`), humans, closes, bot });
+      await closeDoneParent({ github, repo, parent: await github("GET", `/repos/${repo}/issues/${item.number}`), humans, closes, bot, mirror });
     } catch (error) {
       failed += 1;
       reportError(item.number, error);
@@ -2084,8 +2103,8 @@ async function rescanSplitParents({ github, repo, listed, humans, bot, cap, now 
 // Closes `parent` (an issue as just read), as completed and with one comment
 // first, when it is open here and its split is finished (admit.mjs
 // splitLeftOpen, owner Q93, which checks every sub-issue's close). Its body is
-// never edited.
-async function closeDoneParent({ github, repo, parent, humans, closes, bot }) {
+// never edited. One that stays open may re-enter intake (reenterFinished).
+async function closeDoneParent({ github, repo, parent, humans, closes, bot, mirror = noMirror }) {
   if (parent?.state !== "open" || !NUMBER.test(String(parent.number)) || !String(parent.repository_url ?? "").toLowerCase().endsWith(`/repos/${repo}`.toLowerCase())) {
     return;
   }
@@ -2105,6 +2124,7 @@ async function closeDoneParent({ github, repo, parent, humans, closes, bot }) {
   const leftOpen = await splitLeftOpen({ github, repository: repo, issue: parent, comments, children, isApp: (actor) => actor?.login === bot, humans, trusted });
   if (leftOpen) {
     console.log(`label-unblocked: #${parent.number} stays open: ${leftOpen}`);
+    await reenterFinished({ github, repo, parent, comments, children, trusted, bot, mirror });
     return;
   }
   if (!comments.some((comment) => comment.user?.login === bot && String(comment.body ?? "").startsWith(SPLIT_CLOSED))) {
@@ -2114,6 +2134,24 @@ async function closeDoneParent({ github, repo, parent, humans, closes, bot }) {
   }
   await github("PATCH", base, { state: "closed", state_reason: "completed" });
   console.log(`label-unblocked: split parent #${parent.number} closed as completed`);
+}
+
+// Takes status: confirmed off `parent` (an open issue as read, with its
+// `comments` and sub-issues `children`) when admission parked it on
+// SIZE_SPLIT_DONE and every sub-issue now counts as done (subIssueLeftOpen,
+// `trusted` judging each close): decide admits such a finished parent for the
+// issue lane's one verified-done run, so intake-reenter sends it to intake, as
+// unpark does. Any other park stays, a verify-unmet one included: that run's
+// park rewrote the admission comment. Returns whether it wrote.
+async function reenterFinished({ github, repo, parent, comments, children, trusted, bot, mirror }) {
+  const parkedDone = comments.some((comment) => comment.user?.login === bot && String(comment.body ?? "").startsWith(ADMIT_MARKER) && String(comment.body).includes(SIZE_SPLIT_DONE));
+  if (!parkedDone || !confirmedOnly(labelNames(parent).map((name) => name.toLowerCase())) || children.length === 0 || (await subIssueLeftOpen(children, trusted, repo)) !== null) {
+    return false;
+  }
+  await github("DELETE", `/repos/${repo}/issues/${parent.number}/labels/${encodeURIComponent(CONFIRMED)}`);
+  await mirror(parent.number, change(labelNames(parent), [], [CONFIRMED]));
+  console.log(`label-unblocked: #${parent.number} ${CONFIRMED} removed: every sub-issue closed as completed, so intake-reenter sends it to intake for one verified-done run`);
+  return true;
 }
 
 // The admission comment's text for a wait, before its reasons (sayWhy's callers).
@@ -2239,7 +2277,7 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     failed += await labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, appId: logins.get(bot), admission, mirror: mirrorTo });
     // Before readmitReady, so a split parent whose last sub-issue closed is
     // closed, not decided, on the sweep that sees that close.
-    failed += await closeSplitParents({ github, repo, closed, sweep, humans, bot });
+    failed += await closeSplitParents({ github, repo, closed, sweep, humans, bot, mirror: mirrorTo });
     if (sweep) {
       // One listing of the open issues, oldest updated first, for the parent
       // rescan and readmitReady.
@@ -2251,7 +2289,7 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
         failed += 1;
       }
       if (listed) {
-        failed += await rescanSplitParents({ github, repo, listed, humans, bot, cap: limits["parent-rescan-per-run"], now });
+        failed += await rescanSplitParents({ github, repo, listed, humans, bot, cap: limits["parent-rescan-per-run"], now, mirror: mirrorTo });
         failed += await readmitReady({ github, repo, listed, humans, bot, gate, appId: logins.get(bot), admission, cap: limits["readmit-per-run"], now, mirror: mirrorTo });
       }
       failed += await restartLimited({ github, actions, jobLog, repo, bot, humans, now, limits, status, mirror: mirrorTo });

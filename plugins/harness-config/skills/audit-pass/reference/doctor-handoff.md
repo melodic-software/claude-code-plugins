@@ -126,6 +126,12 @@ When the operator does run `/doctor` and brings its output back, it lands in the
 section and **carries no idempotence property at all**, neither the derived tier's exact equality
 nor the judged tier's stability tolerance.
 
-The reason is structural rather than a matter of trust: `/doctor` is a prompt-based bundled skill,
-and a prompt-based delegate cannot contribute to a determinism gate. Including it in either property
-would make the gate report a stability the run does not have.
+The reason is structural rather than a matter of trust: a model-run delegate cannot contribute to
+a determinism gate, and including it in either property would make the gate report a stability the
+run does not have.
+
+- **Pointer**: when deciding whether `/doctor` still runs as a model-driven skill, fetch
+  [skills: check your setup with `/doctor`](https://code.claude.com/docs/en/skills#check-your-setup-with-doctor)
+  live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section stops listing `/doctor` among the bundled skills, or moves.

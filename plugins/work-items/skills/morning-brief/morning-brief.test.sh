@@ -1289,10 +1289,21 @@ EOF
 cat >"$REST/$(rest_key "$R/issues/50/comments?per_page=100").json" <<'EOF'
 [{"body": "<!-- harness-ops:lane-telemetry marker=lane:babysit -->\n- lane: babysit\n- last-cycle: 2026-07-20T06:30Z\n- flags: none"}]
 EOF
-# Lanes, live: only intake-triage.yml of the default lane set exists; one run
-# in the window, failed on the limit, read through its job's annotations.
+# Lanes, live: ci.yml is not a default lane workflow and is dropped. The
+# intake-triage run in the window failed on the limit, read through its job's
+# annotations.
 cat >"$REST/$(rest_key "$R/actions/workflows?per_page=100").json" <<'EOF'
-{"total_count": 3, "workflows": [{"path": ".github/workflows/intake-triage.yml"}, {"path": ".github/workflows/ci.yml"}, {"path": ".github/workflows/pr-unblock.yml"}]}
+{"total_count": 4, "workflows": [{"path": ".github/workflows/intake-triage.yml"}, {"path": ".github/workflows/ci.yml"}, {"path": ".github/workflows/pr-unblock.yml"}, {"path": ".github/workflows/pr-review-main.yml"}]}
+EOF
+# pr-review-main: a default lane workflow; one passing run with no records.
+cat >"$REST/$(rest_key "$R/actions/workflows/pr-review-main.yml/runs?created=>=2026-07-13&per_page=100").json" <<'EOF'
+{"total_count": 1, "workflow_runs": [{"id": 99, "html_url": "http://x/runs/99", "event": "push", "display_title": "main", "head_sha": "p1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T00:00:00Z"}]}
+EOF
+cat >"$REST/$(rest_key "$R/actions/runs/99/jobs?per_page=100").json" <<'EOF'
+{"total_count": 1, "jobs": [{"id": 990, "name": "review-handoffs"}]}
+EOF
+cat >"$REST/$(rest_key "$R/check-runs/990/annotations?per_page=100").json" <<'EOF'
+[]
 EOF
 # pr-unblock: one run whose first job, a reusable-workflow job with no
 # annotations, must not name the activity; the second job carries the record.
@@ -1322,6 +1333,8 @@ OUT_REST="$(run_stub rest)"
 RC_REST=$?
 assert_contains "rest: lanes read live, keeping only lane workflows that exist" "$(section "$OUT_REST" "== Lanes")" \
   "intake-triage.yml  runs=1  failed=1 [rate-limit 1, max-turns 0, auth 0, other 0]  limit-stops=1  restarts=0"
+assert_contains "rest: pr-review-main.yml is a default lane workflow" "$(section "$OUT_REST" "== Lanes")" \
+  "pr-review-main.yml  runs=1  failed=0 [rate-limit 0, max-turns 0, auth 0, other 0]  limit-stops=0  restarts=0"
 assert_contains "rest: the activity comes from the caller job of the job that carries the record" "$(section "$OUT_REST" "== Lanes")" \
   "    pr-unblock / resolve-conflicts  profile=unknown  runs=1  pass=1/1  median-turns=7  max-turns-hits=0  models=claude-sonnet-5"
 assert_exit "rest: renders with the stranded section unreadable (exit 6)" 6 "$RC_REST"
@@ -1926,6 +1939,9 @@ jq -n '{total_count: 200, workflow_runs: [range(200) as $i | {id: (1000 + $i), h
   >"$KEY_LIVE/$(rest_key "$R/actions/workflows/intake-triage.yml/runs?created=>=2026-07-13&per_page=100").json"
 jq -n '{total_count: 3, workflow_runs: [range(3) as $i | {id: (901 + $i), html_url: "http://x/runs/\(901 + $i)", event: "workflow_dispatch", display_title: "Fix #\(901 + $i)", head_sha: "q\($i)", status: "completed", conclusion: "success", created_at: "2026-07-18T0\($i):00:00Z"}]}' \
   >"$KEY_LIVE/$(rest_key "$R/actions/workflows/pr-unblock.yml/runs?created=>=2026-07-13&per_page=100").json"
+# pr-review-main has no run here, so only the two lanes above share the cap.
+printf '{"total_count": 0, "workflow_runs": []}\n' \
+  >"$KEY_LIVE/$(rest_key "$R/actions/workflows/pr-review-main.yml/runs?created=>=2026-07-13&per_page=100").json"
 # Every intake run has one job with a rate-limit annotation, so the row counts
 # exactly the runs the cap left unread. pr-unblock's message carries a forged
 # second record in its free text, which only the first record of a message

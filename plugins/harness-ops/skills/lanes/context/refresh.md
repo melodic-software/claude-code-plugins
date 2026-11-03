@@ -77,16 +77,14 @@ lane_launch_commit="$(cat "$data_dir/lanes/$repo_key/<lane>-launch-commit" 2>/de
 [[ -n "$lane_launch_commit" ]] && git log --oneline "${lane_launch_commit}..${default}" -- plugins/harness-ops/
 ```
 
-**`data_dir` comes from SKILL.md, not from the environment.** Per current
-[plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables),
-`${CLAUDE_PLUGIN_DATA}` is exported as a real environment variable only to hook
-processes and MCP/LSP server subprocesses; for a plugin's **skill and agent
-content** it instead resolves by inline substitution "Anywhere in the Markdown
-body". The dated record for that export claim is SKILL.md, the `--data-dir`
-note under "Action Router". Both facts cut against resolving it here: this reference file is read
-raw rather than rendered as skill content (so a placeholder written here would
-not substitute), and the probe runs through the Bash tool (so the env var is
-unset there). An env-var-with-fallback expression would therefore have silently
+**`data_dir` comes from SKILL.md, not from the environment.** This reference
+file is read raw rather than rendered as skill content, and the probe runs
+through the Bash tool, so neither an inline placeholder written here nor the
+environment is relied on for the path. Where the variable is substituted and
+where it is exported is read live from
+[plugin manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
+(as of 2026-11-03; recheck when that table changes where `CLAUDE_PLUGIN_DATA`
+resolves). An env-var-with-fallback expression here would have silently
 resolved to the unqualified `~/.claude/plugins/data/harness-ops` guess, missed
 the marketplace-qualified directory Claude Code actually uses, read no marker,
 and skipped the staleness check without saying so. SKILL.md, which *is* skill

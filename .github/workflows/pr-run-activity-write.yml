@@ -69,6 +69,15 @@ on:
         required: false
         type: string
         default: ""
+      verify-close:
+        description: >-
+          Issue mode, report-outcome: the sub-issue numbers, comma-joined,
+          of a finished parent (each closed as completed by a trusted close,
+          as the caller's admit job read them), which a verified-done stop
+          needs before it closes the issue. Empty otherwise.
+        required: false
+        type: string
+        default: ""
       dimension-skip:
         description: >-
           Issue mode, report-outcome: the issue-dimension skip reason
@@ -624,6 +633,7 @@ jobs:
           PATCH_BASE_SHA: ${{ inputs.patch-base-sha }}
           PATCH_RESUME_TIP: ${{ inputs.patch-resume-tip }}
           DIMENSION_SKIP: ${{ inputs.dimension-skip }}
+          VERIFY_CLOSE: ${{ inputs.verify-close }}
           PATCH_PREPARE: ${{ inputs.patch-prepare }}
           PATCH_MERGE_BASE_SHA: ${{ inputs.patch-merge-base-sha }}
           PATCH_MERGE_STATE: ${{ inputs.patch-merge-state }}
@@ -669,6 +679,12 @@ jobs:
           if [ -n "$DIMENSION_SKIP" ] && { [ -z "$ISSUE_NUMBER" ] ||
             ! [[ $DIMENSION_SKIP =~ ^(split-required|research-first|probe-first|outside-author|workflow-stale)$ ]]; }; then
             echo "::error::dimension-skip must be an issue-dimension skip reason, outside-author or workflow-stale, in issue mode"
+            exit 1
+          fi
+          # A finished parent's sub-issues are issue numbers, only in issue mode.
+          if [ -n "$VERIFY_CLOSE" ] && { [ -z "$ISSUE_NUMBER" ] ||
+            ! [[ $VERIFY_CLOSE =~ ^[1-9][0-9]{0,9}(,[1-9][0-9]{0,9})*$ ]]; }; then
+            echo "::error::verify-close must be comma-joined issue numbers, in issue mode"
             exit 1
           fi
           if ! [[ $APP_SENDER_ID =~ ^[1-9][0-9]*$ ]]; then
@@ -1645,7 +1661,7 @@ jobs:
         if: >-
           steps.lane-token.outputs.token != '' && steps.config.outputs.kind == 'skill'
         continue-on-error: true
-        uses: anthropics/claude-code-action@d535f5172dec02b204866b393d6b20b9b2aaf98d # v1.0.266
+        uses: anthropics/claude-code-action@4845bacbb38b3c4b15d948f035349786f678e068 # v1.0.267
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
           # MCP subprocesses and gives Bash its own PID namespace, so /proc
@@ -2048,6 +2064,8 @@ jobs:
           RUNNER_CHECKS: ${{ inputs.runner-checks }}
           # Checked against the skip reasons by the job's first step.
           DIMENSION_SKIP: ${{ inputs.dimension-skip }}
+          # Checked as issue numbers by the job's first step.
+          VERIFY_CLOSE: ${{ inputs.verify-close }}
           # Issue mode only; report-outcome counts only `true`.
           COLLECT_REFUSED: ${{ inputs.issue-number != '' && inputs.collect-refused || '' }}
           # review-replies only; empty otherwise.

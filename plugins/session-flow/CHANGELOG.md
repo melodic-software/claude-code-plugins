@@ -1,5 +1,32 @@
 # Changelog: session-flow plugin
 
+## [6.2.0] - 2026-11-03
+
+### Added
+
+- workflow: the pre-PR sequence's simplify step ends with a comment pass over the comments the
+  change adds (`/code-tidying:remove-comments --pipeline` when that plugin is enabled), in `report`
+  mode when unattended unless the project pre-approves comment edits there.
+
+### Changed
+
+- The handoff structure reference, `/session-flow:clean-stop`, `/session-flow:recommend-skills`,
+  `/session-flow:reconcile` and `/session-flow:running-retro` no longer restate upstream behavior
+  (which task tools exist and what `/clear` removes, the transcript path, how `git status` and
+  `git worktree remove` treat ignored files, the plugin cache layout, why a finished worker stays
+  listed, what the on-disk transcript records, and when a `/loop` stops firing). Each keeps its own
+  rule and links the upstream section with an as-of date and a recheck trigger.
+
+## [6.1.0] - 2026-11-03
+
+### Changed
+
+- `/session-flow:workflow`'s explore stage no longer asks before investigating a file that is
+  missing from disk. It first runs `git status` and `git log` on that path, both read-only.
+  A staged or committed delete counts as intentional: the stage skips it and says so. A file
+  deleted only in the working tree is investigated. The stage asks only when neither command names
+  the path or a command fails.
+
 ## [6.0.0] - 2026-11-03
 
 ### Removed

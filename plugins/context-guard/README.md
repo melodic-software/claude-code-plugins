@@ -120,8 +120,14 @@ suggestion, the line goes to Claude as in automatic mode: `-p` and SDK turns, `/
 turns, task notifications, a session with no drawing surface, and a suggestion the session reports
 it cannot show. A suggestion that was shown but not taken goes to Claude as the ordinary line at
 the next turn no person started (a `--bg` launch turn reads as typed, so its suggestion can go
-unseen); the next typed turn instead drops it unsent. Claude Code offers no way to withdraw a
-shown suggestion, so it stays in the box after that hand-off.
+unseen); the next typed turn instead drops it unsent. The module never withdraws a shown
+suggestion, so it stays in the box after that hand-off.
+
+- **Pointer**: when checking whether a mod can clear a suggestion it showed, fetch
+  [mods reference: mods API methods](https://code.claude.com/docs/en/plugins/mods/reference#mods-api-methods)
+  live.
+- **As of**: 2026-11-03.
+- **Recheck trigger**: the `$.prompt` row gains a method that clears or withdraws a suggestion.
 
 Which apps draw the band's site, `AbovePrompt`, is upstream's render-sites table to say. No probe
 of this plugin ran in the Desktop app or VS Code.
@@ -143,15 +149,21 @@ turns it on. It shows `context-guard: <zone> <n>%` above the prompt, the zone fi
 shows it, and `context-guard: -` before the first response. Claude can
 call `mcp__context-guard__status` for the exact figures from the last API response, the zone,
 whether a compaction degraded the evidence, and the bands. Where the session
-refuses the tool's registration (an organization policy can refuse a user mod's tools), the module
-logs one debug line saying so, and the lines, band and writes carry on.
+refuses the tool's registration, the module logs one debug line saying so, and the lines, band and
+writes carry on.
+
+- **Pointer**: when checking what can refuse a mod or its registrations, fetch
+  [Troubleshoot a mod: refusal messages](https://code.claude.com/docs/en/plugins/mods/troubleshoot#refusal-messages)
+  live.
+- **As of**: 2026-11-03.
+- **Recheck trigger**: that section, or the built-in guard's messages beside it, changes which
+  refusals apply to a mod's tool registration.
 
 ### Prompt-cache status-line segment (optional)
 
-The main conversation's prompt-cache state reaches only a status line: a mod's
-`$.session.usage()` carries no cache expiry, so the band row cannot show it without guessing the
-lifetime, which depends on plan and usage-credit state a mod cannot read. `scripts/cache-line.mjs`
-reads the status line's `prompt_cache` object and prints one segment:
+The band row shows no prompt-cache state; this optional status-line segment is the only place the
+plugin shows it. `scripts/cache-line.mjs` reads the status line's `prompt_cache` object and prints
+one segment:
 
 ```text
 cache ● warm until 14:32 (1h) · hit 91%
@@ -162,13 +174,22 @@ It shows the expiry as a clock time, not a countdown, because Claude Code re-run
 when a warm cache expires; no `refreshInterval` is needed. It prints nothing before the first
 response, covers the main conversation only (subagents and workflows have their own, shorter
 lifetime the object leaves out), and does not appear in cloud or `-p` sessions, where a status line
-does not run. `NO_COLOR` turns its color off. A plugin cannot add a status-line segment, so
+does not run. `NO_COLOR` turns its color off. The plugin leaves your `statusLine` setting to you:
 `/context-guard:setup apply cache-line` copies the script to `~/.claude/context-guard/cache-line.mjs`
 and prints the `statusLine` edit for you to paste, built by the script's `--wire` mode: your existing
-command runs first through `--after`, and your other `statusLine` keys stay. It never writes your settings. Pointer: for the
-object's fields, see
-[Prompt cache fields](https://code.claude.com/docs/en/statusline#prompt-cache-fields). As of:
-2026-10-10. Recheck trigger: that section renames a field the script reads.
+command runs first through `--after`, and your other `statusLine` keys stay. It never writes your settings.
+
+- **Pointer**: when checking the fields the script reads, fetch
+  [Prompt cache fields](https://code.claude.com/docs/en/statusline#prompt-cache-fields) live; when
+  checking where the `statusLine` edit goes, fetch
+  [Manually configure a status line](https://code.claude.com/docs/en/statusline#manually-configure-a-status-line)
+  live; when checking which settings a plugin may set, fetch
+  [manifest reference: settings](https://code.claude.com/docs/en/plugins/manifest-reference#settings)
+  live; when checking what cache state a mod can read, fetch
+  [mods API methods](https://code.claude.com/docs/en/plugins/mods/reference#mods-api-methods) live.
+- **As of**: 2026-11-03.
+- **Recheck trigger**: the prompt-cache section renames a field the script reads, the manifest's
+  `settings` section adds `statusLine`, or the `$.session` row's `usage()` gains cache state.
 
 The plugin sends no keep-warm requests: each one spends usage to save a rebuild that may never
 come. For the lifetime rules and the settings that change them, see
@@ -226,7 +247,8 @@ beside `context_window`:
 - `zone` is `smart`, `acceptable`, `dumb` or `unknown`. It is computed from the bands below, and is
   `dumb` once the session was compacted.
 - `bands` are the edges after `zones.json`. The token edges are for the session's window class, and
-  are `null` when the token shape is not computable.
+  are `null` when the token shape is not computable. Under a lowered auto-compact window `bands`
+  also holds `auto_compact_window`, and the percentage edges are already scaled to it.
 - Treat a `captured_at` older than 10 minutes as `unknown`.
 - With no file, or a file without these keys (an older plugin version), use your own fallback.
 
@@ -275,9 +297,15 @@ its event through unchanged.
   live. **As of**: 2026-10-11. **Recheck trigger**: that table changes, or its section is renamed
   or removed. The trigger itself is
   operator-tunable, per model as well as globally; the reader contract's tunable
-  table records which surfaces we rely on and where to read the rest. Bands
-  belong **below** whatever it resolves to, normalized into the percentage shape, so the session
-  reaches a boundary decision before the harness compacts for it. After the auto-compact window is
+  table records which surfaces we rely on and where to read the rest. The module's percentage
+  bands follow it: it reads the window the engine settled on (the `/context` breakdown's
+  `rawMaxTokens`, whichever of the variable, a setting or a per-model value set it), and when that
+  window is smaller than the model's it scales the percentage edges, the `thresholds` and the
+  approach margin by the ratio, so `zones.json` percentages are of the auto-compact window. The
+  token bands measure occupancy and stay as set. No hand retune of `zones.json` is needed for a
+  lowered window; undo one made before this release, or it applies twice. The fallback resolver
+  `scripts/context-zone.sh` cannot see the window and still measures against the full one, so a
+  reader takes the snapshot's published `zone` and `bands`. After the auto-compact window is
   lowered, we never read `used_percentage` as a forecast of when compaction will run. **Pointer**:
   when deciding what the percentage is measured against, fetch
   [environment variables: variables](https://code.claude.com/docs/en/env-vars#variables) live.
@@ -334,10 +362,15 @@ Defender real-time protection, and a timeout caps a stalled hook without speedin
 /plugin install context-guard@melodic-software
 ```
 
-Install at user scope (the default), so every session on the machine writes its snapshot. Nothing
-needs wiring. `/context-guard:setup check` reports whether the mod runs and what each option is set
-to; `/context-guard:setup apply` seeds `~/.claude/context-guard/zones.json` from the shipped bands
-when you want a file to tune.
+Install at user scope, so every session on the machine writes its snapshot. Nothing needs wiring.
+`/context-guard:setup check` reports whether the mod runs and what each option is set to;
+`/context-guard:setup apply` seeds `~/.claude/context-guard/zones.json` from the shipped bands when
+you want a file to tune.
+
+- **Pointer**: when checking which scope an install without `--scope` uses, fetch
+  [plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install) live.
+- **As of**: 2026-11-03.
+- **Recheck trigger**: that section changes the default of `--scope`.
 
 ## Requirements
 

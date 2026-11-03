@@ -43,7 +43,7 @@
         {
           "tool": "Skill",
           "input": {
-            "skill": "code-tidying:audit-comment-residue"
+            "skill": "code-tidying:remove-comments"
           }
         }
       ],

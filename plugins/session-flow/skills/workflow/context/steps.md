@@ -31,8 +31,17 @@ Structured local codebase exploration: read the relevant code, git history, file
 dependencies. Understand current state before changing anything.
 
 - Survey breadth-first (glob/grep), confirm the files the change touches, then read those in full
-- When files referenced in git status or history don't exist on disk, ask before investigating.
-  They may be intentionally deleted
+- When code, `git status` or history references a file that is not on disk, probe before any
+  investigation the task did not ask for. Run
+  `git --no-optional-locks status --porcelain -- <path>` and
+  `git log --oneline -1 --diff-filter=D -- <path>`, each its own read-only call. A status line
+  decides first; the deleting commit counts only when status prints nothing:
+  - **Intentional**: a staged removal (`D` in the first status column), or no status line and a
+    commit that deleted the path. Skip investigating it and say so, citing the status line or
+    commit
+  - **Unexplained**: deleted only in the working tree (`D` in the second status column).
+    Investigate it like any other file in scope
+  - **Not settled**: neither probe names the path, or a probe fails. Ask before investigating
 - **Effort:** reading and surveying code with no change made
 
 ## 2. Research

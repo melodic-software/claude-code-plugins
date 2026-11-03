@@ -5,6 +5,23 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.8] - 2026-11-03
+
+### Changed
+
+- The `/plugin-quality:audit` command, config and hook lenses and its recurring-concerns checklist
+  no longer restate upstream behavior (what a command file and a skill each produce, where a
+  `sensitive` value is stored, which plugin `settings.json` keys take effect, how LSP entries
+  fail, what a hook matcher matches, and whether `.claude/` is protected). Each keeps its own check
+  and links the upstream section with an as-of date and a recheck trigger. The LSP check now
+  validates each `.lsp.json` entry against the `lspServers` field table.
+
+## [0.18.7] - 2026-11-03
+
+### Changed
+
+- The return contract (`/plugin-quality:report`) caps a dispatched agent's whole final message at 4,096 bytes; detail that does not fit goes in the agent's artifact.
+
 ## [0.18.6] - 2026-11-02
 
 ### Changed

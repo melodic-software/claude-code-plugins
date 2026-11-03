@@ -2,10 +2,9 @@
   "skill": "disk-hygiene:clean",
   "plugin": "disk-hygiene",
   "skill_dir": "plugins/disk-hygiene/skills/clean",
-  "ranking_note": "Authored from the before descriptions at commit 0ad858ec054897c381bfed3e652d4236535a69a3, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are disk-hygiene:audit (delegated, report-only scan), disk-hygiene:check (prerequisite check), repo-hygiene:clean (one repository's caches, build output and git metadata), harness-ops:audit-install-state (~/.claude inventory) and machine-health:audit (workstation health report). Boundary: on main, clean's trigger list includes 'audit this directory' and other plain user requests to find junk or reclaim space, while audit's triggers are delegation-phrased (an orchestrator or subagent scan, a report-only snapshot), so plain user audit and find-junk requests are labeled clean positives and delegated report-only scans are clean negatives. Product-own prune commands (docker, npm) and OS-managed roots are excluded by the description and labeled negative.",
+  "ranking_note": "Authored from the before descriptions at commit 0ad858ec054897c381bfed3e652d4236535a69a3, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are disk-hygiene:audit (delegated, report-only scan), repo-hygiene:clean (one repository's caches, build output and git metadata), harness-ops:audit-install-state (~/.claude inventory) and machine-health:audit (workstation health report). Boundary: on main, clean's trigger list includes 'audit this directory' and other plain user requests to find junk or reclaim space, while audit's triggers are delegation-phrased (an orchestrator or subagent scan, a report-only snapshot), so plain user audit and find-junk requests are labeled clean positives and delegated report-only scans are clean negatives. Product-own prune commands (docker, npm) and OS-managed roots are excluded by the description and labeled negative.",
   "competitors": [
     "disk-hygiene:audit",
-    "disk-hygiene:check",
     "repo-hygiene:clean",
     "harness-ops:audit-install-state",
     "machine-health:audit"

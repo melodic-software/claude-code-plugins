@@ -3,6 +3,26 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.0] - 2026-11-03
+
+### Removed
+
+- The `check` skill is gone. To check this plugin's prerequisites, run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`. `prerequisites.json` now declares `CONTEXT7_API_KEY` and the Context7 MCP server.
+
+## [0.8.8] - 2026-11-03
+
+### Fixed
+
+The lookup skill's CLI reference no longer says `ctx7 skills` is still runnable or that `CONTEXT7_API_KEY` is required for `ctx7 skills generate`: the installed CLI has neither `skills` nor `generate`. The guidance never to run `ctx7 setup` or `ctx7 skills install` stays across the lookup and setup skills, reworded so it does not claim the second works.
+
+## [0.8.7] - 2026-11-03
+
+### Changed
+
+- On an ambiguous library match, the lookup workflow queries the top two candidates' docs and picks the one that answers the question, naming the rejected runner-up; it asks the user only when both answer equally well (#12589).
+
+- **`/context7:lookup` synced to upstash/context7 `ceaf5f9`.** The vendored `context7-cli` baseline is refreshed, and `metadata.upstream-version` names that commit. Its new `ctx7 search` command is not ported: the current `ctx7` release does not have it, so the CLI reference records that with a recheck trigger, and lookups stay `ctx7 library`, then `ctx7 docs`.
+
 ## [0.8.6] - 2026-11-02
 
 ### Changed

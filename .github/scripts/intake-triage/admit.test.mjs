@@ -8,7 +8,7 @@ import { join } from "node:path";
 
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, DEFERRED_AHEAD_READS, PAID_EVAL, bodyUnpushablePaths, deferredAhead, refineDue, PATCH_ROW, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeEditsOf, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, isSplitParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, revisionWraps, splitParentClosed, titleWraps, unrunnableCriteria, untrustedHold, workCharges } from "./admit.mjs";
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, DEFERRED_AHEAD_READS, PAID_EVAL, bodyUnpushablePaths, deferredAhead, refineDue, PATCH_ROW, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeEditsOf, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, finishedParent, isSplitParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, revisionWraps, splitParentClosed, titleWraps, unrunnableCriteria, unrunnableRulesOf, issueUnrunnableRules, untrustedHold, workCharges } from "./admit.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 import { VERDICT_MARKER } from "./apply-verdict.mjs";
 import { TARGETS } from "../apply-patch/apply-patch.mjs";
@@ -923,9 +923,18 @@ describe("decide", () => {
         admitted(`## Problem\n\n1. A recommendation reuses a value (an address, account, subscription, region).\n\n${DONE}`);
       });
 
+      // A measured pass is a model eval run (unrunnable-rules.json `eval`), so
+      // it goes to the host queue, with no charge and no hold.
       test("model usage on a task line", () => {
-        admitted(`## Done when\n\n- [ ] Every change is backed by a valid measured pass on the subscription.`);
-        admitted(`## Done when\n\n- [ ] Every change is backed by a valid Measured Pass Run on the Subscription.`);
+        for (const body of [
+          `## Done when\n\n- [ ] Every change is backed by a valid measured pass on the subscription.`,
+          `## Done when\n\n- [ ] Every change is backed by a valid Measured Pass Run on the Subscription.`,
+        ]) {
+          const result = decide(facts({ issue: issueOf({ body }) }));
+          assert.equal(result.hostRun, true, body);
+          assert.equal(result.hold, undefined, body);
+          assert.doesNotMatch(result.reasons.join("; "), /charge/, body);
+        }
       });
 
       test("a heading in code opens no section", () => {
@@ -1059,6 +1068,29 @@ describe("decide", () => {
         }
       });
 
+      test("a plan change, a paid tier, another billing account or a stated keep period", () => {
+        for (const [item, found] of [
+          ["Upgrade the GitHub plan to Enterprise.", "github plan"],
+          ["Move the org to the GitHub Team plan.", "github team plan"],
+          ["Subscribe the org to a paid Cloudflare plan.", "paid cloudflare plan"],
+          ["Use the OpenAI API with a paid key for this lane.", "openai api, paid key"],
+          ["Create an AWS account for the e2e job.", "aws account"],
+          ["Route the lane through Vertex AI.", "vertex ai"],
+          ["Keep artifacts for 400 days.", "artifacts for 400 days"],
+          ["Store the logs for 2 years.", "logs for 2 years"],
+          ["Deploy the job to AWS.", "aws"],
+          ["Auto-deploy the stack to AWS.", "aws"],
+          ["Build/deploy the job on GCP.", "gcp"],
+          ["Deploy the job to AWS/GCP.", "aws, gcp"],
+          ["Migrate the runners to AWS-hosted machines.", "aws"],
+          ["Run the eval through Bedrock.", "bedrock"],
+          ["Move the lane to Google Cloud.", "google cloud"],
+          ["Subscribe to Cloudflare Pro.", "cloudflare pro"],
+        ]) {
+          assert.equal(inBody(`- [ ] ${item}`), found, item);
+        }
+      });
+
       test("a spend guard the work lowers or raises, with no cost word", () => {
         for (const item of ["Turn off the budget cap.", "Delete the spend cap.", "Raise the spending quota.", "Raise the cap on spend to $500."]) {
           assert.equal(inBody(`- [ ] ${item}`), "a spend guard", item);
@@ -1087,6 +1119,12 @@ describe("decide", () => {
 
       test("a title that drops a billing alert", () => {
         admitted(issueOf({ title: "chore: drop the billing alert" }));
+      });
+
+      test("a billing account or plan named without taking on a charge", () => {
+        for (const item of ["Fix the map-deployment reader for AWS stacks.", "Document the openai/codex review lane.", "Write the implementation plan for the GitHub lane.", "Write the GitHub implementation plan.", "Run the openai/codex review lane.", "Use the aws-sdk v3 client.", "Add an OpenAI-compatible client.","Add a Cloudflare DNS record.", "Remove the AWS stack reader.", "Trim the logs for 7 days.","Remove the OpenAI API key."]) {
+          admitted(issueOf({ body: `## Done when\n\n- [ ] ${item}` }));
+        }
       });
 
       test("a lane cap or budget that does not limit spend", () => {
@@ -2462,6 +2500,97 @@ describe("unrunnableCriteria", () => {
   });
 });
 
+// unrunnable-rules.json: rows tried after the built-in kinds, each routing to
+// the host queue, scored by the 2026-11-03 host-run predictor study.
+describe("unrunnable-rules.json", () => {
+  const STUDY = JSON.parse(readFileSync(new URL("./unrunnable-rules.vectors.json", import.meta.url), "utf8")).vectors;
+  const first = (line, rules) => unrunnableCriteria(`- [ ] ${line}`, "- [ ] ", HOSTS, rules).found[0]?.kind ?? null;
+  const doneWhen = (line) => issueOf({ body: `## Done when\n\n- [ ] ${line}` });
+
+  // Each study hit the rows or the built-in kinds flag goes to the host
+  // queue; a known miss and a false positive assert today's kind (the note
+  // says why), so a later change to either shows here.
+  for (const { issue, set, class: cls, line, kind, note } of STUDY) {
+    test(`#${issue} (${cls}, ${set}): ${note ?? "routes to the host queue"}`, () => {
+      assert.equal(first(line), kind, line);
+      if (kind !== null) {
+        const result = decide(facts({ issue: doneWhen(line) }));
+        assert.equal(result.hostRun, true, line);
+        assert.equal(result.hold, undefined, line);
+      }
+    });
+  }
+
+  test("a row's kind names the match in the refusal, after the built-in kinds", () => {
+    const reason = decide(facts({ issue: doneWhen("A comment on #6405 links the run.") })).reasons.join("; ");
+    assert.match(reason, /item 1 \(tracker-output: "A comment on #6405 links the run\."\)/);
+    assert.equal(first("A comment on this issue lists the machines done."), "a comment instead of a file change");
+    assert.equal(first("A comment on #6405 links the run.", []), null, "no rows, no row kinds");
+  });
+
+  test("an item only the eval row flags that names a billing account is a paid eval, held for the owner", () => {
+    const line = "Eval evidence of no loss, measured on Amazon Bedrock.";
+    assert.equal(first(line), PAID_EVAL);
+    const result = decide(facts({ issue: doneWhen(line) }));
+    assert.equal(result.hold, true);
+    assert.equal(result.hostRun, undefined);
+  });
+
+  // Review findings on #12628: an automation's or a conditional output stays
+  // with the lane, as the built-in comment kind leaves it, and eval words
+  // count only in eval context.
+  for (const line of [
+    "The workflow's results are reported on this issue.",
+    "When the check fails, a sub-issue is filed by the sweep.",
+    "The validator rejects invalid runs.",
+    "The `schedule` trigger runs the sweep.",
+    "A retrigger runs the failed job.",
+    "The move lands with no loss of git history.",
+  ]) {
+    test(`passes ${line}`, () => {
+      assert.equal(first(line), null);
+    });
+  }
+
+  // As the built-in comment kind does, a write that lands on this issue stays
+  // host work even when conditional, and a `by` names the poster only in the
+  // write's own clause or after it.
+  for (const line of ["Once the probe runs, its result is recorded on this issue.", "The counts gathered by the audit script are recorded on this issue."]) {
+    test(`flags ${line}`, () => {
+      assert.equal(first(line), "tracker-output");
+      const result = decide(facts({ issue: doneWhen(line) }));
+      assert.equal(result.hostRun, true);
+      assert.equal(result.hold, undefined);
+    });
+  }
+
+  test("`unless` clears a row's match", () => {
+    assert.equal(first("`claude plugin eval --validate` passes on the suite."), null);
+    assert.equal(first("The README says Windows host support is fully implemented."), null);
+  });
+
+  test("a missing, unreadable or malformed file fails admission closed", () => {
+    const dir = tempDir("admit-unrunnable-rules-");
+    const path = join(dir, "unrunnable-rules.json");
+    assert.throws(() => unrunnableRulesOf(path), /ENOENT/);
+    for (const [text, why] of [
+      ["{", /JSON/],
+      [JSON.stringify({}), /`rules` must list at least one row/],
+      [JSON.stringify({ rules: [] }), /`rules` must list at least one row/],
+      [JSON.stringify({ rules: [{ match: "x", unless: null }] }), /rules\[0\] needs a kind/],
+      [JSON.stringify({ rules: [{ kind: "k", unless: null }] }), /rules\[0\] `match` must be a pattern/],
+      [JSON.stringify({ rules: [{ kind: "k", match: "", unless: null }] }), /rules\[0\] `match` must be a pattern/],
+      [JSON.stringify({ rules: [{ kind: "k", match: "x" }] }), /rules\[0\] `unless` must be a pattern/],
+      [JSON.stringify({ rules: [{ kind: "k", match: "(", unless: null }] }), /Invalid regular expression/],
+      [JSON.stringify({ rules: [{ kind: "k", match: "x", unless: "[" }] }), /Invalid regular expression/],
+    ]) {
+      writeFileSync(path, text);
+      assert.throws(() => unrunnableRulesOf(path), why, text);
+    }
+    assert.ok(issueUnrunnableRules().length > 0);
+  });
+});
+
 // Host work goes to the host queue (`host-run`), parked at status: confirmed,
 // never to a person (docs/contracts/loop-lane/README.md, the three labels
 // that take work off the unattended path). Only a mixed issue lacking
@@ -2730,6 +2859,42 @@ describe("size split sub-issues", () => {
     assert.deepEqual(decide(facts({ issue: split, verdict: large })), { verdict: "refuse", reasons: [SIZE_SPLIT_DONE] });
     const unsplit = issueOf({ sub_issues_summary: { total: 0, completed: 0, percent_completed: 0 } });
     assert.deepEqual(decide(facts({ issue: unsplit, verdict: large })), { verdict: "wait", reasons: [SIZE_SPLIT_PENDING], pulls: [] });
+  });
+
+  // A finished parent (finishedParent: every sub-issue closed as completed by
+  // a trusted close) gets one verified-done run at any Size (#12456, class A);
+  // that run is the done-check a merged Refs pull request would park it for.
+  test("a finished parent at Size Large is admitted for its verify run; one with an open sub-issue still waits", () => {
+    const large = { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } };
+    const split = issueOf({ sub_issues_summary: { total: 2, completed: 2, percent_completed: 100 } });
+    assert.deepEqual(decide(facts({ issue: split, verdict: large, finished: true })), { verdict: "admit", reasons: [] });
+    assert.deepEqual(decide(facts({ issue: split, verdict: large, finished: true, doneBy: [77] })), { verdict: "admit", reasons: [] });
+    assert.equal(decide(facts({ issue: split, verdict: large, doneBy: [77] })).verdict, "refuse");
+    assert.deepEqual(decide(facts({ issue: split, verdict: large, subIssues: [{ number: 8, state: "open" }] })), { verdict: "wait", reasons: ["sub-issue #8 is open"], pulls: [] });
+  });
+
+  test("finishedParent names the sub-issues only when each is closed as completed by a trusted close", async () => {
+    const child = (number, extra = {}) => ({ number, state: "closed", state_reason: "completed", repository_url: "https://api.github.com/repos/o/r", ...extra });
+    const run = async (children, trusted = async () => true, summary = { total: children.length, completed: children.length }) => {
+      const calls = [];
+      const github = async (method, path) => {
+        calls.push(path);
+        return path.includes("/sub_issues") ? children : null;
+      };
+      return { found: await finishedParent({ github, repository: "o/r", issue: { number: 5, sub_issues_summary: summary }, trusted }), calls };
+    };
+    assert.deepEqual((await run([child(8), child(9)])).found, [8, 9]);
+    assert.equal((await run([child(8), child(9, { state_reason: "not_planned" })])).found, null, "class B: a not_planned sub-issue");
+    assert.equal((await run([child(8), child(9, { state: "open", state_reason: null })])).found, null, "an open sub-issue");
+    assert.equal((await run([child(8), child(9)], async (number) => number !== 9)).found, null, "an untrusted close");
+    // `trusted` reads a number in this repository, so a sub-issue elsewhere
+    // with the same number never borrows that close.
+    const elsewhere = await run([child(8), child(9, { repository_url: "https://api.github.com/repos/o/other" })]);
+    assert.equal(elsewhere.found, null, "a sub-issue in another repository");
+    assert.equal((await run([child(8), child(9, { repository_url: undefined })])).found, null, "a sub-issue with no repository_url");
+    const none = await run([], undefined, { total: 0, completed: 0 });
+    assert.equal(none.found, null);
+    assert.deepEqual(none.calls, [], "no sub-issue costs no read");
   });
 
   test("a parent waiting on an open sub-issue keeps its open pull requests, so admission-deferred stays", () => {

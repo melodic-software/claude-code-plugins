@@ -12,9 +12,9 @@
 //   node apply-prerequisite-resolution.mjs --repo <dir> --ratify --proposal <file>
 // Exit 0 = report / write ok; 1 = failure.
 
-import { readFileSync, writeFileSync, mkdirSync, statSync } from "node:fs";
-import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 

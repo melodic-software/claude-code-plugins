@@ -71,7 +71,8 @@
 //   included; one that names a billing account is a paid eval), a live
 //   Claude Code CLI run, a run repeated N times, a
 //   measurement over time, a comment on the issue instead of a file change,
-//   or a page on a host outside resolve-issue's web-access domains. When some
+//   a page on a host outside resolve-issue's web-access domains, or a row of
+//   .github/actions/resolve-config/unrunnable-rules.json. When some
 //   items are left for the lane and the issue lacks `host-run`, the refusal
 //   holds at needs-decision and recommends splitting those items off, which
 //   refine.mjs records; otherwise it parks at status: confirmed, adding
@@ -120,6 +121,7 @@ import { isDecisionComment, selectTrustedIssueComments } from "../../actions/sel
 import { PROTECTED_REFUSALS } from "../apply-patch/protected-paths.mjs";
 import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
 import { ADMIT_MARKER, refusalText, sayWhy as writeWhy } from "../lib/admission-comment.mjs";
+import { subIssueLeftOpen } from "../lib/done-evidence.mjs";
 
 export { ADMIT_MARKER, refusalText };
 import { closingPulls } from "../work-resolve-issue/report-outcome.mjs";
@@ -469,9 +471,12 @@ const EVAL_PATTERN = new RegExp(
 const SCRIPT_NOUN = String.raw`(?:workflow|script|lane|app|hook|skill|action|job|bot|sweep)`;
 const CONDITIONAL = /^\s*(?:if|when|whenever|unless|once)\b/i;
 const BY_SCRIPT = new RegExp(String.raw`^[^.;]*\bby (?:the )?(?:\S+\.(?:mjs|js|ts|sh|py|ps1)|(?:\S+ )?${SCRIPT_NOUN})\b`, "i");
+// The unrunnable-rules.json row whose eval item, naming a billing account, is
+// a paid eval too.
+const EVAL_RULE = "eval";
+// The built-in kinds; unrunnableCriteria tries a paid eval first, so a billed
+// eval on a named host still goes to the owner, and the rules rows last.
 const UNRUNNABLE = [
-  // First, so a billed eval on a named host still goes to the owner.
-  [PAID_EVAL, { test: (text) => EVAL_PATTERN.test(text) && BILLED.test(text) }],
   [
     "a run on a host the lane is not",
     /\b(?:on|from|in) (?:a |an |the |another |each )?(?:windows(?: 1[01])?|macos|mac|wsl2?|fleet|physical|desktop|remote|attended) (?:host|machine|workstation|laptop|desktop|box|vm)s?\b/i,
@@ -648,13 +653,18 @@ export const taskItems = (body, taskList) => {
 // perform, each item's text read as plainText. `webHosts` is resolve-issue's
 // web-access domains: "any" skips the URL check, an absent list allows only
 // GitHub and local hosts, and a `*.` entry allows that domain's subdomains.
-// Pure.
-export function unrunnableCriteria(body, taskList, webHosts) {
+// `rules` is unrunnableRulesOf's [kind, {test}] rows, tried after the
+// built-in kinds. Pure but for `rules`, read from unrunnable-rules.json when
+// not given; a file that does not read throws (issueUnrunnableRules).
+export function unrunnableCriteria(body, taskList, webHosts, rules = issueUnrunnableRules()) {
   const allowed = webHosts === "any" ? null : allowedBy([...GITHUB_HOSTS, ...(Array.isArray(webHosts) ? webHosts : [])].map((h) => h.toLowerCase()));
+  const evals = rules.filter(([kind]) => kind === EVAL_RULE);
+  const paid = { test: (text) => BILLED.test(text) && (EVAL_PATTERN.test(text) || evals.some(([, row]) => row.test(text))) };
+  const kinds = [[PAID_EVAL, paid], ...UNRUNNABLE, ...rules];
   const items = taskItems(body, taskList).map(({ text }) => plainText(text));
   const found = [];
   items.forEach((text, index) => {
-    let kind = UNRUNNABLE.find(([, pattern]) => pattern.test(text))?.[0];
+    let kind = kinds.find(([, pattern]) => pattern.test(text))?.[0];
     if (!kind && allowed) {
       // Clauses split on , ; and a colon that does not start ://.
       const outside = text
@@ -694,6 +704,39 @@ let pushRefusalNames;
 export function issuePushRefusals() {
   pushRefusalNames ??= pushRefusalsOf(new URL("../../actions/resolve-config/patch-rules.json", import.meta.url));
   return pushRefusalNames;
+}
+
+// [kind, {test}] for each `rules` row of the unrunnable-rules.json at `path`:
+// `match` finds the item and `unless`, when not null, does not. An empty
+// `rules`, a row without a kind or `match`, or a pattern that does not compile
+// throws, so admission fails closed rather than admit an item a row holds.
+export function unrunnableRulesOf(path) {
+  const { rules } = JSON.parse(readFileSync(path, "utf8"));
+  if (!Array.isArray(rules) || rules.length === 0) {
+    throw new Error(`${path}: \`rules\` must list at least one row`);
+  }
+  return rules.map((row, index) => {
+    const pattern = (key) => {
+      if (typeof row?.[key] !== "string" || row[key] === "") {
+        throw new Error(`${path}: rules[${index}] \`${key}\` must be a pattern`);
+      }
+      return new RegExp(row[key], "i");
+    };
+    if (typeof row?.kind !== "string" || row.kind === "") {
+      throw new Error(`${path}: rules[${index}] needs a kind`);
+    }
+    const match = pattern("match");
+    const unless = row.unless === null ? null : pattern("unless");
+    return [row.kind, { test: (text) => match.test(text) && !unless?.test(text) }];
+  });
+}
+
+let unrunnableRows;
+// unrunnableRulesOf the default branch's unrunnable-rules.json beside this
+// script, read once.
+export function issueUnrunnableRules() {
+  unrunnableRows ??= unrunnableRulesOf(new URL("../../actions/resolve-config/unrunnable-rules.json", import.meta.url));
+  return unrunnableRows;
 }
 
 let chargeWords;
@@ -766,6 +809,13 @@ const CHARGING =
 // A billing account admission reads as a charge beside the shared words, in
 // every clause the cost words count in.
 const ADMIT_CHARGES = /\bazure\b/gi;
+// Another billing account reads as a charge only in a clause that takes
+// something on (CHARGING): work often names these without paying them.
+// A name counts unless it opens a compound that is no account: `openai/codex`,
+// `aws-sdk`. A verb inside a compound still is the verb (`auto-deploy`), but
+// `deployment` is a noun.
+const ACCOUNT_CHARGES = /\b(?:aws|gcp|google cloud|openai|openrouter|bedrock)\b(?![-/](?:sdk|cli|compatible|codex)\b)/gi;
+const accountsTakenOn = (clause) => (CHARGING.test(clause.replace(/[-/]/g, " ").replace(/\bdeployments?\b/gi, "")) ? [...clause.matchAll(ACCOUNT_CHARGES)].map((m) => m[0].toLowerCase()) : []);
 const SAFEGUARD = /\b(?:spend(?:ing)?[- ](?:limits?|caps?)|caps?|budgets?|quotas?)\b/i;
 // The charge a clause that lowers or raises a guard on money (SPEND_LIMIT)
 // reads as when it names no cost word: changing one is the owner's call either
@@ -808,7 +858,8 @@ export function workCharges({ title, body }, charges, isPublic, taskList) {
         .flatMap(clausesOf)
         .filter((clause) => !lowersOnly(clause, charges, isPublic))
         .flatMap((clause) => {
-          const words = clauseCharges(clause, charges, isPublic);
+          const named = clauseCharges(clause, charges, isPublic);
+          const words = named.length > 0 ? named : accountsTakenOn(clause);
           return words.length === 0 && SPEND_LIMIT.test(clause) && (LOWERING.test(clause) || CHARGING.test(clause)) ? [SPEND_GUARD] : words;
         }),
     ),
@@ -1250,7 +1301,9 @@ export function admissionSettled(labels, events, isMark) {
 // (admissionFacts, chargeEditsOf) each refuse, and hold for a person unless
 // the read failed. Pure but for
 // `pushRefusals` and `charges`, read from patch-rules.json and
-// charge-words.json when not given; a file that does not read, or a
+// charge-words.json when not given, and unrunnable-rules.json
+// (unrunnableCriteria); a file that does not read, a malformed
+// unrunnable-rules.json (unrunnableRulesOf), or a
 // patch-rules.json row that refuses no protected path (pushRefusalsOf),
 // throws out of decide, so no issue is admitted on a guess.
 // `reported` (admissionFacts) maps a blocker the lanes App closed
@@ -1259,7 +1312,7 @@ export function admissionSettled(labels, events, isMark) {
 // issue waited for. Until a verdict written after that close judges the issue
 // against it, the wait carries `retriage` and admit() sends the issue back to
 // intake; once one has, the issue's own criteria decide.
-export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, reported = new Map(), pulls = [], subIssues = [], doneBy = [], events, spec, schedule, humans, appId, repository, webHosts, public: isPublic = false, pushRefusals = issuePushRefusals(), workflows = workflowFiles(), charges = chargePattern(), chargeEdits = [] }) {
+export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, reported = new Map(), pulls = [], subIssues = [], finished = false, doneBy = [], events, spec, schedule, humans, appId, repository, webHosts, public: isPublic = false, pushRefusals = issuePushRefusals(), workflows = workflowFiles(), charges = chargePattern(), chargeEdits = [] }) {
   const labels = names(issue.labels);
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
@@ -1316,10 +1369,12 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (verdict.dimensions?.size === "large" && !rules.sizes.includes("large")) {
     // An issue with sub-issues is split already (by intake or by hand): while
     // one is open it waits on them below, and once all are closed it is
-    // refused, so it never parks as split pending every sweep.
+    // refused, so it never parks as split pending every sweep. A finished
+    // parent (`finished`, finishedParent) is neither: the lane's one run
+    // checks its own done-when and builds nothing, so Size does not bound it.
     if (!((issue.sub_issues_summary?.total ?? 0) > 0)) {
       parked.push(SIZE_SPLIT_PENDING);
-    } else if (openSubs.length === 0) {
+    } else if (openSubs.length === 0 && !finished) {
       refuse.push(SIZE_SPLIT_DONE);
     }
   } else if (!rules.sizes.includes(verdict.dimensions?.size)) {
@@ -1439,8 +1494,9 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   }
   // A merged Refs pull request since the newest decision or refinement may
   // have done the work, so an agent checks it before a lane run repeats it;
-  // like any refusal no person must answer, it parks at status: confirmed.
-  if (doneBy.length > 0) {
+  // like any refusal no person must answer, it parks at status: confirmed. A
+  // finished parent's run is that check (verified-done).
+  if (doneBy.length > 0 && !finished) {
     refuse.push(doneReason(doneBy));
   }
   const wait = [];
@@ -2183,10 +2239,9 @@ export async function splitLeftOpen({ github, repository, issue, comments, child
   if (children.length === 0 || !(await isSplitParent({ github, repository, issue, comments, children, isApp, humans }))) {
     return "it is not a split parent";
   }
-  for (const child of children) {
-    if (child?.state !== "closed" || child.state_reason !== "completed" || !(await trusted(child.number))) {
-      return `sub-issue #${child?.number} is not closed as completed by a listed human or a merge`;
-    }
+  const childLeft = await subIssueLeftOpen(children, trusted, repository);
+  if (childLeft) {
+    return childLeft;
   }
   const taskList = baseTaskList();
   const record = filedRecord(comments, isApp);
@@ -2218,6 +2273,21 @@ export async function splitParentClosed({ github, repository, issue, isApp, huma
   const base = `/repos/${repository}/issues/${issue.number}`;
   const children = await paginate(github, `${base}/sub_issues`);
   return (await splitLeftOpen({ github, repository, issue, comments: await paginate(github, `${base}/comments`), children, isApp, humans, trusted })) === null;
+}
+
+// The numbers of the sub-issues of `issue` (as read, here) when it has any and
+// every one is closed as completed by a close `trusted(number)` accepts
+// (subIssueLeftOpen, the split parent's child rule), else null: a finished
+// parent, which the issue lane takes at any Size for one run that checks its
+// own done-when and closes it verified-done (#12456, class A). One sub-issue closed not_planned (class B, Q93) or open keeps it out.
+// The summary only skips the listing for an issue with no sub-issue; each
+// child's own state_reason decides. A failed read throws.
+export async function finishedParent({ github, repository, issue, trusted }) {
+  if (!((issue?.sub_issues_summary?.total ?? 0) > 0)) {
+    return null;
+  }
+  const children = await paginate(github, `/repos/${repository}/issues/${issue.number}/sub_issues`);
+  return children.length > 0 && (await subIssueLeftOpen(children, trusted, repository)) === null ? children.map((child) => Number(child.number)) : null;
 }
 
 // admissionFacts' `isTrusted` for admit(): issue `number` here was closed by
@@ -2304,6 +2374,7 @@ export async function admissionFacts({ github, repository, number, issue, rules,
   // A failed read throws, like the reads above, so no verdict rests on a
   // visibility it did not read (docs/outage-posture-audit.md, element 4).
   const isPublic = (await github("GET", `/repos/${repository}`))?.visibility === "public";
+  const subIssues = await openSubIssues(github, base, issue);
   return {
     issue,
     // Read for the admission comment's own earlier copy (sayWhy).
@@ -2315,7 +2386,8 @@ export async function admissionFacts({ github, repository, number, issue, rules,
     trustedCloses,
     reported,
     pulls: await openPullsFor(github, repository, number),
-    subIssues: await openSubIssues(github, base, issue),
+    subIssues,
+    finished: subIssues.length === 0 && (await finishedParent({ github, repository, issue, trusted })) !== null,
     doneBy: await (doneBy ?? mergedRefsReader({ github, repository, humans, appId }))(Number(number)),
     events: await paginate(github, `${base}/events`),
     public: isPublic,

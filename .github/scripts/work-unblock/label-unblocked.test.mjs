@@ -2733,6 +2733,81 @@ test("a green run whose kill-switch check did not run, or whose broker ask ran, 
   }
 });
 
+// broker-check passes kill-switch-ok, so a broker kill-switch refusal ends its
+// broker ask green with a `lane-check-stopped` notice, no allow, and the lease
+// step skipped; the run job skips and the run ends green. The log's shape is
+// saved run 41576258964's broker-check job, its composite step with id
+// broker.request.
+const checkStoppedLog = (line = "lane-check-stopped: the broker refused the check because a lanes kill switch is on, a designed stop; this run runs no lane and skips the rest") =>
+  [
+    "2026-11-03T04:35:21.1799019Z ##[group]Run ./.base/.github/actions/request-lane-token",
+    "2026-11-03T04:35:21.1800000Z ##[endgroup]",
+    "2026-11-03T04:35:21.2126706Z ##[start-action display=Request the lane token;id=broker.request]",
+    "2026-11-03T04:35:21.2130000Z ##[group]Run set -euo pipefail",
+    "2026-11-03T04:35:21.2140000Z ##[endgroup]",
+    `2026-11-03T04:35:22.4470871Z ##[notice]${line}`,
+    "2026-11-03T04:35:22.4521682Z ##[end-action id=broker.request;outcome=success;conclusion=success;duration_ms=1239]",
+    "",
+  ].join("\n");
+const CHECK_STOPPED = [
+  ADMITTED,
+  pickSlot,
+  {
+    id: BROKER_CHECK_ID,
+    name: "resolve-issue / broker-check",
+    conclusion: "success",
+    runner_id: 12,
+    started_at: "2026-10-16T10:01:00Z",
+    steps: [
+      { name: "Check the kill switch", conclusion: "success" },
+      { name: "Ask the broker whether the lane may run", conclusion: "success" },
+      { name: "Claim the issue with a lane lease", conclusion: "skipped" },
+    ],
+  },
+  { name: "resolve-issue / run", conclusion: "skipped", steps: [] },
+  { name: "report-outcome", conclusion: "skipped", steps: [] },
+];
+
+test("a green run whose broker ask the kill switch stopped is a breaker trip at broker-check, read from one log", async () => {
+  const logs = { [BROKER_CHECK_ID]: checkStoppedLog() };
+  const { github, actions, calls } = stalledRun({ jobs: CHECK_STOPPED, logs, conclusion: "success" });
+  assert.equal(await sweep({ github, actions }), 0);
+  tripped(calls);
+  assert.deepEqual(logReads(calls), [`GET /repos/${REPO}/actions/jobs/${BROKER_CHECK_ID}/logs`]);
+  // No model ran, so the first sweep after it ended re-fires it, as a check-stage trip.
+  const recent = stalledRun({ jobs: CHECK_STOPPED, logs, conclusion: "success", ended: "2026-10-16T11:58:00Z" });
+  assert.equal(await sweep({ github: recent.github, actions: recent.actions }), 0);
+  tripped(recent.calls);
+  // Past the failed-mint bound it still goes as a trip.
+  const pumped = stalledRun({ jobs: CHECK_STOPPED, logs, conclusion: "success", ...earlierPumps(3) });
+  assert.equal(await sweep({ github: pumped.github, actions: pumped.actions }), 0);
+  tripped(pumped.calls);
+});
+
+test("a green broker ask whose log does not carry the check-stop notice is a failed mint, never a breaker trip", async () => {
+  for (const [name, log] of [
+    ["a lookalike notice", checkStoppedLog("lane-check-stopped: the broker refused the check because a lanes kill switch is onward")],
+    ["the mint's notice text with the check's prefix", checkStoppedLog("lane-check-stopped: the broker refused the token because a lanes kill switch is on")],
+    ["a warning, not a notice", checkStoppedLog().replace("##[notice]", "##[warning]")],
+    ["no log", undefined],
+  ]) {
+    const { github, actions, calls } = stalledRun({ jobs: CHECK_STOPPED, logs: log === undefined ? {} : { [BROKER_CHECK_ID]: log }, conclusion: "success" });
+    assert.equal(await sweep({ github, actions }), 0, name);
+    assert.deepEqual(writes(calls), refired(30), name);
+  }
+});
+
+test("a broker ask that allowed, so its lease step ran, is no check stop and reads no log", async () => {
+  const [admit, slot, check, ...rest] = CHECK_STOPPED;
+  for (const conclusion of ["success", "failure"]) {
+    const ran = { ...check, steps: check.steps.map((step) => (step.name === "Claim the issue with a lane lease" ? { ...step, conclusion } : step)) };
+    const { github, actions, calls } = stalledRun({ jobs: [admit, slot, ran, ...rest], logs: { [BROKER_CHECK_ID]: checkStoppedLog() }, conclusion: "success" });
+    assert.equal(await sweep({ github, actions }), 0, conclusion);
+    assert.deepEqual(logReads(calls), [], conclusion);
+    assert.ok(!writes(calls).some(isBreakerRecord), conclusion);
+  }
+});
+
 test("a broker-check breaker trip is not re-fired while the issue lane is paused over its cap", async () => {
   for (const jobs of [BROKER_REFUSED, KILL_SKIPPED]) {
     const { github, actions, calls } = stalledRun({
@@ -2786,6 +2861,10 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
   const read = jobs(workflow("pr-run-activity-read.yml"));
   assert.ok(steps(read["broker-check"]).includes("Ask the broker whether the lane may run"));
   assert.ok(steps(read["broker-check"]).includes("Check the kill switch"));
+  // A green broker ask is a stop exactly when the lease step after it, which runs only on an allow, skipped.
+  const checkSteps = steps(read["broker-check"]);
+  assert.ok(checkSteps.indexOf("Claim the issue with a lane lease") > checkSteps.indexOf("Ask the broker whether the lane may run"));
+  assert.match(read["broker-check"], /^ {6}- name: Claim the issue with a lane lease\n {8}id: lease\n {8}if: inputs\.issue-number != '' && steps\.broker\.outcome == 'success' && steps\.broker\.outputs\.allowed == 'true'\n/m);
   assert.ok(read.run !== undefined);
   assert.ok(steps(read.run).includes("Stop on stale workflow files"));
   for (const id of ["broker-check", "run"]) {
@@ -4239,6 +4318,40 @@ test("the backoff between re-fires stops growing at 24 hours", async () => {
   assert.deepEqual(writes(calls), [`PATCH /repos/${REPO}/issues/comments/52 ${JSON.stringify({ body: infraComment(KEY, NO_RUN_CAUSE, 7) })}`, ...restarted(30)]);
 });
 
+// limits.stranded-backoff-hours sets each cause's wait: a shorter no-run
+// re-fires a label with no run after 1 hour, doubling from there, while a run
+// that ended with no report keeps the 3-hour default.
+test("a cause's stranded-backoff-hours shortens its wait and backoff; other causes keep 3 hours", async () => {
+  const limits = withLimits({ "stranded-backoff-hours": { "no-run": 1 } });
+  const oneHourCause = "No work-resolve-issue run started in the 1 hour since `agent-ready` was last added.";
+  // NOW is 2026-10-16T12:00:00Z: a label 1 h 0 min 1 s old with no run is re-fired.
+  const quick = failedRun({ runs: [], events: [added("2026-10-16T10:59:59Z", OWNER)] });
+  assert.equal(await sweep({ github: quick.github, actions: quick.actions }, limits), 0);
+  assert.deepEqual(writes(quick.calls), refiredFor(30, oneHourCause));
+  // The same label under the default waits.
+  const plain = failedRun({ runs: [], events: [added("2026-10-16T10:59:59Z", OWNER)] });
+  assert.equal(await sweep({ github: plain.github, actions: plain.actions }), 0);
+  assert.deepEqual(writes(plain.calls), []);
+  // A green run with no report that ended 2 hours ago still waits 3 hours.
+  const report = failedRun({ runs: [laneRun({ at: "2026-10-16T10:00:00Z", conclusion: "success" })], events: [added("2026-10-16T09:59:57Z", OWNER)] });
+  assert.equal(await sweep({ github: report.github, actions: report.actions }, limits), 0);
+  assert.deepEqual(writes(report.calls), []);
+  // After one re-fire the backoff doubles from 1 hour: 2 hours after the App's re-add.
+  const events = [
+    added("2026-10-16T06:00:00Z", OWNER),
+    { event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: "2026-10-16T08:00:00Z" },
+    added("2026-10-16T08:00:01Z"),
+  ];
+  const comments = [note(), refireNote(KEY, "2026-10-16T07:59:59Z")];
+  const early = failedRun({ runs: [], comments, events });
+  assert.equal(await sweep({ github: early.github, actions: early.actions, now: Date.parse("2026-10-16T10:00:00Z") }, limits), 0);
+  assert.deepEqual(writes(early.calls), []);
+  const due = failedRun({ runs: [], comments, events });
+  assert.equal(await sweep({ github: due.github, actions: due.actions, now: Date.parse("2026-10-16T10:00:02Z") }, limits), 0);
+  const body = infraComment(KEY, oneHourCause, 2);
+  assert.deepEqual(writes(due.calls), [`POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body })}`, ...restarted(30)]);
+});
+
 // A listed human's open pull request for the issue is work running on it, as
 // an open lane PR is: the issue is not stranded.
 test("a stranded issue with a listed human's open closing PR is left alone; an unlisted author's PR is not running work", async () => {
@@ -4376,6 +4489,37 @@ test("a split parent stays open, and a later sweep writes nothing, when a sub-is
     assert.equal(await sweep({ github }), 0);
     assert.equal(await sweep({ github }), 0);
     assert.deepEqual(writes(calls), [], String(reason));
+  }
+});
+
+// #12456 class A: a parent split by hand whose own task list is its
+// done-when (no split record, so no split parent), parked by admission on
+// SIZE_SPLIT_DONE. Once every sub-issue is closed as completed by a trusted
+// close, status: confirmed comes off, so intake admits it for one
+// verified-done run. A not_planned sub-issue (class B) or any other park
+// keeps it parked.
+const ownCriteria = { ...issue(30, { labels: ["status: confirmed"] }), body: "## Done when\n\n- [ ] The guide names every flag.\n- [ ] The tests cover each flag." };
+const parkedOn = (reason) => ({ id: 88, user: LANES_BOT, body: `${ADMIT_MARKER}\n${refusalText(reason)}`, created_at: STAMP });
+const reenterWrite = `DELETE /repos/${REPO}/issues/30/labels/status%3A%20confirmed`;
+
+test("a parent parked on split-done re-enters intake once its last sub-issue closes as completed", async () => {
+  const { github, calls } = splitWorld({ record: null, parent: ownCriteria, comments: [parkedOn(SIZE_SPLIT_DONE)] });
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writes(calls), [reenterWrite]);
+});
+
+test("a parent stays parked with a not_planned or open sub-issue, an untrusted close, or another park reason", async () => {
+  const outsider = { id: 4242, login: "someone-else", type: "User" };
+  for (const setup of [
+    { second: mergedSecond({ state_reason: "not_planned" }) },
+    { second: subIssue(32, { state: "open", closed_by: null }) },
+    { second: subIssue(32, { closed_by: outsider }) },
+    { comments: [parkedOn("the work-resolve-issue lane stopped on it (`verify-unmet`); the guide does not name --dry-run")] },
+    { parent: { ...ownCriteria, labels: [{ name: "status: confirmed" }, { name: "agent-ready" }] } },
+  ]) {
+    const { github, calls } = splitWorld({ record: null, parent: ownCriteria, comments: [parkedOn(SIZE_SPLIT_DONE)], ...setup });
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writes(calls), [], JSON.stringify(setup));
   }
 });
 

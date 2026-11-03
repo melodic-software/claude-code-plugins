@@ -18,6 +18,9 @@ const RESERVED_ACTIVITIES = new Set(["run", "report"]);
 // Model routes that are no activity: pr-verify.yml's judgment, the code and
 // security review lanes, and intake triage.
 const RUN_ROUTES = new Set(["verify-pr", "review-code", "review-security", "triage-issue", "summarize-reuse", "adjudicate-feedback"]);
+// What model-route accepts: the run routes, and resolve-issue for a model job that takes the issue
+// lane's code-change profile (the upkeep batch and the release intake lane).
+const MODEL_ROUTES = new Set([...RUN_ROUTES, "resolve-issue"]);
 // The profile every run takes in a config with no `models` block.
 const BUILTIN_MODELS = Object.freeze({
   profiles: { standard: { model: "opus", "max-turns": 75 } },
@@ -801,13 +804,13 @@ function checkRung(rung) {
   return rung ?? 0;
 }
 
-// The resolved profile of a run that is no lane activity (RUN_ROUTES), after
+// The resolved profile of a run that is no lane activity (MODEL_ROUTES), after
 // the same file checks as resolve().
 export function resolveRoute(files, { route, configPath }) {
-  if (!RUN_ROUTES.has(route)) {
+  if (!MODEL_ROUTES.has(route)) {
     throw new Rejection(
       "undefined-route",
-      `\`${route}\` is not a run route; one of ${[...RUN_ROUTES].join(", ")} is required`,
+      `\`${route}\` is not a run route; one of ${[...MODEL_ROUTES].join(", ")} is required`,
     );
   }
   return routeModels(loadConfig(files, { configPath }).models, route, files.roleMap);
@@ -977,6 +980,14 @@ const limitsOf = (limits = {}) => ({
   "fix-docs-per-run": limits["fix-docs-per-run"] ?? 2,
   "admission-factor": limits["admission-factor"] ?? 0.8,
   "admission-min-per-hour": limits["admission-min-per-hour"] ?? 1,
+  "stranded-backoff-hours": {
+    "no-run": 3,
+    "no-report": 3,
+    "failed-again": 3,
+    "failed-mint": 3,
+    "kill-switch": 3,
+    ...limits["stranded-backoff-hours"],
+  },
   // As set: rate-guard.mjs fills it from rate-limits.json beside it.
   api: limits.api ?? {},
 });

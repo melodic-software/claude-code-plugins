@@ -48,7 +48,7 @@ permission floor" in the same file.
 
 | Check | Severity | How to verify |
 | --- | --- | --- |
-| Deny rules are in settings.json, NOT settings.local.json | error | Bug [#8961](https://github.com/anthropics/claude-code/issues/8961): deny rules in local are silently ignored |
+| Deny rules are in settings.json, NOT settings.local.json | error | Put deny rules in `settings.json`; for why, read upstream issue [#8961](https://github.com/anthropics/claude-code/issues/8961) live (as of 2026-11-03; recheck when that issue closes) |
 | No blanket `Bash(git *)` in allow (too broad) | warning | Should be split into specific git operations |
 
 ### B.5 Completeness

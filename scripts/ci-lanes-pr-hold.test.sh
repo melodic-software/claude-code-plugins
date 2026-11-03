@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Runs the `Fail a lanes App pull request its body or a member holds` step body
+# Runs the `Fail a lanes App pull request on kill switch, hold path, verifier or veto` step body
 # of .github/workflows/pr-require-checks.yml's ci-status under the shell Actions
 # gives a step with no `shell:` (bash -e), against stub `gh` and `sleep`.
 #
 # Native auto-merge (pr-merge.yml's enable-auto-merge job) merges a lanes App
-# pull request without pr-merge's gate, so ci-status holds it on the holds
-# that gate honors: a body hold (a `Hold:` line or "do not merge"), a member's
-# newest comment saying not to merge, a changed or renamed-from path
-# matching the merge lane's denied paths, and a trusted-actor list change that
-# adds or widens an entry. It reads them live, on a pull
+# pull request without pr-merge's gate, so ci-status holds it on the kill
+# switch, a member's newest comment saying not to merge, a changed or
+# renamed-from path matching the merge lane's denied paths, and a trusted-actor
+# list change that adds or widens an entry. Body text holds nothing: the
+# do-not-merge label is the veto. It reads them live, on a pull
 # request event and in the merge queue, runs the base commit's
 # merge-holds.mjs, and fails closed when it cannot tell. In the merge queue it
 # also runs pr-merge's verdict reader (babysit_verify_evidence.py, stubbed
@@ -32,7 +32,7 @@ trap '[[ -z "$API_PID" ]] || kill "$API_PID" 2>/dev/null; rm -rf "$TMP_ROOT"' EX
 export RUNNER_TEMP="$TMP_ROOT"
 ci_gh_read::install "$WORKFLOW" "$TMP_ROOT" || fail "the ci-status gh_read helper step is missing or fails"
 
-NAME='Fail a lanes App pull request its body or a member holds'
+NAME='Fail a lanes App pull request on kill switch, hold path, verifier or veto'
 step="$(awk -v name="      - name: $NAME" '$0 == name { on = 1; print; next }
   on && /^      - / { exit }
   on { print }' "$WORKFLOW")"
@@ -331,7 +331,7 @@ export STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: [docs/held/**]\n  
 KYLE_VETO="$(comment kyle User MEMBER 2026-10-23T10:00:00Z 'Please do not merge this yet.')"
 
 STUB_PULL="$(pull 'Closes #1')"
-expect "a lanes App pull request with no hold passes" 0 3 "#7: no body hold, no member veto and no hold path"
+expect "a lanes App pull request with no hold passes" 0 3 "#7: no member veto and no hold path"
 STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
 expect "a person's pull request is left to pr-merge's gate, with no discussion read" 0 0 "not the lanes App's"
 STUB_PULL="$(pull 'Closes #1' '{"id":1,"login":"melodic-automation-lanes[bot]","type":"User"}')"
@@ -352,7 +352,7 @@ for user in '{"id":153232337,"login":"kyle-sexton","type":"User"}' '{"id":496993
   expect_pull_reads "a non-App payload author ($(jq -r .login <<<"$user")) reads no pull" 0
 done
 STUB_PULL="$(pull 'Closes #1')"
-expect "the lanes App's payload author goes on to the live read" 0 3 "#7: no body hold, no member veto and no hold path"
+expect "the lanes App's payload author goes on to the live read" 0 3 "#7: no member veto and no hold path"
 expect_pull_reads "the lanes App's pull request is read once" 1
 STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
 for payload in "STUB_AUTHOR_ID=" "STUB_AUTHOR_ID=x" "STUB_AUTHOR_TYPE="; do
@@ -586,11 +586,11 @@ for gated in "$restore" "$carry"; do
 done
 
 STUB_PULL="$(pull $'Closes #1\n\nHold: wait for the canary')"
-expect "a Hold: line in the body does not hold: do-not-merge is the veto" 0 3 "no body hold, no member veto and no hold path"
+expect "a Hold: line in the body does not hold: do-not-merge is the veto" 0 3 "no member veto and no hold path"
 STUB_PULL="$(pull $'Closes #1\r\n  hold: owner call')"
-expect "an indented, lower-case hold line after a CRLF does not hold" 0 3 "no body hold, no member veto and no hold path"
+expect "an indented, lower-case hold line after a CRLF does not hold" 0 3 "no member veto and no hold path"
 STUB_PULL="$(pull $'Closes #1\n\nDo not merge before Friday.')"
-expect "'do not merge' in the body does not hold" 0 3 "no body hold, no member veto and no hold path"
+expect "'do not merge' in the body does not hold" 0 3 "no member veto and no hold path"
 STUB_PULL="$(pull $'Closes #1\n\nThe threshold: unchanged')"
 expect "a line that only contains 'hold:' later does not hold" 0 3
 
@@ -651,7 +651,7 @@ STUB_PR_FILES="$(page '[["docs/guide.md"]]')" \
   expect "broker pages listing fewer files than changed_files fail closed" 1 0 "GitHub listed fewer files than #7 changes"
 expect_file_reads "the short broker pages are not read again" 0
 STUB_PULL="$(pull 'Closes #1')"
-STUB_PR_FILES="$(page '[["docs/guide.md"]]')" expect "clean broker pages pass" 0 3 "#7: no body hold, no member veto and no hold path"
+STUB_PR_FILES="$(page '[["docs/guide.md"]]')" expect "clean broker pages pass" 0 3 "#7: no member veto and no hold path"
 expect_file_reads "clean broker pages leave no files read" 0
 STUB_FILES='[["docs/held/a.md"]]' STUB_PR_FILES='not json' \
   expect "unparsable broker pages fall back to the live read" 1 3 "it changes docs/held/a.md, a hold path"
@@ -889,6 +889,17 @@ for refusal in verify:unreadable verify:too-old; do
 done
 STUB_NO_LISTING=1 STUB_EVIDENCE="$(jq -nc --arg head "$SHA" '{refusal: null, head: $head}')" \
   expect "in the merge queue, a reader that allows a head with no listing fails closed" 1 3 "::error::the verdict reader read no artifact listing for #7"
+# FAIL index mode (the legacy FAILs file beside the reader): the reader saves
+# no listing, so the head's pass names are read by exact name instead.
+: >"$TMP_ROOT/verify-legacy-fails.json"
+STUB_NO_LISTING=1 expect "in the merge queue in FAIL index mode, a pass at the head passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
+if [[ "$(lookups)" -ge 1 && "$(lookups)" -le 4 ]]; then
+  ok "in FAIL index mode the pass names are read by exact name ($(lookups) reads)"
+else
+  fail "in FAIL index mode the pass names took $(lookups) reads"
+fi
+STUB_NO_LISTING=1 STUB_ARTIFACTS='{}' expect "in the merge queue in FAIL index mode, no pass at the head holds" 1 3 "pr-verify"
+rm -f "$TMP_ROOT/verify-legacy-fails.json"
 # A cold reader (no carried run cache) runs only when GITHUB_TOKEN's core
 # pool has the cold read's cost for every entry the queue builds at once
 # (the merge_queue rule's max_entries_to_build, STUB_RULES, 1 by default)
@@ -968,7 +979,7 @@ fi
 STUB_ZIP_503=4 expect "in the merge queue, a record download that answers 503 four times fails closed" 1 3 "::error::could not read the verdict of artifact 110; re-run this run."
 if [[ "$(zips)" -eq 4 ]]; then ok "the record download is sent at most four times"; else fail "the record download was sent $(zips) times"; fi
 STUB_NO_RECORD='' STUB_RECORD='{"linked_issues":[{"number":9}],"spec_kind":"closes"}' STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]"
-expect "in the merge queue, a trusted approval of the head lifts a changed link" 0 3 "#7: no body hold, no member veto and no hold path."
+expect "in the merge queue, a trusted approval of the head lifts a changed link" 0 3 "#7: no member veto and no hold path."
 STUB_RECORD='' STUB_REVIEWS=''
 STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass-notes-$DIGEST\":[11]}"
 expect "in the merge queue, a digest-named pass-notes at the head passes" 0 3 "no verifier hold: pr-verify passed this head"
@@ -1029,6 +1040,8 @@ STUB_PULL="$(pull 'Closes #1')"
 # Each stand-in module answers the kill switch (switchHold) and prints its
 # verdict lines only when run as main, as merge-holds.mjs does.
 stub_module() { printf 'export const switchHold = () => null;\nif (process.argv.length > 3) {\n%s\n}\n' "$2" >"$1"; }
+# The stand-ins print the verdict line's earlier wording, which the step still
+# takes, since a queued group can run the module from a main tip behind its own.
 stub_module "$TMP_ROOT/old.mjs" 'console.log("#7: no body hold, no member veto and no hold path.");'
 STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}" STUB_MODULE="$TMP_ROOT/old.mjs"
 expect "in the merge queue, a base module that ignores the verdicts fails closed" 1 3 "::error::merge-holds.mjs exited 0 without its verifier verdict"
@@ -1039,7 +1052,7 @@ expect "in the merge queue, a base module that ignores the reader's report fails
 unset STUB_MODULE
 STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}"
 STUB_PULL="$(pull $'Closes #1\nHold: owner call')"
-expect "in the merge queue, a body hold does not fail the group" 0 3 "no body hold, no member veto and no hold path"
+expect "in the merge queue, a body hold does not fail the group" 0 3 "no member veto and no hold path"
 STUB_PULL="$(pull 'Closes #1')" STUB_ISSUE="[$KYLE_VETO]"
 expect "in the merge queue, a member's veto fails the group" 1 3 "kyle asked not to merge it"
 STUB_ISSUE="[$KYLE_VETO,$(comment kyle User MEMBER 2026-10-23T11:00:00Z 'ok, merge it')]"

@@ -183,11 +183,13 @@ rendered, never a guessed level; the value changes nothing else about the experi
    **Plugins, every one enabled at any scope.** Inventory user, project, and local
    `enabledPlugins`, and the set `claude plugin list --json` reports enabled. Emit one row per
    plugin: id, scopes, the component types it ships, hook-wiring or not, class, and the Phase 2
-   action. A plugin is hook-wiring when it ships `hooks/hooks.json` or a manifest `hooks` field.
-   **Pointer:** when deciding where a plugin declares hooks, fetch
+   action. A plugin is hook-wiring when it declares hooks in any location the manifest reference
+   names. **Pointer:** when deciding where a plugin declares hooks and which component types it can
+   ship, fetch
    [plugin manifest reference: standard layout](https://code.claude.com/docs/en/plugins/manifest-reference#standard-layout)
    and [plugin manifest reference: hooks](https://code.claude.com/docs/en/plugins/manifest-reference#hooks)
-   live. **As of:** 2026-10-11. **Recheck trigger:** that page names another hook location.
+   live. **As of:** 2026-11-03. **Recheck trigger:** that page names another hook location or
+   component type.
    Classify each wired
    entry with the "Classifying a hook" rubric linked above; do not restate it and do not invent
    a second hook rubric. A plugin whose every component is policy (or behavioral with a
@@ -195,11 +197,10 @@ rendered, never a guessed level; the value changes nothing else about the experi
    plainly behavioral component is `hybrid`: kept whole, recorded `unstripped-mixed-plugin`, with
    a per-hook kill switch still available when the plugin exposes one. One whose every component
    is behavioral is the overlay candidate. A plugin with no hook wiring is not
-   automatically skill-only: inventory every component type that same table lists (MCP and LSP
-   servers, agents, `bin/` executables, monitors, output styles, workflows, settings). An MCP or
-   LSP server, executable, or monitor gives the model a capability it cannot derive, so the plugin
-   is `non-derivable`. Only then apply this rubric to its skills, commands, agents, output styles,
-   workflows, and settings: `policy`
+   automatically skill-only: inventory every component type the standard layout table lists. A
+   component that runs code the model cannot reproduce itself (a server, an executable, a
+   background process) gives the model a capability it cannot derive, so the plugin is
+   `non-derivable`. Only then apply this rubric to its remaining components: `policy`
    when one encodes an invariant you would keep with a perfect model; `non-derivable` when one
    carries a machine fact or procedure the model cannot derive; `behavioral` when all are
    convenience the model can do without. `policy` and `non-derivable` stay. `behavioral` is the
@@ -247,11 +248,13 @@ Apply the confirmed strip plan:
   is then classified like any other file.** Candidacy and classification are separate questions:
   candidacy asks whether removing the `CLAUDE.md` names would put this file in context, and
   classification asks what the file is. Neither is answered by "nothing appears to read it today",
-  which is why Phase 1 must consider both names rather than passing over them: a session reads them
-  as the project instructions only when no `CLAUDE.md` name displaces them, and this strip removes exactly those
-  names, so a repository whose `CLAUDE.md` is a one-line `@AGENTS.md` shim ends the strip with its
-  entire instruction surface still loading, from the file the shim pointed at, unless the plan
-  considered that file at all. **What candidacy is conditional on is whether the strip could make the
+  which is why Phase 1 must consider both names rather than passing over them: this strip removes
+  the `CLAUDE.md` names, which can change whether a session reads an `AGENTS.md`, so a plan that
+  passed over one can end the strip with an instruction surface still loading.
+  **Pointer:** when deciding whether removing the `CLAUDE.md` names makes an `AGENTS.md` live,
+  fetch [memory: when Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md)
+  live. **As of:** 2026-11-03. **Recheck trigger:** that section changes which files displace an
+  `AGENTS.md`. **What candidacy is conditional on is whether the strip could make the
   file live at all.** Removing the `CLAUDE.md` names is what makes a session read an `AGENTS.md`,
   but only in a session where `AGENTS.md` support is available and the instruction-files mode reads
   one: where availability is known unavailable, or the mode is `claude-md` or `managed-only`, the

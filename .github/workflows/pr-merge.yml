@@ -96,7 +96,8 @@ on:
   # for a head is pass or pass-notes (who.mjs admits that one bot case).
   # post-merge-dispatch, merge, unarmed-status and the jobs after merge are
   # skipped; enable-auto-merge reads the last sweep's post-merge report for
-  # the lane's room (last-report.mjs). Its run name, `pr-merge: arm #<pr>`
+  # the lane's room (last-report.mjs), or runs the check fresh when that
+  # report does not stand. Its run name, `pr-merge: arm #<pr>`
   # (run-name below), marks it: no later run reads its artifacts
   # (rotation.mjs trustedRun), and it never supersedes a sweep
   # (superseded.mjs).
@@ -2256,9 +2257,9 @@ jobs:
       group: pr-merge-enable-auto-merge
       queue: max
     runs-on: ubuntu-24.04
-    # Above the sum of its steps' timeouts (41, workflow.test.mjs checks it),
+    # Above the sum of its steps' timeouts (43, workflow.test.mjs checks it),
     # with a minute left for the steps that name none.
-    timeout-minutes: 42
+    timeout-minutes: 44
     permissions:
       contents: read # check out main
       actions: read # the verifier verdicts, their runs and the head-ref map
@@ -2489,8 +2490,8 @@ jobs:
       # A PR-scoped dispatch has no post-merge-dispatch job, so it reads the
       # report the last sweep kept, from a trusted run on main
       # (last-report.mjs), into the same place. The next step keeps it only
-      # under post-merge-dispatch's idle-tick rule; with none the room is
-      # unreadable and nothing is armed.
+      # under post-merge-dispatch's idle-tick rule, and otherwise runs the
+      # check fresh in its place.
       - name: Read the post-merge report the last sweep kept
         if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr
         continue-on-error: true
@@ -2524,41 +2525,86 @@ jobs:
       # 5) and `settle --idle-tick` keeps, so a verifying run or canary that
       # moved since its computedAt, changed quarantine markers or pins, or
       # any hold the report carries refuses it (postmerge.idle_refusal).
-      # Any refusal or failure removes the report and skips the arm step: a
-      # wake with no standing report decides nothing, so it neither arms nor
-      # disarms (an unreadable room would disarm every armed lane pull
-      # request), and the next sweep checks again.
+      # A report that does not stand is never reused: the step removes it
+      # and runs the sweep's post-merge check fresh, as post-merge-dispatch
+      # does when its idle tick refuses, with this job's read-only token (the
+      # check writes nothing without --remediate). The fresh report stands
+      # only when the check passed (exit 0 or 5) and `settle --idle-tick`
+      # keeps it too: the wake starts no full run or re-run and files
+      # nothing, so it arms only on a report that needs none of those
+      # (idle_report_refusal: no hold, no needsDispatch, no reruns). Any
+      # other result removes it and skips the arm step: a wake with no
+      # standing report decides nothing, so it neither arms nor disarms (an
+      # unreadable room would disarm every armed lane pull request), and the
+      # next sweep checks again. The fresh check makes the sweep's own reads,
+      # under the same bounds, and no others.
       - name: Keep the last sweep's report only while nothing it read has moved
         id: keep-report
         if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr
-        timeout-minutes: 3
+        timeout-minutes: 5
         env:
           GH_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
           API_BUDGET_SCRIPT: settle-idle-tick
           BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
+          # The completed attempts the last check read, which the fresh check
+          # answers with no read (babysit_postmerge.py ATTEMPTS_ENV).
+          BABYSIT_POSTMERGE_ATTEMPTS: ${{ runner.temp }}/post-merge-attempts.json
           REPO: ${{ github.repository }}
         run: |
           set -uo pipefail
           last=$RUNNER_TEMP/post-merge
           scripts=.base/plugins/source-control/skills/babysit-prs/scripts
-          kept=false
+          kept=false fresh='' reason=''
+          settle() {
+            python3 "$scripts/babysit_verify_evidence.py" settle --idle-tick --repo "$REPO" \
+              --postmerge-result "$last/post-merge.json" --code-sha "$1"
+          }
           if [ -f "$last/post-merge.json" ] && [ -f "$last/post-merge-code" ]; then
             last_code=$(cat "$last/post-merge-code")
             last_sha=$(cat "$last/post-merge-code-sha" 2>/dev/null || true)
-            if [[ $last_code =~ ^[05]$ ]] &&
-              python3 "$scripts/babysit_verify_evidence.py" settle --idle-tick --repo "$REPO" \
-                --postmerge-result "$last/post-merge.json" --code-sha "$last_sha"; then
+            if [[ $last_code =~ ^[05]$ ]] && settle "$last_sha"; then
               kept=true
             fi
           fi
-          echo "stands=$kept" >>"$GITHUB_OUTPUT"
           if [ "$kept" = true ]; then
             echo "the last sweep's post-merge report still stands: nothing it reads has moved"
           else
+            [ ! -f "$last/attempts.json" ] || cp "$last/attempts.json" "$BABYSIT_POSTMERGE_ATTEMPTS"
             rm -rf "${last:?}"
-            echo "::notice::the last sweep's post-merge report does not stand for this run; nothing is armed or disarmed, and the next sweep checks again"
+            mkdir -p "$last"
+            echo "the last sweep's post-merge report does not stand for this run; the post-merge check runs fresh"
+            identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
+            fresh=0
+            # Written now, so a check that times out or is cancelled still says it ran.
+            echo "fresh-started=true" >>"$GITHUB_OUTPUT"
+            python3 "$scripts/babysit_postmerge.py" \
+              --repo "$REPO" --agent-identity "$identity" --lane-merges-only \
+              </dev/null >"$last/post-merge.json" || fresh=$?
+            echo "::group::fresh post-merge check: exit $fresh"
+            cat "$last/post-merge.json"
+            echo "::endgroup::"
+            echo "$fresh" >"$last/post-merge-code"
+            sha=$(git -C .base rev-parse HEAD) || sha=''
+            echo "$sha" >"$last/post-merge-code-sha"
+            if [[ $fresh =~ ^[05]$ ]]; then
+              settled=$(settle "$sha") && kept=true
+              echo "$settled"
+              # Why the idle tick refused the fresh report, for the outcome line.
+              reason=$(jq -r '.reason // ""' <<<"$settled" 2>/dev/null | head -n 1) || reason=''
+            fi
+            if [ "$kept" = true ]; then
+              echo "the fresh post-merge check (exit $fresh) passed and settle --idle-tick keeps it"
+            else
+              rm -rf "${last:?}"
+              echo "::notice::the fresh post-merge check (exit $fresh) does not stand for this run; nothing is armed or disarmed, and the next sweep checks again"
+            fi
           fi
+          {
+            echo "stands=$kept"
+            echo "fresh=$fresh"
+            echo "fresh-reason=${reason//[$'\r\n']/ }"
+          } >>"$GITHUB_OUTPUT"
 
       # While merge.report-only is anything but false it reports each
       # decision and writes nothing.
@@ -2715,24 +2761,43 @@ jobs:
           PR: ${{ inputs.pr }}
           OUTCOME: ${{ steps.arm.outputs.wake-outcome }}
           ARM: ${{ steps.arm.outcome }}
+          KILL: ${{ steps.kill.outputs.proceed }}
           WHO: ${{ steps.who.outputs.proceed }}
           SUPERSEDED: ${{ steps.superseded.outputs.superseded }}
           STANDS: ${{ steps.keep-report.outputs.stands }}
+          FRESH: ${{ steps.keep-report.outputs.fresh }}
+          FRESH_REASON: ${{ steps.keep-report.outputs.fresh-reason }}
+          FRESH_STARTED: ${{ steps.keep-report.outputs.fresh-started }}
           CALLS: ${{ steps.budget-end.outputs.calls }}
         run: |
           if [ -z "$OUTCOME" ]; then
-            if [ "$WHO" != true ]; then
+            if [ "$KILL" != true ]; then
+              OUTCOME="skipped: the lanes kill switch stopped it"
+            elif [ "$WHO" != true ]; then
               OUTCOME="skipped: the who step stopped it"
             elif [ "$SUPERSEDED" = true ]; then
               OUTCOME="skipped: a waiting run does this work"
+            elif [ -z "$FRESH" ] && [ "$FRESH_STARTED" = true ]; then
+              OUTCOME="skipped: the fresh post-merge check did not finish (timeout or cancel)"
+            elif [ "$STANDS" = false ] && [ "$FRESH" = 75 ]; then
+              OUTCOME="skipped: the fresh post-merge check stopped on a GitHub rate limit"
+            elif [ "$STANDS" = false ] && [[ $FRESH =~ ^[05]$ ]]; then
+              OUTCOME="skipped: settle --idle-tick refused the fresh post-merge report (${FRESH_REASON:-no reason read})"
+            elif [ "$STANDS" = false ] && [ -n "$FRESH" ]; then
+              OUTCOME="skipped: the fresh post-merge check exited $FRESH"
             elif [ "$STANDS" = false ]; then
               OUTCOME="skipped: the last sweep's report does not stand"
             else
               OUTCOME="skipped: the arm step ended ${ARM:-unrun} with no outcome"
             fi
           fi
+          # Which report the room came from: none read, the last sweep's, or
+          # a fresh check's.
+          report=none
+          [ -z "$STANDS" ] || report=last
+          [ -z "$FRESH" ] && [ "$FRESH_STARTED" != true ] || report=fresh
           # The outcome last: its reason holds spaces.
-          line="pr=$PR ${CALLS:-calls=unknown} outcome=$OUTCOME"
+          line="pr=$PR ${CALLS:-calls=unknown} report=$report outcome=$OUTCOME"
           echo "::notice title=pr-merge-wake::${line//[$'\r\n%']/ }"
 
       - name: Revoke the lane token

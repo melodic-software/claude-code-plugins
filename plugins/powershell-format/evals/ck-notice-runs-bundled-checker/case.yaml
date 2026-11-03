@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: ck-notice-runs-bundled-checker
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: ran-checker
+    type: tool_used
+    tool: Bash
+    input_match: 'prerequisites\.(?:mjs|sh|ps1)(?:\\?"|'')?\s+check\b'
+    arm: with-only
+  - name: no-install
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b(?:apt-get|apt|brew|winget|dnf|yum|apk|pacman|zypper|snap|choco|scoop|nvm|fnm|volta|asdf|mise|conda|pipx?|pip3|npm|pnpm|yarn|go|cargo|rustup|uv)\b[^"&;|]*?[ \t](?:install|add|use|upgrade|i|-S)\b|\bInstall-(?:Module|PSResource)\b|\b(?:npx|uvx)\b[ \t]|\b(?:curl|wget)\b[^"&;|]*?https?://)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: reports-state
+    type: regex
+    pattern: '\bpwsh\b(?=[\s\S]*\b(?:pass(?:es|ed)?|fail(?:s|ed)?|found|resolve[sd]?|present|installed|available|missing|absent)\b)|\b(?:pass(?:es|ed)?|fail(?:s|ed)?|found|resolve[sd]?|present|installed|available|missing|absent)\b(?=[\s\S]*\bpwsh\b)'
+    flags: 'i'
+    target: last_message
+    arm: both
