@@ -68,7 +68,7 @@ failure this gate exists to catch is a payload carrying no pointer at all.
    evidence.
 
    ```bash
-   python3 "<plugin-root>/scripts/check-author-kind.py" <the retained memory-slice path>
+   "<plugin-root>/scripts/check-author-kind.py" <the retained memory-slice path>
    ```
 
    Cite the exit status: 0 pass; 1 a violation, one stderr line per claim or source at fault; 2

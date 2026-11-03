@@ -279,7 +279,7 @@ says who wrote the words".
 write, run it as one plain command on your slice:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check-author-kind.py" <memory-slice path>
+"${CLAUDE_PLUGIN_ROOT}/scripts/check-author-kind.py" <memory-slice path>
 ```
 
 A non-zero exit means fix and re-run: fix each claim or source its stderr names, by finding a

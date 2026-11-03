@@ -169,6 +169,15 @@ run 2 "unknown flag" "$WORK/none" --strict
 run 2 "two slice dirs" "$WORK/none" "$WORK/none"
 expect_out "ungradeable summary line" 'status=ungradeable'
 
+# --- every skill calls the script by path, so it must run that way ----------
+
+if "$SUT" "$WORK/none" >"$WORK/stdout" 2>"$WORK/stderr"; then
+  pass "runs by direct path"
+else
+  fail "runs by direct path: $(cat "$WORK/stderr")"
+fi
+expect_out "direct path summary line" 'status=pass claims=0 direct=0'
+
 # --- an interpreter that strips docstrings ----------------------------------
 # PYTHONOPTIMIZE=2 sets __doc__ to None here and in the parser this script
 # loads. A traceback exits 1, which reads as a violation; exit 2 is the contract.

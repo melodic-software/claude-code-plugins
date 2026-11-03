@@ -85,14 +85,14 @@ Report a PASS/INFO/WARN table. Do not write anything. No row is ever a FAIL or a
    Bash("${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh" *)
    Bash("${CLAUDE_PLUGIN_ROOT}/scripts/check-source-applicability.py" *)
    Bash("${CLAUDE_PLUGIN_ROOT}/scripts/check-restatement-labels.py" *)
+   Bash("${CLAUDE_PLUGIN_ROOT}/scripts/check-author-kind.py" *)
    Bash(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check-claim-eligibility.py" *)
-   Bash(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check-author-kind.py" *)
    Bash(${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh *)
    Bash(${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh *)
    Bash(${CLAUDE_PLUGIN_ROOT}/scripts/check-source-applicability.py *)
    Bash(${CLAUDE_PLUGIN_ROOT}/scripts/check-restatement-labels.py *)
+   Bash(${CLAUDE_PLUGIN_ROOT}/scripts/check-author-kind.py *)
    Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/check-claim-eligibility.py *)
-   Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/check-author-kind.py *)
    ```
 
    Report one row, **never FAIL**: PASS when all twelve are present for this install root; INFO "stale"

@@ -1439,25 +1439,25 @@ assert_present 'the tracer tags each source with who wrote its words' \
 assert_present 'the tracer requires the check to exit 0 before hand-back' \
   'agents/intent-tracer.md' '^\*\*The author-kind check exits 0 before you hand back\.\*\*'
 assert_present 'the tracer runs the check as one plain command' \
-  'agents/intent-tracer.md' '^python3 "\$\{CLAUDE_PLUGIN_ROOT\}/scripts/check-author-kind\.py" <memory-slice path>$'
+  'agents/intent-tracer.md' '^"\$\{CLAUDE_PLUGIN_ROOT\}/scripts/check-author-kind\.py" <memory-slice path>$'
 assert_present 'the outcome gate covers an inline trace' \
-  'skills/trace-intent/SKILL.md' '^- `python3 "\$\{CLAUDE_PLUGIN_ROOT\}/scripts/check-author-kind\.py" <the slice>` exits 0\.$'
+  'skills/trace-intent/SKILL.md' '^- `"\$\{CLAUDE_PLUGIN_ROOT\}/scripts/check-author-kind\.py" <the slice>` exits 0\.$'
 assert_present 'the acceptance gate re-runs the check as a step' \
   'skills/trace-intent/context/dispatch.md' '^3\. \*\*The author-kind check re-runs on disk\.\*\*'
 assert_present 'the acceptance gate runs the check as one plain command' \
-  'skills/trace-intent/context/dispatch.md' '^ +python3 "<plugin-root>/scripts/check-author-kind\.py" <the retained memory-slice path>$'
+  'skills/trace-intent/context/dispatch.md' '^ +"<plugin-root>/scripts/check-author-kind\.py" <the retained memory-slice path>$'
 assert_present 'the by-value rung re-runs the check too' \
   'skills/trace-intent/context/dispatch.md' '^steps 2 and 3 above'
 assert_present 'setup prints the quoted author-kind allow rule' \
-  'skills/setup/SKILL.md' '^ +Bash\(python3 "\$\{CLAUDE_PLUGIN_ROOT\}/scripts/check-author-kind\.py" \*\)$'
+  'skills/setup/SKILL.md' '^ +Bash\("\$\{CLAUDE_PLUGIN_ROOT\}/scripts/check-author-kind\.py" \*\)$'
 assert_present 'setup prints the unquoted author-kind allow rule' \
-  'skills/setup/SKILL.md' '^ +Bash\(python3 \$\{CLAUDE_PLUGIN_ROOT\}/scripts/check-author-kind\.py \*\)$'
+  'skills/setup/SKILL.md' '^ +Bash\(\$\{CLAUDE_PLUGIN_ROOT\}/scripts/check-author-kind\.py \*\)$'
 assert_present 'setup counts twelve gate allow rules' \
   'skills/setup/SKILL.md' 'compare it with these twelve rules'
 assert_present 'parent-contract lists the quoted author-kind allow rule' \
-  'reference/parent-contract.md' '"Bash\(python3 \\"<plugin root>/scripts/check-author-kind\.py\\" \*\)",$'
+  'reference/parent-contract.md' '"Bash\(\\"<plugin root>/scripts/check-author-kind\.py\\" \*\)",$'
 assert_present 'parent-contract lists the unquoted author-kind allow rule' \
-  'reference/parent-contract.md' '"Bash\(python3 <plugin root>/scripts/check-author-kind\.py \*\)"$'
+  'reference/parent-contract.md' '"Bash\(<plugin root>/scripts/check-author-kind\.py \*\)",$'
 for script in check-author-kind.py check-author-kind.test.sh; do
   if [[ -f "$PLUGIN_ROOT/scripts/$script" ]]; then
     pass "$script ships"
