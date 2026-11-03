@@ -877,6 +877,24 @@ expect_both 'unset suffixed: a blank in the assigned value blocks' 2 "${RDT_CWD[
 expect_both 'unset suffixed: a substitution value blocks' 2 "${RDT_CWD[@]}" --command 'S=$(mktemp -d); rm -rf $S/x'
 expect_both 'unset suffixed: a value built on an unset name blocks' 2 "${RDT_CWD[@]}" --command 'Q=$U/b; rm -rf $Q/c'
 expect_both 'unset suffixed: a loop over a substitution blocks' 2 "${RDT_CWD[@]}" --command 'for f in $(ls); do rm -rf $f/x; done'
+expect_both 'unset suffixed: an escaped blank in the value blocks' 2 "${RDT_CWD[@]}" --command 'S=/\ tmp; rm -rf $S/x'
+expect_both 'unset suffixed: a quoted blank joined to the value blocks' 2 "${RDT_CWD[@]}" --command 'S=/" "tmp; rm -rf $S/x'
+expect_both 'unset suffixed: quote-joined parts of the value block' 2 "${RDT_CWD[@]}" --command "S=\"/\"' 'tmp; rm -rf \$S/x"
+expect_both 'unset suffixed: a += append blocks' 2 "${RDT_CWD[@]}" --command "S=/; S+=' tmp'; rm -rf \$S/x"
+expect_both 'unset suffixed: a quoted blank in a for list blocks' 2 "${RDT_CWD[@]}" --command 'for v in "/ tmp"; do rm -rf $v/x; done'
+expect_both 'unset suffixed: a quoted expansion in a for list blocks' 2 "${RDT_CWD[@]}" --command 'for v in "$@"; do rm -rf $v/x; done'
+expect_both 'unset suffixed: bash -c from the PowerShell tool blocks' 2 --tool PowerShell --command "bash -c 'rm -rf \$S/x'"
+expect_both 'unset suffixed: a Remove-Item operand on the PowerShell tool stays allowed' 0 --tool PowerShell --command 'Remove-Item -Recurse $env:S/x'
+rdt_chain='A='
+for rdt_i in {1..30}; do rdt_chain+='$B'; done
+rdt_chain+='; B='
+for rdt_i in {1..30}; do rdt_chain+='$C'; done
+rdt_chain+='; C='
+for rdt_i in {1..30}; do rdt_chain+='$D'; done
+rdt_chain+='; D='
+for rdt_i in {1..30}; do rdt_chain+='$E'; done
+rdt_chain+='; E=x; rm -rf $A/x'
+expect_both 'unset suffixed: a chain past the call budget blocks' 2 "${RDT_CWD[@]}" --command "$rdt_chain"
 expect_both 'unset suffixed: "$S/x" allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf "$S/x"'
 expect_both 'unset suffixed: ${HOME}/x allowed' 0 --command 'rm -rf ${HOME}/x'
 expect_both 'unset suffixed: $TMPDIR/x allowed' 0 --command 'rm -rf $TMPDIR/x'
@@ -886,6 +904,7 @@ expect_both 'unset suffixed: a name the resolver binds allowed' 0 "${RDT_CWD[@]}
 expect_both 'unset suffixed: a literal the resolver cannot bind allowed' 0 "${RDT_CWD[@]}" --command 'S=/tmp/x; echo "$(date)"; rm -rf $S/x'
 expect_both 'unset suffixed: a value built on a set name allowed' 0 "${RDT_CWD[@]}" --command 'P=/tmp/a; Q=$P/b; echo "$(date)"; rm -rf $Q/c'
 expect_both 'unset suffixed: a loop variable allowed' 0 "${RDT_CWD[@]}" --command 'for v in a b; do rm -rf $v/x; done'
+expect_both 'unset suffixed: a loop over unquoted items allowed' 0 "${RDT_CWD[@]}" --command 'for v in $R/a $R/b; do rm -rf $v/x; done'
 expect_both 'unset suffixed: a name set in a bash -c program allowed' 0 "${RDT_CWD[@]}" --command "bash -c 'S=/tmp/x; echo x; rm -rf \$S/y'"
 expect_both 'bare variable: "${X:?}/*" allowed' 0 --command 'rm -rf "${X:?}/*"'
 expect_both 'bare variable: "${X:?}/*" allowed with a cwd' 0 "${RDT_CWD[@]}" --command 'rm -rf "${X:?}/*"'

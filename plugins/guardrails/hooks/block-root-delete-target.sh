@@ -1756,19 +1756,29 @@ rdt_bare_var() {
 # rdt_name_set <NAME> <depth>: true when the command sets NAME to a value with
 # no blank: every assignment a literal, or built only from names that pass this
 # same test, or a `for NAME in` list. A substitution's value is unknown and so
-# fails. Read from the text, so a false pass only returns to allowing the operand.
+# fails, and so does anything that can hide a blank from this reading: an escape,
+# a value that goes on into a quote, a `+=`, or a quote in a `for` list.
+# Past the call budget it fails too, so a refusal, not a hook timeout, ends a
+# chain built to run long. Read from the text, so a false pass only returns to
+# allowing the operand.
 # shellcheck disable=SC2016,SC2329  # literal `$` patterns; called from rdt_led_by_unbound
+RDT_NAME_SET_CALLS=0
+RDT_NAME_SET_MAX=256
 rdt_name_set() {
   local n="$1" t="$COMMAND" v found=0 re ref
   local re_ref='\$\{?([A-Za-z_][A-Za-z0-9_]*)'
-  (($2 > 4)) && return 1
+  RDT_NAME_SET_CALLS=$((RDT_NAME_SET_CALLS + 1))
+  ((RDT_NAME_SET_CALLS > RDT_NAME_SET_MAX || $2 > 4)) && return 1
+  re="(^|[^A-Za-z0-9_])${n}\\+="
+  [[ "$t" =~ $re ]] && return 1
   # A leading quote is the opening of a `bash -c '...'` program.
   re="(^|[[:space:];&|(\"'])${n}=(\"[^\"]*\"|'[^']*'|[^[:space:];&|)\"']*)"
   while [[ "$t" =~ $re ]]; do
     v="${BASH_REMATCH[2]}"
     t="${t#*"${BASH_REMATCH[0]}"}"
     found=1
-    [[ "$v" == *'$('* || "$v" == *'`'* ]] && return 1
+    [[ -z "$t" || "$t" == [[:space:]\;\&\|\)]* ]] || return 1
+    [[ "$v" == *'$('* || "$v" == *'`'* || "$v" == *\\* ]] && return 1
     [[ "$v" == [\"\']* ]] && v="${v:1:${#v}-2}"
     [[ "$v" == *[[:space:]]* ]] && return 1
     while [[ "$v" =~ $re_ref ]]; do
@@ -1779,7 +1789,8 @@ rdt_name_set() {
   done
   ((found)) && return 0
   re="(^|[[:space:];&|(\"'])for[[:space:]]+${n}[[:space:]]+in[[:space:]]+([^;"$'\n'"]*)"
-  [[ "$COMMAND" =~ $re ]] && [[ "${BASH_REMATCH[2]}" != *'$('* && "${BASH_REMATCH[2]}" != *'`'* ]]
+  # An unquoted item splits before the loop binds it, so only a quote keeps a blank.
+  [[ "$COMMAND" =~ $re ]] && [[ "${BASH_REMATCH[2]}" != *[\`\"\']* && "${BASH_REMATCH[2]}" != *'$('* ]]
 }
 
 # rdt_led_by_unbound <operand>: true when the operand opens with an expansion
@@ -6254,7 +6265,8 @@ rdt_check_operand() {
   if rdt_bare_var "$norm" || rdt_bare_var "$raw"; then
     rdt_block "bare-variable" "$w"
   fi
-  if ((${2:-0} < 2)) && [[ "$TOOL_NAME" != "PowerShell" ]] && rdt_led_by_unbound "$w"; then
+  # A bash child of the PowerShell tool word-splits like the Bash tool does.
+  if ((${2:-0} < 2)) && { [[ "$TOOL_NAME" != "PowerShell" ]] || ((RDT_PS_BASHC)); } && rdt_led_by_unbound "$w"; then
     rdt_block "bare-variable" "$w"
   fi
   if ((RDT_ARM)); then
