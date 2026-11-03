@@ -13,6 +13,10 @@ name: work-unblock
 # .github/scripts/work-unblock/label-unblocked.mjs; the lane and its
 # effect (mutate-tracker) are in docs/conventions/pr-pipeline.yaml.
 #
+# The same close run removes the closed issue's own queue labels (agent-ready,
+# status: ready, admission-deferred), so a hand-closed issue leaves the queue;
+# a post-merge fix issue keeps them for its reopen.
+#
 # It runs no AI model and never checks out anything but the main branch.
 # The label is added with a lanes App token from the token broker: a label
 # added with the job's own GITHUB_TOKEN could never start a workflow.

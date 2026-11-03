@@ -9592,6 +9592,7 @@ class DependabotEligibility(unittest.TestCase):
         paths: list[str],
         *,
         after: dict[str, str] | None = None,
+        before_text: dict[str, str] | None = None,
         modes: dict[str, dict[str, Any]] | None = None,
     ) -> None:
         """The lanes App's fix commit at the head on Dependabot's commit: its
@@ -9618,7 +9619,7 @@ class DependabotEligibility(unittest.TestCase):
         for path in paths:
             name = path.rsplit("/", 1)[-1]
             for ref, side in ((self.PARENT, before), (self.HEAD, bumped)):
-                text = (after or {}).get(path) if ref == self.HEAD else None
+                text = ((after if ref == self.HEAD else before_text) or {}).get(path)
                 gh.rest[f"repos/{REPO}/contents/{path}?ref={ref}"] = RawText(
                     text if text is not None else side.get(name, "")
                 )
@@ -9725,6 +9726,35 @@ class DependabotEligibility(unittest.TestCase):
             "dependabot-fix-content:fix-content:package-lock.json:"
             "lock-resolved:node_modules/x",
         )
+
+    def test_a_lanes_app_install_script_pin_move_is_eligible_and_no_other_pin(
+        self,
+    ) -> None:
+        cli = "@anthropic-ai/claude-code"
+
+        def manifest(pin: str) -> str:
+            return json.dumps(
+                {
+                    "devDependencies": {cli: "2.1.317"},
+                    "allowScripts": {f"{cli}@{pin}": True},
+                }
+            )
+
+        def reason(pin: str) -> str | None:
+            return self.lane_fix_reason(
+                ["package.json"],
+                before_text={"package.json": manifest("2.1.316")},
+                after={"package.json": manifest(pin)},
+            )
+
+        self.assertIsNone(reason("2.1.317"))
+        for pin in ("2.1.318", "*"):
+            with self.subTest(pin=pin):
+                self.assertEqual(
+                    reason(pin),
+                    "dependabot-fix-content:fix-content:package.json:"
+                    "package-json-key:allowScripts",
+                )
 
     def test_an_unreadable_fix_commit_file_list_refuses(self) -> None:
         # Unreadable is not "touches nothing": the .github/ boundary must hold.

@@ -89,9 +89,11 @@ run() {
   OUT="$(cat "$TEST_TMPDIR/out")"
   ERR="$(cat "$TEST_TMPDIR/err")"
 }
+# local_file <repo>: the local-file adapter's file, under the repository's git common directory.
+local_file() { printf '%s/findings-buffer/findings.jsonl' "$(git -C "$1" rev-parse --path-format=absolute --git-common-dir)"; }
 # used_local <rc> <repo> <stderr>: the append succeeded into the local file and said so.
-used_local() { [[ $1 -eq 0 && -s "$2/.work/buffer/findings.jsonl" ]] && grep -q "local-file" <<<"$3"; }
-local_rows() { cat "$1/.work/buffer/findings.jsonl" 2>/dev/null; }
+used_local() { [[ $1 -eq 0 && -s "$(local_file "$2")" ]] && grep -q "local-file" <<<"$3"; }
+local_rows() { cat "$(local_file "$1")" 2>/dev/null; }
 
 ROW='{"kind":"lint","session":"s1","msg":"unused variable"}'
 
@@ -101,7 +103,7 @@ run "$R" append < <(printf '%s\n' "$ROW")
 DETAIL="exit $RC; stderr: $ERR"
 check "no binding: append exits 0" test "$RC" -eq 0
 DETAIL="local rows: $(local_rows "$R")"
-GOT="$(jq -r 'select(.msg == "unused variable") | (.obs_id | test("^[0-9a-f]{16}$")) and (.ts | type == "string")' "$R/.work/buffer/findings.jsonl" 2>/dev/null)"
+GOT="$(jq -r 'select(.msg == "unused variable") | (.obs_id | test("^[0-9a-f]{16}$")) and (.ts | type == "string")' "$R/.git/findings-buffer/findings.jsonl" 2>/dev/null)"
 check "no binding: the row lands in the local file with obs_id and ts" test "$GOT" == true
 DETAIL="stderr: $ERR"
 check "no binding: stderr names local-file" grep -q "local-file" <<<"$ERR"
@@ -114,7 +116,7 @@ run "$R" append < <(printf '%s\n' "$ROW")
 DETAIL="exit $RC; stderr: $ERR"
 check "failing adapter: append still exits 0" test "$RC" -eq 0
 DETAIL="local rows: $(local_rows "$R")"
-check "failing adapter: the row is in the local file" grep -q '"unused variable"' "$R/.work/buffer/findings.jsonl"
+check "failing adapter: the row is in the local file" grep -q '"unused variable"' "$R/.git/findings-buffer/findings.jsonl"
 run "$R" read
 DETAIL="exit $RC; out: $OUT"
 check "failing adapter: read merges the adapter and fallback rows, once per obs_id" \
@@ -198,7 +200,7 @@ PATH="$SHIM:$PATH" run "$R" append < <(printf '%s\n' "$ROW")
 DETAIL="exit $RC; stderr: $ERR"
 check "redaction failure: append exits non-zero" test "$RC" -ne 0
 check "redaction failure: nothing reaches the adapter or the local file" \
-  test ! -e "$ADAPTERS/ok/captured.jsonl" -a ! -e "$R/.work/buffer/findings.jsonl"
+  test ! -e "$ADAPTERS/ok/captured.jsonl" -a ! -e "$R/.git/findings-buffer/findings.jsonl"
 
 # 7. A committed binding never runs repository code: only a plugin adapter name is accepted.
 new_repo
@@ -243,7 +245,7 @@ run "$A" append < <(printf '%s\n' "$ROW")
 DETAIL="exit $RC; stderr: $ERR"
 check "user-scope binding: append exits 0" test "$RC" -eq 0
 check "user-scope binding: the repository's adapter runs" grep -q '"unused variable"' "$A/tools/mine/captured.jsonl"
-check "user-scope binding: nothing lands in the local file" test ! -e "$A/.work/buffer/findings.jsonl"
+check "user-scope binding: nothing lands in the local file" test ! -e "$A/.git/findings-buffer/findings.jsonl"
 
 new_repo
 B="$R"
@@ -355,11 +357,29 @@ bind "$R" broken
 run "$R" append < <(printf '%s\n' "$ROW")
 old_row() { printf '{"ts":"2020-01-01T00:00:00Z","session":"s1","msg":"%s","obs_id":"%s"}\n' "$1" "$2"; }
 old_row "old adapter row" aaaaaaaaaaaaaaaa >>"$ADAPTERS/broken/captured.jsonl"
-old_row "old local row" bbbbbbbbbbbbbbbb >>"$R/.work/buffer/findings.jsonl"
+old_row "old local row" bbbbbbbbbbbbbbbb >>"$R/.git/findings-buffer/findings.jsonl"
 run "$R" read --since 2025-01-01T00:00:00Z
 DETAIL="exit $RC; out: $OUT"
 check "read --since: both reads leave out rows older than since and keep the new one" \
   test "$RC" -eq 0 -a "$(grep -c 'old .* row' <<<"$OUT")" -eq 0 -a "$(grep -c '"unused variable"' <<<"$OUT")" -eq 1
+
+# Worktrees of one clone share the local file, and a row also left in the old per-worktree file reads once.
+new_repo
+git -C "$R" -c user.name=fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false commit -q --allow-empty -m fixture
+WT="$TEST_TMPDIR/worktree-of-repo$N"
+git -C "$R" worktree add -q -b shared "$WT"
+run "$WT" append < <(printf '{"obs_id":"1111111111111111","msg":"noted in a worktree"}\n')
+run "$R" read
+DETAIL="exit $RC; out: $OUT"
+check "worktrees: a row appended in a linked worktree reads back in the main worktree" \
+  test "$RC" -eq 0 -a "$(grep -c '"noted in a worktree"' <<<"$OUT")" -eq 1
+mkdir -p "$R/.work/buffer"
+printf '{"obs_id":"1111111111111111","ts":"2026-10-21T00:00:00Z","msg":"noted in a worktree"}\n' >"$R/.work/buffer/findings.jsonl"
+printf '{"obs_id":"2222222222222222","ts":"2026-10-21T00:00:00Z","msg":"noted before the move"}\n' >>"$R/.work/buffer/findings.jsonl"
+run "$R" read
+DETAIL="exit $RC; out: $OUT"
+check "worktrees: legacy rows read back, and a repeat obs_id reads once" \
+  test "$RC" -eq 0 -a "$(grep -c '"noted in a worktree"' <<<"$OUT")" -eq 1 -a "$(grep -c '"noted before the move"' <<<"$OUT")" -eq 1
 
 printf '1..%d\n' "$CASE_NUM"
 if [[ $FAILED -gt 0 ]]; then

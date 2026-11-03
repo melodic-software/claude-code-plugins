@@ -101,9 +101,16 @@ dated measurement and how to re-measure it). When a script can do the job, run t
 
 - Give every prompt the whole task: what done looks like, and what should make it stop and report.
   Nobody answers a question a headless turn asks.
-- **Query and wait has no one-turn form.** `notify_when_idle` from a `-p` sender does not work: the
-  turn ends before the notice arrives. Send the message, then poll `claude agents --json` in that
-  lane, or `--resume` the receiver or read its output.
+- **Query and wait has no one-turn form.** Never wait on a `notify_when_idle` notice from a `-p`
+  sender: in our probe it never reached the sender
+  ([reference/relay.md § Verified behavior](reference/relay.md#verified-behavior)). Send the
+  message, then poll `claude agents --json` in that lane, or `--resume` the receiver or read its
+  output.
+  - **Pointer**: for how an idle notice is delivered and what a `-p` session can receive, fetch
+    [Get a notice when another session goes idle](https://code.claude.com/docs/en/cross-session-messaging#get-a-notice-when-another-session-goes-idle)
+    and [Non-interactive sessions](https://code.claude.com/docs/en/cross-session-messaging#non-interactive-sessions)
+    live. **As of**: 2026-11-03. **Recheck trigger**: either section says a `-p` sender receives
+    the notice before its turn ends.
 - **Multi-turn versus one open pipe.** The pipe keeps context in one process while the connection
   stays open; per-turn `--resume` survives a disconnect. `--resume` ids belong to the lane that
   made them, so resume against the same row. `--session-id` picks the id up front, so nothing
@@ -201,8 +208,11 @@ on-demand tasks FLEET.md lists.
 - **Use the Windows OpenSSH client.** It is agent-backed and is what `~/.ssh/config` is wired to.
   Git Bash's MSYS `ssh` reaches no agent and fails with `Permission denied (publickey)`, which reads
   like a key problem and is not one.
-- **Redirect stdin, always.** `claude -p` reads stdin, so without `< /dev/null` (or `ssh -n`) it
-  waits several seconds before every turn.
+- **Redirect stdin, always.** Give every `claude -p` turn `< /dev/null` (or `ssh -n`). How print
+  mode takes piped input is in the `--print` row of
+  [CLI reference: CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags) and the
+  piped-content row of [CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands)
+  (as of 2026-11-03; recheck when either row changes how `-p` reads stdin).
 - **Escape apostrophes in `<prompt>`.** Every row except R1 wraps the remote command in single
   quotes on the LOCAL shell, so a `'` in the prompt ("what's") closes that quote early. The rule
   follows the origin shell, not the lane:
@@ -210,10 +220,15 @@ on-demand tasks FLEET.md lists.
     with `'\''`, or wrap the command in `$'...'` and write `\'`. Doubling (`''`) silently drops the
     apostrophe here: `'what''s'` arrives as `whats`.
   - **pwsh** (a native-Windows Claude's PowerShell tool, or a pwsh terminal): double it, `''`.
-- **Use `wsl.exe --exec`, not `--`.** With `--`, the distro's login shell re-parses the rest of the
-  line before `<shell> -lc` sees it; `--exec` hands the arguments over as they are.
+- **Use `wsl.exe --exec`, not `--`.** The quoting rules above assume `--exec`. For what each option
+  does, run `wsl.exe --help` on that machine, as
+  [Basic commands: Help command](https://learn.microsoft.com/en-us/windows/wsl/basic-commands#help-command)
+  directs (as of 2026-11-03 the page has no section of its own for `--exec`; recheck when it adds
+  one).
 - **Probe interop by absolute path.** `cmd.exe /c` prints nothing inside an sshd session and reads
   as "interop is broken" when it is not; run the `.exe` by absolute path.
-- **Parse the JSON, not the stream.** `SessionEnd` hooks print `Hook cancelled` on stdout. Extract
-  the object first, for example `grep '^{' | jq -r .session_id`.
+- **Parse the JSON, not the stream.** Treat stdout as able to carry lines that are not the JSON
+  result, and extract the object first, for example `grep '^{' | jq -r .session_id`. What a
+  session-end hook can print is in [Hooks: SessionEnd](https://code.claude.com/docs/en/hooks#sessionend)
+  (as of 2026-11-03; recheck when that section says where a `SessionEnd` hook's output goes).
 - **A session name is not an address.** Hostname and lane, always.
