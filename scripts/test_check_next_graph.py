@@ -15,6 +15,8 @@ HERE = Path(__file__).resolve().parent
 SPEC = importlib.util.spec_from_file_location(
     "check_next_graph", HERE / "check-next-graph.py"
 )
+if SPEC is None or SPEC.loader is None:
+    raise ImportError(f"cannot load {HERE / 'check-next-graph.py'}")
 gate = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(gate)
 

@@ -257,7 +257,8 @@ def check(root: Path) -> list[str]:
 
 
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    summary = (__doc__ or "check-next-graph").splitlines()[0]
+    parser = argparse.ArgumentParser(description=summary)
     parser.add_argument(
         "--root", type=Path, default=DEFAULT_ROOT, help="repository root to check"
     )
