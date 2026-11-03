@@ -32,7 +32,7 @@ for s in check-shell-portability check-changelog-fragments check-stale-base-over
   printf '#!/usr/bin/env bash\necho "%s ran: $*" >&2\nexit "${%s:-0}"\n' "$s" "$var" >"$repo/scripts/$s.sh"
 done
 # The changed-skills stub also echoes whether the skills' script tests are skipped.
-printf '#!/usr/bin/env bash\necho "check-changed-skills ran: $* skip-script-tests=${CHECK_SKILL_SKIP_SCRIPT_TESTS-unset}" >&2\nexit "${STUB_CHECK_CHANGED_SKILLS:-0}"\n' \
+printf '#!/usr/bin/env bash\necho "check-changed-skills ran: $* skip-script-tests=${CHECK_SKILL_SKIP_SCRIPT_TESTS-unset} deadline=${PLUGIN_TEST_DEADLINE-unset}" >&2\n[[ -z "${STUB_SKILL_SKIP_LINE:-}" ]] || echo "$STUB_SKILL_SKIP_LINE"\nexit "${STUB_CHECK_CHANGED_SKILLS:-0}"\n' \
   >"$repo/scripts/check-changed-skills.sh"
 # The affected-tests stub also writes STUB_NOT_RUN to its --write-not-run file,
 # as the real one lists the selected suites it did not run.
@@ -472,6 +472,12 @@ check "a changed skill file runs changed-skills against the base, resolved to it
 run STUB_CHECK_CHANGED_SKILLS=1 -- --base plugin-base --tests
 check "--tests runs changed-skills with the skills' script tests" \
   '[[ $RC == 1 && $ERR == *"skip-script-tests=unset"* && $ERR == *"Reproduce: scripts/check-changed-skills.sh $plugin_base_sha"* ]]'
+check "--tests hands changed-skills the deadline" '[[ $ERR =~ deadline=[0-9]+ ]]'
+run STUB_CHECK_CHANGED_SKILLS=1 -- --base plugin-base
+check "without --tests changed-skills gets no deadline" '[[ $ERR == *"deadline=unset"* ]]'
+run STUB_CHECK_CHANGED_SKILLS=2 STUB_SKILL_SKIP_LINE="SKIP plugins/demo/skills/s/scripts/x.test.sh (past the deadline, left to CI)" -- --base plugin-base --tests
+check "--tests reads a skill script test the deadline left as a skip naming it" \
+  '[[ $RC == 0 && $ERR == *"SKIP changed-skills: plugins/demo/skills/s/scripts/x.test.sh (past the deadline, left to CI)"* && $ERR == *"SKIP changed-skills (could not run, exit 2:"* ]]'
 run PATH="$tmp/bin:$PATH" STUB_CHECK_CHANGELOG_FRAGMENTS=1 STUB_VALIDATE_PLUGINS=1 STUB_CHECK_CHANGED_SKILLS=1 -- --base plugin-base
 check "a failing static check reports at once, with validate-plugins and changed-skills skipped" \
   '[[ $RC == 1 && $ERR == *"FAIL changelog-fragments"* && $ERR == *"SKIP validate-plugins (a static check failed above)"* && $ERR == *"SKIP changed-skills (a static check failed above)"* && $ERR != *"validate-plugins ran"* && $ERR != *"check-changed-skills ran"* ]]'
