@@ -3,6 +3,46 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.1.4] - 2026-11-03
+
+### Changed
+
+- The prerequisites skill's ranking probe no longer lists a deleted skill as a competitor.
+
+## [8.1.3] - 2026-11-03
+
+### Added
+
+- The bundled publish gate (`lib/publish-gate.mjs`) gains `locateHit` and `hitFingerprint`: for a blocked leak-scan hit, the rule, the path and the line number, with no character of the match and every character outside printable ASCII escaped. `scanLeak` is unchanged.
+
+## [8.1.2] - 2026-11-03
+
+### Changed
+
+- carries the shared medium resolver (`lib/view-settings.mjs`,
+  `lib/view-registry.mjs`) and the libraries it imports
+
+  No skill of this plugin calls it yet; its view lanes move onto it in a
+  later change.
+
+## [8.1.1] - 2026-11-03
+
+### Changed
+
+- The `prerequisites` skill's `## Next` section and its eval no longer name the formatter and linter `check` skills, because they are gone.
+
+## [8.1.0] - 2026-11-03
+
+### Added
+
+- `/harness-ops:behavior-probes` has an `env-scrub` area: a live case and a paired control that run a real Claude Code turn with a random fake credential planted, and check whether a Bash child can read it, from its own environment or another process's `/proc/<pid>/environ`, with `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` on and off. The control passes only when both routes find the value. The runner gains the `plant_env` case field and `target.result_match`, which reads a tool result not of the expected shape as `inconclusive`.
+
+## [8.0.1] - 2026-11-03
+
+### Changed
+
+- `/harness-ops:plugins` cache-content check reads its `git ls-tree`, `find` and `git check-ignore` output from a temporary file instead of a pipe. On Linux and macOS, bash then reads that output in blocks instead of one byte per read call; Cygwin and MSYS2 builds of bash read one byte at a time either way. The check also finds each path's owning source and install root once per directory instead of once per file. The report is unchanged.
+
 ## [8.0.0] - 2026-11-03
 
 ### Removed

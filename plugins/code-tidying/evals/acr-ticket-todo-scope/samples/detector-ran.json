@@ -5,7 +5,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "/x/skills/audit-comment-residue/scripts/detect.sh billing.py"
+            "command": "/x/skills/remove-comments/scripts/detect.sh billing.py"
           }
         }
       ]

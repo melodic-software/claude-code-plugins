@@ -68,7 +68,7 @@ Every entry carries the first seven fields; `check` is optional:
 | `detect` | How the checker finds it. The shape depends on `kind` (next table). |
 | `degrade` | What stops working without it, and what still works. The checker prints it. |
 | `install` | Hints keyed by package manager or `docs`. The checker prints them and never runs them. Key order is not a preference. |
-| `check` | Optional. A skill a person runs to re-check, such as `/<plugin>:check`. `check` mode and `report` print it; hook notices never do ([Hook notices](#hook-notices)). |
+| `check` | Optional. A skill a person runs to re-check, such as `/harness-ops:prerequisites`. `check` mode and `report` print it; hook notices never do ([Hook notices](#hook-notices)). |
 
 `need` and `for` together give the absence class. `required` for `plugin` means the plugin cannot
 work without it; hook plugins use that for `node`. `required` for `skill:x` means skill `x` stops
@@ -159,8 +159,8 @@ check "<root>"`, where `<root>` is the absolute plugin root. `check` mode is the
 `node-pkg` entry that only the plugin data directory holds reports `unverified` there.
 
 The node notice names `/harness-ops:prerequisites`, passed by harness-ops' row, because the notice
-speaks for the whole fleet. An entry's `check` may still name a per-plugin `check` or
-`check-prerequisites` skill until the wave that deletes it drops the field. A probe the checker
+speaks for the whole fleet. A plugin has no separate prerequisites skill: its bundled checker is the
+read-only entry point the model runs. A probe the checker
 cannot express stays a script in that plugin's `scripts/`: `check-hook-registration.sh` for hook
 registration, `check-mod-load.sh` for whether a mod can load. The plugin's `degrade` text and README
 name it, and it runs after the checker. Neither notice names `/<plugin>:setup`,
@@ -238,7 +238,7 @@ The fix is the declared one: the `install` hints, the repair line, or a `setup` 
 an undeclared tool.
 
 Observed 2026-10-04: the speech plugin was enabled mid-session, so its install hook never
-ran; `/speech:check` printed commands only, and `espeak-ng` (sudo) and the Kokoro model download
+ran; the speech check printed commands only, and `espeak-ng` (sudo) and the Kokoro model download
 were left for the user to run by hand.
 
 ## The CI gate

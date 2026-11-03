@@ -26,8 +26,7 @@
       "kind": "runtime",
       "need": "required",
       "for": [
-        "skill:audit-comment-residue",
-        "skill:dissolve-comments",
+        "skill:remove-comments",
         "skill:tidy"
       ],
       "detect": {
@@ -51,7 +50,7 @@
       "kind": "cli",
       "need": "optional",
       "for": [
-        "skill:dissolve-comments"
+        "skill:remove-comments"
       ],
       "detect": {
         "any": [

@@ -1,0 +1,1 @@
+{"pass": [{"answer": "| markdownlint-cli2 | PASS |", "why": "table row"}, {"answer": "Yes, it is missing: markdownlint-cli2 is not on PATH.", "why": "state before the name"}], "fail": [{"answer": "I will look at markdownlint-cli2 next.", "why": "names the tool, states nothing"}, {"answer": "Done.", "why": "no result"}]}

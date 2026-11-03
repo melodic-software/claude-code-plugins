@@ -20,9 +20,10 @@ import pathlib
 import sys
 import tempfile
 import unittest
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
+from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
@@ -444,12 +445,19 @@ class Settle(SettledCase):
         self.assertEqual((posted, len(warnings)), ([], 1))
         self.assertEqual(self.gh.writes(), [])
 
-    def run_settle_from(self, report: Any) -> tuple[int, dict[str, Any]]:
+    def run_settle_from(
+        self, report: Any, anchor: Any = "covers"
+    ) -> tuple[int, dict[str, Any]]:
+        if anchor == "covers":
+            anchor = pm.Anchor(datetime(2026, 1, 1, tzinfo=UTC), frozenset({NUMBER}))
         with tempfile.TemporaryDirectory(prefix="settle-") as tmp:
             path = pathlib.Path(tmp) / "post-merge.json"
             path.write_text(json.dumps(report), encoding="utf-8")
             out = io.StringIO()
-            with contextlib.redirect_stdout(out):
+            with (
+                contextlib.redirect_stdout(out),
+                mock.patch.object(pm, "read_anchor", return_value=anchor),
+            ):
                 code = pm.main(
                     [
                         "--repo",
@@ -468,6 +476,22 @@ class Settle(SettledCase):
         code, out = self.run_settle_from(report)
         self.assertEqual((code, out["settled"], out["warnings"]), (0, [NUMBER], []))
         self.assertEqual(len(self.comment_posts()), 1)
+
+    def test_settle_from_marks_only_merges_the_anchor_passed(self) -> None:
+        # #7336: a marker on a merge the anchor has not passed would hold the
+        # anchor for good, since a settled-only merge never moves it.
+        self.lane_dispatch()
+        report = self.settled_check(now=SOON).report()
+        merged_at = datetime.fromisoformat(report["autoMerges"][0]["mergedAt"])
+        for name, anchor, settled in (
+            ("no anchor", None, []),
+            ("anchor before the merge", pm.Anchor(merged_at - timedelta(seconds=1)), []),
+            ("anchor at the merge", pm.Anchor(merged_at), [NUMBER]),
+        ):
+            with self.subTest(name):
+                code, out = self.run_settle_from(report, anchor)
+                self.assertEqual((code, out["settled"]), (0, settled))
+                self.assertEqual(len(self.comment_posts()), len(settled))
 
     def test_settle_from_warns_and_exits_0_when_the_post_fails(self) -> None:
         self.gh.fail_reads = {f"issues/{NUMBER}/comments"}

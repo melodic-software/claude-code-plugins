@@ -97,9 +97,7 @@ function main() {
     }
 
     const binding = loadBinding(repo);
-    const surfaces = surface
-      ? [surface]
-      : [...surfaceIds(binding)];
+    const surfaces = surface ? [surface] : [...surfaceIds(binding)];
     if (surfaces.length === 0) surfaces.push("unbound");
 
     const reports = [];

@@ -1,7 +1,0 @@
-{
-  "name": "maintenance-code-tidying-upkeep",
-  "private": true,
-  "scripts": {
-    "test": "node --test"
-  }
-}

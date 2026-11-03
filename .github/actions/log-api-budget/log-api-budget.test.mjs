@@ -527,6 +527,42 @@ test("gh guard: a paginated secondary or abuse-detection limit waits the minute;
     }
   }));
 
+// A paginated call shows no headers, so a primary limit holds to the one open
+// window the token's earlier readings of the same route show (another route
+// may read another core counter); any other reading set keeps the
+// hour. The stop stays a guess (gh_read never waits on it).
+test("gh guard: a paginated primary limit holds to the reset of the one open window in earlier readings of its route, else the hour", () =>
+  withDir((dir) => {
+    const now = Math.floor(Date.now() / 1000);
+    const primary = "fail gh: API rate limit exceeded for installation ID 1. (HTTP 403)";
+    for (const [readings, seconds, label] of [
+      [[`200 5000 12 4988 ${now + 900} core repos/{repo}/pulls`, "request repos/o/r/pulls", `200 5000 10 4990 ${now + 900} core repos/{repo}/pulls`], 900, "one open core window"],
+      [[`200 5000 12 4988 ${now + 900} core repos/{repo}/pulls`, `200 5000 9 4991 ${now + 1800} core repos/{repo}/pulls`], 3600, "two open core windows"],
+      [[`200 5000 12 4988 ${now - 10} core repos/{repo}/pulls`], 3600, "a window already past"],
+      [["200 5000 12 4988 na core repos/{repo}/pulls"], 3600, "an unparsable reset"],
+      [[`200 5000 12 4988 ${now + 900} graphql graphql`], 3600, "an open window of another pool"],
+      [[`200 5000 12 4988 ${now + 900} core repos/{repo}`], 3600, "an open core window read on another route, maybe another counter"],
+      [[], 3600, "no readings"],
+    ]) {
+      rmSync(join(dir, "api-budget"), { recursive: true, force: true });
+      mkdirSync(join(dir, "api-budget"), { recursive: true });
+      if (readings.length) writeFileSync(join(dir, "api-budget", "github-token"), `${readings.join("\n")}\n`);
+      const out = guarded(dir, [primary], "gh api repos/o/r/pulls --paginate || true");
+      const [pool, left] = stopFor(dir);
+      assert.equal(pool, "*", label);
+      assert.ok(left >= seconds - 5 && left <= seconds, `${label}: stopped for ${left}s`);
+      assert.match(out.stderr, seconds === 900 ? /\(x-ratelimit-reset of an earlier reading\)/ : /\(fallback\)/, label);
+      assert.equal(readFileSync(join(dir, "api-budget", "guessed"), "utf8"), readFileSync(join(dir, "api-budget", "stop"), "utf8"), label);
+    }
+    // A secondary limit keeps its minute whatever the readings show.
+    rmSync(join(dir, "api-budget"), { recursive: true, force: true });
+    mkdirSync(join(dir, "api-budget"), { recursive: true });
+    writeFileSync(join(dir, "api-budget", "github-token"), `200 5000 12 4988 ${now + 900} core repos/o/r\n`);
+    guarded(dir, ["fail gh: You have exceeded a secondary rate limit. (HTTP 403)"], "gh api repos/o/r/pulls --paginate || true");
+    const [, left] = stopFor(dir);
+    assert.ok(left >= 55 && left <= 60, `secondary: stopped for ${left}s`);
+  }));
+
 // The call got a good answer, so it keeps gh's status: a caller that read a
 // failure would retry a write GitHub already accepted. The next call is
 // refused.
@@ -1037,6 +1073,12 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
     // own notice (a key, and no other action from a checkout); both pinned below.
     "pr-run-activity-read.yml": { "broker-check": "github-token", "issue-fields": "github-token", summary: "github-token", report: "github-token" },
     "pr-run-activity-write.yml": { report: "github-token" },
+    "maintenance-tidy-code-upkeep.yml": {
+      gate: "github-token",
+      scan: "github-token",
+      "push-branches": ["lanes-app", "lanes-app github-token"],
+      publish: ["lanes-app", "lanes-app github-token"],
+    },
     "upstream-apply-changelog.yml": {
       gate: "github-token",
       scan: "github-token",

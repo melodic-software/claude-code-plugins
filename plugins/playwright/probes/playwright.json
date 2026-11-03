@@ -4,7 +4,6 @@
   "skill_dir": "plugins/playwright/skills/playwright",
   "ranking_note": "Authored blind from the before descriptions at commit 7f7f5219ab98be34e7bc288fc70c01a5a13f2073, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the other model-invoked playwright skills (setup is user-invoked only).",
   "competitors": [
-    "playwright:check",
     "playwright:demo-video"
   ],
   "queries": [

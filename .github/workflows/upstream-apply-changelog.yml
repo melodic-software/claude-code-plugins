@@ -44,10 +44,14 @@ on:
 
 permissions: {}
 
-# One run at a time; a later run waits and is never cancelled.
+# One run at a time; later runs wait in line and are never cancelled
+# (`queue: max`). The default keeps one waiting run and cancels it when a
+# newer one queues, which would drop a dispatch. GitHub keeps at most 100
+# waiting and cancels any more; a waiting schedule tick costs one gate.
 concurrency:
   group: upstream-apply-changelog
   cancel-in-progress: false
+  queue: max
 
 defaults:
   run:
@@ -215,8 +219,8 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # An existing route: the broker's pinned resolver refuses a config that
-      # names a route outside its fixed set.
+      # The lane's apply-changelog slot: its route's model, effort and turns.
+      # model-route takes only run routes, never a skill activity's route.
       - name: Resolve the model
         id: models
         if: steps.kill.outputs.proceed == 'true'
@@ -224,14 +228,15 @@ jobs:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
-          model-route: resolve-issue
+          lane: upstream-apply-changelog
+          activity: apply-changelog
           base-path: .base
           output-path: ${{ runner.temp }}/upstream-apply-changelog-models.json
 
       # The plugins the skill and its stage skills load, copied out of main
       # before the root checkout replaces .base.
       - name: Stage the base plugins
-        if: steps.models.outcome == 'success'
+        if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
         env:
           STAGE: ${{ runner.temp }}/upstream-apply-changelog-stage
         run: |
@@ -243,18 +248,18 @@ jobs:
           [ -z "$(find "$STAGE" -type l -print -quit)" ] || { echo "::error::a staged plugin holds a symbolic link"; exit 1; }
 
       - name: Apply the Claude managed settings
-        if: steps.models.outcome == 'success'
+        if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
 
       - name: Isolate the runner
-        if: steps.models.outcome == 'success'
+        if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
         uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
         with:
           install-subprocess-isolation: "true"
 
       # The skill branches from here. Nothing after this step runs from .base.
       - name: Check out main with history
-        if: steps.models.outcome == 'success'
+        if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.gate.outputs.base-sha }}
@@ -264,13 +269,13 @@ jobs:
 
       - name: Prepare the working tree
         id: prepare
-        if: steps.models.outcome == 'success'
+        if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
         env:
           STAGE: ${{ runner.temp }}/upstream-apply-changelog-stage
           RELEASE: ${{ needs.gate.outputs.release }}
           MODEL: ${{ steps.models.outputs.model }}
         run: |
-          [ -n "$MODEL" ] || { echo "::error::the resolve-issue route's model is default, which run-claude-cli cannot pass"; exit 1; }
+          [ -n "$MODEL" ] || { echo "::error::the apply-changelog slot resolved no model, which run-claude-cli cannot pass"; exit 1; }
           git config user.name "upstream-apply-changelog"
           git config user.email "upstream-apply-changelog@users.noreply.github.com"
           printf '.lane/\n' >>.git/info/exclude

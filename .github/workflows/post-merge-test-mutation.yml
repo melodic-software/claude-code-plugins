@@ -311,7 +311,7 @@ jobs:
       - name: Run the mutation audit
         id: audit
         continue-on-error: true
-        uses: anthropics/claude-code-action@d535f5172dec02b204866b393d6b20b9b2aaf98d # v1.0.266
+        uses: anthropics/claude-code-action@4845bacbb38b3c4b15d948f035349786f678e068 # v1.0.267
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
           # MCP subprocesses, the mutated tests included, and gives Bash its

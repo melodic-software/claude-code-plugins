@@ -1,5 +1,104 @@
 # Changelog for the PR pipeline convention
 
+## [8.44.7] - 2026-11-03
+
+### Changed
+
+- maintenance-reconcile-lost-runs carries a lost pr-verify or pr-review-main run's attempt-1 job read in its settled-runs file while the run stays at attempt 1 with the same head and `updated_at`. A lane run deferred for want of one of the 3 re-run places is read once, not on every pass until it gets a place.
+
+## [8.44.6] - 2026-11-03
+
+### Fixed
+
+- pr-unblock's `report-stop-status` posts the stop status on the commit the activity's push job
+  pushed (`apply-conflict-patch`, `apply-feedback-patch`, `apply-dependency-patch`), and on the
+  select job's head only when that job pushed none. A reply or verdict job that stopped after the
+  push, such as `publish-feedback` with `feedback-unadjudicated`, put the failing status on the
+  head before it, so the pull request's head carried none, ci-status passed and pr-merge armed
+  auto-merge over the stop.
+
+## [8.44.5] - 2026-11-03
+
+### Changed
+
+- `handoff-evidence.sh` reads the job listing a page at a time. Each read after the first sends
+  each page that came with an `etag` as a conditional request, and a `304` reuses the page it
+  already read. A `200` whose body was cut off or is empty is now a failed read, as it was under
+  `--paginate`, not a listing of no jobs.
+- A read that fails, whatever GitHub answered, no longer fails `pr-unblock-dispatch.yml`. A
+  listing it cannot read dispatches nothing, and a PR whose reads fail is skipped, each with a
+  warning, and the next tick reads them again. Before, a read held only on a `5xx`, or in some
+  places a rate limit, and any other failed read ended the run red. A failed dispatch still does,
+  and so does a rate limit, which the shared rate guard fails. `fix-ci` still dispatches under its
+  caps when it cannot read its required run or the head's check runs for a reason other than a
+  `5xx` or a rate limit, as before.
+
+### Fixed
+
+- A pr-verify pass verdict's PR-scoped pr-merge run (`pr-merge: arm #<n>`) no longer skips when the last sweep's post-merge report does not stand. It removes that report, runs the post-merge check fresh on its own read-only token, and arms only when the check passes (exit 0 or 5) and `settle --idle-tick` keeps the fresh report. That is every gate the sweep applies, plus the idle tick on the fresh report, because the wake starts no full run or re-run. A wake no longer waits up to 30 minutes for the sweep, and each refused wake costs more `GITHUB_TOKEN` calls, as the pull request states. The `pr-merge-wake` notice now reports which report the room came from (`report=last`, `fresh` or `none`) and why the idle tick refused a fresh report, and a run the lanes kill switch stops says so instead of "the who step stopped it".
+
+## [8.44.4] - 2026-11-03
+
+### Fixed
+
+- A broker `kill-switch` refusal at the read file's broker-check (a switch turned on after the run read its variables) now ends that job green as a stop instead of failing it: `request-lane-token` takes `kill-switch-ok` in `check` mode, and broker-check passes it and reads its allow from the new `allowed` output. The run job and every job after it skip, no lease is claimed, no lane run report comment is posted, and the check is neutral `kill-switch`. The read file exposes the stop as `skip-reason`, and work-unblock still re-fires an issue whose broker-check stopped this way. Every other denial still fails red.
+
+- The issue lane's PR body and comments no longer cut a word in half. A summary longer than 3000 characters, or a change, check, not-done or remaining item longer than 300, is now cut at its last whitespace inside the cap and ends with `…`; one token longer than the cap is still cut at the cap, never inside a surrogate pair. Before this, each item was sliced at exactly 300 characters, which left #12396's body ending three lines mid-word.
+
+- The `upstream-apply-changelog` model job resolves its model, effort and turns from a new
+  `apply-changelog` skill slot of its lane (route `code-fix`), in place of `model-route:
+  resolve-issue`, which resolve-config refuses as no run route, so every release run failed before
+  the model.
+- The lane's runs wait in line (`queue: max`) instead of a newer run cancelling a pending one, so
+  two dispatches in quick succession both run.
+
+## [8.44.3] - 2026-11-03
+
+### Changed
+
+- The issue lane closes a `report-delivered` stop on any issue the run committed nothing for, whatever its work class or with none, and retries when the run committed to a branch or resumed one, whose earlier commits are still unmerged. Before, only a `work-class: read-only` issue closed (owner decision Q85, [#9668](https://github.com/melodic-software/claude-code-plugins/issues/9668)). Such a close still counts for nothing as a trusted close for a dependent.
+
+### Fixed
+
+- The `lefthook` refusal on the `ci-context` and `review-threads` rows now covers every file lefthook
+  reads its config or hook scripts from, not only the root `lefthook.yml`, so fix-ci and
+  address-feedback cannot change a hook through `lefthook-local.yaml`, `.config/lefthook.toml` or
+  `.lefthook/`.
+
+## [8.44.2] - 2026-11-03
+
+### Fixed
+
+- The half-hourly address-feedback sweep (`pr-feedback-dispatch.yml`, `sweepUnsent`) now sends a lanes App pull request whose head has an unresolved review thread and no address-feedback round, 10 minutes after the last review or pr-merge run at that head finished, and no round for it was created since that review started. Before, a review completion that skipped on a cause that clears later, such as a pr-verify FAIL-cap read that did not fit in its time limit, left the head with no other trigger, and one advisory thread held the pull request until a person dispatched the round.
+
+## [8.44.1] - 2026-11-03
+
+### Changed
+
+- ci-status's merge-holds step is now `Fail a lanes App pull request on kill switch, hold path, verifier or veto`. pr-verify's held-run check still takes the earlier name, which runs from before the rename report.
+- The merge-holds verdict line is now `no member veto and no hold path.`. ci-status still takes the earlier line, for a run whose module comes from a main tip behind its workflow.
+
+### Removed
+
+- `pr-feedback-dispatch.yml` no longer re-runs ci-status when a pr-unblock run completes: ci-status reads no `pr-unblock/*` status.
+
+### Fixed
+
+- The loop-lane contract no longer says a pull request comment is never a hold: a member's veto comment holds a lanes App pull request.
+- The "Not settled yet" note on holds gives the seven places as the 2026-11-01 count, not today's.
+
+## [8.44.0] - 2026-11-03
+
+### Added
+
+- The `maintenance-tidy-code-upkeep` lane opens code-tidying pull requests as a daily batch: a
+  gate picks the areas, a model job runs `/code-tidying:tidy` on the automations subscription token
+  with a read-only token, a scan job checks and credential-scans its sealed plan and branches,
+  `push-branches` (`apply-upkeep-branches`, mutate-branch) recreates each branch as a lanes App
+  commit, and `publish` (`publish-upkeep-prs`, publish-artifact) opens the pull requests within
+  `upkeep_max_open`. Its `scan` job is the scan-carrier key's third holder (owner decision,
+  2026-11-03).
+
 ## [8.43.0] - 2026-11-03
 
 ### Changed

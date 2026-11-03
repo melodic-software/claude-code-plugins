@@ -3477,6 +3477,32 @@ class InFlight(unittest.TestCase):
         # the endless third page is never read.
         self.assertEqual(len(reads), 3)
 
+    def test_a_gate_floor_past_a_long_verified_history_reads_clear(self) -> None:
+        # #7336: the lane gate's anchored floor (`PostMergeGate.floor`) ends
+        # the walk that the policy floor runs past the read bound.
+        gh = queue_fake(self, [], [])
+        human = merged(2, user(OPERATOR), user(OPERATOR))
+        older = merged(1, bot("agent-lanes"), None, "2026-09-01T09:00:00Z")
+        gh.graphql["PolicyRecentMerges"] = merge_pages([[human], [older]], endless=True)
+        policy_floor = policy.datetime.fromisoformat("2026-08-01T00:00:00Z")
+        anchor = policy.datetime.fromisoformat("2026-10-01T00:00:00Z")
+        gate = policy.PostMergeGate(None, {}, lambda merge: True, anchor)
+        for floor, reason in (
+            (policy_floor, "merged-history-truncated"),
+            (gate.floor_from(policy_floor), None),
+        ):
+            with self.subTest(floor=floor):
+                result = policy.in_flight(
+                    REPO,
+                    agent_identity=IDENTITY,
+                    permission=HUMANS,
+                    merged_since=floor,
+                    lane_merges_only=True,
+                )
+                self.assertEqual(result.reason, reason)
+        # A gate floor never lowers the policy floor.
+        self.assertEqual(gate.floor_from(anchor + policy.timedelta(days=1)).day, 2)
+
     def test_a_merge_that_jumped_to_page_one_mid_read_is_not_clear(self) -> None:
         # Local review of ed841af72: an unverified auto-merge on a later page
         # updated during the walk moves to page 1 behind the cursor.

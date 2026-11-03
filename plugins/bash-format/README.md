@@ -116,8 +116,8 @@ at the end of a turn, without rewriting, and hands findings back to Claude once 
   repo to opt in). Without the opt-in, shfmt is never needed. The repo chose not to format.
 
 A SessionStart probe reports a missing `shfmt` or `shellcheck` once per session, from
-`prerequisites.json`, and a drifted git-hook entry. Run `/bash-format:check` to see which binaries
-resolve; it is read-only and installs nothing.
+`prerequisites.json`, and a drifted git-hook entry. Run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`
+to see which binaries resolve; it is read-only and installs nothing.
 
 ### Hook budget accounting
 

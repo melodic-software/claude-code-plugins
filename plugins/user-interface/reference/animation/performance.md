@@ -143,8 +143,8 @@ properties? Use the arbitrary-value form, e.g. `transition-[opacity,filter,scale
   not a guarantee; which properties are animated is what the code controls.
 - CSS transitions/animations can run off the main thread for compositor-friendly properties:
   smoother under load. Use for simple,
-  predetermined state changes. JS engines (Motion, React Spring) run on `requestAnimationFrame`:
-  required for dynamic values, springs, and gesture-driven motion. Pick the simplest tool that
+  predetermined state changes. A JS engine's frame loop runs on `requestAnimationFrame`: required
+  for dynamic values, springs, and gesture-driven motion. Pick the simplest tool that
   supports the interaction; don't pay for a JS animation loop to fade a tooltip.
 - Anything that animates while the page is busy (route transitions, tab switches during
   navigation, animations that fire alongside data loading or hydration) must not depend on
@@ -159,7 +159,7 @@ properties? Use the arbitrary-value form, e.g. `transition-[opacity,filter,scale
 
 - **Pointer**: Motion, "Performance", "Hardware acceleration", "Independent transforms",
   <https://motion.dev/docs/performance#independent-transforms>.
-- **As of**: 2026-10-29.
+- **As of**: 2026-11-02.
 - **Recheck trigger**: that section changes which values it says are hardware accelerated.
 
 **Audit: Important.** Motion that plays while the page is busy and is driven frame by frame from

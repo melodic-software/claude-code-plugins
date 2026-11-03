@@ -3,7 +3,7 @@
 #
 #   identity-domains.sh --profile FILE|- [--data-dir DIR [--confirm] [--replace]]
 #                       [--owner NAME=OWNER] [--marker NAME=TEXT]
-#                       [--az-config-dir NAME=DIR]
+#                       [--az-config-dir NAME=DIR] [--owner-root DIR]
 #                       [--shared-exception FROM[,FROM...]:TO=PATH]
 #
 # FILE is a /harness-ops:machine-profile document: the stored profile.json or a
@@ -13,11 +13,16 @@
 # records `set` is its gh_config_dir. A domain is named after its tree's last
 # segment, with `-2`, `-3` added on a clash. The profile records no owners,
 # identity markers, az directory or shared exceptions; the repeatable flags add
-# them by domain name, and a value left unsupplied is left out of the map.
+# them by domain name, and a value left unsupplied is left out of the map. Each
+# --owner-root is a directory holding one directory per owner, such as
+# "$(ghq root)/github.com", or flat <owner>-<repo>-<slug> trees, such as
+# "$(git config worktreeroot.path)"; given, they become the map's owner_roots
+# under the profile's os key, in place of ~/src/github.com and
+# ~/worktrees/github.com.
 #
 # A --shared-exception opens PATH, a directory of domain TO, to sessions in the
 # FROM domains, one way: the map entry {path, from, to}. PATH must be TO's tree,
-# or below it or below one of TO's owner directories under $HOME, and not below
+# or below it or below one of TO's owner directories, and not below
 # another domain's path nested there, compared as block-cross-domain.sh compares
 # them; FROM must not list TO.
 #
@@ -83,9 +88,11 @@ def innermost($paths; $os):
           .taken as $t | ($r.base | fresh($t)) as $n | .taken[$n] = true | .out += [$r + {name: $n}])
         | .out) as $kept
       | ($kept | map(.name)) as $names
-      | ([$extra[] | select(.k != "shared-exception" and (.n as $n | $names | any(.[]; . == $n) | not))
+      | ([$extra[] | select(.k == "owner-root") | .v]) as $owner_roots
+      | ([$extra[] | select(.k != "shared-exception" and .k != "owner-root" and (.n as $n | $names | any(.[]; . == $n) | not))
           | "--\(.k) names domain \(.n), which the profile does not yield; its domains are \($names | join(", "))"]
         + [$extra[] | select(.v | oneline | not) | "a --\(.k) value is not a non-empty one-line string"]
+        + [$owner_roots[] | select(oneline and (absolute($os) | not)) | "--owner-root \(.) is not absolute below a filesystem root"]
         + [$extra[] | select(.k == "shared-exception") | .n as $n | .v as $p | ($n | split(":")) as $s
             | if ($s | length) != 2 or $s[0] == "" or $s[1] == "" then "--shared-exception takes FROM[,FROM...]:TO=PATH, not \($n)=\($p)"
               else ($s[0] | split(",")) as $from | $s[1] as $to
@@ -93,8 +100,10 @@ def innermost($paths; $os):
               | if $unknown != [] then "--shared-exception names domain \($unknown[0]), which the profile does not yield; its domains are \($names | join(", "))"
                 elif any($from[]; . == $to) then "--shared-exception \($n): FROM lists TO"
                 elif ($p | oneline) and ($p | innermost([$kept[] | {d: .name, v: .tree}]
-                    + [$extra[] | select(.k == "owner") | .n as $d | .v as $o | $home | select(. != "")
-                        | {d: $d, v: "\(.)/src/github.com/\($o)"}, {d: $d, v: "\(.)/worktrees/github.com/\($o)"}]; $os) != $to)
+                    + [$extra[] | select(.k == "owner") | .n as $d | .v as $o
+                        | (if $owner_roots != [] then $owner_roots[]
+                           else $home | select(. != "") | "\(.)/src/github.com", "\(.)/worktrees/github.com" end)
+                        | {d: $d, v: "\(sub("[\\\\/]+$"; ""))/\($o)"}]; $os) != $to)
                 then "--shared-exception \($n): \($p) is not the tree of domain \($to), below it, or below one of its owner directories, outside every domain nested there"
                 else empty end
               end]) as $bad
@@ -115,7 +124,9 @@ def innermost($paths; $os):
           | ([$extra[] | select(.k == "shared-exception") | (.n | split(":")) as $s
                 | {path: .v, from: ($s[0] | split(",")), to: $s[1]}]
               | if length > 0 then {shared_exceptions: .} else {} end) as $shared
-          | {map: ({domains: $domains} + $shared),
+          | {map: ({domains: $domains}
+               + (if $owner_roots != [] then {owner_roots: {($os): $owner_roots}} else {} end)
+               + $shared),
              notes: ([$rows[] | .note // empty]
                + [$kept[] | select(ghset | not)
                    | "domain \(.name): gh_config_dir left out; the profile records it \(.gh.verdict // "nowhere")"]
@@ -142,7 +153,7 @@ add_extra() { # FLAG NAME=VALUE
 }
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  --profile | --data-dir | --owner | --marker | --az-config-dir | --shared-exception)
+  --profile | --data-dir | --owner | --marker | --az-config-dir | --shared-exception | --owner-root)
     [[ $# -ge 2 ]] || die "$1 needs a value"
     case "$1" in
     --profile) PROFILE="$2" ;;
@@ -151,6 +162,7 @@ while [[ $# -gt 0 ]]; do
     --marker) add_extra marker "$2" ;;
     --az-config-dir) add_extra az-config-dir "$2" ;;
     --shared-exception) add_extra shared-exception "$2" ;;
+    --owner-root) add_extra owner-root "root=$2" ;;
     *) ;;
     esac
     shift 2

@@ -85,6 +85,14 @@
       "reason": "Read by its own run and the next run; 1 day is the minimum.",
       "scan": "upload"
     },
+    "pr-merge-post-merge-anchor": {
+      "retention-days": 7,
+      "readers": [
+        "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py read_anchor, in later pr-merge runs"
+      ],
+      "reason": "A run whose check writes no anchor (an idle tick, an unreadable check) leaves the last one standing; 7 days outlasts a long quiet spell without carrying stale floors for long.",
+      "scan": "upload"
+    },
     "pr-merge-gate-cursor": {
       "retention-days": 1,
       "readers": [
@@ -350,6 +358,17 @@
         ".github/workflows/maintenance-reconcile-lost-runs.yml#reconcile"
       ]
     },
+    "key-credit-stop-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-review-main.yml review-handoffs-credit, through ci-workflows check-key-credit gate.cjs, in later runs inside vars.KEY_CREDIT_WINDOW_HOURS"
+      ],
+      "reason": "The gate counts a marker only inside its window, 1 hour unset, so 1 day covers it; a window over 24 hours ends at expiry. It holds only the run id the workflow writes, never model text, so it is not scanned.",
+      "scan": "none",
+      "uploads": [
+        ".github/workflows/pr-review-main.yml#review-handoffs"
+      ]
+    },
     "reconcile-settled-runs": {
       "retention-days": 1,
       "readers": [
@@ -451,6 +470,23 @@
       ],
       "reason": "Manual inspection only; no workflow reads it after the run. A person reads a dispatched eval's results soon after starting it, and 3 days covers a weekend.",
       "scan": "upload"
+    },
+    "tidy-code-upkeep-sweeps": {
+      "retention-days": "max",
+      "max-reader": ".github/scripts/maintenance-tidy-code-upkeep/upkeep.mjs",
+      "readers": [
+        ".github/scripts/maintenance-tidy-code-upkeep/upkeep.mjs gate treats each listed area as swept at the record's commit time"
+      ],
+      "reason": "A clean sweep opens no pull request, so this is its only record. It must cover the gate's 90-day lookback for an area with no pull request sweep, which is more than twice the longest backstop. It holds only a commit time and slugs of areas the gate chose, never model text, so it is not scanned.",
+      "scan": "none"
+    },
+    "maintenance-tidy-code-upkeep-plan-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/maintenance-tidy-code-upkeep.yml push-branches and publish download it by id, same run"
+      ],
+      "reason": "Read by its own run; 1 day is the minimum. The scan job uploads it only after its scans of the plan, the branch diffs and the publish text are clean.",
+      "scan": "plaintext"
     },
     "upstream-apply-changelog-started": {
       "retention-days": 2,
