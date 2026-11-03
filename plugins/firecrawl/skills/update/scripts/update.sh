@@ -3,18 +3,23 @@
 #
 # Maintainer-facing: run against a working-tree checkout of this plugin (the
 # marketplace clone, or a directory loaded via --plugin-dir), never against an
-# installed marketplace copy — --apply rewrites upstream.md in the skill dir.
+# installed marketplace copy — --apply and --record-upstream rewrite upstream.md
+# in the skill dir.
 # Consumers receive updates through `/plugin marketplace update`.
 #
 # Modes:
 #   --check  (default) read-only: report CLI version delta + upstream SKILL.md drift
-#   --apply  run npm install -g firecrawl-cli@latest, then rewrite upstream.md
+#   --apply  run npm install -g firecrawl-cli@latest, then record the CLI version
+#            and rollback target in upstream.md, keeping the recorded upstream SHA,
 #            WITHOUT touching SKILL.md (Claude integrates upstream changes under
 #            the skill body's Preservation rules; this script only owns the
 #            deterministic parts — npm + metadata)
+#   --record-upstream  record the fetched upstream SHA in upstream.md, installing
+#            nothing; run only after Gate 2 or with no content delta, so a declined
+#            or abandoned integration keeps showing as drift in --check
 #
 # Exit codes (the shared drift-check contract):
-#   0  no drift OR apply completed successfully
+#   0  no drift OR apply or record completed successfully
 #   1  drift detected in --check mode (no mutations)
 #   2  unverifiable: prerequisite missing (curl/jq/npm), network failure, or usage;
 #      or --apply refused or unconfirmed: npm's global bin does not hold the
@@ -219,7 +224,7 @@ require_npm_owned_command() {
 }
 
 run_apply() {
-  local current latest upstream_sha previous_ver
+  local current latest previous_ver
 
   require_npm_owned_command || return 2
 
@@ -249,37 +254,47 @@ run_apply() {
   fi
   firecrawl --status 2>&1 | head -10 || true
 
-  section "Upstream sync"
-  upstream_sha=$(fetch_upstream_sha) || {
-    err "failed to fetch upstream SKILL.md"
-    return 2
-  }
-  log "new upstream SHA256: $upstream_sha"
-
-  rewrite_upstream_md "$upstream_sha" "$current" "$previous_ver"
-  log "upstream.md refreshed"
+  # The upstream SHA and sync date stay as recorded: they mark what the skill has
+  # integrated, which only --record-upstream, after Gate 2, may advance.
+  rewrite_upstream_md "$(recorded_upstream_sha)" "$current" "$previous_ver" "$(recorded_sync_date)"
+  log "upstream.md: CLI version and rollback target recorded; upstream SHA kept"
 
   section "Next step"
   log "Now invoke the skill's Gate-2 integration: review the upstream SKILL.md"
   log "changes (diff against the tmp-fetched content) and integrate under the"
-  log "Preservation rules. See this update skill's SKILL.md."
+  log "Preservation rules. See this update skill's SKILL.md. When Gate 2 is done,"
+  log "or there was no content delta, run --record-upstream."
   return 0
 }
 
+run_record_upstream() {
+  local current upstream_sha
+
+  upstream_sha=$(fetch_upstream_sha) || {
+    err "failed to fetch upstream SKILL.md; upstream.md not written"
+    return 2
+  }
+  current=$(current_cli_version)
+  rewrite_upstream_md "$upstream_sha" "${current:-$(recorded_cli_version)}" \
+    "$(recorded_field 'Previous CLI version (rollback target)')" "$(date -u +%Y-%m-%d)"
+  log "upstream.md: upstream SHA256 $upstream_sha recorded"
+  return 0
+}
+
+# A value with nothing recorded is written as the placeholder recorded_field
+# reads back as empty, so --check still treats the skill as never synced.
 rewrite_upstream_md() {
-  local sha="$1" ver="$2" prev="$3"
-  local today
-  today=$(date -u +%Y-%m-%d)
+  local sha="$1" ver="$2" prev="$3" synced="${4:-}"
   cat >"$UPSTREAM_MD" <<EOF
 <!-- firecrawl update state: do not edit by hand. -->
-<!-- Written by the skill's scripts/update.sh --apply. -->
+<!-- Written by the skill's scripts/update.sh --apply and --record-upstream. -->
 
 # Firecrawl skill upstream sync state
 
-- Last sync: ${today}
+- Last sync: ${synced:-never}
 - Upstream URL: ${UPSTREAM_URL}
-- Upstream SHA256: ${sha}
-- CLI version at sync: ${ver}
+- Upstream SHA256: ${sha:-(none recorded)}
+- CLI version at sync: ${ver:-(none recorded)}
 - Previous CLI version (rollback target): ${prev:-none}
 - CLI npm URL: https://www.npmjs.com/package/${NPM_PKG}
 - Next recheck: run the update action with --check weekly or when a scrape
@@ -294,7 +309,7 @@ main() {
   case "$mode" in
   -h | --help)
     cat <<'EOF'
-Usage: update.sh [--check | --apply | --help]
+Usage: update.sh [--check | --apply | --record-upstream | --help]
 
 Drift-check + upgrade helper for the firecrawl plugin skill. Maintainer-
 facing: run in a working-tree checkout of the plugin, not an installed copy.
@@ -302,12 +317,19 @@ facing: run in a working-tree checkout of the plugin, not an installed copy.
   --check  (default) Read-only drift report: CLI version delta + upstream SHA delta.
            Exit 0 if in sync, 1 if drift detected, 2 on prerequisite/network error.
 
-  --apply  Run npm install -g firecrawl-cli@latest and refresh upstream.md.
+  --apply  Run npm install -g firecrawl-cli@latest and record the CLI version and
+           rollback target in upstream.md, keeping the recorded upstream SHA.
            Exit 2 before installing, writing nothing, when something other than
            npm's global bin owns the firecrawl command. Exit 2 after installing,
            without writing upstream.md, when the command does not read npm latest.
            Does NOT rewrite SKILL.md — that's Claude's integration step, governed
            by SKILL.md Preservation rules.
+
+  --record-upstream
+           Fetch upstream SKILL.md and record its SHA in upstream.md, with the
+           version the firecrawl command reads. Installs nothing. Run it only after
+           Gate 2 is done or there was no content delta. Exit 2, writing nothing,
+           when the fetch fails.
 
   --help   Show this message.
 EOF
@@ -330,8 +352,11 @@ EOF
   --apply)
     run_apply
     ;;
+  --record-upstream)
+    run_record_upstream
+    ;;
   *)
-    err "unknown mode: $mode (expected --check, --apply, or --help)"
+    err "unknown mode: $mode (expected --check, --apply, --record-upstream, or --help)"
     exit 2
     ;;
   esac

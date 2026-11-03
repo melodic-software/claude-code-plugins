@@ -30,9 +30,11 @@ Read when running the update action. The update model, preservation invariants, 
 3. Report          one-pane summary — nothing mutated yet
 4. [Gate 1]        prompt to proceed with npm install; when something else owns the
                    firecrawl command, update.sh refuses: update that owner's pin instead
+                   a declined Gate 1 skips step 5 and still reaches steps 6 and 7
 5. Execute npm     scripts/update.sh --apply: refuses behind another owner, otherwise runs
                    npm install -g firecrawl-cli@latest, requires npm latest after it, and
-                   records upstream.md (date, SHA, version, previous-version for rollback)
+                   records the CLI version and rollback target in upstream.md, keeping the
+                   recorded upstream SHA
                    firecrawl --status           → verify post-install
                    firecrawl --help → run dir     → new command surface
                    diff old vs new help
@@ -42,5 +44,8 @@ Read when running the update action. The update model, preservation invariants, 
                      in ../SKILL.md, if installed (passing the Preservation rules), otherwise
                      inline-edit
                    show proposed SKILL.md diff, prompt to apply
-7. Finalize        run the repo's markdown + shell linters over the changed files
+7. Finalize        scripts/update.sh --record-upstream, only after Gate 2 is done or there
+                   was no content delta: it records the SHA and date and installs nothing
+                   a declined Gate 2 records nothing, so --check keeps reporting the drift
+                   run the repo's markdown + shell linters over the changed files
 ```

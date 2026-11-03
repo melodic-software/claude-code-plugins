@@ -61,8 +61,9 @@ above; otherwise inline-edit.
 Nothing destructive happens without explicit approval. Four guarantees:
 
 1. **Two approval gates.** The update action never runs `npm install -g` or rewrites SKILL.md
-   without asking first. Gate 1 covers the binary install; Gate 2 covers the skill content. Either
-   `No` exits cleanly.
+   without asking first. Gate 1 covers the binary install; Gate 2 covers the skill content. A `No`
+   at Gate 1 skips the install and still reaches Gate 2. A `No` at Gate 2 records nothing, so
+   `--check` keeps reporting the drift.
 2. **Atomic fetching.** `update.sh --check` completes all network I/O (npm metadata + upstream
    fetch) before printing anything. A mid-run 404 or DNS failure leaves state untouched. No partial
    write.
@@ -94,10 +95,11 @@ Safe to schedule or re-run.
 
 ## Related
 
-- `upstream.md` (this skill root). Sync-state anchor (last sync date, upstream SHA, previous CLI
-  version for rollback). Updated only by the update action.
-- `scripts/update.sh`. Deterministic helper invoked by the update flow (npm version lookup, upstream
-  fetch + SHA, help diff). Regression tests: `scripts/update.test.sh`.
+- `upstream.md` (this skill root). Sync-state anchor (last sync date, upstream SHA, CLI version,
+  previous CLI version for rollback). Updated only by the update action: `--apply` writes the CLI
+  version and rollback target, `--record-upstream` writes the upstream SHA and sync date after Gate 2.
+- `scripts/update.sh`. Deterministic helper invoked by the update flow (npm version lookup, install,
+  upstream fetch + SHA, the `upstream.md` record). Regression tests: `scripts/update.test.sh`.
 - `context/update-flow.md`, when to invoke, the modes, and the full pipeline.
 - The user-facing wrapper skill this maintains: `/firecrawl:firecrawl`.
 - Firecrawl docs: <https://docs.firecrawl.dev/sdks/cli>. Upstream skill source: <https://www.firecrawl.dev/agent-onboarding/SKILL.md>.
