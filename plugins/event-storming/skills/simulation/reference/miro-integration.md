@@ -53,10 +53,13 @@ marketplace first, then enabled** (enabling alone does not install it).
 2. **Install the plugin.** It installs **disabled** (`defaultEnabled: false` by design).
 3. **Enable it and supply a token** through `/plugin` when Claude Code asks for the Miro API token.
    Never write the token into `settings.json` by hand. Get a token from
-   https://miro.com/app/settings/user-profile/apps. For the scopes it needs, follow the OAuth guide
-   that [Authorization Info](https://developers.miro.com/docs/rest-api-reference-guide#authorization-info)
+   https://miro.com/app/settings/user-profile/apps. Grant only `boards:read` and `boards:write`,
+   the scopes the bundled server's tools use: they call board, item, connector and tag endpoints
+   only, so a broader scope such as `team:*`, `organizations:*` or `identity:read` only widens what
+   a leaked token exposes. For what each scope means, follow the OAuth guide that
+   [Authorization Info](https://developers.miro.com/docs/rest-api-reference-guide#authorization-info)
    links (as of 2026-11-03; recheck when that section moves or stops linking the authorization
-   guide).
+   guide, or when the bundled server's tools call an endpoint outside the board scopes).
    - **Pointer**: when a user asks how the token is collected or stored, fetch
      [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
      (the `sensitive` option) live.
