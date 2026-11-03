@@ -5,6 +5,12 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.1] - 2026-11-03
+
+### Fixed
+
+- `scripts/context-zone.sh` now follows a lowered auto-compact window. When the snapshot carries `bands.auto_compact_window`, the resolver scales its percentage edges by that window over `context_window_size`, as the module does, so it reports the same zone the module publishes. Without the field, the edges stay as set. The mod's TypeScript resolver reads the same field when no window is passed to it, and the shared fixture covers a lowered and a default window. The reader contract and README no longer say the shell resolver measures against the full window (#12854).
+
 ## [3.0.0] - 2026-11-03
 
 ### Changed

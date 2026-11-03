@@ -17,7 +17,7 @@ source "$HOOK_DIR/guardrails-test-helpers.sh"
 # An interactive session exports CLAUDE_CODE_SESSION_ATTENDED=1, which turns a
 # refusal into an ask (refuse.sh). Every case below asserts the deny unless it
 # sets the flag itself.
-unset CLAUDE_CODE_SESSION_ATTENDED
+unset CLAUDE_CODE_SESSION_ATTENDED GUARDRAILS_SESSION_UNWATCHED
 # The worktree fixtures write git files; an inherited GIT_DIR must not redirect them.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 

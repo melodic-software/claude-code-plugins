@@ -9,8 +9,8 @@
 # instead. Artifacts come from every `--artifacts` and from
 # `coverage.artifacts` in the config; with none named, well-known names are
 # looked for under the repository root, at most two directory levels deep.
-# Complexity for the CRAP formula comes from the sibling audit-complexity
-# skill's entry script, run over the same scope. Exit codes: 0 report
+# Complexity for the CRAP formula comes from the audit skill's complexity
+# entry script, run over the same scope. Exit codes: 0 report
 # produced, including an empty one; 2 usage error, which includes a named
 # artifact or scope path that does not exist; 3 a collector ran and produced
 # nothing parseable.
@@ -20,7 +20,7 @@ SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 REPORT="$PLUGIN_ROOT/scripts/report.py"
 PARSERS="$PLUGIN_ROOT/scripts/parsers"
-COMPLEXITY="$PLUGIN_ROOT/skills/audit-complexity/scripts/audit-complexity.sh"
+COMPLEXITY="$PLUGIN_ROOT/skills/audit/scripts/audit-complexity.sh"
 # Well-known artifact names, in the order they are looked for. Directories
 # excluded from the walk: node_modules, .git, vendor.
 WELL_KNOWN=(coverage/lcov.info lcov.info coverage.xml cobertura.xml coverage.json coverage.out cover.out)

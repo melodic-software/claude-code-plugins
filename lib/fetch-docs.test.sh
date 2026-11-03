@@ -1068,6 +1068,14 @@ cache_run $((T1 + 50)) out27f --max-age 86400 skills
 assert_eq "case 27: a retitled key is still served fresh from the cache" "read cache true" \
   "$(page "$TEST_TMPDIR/out27f/manifest.json" skills '"\(.state) \(.source) \(.quarantined)"')"
 
+# Case 28: the reading procedure that makes --out with mktemp also has the reader remove it,
+# so a docs lookup leaves no tmp.* directory behind.
+procedure="$SCRIPT_DIR/docs-lookup-procedure.md"
+# shellcheck disable=SC2016 # the patterns are literal procedure text
+assert_eq "case 28: the procedure makes --out with mktemp" 1 "$(grep -c '^out="$(mktemp -d)"$' "$procedure")"
+# shellcheck disable=SC2016 # the pattern is literal procedure text
+assert_eq "case 28: the procedure removes --out by its literal path" 1 "$(grep -c '`rm -rf <out>`' "$procedure")"
+
 echo
 if [[ $FAILED -eq 0 ]]; then
   printf 'All %d assertions passed.\n' "$CASE_NUM"

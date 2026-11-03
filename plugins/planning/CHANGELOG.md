@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.1] - 2026-11-03
+
+### Changed
+
+- The synced `lib/view-registry.mjs` registers the other view lanes ([#12667](https://github.com/melodic-software/claude-code-plugins/issues/12667)); planning's lane is unchanged.
+
 ## [2.0.0] - 2026-11-03
 
 ### Changed
