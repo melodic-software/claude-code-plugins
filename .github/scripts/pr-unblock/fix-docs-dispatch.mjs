@@ -7,8 +7,9 @@
 // (pr-unblock-dispatch.yml), so the trigger gate and the broker check it as
 // they check a resolve-conflicts dispatch.
 //
-// Once per PR, when it is first seen ready, not after each push. The listing is one GraphQL query per
-// page of 50 pull requests, whose rateLimit.cost is logged; it drops a PR
+// Once per PR, when it is first seen ready, not after each push. The listing is
+// dispatch.mjs's LIST_QUERY, one GraphQL query per page of 50 pull requests
+// shared with the run's other dispatchers, whose rateLimit.cost is logged; it drops a PR
 // whose head already has the check run. For each PR left, lowest number
 // first, one more query reads the check runs on its last HISTORY_COMMITS
 // commits, and a PR with one on any of them is done for good: its head goes
@@ -71,37 +72,6 @@ const RUN_ID = /^[1-9][0-9]{0,14}$/;
 const MAX_PAGES = 20;
 // fix-docs's applies-when paths, **/*.md.
 const MARKDOWN = /\.md$/;
-
-export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!, $after: String) {
-  rateLimit { cost remaining }
-  repository(owner: $owner, name: $name) {
-    pullRequests(states: OPEN, baseRefName: $base, first: 50, after: $after) {
-      nodes {
-        number isDraft isCrossRepository baseRefName headRefOid
-        author { __typename login ... on Bot { databaseId } ... on User { databaseId } }
-        labels(first: 100) { nodes { name } }
-        files(first: 100) { nodes { path } pageInfo { hasNextPage } }
-        commits(last: 1) {
-          nodes {
-            commit {
-              oid
-              statusCheckRollup {
-                contexts(first: 100) {
-                  nodes {
-                    __typename
-                    ... on CheckRun { name checkSuite { app { databaseId } } }
-                  }
-                  pageInfo { hasNextPage }
-                }
-              }
-            }
-          }
-        }
-      }
-      pageInfo { hasNextPage endCursor }
-    }
-  }
-}`;
 
 export const HISTORY_QUERY = `query($owner: String!, $name: String!, $number: Int!, $appId: Int!, $checkName: String!, $earlierCheckName: String!) {
   rateLimit { cost remaining }

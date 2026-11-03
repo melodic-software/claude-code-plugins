@@ -461,7 +461,7 @@ fi
 if ((${#py[@]} == 0)); then
   skip ruff "no changed .py"
 else
-  run_check ruff "scripts/run-ruff.sh check ${py[*]}" "$tools/scripts/run-ruff.sh" check "${py[@]}"
+  run_check ruff "scripts/run-ruff.sh check --force-exclude ${py[*]}" "$tools/scripts/run-ruff.sh" check --force-exclude "${py[@]}"
 fi
 
 # typos: the exclusions are the `exclude:` input of the checked tree's

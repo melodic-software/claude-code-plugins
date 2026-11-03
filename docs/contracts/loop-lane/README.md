@@ -457,7 +457,10 @@ real-time deadline. A hold that lands after the merge is not a hold (the inciden
 clause: an escalating lane decided to hold, drafted its explanation first, and applied the label
 ~30 minutes later, 3 minutes *after* the PR had merged).
 
-- **The `do-not-merge` label is the only cross-lane hold.** It is the one hold mechanism enforced
+- **The `do-not-merge` label is the only cross-lane hold.** A lanes App hold line and a person
+  merging by hand use it; ci-status reads no body hold text or `pr-unblock/*` stop status, and a
+  member's veto comment holds only a lanes App pull request, in ci-status's merge-holds step. It is
+  the one hold mechanism enforced
   server-side: the org ruleset requires the `ci-status` check, whose `check-contract` step fails on the
   `do-not-merge` label and re-evaluates on `labeled`/`unlabeled`, so applying the label flips a
   SHA-bound required check with no bypass actors. A PR already in the merge queue is held by the

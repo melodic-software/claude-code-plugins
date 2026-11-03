@@ -45,6 +45,14 @@ inputs:
       Never with `pr-number` or `dispatcher-run-id`. `token` mode only.
     required: false
     default: ""
+  release:
+    description: >-
+      The Claude Code release an upstream-apply-changelog.yml job works, one
+      MAJOR.MINOR.PATCH; sent as `release`, a string, which the broker needs
+      from that caller and refuses from any other. Never with `pr-number`,
+      `issue-number` or `dispatcher-run-id`. `token` mode only.
+    required: false
+    default: ""
   dispatcher-run-id:
     description: >-
       The pr-unblock-dispatch.yml run that dispatched this run; sent as
@@ -159,6 +167,7 @@ runs:
         ACTIVITY: ${{ inputs.activity }}
         PR_NUMBER: ${{ inputs.pr-number }}
         ISSUE_NUMBER: ${{ inputs.issue-number }}
+        RELEASE: ${{ inputs.release }}
         DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
         EXPECTED_UPSTREAM_HEAD: ${{ inputs.expected-upstream-head }}
         EFFECT: ${{ inputs.effect }}
@@ -218,6 +227,10 @@ runs:
           [[ -z ${ISSUE_NUMBER:-} || $ISSUE_NUMBER =~ ^[1-9][0-9]{0,9}$ ]] || fail "the issue number is malformed"
           [[ -z ${ISSUE_NUMBER:-} || -z $PR_NUMBER$DISPATCHER_RUN_ID ]] ||
             fail "an issue number goes without a PR number or dispatcher run id"
+          [[ -z ${RELEASE:-} || $RELEASE =~ ^(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,5})$ ]] ||
+            fail "the release must be one MAJOR.MINOR.PATCH"
+          [[ -z ${RELEASE:-} || -z $PR_NUMBER$ISSUE_NUMBER$DISPATCHER_RUN_ID ]] ||
+            fail "a release goes without a PR number, issue number or dispatcher run id"
           # At most 15 digits keeps it a safe JSON integer for the broker.
           [[ -z ${DISPATCHER_RUN_ID:-} || $DISPATCHER_RUN_ID =~ ^[1-9][0-9]{0,14}$ ]] ||
             fail "the dispatcher run id is malformed"
@@ -227,8 +240,8 @@ runs:
         check)
           # The check job resolves no grant and gates no PR, and the broker's
           # check endpoint answers 400 to any body field but lane and activity.
-          [[ -z $EFFECT$CONTENTS$PULL_REQUESTS$ISSUES${ACTIONS:-}$PR_NUMBER$ISSUE_NUMBER$DISPATCHER_RUN_ID${EXPECTED_UPSTREAM_HEAD:-} ]] ||
-            fail "check mode takes no effect, grant, PR or issue number, or dispatcher run id"
+          [[ -z $EFFECT$CONTENTS$PULL_REQUESTS$ISSUES${ACTIONS:-}$PR_NUMBER$ISSUE_NUMBER${RELEASE:-}$DISPATCHER_RUN_ID${EXPECTED_UPSTREAM_HEAD:-} ]] ||
+            fail "check mode takes no effect, grant, PR or issue number, release, or dispatcher run id"
           [[ $BROKER_URL =~ ^https://[^/]+/(.+/)?token$ ]] ||
             fail "lane-token-unconfigured: LANES_BROKER_URL does not end in a /token path segment, so it names no check endpoint"
           BROKER_URL="${BROKER_URL%/token}/check"
@@ -260,10 +273,11 @@ runs:
         trap cleanup EXIT
 
         body=$(jq -cn --arg lane "$LANE" --arg activity "$ACTIVITY" --arg pr "$PR_NUMBER" \
-          --arg issue "$ISSUE_NUMBER" --arg dispatcher "$DISPATCHER_RUN_ID" --arg upstream "${EXPECTED_UPSTREAM_HEAD:-}" \
+          --arg issue "$ISSUE_NUMBER" --arg release "${RELEASE:-}" --arg dispatcher "$DISPATCHER_RUN_ID" --arg upstream "${EXPECTED_UPSTREAM_HEAD:-}" \
           '{lane: $lane, activity: $activity}
             + (if $pr == "" then {} else {pr_number: ($pr | tonumber)} end)
             + (if $issue == "" then {} else {issue_number: ($issue | tonumber)} end)
+            + (if $release == "" then {} else {release: $release} end)
             + (if $dispatcher == "" then {} else {dispatcher_run_id: ($dispatcher | tonumber)} end)
             + (if $upstream == "" then {} else {expected_upstream_head: $upstream} end)')
 

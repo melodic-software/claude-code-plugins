@@ -991,7 +991,7 @@ test("needsPerson holds a security lane finding rated CRITICAL or unrated, never
 test("after the fresh fixer's round, a CRITICAL security finding left open still holds for a person", async () => {
   const result = await capped({ rounds: 4, roots: [CODE_FINDING, LANE_FINDING.replace("IMPORTANT", "CRITICAL")] });
   assert.equal(result.decision, "escalate");
-  assert.equal(result.escalationReason, "feedback-round-cap");
+  assert.equal(result.escalationReason, "feedback-round-cap-security");
   assert.equal(escalationRoute(result.escalationReason), "hold");
 });
 
@@ -1011,7 +1011,7 @@ test("only the fresh fixer's round carries the brief: a round below the cap or o
 // A SUGGESTION goes to the fresh fixer as a code lane finding does; a CRITICAL
 // one, or one with no rating the lane can read, holds for a person at once.
 const SUGGESTION_FINDING = LANE_FINDING.replace("severity: IMPORTANT", "severity: SUGGESTION");
-test("at the cap, a SUGGESTION or IMPORTANT security lane finding goes to a fresh fixer; a CRITICAL or unrated one escalates feedback-round-cap", async () => {
+test("at the cap, a SUGGESTION or IMPORTANT security lane finding goes to a fresh fixer; a CRITICAL or unrated one escalates feedback-round-cap-security", async () => {
   for (const body of [SUGGESTION_FINDING, LANE_FINDING]) {
     const fresh = await capped({ roots: [body, CODE_FINDING] });
     assert.equal(fresh.decision, "proceed", body.split("\n")[0]);
@@ -1024,7 +1024,7 @@ test("at the cap, a SUGGESTION or IMPORTANT security lane finding goes to a fres
     for (const rounds of [3, 4]) {
       const result = await capped({ rounds, roots: [CODE_FINDING, body] });
       assert.equal(result.decision, "escalate", body.split("\n")[0]);
-      assert.equal(result.escalationReason, "feedback-round-cap");
+      assert.equal(result.escalationReason, "feedback-round-cap-security");
       assert.equal(result.file, undefined);
     }
   }
@@ -1096,12 +1096,12 @@ test("at the cap, a verifier note goes to the fresh fixer as a code lane finding
   }
 });
 
-test("at the cap, a verifier note a trusted person directed still holds for a person", async () => {
+test("at the cap, a verifier note a trusted person directed queues the PR for a session", async () => {
   for (const rounds of [3, 4]) {
     const result = await capped({ rounds, roots: [VERIFY_NOTE], fixRequest: true, requestAt: at(5) });
     assert.equal(result.decision, "escalate");
     assert.equal(result.escalationReason, "feedback-round-cap");
-    assert.equal(escalationRoute(result.escalationReason), "hold");
+    assert.equal(escalationRoute(result.escalationReason), "fail");
     assert.equal(result.file, undefined);
   }
 });
@@ -1708,10 +1708,10 @@ test("at the round cap a Codex finding is a bot finding: it gets the fresh fixer
   assert.deepEqual([spent.decision, spent.escalationReason], ["escalate", "feedback-not-converging"]);
 });
 
-test("at the round cap a Codex finding still goes to a person when the security-review lane held its head, or a person directed it", async () => {
+test("at the round cap a Codex finding goes to a person when the security-review lane held its head, and to a session when a person directed it", async () => {
   const held = codexAt(lanesMarked(securityMarked(), securityHold(HEAD)));
   const heldResult = await codexRun({ ...held, listPullCommits: async () => Object.keys(modelRounds(2)).map((sha) => ({ sha })), listCheckRuns: async (sha) => modelRounds(2)[sha] ?? [] }, { maxRounds: 2 });
-  assert.deepEqual([heldResult.decision, heldResult.escalationReason], ["escalate", "feedback-round-cap"]);
+  assert.deepEqual([heldResult.decision, heldResult.escalationReason], ["escalate", "feedback-round-cap-security"]);
   // A write-access fix request older than the newest round directed it.
   const directed = await codexRun(fakeApi({ ...botThread({ replies: [[101, HUMAN, REQUEST]] }), checks: modelRounds(2) }), { maxRounds: 2 });
   assert.deepEqual([directed.decision, directed.escalationReason], ["escalate", "feedback-round-cap"]);
@@ -2022,8 +2022,10 @@ test("an unresolved thread the lane does not take escalates feedback-untaken-thr
 // queue label, so the PR waited on the owner. Both stops now queue the PR
 // for a session builder (needs-session), and while that stop stands on the
 // head the select job stands down without escalating again.
-test("feedback-untaken-threads and feedback-unadjudicated queue the PR for a session builder", () => {
-  for (const reason of ["feedback-untaken-threads", "feedback-unadjudicated"]) {
+// The round cap, uncertain and disputed stops queue it there too: an open
+// review thread already blocks the merge, so no person-only label is needed.
+test("feedback-untaken-threads, feedback-unadjudicated and the round-cap, uncertain and disputed stops queue the PR for a session builder", () => {
+  for (const reason of ["feedback-untaken-threads", "feedback-unadjudicated", "feedback-round-cap", "feedback-uncertain", "feedback-disputed"]) {
     assert.deepEqual([ROUTES[reason].route, ROUTES[reason].label], ["fail", "needs-session"], reason);
   }
 });

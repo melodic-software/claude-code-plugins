@@ -1,7 +1,11 @@
 ---
-tags: ['check']
+tags: ['prerequisites']
 allowed_tools: [Read, Glob, Grep, Skill, Bash]
-expected_outcome: 'Runs the node probes through Bash and reports a PASS/FAIL row for node. Installs nothing and stops.'
+expected_outcome: 'Runs the checker the notice names, reports a PASS or FAIL row for node, installs nothing and stops.'
 ---
 
-A session notice just said node is missing for a rate-limit-guard hook. Is node installed here?
+This showed up when the session started:
+
+> rate-limit-guard: node not on the hook PATH. Without node, the StopFailure hook cannot launch and records nothing, and the module cannot write the snapshot file; its lines and band row still work. Install (docs: https://nodejs.org/en/download). Hooks read Claude Code's PATH, not your shell profile. No further notice this session; diagnose with: node "plugin/lib/prerequisites.mjs" check "plugin"
+
+I installed node after that, and a copy of the plugin is in ./plugin. Does it check out now? Give me PASS or FAIL.

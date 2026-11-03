@@ -94,8 +94,9 @@ Invoke via `@review:<agent>` or let Claude delegate.
   request (org-authored; built-in `/security-review` is unusable under Actions
   checkout).
 
-- **`/review:check`**. Read-only: reports whether node resolves and the connected-page guard
-  below is registered. Installs nothing.
+- **Prerequisite check**. `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"` reports whether node
+  resolves; `bash "<plugin root>/scripts/check-hook-registration.sh"` reports whether the
+  connected-page guard below is registered and denies a sample page. Both are read-only.
 
 ### Hook
 

@@ -651,6 +651,18 @@ test("live config: label-unblocked may only write issues", () => {
   });
 });
 
+test("live config: upstream-apply-changelog pushes with contents write only and publishes without it", () => {
+  const grant = (activity) => resolveGrant(FILES, { lane: "upstream-apply-changelog", activity, configPath: CONFIG_PATH });
+  assert.deepEqual(grant("apply-changelog-branches"), {
+    effect: "mutate-branch",
+    grant: { contents: "write", "pull-requests": "read", issues: "read" },
+  });
+  assert.deepEqual(grant("publish-changelog-intake"), {
+    effect: "publish-artifact",
+    grant: { contents: "read", "pull-requests": "write", issues: "write" },
+  });
+});
+
 test("live config: fix-docs applies to a Markdown change and waits on do-not-merge", () => {
   assert.equal(selected("pr-refine", "fix-docs").applies, true);
   assert.equal(
