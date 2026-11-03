@@ -99,6 +99,7 @@ const LANES = Object.freeze({
       "publish-feedback",
       "apply-dependency-patch",
       "apply-dependency-verdict",
+      "apply-dependency-pin",
       "apply-patch",
       "apply-patch-rung-up",
       "apply-shared-copies",

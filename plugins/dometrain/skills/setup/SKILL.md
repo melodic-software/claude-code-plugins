@@ -40,9 +40,11 @@ constraint, not around reading `/mcp` connection status directly.
    settings files, environment variables, process arguments, debug logs, credential stores, or
    any key.
 2. When a Dometrain tool resolves (via direct tool-list presence or a successful `ToolSearch`
-   match), report **connected**. Do not claim the credential has valid API access beyond that. A connection-layer 401/403/429 rejection
-   (per Dometrain's own README Troubleshooting section) would prevent the tool from resolving at
-   all, so resolution itself is the strongest signal this skill can observe.
+   match), report **connected**. Do not claim the credential has valid API access beyond that:
+   resolution is the strongest signal this skill can observe. For which rejections Dometrain's
+   server returns and what each means, fetch
+   [Troubleshooting](https://github.com/Dometrain/mcp#troubleshooting) live (as of 2026-11-03;
+   recheck when that section moves or changes its list of rejections).
 3. When no Dometrain tool resolves and `ToolSearch` returned no connection
    error for a `dometrain` server, report **disabled**: no server is present. Point to the
    README's [Getting the MCP server](../../README.md#getting-the-mcp-server) for registering a
@@ -57,9 +59,11 @@ constraint, not around reading `/mcp` connection status directly.
      Direct the user to run `/mcp` themselves rather than claim knowledge it does not have.
    - Do not send the user to `/plugin configure`: point them to `claude mcp list` for a
      missing-variable warning on the `dometrain` entry and to the README's
-     [Getting the MCP server](../../README.md#getting-the-mcp-server); a variable set after Claude
-     Code started needs a new session, since Claude Code expands it from its own environment at
-     connect time.
+     [Getting the MCP server](../../README.md#getting-the-mcp-server), and tell them to start a
+     new session after setting the variable. For how Claude Code expands it, fetch
+     [Environment variable expansion in `.mcp.json`](https://code.claude.com/docs/en/mcp#environment-variable-expansion-in-mcp-json)
+     live (as of 2026-11-03; recheck when that section changes when or from which environment a
+     variable expands).
 
 ## Headless installation
 
@@ -107,12 +111,16 @@ Registering at `user` while installing at `project`
 leaves the marketplace declaration out of the project's checked-in settings, so a fresh clone or CI
 agent carries the enabled plugin with no registered marketplace to resolve it from.
 
-**The enable step is not optional.** The plugin ships `defaultEnabled: false`, so it installs
-DISABLED and its skills stay unavailable until it is enabled ([Default
-enablement](https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled)).
-Pass `-s` to [`claude plugin enable`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-enable)
-explicitly, so the sequence stays deterministic in CI. A bootstrap that stops after `install` looks successful and delivers
-no skills.
+**The enable step is not optional.** This plugin's marketplace entry sets `defaultEnabled: false`,
+so a bootstrap never ends at `install`. Pass `-s` to
+[`claude plugin enable`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-enable)
+explicitly, so the sequence stays deterministic in CI.
+
+- **Pointer**: for what `defaultEnabled: false` means for a fresh install, fetch
+  [`defaultEnabled`](https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled)
+  live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section changes how an unset `enabledPlugins` entry is resolved.
 
 ## Output
 
@@ -121,11 +129,15 @@ next action when the state is not `connected`.
 
 ## Namespace-collision note
 
-Dometrain ships its own official Claude Code plugin (`github.com/Dometrain/mcp`) whose
-`plugin.json` `name` is also `"dometrain"`. If the user has that plugin enabled too, do not attempt
-to detect the collision by comparing MCP tool-name prefixes. A true collision produces an
-*identical*, not divergent, prefix, so no prefix comparison can distinguish "one plugin enabled" from
-"two colliding plugins enabled." Point the user to this plugin's README collision warning instead.
+Dometrain ships its own Claude Code plugin (`github.com/Dometrain/mcp`). If the user has that
+plugin enabled too, do not attempt to detect a collision by comparing MCP tool-name prefixes: the
+prefix cannot tell one enabled plugin from two that collide. Point the user to this plugin's README
+collision warning instead.
+
+- **Pointer**: for that plugin's manifest `name`, read `.claude-plugin/plugin.json` in
+  [Dometrain's repository](https://github.com/Dometrain/mcp) live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: that repository renames its plugin or moves its manifest.
 
 ## Boundaries
 

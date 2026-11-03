@@ -3,6 +3,26 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.3.1] - 2026-11-03
+
+### Fixed
+
+- The lane telemetry body gate's leak scan (`scanLeak` in the shared `lib/publish-gate.mjs` copy) now also decodes base64 and base64url runs, up to two layers and including runs of non-ASCII UTF-8 text, and refuses a body with a GitHub token or Anthropic key inside one (#8295).
+
+## [6.3.0] - 2026-11-03
+
+### Changed
+
+- **The babysit loop admits a pull request at each rung by that rung's promotion, not by work class.** The rung partition no longer reads the close-linked item's `work-class:` label: once the effective rung's promotion cells are promoted (`C2-auto-merge` at `c2-mechanical`, every promotable cell at `c3-autonomous` and `full-autonomy`), an item with no class or any class but untrusted provenance is eligible. The untrusted-provenance hold, the fork and trust tests, and the other withholdings stay (#12748).
+- **The unattended merge pin names its rung.** The pin comment the merge gate posts before it enqueues is now `<!-- babysit-merge-pin sha=<sha> rung=C2|C3 -->`, and the post-merge read-back accepts both that and the older shape. The pr-merge lane's native-arm pin names the lane room's rung the same way.
+- **Promotion evidence is credited by rung.** `publish-promotion-evidence.mjs` credits each autonomous merge to the cells of the rung its lane pin names and reads no work-class label. A merge with no rung (no unedited pin at its head, an older pin, another bot's merge; a native auto-merge is credited by the pin the pr-merge lane posted) earns no credit, is listed in `noRungAutonomous` (formerly `unclassedAutonomous`), and its contrary events count against every cell. `C3-ai-review-blocking` takes its positive evidence from rung-C3 merges only; a human-confirmed missed-blocking finding on a rung-C3 merge or a human merge still counts against it.
+
+### Fixed
+
+- The merge gate's review evidence binds an AI review run's second attempt when the first failed with `failure-class=timeout` and the lane posted nothing on the head, the same unposted proof `no-outcome` uses. The gate still never starts that re-run itself.
+
+- The `comments --ci` review-thread tool (`feedback-thread.sh`) takes the notes of an earlier pr-verify FAIL as work items: `notes` lists them, and `record` takes `VALID` or `already-addressed` (with evidence) for a `VNOTE_` id, with each note's path in the fix's scope. The pr-unblock lane uses this when the merge gate refuses a head `verify:earlier-fail` and the FAIL's threads are already resolved.
+
 ## [6.2.1] - 2026-11-03
 
 ### Changed

@@ -1,5 +1,5 @@
 ---
-description: "List every lint and type-checker suppression in a change, a path, or the tree (`--all`): eslint-disable, @ts-expect-error, noqa, type: ignore, pylint, pyright, shellcheck disable, C# pragmas and SuppressMessage, nolint, PowerShell SuppressMessageAttribute, markdownlint, rubocop, @SuppressWarnings. Each row names its rule ids, its reason, and whether it is justified; listed correctness rules are marked. Reports, never gates. Use when: 'how many suppressions', 'find eslint-disable comments', 'which noqa have no reason', 'suppressions added in this change', 'audit lint suppressions', 'count suppressions to ratchet'. Complexity: /code-metrics:audit complexity."
+description: "List every lint and type-checker suppression in a change, a path, or the tree (`--all`): eslint-disable, @ts-expect-error, noqa, type: ignore, pylint, pyright, shellcheck disable, C# pragmas and SuppressMessage, nolint, PowerShell SuppressMessageAttribute, markdownlint, rubocop, @SuppressWarnings; and the directives that switch off the evidence a quality bar relies on: coverage exclusions (istanbul, c8, coverage.py), mutation-testing exclusions (Stryker), security-scanner suppressions (bandit nosec, nosemgrep, gitleaks allow). Each row names its rule ids, its reason, and whether it is justified; listed correctness rules are marked. Reports, never gates. Use when: 'how many suppressions', 'find eslint-disable comments', 'which noqa have no reason', 'suppressions added in this change', 'audit lint suppressions', 'count suppressions to ratchet'. Complexity: /code-metrics:audit complexity."
 argument-hint: "[--json|--findings [--memory-dir <dir>]] [--all] [--base <ref>] [<path>...]"
 user-invocable: true
 disable-model-invocation: false
@@ -16,8 +16,10 @@ Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
 ## Purpose
 
-A suppression turns a linter or type checker off for one line, one block or one file. This skill
-lists them so a reader can see how many there are, which explain themselves, and which switch off
+A suppression turns a linter or type checker off for one line, one block or one file. Three further
+classes switch off the evidence a quality bar rests on, and the scanner lists them the same way:
+coverage exclusions (istanbul, c8 and coverage.py), mutation-testing exclusions (Stryker) and
+security-scanner suppressions (Bandit, Semgrep and Gitleaks). This skill lists all of them so a reader can see how many there are, which explain themselves, and which switch off
 a rule the team counts as correctness rather than style.
 It reports and stops: no pass or fail, and the report carries no severity (a `--findings` file
 carries the tier its rule's row sets, below). Whether a suppression should go is the reader's call.
@@ -150,8 +152,15 @@ The marker catalog follows each tool's own directive syntax, read from these pag
   [PSScriptAnalyzer, suppressing rules](https://learn.microsoft.com/en-us/powershell/utility-modules/psscriptanalyzer/using-scriptanalyzer);
   [markdownlint, configuration](https://github.com/DavidAnson/markdownlint#configuration);
   [RuboCop, source code directives](https://docs.rubocop.org/rubocop/latest/usage/source_code_directives.html);
-  [Java `SuppressWarnings`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/SuppressWarnings.html).
-- **As of:** 2026-10-04.
+  [Java `SuppressWarnings`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/SuppressWarnings.html);
+  [istanbul, ignoring code for coverage](https://github.com/istanbuljs/nyc#parsing-hints-ignoring-lines);
+  [c8, ignoring lines](https://github.com/bcoe/c8#ignoring-all-lines-after-a-comment);
+  [coverage.py, excluding code](https://coverage.readthedocs.io/en/latest/excluding.html);
+  [Stryker, disable mutants](https://stryker-mutator.io/docs/stryker-js/disable-mutants/);
+  [Bandit, suppressing individual lines](https://bandit.readthedocs.io/en/latest/config.html#suppressing-individual-lines);
+  [Semgrep, ignore code through `nosemgrep`](https://docs.semgrep.dev/ignoring-files-folders-code);
+  [Gitleaks, inline allow](https://github.com/gitleaks/gitleaks#gitleaksallow).
+- **As of:** 2026-11-03.
 - **Recheck trigger:** a tool on the list adds a suppression form, a reason syntax, or a way to name
   a rule; or a team reports a real suppression the report missed.
 
@@ -175,6 +184,10 @@ The marker catalog follows each tool's own directive syntax, read from these pag
   default-branch ancestor, pass paths or `--all` (the usage error says which).
 - A multi-line C#, PowerShell or Java attribute is read up to ten lines past its opening line; a
   longer one is reported with the rule ids and reason it showed in that span.
+- A coverage, Stryker or Gitleaks directive is read only in the comment forms of the languages the
+  scanner knows; a coverage exclusion kept in a tool's configuration file (a path list, an exclusion
+  regex) is not reported. Bandit rule ids are read as test ids (`B` and digits); a test name after
+  `nosec` reads as the reason.
 - A tool not on the list (Stylelint, Clippy, SwiftLint) is not reported; nothing in the report says
   a file had none of its markers.
 - The scanner needs Python 3.11 or later, above the plugin's 3.9 floor; below it the scanner

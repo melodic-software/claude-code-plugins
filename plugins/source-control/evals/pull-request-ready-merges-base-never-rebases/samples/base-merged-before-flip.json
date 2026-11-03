@@ -1,0 +1,47 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "git merge --no-stat origin/main"}},
+        {"tool": "Bash", "input": {"command": "gh pr ready 12"}}
+      ],
+      "why": "the ready phase's --no-stat merge, then the flip"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "git merge --no-edit --no-stat origin/main"}},
+        {"tool": "Bash", "input": {"command": "gh pr ready 12"}}
+      ],
+      "why": "flags in any order, then the flip"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "git merge origin/main"}},
+        {"tool": "Bash", "input": {"command": "gh pr ready 12"}}
+      ],
+      "why": "a plain merge before the flip"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "gh pr ready 12"}},
+        {"tool": "Bash", "input": {"command": "git merge --no-stat origin/main"}}
+      ],
+      "why": "flipped before merging"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "git merge --abort"}},
+        {"tool": "Bash", "input": {"command": "gh pr ready 12"}}
+      ],
+      "why": "an aborted merge is not a merge"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "gh pr ready 12"}}
+      ],
+      "why": "never merged"
+    }
+  ]
+}

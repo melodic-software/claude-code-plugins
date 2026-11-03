@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -22,7 +23,7 @@ const dependabotCommit = (sha, message = "bump") => ({
   commit: { message, author: { name: "dependabot[bot]", email: "49699333+dependabot[bot]@users.noreply.github.com" }, ...SIGNED },
 });
 
-function fakeApi({ pull = {}, comments = [], ciRuns = [], annotations = {}, files = [], modelRuns = {}, commits = null, commitFiles = {} } = {}) {
+function fakeApi({ pull = {}, comments = [], ciRuns = [], annotations = {}, files = [], modelRuns = {}, commits = null, commitFiles = {}, texts = {} } = {}) {
   const listed = commits ?? [HEAD, ...Object.keys(modelRuns).filter((sha) => sha !== HEAD)].map((sha) => dependabotCommit(sha));
   return {
     getCommit: async (sha) => ({ sha, files: (commitFiles[sha] ?? []).map((filename) => ({ filename })) }),
@@ -37,6 +38,7 @@ function fakeApi({ pull = {}, comments = [], ciRuns = [], annotations = {}, file
       commits: listed.length,
       ...pull,
     }),
+    getText: async (path) => texts[path] ?? null,
     listIssueComments: async () => comments,
     listPullFiles: async () => files,
     listPullCommits: async () => listed,
@@ -545,4 +547,80 @@ test("select sends an otherwise auto bump whose provenance changed to review", a
   });
   assert.equal(result.decision, "proceed");
   assert.deepEqual(result.file.classification.reasons, ["provenance-changed:y"]);
+});
+
+// The install-script pin: a review-tier pull request whose head lags its
+// lockfile gets the pin patch before any model turn.
+const CLI = "@anthropic-ai/claude-code";
+const PIN_FILES = [{ filename: "package-lock.json", status: "modified", additions: 1, deletions: 1, patch: "" }];
+const pinTexts = (pin) => ({
+  "package.json": `${JSON.stringify({ devDependencies: { [CLI]: "2.1.317" }, allowScripts: { [`${CLI}@${pin}`]: true } }, null, 2)}\n`,
+  "package-lock.json": JSON.stringify({ packages: { [`node_modules/${CLI}`]: { version: "2.1.317" } } }),
+});
+const pinArgs = { pr: 7, headSha: HEAD, appId: APP, dependabotId: DEPENDABOT, config: [] };
+
+test("select writes the pin patch with no model turn when the head's pin lags its lockfile", async () => {
+  const result = await select({ api: fakeApi({ files: PIN_FILES, texts: pinTexts("2.1.316") }), ...pinArgs });
+  assert.equal(result.decision, "pin");
+  assert.deepEqual([result.pin.from, result.pin.to], ["2.1.316", "2.1.317"]);
+  assert.match(result.pin.patch, new RegExp(`^-.*"${CLI}@2\\.1\\.316": true$\\n^\\+.*"${CLI}@2\\.1\\.317": true$`, "m"));
+  assert.equal(result.file, undefined, "no context file: the model does not run");
+});
+
+test("select hands the model a pull request whose pin already matches, and one that changes neither root npm file", async () => {
+  assert.equal((await select({ api: fakeApi({ files: PIN_FILES, texts: pinTexts("2.1.317") }), ...pinArgs })).decision, "proceed");
+  const other = [{ filename: "plugins/x/package.json", status: "modified", additions: 1, deletions: 1, patch: "" }];
+  const api = { ...fakeApi({ files: other }), getText: async () => assert.fail("no root npm file changed, so nothing is read") };
+  assert.equal((await select({ api, ...pinArgs })).decision, "proceed");
+});
+
+test("main writes the pin patch, its SHA-256 and a step summary line, and posts no-model-turn", async () => {
+  const dir = tempDir("review-dependency-");
+  const actors = join(dir, "actors.json");
+  writeFileSync(actors, JSON.stringify({ actors: [{ id: DEPENDABOT, login: "dependabot[bot]", kind: "bot" }] }));
+  const env = {
+    GITHUB_TOKEN: "t",
+    GITHUB_REPOSITORY: "o/r",
+    GITHUB_OUTPUT: join(dir, "out"),
+    GITHUB_STEP_SUMMARY: join(dir, "summary"),
+    PR_NUMBER: "7",
+    HEAD_SHA: HEAD,
+    APP_SENDER_ID: String(APP),
+    TRUSTED_ACTORS: actors,
+    DEPENDENCY_FILE: join(dir, "dependency.json"),
+    CONTEXT_RUN_FILE: join(dir, "context.json"),
+    PIN_PATCH_FILE: join(dir, "patch.diff"),
+    DEPENDABOT_CONFIG: join(dir, "dependabot.yml"),
+    DEPENDABOT_POLICY: join(dir, "policy.json"),
+  };
+  await main(["select"], env, { api: fakeApi({ files: PIN_FILES, texts: pinTexts("2.1.316") }), log: () => {} });
+  const patch = readFileSync(env.PIN_PATCH_FILE, "utf8");
+  const sum = createHash("sha256").update(patch).digest("hex");
+  assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), `pin-state=written\npin-sha256=${sum}\nproceed=false\nskip-reason=no-model-turn\nescalation-reason=\n`);
+  assert.match(readFileSync(env.GITHUB_STEP_SUMMARY, "utf8"), /^@anthropic-ai\/claude-code install-script pin: 2\.1\.316 to 2\.1\.317/);
+  assert.equal(existsSync(env.DEPENDENCY_FILE), false);
+});
+
+test("main warns and hands the model a pin it cannot move", async () => {
+  const dir = tempDir("review-dependency-");
+  const actors = join(dir, "actors.json");
+  writeFileSync(actors, JSON.stringify({ actors: [{ id: DEPENDABOT, login: "dependabot[bot]", kind: "bot" }] }));
+  const env = {
+    GITHUB_TOKEN: "t",
+    GITHUB_REPOSITORY: "o/r",
+    GITHUB_OUTPUT: join(dir, "out"),
+    PR_NUMBER: "7",
+    HEAD_SHA: HEAD,
+    APP_SENDER_ID: String(APP),
+    TRUSTED_ACTORS: actors,
+    DEPENDENCY_FILE: join(dir, "dependency.json"),
+    CONTEXT_RUN_FILE: join(dir, "context.json"),
+    DEPENDABOT_CONFIG: join(dir, "dependabot.yml"),
+    DEPENDABOT_POLICY: join(dir, "policy.json"),
+  };
+  const texts = { ...pinTexts("2.1.316"), "package-lock.json": JSON.stringify({ packages: { [`node_modules/${CLI}`]: { version: "2.1.318" } } }) };
+  const lines = [];
+  await main(["select"], env, { api: fakeApi({ files: PIN_FILES, texts }), log: (line) => lines.push(line) });
+  assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), /^proceed=true\n/);
+  assert.ok(lines.some((line) => line.startsWith("::warning::the @anthropic-ai/claude-code install-script pin was not moved (the moved pin is refused: allow-scripts-version)")));
 });

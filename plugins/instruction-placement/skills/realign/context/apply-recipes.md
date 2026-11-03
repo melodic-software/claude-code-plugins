@@ -72,8 +72,10 @@ The common case: content keyed to a file kind moves to `.claude/rules/<topic>.md
 6. **Verify.** The glob still resolves, the index reports `IN-SYNC`, and the source no longer
    contains the moved text.
 
-**Cite** the shared file from a path-scoped rule by path, never with an `@import`: the import
-inlines at session start and defeats the scoping, so the move would read as a saving and not be one.
+**Cite** the shared file from a path-scoped rule by path, never with an `@import`, so the move saves
+what it appears to save. Pointer: for when an imported file loads,
+[Import additional files](https://code.claude.com/docs/en/memory#import-additional-files).
+As of: 2026-11-03. Recheck trigger: that section changes when an imported file loads.
 
 ## Recipe B: nested AGENTS.md plus shim
 
