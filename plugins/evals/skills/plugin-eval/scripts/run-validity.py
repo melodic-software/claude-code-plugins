@@ -75,7 +75,13 @@ one line per check, detail lines indented under it:
                       CLAUDE_PLUGIN_DATA), which the sandbox denies to any
                       skill that persists state, is always a warning and is
                       set aside before the rules here judge the run's other
-                      denials, so it never counts toward a FAIL; so is a Read,
+                      denials, so it never counts toward a FAIL (a compound
+                      Bash call qualifies when one command names only paths
+                      there and each other one is an echo with no redirect or
+                      command substitution, or names only paths an allowed
+                      Bash call of the run also named, a curl's URLs and data
+                      option values naming none, and a later allowed Bash call
+                      names each file a curl in it writes with -o); so is a Read,
                       Grep or Glob aimed only under the session's own
                       <sandbox>/config/projects/*/*/tool-results/, where Claude
                       Code persists a large tool result the session already
@@ -336,6 +342,19 @@ GLOBBING = re.compile(r"[*?\[\]{}~]")
 EXPANDING = re.compile(r"[*?\[\]{}~$]")
 # Command substitution, outside single quotes.
 SUBSTITUTION = re.compile(r"\$\(|`")
+# A plugin-data compound's parts that name no path (own_data_compound): an echo,
+# and in a curl command an http(s) URL operand and the value of an option that
+# curl reads as data, not a file, unless the value starts with @ (a file) or
+# holds %output{ (-w writing a file). A curl command with a -O or --remote-name
+# option, which writes a cwd file named from the URL, keeps every word.
+ECHO, CURL = "echo", "curl"
+CURL_VALUE_OPTIONS = frozenset(
+    "-X --request -H --header -d --data --data-raw -w --write-out --proto"
+    " -m --max-time --max-filesize".split()
+)
+CURL_OUTPUT = ("-o", "--output")
+CURL_URL = re.compile(r"\Ahttps?://", re.IGNORECASE)
+CURL_REMOTE_NAME = re.compile(r"\A(?:-[^-]*O|--remote-name)")
 
 # The suite's skill-fired convention and the no-trigger control markers.
 SKILL_TOOL = "Skill"
@@ -1725,11 +1744,17 @@ def own_data_compound(run, denial, data):
     denied whatever the case does, and every rooted path its other commands name
     was also named by a Bash call of the same run that was not denied, so none of
     them caused the denial; a BARE_WORD argument in another command, not a
-    redirect's file, is an argument, not a path. Any other part bash_paths cannot
-    place (a relative path with a slash, a command with no rooted argument such as
-    make) never qualifies, except a BASH_READERS command after a pipe with no file
-    operand, which reads only the pipe. A command that does not parse, or a word
-    UNRESOLVED matches outside a file-less redirect, never qualifies."""
+    redirect's file, is an argument, not a path. An echo command with no < or >
+    in any word names nothing and is passed over, whatever its arguments hold,
+    unless the command holds a $( or backtick anywhere. In a curl command, its
+    URL operands and data option values (CURL_VALUE_OPTIONS) name no path, and
+    each -o or --output file must be named by a later Bash call of the same run
+    that was not denied: the denied call ran none of its parts, so only that
+    retry fetched the content. Any other part bash_paths cannot place (a
+    relative path with a slash, a command with no rooted argument such as make)
+    never qualifies, except a BASH_READERS command after a pipe with no file
+    operand, which reads only the pipe. A command that does not parse, or a
+    word UNRESOLVED matches outside a file-less redirect, never qualifies."""
     if not data or denial[2] != BASH_TOOL:
         return False
     try:
@@ -1739,19 +1764,35 @@ def own_data_compound(run, denial, data):
     words = shell_words(command) if isinstance(command, str) else None
     if not words:
         return False
-    parts, target = {}, False
+    groups = {}
     for text, lead, simple in words:
-        if not REDIRECT.fullmatch(text) and any(
-            UNRESOLVED.search(v) for v in SHELL_SPLIT.split(text) if v
-        ):
-            return False
-        every, kept = parts.setdefault(simple, ([], []))
-        every.append(text)
-        if lead or target or not BARE_WORD.match(text):
-            kept.append(text)
-        target = REDIRECT.fullmatch(text) is not None
-    if len(parts) < 2:
+        groups.setdefault(simple, []).append((text, lead))
+    if len(groups) < 2:
         return False
+    substitutes = SUBSTITUTION.search(command) is not None
+    parts, fetched = {}, []
+    for key, items in groups.items():
+        texts = [text for text, _ in items]
+        verb = texts[0] if key is not None and items[0][1] else None
+        if verb == ECHO and not substitutes and not any(c in t for t in texts for c in "<>"):
+            continue
+        if verb == CURL:
+            dropped = curl_data(texts)
+            if dropped is not None:
+                drop, outputs = dropped
+                items = [item for k, item in enumerate(items) if k not in drop]
+                fetched += outputs
+        every, kept, target = [], [], False
+        for text, lead in items:
+            if not REDIRECT.fullmatch(text) and any(
+                UNRESOLVED.search(v) for v in SHELL_SPLIT.split(text) if v
+            ):
+                return False
+            every.append(text)
+            if lead or target or not BARE_WORD.match(text):
+                kept.append(text)
+            target = REDIRECT.fullmatch(text) is not None
+        parts[key] = (every, kept)
     paths = {key: bash_paths(shlex.join(every)) for key, (every, _) in parts.items()}
     own = {
         key for key, p in paths.items() if None not in p and all(under(x, data) for x in p)
@@ -1766,18 +1807,50 @@ def own_data_compound(run, denial, data):
         ):
             return False
     others = {x for p in paths.values() for x in p if x and not under(x, data)}
-    return others <= allowed_bash_paths(run, denial[3])
+    if not others <= allowed_bash_paths(run, denial[3]):
+        return False
+    later = {posixpath.normpath(p) for p in allowed_bash_paths(run, denial[3], after=True)}
+    return all(posixpath.normpath(f) in later for f in fetched)
 
 
-def allowed_bash_paths(run, denied_id):
+def curl_data(texts):
+    """(indexes, outputs) for a curl command's words: the indexes of its http(s)
+    URL operands and of each CURL_VALUE_OPTIONS option with its value, and the
+    file each -o or --output names. None when it holds a -O or --remote-name
+    option, or such a value starts with @ or holds %output{."""
+    drop, outputs = set(), []
+    for k, text in enumerate(texts[1:], 1):
+        if k in drop:
+            continue
+        name, glued, value = text.partition("=") if text.startswith("--") else (text, "", "")
+        if not glued:
+            value = texts[k + 1] if k + 1 < len(texts) else ""
+        if CURL_REMOTE_NAME.match(text):
+            return None
+        if name in CURL_VALUE_OPTIONS:
+            if value.startswith("@") or "%output{" in value:
+                return None
+            drop |= {k} if glued else {k, k + 1}
+        elif CURL_URL.match(text):
+            drop.add(k)
+        elif text in CURL_OUTPUT and value:
+            outputs.append(value)
+    return drop, outputs
+
+
+def allowed_bash_paths(run, denied_id, after=False):
     """The rooted paths named by every Bash call in the run other than denied_id
-    that no tool result or permission_denials entry denied."""
+    that no tool result or permission_denials entry denied; with after, only
+    the calls after denied_id's tool_use line, none when it has none."""
     denied = {d[3] for d in denials(run)} | {denied_id}
-    paths = set()
+    paths, seen = set(), not after
     for line in run.trace:
         for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
+            if block.get(BLOCK_TYPE) != TOOL_USE:
+                continue
+            seen = seen or block.get(USE_ID) == denied_id
             if (
-                block.get(BLOCK_TYPE) == TOOL_USE
+                seen
                 and block.get(USE_NAME) == BASH_TOOL
                 and block.get(USE_ID) not in denied
             ):
