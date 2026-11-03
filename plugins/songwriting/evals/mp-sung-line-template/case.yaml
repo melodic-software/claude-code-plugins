@@ -1,21 +1,19 @@
 schema_version: "1.1"
 name: mp-sung-line-template
 graders:
-  # Both regex graders read the trace, one JSON message per line, so a run that hands the line
-  # to co-write through the Skill tool is graded on meter-prosody's turn, not co-write's reply.
-  # Every branch is anchored to an assistant line: the meter.md Read result (a user line) holds
-  # a bracketed template, and the session's init line lists songwriting:co-write.
+  # Both regex graders read the trace, one JSON message per line, and match only assistant text
+  # blocks: the meter.md Read result (a user line) holds a bracketed template, and the session's
+  # init line lists songwriting:co-write.
   # A template is three bracketed slot numbers on one rendered line of a text block (`\\n` ends
   # a rendered line inside the JSON string), or three `| [n] |` table cells in one text block.
   - name: positional-template
     type: regex
-    pattern: '^\{"type":"assistant"[^\n]*?"type":"text","text":"(?:[^"\\]|\\.)*?(?:\[(?: |\\t)*\d{1,2}(?: |\\t)*\](?:[^"\\]|\\[^n])*?\[(?: |\\t)*\d{1,2}(?: |\\t)*\](?:[^"\\]|\\[^n])*?\[(?: |\\t)*\d{1,2}(?: |\\t)*\]|\|(?: |\\t)*\[(?: |\\t)*\d{1,2}(?: |\\t)*\](?: |\\t)*\|(?:[^"\\]|\\.)*?\|(?: |\\t)*\[(?: |\\t)*\d{1,2}(?: |\\t)*\](?: |\\t)*\|(?:[^"\\]|\\.)*?\|(?: |\\t)*\[(?: |\\t)*\d{1,2}(?: |\\t)*\](?: |\\t)*\|)|^\{"type":"assistant"[^\n]*?"name":"Skill","input":\{(?:[^{}"]|"(?:[^"\\]|\\.)*")*?"skill":"(?:songwriting:)?co-write"'
+    pattern: '^\{"type":"assistant"[^\n]*?"type":"text","text":"(?:[^"\\]|\\.)*?(?:\[(?: |\\t)*\d{1,2}(?: |\\t)*\](?:[^"\\]|\\[^n])*?\[(?: |\\t)*\d{1,2}(?: |\\t)*\](?:[^"\\]|\\[^n])*?\[(?: |\\t)*\d{1,2}(?: |\\t)*\]|\|(?: |\\t)*\[(?: |\\t)*\d{1,2}(?: |\\t)*\](?: |\\t)*\|(?:[^"\\]|\\.)*?\|(?: |\\t)*\[(?: |\\t)*\d{1,2}(?: |\\t)*\](?: |\\t)*\|(?:[^"\\]|\\.)*?\|(?: |\\t)*\[(?: |\\t)*\d{1,2}(?: |\\t)*\](?: |\\t)*\|)'
     flags: 'm'
     target: trace
-  # Passes on co-write named in an assistant text block, or on a Skill call to co-write.
   - name: routes-to-co-write
     type: regex
-    pattern: '^\{"type":"assistant"[^\n]*?"type":"text","text":"(?:[^"\\]|\\.)*?\bco-write\b|^\{"type":"assistant"[^\n]*?"name":"Skill","input":\{(?:[^{}"]|"(?:[^"\\]|\\.)*")*?"skill":"(?:songwriting:)?co-write"'
+    pattern: '^\{"type":"assistant"[^\n]*?"type":"text","text":"(?:[^"\\]|\\.)*?\bco-write\b'
     flags: 'im'
     target: trace
   - name: no-fitted-line

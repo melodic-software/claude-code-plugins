@@ -5,20 +5,12 @@
       "why": "named route in the reply"
     },
     {
-      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s-01\",\"skills\":[\"songwriting:meter-prosody\",\"songwriting:co-write\",\"songwriting:rhyme\"]}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/plugins/songwriting/context/pat-pattison/research/meter.md\",\"offset\":1700,\"limit\":80}}]},\"parent_tool_use_id\":null}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"toolu_01\",\"type\":\"tool_result\",\"content\":\"1700\\t### Fitting a replacement line\\n1701\\t\\n1702\\tTranscribe the sung line from the recording.\"}]}}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_02\",\"name\":\"Skill\",\"input\":{\"skill\":\"songwriting:co-write\",\"args\":\"line-brainstorm a car line on the same twelve notes\"}}]},\"parent_tool_use_id\":null}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"toolu_02\",\"type\":\"tool_result\",\"content\":\"Launching skill: songwriting:co-write\"}]}}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Base directory for this skill: /plugins/songwriting/skills/co-write\\n\\n## Line brainstorm\"}]}}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Three car lines on your notes:\\n\\n1. I keep the engine running every night for you\\n2. I leave the motor idling every night for you\"}]},\"parent_tool_use_id\":null}",
-      "why": "Skill call to songwriting:co-write, co-write's reply names no route"
-    },
-    {
       "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s-01\",\"skills\":[\"songwriting:meter-prosody\",\"songwriting:co-write\",\"songwriting:rhyme\"]}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Take the template to Co-Write for the actual car line.\"}]},\"parent_tool_use_id\":null}",
       "why": "capitalized skill name"
     },
     {
-      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s-01\",\"skills\":[\"songwriting:meter-prosody\",\"songwriting:co-write\",\"songwriting:rhyme\"]}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Skill\",\"input\":{\"args\":\"line-brainstorm\",\"skill\":\"songwriting:co-write\"}}]},\"parent_tool_use_id\":null}",
-      "why": "Skill call with args before skill in the input"
-    },
-    {
-      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s-01\",\"skills\":[\"songwriting:meter-prosody\",\"songwriting:co-write\",\"songwriting:rhyme\"]}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Skill\",\"input\":{\"skill\":\"co-write\"}}]},\"parent_tool_use_id\":null}",
-      "why": "Skill call without the plugin prefix"
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s-01\",\"skills\":[\"songwriting:meter-prosody\",\"songwriting:co-write\",\"songwriting:rhyme\"]}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Line-brainstorm in co-write is where the car line gets written.\"},{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/plugins/songwriting/context/pat-pattison/research/meter.md\"}}]},\"parent_tool_use_id\":null}",
+      "why": "route in a text block that shares its message with a tool call"
     }
   ],
   "fail": [
@@ -56,6 +48,10 @@
     {
       "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s-01\",\"skills\":[\"songwriting:meter-prosody\",\"songwriting:co-write\",\"songwriting:rhyme\"]}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Run the cowrite flow next.\"}]},\"parent_tool_use_id\":null}",
       "why": "cowrite without the hyphen is not the skill name"
+    },
+    {
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s-01\",\"skills\":[\"songwriting:meter-prosody\",\"songwriting:co-write\",\"songwriting:rhyme\"]}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_02\",\"name\":\"Skill\",\"input\":{\"skill\":\"songwriting:co-write\",\"args\":\"line-brainstorm a car line on the same twelve notes\"}}]},\"parent_tool_use_id\":null}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"toolu_02\",\"type\":\"tool_result\",\"content\":\"Launching skill: songwriting:co-write\"}]}}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Base directory for this skill: /plugins/songwriting/skills/co-write\\n\\n## Line brainstorm\"}]}}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Three car lines on your notes:\\n\\n1. I keep the engine running every night for you\\n2. I leave the motor idling every night for you\"}]},\"parent_tool_use_id\":null}",
+      "why": "co-write only in a tool call's input; the reply never names the route"
     }
   ]
 }
