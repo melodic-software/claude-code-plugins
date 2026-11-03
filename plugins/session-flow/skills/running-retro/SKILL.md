@@ -40,10 +40,12 @@ performed automatically.
 
 ## Zero-arm. Nothing to set up in advance
 
-No arming at session start for the default in-session checkpoint. The session transcript on disk
-(`<session-id>.jsonl`) is the lossless record. It survives compaction, so a checkpoint reconstructs
-the full session from disk even after the live context was compacted; running-retro reads it with
-`/session-flow:retro`'s parser rather than parsing anew. Invoke a checkpoint any time. (The `arm`
+No arming at session start for the default in-session checkpoint. A checkpoint reads the session
+transcript on disk (`<session-id>.jsonl`) with `/session-flow:retro`'s parser rather than parsing
+anew. When checking what that transcript records, fetch
+[Work with sessions](https://code.claude.com/docs/en/how-claude-code-works#work-with-sessions)
+live (as of 2026-11-03; recheck when that section changes what the local session file records or
+where it lives). Invoke a checkpoint any time. (The `arm`
 action and its opt-in SessionStart hook are the exception: they arm a detached observer to run the
 checkpoint *after* the session ends; see "Arming a detached observer" below.)
 
@@ -242,7 +244,10 @@ the observer pid and returns at once; it never blocks the session.
 Manual checkpoint by default. Composes with `/loop` for periodic checkpoints across a long session;
 running-retro ships no scheduler of its own. It is non-terminating. After routing, the underlying
 task continues in this same session. The detached observer (`arm`) is the push/end-of-life
-counterpart: a `/loop` cannot fire after the session ends, but the observer can.
+counterpart. When checking when a `/loop` task stops firing, fetch
+[scheduled tasks, Limitations](https://code.claude.com/docs/en/scheduled-tasks#limitations) live
+(as of 2026-11-03; recheck when that section changes whether session-scoped tasks fire after the
+session exits).
 
 ## What this skill does NOT do
 
