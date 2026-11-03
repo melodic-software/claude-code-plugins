@@ -75,10 +75,11 @@
 // An agent-ready issue left with nothing running is stranded: no hold, no open
 // lane pull request or open pull request of a listed human's for it, no
 // outcome marker since its newest agent-ready, and no work-resolve-issue run
-// for that label, or only one that ended with no report, over STRANDED_HOURS
-// ago. It is re-fired with the re-fire record below once per version of the
-// lane workflow files, and after that on a backoff (STRANDED_HOURS doubling
-// with each re-fire, at most BACKOFF_CAP_HOURS), recorded in one comment
+// for that label, or only one that ended with no report, over its cause's
+// limits.stranded-backoff-hours ago. It is re-fired with the re-fire record
+// below once per version of the lane workflow files, and after that on a
+// backoff (those hours doubling with each re-fire, at most
+// BACKOFF_CAP_HOURS), recorded in one comment
 // edited in place; it never gets needs-human. All share
 // limits.restarts-per-run.
 //
@@ -278,7 +279,7 @@ import { createGitHub, isTrustedClose as closedByHumanOrMerge, loadTrustedList, 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, LANE_HOLDS, LANE_WORKFLOWS, parseOutcomeMarker, REFIRED, refireComment as refireRecord, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
-import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
+import { readLimits, readWip, resolveStrandedBackoff, STRANDED_BACKOFF_MAX } from "../work-resolve-issue/limits.mjs";
 import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorAdmitted, attendedHold, blockersOf, CONFIRMED, decide, deferralLapsed, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, SIZE_SPLIT_PENDING, specOf, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 import { clearedPastReport, retriageNote, doneReason, judgedSince, mergedRefsReader, splitLeftOpen, splitParentClosed } from "../intake-triage/admit.mjs";
 import { budgetLatch } from "../../actions/log-api-budget/rate-guard.mjs";
@@ -364,8 +365,6 @@ const IN_FLIGHT = ["queued", "in_progress", "waiting", "pending", "requested"];
 export const LOOKBACK_HOURS = 3;
 // The sweep reads from this long before the last good sweep started.
 export const SWEEP_MARGIN_MIN = 15;
-// How long an agent-ready issue may sit with no run working on it.
-export const STRANDED_HOURS = 3;
 // The marker issue's label: a listed human closing an issue that carries it
 // runs the sweep at once instead of waiting for the schedule (the hub reopens
 // and closes it after a rate-limit breaker clears). That sweep re-fires at
@@ -380,8 +379,10 @@ export const SWEEP_LABEL = "work-unblock-sweep";
 // last edit.
 const INFRA = /^<!-- work-unblock infrastructure ([0-9a-f]{40}-[0-9a-f]{40}) -->/;
 // The longest wait between backoff re-fires.
-export const BACKOFF_CAP_HOURS = 24;
-const backoffDue = (since, refires) => since + Math.min(STRANDED_HOURS * 2 ** refires, BACKOFF_CAP_HOURS) * HOUR_MS;
+export const BACKOFF_CAP_HOURS = STRANDED_BACKOFF_MAX;
+// When the next re-fire is due: `hours`, the cause's
+// limits.stranded-backoff-hours, doubled per re-fire so far.
+const backoffDue = (since, refires, hours) => since + Math.min(hours * 2 ** refires, BACKOFF_CAP_HOURS) * HOUR_MS;
 const DIMENSIONS = ["size", "complexity", "uncertainty"];
 
 // Whether the account that closed the issue (ACTOR_ID) and the one that
@@ -1184,11 +1185,13 @@ export const failedComment = ({ stops, run = "", onResumed = false }) =>
 const FAILED_CAUSE = `The work-resolve-issue run that \`${LABEL}\` started failed or was cancelled before it reported, or it stopped or the token broker refused it because its workflow files differ from main's.`;
 export const refireComment = (key, cause = FAILED_CAUSE) => refireRecord(key, cause);
 
-// Why a stranded issue has nothing running, as the comments say it.
+// Why a stranded issue has nothing running, as the comments say it, after
+// `hours` with nothing running.
+const hoursText = (hours) => `${hours} hour${hours === 1 ? "" : "s"}`;
 const strandedCause = {
-  "no-run": `No work-resolve-issue run started in the ${STRANDED_HOURS} hours since \`${LABEL}\` was last added.`,
-  "no-report": `The work-resolve-issue run that \`${LABEL}\` started ended over ${STRANDED_HOURS} hours ago with no report and no pull request.`,
-  "failed-again": `The work-resolve-issue run that \`${LABEL}\` started failed or was cancelled before it reported, over ${STRANDED_HOURS} hours ago.`,
+  "no-run": (hours) => `No work-resolve-issue run started in the ${hoursText(hours)} since \`${LABEL}\` was last added.`,
+  "no-report": (hours) => `The work-resolve-issue run that \`${LABEL}\` started ended over ${hoursText(hours)} ago with no report and no pull request.`,
+  "failed-again": (hours) => `The work-resolve-issue run that \`${LABEL}\` started failed or was cancelled before it reported, over ${hoursText(hours)} ago.`,
 };
 
 const MINT_CAUSE = `The work-resolve-issue run that \`${LABEL}\` started could not get its lane token, or the token broker's leave to run.`;
@@ -1648,10 +1651,11 @@ async function refireRefusal({ github, actions, jobLog, repo, number, issue, las
   const refiredOn = (marker, key) => marker.outcome === "refired" && !marker.breaker && marker.key === key;
   const relabeled = (marker) =>
     events.some((event) => isLabel(event, "labeled") && event.actor?.login === bot && Date.parse(event.created_at) >= marker.at);
+  const hoursFor = resolveStrandedBackoff(limits["stranded-backoff-hours"]);
   // A re-fire past the first on these workflow files waits longer each time
-  // (backoffDue from `since`), and its record is the one backoff comment,
-  // edited in place, never a new comment or a hold.
-  const backoff = (key, since, cause) => {
+  // (backoffDue from `since`, starting at `hours`), and its record is the one
+  // backoff comment, edited in place, never a new comment or a hold.
+  const backoff = (key, since, cause, hours) => {
     const first = Math.min(...markers.filter((marker) => refiredOn(marker, key)).map((marker) => marker.at));
     // Each breaker record's own re-add, the App's first after it (dated by
     // when it was posted), is that trip's, not this cause's; the backoff
@@ -1659,19 +1663,20 @@ async function refireRefusal({ github, actions, jobLog, repo, number, issue, las
     const adds = events.filter((event) => isLabel(event, "labeled") && event.actor?.login === bot);
     const trips = new Set(markers.filter((marker) => marker.breaker).map((marker) => adds.find((event) => Date.parse(event.created_at) >= marker.at)));
     const refires = adds.filter((event) => Date.parse(event.created_at) >= first && !trips.has(event)).length;
-    const due = backoffDue(since, refires);
+    const due = backoffDue(since, refires, hours);
     if (now < due) {
       return { reason: `re-fired ${refires} time(s) on workflow files ${key}; it is re-fired again after ${new Date(due).toISOString()}` };
     }
     const own = comments.filter((comment) => comment.user?.login === bot && INFRA.test(String(comment.body ?? ""))).at(-1);
     return { reason: null, resets: due, refire: key, recorded: true, infra: { id: own?.id, body: infraComment(key, cause, refires + 1) } };
   };
-  // An issue with nothing running since `since`: once STRANDED_HOURS have
+  // An issue with nothing running since `since`: once its cause's hours have
   // passed with no open lane PR and no open pull request of a listed human's
   // for it, re-fired, once per version of the lane workflow files and then on
   // a backoff.
   const stranded = async (since, why, cause) => {
-    if (now - since < STRANDED_HOURS * HOUR_MS) {
+    const hours = hoursFor[cause];
+    if (now - since < hours * HOUR_MS) {
       return { reason: why };
     }
     const open = (await lanePulls({ github, repo, number, bot })).find((item) => item.state === "open");
@@ -1685,9 +1690,9 @@ async function refireRefusal({ github, actions, jobLog, repo, number, issue, las
     const key = await workflowKey();
     const fired = markers.filter((marker) => refiredOn(marker, key));
     if (fired.some(relabeled)) {
-      return backoff(key, since, strandedCause[cause]);
+      return backoff(key, since, strandedCause[cause](hours), hours);
     }
-    return { reason: null, resets: since, refire: key, recorded: fired.length > 0, cause: strandedCause[cause] };
+    return { reason: null, resets: since, refire: key, recorded: fired.length > 0, cause: strandedCause[cause](hours) };
   };
   const { mine: runs, untitled } = await laneRuns(actions, repo, number, addedAt);
   if (runs.length === 0) {
@@ -1724,7 +1729,7 @@ async function refireRefusal({ github, actions, jobLog, repo, number, issue, las
     // kill switch off, so it re-fires now; a mint trip ran the model and
     // waits like any failed mint.
     const clamp = stalled === "breaker" && stage === "check" ? 0 : limits["reset-clamp-min"];
-    const due = over >= 0 ? backoffDue(ended, over) : ended + clamp * HOUR_MS;
+    const due = over >= 0 ? backoffDue(ended, over, hoursFor["kill-switch"]) : ended + clamp * HOUR_MS;
     if (now < due) {
       const why = stalled === "breaker" ? `the broker refused its lane run for the lanes kill switch (trip ${trips + 1})` : "its lane run did no work";
       return { reason: `${why}; it is re-fired after ${new Date(due).toISOString()}` };
@@ -1742,7 +1747,7 @@ async function refireRefusal({ github, actions, jobLog, repo, number, issue, las
     // attempt, and the cap and restarts-per-run bound it.
     const fired = markers.filter((marker) => refiredOn(marker, key)).length;
     if (stalled === "mint-failed" && !recorded && fired >= limits["limit-stops-per-issue"]) {
-      return backoff(key, ended, MINT_CAUSE);
+      return backoff(key, ended, MINT_CAUSE, hoursFor["failed-mint"]);
     }
     const trip = stalled === "breaker" ? { run: refused.id, ended: Date.parse(refused.updated_at) || ended } : undefined;
     return { reason: null, resets: due, refire: key, recorded, stall: stalled, trip };

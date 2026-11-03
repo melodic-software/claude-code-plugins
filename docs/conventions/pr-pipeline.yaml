@@ -547,9 +547,10 @@ activities:
     # admission rules, and admits it only on their admit verdict; a refusal
     # moves it to `status: needs-decision` with a comment. Hourly it also
     # re-fires an agent-ready issue left stranded (no run, or one that ended
-    # with no report, for three hours, and no open PR of the lanes App's or a
-    # listed human's for it) once per version of the lane workflow files, then
-    # on a backoff (three hours doubling, at most 24) with one comment it
+    # with no report, for its cause's limits.stranded-backoff-hours, and no
+    # open PR of the lanes App's or a listed human's for it) once per version
+    # of the lane workflow files, then on a backoff (those hours doubling, at
+    # most 24) with one comment it
     # edits, never needs-human (a run the token broker refused for the lanes
     # kill switch re-fires on its own count and never spends that once, on the
     # first sweep after the switch clears when broker-check stopped it before
@@ -1005,6 +1006,19 @@ limits:
   # stranded issues wait for the next one; far above it, queued runs go stale
   # on a lane workflow change.
   restarts-per-run: 10
+  # Base hours of work-unblock's re-fire backoff for a stranded agent-ready
+  # issue, per cause, doubled once per re-fire already made and held at 24
+  # (the schema's description says where each cause's doubling starts). The
+  # transient causes, where no model ran and nothing in the issue failed (no
+  # run started, no lane token, a kill-switch refusal), take 1; a run that
+  # ended with no report or failed again after a re-fire may fail the same way
+  # and spend run-hours each time, so those keep 3.
+  stranded-backoff-hours:
+    no-run: 1
+    no-report: 3
+    failed-again: 3
+    failed-mint: 1
+    kill-switch: 1
   # upstream-apply-changelog runs that reach the model in any 24 hours (counted from
   # its gate's start records, as red-main.daily-cap counts reverts). Each run
   # takes one release, so 3 is the most anthropics/claude-code releases
