@@ -445,6 +445,19 @@ test("a cut never splits a surrogate pair", () => {
   }
 });
 
+test("a cut that keeps only whitespace is empty, and leading whitespace does not drop the token after it", () => {
+  const quote = section(bodyOf({ ...done, summary: " ".repeat(3500) }), "Summary");
+  assert.ok(quote.endsWith("\n> (none)"), quote);
+  assert.deepEqual(itemLines(bodyOf({ ...done, changes: [`  ${"x".repeat(400)}`] }), "Fix"), [`- ${"x".repeat(297)}…`]);
+});
+
+test("a runner check name past the cap is cut at a word", () => {
+  const check = `${"step ".repeat(70)}tail`;
+  const [result] = readChecks(checksFile({ results: [{ check, exit: 0 }] }), { branch: BRANCH }).results;
+  assert.match(result.check, /^(step )+step…$/);
+  assert.ok(result.check.length <= 300, String(result.check.length));
+});
+
 test("an item within the cap is unchanged", () => {
   const item = `${"a".repeat(296)} end`;
   assert.deepEqual(itemLines(bodyOf({ ...done, changes: [item, "short ünïcode 😀 item"] }), "Fix"), [`- ${item}`, "- short ünïcode 😀 item"]);

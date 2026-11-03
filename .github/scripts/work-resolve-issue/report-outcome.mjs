@@ -369,16 +369,17 @@ export function parseOutcomeMarker(body) {
 
 // `value` cut to `cap` UTF-16 units at its last whitespace, `tidy` applied,
 // and CUT added; a single token longer than the cap is cut hard, never inside
-// a surrogate pair. Text within the cap is only tidied.
+// a surrogate pair. Text within the cap is only tidied; a cut that keeps only
+// whitespace is empty.
 const CUT = "…";
 const clip = (value, cap, tidy = (kept) => kept) => {
   if (value.length <= cap) {
     return tidy(value);
   }
   const head = value.slice(0, cap - CUT.length + 1);
-  const space = head.search(/\s\S*$/);
-  const kept = space > 0 ? head.slice(0, space) : head.slice(0, -1).replace(/[\uD800-\uDBFF]$/, "");
-  return `${tidy(kept).trimEnd()}${CUT}`;
+  const words = head.slice(0, head.search(/\s\S*$/) + 1).trimEnd();
+  const kept = tidy(words || head.slice(0, -1).replace(/[\uD800-\uDBFF]$/, "")).trimEnd();
+  return kept && `${kept}${CUT}`;
 };
 
 const stopped = (reason) => ({ exit: "stopped", reason, title: "", summary: "", changes: [], verification: [], notDone: [], steps: [] });
@@ -1037,7 +1038,7 @@ export function readChecks(text, { branch }) {
   if (!valid) {
     return null;
   }
-  const record = { tip: parsed.tip, results: results.map(({ check, exit }) => ({ check: check.slice(0, MAX_ITEM), exit })) };
+  const record = { tip: parsed.tip, results: results.map(({ check, exit }) => ({ check: clip(check, MAX_ITEM), exit })) };
   return Object.hasOwn(parsed, "scan") ? { ...record, scan: SCAN_WORDS.has(parsed.scan) ? parsed.scan : "failed" } : record;
 }
 const SCAN_WORDS = new Set(["clean", "found", "failed"]);
