@@ -43,6 +43,17 @@ Set it wherever your project manages local environment variables (shell profile,
 runnable, with an in-tool warning that it "will stop working in the next major release". This plugin
 never invokes it (see below), so no behavior here depends on it.
 
+**This plugin does not use `ctx7 search`, because the installed CLI does not have it.** The upstream
+`context7-cli` skill lists the command, so `vendor/cli/SKILL.md` names it. On `ctx7` 0.8.2,
+`ctx7 --help` does not list it and `ctx7 search "react hooks"` exits 1 with a too-many-arguments
+error. Lookups stay `ctx7 library`, then `ctx7 docs`.
+
+- **Pointer**: when deciding whether `search` can be used, run those two probes on the installed
+  CLI and fetch [upstash/context7#3396](https://github.com/upstash/context7/pull/3396) live.
+- **As of**: 2026-11-02
+- **Recheck trigger**: `ctx7 --help` lists `search`, or the `update` action reports an npm `latest`
+  newer than 0.8.2.
+
 ## Flags
 
 ### Global
