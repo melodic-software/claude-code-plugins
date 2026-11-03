@@ -234,7 +234,6 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/adhd:clarify`](../plugins/adhd/skills/clarify/SKILL.md) | `adhd` | Reshape a dense, decision-heavy message into clear one-decision-at-a-time chunks, losing nothing |
 | [`/adhd:shape`](../plugins/adhd/skills/shape/SKILL.md) | `adhd` | Set a standing action-first output posture. Lead with the next action, cut preamble |
 | [`/ai-slop:audit`](../plugins/ai-slop/skills/audit/SKILL.md) | `ai-slop` | Detect and remove AI-writing tells from markdown, commit messages, PR bodies and interface copy |
-| [`/animation:check-prerequisites`](../plugins/animation/skills/check-prerequisites/SKILL.md) | `animation` | Report whether the tools animation declares resolve. Never installs. |
 | [`/architecture:record-decision`](../plugins/architecture/skills/record-decision/SKILL.md) | `architecture` | Record an architecture decision in the repository's existing ADR convention |
 | [`/attribution:audit`](../plugins/attribution/skills/audit/SKILL.md) | `attribution` | Find prose copied from external sources and convert it into pointers |
 | [`/code-metrics:audit-complexity`](../plugins/code-metrics/skills/audit-complexity/SKILL.md) | `code-metrics` | Per-function complexity beside a cited reference, no verdict |
@@ -249,7 +248,6 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/codebase-health:audit`](../plugins/codebase-health/skills/audit/SKILL.md) | `codebase-health` | Audit for drift between docs, config, code, and architecture via verified findings |
 | [`/computer-use:diagnose`](../plugins/computer-use/skills/diagnose/SKILL.md) | `computer-use` | Resolve computer-use capture, input, and screenshot symptoms to a cause |
 | [`/context-budget:audit`](../plugins/context-budget/skills/audit/SKILL.md) | `context-budget` | Measure the startup context payload per item and ledger every lever's real delta |
-| [`/context7:check`](../plugins/context7/skills/check/SKILL.md) | `context7` | Report whether ctx7, its auth and the Context7 MCP server resolve. Never installs. |
 | [`/coupling:reduce`](../plugins/coupling/skills/reduce/SKILL.md) | `coupling` | Scan for change-transmitting coupling, apply safe reductions in a budgeted batch, route the rest |
 | [`/developer-experience:audit-tools`](../plugins/developer-experience/skills/audit-tools/SKILL.md) | `developer-experience` | Inventory a repository's developer tooling and report findings, read-only by default |
 | [`/discipline:be-ambitious`](../plugins/discipline/skills/be-ambitious/SKILL.md) | `discipline` | Raise a request before work and wait, or deepen finished work and redo it with an outside check |
@@ -269,7 +267,6 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/discipline:use-your-skills`](../plugins/discipline/skills/use-your-skills/SKILL.md) | `discipline` | Map the task to available skills and invoke them instead of reinventing |
 | [`/discipline:wait-what`](../plugins/discipline/skills/wait-what/SKILL.md) | `discipline` | Re-pitch the message that did not land. Missing context added, plain register, project vocabulary |
 | [`/disk-hygiene:audit`](../plugins/disk-hygiene/skills/audit/SKILL.md) | `disk-hygiene` | Scan a directory tree for stale leftovers and report the evidence, read-only |
-| [`/disk-hygiene:check`](../plugins/disk-hygiene/skills/check/SKILL.md) | `disk-hygiene` | Report whether node, bash and a supported Python resolve for the disk-hygiene guard. Never installs. |
 | [`/disk-hygiene:clean`](../plugins/disk-hygiene/skills/clean/SKILL.md) | `disk-hygiene` | Audit a directory tree for stale leftovers and remove validated paths |
 | [`/docs-hygiene:audit-derivability`](../plugins/docs-hygiene/skills/audit-derivability/SKILL.md) | `docs-hygiene` | Judge whether a doc earns its existence or should become a pointer |
 | [`/docs-hygiene:audit-encapsulation`](../plugins/docs-hygiene/skills/audit-encapsulation/SKILL.md) | `docs-hygiene` | Find external citations reaching into a skill's private surfaces |
@@ -286,7 +283,6 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/education:illustrate`](../plugins/education/skills/illustrate/SKILL.md) | `education` | Visual explainer for a concept or codebase topic, record plus interactive page |
 | [`/education:quiz-me`](../plugins/education/skills/quiz-me/SKILL.md) | `education` | Generate a post-change report with a quiz verifying you absorbed the work |
 | [`/education:teach`](../plugins/education/skills/teach/SKILL.md) | `education` | Multi-session learning coach for general topics or repo-grounded concepts |
-| [`/explainer-video:check`](../plugins/explainer-video/skills/check/SKILL.md) | `explainer-video` | Report whether Python, ManimCE, ffmpeg and ffprobe are ready. Never installs. |
 | [`/fleet:reach`](../plugins/fleet/skills/reach/SKILL.md) | `fleet` | Reach another fleet lane (WSL or Windows, here or remote) to run, prompt, query or message |
 | [`/github:advise`](../plugins/github/skills/advise/SKILL.md) | `github` | Design and set up GitHub settings and admin areas grounded in live gh state |
 | [`/github:audit`](../plugins/github/skills/audit/SKILL.md) | `github` | Read-only audit of GitHub org and repo settings, drift, and cost signals |
@@ -309,7 +305,6 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/improvement:improve`](../plugins/improvement/skills/improve/SKILL.md) | `improvement` | Find one gap in a target against a stated standard and ship the fix as one PR |
 | [`/instruction-placement:audit`](../plugins/instruction-placement/skills/audit/SKILL.md) | `instruction-placement` | Find instruction content on the wrong surface and propose validated destinations |
 | [`/instruction-placement:check`](../plugins/instruction-placement/skills/check/SKILL.md) | `instruction-placement` | Gate that every path-scoped rule glob resolves and the rules index is current |
-| [`/instruction-placement:check-prerequisites`](../plugins/instruction-placement/skills/check-prerequisites/SKILL.md) | `instruction-placement` | Report whether node and jq resolve for instruction-placement. Never installs. |
 | [`/instruction-placement:delta`](../plugins/instruction-placement/skills/delta/SKILL.md) | `instruction-placement` | Report only what moved since the last placement audit |
 | [`/multi-agent:audit-defaults`](../plugins/multi-agent/skills/audit-defaults/SKILL.md) | `multi-agent` | Recheck the routing defaults against their upstream sources |
 | [`/overengineering:audit`](../plugins/overengineering/skills/audit/SKILL.md) | `overengineering` | Audit the enforcement surface for mechanisms no longer earning their carry cost |
@@ -320,13 +315,9 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/playbooks:repo-sweep`](../plugins/playbooks/skills/repo-sweep/SKILL.md) | `playbooks` | Run the hygiene skill catalog through one repo, one PR, one commit per step |
 | [`/playbooks:skill-authoring`](../plugins/playbooks/skills/skill-authoring/SKILL.md) | `playbooks` | Anthropic's internal skill-authoring playbook and patterns |
 | [`/playgrounds:use`](../plugins/playgrounds/skills/use/SKILL.md) | `playgrounds` | Route playground requests to the first-party plugin, or install it, with recipes and guidance |
-| [`/playwright:check`](../plugins/playwright/skills/check/SKILL.md) | `playwright` | Report whether playwright-cli and a browser resolve. Never installs. |
 | [`/repo-hygiene:clean`](../plugins/repo-hygiene/skills/clean/SKILL.md) | `repo-hygiene` | Clean caches, build artifacts, stale branches, and stashes per repo |
 | [`/session-flow:recommend-skills`](../plugins/session-flow/skills/recommend-skills/SKILL.md) | `session-flow` | Lay out the skills that fit this moment as a ranked, nothing-hidden menu |
 | [`/session-flow:workflow`](../plugins/session-flow/skills/workflow/SKILL.md) | `session-flow` | Navigate the staged dev workflow and suggest the next stage |
-| [`/skill-quality:check-prerequisites`](../plugins/skill-quality/skills/check-prerequisites/SKILL.md) | `skill-quality` | Report whether the tools skill-quality declares resolve. Never installs. |
-| [`/speech:check`](../plugins/speech/skills/check/SKILL.md) | `speech` | Report each missing speech prerequisite. Never installs. |
-| [`/toolchain:check-prerequisites`](../plugins/toolchain/skills/check-prerequisites/SKILL.md) | `toolchain` | Report whether the tools toolchain declares resolve. Never installs. |
 | [`/user-experience:evaluate`](../plugins/user-experience/skills/evaluate/SKILL.md) | `user-experience` | Plan and run UX evaluations, fair-choice checks and measure selection, evidence-labeled |
 | [`/user-experience:plan-user-research`](../plugins/user-experience/skills/plan-user-research/SKILL.md) | `user-experience` | Plan user research and write its instruments, evidence-labeled |
 | [`/user-experience:shape`](../plugins/user-experience/skills/shape/SKILL.md) | `user-experience` | Detect the app's stage and the project's own evidence, then chain the UX jobs in order |

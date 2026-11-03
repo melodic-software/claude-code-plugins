@@ -57,6 +57,19 @@ lib/managed-scope.sh -> plugins/*/lib/managed-scope.sh
 # lib/state-key.sh.
 lib/state-key.sh
 
+# No dedicated check: accepted. The prerequisite plugins grade one case shape, so
+# they commit the same small samples. Canonical copy: the file under plugins/toolchain/evals/,
+# and plugins/speech/evals/ for the case around a plugin's own report script.
+evals/ck-notice-reads-checker/samples/no-edit.json
+evals/ck-notice-reads-checker/samples/no-write.json
+evals/ck-notice-reads-checker/samples/no-install.json
+evals/ck-notice-reads-checker/samples/ran-checker.json
+evals/ck-notice-reads-checker/scaffold.sh
+evals/ck-notice-runs-own-report/samples/no-edit.json
+evals/ck-notice-runs-own-report/samples/no-write.json
+evals/ck-notice-runs-own-report/samples/no-install.json
+evals/ck-notice-runs-own-report/scaffold.sh
+
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/state-key.sh -> plugins/*/lib/state-key.sh

@@ -665,7 +665,12 @@ if [[ -z "$PYTHON" ]]; then
 fi
 
 _NO_PYTHON='no usable Python 3 (python3, python, py -3)'
-_NO_PYTHON_FIX='Install Python 3 ahead of WindowsApps on PATH, then run /disk-hygiene:check.'
+# Forward slashes and no double quote, so the text stays valid inside the JSON the context and
+# monitor modes print.
+_CHECKER_ROOT="${SCRIPT_DIR%/*}"
+_CHECKER_ROOT="${_CHECKER_ROOT//\\//}"
+_CHECKER_ROOT="${_CHECKER_ROOT//\"/}"
+_NO_PYTHON_FIX="Install Python 3 ahead of WindowsApps on PATH, then run: node '$_CHECKER_ROOT/lib/prerequisites.mjs' check '$_CHECKER_ROOT', or ask the user to type /disk-hygiene:setup check."
 
 # Set `_MODE_VALUE` to the guard's `--mode`, read the way the guard's own
 # `_argv_flag_value` reads it: the first `--mode <value>` or `--mode=<value>`.

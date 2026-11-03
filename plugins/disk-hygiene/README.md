@@ -91,7 +91,7 @@ Backups remain the recovery boundary for user data.
   recheck when that section lists Node as bundled or required at runtime). Every guard and detector registration runs `node hooks/exec-bash.mjs`, so without
   `node` no hook launches and no guard is enforced. With harness-ops enabled, its shell-form
   `SessionStart` row warns the user once per session that `node` is missing; without
-  harness-ops nothing does, and `/disk-hygiene:check` reports it
+  harness-ops nothing does, and the bundled checker reports it
   ([prerequisites convention](../../docs/contracts/prerequisites/README.md#hook-notices)).
   - **Pointer**: when checking the shell-form rule, where `SessionStart` output goes, or who sees
     `systemMessage`, fetch [Exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form),
@@ -127,10 +127,11 @@ Backups remain the recovery boundary for user data.
 - macOS supports audit/report only because this implementation has no authoritative bind-mount and
   descriptor-anchoring proof for its execution lane.
 
-Check this machine's prerequisites read-only with `/disk-hygiene:check`; Claude can run that on its own,
-for example when a hook notice says Python is missing. `/disk-hygiene:setup check` runs the same check,
-and `/disk-hygiene:setup apply` resolves anything it reports with guidance. `node` is declared in
-`prerequisites.json`, so `/harness-ops:prerequisites` lists it.
+Check this machine's prerequisites read-only with `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`; Claude can run that on its own,
+for example when a hook notice says Python is missing. `/disk-hygiene:setup check`, which you type, also
+covers the launcher registration and the interpreter ladder, and `/disk-hygiene:setup apply` resolves
+anything it reports with guidance. `node` and Python are declared in `prerequisites.json`, so
+`/harness-ops:prerequisites` lists them.
 
 ## How the guard is registered
 

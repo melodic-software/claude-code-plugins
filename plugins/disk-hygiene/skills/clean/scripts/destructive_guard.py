@@ -98,6 +98,11 @@ def decision(value: str, reason: str) -> dict[str, object]:
 # guard-launch monitor's `<session>.seen` nor open its `<session>.launched`, so
 # the monitor's Stop row may skip a session this guard ran in.
 _UNWRITTEN_MARKER_ENV_VAR = "DISK_HYGIENE_UNWRITTEN_MARKER"
+_PLUGIN_ROOT_TEXT = Path(__file__).resolve().parents[3].as_posix()
+_CHECKER_HINT = (
+    f'diagnose with: node "{_PLUGIN_ROOT_TEXT}/lib/prerequisites.mjs" check '
+    f'"{_PLUGIN_ROOT_TEXT}", or ask the user to type /disk-hygiene:setup check.'
+)
 
 
 def _unwritten_marker_notice() -> str | None:
@@ -112,7 +117,7 @@ def _unwritten_marker_notice() -> str | None:
         f"disk-hygiene: this guard launch could not be recorded in "
         f"{_display_text(marker)}, so the end-of-turn check for a guard that "
         "failed silently may skip it. Make that file writable; "
-        "/disk-hygiene:check diagnoses."
+        f"{_CHECKER_HINT}"
     )
 
 
