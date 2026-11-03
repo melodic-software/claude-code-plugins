@@ -39,13 +39,9 @@ somebody else's tracked data, and the constituents cannot be recovered from the 
 `<home>/harness-config.yaml`, `<home>` being the convention home the target binds in the pointer
 region of its `AGENTS.md` or `CLAUDE.md` (the plugin's `lib/resolve-convention-home.sh` prints it),
 else `docs/conventions`; its shape is the plugin's `schemas/harness-config.schema.json`, with the
-`"anchor/v1":` key quoted. While that file is absent, the team layer is read from the fenced block
-of the target's previous team location, `.claude/audit-pass.md`, for one release: the compatibility
-read the audit engine also makes, whose `suppressions.layers` output names the file each layer came
-from. A YAML that does not parse drops the team layer; never read the old file in its place. Write a
-new entry only into the team YAML. When that file is absent and the old one holds entries, migrate
-first with `/harness-config:setup apply`: once the YAML exists the old file is ignored, so a YAML
-holding only the new entry would un-suppress every older one. Layers
+`"anchor/v1":` key quoted. The audit engine's `suppressions.layers` output names the file each layer
+came from. A YAML that does not parse drops the team layer. Write a new entry only into the team
+YAML. Layers
 merge **per key**: a later layer's entry for one `finding_id` wins for that id alone, and every id it
 does not mention keeps the earlier layer's entry. A list would be taken whole, so one personal entry
 would silently discard the team's entire accepted set.
