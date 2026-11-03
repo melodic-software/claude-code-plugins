@@ -2,8 +2,8 @@
 
 State: OPEN
 
-The install section of `README.md` says "recieve" where it means "receive".
+The install section of `README.md` repeats a word: "the the".
 
 ## Acceptance criteria
 
-1. `README.md` spells "receive" correctly.
+1. `README.md` says "the" once where it repeated it.

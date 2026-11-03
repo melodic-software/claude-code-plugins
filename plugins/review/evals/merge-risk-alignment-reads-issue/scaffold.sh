@@ -14,7 +14,7 @@ cat >README.md <<'MD'
 
 ## Install
 
-Run `npm install`. You will recieve a welcome email once the store is created.
+Run `npm install`. You will get the the welcome email once the store is created.
 MD
 
 cat >src/http/client.js <<'JS'
@@ -43,7 +43,7 @@ cat >README.md <<'MD'
 
 ## Install
 
-Run `npm install`. You will receive a welcome email once the store is created.
+Run `npm install`. You will get the welcome email once the store is created.
 MD
 
 cat >src/http/client.js <<'JS'
