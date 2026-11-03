@@ -1147,6 +1147,12 @@ export async function select({
     // The merge gate refuses the head verify:earlier-fail, so a round must
     // move it; the FAIL's notes come from its verdict artifact, since their
     // threads are resolved (#12809).
+    // Its feedback-already-addressed stop releases the head (a reply job's
+    // lane-stopped), so a stop of this head already queued for a session
+    // builder stands down here too, before any read or model turn.
+    if (earlierFailHeads.length > 0 && sessionQueued({ labels: pull.labels, issueComments, headSha, isLanesApp })) {
+      return { decision: "skip", skipReason: "awaiting-session", threads: kept };
+    }
     if (earlierFailHeads.length > 0) {
       return earlierFailRound({ api, pr, headSha, repository, appId, files, issueComments, heads, labeled, maxRounds, earlierFailHeads, readFailNotes, ci, log });
     }

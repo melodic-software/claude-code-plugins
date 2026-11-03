@@ -2131,6 +2131,24 @@ test("an earlier-fail round keeps the thread rules first: kept threads, untaken 
   assert.deepEqual([capped.decision, capped.escalationReason], ["escalate", "feedback-verifier-open"]);
 });
 
+// The reply job's feedback-already-addressed stop is lane-stopped, which
+// releases the head for the dispatcher; with that stop queued for a session
+// builder on this head, the next round stands down before any read or model.
+test("an earlier-fail round whose already-addressed stop on this head is queued for a session stands down", async () => {
+  let reads = 0;
+  const readFailNotes = async () => {
+    reads += 1;
+    return NOTES;
+  };
+  const queued = { threads: [resolvedNote], labels: ["needs-session"], issueComments: [reviewedHead, laneStopped("feedback-already-addressed")] };
+  const result = await runEarlier(fakeApi(queued), { readFailNotes });
+  assert.deepEqual([result.decision, result.skipReason], ["skip", "awaiting-session"]);
+  assert.equal(reads, 0);
+  // A stop on an older head does not hold this one.
+  const older = await runEarlier(fakeApi({ ...queued, issueComments: [reviewedHead, laneStopped("feedback-already-addressed", { head: OLD_HEAD })] }), { readFailNotes });
+  assert.equal(older.decision, "proceed");
+});
+
 test("main select takes the FAILed heads only from a dispatcher's model round, as other heads' commit ids", async (t) => {
   const dir = tempDir("address-feedback-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));

@@ -10,12 +10,13 @@
 // this pull request and head (write-verdict.mjs NAME). A run counts only when
 // the merge gate's reader would count it (resolve-pr.mjs countedBy: a
 // pr-verify.yml run on the default branch of this repository), so no other
-// workflow's artifact hands the model its notes. The verdict is read with
+// workflow's artifact hands the model its notes; another run is passed over.
+// The verdict is read with
 // verify-notes.mjs readVerdict and rendered with noteComments, the text
-// pr-verify's notes would have posted, quoted as data. Every read that fails,
-// a listing that does not hold its count, a head with no readable FAIL, a
-// withheld FAIL and more than MAX_NOTE_ITEMS items throw: the caller fails
-// closed.
+// pr-verify's notes would have posted, quoted as data. Every other read that
+// fails, a listing that does not hold its count, a head with no counted FAIL
+// left to read, a withheld FAIL and more than MAX_NOTE_ITEMS items throw: the
+// caller fails closed.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -79,9 +80,11 @@ export async function earlierFailNotes({ actions, repository, pr, heads, files, 
       if (fails.length === 0) {
         continue;
       }
+      // A run the gate would not count (another workflow's, or one whose
+      // read fails) is passed over, as the gate's reader passes it over.
       const github = (method, path) => (method === "GET" ? actions.read(path) : Promise.reject(new Error(`${method} is not a read`)));
       if (!(await countedBy({ github, repository, runId, verdict: "fail", base }))) {
-        throw new Error(`run ${runId} is not a pr-verify run on ${base} that the merge gate counts`);
+        continue;
       }
       for (const artifact of fails) {
         const verdict = readVerdict(artifact.name, unzip(await actions.download(artifact.id)));

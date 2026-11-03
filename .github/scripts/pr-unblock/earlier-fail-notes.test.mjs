@@ -79,11 +79,13 @@ test("a FAIL on several files gives one item per file, numbered across the heads
   assert.deepEqual(items.map(({ id, path }) => [id, path]), [["VNOTE_1", "src/a.js"], ["VNOTE_2", "src/b.js"]]);
 });
 
-test("a run the merge gate would not count hands the model nothing: the read fails closed", async () => {
+test("a run the merge gate would not count hands the model nothing: it is passed over, and with no counted FAIL left the read fails closed", async () => {
   for (const run of [{ path: ".github/workflows/evil.yml" }, { head_branch: "feature" }, { event: "push" }, { head_repository: { full_name: "fork/r" } }, { status: "in_progress" }]) {
-    await assert.rejects(read(fakeActions({ run })), /not a pr-verify run on main/, JSON.stringify(run));
+    const fake = fakeActions({ run });
+    await assert.rejects(read(fake), /no FAIL verdict artifact/, JSON.stringify(run));
+    assert.deepEqual(fake.downloads, [], JSON.stringify(run));
   }
-  await assert.rejects(read(fakeActions({ compare: { status: "diverged" } })), /not a pr-verify run on main/);
+  await assert.rejects(read(fakeActions({ compare: { status: "diverged" } })), /no FAIL verdict artifact/);
 });
 
 test("every other read that fails, or finds no FAIL, throws", async () => {
