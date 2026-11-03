@@ -4887,6 +4887,36 @@ class LaneFloorAnchor(CheckCase):
                     self.assertIn("longer than the read limit", verdict.reason or "")
 
 
+class AnchorUpload(unittest.TestCase):
+    """Only pr-merge.yml's post-merge-dispatch job uploads the anchor, kept
+    seven days, and that job gains no check or status write, no lane App
+    token and no model step."""
+
+    WORKFLOWS = pathlib.Path(__file__).resolve().parents[6] / ".github" / "workflows"
+
+    def jobs(self, text: str) -> dict[str, str]:
+        body = text.split("\njobs:\n", 1)[1]
+        parts = re.split(r"(?m)^  ([A-Za-z0-9_-]+):\n", body)
+        return dict(zip(parts[1::2], parts[2::2], strict=True))
+
+    def test_only_post_merge_dispatch_uploads_it(self) -> None:
+        uploaders = []
+        for path in sorted(self.WORKFLOWS.glob("*.y*ml")):
+            text = path.read_text(encoding="utf-8")
+            if pm.ANCHOR_ARTIFACT not in text:
+                continue
+            for job, body in self.jobs(text).items():
+                if f"name: {pm.ANCHOR_ARTIFACT}" in body:
+                    uploaders.append((path.name, job, body))
+        self.assertEqual([(p, j) for p, j, _ in uploaders], [("pr-merge.yml", "post-merge-dispatch")])
+        body = uploaders[0][2]
+        upload = body.split(f"name: {pm.ANCHOR_ARTIFACT}", 1)[1]
+        self.assertIn("retention-days: 7\n", upload.split("- name:", 1)[0])
+        self.assertIn(pm.ANCHOR_ENV, body)
+        for forbidden in ("checks: write", "statuses: write", "create-github-app-token", "claude"):
+            self.assertNotIn(forbidden, body)
+
+
 class AnchorAdvance(unittest.TestCase):
     """`advance_anchor`: the floor moves only over merges that passed."""
 
