@@ -127,8 +127,8 @@ defers until the docs are reachable. Never finalize a draft on a shape or limit 
 Every claim in the condition must be something Claude's own output in the transcript can
 demonstrate. Avoid conditions the transcript cannot show (subjective quality, external state Claude
 never surfaces). What the evaluator reads:
-[How evaluation works](https://code.claude.com/docs/en/goal#how-evaluation-works), as of
-2026-11-03; recheck when that section changes what the evaluator receives or can call.
+[How evaluation works](https://code.claude.com/docs/en/goal#how-evaluation-works),
+as of 2026-11-03; recheck when that section changes what the evaluator receives or can call.
 
 Structure the draft to the shape Step 1 read off the live page; this file does not restate its
 elements. Keep each prescribed element separately identifiable, so Step 3's tightening pass can

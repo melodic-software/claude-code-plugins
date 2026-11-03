@@ -29,8 +29,8 @@ strings), then the config surfaces, then the framework-registration patterns for
 language. Stop at the first piece of real evidence.
 
 The optional `LSP` assist is one more source, never a substitute. What `findReferences` returns:
-[LSP tool behavior](https://code.claude.com/docs/en/tools-reference#lsp-tool-behavior), as of
-2026-11-03; recheck when that section changes what `findReferences` returns.
+[LSP tool behavior](https://code.claude.com/docs/en/tools-reference#lsp-tool-behavior),
+as of 2026-11-03; recheck when that section changes what `findReferences` returns.
 
 ## Verdict rules
 

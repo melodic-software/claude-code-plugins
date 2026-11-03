@@ -389,8 +389,9 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
   for the round after it resolves. Render a round via `AskUserQuestion` only when the plugin's
   `use_ask_user_question` user config (`${user_config.use_ask_user_question}`; unexpanded or empty means off) is on and the round
   is independent questions that fit one `AskUserQuestion` call (the per-call question limit:
-  <https://code.claude.com/docs/en/agent-sdk/user-input#limitations>, as of 2026-10-11;
-  recheck when that section changes the per-call question limit). Inline prose otherwise
+  <https://code.claude.com/docs/en/agent-sdk/user-input#limitations>,
+  as of 2026-10-11; recheck when that section changes the per-call question limit). Inline prose
+  otherwise
 - **Grounding steps.** Ground a consequential recommendation in the affected code plus its
   consumers and in external research that reads official docs first, routed to
   `/discovery:explore` and `/discovery:research` if enabled. A recommendation that changes is
