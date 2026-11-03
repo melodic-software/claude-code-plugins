@@ -480,7 +480,15 @@ COMMENT_MARKERS = (
         r"nosemgrep\b",
         r"\s*:\s*(?P<r>[\w.\-]+(?:\s*,\s*[\w.\-]+)*)",
     ),
-    _m("gitleaks", ALL_COMMENT_KINDS, r"gitleaks\s*:\s*allow\b", names_rules=False),
+    # Gitleaks skips a line that contains the marker, so it counts anywhere in a
+    # comment; text before it is the reason.
+    _m(
+        "gitleaks",
+        ALL_COMMENT_KINDS,
+        r"gitleaks:allow",
+        names_rules=False,
+        lead=r"(?P<pre>.*?)",
+    ),
 )
 
 # Code markers: an attribute, annotation or pragma found in the code outside
@@ -501,7 +509,7 @@ ANY_MARKER = re.compile(
     r"|shellcheck\s+disable|pragma\s+warning|SuppressMessage|nolint"
     r"|markdownlint-disable|rubocop\s*:|SuppressWarnings"
     r"|(?:istanbul|c8)\s+ignore|pragma\s*:\s*no\s|Stryker\s+disable|nosec|nosemgrep"
-    r"|gitleaks\s*:\s*allow",
+    r"|gitleaks:allow",
     re.IGNORECASE,
 )
 
@@ -538,7 +546,9 @@ def _comment_records(lineno: int, kind: str, segments: list[Segment]) -> list[Re
             if reason:
                 trailing.append(reason)
             continue
-        rest = text[marker.pattern.match(text).end() :]
+        matched = marker.pattern.match(text)
+        rest = text[matched.end() :]
+        before = matched.groupdict().get("pre")
         rules: list[str] = []
         if marker.rules:
             found = marker.rules.match(rest)
@@ -546,7 +556,13 @@ def _comment_records(lineno: int, kind: str, segments: list[Segment]) -> list[Re
                 rules = _split_rules(found.group("r"))
                 rest = rest[found.end() :]
         records.append(
-            Record(lineno, marker.tool, rules, marker.names_rules, _reason(rest))
+            Record(
+                lineno,
+                marker.tool,
+                rules,
+                marker.names_rules,
+                _reason(rest) or (_reason(before) if before else None),
+            )
         )
     if trailing:
         for record in records:
