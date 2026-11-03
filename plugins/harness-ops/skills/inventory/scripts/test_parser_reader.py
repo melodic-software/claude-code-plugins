@@ -994,6 +994,69 @@ class TestFlowQuery(unittest.TestCase):
             with self.subTest(src=src):
                 self.assertEqual(self._sinks(src), kinds)
 
+    def test_a_computed_key_counts_only_for_the_names_it_may_spell(self) -> None:
+        """In strict code a computed read is a load the parser cannot name
+        only when its key may spell `require`, and reaches `Function` only
+        when it may spell `constructor`. `n+1` is a number or ends in a
+        digit, a template starts and ends with its own text, and a parameter
+        of a function only ever called directly holds what the calls pass.
+        A parameter that is written, or whose function escapes, is exported,
+        is declared in a block or reads `arguments`, may hold anything."""
+        unknown = ["function-constructor", "unknown-load"]
+        for src, kinds in (
+            ('function J(e){let n=e.indexOf("x");if(!e[n+1])return null}', []),
+            ("function J(e){var k=e.length+1;return e[k]}", []),
+            ('var k="x";k+=1;e[k];', []),
+            ("var J=(e,n)=>e[`on${n}`];J(o,s);", []),
+            ('function J(e,n){return e[n]}J(o,"a");J(o,1);J(o);', []),
+            ("const J=(e,n)=>e[n];J(o,c?2:`x${s}`);", []),
+            ("function J(e,n){return J(e,n)||e[n]}J(o,1);", []),
+            (
+                'function J(e,n){return e[n]}J(o,"constructor");',
+                ["function-constructor"],
+            ),
+            ("e[`${s}uire`];", ["unknown-load"]),
+            ("function J(e,n){return e[n]}J(o,s);", unknown),
+            ("function J(e,n){return e[n]}h(J);", unknown),
+            ("export const J=(e,n)=>e[n];J(o,1);", unknown),
+            ("{function J(e,n){return e[n]}}J(o,1);", unknown),
+            ("function J(e,n){arguments[1]=s;return e[n]}J(o,1);", unknown),
+            ("function J(e,n){n=s;return e[n]}J(o,1);", unknown),
+        ):
+            with self.subTest(src=src):
+                self.assertEqual(self._sinks('"use strict";' + src), kinds)
+
+    def test_code_that_may_run_sloppy_bounds_a_key_only_by_its_values(self) -> None:
+        """Sloppy code can call a function through `f.caller` with any
+        argument and bind a block function over a `var`. So a program with
+        no import, export or "use strict" directive, and the code a
+        `Function` call folds to, bound a key only by its known values."""
+        unknown = ["function-constructor", "unknown-load"]
+        for src, kinds in (
+            ("function J(e,n){return e[n]}J(o,1);", unknown),
+            ("var k=s+1;e[k];", unknown),
+            (
+                '"use strict";Function(`var d=0;function J(e,n){if(!d){h();return}'
+                'return e[n]}function h(){d=1;h.caller(()=>0,"constructor")(s)()}'
+                "J(0,1)`)();",
+                ["function-constructor"],
+            ),
+        ):
+            with self.subTest(src=src):
+                self.assertEqual(self._sinks(src), kinds)
+
+    def test_loads_counts_a_computed_key_only_when_it_may_spell_require(self) -> None:
+        for src, files in (
+            ('export{};function J(e){var n=e.indexOf("x");return e[n+1]}', []),
+            ("export{};function J(e,n){return e[n]}J(o,0);", []),
+            ("export function J(e,n){return e[n]}J(o,0);", ["*"]),
+            ("function J(e,n){return e[n]}J(o,0);", ["*"]),
+            ('export{};var k="re";e[k+s]("/a.js");', ["*"]),
+            ('export{};e[`${s}quire`]("/a.js");', ["*"]),
+        ):
+            with self.subTest(src=src):
+                self.assertEqual(self.reader.loads(src, 0, len(src)), files)
+
     def test_a_flow_reports_the_names_it_trusted(self) -> None:
         got = self._flow(
             'var pY=[1];pY.some((e)=>e);pY.has(1);var s=""+pY;'
