@@ -1524,11 +1524,11 @@ async function scanRefusedComment({ outcome = null, marker = null, name = "scan-
   }
 }
 
-test("main retries a run whose scan refused an oversize patch naming the patch cap, not a missing outcome", async () => {
+test("main sends a run whose scan refused an oversize patch to intake for a split, naming the patch cap", async () => {
   const comment = await scanRefusedComment({ marker: "patch\n" });
   assert.ok(comment.includes("too-large: the patch was over its 262144-byte cap"), comment);
   assert.doesNotMatch(comment, /no readable outcome file/);
-  assert.equal(parseOutcomeMarker(comment).outcome, "retry");
+  assert.equal(parseOutcomeMarker(comment).outcome, "intake");
 });
 
 // A refusal means a model ran, so a lane.json that says it never started loses.

@@ -126,7 +126,8 @@ person. In issue mode the [issue-fields job](#the-issue-fields-job), which ends 
 `scan-issue-run-started`, so the caller's report job still runs on a failed or skipped scan; it
 downloads the `resolve-issue` markers, and a run that left no readable outcome is stopped with a
 fixed sentence naming the refusal (the patch cap for `patch`) instead of a missing outcome file:
-`scan-refused-patch` and `scan-refused-fault` retry under `limits.stop-retries`, and
+`scan-refused-patch` goes to intake for a split, as `split-required` does, `scan-refused-fault`
+retries under `limits.stop-retries`, and
 `scan-refused-output` holds for a person ahead of any funding, limit or turn-cap record. A
 failed download there names no refusal.
 
