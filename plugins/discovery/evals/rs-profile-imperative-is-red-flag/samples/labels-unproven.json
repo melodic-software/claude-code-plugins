@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "No shipped work that others use, so the author is labeled unproven.",
+      "why": "meets the outcome"
+    },
+    {
+      "answer": "Sources cell: Unproven.",
+      "why": "meets the outcome"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The author is a recognized authority.",
+      "why": "misses the outcome"
+    },
+    {
+      "answer": "Label it unverified.",
+      "why": "misses the outcome"
+    },
+    {
+      "answer": "",
+      "why": "misses the outcome"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: rs-practitioner-needs-shipped-work
+description: 'research SKILL.md "Reconciling sources at the gate" and the practitioner test it points at: a person with a large following but no shipped work, no product and no employer is labeled unproven and is never cited as an authority. Ends before any web research, so it needs no network. Agent is listed so the must-not dispatch grader can fail.'
+tags: [research, source-tiers, practitioner]
+plugins: ["../.."]
+expected_outcome: 'The final reply says the thread cannot be cited as a recognized authority because its author shows no proof of shipped work (no product, library or hard-to-join employer), that followers and likes are not that proof, and that its Sources cell is labeled unproven. No discovery:researcher or research-verifier agent is dispatched.'
+execution:
+  allowed_tools: [Agent, Read, Glob, Grep, Skill]
+  max_turns: 8
+  timeout_seconds: 300
+graders:
+  - name: labels-unproven
+    type: regex
+    pattern: '\bunproven\b'
+    flags: 'i'
+    arm: both
+  - name: not-cited-as-authority
+    type: regex
+    pattern: '\b(?:not|never|cannot|can''t|can ?not|isn''t|is not|shouldn''t|should not|no)\b[^\n]{0,60}\b(?:a |an )?(?:recognized )?(?:authority|authoritative)\b'
+    flags: 'i'
+    arm: both
+  - name: no-researcher-dispatch
+    type: tool_used
+    tool: Agent
+    input_match: 'discovery:research'
+    min: 0
+    max: 0
+    arm: both

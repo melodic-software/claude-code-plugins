@@ -3,6 +3,12 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.2] - 2026-11-03
+
+### Changed
+
+- `write`: `workflow-stage` is now `interview`, matching the session-flow workflow's renamed stage 1 (#12663).
+
 ## [0.18.1] - 2026-11-03
 
 ### Changed
