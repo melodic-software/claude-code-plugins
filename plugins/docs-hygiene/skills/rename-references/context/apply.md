@@ -51,9 +51,8 @@ Per-bucket confirmation flow:
 
 **Certain bucket:**
 
-- Show count + 1-2 example matches
-- `AskUserQuestion`: "Auto-apply N matches?" with options "auto-apply", "review one-by-one"
-- Default: auto-apply (these forms have empirically near-zero false-positive rate)
+- No per-bucket `AskUserQuestion`: once the proceed gate passes, auto-apply (these forms have empirically near-zero false-positive rate)
+- Report, in the bucket-count summary before the proceed gate: count + 1-2 example matches, and how to review the bucket one by one instead (answer the proceed prompt with "review Certain one-by-one", and each Certain match then goes through the Ambiguous bucket's per-match format below, before the Chain-context flow, with its third option scoped to this bucket: "skip remaining Certain"), per [triage.md](triage.md) "Bucket 1"
 
 **Chain-context bucket:**
 
@@ -68,7 +67,7 @@ Per-bucket confirmation flow:
 - ALWAYS one-by-one, because batched confirmation defeats the safety purpose
 
 **Record every decline as a confirmed skip, keyed by `(file, line, start, end)`.** "skip bucket",
-"skip this" and "skip remaining ambiguous" each produce skip records for the matches they cover.
+"skip this", "skip remaining Certain" and "skip remaining ambiguous" each produce skip records for the matches they cover.
 Phase 6 subtracts those spans from the actionable count. Without the record the same declined
 match re-enters Outcome B on every re-sweep and the loop cannot terminate. See Phase 6.
 

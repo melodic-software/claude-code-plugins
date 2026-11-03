@@ -69,11 +69,14 @@ sessions in the same project. Read-only, because it cannot control them.
      (see the autonomy policy), never a side effect of tidying.
    - **A worker that reported finished** → before retiring it, check whether a
      background shell or task it launched is still running. Its report does not
-     settle its own background work: a hung shell keeps a returned worker listed
-     as active long after the worker is done. Each such task is **work still
+     settle its own background work. Each such task is **work still
      running**, surfaced by name with the worker that launched it; stopping it
      goes through the kill gate like any other. The worker is not reported
-     retired while one of its tasks is pending that confirmation.
+     retired while one of its tasks is pending that confirmation. When judging
+     why a finished worker is still listed, fetch
+     [Finished subagents in the panel and task list](https://code.claude.com/docs/en/sub-agents#finished-subagents-in-the-panel-and-task-list)
+     live (as of 2026-11-03; recheck when that section changes how long a
+     finished subagent stays listed or what keeps it there).
    Reconcile **this session's own** ledger only. A spawned subagent that holds
    a task list of its own keeps it out of the parent's view; do not attempt to
    reconcile it. Whether a subagent has the task-tracking tools at all is

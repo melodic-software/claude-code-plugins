@@ -13,7 +13,7 @@ Classify the branch's changed files by the table below and run the steps each cl
 
 | Class | Which files | What it owes | Where it runs |
 |---|---|---|---|
-| `code` | source files (`.sh`, `.bash`, `.py`, `.mjs`, `.js`, `.cjs`, `.ts`, `.ps1`, `.cs`, project files) | one fresh-context review (`review:quality-gate` under 50 changed lines, `review:fanout` above) unless the CI code-review lane covers it ([review-venue.md](review-venue.md)), then `simplify`, then `verification:confirm` | §1.2 to §1.5 |
+| `code` | source files (`.sh`, `.bash`, `.py`, `.mjs`, `.js`, `.cjs`, `.ts`, `.ps1`, `.cs`, project files) | one fresh-context review (`review:quality-gate` under 50 changed lines, `review:fanout` above) unless the CI code-review lane covers it ([review-venue.md](review-venue.md)), then `simplify`, then the comment pass (`code-tidying:remove-comments`), then `verification:confirm` | §1.2 to §1.5 |
 | `markdown` | `.md` files | `ai-slop:audit` and `docs-hygiene:audit-noise` over the changed `.md` files | §1.2.1 |
 | `renames` | any `R` line in the name-status output | a `docs-hygiene:rename-references` audit | §1.2.1 |
 | `skills` | `plugins/*/skills/**`, `plugins/*/agents/**` | `skill-quality:check` over each changed skill | §1.2.1 |
@@ -73,10 +73,11 @@ Present the findings in a structured table, leading with the verified findings y
 Unless `quick` or `review-only` scope:
 
 1. Run `/simplify` over the branch diff when that capability resolves in this session; otherwise do a manual pass for dead code, needless indirection, and duplication introduced by the branch
-2. **Show the simplify diff**: run `git diff` and present what changed. Automated simplification fixes are NOT research-verified; treat them like any code-review finding: inspect each change, approve or revert
-3. **Pause for user review**: let the user approve/reject simplify changes before proceeding
-4. Re-run tests on approved changes
-5. Run the verify gate (1.5)
+2. **Run the comment pass** over the comments the branch adds, after simplify and before any review of the result: `/code-tidying:remove-comments --pipeline --added-since <remote>/<base-branch>` when the `code-tidying` plugin is enabled. `--pipeline` makes its `auto` posture `necessary`, which deletes warnings about this repository's own code, a security warning included, and stages each in its report. An unattended run (invoked with `--unattended`, or no person drives it: a loop lane, a CI lane, a `dontAsk` session, a dispatched worker) applies no comment edit unless the consuming project's instructions pre-approve applied comment edits in unattended runs: without that, run `/code-tidying:remove-comments report --pipeline --added-since <remote>/<base-branch>` and put its proposals in the 1.6 report. Without the plugin, put `comment pass not run: code-tidying plugin not enabled` in the 1.6 report
+3. **Show the simplify and comment-pass diff**: run `git diff` and present what changed. Automated simplification fixes and comment deletions are NOT research-verified; treat them like any code-review finding: inspect each change, approve or revert
+4. **Pause for user review**: let the user approve/reject simplify and comment-pass changes before proceeding
+5. Re-run tests on approved changes
+6. Run the verify gate (1.5)
 
 ## 1.5 Verify gate (HARD: blocks PR creation)
 
@@ -96,6 +97,6 @@ Run the project's full build + test + lint surface, via `/verification:confirm` 
 
 ## 1.6 Report
 
-Report: the review venue's `code-review` line and whether the 1.2 review ran or was skipped for it, findings verified/dropped, simplify ran/skipped, verify gate pass/fail per ecosystem, which classes 1.1 detected, the pre-push warnings from 1.2.1, and any split 1.1 proposed with the user's answer. Proceed to PR creation.
+Report: the review venue's `code-review` line and whether the 1.2 review ran or was skipped for it, findings verified/dropped, simplify ran/skipped, the comment pass applied, report-only or not run (with its proposals when report-only), verify gate pass/fail per ecosystem, which classes 1.1 detected, the pre-push warnings from 1.2.1, and any split 1.1 proposed with the user's answer. Proceed to PR creation.
 
 **Prep before create is the developer loop.** The rebase in [create.md](create.md) §2.2 and the base merge in [ready-for-review.md](ready-for-review.md) §2.5.2 both move HEAD after prep, so the ready step re-runs the verify gate on the head it flips.

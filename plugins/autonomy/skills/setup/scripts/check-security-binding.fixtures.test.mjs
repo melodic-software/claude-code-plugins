@@ -16,8 +16,8 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 import { createFixtureHarness } from "./fixture-harness.mjs";
 
 const scriptsDir = dirname(fileURLToPath(import.meta.url));

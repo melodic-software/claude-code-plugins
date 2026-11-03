@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Requests explicit confirmation before calling miro_list_boards with limit 1, reports only whether access succeeded, and distinguishes authentication failures from network, rate-limit, or service failures without mutating a board.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

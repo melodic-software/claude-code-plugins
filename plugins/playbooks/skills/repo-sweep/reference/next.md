@@ -118,8 +118,10 @@ never combined with `&&` or other commands in one call. The record for these sha
      commit.
    - 0: continue.
 2. Versions: one `S/skill-version.sh --dir '<base-dir>' <plugin:skill>` call per
-   `plugin:skill` in the entry that ran (a skill the catalog note skips takes no call), where `<base-dir>` is the "Base directory for this skill" line
-   the Skill tool printed when it loaded that skill, so the record names the version that ran.
+   `plugin:skill` in the entry that ran (a skill the catalog note skips takes no call), where
+   `<base-dir>` is the directory the Skill tool reported when it loaded that skill, so the record
+   names the version that ran. Where that path comes from is the loaded-path entry in
+   [Gotchas](../SKILL.md#gotchas).
    A bare skill name takes no `--dir`. A stderr line saying the plugin `updated mid-session`
    means the next step would load a different version: record stdout, and tell the user to run
    `/reload-plugins` before the next step.

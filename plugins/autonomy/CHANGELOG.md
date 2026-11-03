@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.0.1] - 2026-11-03
+
+### Changed
+
+- Sorted the setup scripts' node: imports and collapsed a wrapped ternary in check-prerequisite-resolution.mjs; no behavior change.
+
 ## [4.0.0] - 2026-11-03
 
 ### Removed

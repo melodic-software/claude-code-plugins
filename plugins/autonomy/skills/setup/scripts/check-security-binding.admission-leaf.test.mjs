@@ -4,12 +4,12 @@
 // autonomous-eligible rule per cell: the checker must reject the rule exactly
 // where the leaf ships a less permissive disposition for that cell.
 
+import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
-import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 
 const scriptsDir = dirname(fileURLToPath(import.meta.url));
