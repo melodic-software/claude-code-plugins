@@ -18,11 +18,16 @@ imposes no rules of its own.
   smudge, and such writes happen on any platform. An LF write to an
   `eol=crlf` path violates the repo's policy on Linux/macOS just as much as on
   Windows.
-- **Binary guard.** `eol` alone is not proof of text: under a broad
-  `* text=auto eol=lf` rule, the `eol` attribute resolves to `lf` for binaries
-  too. The hook mirrors gitattributes semantics. Explicit `text` is trusted,
-  `-text` skips, and `text=auto` content-sniffs (NUL scan of the first 8000
-  bytes, git's own detection window), so binary files are never rewritten.
+- **Binary guard.** `eol` alone is not proof of text: a broad
+  `* text=auto eol=lf` rule also matches binaries. The hook mirrors
+  gitattributes' `text` handling: explicit `text` is trusted, `-text` skips,
+  and under `text=auto` the hook scans the file's start for a NUL byte, so
+  binary files are never rewritten.
+  **Pointer**: when working out how `text`, `-text` and `text=auto` decide
+  whether a path is text, fetch
+  [gitattributes: text](https://git-scm.com/docs/gitattributes#_text) live.
+  **As of**: 2026-11-03. **Recheck trigger**: that section changes how
+  `text=auto` tells a binary file from text.
 - **Unspecified is a no-op.** A path with no `eol=` attribute is left untouched.
   There is no hardcoded extension list. Resolution is entirely
   `.gitattributes`-driven, so narrow rules (a single `eol=lf` path) correctly

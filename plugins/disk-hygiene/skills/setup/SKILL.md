@@ -85,9 +85,11 @@ fails closed like every other guard-relevant unknown in this plugin.
      `node` as `command`.
 2. **Python floor on `PATH`**. The interpreter used by scanning, validation, the
    guard, and cleanup. (The guard registers on two surfaces: a plugin-level engine gate
-   that acts only on engine-referencing commands, and the skill-frontmatter belt, armed from
-   `/disk-hygiene:clean` until that process ends and treated as absent after a resume (the
-   clean skill's safety model holds the record). Both register unconditionally and resolve the kill switch by
+   that acts only on engine-referencing commands, and the skill-frontmatter belt `/disk-hygiene:clean`
+   arms (the clean skill's safety model holds how long the plugin counts on it; for how long a skill
+   hook stays registered, fetch [Hooks in skills and agents](https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents)
+   live, as of 2026-11-03; recheck when that section changes a skill hook's lifetime or resume
+   behavior). Both register unconditionally and resolve the kill switch by
    reading `disk_hygiene_enabled` from managed settings first, then the user `settings.json`.) The required version has one origin: the `MIN_PYTHON`
    constant in `${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py`, parse it from
    there (`grep -m1 '^MIN_PYTHON' …`) and probe the interpreter against that value; do not
@@ -98,11 +100,16 @@ fails closed like every other guard-relevant unknown in this plugin.
 
    On Windows, confirm the name the guard resolves is real BEFORE anything executes it,
    including this floor check's own version probe. `python3` is the first rung of the ladder
-   `hooks/run-python-hook.sh` walks for every guard surface; on stock Windows it resolves to a
-   zero-length `WindowsApps\python3.exe` App Execution Alias that opens the Microsoft Store
-   (or hangs) instead of running an interpreter, and executing that name from setup pops the
-   Store instead of probing. The stub does not stop any guard by itself: the launcher skips it
-   and falls through to `python`, then `py -3`. **The ladder, not the first
+   `hooks/run-python-hook.sh` walks for every guard surface, and on Windows that name can resolve
+   to an App Execution Alias stub rather than an interpreter, so setup never executes it
+   unclassified. The stub does not stop any guard by itself: the launcher skips it
+   and falls through to `python`, then `py -3`.
+   - **Pointer**: when checking what the alias stub does or how to clear it, fetch
+     [Using Python on Windows: Troubleshooting](https://docs.python.org/3/using/windows.html#troubleshooting)
+     live. **As of**: 2026-11-03. **Recheck trigger**: that section stops covering the app
+     execution aliases.
+
+   **The ladder, not the first
    rung, is the verdict.** A host with real Python installed without "Add to PATH" but with the
    `py` launcher has a stubbed `python3` and a perfectly working guard; failing it would report a
    healthy install as broken and send the operator to reinstall Python. So the alias probe is
@@ -142,12 +149,10 @@ fails closed like every other guard-relevant unknown in this plugin.
 
    **PASS with a WARN when the ladder resolves a supported interpreter but `python3` is the
    stub.** Every guard launches, so nothing is failing open. State the residual plainly: the
-   operator's own bare `python3` still opens the Microsoft Store, and guarded engine calls must
-   use the absolute interpreter path reported above rather than that name. Offer the same
-   remediation as an optional tidy-up, not as a fix for a broken install, disable the `python3`
-   App execution alias (Settings > Apps > Advanced app settings > App execution aliases), or put
-   real Python ahead of WindowsApps on `PATH`. A bare `command -v python3` success is not
-   evidence on its own, it matches the stub too.
+   operator's own bare `python3` still reaches the stub, and guarded engine calls must use the
+   absolute interpreter path reported above rather than that name. Offer clearing the stub as an
+   optional tidy-up, not as a fix for a broken install: clear the stub (the pointer above has the
+   steps) or put real Python ahead of WindowsApps on `PATH`. A bare `command -v python3` success is not evidence on its own.
 3. **Git**. `command -v git`. Conditional per the README: optional for ordinary trees,
    required when a target contains or sits inside a Git worktree. Report presence as INFO
    with that conditionality stated; absence is only a FAIL for worktree-containing targets.
@@ -193,10 +198,12 @@ tool or an OS capability, so `apply` installs nothing and writes nothing, it onl
   `values.json` holds `{"disk_hygiene_enabled": "true"}` (every value a string, booleans
   included; keys left out keep their saved values). Headless fallback, before 2.1.285:
   `claude plugin install disk-hygiene@<marketplace> -s <scope> --config disk_hygiene_enabled=true`
-  (repeatable per key); against an already-installed plugin it prints `already installed` **and
-  still writes the value**. Do **not** uninstall to reconfigure: uninstalling drops this plugin's
-  entire stored `pluginConfigs` entry, resetting every option in the README's Options reference
-  to its manifest default. The value always lands in user settings, whichever route writes it.
+  (repeatable per key); the convention above records how it behaves against an installed plugin. Do **not** uninstall to
+  reconfigure: this skill never trades the operator's saved options for a reconfigure. For what an
+  uninstall removes, fetch
+  [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps)
+  live (as of 2026-11-03; recheck when that section changes what it deletes). The value always
+  lands in user settings, whichever route writes it.
   `claude plugin configure` has no scope flag, so run it from the project the plugin is installed
   in. For the rerun, `-s` defaults to `user`; pass the scope `claude plugin list` reports for this
   plugin (from the home directory pass `user`), and run from that project's directory for a `project`/`local` scope, or the rerun adds a
