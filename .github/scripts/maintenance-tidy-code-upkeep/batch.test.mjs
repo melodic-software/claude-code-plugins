@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { branchOf, findExisting, openPulls, parseAreas, promptText, sortSweeps, staysInArea, sweepRecord, validatePlan, withinCap } from "./batch.mjs";
+import { branchOf, findExisting, openPulls, parseAreas, promptText, sortSweeps, staysInArea, slotsLeft, sweepRecord, validatePlan } from "./batch.mjs";
 
 const BASE = "a".repeat(40);
 const HEAD = "b".repeat(40);
@@ -92,12 +92,10 @@ test("the sweep record holds git's committer time as a number, and the slugs", (
   assert.equal(sweepRecord(["scripts"], "1793000000"), '{"at":1793000000,"slugs":["scripts"]}');
 });
 
-test("withinCap keeps at most limit minus open, and none while throttled", () => {
-  const a = prSweep();
-  const b = prSweep({ slug: "scripts", branch: "chore/tidy-adhoc-scripts-2026-11-03" });
-  assert.deepEqual(withinCap([a, b], { open: 2, limit: 3, throttled: false }), [a]);
-  assert.deepEqual(withinCap([a, b], { open: 3, limit: 3, throttled: true }), []);
-  assert.deepEqual(withinCap([a, b], { open: 0, limit: 3, throttled: false }), [a, b]);
+test("slotsLeft is limit minus open, and none while throttled or over the limit", () => {
+  assert.equal(slotsLeft({ open: 2, limit: 3, throttled: false }), 1);
+  assert.equal(slotsLeft({ open: 3, limit: 3, throttled: true }), 0);
+  assert.equal(slotsLeft({ open: 5, limit: 3, throttled: false }), 0);
 });
 
 const OTHER = "e".repeat(40);

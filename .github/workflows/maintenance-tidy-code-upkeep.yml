@@ -395,7 +395,6 @@ jobs:
     environment: pr-pipeline-scan-carrier
     permissions:
       contents: read # check out main
-      pull-requests: read # read the open tidy pull request count for the cap
     outputs:
       clean: ${{ steps.upload.outcome == 'success' }}
       branches: ${{ steps.check.outputs.branches }}
@@ -453,7 +452,6 @@ jobs:
           IN: ${{ runner.temp }}/scan-in
           OUT: ${{ runner.temp }}/scan-out
           RECORD_DIR: ${{ runner.temp }}/scan-record
-          GH_TOKEN: ${{ github.token }}
           AREAS: ${{ needs.gate.outputs.areas }}
           DATE: ${{ needs.gate.outputs.date }}
           BASE_SHA: ${{ needs.gate.outputs.base-sha }}
@@ -532,6 +530,7 @@ jobs:
     cache-mode: read
     permissions:
       contents: read # check out main
+      pull-requests: read # count the open tidy pull requests for the cap
       id-token: write # prove to the token broker which workflow this is
     env:
       GIT_CONFIG_GLOBAL: /dev/null
@@ -624,6 +623,7 @@ jobs:
         if: steps.lane-token.outputs.token != ''
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          COUNT_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: lanes-app
           AREAS: ${{ needs.gate.outputs.areas }}
           DATE: ${{ needs.gate.outputs.date }}

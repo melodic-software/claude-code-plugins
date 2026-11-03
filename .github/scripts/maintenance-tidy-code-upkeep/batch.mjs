@@ -1,8 +1,9 @@
 // The daily batch's scripted steps around its model job. No model runs here.
 //   prompt   writes the model's prompt from the areas the gate chose
-//   scan     checks the sealed plan and branches, applies the cap, and writes what
-//            the scans read and what push and publish get (no write token)
-//   push     recreates each scanned branch as one lanes App commit (mutate-branch)
+//   scan     checks the sealed plan and branches and writes what the scans read
+//            and what push and publish get (no write token)
+//   push     recreates each scanned branch as one lanes App commit, within the cap
+//            (mutate-branch)
 //   publish  opens one pull request per pushed branch that has none (publish-artifact)
 // The plan and each tree come from the model job, so every field is data. Messages
 // name indexes, never values: the scan job reports them before it scans anything.
@@ -156,11 +157,10 @@ export function sortSweeps(sweeps, areas, { rawOf, binary }) {
 // The sweep record: the areas, and the committer time of the commit the model swept.
 export const sweepRecord = (slugs, committedAt) => JSON.stringify({ at: Number(committedAt), slugs });
 
-// The cap, read again here because a batch can take an hour, and before any branch exists, so none
-// is left with no pull request. A sweep past it is not recorded: its area stays due for the next run.
-export function withinCap(kept, { open, limit, throttled }) {
-  return throttled ? [] : kept.slice(0, Math.max(0, limit - open));
-}
+// How many new branches push may create: the cap, read again because a batch can take an hour, and
+// before any branch exists, so none is left with no pull request. A sweep past it is not recorded,
+// so its area stays due for the next run.
+export const slotsLeft = ({ open, limit, throttled }) => (throttled ? 0 : Math.max(0, limit - open));
 
 const pullsOf = (repository, branch) => `/repos/${repository}/pulls?state=all&head=${repository.split("/")[0]}:${encodeURIComponent(branch)}`;
 
@@ -190,8 +190,6 @@ export async function openPulls(read, repository, sweeps, heads) {
   return opened;
 }
 
-const readCount = (repo) => parseCount(execFileSync("bash", [OPEN_PR_COUNT], { cwd: repo, encoding: "utf8", env: { ...process.env, CLAUDE_PROJECT_DIR: repo } }));
-
 function scan(env) {
   const { IN, OUT, RECORD_DIR, DATE: date, BASE_SHA: baseSha, REPO_DIR: repo } = env;
   const areas = parseAreas(env.AREAS);
@@ -202,12 +200,10 @@ function scan(env) {
   const heads = sweeps.filter((sweep) => sweep.outcome === "pr").map((sweep) => sweep.head_sha);
   if (heads.length && !existsSync(bundle)) throw new Error("the plan names branches and the model job left no bundle");
   for (const head of heads) git(repo, ["fetch", "--quiet", "--no-tags", bundle, `${head}:refs/scan/${head}`]);
-  const sorted = sortSweeps(sweeps, areas, {
+  const { kept, recorded } = sortSweeps(sweeps, areas, {
     rawOf: (head) => netRawDiff(repo, baseSha, head),
     binary: (head) => git(repo, ["diff", "--numstat", "--no-renames", baseSha, head]).split("\n").some((line) => line.startsWith("-\t-\t")),
   });
-  const { recorded } = sorted;
-  const kept = withinCap(sorted.kept, readCount(repo));
 
   mkdirSync(OUT, { recursive: true });
   writeFileSync(join(IN, "diffs.txt"), kept.map((sweep) => git(repo, ["diff", "--no-renames", baseSha, sweep.head_sha])).join("\n"));
@@ -231,6 +227,8 @@ async function push(env) {
   const synthetic = readSynthetic(env.SYNTHETIC, sweeps.length);
   const writer = createGitHubApi({ token: env.GH_TOKEN, repository, apiUrl: env.GITHUB_API_URL || "https://api.github.com" });
   const heads = {};
+  // The job's own read-only token: the lanes App token holds no pull request permission here.
+  let slots = slotsLeft(parseCount(execFileSync("bash", [OPEN_PR_COUNT], { cwd: repo, encoding: "utf8", env: { ...process.env, GH_TOKEN: env.COUNT_TOKEN, CLAUDE_PROJECT_DIR: repo } })));
   for (const [i, sweep] of sweeps.entries()) {
     const local = `refs/upkeep/${sweep.slug}`;
     const commit = fetchSynthetic(repo, BUNDLE_FILE, baseSha, synthetic[i], local, i);
@@ -243,6 +241,11 @@ async function push(env) {
       console.log(`sweeps[${i}]'s branch already exists; not pushed`);
       continue;
     }
+    if (slots <= 0) {
+      console.log(`sweeps[${i}] is past the cap; not pushed, and its area stays due`);
+      continue;
+    }
+    slots--;
     const head = await commitNetTree(readNetChanges(repo, baseSha, commit), {
       message: sweep.pr.title,
       baseSha,
