@@ -263,10 +263,11 @@ recommended default; the parent surfaces them.
 
 Two dimension-level notes where the preloaded text assumes a human turn or a main-context session:
 
-- **Deleted files.** When `git status` or history references files that are not on disk, do **not**
-  perform git archaeology on them and do **not** stall waiting to ask. Record the question as an
-  `open_questions` entry. The rule exists to protect intentional deletions, and you cannot get the
-  confirmation it wants.
+- **Deleted files.** When code, `git status` or history references a file that is not on disk,
+  run the skill's read-only `git status` and `git log` probe (git-history dimension) before any
+  archaeology. Note a staged or committed delete as intentionally deleted and skip it; investigate
+  an unexplained one. When the probe does not settle it, record an `open_questions` entry and move
+  on without the archaeology: you cannot ask, and the parent surfaces the question.
 - **Plan mode.** The skill's plan-mode recommendation for high-blast-radius exploration applies to
   the inline path only. We treat both plan-mode tools as withheld from a non-fork subagent in your
   configuration, and your `tools` allowlist lists neither, so you hold neither either way: plan

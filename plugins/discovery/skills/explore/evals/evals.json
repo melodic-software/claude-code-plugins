@@ -53,13 +53,16 @@
     },
     {
       "id": 5,
-      "name": "asks-before-deleted-file-archaeology",
-      "prompt": "git status shows config/legacy-tax-rules.json was deleted. Explore config and reconstruct what that file used to contain from git history.",
-      "expected_output": "Recognizes the deletion may be intentional and asks the user before investigating the removed file via git archaeology, rather than silently reconstructing it. Continues the rest of the config-dimension exploration normally.",
+      "name": "probes-git-before-deleted-file-archaeology",
+      "narration": true,
+      "prompt": "Explore the config directory before I change the tax settings. [git status --porcelain lists 'D  config/legacy-tax-rules.json', a staged removal, and the file is not on disk.]",
+      "expected_output": "Runs git status and git log for config/legacy-tax-rules.json, read-only, before any archaeology. The staged removal shows the delete is intentional, so the run does not ask the user about it and does not reconstruct the file; it lists the file in the output as intentionally deleted and skipped, citing the status line. The rest of the config exploration continues normally.",
       "files": [],
       "expectations": [
-        "Output asks the user before performing git archaeology on the intentionally-deleted file",
-        "Output does not silently reconstruct the deleted file's contents as if the deletion were accidental"
+        "The run probes the path with git status and git log before deciding anything about the deleted file",
+        "The run does not ask the user whether the delete was intentional, because the staged removal settles it",
+        "The run does not reconstruct the deleted file's contents from git history",
+        "The output lists config/legacy-tax-rules.json as an intentionally deleted file it skipped, with the status line that showed it"
       ]
     },
     {
@@ -75,7 +78,7 @@
         "The main conversation receives an artifact pointer and a short summary paragraph, NOT the seven-section report or the underlying file reads",
         "The returned payload echoes the preload token discovery-explore-preload-8e2b7d verbatim as preload_token; a missing or mismatched token is a hard failure that discards the run",
         "Open questions come back as open_questions entries for the parent to surface, each with a recommended default, rather than being surfaced with AskUserQuestion or resolved silently",
-        "A referenced-but-missing file becomes an open_questions entry rather than triggering git archaeology, because the ask-first rule that protects an intentional deletion cannot be satisfied from a subagent",
+        "A referenced-but-missing file is probed with git status and git log first; when the probe cannot settle whether the delete was intentional, it becomes an open_questions entry instead of triggering git archaeology, because a subagent cannot ask",
         "EXPLORE.md is written as an index with per-sidecar abstracts and a section-to-file table regardless of total size, with sidecars named EXPLORE-<section>.md inside the same memory slice; when the slice root already holds an unrelated EXPLORE.md the whole artifact set goes into a sub-slice under its normal names rather than renaming the index into the sidecar pattern, and the return names the path actually written"
       ]
     },
@@ -345,6 +348,20 @@
         "Every abstract states a finding about the code, not a topic label for what was looked at",
         "The index copies each sidecar abstract verbatim",
         "Sidecar filenames stay EXPLORE-<section>.md with stable section ids rather than being renamed after their findings"
+      ]
+    },
+    {
+      "id": 27,
+      "name": "asks-when-git-probe-cannot-settle-a-missing-file",
+      "narration": true,
+      "prompt": "Explore the config directory inline before I change the tax settings. [config/loader.ts imports config/regional-overrides.json, which is not on disk. git status --porcelain -- config/regional-overrides.json prints nothing, and git log --oneline -1 --diff-filter=D -- config/regional-overrides.json prints nothing.]",
+      "expected_output": "Runs the git status and git log probe for the missing file first. Neither shows a staged removal or a deleting commit, so the probe does not settle whether the file was removed on purpose; the run asks the user before any archaeology on it, with a recommended default, and continues the rest of the config exploration.",
+      "files": [],
+      "expectations": [
+        "The run probes config/regional-overrides.json with git status and git log before asking anything",
+        "Because neither probe names the path, the run asks the user about the missing file, with a recommended default, before any archaeology on it",
+        "The run does not reconstruct the file or guess its contents while the question is open",
+        "The rest of the config exploration continues rather than stalling on the question"
       ]
     }
   ]

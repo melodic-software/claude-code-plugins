@@ -15,8 +15,7 @@
       "degrade": "Without node, the context-budget hooks cannot launch, so they do nothing.",
       "install": {
         "docs": "https://nodejs.org/en/download"
-      },
-      "check": "/context-budget:check"
+      }
     },
     {
       "id": "claude",

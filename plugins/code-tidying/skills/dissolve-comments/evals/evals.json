@@ -139,7 +139,7 @@
       "prompt": "/code-tidying:dissolve-comments\n\n(The tree is clean on the default branch, so scope-code-files.sh reports rung=repository with 400 code files. The tooling probe reports pygments present and scc absent. The repository's most-churned paths are CHANGELOG.md, plugin.json and .github/workflows/ci.yml; one shell library is byte-identical in 18 locations.)",
       "narration": true,
       "expectations": [
-        "States the resolved rung and asks for confirmation before widening to the whole repository in an interactive session",
+        "Takes the widening to the whole repository without asking, triages it in safe mode, and reports the rung, its file count and the explicit-target re-run that narrows the scope or applies the full contract",
         "Runs rank-comment-targets.py and triages in its order, and says the ranking is a reading order, not evidence",
         "The ranking excludes the changelog, manifest and CI workflow as administrative paths and shows the 18-copy library once with instances=18",
         "Runs comment-census.py --json as the baseline before any edit and reports the delta in lines, bytes and estimated tokens at the end, with tokens labeled as an estimate"

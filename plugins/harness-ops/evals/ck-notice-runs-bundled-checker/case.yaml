@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: ck-notice-runs-bundled-checker
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: ran-checker
+    type: tool_used
+    tool: Bash
+    input_match: 'prerequisites\.(?:mjs|sh|ps1)(?:\\?"|'')?\s+check\b'
+    arm: with-only
+  - name: no-install
+    type: tool_used
+    tool: Bash
+    input_match: '\b(?:apt-get|apt|brew|winget|dnf|yum|apk|pacman|zypper|snap|choco|scoop|nvm|fnm|volta|asdf|mise|conda|pipx?|npm|pnpm|yarn)\b[^"&;|]*?[ \t](?:install|add|i|-S)\b|\b(?:curl|wget)\b[^"&;|]*?https?://'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
