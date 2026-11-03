@@ -219,9 +219,8 @@ export function checkDeck({ root, visibility, cls, layers = {} }) {
   const { argument = null, option = null, home, project = findRoot(), dataDir = process.env.CLAUDE_PLUGIN_DATA || null } = layers;
   const resolution = resolveMedium({ lane: "visualization:present", argument, userConfig: option, projectRoot: project }, { ...(home ? { userHome: home } : {}), dataDir });
   const { medium, preferred, decidedBy } = resolution;
-  const extra = { report: reportLines(resolution) };
   if (medium === "terminal" || medium === "file") {
-    return { exit: 0, result: { medium, class: cls, reason: `${decidedBy} sets medium: ${medium}`, ...extra } };
+    return { exit: 0, result: { medium, class: cls, reason: `${decidedBy} sets medium: ${medium}`, report: reportLines(resolution) } };
   }
   // The lane reads hosted as artifact: a deck is many files on a Slides type, never one page, so it is never sent to a page host.
   const explicit = gateExplicit(resolution);
@@ -230,7 +229,9 @@ export function checkDeck({ root, visibility, cls, layers = {} }) {
   if (explicit) gate.reason = `${decidedBy} sets medium: ${preferred === "hosted" ? "hosted, treated as artifact" : "artifact"}`;
   // The title is printed only for a create call; a deck kept local never echoes it.
   const named = gate.medium === "artifact" ? { title } : {};
-  return { exit: 0, result: { class: cls, files: files.length, ...named, ...gate, ...extra } };
+  // The report names the medium the deck goes to: when the gate keeps it local, the gate decided.
+  const report = reportLines(gate.medium === medium ? resolution : { ...resolution, medium: gate.medium, decidedBy: `publish gate: ${gate.reason}` });
+  return { exit: 0, result: { class: cls, files: files.length, ...named, ...gate, report } };
 }
 
 function main(argv) {

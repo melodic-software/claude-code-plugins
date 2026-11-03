@@ -73,6 +73,18 @@ describe("check-deck", () => {
     assert.match(result.reason, /^deck line \d+ looks like a Anthropic key$/);
     assert.ok(!JSON.stringify(result).includes(key));
   });
+  test("a private source kept local by the gate reports file and why, not the artifact default", () => {
+    const { result } = checkDeck({ root: deck(plain), visibility: "PRIVATE", cls: "K1" });
+    assert.equal(result.medium, "file");
+    assert.equal(result.report[0], "view: file (publish gate: repository visibility is PRIVATE, not PUBLIC)");
+  });
+  test("a credential kept local by the gate reports file and why, not the artifact default", () => {
+    const key = `${"sk-"}ant-${"x".repeat(24)}`;
+    const { result } = checkDeck({ root: deck(plain, { v: 4, title: key, order: ["cover"] }), visibility: "PUBLIC", cls: "K0" });
+    assert.equal(result.medium, "file");
+    assert.match(result.report[0], /^view: file \(publish gate: deck line \d+ looks like a Anthropic key\)$/);
+    assert.ok(!result.report.join("\n").includes(key));
+  });
   for (const [what, index] of [
     ["no title", { v: 4, order: ["cover"] }],
     ["a markup title", { v: 4, title: "<img src=x onerror=alert(1)>", order: ["cover"] }],
