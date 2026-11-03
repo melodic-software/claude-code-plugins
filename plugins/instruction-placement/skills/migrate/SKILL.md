@@ -112,7 +112,7 @@ indistinguishable from a run that never happened. Its rows are the facts a migra
 |---|---|
 | `DIR` | `<path> <state> <CLAUDE.md bytes> <AGENTS.md bytes>`. The state names the work; the table below says what Apply does for each |
 | `BUDGET` | `<path> <cumulative AGENTS.md bytes, root to that path> <OK\|OVER>`, against Codex's project-doc budget, which is cumulative across the files it loads rather than per file. The number and its dated record live beside `CODEX_PROJECT_DOC_BUDGET` in `scripts/plan-migration.sh`; read it there rather than restating it. `OVER` means content has to move out before the migration, not after |
-| `CASE` | A filename differing only by case. Claude Code matches names exactly; NTFS does not, so the repository behaves differently per developer until it is renamed |
+| `CASE` | A filename differing only by case. Rename it: until then the repository behaves differently per developer filesystem. Pointer: [Differences between Windows and Linux case sensitivity](https://learn.microsoft.com/en-us/windows/wsl/case-sensitivity#differences-between-windows-and-linux-case-sensitivity). As of: 2026-11-03. Recheck trigger: that section changes either filesystem's default |
 | `SUPPRESS` | A bare `~/CLAUDE.md` or `~/CLAUDE.local.md`. Present, it is read instead of `AGENTS.md` in every directory below home, and no repository-side change fixes that |
 | `PATHDET` | Code that finds a path by the existence of `CLAUDE.md`. Each one works while the shim exists and breaks at cutover. Report them; fixing them is not this run's scope unless the operator asks. The match is **not** a list of existence-test spellings: a list misses `-e`, `Test-Path`, `os.stat`, `File.exist?` and whatever nobody thought of, and every miss reports a clean tree. Any existence-ish mention in a code file is a row, so prose in an eval file lands here too; that is the safe direction, and the acknowledgement file answers a false positive once, in writing |
 | `CITE` | A markdown link resolving into `CLAUDE.md`. Each is retargeted in the same PR as the content move, or the link dies |
@@ -266,9 +266,9 @@ the script treats an unreadable bundle, a restructured docs page, a pin outside 
 a canary that neither loaded nor cleanly refused all the same way.
 
 **Condition 3 is a token canary, not `verify-load.sh`.** That script detects a load through an
-`InstructionsLoaded` hook, and the hook does not fire for an `AGENTS.md` Claude reads directly,
-which is exactly the surface this condition measures. `verify-load.sh` stays the instrument for
-every **shimmed** surface, where the load arrives as an import and the hook fires.
+`InstructionsLoaded` hook, which our run in `reference/sources.md` saw miss a directly read `AGENTS.md`.
+Which loads fire the hook: [InstructionsLoaded](https://code.claude.com/docs/en/hooks#instructionsloaded), as of 2026-11-03; recheck when it changes for a direct or an imported load.
+`verify-load.sh` stays the instrument for every **shimmed** surface, where the load arrives as an import.
 
 **Condition 4 needs a human first.** A grep cannot tell "reads `CLAUDE.md` as an instruction file"
 from "locates a path by its existence", and that distinction is the condition, so the judgment lives
@@ -479,8 +479,8 @@ in sync after the move.
 - **The root `CLAUDE.md` is what suppresses a nested `AGENTS.md`, so both move together.** A repo
   that adds nested `AGENTS.md` files while keeping a content-bearing root `CLAUDE.md` gets files
   that review as correct and load nothing.
-- **`/init` writes `CLAUDE.md`.** Running it after a migration re-creates the content the migration
-  moved out. Say so in the PR body of a repository whose contributors run it.
+- **Warn about `/init` in the PR body** of a repository whose contributors run it: say what it would
+  do to the moved content ([Set up a project CLAUDE.md](https://code.claude.com/docs/en/memory#set-up-a-project-claude-md), as of 2026-11-03; recheck when it changes what `/init` writes).
 - **A prose shim is a finding, not a shim.** The plan converts a `CLAUDE.md` sentence asking for
   `AGENTS.md` into the one-line `@AGENTS.md` import, or drops the file where the session reads
   `AGENTS.md` natively; it never keeps the sentence beside the import. Pointer:
