@@ -698,13 +698,16 @@ test("pr-unblock.yml: report-stop-status runs when report-escalation does, or af
   const HEADS = ["resolve-conflicts-select", "address-feedback-select", "review-dependency-select", "fix-ci-context", "sync-shared-copies-select"];
   const EMITTERS = ["apply-conflict-patch", "publish-feedback", "apply-dependency-verdict", "apply-patch", "apply-shared-copies"];
   const RESOLVERS = ["address-feedback-select", "fix-ci-context"];
-  const context = ({ from = "", reason = "", headFrom = "resolve-conflicts-select", sha = head, rungUp = "", rungUpResult = "skipped", rungUpReason = "", rungUpSkip = "", landed = "", skip = "", resolved = "", resolvedResult = "success" } = {}) => ({
+  // The push job of each activity that pushes, before its select job's head.
+  const PUSHERS = { "resolve-conflicts-select": "apply-conflict-patch", "address-feedback-select": "apply-feedback-patch", "review-dependency-select": "apply-dependency-patch" };
+  const context = ({ from = "", reason = "", headFrom = "resolve-conflicts-select", sha = head, pushed = "", pushedSha = "", rungUp = "", rungUpResult = "skipped", rungUpReason = "", rungUpSkip = "", landed = "", skip = "", resolved = "", resolvedResult = "success" } = {}) => ({
     ...Object.fromEntries(SOURCES.map((id) => [`needs.${id}.outputs.escalation-reason`, id === from ? reason : ""])),
     ...Object.fromEntries(RESOLVERS.map((id) => [`needs.${id}.result`, id === resolved ? resolvedResult : "skipped"])),
     ...Object.fromEntries(RESOLVERS.map((id) => [`needs.${id}.outputs.stop-resolved`, id === resolved ? "true" : ""])),
     ...Object.fromEntries(EMITTERS.map((id) => [`needs.${id}.result`, id === landed ? "success" : "skipped"])),
     ...Object.fromEntries([...EMITTERS, "apply-patch-rung-up"].map((id) => [`needs.${id}.outputs.skip-reason`, id === landed ? skip : ""])),
     ...Object.fromEntries(HEADS.map((id) => [`needs.${id}.outputs.head-sha`, id === headFrom ? sha : ""])),
+    ...Object.fromEntries(Object.values(PUSHERS).map((id) => [`needs.${id}.outputs.pushed-commit`, id === pushed ? pushedSha : ""])),
     "needs.apply-patch.outputs.rung-up": rungUp,
     "needs.apply-patch-rung-up.result": rungUpResult,
     "needs.apply-patch-rung-up.outputs.escalation-reason": rungUpReason,
@@ -776,10 +779,18 @@ test("pr-unblock.yml: report-stop-status runs when report-escalation does, or af
   assert.equal(evaluate(escalation.if, failed()), true);
   assert.equal(evaluate(escalation.with["escalation-reason"], failed()), "feedback-publish-failed");
   assert.equal(stopSkip("feedback-publish-failed"), "lane-stopped", "routed to a failing status");
-  // The head is a select job's, never a model call's; the reason is the one
-  // report-escalation reads.
+  // The head is the commit the activity's push job pushed, else its select
+  // job's, never a model call's; the reason is the one report-escalation reads.
   const post = job.steps.find((step) => step.name === "Post the stop status");
-  assert.equal(post.env.HEAD_SHA.trim(), HEADS.map((id) => `needs.${id}.outputs.head-sha`).join(" || ").replace(/^/, "${{ ").replace(/$/, " }}"));
+  const heads = HEADS.flatMap((id) => (PUSHERS[id] ? [`needs.${PUSHERS[id]}.outputs.pushed-commit`, `needs.${id}.outputs.head-sha`] : [`needs.${id}.outputs.head-sha`]));
+  assert.equal(post.env.HEAD_SHA.trim(), `\${{ ${heads.join(" || ")} }}`);
+  const pushedSha = "d".repeat(40);
+  for (const headFrom of HEADS) {
+    assert.equal(evaluate(post.env.HEAD_SHA, context({ headFrom })), head, `${headFrom}'s head with no push`);
+    if (PUSHERS[headFrom]) {
+      assert.equal(evaluate(post.env.HEAD_SHA, context({ headFrom, pushed: PUSHERS[headFrom], pushedSha })), pushedSha, `${PUSHERS[headFrom]}'s pushed commit over ${headFrom}'s head`);
+    }
+  }
   // report-escalation's reason, except that a rung-up retry whose patch
   // applied is no stop.
   const reason = (extra) => evaluate(post.env.ESCALATION_REASON, context(extra));
@@ -2503,9 +2514,10 @@ const PATCH_LANES = [
     { "needs.address-feedback-select.outputs.proceed": "true" },
     "apply-feedback-patch",
   ],
-  // apply-dependency-patch stays out of report-escalation too: a refused
-  // patch leaves no fix commit, and the verdict job escalates
-  // dependency-fix-not-landed (apply-dependency-verdict.test.mjs).
+  // report-escalation takes nothing from apply-dependency-patch either: a
+  // refused patch leaves no fix commit, and the verdict job escalates
+  // dependency-fix-not-landed (apply-dependency-verdict.test.mjs). It needs
+  // the job only to match report-stop-status's needs (NEEDS_ONLY).
   [
     "pr-unblock.yml",
     "review-dependency",
@@ -2564,6 +2576,9 @@ const APPLY_GATE = {
 // resolve-conflicts's empty patch leaves the conflicts unresolved.
 // The push jobs whose pushed-commit report-escalation passes its gate.
 const PUSHED_COMMIT_READERS = new Set(["apply-feedback-patch"]);
+// The push jobs report-escalation needs, reading none of their outputs, so its
+// needs equal report-stop-status's, which posts on their pushed commit.
+const NEEDS_ONLY = new Set(["apply-dependency-patch"]);
 const EMPTY_RUNS_APPLY = { "fix-ci": true, "fix-docs": false, "address-feedback": false, "review-dependency": false, "resolve-conflicts": true };
 const PATCH_OUTPUTS = { "patch-state": "patch-state", "patch-sha256": "patch-sha256", "patch-attempt": "patch-attempt", "reply-attempt": "reply-attempt" };
 // The read runner output each push job reads per input: the scan job's alone,
@@ -2744,7 +2759,11 @@ for (const [file, firstId, subId, extraNeeds, extraProceed, applyId] of PATCH_LA
           assert.deepEqual([...new Set(reads)], ["outputs.pushed-commit"], `report-escalation reads only ${id}'s pushed-commit`);
           continue;
         }
-        assert.ok(!escalation.needs.includes(id), `report-escalation does not need ${id}`);
+        if (id === applyId && NEEDS_ONLY.has(applyId)) {
+          assert.ok(escalation.needs.includes(id), `report-escalation needs ${id}, as report-stop-status does`);
+        } else {
+          assert.ok(!escalation.needs.includes(id), `report-escalation does not need ${id}`);
+        }
         assert.deepEqual(reads, [], `report-escalation reads no ${id} output`);
       }
     }
@@ -2945,7 +2964,8 @@ test("pr-run-activity-read.yml: the leak scan runs after the decode and gates ev
   assert.deepEqual(steps.slice(0, 2).map((step) => step.id ?? step.name), ["Require the checked issue fields", "Assert the default branch is set"]);
   assert.deepEqual(["base", "key", "open", "decode"].map(at), [2, 3, 4, 5]);
   assert.ok(at("decode") < scan);
-  const outputs = steps.filter((step) => (isUpload(step) && !String(step.with.name).startsWith("verdict-")) || writesSummary(step));
+  // The scan's own summary is the redacted fingerprint of a block (the test below).
+  const outputs = steps.filter((step) => step.id !== "leak-scan" && ((isUpload(step) && !String(step.with.name).startsWith("verdict-")) || writesSummary(step)));
   assert.equal(outputs.length, 6);
   const context = (clean) => ({
     "inputs.issue-number": "7",
@@ -3376,7 +3396,7 @@ test("leak scan: a failed getBranch, a malformed tip or no default branch fails 
     const github = gateApi("", { tip });
     const { outputs, failed } = await run(github, SCAN_CONTEXT);
     assert.equal(outputs.clean, "false", name);
-    assert.equal(failed, "leak-scan: no finished scan (Error); nothing is uploaded or summarized", name);
+    assert.equal(failed, "leak-scan: no finished scan (Error); nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match", name);
     assert.deepEqual(github.calls.map(([call]) => call), ["getBranch"], `${name}: no gate fetched`);
   }
   // An event that names no default branch asks for nothing.
@@ -3443,7 +3463,7 @@ test("leak scan: every credential format the gate names blocks and asks for rota
   for (const [label, sample] of Object.entries(CREDENTIALS)) {
     const { clean, failed } = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "skill-reply", "reply.txt"), `x ${sample} y\n`));
     assert.equal(clean, "false", label);
-    assert.equal(failed, `leak-scan: ${label}; nothing is uploaded or summarized\nrotate this credential`, label);
+    assert.equal(failed, `leak-scan: ${label}; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match\nrotate this credential`, label);
   }
   // A credential inside an assignment still blocks: the broad label never hides it.
   const wrapped = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), `token: "${CREDENTIALS["Cloudflare API token"]}"\n`));
@@ -3498,7 +3518,7 @@ test("leak scan: an assignment never hides a credential the gate finds only in i
     const { clean, failed } = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), text));
     assert.equal(clean, "false", name);
     const rotate = label === HIDDEN ? "" : "\nrotate this credential";
-    assert.equal(failed, `leak-scan: ${label}; nothing is uploaded or summarized${rotate}`, name);
+    assert.equal(failed, `leak-scan: ${label}; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match${rotate}`, name);
   }
   // Case 15: a plain assignment still only warns.
   const plain = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), `${ASSIGNMENT}\n`));
@@ -3526,7 +3546,7 @@ test("leak scan: the scan's own fixture files pass when a patch adds a plain lin
   ]) {
     const { clean, failed } = await scanWith(t, ({ work }) => writeFileSync(join(work, file), Buffer.concat([seed[file], Buffer.from(`${line}\n`)])), undefined, { seed });
     assert.equal(clean, "false", label);
-    assert.equal(failed, `leak-scan: ${label}; nothing is uploaded or summarized${label === HIDDEN ? "" : "\nrotate this credential"}`, label);
+    assert.equal(failed, `leak-scan: ${label}; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match${label === HIDDEN ? "" : "\nrotate this credential"}`, label);
   }
 });
 
@@ -3534,7 +3554,7 @@ test("leak scan: a credential-format file name blocks, and a PEM header alone bl
   // Case 17: the file holds only an assignment; its name is the credential.
   const named = await scanWith(t, ({ work }) => writeFileSync(join(work, `${CREDENTIALS["Cloudflare API token"]}.txt`), `${ASSIGNMENT}\n`));
   assert.equal(named.clean, "false");
-  assert.equal(named.failed, "leak-scan: Cloudflare API token; nothing is uploaded or summarized\nrotate this credential");
+  assert.equal(named.failed, "leak-scan: Cloudflare API token; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match\nrotate this credential");
   assert.deepEqual(named.warnings, []);
   const pem = await scanWith(t, ({ work }) => writeFileSync(join(work, "key.pem"), `${CREDENTIALS["private key"]}\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASC\n-----END RSA PRIVATE KEY-----\n`));
   assert.equal(pem.clean, "false");
@@ -3562,11 +3582,11 @@ test("leak scan: a key only the patch's binary hunk carries blocks, and a patch 
   const patch = readFileSync(join(temp, "patch", "patch.diff"));
   assert.ok(patch.includes("GIT binary patch") && !patch.includes(KEY), "the key is compressed in the patch");
   assert.equal(clean, "false");
-  assert.equal(failed, "leak-scan: Anthropic key; nothing is uploaded or summarized\nrotate this credential");
+  assert.equal(failed, "leak-scan: Anthropic key; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match\nrotate this credential");
   const stale = await scanWith(t, () => {}, undefined, {
     afterCollect: ({ temp }) => writeFileSync(join(temp, "patch", "patch.diff"), "diff --git a/gone.txt b/gone.txt\n--- a/gone.txt\n+++ b/gone.txt\n@@ -1 +1 @@\n-a\n+b\n"),
   });
-  assert.equal(stale.failed, "leak-scan: the patch does not apply to the head; nothing is uploaded or summarized");
+  assert.equal(stale.failed, "leak-scan: the patch does not apply to the head; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match");
 });
 
 // A fault names no credential, so it retries (refused `fault`), only once the
@@ -3602,7 +3622,7 @@ test("leak scan: a scan fault retries only for a judged patch with no unread bin
   assert.match(binary.failed, /^leak-scan: no finished scan/);
   assert.equal(binary.outputs.refused, undefined, "a throw past the apply stage on a binary hunk holds");
   const hit = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), "benign\n"), throwing(`  yield Buffer.from(${JSON.stringify(KEY)});`));
-  assert.equal(hit.failed, "leak-scan: Anthropic key; nothing is uploaded or summarized\nrotate this credential");
+  assert.equal(hit.failed, "leak-scan: Anthropic key; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match\nrotate this credential");
   assert.equal(hit.outputs.refused, undefined, "a throw after a hit keeps the hold");
   const hidden = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "skill-reply", "reply.txt"), `password = ${QUOT}hunter2-zz9${QUOT}\n`));
   assert.match(hidden.failed, /^leak-scan: assignment hidden by markup or escapes/);
@@ -3624,7 +3644,7 @@ test("leak scan: an object planted under the name of the patch's blob never stan
     },
   });
   assert.equal(clean, "false");
-  assert.equal(failed, "leak-scan: Anthropic key; nothing is uploaded or summarized\nrotate this credential");
+  assert.equal(failed, "leak-scan: Anthropic key; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match\nrotate this credential");
 });
 
 test("leak scan: no filter, include, hook or fsmonitor planted in the checkout's .git runs while the patch is collected or scanned", async (t) => {
@@ -4251,6 +4271,29 @@ test("a run whose issue file was not written still seals and publishes its lane.
   assert.equal(JSON.parse(files["lane.json"]).class, "issue-edited");
 });
 
+// Run 41423780812 (#12331) blocked an "Anthropic key" and kept nothing to say which file and line.
+test("scan job: a block writes only the hit's rule, file and line to the step summary, no character of the key", async (t) => {
+  const summary = join(tempDir("leak-scan-summary-"), "summary.md");
+  t.after(() => rmSync(dirname(summary), { recursive: true, force: true }));
+  writeFileSync(summary, "");
+  const { clean, failed } = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "skill-reply", "work-outcome.json"), `{\n"summary": "${KEY}"\n}\n`), undefined, { env: { GITHUB_STEP_SUMMARY: summary } });
+  assert.equal(clean, "false");
+  assert.match(failed, /^leak-scan: Anthropic key; nothing is uploaded/);
+  const written = readFileSync(summary, "utf8");
+  assert.equal(written, "### leak-scan blocked the outputs\n\n- rule `Anthropic key`, path `work-outcome.json`, line 2\n\n");
+  for (const part of ["sk-ant", "api03", "xxxx"]) assert.ok(!written.includes(part), `no ${part} from the key`);
+  // The one summary write is the fingerprint.
+  const script = scanSteps().find((s) => s.id === "leak-scan").with.script;
+  const appends = [...script.matchAll(/appendFileSync\(process\.env\.GITHUB_STEP_SUMMARY, ([^\n]*)\);/g)];
+  assert.equal(appends.length, 1);
+  assert.equal(script.match(/GITHUB_STEP_SUMMARY/g).length, 2, "the guard and the append");
+  assert.match(appends[0][1], /^`[^`$]*\$\{hit\.fingerprint\}\\n`$/);
+  // A clean scan writes nothing.
+  writeFileSync(summary, "");
+  assert.equal((await scanWith(t, () => {}, undefined, { env: { GITHUB_STEP_SUMMARY: summary } })).clean, "true");
+  assert.equal(readFileSync(summary, "utf8"), "");
+});
+
 test("scan job: a credential in the issue outcome blocks every upload", async (t) => {
   const { clean, failed } = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "skill-reply", "work-outcome.json"), `{"summary": "${KEY}"}\n`));
   assert.equal(clean, "false");
@@ -4751,7 +4794,7 @@ test("leak scan: a fresh shallow checkout of the head, as the scan job makes, st
     return dir;
   };
   const hit = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), KEY_BLOB), undefined, { afterCollect: restore, headRepo: shallow });
-  assert.equal(hit.failed, "leak-scan: Anthropic key; nothing is uploaded or summarized\nrotate this credential");
+  assert.equal(hit.failed, "leak-scan: Anthropic key; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match\nrotate this credential");
   const clean = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), "changed\n"), undefined, { headRepo: shallow });
   assert.deepEqual({ clean: clean.clean, failed: clean.failed }, { clean: "true", failed: null });
 });
@@ -4804,7 +4847,7 @@ test("scan job: patch-sha256 is the SHA-256 of exactly the bytes opened, scanned
   // The scan reads those same bytes: a key in them, through the carrier, blocks.
   const hit = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), `${KEY}\n`), undefined, { source: viaCarrier });
   assert.equal(hit.clean, "false");
-  assert.match(hit.failed, /^leak-scan: Anthropic key; nothing is uploaded or summarized/);
+  assert.match(hit.failed, /^leak-scan: Anthropic key; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match/);
   for (const dir of [clean.outputs.dir, hit.outputs.dir]) if (dir) rmSync(dir, { recursive: true, force: true });
 });
 
@@ -5069,7 +5112,7 @@ test("leak scan: a UTF-16LE or line-split credential blocks in the reply and in 
         const name = `${label} ${shape} in the ${where}${gate === PRE_8857_GATE ? " (pre-#8857 gate)" : ""}`;
         const { clean, failed, outputs } = await scanWith(t, plant, gate);
         assert.equal(clean, "false", name);
-        assert.equal(failed, `leak-scan: ${label}; nothing is uploaded or summarized\nrotate this credential`, name);
+        assert.equal(failed, `leak-scan: ${label}; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match\nrotate this credential`, name);
         if (outputs.dir) rmSync(outputs.dir, { recursive: true, force: true });
       }
     }
@@ -5149,14 +5192,14 @@ test("leak scan: the split-line pass leaves out the OpenAI pattern, so an sk- wo
   }
   for (const plant of [inReply(Buffer.from(split(SK))), inPatch(Buffer.from(split(SK)))]) {
     const { failed, outputs } = await scanWith(t, plant);
-    assert.equal(failed, "leak-scan: Anthropic key; nothing is uploaded or summarized\nrotate this credential");
+    assert.equal(failed, "leak-scan: Anthropic key; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match\nrotate this credential");
     if (outputs.dir) rmSync(outputs.dir, { recursive: true, force: true });
   }
   // The OpenAI pattern stays in the per-line and UTF-16LE passes.
   const openai = ["sk", "proj", "x".repeat(30)].join("-");
   for (const bytes of [Buffer.from(`key ${openai}\n`), utf16(`key ${openai}\n`)]) {
     const { failed, outputs } = await scanWith(t, inReply(bytes));
-    assert.equal(failed, "leak-scan: OpenAI key; nothing is uploaded or summarized\nrotate this credential");
+    assert.equal(failed, "leak-scan: OpenAI key; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match\nrotate this credential");
     if (outputs.dir) rmSync(outputs.dir, { recursive: true, force: true });
   }
 });
@@ -5169,7 +5212,7 @@ test("leak scan: the split-line pass leaves out the R2 key pair pattern, so adja
     if (outputs.dir) rmSync(outputs.dir, { recursive: true, force: true });
   }
   const { failed, outputs } = await scanWith(t, inReply(Buffer.from(`${"a".repeat(32)} ${"b".repeat(64)}\n`)));
-  assert.equal(failed, "leak-scan: R2 key pair; nothing is uploaded or summarized\nrotate this credential");
+  assert.equal(failed, "leak-scan: R2 key pair; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match\nrotate this credential");
   if (outputs.dir) rmSync(outputs.dir, { recursive: true, force: true });
 });
 
@@ -6471,9 +6514,10 @@ function jobListing(posted, { reportSkipped = [], unallowed = [], calls = FIX_CI
 
 // Runs a "Read whether ... posted" step, with the default branch tip's
 // handoff-evidence.sh where the step's checkout puts it, against a gh stub
-// that answers the jobs listing through the script's own --jq filter. A list
-// of listings answers one per read, the last repeating; the retry delays are
-// zero. Returns its exit, outputs, stdout and the arguments of each read.
+// that answers each `gh api -i` read of the jobs listing with a 200, no ETag
+// and the listing. A list of listings answers one per read, the last
+// repeating; the retry delays are zero. Returns its exit, outputs, stdout and
+// the arguments of each read.
 const HANDOFF_EVIDENCE = new URL("../../scripts/lib/handoff-evidence.sh", import.meta.url);
 function readPosted(t, step, listing, { fail = false, delays = "0 0 0 0 0" } = {}) {
   const root = tempDir("fix-ci-posted-");
@@ -6488,7 +6532,7 @@ function readPosted(t, step, listing, { fail = false, delays = "0 0 0 0 0" } = {
     join(root, "bin", "gh"),
     `#!/bin/bash\nprintf '%s\\n' "$*" >>"${calls}"\n${fail ? "exit 1\n" : ""}` +
       `n=$(($(wc -l <"${calls}") - 1)); [ "$n" -lt ${listings.length} ] || n=${listings.length - 1}\n` +
-      `while [ $# -gt 0 ]; do if [ "$1" = --jq ]; then filter=$2; fi; shift; done\njq -r "$filter" "${root}/listing-$n.json"\n`,
+      `printf 'HTTP/2.0 200 OK\\r\\n\\r\\n'\ncat "${root}/listing-$n.json"\n`,
     { mode: 0o755 },
   );
   const output = join(root, "out");
@@ -6703,7 +6747,7 @@ test("pr-unblock.yml: each fix-ci fallback call starts on a base job's jobs-API 
     const posted = readPosted(t, step, jobListing([firstId]));
     assert.equal(posted.status, 0);
     assert.deepEqual(posted.outputs, { posted: "true" });
-    assert.match(posted.calls, /^api --paginate repos\/o\/r\/actions\/runs\/99\/jobs\?filter=latest&per_page=100 --jq /);
+    assert.match(posted.calls, /^api -i repos\/o\/r\/actions\/runs\/99\/jobs\?filter=latest&per_page=100\n/);
     // A handoff, forged or not, skips the report job; a report that ran and
     // posted nothing, or another call's posted check, is no post either.
     for (const [name, listing] of Object.entries({
@@ -7162,7 +7206,7 @@ test("pr-unblock.yml: address-feedback's, review-dependency's and resolve-confli
     const read = readPosted(t, step, listing([firstId]));
     assert.equal(read.status, 0);
     assert.equal(read.outputs.posted, "true");
-    assert.match(read.calls, /^api --paginate repos\/o\/r\/actions\/runs\/99\/jobs\?filter=latest&per_page=100 --jq /);
+    assert.match(read.calls, /^api -i repos\/o\/r\/actions\/runs\/99\/jobs\?filter=latest&per_page=100\n/);
     for (const [name, value] of Object.entries({
       "a skipped report job": listing([], { reportSkipped: [firstId] }),
       "a report that posted nothing": listing([]),
@@ -7270,7 +7314,7 @@ test("work-resolve-issue.yml: resolve-issue-subscription starts on resolve-issue
     assert.equal(read.status, 0, name);
     assert.deepEqual(read.outputs, { "handed-off": handedOff }, name);
   }
-  assert.match(readPosted(t, step, issueListing()).calls, /^api --paginate repos\/o\/r\/actions\/runs\/99\/jobs\?filter=latest&per_page=100 --jq /);
+  assert.match(readPosted(t, step, issueListing()).calls, /^api -i repos\/o\/r\/actions\/runs\/99\/jobs\?filter=latest&per_page=100\n/);
   // Sandbox run 40118275531: the broker step's conclusion read null for
   // minutes after its job ended, so the handoff read false and the
   // subscription call never ran. broker-allowed decides at once.

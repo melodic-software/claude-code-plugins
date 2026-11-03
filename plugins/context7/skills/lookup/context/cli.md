@@ -37,11 +37,14 @@ Set it wherever your project manages local environment variables (shell profile,
 | `ctx7 login` / `logout` / `whoami` | OAuth flow (this plugin does NOT use it, since the env var is enough) |
 | `ctx7 remove` / `uninstall` | Remove a `setup`-installed agent configuration (this plugin does NOT use it) |
 | `ctx7 upgrade` | Self-upgrade the CLI |
-| `ctx7 skills install <repo> [skill]` | Install skills from a GitHub repo (this plugin does NOT use it, see below) |
 
-**The whole `ctx7 skills` surface is deprecated upstream as of 0.5.5**: hidden from `--help`, still
-runnable, with an in-tool warning that it "will stop working in the next major release". This plugin
-never invokes it (see below), so no behavior here depends on it.
+**This plugin does not use `ctx7 skills` or `ctx7 generate`,** and no behavior here depends on them.
+
+- **Pointer**: for whether the CLI has either, run `ctx7 --help` and `ctx7 skills` on the installed
+  CLI and fetch [upstash/context7#3425](https://github.com/upstash/context7/pull/3425) live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: `ctx7 --help` lists `skills` or `generate`, or the `update` action reports an
+  npm `latest` newer than 0.8.2.
 
 **This plugin does not use `ctx7 search`, because the installed CLI does not have it.** The upstream
 `context7-cli` skill lists the command, so `vendor/cli/SKILL.md` names it. On `ctx7` 0.8.2,
@@ -75,17 +78,17 @@ error. Lookups stay `ctx7 library`, then `ctx7 docs`.
 
 ### Setup / install flags (why this plugin doesn't use them)
 
-`ctx7 setup --claude --project --cli` and `ctx7 skills install /upstash/context7 find-docs --claude --yes` both install Upstash's skills into `.claude/skills/`. **This plugin does not use these** because:
+`ctx7 setup --claude --project --cli` installs Upstash's skills into `.claude/skills/`. **Never run it, and never run `ctx7 skills install` if a guide names it** (the record under [Commands](#commands) says where to check that command). This plugin does not use them because:
 
-1. They create a parallel `find-docs/` skill that fragments the lookup surface. This plugin owns the lookup workflow
-2. `ctx7 skills install` re-fetched overwrites local customizations with zero warning. It would destroy the Windows gotcha notes, CLI-vs-MCP guidance, and action dispatch
+1. Installing creates a parallel `find-docs/` skill that fragments the lookup surface. This plugin owns the lookup workflow
+2. An upstream-installed copy is not where this plugin keeps its customizations: the Windows gotcha notes, CLI-vs-MCP guidance, and action dispatch stay in this plugin
 3. This plugin's `update` action ([update.md](update.md)) fetches upstream skill content for diffing, but integrates changes manually. A human reviews the merge
 
 ## Environment variables
 
 | Variable | Purpose |
 |---|---|
-| `CONTEXT7_API_KEY` | Higher rate limits + priority. Required for `ctx7 skills generate` |
+| `CONTEXT7_API_KEY` | Higher rate limits + priority |
 | `CTX7_TELEMETRY_DISABLED` | Set to `1` to disable the CLI's anonymous usage telemetry |
 
 The CLI sends anonymous usage telemetry **by default** (see the Telemetry section of Context7's CLI docs at context7.com/docs/clients/cli). In privacy-sensitive environments, disable it per invocation (`CTX7_TELEMETRY_DISABLED=1 ctx7 docs ...`) or permanently by exporting the variable in your shell profile.

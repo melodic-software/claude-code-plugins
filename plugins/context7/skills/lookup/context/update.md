@@ -50,7 +50,7 @@ When porting upstream additions, **keep** this plugin's customizations:
 | CLI-vs-MCP comparison table | `SKILL.md`, `context/mcp.md` | Empirical findings |
 | Action dispatch (`lookup`/`update`) | `SKILL.md` | The `update` action has no upstream equivalent |
 | Progressive-disclosure structure | `context/*.md` | Upstash ships single-file skills |
-| "Do not run `ctx7 setup` / `skills install`" guidance | Multiple | This plugin owns the skill layer; Upstash expects their install flow |
+| "Do not run `ctx7 setup`, or `skills install` if a guide names it" guidance | Multiple | This plugin owns the skill layer; Upstash expects their install flow |
 | Restrained trigger phrasing | `SKILL.md` frontmatter, `context/*.md` | Upstream's blanket forcing language ("Use even when you think you know the answer", "Always use for:") is deliberately not ported to any non-vendor surface; a genuine call-order dependency stated in body prose is not this shape |
 
 What to **adopt** from upstream (when present):
@@ -67,7 +67,7 @@ If the drift check surfaces a substantive behavioral change, research primary so
 
 ## What this action does NOT do
 
-- **Does not `ctx7 skills install`**: that overwrites the owned skill surface
+- **Does not run `ctx7 skills install`, even if a guide names it**: this plugin owns its skill surface
 - **Does not `ctx7 setup --mcp`**: that modifies the consumer's MCP configuration
 - **Does not auto-merge upstream content**: the user approves every port
 - **Does not refresh the baseline automatically**: only on `--refresh-baseline` after manual integration, so the baseline stays honest about "what was last reviewed"
