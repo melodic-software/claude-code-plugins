@@ -6,7 +6,7 @@ Part of [Phase 2: Create](create.md), which lists every section's file; a bare �
 (its `config-root.sh classify` call included); it reads nothing the push changes. When it is
 `ready` and `ready`'s `base-merge` step would run ([ready-for-review.md](ready-for-review.md),
 "Read which pre-flip steps run"), fetch `$REMOTE/$DEFAULT_BRANCH` again and, when the branch is
-behind it, merge it in the way §2.5.2's local fallback does: a merge, never a rebase, with
+behind it, merge it in the way [ready-for-review.md](ready-for-review.md) §2.5.2's local fallback does: a merge, never a rebase, with
 conflicts routed to `/source-control:resolve-conflicts`, and stop as `ready` does. The draft then
 opens on a head containing the base, so §2.5.2 pushes nothing and the PR saves a CI run. A
 `draft` state skips this.

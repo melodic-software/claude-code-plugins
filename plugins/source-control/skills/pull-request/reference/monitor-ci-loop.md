@@ -1,6 +1,6 @@
 # 3.1 Monitoring loop (per-push)
 
-Part of [Phase 3: Monitor](monitor.md), which lists every section's file; a bare § number names a section listed there. Every push in this phase follows the push rule in [§3.0.6](monitor-multi-pr-scan.md) ("Monitor does the work").
+Part of [Phase 3: Monitor](monitor.md), which lists every section's file; a bare § number names a section listed there. Every push and every pause for input in this phase follows the phase-wide rules in [§3.0.6](monitor-multi-pr-scan.md) ("Monitor does the work").
 
 **PR number**: resolve once at phase entry from the checked-out branch, naming the branch explicitly if multiple PRs are open against this checkout ([GitHub](../../../reference/providers/github/README.md#resolve-a-pull-request)). Capture it in a shell var and pass it explicitly to every later checks or PR read in this phase.
 

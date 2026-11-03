@@ -9,7 +9,7 @@
 - [3.0.05 Push-channel primary path (local CLI sessions, optional)](monitor-push-channel.md)
 - [3.0.1 Auto-watch setup (Monitor tool)](monitor-auto-watch.md)
 - [3.0.5 Loop-aware monitoring (self-termination support)](monitor-self-termination.md)
-- [3.0.6 Multi-PR scan (after readiness-pass, merge, or close)](monitor-multi-pr-scan.md)
+- [3.0.6 Multi-PR scan (after readiness-pass, merge, or close)](monitor-multi-pr-scan.md), which also holds the phase-wide push and pause rules
 - [3.1 Monitoring loop (per-push)](monitor-ci-loop.md)
 - [3.1.5 Security scan evaluation (MANDATORY)](monitor-security-scan.md)
 - [3.2 CI failure resolution (RESEARCH-GATED)](monitor-ci-failures.md)

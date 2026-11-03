@@ -1,6 +1,6 @@
 # 3.3 PR comment evaluation (WORKFLOW-GATED)
 
-Part of [Phase 3: Monitor](monitor.md), which lists every section's file; a bare § number names a section listed there. Every push in this phase follows the push rule in [§3.0.6](monitor-multi-pr-scan.md) ("Monitor does the work").
+Part of [Phase 3: Monitor](monitor.md), which lists every section's file; a bare § number names a section listed there. Every push and every pause for input in this phase follows the phase-wide rules in [§3.0.6](monitor-multi-pr-scan.md) ("Monitor does the work").
 
 **Fetch all comments deterministically** via the bundled script, never choosing API surfaces by agent judgment:
 
