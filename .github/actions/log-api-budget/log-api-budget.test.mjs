@@ -528,18 +528,20 @@ test("gh guard: a paginated secondary or abuse-detection limit waits the minute;
   }));
 
 // A paginated call shows no headers, so a primary limit holds to the one open
-// window the token's earlier readings show; any other reading set keeps the
+// window the token's earlier readings of the same route show (another route
+// may read another core counter); any other reading set keeps the
 // hour. The stop stays a guess (gh_read never waits on it).
-test("gh guard: a paginated primary limit holds to the reset of the one open window in earlier readings, else the hour", () =>
+test("gh guard: a paginated primary limit holds to the reset of the one open window in earlier readings of its route, else the hour", () =>
   withDir((dir) => {
     const now = Math.floor(Date.now() / 1000);
     const primary = "fail gh: API rate limit exceeded for installation ID 1. (HTTP 403)";
     for (const [readings, seconds, label] of [
-      [[`200 5000 12 4988 ${now + 900} core repos/o/r`, "request repos/o/r/pulls", `200 5000 10 4990 ${now + 900} core repos/o/r`], 900, "one open core window"],
-      [[`200 5000 12 4988 ${now + 900} core repos/o/r`, `200 5000 9 4991 ${now + 1800} core repos/o/r`], 3600, "two open core windows"],
-      [[`200 5000 12 4988 ${now - 10} core repos/o/r`], 3600, "a window already past"],
-      [["200 5000 12 4988 na core repos/o/r"], 3600, "an unparsable reset"],
+      [[`200 5000 12 4988 ${now + 900} core repos/{repo}/pulls`, "request repos/o/r/pulls", `200 5000 10 4990 ${now + 900} core repos/{repo}/pulls`], 900, "one open core window"],
+      [[`200 5000 12 4988 ${now + 900} core repos/{repo}/pulls`, `200 5000 9 4991 ${now + 1800} core repos/{repo}/pulls`], 3600, "two open core windows"],
+      [[`200 5000 12 4988 ${now - 10} core repos/{repo}/pulls`], 3600, "a window already past"],
+      [["200 5000 12 4988 na core repos/{repo}/pulls"], 3600, "an unparsable reset"],
       [[`200 5000 12 4988 ${now + 900} graphql graphql`], 3600, "an open window of another pool"],
+      [[`200 5000 12 4988 ${now + 900} core repos/{repo}`], 3600, "an open core window read on another route, maybe another counter"],
       [[], 3600, "no readings"],
     ]) {
       rmSync(join(dir, "api-budget"), { recursive: true, force: true });

@@ -60,9 +60,10 @@
 #                               the epoch second <pool> is stopped until, if
 #                               it is
 #   api_budget_guessed <epoch>  whether a stop until <epoch> is a guess
-#   api_budget_known_reset <pool>
+#   api_budget_known_reset <pool> <route>
 #                               the reset of <pool>'s one open window in the
-#                               token's earlier readings, if there is one
+#                               token's earlier readings of <route>, if there
+#                               is one
 #   api_budget_observe <file> <pool> <what>
 #                               reads gh api -i output and stops its pool when
 #                               it is exhausted, returning 1 unless the
@@ -194,7 +195,7 @@ api_budget_pass() {
   if ((rc != 0)) && grep -qiE 'rate limit|RATE_LIMITED|abuse detection|\(HTTP 429\)' "$err"; then
     if grep -qiE 'secondary rate limit|abuse detection' "$err"; then
       at=$(($(date +%s) + 60))
-    elif grep -qiE 'rate limit|RATE_LIMITED' "$err" && at=$(api_budget_known_reset "$(api_budget_pool "$@")"); then
+    elif grep -qiE 'rate limit|RATE_LIMITED' "$err" && at=$(api_budget_known_reset "$(api_budget_pool "$@")" "$(api_budget_route "$@")"); then
       source="x-ratelimit-reset of an earlier reading"
     else
       at=$(($(date +%s) + 3600))
@@ -205,14 +206,16 @@ api_budget_pass() {
   return "$rc"
 }
 
-# api_budget_known_reset <pool>: the reset of <pool>'s window from the
-# readings the gh wrapper's token already holds, when they show exactly one
-# window still open; two or more (one token can read several counters) or none
-# return 1. No call is sent to learn it.
+# api_budget_known_reset <pool> <route>: the reset of <pool>'s window from the
+# readings of <route> the gh wrapper's token already holds, when they show
+# exactly one window still open; two or more (one token can read several
+# counters) or none return 1. A reading of another route may come from another
+# core counter than the refused call's, so it is not read. No call is sent to
+# learn it.
 api_budget_known_reset() {
   local file=${RUNNER_TEMP:-}/api-budget/${API_BUDGET_GH_TOKEN:-}
   [[ -n ${RUNNER_TEMP:-} && ${API_BUDGET_GH_TOKEN:-} =~ ^[a-z][a-z0-9-]{0,39}$ && -f $file ]] || return 1
-  awk -v pool="$1" -v now="$(date +%s)" '$1 ~ /^[0-9][0-9][0-9]$/ && $6 == pool && $5 ~ /^[0-9]+$/ && length($5) <= 12 && $5 + 0 > now + 0 && !($5 in seen) { seen[$5]; n++; at = $5 }
+  awk -v pool="$1" -v route="${2:-}" -v now="$(date +%s)" '$1 ~ /^[0-9][0-9][0-9]$/ && $6 == pool && $7 == route && $5 ~ /^[0-9]+$/ && length($5) <= 12 && $5 + 0 > now + 0 && !($5 in seen) { seen[$5]; n++; at = $5 }
     END { if (n != 1) exit 1; print at }' "$file"
 }
 
