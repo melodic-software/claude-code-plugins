@@ -107,9 +107,9 @@ both org-bindable.
 required governance: at launch the runner verifies that `runner-needs-human` and
 `runner-cap-exceeded` each carry a bound `escalation_routes` entry, and fail-closes, blocking
 dispatch, when either is absent, exactly as it does for an absent security binding
-([topology leaf](topology.md)). Every non-success stop maps to one of these classes, so a
-runner without their routes would have no queue destination for its required human-gated
-handoff. The requirement binds the RUNNER, not the binding: a binding without the runner keys
+([topology leaf](topology.md)). Every `needs-human` and `cap-exceeded` stop maps to one of
+these classes, so a runner without their routes would have no queue destination for its
+human-gated handoff; a `gate-failed` stop takes the `gate-failure` class's own route. The requirement binds the RUNNER, not the binding: a binding without the runner keys
 stays valid for every pre-runner surface, which is why the static checker cannot enforce this
 (no binding key says a runner is enabled) and the launch gate does.
 
@@ -133,6 +133,14 @@ binds `urgent` with the channel leg alone, and absent a bound channel adapter fa
 to tracker-item-only; degradation never drops the escalation item itself. The one rejected
 shape is the inverse: a push leg bound without the channel leg beneath it, because the ladder
 is cumulative and the push tier rides on top of the channel notification.
+
+**Fan-out reaches a person only on a human-gated item.** The channel and personal-push legs
+notify people, so they fire only for an item the
+[guardrail stop rule](../guardrails.md#escalation) or a kept control human-gates. An item filed
+on the route of the lane that owns its follow-up, such as a `gate-failure` item the stop rule
+does not human-gate, gets the tracker item alone at any severity, and the owning lane's claim of
+it is its acknowledgment, so it never re-escalates. Its severity still orders the lane's queue
+and applies in full if the item later becomes human-gated.
 
 ### Fan-out transport grounding
 
@@ -203,7 +211,8 @@ reason, so a reader recovers the full trace from the item alone: which class rou
 which condition raised it.
 
 **Acknowledgment and re-escalation.** An escalation item carries an acknowledgment state. An
-unacknowledged item that goes stale re-escalates once with a one-level severity bump; an
+item on a lane's route is acknowledged when its owning lane claims it (see the fan-out rule
+above); the rest of this paragraph governs a human-gated item. An unacknowledged item that goes stale re-escalates once with a one-level severity bump; an
 acknowledged item never re-escalates. The bump saturates at `urgent`: an item already at
 `urgent`, whether by the untrusted-provenance default or either urgent stop-reason override, still
 re-escalates once, by re-notifying with a fresh `urgent` fan-out at the same severity, never by
