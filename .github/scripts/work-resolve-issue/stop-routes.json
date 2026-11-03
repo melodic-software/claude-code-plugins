@@ -36,5 +36,7 @@
   "probe-first": { "route": "park", "why": "the issue's Uncertainty says only an experiment answers it, a step no person decides, so it parks as admission parks the same refusal" },
   "blocked-by-pr": { "route": "wait", "why": "the work waits on an open pull request the run names, so the lane runs it again once that pull request merges or closes", "code": true },
   "already-done": { "route": "close", "why": "the run found the issue's work already on the default branch at a commit it cites, so the issue closes", "code": true },
+  "verified-done": { "route": "close", "why": "the issue is a finished parent, every sub-issue closed as completed, and the run checked each of its own done-when items against the default branch, citing each check, so the issue closes", "code": true },
+  "verify-unmet": { "route": "park", "why": "the issue is a finished parent, but the run found one of its own done-when items unmet, which it names, so it parks until new work or a person's decision sends it back", "code": true },
   "report-delivered": { "route": "close", "why": "the issue asks for a report and no change, and the run posted that report, so the issue closes", "code": true }
 }

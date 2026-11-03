@@ -3120,6 +3120,26 @@ test("isTrustedClose: the lanes App's already-done close counts for nothing once
   assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ comments: reopened })), "o/r", APP_CLOSED, humans, isLanesApp), false, "the last close is a report");
 });
 
+// #12456 class A: the App's verified-done close of a finished parent counts
+// when every sub-issue, read fresh, is closed as completed by a close this
+// function trusts (here a listed human's); a not_planned or untrusted one, or
+// no sub-issue, leaves it untrusted.
+test("isTrustedClose: the lanes App's verified-done close counts only while every sub-issue's close holds", async () => {
+  const OWNER_ID = 101;
+  const humans = new Set([OWNER_ID]);
+  const child = (number, extra = {}) => ({ number, state: "closed", state_reason: "completed", closed_by: { id: OWNER_ID }, ...extra });
+  const verified = (children) =>
+    routeClient({
+      ...appCloseRoutes({ comments: [closeComment("verified-done", "verified-done: each done-when item checks out")] }),
+      "GET /repos/o/r/issues/77/sub_issues?per_page=100&page=1": children,
+      ...Object.fromEntries(children.map((item) => [`GET /repos/o/r/issues/${item.number}`, item])),
+    });
+  assert.equal(await isTrustedClose(verified([child(80), child(81)]), "o/r", APP_CLOSED, humans, isLanesApp), true);
+  assert.equal(await isTrustedClose(verified([child(80), child(81, { state_reason: "not_planned" })]), "o/r", APP_CLOSED, humans, isLanesApp), false, "a not_planned sub-issue");
+  assert.equal(await isTrustedClose(verified([child(80), child(81, { closed_by: STRANGER })]), "o/r", APP_CLOSED, humans, isLanesApp), false, "an untrusted close");
+  assert.equal(await isTrustedClose(verified([]), "o/r", APP_CLOSED, humans, isLanesApp), false, "no sub-issue");
+});
+
 test("isTrustedClose: the lanes App's report-delivered close counts for nothing", async () => {
   const comments = [closeComment("report-delivered", "report-delivered: ＃5 shipped it")];
   assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ comments })), "o/r", APP_CLOSED, new Set(), isLanesApp), false);

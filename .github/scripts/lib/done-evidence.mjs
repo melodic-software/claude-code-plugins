@@ -8,6 +8,9 @@
 // `../lib/done-evidence.mjs`: collect-base-activity copies the base
 // .github/scripts/lib/ beside that copy. No dependencies.
 
+// A verified-done close (stop-routes.json) instead rests on parentDone: every
+// sub-issue of the issue closed as completed by a trusted close.
+
 // The line a stop comment names its stop on, and the heading over the run's
 // own words, which report-outcome writes and closeStop reads back.
 export const stopLine = (stop) => `The work-resolve-issue lane stopped on this issue (\`${stop}\`):`;
@@ -76,6 +79,46 @@ export async function doneEvidence(github, repo, reason, issueNumber) {
         .catch(() => false))
     ) {
       return true;
+    }
+  }
+  return false;
+}
+
+// Why `children` (an issue's sub-issues as listed) do not all count as done,
+// or null when each is closed with state_reason `completed` by a close
+// `trusted(number)` accepts: an open sub-issue, or one closed not_planned, as
+// a duplicate or with no reason, does not count. The one child rule of a
+// split parent's close (admit.mjs splitLeftOpen) and of a verified-done close.
+// The listed states are checked first, so a sub-issue left open or closed
+// otherwise costs no close read.
+export async function subIssueLeftOpen(children, trusted) {
+  const left = (child) => `sub-issue #${child?.number} is not closed as completed by a listed human or a merge`;
+  const undone = children.find((child) => child?.state !== "closed" || child.state_reason !== "completed");
+  if (undone !== undefined) {
+    return left(undone);
+  }
+  for (const child of children) {
+    if (!(await trusted(child.number))) {
+      return left(child);
+    }
+  }
+  return null;
+}
+
+// Whether issue `issueNumber` has sub-issues and every one counts as done
+// (subIssueLeftOpen): a verified-done close's evidence, beside the run's check
+// of the issue's own done-when. A read that fails, or a listing past
+// EVENT_PAGES pages, proves nothing.
+export async function parentDone(github, repo, issueNumber, trusted) {
+  const children = [];
+  for (let page = 1; page <= EVENT_PAGES; page += 1) {
+    const listed = await github("GET", `${repo}/issues/${issueNumber}/sub_issues?per_page=100&page=${page}`).catch(() => null);
+    if (!Array.isArray(listed)) {
+      return false;
+    }
+    children.push(...listed);
+    if (listed.length < 100) {
+      return children.length > 0 && (await subIssueLeftOpen(children, trusted).catch(() => "unread")) === null;
     }
   }
   return false;
