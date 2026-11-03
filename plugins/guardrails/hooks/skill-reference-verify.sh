@@ -18,8 +18,8 @@
 # the noise inside the one context where the oracle is meaningful.
 #
 # PLUGINS-ROOT GATE: the hook does nothing unless the file being written lives in
-# a repo with a `plugins/` directory containing at least one `.claude-plugin/`
-# manifest — i.e. a marketplace repo. Outside one there is no local authority to
+# a repo with a `plugins/` directory containing at least one `.claude-plugin/`,
+# `.codex-plugin/` or `.cursor-plugin/` manifest — i.e. a marketplace repo. Outside one there is no local authority to
 # resolve a reference against, so the guard stays silent rather than guessing.
 #
 # PLUGIN-SCOPE GATE: within a marketplace repo, a reference is only adjudicated
@@ -97,8 +97,20 @@ PLUGINS_DIR="$REPO_ROOT/plugins"
 # builtin parser cannot answer, so reading first spent a jq process on every
 # .md edit in a repo this guard then leaves alone.
 [[ -d "$PLUGINS_DIR" ]] || exit 0
+# A Codex or Cursor marketplace keeps its manifest in .codex-plugin/ or
+# .cursor-plugin/, with the same `name` and `skills` keys. One manifest per
+# plugin directory, the Claude one first, so a plugin shipped for several hosts
+# is indexed once.
 shopt -s nullglob
-manifests=("$PLUGINS_DIR"/*/.claude-plugin/plugin.json)
+manifests=()
+declare -A manifest_dirs=()
+for m in "$PLUGINS_DIR"/*/.claude-plugin/plugin.json "$PLUGINS_DIR"/*/.codex-plugin/plugin.json \
+  "$PLUGINS_DIR"/*/.cursor-plugin/plugin.json; do
+  pdir="${m%/.*-plugin/plugin.json}"
+  [[ -n "${manifest_dirs[$pdir]:-}" ]] && continue
+  manifest_dirs[$pdir]=1
+  manifests+=("$m")
+done
 shopt -u nullglob
 ((${#manifests[@]} > 0)) || exit 0
 
@@ -318,8 +330,8 @@ build_plugin_index() {
     # PLUGINS_DIR, so neither the index nor the seen[] check below depends on
     # the echoed form (a mismatch there would re-read every manifest through
     # the fallback, four processes each, on every reference-bearing write).
-    m="${m%/.claude-plugin/plugin.json}"
-    m="${m%\\.claude-plugin\\plugin.json}"
+    m="${m%[/\\]plugin.json}"
+    m="${m%[/\\].*-plugin}"
     m="${m##*/}"
     m="${m##*\\}"
     pdir="$PLUGINS_DIR/$m"
@@ -336,7 +348,7 @@ build_plugin_index() {
   # the directory name for the broken one. On a tree where every manifest
   # parses (this one, gated by CI) the residue is empty and this spawns nothing.
   for m in "${manifests[@]}"; do
-    pdir="${m%/.claude-plugin/plugin.json}"
+    pdir="${m%/.*-plugin/plugin.json}"
     [[ -n "${seen[$pdir]:-}" ]] && continue
     pname=$(jq -r '.name // empty' "$m" 2>/dev/null | tr -d '\r')
     [[ -n "$pname" ]] || pname="${pdir##*/}"
