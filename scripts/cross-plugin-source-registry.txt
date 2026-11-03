@@ -58,16 +58,31 @@ lib/managed-scope.sh -> plugins/*/lib/managed-scope.sh
 lib/state-key.sh
 
 # No dedicated check: accepted. The prerequisite plugins grade one case shape, so
-# they commit the same small samples. Canonical copy: the file under plugins/toolchain/evals/,
-# and plugins/speech/evals/ for the case around a plugin's own report script.
+# they commit the same small samples. Canonical copy: the file under plugins/toolchain/evals/.
 evals/ck-notice-reads-checker/samples/no-edit.json
+
+# No dedicated check. Canonical copy: plugins/toolchain/evals/.
 evals/ck-notice-reads-checker/samples/no-write.json
+
+# No dedicated check. Canonical copy: plugins/toolchain/evals/.
 evals/ck-notice-reads-checker/samples/no-install.json
+
+# No dedicated check. Canonical copy: plugins/toolchain/evals/.
 evals/ck-notice-reads-checker/samples/ran-checker.json
+
+# No dedicated check. Canonical copy: plugins/toolchain/evals/.
 evals/ck-notice-reads-checker/scaffold.sh
+
+# No dedicated check: accepted, as above. Canonical copy: plugins/speech/evals/.
 evals/ck-notice-runs-own-report/samples/no-edit.json
+
+# No dedicated check. Canonical copy: plugins/speech/evals/.
 evals/ck-notice-runs-own-report/samples/no-write.json
+
+# No dedicated check. Canonical copy: plugins/speech/evals/.
 evals/ck-notice-runs-own-report/samples/no-install.json
+
+# No dedicated check. Canonical copy: plugins/speech/evals/.
 evals/ck-notice-runs-own-report/scaffold.sh
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
