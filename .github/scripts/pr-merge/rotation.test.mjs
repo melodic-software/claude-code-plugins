@@ -307,3 +307,19 @@ test("ghDownload runs gh run download until the rate guard holds a stop, then se
     rmSync(run, { recursive: true, force: true });
   }
 });
+
+test("a graphql or search stop does not refuse gh run download, which spends core", () => {
+  const run = tempDir("rotation-download-");
+  try {
+    const bin = fakeGhDownload(run, "cursor.json", "{}");
+    const env = { PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: run, TMPDIR: run, API_BUDGET_TOKEN: "github-token" };
+    assert.equal(ghDownload({ repo: "o/r", token: "t", dir: run, env })(40), "{}");
+    const until = Math.floor(Date.now() / 1000) + 600;
+    writeFileSync(join(run, "api-budget", "stop"), `graphql ${until}\nsearch ${until}\n`);
+    assert.equal(ghDownload({ repo: "o/r", token: "t", dir: run, env })(41), "{}");
+    writeFileSync(join(run, "api-budget", "stop"), `core ${until}\n`);
+    assert.throws(() => ghDownload({ repo: "o/r", token: "t", dir: run, env })(42), /Command failed/);
+  } finally {
+    rmSync(run, { recursive: true, force: true });
+  }
+});

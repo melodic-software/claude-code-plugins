@@ -272,6 +272,7 @@ api_budget_traced() {
 
 api_budget_pool() {
   local arg
+  [[ ${1:-} == run && ${2:-} == download ]] && { echo core; return; }
   [[ ${1:-} == api ]] || { echo any; return; }
   for arg in "${@:2}"; do
     case $arg in
