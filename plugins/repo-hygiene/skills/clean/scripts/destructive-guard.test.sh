@@ -132,6 +132,8 @@ nested_cmds=(
   # reading): every body is read as the shell's script, whatever the count says.
   $'<<A\nz\nA\nbash <<A\ngit reset --hard\nA\ncat <<A\nx\\\ny\nA'
   $'<<A\nz\nA\nbash <<A\ngit reset --hard\nA\necho @(cat <<B\nb\nB\n)'
+  # A here-doc inside a command-start `!(…)` only the extglob-off reading sees.
+  $'!(bash <<A\ngit reset --hard\nA\n)'
   "git --git-dir /r/.git reset --hard"
   "git --work-tree /r stash drop"
 )

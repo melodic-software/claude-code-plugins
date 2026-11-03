@@ -441,6 +441,9 @@ hit_print() { printf '%s\n' "$*"; }
   form refused 'echo @(x #$(echo HIT >&2))'
   form refused $'echo @(x\n$(echo HIT >&2))'
   form refused $'echo *(x\t#`echo HIT >&2`)'
+  # A here-doc inside a `!(…)` at a command's start: shfmt keeps the pattern as
+  # one literal, so only the extglob-off reading sees the body.
+  form refused $'!(bash <<A\necho HIT >&2\nA\n)'
   # Nested: the extglob-off rewrite applies its edits in offset order.
   form handled $'cat <<E2; !(x)#\n$(cat <<E1; !(x)#\n$(echo HIT >&2\n)\nE1\n)\nE2'
   # The extglob-off reading runs a here-doc before its open quote's error.

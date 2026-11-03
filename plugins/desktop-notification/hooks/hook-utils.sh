@@ -4911,6 +4911,7 @@ hook::_bps_tree_decode() {
       if ((__hu_bk == 0)); then
         __hu_off=${__hu_off:-$__hu_bcmd}
         __hu_off=${__hu_off:0:__hu_bs+__hu_bshift}'! ('${__hu_off:__hu_bs+__hu_bshift+2}
+        __hu_offins+=($((__hu_bs + __hu_bshift + 1)))
         ((__hu_bshift += 1))
       else
         __hu_off=${__hu_off:-$__hu_bcmd}
@@ -4923,6 +4924,7 @@ hook::_bps_tree_decode() {
       if [[ "${__hu_bcmd:__hu_bs:1}" == '#' ]]; then
         __hu_sp=${__hu_sp:-$__hu_bcmd}
         __hu_sp=${__hu_sp:0:__hu_bs+__hu_bsshift}';_'${__hu_sp:__hu_bs+__hu_bsshift+1}
+        __hu_spins+=($((__hu_bs + __hu_bsshift)))
         ((__hu_bsshift += 1))
       fi
       ;;
@@ -4932,6 +4934,55 @@ hook::_bps_tree_decode() {
       ;;
     esac
   done
+}
+
+# hook::_bps_hd_check <mode> <text> [<insertion>...]: after a second reading of
+# <text>, every here-doc body it listed (HOOK_HEREDOC_BODIES) must be one the
+# first tree holds (__hu_hb, the caller's). A body only the second reading sees
+# is shown to no guard (HOOK_HEREDOC_BODIES ends up the first tree's), so the
+# call refuses, or a soft caller returns 1. <mode>:
+#   none    an extglob pattern or a backtick's text: the first tree holds no
+#           body of it, so any body is unseen.
+#   joined  a joined here-doc body read as `: <<D` then the joined text: its
+#           first body is the joined form of a first-tree body; any other is
+#           unseen.
+#   map     a whole-command rewrite (the extglob-off or array `#` reading) that
+#           inserted one character at each <insertion> offset of <text>: each
+#           body's start and end, moved back past those, must be a first-tree
+#           body's.
+hook::_bps_hd_check() {
+  local __hu_km=$1 __hu_ke __hu_kh __hu_ks __hu_kn __hu_ki __hu_kc __hu_kf=0 __hu_kb=0
+  shift 2
+  for __hu_ke in ${HOOK_HEREDOC_BODIES[@]+"${HOOK_HEREDOC_BODIES[@]}"}; do
+    __hu_kb=$((__hu_kb + 1))
+    [[ "$__hu_km" == joined ]] && ((__hu_kb == 1)) && continue
+    [[ "$__hu_km" == map ]] || {
+      __hu_kf=0
+      break
+    }
+    __hu_ks=${__hu_ke%% *}
+    __hu_ke=${__hu_ke#* }
+    __hu_kn=${__hu_ke%% *}
+    __hu_kc=0
+    for __hu_ki in "$@"; do ((__hu_ki < __hu_ks)) && __hu_kc=$((__hu_kc + 1)); done
+    __hu_ks=$((__hu_ks - __hu_kc))
+    __hu_kc=0
+    for __hu_ki in "$@"; do ((__hu_ki < __hu_kn)) && __hu_kc=$((__hu_kc + 1)); done
+    __hu_kn=$((__hu_kn - __hu_kc))
+    __hu_kf=0
+    for __hu_kh in ${__hu_hb[@]+"${__hu_hb[@]}"}; do
+      [[ "$__hu_kh" == "$__hu_ks $__hu_kn "* ]] && {
+        __hu_kf=1
+        break
+      }
+    done
+    ((__hu_kf)) || break
+  done
+  ((__hu_kb == 0 || __hu_kf)) && return 0
+  [[ "$__hu_km" == joined ]] && ((__hu_kb == 1)) && return 0
+  HOOK_BPS_FAIL="a here-doc only a second reading of the command sees"
+  ((__hu_bsoft)) && return 1
+  hook::_bps_refuse
 }
 
 # hook::bash_parse_segments_shfmt <command> <callback> [soft]: every simple
@@ -4946,6 +4997,7 @@ hook::_bps_tree_decode() {
 hook::bash_parse_segments_shfmt() {
   local __hu_bcmd=$1 __hu_bcb=$2 __hu_bsoft=${3:-0} __hu_bout=""
   local __hu_off="" __hu_sp="" __hu_bshift=0 __hu_bsshift=0
+  local -a __hu_offins=() __hu_spins=()
   # The budget is shared down the nested calls (dynamic scope) and starts over
   # at a top-level call. Past it the call refuses, soft or not: dropping the
   # rest would leave commands unread.
@@ -5015,18 +5067,35 @@ hook::bash_parse_segments_shfmt() {
     printf -v __hu_pk '%q' "$__hu_x"
     [[ "$__hu_pseen" == *$'\n'"$__hu_pk"$'\n'* ]] && continue
     __hu_pseen+="$__hu_pk"$'\n'
+    HOOK_HEREDOC_BODIES=()
     hook::bash_parse_segments_shfmt "$__hu_x" "$__hu_bcb" 1
+    hook::_bps_hd_check none "$__hu_x" || return 1
   done
   # The extglob-off reading and the array `#` reading (which replaces a tree
   # that took the rest of its line for a comment) are readings of the whole
   # command, and refuse when they do not parse.
-  for __hu_x in ${__hu_off:+"$__hu_off"} ${__hu_sp:+"$__hu_sp"}; do
-    hook::bash_parse_segments_shfmt "$__hu_x" "$__hu_bcb" "$__hu_bsoft" || return 1
-  done
+  if [[ -n "$__hu_off" ]]; then
+    HOOK_HEREDOC_BODIES=()
+    hook::bash_parse_segments_shfmt "$__hu_off" "$__hu_bcb" "$__hu_bsoft" || return 1
+    hook::_bps_hd_check map "$__hu_off" ${__hu_offins[@]+"${__hu_offins[@]}"} || return 1
+  fi
+  if [[ -n "$__hu_sp" ]]; then
+    HOOK_HEREDOC_BODIES=()
+    hook::bash_parse_segments_shfmt "$__hu_sp" "$__hu_bcb" "$__hu_bsoft" || return 1
+    hook::_bps_hd_check map "$__hu_sp" ${__hu_spins[@]+"${__hu_spins[@]}"} || return 1
+  fi
   # A backtick's unescaped text and a joined here-doc body are commands bash runs,
   # so each refuses as the command does.
   for __hu_x in ${__hu_bt_more[@]+"${__hu_bt_more[@]}"}; do
+    HOOK_HEREDOC_BODIES=()
     hook::bash_parse_segments_shfmt "$__hu_x" "$__hu_bcb" "$__hu_bsoft" || return 1
+    # A joined body is read as `: <<D` then its joined text, so that one body is
+    # the joined form of a body the first tree holds.
+    if [[ "$__hu_x" == ': <<'* ]]; then
+      hook::_bps_hd_check joined "$__hu_x" || return 1
+    else
+      hook::_bps_hd_check none "$__hu_x" || return 1
+    fi
   done
   # Set last: a callback's own parse would overwrite it.
   # shellcheck disable=SC2034  # result global is consumed by the sourcing guard
