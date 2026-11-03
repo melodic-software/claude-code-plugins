@@ -4,8 +4,10 @@ description: >
   step is about to send, with the same `path` input. A credential, a hidden
   assignment, a link, a compressed file or a glob fails the step and sets no
   `clean` output; the upload's `if:` must require clean == 'true', so a hit
-  withholds the upload even when the upload runs always(). Nothing printed
-  carries a matched value or a file name. Needs node 18 or later on PATH and
+  withholds the upload even when the upload runs always(). The log never
+  carries a matched value or a file name; a credential block writes only the
+  rule, the scanned file name (or a fixed placeholder) and the line number to
+  the job summary, never any of the match. Needs node 18 or later on PATH and
   lib/publish-gate.mjs three directories above this action.
 
 inputs:

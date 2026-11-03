@@ -20,12 +20,19 @@ function workDir(t) {
 
 function run(dir, paths) {
   const output = path.join(dir, "github-output");
+  const summary = path.join(dir, "step-summary");
   writeFileSync(output, "");
+  writeFileSync(summary, "");
   const result = spawnSync(process.execPath, [SCRIPT], {
-    env: { PATH: process.env.PATH, SCAN_PATHS: paths, GITHUB_OUTPUT: output },
+    env: { PATH: process.env.PATH, SCAN_PATHS: paths, GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary },
     encoding: "utf8",
   });
-  return { ...result, outputs: readFileSync(output, "utf8") };
+  return { ...result, outputs: readFileSync(output, "utf8"), summary: readFileSync(summary, "utf8") };
+}
+
+// No character of the token reaches the summary: not its fixed `ghp_` prefix, nor any after it.
+function noneOfTheMatch(summary) {
+  assert.ok(!summary.includes("ghp_") && !summary.includes("FAKE"), "no character of the match");
 }
 
 function withheld(result, label) {
@@ -44,6 +51,7 @@ test("clean files pass and set clean=true", (t) => {
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.equal(result.outputs, "clean=true\n");
   assert.match(result.stdout, /2 file\(s\) clean/);
+  assert.equal(result.summary, "", "a clean scan writes no summary");
 });
 
 test("a planted credential withholds the upload and asks for rotation, never printing the value", (t) => {
@@ -56,11 +64,67 @@ test("a planted credential withholds the upload and asks for rotation, never pri
   assert.match(result.stdout, /Rotate this credential/);
 });
 
-test("a credential in a file name withholds the upload", (t) => {
+test("a block writes only the hit's rule, path and line to the summary, no character of the match", (t) => {
+  const dir = workDir(t);
+  mkdirSync(path.join(dir, "out", "nested"), { recursive: true });
+  writeFileSync(path.join(dir, "out", "nested", "handoff.json"), `{\n  "review": "token ${PLANTED} in the text"\n}\n`);
+  const result = run(dir, path.join(dir, "out"));
+  withheld(result, "GitHub token");
+  assert.equal(result.summary, "### scan-upload withheld the upload\n\n- rule `GitHub token`, path `nested/handoff.json`, line 2\n\n");
+  noneOfTheMatch(result.summary);
+});
+
+test("a path's backtick and markup are escaped, so it cannot leave its code span", (t) => {
+  const dir = workDir(t);
+  writeFileSync(path.join(dir, "a`<b>.json"), `${PLANTED}\n`);
+  const result = run(dir, path.join(dir, "a`<b>.json"));
+  withheld(result, "GitHub token");
+  assert.match(result.summary, /path `a\\u0060\\u003cb\\u003e\.json`, line 1\n/);
+});
+
+test("a path's bidi, line-separator, C1 and zero-width characters are escaped, so it cannot reorder or split the line", (t) => {
+  const dir = workDir(t);
+  const name = "a\u202Egnp.json";
+  writeFileSync(path.join(dir, name), `${PLANTED}\n`);
+  const result = run(dir, path.join(dir, name));
+  withheld(result, "GitHub token");
+  assert.equal(result.summary, "### scan-upload withheld the upload\n\n- rule `GitHub token`, path `a\\u202egnp.json`, line 1\n\n");
+  assert.ok(!result.summary.includes("\u202E"), "no raw right-to-left override");
+  writeFileSync(path.join(dir, "b\u2028\u0085\u200Bc.json"), `${PLANTED}\n`);
+  const split = run(dir, path.join(dir, "b\u2028\u0085\u200Bc.json"));
+  withheld(split, "GitHub token");
+  assert.match(split.summary, /path `b\\u2028\\u0085\\u200bc\.json`, line 1\n/);
+  assert.doesNotMatch(split.summary, /[^\x20-\x7e\n]/, "only printable ASCII and line breaks");
+});
+
+test("a zero-width match writes the rule, path and line and none of the line", (t) => {
+  const dir = workDir(t);
+  // A 32-hex and a 64-hex word on one line: the R2 key pair rule, whose match is the empty lookahead.
+  const short = "a".repeat(32);
+  writeFileSync(path.join(dir, "digests.txt"), `first line\n${short} ${"b".repeat(64)}\n`);
+  const result = run(dir, path.join(dir, "digests.txt"));
+  withheld(result, "R2 key pair");
+  assert.equal(result.summary, "### scan-upload withheld the upload\n\n- rule `R2 key pair`, path `digests.txt`, line 2\n\n");
+  assert.ok(!result.summary.includes("aaaaaa") && !result.summary.includes("bbbbbb"), "no character of the match");
+});
+
+test("a hit found only after escaped breaks decode names the file's own line", (t) => {
+  const dir = workDir(t);
+  // One physical line: the token follows a `\n` escape, so only the decoded view separates it.
+  writeFileSync(path.join(dir, "work-outcome.json"), `{"a": 1}\n${JSON.stringify({ summary: `first\nsecond\n${PLANTED}` })}\n`);
+  const result = run(dir, path.join(dir, "work-outcome.json"));
+  withheld(result, "GitHub token");
+  assert.equal(result.summary, "### scan-upload withheld the upload\n\n- rule `GitHub token`, path `work-outcome.json`, line 2\n\n");
+});
+
+test("a credential in a file name withholds the upload and the summary never shows the name", (t) => {
   const dir = workDir(t);
   mkdirSync(path.join(dir, "out"));
   writeFileSync(path.join(dir, "out", `${PLANTED}.txt`), "clean bytes\n");
-  withheld(run(dir, path.join(dir, "out")), "GitHub token");
+  const result = run(dir, path.join(dir, "out"));
+  withheld(result, "GitHub token");
+  assert.equal(result.summary, "### scan-upload withheld the upload\n\n- rule `GitHub token`, path `a file name`, line 1\n\n");
+  noneOfTheMatch(result.summary);
 });
 
 test("a link, a compressed file and a glob each withhold the upload", (t) => {
@@ -82,6 +146,7 @@ test("the broad assignment label only warns", (t) => {
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.equal(result.outputs, "clean=true\n");
   assert.match(result.stdout, /::warning::scan-upload: password or secret assignment/);
+  assert.equal(result.summary, "", "a warning is no block and writes no summary");
 });
 
 test("the lane transcript is scanned as plaintext before it is sealed", () => {

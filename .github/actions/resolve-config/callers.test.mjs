@@ -2964,7 +2964,8 @@ test("pr-run-activity-read.yml: the leak scan runs after the decode and gates ev
   assert.deepEqual(steps.slice(0, 2).map((step) => step.id ?? step.name), ["Require the checked issue fields", "Assert the default branch is set"]);
   assert.deepEqual(["base", "key", "open", "decode"].map(at), [2, 3, 4, 5]);
   assert.ok(at("decode") < scan);
-  const outputs = steps.filter((step) => (isUpload(step) && !String(step.with.name).startsWith("verdict-")) || writesSummary(step));
+  // The scan's own summary is the redacted fingerprint of a block (the test below).
+  const outputs = steps.filter((step) => step.id !== "leak-scan" && ((isUpload(step) && !String(step.with.name).startsWith("verdict-")) || writesSummary(step)));
   assert.equal(outputs.length, 6);
   const context = (clean) => ({
     "inputs.issue-number": "7",
@@ -3395,7 +3396,7 @@ test("leak scan: a failed getBranch, a malformed tip or no default branch fails 
     const github = gateApi("", { tip });
     const { outputs, failed } = await run(github, SCAN_CONTEXT);
     assert.equal(outputs.clean, "false", name);
-    assert.equal(failed, "leak-scan: no finished scan (Error); nothing is uploaded or summarized", name);
+    assert.equal(failed, "leak-scan: no finished scan (Error); nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match", name);
     assert.deepEqual(github.calls.map(([call]) => call), ["getBranch"], `${name}: no gate fetched`);
   }
   // An event that names no default branch asks for nothing.
@@ -3462,7 +3463,7 @@ test("leak scan: every credential format the gate names blocks and asks for rota
   for (const [label, sample] of Object.entries(CREDENTIALS)) {
     const { clean, failed } = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "skill-reply", "reply.txt"), `x ${sample} y\n`));
     assert.equal(clean, "false", label);
-    assert.equal(failed, `leak-scan: ${label}; nothing is uploaded or summarized\nrotate this credential`, label);
+    assert.equal(failed, `leak-scan: ${label}; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match\nrotate this credential`, label);
   }
   // A credential inside an assignment still blocks: the broad label never hides it.
   const wrapped = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), `token: "${CREDENTIALS["Cloudflare API token"]}"\n`));
@@ -3517,7 +3518,7 @@ test("leak scan: an assignment never hides a credential the gate finds only in i
     const { clean, failed } = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), text));
     assert.equal(clean, "false", name);
     const rotate = label === HIDDEN ? "" : "\nrotate this credential";
-    assert.equal(failed, `leak-scan: ${label}; nothing is uploaded or summarized${rotate}`, name);
+    assert.equal(failed, `leak-scan: ${label}; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match${rotate}`, name);
   }
   // Case 15: a plain assignment still only warns.
   const plain = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), `${ASSIGNMENT}\n`));
@@ -3545,7 +3546,7 @@ test("leak scan: the scan's own fixture files pass when a patch adds a plain lin
   ]) {
     const { clean, failed } = await scanWith(t, ({ work }) => writeFileSync(join(work, file), Buffer.concat([seed[file], Buffer.from(`${line}\n`)])), undefined, { seed });
     assert.equal(clean, "false", label);
-    assert.equal(failed, `leak-scan: ${label}; nothing is uploaded or summarized${label === HIDDEN ? "" : "\nrotate this credential"}`, label);
+    assert.equal(failed, `leak-scan: ${label}; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match${label === HIDDEN ? "" : "\nrotate this credential"}`, label);
   }
 });
 
@@ -3553,7 +3554,7 @@ test("leak scan: a credential-format file name blocks, and a PEM header alone bl
   // Case 17: the file holds only an assignment; its name is the credential.
   const named = await scanWith(t, ({ work }) => writeFileSync(join(work, `${CREDENTIALS["Cloudflare API token"]}.txt`), `${ASSIGNMENT}\n`));
   assert.equal(named.clean, "false");
-  assert.equal(named.failed, "leak-scan: Cloudflare API token; nothing is uploaded or summarized\nrotate this credential");
+  assert.equal(named.failed, "leak-scan: Cloudflare API token; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match\nrotate this credential");
   assert.deepEqual(named.warnings, []);
   const pem = await scanWith(t, ({ work }) => writeFileSync(join(work, "key.pem"), `${CREDENTIALS["private key"]}\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASC\n-----END RSA PRIVATE KEY-----\n`));
   assert.equal(pem.clean, "false");
@@ -3581,11 +3582,11 @@ test("leak scan: a key only the patch's binary hunk carries blocks, and a patch 
   const patch = readFileSync(join(temp, "patch", "patch.diff"));
   assert.ok(patch.includes("GIT binary patch") && !patch.includes(KEY), "the key is compressed in the patch");
   assert.equal(clean, "false");
-  assert.equal(failed, "leak-scan: Anthropic key; nothing is uploaded or summarized\nrotate this credential");
+  assert.equal(failed, "leak-scan: Anthropic key; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match\nrotate this credential");
   const stale = await scanWith(t, () => {}, undefined, {
     afterCollect: ({ temp }) => writeFileSync(join(temp, "patch", "patch.diff"), "diff --git a/gone.txt b/gone.txt\n--- a/gone.txt\n+++ b/gone.txt\n@@ -1 +1 @@\n-a\n+b\n"),
   });
-  assert.equal(stale.failed, "leak-scan: the patch does not apply to the head; nothing is uploaded or summarized");
+  assert.equal(stale.failed, "leak-scan: the patch does not apply to the head; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match");
 });
 
 // A fault names no credential, so it retries (refused `fault`), only once the
@@ -3621,7 +3622,7 @@ test("leak scan: a scan fault retries only for a judged patch with no unread bin
   assert.match(binary.failed, /^leak-scan: no finished scan/);
   assert.equal(binary.outputs.refused, undefined, "a throw past the apply stage on a binary hunk holds");
   const hit = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), "benign\n"), throwing(`  yield Buffer.from(${JSON.stringify(KEY)});`));
-  assert.equal(hit.failed, "leak-scan: Anthropic key; nothing is uploaded or summarized\nrotate this credential");
+  assert.equal(hit.failed, "leak-scan: Anthropic key; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match\nrotate this credential");
   assert.equal(hit.outputs.refused, undefined, "a throw after a hit keeps the hold");
   const hidden = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "skill-reply", "reply.txt"), `password = ${QUOT}hunter2-zz9${QUOT}\n`));
   assert.match(hidden.failed, /^leak-scan: assignment hidden by markup or escapes/);
@@ -3643,7 +3644,7 @@ test("leak scan: an object planted under the name of the patch's blob never stan
     },
   });
   assert.equal(clean, "false");
-  assert.equal(failed, "leak-scan: Anthropic key; nothing is uploaded or summarized\nrotate this credential");
+  assert.equal(failed, "leak-scan: Anthropic key; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match\nrotate this credential");
 });
 
 test("leak scan: no filter, include, hook or fsmonitor planted in the checkout's .git runs while the patch is collected or scanned", async (t) => {
@@ -4270,6 +4271,29 @@ test("a run whose issue file was not written still seals and publishes its lane.
   assert.equal(JSON.parse(files["lane.json"]).class, "issue-edited");
 });
 
+// Run 41423780812 (#12331) blocked an "Anthropic key" and kept nothing to say which file and line.
+test("scan job: a block writes only the hit's rule, file and line to the step summary, no character of the key", async (t) => {
+  const summary = join(tempDir("leak-scan-summary-"), "summary.md");
+  t.after(() => rmSync(dirname(summary), { recursive: true, force: true }));
+  writeFileSync(summary, "");
+  const { clean, failed } = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "skill-reply", "work-outcome.json"), `{\n"summary": "${KEY}"\n}\n`), undefined, { env: { GITHUB_STEP_SUMMARY: summary } });
+  assert.equal(clean, "false");
+  assert.match(failed, /^leak-scan: Anthropic key; nothing is uploaded/);
+  const written = readFileSync(summary, "utf8");
+  assert.equal(written, "### leak-scan blocked the outputs\n\n- rule `Anthropic key`, path `work-outcome.json`, line 2\n\n");
+  for (const part of ["sk-ant", "api03", "xxxx"]) assert.ok(!written.includes(part), `no ${part} from the key`);
+  // The one summary write is the fingerprint.
+  const script = scanSteps().find((s) => s.id === "leak-scan").with.script;
+  const appends = [...script.matchAll(/appendFileSync\(process\.env\.GITHUB_STEP_SUMMARY, ([^\n]*)\);/g)];
+  assert.equal(appends.length, 1);
+  assert.equal(script.match(/GITHUB_STEP_SUMMARY/g).length, 2, "the guard and the append");
+  assert.match(appends[0][1], /^`[^`$]*\$\{hit\.fingerprint\}\\n`$/);
+  // A clean scan writes nothing.
+  writeFileSync(summary, "");
+  assert.equal((await scanWith(t, () => {}, undefined, { env: { GITHUB_STEP_SUMMARY: summary } })).clean, "true");
+  assert.equal(readFileSync(summary, "utf8"), "");
+});
+
 test("scan job: a credential in the issue outcome blocks every upload", async (t) => {
   const { clean, failed } = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "skill-reply", "work-outcome.json"), `{"summary": "${KEY}"}\n`));
   assert.equal(clean, "false");
@@ -4770,7 +4794,7 @@ test("leak scan: a fresh shallow checkout of the head, as the scan job makes, st
     return dir;
   };
   const hit = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), KEY_BLOB), undefined, { afterCollect: restore, headRepo: shallow });
-  assert.equal(hit.failed, "leak-scan: Anthropic key; nothing is uploaded or summarized\nrotate this credential");
+  assert.equal(hit.failed, "leak-scan: Anthropic key; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match\nrotate this credential");
   const clean = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), "changed\n"), undefined, { headRepo: shallow });
   assert.deepEqual({ clean: clean.clean, failed: clean.failed }, { clean: "true", failed: null });
 });
@@ -4823,7 +4847,7 @@ test("scan job: patch-sha256 is the SHA-256 of exactly the bytes opened, scanned
   // The scan reads those same bytes: a key in them, through the carrier, blocks.
   const hit = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), `${KEY}\n`), undefined, { source: viaCarrier });
   assert.equal(hit.clean, "false");
-  assert.match(hit.failed, /^leak-scan: Anthropic key; nothing is uploaded or summarized/);
+  assert.match(hit.failed, /^leak-scan: Anthropic key; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match/);
   for (const dir of [clean.outputs.dir, hit.outputs.dir]) if (dir) rmSync(dir, { recursive: true, force: true });
 });
 
@@ -5088,7 +5112,7 @@ test("leak scan: a UTF-16LE or line-split credential blocks in the reply and in 
         const name = `${label} ${shape} in the ${where}${gate === PRE_8857_GATE ? " (pre-#8857 gate)" : ""}`;
         const { clean, failed, outputs } = await scanWith(t, plant, gate);
         assert.equal(clean, "false", name);
-        assert.equal(failed, `leak-scan: ${label}; nothing is uploaded or summarized\nrotate this credential`, name);
+        assert.equal(failed, `leak-scan: ${label}; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match\nrotate this credential`, name);
         if (outputs.dir) rmSync(outputs.dir, { recursive: true, force: true });
       }
     }
@@ -5168,14 +5192,14 @@ test("leak scan: the split-line pass leaves out the OpenAI pattern, so an sk- wo
   }
   for (const plant of [inReply(Buffer.from(split(SK))), inPatch(Buffer.from(split(SK)))]) {
     const { failed, outputs } = await scanWith(t, plant);
-    assert.equal(failed, "leak-scan: Anthropic key; nothing is uploaded or summarized\nrotate this credential");
+    assert.equal(failed, "leak-scan: Anthropic key; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match\nrotate this credential");
     if (outputs.dir) rmSync(outputs.dir, { recursive: true, force: true });
   }
   // The OpenAI pattern stays in the per-line and UTF-16LE passes.
   const openai = ["sk", "proj", "x".repeat(30)].join("-");
   for (const bytes of [Buffer.from(`key ${openai}\n`), utf16(`key ${openai}\n`)]) {
     const { failed, outputs } = await scanWith(t, inReply(bytes));
-    assert.equal(failed, "leak-scan: OpenAI key; nothing is uploaded or summarized\nrotate this credential");
+    assert.equal(failed, "leak-scan: OpenAI key; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match\nrotate this credential");
     if (outputs.dir) rmSync(outputs.dir, { recursive: true, force: true });
   }
 });
@@ -5188,7 +5212,7 @@ test("leak scan: the split-line pass leaves out the R2 key pair pattern, so adja
     if (outputs.dir) rmSync(outputs.dir, { recursive: true, force: true });
   }
   const { failed, outputs } = await scanWith(t, inReply(Buffer.from(`${"a".repeat(32)} ${"b".repeat(64)}\n`)));
-  assert.equal(failed, "leak-scan: R2 key pair; nothing is uploaded or summarized\nrotate this credential");
+  assert.equal(failed, "leak-scan: R2 key pair; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match\nrotate this credential");
   if (outputs.dir) rmSync(outputs.dir, { recursive: true, force: true });
 });
 
