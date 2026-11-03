@@ -25,6 +25,10 @@
       "why": "paraphrase"
     },
     {
+      "answer": "- The plan says `appsettings.Production.json` does not override `Reminders`, but it sets `Enabled` false.\n",
+      "why": "quotes the claim, then attacks it"
+    },
+    {
       "answer": "- The plan assumes reminders are not disabled in production, but `appsettings.Production.json` sets `Enabled` false.\n",
       "why": "quotes the assumption, then refutes it"
     }
@@ -57,10 +61,6 @@
     {
       "answer": "- `Reminders` should be disabled by default in development.\n",
       "why": "other point with no target"
-    },
-    {
-      "answer": "- The plan says `appsettings.Production.json` does not override `Reminders`, but it sets `Enabled` false.\n",
-      "why": "known limit: the quoted claim is rebutted, but no target term follows the contrast word, so the dismissal exclusion holds"
     }
   ]
 }

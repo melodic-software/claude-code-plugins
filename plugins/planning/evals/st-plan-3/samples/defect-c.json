@@ -23,6 +23,10 @@
     {
       "answer": "- The `setInterval` sweep cannot run safely across multiple instances, and `compose.yaml` runs three replicas.\n",
       "why": "cannot run safely"
+    },
+    {
+      "answer": "- The plan assumes only one instance runs the sweep, but `deploy/compose.yaml` runs three replicas.\n",
+      "why": "quotes the claim, then attacks it"
     }
   ],
   "fail": [
@@ -53,10 +57,6 @@
     {
       "answer": "- A slow sweep can overlap the next tick.\n",
       "why": "a target with a different cause"
-    },
-    {
-      "answer": "- The plan assumes only one instance runs the sweep, but `deploy/compose.yaml` runs three replicas.\n",
-      "why": "known limit: the quoted claim is rebutted, but no target term follows the contrast word, so the dismissal exclusion holds"
     }
   ]
 }
