@@ -4,7 +4,7 @@ bump: minor
 
 ### Added
 
-- `wayfind`: two settings in `docs/conventions/planning.yaml`. `wayfind_research_start` (default `auto`) starts a research item without asking when only research is on the frontier, and asks first otherwise. `wayfind_hitl_concurrency` (default `1`) caps how many `needs-human` items of one map can be claimed at once across sessions; a session whose claim overruns the cap in a race releases it when its item number ranks above the cap. Both are in the schema and in `reference/config.md` (#12477).
+- `wayfind`: two settings in `docs/conventions/planning.yaml`. `wayfind_research_start` (default `auto`) starts a research item without asking when only research is on the frontier, and asks first otherwise. `wayfind_hitl_concurrency` (default `1`) caps how many `needs-human` items of one map can be claimed at once across sessions; a session whose claim overruns the cap in a race releases it when its lease is not among the earliest by claim order. Both are in the schema and in `reference/config.md` (#12477).
 - `wayfind`: shared work files go on one dossier branch per map. The map's Notes link it, and it is deleted when the map closes (#12477).
 
 ### Changed

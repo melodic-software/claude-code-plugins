@@ -115,12 +115,14 @@ listing, closed items included, serves the map hygiene checks.
 Before claiming a `needs-human` item, count the map's open children that carry `needs-human`, do
 not carry `wayfind: research`, and have an assignee, from the same listing; at `wayfind_hitl_concurrency` or more, do not claim it.
 Two sessions can both pass that count before either claims, so once a `needs-human` claim
-succeeds, list the children again and recount. Over the limit, the claims on the lowest item
-numbers keep the slots; when yours is not among them, back off: `release` the lease with the
-`lease_comment_id` the claim returned (on exit `6` the lease waits out its TTL), clear your
-assignee, and pick again from the frontier
-(no other `needs-human` item while the slots stay full). Every claimant ranks the same listing
-the same way, so the overrun resolves without a further race.
+succeeds, list the children again and recount. Over the limit, rank the counted claims by claim
+order: read each one's active lease comment id (a counted item with no lease comment yet ranks
+last), and the `wayfind_hitl_concurrency` earliest ids keep the slots. When yours is not among
+them, back off: `release` the lease with the `lease_comment_id` the claim returned (on exit `6`
+the lease waits out its TTL), clear your assignee, and pick again from the frontier (no other
+`needs-human` item while the slots stay full). This holds because a claimant recounts only after
+posting its own lease, so the later of two claimants always sees the earlier lease and is the one
+that backs off; an earlier claim never needs to recheck.
 
 `/work-items:track start <item-id>`. It reclaims a stale lease first, then claims race-safely
 (assignee plus a lease comment, with a back-off when another session claimed first) on the session
