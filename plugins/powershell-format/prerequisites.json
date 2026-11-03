@@ -18,8 +18,7 @@
       "degrade": "Without pwsh, the pre-commit entry cannot format or lint staged PowerShell scripts, and the end-of-turn check stays quiet.",
       "install": {
         "docs": "https://learn.microsoft.com/powershell/scripting/install/installing-powershell"
-      },
-      "check": "/powershell-format:check"
+      }
     },
     {
       "id": "node",
@@ -36,8 +35,7 @@
       "degrade": "Without node, the powershell-format hooks cannot launch, so they do nothing.",
       "install": {
         "docs": "https://nodejs.org/en/download"
-      },
-      "check": "/powershell-format:check"
+      }
     }
   ]
 }

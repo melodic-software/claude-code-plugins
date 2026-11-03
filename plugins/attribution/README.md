@@ -157,7 +157,7 @@ a conforming stamped record, plus finding the authoritative source and condensin
 - AI-writing style over the same corpus belongs to `ai-slop:audit`.
 - Not copying while writing, in the current session, belongs to `discipline:point-dont-copy`.
 - Code comments are out of scope in v1; comment-shaped residue belongs to
-  `code-tidying:audit-comment-residue`.
+  `code-tidying:remove-comments audit`.
 - The stamped-record format and the fetch route are owned by the upstream-drift convention. This
   plugin implements checks against them and carries an operational restatement in
   `skills/audit/reference/source-fetch.md` as a stamped record citing that convention, because

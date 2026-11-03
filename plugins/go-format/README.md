@@ -85,7 +85,7 @@ fails with the install command, a person gets a one-line notice, and
 
 A `SessionStart` probe reports a missing `goimports` wherever the plugin is enabled and
 `go_format_enabled` is not `false`, including a repository with no `.go` files, and names
-`/go-format:check`. It installs nothing.
+its bundled checker. It installs nothing.
 
 ### Hook budget accounting
 

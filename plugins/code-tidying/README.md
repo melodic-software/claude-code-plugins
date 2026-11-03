@@ -7,29 +7,33 @@ shipped as [`reference/pr-scope-budget.md`](reference/pr-scope-budget.md).
 
 Seven skills, one capability:
 
-- **`/code-tidying:dissolve-comments`**. Enforces self-describing, expressive
-  code over a diff or target (a clean tree widens to the branch diff, then to
+- **`/code-tidying:remove-comments`**. Removes the comments in a diff or target
+  that do not earn their keep (a clean tree widens to the branch diff, then to
   the whole repository in safe mode, ranked by exposure and comment
-  payload): deletes zero-information comments, dissolves code-expressible
-  comments into names and structure via behavior-preserving refactoring (then
-  deletes them), and keeps only terse, load-bearing comments code cannot
-  express, held to a line budget. Deletions and function-local renames apply
-  behind a token-level proof (`change-shape.py`, so they act on a repository
-  with no test suite); additive refactors need a discovered test net;
-  interface-creating ones are proposal-first. `safe` mode restricts applied
-  edits to removals; `aggressive` keeps only exempt surfaces, paired records,
-  and terse warnings of consequence, staging every other comment's narrative
-  before deleting it; `strip` deletes every comment but the exempt surfaces and
-  rewrites no code. `--notes <path>` writes the staged block to an untracked
-  file as well. No dial loosens a gate. Ships a comment census with a token estimate and a
+  payload), under a posture: `explanatory` (the interactive default) keeps
+  every terse, load-bearing comment code cannot express; `necessary` (the
+  pull-request pipeline's default) keeps only machine-read directives, license
+  headers, `TODO(#issue)` markers, paired comment-and-test records, public-API
+  doc comments and verified outside-constraint comments, turning every other
+  warning into a reshape flag; `none` (opt-in) keeps only the first five.
+  Zero-information comments are deleted, code-expressible ones dissolve into
+  names and structure via behavior-preserving refactoring first. Deletions and
+  function-local renames apply behind a token-level proof (`change-shape.py`, so
+  they act on a repository with no test suite); additive refactors need a
+  discovered test net; interface-creating ones are proposal-first. `safe`
+  restricts applied edits to removals, `report` applies nothing, and no
+  posture loosens a gate. The triage and the comment-only edits run in the
+  `code-tidying:comment-reviewer` agent, a fresh reader; the skill checks its
+  diff and applies any code moves. Its `audit` action is the read-only
+  classifier for out-of-context comment residue (history narration, plan and
+  session references, conversational antecedents, ticket and PR
+  back-references, origin notes, workarounds with no link or removal
+  condition). Ships a comment census with a token estimate and a
   cross-language commented-out-code detector, and probes its reading layers
   (`scc`, `pygments`, `tree-sitter`, `pwsh`, `ruff`, `ast-grep`) at run time,
   naming what each absent one costs.
-- **`/code-tidying:audit-comment-residue`**. Read-only classifier for
-  out-of-context comment residue (history narration, weak history cues,
-  plan/session references,
-  conversational antecedents, ticket/PR back-references); flags Tier 1/Tier 2
-  findings for author-applied deletion, edits nothing.
+- **`/code-tidying:audit-comment-residue`**. Flags out-of-context comment residue
+  and edits nothing, by running `remove-comments`' `audit` action.
 - **`/code-tidying:tidy`**. Proactively hunts a rotated, glob-scoped *lane* of
   the codebase for safe structural improvements (Beck's 15 tidyings + a Fowler
   subset + prose tidyings), applies scope-budgeted edits, and ships one tight
@@ -104,11 +108,11 @@ personal variation is limited to lane names the team does not track: an uncommit
   (browser UI, auth flows, DB migrations) are deferred, not edited. Your
   project's own `CLAUDE.md` / rules extend both lists.
 - **The hard path list is overridable**, through three channels that only ever
-  subtract from it: an `override` argument on `tidy`, `dissolve-comments`, and
+  subtract from it: an `override` argument on `tidy`, `remove-comments`, and
   `batch-simplify` (this run), the `hard_exclusions` option below (this
   operator), and a tracked `.claude/code-tidying/exclusion-overrides.md` of
   root-relative globs (this repository), resolved per path in that order. So
-  `/code-tidying:dissolve-comments override ruff.toml` triages a file the list
+  `/code-tidying:remove-comments override ruff.toml` triages a file the list
   would otherwise drop. Every lifted path is named in the run's report beside
   the channel that lifted it. What no channel lifts: the behavioral guards
   (structure-only is the skills' contract, not a path limit), the work-tracking
@@ -148,15 +152,21 @@ personal variation is limited to lane names the team does not track: an uncommit
 
 ## Configuration
 
-Four `userConfig` options. Three tune `dissolve-comments`, and none of them
+Six `userConfig` options. Five tune `remove-comments`, and none of them
 loosens a gate: they set what a run removes, never what it may apply without a
-proof. The fourth is the personal-posture channel of the exclusion override
-above, and loosening is its whole job:
+proof. They also read from the team file `<home>/code-tidying.yaml` (schema:
+`schemas/code-tidying.schema.json`) and its personal overlay
+`<home>/code-tidying.local.yaml`, `<home>` being the bound convention home, else
+`docs/conventions`; these win over `userConfig` in that order. The sixth, `hard_exclusions`, is `userConfig` only: it is the
+personal-posture channel of the exclusion override above, and loosening is its
+whole job:
 
 | Option | Default | Effect |
 |---|---|---|
 | `hard_exclusions` | `enforce` | `enforce` keeps every GLOBAL HARD **path** entry blocking; `advisory` reports each match and blocks nothing, so runs may reach lint config, agent config, CI workflows, and hook chains. Path entries only: the behavioral guards, the work-tracking entries, and the self-update protections hold at either value. |
-| `comment_posture` | `strict` | `strict` rewrites an over-budget kept comment terser and stages the removed narrative; `balanced` reports it instead; `conservative` applies class-A deletions only and proposes everything else; `aggressive` keeps only exempt surfaces, paired records, and terse warnings. The per-run tokens `safe`, `strip`, and `aggressive` beat this value, `safe` first. |
+| `comment_posture` | `auto` | `auto` is `explanatory`, or `necessary` in a run the pull-request pipeline starts (`--pipeline`); `none`, `necessary` and `explanatory` fix it. The per-run tokens `safe`, `none`, `necessary` and `explanatory` beat this value, `safe` first. |
+| `comment_edit_scope` | `diff` | `diff` triages only the comments on lines a change adds; `files` triages every comment in each changed file. |
+| `encode_constraints_unattended` | `false` | `true` lets an unattended run encode a constraint comment as a test, assertion or lint rule without asking; `false` offers it in the report. |
 | `class_c_max_lines` | `2` | Line budget for a kept (class-C) comment before it is rewritten. |
 | `apply_local_renames` | `true` | Apply a function-local rename that `change-shape.py` certifies as RENAME-ONLY even with no test net; `false` proposes it. |
 
@@ -177,15 +187,15 @@ only: the behavioral guards, the work-tracking entries, and the SELF-UPDATE EXTR
 under every value. A skill that reads an empty, unexpanded, or unrecognized value treats it as
 `enforce`.
 
-**`comment_posture`.** `strict` holds every kept comment to `class_c_max_lines` and rewrites it
-terser when over, staging the removed narrative for the commit message; `balanced` runs the same
-triage but reports an over-budget comment instead of rewriting it; `conservative` applies class-A
-deletions only, proposing every class-B item and class-C rewrite; `aggressive` keeps only exempt
-surfaces, paired records, and terse warnings of consequence, staging and deleting every other
-comment. The per-run tokens `safe`, `strip`, and `aggressive` beat this value, `safe` first. No
-posture loosens a gate: every applied deletion still carries the token proof and every tier-2 or
-tier-3 move still needs a test net. A skill that reads an empty, unexpanded, or unrecognized value
-treats it as `strict`.
+**`comment_posture`.** `explanatory` holds every kept comment to the earn-its-keep test and
+`class_c_max_lines`, rewriting one over the budget terser; `necessary` keeps only the floor (machine-read
+directives, suppression justifications, license headers, `TODO(#issue)` markers, paired records),
+public-API doc comments and verified outside-constraint comments, deleting every other comment with
+its narrative staged and a reshape flag naming the symbol; `none` keeps only the floor and public-API
+doc comments. Old values still resolve: `strict` and `balanced` as `explanatory`, `conservative` as
+`explanatory` with `safe`, `aggressive` as `necessary`. No posture loosens a gate: every applied
+deletion still carries the token proof and every tier-2 or tier-3 move still needs a test net. A
+value outside the set is named and its layer dropped.
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
@@ -197,9 +207,11 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `hard_exclusions` | string | `"enforce"` | `CLAUDE_PLUGIN_OPTION_HARD_EXCLUSIONS` | How tidy, dissolve-comments, and batch-simplify treat the GLOBAL HARD path list. enforce (default) drops a listed path before triage; advisory reports it per path and never blocks, so a run may edit lint config, agent config, CI workflows, and hook chains. |
-| `comment_posture` | string | `"strict"` | `CLAUDE_PLUGIN_OPTION_COMMENT_POSTURE` | How dissolve-comments treats a kept comment. strict (default) rewrites one over class_c_max_lines terser; balanced reports it instead; conservative applies class-A deletions only and proposes the rest; aggressive keeps only exempt surfaces, paired records, terse warnings, and outside constraints. |
-| `class_c_max_lines` | number<br>*min 1, max 40* | `2` | `CLAUDE_PLUGIN_OPTION_CLASS_C_MAX_LINES` | Lines a kept (class-C) comment may run before dissolve-comments rewrites it terser, staging any removed narrative for the commit message. A genuinely load-bearing multi-line contract may exceed it when the report says why. |
+| `hard_exclusions` | string | `"enforce"` | `CLAUDE_PLUGIN_OPTION_HARD_EXCLUSIONS` | How tidy, remove-comments, and batch-simplify treat the GLOBAL HARD path list. enforce (default) drops a listed path before triage; advisory reports it per path and never blocks, so a run may edit lint config, agent config, CI workflows, and hook chains. |
+| `comment_posture` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_COMMENT_POSTURE` | Which comments remove-comments keeps. auto (default): explanatory, or necessary with --pipeline. none: only directives, license headers, TODO(#issue), paired records and public doc comments. necessary: also verified outside-constraint comments. explanatory: whatever passes the earn-its-keep test. |
+| `comment_edit_scope` | string | `"diff"` | `CLAUDE_PLUGIN_OPTION_COMMENT_EDIT_SCOPE` | Which comments remove-comments triages on the uncommitted and branch scope rungs. diff (default): only comments on the lines the change adds. files: every comment in each changed file. An explicit target and the repository rung are always whole files. |
+| `encode_constraints_unattended` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_ENCODE_CONSTRAINTS_UNATTENDED` | When true, an unattended remove-comments run may encode a constraint comment as a test, assertion or lint rule without asking, behind its tier's gate. When false (default), it offers the encoding in its report. |
+| `class_c_max_lines` | number<br>*min 1, max 40* | `2` | `CLAUDE_PLUGIN_OPTION_CLASS_C_MAX_LINES` | Lines a kept (class-C) comment may run before remove-comments rewrites it terser, staging any removed narrative for the commit message. A genuinely load-bearing multi-line contract may exceed it when the report says why. |
 | `apply_local_renames` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_APPLY_LOCAL_RENAMES` | When true (default), a function-local Rename Variable whose edit change-shape.py certifies as RENAME-ONLY is applied and reported with its identifier mapping even when no test net is discovered. When false, such renames are proposed. |
 
 ### How to set these
