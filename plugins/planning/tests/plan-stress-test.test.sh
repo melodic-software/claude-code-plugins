@@ -112,13 +112,13 @@ echo_case="$WORKROOT/echo-case"
 echo_ws="$WORKROOT/echo-ws"
 mkdir -p "$echo_case/graders" "$echo_ws"
 printf 'Retry the upload three times.\n' >"$echo_ws/PLAN.md"
-printf -- "---\ntype: regex\npattern: 'upload\\\\s+three'\nflags: mi\ntarget: last_message\n---\n" >"$echo_case/graders/quoted.md"
+printf -- "---\ntype: regex\npattern: 'upload +three'\nflags: mi\ntarget: last_message\n---\n" >"$echo_case/graders/quoted.md"
 if node "$PLUGIN_DIR/tests/lib/st-grader-echo.mjs" "$echo_case" "$echo_ws" >/dev/null 2>&1; then
   fail 'the echo check fails on a quotable grader'
 else
   ok 'the echo check fails on a quotable grader'
 fi
-printf -- "---\ntype: regex\npattern: 'upload\\\\s+three'\nflags: mi\nmatch: not_contains\ntarget: last_message\n---\n" >"$echo_case/graders/quoted.md"
+printf -- "---\ntype: regex\npattern: 'upload +three'\nflags: mi\nmatch: not_contains\ntarget: last_message\n---\n" >"$echo_case/graders/quoted.md"
 if node "$PLUGIN_DIR/tests/lib/st-grader-echo.mjs" "$echo_case" "$echo_ws" >/dev/null 2>&1; then
   ok 'the echo check skips a must-not-flag grader'
 else

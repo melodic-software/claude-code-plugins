@@ -199,7 +199,7 @@ The API charges each subscription when it falls due and keeps its status accurat
 
 ## Plan
 
-### Phase 1: Renewal of one subscription [TODO]
+### Phase 1: Renewal of one subscription [STATUS]
 **Satisfies:** AC1, AC2
 
 - Add `src/subscriptions/renewal.ts` with `renewOne(sub, deps)`.
@@ -211,7 +211,7 @@ The API charges each subscription when it falls due and keeps its status accurat
 **Sanity Check:** in a unit test with a stubbed client, a paid charge leaves `active` and a date seven
 days later; a stub that throws `PaymentDeclined` leaves `past_due` and the same date.
 
-### Phase 2: Scheduled sweep [TODO]
+### Phase 2: Scheduled sweep [STATUS]
 **Satisfies:** AC1
 
 - Add `runRenewalSweep(deps)` to `renewal.ts`: `repo.findDue(new Date())`, then `renewOne` for each
@@ -224,7 +224,7 @@ days later; a stub that throws `PaymentDeclined` leaves `past_due` and the same 
 **Sanity Check:** start the API locally with one due row in the database. Within five minutes the row
 has a `next_renewal_at` seven days later and the stub gateway has one request.
 
-### Phase 3: Renewal attempts [TODO]
+### Phase 3: Renewal attempts [STATUS]
 **Satisfies:** AC3
 
 - Add `db/migrations/004_renewal_attempts.sql` with `subscription_id`, `attempted_at`, `outcome` and
@@ -235,7 +235,7 @@ has a `next_renewal_at` seven days later and the stub gateway has one request.
 **Sanity Check:** after one paid and one declined attempt in a test database, the endpoint lists two
 rows, newest first.
 
-### Phase 4: Money module [TODO]
+### Phase 4: Money module [STATUS]
 **Satisfies:** Maintainability
 
 - Move `formatCents` and `parsePrice` from `src/format.ts` into a new `src/money.ts` with a branded
@@ -265,6 +265,11 @@ Vitest unit tests cover `renewOne` with a stubbed client and repository. One int
 | `tests/renewal.test.ts` | create |
 | `tests/format.test.ts` | modify: money import |
 MD
+
+# Each phase heading takes its status tag here, outside the heredoc.
+plan=.work/review-target/PLAN.md
+text="$(cat "$plan")"
+printf '%s\n' "${text//'[STATUS]'/[TODO]}" >"$plan"
 
 cat >.work/review-target/design/design-resolution.md <<'MD'
 outcome: early-exit

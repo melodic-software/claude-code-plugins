@@ -304,7 +304,7 @@ the compose file on that host.
 
 Decoding onto the populated struct gives the layering for almost no code. `Config` is five flat
 fields, and `TestDecodeOntoPopulatedStructKeepsOtherFields` in `internal/config/config_test.go`
-already pins the behaviour this depends on.
+already pins the behavior this depends on.
 
 ### Alternatives considered
 

@@ -212,7 +212,7 @@ Decide whether Tidewrite stays as the ingest write client, and close the outage 
 
 ### Out-of-scope
 
-- Gauge firmware and the gauge-side retry behaviour.
+- Gauge firmware and the gauge-side retry behavior.
 - The flood desk dashboards.
 - Database high availability.
 
@@ -231,11 +231,11 @@ Keep Tidewrite as the write client and size its queue for the longest outage in 
 ### Why
 
 - Tidewrite is the write client in `cmd/ingest/writer.go`, and the team has run it in production for
-  three years. Its behaviour under load is known and its settings are in our runbook.
+  three years. Its behavior under load is known and its settings are in our runbook.
 - A different client would mean relearning those settings and rewriting the runbook for no change
   in what the flood desk sees.
 
-### Phase 1: Size the queue for a 30-minute outage [TODO]
+### Phase 1: Size the queue for a 30-minute outage [STATUS]
 
 **Satisfies:** AC1
 
@@ -246,7 +246,7 @@ Keep Tidewrite as the write client and size its queue for the longest outage in 
 **Sanity Check:** in staging, stop the database for 30 minutes under replayed gauge traffic, restart
 it, and compare the row count against the replay log.
 
-### Phase 2: Keep the flush path as it is [TODO]
+### Phase 2: Keep the flush path as it is [STATUS]
 
 **Satisfies:** AC1, AC2
 
@@ -257,7 +257,7 @@ NOTHING` in `insertSample` make a re-sent row a no-op.
 **Sanity Check:** with the database healthy, sample latency from request to row stays under
 10 seconds at the replayed rate.
 
-### Phase 3: Queue depth metric [TODO]
+### Phase 3: Queue depth metric [STATUS]
 
 **Satisfies:** AC3
 
@@ -277,3 +277,8 @@ Tidewrite client's `Depth()`.
 - Integration: the staging outage drill in Phase 1, with the row count compared to the replay log.
 - Latency: the Phase 2 measurement at the replayed rate.
 MD
+
+# Each phase heading takes its status tag here, outside the heredoc.
+plan=.work/review-target/PLAN.md
+text="$(cat "$plan")"
+printf '%s\n' "${text//'[STATUS]'/[TODO]}" >"$plan"

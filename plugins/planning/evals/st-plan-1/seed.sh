@@ -260,7 +260,7 @@ Fines accrue automatically, members hear about them, and the balance limits furt
 
 ## Plan
 
-### Phase 1: Accrual job [TODO]
+### Phase 1: Accrual job [STATUS]
 **Satisfies:** AC1
 
 - Add `library/fines.py` with `accrue_fines(conn, today)`.
@@ -273,7 +273,7 @@ Fines accrue automatically, members hear about them, and the balance limits furt
 **Sanity Check:** seed an adult member with a loan three days past `due_at`, run `accrue_fines` once,
 and confirm one `fine` row of 20 pence.
 
-### Phase 2: Checkout block [TODO]
+### Phase 2: Checkout block [STATUS]
 **Satisfies:** AC2
 
 - Add `unpaid_fines(conn, member_id)` to `library/fines.py`, summing `member_ledger.amount_pence`.
@@ -282,7 +282,7 @@ and confirm one `fine` row of 20 pence.
 
 **Sanity Check:** a member at 1000 pence gets `FinesCapReached`; a member at 980 pence checks out.
 
-### Phase 3: Overdue notices [TODO]
+### Phase 3: Overdue notices [STATUS]
 **Satisfies:** AC4
 
 - Add a `last_overdue_notice_on` column to `loans`.
@@ -314,6 +314,11 @@ boundary and the notice interval.
 | `deploy/library-jobs.cron` | modify: nightly line |
 | `tests/test_fines.py` | create |
 MD
+
+# Each phase heading takes its status tag here, outside the heredoc.
+plan=.work/review-target/PLAN.md
+text="$(cat "$plan")"
+printf '%s\n' "${text//'[STATUS]'/[TODO]}" >"$plan"
 
 cat >.work/review-target/design/design-resolution.md <<'MD'
 outcome: early-exit

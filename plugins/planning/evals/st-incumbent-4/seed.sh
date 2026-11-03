@@ -177,7 +177,7 @@ Replace Sealbox with Vaultline for all customer fields.
 - Vaultline's 4 KB value limit is well above our largest field. The model caps email at 254
   characters, phone at 20 and tax id at 32.
 
-### Phase 1: Read both, write Vaultline [TODO]
+### Phase 1: Read both, write Vaultline [STATUS]
 
 **Satisfies:** AC2, AC3
 
@@ -188,7 +188,7 @@ lookup value the same way.
 
 **Sanity Check:** in staging, create a customer, read them back, and open an older customer.
 
-### Phase 2: Convert existing rows [TODO]
+### Phase 2: Convert existing rows [STATUS]
 
 **Satisfies:** AC3
 
@@ -199,7 +199,7 @@ hours; run it in production overnight.
 
 **Sanity Check:** `Customer.where("email_sealed NOT LIKE 'vl1:%'").count` is zero when it finishes.
 
-### Phase 3: Remove Sealbox and schedule rotation [TODO]
+### Phase 3: Remove Sealbox and schedule rotation [STATUS]
 
 **Satisfies:** AC1
 
@@ -220,3 +220,8 @@ confirm that customers read correctly throughout.
 - Integration: `customers:reseal` against a staging copy, then the Phase 2 count.
 - End to end: a support lookup by email, in mixed case, after the conversion.
 MD
+
+# Each phase heading takes its status tag here, outside the heredoc.
+plan=.work/review-target/PLAN.md
+text="$(cat "$plan")"
+printf '%s\n' "${text//'[STATUS]'/[TODO]}" >"$plan"

@@ -15,7 +15,7 @@ edition = "2021"
 
 [dependencies]
 chrono = { version = "0.4", features = ["serde"] }
-flate2 = "1"
+libflate = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "0.8"
@@ -101,7 +101,7 @@ EOF
 
 cat > config/stations.toml <<'EOF'
 [[station]]
-id = "harbour-01"
+id = "harbor-01"
 clock = "utc"
 utc_offset_minutes = 0
 
@@ -245,7 +245,7 @@ whatever the network size, which is what `wx-backup` needs. In a test on last mo
 six current stations, gzip took the files to about 15 percent of their size, which meets AC1.
 
 NDJSON keeps the line-at-a-time reading that the analysts' tools already do, and `gzip` and `json`
-are both in the Python standard library, so AC4 holds with a two-line change in each tool. `flate2`
+are both in the Python standard library, so AC4 holds with a two-line change in each tool. `libflate`
 and `serde_json` are already in `Cargo.toml` for the Rust side.
 
 ### Alternatives considered

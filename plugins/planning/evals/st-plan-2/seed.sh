@@ -381,7 +381,7 @@ One `stockctl transfer` command moves stock between two bins of the same SKU and
 
 ## Plan
 
-### Phase 1: Transfer command [TODO]
+### Phase 1: Transfer command [STATUS]
 **Satisfies:** AC1
 
 - `stockctl transfer` sends `transfer <from> <to> <qty>` over the socket.
@@ -394,7 +394,7 @@ One `stockctl transfer` command moves stock between two bins of the same SKU and
 **Sanity Check:** after `stockctl adjust A-01 20 count` and `stockctl transfer A-01 A-02 5`, `show`
 prints 15 and 5 and the last two lines of `data/journal.ndjson` share a reason.
 
-### Phase 2: Capacity and SKU checks [TODO]
+### Phase 2: Capacity and SKU checks [STATUS]
 **Satisfies:** AC2, AC4
 
 - Before any write, `Server.transfer` looks up both bins in `warehouse.Config`.
@@ -405,7 +405,7 @@ prints 15 and 5 and the last two lines of `data/journal.ndjson` share a reason.
 **Sanity Check:** `stockctl transfer A-01 B-01 1` prints an error and both `show` values stay as they
 were. With B-02 at capacity less one, a transfer of 2 from B-01 prints an error.
 
-### Phase 3: Overdraw refusal [TODO]
+### Phase 3: Overdraw refusal [STATUS]
 **Satisfies:** AC3
 
 - `Server.transfer` returns `ErrOverdraw` when `qty` is above `OnHand(from)`, before any write.
@@ -418,7 +418,7 @@ An overdraw regression would show up in that balance.
 - `capacity` in `config/warehouse.yaml` counts the same thing as on-hand, so the Phase 2 comparison
   is direct and needs no conversion.
 - Every bin that holds stock is listed in `config/warehouse.yaml`.
-- `Store.Open` keeps its current behaviour; this plan adds no change to how the store loads.
+- `Store.Open` keeps its current behavior; this plan adds no change to how the store loads.
 
 ### Test strategy
 Go table tests in `internal/server/server_test.go` call `handle` against a store in a temporary
@@ -431,6 +431,11 @@ directory, one row per acceptance criterion. `go test ./...` must pass.
 | `internal/server/server.go` | modify: `transfer` case and `Server.transfer` |
 | `internal/server/server_test.go` | create |
 MD
+
+# Each phase heading takes its status tag here, outside the heredoc.
+plan=.work/review-target/PLAN.md
+text="$(cat "$plan")"
+printf '%s\n' "${text//'[STATUS]'/[TODO]}" >"$plan"
 
 cat >.work/review-target/design/design-resolution.md <<'MD'
 outcome: early-exit

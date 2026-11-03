@@ -214,7 +214,7 @@ Replace Holdfast with Leaseline, keeping Redis as the store for holds.
   behind `placeHold` and `dropHold`.
 - Leaseline needs Node 20 or later. `package.json` and the API image are on Node 22.
 
-### Phase 1: Swap the library in the holds module [TODO]
+### Phase 1: Swap the library in the holds module [STATUS]
 
 **Satisfies:** AC1, AC2
 
@@ -224,7 +224,7 @@ behind a `HOLDS_BACKEND` setting that defaults to `holdfast`.
 
 **Sanity Check:** unit tests for `placeHold` pass on both settings against a local Redis.
 
-### Phase 2: Switch production to Leaseline [TODO]
+### Phase 2: Switch production to Leaseline [STATUS]
 
 **Satisfies:** AC1, AC2
 
@@ -235,7 +235,7 @@ gone from Redis within ten minutes of the rollout.
 **Sanity Check:** after the rollout, `redis-cli --scan --pattern 'lease:*'` shows new holds and the
 hold error rate is flat on the API dashboard.
 
-### Phase 3: Remove Holdfast [TODO]
+### Phase 3: Remove Holdfast [STATUS]
 
 **Satisfies:** AC3
 
@@ -255,3 +255,8 @@ Delete the `holdfast` branch and the `HOLDS_BACKEND` setting from `src/seats/hol
 - Integration: a full checkout against a local Redis on the Leaseline path.
 - Production check: the Phase 2 scan and dashboard reading.
 MD
+
+# Each phase heading takes its status tag here, outside the heredoc.
+plan=.work/review-target/PLAN.md
+text="$(cat "$plan")"
+printf '%s\n' "${text//'[STATUS]'/[TODO]}" >"$plan"

@@ -230,7 +230,7 @@ Patients with a confirmed appointment get one SMS reminder a day ahead, with no 
 
 ## Plan
 
-### Phase 1: Options and worker skeleton [TODO]
+### Phase 1: Options and worker skeleton [STATUS]
 **Satisfies:** AC1
 
 - Add `ReminderOptions` with `Enabled`, `HoursBefore` and `PollSeconds`.
@@ -242,7 +242,7 @@ Patients with a confirmed appointment get one SMS reminder a day ahead, with no 
 **Sanity Check:** `DOTNET_ENVIRONMENT=Development dotnet run` logs one tick line every 300 seconds
 with `HoursBefore=24` and `Enabled=True`.
 
-### Phase 2: Selecting and claiming due reminders [TODO]
+### Phase 2: Selecting and claiming due reminders [STATUS]
 **Satisfies:** AC1, AC2, AC4
 
 - Each tick selects appointments with `Status == Confirmed` whose `StartsAt` falls between
@@ -257,7 +257,7 @@ with `HoursBefore=24` and `Enabled=True`.
 **Sanity Check:** seed one confirmed appointment 23 hours ahead and one cancelled appointment 23 hours
 ahead. One tick calls the fake gateway once, and a second tick does not call it.
 
-### Phase 3: Sending and retries [TODO]
+### Phase 3: Sending and retries [STATUS]
 **Satisfies:** AC3
 
 - `ISmsGateway.SendAsync` is called with the patient's `MobileNumber`.
@@ -287,6 +287,11 @@ xUnit tests run `ReminderWorker.TickAsync` against an in-memory SQLite `ClinicDb
 | `appsettings.json` | modify: `Reminders` section |
 | `Clinic.Reminders.Tests/ReminderWorkerTests.cs` | create |
 MD
+
+# Each phase heading takes its status tag here, outside the heredoc.
+plan=.work/review-target/PLAN.md
+text="$(cat "$plan")"
+printf '%s\n' "${text//'[STATUS]'/[TODO]}" >"$plan"
 
 cat >.work/review-target/design/design-resolution.md <<'MD'
 outcome: early-exit

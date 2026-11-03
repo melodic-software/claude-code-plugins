@@ -238,7 +238,7 @@ Keep Tickwheel. Turn on its persistent job store and leave the send path on Post
 - Cadenza is the main alternative. It needs a running Starling broker, and `deploy/compose.yaml`
   runs none, so moving means operating a new stateful service for three clinics.
 
-### Phase 1: Persist the schedule [TODO]
+### Phase 1: Persist the schedule [STATUS]
 
 **Satisfies:** AC2
 
@@ -248,7 +248,7 @@ Change `build_wheel` in `reminders/scheduler.py` to create
 
 **Sanity Check:** in staging, restart the workers at 08:00 and confirm the 09:00 jobs still fire.
 
-### Phase 2: Stable job registration [TODO]
+### Phase 2: Stable job registration [STATUS]
 
 **Satisfies:** AC1, AC2
 
@@ -259,7 +259,7 @@ start refreshes a clinic's job instead of adding another. Keep `send_at` and `ut
 **Sanity Check:** start a worker twice against one store and confirm the job list has one entry per
 clinic.
 
-### Phase 3: Peak-day send rate [TODO]
+### Phase 3: Peak-day send rate [STATUS]
 
 **Satisfies:** AC3
 
@@ -282,3 +282,8 @@ reminders in under 15 seconds.
 - Integration: a worker restart in staging keeps its jobs, checked with the store's job list.
 - Load: the sandbox run in Phase 3 finishes inside the AC3 window.
 MD
+
+# Each phase heading takes its status tag here, outside the heredoc.
+plan=.work/review-target/PLAN.md
+text="$(cat "$plan")"
+printf '%s\n' "${text//'[STATUS]'/[TODO]}" >"$plan"
