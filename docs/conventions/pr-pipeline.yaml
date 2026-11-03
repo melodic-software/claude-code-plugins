@@ -722,7 +722,8 @@ activities:
     args: publish
     effect: publish-artifact
     gating: advisory
-    # Posts the plan's titles and bodies, which the model wrote.
+    # Posts the plan's titles and bodies, which the model wrote, each body after a
+    # `Refs: #<upkeep_spec_issue>` line (docs/conventions/code-tidying.yaml).
     reads-untrusted: true
 
 lanes:

@@ -4,3 +4,4 @@
 upkeep_cadence: daily
 upkeep_backstop: weekly
 upkeep_max_open: 3
+upkeep_spec_issue: 12894
