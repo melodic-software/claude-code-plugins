@@ -157,11 +157,11 @@ The lane has no workflow or script in this repository. It is declared at
 
 | Element | Verdict | Evidence | Why |
 |---|---|---|---|
-| 1 | gap | `.github/workflows/pr-require-checks.yml:4823`, `.github/workflows/pr-require-checks.yml:4676` | Callers loop 3 times with linear sleeps around a `gh_read` that can send twice, so a read can go out 6 times. A guessed secondary limit fails at once. Status writes are retried (`:4031`). |
-| 2 | gap | `.github/workflows/pr-require-checks.yml:4678`, `.github/workflows/pr-require-checks.yml:4827` | A read failure fails the check red on purpose instead of holding green. |
-| 3 | gap | `.github/workflows/pr-require-checks.yml:4682` | A held result recovers only through another lane's re-run, a person or the reconciler. The cron at `:29` is not the probe. |
-| 4 | gap | `.github/workflows/pr-require-checks.yml:6920` | A missing review run sets `failed=1`, which fails on absent evidence. |
-| 5 | gap | `.github/workflows/pr-require-checks.yml:6925`, `.github/workflows/pr-require-checks.yml:6981` | A review the status-page gate stopped becomes a red `ci-status`. |
+| 1 | gap | `.github/workflows/pr-require-checks.yml:4859`, `.github/workflows/pr-require-checks.yml:4689` | Callers loop 3 times with linear sleeps around a `gh_read` that can send twice, so a read can go out 6 times. A guessed secondary limit fails at once. Status writes are retried (`:4044`). |
+| 2 | gap | `.github/workflows/pr-require-checks.yml:4691`, `.github/workflows/pr-require-checks.yml:4863` | A read failure fails the check red on purpose instead of holding green. |
+| 3 | gap | `.github/workflows/pr-require-checks.yml:4695` | A held result recovers only through another lane's re-run, a person or the reconciler. The cron at `:29` is not the probe. |
+| 4 | gap | `.github/workflows/pr-require-checks.yml:6959` | A missing review run sets `failed=1`, which fails on absent evidence. |
+| 5 | gap | `.github/workflows/pr-require-checks.yml:6964`, `.github/workflows/pr-require-checks.yml:7020` | A review the status-page gate stopped becomes a red `ci-status`. |
 | 6 | gap | `.github/workflows/pr-require-checks.yml:89`, `.github/workflows/pr-require-checks.yml:109` | Scheduled runs each get their own `run_id` group, so the lane is not single-pending, and it sends no `etag`. The cron (`17 9,16`) is off minute 0. |
 
 ## pr-unblock
@@ -200,11 +200,11 @@ The lane runs from `.github/workflows/pr-unblock.yml`, with the dispatchers
 - **A bad lane token.** A broker refusal or an unreachable broker prints `::error::` and turns the
   job red (`.github/actions/request-lane-token/action.yml:179`, `:337`, `:398`). In
   enable-auto-merge it prints `::error title=enable-auto-merge::` and turns red
-  (`.github/scripts/pr-merge/enable-auto-merge.mjs:2366`).
+  (`.github/scripts/pr-merge/enable-auto-merge.mjs:2387`).
 - **1000 or more open pull requests.** The job prints `::error::` and ends red
   (`.github/workflows/pr-merge.yml:1193`). It files no issue and writes no held summary
   (`.github/workflows/pr-merge.yml:1901`), so the signal never counts it. enable-auto-merge
-  throws (`.github/scripts/pr-merge/enable-auto-merge.mjs:1635`) and also ends red.
+  throws (`.github/scripts/pr-merge/enable-auto-merge.mjs:1639`) and also ends red.
 - **A rate limit during a green hold.** The shared `api_budget_stop` still prints `::error::`
   (`.github/actions/log-api-budget/api-budget.bash:388`). `retry_call` passes that stderr through
   (`.github/scripts/pr-merge/retry-call.bash:28`), and the step then ends green with the notice.

@@ -23,6 +23,7 @@ import {
   prepare,
   quoteSource,
   reviewerEvidence,
+  securityRoot,
   settleDisputes,
   testsReply,
   verdictOf,
@@ -120,8 +121,9 @@ test("disputes stages the files the reviewer cited beside the lane's, and keeps 
   assert.equal(slot.finding.comment, CITING);
 });
 
-// A CRITICAL finding, which the code-review lane reports for security where
-// no security lane runs, goes to a person: no slot, and any verdict ignored.
+// A CRITICAL code-review finding takes no slot, and any verdict is ignored;
+// the lane leaves security to the security-review lane, so a session, not a
+// person, takes it.
 const CRITICAL_REVIEW = ["**The token reaches the log.**", "", "Repro: run the job.", "", "Severity: critical", "claude-lane: claude-review"].join("\n");
 const criticalThread = (id) => thread(id, [{ id: 1, author: "reviewer", lane: "claude-review", body: CRITICAL_REVIEW }]);
 // A pr-verify verifier note: a lane verdict would resolve the thread while
@@ -157,11 +159,21 @@ const settleOffline = (now, disposition, verdicts = new Map([["PRRT_a", { verdic
     log: () => {},
   });
 
-test("settleDisputes holds a CRITICAL code-review finding left open for a person, whatever verdict arrived: disputed when INCORRECT, else uncertain", async () => {
+test("settleDisputes sends a CRITICAL code-review finding left open to a session, not a person, whatever verdict arrived: disputed when INCORRECT, else uncertain", async () => {
   const now = new Map([["PRRT_a", criticalThread("PRRT_a")]]);
-  assert.deepEqual(await settleOffline(now, "INCORRECT"), { escalationReason: "feedback-disputed-security", skipReason: "" });
+  assert.equal(securityRoot(criticalThread("PRRT_a").comments), false);
+  assert.deepEqual(await settleOffline(now, "INCORRECT"), { escalationReason: "feedback-disputed", skipReason: "" });
   for (const disposition of ["UNCERTAIN", "VALID-defer"]) {
-    assert.deepEqual(await settleOffline(now, disposition), { escalationReason: "feedback-uncertain-security", skipReason: "" }, disposition);
+    assert.deepEqual(await settleOffline(now, disposition), { escalationReason: "feedback-uncertain", skipReason: "" }, disposition);
+  }
+  assert.equal(escalationRoute("feedback-disputed"), "fail");
+  assert.equal(escalationRoute("feedback-uncertain"), "fail");
+  // The same CRITICAL line on a security-review finding, or on a lane this
+  // does not know, still goes to a person.
+  for (const lane of ["claude-security-review", "another-lane"]) {
+    const held = new Map([["PRRT_a", thread("PRRT_a", [{ id: 1, author: "reviewer", lane, body: CRITICAL_REVIEW }])]]);
+    assert.deepEqual(await settleOffline(held, "INCORRECT"), { escalationReason: "feedback-disputed-security", skipReason: "" }, lane);
+    assert.deepEqual(await settleOffline(held, "UNCERTAIN"), { escalationReason: "feedback-uncertain-security", skipReason: "" }, lane);
   }
 });
 
@@ -173,7 +185,7 @@ test("settleDisputes ends a verifier note left open in feedback-verifier-open, a
 });
 
 test("a reason held for a person outranks every fail-routed reason in one round", async () => {
-  const now = new Map([["PRRT_a", criticalThread("PRRT_a")]]);
+  const now = new Map([["PRRT_a", thread("PRRT_a", [{ id: 1, author: "reviewer", lane: "claude-security-review", body: CRITICAL_REVIEW }])]]);
   assert.deepEqual(await settleOffline(now, "UNCERTAIN", undefined, "feedback-partial"), { escalationReason: "feedback-uncertain-security", skipReason: "" });
   const verifier = new Map([["PRRT_a", verifierThread("PRRT_a")]]);
   assert.deepEqual(await settleOffline(verifier, "UNCERTAIN", undefined, "feedback-partial"), { escalationReason: "feedback-partial", skipReason: "" });
@@ -848,14 +860,14 @@ test("with no contract text no quote settles: the question stays a person's", as
   assert.deepEqual(verdictOf({ verdict: "human", question: "security", quote: DONE_WHEN }), { verdict: "human", question: "security" });
 });
 
-test("a security-review or code-review CRITICAL finding stays held even with a settling quote", async () => {
+test("a security-review or code-review CRITICAL finding stays open even with a settling quote: a person decides the security one, a session the code one", async () => {
   const settled = new Map([["PRRT_a", { verdict: "lane", question: "intent", quote: DONE_WHEN, url: ISSUE_URL_7 }]]);
-  for (const [label, make, reason] of [
-    ["security-review CRITICAL", (id) => ratedThread(id, SECURITY.replace("IMPORTANT", "CRITICAL")), "feedback-disputed-security"],
-    ["CRITICAL code-review", criticalThread, "feedback-disputed-security"],
+  for (const [label, make, suffix] of [
+    ["security-review CRITICAL", (id) => ratedThread(id, SECURITY.replace("IMPORTANT", "CRITICAL")), "-security"],
+    ["CRITICAL code-review", criticalThread, ""],
   ]) {
-    assert.deepEqual(await settleOffline(new Map([["PRRT_a", make("PRRT_a")]]), "INCORRECT", settled), { escalationReason: reason, skipReason: "" }, label);
-    assert.deepEqual(await settleOffline(new Map([["PRRT_a", make("PRRT_a")]]), "UNCERTAIN", settled), { escalationReason: "feedback-uncertain-security", skipReason: "" }, label);
+    assert.deepEqual(await settleOffline(new Map([["PRRT_a", make("PRRT_a")]]), "INCORRECT", settled), { escalationReason: `feedback-disputed${suffix}`, skipReason: "" }, label);
+    assert.deepEqual(await settleOffline(new Map([["PRRT_a", make("PRRT_a")]]), "UNCERTAIN", settled), { escalationReason: `feedback-uncertain${suffix}`, skipReason: "" }, label);
   }
 });
 

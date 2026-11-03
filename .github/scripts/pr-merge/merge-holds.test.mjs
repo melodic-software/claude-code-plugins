@@ -522,9 +522,9 @@ test("ci-status holds a trusted-actor list widening until a trusted person appro
   assert.equal((await ci([[ACTORS, ".github/standards/trusted-actors/old.json", "renamed"]], { list: { [BASE]: listOf(KYLE), [HEAD]: listOf(KYLE) } })).code, 1);
 });
 
-// ci-status judges no body hold text or member veto, whoever wrote it: the
-// `do-not-merge` label is the veto. A hold path beside it still holds.
-test("ci-status holds no body hold text, even a person's; a hold path still holds", async () => {
+// ci-status judges no body hold text, whoever wrote it: the lanes App's hold
+// line puts on `do-not-merge`. A hold path or a member's veto beside it holds.
+test("ci-status holds no body hold text, even a person's; a hold path or a member's veto still holds", async () => {
   const body = "Closes #40\n\nHold: wait for the release.\n\ndo not merge";
   const person = { __typename: "User" };
   const written = await ci(["docs/a.md"], { body, writers: { author: person, userContentEdits: { totalCount: 0, nodes: [] } } });
@@ -534,6 +534,11 @@ test("ci-status holds no body hold text, even a person's; a hold path still hold
   assert.equal(pathed.code, 1, pathed.out);
   assert.match(pathed.out, /it changes docs\/held\.md, a hold path/);
   assert.doesNotMatch(pathed.out, /its body holds it/);
+  const veto = { id: 1, user: { login: "kyle", id: 7, type: "User" }, author_association: "MEMBER", created_at: "2026-10-23T10:00:00Z", body: "Please do not merge this yet." };
+  const vetoed = await ci(["docs/a.md"], { body, reviews: [veto] });
+  assert.equal(vetoed.code, 1, vetoed.out);
+  assert.match(vetoed.out, /kyle asked not to merge it/);
+  assert.doesNotMatch(vetoed.out, /its body holds it/);
 });
 
 test("ci-status holds a cost path that an approval does not lift, and the owner's decision does", async () => {

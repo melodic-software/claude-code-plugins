@@ -2819,8 +2819,9 @@ them on every `pull_request` run, contract-only runs included:
   trusted person adds the label back, which starts a new hold, and a trusted person removes it.
 - **`do-not-merge` is the veto.** report-outcome labels a lanes App PR that carries `Hold: a
   human merges this` with `do-not-merge`, since the App can edit that body line; ci-status's label
-  steps fail while it is on, and removing it lifts the hold. ci-status reads no body hold text and
-  no member's veto comment: a person who wants a PR held applies `do-not-merge`.
+  steps fail while it is on, and removing it lifts the hold. ci-status reads no body hold text: a
+  person who wants a PR held applies `do-not-merge`. On a lanes App PR, a member's veto comment
+  still fails ci-status's merge-holds step until a later comment by the same member lifts it.
 - **Both lanes review the head.** On a ready PR, the newest `pull_request` run of each caller on the
   head must have a successful status job (`pr-review / claude-review-status`,
   `pr-review-security / security-review`) whose `Apply the hold` step ran. A summary-mode run or
@@ -2869,8 +2870,21 @@ them on every `pull_request` run, contract-only runs included:
 - **A stopped lane does not hold ci-status.** A `pr-unblock/*` failure status is read only by
   `enable-auto-merge.mjs`, which does not arm the head. A stop that needs a session puts
   `needs-session` on the PR, including the review round cap, an uncertain finding and a disputed
-  finding; an open review thread already blocks the merge (the ruleset requires thread
-  resolution), and a session's answer on the thread restarts address-feedback.
+  finding, and a session's answer on the thread restarts address-feedback. A stop with no label
+  leaves the condition it stopped on, which blocks the merge by itself:
+  - `address-feedback` (`feedback-not-converging`, `-not-landed`, `-invalid`, `-partial`,
+    `-publish-failed`, `-incomplete`, `-stood-open`, `-verifier-open`): a review thread stays
+    unresolved, and the ruleset requires thread resolution.
+  - `resolve-conflicts` (`workflow-staged`, `unexpected-path-staged`, `repeat-cap`,
+    `unresolved-conflict`, `conflict-patch-invalid`, `conflict-patch-not-applied`): the lane pushed
+    no merge, so the conflict stays, and GitHub merges no conflicted PR.
+  - `sync-shared-copies` (`shared-copy-workflow-staged`, `shared-copy-patch-invalid`,
+    `shared-copy-patch-not-applied`): the human-gated label pr-merge's
+    `shared-copy-sources-changed` refusal put on stays until the head moves.
+  - `fix-ci` (`ci-fix-round-cap`, `ci-fix-empty`, `ci-fix-invalid`, `ci-fix-not-applied`,
+    `ci-fix-weaken-retry`): the failing check stays red, so ci-status fails.
+  - `review-dependency` (`dependency-invalid`): no merge marker is posted, and pr-merge merges a
+    review-tier update only on one (tier `review` above).
 
 A review usually finishes after ci-status has read it, so `pr-feedback-dispatch.yml`'s
 `rerun-ci-status` job re-runs the ci-status job of the newest `pr-require-checks` run on the head

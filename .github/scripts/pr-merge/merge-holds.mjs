@@ -1643,9 +1643,10 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
       lifted = await liftersOf(github, repo, Number(number), head, humans, holdPaths);
     }
     const lifters = approved.length ? approved : lifted.lifters;
-    // A body hold and a member's veto are not judged here: the `do-not-merge`
-    // label is the veto, which ci-status's label steps hold on.
-    const reasons = holds("", [], files, holdPaths, lifters, decision, true, widened, pathHolds);
+    // A body hold is not judged here: the lanes App's hold line puts on the
+    // `do-not-merge` label, which ci-status's label steps hold on. A member's
+    // veto comment still holds, since nothing labels it.
+    const reasons = holds("", items, files, holdPaths, lifters, decision, true, widened, pathHolds);
     const how = approved.length ? "approved this head" : "approved an earlier head whose every change since is a base merge";
     if (held && lifters.length && Array.isArray(holdPaths)) {
       console.log(`#${number}: ${lifters.join(", ")} ${how}, which lifts its hold path (${escape(held)}).`);

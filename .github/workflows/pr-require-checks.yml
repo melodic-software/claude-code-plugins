@@ -6028,8 +6028,8 @@ jobs:
       # A LANES APP PULL REQUEST IS HELD BY ITS TEXT TOO. pr-merge.yml's
       # enable-auto-merge job arms native auto-merge on lanes App pull
       # requests, which then merge without pr-merge's gate, so this step fails
-      # on the holds that gate honors other than its labels: a changed file
-      # or renamed-from path matching the merge lane's
+      # on the holds that gate honors other than its labels: a member's veto
+      # comment, and a changed file or renamed-from path matching the merge lane's
       # denied paths (pr-pipeline.yaml merge.diff-check.denied-paths, as main
       # has it, plus merge-holds.mjs's HOLD_PATH_FLOOR) while the base's
       # merge.diff-check.path-holds is true (owner decision Q15), so a push after
@@ -6056,9 +6056,11 @@ jobs:
       # (the pull request named in the group's ref, as the step above reads
       # it), the body, comments, reviews and inline comments are read live,
       # never from the payload a re-run replays, and so are the changed files;
-      # a list shorter than changed_files fails closed. A body hold or a
-      # member's veto comment is not read here: the `do-not-merge` label is
-      # the veto, and the label steps hold on it. Only the lanes App's pull requests are read, by numeric id
+      # a list shorter than changed_files fails closed. A body hold is not
+      # read here: the lanes App's hold line puts on `do-not-merge`, which the
+      # label steps hold on. A comment re-runs nothing, so a veto posted while
+      # armed is enforced when the queue builds the group, and after a veto
+      # is lifted ci-status needs a re-run. Only the lanes App's pull requests are read, by numeric id
       # (pr-pipeline.yaml merge.agent-identity, as trusted-actors.json lists
       # it); every other pull request merges through pr-merge's gate or a
       # person. An unreadable pull request, module, config, file list or

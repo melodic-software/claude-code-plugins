@@ -596,7 +596,7 @@ expect "a line that only contains 'hold:' later does not hold" 0 3
 
 STUB_PULL="$(pull 'Closes #1')"
 STUB_ISSUE="[$KYLE_VETO]"
-expect "a member's veto comment does not hold: do-not-merge is the veto" 0 3 "no body hold, no member veto and no hold path"
+expect "a member's veto comment fails, naming the member" 1 3 "::error::#7: kyle asked not to merge it"
 STUB_ISSUE="[$(comment drive-by User NONE 2026-10-23T10:00:00Z 'do not merge')]"
 expect "a NONE-association veto does not hold" 0 3
 STUB_ISSUE="[$(comment outsider User CONTRIBUTOR 2026-10-23T10:00:00Z "don't merge")]"
@@ -604,25 +604,25 @@ expect "a CONTRIBUTOR veto does not hold" 0 3
 STUB_ISSUE="[$(comment helper Bot MEMBER 2026-10-23T10:00:00Z 'do-not-merge')]"
 expect "a bot's veto does not hold" 0 3
 STUB_ISSUE="[$(comment owner User OWNER 2026-10-23T10:00:00Z "Don’t merge")]"
-expect "an OWNER's curly-apostrophe veto does not hold" 0 3 "no body hold, no member veto and no hold path"
+expect "an OWNER's curly-apostrophe veto holds" 1 3 "owner asked not to merge it"
 STUB_ISSUE="[$KYLE_VETO,$(comment kyle User MEMBER 2026-10-23T11:00:00Z 'Go ahead now.')]"
 expect "a later comment by the same member lifts the veto" 0 3
 STUB_ISSUE="[$(comment kyle User MEMBER 2026-10-23T11:00:00Z 'Go ahead now.'),$KYLE_VETO]"
 expect "the newest comment decides, not the listing order" 0 3
 STUB_ISSUE="[$KYLE_VETO,$(comment other User COLLABORATOR 2026-10-23T11:00:00Z 'LGTM')]"
-expect "a veto followed by another member's comment does not hold" 0 3 "no body hold, no member veto and no hold path"
+expect "another member's later comment does not lift it" 1 3 "kyle asked not to merge it"
 STUB_ISSUE="[$KYLE_VETO]" STUB_REVIEWS="[$(review kyle MEMBER 2026-10-23T11:00:00Z '')]"
-expect "a veto followed by an empty review does not hold" 0 3 "no body hold, no member veto and no hold path"
+expect "a later review with no text does not lift it" 1 3 "kyle asked not to merge it"
 STUB_ISSUE="[$KYLE_VETO]" STUB_REVIEWS="[$(review kyle MEMBER 2026-10-23T11:00:00Z 'Fine, ship it.')]"
 expect "a later review with text lifts it" 0 3
 STUB_ISSUE='[]' STUB_REVIEWS="[$(review kyle COLLABORATOR 2026-10-23T11:00:00Z 'do not merge')]"
-expect "a review summary veto does not hold" 0 3 "no body hold, no member veto and no hold path"
+expect "a review summary veto holds" 1 3 "kyle asked not to merge it"
 STUB_REVIEWS='[]' STUB_INLINE="[$KYLE_VETO]"
-expect "an inline review comment veto does not hold" 0 3 "no body hold, no member veto and no hold path"
+expect "an inline review comment veto holds" 1 3 "kyle asked not to merge it"
 STUB_INLINE='[]' STUB_ISSUE="[$KYLE_VETO,$(comment ana User OWNER 2026-10-23T09:00:00Z 'do not merge')]"
-expect "several members' vetoes do not hold" 0 3 "no body hold, no member veto and no hold path"
+expect "every vetoing member is named, sorted" 1 3 "ana, kyle asked not to merge it"
 STUB_ISSUE="[$KYLE_VETO]" STUB_PULL="$(pull $'Hold: x')"
-expect "a body hold and a veto together do not hold" 0 3 "no body hold, no member veto and no hold path"
+expect "beside a body hold, which holds nothing, the veto holds" 1 3 "kyle asked not to merge it"
 STUB_ISSUE='' STUB_REVIEWS='' STUB_INLINE=''
 
 STUB_PULL="$(pull 'Closes #1')"
@@ -1041,7 +1041,7 @@ STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}"
 STUB_PULL="$(pull $'Closes #1\nHold: owner call')"
 expect "in the merge queue, a body hold does not fail the group" 0 3 "no body hold, no member veto and no hold path"
 STUB_PULL="$(pull 'Closes #1')" STUB_ISSUE="[$KYLE_VETO]"
-expect "in the merge queue, a member's veto does not fail the group" 0 3 "no body hold, no member veto and no hold path"
+expect "in the merge queue, a member's veto fails the group" 1 3 "kyle asked not to merge it"
 STUB_ISSUE="[$KYLE_VETO,$(comment kyle User MEMBER 2026-10-23T11:00:00Z 'ok, merge it')]"
 expect "in the merge queue, a lifted veto passes" 0 3
 STUB_ISSUE='' STUB_FILES='[["docs/held/x.md"]]'
