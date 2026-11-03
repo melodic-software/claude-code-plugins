@@ -2978,14 +2978,19 @@ them on every `pull_request` run, contract-only runs included:
   - `review-dependency` (`dependency-invalid`): no merge marker is posted, and pr-merge merges a
     review-tier update only on one (tier `review` above).
 
-A review usually finishes after ci-status has read it, so `pr-feedback-dispatch.yml`'s
+A review usually finishes after ci-status first reads it, so on a full run (not a label flip or
+body edit) ci-status's review-lanes step waits: it polls each lane with no run on the head yet, or a
+run not completed, every 60 seconds for at most 8 minutes (`REVIEW_WAIT_SECONDS`), reading once per
+waiting lane, then judges both lanes as below. A review still running at the cap fails as before,
+naming the automatic re-run, so no manual re-run is needed. Then `pr-feedback-dispatch.yml`'s
 `rerun-ci-status` job re-runs the ci-status job of the newest `pr-require-checks` run on the head
 when a review caller completes (not when GitHub skipped it) on an open same-repository PR still at
 that head and the other lane's newest run on the head has finished or never ran. While the other
 lane is still going a re-run could only be red, and that lane's completion re-runs it, so a head
 gets one re-run, not one per lane. A ci-status not started yet, or one that started after both
 lanes finished, is left to read the reviews itself; an earlier one in progress is polled every 60
-seconds for at most 10 minutes first. A read refused by the token's primary rate limit waits for
+seconds for at most 10 minutes first. One that passed with its review-lanes step ending after both
+lanes finished (it waited for them) is left alone too, since a re-run can only pass again. A read refused by the token's primary rate limit waits for
 the reset inside the same 10 minutes; a reset past them fails the job, naming the reset, since
 nothing else re-runs a ci-status left stale. The merge-group run re-checks the labels, and also
 fails while the queued PR carries `pr-verify-failed`, which a pass at a new commit removes. A
