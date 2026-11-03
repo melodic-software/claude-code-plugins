@@ -23,7 +23,7 @@ graders:
     type: 'llm'
     criteria: 'Writes the remote command in PowerShell and quotes it for pwsh, the windows-shell account''s shell, not as a claude prompt'
     focus: 'trace'
-  - name: 'no-dpapi'
+  - name: 'notes-no-dpapi'
     type: 'regex'
     pattern: '\bDPAPI\b'
     flags: 'i'

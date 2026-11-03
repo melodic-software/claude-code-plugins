@@ -3,9 +3,17 @@
     {
       "answer": "ssh-admin has no DPAPI, so anything needing EvalUser's credentials goes through the on-demand tasks.",
       "why": "names it"
+    },
+    {
+      "answer": "Run `/mnt/c/Windows/System32/OpenSSH/ssh.exe laptop-win 'Get-ChildItem C:\\Users'`. It logs in as `ssh-admin` over port 22, which has no DPAPI; for anything that needs `EvalUser`'s credentials, start the on-demand task `eval-sync` instead.",
+      "why": "routed reply that points at the fixture's on-demand task"
     }
   ],
   "fail": [
+    {
+      "answer": "Run `ssh.exe laptop-win 'Get-ChildItem C:\\Users'`. It runs as `ssh-admin`, which cannot use the console user's saved credentials; use an on-demand task for that.",
+      "why": "describes the limit without naming DPAPI"
+    },
     {
       "answer": "Run this from your WSL shell on desk-01:\n\n```bash\n/mnt/c/Windows/System32/OpenSSH/ssh.exe laptop-win 'Get-ChildItem C:\\Users'\n```\n\n- **Why this route:** `laptop-win` is lap-01's Windows SSH entry on port 22. It logs in as `ssh-admin` and runs commands in `pwsh`, which is the route for a plain PowerShell command with no Claude session.\n- **Why the long path:** use the Windows OpenSSH client by its full path. Your WSL install has no SSH key of its own, so plain `ssh` would fail with `Permission denied (publickey)`.\n- **Quoting:** the single quotes stop your shell from touching the backslash, so `C:\\Users` arrives at PowerShell unchanged.\n- **If you're in a Windows terminal instead:** use `ssh.exe laptop-win 'Get-ChildItem C:\\Users'`.\n\nThe fleet notes mark port 22 as untested, so this exact command hasn't been confirmed to work yet. It runs as `ssh-admin`, not as `EvalUser`, but listing `C:\\Users` doesn't need `EvalUser`'s credentials.",
       "why": "observed reply, check3 run 0"
