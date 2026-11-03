@@ -4,8 +4,7 @@ bump: patch
 
 ### Changed
 
-- plugin-eval: the "Iterating" and "Boundary" sections move from SKILL.md to
-  `reference/iterating.md` and `reference/boundary.md`. No action runs either, so the hub still
-  holds every rule its actions use; its intro says when to read each file. The text moves verbatim
-  except relative links and one script path, now written `<skill-dir>`, which the intro defines.
-  The body drops from 41,783 to 39,662 bytes.
+- plugin-eval: the "Iterating" section moves verbatim from SKILL.md to `reference/iterating.md`
+  (only its relative link changes). No action runs it, so the hub still holds every rule its
+  actions use; its intro says to answer tuning and confirm questions from that file. The body
+  drops from 41,783 to 40,550 bytes.

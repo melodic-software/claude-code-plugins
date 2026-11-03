@@ -27,14 +27,12 @@ reads the delta. It never re-implements grading and never simulates a run or a s
 | `init [<name>]` | Scaffold a suite: `claude plugin eval init --bare <name>` where there is no terminal |
 
 This page holds every rule the actions use; answer from it. Each upstream specific it states has a
-row under [Sources](#sources). In every reference file, `<skill-dir>` is this skill's directory,
-`${CLAUDE_SKILL_DIR}`. Background for a human reader:
+row under [Sources](#sources). Background for a human reader:
 [case-authoring.md](reference/case-authoring.md), [reading-results.md](reference/reading-results.md)
 (JSON fields), [ci.md](reference/ci.md) (workflow file, exit codes, parser), and
-[records.md](reference/records.md) (the observations behind each source row). Two topics are not
-actions and are answered from their own files, never from this page alone: tuning one case after a
-read or confirming a change ([iterating.md](reference/iterating.md)), and what the CLI owns or how
-to move a skill-creator `evals.json` into a suite ([boundary.md](reference/boundary.md)).
+[records.md](reference/records.md) (the observations behind each source row). Tuning one case
+after a read, or confirming a change, is not an action and is answered from
+[iterating.md](reference/iterating.md), never from this page alone.
 
 ## Preflight
 
@@ -408,6 +406,17 @@ read as a plugin regression; pass `--trust-plugin` because a non-TTY job is othe
 read the JSON in addition to the exit code. Exit 1 still fails the job on a below-threshold case,
 but it is overloaded across six causes and exit 2 means partial, so the JSON is what tells a
 reader which one happened and whether the arms were comparable at all (pointer: the CI pins row under [Sources](#sources)).
+
+## Boundary, the built-in `plugin eval` command
+
+- The **CLI** (`plugin eval`, a built-in command) owns execution, grading, the ablation arms, the JSON and the HTML report. It is gated
+  by the version floor under Preflight, so this skill reads the version and never assumes the
+  command is available. This skill owns what surrounds a spend: the preflight, the no-spend
+  validation, the estimate and ceiling, target routing and the reading discipline. It never re-implements grading and never simulates a run or a score.
+- Success criteria and case design belong to `/evals:design`; come here once a suite exists.
+- The skill-creator JSON eval format is not a suite this command reads. Convert its cases to case
+  directories (`/evals:design skill <name>` writes them), check those with `/evals:validate`, then
+  run them here. To move one plugin's `evals.json` cases into its suite, run `python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/convert-evals-json.py" <plugin-dir>` (`--dry-run` prints the case count and writes nothing; `--help` prints what it writes), then `/evals:validate` on the plugin's `evals/`.
 
 ## Next
 
