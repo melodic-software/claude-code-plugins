@@ -479,7 +479,19 @@ an undeclared name that is a trusted one (`Promise=f`). A key is a name when it 
 template without substitutions, or `Symbol.x`. A computed key is known when every value it can
 take is: a literal, a number (arithmetic, `++`, unary minus), a boolean or `typeof` result, or a
 variable each write of which is one of those, so a loop counter (`o[i]=`) or a TypeScript enum
-(`e[e.X=1]=`) writes no trusted name; any other key may write every one. A target is cleared only
+(`e[e.X=1]=`) writes no trusted name. In code that runs strict (a module with an import or
+export, or a program whose first statement is `"use strict"`), a key that is not known is still
+bounded when it is a `+`, which makes a number or a string starting with its left side's value
+and ending with its right side's (`o[n+1]=` ends in a digit), or a `+=`, by its right side the
+same way; a template, which starts and ends with its own text; a `?:` or logical branch, a
+sequence's last expression or an `=` assignment's value that is bounded; a variable each write
+of which is bounded; or a parameter with no default, pattern or rest, never written, of a
+function bound to one name, never exported, only ever called directly with no spread up to it,
+not reading `arguments` and not declared in a block, which holds what each call passes. Sloppy
+code, the code a `Function` call folds to included, can call a function through `f.caller` and
+binds a block function's name outside its block, so there only a known key is bounded. A bounded
+key that cannot spell `__proto__` writes only the trusted names it may spell; any other key may
+write every one. A target is cleared only
 when it is provably fresh: a literal, a function, or `new` of a class declared in the module with
 no superclass and no constructor returning a value; `new` of a built-in constructor named by its
 unshadowed global name (`Error` and the other native errors, `Map`, `Set`, `WeakMap`, `WeakSet`),
@@ -512,7 +524,7 @@ further member, past any call on the way, names another key, a computed one know
 it, and the chain ends discarded, tested, compared or written, never held, passed on or the left
 of `instanceof`) or a build cleared below, any member named `eval` or `Function`, a read of
 `constructor` (by name, by a computed key that may spell it, as an unknown key does while a loop
-counter does not, or as a destructured key; every
+counter or `n+1` does not, or as a destructured key; every
 function's `constructor` is `Function`, as in `(()=>0).constructor("...")()`) other than one that
 is discarded, tested, compared with `===` or `!==`, the right of `instanceof`, or followed by a
 `.name` read or a plain `.prototype` write, since coercing it or writing a key it lacks runs a
@@ -572,13 +584,14 @@ the literal does not hold. A promise settled with the namespace reads its `then`
 file's module must be known and export no `then`. A load the scan cannot name (`import(x)` with a
 specifier that is no literal; `require`, `import.meta.require` or `x.require` aliased, `.call`ed,
 behind a comma, or called with no literal; a computed member or destructured key whose value, read
-as the sink rule reads a computed key, is unknown or may be `require`, as in `module[k]`,
+or bounded as the sink rule reads a computed key, may be `require`, as in `module[k]`,
 `x["req"+"uire"]` and `{[k]:r}=globalThis`, other than the target of a plain `o[k]=v`) could
 load any file whole, so any such module fails every export hop; `typeof require`,
 `require.resolve`, a binding named `require`, and a `.require` member read that is only tested
 (a `&&` operand other than the last, an `if`, loop or `?:` test, a `!` operand, as in lodash's
-`w&&w.require&&w.require("util")`) do not count. A computed read whose key is a
-parameter, a `for in` key or a string built with `+` is unknown, so a module holding one counts.
+`w&&w.require&&w.require("util")`) do not count. A computed read whose key is a `for in` key, a
+parameter the rule cannot bound, or a `+` whose sides may start and end `require` (`k+s` with
+`k="re"`) counts; in strict code `e[n+1]` and `` e[`on${n}`] `` do not.
 A template `import()` whose specifier starts with a bare package name
 (`` import(`@withfig/autocomplete/build/${e}.js`) ``) counts too: no source read shows that a bare
 specifier cannot reach a file embedded in the executable (pointer: Bun's
