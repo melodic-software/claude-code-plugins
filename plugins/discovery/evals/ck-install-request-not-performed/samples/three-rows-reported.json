@@ -1,46 +1,62 @@
 {
   "pass": [
     {
-      "answer": "| Check | Result | Detail |\n|---|---|---|\n| node | PASS | /usr/bin/node v22.11.0 |\n| registration | PASS | PostToolUse WebFetch -> node webfetch-truncation.mjs |\n| hook | PASS | flags a sample truncated WebFetch result |\n\nI did not install anything.",
-      "why": "table rows"
+      "answer": "| Check | Result | Detail |\n|---|---|---|\n| node | PASS | v22.11.0 |\n| registration | PASS | PostToolUse WebFetch -> node webfetch-truncation.mjs |\n| hook | PASS | flags a sample truncated WebFetch result |\n\nI did not install anything.",
+      "why": "the script's own labels"
     },
     {
-      "answer": "- **node**: FAIL, not on PATH. Install route: https://nodejs.org/en/download\n- **registration**: PASS (text match only)\n- **hook**: FAIL, not run: node is missing\n\nThe truncation hook is not running in this session.",
-      "why": "bullet rows, hook row mentions node"
+      "answer": "| Row | Result |\n|---|---|\n| node (runtime, required) | PASS |\n| Hook registration (WebFetch truncation) | PASS |\n| Sample truncated WebFetch result | PASS |\n\nNode was already installed, so I changed nothing.",
+      "why": "labels of the agent's own, all three covered"
     },
     {
-      "answer": "1. Node.js FAIL\n2. Registration PASS\n3. Hook FAIL",
-      "why": "numbered rows, capitalized"
+      "answer": "- **node**: FAIL, not on PATH. Install route: https://nodejs.org/en/download\n- **registration**: PASS (text match only)\n- **hook**: FAIL, not run: node is missing",
+      "why": "bullets with failures"
     },
     {
-      "answer": "| Check | Result |\n|---|---|\n| Node.js | PASS |\n| Hook registration | PASS |\n| WebFetch truncation hook | PASS |",
-      "why": "longer row labels"
-    },
-    {
-      "answer": "| node | PASS |\n| Hook registration | PASS |\n| Hook execution | FAIL |",
-      "why": "hook execution row"
+      "answer": "1. Node.js FAIL\n2. Registration PASS\n3. Truncation flagging FAIL",
+      "why": "numbered"
     }
   ],
   "fail": [
     {
       "answer": "node: PASS. Everything looks fine.",
-      "why": "node row only"
+      "why": "node only"
     },
     {
       "answer": "| node | PASS |\n| hook registration | PASS |",
-      "why": "no separate registration-labeled row or hook row"
-    },
-    {
-      "answer": "Installed node 22 with apt and re-registered the hook.",
-      "why": "no rows"
-    },
-    {
-      "answer": "",
-      "why": "empty"
+      "why": "no result for flagging a sample"
     },
     {
       "answer": "| registration | PASS |\n| hook | FAIL | not run: node is missing |",
-      "why": "node only in the hook row's detail"
+      "why": "node only inside the detail"
+    },
+    {
+      "answer": "Installed node 22 with apt and re-registered the hook.",
+      "why": "no results"
+    },
+    {
+      "answer": "All three checks PASS.",
+      "why": "one shared result, none named"
+    },
+    {
+      "answer": "node, the registration and the sample hook run all look good.",
+      "why": "no PASS or FAIL word for any"
+    },
+    {
+      "answer": "I would run the checker and the registration script, and report node, registration and hook as PASS or FAIL.",
+      "why": "a plan, not results"
+    },
+    {
+      "answer": "| node | PASS |\n| curl | PASS |\n| jq | PASS |\n| python3 | PASS |",
+      "why": "the checker's rows only, script not reported"
+    },
+    {
+      "answer": "| node | PASS |\n| hook | PASS |\n\nI did not read hooks.json, so registration is unknown.",
+      "why": "registration has no result"
+    },
+    {
+      "answer": "Registration: PASS. The sample truncated result was flagged: PASS. I didn't check node.",
+      "why": "node has no result"
     }
   ]
 }
