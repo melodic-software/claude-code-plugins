@@ -763,6 +763,8 @@ test("the sweep strips the queue labels from a merge-closed issue, agent-ready l
   const labeled = world({ closedList: [mergeClosed(["agent-ready", "status: ready", "priority: low"])], blocking: [] });
   assert.equal(await sweep({ github: labeled.github }), 0);
   assert.deepEqual(writes(labeled.calls), [`DELETE /repos/${REPO}/issues/10/labels/status%3A%20ready`, `DELETE /repos/${REPO}/issues/10/labels/agent-ready`]);
+  // The strip reuses the close check's read: one GET of the issue in all.
+  assert.equal(labeled.calls.filter((call) => call === `GET /repos/${REPO}/issues/10`).length, 1, labeled.calls.join("\n"));
   const bare = world({ closedList: [mergeClosed(["priority: low"])], blocking: [] });
   assert.equal(await sweep({ github: bare.github }), 0);
   assert.deepEqual(writes(bare.calls), []);

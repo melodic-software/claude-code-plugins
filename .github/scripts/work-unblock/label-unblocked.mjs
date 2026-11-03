@@ -613,14 +613,21 @@ async function closedSince(github, repo, since) {
 // One answer per issue per run: a swept close is also its dependents'
 // blocker, and a blocker can block several dependents. `where` is the
 // blocker's repository: outside `repo`, only a listed human's close counts.
-function trustedClose({ github, repo, where = repo, number, humans, closes, bot = DEFAULT_BOT }) {
+function trustedClose(args) {
+  return readClose(args).then(({ trusted }) => trusted);
+}
+
+// trustedClose's one read, cached in `closes`: { issue, trusted }, the issue
+// as read then, so a caller that needs it reads it no second time.
+function readClose({ github, repo, where = repo, number, humans, closes, bot = DEFAULT_BOT }) {
   const key = `${where.toLowerCase()}#${number}`;
   if (!closes.has(key)) {
     closes.set(
       key,
       (async () => {
-        const closed = await github("GET", `/repos/${where}/issues/${number}`);
-        return where.toLowerCase() === repo.toLowerCase() ? isTrustedClose(github, repo, closed, humans, bot) : humans.has(closed?.closed_by?.id);
+        const issue = await github("GET", `/repos/${where}/issues/${number}`);
+        const trusted = await (where.toLowerCase() === repo.toLowerCase() ? isTrustedClose(github, repo, issue, humans, bot) : humans.has(issue?.closed_by?.id));
+        return { issue, trusted };
       })(),
     );
   }
@@ -867,14 +874,15 @@ const change = (had = [], add = [], remove = []) => ({ had, add, remove });
 
 // A closed issue loses its queue labels, so no queue or count reads it as
 // waiting. Read fresh: a run queued behind another may land after a reopen,
-// and an open issue keeps them. A post-merge fix issue keeps agent-ready
+// and an open issue keeps them; the sweep hands in the issue its close check
+// just read (`read`) instead. A post-merge fix issue keeps agent-ready
 // across its close, as post-merge-demotion-alert.yml reopens it with the label
 // and the sweep relabels it (recurrenceRefusal). No Work status write: the
 // field's states are an open issue's.
-async function stripClosed({ github, repo, number }) {
+async function stripClosed({ github, repo, number, read }) {
   const base = `/repos/${repo}/issues/${number}`;
   try {
-    const issue = await github("GET", base);
+    const issue = read ?? (await github("GET", base));
     if (issue?.state !== "closed") {
       console.log(`label-unblocked: #${number} is open again; its queue labels stay`);
       return 0;
@@ -1154,21 +1162,21 @@ async function readmitReady({ github, repo, listed: open, humans, bot, gate, app
 // Labels each issue `closed` blocked that is ready, each at most once per run,
 // within the gate's room, oldest opened first (owner Q95). Returns how many
 // reads or writes failed.
-async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, appId, admission, mirror = noMirror }) {
+async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, appId, admission, mirror = noMirror, closes = new Map() }) {
   const seen = new Map();
-  const closes = new Map();
   let failed = 0;
   for (const source of closed) {
     let blocked;
     try {
-      if (sweep && !(await trustedClose({ github, repo, number: source, humans, closes, bot }))) {
-        console.log(`label-unblocked: #${source} was closed by neither a listed human nor a merge; skipped`);
-        continue;
-      }
-      // A merge the App ran closes an issue with no close run, so the sweep
-      // strips its queue labels; a listed human's close run already did.
       if (sweep) {
-        failed += await stripClosed({ github, repo, number: source });
+        const { issue, trusted } = await readClose({ github, repo, number: source, humans, closes, bot });
+        if (!trusted) {
+          console.log(`label-unblocked: #${source} was closed by neither a listed human nor a merge; skipped`);
+          continue;
+        }
+        // A merge the App ran closes an issue with no close run, so the sweep
+        // strips its queue labels, from the issue the close check just read.
+        failed += await stripClosed({ github, repo, number: source, read: issue });
       }
       blocked = await paginate(github, `/repos/${repo}/issues/${source}/dependencies/blocking`);
     } catch (error) {
@@ -2081,8 +2089,7 @@ async function isTrustedClose(github, repo, issue, humans, bot) {
 // For each issue in `closed` (on the sweep, only one a listed human or a
 // merge closed), closes its split parent when it is done (closeSplitParent).
 // Returns how many reads or writes failed.
-async function closeSplitParents({ github, repo, closed, sweep, humans, bot }) {
-  const closes = new Map();
+async function closeSplitParents({ github, repo, closed, sweep, humans, bot, closes = new Map() }) {
   let failed = 0;
   for (const number of closed) {
     try {
@@ -2098,7 +2105,9 @@ async function closeSplitParents({ github, repo, closed, sweep, humans, bot }) {
 // Closes the open parent of issue `number` once its split is finished
 // (closeDoneParent).
 async function closeSplitParent({ github, repo, number, humans, closes, bot, sweep }) {
-  if (!(await github("GET", `/repos/${repo}/issues/${number}`))?.parent_issue_url || (sweep && !(await trustedClose({ github, repo, number, humans, closes, bot })))) {
+  // The sweep's close check already read the issue (readClose, cached in `closes`).
+  const { issue, trusted } = sweep ? await readClose({ github, repo, number, humans, closes, bot }) : { issue: await github("GET", `/repos/${repo}/issues/${number}`), trusted: true };
+  if (!issue?.parent_issue_url || !trusted) {
     return;
   }
   await closeDoneParent({ github, repo, parent: await github("GET", `/repos/${repo}/issues/${number}/parent`), humans, closes, bot });
@@ -2287,10 +2296,12 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     const status = () => (read ??= checkWip(github, { repo, bot, now, limits, wip, remaining: rate.remaining }));
     const gate = admissionGate(status);
     let failed = sweep ? await admitDeferred({ github, repo, humans, bot, gate, appId: logins.get(bot), admission, mirror: mirrorTo }) : 0;
-    failed += await labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, appId: logins.get(bot), admission, mirror: mirrorTo });
+    // One close check per issue this run, shared by both passes below.
+    const closes = new Map();
+    failed += await labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, appId: logins.get(bot), admission, mirror: mirrorTo, closes });
     // Before readmitReady, so a split parent whose last sub-issue closed is
     // closed, not decided, on the sweep that sees that close.
-    failed += await closeSplitParents({ github, repo, closed, sweep, humans, bot });
+    failed += await closeSplitParents({ github, repo, closed, sweep, humans, bot, closes });
     // The sweep marker carries no queue labels, so a kick skips this.
     if (!sweep) {
       failed += await stripClosed({ github, repo, number: Number(event.issue.number) });
