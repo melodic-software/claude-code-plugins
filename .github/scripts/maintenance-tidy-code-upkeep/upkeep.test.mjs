@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { areaOf, detectAreas, parseCount, lookbackStart, parseLog, plan, slugOf } from "./upkeep.mjs";
+import { areaOf, detectAreas, parseCount, lookbackStart, parseLog, plan, readCleanSweeps, slugOf } from "./upkeep.mjs";
 
 const NOW = Date.parse("2026-11-20T06:00:00Z");
 const daysAgo = (days) => NOW - days * 86_400_000;
@@ -96,6 +96,66 @@ test("a churned area past the window goes ahead of newly churned ones, within th
     ["plugins/c", true],
     ["plugins/b", false],
   ]);
+});
+
+test("a clean sweep with no pull request keeps the area out until it changes again", () => {
+  const paths = ["plugins/a/x"];
+  const commits = [{ sha: "1", at: daysAgo(3), paths }];
+  const cleanSweeps = [{ slug: "plugins-a", at: daysAgo(2) }];
+  assert.equal(plan({ ...base, paths, commits, cleanSweeps }).reason, "nothing-due");
+  const later = [...commits, { sha: "2", at: daysAgo(1), paths }];
+  assert.deepEqual(plan({ ...base, paths, commits: later, cleanSweeps }).areas.map((row) => row.area), ["plugins/a"]);
+});
+
+test("a clean sweep today holds a daily cadence", () => {
+  const today = [{ slug: "plugins-a", at: NOW }];
+  assert.equal(plan({ ...base, paths: ["scripts/x"], commits: [{ sha: "1", at: daysAgo(1), paths: ["scripts/x"] }], cleanSweeps: today }).reason, "cadence");
+});
+
+const MAIN_RUN = { head_branch: "main", repository_id: 1, head_repository_id: 1 };
+
+test("readCleanSweeps keeps only this repository's main runs", () => {
+  const record = () => JSON.stringify({ at: 100, slugs: ["plugins-a"] });
+  const row = (workflow_run) => ({ expired: false, workflow_run });
+  assert.deepEqual(readCleanSweeps([row({ ...MAIN_RUN, head_branch: "feat/x" })], record), []);
+  assert.deepEqual(readCleanSweeps([row({ ...MAIN_RUN, head_repository_id: 2 })], record), []);
+  assert.deepEqual(readCleanSweeps([row(undefined)], record), []);
+  assert.deepEqual(readCleanSweeps([row(MAIN_RUN)], record), [{ slug: "plugins-a", at: 100_000 }]);
+});
+
+test("a record that does not parse is dropped, and the rest still count", () => {
+  const artifacts = [{ id: 1, workflow_run: MAIN_RUN }, { id: 2, workflow_run: MAIN_RUN }];
+  const read = (artifact) => (artifact.id === 1 ? "not json" : JSON.stringify({ at: 100, slugs: ["plugins-a"] }));
+  assert.deepEqual(readCleanSweeps(artifacts, read), [{ slug: "plugins-a", at: 100_000 }]);
+});
+
+test("readCleanSweeps skips an expired record and drops a malformed slug", () => {
+  const at = new Date(daysAgo(1)).toISOString();
+  const artifacts = [
+    { id: 1, created_at: at, expired: false, workflow_run: MAIN_RUN },
+    { id: 3, created_at: at, expired: true, workflow_run: MAIN_RUN },
+  ];
+  const read = (artifact) => {
+    assert.equal(artifact.id, 1);
+    return JSON.stringify({ at: daysAgo(2) / 1000, slugs: ["plugins-a", "bad slug"] });
+  };
+  assert.deepEqual(readCleanSweeps(artifacts, read), [{ slug: "plugins-a", at: daysAgo(2) }]);
+});
+
+test("a commit newer than the swept base but older than the record's artifact is still due", () => {
+  const paths = ["plugins/a/x"];
+  const artifact = { created_at: new Date(daysAgo(1)).toISOString(), expired: false, workflow_run: MAIN_RUN };
+  const cleanSweeps = readCleanSweeps([artifact], () => JSON.stringify({ at: daysAgo(3) / 1000, slugs: ["plugins-a"] }));
+  const commits = [{ sha: "1", at: daysAgo(2), paths }];
+  assert.deepEqual(plan({ ...base, paths, commits, cleanSweeps }).areas.map((row) => row.area), ["plugins/a"]);
+});
+
+test("a record with no valid time is dropped", () => {
+  const artifact = { created_at: new Date(daysAgo(1)).toISOString(), expired: false, workflow_run: MAIN_RUN };
+  for (const at of [undefined, 0, -1, "100", 1.5]) {
+    assert.deepEqual(readCleanSweeps([artifact], () => JSON.stringify({ at, slugs: ["plugins-a"] })), []);
+  }
+  assert.deepEqual(readCleanSweeps([artifact], () => JSON.stringify({ at: 100, slugs: ["plugins-a"] })), [{ slug: "plugins-a", at: 100_000 }]);
 });
 
 test("a batch at the cap waits", () => {
@@ -220,7 +280,7 @@ const runCli = (args, PATH, extraEnv = {}) => spawnSync("node", [SCRIPT, ...args
 
 test("gate: the setting sets the cap, and the plan names the area", () => {
   const repo = fixture("gate-ok", "upkeep_max_open: 1\n");
-  const PATH = stubGh("ok", `case "$*" in api*) echo '[]' ;; *--jq*) echo "4 0" ;; *) echo '[]' ;; esac`);
+  const PATH = stubGh("ok", `case "$*" in api*) echo '{"artifacts":[]}' ;; *--jq*) echo "4 0" ;; *) echo '[]' ;; esac`);
   const result = runCli(["gate", "--root", repo], PATH);
   assert.equal(result.status, 0, result.stderr);
   const out = JSON.parse(result.stdout);
@@ -232,7 +292,7 @@ test("gate: the setting sets the cap, and the plan names the area", () => {
 
 test("gate: at the cap the batch waits", () => {
   const repo = fixture("gate-cap", "upkeep_max_open: 1\n");
-  const PATH = stubGh("cap", `case "$*" in api*) echo '[]' ;; *--jq*) echo "4 1" ;; *) echo '[]' ;; esac`);
+  const PATH = stubGh("cap", `case "$*" in api*) echo '{"artifacts":[]}' ;; *--jq*) echo "4 1" ;; *) echo '[]' ;; esac`);
   const out = JSON.parse(runCli(["gate", "--root", repo], PATH).stdout);
   assert.deepEqual([out.proceed, out.reason, out.areas], [false, "cap", []]);
 });
