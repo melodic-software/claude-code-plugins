@@ -49,6 +49,19 @@
         "lens",
         "model"
       ]
+    },
+    "medium": {
+      "type": "string",
+      "title": "Preferred delivery medium",
+      "description": "Where /review:explain-change sends a digest page. auto (default): the shipped artifact default, which the publish gate keeps local for a non-public repository or a credential-shaped diff; terminal: no page; file: a local file; artifact: publish anyway; hosted: the shared page host.",
+      "default": "auto",
+      "options": [
+        "auto",
+        "terminal",
+        "file",
+        "artifact",
+        "hosted"
+      ]
     }
   }
 }
