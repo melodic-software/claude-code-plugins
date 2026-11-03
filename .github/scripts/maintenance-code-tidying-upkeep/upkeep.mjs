@@ -20,9 +20,10 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const TIDY_SCRIPTS = join(HERE, "../../../plugins/code-tidying/skills/tidy/scripts");
 const DAY_MS = 86_400_000;
 const WINDOW_DAYS = { daily: 1, weekly: 7, monthly: 30 };
-const PULL_LIST_LIMIT = 1000;
+const PULL_PAGE_CAP = 100;
 const SAFE_AREA = /^[A-Za-z0-9_][A-Za-z0-9._-]*(\/[A-Za-z0-9._-]+)?$/;
 const ADHOC_BRANCH = /^chore\/tidy-adhoc-(.+)-\d{4}-\d{2}-\d{2}$/;
+const PULL_FIELDS = "[.[] | {headRefName: .head.ref, createdAt: .created_at, state: (.state | ascii_upcase)}]";
 
 const dayOf = (ms) => Math.floor(ms / DAY_MS);
 
@@ -68,14 +69,28 @@ function sweepsOf(pulls) {
   return { last, open };
 }
 
+// Pulls newest first until one is older than the window, so a busy repository
+// costs one call per hundred pull requests in the window. truncated: the page
+// cap came first, so an older sweep may be missing.
+export function readPulls(fetchPage, windowStart) {
+  const pulls = [];
+  for (let page = 1; page <= PULL_PAGE_CAP; page += 1) {
+    const rows = fetchPage(page);
+    pulls.push(...rows);
+    if (rows.length === 0 || Date.parse(rows.at(-1).createdAt) < windowStart) return { pulls, truncated: false };
+  }
+  return { pulls, truncated: true };
+}
+
 // paths: every tracked file. commits: { at (ms), paths } inside the backstop
-// window. Overdue areas go first, so churn cannot starve a
-// quiet area; among them churned ones, then the longest unswept.
-export function plan({ paths, commits, pulls, cadence, backstop, limit, open, throttled, now }) {
+// window. pulls: the window's pull requests, plus every open one. Overdue areas
+// go first, churned ones among them, then the longest unswept: an area swept
+// this window waits behind every overdue one, and the cap decides how many a
+// batch reaches.
+export function plan({ paths, commits, pulls, truncated, cadence, backstop, limit, open, throttled, now }) {
   const stop = (reason) => ({ proceed: false, reason, areas: [] });
   const windowDays = WINDOW_DAYS[backstop];
-  const oldest = Math.min(...pulls.map((pull) => Date.parse(pull.createdAt)));
-  if (pulls.length >= PULL_LIST_LIMIT && oldest > now - windowDays * DAY_MS) return stop("sweep-history-truncated");
+  if (truncated) return stop("sweep-history-truncated");
 
   const { last, open: openSlugs } = sweepsOf(pulls);
   const newest = Math.max(0, ...last.values());
@@ -148,11 +163,16 @@ function gate(root, now) {
   const cadence = setting(root, "upkeep_cadence");
   const backstop = setting(root, "upkeep_backstop");
   const count = parseCount(run(root, "bash", [join(TIDY_SCRIPTS, "open-pr-count.sh")]));
-  const pulls = JSON.parse(run(root, "gh", ["pr", "list", "--state", "all", "--limit", String(PULL_LIST_LIMIT), "--json", "headRefName,createdAt,state"]));
-  const since = new Date(now - WINDOW_DAYS[backstop.value] * DAY_MS).toISOString();
+  const windowStart = now - WINDOW_DAYS[backstop.value] * DAY_MS;
+  const { pulls: recent, truncated } = readPulls(
+    (page) => JSON.parse(run(root, "gh", ["api", `repos/{owner}/{repo}/pulls?state=all&sort=created&direction=desc&per_page=100&page=${page}`, "--jq", PULL_FIELDS])),
+    windowStart,
+  );
+  const openPulls = JSON.parse(run(root, "gh", ["pr", "list", "--state", "open", "--limit", "1000", "--json", "headRefName,createdAt,state"]));
+  const since = new Date(windowStart).toISOString();
   const commits = parseLog(run(root, "git", ["log", `--since=${since}`, "--no-renames", "--name-only", "--format=%x00%ct"]));
   const paths = run(root, "git", ["ls-files"]).split("\n").filter(Boolean);
-  const result = plan({ paths, commits, pulls, cadence: cadence.value, backstop: backstop.value, ...count, now });
+  const result = plan({ paths, commits, pulls: [...recent, ...openPulls], truncated, cadence: cadence.value, backstop: backstop.value, ...count, now });
   return { ...result, settings: { upkeep_cadence: cadence, upkeep_backstop: backstop, upkeep_max_open: count.limit }, open: count.open };
 }
 

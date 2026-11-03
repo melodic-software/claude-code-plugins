@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { areaOf, detectAreas, parseCount, parseLog, plan, slugOf } from "./upkeep.mjs";
+import { areaOf, detectAreas, parseCount, parseLog, plan, readPulls, slugOf } from "./upkeep.mjs";
 
 const NOW = Date.parse("2026-11-20T06:00:00Z");
 const daysAgo = (days) => NOW - days * 86_400_000;
@@ -111,9 +111,31 @@ test("a tidy lane's branch is not an area sweep", () => {
   assert.equal(plan({ ...base, paths: ["scripts/x"], pulls: [lane] }).proceed, true);
 });
 
-test("a full pull listing that stops inside the backstop window plans nothing", () => {
-  const pulls = Array.from({ length: 1000 }, () => pull("other", 1));
-  assert.deepEqual(plan({ ...base, paths: ["scripts/x"], pulls }), { proceed: false, reason: "sweep-history-truncated", areas: [] });
+test("a sweep history the page cap cut plans nothing", () => {
+  assert.deepEqual(plan({ ...base, paths: ["scripts/x"], truncated: true }), { proceed: false, reason: "sweep-history-truncated", areas: [] });
+});
+
+test("readPulls stops at the first page that reaches past the window", () => {
+  const pages = [];
+  const fetchPage = (page) => {
+    pages.push(page);
+    return page === 1 ? [pull("a", 1), pull("b", 2)] : [pull("c", 3), pull("d", 8)];
+  };
+  const { pulls, truncated } = readPulls(fetchPage, daysAgo(7));
+  assert.deepEqual(pages, [1, 2]);
+  assert.equal(pulls.length, 4);
+  assert.equal(truncated, false);
+});
+
+test("readPulls stops at an empty page and reports the page cap", () => {
+  assert.deepEqual(readPulls(() => [], daysAgo(7)), { pulls: [], truncated: false });
+  let calls = 0;
+  const always = () => {
+    calls += 1;
+    return [pull("a", 1)];
+  };
+  assert.equal(readPulls(always, daysAgo(7)).truncated, true);
+  assert.equal(calls, 100);
 });
 
 test("parseCount reads open-pr-count.sh's lines and refuses an unknown count", () => {
@@ -162,7 +184,7 @@ const runCli = (args, PATH, extraEnv = {}) => spawnSync("node", [SCRIPT, ...args
 
 test("gate: the setting sets the cap, and the plan names the area", () => {
   const repo = fixture("gate-ok", "upkeep_max_open: 1\n");
-  const PATH = stubGh("ok", `case "$*" in *--state\\ open*) echo "4 0" ;; *) echo '[]' ;; esac`);
+  const PATH = stubGh("ok", `case "$*" in api*) echo '[]' ;; *--jq*) echo "4 0" ;; *) echo '[]' ;; esac`);
   const result = runCli(["gate", "--root", repo], PATH);
   assert.equal(result.status, 0, result.stderr);
   const out = JSON.parse(result.stdout);
@@ -174,7 +196,7 @@ test("gate: the setting sets the cap, and the plan names the area", () => {
 
 test("gate: at the cap the batch waits", () => {
   const repo = fixture("gate-cap", "upkeep_max_open: 1\n");
-  const PATH = stubGh("cap", `case "$*" in *--state\\ open*) echo "4 1" ;; *) echo '[]' ;; esac`);
+  const PATH = stubGh("cap", `case "$*" in api*) echo '[]' ;; *--jq*) echo "4 1" ;; *) echo '[]' ;; esac`);
   const out = JSON.parse(runCli(["gate", "--root", repo], PATH).stdout);
   assert.deepEqual([out.proceed, out.reason, out.areas], [false, "cap", []]);
 });
