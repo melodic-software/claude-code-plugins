@@ -381,13 +381,14 @@ jobs:
       # stop's window, so they skip while this run's key legs do. Uploaded
       # right after the read to keep the gap short; a key leg's credit stop
       # makes review-handoffs upload the credit-stop marker, which takes over.
-      # The name is written out so its retention row claims it. This job checks
-      # nothing out, so the scan is ci-workflows' own action at the gate's pin.
-      # An artifact upload uses the runner's token, so the job keeps actions:
-      # read.
+      # Written only when this run's key legs start (the review job's trigger
+      # terms), so a run that reviews nothing never holds the key off. The name
+      # is written out so its retention row claims it. This job checks nothing
+      # out, so the scan is ci-workflows' own action at the gate's pin. An
+      # artifact upload uses the runner's token, so the job keeps actions: read.
       - name: Write the key's probing marker
         id: probe-marker
-        if: always() && steps.gate.outputs.probing-marker == 'key-credit-probing-pr-review-main.yml-review-handoffs'
+        if: always() && steps.gate.outputs.probing-marker == 'key-credit-probing-pr-review-main.yml-review-handoffs' && needs.trigger.outputs.review != 'false' && needs.trigger.outputs.judged != 'true'
         continue-on-error: true
         timeout-minutes: 1
         run: |

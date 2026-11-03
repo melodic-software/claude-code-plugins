@@ -1110,11 +1110,17 @@ test("the credit gate writes, scans and uploads the probing marker right after t
   const [write, scan, upload] = names.map((name) => step(name, PROBE));
   assert.match(write, /^ {8}id: probe-marker$/m);
   const writeIf = /^ {8}if: (.*)$/m.exec(write)[1];
-  assert.equal(writeIf, `always() && steps.gate.outputs.probing-marker == '${probe}'`);
-  // Written when the gate names this probe, and not when it names none or a renamed one.
-  const writes = (output) => admits(writeIf.replace(/^always\(\) && /, ""), { steps: { gate: { outputs: { "probing-marker": output } } } });
+  // The review job's trigger terms: only a run whose key legs start probes the key.
+  assert.equal(writeIf, `always() && steps.gate.outputs.probing-marker == '${probe}' && needs.trigger.outputs.review != 'false' && needs.trigger.outputs.judged != 'true'`);
+  // Written when the gate names this probe and the key legs start; not when it names none
+  // or a renamed one, or when the trigger found no lane source or a head already judged.
+  const writes = (output, outputs = triggered.outputs) =>
+    admits(writeIf.replace(/^always\(\) && /, ""), { steps: { gate: { outputs: { "probing-marker": output } } }, needs: { trigger: { outputs } } });
   assert.ok(writes(probe));
   for (const output of ["", "key-credit-probing-pr-review-main.yml-other"]) assert.ok(!writes(output), output);
+  for (const outputs of [{ judged: "true" }, { review: "false" }]) {
+    assert.ok(!writes(probe, { ...triggered.outputs, ...outputs }), JSON.stringify(outputs));
+  }
   assert.match(write, /echo "\$GITHUB_RUN_ID" >"\$RUNNER_TEMP\/key-credit-probing\/run-id"/);
   assert.match(scan, /^ {8}id: probe-marker-scan$/m);
   assert.match(scan, /^ {8}if: always\(\) && steps\.probe-marker\.outcome == 'success'$/m);
