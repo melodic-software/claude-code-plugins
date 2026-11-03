@@ -154,9 +154,11 @@ Run `validate` and `dry-run`, then a live run of the new case and its control, a
 
 ## Gotchas
 
-- The user `CLAUDE.md`, auto memory and the account's connectors still load under
-  `--setting-sources project,local`; the driver prompt exists because a `CLAUDE.md` made the model
-  refuse before the permission layer was asked.
+- `--setting-sources project,local` does not isolate a case from everything the user has
+  configured; the driver prompt exists because a `CLAUDE.md` made the model refuse before the
+  permission layer was asked. What the flag scopes is read live from
+  [CLI reference: CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags) (as of
+  2026-11-03; recheck when the `--setting-sources` row changes which sources it covers).
 - A model rewrite such as `git -C <dir> push` escapes a literal `input_match` and a literal permission
   rule alike. Prompts ask for the command character for character, and a rewrite reads as
   inconclusive.

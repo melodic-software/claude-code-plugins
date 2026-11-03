@@ -261,14 +261,18 @@ Plugin and skill copies are never collapsed, and any other duplicate is counted 
 
 ### Configuration on disk is not configuration in force
 
-Plugin enablement is read AT STARTUP. On the audited machine a plugin was disabled in
-`settings.json` at 13:53:02 while the newest of 13 running sessions had started at 13:44:59, so
-no running session had picked the toggle up and 51 of that plugin's hook processes were still
+On the audited machine a plugin was disabled in `settings.json` at 13:53:02 while the newest of
+13 running sessions had started at 13:44:59, and 51 of that plugin's hook processes were still
 live. Reading config off disk and describing it as the running state produces a confidently
 incorrect report, in this case "that plugin is disabled, so it is not the cause" while it was
-exactly the cause. This generalizes to every settings change, which is why `fan_out.config_liveness`
-compares the settings mtime against each session process's start time and says plainly when a
-restart is required.
+exactly the cause. That is why `fan_out.config_liveness` compares the settings mtime against each
+session process's start time and says plainly when a restart is required.
+
+- **Pointer**: when stating which settings edits reach a running session, fetch
+  [settings: when edits take effect](https://code.claude.com/docs/en/settings#when-edits-take-effect)
+  and [plugin loading: check which stage a plugin reached](https://code.claude.com/docs/en/plugins/loading#check-which-stage-a-plugin-reached)
+  live. **As of**: 2026-11-03. **Recheck trigger**: either section changes when plugin
+  enablement is applied to a running session.
 
 ### Concurrency ceilings multiply
 
@@ -753,10 +757,12 @@ coverage is unmeasured until someone takes readings there.
 
 ## Windows-specific amplifiers
 
-- Defender real-time scanning taxes every stat/unlink/spawn under the tree; the sweep and
-  file-history churn pay it per file (handle-hold EPERM during plugin install:
-  anthropics/claude-code#54053; installer false positive: #36796). Exclusions are hidden from
-  non-elevated `Get-MpPreference` on Windows 11, so an empty non-admin read proves nothing.
+- Defender interacts with the tree's file churn (handle-hold EPERM during plugin install:
+  anthropics/claude-code#54053; installer false positive: #36796). Never treat an empty
+  `Get-MpPreference` exclusions read from a non-elevated shell as evidence that no exclusion
+  exists; read it from an elevated shell or say it is unverified. No Microsoft Learn page found
+  as of 2026-11-03 states what a non-elevated read shows; recheck when one does, and point at it
+  here.
 - Every running session watches `~/.claude.json` and re-parses it when another process writes
   it, so concurrent sessions multiply all watcher and poll load. Our v2.1.228 bundle reading put
   the poll at 1 Hz; see the Probe record under "Accumulated-state mechanisms" above.
