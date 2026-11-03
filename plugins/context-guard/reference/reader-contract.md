@@ -549,9 +549,8 @@ changes what the percentage is measured against.
 machine, the `dumb` band should be reached first. A zone reading exists so the session arrives at a
 boundary decision while that decision is still being made deliberately, through the operator menu
 above. If auto-compact fires first, the harness has already made a lossy choice
-on the session's behalf and the boundary was reached too late. Auto-compact offers no steering
-hook, so a firing is best read diagnostically: **it means the boundary was missed**, not that the
-window was managed. Lowering the window moves the trigger, and the module moves the percentage
+on the session's behalf and the boundary was reached too late. We read a firing diagnostically:
+**it means the boundary was missed**, not that the window was managed. Lowering the window moves the trigger, and the module moves the percentage
 bands with it. A 400000-token window on a 1M-class model puts the trigger at **40% of the full
 window**; with the shipped bands the module's edges become 20 and 30 points of the full window
 (50 and 75 of 400000), so the percentage shape reaches `dumb` before auto-compact fires. Without
@@ -560,6 +559,9 @@ that scaling the percentage shape would still read smart at the trigger, inside 
 measure a different quantity. A reader running its own lookup (the shell resolver) does not
 scale, so on a lowered window it takes the published fields; pulling `zones.json` under the
 trigger by hand would now scale twice in the module.
+Pointer: for what a hook can do before an automatic compaction, see
+<https://code.claude.com/docs/en/hooks#precompact>. As of: 2026-11-03. Recheck trigger: that section
+changes what a hook on the `auto` trigger can do.
 
 That diagnostic reading is adopted; the prescription that usually travels with it is not. **Leave
 auto-compact enabled.** Disabling it is a defensible operator choice on an attended machine, but it
@@ -767,8 +769,10 @@ writer side: whether the module runs in the session. A session with the module l
   refresh races).
 - **Fixed paths, deliberately outside `${CLAUDE_PLUGIN_DATA}`.** The contract directory
   `~/.claude/context-guard/` is a documented cross-plugin artifact location: sibling-plugin
-  sessions read it by the documented path. `${CLAUDE_PLUGIN_DATA}` resolves per-plugin-identity
-  and would hide that directory from every consumer.
+  sessions read it by the documented path, the same for every consumer whatever plugin it belongs
+  to. Pointer: for where `${CLAUDE_PLUGIN_DATA}` resolves, see
+  <https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables>. As of:
+  2026-11-03. Recheck trigger: that table changes what `${CLAUDE_PLUGIN_DATA}` resolves to.
 - **No shipped Monitor config.** Consumers that want write-triggered re-evaluation arm their own
   session Monitor on their snapshot path. The plugin ships no `experimental.monitors` entry.
   Monitors is an experimental Claude Code component, and this plugin takes no dependency on one

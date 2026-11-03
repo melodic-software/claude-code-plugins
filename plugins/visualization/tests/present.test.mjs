@@ -138,6 +138,13 @@ describe("check-deck", () => {
       assert.deepEqual(result.refused, [{ file: "project/slides/s1.html", carries }]);
     });
   }
+  test("a K2 refusal prints medium, class, reason and refused in that order; other refusals carry no refused key", () => {
+    const k2 = checkDeck({ root: deck({ s1: slide("s1", hostile[0][1]) }), visibility: "PUBLIC", cls: "K2" });
+    assert.deepEqual(Object.keys(k2.result), ["medium", "class", "reason", "refused"]);
+    assert.equal(k2.result.class, "K2");
+    const untitled = checkDeck({ root: deck(plain, { v: 4, order: ["cover"] }), visibility: "PUBLIC", cls: "K2" });
+    assert.deepEqual(Object.keys(untitled.result), ["medium", "class", "reason"]);
+  });
   test("a K2 deck of escaped text and uploaded images passes; text that reads like markup does not trip it", () => {
     const body = [
       "<h2>Fix &lt;script&gt; onload = 1 url(x) href=x &amp; > done</h2>",
