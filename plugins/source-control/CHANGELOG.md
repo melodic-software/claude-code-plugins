@@ -3,6 +3,21 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.2.1] - 2026-11-03
+
+### Changed
+
+- move the commit skill's rationale out of its hub
+
+  The /source-control:commit SKILL.md body drops from 28,967 to 25,098
+  bytes (frontmatter stripped). Explanatory prose moves verbatim to
+  reference files read on demand; every command, table and gate stays in
+  the hub.
+
+### Fixed
+
+- The pr-merge lane's post-merge floor anchor now starts when every lane merge since the policy floor already carries its settled marker. The check that writes the anchor judges each settled merge the anchor needs again from its own runs, under the check's existing read caps, and passes it only when those runs show it final. The marker alone still never passes a merge, and the check's verdict and report are unchanged. Before, `anchor.json` was never written in that state. The merge gate now reads the anchor with the job token in `BABYSIT_VERIFY_GH_TOKEN` when set, since the lane token it runs under holds no Actions permission.
+
 ## [6.2.0] - 2026-11-03
 
 ### Added
