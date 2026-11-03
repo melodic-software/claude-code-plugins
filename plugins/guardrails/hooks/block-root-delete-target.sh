@@ -1755,22 +1755,26 @@ rdt_bare_var() {
 
 # rdt_name_set <NAME> <depth>: true when the command sets NAME to a value with
 # no blank: every assignment a literal, or built only from names that pass this
-# same test, or a `for NAME in` list. A substitution's value is unknown and so
-# fails, and so does anything that can hide a blank from this reading: an escape,
-# a value that goes on into a quote, a `+=`, or a quote in a `for` list.
+# same test, and every `for NAME in` list unquoted. A substitution's value is
+# unknown and so fails, and so does anything that can hide a blank from this
+# reading: an escape, a value that goes on into a quote, a `+=`, a quote or escape
+# in a `for` list, a builtin that sets the name, an IFS change, or `eval`/`source`.
 # Past the call budget it fails too, so a refusal, not a hook timeout, ends a
 # chain built to run long. Read from the text, so a false pass only returns to
 # allowing the operand.
 RDT_NAME_SET_CALLS=0
 RDT_NAME_SET_MAX=256
+RDT_NAME_SET_FORBID_RE='(^|[^A-Za-z0-9_])IFS\+?=|(^|[;&|({'$'\n'']|(^|[[:space:]])(then|else|do|if|while|until|time|command|builtin|!))[[:space:]]*(eval|source)[[:space:]]|(^|[;&|({'$'\n''])[[:space:]]*\.[[:space:]]'
 # shellcheck disable=SC2016,SC2329  # literal `$` patterns; called from rdt_led_by_unbound
 rdt_name_set() {
   local n="$1" t="$COMMAND" v found=0 grounded=0 self_ref re ref
   local re_ref='\$\{?([A-Za-z_][A-Za-z0-9_]*)'
   RDT_NAME_SET_CALLS=$((RDT_NAME_SET_CALLS + 1))
   ((RDT_NAME_SET_CALLS > RDT_NAME_SET_MAX || $2 > 4)) && return 1
-  re="(^|[^A-Za-z0-9_])${n}\\+="
+  re="(^|[^A-Za-z0-9_])${n}\\+=|\\$\\{${n}:?=|(^|[^A-Za-z0-9_])(read|mapfile|readarray|getopts|select|printf[[:space:]]+-v|wait[[:space:]]+-p|(declare|typeset|local)[[:space:]]+-[A-Za-z]*n[A-Za-z]*)[[:space:]]([^;&|"$'\n'"]*[[:space:]])?${n}([^A-Za-z0-9_]|$)"
   [[ "$t" =~ $re ]] && return 1
+  # Another word-split separator, or a command that can set any name out of sight.
+  [[ "$t" =~ $RDT_NAME_SET_FORBID_RE ]] && return 1
   # A leading quote is the opening of a `bash -c '...'` program.
   re="(^|[[:space:];&|(\"'])${n}=(\"[^\"]*\"|'[^']*'|[^[:space:];&|)\"']*)"
   while [[ "$t" =~ $re ]]; do
@@ -1778,7 +1782,7 @@ rdt_name_set() {
     t="${t#*"${BASH_REMATCH[0]}"}"
     found=1
     [[ -z "$t" || "$t" == [[:space:]\;\&\|\)]* ]] || return 1
-    [[ "$v" == *'$('* || "$v" == *'`'* || "$v" == *\\* ]] && return 1
+    [[ "$v" == *'('* || "$v" == *'`'* || "$v" == *\\* ]] && return 1
     [[ "$v" == [\"\']* ]] && v="${v:1:${#v}-2}"
     [[ "$v" == *[[:space:]]* ]] && return 1
     self_ref=0
@@ -1795,11 +1799,19 @@ rdt_name_set() {
     [[ "$v" == *\$* ]] && return 1
     ((self_ref)) || grounded=1
   done
-  # `S=$S/a` alone only appends to the value S came in with.
-  ((found)) && return $((1 - grounded))
-  re="(^|[[:space:];&|(\"'])for[[:space:]]+${n}[[:space:]]+in[[:space:]]+([^;"$'\n'"]*)"
-  # An unquoted item splits before the loop binds it, so only a quote keeps a blank.
-  [[ "$COMMAND" =~ $re ]] && [[ "${BASH_REMATCH[2]}" != *[\`\"\']* && "${BASH_REMATCH[2]}" != *'$('* ]]
+  # An unquoted item splits before the loop binds it, so only a quote or an escape
+  # keeps a blank. A `for NAME` with no list loops over the positionals.
+  t="$COMMAND"
+  re="(^|[[:space:];&|(\"'])for[[:space:]]+${n}([^A-Za-z0-9_][[:space:]]*(in[[:space:]]+[^;"$'\n'"]*)?|$)"
+  while [[ "$t" =~ $re ]]; do
+    v="${BASH_REMATCH[3]}"
+    t="${t#*"${BASH_REMATCH[0]}"}"
+    [[ -n "$v" && "$v" != *[\`\"\'\\]* && "$v" != *'$('* ]] || return 1
+    grounded=1
+  done
+  # `S=$S/a` alone only appends to the value S came in with; a name set by nothing
+  # read here holds a value from outside.
+  ((grounded))
 }
 
 # rdt_led_by_unbound <operand>: true when the operand opens with an expansion
