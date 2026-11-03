@@ -7744,8 +7744,9 @@ test("every caller of a reusable holding model legs passes the transcript key", 
 // request-lane-token's kill-switch-ok ends a kill-switch refusal green with no
 // token, so nothing after it may run on success() alone: every later step is
 // gated, a step that reads the token runs only when it is set, and a job that
-// needs the stopped job's success and reads none of its outputs also needs its
-// skip output empty (an output only a token step sets already stops it). A
+// needs the stopped job's success and reads none of its outputs also tests its
+// skip output for empty (an output only a token step sets already stops it);
+// it may also admit named skip reasons, never kill-switch. A
 // reusable workflow's caller job stands for its job, so the same holds for
 // the caller's dependents, through the skip output the workflow exposes.
 test("every kill-switch-ok caller runs no token step and no dependent job on a kill-switch stop", () => {
@@ -7758,6 +7759,7 @@ test("every kill-switch-ok caller runs no token step and no dependent job on a k
       if (cond.replaceAll(`needs.${id}.outputs.${skip} `, "").includes(`needs.${id}.outputs.`)) continue;
       assert.ok(skip, `${name}:${id} exposes the token step's skip-reason for ${otherId}`);
       assert.ok(cond.includes(`needs.${id}.outputs.${skip} == ''`), `${name}:${otherId} skips on ${id}'s ${skip}`);
+      assert.ok(!cond.includes(`needs.${id}.outputs.${skip} == 'kill-switch'`), `${name}:${otherId} never runs on ${id}'s kill-switch`);
     }
   };
   const names = readdirSync(new URL("../../workflows/", import.meta.url)).filter((f) => /\.ya?ml$/.test(f));
@@ -7833,6 +7835,7 @@ test("every kill-switch-ok caller runs no token step and no dependent job on a k
     "pr-unblock.yml:apply-patch-rung-up -> pr-run-activity-write.yml",
     "pr-unblock.yml:apply-shared-copies -> pr-run-activity-write.yml",
     "pr-unblock.yml:publish-feedback -> pr-run-activity-write.yml",
+    "pr-unblock.yml:resolve-feedback-threads -> pr-run-activity-write.yml",
     "pr-unblock.yml:report-escalation -> pr-run-activity-write.yml",
     "work-resolve-issue.yml:apply-issue-patch -> pr-run-activity-write.yml",
     "work-resolve-issue.yml:report-outcome -> pr-run-activity-write.yml",
@@ -8020,11 +8023,12 @@ test(`${READ}: a broker kill-switch stop runs no model, lease, comment or label,
 
 // The caller jobs with a write grant that still start on a read call's stop
 // are gated only on their own select job, never on the read call's outputs:
-// they started on the red broker-check before too. The two write-runner calls
-// mint with kill-switch-ok, so the switch still on stops them green at the
-// broker; fix-ci-unreported posts its check only on a call's broker allow.
+// they started on the red broker-check before too. The write-runner calls
+// (resolve-feedback-threads follows publish-feedback) mint with
+// kill-switch-ok, so the switch still on stops them green at the broker;
+// fix-ci-unreported posts its check only on a call's broker allow.
 const GATED_ON_SELECT = {
-  "pr-unblock.yml": ["publish-feedback", "apply-dependency-verdict", "fix-ci-unreported"],
+  "pr-unblock.yml": ["publish-feedback", "resolve-feedback-threads", "apply-dependency-verdict", "fix-ci-unreported"],
 };
 test(`every caller of ${READ} runs no model, write token, push, comment or label off a read call's kill-switch stop`, () => {
   const { state } = readRun(STOP, "7");
@@ -8436,4 +8440,68 @@ test("work-unblock.yml: a finished work-resolve-issue run in this repository swe
   assert.equal(resolves("issues", ""), false);
   assert.equal(resolves("issues", "true"), true);
   assert.equal(resolves("workflow_run", "", "false"), false, "the kill switch stops it");
+});
+
+// #12634: the resolve of answered bot threads on an owner PR runs in its own
+// write-runner job after publish-feedback, a script (no model step) whose
+// leaf sets checkout: base, so the job holding its contents: write checks out
+// only the trusted base, credentials not persisted, and never the PR head. It
+// takes no thread ids from another job: the script reads them from GitHub.
+// publish-feedback's job and grant stay as they were.
+test("pr-unblock.yml: resolve-feedback-threads is its own base-only script job after publish-feedback, which is unchanged", () => {
+  const { jobs } = workflow("pr-unblock.yml");
+  const job = jobs["resolve-feedback-threads"];
+  const publish = jobs["publish-feedback"];
+  const tokenPermissions = { contents: "read", "pull-requests": "read", checks: "write", issues: "write", "id-token": "write" };
+  assert.deepEqual(publish.permissions, tokenPermissions, "publish-feedback's job permissions are unchanged");
+  assert.equal(publish.with.activity, "publish-feedback");
+  assert.deepEqual(job.permissions, tokenPermissions, "the job token holds no write beyond publish-feedback's");
+  assert.equal(String(job.uses).split(" ")[0], "./.github/workflows/pr-run-activity-write.yml");
+  assert.equal(job.with.activity, "resolve-feedback-threads");
+  assert.equal(job.with["trusted-base"], "default-tip");
+  assert.deepEqual(job.concurrency, publish.concurrency);
+  assert.deepEqual([job.needs].flat(), ["address-feedback-select", "apply-feedback-patch", "publish-feedback"]);
+  // Only the trigger gate's heads cross from other jobs; no read-runner output.
+  const crossed = [...JSON.stringify(job.with).matchAll(/needs\.([\w-]+)\.outputs\.([\w-]+)/g)].map((m) => `${m[1]}.${m[2]}`);
+  assert.deepEqual(crossed.sort(), ["address-feedback-select.head-sha", "apply-feedback-patch.pushed-commit"]);
+  // It runs on an acted round and on the reply script's own stops, which may
+  // still have answered other threads; never on a kill-switch or gate skip.
+  const runs = (result, skip) =>
+    evaluate(job.if.replace("!cancelled() && ", ""), { "needs.publish-feedback.result": result, "needs.publish-feedback.outputs.skip-reason": skip });
+  for (const skip of ["", "lane-stopped", "awaiting-human", "finding-stands", "no-model-turn"]) {
+    assert.equal(runs("success", skip), true, `runs on skip ${JSON.stringify(skip)}`);
+    assert.equal(runs("failure", skip), false, `not on a failed publish-feedback, skip ${JSON.stringify(skip)}`);
+  }
+  for (const skip of ["kill-switch", "superseded-sha", "not-applicable", "pass-only", "disabled-by-config"]) {
+    assert.equal(runs("success", skip), false, `not on skip ${skip}`);
+  }
+
+  // The leaf: a script, mutate-branch, checkout base; publish-feedback keeps
+  // publish-artifact and the head checkout.
+  const config = parse(read("../../../docs/conventions/pr-pipeline.yaml"));
+  const leaf = config.activities["resolve-feedback-threads"];
+  assert.equal(leaf.script, ".github/scripts/pr-unblock/resolve-threads.mjs");
+  assert.equal(leaf.skill, undefined, "no model step");
+  assert.equal(leaf.effect, "mutate-branch");
+  assert.equal(leaf.checkout, "base");
+  assert.equal(config.activities["publish-feedback"].effect, "publish-artifact");
+  assert.equal(config.activities["publish-feedback"].checkout, undefined);
+  const grants = JSON.parse(read("./lane-grants.json"))["1277265216"].lanes["pr-unblock"];
+  assert.equal(grants["resolve-feedback-threads"], "mutate-branch");
+  assert.equal(grants["publish-feedback"], "publish-artifact");
+
+  // The write runner: checkout base skips the head checkout and its assert;
+  // the base checkout persists no credentials; a script runs no skill step.
+  const steps = workflow("pr-run-activity-write.yml").jobs.run.steps;
+  const step = (name) => steps.find((s) => s.name === name);
+  assert.equal(step("Check out the default branch tip").with["persist-credentials"], false);
+  const on = (name, checkout) =>
+    evaluate(step(name).if, { "steps.lane-token.outputs.token": "t", "steps.config.outputs.checkout": checkout });
+  for (const name of ["Check out the PR head", "Assert the head is the gated SHA"]) {
+    assert.equal(on(name, "base"), false, `${name} skips on checkout: base`);
+    assert.equal(on(name, "head"), true, `${name} runs on checkout: head`);
+    assert.equal(on(name, ""), true, `${name} runs for a skill`);
+  }
+  assert.match(String(steps.find((s) => s.id === "act-skill").if), /kind == 'skill'/);
+  assert.match(String(steps.find((s) => s.id === "act-script").if), /kind == 'script'/);
 });

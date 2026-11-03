@@ -83,7 +83,7 @@ const keyed = steps.slice(mint + 1)
   .filter((s) => /steps\.head-recheck\.outputs\.proceed/.test(String(s.if ?? "")) && !/steps\.lane-token\.outputs\.token != ''/.test(String(s.if ?? "")))
   .map((s) => s.name);
 say(keyed.length === 0, `no step after the mint keys on the head re-read instead of the token (${keyed.join(", ") || "none"})`);
-say(String(steps[checkout]?.if ?? "") === "steps.lane-token.outputs.token != ''", "the head checkout runs only with a minted token");
+say(String(steps[checkout]?.if ?? "") === "steps.lane-token.outputs.token != '' && steps.config.outputs.checkout != 'base'", "the head checkout runs only with a minted token, and never for a checkout: base script");
 const mintWith = byId("lane-token").with ?? {};
 say(mintWith["pr-workflow-change-ok"] === "${{ inputs.issue-number == '' && github.event_name == 'pull_request' }}" && mintWith["github-token"] === "${{ github.token }}"
   && mintWith["head-sha"] === "${{ steps.gate.outputs.head-sha }}",
