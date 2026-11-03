@@ -3,6 +3,14 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.2] - 2026-11-03
+
+### Changed
+
+- remove-comments: `report` mode's note names the form pull-request prep now runs unattended
+  without pre-approval, `report --pipeline --added-since <base>`, and `audit --added-since` no
+  longer claims prep runs it.
+
 ## [0.38.1] - 2026-11-03
 
 ### Changed

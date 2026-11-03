@@ -31,21 +31,29 @@ platform is not.
   `status=incomplete` means at least one scope could not be opened, so the counts beside it cover only
   what was read. Read the token before the counts; a finding count of zero under `status=incomplete`
   is the report saying it could not look, not that it looked and found nothing.
-- **The local file is not under the worktree you are standing in.** `settings.local.json` resolves
-  through worktrees to the main checkout, so a reader anchored on `git rev-parse --show-toplevel`
-  looks where the file is not and reports `absent`. Documented conditions keep it in the start
-  directory instead; `criteria.md` §Scopes owns them and their pointer. The reader resolves every one
-  and names which applied. A further case is not detectable and
-  is stated rather than guessed: the Agent SDK's `resolveSettings()` helper always reads the file from
-  the starting directory, which is a helper's behavior and not a property of a running session.
+- **The local file may not be in the directory you are standing in.** A reader anchored on the
+  directory it starts in, or on the root of the worktree it stands in, can look where
+  `settings.local.json` is not and report `absent`. The reader
+  resolves the file's location, names which condition applied, and states a case it cannot detect
+  rather than guessing; `criteria.md` §Scopes owns the conditions it resolves.
+  - **Pointer**: when checking where the file lives, fetch
+    [settings: where Claude Code keeps the local file in a git repository](https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository)
+    live. **As of**: 2026-11-03. **Recheck trigger**: that section changes where the file is kept,
+    or which conditions keep it elsewhere.
 - **An empty merge is not an empty machine.** The merge exits 2 when the input carries no scope
   records at all, so a reader that died cannot feed it a clean "nothing in effect"; if you build your
   own pipeline around these scripts, check the status rather than the output.
-- **Two live copies of `settings.local.json` are normal, not a bug.** When an older version's copy
-  sits in the start directory, the repository-root copy wins on a shared key but permission rules
-  from both stay in effect. Reporting only one of them under-reports what is live. The version
-  boundary and its dated record are in `criteria.md` §Scopes.
-- **A cloud session's user scope is not the operator's.** There, the operator's own user settings and
-  local file are not read at all and only server-managed settings arrive, so a `present` user record
-  describes the container. The run emits a note whenever `CLAUDE_CODE_REMOTE` says so; carry it into
-  the report rather than presenting the container's file as the operator's configuration.
+- **Two copies of `settings.local.json` can both be live, which is not a bug.** The reader reports
+  both copies, since reporting only one under-reports the rules in effect. The version boundary and
+  its dated record are in `criteria.md` §Scopes.
+  - **Pointer**: when deciding how the two copies combine, fetch
+    [settings: where Claude Code keeps the local file in a git repository](https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository)
+    live. **As of**: 2026-11-03. **Recheck trigger**: that section changes whether, or how, a second
+    copy of the file applies.
+- **A cloud session's user scope is not the operator's.** The run emits a note whenever
+  `CLAUDE_CODE_REMOTE` says it is in a cloud session; carry it into the report rather than presenting
+  the cloud container's user file as the operator's configuration.
+  - **Pointer**: when deciding which settings a cloud session reads, fetch
+    [settings: settings in cloud sessions](https://code.claude.com/docs/en/settings#settings-in-cloud-sessions)
+    live. **As of**: 2026-11-03. **Recheck trigger**: that section changes which settings files or
+    managed sources reach a cloud session.
