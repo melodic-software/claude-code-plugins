@@ -122,7 +122,7 @@ credentials, no repository content, no conversation text. This holds because of 
 it the request body is attacker-steerable.
 
 Locally, each step-1 call spools its response to one file in a directory made by `mktemp -d` (which
-honours `$TMPDIR`), reads it in bounded slices up to a fixed 256 KB total, and deletes the file and
+honors `$TMPDIR`), reads it in bounded slices up to a fixed 256 KB total, and deletes the file and
 the directory on every exit path. A read that
 stops before the end is reported as partial rather than passed off as the whole article. The redirect is unconditional rather
 than reserved for long articles, because an X Article is routinely shared as an ordinary `/status/`
