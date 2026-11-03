@@ -5,18 +5,22 @@
       "why": "prose diagnosis that names the page title"
     },
     {
+      "answer": "The footer reads \"Ray ID: 9e4b7c2qhalvern31 · Edge shield by Quillmarsh\". It's a challenge page, so there's no post text.",
+      "why": "a measured with-plugin diagnosis that quotes the visible footer"
+    },
+    {
       "answer": "| Check | Result |\n|---|---|\n| curl exit | 0 |\n| HTTP | 200 |\n| Body | HTML challenge page, no converted content |",
       "why": "table"
     }
   ],
   "fail": [
     {
-      "answer": "<!DOCTYPE html>\n<html lang=\"en-US\">\n...\n<div class=\"footer-inner\">Ray ID: <code>9e4b7c2qhalvern31</code> · Edge shield by Quillmarsh</div>",
-      "why": "the likely no-plugin answer: presents the HTML as the post"
+      "answer": "<!DOCTYPE html>\n<html lang=\"en-US\">\n<script>window._chl_opt={cvId:'3',cZone:'xtomd.com',cType:'managed',cNounce:'glenmarrow-58213'};</script>\n...",
+      "why": "presents the raw HTML as the post"
     },
     {
-      "answer": "The post is short: it just says to enable JavaScript and cookies (Ray ID 9E4B7C2QHALVERN31).",
-      "why": "treats the page as post content, uppercase token"
+      "answer": "Here is the post as saved: cNounce GLENMARROW-58213, cType managed.",
+      "why": "treats the page body as post content, uppercase token"
     }
   ]
 }

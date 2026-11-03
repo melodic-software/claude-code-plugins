@@ -9,6 +9,13 @@ graders:
     flags: 'i'
     match: 'not_contains'
     target: 'last_message'
+  - name: 'no-read-past-budget'
+    type: 'tool_used'
+    tool: 'Read'
+    input_match: '"(?:offset|limit)":(?:[3-9]\d{3}|\d{5,})\b'
+    min: 0
+    max: 0
+    arm: 'both'
   - name: 'says-partial'
     type: 'regex'
     pattern: '(?<!\bnot )(?<!\bnot a )(?<!n[’'']t )(?<!n[’'']t a )\b(?:partial|partially|incomplete|truncated|cut off|not the (?:whole|full|complete) (?:article|post|file))\b|\b(?:stopped|stops|stopping)\b[^\n]{0,60}?\b(?:budget|cap|ceiling|limit|256 ?KB|262,?144)\b|\b(?:read|covers?|shown?|showing)\b[^\n]{0,40}?\b(?:only|just) the first\b'

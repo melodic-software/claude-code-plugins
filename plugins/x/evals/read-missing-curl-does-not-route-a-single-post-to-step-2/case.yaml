@@ -19,6 +19,6 @@ graders:
     arm: 'both'
   - name: 'says-curl-missing'
     type: 'regex'
-    pattern: '\bcurl\b[^\n]{0,60}?(?<!\bnot )(?<!n[’'']t )\b(?:is (?:missing|absent|unavailable)|(?:is|was) (?:not|n[’'']t) (?:installed|available|found|on (?:the |your )?PATH)|not installed|not available|not found|command not found|unavailable|missing|exit(?:ed)?(?: with| code| status)? 127)\b|\b(?:no|without|missing|absent) (?:a |working )?`?curl\b'
+    pattern: '\bcurl\b[^\n]{0,60}?(?<!\bnot )(?<!n[’'']t )\b(?:is (?:missing|absent|unavailable)|(?:is|was)(?: not|n[’'']t) (?:installed|available|found|on (?:the |your )?PATH)|not installed|not available|not found|command not found|unavailable|missing|exit(?:ed)?(?: with| code| status)? 127)\b|\b(?:no|without|missing|absent) (?:a |working )?`?curl\b'
     flags: 'i'
     target: 'last_message'

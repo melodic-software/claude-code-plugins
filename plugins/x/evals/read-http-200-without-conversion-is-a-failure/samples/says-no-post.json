@@ -15,6 +15,14 @@
     {
       "answer": "The saved file is not the post; it is a browser check page with no Markdown.",
       "why": "browser check page"
+    },
+    {
+      "answer": "The saved file isn't the post: it's the HTML for a \"One moment, please\" page, so there is nothing to read.",
+      "why": "contraction isn't the post"
+    },
+    {
+      "answer": "That response wasn't a conversion.",
+      "why": "contraction wasn't a conversion"
     }
   ],
   "fail": [

@@ -15,6 +15,14 @@
     {
       "answer": "Without curl the post is unreadable here.",
       "why": "without curl"
+    },
+    {
+      "answer": "curl isn't installed here, so step 1 can't run and this single post can't be read.",
+      "why": "contraction isn't installed"
+    },
+    {
+      "answer": "curl wasn’t found on PATH (exit 127).",
+      "why": "curly-apostrophe contraction"
     }
   ],
   "fail": [
