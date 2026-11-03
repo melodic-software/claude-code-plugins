@@ -861,8 +861,32 @@ expect_both 'bare variable: ${X:-{a,b}}/* blocks' 2 --command 'rm -rf ${X:-{a,b}
 # A glob or dots after the expansion name nothing, so `"${X:-/}"*` with X unset
 # is `/*`. A remainder that names something goes on past the expansion.
 expect_both 'bare variable: "${X:?}"* allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf "${X:?}"*'
-expect_both 'bare variable: "$X"-build allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf "$X"-build'
-expect_both 'bare variable: "${X}"_old* allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf "${X}"_old*'
+expect_both 'bare variable: "$X"-build blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf "$X"-build'
+expect_both 'bare variable: "${X}"_old* blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf "${X}"_old*'
+# #11818: an operand that opens with a name the command never sets and goes on
+# past it, not fully quoted, splits on a blank in the value (`/ tmp` deletes `/`).
+expect_both 'unset suffixed: $S/x blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf $S/x'
+expect_both 'unset suffixed: ${S}/x blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf ${S}/x'
+expect_both 'unset suffixed: ${X}x blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf ${X}x'
+expect_both 'unset suffixed: $S"/x" blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf $S"/x"'
+expect_both 'unset suffixed: "$S"/x blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf "$S"/x'
+expect_both 'unset suffixed: find $S/x -delete blocks' 2 "${RDT_CWD[@]}" --command 'find $S/x -delete'
+expect_both 'unset suffixed: mv $S/x y blocks' 2 "${RDT_CWD[@]}" --command 'mv $S/x y'
+expect_both 'unset suffixed: xargs rm -rf $S/x blocks' 2 "${RDT_CWD[@]}" --command 'find build | xargs rm -rf $S/x'
+expect_both 'unset suffixed: a blank in the assigned value blocks' 2 "${RDT_CWD[@]}" --command 'S="/ tmp"; rm -rf $S/x'
+expect_both 'unset suffixed: a substitution value blocks' 2 "${RDT_CWD[@]}" --command 'S=$(mktemp -d); rm -rf $S/x'
+expect_both 'unset suffixed: a value built on an unset name blocks' 2 "${RDT_CWD[@]}" --command 'Q=$U/b; rm -rf $Q/c'
+expect_both 'unset suffixed: a loop over a substitution blocks' 2 "${RDT_CWD[@]}" --command 'for f in $(ls); do rm -rf $f/x; done'
+expect_both 'unset suffixed: "$S/x" allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf "$S/x"'
+expect_both 'unset suffixed: ${HOME}/x allowed' 0 --command 'rm -rf ${HOME}/x'
+expect_both 'unset suffixed: $TMPDIR/x allowed' 0 --command 'rm -rf $TMPDIR/x'
+expect_both 'unset suffixed: ${S:?}/x allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf ${S:?}/x'
+expect_both 'unset suffixed: "${S:?}"/x allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf "${S:?}"/x'
+expect_both 'unset suffixed: a name the resolver binds allowed' 0 "${RDT_CWD[@]}" --command 'S=/tmp/x; rm -rf $S/x'
+expect_both 'unset suffixed: a literal the resolver cannot bind allowed' 0 "${RDT_CWD[@]}" --command 'S=/tmp/x; echo "$(date)"; rm -rf $S/x'
+expect_both 'unset suffixed: a value built on a set name allowed' 0 "${RDT_CWD[@]}" --command 'P=/tmp/a; Q=$P/b; echo "$(date)"; rm -rf $Q/c'
+expect_both 'unset suffixed: a loop variable allowed' 0 "${RDT_CWD[@]}" --command 'for v in a b; do rm -rf $v/x; done'
+expect_both 'unset suffixed: a name set in a bash -c program allowed' 0 "${RDT_CWD[@]}" --command "bash -c 'S=/tmp/x; echo x; rm -rf \$S/y'"
 expect_both 'bare variable: "${X:?}/*" allowed' 0 --command 'rm -rf "${X:?}/*"'
 expect_both 'bare variable: "${X:?}/*" allowed with a cwd' 0 "${RDT_CWD[@]}" --command 'rm -rf "${X:?}/*"'
 expect_both 'bare variable: "$X/build" allowed with a cwd' 0 "${RDT_CWD[@]}" --command 'rm -rf "$X/build"'
@@ -1006,7 +1030,7 @@ expect_both 'brace: more than 64 expansions is refused' 2 "${RDT_CWD[@]}" \
   --command 'rm -rf {a,b}{c,d}{e,f}{g,h}{i,j}{k,l}{m,n}'
 expect_both 'brace: a partly quoted brace is refused' 2 "${RDT_CWD[@]}" --command 'rm -rf "a"{/,x}'
 expect_both 'brace: "$X"/{a,b} is refused as partly quoted' 2 "${RDT_CWD[@]}" --command 'rm -rf "$X"/{a,b}'
-expect_both 'brace: $X/{a,b} unquoted is left alone like $X/build' 0 "${RDT_CWD[@]}" --command 'rm -rf $X/{a,b}'
+expect_both 'brace: $X/{a,b} unquoted blocks like $X/build' 2 "${RDT_CWD[@]}" --command 'rm -rf $X/{a,b}'
 expect_both 'brace: inside a substitution blocks' 2 --command 'echo $(rm -rf {/,x})'
 guard_invoke "${RDT_CWD[@]}" --command 'rm -rf x{1..3}'
 assert_contains "the brace refusal names its form" "$GUARD_ERR" "brace expansion"
