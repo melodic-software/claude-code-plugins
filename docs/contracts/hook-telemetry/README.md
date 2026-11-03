@@ -39,10 +39,16 @@ The producer resolves it before dispatch:
   producer already resolves for `data.file` (falling back to `$CLAUDE_PROJECT_DIR`); skipped fail-open if
   neither anchor is available, since a drifted hook CWD would resolve it incorrectly.
 
-Relative is the portable, team-shared wiring form. Claude Code injects `settings.json` `env` values
-**literally**, with no `${VAR}` expansion (that is a `.mcp.json`-only feature), so a relative path committed in
-`settings.json` is the only clone-portable, worktree-safe way to wire a sink without a per-machine absolute
-path. To pass arguments, wrap the sink in a script: the value is exec'd as a single command.
+Relative is the portable, team-shared wiring form: commit a relative path in `settings.json`, so
+every clone and worktree wires the same sink with no per-machine absolute path. To pass arguments,
+wrap the sink in a script: the producer runs the value as a single command.
+
+- **Pointer**: when checking where Claude Code expands `${VAR}` references in configuration, fetch
+  [MCP § Environment variable expansion in `.mcp.json`](https://code.claude.com/docs/en/mcp#environment-variable-expansion-in-mcp-json)
+  live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: the docs start describing `${VAR}` expansion in `settings.json` `env`
+  values.
 
 ## The envelope (common fields)
 
@@ -69,9 +75,15 @@ They sit between `duration_ms` and `data`. A hierarchy, coarsest first:
 | Field | Source | Joins to |
 |-------|--------|----------|
 | `session_id` | payload `session_id` | The per-session event log and the per-session sink route. |
-| `prompt_id` | payload `prompt_id` (Claude Code v2.1.196+) | The `prompt.id` attribute on the session's real OpenTelemetry events: the documented join between a local envelope and the same turn's OTel stream. |
+| `prompt_id` | payload `prompt_id` | The same turn's OpenTelemetry events: this contract's key for joining a local envelope to the OTel stream. |
 | `tool_use_id` | payload `tool_use_id` on tool events | One tool call; finer than `prompt_id`. |
 | `agent_id` | payload `agent_id` inside a subagent | The subagent that ran the hook. |
+
+- **Pointer**: when joining `prompt_id` to OTel events, fetch
+  [monitoring § Event correlation attributes](https://code.claude.com/docs/en/monitoring-usage#event-correlation-attributes)
+  and [hooks § Common input fields](https://code.claude.com/docs/en/hooks#common-input-fields) live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: either section renames or drops the prompt id.
 
 The library reads the payload the producer buffered: `HOOK_TELEMETRY_PAYLOAD` when set, else the
 `INPUT` variable every fleet hook assigns from `hook::buffer_stdin`. A producer that buffers under
@@ -85,10 +97,15 @@ harness's own, not as tool-supplied input.
 
 **A key may be absent on a large payload.** Selecting by depth costs more than the emitter can spend
 on a payload carrying a whole file, so above 65536 bytes the library falls back to reading only the
-region ahead of the first nested container. `session_id` and `prompt_id` lead the documented payload
-and are unaffected; `tool_use_id` follows `tool_input` and is therefore omitted on a payload over
-that size. Absent still means absent, never guessed, and never a value from somewhere else.
+region ahead of the first nested container. A key the payload carries after its first nested
+container, such as one after `tool_input`, is omitted on a payload over that size. Absent still
+means absent, never guessed, and never a value from somewhere else.
 Tightening this without paying the cost is [#3784](https://github.com/melodic-software/claude-code-plugins/issues/3784).
+
+- **Pointer**: when checking which fields a hook payload carries, fetch
+  [hooks § Common input fields](https://code.claude.com/docs/en/hooks#common-input-fields) live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section adds, drops or moves a correlation key.
 
 Naming is snake_case throughout and aligns with Claude Code's own field names where the concept matches
 (`hook_event`), and deliberately diverges where it does not (`hook` ≠ `hook_name`, `duration_ms` ≠
