@@ -118,7 +118,8 @@ The ceiling for a per-batch formatter row is 1 s median per fire. Fences:
 /plugin install biome-format@melodic-software
 ```
 
-Then verify prerequisites with `/biome-format:setup check` or `/biome-format:check`.
+Then verify prerequisites with `/biome-format:setup check` or
+`node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`.
 
 ## Configuration
 

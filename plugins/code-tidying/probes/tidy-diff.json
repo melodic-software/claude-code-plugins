@@ -6,8 +6,8 @@
   "competitors": [
     "code-tidying:tidy",
     "code-tidying:batch-simplify",
-    "code-tidying:dissolve-comments",
     "code-tidying:audit-comment-residue",
+    "code-tidying:remove-comments",
     "code-tidying:audit-dead-code"
   ],
   "queries": [

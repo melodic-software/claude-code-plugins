@@ -31,7 +31,7 @@ run as SKILL.md states. Only the input surface differs, and the owner still conf
 understanding and the Brief in the terminal.
 
 `<plugin-root>` is the placeholder SKILL.md "Spoke paths" defines, and each `${user_config.KEY}`
-token below stands for the value SKILL.md's lane table or "Variables" shows. Every command is:
+token below stands for the value SKILL.md "Question lanes" or "Variables" shows. Every command is:
 
 ```bash
 bash '<plugin-root>/shared/share.sh' --dir '<data_dir>' <command>

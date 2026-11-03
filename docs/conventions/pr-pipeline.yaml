@@ -650,6 +650,18 @@ activities:
     # sub-issue never splits again, and the issue's body is never edited.
     # Admission waits on an issue while a sub-issue is open.
     inputs: [issue]
+  apply-changelog:
+    # Runs `/harness-ops:changelog apply --ci <release>` in the
+    # upstream-apply-changelog model job, which commits one local branch per
+    # owner plugin and writes ci-plan.json; apply-changelog-branches and
+    # publish-changelog-intake act on what it leaves. The job holds no write
+    # token, so no broker mint names it.
+    skill: harness-ops:changelog
+    args: apply --ci
+    effect: read
+    gating: advisory
+    # Reads the Claude Code changelog, written outside the org.
+    reads-untrusted: true
   apply-changelog-branches:
     # Recreates each changelog/<plugin>/v<release> branch the
     # upstream-apply-changelog model job's `/harness-ops:changelog apply --ci`
@@ -668,6 +680,25 @@ activities:
     # has none, and files each plan handoff whose key no issue carries. A script,
     # no model. .github/workflows/upstream-apply-changelog.yml runs it.
     script: .github/scripts/upstream-apply-changelog/upstream-apply-changelog.mjs
+    args: publish
+    effect: publish-artifact
+    gating: advisory
+    # Posts the plan's titles and bodies, which the model wrote.
+    reads-untrusted: true
+  apply-upkeep-branches:
+    # Recreates each chore/tidy-adhoc-<slug>-<date> branch the code-tidying upkeep
+    # model job committed, as one lanes App commit through the Git Data API. A
+    # script, no model. .github/workflows/maintenance-tidy-code-upkeep.yml runs it.
+    script: .github/scripts/maintenance-tidy-code-upkeep/batch.mjs
+    args: push
+    effect: mutate-branch
+    gating: advisory
+    # Reads the plan and the bundle the model wrote.
+    reads-untrusted: true
+  publish-upkeep-prs:
+    # Opens one pull request per pushed branch that has none; push applies upkeep_max_open. A script,
+    # no model. .github/workflows/maintenance-tidy-code-upkeep.yml runs it.
+    script: .github/scripts/maintenance-tidy-code-upkeep/batch.mjs
     args: publish
     effect: publish-artifact
     gating: advisory
@@ -761,16 +792,28 @@ lanes:
       - activity: apply-verdict
       - activity: apply-refinement
         needs: [apply-verdict]
-  # Started daily and by a listed human's dispatch naming one Claude Code
+  # Started every ten minutes and by a listed human's dispatch naming one Claude Code
   # release (.github/workflows/upstream-apply-changelog.yml). Push and pull request
   # open are separate jobs: the broker refuses contents and pull-requests
   # write in one mint.
   upstream-apply-changelog:
     stage: upstream
     slots:
+      - activity: apply-changelog
       - activity: apply-changelog-branches
+        needs: [apply-changelog]
       - activity: publish-changelog-intake
         needs: [apply-changelog-branches]
+  # Started daily and by a listed human's dispatch
+  # (.github/workflows/maintenance-tidy-code-upkeep.yml). Push and pull request
+  # open are separate jobs: the broker refuses contents and pull-requests write in
+  # one mint.
+  maintenance-tidy-code-upkeep:
+    stage: maintenance
+    slots:
+      - activity: apply-upkeep-branches
+      - activity: publish-upkeep-prs
+        needs: [apply-upkeep-branches]
 
 # The model, effort and turn budget of every model run (README.md, Models).
 # Aliases only, never full model IDs. A profile with no effort keeps its
@@ -844,6 +887,8 @@ models:
     summarize-reuse: summary
     # An issue's code change, on run-claude-cli, which needs a model alias.
     resolve-issue: code-fix
+    # A release's plugin edits, on run-claude-cli, as resolve-issue's.
+    apply-changelog: code-fix
     # pr-unblock's read-only judge of a finding address-feedback disputed: at
     # least the review lanes' model, so a weaker model never overrules the
     # reviewer.
@@ -1520,6 +1565,8 @@ merge:
       - glob: ".github/workflows/maintenance-audit-lane-runs.yml"
         class: gate
       - glob: ".github/workflows/maintenance-reconcile-lost-runs.yml"
+        class: gate
+      - glob: ".github/workflows/maintenance-tidy-code-upkeep.yml"
         class: gate
       - glob: ".github/workflows/post-merge-demotion-alert.yml"
         class: gate

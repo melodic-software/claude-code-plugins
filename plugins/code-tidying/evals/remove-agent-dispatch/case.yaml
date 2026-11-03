@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: remove-agent-dispatch
+description: With the Agent tool granted, an applying run hands the triage to code-tidying:comment-reviewer and leaves the code unchanged
+tags: [remove-comments, agent, necessary, invented]
+expected_outcome: The skill dispatches code-tidying:comment-reviewer through the Agent tool, the shebang and every code line stay, and the report covers the restating and commented-out comments.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-tidying:remove-comments necessary class-a.sh
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write, Agent]
+  max_turns: 80
+  timeout_seconds: 1200
+graders:
+  - name: agent-dispatched
+    type: tool_used
+    tool: Agent
+    input_match: 'comment-reviewer'
+    arm: both
+  - name: shebang-kept
+    type: regex
+    pattern: '^#!/usr/bin/env bash\n'
+    target: { source: file, path: class-a.sh }
+  - name: code-intact
+    type: regex
+    pattern: '^counter=0\ntotal=0\n\nfor value in "\$@"; do\n  total=\$\(\(total \+ value\)\)$[\s\S]*^  counter=\$\(\(counter \+ 1\)\)\ndone$[\s\S]*^echo "count=\$counter total=\$total"$'
+    flags: m
+    target: { source: file, path: class-a.sh }
+  - name: comments-reported
+    type: regex
+    pattern: 'increment counter|old_total'
+    target: last_message

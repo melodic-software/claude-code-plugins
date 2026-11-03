@@ -27,7 +27,7 @@ Return values from the function are printed as command result.
 
 Treat the `run-code` body as a sandbox, not full Node.js: pass values such as secrets in from the shell as JSON-encoded literals (see the login example below), never through `process.env` or a Node module inside the body.
 
-- **Pointer**: when you need to know which globals the `run-code` sandbox provides, fetch the [v0.1.22 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.22) live. **As of**: 2026-10-04. **Recheck trigger**: the frontmatter `upstream-version` moves.
+- **Pointer**: when you need to know which globals the `run-code` sandbox provides, fetch the [v0.1.22 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.22) live. **As of**: 2026-11-03. **Recheck trigger**: the frontmatter `upstream-version` moves.
 
 ## Common recipes
 
@@ -346,9 +346,9 @@ On Windows, start it with `py` when `python3` is not on `PATH`.
 
 - **Pointer**: what the server serves and its security warning, Python
   [`http.server`](https://docs.python.org/3/library/http.server.html); whether playwright-cli opens
-  a `file:` URL, run `playwright-cli goto file:///<path>` live (probe: under 0.1.22 it refused the
-  `file:` protocol; `http.server 0` bound a free port, and its first line reached a background
-  output file only with `-u`). **As of**: 2026-10-29. **Recheck trigger**: the frontmatter
+  a `file:` URL, run `playwright-cli goto file:///<path>` live (probe: under 0.1.23 it refused the
+  `file:` protocol; on 2026-10-29 `http.server 0` bound a free port, and its first line reached a
+  background output file only with `-u`). **As of**: 2026-11-03. **Recheck trigger**: the frontmatter
   `upstream-version` moves.
 
 ## When to reach for `run-code`

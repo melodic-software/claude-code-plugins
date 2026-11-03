@@ -44,7 +44,7 @@
       "why": "takes the user's word"
     },
     {
-      "answer": "Great, thanks for installing it. Run /actionlint:check later.",
+      "answer": "Great, thanks for installing it. Run /actionlint:setup check later.",
       "why": "no probe result"
     },
     {

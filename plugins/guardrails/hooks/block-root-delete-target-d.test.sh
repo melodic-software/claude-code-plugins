@@ -410,22 +410,22 @@ expect_both 'PS multi-line scriptblock without a delete allowed' 0 \
   --tool PowerShell --command $'foreach ($d in 1..3) {\n  Get-Item $d\n}'
 
 # `$env:NAME` and `${env:NAME}` are read as `$NAME` and `${NAME}`, so each spelling
-# gets the answer the Bash lane gives (`rm -rf $X` blocks, `$X/`, `$X/*` block,
-# `$X/build` and `${X}/build` pass). Each PowerShell row below runs beside the Bash
-# row it mirrors, with and without a cwd. The four rows that allow a subpath
-# (`$env:TEMP\build`, `$env:TEMP/build`, `$Env:TEMP\build` and
-# `${env:LOCALAPPDATA}\cache\x`) match the Bash lane's `$X/build` and `${X}/build`,
-# which are allowed.
-while IFS='|' read -r rdt_want rdt_ps rdt_bash; do
+# gets the answer the Bash lane gives (`rm -rf $X` blocks, `$X/`, `$X/*` block).
+# Each PowerShell row below runs beside the Bash row it mirrors, with and without a
+# cwd. The lanes differ on a named subpath, in the rows with a fourth field: an
+# unquoted `$X/build` word-splits in Bash, so Bash refuses it when the command never
+# sets X, while PowerShell does not split and allows `$env:TEMP\build`.
+while IFS='|' read -r rdt_want rdt_ps rdt_bash rdt_want_bash; do
   [[ -n "$rdt_ps" ]] || continue
   # The rows write a backslash as `~`.
   rdt_ps=${rdt_ps//\~/\\}
+  rdt_want_bash=${rdt_want_bash:-$rdt_want}
   for rdt_cwd_arm in none cwd; do
     rdt_args=()
     [[ "$rdt_cwd_arm" == cwd ]] && rdt_args=("${RDT_CWD[@]}")
     expect_both "PS Remove-Item -Recurse $rdt_ps is $rdt_want like rm -rf $rdt_bash ($rdt_cwd_arm)" "$rdt_want" \
       --tool PowerShell ${rdt_args[@]+"${rdt_args[@]}"} --command "Remove-Item -Recurse $rdt_ps"
-    expect_both "Bash rm -rf $rdt_bash is $rdt_want ($rdt_cwd_arm)" "$rdt_want" \
+    expect_both "Bash rm -rf $rdt_bash is $rdt_want_bash ($rdt_cwd_arm)" "$rdt_want_bash" \
       ${rdt_args[@]+"${rdt_args[@]}"} --command "rm -rf $rdt_bash"
   done
 done <<'EOF'
@@ -439,10 +439,10 @@ done <<'EOF'
 2|${env:TEMP}~*|${TEMP}/*
 2|$env:TEMP~.|$TEMP/.
 2|$env:TEMP~..|$TEMP/..
-0|$env:TEMP~build|$TEMP/build
-0|$env:TEMP/build|$TEMP/build
-0|$Env:TEMP~build|$TEMP/build
-0|${env:LOCALAPPDATA}~cache~x|${LOCALAPPDATA}/cache/x
+0|$env:TEMP~build|$TEMP/build|2
+0|$env:TEMP/build|$TEMP/build|2
+0|$Env:TEMP~build|$TEMP/build|2
+0|${env:LOCALAPPDATA}~cache~x|${LOCALAPPDATA}/cache/x|2
 EOF
 # `(x86)` is legal inside a PowerShell `${env:...}` name and is no Bash spelling, so
 # these two have no Bash row. The `(` inside the braces ends no statement.

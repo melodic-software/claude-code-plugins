@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [
+        ".work/reviews/main/20261103T034152Z-attribution.md"
+      ],
+      "why": "the producer's file name"
+    },
+    {
+      "answer": [
+        ".work/.gitignore",
+        ".work/attribution/audit-report.json",
+        ".work/reviews/main/20261103T034152Z-attribution.md"
+      ],
+      "why": "guard file and sidecar beside it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "report-only, nothing written"
+    },
+    {
+      "answer": [
+        ".work/attribution/audit-report.json"
+      ],
+      "why": "sidecar without the findings file"
+    },
+    {
+      "answer": [
+        "findings-attribution.md"
+      ],
+      "why": "outside the findings location"
+    }
+  ]
+}

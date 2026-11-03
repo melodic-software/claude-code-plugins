@@ -3,6 +3,22 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.5] - 2026-11-03
+
+### Fixed
+
+The update helper's `--apply` diff preview no longer shows `vendor/LICENSE` as wholly deleted. The upstream skill directory ships no LICENSE, so that hunk filled the 200-line preview and real changes never showed.
+
+## [0.16.4] - 2026-11-03
+
+### Changed
+
+- `/playwright:playwright` is synced to `@playwright/cli` 0.1.23. The command references now cover `tab-new --isolated-context`, `cookie-delete --domain` and `--path`, `console --all`, `requests --all`, `find --max-results`, negative `mousewheel` values and the `redactUrlParams` config setting. The tracing example opens the browser first, and the `--raw` guidance now says to pipe only from commands that return a value.
+
+### Fixed
+
+- The command reference and the orchestrator recipe named `playwright-cli network`, which the CLI rejects as an unknown command. They now use `requests`.
+
 ## [0.16.3] - 2026-11-02
 
 ### Changed

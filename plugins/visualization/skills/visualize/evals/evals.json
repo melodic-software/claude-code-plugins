@@ -17,7 +17,7 @@
     {
       "id": 2,
       "name": "tabular-content-stays-a-terminal-table",
-      "prompt": "visualize the comparison \u2014 option A is $5/mo, self-hosted, no SLA; option B is $20/mo, managed, 99.9% SLA; option C is $50/mo, managed, 99.99% SLA.",
+      "prompt": "visualize the comparison — option A is $5/mo, self-hosted, no SLA; option B is $20/mo, managed, 99.9% SLA; option C is $50/mo, managed, 99.99% SLA.",
       "expected_output": "Recognizes the content as tabular attribute-comparison, picks a markdown table as the form, and renders it inline in the terminal. It does NOT escalate a small comparison into a rich page or Artifact.",
       "files": [],
       "expectations": [
@@ -42,7 +42,7 @@
     {
       "id": 4,
       "name": "genuine-ambiguity-asks-one-recommended-question",
-      "prompt": "there's a lot going on in this thread \u2014 the module dependency graph, the rollout timeline, and the error-rate numbers. visualize it.",
+      "prompt": "there's a lot going on in this thread — the module dependency graph, the rollout timeline, and the error-rate numbers. visualize it.",
       "expected_output": "Detects genuine ambiguity (several equally plausible targets and no form named) and asks exactly ONE question offering the candidate targets, with a RECOMMENDED default listed first. It does not fan out multiple questions and does not silently pick one target without surfacing the choice.",
       "files": [],
       "expectations": [
@@ -54,20 +54,20 @@
     {
       "id": 5,
       "name": "surface-gate-degrades-visibly-not-silently",
-      "prompt": "render this state machine as a diagram I can actually look at \u2014 [in a context where the Artifact publishing surface is unavailable].",
+      "prompt": "render this state machine as a diagram I can actually look at — [in a context where the Artifact publishing surface is unavailable].",
       "expected_output": "Chooses a mermaid state diagram. Because a mermaid diagram renders natively only on a published Artifact, and that surface is unavailable, it either produces a local HTML file that embeds a mermaid renderer (a local file is not under the artifact CSP) or, if it cannot render mermaid on a reachable surface, emits the mermaid source fence in the terminal with a visible one-line notice that it is unrendered. It does NOT open a plain local page that shows the source instead of the promised picture, and the degradation is stated, never silent.",
       "files": [],
       "expectations": [
         "Selects a mermaid state diagram as the form",
         "Recognizes that a mermaid diagram renders natively only on a published Artifact; a local HTML file needs an embedded renderer",
-        "Degrades to a mermaid-capable surface or to a terminal source fence \u2014 never a plain local page that renders nothing",
-        "Surfaces the degradation with a visible notice \u2014 never a silent failure"
+        "Degrades to a mermaid-capable surface or to a terminal source fence — never a plain local page that renders nothing",
+        "Surfaces the degradation with a visible notice — never a silent failure"
       ]
     },
     {
       "id": 6,
       "name": "file-preference-never-publishes",
-      "prompt": "/visualize file \u2014 make a dashboard of the release metrics for this sensitive project.",
+      "prompt": "/visualize file — make a dashboard of the release metrics for this sensitive project.",
       "expected_output": "Honors the explicit `file` medium: renders the dashboard as a self-contained local HTML file on the machine and never publishes an Artifact, even if the Artifact surface is available. Reports the file path.",
       "files": [],
       "expectations": [
@@ -78,16 +78,16 @@
     },
     {
       "id": 7,
-      "name": "cascade-preference-resolves-with-provenance",
-      "prompt": "visualize the deploy pipeline we discussed as a diagram. (Fixture: the repo root contains .claude/rendered-views.md whose only content is 'medium: file'; no medium argument was given and the userConfig medium option is unset.)",
-      "expected_output": "With rung 1 (argument) and rung 2 (userConfig) unset, resolves the rendered-views cascade surface: reads the team layer .claude/rendered-views.md, takes medium: file, and delivers a self-contained local HTML file rather than publishing an Artifact. Names the layer that supplied the preference (the team layer) when reporting the choice. Does not treat the absent user-global and overlay layers as an error.",
+      "name": "team-preference-resolves-with-provenance",
+      "prompt": "visualize the deploy pipeline we discussed as a diagram. (Fixture: the repo root contains a tracked docs/conventions/rendered-views.yaml whose only content is 'medium: file'; no medium argument was given and the userConfig medium option is unset.)",
+      "expected_output": "Runs the shared medium resolver with the unset option. It reports `view: file (team)`: the team convention file decides `file`, so the skill delivers a self-contained local HTML file rather than publishing an Artifact, and prints the resolver's report line naming the team file as what decided it. Does not treat the absent personal override as an error.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Resolves the medium from the rendered-views cascade surface when argument and userConfig are both unset",
-        "Honors medium: file from the team layer (writes a local HTML page; does not publish an Artifact)",
-        "Reports which cascade layer supplied the value",
-        "Treats absent sibling layers as a valid state, not an error"
+        "Runs the shared medium resolver rather than reading the convention files itself",
+        "Honors medium: file from the team file (writes a local HTML page; does not publish an Artifact)",
+        "Prints the resolver's report line naming what decided the medium",
+        "Treats the absent personal override as a valid state, not an error"
       ]
     },
     {
@@ -160,29 +160,29 @@
     },
     {
       "id": 13,
-      "name": "default-auto-defers-to-user-global-cascade",
-      "prompt": "visualize the deploy pipeline we discussed as a diagram. (Fixture: ~/.claude/rendered-views.md contains only 'medium: file'; the repo has no rendered-views layer; no medium argument was given; the userConfig medium option was never set, so the plugin default `auto` is what Claude Code substitutes.)",
-      "expected_output": "Treats the substituted `auto` as unset, so the configured-preference rung defers. Resolves the rendered-views cascade, reads the user-global layer ~/.claude/rendered-views.md, takes medium: file, and delivers a self-contained local HTML file rather than deciding by content or publishing an Artifact. Names the user-global layer as the source. Does not report `auto` as an explicit choice that ends resolution.",
+      "name": "default-auto-defers-to-personal-override",
+      "prompt": "visualize the deploy pipeline we discussed as a diagram. (Fixture: the repo holds an untracked, gitignored docs/conventions/rendered-views.local.yaml containing only 'medium: file'; no team file; no medium argument was given; the userConfig medium option was never set, so the plugin default `auto` is what Claude Code substitutes.)",
+      "expected_output": "Passes the substituted `auto` to the resolver, which treats it as unset and reports `view: file (personal override)`. Delivers a self-contained local HTML file rather than deciding by content or publishing an Artifact, and names the personal override as the source. Does not report `auto` as an explicit choice that ends resolution.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Treats a userConfig medium of `auto` as unset and continues to the cascade rung",
-        "Reads the user-global layer and honors medium: file (writes a local HTML page; does not publish an Artifact)",
-        "Reports the user-global layer as the source of the value",
-        "Does not skip the cascade and decide the medium by content alone"
+        "Treats a userConfig medium of `auto` as unset rather than an explicit choice",
+        "Honors medium: file from the personal override (writes a local HTML page; does not publish an Artifact)",
+        "Reports the personal override as the source of the value",
+        "Does not skip the resolver and decide the medium by content alone"
       ]
     },
     {
       "id": 14,
-      "name": "explicit-user-config-overrides-cascade",
-      "prompt": "visualize the deploy pipeline we discussed as a diagram. (Fixture: ~/.claude/rendered-views.md contains only 'medium: file'; no medium argument was given; the userConfig medium option is set to `terminal`.)",
-      "expected_output": "The explicitly set userConfig medium `terminal` wins over the cascade value `file`: resolution stops at the configured-preference rung, so the diagram is delivered inline in the terminal (a mermaid source fence or text rendering) and no local HTML file is written. It does not read the cascade to override the configured value, and says the terminal choice came from the configured preference.",
+      "name": "local-team-value-overrides-publishing-option",
+      "prompt": "visualize the deploy pipeline we discussed as a diagram. (Fixture: the repo root contains a tracked docs/conventions/rendered-views.yaml containing only 'medium: file'; no medium argument was given; the userConfig medium option is set to `artifact`.)",
+      "expected_output": "The resolver reports `view: file (team)`: a local value from any setting keeps the view local, so the team file's `file` wins over the configured `artifact`. The diagram is delivered as a self-contained local HTML file and no Artifact is published, and the skill says the choice came from the team file.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Honors the explicitly set userConfig medium `terminal` over the cascade's `file`",
-        "Delivers inline in the terminal and writes no local HTML file and no Artifact",
-        "Reports the configured preference, not the cascade layer, as the source of the choice"
+        "Keeps the view local: honors the team file's `file` over the configured `artifact`",
+        "Writes a local HTML page and publishes no Artifact",
+        "Reports the team file, not the configured option, as the source of the choice"
       ]
     },
     {

@@ -389,6 +389,11 @@ on:
           check, and the next call runs the activity.
         value: ${{ jobs.run.outputs.handed-off }}
       # Set by broker-check, which runs no model, so a caller may act on them.
+      skip-reason:
+        description: >-
+          `kill-switch` when the broker refused the check because a lanes kill
+          switch is on, so no lane ran; empty otherwise.
+        value: ${{ jobs.broker-check.outputs.skip-reason }}
       lease:
         description: >-
           Issue mode: `held` when broker-check posted this call's lane lease,
@@ -410,8 +415,11 @@ jobs:
   # (scripts/check-read-caller-keys.sh). It runs only default-branch-tip code
   # and never checks out the PR head. A local kill-switch stop skips the broker
   # call and ends green, so the run job's own kill-switch step stops the lane
-  # neutral; any broker answer but an allow, or none, fails this job, which
-  # skips the run job and fails the check. issues: write is for the issue
+  # neutral. A broker kill-switch refusal (a switch turned on after this run
+  # read its variables) also ends green, with skip-reason kill-switch, which
+  # skips the run job and every job after it but report, which posts the
+  # check neutral on a pull_request run. Any other broker answer but an allow, or none, fails this
+  # job, which skips the run job and fails the check. issues: write is for the issue
   # lease alone, posted before any model turn (CONTRACT.md "Lease protocol").
   broker-check:
     if: >-
@@ -426,7 +434,8 @@ jobs:
     # "Re-run failed jobs" reuses a successful broker-check and its outputs,
     # so the run job also checks that the allow came from its own attempt.
     outputs:
-      allowed: ${{ steps.broker.outcome == 'success' }}
+      allowed: ${{ steps.broker.outcome == 'success' && steps.broker.outputs.allowed == 'true' }}
+      skip-reason: ${{ steps.broker.outputs.skip-reason }}
       attempt: ${{ github.run_attempt }}
       lease: ${{ steps.lease.outputs.lease }}
       lease-comment-id: ${{ steps.lease.outputs.lease-comment-id }}
@@ -474,6 +483,7 @@ jobs:
           audience: ${{ vars.LANES_BROKER_AUDIENCE }}
           lane: ${{ inputs.lane }}
           activity: ${{ inputs.activity }}
+          kill-switch-ok: true
 
       # Issue mode, after the broker's allow and before any model turn: claim
       # the issue with a lease comment only, held by the lanes App identity,
@@ -486,7 +496,7 @@ jobs:
       # it early.
       - name: Claim the issue with a lane lease
         id: lease
-        if: inputs.issue-number != '' && steps.broker.outcome == 'success'
+        if: inputs.issue-number != '' && steps.broker.outcome == 'success' && steps.broker.outputs.allowed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -551,10 +561,12 @@ jobs:
 
   run:
     needs: broker-check
-    # The lanes App's own pull_request events never start a lane.
+    # The lanes App's own pull_request events never start a lane, and nor does
+    # a broker kill-switch refusal.
     if: >-
       !(github.event_name == 'pull_request'
       && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID)
+      && needs.broker-check.outputs.skip-reason == ''
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ inputs.timeout-minutes }}
     cache-mode: read
@@ -2744,7 +2756,9 @@ jobs:
       # step naming the pattern, never the value, and says to rotate it; a
       # patch that does not apply, or a scan that does not finish (the
       # timeout included), fails it with no rotation; every upload and
-      # summary after it needs clean == 'true'. Those two faults find no
+      # summary after it needs clean == 'true'. A pattern block writes only
+      # the rule, the scanned file name or a fixed placeholder, and the line
+      # number to this step's summary, never any of the match. Those two faults find no
       # credential, so they set refused=fault, which retries, once the patch's
       # text was judged with no binary hunk's bytes unread, or when the run
       # left no patch; any other fault holds, and a timeout sets no output, so
@@ -2807,7 +2821,7 @@ jobs:
               const specifiers = [...source.matchAll(/\bfrom\s*['"]([^'"]+)['"]|^\s*import\s*['"]([^'"]+)['"]|\bimport\s*\(\s*['"]?([^'")]*)/gm)].map((match) => match[1] ?? match[2] ?? match[3]);
               if (specifiers.some((name) => !name.startsWith('node:'))) throw new Error('the gate imports more than node builtins');
               fs.writeFileSync(path.join(scratch, 'publish-gate.mjs'), source);
-              const { WARN_ONLY, scanLeak, changedBytes } = await import(pathToFileURL(path.join(scratch, 'publish-gate.mjs')).href);
+              const { WARN_ONLY, scanLeak, changedBytes, hitFingerprint } = await import(pathToFileURL(path.join(scratch, 'publish-gate.mjs')).href);
               // git with no global or system config, in a fresh bare repository
               // that borrows at most the checkout's objects and nothing else
               // from its .git (collect-patch.sh runs the same way).
@@ -2878,12 +2892,20 @@ jobs:
               // credential format blocks and asks for rotation; the one broad
               // label only warns, on a plain line. Each source has a kind,
               // which names no model-chosen text.
+              // A block keeps its fingerprint (hitFingerprint: rule, file,
+              // line, none of the match) for the summary;
+              // a gate without it, or a throw in it, keeps none.
               const warned = new Set();
+              const files = new Map([[reply, 'reply.txt'], [turns, 'act-turns.json'], [patch, 'patch.diff'], [replies, 'replies.jsonl'], [verdict, 'dependency-verdict.json'], [outcome, 'work-outcome.json'], [lane, 'lane.json']]);
               const judge = (kind, bytes, diff = false) => {
                 if (hit || !bytes) return;
                 const { block, credential: format, warn } = scanLeak(bytes, { diff });
-                if (block) hit = { label: block, credential: format };
-                else if (warn) warned.add(kind);
+                if (block) {
+                  hit = { label: block, credential: format };
+                  try {
+                    if (typeof hitFingerprint === 'function') hit.fingerprint = hitFingerprint(bytes, block, files.get(bytes) ?? 'a file the patch makes', { diff });
+                  } catch {}
+                } else if (warn) warned.add(kind);
               };
               judge('the reply', reply);
               judge('the reply', turns);
@@ -2933,7 +2955,12 @@ jobs:
             core.setOutput('clean', hit ? 'false' : 'true');
             if (hit) {
               if (hit.fault && !binary && (judged || !read(PATCH_FILE))) core.setOutput('refused', 'fault');
-              core.setFailed(`leak-scan: ${hit.label}; nothing is uploaded or summarized${hit.credential ? '\nrotate this credential' : ''}`);
+              if (hit.fingerprint && process.env.GITHUB_STEP_SUMMARY) {
+                try {
+                  fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### leak-scan blocked the outputs\n\n${hit.fingerprint}\n`);
+                } catch {}
+              }
+              core.setFailed(`leak-scan: ${hit.label}; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match${hit.credential ? '\nrotate this credential' : ''}`);
             }
 
       # After the scan: model text and run fields, as data, from the scan's
@@ -3585,6 +3612,7 @@ jobs:
           API_HEAD: ${{ steps.pr-head.outputs.sha }}
           PR_MISMATCH: ${{ steps.pr-head.outputs.pr-mismatch }}
           TRUSTED_SKIP: ${{ needs.broker-check.outputs.allowed != 'true' }}
+          BROKER_STOP: ${{ needs.broker-check.outputs.skip-reason == 'kill-switch' }}
           POST_DECLINE: ${{ inputs.post-decline }}
         run: |
           out() { printf 'post=true\nsha=%s\nforged=%s\n' "$1" "$2" >>"$GITHUB_OUTPUT"; }
@@ -3594,6 +3622,8 @@ jobs:
             valid "$gated" || gated=$EVENT_HEAD
             if [ "$TRUSTED_SKIP" = true ] || [ "$POST_DECLINE" = false ] || ! valid "$gated"; then
               out "" false
+              # The broker's kill-switch refusal skipped the run job: neutral.
+              if [ "$BROKER_STOP" = true ]; then echo "not-run-reason=kill-switch" >>"$GITHUB_OUTPUT"; fi
             else
               out "$gated" false
               echo "not-run-reason=not-assessed" >>"$GITHUB_OUTPUT"
@@ -3717,9 +3747,10 @@ jobs:
       # One comment per lane run on the PR (lane-run-report/post.mjs), found
       # by a marker naming the activity, run id, model rung and leg, so a
       # re-run edits it. A checked-out base without the script, or a failed
-      # post, warns and leaves the job green.
+      # post, warns and leaves the job green. A broker kill-switch refusal ran
+      # no lane, so it posts none.
       - name: Post the lane run report comment
-        if: always()
+        if: always() && needs.broker-check.outputs.skip-reason != 'kill-switch'
         continue-on-error: true
         env:
           LANE: ${{ inputs.lane }}

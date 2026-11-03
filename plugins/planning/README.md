@@ -144,7 +144,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `surface` | string | `"terminal"` | `CLAUDE_PLUGIN_OPTION_SURFACE` | Where /planning:interview renders its question rounds: terminal (default, inline in the conversation) or page (a local 127.0.0.1 page the session watches, where each question is answered and every save reaches the session). Applies only to /planning:interview. |
+| `surface` | string | `"terminal"` | `CLAUDE_PLUGIN_OPTION_SURFACE` | Where /planning:interview asks its rounds: terminal (default, inline) or page (a local 127.0.0.1 page the session watches). Unset: terminal, and the interview names the other available surfaces in one line. |
 | `question_pacing` | string | `"round"` | `CLAUDE_PLUGIN_OPTION_QUESTION_PACING` | How /planning:interview asks a frontier: round (default, every ready question in one message) or single (one per message, largest blast radius first). Asking for the other pacing in a session overrides it there; a repository's planning.yaml in its convention home overrides this value. |
 | `use_ask_user_question` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_USE_ASK_USER_QUESTION` | When enabled, the planning skills' question rounds (interview, prd, design, plan) render a round of independent questions that fits one AskUserQuestion call instead of inline prose. Default: inline prose (dictation-friendly). |
 | `use_emoji_question_markers` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_USE_EMOJI_QUESTION_MARKERS` | When on, each interview round question leads with a ❓ anchor on its Q<N> line and its My recommendation line leads with ➡️, in the terminal and on the page surface. Purely presentational: persisted artifacts never carry the emoji. Default: plain text. |
@@ -157,6 +157,7 @@ reads it from.
 | `phase_order` | string | `"composed"` | `CLAUDE_PLUGIN_OPTION_PHASE_ORDER` | How /planning:plan orders phases: composed (default: dead-code removal, integration slice, riskiest unknown, scaffold, features), subtraction-first (removal, scaffold, features) or riskiest-first. A repository's docs/conventions/planning.yaml phase_order key overrides this value. |
 | `scaffold_stubs` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_SCAFFOLD_STUBS` | When on, /planning:design hands off the stub files and signatures a change needs, and /planning:plan puts one stub phase right after dead-code removal (first when there is none). Default: off. A repository's docs/conventions/planning.yaml scaffold_stubs key overrides this value. |
 | `time_units` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TIME_UNITS` | When on, the planning skills may state an estimate or budget of work in hours, days or weeks; when off they use the work_size levels instead. Practice cadence and measurement windows are not affected. Default: off. A repository's docs/conventions/planning.yaml time_units key overrides this value. |
+| `medium` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_MEDIUM` | Where the planning views go (plan, brainstorm, design, PRD, the interview's decision table). auto (default): a local file; terminal: no page; file: a local file; artifact: a private Artifact; hosted is read as artifact. A team rendered-views file never publishes. |
 
 ### How to set these
 

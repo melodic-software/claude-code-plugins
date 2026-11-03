@@ -1,0 +1,41 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "git --no-optional-locks status --porcelain -- src/exporters/yaml_out.py" } },
+        { "tool": "Bash", "input": { "command": "git log --oneline -1 --diff-filter=D -- src/exporters/yaml_out.py" } }
+      ],
+      "why": "the two probes alone are not an investigation"
+    },
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "git show HEAD:src/exporters/xml_out.py" } }
+      ],
+      "why": "investigates the working-tree removal, not yaml_out"
+    },
+    {
+      "answer": [],
+      "why": "no call at all"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "git show HEAD:src/exporters/yaml_out.py" } }
+      ],
+      "why": "reads a committed version before asking"
+    },
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "git log -p -- src/exporters/yaml_out.py" } }
+      ],
+      "why": "reads the file's history as a patch before asking"
+    },
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "git diff HEAD~1 -- src/exporters/yaml_out.py" } }
+      ],
+      "why": "diffs the file before asking"
+    }
+  ]
+}

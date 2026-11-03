@@ -1770,7 +1770,7 @@ test("a kill-switch re-run shares the cap of 3, and one re-run since the listing
 
 test("ci-status's lanes-hold step still fails a lanes App PR with the kill-switch note the reconciler matches", () => {
   const workflow = readFileSync(new URL("../../workflows/pr-require-checks.yml", import.meta.url), "utf8");
-  const step = /- name: Fail a lanes App pull request its body or a member holds\n(?:(?:[ ]{8,}.*)?\n)+/.exec(workflow)?.[0] ?? "";
+  const step = /- name: Fail a lanes App pull request on kill switch, hold path, verifier or veto\n(?:(?:[ ]{8,}.*)?\n)+/.exec(workflow)?.[0] ?? "";
   assert.match(step, /LANES_DISABLED: \$\{\{ vars\.CLAUDE_LANES_DISABLED \}\}/);
   // The step prints merge-holds.mjs switchHold's reason as its error.
   assert.match(step, /const \{ switchHold \} = await import\(/);

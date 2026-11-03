@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # added-lines.sh: list the line ranges a branch adds, for the `--added-since <base>`
-# scope of audit-comment-residue and dissolve-comments. Read-only.
+# scope of remove-comments and its audit action. Read-only.
 #
 # Usage: added-lines.sh <base>
 #
