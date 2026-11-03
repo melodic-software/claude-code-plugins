@@ -139,8 +139,9 @@ jobs:
       || contains(fromJSON('["failure", "timed_out", "startup_failure", "cancelled"]'), github.event.workflow_run.conclusion)
       || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.run_attempt >= 2)))
     runs-on: ubuntu-24.04
-    # Up to 20 minutes waiting on the re-run, 40 for a dispatched run.
-    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && 50 || 30 }}
+    # Up to 20 minutes waiting on the re-run; for a dispatched run,
+    # red-main.confirm-wait-minutes, at most 60.
+    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && 70 || 30 }}
     permissions:
       issues: write # file the demotion issue or comment on it
       actions: write # re-run a red full run's failed jobs; read jobs and runs
@@ -403,7 +404,7 @@ jobs:
             # A bot-started run sent by workflow_dispatch starts no re-run
             # here either: pr-merge re-runs it inside a lane merge's
             # attribution window or when it demotes, so the wait for a
-            # re-run is red-main.confirm-wait-minutes (40), as the report
+            # re-run is red-main.confirm-wait-minutes (55), as the report
             # job's.
             # A dispatched red files nothing, and the report job skips it,
             # once a newer full run on this repository's main has passed: main
@@ -422,7 +423,13 @@ jobs:
             if [[ "$RUN_ATTEMPT" -eq 1 && ("$RUN_TRIGGERING_ACTOR" != 'github-actions[bot]' || "$EVENT_NAME" == workflow_dispatch) ]]; then
               polls=20
               if [[ "$RUN_TRIGGERING_ACTOR" == 'github-actions[bot]' ]]; then
-                polls=40
+                # red-main.confirm-wait-minutes from main's checkout, as the
+                # report job waits; at most 60, which the job timeout covers,
+                # and 40 when it does not read.
+                polls="$(sed -n '/^red-main:/,/^[^[:space:]#]/ s/^  confirm-wait-minutes: \([0-9]*\).*/\1/p' \
+                  .base/docs/conventions/pr-pipeline.yaml 2>/dev/null | head -n 1)" || polls=''
+                [[ "$polls" =~ ^[1-9][0-9]*$ ]] || polls=40
+                ((polls <= 60)) || polls=60
               elif ! gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/rerun-failed-jobs" >/dev/null; then
                 echo "::warning::could not re-run $RUN_URL; waiting for any re-run already started"
               fi
@@ -1210,8 +1217,8 @@ jobs:
       && needs.alert.outputs.excused != 'true'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
     runs-on: ubuntu-24.04
-    # Up to red-main.confirm-wait-minutes (at most 45) waiting on the re-run.
-    timeout-minutes: 60
+    # Up to red-main.confirm-wait-minutes (at most 60) waiting on the re-run.
+    timeout-minutes: 75
     permissions:
       actions: read # read runs, attempts and jobs
       checks: read # read the hygiene aggregator's annotations

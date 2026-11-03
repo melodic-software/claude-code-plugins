@@ -3,6 +3,12 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.0] - 2026-11-03
+
+### Removed
+
+- `/rate-limit-guard:check` is gone, with its probe file. To check this plugin's prerequisites, run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`, the command the hook notices already print. The mods probe moved to `scripts/check-mod-load.sh`, which reports the mods floor and how to read this session's state.
+
 ## [2.1.13] - 2026-11-02
 
 ### Changed

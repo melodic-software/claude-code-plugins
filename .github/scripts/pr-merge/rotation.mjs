@@ -10,8 +10,8 @@
 // read limit (merge.gate-candidate-minutes) stopped a candidate. A deferred
 // candidate is gated first, marked `deferred` so its gate runs under the
 // longer merge.gate-deferred-minutes: one that always passes the limit still
-// gets a longer gate the next run. Only a scheduled or hand-started run of
-// pr-merge.yml on main counts; a pull_request_target run runs the PR base
+// gets a longer gate the next run. Only a scheduled or hand-started sweep of
+// pr-merge.yml on main counts (trustedRun); a pull_request_target run runs the PR base
 // branch's copy, so its cursor is not read. The newest such run holding a
 // cursor wins, found from the workflow's own run list, never the repository's
 // artifact list. The cursor sets only the order, never a verdict. Any failure
@@ -50,12 +50,17 @@ export function rotate(candidates, last) {
   return start <= 0 ? sorted : [...sorted.slice(start), ...sorted.slice(0, start)];
 }
 
+// The run name pr-merge.yml gives a PR-scoped dispatch (`run-name`, from
+// inputs.pr); the capture is the input as given.
+export const WAKE_TITLE = /^pr-merge: arm #(.*)$/s;
+
 // A scheduled or hand-started run of main's copy of pr-merge.yml, or of the
-// workflow at `path`.
+// workflow at `path`. A PR-scoped dispatch (WAKE_TITLE) reads and arms one
+// pull request, so its kept files do not stand for a sweep's.
 export function trustedRun(run, path = WORKFLOW_PATH) {
   return (
     run?.path === path &&
-    (run.event === "schedule" || run.event === "workflow_dispatch") &&
+    (run.event === "schedule" || (run.event === "workflow_dispatch" && !WAKE_TITLE.test(String(run.display_title ?? "")))) &&
     run.head_branch === "main"
   );
 }

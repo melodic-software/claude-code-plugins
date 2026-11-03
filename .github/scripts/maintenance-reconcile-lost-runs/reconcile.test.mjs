@@ -543,7 +543,9 @@ test("at most 3 verify runs are recorded and re-run in one run", async () => {
 const verifyLegs = (file = "pr-verify.yml") => {
   const workflow = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
   const jobs = workflow.slice(workflow.search(/^jobs:$/m));
-  return [...jobs.matchAll(/^ {2}([a-z][a-z0-9-]*):\n((?: {4,}.*\n|\s*\n)+)/gm)].map(([, name, body]) => ({ name, body }));
+  // pr-verify's wake-pr-merge job judges nothing: it only starts pr-merge
+  // after the legs, and never fails the run (its one step continues on error).
+  return [...jobs.matchAll(/^ {2}([a-z][a-z0-9-]*):\n((?: {4,}.*\n|\s*\n)+)/gm)].map(([, name, body]) => ({ name, body })).filter(({ name }) => name !== "wake-pr-merge");
 };
 // A leg's steps, each its first line and the lines under it.
 const legSteps = (body) => body.split(/^(?= {6}- name: )/m).filter((s) => s.startsWith("      - name: "));
