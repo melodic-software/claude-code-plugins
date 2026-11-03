@@ -8,7 +8,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/vendor/repo-analysis/clone-cli.js\" https://github.com/acme/agent-skills \"$(mktemp -d)/clone\"",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/repo-visibility.mjs\" --repo acme/agent-skills",
             "description": "run"
           }
         }
@@ -19,29 +19,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "git clone --depth 1 https://github.com/acme/agent-skills /tmp/absorb-xyz/repo",
-            "description": "run"
-          }
-        }
-      ]
-    },
-    {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "d=$(mktemp -d) && git clone https://github.com/acme/agent-skills \"$d/repo\" 2>&1",
-            "description": "run"
-          }
-        }
-      ]
-    },
-    {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "cd /tmp/x && git clone https://github.com/acme/agent-skills repo",
+            "command": "gh api repos/acme/agent-skills --jq .default_branch",
             "description": "run"
           }
         }
@@ -54,7 +32,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "git clone https://github.com/acme/agent-skills",
+            "command": "git clone --depth 1 https://github.com/acme/agent-skills upstream-clone",
             "description": "run"
           }
         }
@@ -65,7 +43,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "git clone --depth 1 https://github.com/acme/agent-skills upstream-clone",
+            "command": "git -c credential.helper= clone https://github.com/acme/agent-skills ../clones/agent-skills",
             "description": "run"
           }
         }
@@ -87,7 +65,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "git clone https://github.com/acme/agent-skills && ls",
+            "command": "gh repo clone acme/agent-skills ../clones/agent-skills",
             "description": "run"
           }
         }
@@ -98,7 +76,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "git clone https://github.com/acme/agent-skills 2>&1 | tail -3",
+            "command": "git -C ../clones clone https://github.com/acme/agent-skills",
             "description": "run"
           }
         }
