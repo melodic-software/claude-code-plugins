@@ -114,14 +114,12 @@ Cross-platform: `date -u -d "..."` is GNU. macOS BSD date uses `date -u -v-7d`. 
 
 ## 1. ccusage: token + cost
 
-**Preferred path: MCP** (instant, no shell-out per call).
-
-| Tool | Args | Returns |
-|---|---|---|
-| `mcp__ccusage__daily` | `{ since, until }` (YYYYMMDD) | per-day token + cost rows |
-| `mcp__ccusage__session` | `{ since, until }` | per-session-id rows |
-| `mcp__ccusage__monthly` | none | per-month aggregates |
-| `mcp__ccusage__blocks` | none | 5-hour billing windows (current + recent) |
+**Preferred path: MCP** (no shell-out per call). This skill reads the ccusage
+MCP server's per-day, per-session and 5-hour block reports. Its tool names, arguments and
+return shapes are read live from the server's own tool listing in the session,
+not from this file: as of 2026-11-03 ccusage publishes no MCP reference page
+(`ccusage.com/guide/mcp-server` returned 404). Recheck when ccusage publishes
+one, and point at it here.
 
 **Fallback path: CLI** when the ccusage MCP server is not configured.
 
@@ -143,7 +141,7 @@ echo "$CCUSAGE_JSON" \
 **5-hour block utilization** (matches statusline's `rate_limits.five_hour`):
 
 ```bash
-mcp__ccusage__blocks  # call MCP tool
+# call the ccusage MCP server's blocks tool, named in its tool listing
 # Or:
 npx -y ccusage blocks --json | jq '.blocks[] | select(.isActive==true) | {start: .startTime, tokens: .totalTokens, projectedTokens: .projection.totalTokens}'
 ```
@@ -301,28 +299,24 @@ never heals the guard; `/harness-ops:setup apply` does.
 
 ## 3. Tool call decisions: which calls were denied, and why
 
-**Not in hook-events.jsonl or session transcripts.** Permission and policy outcomes are
-emitted as OTEL log events (`claude_code.tool_decision`, stored as `event_name='tool_decision'`
-in the DuckDB store). Query the OTEL store. Do not grep `history.jsonl`, session JSON, or
+**Not in hook-events.jsonl or session transcripts.** The store ingests the OTEL tool decision
+and tool result events, stored as `event_name='tool_decision'` and `event_name='tool_result'`
+in the DuckDB store. Query the OTEL store. Do not grep `history.jsonl`, session JSON, or
 `~/.claude/sessions/*.json`.
 
-**What it answers:** for each tool invocation, whether it was accepted or rejected and what
-mechanism drove the decision.
+**What it answers:** for each tool invocation, the outcome and the bucket of mechanism that
+drove it, in the promoted `decision` and `source` columns. The DuckDB projection
+(`cc-otel.sql`) coalesces each event's decision-source attribute into `source`.
 
-| Field (promoted column) | Values | Meaning |
-|---|---|---|
-| `decision` | `accept` / `reject` | Outcome |
-| `source` | `config`, … | Bucket for the deciding mechanism. See [Claude Code monitoring docs](https://code.claude.com/docs/en/monitoring-usage) |
+- **Pointer**: when stating an event's attributes, their values, or what a `source` bucket
+  covers, fetch [monitoring: tool decision event](https://code.claude.com/docs/en/monitoring-usage#tool-decision-event)
+  and [monitoring: tool result event](https://code.claude.com/docs/en/monitoring-usage#tool-result-event)
+  live. **As of**: 2026-11-03. **Recheck trigger**: either section renames an attribute or
+  changes its values.
 
-**Column mapping:** the OTEL attribute on `tool_decision` events is `source` (official name).
-`tool_result` events emit `decision_source` for the same bucket; the DuckDB projection
-(`cc-otel.sql`) coalesces both into the promoted `source` column.
-
-A `reject` with `source='config'` is a configuration-driven denial (settings,
-allow/deny rules, managed policy, `--allowedTools`/`--disallowedTools`, permission mode,
-session grants, inherently-safe tools, etc.). **Attribution caveat:** `config` is one bucket
-over many mechanisms, so a `reject`+`config` count is an **upper bound** on deny-rule firings
-and cannot be pinned to an individual rule. Per-rule attribution is upstream.
+**Attribution caveat:** a bucket spans many mechanisms, so a reject count in one bucket is an
+**upper bound** on deny-rule firings and cannot be pinned to an individual rule. Per-rule
+attribution is upstream.
 
 DuckDB queries: [otel-queries.md](otel-queries.md) § "Tool decisions".
 
