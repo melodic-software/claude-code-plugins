@@ -4672,6 +4672,13 @@ def strip_q: [.Parts[]? |
 # 2026-11-02; recheck when that section changes the default for command hooks).
 HOOK_BPS_TIMEOUT=5
 
+# Parses one top-level command may take, its second readings, extglob patterns
+# and the callback's own re-parses included. Nested patterns can double the
+# count per level (each is parsed, and an extglob-off reading parses it again),
+# so a short command could otherwise run past the hook's timeout. A real
+# command takes a handful.
+HOOK_BPS_MAX_PARSES=64
+
 # hook::_bps_shfmt_to <var> <command>: <var> gets the jq list, or return 1 when
 # shfmt or jq is missing, fails or runs out of time. The bound is the `read -t`
 # builtin: one subshell starts shfmt, writes its pid, waits for it and writes its
@@ -4929,6 +4936,19 @@ hook::_bps_tree_decode() {
 hook::bash_parse_segments_shfmt() {
   local __hu_bcmd=$1 __hu_bcb=$2 __hu_bsoft=${3:-0} __hu_bout=""
   local __hu_off="" __hu_sp="" __hu_bshift=0 __hu_bsshift=0
+  # The budget is shared down the nested calls (dynamic scope) and starts over
+  # at a top-level call. Past it the call refuses, soft or not: dropping the
+  # rest would leave commands unread.
+  if [[ -z "${__hu_bps_in:-}" ]]; then
+    local __hu_bps_in=1
+    HOOK_BPS_PARSES=0
+  fi
+  HOOK_BPS_PARSES=$((${HOOK_BPS_PARSES:-0} + 1))
+  if ((HOOK_BPS_PARSES > HOOK_BPS_MAX_PARSES)); then
+    HOOK_BPS_FAIL="more than $HOOK_BPS_MAX_PARSES parses for one command (nested or repeated extglob patterns)"
+    hook::_bps_refuse
+  fi
+  local -A __hu_pseen=()
   local -a __hu_bt=() __hu_ac=() __hu_rc=() __hu_wd=() __hu_wq=() __hu_rop=() __hu_rfd=() __hu_rtg=() __hu_rq=() __hu_ro=() __hu_hb=() __hu_hs=() __hu_pt=() __hu_bt_more=()
   if ! hook::_bps_shfmt_to __hu_bout "$__hu_bcmd"; then
     ((__hu_bsoft)) && return 1
@@ -4968,7 +4988,8 @@ hook::bash_parse_segments_shfmt() {
   # a comment or separator to a command parse). A pattern without one runs
   # nothing, so it is parsed soft for any commands its text spells.
   for __hu_x in ${__hu_pt[@]+"${__hu_pt[@]}"}; do
-    [[ -n "$__hu_x" ]] || continue
+    [[ -n "$__hu_x" && -z "${__hu_pseen[$__hu_x]+x}" ]] || continue
+    __hu_pseen[$__hu_x]=1
     # shellcheck disable=SC2016  # literal substitution openers, not expansions
     case "$__hu_x" in
     *'$('* | *'`'* | *'<('* | *'>('*)

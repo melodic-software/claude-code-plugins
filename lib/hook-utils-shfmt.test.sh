@@ -334,6 +334,32 @@ else
   fail "a shfmt that answers in time: [$out]"
 fi
 
+# --- the parse budget ---------------------------------------------------------
+# Nested extglob patterns each take a parse of their own, and an extglob-off
+# reading parses the pattern again, so the count can double per level. Past
+# HOOK_BPS_MAX_PARSES parses for one command the reader refuses, in seconds.
+# budget_refuses <desc> <command> <max seconds>: in a child, exit 2 naming the
+# budget, within the time.
+budget_refuses() {
+  local out rc=0 t0=$SECONDS
+  # shellcheck disable=SC2016  # the child shell expands these
+  out=$("$BASH_BIN" -c 'source "$1/lib/hook-utils.sh"; hook::bash_parse_segments_shfmt "$2" :' -- "$_T_ROOT" "$2" 2>&1) || rc=$?
+  local dt=$((SECONDS - t0))
+  if ((rc == 2 && dt <= $3)) && [[ "$out" == *'parses'* ]]; then
+    ok "$1 (refused in ${dt} s)"
+  else
+    fail "$1: exit $rc after ${dt} s, [${out:0:200}]"
+  fi
+}
+bps_nest='x'
+for ((i = 0; i < 16; i++)); do bps_nest="!(x); @($bps_nest)"; done
+budget_refuses 'nested extglob patterns sixteen deep stop at the parse budget' "echo @($bps_nest)" 20
+bps_flat='echo'
+for ((i = 0; i < 100; i++)); do bps_flat+=" @(a$i)"; done
+budget_refuses 'a hundred extglob patterns stop at the parse budget' "$bps_flat" 20
+# The paired pass: a few patterns stay well under the budget.
+parses_with 'a handful of extglob patterns parse' 'ls @(a) @(b) !(c) +(d)' 'ls @(a) @(b) !(c) +(d)'
+
 # --- each form plugins/guardrails/reference/shfmt-parse-differences.md lists --
 # handled: bash runs the trailing command in some extglob mode, and the reader
 # hands it to the callback. refused: the reader exits 2.
