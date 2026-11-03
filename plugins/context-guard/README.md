@@ -239,9 +239,11 @@ they change only with a major version and a changelog entry. They are written wh
 Wherever mods are off for a session, whether the build is too old for mods or a setting, flag, policy or Claude Code itself turned them off, the
 module does not run: no lines, no band, no status tool, no
 module writes. The PostCompact marker, a settings hook, still runs wherever settings hooks do, and
-readers fall back as the reader contract says. `bash "<plugin root>/scripts/check-mod-load.sh"` and
-`/context-guard:setup check` report "mods off" in that case. A hook that throws passes its event
-through unchanged.
+readers fall back as the reader contract says. `/context-guard:setup check` reports "mods off" in
+that case. `bash "<plugin root>/scripts/check-mod-load.sh"` reports it only for a build below the
+floor: a child process cannot see this session's flags or settings, so on a current build it prints
+PASS and tells the agent to look for the status tool in its own tool list. A hook that throws passes
+its event through unchanged.
 
 - **Pointer**: when deciding what turns mods off, and which of those also stops settings hooks,
   fetch
