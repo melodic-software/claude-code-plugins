@@ -432,19 +432,24 @@ export async function isTrustedClose(github, repo, closedIssue, humans, isApp = 
   if (here && (by.__typename === "Commit" || (by.__typename === "PullRequest" && by.merged === true))) {
     return true;
   }
-  return isApp(closer) && appDoneClose(github, repo, Number(closedIssue.number), isApp);
+  return isApp(closer) && appDoneClose(github, repo, Number(closedIssue.number), humans, isApp);
 }
 
 // Whether the lanes App's close of issue `number` is an already-done close
 // whose evidence still holds (owner Q9, 2026-10-29): the App's last close
 // comment names already-done, and doneEvidence re-reads that the pull request
 // or commit it cites is on the default branch with a commit message that
-// closes the issue. A report-delivered close, or any read that fails, counts
-// for nothing.
-async function appDoneClose(github, repo, number, isApp) {
+// closes the issue. A verified-done close counts when parentDone re-reads that
+// every sub-issue is closed as completed by a close this function trusts. A
+// report-delivered close, or any read that fails, counts for nothing.
+async function appDoneClose(github, repo, number, humans, isApp) {
   try {
     const close = await appCloseKind(github, repo, number, isApp);
-    const { doneEvidence } = await import(new URL("../../scripts/lib/done-evidence.mjs", import.meta.url).href);
+    const { doneEvidence, parentDone } = await import(new URL("../../scripts/lib/done-evidence.mjs", import.meta.url).href);
+    if (close?.stop === "verified-done") {
+      const trusted = async (child) => isTrustedClose(github, repo, await github("GET", `/repos/${repo}/issues/${child}`), humans, isApp);
+      return (await parentDone(github, `/repos/${repo}`, number, trusted)) === true;
+    }
     return close?.stop === "already-done" && (await doneEvidence(github, `/repos/${repo}`, close.reason, number)) === true;
   } catch {
     return false;

@@ -290,11 +290,39 @@ describe("an umbrella issue", () => {
     assert.deepEqual((await run([], { subject: { summary: summary(2, 1), subs: notPlanned } })).outputs, RUN);
   });
 
-  test("costs no call past the issue read when the summary shows none open", async () => {
-    for (const subject of [{ summary: summary(0, 0) }, { summary: summary(4, 4) }]) {
-      const { calls, outputs } = await run([], { subject });
-      assert.deepEqual(outputs, RUN, JSON.stringify(subject));
-      assert.ok(!calls.some((call) => call.includes("/sub_issues")), JSON.stringify(subject));
+  test("costs no call past the issue read when the summary shows no sub-issue", async () => {
+    const { calls, outputs } = await run([], { subject: { summary: summary(0, 0) } });
+    assert.deepEqual(outputs, RUN);
+    assert.ok(!calls.some((call) => call.includes("/sub_issues")));
+  });
+
+  // A finished parent (admit.mjs finishedParent) runs once to verify its own
+  // done-when: Size Large does not skip it (split-child), and report-outcome
+  // gets its trusted sub-issues (verify-close).
+  // The parent (#42, no blocker) and its sub-issues, each read by number.
+  const parent = (children) => (path) => {
+    if (path === "/repos/o/r/issues/42") {
+      return { number: 42, state: "open", user: HUMAN, labels: [], sub_issues_summary: summary(children.length, children.length) };
+    }
+    if (path.includes("/sub_issues")) {
+      return children;
+    }
+    if (path === "/graphql") {
+      return GRAPHQL;
+    }
+    const child = children.find((item) => path === `/repos/o/r/issues/${item.number}`);
+    return child ?? [];
+  };
+
+  test("whose every sub-issue a listed human closed as completed runs as a finished parent", async () => {
+    const { outputs } = await run(parent([issue(9691, "closed"), issue(9692, "closed")]));
+    assert.deepEqual(outputs, { ...RUN, "split-child": "true", "verify-close": "9691,9692" });
+  });
+
+  test("with a sub-issue closed not planned, or closed by a stranger, is no finished parent", async () => {
+    for (const second of [issue(9692, "closed", { reason: "not_planned" }), issue(9692, "closed", { closer: STRANGER })]) {
+      const { outputs, lines } = await run(parent([issue(9691, "closed"), second]));
+      assert.deepEqual(outputs, RUN, JSON.stringify(lines));
     }
   });
 
