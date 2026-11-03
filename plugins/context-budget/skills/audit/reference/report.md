@@ -56,8 +56,10 @@ mode; the displayed fraction in cli-parse mode).
    "priced, not recommended" heading; `report-only` vendor weight closes the group as the honest
    floor.
 6. **Routes.** The catalogue's route-outs (`/skill-doctor` and `/doctor`, both of which the
-   operator runs, routed and pointed at in [SKILL.md](../SKILL.md) "Scope boundary (route out)";
-   memory files, hooks, live occupancy to their owners), each in one line.
+   operator runs; what each covers is read at their rows in
+   [commands § All commands](https://code.claude.com/docs/en/commands#all-commands), as of
+   2026-11-03; recheck when either row is renamed, removed, or changes what it covers; memory
+   files, hooks, live occupancy to their owners), each in one line.
 7. **Degradations and caveats.** Every `caveats[]` entry from the records used, plus anything the
    engine could not measure and why. The attribution record already merges the baseline with
    each deny run and the combined additivity run, so a deny-run disclosure is in that list and
