@@ -4250,16 +4250,20 @@ bps_oracle() {
   # After the opener: a `#`, a newline, or a here-doc body holding a quote.
   bps_or_tails=('#; echo HIT >&2' $'\necho HIT >&2' $'\nit\'s\nE\necho HIT >&2')
 }
-# The parse callback for the table: argv words, plus every redirect target.
-bps_or_collect() {
-  bps_all+=("${*}")
-  bps_or_tg+=(${HOOK_SEG_REDIR_TARGET[@]+"${HOOK_SEG_REDIR_TARGET[@]}"})
+# The parse callback for the table, run in a child so its exit status can be
+# read: S then the segment's argv words, T then each redirect target, each
+# ended by a \001 byte.
+bps_or_print() {
+  printf 'S%s\1' "$*"
+  local t
+  for t in ${HOOK_SEG_REDIR_TARGET[@]+"${HOOK_SEG_REDIR_TARGET[@]}"}; do printf 'T%s\1' "$t"; done
 }
 # bps_oracle_row <command>: count the row; fail when bash runs HIT and no
 # segment is `echo HIT`, or when bash writes the file and no segment redirects
-# to it.
+# to it. A row the reader refuses (exit 2 with its BLOCKED text)
+# runs nothing, so it hides nothing; any other exit fails the row.
 bps_oracle_row() {
-  local rc=0 s seen=0
+  local rc=0 s seen=0 out err
   bps_or_n=$((bps_or_n + 1))
   bps_oracle "$1" || rc=$?
   if ((rc == 2)); then
@@ -4271,7 +4275,27 @@ bps_oracle_row() {
   bps_or_wrote_n=$((bps_or_wrote_n + bps_or_wrote))
   bps_all=()
   bps_or_tg=()
-  hook::bash_parse_segments "$1" bps_or_collect
+  rc=0
+  out=$(hook::bash_parse_segments "$1" bps_or_print 2>"$bps_or_tmp/parse.err") || rc=$?
+  err=$(<"$bps_or_tmp/parse.err")
+  if ((rc == 2)) && [[ "$err" == BLOCKED:* ]]; then
+    bps_or_refused=$((bps_or_refused + 1))
+    return 0
+  fi
+  if ((rc != 0)); then
+    bps_or_bad=$((bps_or_bad + 1))
+    fail "bash_parse_segments oracle: the parse exited $rc (${err:0:200}): $(printf '%q' "$1")"
+    return 0
+  fi
+  while [[ -n "$out" ]]; do
+    s=${out%%$'\1'*}
+    out=${out#*$'\1'}
+    case "$s" in
+    S*) bps_all+=("${s#S}") ;;
+    T*) bps_or_tg+=("${s#T}") ;;
+    *) ;;
+    esac
+  done
   if ((bps_or_hit)); then
     for s in ${bps_all[@]+"${bps_all[@]}"}; do
       [[ "$s" == 'echo HIT' ]] && seen=1
@@ -4311,7 +4335,7 @@ bps_oracle_cell() {
     done
   done
 }
-bps_or_n=0 bps_or_ran=0 bps_or_wrote_n=0 bps_or_skip=0 bps_or_bad=0 bps_or_all=0
+bps_or_n=0 bps_or_ran=0 bps_or_wrote_n=0 bps_or_skip=0 bps_or_bad=0 bps_or_all=0 bps_or_refused=0
 bps_or_t0=$SECONDS
 # Each row spawns bash, which is slow on Windows, so Windows samples both depths
 # (about 1 row in 10 and 1 in 128, still hitting every opener, word and tail).
@@ -4341,7 +4365,7 @@ rm -rf "${bps_or_tmp:?}"
 if ((bps_or_ran == 0 || bps_or_wrote_n == 0)); then
   fail "bash_parse_segments oracle: bash ran HIT in $bps_or_ran rows and wrote the file in $bps_or_wrote_n, so the table checks too little"
 elif ((bps_or_bad == 0)); then
-  ok "bash_parse_segments oracle: depth 1 $bps_or_n1 of $bps_or_all1 rows, depth 2 $((bps_or_n - bps_or_n1)) of $((bps_or_all - bps_or_all1)) sampled; $bps_or_ran run HIT and $bps_or_wrote_n write in bash, $bps_or_skip syntax errors skipped, none hidden ($((SECONDS - bps_or_t0)) s)"
+  ok "bash_parse_segments oracle: depth 1 $bps_or_n1 of $bps_or_all1 rows, depth 2 $((bps_or_n - bps_or_n1)) of $((bps_or_all - bps_or_all1)) sampled; $bps_or_ran run HIT and $bps_or_wrote_n write in bash, $bps_or_skip syntax errors skipped, $bps_or_refused refused by the reader, none hidden ($((SECONDS - bps_or_t0)) s)"
 fi
 
 # ANSI-C $'…' bodies decode in-process via ansi_c_decode_to (no $(printf) fork).

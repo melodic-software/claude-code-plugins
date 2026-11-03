@@ -1027,6 +1027,11 @@ run_pwsh "PS: wsl.exe -e git reset --hard (launcher sink, blocked — #4242)" "w
 run_pwsh "PS: wsl echo hi (git-free launcher, allowed)" "wsl echo hi" 0
 run_pwsh "PS: git status (allowed)" "git status" 0
 run_pwsh "PS: call operator on a quoted exe path, no git (allowed)" '& "C:\tools\tool.exe" arg' 0
+run_pwsh "PS: call operator before git reset --hard (blocked)" '& git reset --hard' 2
+# Blanking `--%` leaves `& 'C:git.exe'`, which the next round must still read as
+# a dynamic invocation, so dropping the call operator waits for the final reduction.
+run_pwsh "PS: & of a quoted git after a granted --% blank is still a dynamic invocation (blocked)" \
+  "& 'C:git.exe' --% reset --hard" 2 CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
 run_pwsh "PS: function definition and call, no git (allowed)" 'function f { Get-ChildItem }; f' 0
 run_pwsh "PS: call operator beside git status (blocked)" '& "C:\tools\tool.exe" arg; git status' 2
 assert_contains "PS: call operator refusal names dynamic invocation" "$GUARD_ERR" "Trigger: a dynamic invocation"
@@ -1499,6 +1504,37 @@ pin_sink_trigger() {
   else
     bad "$label: expected trigger '${expect:-none}', got '${PS_SINK_TRIGGER:-none}'"
   fi
+}
+# The reduced text goes to the shfmt reader, which refuses what bash's grammar
+# rejects. PowerShell's call operator `&` and an empty statement `;` (one a
+# blanked statement leaves) open a statement in PowerShell and in no bash
+# command, so the reduction must not hand either on. <trigger> empty reads the
+# rc-0 reduction, else the blanking for that granted trigger re-classified, as
+# the guard's sink loop does before it parses.
+pin_reduction_parses() {
+  local label="$1" cmd="$2" trigger="${3-}"
+  ps::classify_git_command PowerShell "$cmd" >/dev/null
+  if [[ -n "$trigger" ]]; then
+    ps::blank_sink_opaque_regions "$cmd" "$trigger"
+    ps::classify_git_command PowerShell "$PS_SAFE_COMMAND" >/dev/null
+  fi
+  if ! command -v shfmt >/dev/null 2>&1; then
+    ok "$label (skipped: no shfmt on this host)"
+  elif printf '%s' "$PS_SAFE_COMMAND" | shfmt -ln bash >/dev/null 2>&1; then
+    ok "$label"
+  else
+    bad "$label: shfmt rejects the reduced text $(printf '%q' "$PS_SAFE_COMMAND")"
+  fi
+}
+# shellcheck disable=SC2016
+{
+  pin_reduction_parses "PS reduction: a call operator after a statement parses" 'Write-Host ""; & $py script.py'
+  pin_reduction_parses "PS reduction: a leading call operator parses" "& \$w 'f.txt' 'x'"
+  pin_reduction_parses "PS reduction: a call operator after a pipe parses" 'Get-Item x | & $f'
+  pin_reduction_parses "PS reduction: a blanked iex statement leaves no empty statement" \
+    "Invoke-Expression 'Write-Host harmless'; git reset --hard" dynamic-invocation
+  pin_reduction_parses "PS reduction: blanked launcher statements leave no empty statement" \
+    'Write-Host a; pwsh -File c.ps1; git status' launcher
 }
 pin_predicate() {
   local label="$1" fn="$2" cmd="$3" expect="$4" rc=0

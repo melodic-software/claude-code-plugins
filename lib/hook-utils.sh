@@ -5865,8 +5865,18 @@ HOOK_BPS_TIMEOUT=5
 # Processes per parse: shfmt, jq, sleep, and the pipeline's subshells.
 # shellcheck disable=SC2030,SC2031  # pipefail and the job ids belong to this subshell
 hook::_bps_shfmt_to() {
-  local __hu_bs_out
-  hash shfmt jq 2>/dev/null || return 1
+  local __hu_bs_out __hu_bs_st
+  HOOK_BPS_FAIL=""
+  # A cloud session's install lands in ~/.local/bin, which a hook's PATH may lack.
+  hash shfmt 2>/dev/null || { [[ -x "${HOME:-}/.local/bin/shfmt" ]] && hash -p "$HOME/.local/bin/shfmt" shfmt; } || {
+    HOOK_BPS_FAIL="shfmt is not on PATH"
+    hook::_bps_install_note
+    return 1
+  }
+  hash jq 2>/dev/null || {
+    HOOK_BPS_FAIL="jq is not on PATH"
+    return 1
+  }
   __hu_bs_out=$(
     set -o pipefail
     printf '%s' "$2" | {
@@ -5885,15 +5895,44 @@ hook::_bps_shfmt_to() {
       kill "$__hu_bs_w" 2>/dev/null
       exit "$__hu_bs_rc"
     } | jq -j "$HOOK_BPS_JQ" 2>/dev/null
-  ) || return 1
+  ) || {
+    __hu_bs_st=$?
+    if ((__hu_bs_st > 128)); then
+      HOOK_BPS_FAIL="shfmt ran past ${HOOK_BPS_TIMEOUT:-5} s"
+    else
+      # Only on refusal: shfmt again, for the line that names the syntax error.
+      __hu_bs_out=$(printf '%s' "$2" | shfmt -ln bash 2>&1 >/dev/null)
+      __hu_bs_out=${__hu_bs_out%%$'\n'*}
+      if [[ -n "$__hu_bs_out" ]]; then
+        HOOK_BPS_FAIL="shfmt rejects it as bash: $__hu_bs_out"
+      else
+        HOOK_BPS_FAIL="shfmt or jq failed (status $__hu_bs_st)"
+      fi
+    fi
+    return 1
+  }
   printf -v "$1" '%s' "${__hu_bs_out%$'\r'}"
+}
+
+# Where the guardrails cloud SessionStart step (hooks/cloud-shfmt.sh) records why
+# it could not install shfmt.
+HOOK_BPS_INSTALL_NOTE='.local/state/claude-guardrails/shfmt-install-failed'
+
+# hook::_bps_install_note: append to HOOK_BPS_FAIL the reason a cloud session's
+# shfmt install failed, when that step left one. read is a builtin: no fork.
+hook::_bps_install_note() {
+  local __hu_bn_l=""
+  [[ -r "${HOME:-}/$HOOK_BPS_INSTALL_NOTE" ]] || return 0
+  IFS= read -r __hu_bn_l <"$HOME/$HOOK_BPS_INSTALL_NOTE" || [[ -n "$__hu_bn_l" ]]
+  [[ -n "$__hu_bn_l" ]] && HOOK_BPS_FAIL+="; the session's shfmt install failed: $__hu_bn_l"
+  return 0
 }
 
 # The refusal for a command no parse came back for: bash has not run it, and
 # with no tree the guard cannot say what it would run. Shared across a dispatcher's
 # guards when guard::say_once is there. Its reason is what the model can act on.
 hook::_bps_refuse() {
-  local __hu_br_m="BLOCKED: this command could not be parsed by shfmt (missing, failed, timed out after ${HOOK_BPS_TIMEOUT:-5} s, or a syntax error), so the guard cannot check it. Fix the syntax or install shfmt, then reissue the call."
+  local __hu_br_m="BLOCKED: the guard reads a command through shfmt and got no parse (${HOOK_BPS_FAIL:-no reason recorded}), so it cannot check this call. Fix the syntax, or install shfmt and jq, then reissue the call."
   if declare -F guard::say_once >/dev/null; then
     guard::say_once shfmt-unparsable "$__hu_br_m"
   else

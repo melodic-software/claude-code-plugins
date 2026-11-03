@@ -2296,7 +2296,7 @@ ps::classify_git_command() {
   ps::_gsub_to reduced "$reduced" '\$[A-Za-z_][A-Za-z0-9_]*(:[A-Za-z_][A-Za-z0-9_]*)?[[:space:]]*(\+=|-=|\*=|/=|%=|=)[[:space:]]*' ' '
   # Read by the sourcing guard, not within this library.
   # shellcheck disable=SC2034
-  PS_SAFE_COMMAND="$reduced"
+  ps::_bash_ready_to PS_SAFE_COMMAND "$reduced"
   return 0
 }
 
@@ -2444,6 +2444,71 @@ ps::_skip_statement_tail_to() {
     __st_i=$((__st_i + 1))
   done
   printf -v "$1" '%s' "$__st_n"
+}
+
+# ps::_bash_ready_to <varname> <text>: TEXT with each `;` or `&` that opens a
+# statement dropped. PowerShell reads both there (an empty statement, and the
+# `&` call operator, as in `& $py script.py`); bash's grammar has neither, so the
+# shfmt reader would refuse the reduced text. A blanked statement leaves the
+# first kind, as in `Write-Host  ;  ; git status`. What runs is unchanged:
+# `& $py x` calls the command `$py` names, which is the segment `$py x`. Quoted
+# spans and `#` comments are copied as they are; `&&` and a `&` after a word are
+# kept.
+ps::_bash_ready_to() {
+  local __br_cmd="$2" __br_i=0 __br_n=${#2} __br_c __br_end __br_out="" __br_word=0
+  while ((__br_i < __br_n)); do
+    __br_c="${__br_cmd:__br_i:1}"
+    case "$__br_c" in
+    "'" | '"')
+      if [[ "$__br_c" == "'" ]]; then
+        ps::_skip_single_quote_to __br_end "$__br_cmd" "$__br_i"
+      else
+        ps::_skip_double_quote_to __br_end "$__br_cmd" "$__br_i"
+      fi
+      __br_out+="${__br_cmd:__br_i:__br_end-__br_i}"
+      __br_i=$__br_end
+      __br_word=1
+      continue
+      ;;
+    '#')
+      if [[ "${__br_out: -1}" == '' || "${__br_out: -1}" == [[:space:]\;\|\&] ]]; then
+        __br_end="${__br_cmd:__br_i}"
+        __br_end="${__br_end%%$'\n'*}"
+        __br_out+="$__br_end"
+        __br_i=$((__br_i + ${#__br_end}))
+        continue
+      fi
+      __br_word=1
+      ;;
+    ';' | $'\n')
+      if [[ "$__br_c" == ';' ]] && ((!__br_word)); then
+        __br_out+=' '
+        __br_i=$((__br_i + 1))
+        continue
+      fi
+      __br_word=0
+      ;;
+    '&' | '|')
+      if [[ "${__br_cmd:__br_i+1:1}" == "$__br_c" ]]; then
+        __br_out+="$__br_c$__br_c"
+        __br_i=$((__br_i + 2))
+        __br_word=0
+        continue
+      fi
+      if [[ "$__br_c" == '&' ]] && ((!__br_word)); then
+        __br_out+=' '
+        __br_i=$((__br_i + 1))
+        continue
+      fi
+      __br_word=0
+      ;;
+    [[:space:]]) ;;
+    *) __br_word=1 ;;
+    esac
+    __br_out+="$__br_c"
+    __br_i=$((__br_i + 1))
+  done
+  printf -v "$1" '%s' "$__br_out"
 }
 
 # Blank dynamic-invocation or launcher statements in CMD. KIND is `dynamic` or

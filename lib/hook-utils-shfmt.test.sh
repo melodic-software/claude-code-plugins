@@ -84,6 +84,8 @@ has_seg() {
   has_seg 'a process substitution inside an extglob pattern' 'echo @(<(git reset --hard))' 'git reset --hard'
   has_seg 'array then # keeps what follows' 'a=(x)#y; git reset --hard' 'git reset --hard'
 
+  # Multibyte UTF-8 is read as written; a byte that is not UTF-8 is refused.
+  segs_are 'multibyte UTF-8 words are read as written' 'echo héllo 日本 ✓' 'echo héllo 日本 ✓'
   # A quoted here-doc body expands nothing, and is not a command.
   segs_are 'a quoted here-doc body runs nothing' $'cat <<\'E\'\n$(git reset --hard)\nE' 'cat'
   segs_are 'a comment after whitespace runs nothing' 'echo x #; git reset --hard' 'echo x'
@@ -198,7 +200,9 @@ BASH_BIN=$(type -P bash)
 refused_with() {
   local desc=$1 path=$2 t=${3:-5} out rc s0 s1
   s0=$SECONDS
-  out=$("$BASH_BIN" -c "$reader_child" -- "$_T_ROOT" "$t" "$path" 2>&1)
+  # A HOME with no ~/.local/bin/shfmt, which the reader would otherwise use.
+  mkdir -p "$_T_TMP/nohome"
+  out=$(HOME="$_T_TMP/nohome" "$BASH_BIN" -c "$reader_child" -- "$_T_ROOT" "$t" "$path" 2>&1)
   rc=$?
   s1=$SECONDS
   if ((rc == 2)) && [[ "$out" == *BLOCKED* && "$out" != *CALLED* && "$out" != *RETURNED* ]]; then
@@ -244,6 +248,41 @@ if ((rc == 2)) && [[ "$out" == *BLOCKED* ]]; then
   ok 'a syntax error is refused'
 else
   fail "a syntax error: exit $rc, [$out]"
+fi
+# The refusal names its cause, which is what the model can act on.
+# reason_is <desc> <expected text> <PATH> [timeout] [HOME]
+reason_is() {
+  local out
+  out=$(HOME=${5:-$HOME} "$BASH_BIN" -c "$reader_child" -- "$_T_ROOT" "${4:-5}" "$3" 2>&1)
+  if [[ "$out" == *"$2"* ]]; then ok "$1"; else fail "$1: [$2] not in [$out]"; fi
+}
+nohome="$_T_TMP/nohome"
+reason_is 'the refusal names a missing shfmt' 'shfmt is not on PATH' "$(stub_dir no-shfmt jq)" 5 "$nohome"
+reason_is 'the refusal names a missing jq' 'jq is not on PATH' "$(stub_dir no-jq shfmt)"
+reason_is 'the refusal names the timeout' 'shfmt ran past 1 s' "$(stub_dir slow jq sleep)" 1
+# shellcheck disable=SC2016  # the child shell expands these
+out=$("$BASH_BIN" -c 'source "$1/lib/hook-utils.sh"; hook::bash_parse_segments_shfmt "cat <<E; echo x" :' -- "$_T_ROOT" 2>&1)
+if [[ "$out" == *'shfmt rejects it as bash: '*'unclosed here-document'* ]]; then
+  ok 'the refusal quotes the syntax error shfmt reports'
+else
+  fail "the refusal for a syntax error: [$out]"
+fi
+# A cloud session whose SessionStart install failed: the refusal says so.
+cloudhome="$_T_TMP/cloudhome"
+mkdir -p "$cloudhome/.local/state/claude-guardrails"
+printf 'download failed: curl exit 6\n' >"$cloudhome/.local/state/claude-guardrails/shfmt-install-failed"
+reason_is 'the refusal names a failed cloud install' \
+  "the session's shfmt install failed: download failed: curl exit 6" "$(stub_dir no-shfmt jq)" 5 "$cloudhome"
+# A shfmt in ~/.local/bin is used when PATH lacks it: the cloud install's target.
+lbhome="$_T_TMP/lbhome"
+mkdir -p "$lbhome/.local/bin"
+ln -s "$(type -P shfmt)" "$lbhome/.local/bin/shfmt"
+# shellcheck disable=SC2016  # the child shell expands these
+if out=$(HOME=$lbhome "$BASH_BIN" -c 'source "$1/lib/hook-utils.sh"; cb() { printf "%s\n" "$*"; }; PATH=$2; hook::bash_parse_segments_shfmt "git status" cb' -- "$_T_ROOT" "$(stub_dir lb-no-shfmt jq sleep)" 2>&1) &&
+  [[ "$out" == 'git status' ]]; then
+  ok 'a shfmt in ~/.local/bin parses when PATH lacks one'
+else
+  fail "a shfmt in ~/.local/bin: [$out]"
 fi
 # The paired success: the same stub layout with a shfmt that answers in time.
 d=$(stub_dir answers jq sleep shfmt)
@@ -374,6 +413,53 @@ ROOT_GUARD="$_T_ROOT/plugins/guardrails/hooks/block-root-delete-target.sh"
 guard_rc "$GIT_GUARD" 'git status'
 rc=$?
 if ((rc == 0)); then ok 'a clean git command is allowed'; else fail "a clean git command: exit $rc"; fi
+
+# --- every kind of call site fails closed on a refusal ----------------------
+# The refusal is `exit 2` inside the library, so a call site that parsed in a
+# subshell would exit only that and let the call through. Each row reaches one
+# kind of call site with text shfmt rejects (`x[1]=2 cmd`, which bash runs) and
+# wants exit 2 with the reader's refusal; its pair, the same text with a plain
+# assignment, wants exit 0, so the refusal is what denied it.
+refuses_at() { # <desc> <hook> <tool> <refused command> <allowed command>
+  local payload rc err
+  for c in "$4" "$5"; do
+    payload=$(jq -cn --arg t "$3" --arg c "$c" --arg d "$_T_ROOT" '{tool_name:$t,tool_input:{command:$c},cwd:$d,session_id:"t",hook_event_name:"PreToolUse"}')
+    err=$(cd "$_T_ROOT" && env HOOK_BASH_READER=shfmt "$BASH_BIN" "$2" "${@:6}" <<<"$payload" 2>&1 >/dev/null)
+    rc=$?
+    if [[ "$c" == "$4" ]]; then
+      if ((rc == 2)) && [[ "$err" == *'got no parse'* ]]; then ok "$1: refused"; else fail "$1: exit $rc, [${err:0:300}]"; fi
+    else
+      if ((rc == 0)); then ok "$1: the plain pair is allowed"; else fail "$1: the plain pair exits $rc, [${err:0:300}]"; fi
+    fi
+  done
+}
+GD="$_T_ROOT/plugins/guardrails/hooks"
+# shellcheck disable=SC2016  # the commands are the text under test
+{
+  refuses_at 'top-level parse in a guard' "$GD/block-cd-prefix.sh" Bash \
+    'cd /tmp; x[1]=2 echo hi' 'cd /tmp; x=2 echo hi'
+  refuses_at 'an sh -c operand re-parsed from a callback' "$GIT_GUARD" Bash \
+    "bash -c 'x[1]=2 git status'" "bash -c 'x=2 git status'"
+  refuses_at "a git ! alias re-parsed from a callback" "$GD/block-no-verify.sh" Bash \
+    "git -c 'alias.st=!x[1]=2 git status' st" "git -c 'alias.st=!x=2 git status' st"
+  refuses_at 'the PowerShell reduction parsed by a guard' "$GD/block-convention-violation.sh" PowerShell \
+    'x[1]=2 git status' 'x=2 git status'
+  refuses_at 'the shared library entry (github-post)' "$GD/block-github-post-content.sh" Bash \
+    'x[1]=2 gh pr comment 1 --body hi' 'x=2 gh pr comment 1 --body hi'
+  refuses_at 'the dispatcher shared parse' "$GD/run-guards.sh" Bash \
+    'x[1]=2 git status' 'x=2 git status' block-dangerous-git.sh block-no-verify.sh block-cd-prefix.sh
+  refuses_at 'a callback name passed to a library (worktree-path-lib)' \
+    "$_T_ROOT/plugins/source-control/hooks/worktree-add-containment-gate.sh" Bash \
+    "bash -c 'x[1]=2 git worktree add ../x'" "bash -c 'x=2 git worktree add ../x'"
+  # After a guard exits deep, run-guards runs the rest of the chain in a forked
+  # process (run_guards::run_rest); a refusal there still denies.
+  printf '#!/usr/bin/env bash\nd() { if (($1)); then d $(($1 - 1)); else exit 0; fi; }\nd 100\n' >"$_T_TMP/deep0.sh"
+  refuses_at 'the forked rest of the chain after a deep exit' "$GD/run-guards.sh" Bash \
+    'x[1]=2 git status' 'x=2 git status' "$_T_TMP/deep0.sh" block-dangerous-git.sh
+  refuses_at 'repo-hygiene destructive-guard' \
+    "$_T_ROOT/plugins/repo-hygiene/skills/clean/scripts/destructive-guard.sh" Bash \
+    'x[1]=2 echo hi' 'x=2 echo hi'
+}
 
 printf 'PASS=%s FAIL=%s\n' "$PASS" "$FAIL"
 ((FAIL == 0))

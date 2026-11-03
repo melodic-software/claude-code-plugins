@@ -665,7 +665,14 @@ else
     done
     _bupm_text="$out${COMMAND:at}"
   }
-  hook::bash_parse_segments "$COMMAND" _bupm_segment
+  # PowerShell's escape character is the backtick, which Bash would read as an
+  # unclosed substitution and the reader refuses. PowerShell passes the escaped
+  # character on, so the PowerShell text is parsed with every backtick dropped.
+  if [[ "$TOOL_NAME" == PowerShell ]]; then
+    hook::bash_parse_segments "${COMMAND//\`/}" _bupm_segment
+  else
+    hook::bash_parse_segments "$COMMAND" _bupm_segment
+  fi
   _bupm_text="$COMMAND"
   hook::_c_locale _bupm_strip_bodies
   _bupm_joined="${_bupm_text,,}"

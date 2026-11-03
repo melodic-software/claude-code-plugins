@@ -6,7 +6,9 @@ does with the same text, as measured against bash 5 with extglob off and on, and
 `lib/hook-utils-shfmt.test.sh` runs every row.
 
 - **handled**: the reader hands the guard the command bash runs.
-- **refused**: shfmt rejects the text, so the guard denies the call (exit 2). Nothing runs.
+- **refused**: shfmt rejects the text, so the guard denies the call (exit 2). Nothing runs. The
+  message names the cause: shfmt or jq missing, the 5 s bound, or shfmt's own syntax error line,
+  plus the reason a cloud session's shfmt install failed when there is one.
 
 ## Extglob
 
@@ -84,6 +86,16 @@ and warns about a here-doc with no delimiter line. shfmt parses the whole string
 | `cat <<E; cmd` | the body runs to the end, with a warning, and `cmd` runs | syntax error | refused |
 | `` echo `case`; cmd `` | the backtick's error is reported, and `cmd` runs | syntax error | refused |
 | `cmd` then a later line with an open quote or an unbalanced `(` | `cmd` runs, then a syntax error | syntax error | refused |
+
+## PowerShell text
+
+The git guards reduce a PowerShell command to text they parse as Bash (`lib/powershell/ps-command.sh`).
+
+| Form | PowerShell | Reduced text | Status |
+|---|---|---|---|
+| `Write-Host ""; & $py script.py`, `& $w 'f.txt'` | `&` calls the command `$py` names | the `&` is dropped: `$py script.py` | handled |
+| `iex x; git status` with the dynamic-invocation sink allowed | the blanked statement leaves `; git status` | the empty `;` is dropped | handled |
+| ``gh pr merge 42 --body "line`nnext"`` (block-unresolved-pr-merge, which parses the PowerShell text without a reduction) | a backtick escape | an unclosed Bash backtick | handled: that guard parses PowerShell text with every backtick dropped |
 
 ## Other forms
 
