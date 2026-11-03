@@ -2523,6 +2523,18 @@ describe("unrunnable-rules.json", () => {
     });
   }
 
+  // As the built-in comment kind does, a write that lands on this issue stays
+  // host work even when conditional, and a `by` names the poster only in the
+  // write's own clause or after it.
+  for (const line of ["Once the probe runs, its result is recorded on this issue.", "The counts gathered by the audit script are recorded on this issue."]) {
+    test(`flags ${line}`, () => {
+      assert.equal(first(line), "tracker-output");
+      const result = decide(facts({ issue: doneWhen(line) }));
+      assert.equal(result.hostRun, true);
+      assert.equal(result.hold, undefined);
+    });
+  }
+
   test("`unless` clears a row's match", () => {
     assert.equal(first("`claude plugin eval --validate` passes on the suite."), null);
     assert.equal(first("The README says Windows host support is fully implemented."), null);

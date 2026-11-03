@@ -24,7 +24,7 @@
     {
       "kind": "tracker-output",
       "match": "\\b(?:comment|posted|recorded|reported)\\b[^.;]{0,40}\\b(?:on #\\d+|here)\\b|\\b(?:is|are) (?:recorded|reported) on this issue\\b|\\bsub-issue[^.;]{0,40}\\bis filed\\b|\\bparents open today\\b",
-      "unless": "^\\s*(?:if|when|whenever|unless|once)\\b|\\bby (?:the )?(?:\\S+\\.(?:mjs|js|ts|sh|py|ps1)|(?:\\S+ )?(?:workflow|script|lane|app|hook|skill|action|job|bot|sweep))\\b|(?:\\b(?:workflow|lane|app|hook|action|job|bot|sweep)|\\S[-.]\\S*)['’]s (?:output|results?|findings?|answers?)\\b"
+      "unless": "^(?!.*\\bon this issue\\b)(?:\\s*(?:if|when|whenever|unless|once)\\b|.*\\b(?:comment|posted|recorded|reported|filed)\\b[^.;]*\\bby (?:the )?(?:\\S+\\.(?:mjs|js|ts|sh|py|ps1)|(?:\\S+ )?(?:workflow|script|lane|app|hook|skill|action|job|bot|sweep))\\b)|(?:\\b(?:workflow|lane|app|hook|action|job|bot|sweep)|\\S[-.]\\S*)['’]s (?:output|results?|findings?|answers?)\\b"
     },
     {
       "kind": "measure-over-time",
