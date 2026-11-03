@@ -243,6 +243,33 @@ The `done` action closes with `--reason completed`, and with `--reason "not plan
 [gh issue close § Options](https://cli.github.com/manual/gh_issue_close#options)
 (as of 2026-11-03; recheck when that section changes the `--reason` values).
 
+**Re-point dependents first.** The steps and their order are in
+[`reference/issue-conventions.md`](../../../../reference/issue-conventions.md) "Dependents on
+close"; the GitHub reads and writes they name are these. List the open items `<N>` blocks over
+REST, which runs in a cloud session too and keeps the cross-repo dependents the `--json blocking`
+projection drops (see "Gotchas"):
+
+```bash
+gh api --paginate "repos/<owner>/<repo>/issues/<N>/dependencies/blocking" \
+  --jq '.[] | select(.state == "open") | [.number, .html_url] | @tsv' | tr -d '\r'
+```
+
+After the seam's `link-blocks` adds a dependent's edge to its carrier, remove its edge to `<N>`,
+naming the dependent in its own repository (taken from its `html_url`):
+
+```bash
+gh issue edit <dependent> --repo <dependent-owner>/<dependent-repo> --remove-blocked-by <N-url>
+```
+
+`link-blocks` exits 3 in a cloud session ("Sandboxed sessions" under "View item"), so an item
+with open dependents is not closed there; report it for a session that can write the edges.
+
+- **Pointer**: the endpoint at
+  [issue dependencies § List dependencies an issue is blocking](https://docs.github.com/en/rest/issues/issue-dependencies#list-dependencies-an-issue-is-blocking);
+  the flag at [gh issue edit § Options](https://cli.github.com/manual/gh_issue_edit#options).
+  **As of**: 2026-11-03. **Recheck trigger**: that section changes the path or the response's
+  `state` or `html_url`, or a gh release renames `--remove-blocked-by`.
+
 **Duplicate close with native `--duplicate-of`.** GitHub closes a duplicate natively: this sets close
 reason `duplicate` and a structured, API-queryable `duplicateOf` relationship, strictly better than
 grepping a body header. `<M>` may be an issue number or URL:
