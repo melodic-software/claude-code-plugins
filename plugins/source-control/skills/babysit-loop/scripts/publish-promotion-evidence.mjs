@@ -58,6 +58,10 @@
 //   naming none, a native auto-merge, another bot's merge, or an unreadable timeline page) is
 //   listed in noRungAutonomous, never counted toward a positive term, and each of its contrary
 //   events is emitted against every promotable cell. A human merge has no rung.
+// - C3-ai-review-blocking measures the AI review, not merge authority, so its advisory-review and
+//   missed-blocking terms and its window count every merge that ran under rung C3 or that a human
+//   merged; autonomous C2 and no-rung merges stay out. C3-auto-merge and the C2 terms count only
+//   autonomous merges of their rung.
 // - reverted-merge: an autonomous merge named by a merged PR body or a default-branch
 //   commit as `Reverts <owner/repo>#<n>` (GitHub's revert button) or `This reverts commit
 //   <sha>` (git revert); one event at each date a revert of the merge is seen, so a revert found
@@ -776,7 +780,7 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   }
   const reviewers = new Set(aiReviewers);
   if (reviewers.size > 0) {
-    for (const r of tracked.filter((c) => c.rung === "C3")) {
+    for (const r of all.filter(aiReviewCounted)) {
       r.aiReviewed = pages(gh, `repos/${repo}/pulls/${r.number}/reviews`).some((review) => reviewers.has(review.user?.login));
     }
   }
@@ -809,13 +813,13 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
     repo,
     since,
     through: new Date(throughMs).toISOString(),
-    events: [...sorted, ...reEarned(tracked, sorted, reviewers.size > 0)].sort(byInstant),
+    events: [...sorted, ...reEarned(all, sorted, reviewers.size > 0)].sort(byInstant),
     unresolvedReverts,
     gateFailures,
     noRungAutonomous: [...details.values()]
       .filter((r) => r.autonomous && r.rung === null && (tracked.includes(r) || r.reverted))
       .map((r) => ({ number: r.number, reason: r.reason })),
-    cells: report(tracked, sorted, reviewers.size > 0),
+    cells: report(all, sorted, reviewers.size > 0),
   };
 }
 
@@ -841,16 +845,21 @@ function cell(window, terms) {
   return { window, pass: terms.every((t) => t.pass), terms };
 }
 
+// C3-ai-review-blocking measures the AI review, not merge authority: its population is every
+// merge that ran under rung C3 or that a person merged. Autonomous C2 and no-rung merges stay out.
+const aiReviewCounted = (r) => !r.autonomous || r.rung === "C3";
+
 // Thresholds are work-classes.md's suggested defaults; "C2" and "C3" name the rung a merge ran
-// under (its pin), not a work class.
-function report(counted, events, reviewsMeasured) {
-  const c2 = counted.filter((r) => r.rung === "C2" && r.autonomous);
-  const c3 = counted.filter((r) => r.rung === "C3" && r.autonomous);
+// under (its pin), not a work class. `merges` is every merge in the window.
+function report(merges, events, reviewsMeasured) {
+  const c2 = merges.filter((r) => r.rung === "C2" && r.autonomous);
+  const c3 = merges.filter((r) => r.rung === "C3" && r.autonomous);
+  const review = merges.filter(aiReviewCounted);
   const c2Window = windowOf(c2);
   const reverted = (records) => records.filter((r) => r.reverted).length;
   const missed = (records) => records.reduce((sum, r) => sum + (r.missedBlocking ?? 0), 0);
   const c2Demotions = events.filter((e) => e.cell === "C2-auto-merge").length;
-  const reviewed = c3.filter((r) => r.aiReviewed);
+  const reviewed = review.filter((r) => r.aiReviewed);
   return {
     "C2-auto-merge": cell(c2Window, [
       term("autonomous C2 completions", c2.length, ">= 20", c2.length >= 20),
@@ -867,11 +876,11 @@ function report(counted, events, reviewsMeasured) {
       term("C3 reverted merges", reverted(c3), "0", reverted(c3) === 0),
       term("C3 human-confirmed missed-blocking findings", missed(c3), "0", missed(c3) === 0),
     ]),
-    "C3-ai-review-blocking": cell(windowOf(c3), [
+    "C3-ai-review-blocking": cell(windowOf(review), [
       reviewsMeasured
         ? term("advisory AI reviews on C3", reviewed.length, ">= 30", reviewed.length >= 30)
         : term("advisory AI reviews on C3", null, ">= 30", false, { unmeasured: "no --ai-reviewer given" }),
-      term("human-confirmed missed-blocking findings", missed(c3), "0", missed(c3) === 0),
+      term("human-confirmed missed-blocking findings", missed(review), "0", missed(review) === 0),
     ]),
   };
 }

@@ -900,8 +900,11 @@ function renderRefusal(fence, person, reason, head, label, since, partial, recor
 // (babysit_postmerge.pin_comment and PIN_RE): arming a pull request that is
 // already mergeable enqueues it at once with no auto-merge event, which the
 // read-back judges as an identity enqueue, so the head is pinned first.
-export const PIN_RE = /^<!-- babysit-merge-pin sha=([0-9a-f]{40}) -->$/;
-export const pinBody = (sha) => `<!-- babysit-merge-pin sha=${sha} -->\nThe unattended merge path armed native auto-merge at head \`${sha}\`.`;
+// The pin names the lane room's rung, C2 or C3, which the promotion-evidence
+// publisher credits; any other rung leaves it unnamed (babysit_merge.py).
+export const PIN_RE = /^<!-- babysit-merge-pin sha=([0-9a-f]{40})(?: rung=(C2|C3))? -->$/;
+export const pinBody = (sha, rung) =>
+  `<!-- babysit-merge-pin sha=${sha}${rung === "C2" || rung === "C3" ? ` rung=${rung}` : ""} -->\nThe unattended merge path armed native auto-merge at head \`${sha}\`.`;
 
 // Whether the read-back would already read `head` from `comments`
 // (DETAIL_QUERY's): the lanes App's newest pin names it and is unedited.
@@ -2297,7 +2300,7 @@ export async function main({ env = process.env, github, actions, verify, room, c
       }
       if (action === "arm" && !pinned(detail?.comments?.nodes, slug, pull.headRefOid)) {
         try {
-          await github("POST", `/repos/${repo[0]}/issues/${pull.number}/comments`, { body: pinBody(pull.headRefOid) });
+          await github("POST", `/repos/${repo[0]}/issues/${pull.number}/comments`, { body: pinBody(pull.headRefOid, lane?.rung) });
           console.log(`enable-auto-merge: #${pull.number} pinned at ${pull.headRefOid}`);
         } catch (error) {
           // No pin, no arm: an immediate enqueue would have no read-back.

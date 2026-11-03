@@ -181,7 +181,8 @@ commit that contains the merge, the dispatch deadline and the pin read-back, rea
 `--gate-check` on the merge commit), and the missed-blocking label a human applied. No work-class
 label is read. An autonomous merge with no rung (no lane pin at its head, a pin of the older shape
 naming none, a native auto-merge, another bot's merge) is listed in `noRungAutonomous`: it earns no
-credit, and its contrary events count against every promotable cell. Its header comment states what counts as each event, including the
+credit, and its contrary events count against every promotable cell. `C3-ai-review-blocking`
+counts every merge under rung C3 and every human merge. Its header comment states what counts as each event, including the
 judgment mappings and how to set `--lane-login` for merge-queue merges.
 
 - **Report mode** (no `--out`) prints the events array and the C3 promotion-evidence report to

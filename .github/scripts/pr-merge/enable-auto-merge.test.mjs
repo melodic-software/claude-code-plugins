@@ -65,6 +65,7 @@ import {
   verifyClears,
   verifyHold,
   SKIP_STATE_PREFIX,
+  pinBody,
 } from "./enable-auto-merge.mjs";
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { DEQUEUE_MUTATION, QUEUE_ENTRY_QUERY } from "../pr-unblock/address-feedback.mjs";
@@ -1266,16 +1267,38 @@ test("a lanes App pull request with no hold is armed, squash, at the head it rea
 });
 
 // babysit_postmerge.PIN_RE, written out: the read-back takes the head from the
-// first line of the lanes App's newest unedited pin comment.
+// first line of the lanes App's newest unedited pin comment, and the
+// promotion-evidence publisher the rung (babysit_postmerge.pin_comment).
 const PIN_LINE = `<!-- babysit-merge-pin sha=${HEAD} -->`;
+const pinLine = (rung) => `<!-- babysit-merge-pin sha=${HEAD} rung=${rung} -->`;
 
 test("the head is pinned in the read-back's format before the arm", async () => {
   const { code, writes, pins, calls } = await run([pull(7)]);
   assert.equal(code, 0);
-  assert.deepEqual(pins.map((pin) => [pin.path, pin.body.split("\n")[0]]), [[`${ISSUES}/7/comments`, PIN_LINE]]);
+  assert.deepEqual(pins.map((pin) => [pin.path, pin.body.split("\n")[0]]), [[`${ISSUES}/7/comments`, pinLine("C2")]]);
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_7", head: HEAD }]);
-  const order = calls.map((call) => (call.body?.query === ARM_MUTATION ? "arm" : String(call.body?.body ?? "").startsWith(PIN_LINE) ? "pin" : null)).filter(Boolean);
+  const order = calls.map((call) => (call.body?.query === ARM_MUTATION ? "arm" : String(call.body?.body ?? "").startsWith(pinLine("C2")) ? "pin" : null)).filter(Boolean);
   assert.deepEqual(order, ["pin", "arm"]);
+});
+
+test("the pin names the rung the lane room scores at", async () => {
+  const { pins } = await run([pull(7)], {}, {}, { ...ROOM, rung: "C3" });
+  assert.deepEqual(pins.map((pin) => pin.body.split("\n")[0]), [pinLine("C3")]);
+});
+
+test("pinBody names a C2 or C3 rung and omits any other", () => {
+  assert.equal(pinBody(HEAD, "C2").split("\n")[0], pinLine("C2"));
+  assert.equal(pinBody(HEAD, "C3").split("\n")[0], pinLine("C3"));
+  for (const rung of [undefined, null, "off", "C4"]) assert.equal(pinBody(HEAD, rung).split("\n")[0], PIN_LINE);
+});
+
+test("an unedited pin naming a rung for the same head is not posted again", async () => {
+  for (const line of [pinLine("C2"), pinLine("C3")]) {
+    const pin = { ...lanesSaid(`${line}\nArmed.`), lastEditedAt: null };
+    const { writes, pins } = await run([pull(7, { discussion: { comments: [pin] } })]);
+    assert.deepEqual(pins, [], line);
+    assert.deepEqual(writes, [{ mutation: "arm", id: "PR_7", head: HEAD }]);
+  }
 });
 
 test("an unedited pin for the same head is not posted again", async () => {
