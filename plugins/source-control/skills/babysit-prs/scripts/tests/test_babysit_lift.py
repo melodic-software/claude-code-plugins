@@ -217,8 +217,14 @@ class Gh:
     """The policy module's gh seam: the open-record listing, the record and
     lift queries, main's tip, and every write, logged."""
 
-    def __init__(self, records: dict[int, str], references: list[dict[str, Any]]) -> None:
+    def __init__(
+        self,
+        records: dict[int, str],
+        references: list[dict[str, Any]],
+        files: dict[str, str] | None = None,
+    ) -> None:
         self.records, self.references = records, references
+        self.files = files or {}
         self.writes: list[list[str]] = []
 
     def __call__(self, args: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
@@ -255,6 +261,8 @@ class Gh:
             ))
         if endpoint == f"repos/{REPO}/git/ref/heads/main":
             return ok({"object": {"sha": FIX_MERGE}})
+        if endpoint in self.files:
+            return ok(self.files[endpoint])
         raise AssertionError(f"unexpected gh call: {args}")
 
 
@@ -290,6 +298,16 @@ class CloseLifted(unittest.TestCase):
         )
         self.assertIn("state_reason=completed", gh.writes[2])
         self.assertIn(f"pull request #7 merged at {FIX_MERGE}", gh.writes[0][-1])
+
+    def test_a_content_lift_pins_the_commit_it_was_found_at(self) -> None:
+        body = REVERT + "\n" + policy.lift_block([("f.py", b"gone")])
+        gh = Gh({9: body}, [], {f"repos/{REPO}/contents/f.py?ref={FIX_MERGE}": "gone\n"})
+        self.assertEqual(self.run_close(gh), 1)
+        comment = gh.writes[0][-1]
+        self.assertTrue(
+            comment.startswith(f"body=<!-- lift-evidence sha={FIX_MERGE} -->\n"), comment
+        )
+        self.assertIn("the deleted content is on main at", comment)
 
     def test_a_record_that_has_not_lifted_stays_open(self) -> None:
         gh = Gh({9: REVERT}, [])

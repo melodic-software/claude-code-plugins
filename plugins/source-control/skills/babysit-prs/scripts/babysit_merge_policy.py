@@ -2135,30 +2135,39 @@ def _canary_green_at(owner: str, name: str, sha: str) -> bool:
     )
 
 
-def _filer_block(
-    comments: dict[str, Any], identity: str | None
-) -> dict[str, dict[str, int]] | None:
-    """The lift block of a filer's unedited comment (`github-actions[bot]` or
-    the agent identity), among the record's first 100 comments."""
+def _filer_bodies(comments: dict[str, Any], identity: str | None) -> list[str]:
+    """The bodies of a filer's (`github-actions[bot]` or the agent identity)
+    unedited comments among the record's first 100, oldest first; none when
+    it has more."""
     if json_object(comments.get("pageInfo")).get("hasNextPage") is not False:
-        return None
+        return []
     filers = {DEMOTION_FILER, str(identity or "").strip().casefold()} - {""}
-    for comment in map(json_object, json_array(comments.get("nodes"))):
-        if actor_key(comment.get("author")) in filers and not comment.get(
-            "lastEditedAt"
-        ):
-            paths = read_lift_block(comment.get("body"))
-            if paths is not None:
-                return paths
-    return None
+    return [
+        str(comment.get("body") or "")
+        for comment in map(json_object, json_array(comments.get("nodes")))
+        if actor_key(comment.get("author")) in filers
+        and not comment.get("lastEditedAt")
+    ]
+
+
+# The commit `babysit_lift.py close` found the content back at, on the first
+# line of its close comment, so a later edit on main does not re-demote a
+# record the lane closed: a commit's tree never changes.
+LIFT_EVIDENCE = re.compile(r"^<!-- lift-evidence sha=([0-9a-f]{40}) -->$")
+
+
+def lift_evidence(sha: str) -> str:
+    return f"<!-- lift-evidence sha={sha} -->"
 
 
 @dataclass(frozen=True)
 class Lift:
-    """A record's lift: its clear time and what proved it."""
+    """A record's lift: its clear time, what proved it, and for content found
+    back on main the commit it was found at."""
 
     at: datetime
     why: str
+    evidence: str | None = None
 
 
 def _lift(
@@ -2171,7 +2180,10 @@ def _lift(
 
     (1) The record's own condition holds again on main: a canary or revert
     record whose lift block names deleted content, once every counted line is
-    in its path's file at main's tip (`_content_present`); a read-back record,
+    in its path's file at main's tip (`_content_present`), or at the commit a
+    filer's unedited `lift-evidence` comment names when that commit is on
+    main at or after the record's SHA, so a later edit does not re-demote a
+    record the lane closed; a read-back record,
     once the pull request its body names, merged at the record's SHA, reads
     back (`_read_back_holds`). The record's creation is the clear time.
     (2) A pull request that references the record merges into main after it
@@ -2215,11 +2227,14 @@ def _lift(
     )
     created = _time(issue.get("createdAt"))
     record = json_object(data.get("issue"))
+    notes = _filer_bodies(json_object(record.get("comments")), identity)
     block = None
     if signal != "read-back":
         block = read_lift_block(body)
         if block is None and signal == "canary":
-            block = _filer_block(json_object(record.get("comments")), identity)
+            block = next(
+                (p for n in notes if (p := read_lift_block(n)) is not None), None
+            )
         if block is None and signal == "canary":
             return None
     own = json_object(data.get("pullRequest"))
@@ -2230,8 +2245,22 @@ def _lift(
         and _read_back_holds(own, identity)
     ):
         return Lift(created, f"pull request #{number} reads back")
-    if block and _content_present(owner, name, block, green.main_tip()):
-        return Lift(created, f"the deleted content is on main at {green.main_tip()}")
+    if block:
+        # The commit a lane's close found the content at, when it is on main
+        # at or after the record's SHA; else main's tip.
+        pinned = next(
+            (
+                m[1]
+                for n in notes
+                if (m := LIFT_EVIDENCE.match(n.split("\n", 1)[0].rstrip()))
+            ),
+            None,
+        )
+        ref = green.main_tip()
+        if pinned and green.on_main(pinned) and (pinned == sha or green.ahead(sha, pinned)):
+            ref = pinned
+        if _content_present(owner, name, block, ref):
+            return Lift(created, f"the deleted content is on main at {ref}", ref)
     timeline = json_object(record.get("timelineItems"))
     if json_object(timeline.get("pageInfo")).get("hasNextPage") is not False:
         raise PolicyReadError(f"issue #{issue.get('number')}: more than 100 references")

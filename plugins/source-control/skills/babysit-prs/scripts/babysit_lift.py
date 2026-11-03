@@ -170,7 +170,9 @@ def close_lifted(repo: str, identity: str | None) -> int:
                 "POST",
                 f"repos/{owner}/{name}/issues/{number}/comments",
                 "-f",
-                f"body=This record lifted: {lift.why}. The lane closed it by the merge "
+                "body="
+                + (f"{policy.lift_evidence(lift.evidence)}\n" if lift.evidence else "")
+                + f"This record lifted: {lift.why}. The lane closed it by the merge "
                 "gate's own rule (babysit_merge_policy.py `_lift`).",
             )
             unlabel = _api(

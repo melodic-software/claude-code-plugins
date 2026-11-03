@@ -1791,6 +1791,41 @@ class RecordLift(unittest.TestCase):
             self.fake(body, lift_answer())
             self.assertEqual(read_demotion().reason, "#9 open")
 
+    def test_a_lane_closed_record_stays_lifted_at_the_commit_it_was_found_at(self) -> None:
+        # The lane closed it with the commit it found the content at; main's
+        # tip has since lost a line, which must not re-demote a closed record.
+        closed = {
+            "state": "CLOSED",
+            "timelineItems": {
+                "nodes": [
+                    {
+                        "createdAt": "2026-10-14T00:00:00Z",
+                        "actor": bot("github-actions"),
+                        "closer": None,
+                    }
+                ]
+            },
+        }
+        evidence = policy.lift_evidence(FIX_MERGE) + "\nThis record lifted."
+        for name, comments, lifts in (
+            ("the lane's evidence comment", [{"author": bot("github-actions"), "body": evidence, "lastEditedAt": None}], True),
+            ("no evidence comment", [], False),
+            ("a person's evidence comment", [{"author": user(OPERATOR), "body": evidence, "lastEditedAt": None}], False),
+            ("an edited one", [{"author": bot("github-actions"), "body": evidence, "lastEditedAt": "2026-10-15T00:00:00Z"}], False),
+        ):
+            with self.subTest(name):
+                gh = self.fake(CANARY_BLOCK_BODY, lift_answer(comments=comments), tip=MAIN_TIP)
+                gh.graphql["PolicyDemotionRecords"]["repository"]["i9"] |= closed
+                self.content(gh, MAIN_TIP, "keep\ngone one\n")
+                self.content(gh, FIX_MERGE, "gone one\ngone two\n")
+                gh.rest[f"repos/{REPO}/compare/{FIX_MERGE}...{MAIN_TIP}"] = {"status": "ahead"}
+                gh.rest[f"repos/{REPO}/compare/{'b' * 40}...{FIX_MERGE}"] = {"status": "ahead"}
+                result = read_demotion()
+                if lifts:
+                    self.lifted(result, "2026-10-12T10:00:00Z")
+                else:
+                    self.assertEqual(result.reason, "#9 closed-by-non-human")
+
     def test_a_revert_record_lifts_once_the_reverted_lines_are_back(self) -> None:
         body = REVERT_BODY + "\n\n" + policy.lift_block([("f.py", b"gone one")])
         for text, lifts in (("gone one\n", True), ("other\n", False)):

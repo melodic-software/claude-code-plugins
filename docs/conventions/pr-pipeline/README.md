@@ -1146,7 +1146,9 @@ the rules that only tighten in
   one week. A canary, revert or read-back record that no non-human edited lifts, open or not, on
   its own evidence (`babysit_merge_policy.py` `_lift`), in either of two ways. (1) Its own
   condition holds on main again: for a canary or revert record, every line its lift block counts is
-  in that path's file at main's tip, as often as it was deleted; for a read-back record, the pull
+  in that path's file at main's tip, as often as it was deleted (once the lane closed it, at the
+  commit its close comment's `<!-- lift-evidence sha=<S> -->` line names, so a later edit on main
+  does not re-demote a closed record); for a read-back record, the pull
   request it names reads back after all (the agent identity's newest pin comment among its first
   100 comments is unedited, was posted no later than the merge and names the head that merged).
   The record's creation is the clear time. (2) A pull request that references the record merges
@@ -1164,9 +1166,9 @@ the rules that only tighten in
   lines `scripts/check-silent-revert.sh` attributes to a culprit in the pushed commits (its
   `DELETED_SINK`); for a canary record `babysit_postmerge.py --remediate` filed first, the alert
   posts the block as a comment, which counts when github-actions[bot] or the agent identity wrote
-  it and nobody edited it. The one exception is a canary record with no block, because the scan
-  could not run or the block passed 40,000 characters: no lane can tell what was deleted, so only a
-  person's close clears it. On each completed scheduled full run on main, `close-cleared` runs
+  it and nobody edited it. The one exception is a canary record with no block, because the pushed
+  commits are not in main's checkout, the scan could not run, or the block passed 40,000
+  characters: no lane can tell what was deleted, so only a person's close clears it. On each completed scheduled full run on main, `close-cleared` runs
   `babysit_lift.py close` from main's checkout, which comments on, removes the human-gated label
   from and closes as completed each open canary, revert or read-back record either filer opened
   that has lifted by that same rule; post-merge-failure canary records lift and close the same
