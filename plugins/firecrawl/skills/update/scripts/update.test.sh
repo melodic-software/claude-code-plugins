@@ -111,6 +111,21 @@ assert_contains "record has SHA" "$written" "Upstream SHA256: deadbeef"
 assert_contains "record has version" "$written" "CLI version at sync: 2.0.0"
 assert_contains "record has rollback target" "$written" "rollback target): 1.18.0"
 
+# Rewriting the committed record with its own values reproduces it byte for
+# byte, so a re-run with nothing changed leaves no diff.
+COMMITTED_UP="$SCRIPT_DIR/../upstream.md"
+UPSTREAM_MD="$COMMITTED_UP"
+committed_args=("$(recorded_upstream_sha)" "$(recorded_cli_version)"
+  "$(recorded_field 'Previous CLI version (rollback target)')" "$(recorded_field 'Last sync')")
+UPSTREAM_MD="$TEST_TMPDIR/upstream-rerun.md"
+rewrite_upstream_md "${committed_args[@]}"
+if cmp -s "$COMMITTED_UP" "$UPSTREAM_MD"; then
+  pass "re-run on the committed record leaves no diff"
+else
+  fail "re-run on the committed record leaves no diff" "identical to upstream.md" \
+    "$(diff "$COMMITTED_UP" "$UPSTREAM_MD")"
+fi
+
 # --- 6. sha256 helper matches a direct call ------------------------------------------
 
 FIXTURE_SHA="$TEST_TMPDIR/sha-fixture.txt"
