@@ -85,11 +85,7 @@ name: pr-feedback-dispatch
 # ci-status hold. An approval has no event of its own here: a review event
 # would run the PR's copy of this file.
 #
-# Every completed review run at a head starts this file, so a run leaves a
-# record for the next one at that head in the Actions cache
-# (dispatch-record.mjs): a head already handled for good is skipped before
-# any read, and one whose dispatched run is still going after one. The
-# token's rate-limit readings, from the script's own responses, are logged
+# The token's rate-limit readings, from the script's own responses, are logged
 # at the end of the job (.github/actions/log-api-budget).
 
 on:
@@ -390,20 +386,6 @@ jobs:
         if: steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
         run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
 
-      # The newest record an earlier run at this head saved, if any. The key
-      # names the event's head SHA, which reaches no shell; the script checks
-      # every entry it reads (dispatch-record.mjs). A sweep keeps no record.
-      - name: Restore the dispatch record for this head
-        if: >-
-          steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
-          && github.event.workflow_run.path != '.github/workflows/pr-unblock-dispatch.yml'
-        continue-on-error: true
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ runner.temp }}/pr-feedback-dispatch-record.json
-          key: pr-feedback-dispatch-record-${{ needs.post-verify-notes.outputs.head-sha || needs.post-verify-notes.outputs.pass-head-sha || github.event.workflow_run.head_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: pr-feedback-dispatch-record-${{ needs.post-verify-notes.outputs.head-sha || needs.post-verify-notes.outputs.pass-head-sha || github.event.workflow_run.head_sha }}-
-
       # The gate's verifier reader (babysit_verify_evidence.py), which the
       # dispatch reads for a pull request whose pr-verify FAILs are at the cap
       # (verify-cap.mjs): the repository's pinned interpreter and PyYAML entry.
@@ -458,14 +440,6 @@ jobs:
           REVIEWER_IDS=$(yq '."review-threads"."reviewer-ids" // [] | .[]' .base/docs/conventions/pr-pipeline.yaml)
           export REVIEWER_IDS
           node .base/.github/scripts/pr-unblock/feedback-dispatch.mjs
-
-      - name: Save the dispatch record for this head
-        if: always() && steps.dispatch.outputs.record-changed == 'true'
-        continue-on-error: true
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ runner.temp }}/pr-feedback-dispatch-record.json
-          key: pr-feedback-dispatch-record-${{ needs.post-verify-notes.outputs.head-sha || needs.post-verify-notes.outputs.pass-head-sha || github.event.workflow_run.head_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       # The record of the run this run dispatched and the review run that
       # started it: an artifact only steps of this run can upload, read by the
