@@ -1,23 +1,7 @@
----
-description: "Measure how much code is typed, per file and per lane, for a change, a path, or the tree: `type-coverage` for TypeScript, mypy's any-expressions report for Python. No standard anchors it, so the number is a trend, not a bar. Use when: 'how much of this is typed', 'type coverage', 'how many anys are in this', 'any usage in the change', 'type debt', 'measure our typing', 'mypy any expressions report'. Complexity: /code-metrics:audit-complexity."
-argument-hint: "[--json] [--all] [--base <ref>] [<path>...]"
-user-invocable: true
-disable-model-invocation: false
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/audit-type-debt.sh:*)", "Bash(git branch --show-current:*)"]
-shell: bash
-metadata:
-  workflow-stage: anytime
-  summary: Typed-code percentage per file and per lane, with no standard behind it
----
-
-## Pre-computed context
-
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-
-## Purpose
+# Type debt
 
 "Get `any` and `unknown` to zero" is a goal without a yardstick: no standard and no CWE anchors a
-typed-code percentage. This skill reports what the two tools that produce a real percentage
+typed-code percentage. This action reports what the two tools that produce a real percentage
 measure, per file and per lane, and says plainly where the number comes from and what it does not
 mean. There is no pass or fail here, and no bar to argue with.
 
@@ -32,10 +16,10 @@ mean. There is no pass or fail here, and no bar to argue with.
 ## Run it
 
 ```bash
-"${CLAUDE_SKILL_DIR}/scripts/audit-type-debt.sh"                    # the change: diff from the merge-base plus uncommitted files
-"${CLAUDE_SKILL_DIR}/scripts/audit-type-debt.sh" src/ lib/api.py    # explicit paths (a missing one is a usage error)
-"${CLAUDE_SKILL_DIR}/scripts/audit-type-debt.sh" --all              # every tracked or untracked-but-not-ignored file
-"${CLAUDE_SKILL_DIR}/scripts/audit-type-debt.sh" --json --all src/  # the code-metrics/v2 document instead of markdown
+"<skill-dir>/scripts/audit-type-debt.sh"                    # the change: diff from the merge-base plus uncommitted files
+"<skill-dir>/scripts/audit-type-debt.sh" src/ lib/api.py    # explicit paths (a missing one is a usage error)
+"<skill-dir>/scripts/audit-type-debt.sh" --all              # every tracked or untracked-but-not-ignored file
+"<skill-dir>/scripts/audit-type-debt.sh" --json --all src/  # the code-metrics/v2 document instead of markdown
 ```
 
 Present the markdown report as printed. It opens with the scope and a "Coverage of this run" table
@@ -83,27 +67,23 @@ your notes and compare by hand.
 
 Everything tunable resolves through the code-metrics layers (user-global, team
 `docs/conventions/code-metrics.yaml`, local overlay;
-per-key override; keys in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`): the reference
+per-key override; keys in `<plugin-root>/reference/config.md`): the reference
 (`type_debt.reference`, `null` by default), scope exclusions (`scope.exclude`), a per-lane opt-out
 (`lanes.<lane>.enabled: false`, which drops that lane even under `--all`), and the per-lane
 collector order (`lanes.<lane>.collectors.type_coverage`). The report names the layer that
 supplied any value a personal layer changed. `/code-metrics:setup` writes the team file and probes
 the collectors.
 
-## What this skill does not do
+## What this action does not do
 
 - It does not run tests, edit files, add annotations, or install `type-coverage` or `mypy`; an
   absent tool is a row in the run table with its install hint.
 - It does not judge: the reference is not a bar, and no `check` gate exists in this version.
 - It does not count `any` occurrences for C#, and it does not report a count where the other lanes
   report a ratio.
-- It does not measure complexity, size, duplication, or coverage; those are the sibling `audit-*`
-  skills in this plugin, and `/code-metrics:principles` explains what each number means.
-
-## Next
-
-- The numbers feed a before-and-after comparison: `/verification:measure metrics`.
-- A percentage is about to be read as a bar: `/code-metrics:principles`.
+- It does not measure complexity, size, duplication, or coverage; those are the sibling `audit`
+  actions and `audit-*` skills in this plugin, and `/code-metrics:principles` explains what each
+  number means.
 
 ## Gotchas
 

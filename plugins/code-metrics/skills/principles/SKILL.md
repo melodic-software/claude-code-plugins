@@ -154,8 +154,8 @@ the Bash tool starts receiving the plugin variables.
 
 ## Next
 
-- The number in question still has to be measured: `/code-metrics:audit-complexity`, or the
-  `audit-*` skill for that measure.
+- The number in question still has to be measured: `/code-metrics:audit complexity`, or the
+  `audit` action or `audit-*` skill for that measure.
 - The bundled reference values are not the ones your codebase can defend: `/code-metrics:setup`.
 
 ## Gotchas

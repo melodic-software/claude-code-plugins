@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# /code-metrics:audit-complexity entry point: cyclomatic and cognitive
+# /code-metrics:audit complexity entry point: cyclomatic and cognitive
 # complexity and Halstead difficulty for the files in scope.
 #
 #   audit-complexity.sh [--json] [--all] [--base <ref>] [--config <resolved.json>] [<path>...]

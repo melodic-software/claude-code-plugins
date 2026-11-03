@@ -1,23 +1,7 @@
----
-description: "Measure per-function cyclomatic and cognitive complexity and Halstead difficulty for a change, a path, or the tree, from whichever collector already resolves (it installs none), each number beside its cited reference. Reports, never gates. Use when: 'how complex is this code', 'cyclomatic complexity', 'cognitive complexity', 'complexity audit', 'is this function too complex', 'Halstead difficulty', 'measure complexity of a change'. Lines per file: /code-metrics:audit-size."
-argument-hint: "[--json] [--all] [--base <ref>] [<path>...]"
-user-invocable: true
-disable-model-invocation: false
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/audit-complexity.sh:*)", "Bash(git branch --show-current:*)"]
-shell: bash
-metadata:
-  workflow-stage: anytime
-  summary: Per-function complexity beside a cited reference, no verdict
----
-
-## Pre-computed context
-
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-
-## Purpose
+# Complexity
 
 Complexity is the measure with the most citable reference on the operator's list and the most
-folklore around it. This skill reports the numbers, per function where the collector reports per
+folklore around it. This action reports the numbers, per function where the collector reports per
 function, beside references whose provenance is printed with them, and stops there: no pass or
 fail, no severity, no finding. Whether a complexity of 23 is worth changing is the reader's call.
 
@@ -42,10 +26,10 @@ carry `function: null`, and are labeled `file-level`. Its Bash cyclomatic figure
 ## Run it
 
 ```bash
-"${CLAUDE_SKILL_DIR}/scripts/audit-complexity.sh"                    # the change: merge-base diff plus uncommitted files
-"${CLAUDE_SKILL_DIR}/scripts/audit-complexity.sh" src/ lib/parse.py  # explicit paths (a missing one is a usage error)
-"${CLAUDE_SKILL_DIR}/scripts/audit-complexity.sh" --all              # every tracked or untracked-but-not-ignored file
-"${CLAUDE_SKILL_DIR}/scripts/audit-complexity.sh" --json --all src/  # the code-metrics/v2 document instead of markdown
+"<skill-dir>/scripts/audit-complexity.sh"                    # the change: merge-base diff plus uncommitted files
+"<skill-dir>/scripts/audit-complexity.sh" src/ lib/parse.py  # explicit paths (a missing one is a usage error)
+"<skill-dir>/scripts/audit-complexity.sh" --all              # every tracked or untracked-but-not-ignored file
+"<skill-dir>/scripts/audit-complexity.sh" --json --all src/  # the code-metrics/v2 document instead of markdown
 ```
 
 Present the markdown report to the user as printed. It opens with the scope and a "Coverage of
@@ -95,12 +79,12 @@ you, and why no threshold here is a verdict.
 ## Configuration
 
 Everything tunable resolves through the code-metrics layers (user-global, team
-`docs/conventions/code-metrics.yaml`, local overlay; per-key override; keys in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`): the three
+`docs/conventions/code-metrics.yaml`, local overlay; per-key override; keys in `<plugin-root>/reference/config.md`): the three
 references above, scope exclusions (`scope.exclude`, which by default drops `node_modules`,
 `vendor`, `dist`, and `build` directories at any depth and reports each pattern's count),
 sanctioned-replication registries (`scope.registries`), the base ref (`scope.base`), and the
 per-lane collector order (`lanes.<lane>.collectors.<measure>`, validated against
-`${CLAUDE_PLUGIN_ROOT}/scripts/collector-ladder.tsv`). The report names the layer that supplied
+`<plugin-root>/scripts/collector-ladder.tsv`). The report names the layer that supplied
 any value a personal layer changed. `/code-metrics:setup` writes the team file and probes the
 collectors.
 
@@ -109,23 +93,16 @@ CPU count or `CODE_METRICS_JOBS`, and prints a progress line per collector on st
 scope passes a few hundred files (`CODE_METRICS_PROGRESS=1` forces it, `=0` silences it). Its
 wall clock is the slowest collector's own, which the plugin does not control.
 
-## What this skill does not do
+## What this action does not do
 
 - It does not install a collector, run tests, or edit files. A missing collector is reported with
   its install hint and the run continues.
 - It does not judge. No reference here is a bar, no finding or severity is emitted, and this
   version ships no `check` gate.
 - It does not compute CRAP: that needs coverage, and `/code-metrics:audit-coverage` computes it by
-  joining this skill's per-function numbers with a coverage artifact.
-- It does not measure lines, duplication, coverage, or type debt; those are the sibling `audit-*`
-  skills in this plugin.
-
-## Next
-
-- The numbers feed a before-and-after comparison: `/verification:measure metrics`.
-- A complex function's coverage and CRAP score are the real question:
-  `/code-metrics:audit-coverage`.
-- A number is about to be quoted at someone: `/code-metrics:principles`.
+  joining this action's per-function numbers with a coverage artifact.
+- It does not measure lines, duplication, coverage, or type debt; those are the sibling `audit`
+  actions and `audit-*` skills in this plugin.
 
 ## Gotchas
 
@@ -136,14 +113,14 @@ wall clock is the slowest collector's own, which the plugin does not control.
   reports that it found none the row reads `unavailable` with ESLint's own words and the run
   is not a failure. `lizard` still covers TypeScript cyclomatic complexity. Which file names
   ESLint accepts is recorded in
-  [`${CLAUDE_PLUGIN_ROOT}/reference/collectors.md`](../../reference/collectors.md).
+  [`<plugin-root>/reference/collectors.md`](../../../reference/collectors.md).
 - `multimetric` and `gocognit` have no version flag. The run table carries the version their
   package metadata or `go version -m` reports, and reads `version unavailable` when neither
   answers, so two reports can still be compared by tool.
 - Python and Bash have no maintained cognitive-complexity collector, so those rows read
   `unavailable` with that reason rather than reporting a substitute measure. The claim, its basis,
   as-of date and recheck trigger are recorded in
-  [`${CLAUDE_PLUGIN_ROOT}/reference/collectors.md`](../../reference/collectors.md).
+  [`<plugin-root>/reference/collectors.md`](../../../reference/collectors.md).
 - Halstead outside Python is per file, so a file's difficulty is not a function's. Python is the
   only lane with per-function Halstead, and even there the rows carry no line range.
 - A collector that reports only a start line cannot bound a function's lines, so `audit-coverage`

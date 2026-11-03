@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# /code-metrics:audit-type-debt entry point: how much of the code is typed,
+# /code-metrics:audit type-debt entry point: how much of the code is typed,
 # per file and per lane, as a percentage from `type-coverage` (TypeScript) and
 # from mypy's `--any-exprs-report` (Python).
 #

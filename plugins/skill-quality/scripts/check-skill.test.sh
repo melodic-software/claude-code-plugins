@@ -4335,7 +4335,7 @@ Conforming successor section in the single-invocation shape.
 
 ## Next
 
-`/code-metrics:audit-complexity`. The sibling skills cover the other measures.
+`/code-metrics:audit complexity`. The sibling skills cover the other measures.
 
 ## Gotchas
 
@@ -4364,7 +4364,7 @@ None known.
 
 ## Next
 
-`/code-metrics:audit-complexity`.
+`/code-metrics:audit complexity`.
 '
 out="$(run next-late 2>&1)"
 rc=$?
@@ -4411,7 +4411,7 @@ Skill-tool instruction, an installed-ness gate, and a fallback clause.
 
 ## Next
 
-Ask the Skill tool to invoke /code-metrics:audit-complexity when it is installed.
+Ask the Skill tool to invoke /code-metrics:audit complexity when it is installed.
 Otherwise measure by hand.
 
 ## Gotchas

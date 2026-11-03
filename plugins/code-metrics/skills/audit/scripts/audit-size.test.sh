@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Regression tests for the audit-size entry point (audit-size.sh): option parsing,
 # JSON versus markdown output, and exit-code passthrough from dispatch.sh.
-# test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/fixtures/* plugins/code-metrics/skills/audit-size/SKILL.md
+# test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/fixtures/* plugins/code-metrics/skills/audit/SKILL.md plugins/code-metrics/skills/audit/actions/size.md
 # test-scope: plugins/code-metrics/scripts/yaml_subset.py
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -52,14 +52,14 @@ assert_eq "--help prints usage" 0 "$?"
 
 # The 1000-line provenance is one sentence, owned by the bundled defaults and
 # repeated verbatim where a reader meets the number without the report: the
-# skill body and the principles threshold table. A rewording in one place is a
-# second story about where the number came from.
+# size action body and the principles threshold table. A rewording in one place
+# is a second story about where the number came from.
 provenance="$("$PY" -c '
 import json, sys
 doc = json.load(open(sys.argv[1]))
 print(next(t["provenance"] for t in doc["thresholds"] if t["measure"] == "file_lines"))
 ' "$PLUGIN_ROOT/scripts/config-defaults.json")"
-for surface in "$SCRIPT_DIR/../SKILL.md" "$SCRIPT_DIR/../../principles/reference/thresholds.md"; do
+for surface in "$SCRIPT_DIR/../actions/size.md" "$SCRIPT_DIR/../../principles/reference/thresholds.md"; do
   # Markdown wraps the sentence across lines; compare with whitespace folded.
   folded="$(tr -s '[:space:]' ' ' <"$surface")"
   case "$folded" in
@@ -68,8 +68,8 @@ for surface in "$SCRIPT_DIR/../SKILL.md" "$SCRIPT_DIR/../../principles/reference
   esac
 done
 
-# The description names `--all` as a scope in its own right and no longer
-# disowns the whole-tree run, and stays inside the field maximum.
+# The router's description names `--all` as a scope in its own right and no
+# longer disowns the whole-tree run, and stays inside the field maximum.
 description="$(sed -n '2p' "$SCRIPT_DIR/../SKILL.md")"
 case "$description" in
 *"wrong tool"*) fail "the description no longer disowns --all" "no 'wrong tool' clause" "$description" ;;
