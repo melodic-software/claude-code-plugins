@@ -632,3 +632,12 @@ lib/git-hooks/check-lib.sh
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/git-hooks/check-lib.sh -> plugins/*/lib/git-hooks/check-lib.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/one-way-doors.md, the one-way and two-way door definition, carried by
+# planning (/planning:design) and review (/review:merge-risk).
+reference/one-way-doors.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/one-way-doors.md -> plugins/*/reference/one-way-doors.md
