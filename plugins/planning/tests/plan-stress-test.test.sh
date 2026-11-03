@@ -57,9 +57,9 @@ check_file 'a value outside the list is refused' 1 'plan_stress_test:
   plan: never'
 check_file 'a flat value is refused' 1 'plan_stress_test: both'
 
-# Issue #12478's done-when: the key is per mode, and the default matches the eval, auto in each mode.
+# The key is per mode, and its default matches the eval: auto in each mode.
 schema_modes="$(node -e 'const p = require(process.argv[1]).properties.plan_stress_test.properties;
-console.log(Object.keys(p).sort().map((k) => `${k}=${p[k].default}`).join(" "))' \
+console.log(Object.keys(p).sort().map((k) => k + "=" + p[k].default).join(" "))' \
   "$PLUGIN_DIR/schemas/planning.schema.json" 2>&1)"
 if [[ "$schema_modes" == 'incumbent=auto plan=auto proposal=auto' ]]; then
   ok 'the schema has exactly the three modes, each defaulting to auto'
@@ -71,7 +71,7 @@ fi
 # default auto for each mode, and Step 3 of the plan skill resolves it through that section.
 section() { awk -v start="$2" -v stop="$3" 'index($0, start) == 1 { on = 1; print; next } on && index($0, stop) == 1 { exit } on' "$1"; }
 home_keys="$(section "$PLUGIN_DIR/reference/config.md" '## Convention-home keys' '## ')"
-if grep -qE '^\| `plan_stress_test` \|.*\| `auto` for each \|' <<<"$home_keys"; then
+if grep -qE '^\| .plan_stress_test. \|.*\| .auto. for each \|' <<<"$home_keys"; then
   ok 'config.md lists plan_stress_test as a convention-home key defaulting to auto'
 else
   fail 'config.md lists plan_stress_test as a convention-home key defaulting to auto'
