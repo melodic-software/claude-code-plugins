@@ -175,8 +175,8 @@ The lane runs from `.github/workflows/pr-unblock.yml`, with the dispatchers
 | 2 | gap | `.github/scripts/pr-unblock/dispatch.mjs:254`, `.github/scripts/pr-unblock/dispatch.mjs:835` | A non-5xx read failure counts as `failed` and exits 1. |
 | 3 | gap | `.github/scripts/pr-unblock/dispatch.mjs:229`, `.github/scripts/pr-unblock/limit-stop.mjs:21` | Failed runs, outage failures included, use up a cap for each head that blocks re-dispatch until a new push. That is a stored breaker. |
 | 4 | gap | `.github/scripts/pr-unblock/escalation-routes.json:27`, `.github/scripts/pr-unblock/report-escalation.sh:106` | A job fault, such as a lane token that was not obtained, files a fail route, and an unlisted reason holds the PR for a person. Its `clear` mode (`:74`) does clear its own status. |
-| 5 | gap | `.github/workflows/pr-unblock-dispatch.yml:109`, `.github/workflows/pr-feedback-dispatch.yml:381` | `degraded` gates the dispatch steps. |
-| 6 | gap | `.github/scripts/pr-unblock/gate-source.mjs:447`, `.github/workflows/pr-feedback-dispatch.yml:118` | `Promise.all` reads in parallel, and the sweep group uses `queue: max`. The `etag` use (`request-budget.mjs:86`) and the cron at minutes 9 and 39 are fine. |
+| 5 | gap | `.github/workflows/pr-unblock-dispatch.yml:109`, `.github/workflows/pr-feedback-dispatch.yml:388` | `degraded` gates the dispatch steps. |
+| 6 | gap | `.github/scripts/pr-unblock/gate-source.mjs:447`, `.github/workflows/pr-feedback-dispatch.yml:111` | `Promise.all` reads in parallel, and the sweep group uses `queue: max` (`:114`). The `etag` use (`request-budget.mjs:86`) and the cron at minutes 9 and 39 are fine. |
 
 ## pr-merge
 
@@ -290,6 +290,23 @@ A third part 2 change fixed pr-merge's two script gaps, each with a test:
   fails red at once, as it does on any final broker answer: holding the calling job green instead is
   that workflow's change (`.github/actions/request-lane-token/action.yml`).
 
+A fourth part 2 change fixed these gaps, each with a test:
+
+- **work-resolve-issue and pr-refine, element 6.** `handoff-evidence.sh` reads the job listing a
+  page at a time. Each read after the first sends each page that came with an `etag` as a
+  conditional request, and a `304` reuses the page it already read
+  (`.github/scripts/lib/handoff-evidence.sh`).
+- **pr-unblock, element 2.** A read that fails, whatever GitHub answered, no longer fails
+  `pr-unblock-dispatch.yml`. A listing it cannot read dispatches nothing, and a PR whose reads
+  fail is skipped, each with a warning, and the next tick reads them again. Before, a read held
+  only on a `5xx`, or in some places a rate limit, and any other failure ended the run red. A
+  failed dispatch still does (`dispatch.mjs`, `fix-ci-dispatch.mjs`, `fix-docs-dispatch.mjs` and
+  `dependency-dispatch.mjs` under `.github/scripts/pr-unblock/`). Two things are unchanged. A rate
+  limit still ends the run red, because the shared rate guard fails the step (the `rate-guard.mjs`
+  row below). And `fix-ci` still dispatches under its caps when it cannot read its required run or
+  the head's check runs for a reason other than a `5xx` or a rate limit, or when the verifier
+  reader fails.
+
 The other script rows below are still open. Part 2 also found two rows that are not script-only
 fixes. Holding work-unblock's sweep green on a failed listing (element 2) would let the next sweep
 start its window after this run (`sweepSince` in `.github/scripts/work-unblock/label-unblocked.mjs`),
@@ -303,7 +320,6 @@ since it has no cron.
 | shared | 1, 2 | script | `.github/actions/log-api-budget/rate-guard.mjs` (wait out a short reset; hold instead of failing) |
 | shared | 2 | script | `.github/actions/log-api-budget/api-budget.bash` (a notice instead of `::error::` when the caller holds) |
 | work-resolve-issue | 2, 4 | script | `.github/scripts/work-resolve-issue/report-outcome.mjs` (`--find-prior` red on a failed read, a failed labeler read holds the PR), `stop-routes.json`; part 2 fixed `retry-fetch.mjs`'s rate-limit wait and the PR create sent again |
-| work-resolve-issue, pr-refine | 6 | script | `.github/scripts/lib/handoff-evidence.sh` (`etag` on the repeated job-listing poll) |
 | work-resolve-issue | 2, 3, 5 | workflow | `.github/workflows/work-resolve-issue.yml` (WIP check fails open, cached pause, status gate) |
 | intake-triage | 2 | script | `.github/scripts/intake-triage/apply-verdict.mjs` (holding green needs a re-trigger, since the lane has no cron); part 2 fixed `admit.mjs`'s visibility read |
 | intake-triage | 5 | workflow | `.github/workflows/intake-triage.yml` |
@@ -317,7 +333,7 @@ since it has no cron.
 | pr-verify | 2, 6 | script | `.github/scripts/pr-verify/resolve-pr.mjs`, `check-trusted-trigger.mjs` |
 | pr-verify | 2, 3 | workflow | `.github/workflows/pr-verify.yml` |
 | pr-require-checks | 1, 2, 3, 4, 5, 6 | workflow | `.github/workflows/pr-require-checks.yml` |
-| pr-unblock | 2, 3, 4 | script | `.github/scripts/pr-unblock/dispatch.mjs`, `limit-stop.mjs`, `escalation-routes.json`; part 2 fixed `report-escalation.sh`'s comment resends, `request-budget.mjs`'s write resends and 6-minute waits, and the lane's parallel reads |
+| pr-unblock | 3, 4 | script | `.github/scripts/pr-unblock/limit-stop.mjs`, `escalation-routes.json`; part 2 fixed `report-escalation.sh`'s comment resends, `request-budget.mjs`'s write resends and 6-minute waits, the lane's parallel reads, and the dispatchers' failed reads |
 | pr-unblock | 5, 6 | workflow | `.github/workflows/pr-unblock-dispatch.yml`, `pr-feedback-dispatch.yml` |
 | pr-merge | 2, 6 | workflow | `.github/workflows/pr-merge.yml` (listing-full and rate-limit exits, cover-read dispatch, `queue: max`) |
 | pr-merge | 2 | workflow | `.github/workflows/pr-merge.yml:1192`: hold green on a full listing and count it toward the monitor signal, so 1000 or more open pull requests reaches a person the way a held listing does |

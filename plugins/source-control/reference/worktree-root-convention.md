@@ -31,9 +31,11 @@ places is the drift a git-config-readable convention exists to prevent.
   and unsets it. Delete that peel after 2026-12-31. Fleet audit stays read-only
   and does not write.
 - **Value:** a directory OUTSIDE every repository, and outside
-  repository-discovery roots such as a ghq root (`ghq list` enumerates each
-  worktree there as a repository of its own; a leading dot does not hide it).
-  On Windows, the same drive as the repositories it serves.
+  repository-discovery roots such as a ghq root. For what ghq discovers under
+  its root, see the `list` entry under COMMANDS in the
+  [ghq README](https://github.com/x-motemen/ghq#commands) (as of 2026-11-03;
+  recheck when that entry changes what `ghq list` enumerates). On Windows, the
+  same drive as the repositories it serves.
 
 ## Reading it (any consumer)
 
@@ -127,11 +129,13 @@ so last-wins picks it up) alongside the identity keys. Verified properties
 
 ### Hazards (all fail silently: rc=0, zero stderr)
 
-- **Use `gitdir/i:` for the identity layer, not `hasconfig:`.** libgit2
-  clients (gitui, TortoiseGit, git2/nodegit/pygit2) implement `gitdir:`,
-  `gitdir/i:`, `onbranch:` but NOT `hasconfig:`, and fail unrecognized
-  conditions silently; JGit and go-git resolve no `includeIf` at all.
-  `hasconfig:` is fine for `worktreeroot.*`, which only CLI-shelling tools read.
+- **Use `gitdir/i:` for the identity layer, not `hasconfig:`.** Git clients
+  other than the CLI read the identity layer too, and their condition support
+  is their own. `hasconfig:` is fine for `worktreeroot.*`, which only
+  CLI-shelling tools read. For the conditions git defines, see
+  [git-config: Conditional includes](https://git-scm.com/docs/git-config#_conditional_includes),
+  and check a client's own docs before relying on one there (as of 2026-11-03;
+  recheck when that section adds or changes a condition keyword).
 - **`gitdir:` is case-sensitive even on case-insensitive NTFS.** Only the
   pattern author's spelling matters. Always `gitdir/i:` on Windows.
 - **Precedence is parse order, not specificity.** A plain
@@ -154,12 +158,15 @@ so last-wins picks it up) alongside the identity keys. Verified properties
 - **Per-worktree overrides need `config.worktree`** behind
   `extensions.worktreeConfig`, since no `gitdir:` pattern can distinguish two
   worktrees of one repository.
-- **Identity includes must set more than `user.email`.** `user.signingkey`,
-  `gpg.ssh.allowedSignersFile`, `core.sshCommand`, and `url.*.insteadOf` all
-  leak from global otherwise, and a wrong SSH signing key **verifies Good
-  locally** (git derives the principal from the signature; only the forge
-  shows Unverified). `user.useConfigOnly` is inert if a global `user.email`
-  exists.
+- **Identity includes must set more than `user.email`.** Every
+  identity-bearing key an include leaves unset falls through to the global
+  value. The template above keeps `user.email` out of the global file for the
+  same reason, so `user.useConfigOnly` can do its job. For which keys carry
+  identity (signing, SSH and URL rewriting among them) and what
+  `user.useConfigOnly` does, see
+  [git-config: Variables](https://git-scm.com/docs/git-config#_variables) (as
+  of 2026-11-03; recheck when that section changes a `user.*`, `gpg.*`,
+  `core.sshCommand` or `url.*` entry).
 
 ## Doctor
 

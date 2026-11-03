@@ -6,7 +6,8 @@ set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 root=$(cd "$here/../../.." && pwd)
 surface="$root/plugins/planning/skills/interview/context/surface.md"
-skill="$root/plugins/planning/skills/interview/SKILL.md"
+# The page lane's own spoke carries the rule since the surface registry replaced SKILL.md's lane table.
+lane_page="$root/plugins/planning/skills/interview/context/lane-page.md"
 loop="$root/plugins/planning/skills/interview/context/loop.md"
 fail=0
 need() {
@@ -22,7 +23,7 @@ need "R-K requires a same-wake mirror" "$surface" \
   "| R-K | When the session records or revises a ledger decision, mirror it onto the page with \`record-terminal\` in the same wake | skill |"
 need "op table covers a session-recorded decision" "$surface" \
   "Mirror a terminal answer or a session-recorded decision"
-need "SKILL.md mirrors a session-recorded decision" "$skill" \
+need "lane-page.md mirrors a session-recorded decision" "$lane_page" \
   "A decision this session records or revises in the ledger is mirrored the same way."
 need "loop.md mirrors a session-recorded decision" "$loop" \
   "and so is a decision this session records or revises in the ledger."

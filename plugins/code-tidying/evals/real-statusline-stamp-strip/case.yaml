@@ -1,12 +1,12 @@
 schema_version: "1.1"
 name: real-statusline-stamp-strip
 description: strip on the statusline-tee.sh stamp reader deletes every comment, rewrites no code, and stages the narrative
-tags: [calibration, strip, real]
+tags: [calibration, none, real]
 expected_outcome: All eight comment lines are deleted, including the arithmetic-injection warning; the function body is byte-identical; the removed narrative is staged in the report.
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: /code-tidying:dissolve-comments strip statusline-stamp.sh
+  prompt: /code-tidying:remove-comments none statusline-stamp.sh
   allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
   max_turns: 80
   timeout_seconds: 1200

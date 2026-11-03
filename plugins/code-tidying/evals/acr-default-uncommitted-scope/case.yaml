@@ -6,7 +6,7 @@ expected_outcome: Only cmd/worker.go (modified, uncommitted) is audited. It has 
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: /code-tidying:audit-comment-residue
+  prompt: /code-tidying:remove-comments audit
   allowed_tools: [Read, Glob, Grep, Skill, Bash]
   max_turns: 80
   timeout_seconds: 1200

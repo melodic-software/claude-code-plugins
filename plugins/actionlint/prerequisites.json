@@ -18,8 +18,7 @@
       "degrade": "Without actionlint, the git pre-commit entry and the end-of-turn check cannot lint GitHub Actions workflows.",
       "install": {
         "docs": "https://github.com/rhysd/actionlint/blob/main/docs/install.md"
-      },
-      "check": "/actionlint:check"
+      }
     },
     {
       "id": "node",
@@ -36,8 +35,7 @@
       "degrade": "Without node, the actionlint hooks cannot launch, so they do nothing.",
       "install": {
         "docs": "https://nodejs.org/en/download"
-      },
-      "check": "/actionlint:check"
+      }
     }
   ]
 }

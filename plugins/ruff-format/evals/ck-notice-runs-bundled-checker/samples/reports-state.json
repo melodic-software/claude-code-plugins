@@ -1,0 +1,1 @@
+{"pass": [{"answer": "| ruff | PASS |", "why": "table row"}, {"answer": "Yes, it is missing: ruff is not on PATH.", "why": "state before the name"}], "fail": [{"answer": "I will look at ruff next.", "why": "names the tool, states nothing"}, {"answer": "Done.", "why": "no result"}]}

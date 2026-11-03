@@ -40,8 +40,8 @@ skipped copy a label or body edit posts never hides a failure:
 - **`tests ci healthy: <detail>`**: every test-lane check run on the head finished as success,
   skipped (a lane the change gave no work) or neutral, and at least one succeeded.
 - **`tests local absent: <detail>`**: the head has no test-lane check run, every one skipped, or
-  the head has more check runs than the script reads. A draft skips them, so a draft's head reads
-  `absent`.
+  the head has more check runs than the script reads. A draft skips them, so a head pushed while
+  the PR is a draft reads `absent`; a PR moved back to draft keeps its ready head's results.
 - **`tests local pending: <detail>`**: a test-lane check run on the head has not finished.
 - **`tests local failing: <detail>`**: one concluded otherwise, such as failure, cancelled or timed
   out.

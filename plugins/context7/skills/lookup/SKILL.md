@@ -79,5 +79,5 @@ never hand a `${…}` token from those files to the Bash tool.
 
 - **Windows Git Bash** rewrites `ctx7 docs /org/project` into `C:/Program Files/Git/org/project`. Always prefix `ctx7 docs` with `MSYS_NO_PATHCONV=1`; `ctx7 library` is unaffected. Detail: [context/cli.md](context/cli.md).
 - The CLI has no flag for content depth; for more per call, use the MCP server.
-- Never run `ctx7 skills install` into `.claude/skills/`: this plugin owns the lookup surface, and a second copy of Upstash's `find-docs` fragments lookups and drifts on its own.
+- Never run `ctx7 setup`, or `ctx7 skills install` if a guide names it: this plugin owns the lookup surface, and a second copy of Upstash's `find-docs` fragments lookups and drifts on its own.
 - This skill retrieves library docs only. Architecture decisions and other questions that need cross-checked sources go to a research workflow.

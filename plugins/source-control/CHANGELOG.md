@@ -3,6 +3,38 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.1.3] - 2026-11-03
+
+### Added
+
+- The bundled publish gate (`lib/publish-gate.mjs`) gains `locateHit` and `hitFingerprint`: for a blocked leak-scan hit, the rule, the path and the line number, with no character of the match and every character outside printable ASCII escaped. `scanLeak` is unchanged.
+
+## [6.1.2] - 2026-11-03
+
+### Changed
+
+- babysit-prs, pull-request, worktree and the worktree-root convention: passages that restated
+  upstream behavior (GitHub's `mergeStateStatus`, subagent resume, git hooks and config keys,
+  Bash working-directory carry-over, `/autofix-pr` and cloud-session limits, status line
+  `rate_limits`, `plugin uninstall` flags, ghq and jq output) now keep only this plugin's rule and
+  point at the upstream section with an as-of date and a recheck trigger.
+
+- carries the shared medium resolver (`lib/view-settings.mjs`,
+  `lib/view-registry.mjs`) and the libraries it imports
+
+  No skill of this plugin calls it yet; its view lanes move onto it in a
+  later change.
+
+### Fixed
+
+- state that only a head pushed while the PR is a draft reads `local`; a PR moved back to draft keeps its ready head's test-lane results
+
+## [6.1.1] - 2026-11-03
+
+### Changed
+
+- The `ready` reference now says a draft's first flip runs the suites up to the budget of `scripts/check-affected.sh --tests` and leaves the rest to CI.
+
 ## [6.1.0] - 2026-11-03
 
 ### Added

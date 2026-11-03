@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "src/cache.ts"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "src/cache.ts",
+            "old_string": "  // per your request, eviction stays LRU\n",
+            "new_string": ""
+          }
+        }
+      ]
+    }
+  ]
+}
