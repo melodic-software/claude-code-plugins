@@ -393,7 +393,7 @@ const CI_STEPS = [
   ["Note a draft", "skipped"],
   ["Fail a pull request carrying the human-gated label", "success"],
   ["Fail a head a pr-unblock lane stopped", "success"],
-  ["Fail a lanes App pull request its body or a member holds", "failure"],
+  ["Fail a lanes App pull request on kill switch, hold path, verifier or veto", "failure"],
   ["Check each skipped lane against scope", "success"],
   ["Aggregate lane results", "success"],
   ["Complete job", "success"],
@@ -468,6 +468,17 @@ const failing = (...names) => ({
 test("a run that failed only on do-not-merge, alone or beside a hold an approval lifts, is judged", async () => {
   assert.equal(await held(contractLog(DO_NOT_MERGE_LINE), failing(CONTRACT_STEP)), "ok");
   assert.equal(await held(`${contractLog(DO_NOT_MERGE_LINE)}\r\n${logOf(PATH_HOLD)}`, failing(CONTRACT_STEP, HOLD_STEP)), "ok");
+});
+
+// A run reports its own commit's step names, so a held run from before the
+// hold step's rename still reports the earlier name.
+test("a held run that still reports the hold step's earlier name is judged the same way", async () => {
+  const oldName = "Fail a lanes App pull request its body or a member holds";
+  const jobs = heldJobs(ciJob(CI_STEPS.map(([n, c]) => [n === HOLD_STEP ? oldName : n, c])));
+  assert.equal(await held(logOf(PATH_HOLD), { jobs }), "ok");
+  assert.equal(await held(logOf(COST), { jobs }), "not-a-passing-run");
+  assert.equal(await held(`${contractLog(DO_NOT_MERGE_LINE)}\r\n${logOf(PATH_HOLD)}`, { jobs: heldJobs(ciJob(CI_STEPS.map(([n, c]) => [n === HOLD_STEP ? oldName : n, n === CONTRACT_STEP ? "failure" : c]))) }), "ok");
+  assert.equal(await held(logOf(), { jobs }), "not-a-passing-run");
 });
 
 test("a contract failure other than do-not-merge, or a label line its step does not account for, starts nothing", async () => {
