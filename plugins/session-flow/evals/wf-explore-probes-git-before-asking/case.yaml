@@ -1,0 +1,48 @@
+schema_version: "1.1"
+name: wf-explore-probes-git-before-asking
+description: 'Explore-stage missing-file gate: src/report.py imports three exporters that are not on disk, one removed by a commit, one staged for removal, one removed only from the working tree. Run inline (no explore skill is loaded), the stage runs git status and git log --diff-filter=D before any question, skips the committed and staged removals citing the commit or status line, investigates the working-tree-only removal, and asks nothing about the three. A run needs --scaffold and --allow-tools Bash.'
+tags: [workflow, explore-stage, git-probe]
+plugins: ["../.."]
+expected_outcome: 'The run probes each missing exporter with git status and git log --diff-filter=D before asking anything. It reports json_out.py as intentionally removed, citing the commit (its SHA or the subject "refactor: drop the json exporter"), and csv_out.py as intentionally removed, citing the staged removal. It investigates xml_out.py, which is gone only from the working tree, for example with git show HEAD:src/exporters/xml_out.py. It asks no question about whether to investigate any of the three.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/session-flow:workflow Run stage 1, Explore, now, inline, for this task: make the export in src/report.py write a header row for every format. Survey what report.py depends on and report the current state. Change no files.'
+  allowed_tools: [Bash, Read, Glob, Grep, Skill]
+  max_turns: 25
+  timeout_seconds: 600
+graders:
+  - name: status-probe
+    type: tool_used
+    tool: Bash
+    input_match: '\bgit\b(?:(?!\\n|;|&&|\|)[^\n])*?\bstatus\b'
+    min: 1
+    arm: both
+  - name: delete-log-probe
+    type: tool_used
+    tool: Bash
+    input_match: '\bgit\b(?:(?!\\n|;|&&|\|)[^\n])*?\blog\b(?:(?!\\n|;|&&|\|)[^\n])*?--diff-filter[= ]?[A-Za-z]*D'
+    min: 1
+    arm: both
+  - name: worktree-delete-investigated
+    type: tool_used
+    tool: Bash
+    input_match: '\bgit\b(?:(?!\\n|;|&&|\|)[^\n])*?(?<!-)\b(?:show|diff|cat-file)\b(?!-)(?:(?!\\n|;|&&|\|)[^\n])*?xml_out|\bgit\b(?:(?!\\n|;|&&|\|)[^\n])*?\blog\b(?:(?!\\n|;|&&|\|)[^\n])*?(?:[ \t]-p\b|--patch\b)(?:(?!\\n|;|&&|\|)[^\n])*?xml_out'
+    min: 1
+    arm: both
+  - name: staged-delete-cited
+    type: regex
+    pattern: '^(?=[^\n]*csv_out)[^\n]*(?:\n[^\n]*)?\b(?:staged|git rm)\b'
+    flags: 'mi'
+    arm: both
+  - name: committed-delete-cited
+    type: regex
+    pattern: '^(?=[^\n]*json_out)[^\n]*(?:\n[^\n]*)?(?:\b[0-9a-f]{7,40}\b|drop the json exporter)'
+    flags: 'mi'
+    arm: both
+  - name: no-question-on-missing-files
+    type: regex
+    pattern: '^(?=[^\n]*(?:csv_out|json_out|xml_out))(?=[^\n]*\b(?:investigat|look into|dig into|intentional|on purpose|meant to|archaeolog|history))[^\n]*\?'
+    flags: 'mi'
+    match: not_contains
+    arm: both

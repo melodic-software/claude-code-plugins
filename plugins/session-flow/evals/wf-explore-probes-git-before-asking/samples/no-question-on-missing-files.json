@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "json_out.py and csv_out.py were removed on purpose; xml_out.py is gone only from the working tree, so I read its last version.\n\nReady for stage 2, Research?",
+      "why": "a closing question that names no missing file"
+    },
+    {
+      "answer": "- xml_out.py: unexplained working-tree deletion, investigated via git show HEAD:src/exporters/xml_out.py",
+      "why": "no question at all"
+    },
+    {
+      "answer": "Do you want me to restore xml_out.py from HEAD?",
+      "why": "a follow-up action, not a question about investigating"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Three exporters are missing. Should I investigate xml_out.py, csv_out.py and json_out.py before going on?",
+      "why": "asks before investigating"
+    },
+    {
+      "answer": "Was the removal of csv_out.py intentional?",
+      "why": "asks what the status probe settles"
+    },
+    {
+      "answer": "Want me to dig into the history of json_out.py?",
+      "why": "asks before archaeology"
+    }
+  ]
+}
