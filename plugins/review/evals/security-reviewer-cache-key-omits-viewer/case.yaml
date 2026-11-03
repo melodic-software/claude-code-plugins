@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: security-reviewer-cache-key-omits-viewer
+context:
+  scaffold_script: scaffold.sh

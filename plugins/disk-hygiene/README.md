@@ -256,11 +256,16 @@ and repeats a summary of the same report. The last row has no backstop inside th
 
 `/disk-hygiene:setup check` resolves the launcher's whole ladder and FAILs only when it is exhausted
 or the interpreter it selects is below the floor. A stubbed `python3` alongside a working `python`
-or `py -3` is a **WARN**, not a FAIL: every guard launches there, and the residual is only that a
-bare `python3` typed by hand still opens the Store. To clear it: disable the `python3` App execution
-alias (Settings > Apps > Advanced app settings > App execution aliases) or install real Python ahead
-of WindowsApps on `PATH`. A bare `command -v python3` / `where python3` success is not proof the
-interpreter is real, the stub answers to the name too.
+or `py -3` is a **WARN**, not a FAIL: every guard launches there, and the residual is only a bare
+`python3` typed by hand, which reaches the stub. To clear it, follow the pointer below or install
+real Python ahead of WindowsApps on `PATH`. A bare `command -v python3` / `where python3`
+success is not proof the interpreter is real; the check proves it with the alias probe.
+
+- **Pointer**: when clearing the stub, fetch
+  [Using Python on Windows: Troubleshooting](https://docs.python.org/3/using/windows.html#troubleshooting)
+  live.
+- **As of**: 2026-11-03.
+- **Recheck trigger**: that section stops covering the app execution aliases.
 
 ## Reading guard decisions after the fact
 
@@ -603,9 +608,11 @@ installed. The measurements below carry the conditions they were taken under.
   `hooks.json` or `SKILL.md` frontmatter with no model-, repo-, or session-supplied text in it. The
   only substituted values are Claude Code's own `${CLAUDE_PLUGIN_ROOT}` and, in `hooks.json` only,
   `${CLAUDE_PLUGIN_DATA}`, each inside one argument, so a space, backslash, `$` or backtick in a
-  substituted path reaches the script unchanged. A skill-frontmatter hook receives only
-  `${CLAUDE_PLUGIN_ROOT}` (#1014), never `${CLAUDE_PLUGIN_DATA}` or `${user_config.*}`, so the belt's
-  `--authorized-data-root` channel stays out of its arguments by construction. The shape is
+  substituted path reaches the script unchanged. The belt's frontmatter `args` name no
+  `${CLAUDE_PLUGIN_DATA}` and no `--authorized-data-root`, so that channel stays out of them by
+  construction (for which variables a hook's `args` substitute, see
+  [where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves),
+  as of 2026-11-03; recheck when that table changes the variables a hook's `args` resolve). The shape is
   **maintained by test**: `hooks/run-python-hook.test.sh` asserts that every `hooks.json` row is
   `node` with `exec-bash.mjs` first and `run-python-hook.sh` in `args`, and runs the registered
   engine-gate rows and the belt's frontmatter `args` verbatim; `test_hygiene.py`'s hook helpers stay

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "1. **Severity**: P1\n**Location**: `package.json:7`\n**Risk**: the new package is a typosquat of express-rate-limit, and its lockfile entry sets hasInstallScript.\n**Fix**: use express-rate-limit.",
+      "why": "finding at the manifest line naming the look-alike"
+    },
+    {
+      "answer": "**Location**: `package-lock.json:19`\n**Risk**: the new package runs an install script on every npm install.",
+      "why": "finding at the lockfile naming the install script"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No findings.",
+      "why": "no finding"
+    },
+    {
+      "answer": "**Location**: `src/app.js:6`\n**Risk**: a limit of 100 per minute is too high to stop credential stuffing.",
+      "why": "a rate-limit tuning note at another line"
+    },
+    {
+      "answer": "**Location**: `package.json:8`\n**Risk**: express ^4.19.2 is not pinned to an exact version.",
+      "why": "a different dependency line, no look-alike named"
+    }
+  ]
+}

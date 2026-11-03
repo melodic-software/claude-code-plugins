@@ -3,6 +3,12 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.1] - 2026-11-03
+
+### Changed
+
+- The `audit` skill no longer names which tools write mutants in tree; it reads the configured tool's `tooling.md` row and points at StrykerJS's `inPlace` option.
+
 ## [0.14.0] - 2026-11-02
 
 ### Removed

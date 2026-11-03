@@ -18,7 +18,9 @@
 // The needs-triage floor label is no triage label: it lands on open whether
 // or not intake runs. github-actions[bot] issues are left out: the lane
 // sweep's can quote fork-controlled log lines. Per issue, one comment holds the runs
-// dispatched; after 2 that left it untriaged the sweep labels it needs-triage
+// dispatched and, once read, whether each reached intake; after 2 that reached intake and left it untriaged (a run the
+// kill switch or a gate skipped before intake does not count, up to 6
+// dispatches) the sweep labels it needs-triage
 // and rewrites that comment to hand it to a maintainer, listing the runs. It
 // files no issue. No model. The count is per triage cycle: a work-unblock
 // hand-back comment the lanes App posted after the state comment's last edit
@@ -47,7 +49,9 @@ const MAX_HANDED = 5;
 const MAX_CHECKED = 20;
 const MAX_ISSUE_PAGES = 15;
 const COMMENT_PAGES = 3;
+// A run counts as an attempt only when it reached intake (reachedIntake).
 const ATTEMPTS = 2;
+export const RUN_LIMIT = 6;
 const MIN_AGE_MS = 3_600_000;
 const BOT = "github-actions[bot]";
 // `filed` is HANDED once the comment hands the issue to a maintainer. An older
@@ -55,7 +59,9 @@ const BOT = "github-actions[bot]";
 // filing was under way; both stop the sweep too.
 export const FILING = "?";
 export const HANDED = "handed";
-const STATE = /^<!-- claude-lane triage-sweep runs=([0-9,]*) filed=([0-9]*|\?|handed) -->/;
+// Each run id in `runs=` may carry `+` (it reached intake) or `-` (it did not),
+// so a finished run's jobs are read once; an unmarked id is unread.
+const STATE = /^<!-- claude-lane triage-sweep runs=([0-9,+-]*) filed=([0-9]*|\?|handed) -->/;
 // work-unblock's comment when it hands an issue back to triage after its lane
 // PR merged with Refs: or closed unmerged (label-unblocked.mjs handedMarker),
 // the issue lane's when a stop's intake route sends it back
@@ -105,38 +111,56 @@ export function readState(comments, appId = null) {
     const m = c.user?.login === BOT ? STATE.exec(String(c.body ?? "")) : null;
     if (m) {
       if (handBack > Date.parse(c.updated_at ?? c.created_at)) {
-        return { commentId: c.id, runs: [], filed: null };
+        return { commentId: c.id, runs: [], filed: null, reached: new Map() };
       }
+      const entries = m[1] ? m[1].split(",") : [];
       return {
         commentId: c.id,
-        runs: m[1] ? m[1].split(",").map(Number) : [],
+        runs: entries.map((e) => Number.parseInt(e, 10)),
         filed: m[2] === FILING || m[2] === HANDED ? m[2] : m[2] ? Number(m[2]) : null,
+        reached: new Map(entries.filter((e) => /[+-]$/.test(e)).map((e) => [Number.parseInt(e, 10), e.endsWith("+")])),
       };
     }
   }
-  return { commentId: null, runs: [], filed: null };
+  return { commentId: null, runs: [], filed: null, reached: new Map() };
 }
 
-// `details` lists each run as {id, conclusion}, for the hand-off.
-export const renderState = ({ runs, filed, runUrl, repoUrl, details = [] }) =>
-  `<!-- claude-lane triage-sweep runs=${runs.join(",")} filed=${filed ?? ""} -->\n` +
+// `details` lists each run as {id, conclusion}, for the hand-off; `reached`
+// maps each run read so far to whether it reached intake.
+const runEntry = (reached) => (id) => `${id}${reached.has(id) ? (reached.get(id) ? "+" : "-") : ""}`;
+export const renderState = ({ runs, filed, runUrl, repoUrl, details = [], reached = new Map() }) =>
+  `<!-- claude-lane triage-sweep runs=${runs.map(runEntry(reached)).join(",")} filed=${filed ?? ""} -->\n` +
   (filed === HANDED
     ? [
         `Intake triage did not triage this issue after ${runs.length} dispatches, ${HANDED_TEXT} and labeled it needs-triage for a maintainer. Triage it by hand, and read the runs for why intake did not:`,
         "",
-        ...details.map((r) => `- ${repoUrl}/actions/runs/${r.id} (${r.conclusion ?? "unknown"})`),
+        ...details.map((r) => `- ${repoUrl}/actions/runs/${r.id} (${r.conclusion ?? "unknown"}${r.reached === false ? ", intake did not run" : ""})`),
       ].join("\n")
     : filed === FILING
     ? `Intake triage did not triage this issue after ${runs.length} dispatches; the sweep labeled it needs-triage for a maintainer.`
     : filed
     ? `Intake triage did not triage this issue after ${runs.length} dispatches; #${filed} hands it to a maintainer.`
-    : `The triage sweep dispatched [intake triage](${runUrl}) for this issue (attempt ${runs.length} of ${ATTEMPTS}).`);
+    : `The triage sweep dispatched [intake triage](${runUrl}) for this issue (dispatch ${runs.length}; ${ATTEMPTS} runs that reach intake, or ${RUN_LIMIT} dispatches, hand it to a maintainer).`);
 
-export function decide({ state, latest }) {
+// Whether a run reached intake, from its jobs: the intake-triage caller job, or
+// a job of the reusable it calls ("intake-triage / ..."), finished neither
+// skipped nor cancelled. The kill switch, a degraded upstream or a born-triaged
+// gate skips it; a run cancelled before it, or that never started, lists it
+// cancelled, skipped or not at all.
+export const reachedIntake = (jobs) =>
+  (jobs ?? []).some(
+    (j) => /^intake-triage(?: \/ |$)/.test(String(j.name ?? "")) && j.status === "completed" && !["skipped", "cancelled"].includes(j.conclusion),
+  );
+
+// `reached` counts the runs that reached intake; unread, every run counts.
+// RUN_LIMIT bounds the runs that never did: the sweep's own kill-switch check
+// stops it while the switch is on, so only a gate that keeps skipping intake
+// (a long upstream degradation, a born-triaged read that keeps failing) gets there.
+export function decide({ state, latest, reached = state.runs.length }) {
   if (state.filed) return "stop";
   if (state.runs.length === 0) return "dispatch";
   if (latest?.status !== "completed") return "wait";
-  return state.runs.length >= ATTEMPTS ? "hand" : "dispatch";
+  return reached >= ATTEMPTS || state.runs.length >= RUN_LIMIT ? "hand" : "dispatch";
 }
 
 const FILED_TITLE = /^Intake triage left #([1-9][0-9]*) untriaged after /;
@@ -271,10 +295,48 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
       checked += 1;
       const latest = state.runs.length > 0 ? await call("GET", `/repos/${repo}/actions/runs/${state.runs.at(-1)}`) : null;
       // A run the API no longer has counts as finished.
-      let action = decide({ state, latest: state.runs.length > 0 && latest === null ? { status: "completed" } : latest });
+      const finished = state.runs.length > 0 && latest === null ? { status: "completed" } : latest;
+      // Once the runs could hand the issue off, read whether each run the state
+      // has not recorded reached intake. A read that finds no run counts the
+      // run and is recorded; one that fails counts it for this pass only.
+      const known = new Map(state.reached);
+      const reached = new Map(known);
+      // At RUN_LIMIT the issue is handed off whatever the reads say, so with the
+      // hand slots used up it stops and nothing is read.
+      const capped = state.runs.length >= RUN_LIMIT && result.handed.length >= MAX_HANDED;
+      if (state.runs.length >= ATTEMPTS && finished?.status === "completed" && !capped) {
+        for (const id of state.runs.filter((r) => !known.has(r))) {
+          try {
+            const answer = await call("GET", `/repos/${repo}/actions/runs/${id}/jobs?per_page=100`);
+            known.set(id, answer === null || reachedIntake(answer.jobs));
+            reached.set(id, known.get(id));
+          } catch (error) {
+            if (/call budget/.test(error.message)) throw error;
+            reached.set(id, true);
+          }
+        }
+      }
+      // Unread, every run counts.
+      const count = state.runs.filter((id) => reached.get(id) ?? true).length;
+      let action = decide({ state, latest: finished, reached: count });
       if (action === "wait") result.waiting.push(number);
       if (action === "dispatch" && result.dispatched.length >= MAX_DISPATCHES) action = "stop";
       if (action === "hand" && result.handed.length >= MAX_HANDED) action = "stop";
+      // A capped issue records what this pass read, so no later pass reads it
+      // again. The record is best effort: a failed write costs a re-read.
+      if (action === "stop" && known.size > state.reached.size && remaining() > 0) {
+        try {
+          await writeState(call, repo, number, state, {
+            runs: state.runs,
+            filed: null,
+            runUrl: `${repoUrl}/actions/runs/${state.runs.at(-1)}`,
+            reached: known,
+          });
+        } catch (error) {
+          if (/call budget/.test(error.message)) throw error;
+        }
+        continue;
+      }
       // Never start a run the budget left cannot record, or a hand-off it cannot finish.
       if ((action === "dispatch" && remaining() < 2) || (action === "hand" && remaining() < state.runs.length + 1)) {
         result.truncated = `stopped at #${number}: too little call budget left`;
@@ -296,18 +358,19 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
           runs: [...state.runs, id],
           filed: null,
           runUrl: `${repoUrl}/actions/runs/${id}`,
+          reached: known,
         });
       }
       if (action === "hand") {
         const runs = [];
         for (const id of state.runs) {
           const run = id === state.runs.at(-1) ? latest : await call("GET", `/repos/${repo}/actions/runs/${id}`);
-          runs.push({ id, conclusion: run?.conclusion ?? null });
+          runs.push({ id, conclusion: run?.conclusion ?? null, reached: reached.get(id) });
         }
         // The label first, then the record that stops later passes: a failed
         // record leaves the issue for the next pass, which labels it again.
         await handOff(number);
-        await writeState(call, repo, number, state, { runs: state.runs, filed: HANDED, repoUrl, details: runs });
+        await writeState(call, repo, number, state, { runs: state.runs, filed: HANDED, repoUrl, details: runs, reached: known });
         result.handed.push(number);
       }
     } catch (error) {
@@ -362,7 +425,7 @@ async function main() {
   const lines = [
     "### Triage sweep",
     "",
-    `Candidates: ${result.candidates}. Dispatched: ${numbers(result.dispatched)}. Handed to a maintainer after ${ATTEMPTS} dispatches: ${numbers(result.handed)}. Handed off for too many comments: ${numbers(result.handedOff)}. Waiting on a run: ${numbers(result.waiting)}. Calls: ${budget.used}.`,
+    `Candidates: ${result.candidates}. Dispatched: ${numbers(result.dispatched)}. Handed to a maintainer after ${ATTEMPTS} runs that reached intake or ${RUN_LIMIT} dispatches: ${numbers(result.handed)}. Handed off for too many comments: ${numbers(result.handedOff)}. Waiting on a run: ${numbers(result.waiting)}. Calls: ${budget.used}.`,
     "",
     ...(result.truncated ? [`- ${result.truncated}`] : []),
     ...result.failed.map((f) => `- failed #${f.number}: ${f.error}`),

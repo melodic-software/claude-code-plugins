@@ -7,7 +7,7 @@
       "answer": "I can't reach anything from here: ~/.config/fleet/FLEET.md is not on this machine, so I have no aliases to compose a hop with. No need to generate new keys, though: the MSYS client in Git Bash just isn't agent-backed. Switch to ssh.exe."
     },
     {
-      "answer": "Nothing is wrong with your keys; the wrong ssh binary answered.",
+      "answer": "Nothing is wrong with your keys; the wrong ssh binary answered. Git Bash's MSYS ssh can't see the Windows agent.",
       "why": "unusual wording"
     },
     {
@@ -15,16 +15,28 @@
       "why": "observed wording: adverbs between 'are' and 'fine'"
     },
     {
-      "answer": "Nothing was wrong with the keys: the MSYS ssh in Git Bash answered instead of ssh.exe.",
+      "answer": "Nothing was wrong with the keys: the MSYS ssh in Git Bash answered instead of ssh.exe, and it doesn't talk to the Windows ssh-agent.",
       "why": "observed wording: past tense"
     },
     {
-      "answer": "That error usually means the client offered the wrong key or no key at all, not that a key is broken. Point this ssh at the key you already have.",
+      "answer": "That error usually means the client offered the wrong key or no key at all, not that a key is broken. Git Bash's ssh can't reach the agent holding it; point the hop at ssh.exe.",
       "why": "observed wording: 'not that a key is broken'"
     },
     {
-      "answer": "Permission denied (publickey) means the client offered the wrong key or no key, not a broken one. Check which ssh binary ran.",
+      "answer": "Permission denied (publickey) means the client offered the wrong key or no key, not a broken one. Git Bash's MSYS ssh cannot see the Windows agent.",
       "why": "observed wording: 'wrong key or no key, not a broken one'"
+    },
+    {
+      "answer": "It fails with `Permission denied (publickey)`, which looks like a key problem but isn't one: Git Bash's ssh doesn't see the ssh-agent. Retry with ssh.exe.",
+      "why": "observed wording: 'looks like a key problem but isn't one'"
+    },
+    {
+      "answer": "Your keys and `~/.ssh/config` are probably fine. Git Bash's MSYS ssh can't reach the Windows agent, and a new key pair would only add a key to manage.",
+      "why": "observed wording: a dotted path between 'keys' and 'are fine'"
+    },
+    {
+      "answer": "It doesn't mean your keys are broken. Git Bash's ssh can't see the Windows ssh-agent; use ssh.exe.",
+      "why": "observed wording: 'doesn't mean your keys are broken'"
     }
   ],
   "fail": [
@@ -42,6 +54,22 @@
     {
       "answer": "The config is not a broken one; your key is the problem, so regenerate it with ssh-keygen.",
       "why": "written to fail: 'not a broken one' about the config, then blames the key"
+    },
+    {
+      "answer": "This looks like a key problem, and it is one: regenerate the pair with ssh-keygen.",
+      "why": "written to fail: 'looks like a key problem' with no denial"
+    },
+    {
+      "answer": "Your key.pub file is the problem. The agent is fine, so regenerate the pair.",
+      "why": "written to fail: a dotted filename must not carry the match across to the agent"
+    },
+    {
+      "answer": "Nothing is wrong with your keys; the wrong ssh binary answered.",
+      "why": "written to fail: says the keys are fine but never says Git Bash's ssh cannot reach the agent"
+    },
+    {
+      "answer": "If that works, your key is fine and the laptop's authorized_keys is the issue; run ssh-copy-id.",
+      "why": "written to fail: a conditional 'key is fine' that ends in re-copying keys"
     }
   ]
 }

@@ -113,8 +113,11 @@ paid sinks are advisory + explicit opt-in with cost surfaced first.
      into a local query-on-read store directory.
    - Cost caveat surfaced on private repos: artifact storage and per-job collector runtime
      draw from metered pools.
-3. **Agent-session wiring (Claude Code specifics)**. `CLAUDE_CODE_ENABLE_TELEMETRY=1`,
-   per-signal `OTEL_*_EXPORTER` values, and for work-item-dispatched sessions
+3. **Agent-session wiring (Claude Code specifics)**. Turn the session's telemetry export on with
+   the variables
+   [monitoring: common configuration variables](https://code.claude.com/docs/en/monitoring-usage#common-configuration-variables)
+   names, read live (as of 2026-11-03; recheck when that section renames the enable or exporter
+   variables), and for work-item-dispatched sessions set
    `OTEL_RESOURCE_ATTRIBUTES` carrying `autonomy.work_item.url=<canonical item URL>`. The
    slice treats spans as optional and never depends on beta span shapes. It joins on
    `autonomy.work_item.url`, never on inbound trace context; relying on native inbound-context

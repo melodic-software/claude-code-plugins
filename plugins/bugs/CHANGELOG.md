@@ -3,6 +3,12 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.1] - 2026-11-03
+
+### Changed
+
+- `/bugs:scan`, `/bugs:setup`, `/bugs:write` and the README no longer restate upstream facts about the plugin data directory, option prompting and storage, `claude plugin install` output, uninstall effects, and `gh issue create --type`. Each keeps its own rule and points at the live upstream section with an as-of date and a recheck trigger.
+
 ## [0.18.0] - 2026-11-03
 
 ### Removed

@@ -56,9 +56,16 @@ tree directly with no wiring change.
 
 ## Ephemeral per-job collector (agent-session capture)
 
-The agent CLI exports OTLP over the network only, so the free default runs a per-job
-collector (single static OSS collector binary) that receives the session's OTLP and writes
-JSON-lines into the same artifact directory. Config shape:
+Session capture goes through a collector rather than a direct file export: the free default
+runs a per-job collector (single static OSS collector binary) that receives the session's OTLP
+and writes JSON-lines into the same artifact directory.
+
+- **Pointer**: when checking how the agent CLI exports telemetry, fetch
+  [monitoring: configuration details](https://code.claude.com/docs/en/monitoring-usage#configuration-details)
+  live. **As of**: 2026-11-03. **Recheck trigger**: that section adds an exporter that writes to a
+  file.
+
+Config shape:
 
 ```yaml
 receivers:
@@ -85,19 +92,19 @@ capture shape.
 
 `export` each variable (or set them in the platform's step-level `env:` map) so the launched
 agent process inherits them. Plain `sh` assignments stay shell-local and the session would
-emit nothing:
+emit nothing. Take the telemetry enable and exporter variables from the quick start below, with
+the OTLP endpoint pointed at the collector above; session spans are optional, and the "Traces stay
+beta" record in `context/agent-session-telemetry.md` says what they need. Then add the work-item
+attribute:
 
 ```sh
-export CLAUDE_CODE_ENABLE_TELEMETRY=1
-export OTEL_METRICS_EXPORTER=otlp
-export OTEL_LOGS_EXPORTER=otlp
-# Optional session spans (beta). What they need: the "Traces stay beta"
-# record in context/agent-session-telemetry.md.
-export CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1
-export OTEL_TRACES_EXPORTER=otlp
-export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
 export OTEL_RESOURCE_ATTRIBUTES=autonomy.work_item.url=<canonical-item-url>
 ```
+
+- **Pointer**: when setting the telemetry variables, fetch
+  [monitoring: quick start](https://code.claude.com/docs/en/monitoring-usage#quick-start) live.
+  **As of**: 2026-11-03. **Recheck trigger**: the quick start renames or adds a variable the
+  session needs to export.
 
 ## Artifact upload + verification
 

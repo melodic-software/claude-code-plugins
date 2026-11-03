@@ -341,6 +341,7 @@ jobs:
         .github/scripts/pr-unblock/fix-ci-context.mjs
         .github/scripts/pr-unblock/feedback-dispatch.mjs
         .github/scripts/pr-unblock/verify-notes.mjs
+        .github/scripts/pr-unblock/earlier-fail-notes.mjs
         .github/scripts/pr-unblock/limit-stop.mjs
         .github/scripts/lib/lane-outcome.mjs
         .github/scripts/pr-unblock/dispatch-record.mjs

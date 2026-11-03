@@ -3,6 +3,13 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.29] - 2026-11-03
+
+### Changed
+
+- The eval suite moved from `skills/*/evals/evals.json` to `evals/<case>/case.yaml` and `prompt.md`, with deterministic graders where an expectation is mechanical ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)).
+- The `verify-api` case now expects no API call without the `verify-api` argument, as the skill says.
+
 ## [0.6.28] - 2026-11-02
 
 ### Changed

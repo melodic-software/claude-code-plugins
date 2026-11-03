@@ -3,6 +3,42 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.2.1] - 2026-11-03
+
+### Changed
+
+- move the commit skill's rationale out of its hub
+
+  The /source-control:commit SKILL.md body drops from 28,967 to 25,098
+  bytes (frontmatter stripped). Explanatory prose moves verbatim to
+  reference files read on demand; every command, table and gate stays in
+  the hub.
+
+### Fixed
+
+- The pr-merge lane's post-merge floor anchor now starts when every lane merge since the policy floor already carries its settled marker. The check that writes the anchor judges each settled merge the anchor needs again from its own runs, under the check's existing read caps, and passes it only when those runs show it final. The marker alone still never passes a merge, and the check's verdict and report are unchanged. Before, `anchor.json` was never written in that state. The merge gate now reads the anchor with the job token in `BABYSIT_VERIFY_GH_TOKEN` when set, since the lane token it runs under holds no Actions permission.
+
+## [6.2.0] - 2026-11-03
+
+### Added
+
+- pull-request: `prep` runs a comment pass after simplify and before the simplify diff is
+  reviewed, through `/code-tidying:remove-comments --pipeline --added-since <base>` when that
+  plugin is enabled. An unattended run applies no comment edit unless the project's instructions
+  pre-approve it: it runs the pass in `report` mode and lists the proposals in the prep report.
+
+## [6.1.4] - 2026-11-03
+
+### Changed
+
+- pull-request: the monitor entry and per-iteration checklists move from SKILL.md to
+  `reference/monitor.md`, which `monitor`, `comments` and `full` already read, so `create` and
+  `ready` loads no longer carry them. The text moves verbatim except three paths, now written
+  `<skill-dir>` and `<plugin-root>` as reference files require. The body drops from 51,224 to
+  35,846 bytes; SKILL.md keeps a Monitor entry section that sends Phase 3 to the moved
+  checklists before any polling. Two eval cases cover the moved text: a behavior finding gets a
+  failing test first, and a person's review thread stays unresolved.
+
 ## [6.1.3] - 2026-11-03
 
 ### Added
