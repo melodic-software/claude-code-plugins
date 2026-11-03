@@ -1,11 +1,39 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/code-tidying/schemas/code-tidying.schema.json",
-  "title": "code-tidying team config",
-  "description": "Schema for <home>/code-tidying.yaml, the team layer of the code-tidying plugin's upkeep settings. Keys and resolution: plugins/code-tidying/reference/config.md.",
+  "title": "Code-tidying team config",
+  "description": "Schema for <home>/code-tidying.yaml, the team layer of the code-tidying plugin's settings, and its personal overlay code-tidying.local.yaml for the comment keys. A comment key set here wins over the plugin's userConfig value of the same name; the overlay wins over the team file. Comment keys and resolution: the Settings section of skills/remove-comments/SKILL.md. Upkeep keys: plugins/code-tidying/reference/config.md.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "$schema": { "type": "string" },
+    "comment_posture": {
+      "enum": ["auto", "none", "necessary", "explanatory", "strict", "balanced", "conservative", "aggressive"],
+      "default": "auto",
+      "description": "Which comments /code-tidying:remove-comments keeps. auto: explanatory, or necessary in a pull-request pipeline run. none: only machine-read directives, license headers, TODO(#issue) markers, paired records and public-API doc comments stay. necessary: also verified outside-constraint comments. explanatory: every comment that passes the earn-its-keep test. Deprecated, still resolved: strict and balanced read as explanatory, conservative as explanatory plus safe, aggressive as necessary."
+    },
+    "comment_edit_scope": {
+      "enum": ["diff", "files"],
+      "default": "diff",
+      "description": "On the uncommitted and branch scope rungs, diff triages only comments on the lines the change adds; files triages every comment in each changed file."
+    },
+    "encode_constraints_unattended": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether an unattended remove-comments run may encode a constraint comment as a test, assertion or lint rule without asking. Off: the encoding is offered in the report."
+    },
+    "class_c_max_lines": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 40,
+      "default": 2,
+      "description": "Lines a kept comment may run before remove-comments rewrites it terser."
+    },
+    "apply_local_renames": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether a function-local rename certified RENAME-ONLY applies without a test net."
+    },
     "upkeep_cadence": {
       "enum": ["daily", "weekly"],
       "default": "daily",

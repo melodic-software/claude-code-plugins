@@ -1567,8 +1567,8 @@ jobs:
 
   # A size split filed sub-issues as the lanes App: their own opened runs
   # triage them but write no verdict (apply-verdict writes only for a listed
-  # human or a dispatch), and the triage sweep skips an issue with an intake
-  # comment, so each is dispatched here, as a refined issue is above.
+  # human or a dispatch), and the triage sweep reaches an issue only once it
+  # is an hour old, so each is dispatched here, as a refined issue is above.
   triage-split-children:
     needs: [apply-refinement]
     if: ${{ !cancelled() && needs.apply-refinement.outputs.children != '' }}

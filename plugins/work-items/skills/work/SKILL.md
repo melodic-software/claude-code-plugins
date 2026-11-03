@@ -163,9 +163,10 @@ dispatch, PR or babysit step. It works in place:
    `cost-risk` (a HIGH or CRITICAL risk), `blocked-by-pr` (the work waits on an open pull request:
    name it as `#<n>`, and the lane runs the issue again once it merges or closes),
    `already-done` (the work is already on the default branch: cite the commit SHA or merged pull
-   request `#<n>`, and the lane closes the issue once it confirms that), or `report-delivered` (a
-   `work-class: read-only` issue whose report is the whole result and needs no commit: put the
-   report in `summary`, and the lane posts it and closes the issue). Only `intent-change`,
+   request `#<n>`, and the lane closes the issue once it confirms that), or `report-delivered` (an
+   issue whose report is the whole result and needs no commit: commit nothing, put the report in
+   `summary`, and the lane posts it and closes the issue; a run that committed to a branch or
+   resumed one is run again instead). Only `intent-change`,
    `design-change`, `security-risk` and `cost-risk` reach a person, as does a reason that names a
    security concern after any code but `blocked-by-pr`; a reason with no code is run again at
    most once, then stops. `title` is a Conventional

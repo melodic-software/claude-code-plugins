@@ -6,7 +6,7 @@ expected_outcome: In telemetry.sh, exactly three origin-note findings at Tier 1,
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: /code-tidying:audit-comment-residue telemetry.sh
+  prompt: /code-tidying:remove-comments audit telemetry.sh
   allowed_tools: [Read, Glob, Grep, Skill, Bash]
   max_turns: 80
   timeout_seconds: 1200

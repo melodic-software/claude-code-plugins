@@ -94,7 +94,7 @@ If during a self-update run you find drift in any of the following, **clean exit
 
 ## 4. Overriding the HARD path list
 
-Everything **path-based** in section 1 is overridable. A path exclusion is a default, not a law: it exists because an autonomous hunt has no reason to be in that file, which is a different claim from "the user may not ask for it". `/code-tidying:dissolve-comments override ruff.toml` is a legitimate request, and a list that cannot express it forces the user to edit by hand what the skill exists to do.
+Everything **path-based** in section 1 is overridable. A path exclusion is a default, not a law: it exists because an autonomous hunt has no reason to be in that file, which is a different claim from "the user may not ask for it". `/code-tidying:remove-comments override ruff.toml` is a legitimate request, and a list that cannot express it forces the user to edit by hand what the skill exists to do.
 
 Three channels lift it, each owning one row of the config-ownership table in `docs/plugin-philosophy.md` "Configuration ownership and scope".
 
@@ -108,9 +108,9 @@ Three channels lift it, each owning one row of the config-ownership table in `do
 
 Bare token `override`, spelled the way `safe`, `docs`, and `dry-run` are. It lifts the HARD **path** list for the run's resolved target and nothing wider. Always honored when the session is interactive, because an interactive user is present to see what the run reports.
 
-Interactivity gates only `tidy`. On `dissolve-comments` and `batch-simplify` the token is honored in a non-interactive run as well, because the target is already the enumeration: the user typing `override <path>` named the file, so there is nothing further to enumerate and take a go-ahead on. The `tidy` gate below exists because a lane of globs is not a named file.
+Interactivity gates only `tidy`. On `remove-comments` and `batch-simplify` the token is honored in a non-interactive run as well, because the target is already the enumeration: the user typing `override <path>` named the file, so there is nothing further to enumerate and take a go-ahead on. The `tidy` gate below exists because a lane of globs is not a named file.
 
-Its reach is the run's target, and the three skills' targets are not the same size. On `dissolve-comments` and `batch-simplify` the target is a named path or a resolved diff, and the user typing the token has the file in view. On `tidy` the target is a whole lane of globs, so the same token lifts the list across every file the lane matches, and the run's output is an autonomous PR rather than a working-tree diff the user reads first.
+Its reach is the run's target, and the three skills' targets are not the same size. On `remove-comments` and `batch-simplify` the target is a named path or a resolved diff, and the user typing the token has the file in view. On `tidy` the target is a whole lane of globs, so the same token lifts the list across every file the lane matches, and the run's output is an autonomous PR rather than a working-tree diff the user reads first.
 
 That difference gets a gate rather than a caveat. On `tidy`, `override` **enumerates before it edits**: after Phase D's hunt, the run lists the specific HARD paths it now intends to touch and takes a go-ahead on that list, exactly as `batch-simplify`'s repo mode confirms its inventory. An interactive user answers. A non-interactive run has nobody to answer, so it does not proceed on a blanket token: it reports the enumerated list and continues with those candidates dropped, leaving the rest of the lane's tidyings to ship normally. The operator then re-runs interactively or puts the durable entries in the repository overrides file, which is the channel built for a standing decision. Combining `override` with `dry-run` produces that enumeration and nothing else, which is the cheap way to see the list first.
 

@@ -177,8 +177,6 @@ import { ATTENDED_LABEL, causeName, HOST_RUN_LABEL, leadingCode, runCode, securi
 export { doneEvidence };
 
 export const HOLD_LINE = "Hold: a human merges this";
-// The work class of an issue that asks for a report and no change.
-const READ_ONLY_CLASS = "work-class: read-only";
 // The label a held PR carries from its opening. The hold line is body text the
 // lanes App can edit; ci-status fails while this label is on, and removing it
 // lifts the hold.
@@ -367,10 +365,25 @@ export function parseOutcomeMarker(body) {
   };
 }
 
+// `value` cut to `cap` UTF-16 units at its last whitespace, `tidy` applied,
+// and CUT added; a single token longer than the cap is cut hard, never inside
+// a surrogate pair. Text within the cap is only tidied; a cut that keeps only
+// whitespace is empty.
+const CUT = "…";
+const clip = (value, cap, tidy = (kept) => kept) => {
+  if (value.length <= cap) {
+    return tidy(value);
+  }
+  const head = value.slice(0, cap - CUT.length + 1);
+  const words = head.slice(0, head.search(/\s\S*$/) + 1).trimEnd();
+  const kept = tidy(words || head.slice(0, -1).replace(/[\uD800-\uDBFF]$/, "")).trimEnd();
+  return kept && `${kept}${CUT}`;
+};
+
 const stopped = (reason) => ({ exit: "stopped", reason, title: "", summary: "", changes: [], verification: [], notDone: [], steps: [] });
-const text = (value) => (typeof value === "string" ? value.slice(0, MAX_TEXT) : "");
+const text = (value) => (typeof value === "string" ? clip(value, MAX_TEXT) : "");
 const list = (value) =>
-  Array.isArray(value) ? value.filter((item) => typeof item === "string").slice(0, MAX_ITEMS).map((item) => item.slice(0, MAX_ITEM)) : [];
+  Array.isArray(value) ? value.filter((item) => typeof item === "string").slice(0, MAX_ITEMS).map((item) => clip(item, MAX_ITEM)) : [];
 // A not_done entry is a string or {what, required}; required marks a check the
 // run had to pass and did not, and counts whatever `what` holds.
 const notDoneList = (value) =>
@@ -386,7 +399,7 @@ const notDoneList = (value) =>
     )
     .filter(Boolean)
     .slice(0, MAX_ITEMS)
-    .map(({ what, required }) => ({ what: what.slice(0, MAX_ITEM), required }));
+    .map(({ what, required }) => ({ what: clip(what, MAX_ITEM), required }));
 
 // The prep steps the run reports, each {activity, result}, both strings;
 // post-statuses.mjs decides which of them it posts.
@@ -488,11 +501,11 @@ export function readOutcome(path) {
 }
 
 // The parts of the issue the PR leaves for later work: 1 to MAX_ITEMS strings,
-// each with text left in the bullet it renders as. Anything else is empty, so
-// the PR closes the issue.
+// each with text other than CUT left in the bullet it renders as. Anything
+// else is empty, so the PR closes the issue.
 function remainingList(value) {
-  const items = Array.isArray(value) && value.length <= MAX_ITEMS && value.every((item) => typeof item === "string") ? value.map((item) => item.slice(0, MAX_ITEM)) : [];
-  return items.every((item) => bullets([item]).slice(2)) ? items : [];
+  const items = Array.isArray(value) && value.length <= MAX_ITEMS && value.every((item) => typeof item === "string") ? value.map((item) => clip(item, MAX_ITEM)) : [];
+  return items.every((item) => bullets([item]).slice(2).replace(CUT, "")) ? items : [];
 }
 
 // Model text is data. HTML comments go; `&` is escaped first, so no entity
@@ -504,26 +517,29 @@ function remainingList(value) {
 // `://` and `www.` gain a space too, so no bare URL autolinks.
 // Control characters other than newline go, and so do format characters
 // (bidi overrides, zero-width), which can make text read other than it is.
-// The cap applies after escaping. A file path keeps its comments, escaped,
-// so the whole name shows.
+// The cap applies after escaping, at a word (clip), and drops a half-cut
+// entity or escape. A file path keeps its comments, escaped, so the whole
+// name shows.
 const neutral = (value, cap, { path = false } = {}) =>
-  (path ? value : value.replaceAll(/<!--[\s\S]*?(-->|$)/g, ""))
-    .replaceAll(/\p{Cf}/gu, "")
-    .replaceAll("\r\n", "\n")
-    .replaceAll(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f]/g, " ")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll("[", "\\[")
-    .replaceAll("]", "\\]")
-    .replaceAll("@", "")
-    .replaceAll("#", "＃")
-    .replaceAll(/\bGH-/gi, "GH -")
-    .replaceAll(/\/(issues|pull)\//gi, "/$1 /")
-    .replaceAll("://", ": //")
-    .replaceAll(/\bwww\./gi, "www .")
-    .slice(0, cap)
-    .replace(/&[a-z]*$|\\$/, "");
+  clip(
+    (path ? value : value.replaceAll(/<!--[\s\S]*?(-->|$)/g, ""))
+      .replaceAll(/\p{Cf}/gu, "")
+      .replaceAll("\r\n", "\n")
+      .replaceAll(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f]/g, " ")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll("[", "\\[")
+      .replaceAll("]", "\\]")
+      .replaceAll("@", "")
+      .replaceAll("#", "＃")
+      .replaceAll(/\bGH-/gi, "GH -")
+      .replaceAll(/\/(issues|pull)\//gi, "/$1 /")
+      .replaceAll("://", ": //")
+      .replaceAll(/\bwww\./gi, "www ."),
+    cap,
+    (kept) => kept.replace(/&[a-z]*$|\\$/, ""),
+  );
 
 // Every line prefixed `> `, so no line of it can start a heading or leave the
 // quote, and the text wraps when rendered.
@@ -1020,7 +1036,7 @@ export function readChecks(text, { branch }) {
   if (!valid) {
     return null;
   }
-  const record = { tip: parsed.tip, results: results.map(({ check, exit }) => ({ check: check.slice(0, MAX_ITEM), exit })) };
+  const record = { tip: parsed.tip, results: results.map(({ check, exit }) => ({ check: clip(check, MAX_ITEM), exit })) };
   return Object.hasOwn(parsed, "scan") ? { ...record, scan: SCAN_WORDS.has(parsed.scan) ? parsed.scan : "failed" } : record;
 }
 const SCAN_WORDS = new Set(["clean", "found", "failed"]);
@@ -1330,10 +1346,10 @@ export function decide({
     });
   }
   if (outcome.exit !== "done") {
-    // A delivered report closes only a read-only issue the run committed
-    // nothing for; any other one retries.
-    const retry = stop === "report-delivered" && !(issueLabels.includes(READ_ONLY_CLASS) && !branch);
-    const why = `The issue is not \`${READ_ONLY_CLASS}\`, or the run committed to a branch, so it retries instead of closing.`;
+    // A delivered report closes only an issue with no branch: one this run
+    // committed to, or a resumed one whose earlier commits are still unmerged.
+    const retry = stop === "report-delivered" && (branch || resumed);
+    const why = "The run committed to a branch, or resumed one, so it retries instead of closing.";
     return routeStop(stop, { outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed, unmarked }, retry ? { route: "retry", why } : {});
   }
   // The outcome file is model output, so its own report never clears this.
