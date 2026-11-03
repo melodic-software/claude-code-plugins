@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "DeploymentRow is derived from migrations/001_deployments.sql, never redrawn by hand.\n",
+      "why": "the row shape comes from the migration"
+    },
+    {
+      "answer": "`migrations/001_deployments.sql` defines exactly three columns: `id BIGINT`, `service TEXT NOT NULL`,\n`requested_at TIMESTAMPTZ NOT NULL`. `DeploymentRow` derives from it and adds no field.\n",
+      "why": "the statement spans a line break: an observed reply"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no artifact written"
+    },
+    {
+      "answer": "@dataclass\nclass DeploymentRow:\n    id: int\n    service: str\n    requested_at: datetime\n",
+      "why": "a hand-kept copy of the table's columns"
+    }
+  ]
+}
