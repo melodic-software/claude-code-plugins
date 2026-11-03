@@ -120,10 +120,11 @@ Bounded by design. Evidence catalogue: [context/adjudication.md](context/adjudic
    [context/adjudication.md, Bounding the pass](context/adjudication.md#bounding-the-pass); relay
    as of 2026-10-11, recheck when that record's pointer moves out of that section).
 6. **Optional LSP assist**, never required and never a lane: when Claude Code's `LSP` tool is
-   available, `findReferences` on one candidate is one more evidence source. `includeDeclaration`
-   is hard-coded true, so the dead threshold is `resultCount == 1`; imports count as references,
-   so a re-export still reads alive. Done when every emitted candidate has a `dead`, `uncertain`
-   or `alive` verdict with evidence, or the cap stopped the batch and the report says so.
+   available, `findReferences` on one candidate is one more evidence source. Read what it returns
+   in [LSP tool behavior](https://code.claude.com/docs/en/tools-reference#lsp-tool-behavior)
+   before reading a count as dead (as of 2026-11-03; recheck when that section changes what
+   `findReferences` returns). Done when every emitted candidate has a `dead`, `uncertain` or
+   `alive` verdict with evidence, or the cap stopped the batch and the report says so.
 
 ## Hard rules
 
@@ -138,8 +139,10 @@ Bounded by design. Evidence catalogue: [context/adjudication.md](context/adjudic
   `Summary total:` mean two things.
 - **T3 is the drift bucket.** An unrecognized detector line is recorded, never dropped and never
   counted as a finding. A fourth verdict landing there is the alarm, not the answer.
-- **Exit codes are never run health.** knip exits 1 for findings and for hard errors; vulture
-  exits 3 for findings and 1 for a lone unparsable input; gopls always exits 0.
+- **Exit codes are never run health.** Run health comes from the detector's output, never its
+  exit code. Each detector's codes: [vulture](https://github.com/jendrikseipp/vulture#exit-codes),
+  [knip](https://knip.dev/reference/cli#--no-exit-code), [gopls](https://go.dev/gopls/command-line).
+  As of 2026-11-03; recheck when one of those sections changes its exit codes.
 - **Presence is proven by invocation**, never by a locator hit (measured: `command -v
   rust-analyzer` succeeds while invocation fails).
 - **knip evaluates repo-controlled config through jiti.** Disclose it on every run that loads one.
@@ -205,10 +208,13 @@ formats"), and the next run reaches new code. Each step is done when the operato
 verdicts and suppression text, has declined them, or the batch is explicitly deferred; the loop ends when a follow-up scan is
 scheduled or the operator stops after one batch.
 
-Only knip and vulture converge. **Go and the grep lane have no native suppression** (measured:
-`gopls check -severity=hint` reports through every candidate directive; `//lint:ignore` is
-staticcheck's), so those verdicts live in the report and in a comment at the declaration, and the
-same candidates return. Say so rather than emitting a directive that does nothing.
+Only knip and vulture converge. **Go and the grep lane get no suppression directive**: those
+verdicts live in the report and in a comment at the declaration, and the same candidates return.
+Say so rather than emitting a directive. The probe behind the Go half is in
+[context/adjudication.md](context/adjudication.md#suppression-formats) "Suppression formats"; `//lint:ignore` belongs
+to staticcheck, per
+[Ignoring problems with linter directives](https://staticcheck.dev/docs/configuration/#ignoring-problems-with-linter-directives)
+(as of 2026-11-03; recheck when that section names gopls among the tools that read it).
 
 `dead` and `uncertain` verdicts are session-scoped: an un-suppressed `uncertain` returns next run.
 A committed vulture whitelist raises `F821` under a consumer's ruff config; say so when you emit
