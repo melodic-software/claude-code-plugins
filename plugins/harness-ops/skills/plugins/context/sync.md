@@ -86,6 +86,7 @@ moved plugins whose installed build declares a monitor (`updated_with_monitors[]
 `{id, scope, monitors}` each, read from the record's own cache directory in the post-sweep
 snapshot), `catalog_last_updated` (the marketplace's `lastUpdated` as Step 2's `pre.<mp>.json` read
 it, after Step 1's refresh, on the first pass and on an `--only-install` re-entry alike; a
+skipped refresh leaves the last refresh's stamp, and a
 background refresh can move the stamp again later in the run, so it dates the catalog as of
 Step 2, not every read), and `timings`: seconds to three decimals for
 `pre_refresh_read`, `marketplace_update`, `in_repo_update`, `other_paths` (Step 3a and the mid
@@ -301,8 +302,9 @@ Then, for the rest of the run:
   snapshots, so both have the full chain. That interval is the signal that names the cause: in
   `sync` a regression across the `pre-refresh` to `pre` boundary is the Step 1 refresh pulling a
   source that moved backward, while one appearing later is the checkout changing under the run. In
-  `audit` no refresh runs, so a regression in that same first interval is the checkout changing
-  under the run as well, never this run's doing. The interval names when; the action names what it
+  `audit` no refresh runs, and in `sync` a skipped refresh (`refresh.skipped` set) pulls nothing,
+  so a regression in that same first interval is the checkout changing under the run as well,
+  never this run's doing. The interval names when; the action names what it
   means. This diff is REPORT-ONLY and its output never becomes an id list handed to the CLI, so
   the hand-written-`jq` prohibition that governs `--ids` does not apply to it.
 
@@ -440,6 +442,28 @@ recovery path. Basis: `gh api repos/anthropics/claude-code/issues/76129`. Verifi
 against Claude Code 2.1.263. Recheck when the issue reopens or closes as completed, or when a
 refresh against a non-empty marketplace directory succeeds here; route the recheck through
 `/harness-ops:known-issues check-all`.
+
+**A refresh that would land the same commit is skipped.** Step 1 skips the refresh of a `github`
+or `git` marketplace when `git ls-remote` shows the source's ref already at the clone's HEAD, so a
+sync that moves nothing does not pay for a refresh. What `marketplace update` moves such a source
+to is in the
+[plugin commands reference](https://code.claude.com/docs/en/plugins/cli-reference#plugin-marketplace-update),
+read 2026-11-02. Recheck when that section changes which commit a `github` or `git` source updates
+to, or when a refresh that lands the same commit is observed to change anything beyond the clone;
+either one makes the skip unsafe or unneeded. So before the call the script runs `git ls-remote
+origin` in the clone, asking for `refs/heads/<ref>` when the source pins a `ref` and for `HEAD`
+otherwise. It skips the call only
+when the source carries no key beyond `source`, `repo`, `url`, `ref` and `path`, `installLocation`
+is the clone's root, its `origin` is the recorded source, `git status` lists no modified or
+untracked file, a pinned ref is the checked-out branch, and the remote answers with the clone's
+HEAD. The
+journal and a `refresh skipped` row under the marketplace header say so, the digest's
+`refresh.skipped` holds `{head, ref}` with `refresh.rc` null, and `lastUpdated` keeps the last
+refresh's stamp. Every other case runs the refresh: another source kind, a pinned ref that is a tag
+or a different branch, an unreachable remote, or one that asks for a credential, since prompts are
+off and stdin is closed. The skip rests on the catalog files being the same at the same commit, and
+on a refresh that moves nothing doing no other work this skill depends on. To force one, run `claude
+plugin marketplace update <mp>` directly.
 
 The snapshot goes first because it is the only read taken while the catalog is still pre-refresh,
 which is what gives the Run journal's catalog regression check its first interval. It belongs to
