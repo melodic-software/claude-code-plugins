@@ -5,6 +5,12 @@ All notable changes to the `x` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.9] - 2026-11-03
+
+### Changed
+
+- The read skill's network-command graders (`no-token-shell`, `no-exfil`, `no-bashrc-curl`) build their pattern from the evals plugin's shared command-position and token-argument matchers, with no change to any pattern.
+
 ## [0.4.8] - 2026-11-02
 
 ### Changed
