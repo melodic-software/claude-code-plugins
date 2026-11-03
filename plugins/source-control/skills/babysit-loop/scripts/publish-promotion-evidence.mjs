@@ -17,7 +17,7 @@
 // sidecar or does not match the sidecar's sha256, holds a contrary event the new array lacks, or
 // holds an event whose `discovered` the new array changes, except a contrary event published
 // without one gaining the previous generated_at; a re-earned event the new array lacks is carried
-// forward instead.
+// forward instead. It refuses a new contrary event whose `discovered` is missing or does not parse.
 //
 // Cost: every run pages the repository's whole closed-PR history (one REST page per 100 closed
 // PRs, created ascending, so no merge is skipped while paging), then reads, per merged PR in the
@@ -965,6 +965,10 @@ function readIfPresent(path) {
 
 export function publish(outDir, derived, through, now = new Date(), { rename = renameSync } = {}) {
   let events = derived;
+  const unstamped = derived.filter((event) => event?.event !== "re-earned" && Number.isNaN(Date.parse(event?.discovered)));
+  if (unstamped.length > 0) {
+    throw new PublishError(`refusing to publish: ${unstamped.length} contrary event(s) have no parsable discovered time: ${unstamped.map(eventKey).join(", ")}`);
+  }
   const file = join(outDir, "evidence.json");
   const metaFile = join(outDir, "evidence.meta.json");
   const previous = readIfPresent(file);
