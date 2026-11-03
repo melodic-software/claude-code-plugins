@@ -2539,6 +2539,9 @@ const sweepUnsent = async (api, verifyCapped, now = Date.parse("2026-10-17T12:20
 const unsentApi = (options = {}) => {
   const api = sweepApi({ checksAt: {}, threads: [LANE_FINDING], reviewRuns: { [HEAD]: [REVIEWED] }, ...options });
   api.listWorkflowRuns = async () => options.workflowRuns ?? [];
+  // Completed runs of the other workflows at the head, by path.
+  const listCompletedRuns = api.listCompletedRuns;
+  api.listCompletedRuns = async (path, head, event) => [...(await listCompletedRuns(path, head, event)), ...(options.others?.[path] ?? [])];
   return api;
 };
 
@@ -2568,6 +2571,12 @@ test("the unsent-head sweep leaves a head with a round, no unresolved thread, a 
     ["no completed review run", { reviewRuns: {} }],
     ["a review completed inside the grace", {}, Date.parse("2026-10-17T12:10:00Z") + UNSENT_GRACE_MS - 1],
     ["a review with no completion time", { reviewRuns: { [HEAD]: [upstreamRun({ id: 13, run_started_at: "2026-10-17T12:00:00Z" })] } }],
+    // Created first, so not reviewRunAt's run, but finished inside the grace.
+    [
+      "the other review lane finished inside the grace",
+      { others: { ".github/workflows/pr-review-security-hosted.yml": [upstreamRun({ id: 12, path: ".github/workflows/pr-review-security-hosted.yml", created_at: "2026-10-17T11:59:00Z", updated_at: "2026-10-17T12:15:00Z" })] } },
+    ],
+    ["a pr-merge run finished inside the grace", { others: { ".github/workflows/pr-merge.yml": [{ ...MERGE_RUN, conclusion: "success", updated_at: "2026-10-17T12:15:00Z" }] } }],
     ["a run since its review", { workflowRuns: [{ id: 9, status: "completed", display_title: TITLE_42, created_at: "2026-10-17T12:05:00Z" }] }],
     ["do-not-merge", { openPulls: pull({ labels: [{ name: "do-not-merge" }] }) }],
   ]) {

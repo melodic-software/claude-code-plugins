@@ -939,9 +939,19 @@ async function sweepUnsent(context) {
     return null;
   }
   const upstream = await reviewRunAt({ api, head, repository, settings });
-  // The review completion's own dispatch runs in another concurrency group, so
-  // the head waits out that job's timeout. An unreadable time does not count.
-  if (upstream === null || !(Date.parse(upstream.updated_at ?? "") <= (rest.now ?? Date.now()) - UNSENT_GRACE_MS)) {
+  if (upstream === null) {
+    return null;
+  }
+  // Each review run's and pr-merge run's completion at the head starts a
+  // dispatch in the head's concurrency group, not the sweep's, so the head
+  // waits out that job's timeout after the last of them. An unreadable time
+  // does not count.
+  const triggers = [];
+  for (const [path, event] of [...settings.reviewWorkflows.map((path) => [path, "pull_request"]), [MERGE_WORKFLOW, "pull_request_target"]]) {
+    triggers.push(...(await api.listCompletedRuns(path, head, event)).filter((run) => run.head_sha === head && run.event === event));
+  }
+  const last = Math.max(...[upstream, ...triggers].map((run) => Date.parse(run.updated_at ?? "")));
+  if (!(last <= (rest.now ?? Date.now()) - UNSENT_GRACE_MS)) {
     return null;
   }
   // A round that ended before posting its check is sent once.
@@ -1349,8 +1359,8 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       throw new Error(`commit ${sha} has more than 1000 statuses`);
     },
     // The newest completed pull_request runs of a workflow file at a head.
-    async listCompletedRuns(path, head) {
-      const query = new URLSearchParams({ head_sha: head, event: "pull_request", status: "completed", per_page: "10" });
+    async listCompletedRuns(path, head, event = "pull_request") {
+      const query = new URLSearchParams({ head_sha: head, event, status: "completed", per_page: "10" });
       return (await request(`${repo}/actions/workflows/${path.split("/").at(-1)}/runs?${query}`)).workflow_runs ?? [];
     },
     // A workflow file's newest 100 runs created since `since`: many ticks'
