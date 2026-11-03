@@ -113,11 +113,13 @@ newer release is verified.
    project/local and project over user). When the working directory is the home directory,
    project scope and user scope are the same settings file, so the list can label that one file
    as both `user` and `project`: pass `user`.
-3. **Observation is next-session.** The rendered `${user_config.*}` is injected at skill load and
-   each hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so
-   a same-session `check` still reports the OLD value. That is not a failed write. Verify the
-   effective value by rerunning the plugin's setup `check` in a **fresh session**, and never claim
-   an unobserved change.
+3. **Observation is next-session.** A same-session `check` still reports the OLD value. That is
+   not a failed write. Verify the effective value by rerunning the plugin's setup `check` in a
+   **fresh session**, and never claim an unobserved change. For where `${user_config.*}` and
+   `CLAUDE_PLUGIN_OPTION_*` take their values, see
+   [Plugin manifest reference: Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
+   (as of 2026-11-03; recheck when that section changes where or when either form is substituted
+   or exported).
 4. **Check each route's own failure signal.** `claude plugin configure --values-stdin` rejects a
    bad value with exit 1 and saves nothing, but it accepts an empty string and stores `""`. The
    `--config` rerun prints a warning for a rejected value (wrong type, unknown key, empty value,

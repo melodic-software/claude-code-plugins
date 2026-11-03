@@ -79,9 +79,11 @@ the rest of the knowledge stack.
 
 ## Requirements
 
-- A PDF or EPUB you have the right to read. PDF works natively with Claude
-  Code's Read tool; EPUB requires unzipping and text extraction first. A web
-  corpus needs public https pages or an export you supply.
+- A PDF or EPUB you have the right to read. EPUB requires unzipping and text
+  extraction first. For what the Read tool needs to read a PDF, see
+  [Tools reference: Read tool behavior](https://code.claude.com/docs/en/tools-reference#read-tool-behavior)
+  (as of 2026-11-03; recheck when that section changes how Read handles a PDF).
+  A web corpus needs public https pages or an export you supply.
 - **`gh` signed in** for `distill`'s visibility check on a GitHub remote.
 - **Node.js on `PATH`**: `absorb-upstream`, `course-digest`, `distill`,
   `docpage-digest`, `map-corpus` and `video-digest` resolve their session root,
@@ -118,8 +120,10 @@ defaults keep every pipeline working):
 needs no configuration to run; `library_dir` is the shared setting the
 plugin's ingestion pipelines read to find where artifacts land. The `video-digest` acquisition
 options above tune yt-dlp authentication and throttling; **course-platform
-credentials are intentionally not** `userConfig`. They stay in shell env vars
-because a `sensitive` option persists as plaintext on Windows today.
+credentials are intentionally not** `userConfig`. They stay in shell env vars.
+For where Claude Code stores a `sensitive` option, see
+[Plugin manifest reference: Where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored)
+(as of 2026-11-03; recheck when that section changes where sensitive values go).
 
 ### Option details
 
