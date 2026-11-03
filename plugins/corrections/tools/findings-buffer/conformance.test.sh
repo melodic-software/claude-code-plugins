@@ -437,10 +437,12 @@ else
   fail "read.sh skips a symlinked legacy findings.jsonl and still returns the shared rows" "rc: $rc out: $OUT"
 fi
 rm -rf "${LINKED:?}/.work"
-ln -s "$TEST_TMPDIR" "$LINKED/.work"
+mkdir -p "$TEST_TMPDIR/linked-work/buffer"
+printf '{"obs_id":"via-linked-work","ts":"2026-10-22T00:00:00Z"}\n' >"$TEST_TMPDIR/linked-work/buffer/findings.jsonl"
+ln -s "$TEST_TMPDIR/linked-work" "$LINKED/.work"
 OUT="$(cd "$LINKED" && bash "$LOCAL/read.sh" 2>/dev/null)"
 rc=$?
-if [[ $rc -eq 0 ]] && grep -q '"obs_id":"from-main"' <<<"$OUT"; then
+if [[ $rc -eq 0 ]] && grep -q '"obs_id":"from-main"' <<<"$OUT" && ! grep -q '"obs_id":"via-linked-work"' <<<"$OUT"; then
   pass "read.sh with a symlinked .work still returns the shared rows"
 else
   fail "read.sh with a symlinked .work still returns the shared rows" "rc: $rc out: $OUT"
