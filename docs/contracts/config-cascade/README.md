@@ -580,7 +580,7 @@ conformance.
 | `ai-slop` | later layer | per-key (lists replace) |
 | `code-tidying` (`upkeep_*`) | team, then the default | per-key |
 | `docs-naming` | later layer; team on named policy-floor keys | per-key |
-| `rendered-views` | the argument; else a local value from any layer; else a publishing value from the untracked, gitignored personal override, then `userConfig`; never the team file | per-key |
+| `rendered-views` | the publish trust walk, not plain precedence: the argument decides alone; a `terminal` or `file` value from any layer keeps the view local; a publishing value counts only from the untracked, gitignored personal override, then `userConfig`; a team file never publishes; with no layer deciding, the lane's own default | per-key |
 | `testing` (`run-e2e`) | later layer | per-key |
 | `testing` (`write`) | later layer | per-key |
 | `testing` (`audit`, `test-weaken`) | later layer; the first present of `testing.yaml`, the docs block and `.claude/testing.yaml` in the team layer | per-key (scalars override, lists concatenate) |
