@@ -8,7 +8,7 @@
 // send. Prints one JSON object.
 //
 //   check-deck.mjs <root> <PUBLIC|PRIVATE|INTERNAL|UNKNOWN|NONE> --class K0|K1|K2
-//                  [--argument terminal|file|artifact] [--option <plugin medium option>]
+//                  [--argument terminal|file|artifact|hosted] [--option <plugin medium option>]
 // Exit 0 decided (read `medium`), 1 a deck refused, 2 usage or an unreadable root.
 
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from "node:fs";
@@ -184,7 +184,7 @@ function workTree(dir) {
  * @param {{root: string, visibility: string, cls: string, layers?: {argument?: string|null, option?: string|null, home?: string, project?: string|null}}} input
  */
 export function checkDeck({ root, visibility, cls, layers = {} }) {
-  const local = (exit, reason) => ({ exit, result: { medium: "file", class: cls, reason } });
+  const local = (exit, reason, extra = {}) => ({ exit, result: { medium: "file", class: cls, reason, ...extra } });
   const resolved = resolve(root);
   if (lstatSync(resolved).isSymbolicLink() || realpathSync(resolved) !== resolved) {
     return local(2, `the deck root ${resolved} is or passes through a symlink; pass its real path`);
@@ -210,9 +210,7 @@ export function checkDeck({ root, visibility, cls, layers = {} }) {
   if (badTitle) return local(1, badTitle);
   if (cls === "K2") {
     const refused = k2Refusals(files);
-    if (refused.length) {
-      return { exit: 1, result: { medium: "file", class: cls, reason: "a K2 deck carries more than text in the slide format", refused } };
-    }
+    if (refused.length) return local(1, "a K2 deck carries more than text in the slide format", { refused });
   }
   const { medium: chosen, source, warnings } = trustedMedium(layers);
   const extra = warnings.length ? { warnings } : {};
