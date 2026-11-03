@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "source-control:pull-request",
+            "args": "monitor 517"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "source-control:babysit-prs"
+          }
+        }
+      ],
+      "why": "wrong skill"
+    }
+  ]
+}

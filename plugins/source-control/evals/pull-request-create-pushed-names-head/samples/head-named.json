@@ -1,0 +1,74 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "WT=../eval-worker\nBRANCH=$(git -C \"$WT\" branch --show-current)\nPR_URL=$(gh pr create --draft --head \"$BRANCH\" --title \"feat: quote CSV cells holding a comma, quote or line break\" --body-file /tmp/pr-body.md)"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh pr create --draft --head feat/csv-quote-cells --title 'feat: quote CSV cells' --body-file /tmp/pr-body.md"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "PR_JSON=$( cd ../eval-worker && gh api --method POST \"repos/{owner}/{repo}/pulls\" -f title=\"feat: quote CSV cells\" -f head=\"$BRANCH\" -f base=\"$BASE\" -F body=@/tmp/pr-body.md -F draft=true )"
+          }
+        }
+      ],
+      "why": "the REST form §2.7 names for a sandboxed 403"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd ../eval-worker && gh pr create --draft --title 'feat: quote CSV cells' --body-file /tmp/pr-body.md"
+          }
+        }
+      ],
+      "why": "cds into the worktree and lets gh infer the head"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh pr create --draft --title 'feat: quote CSV cells' --body-file /tmp/pr-body.md"
+          }
+        }
+      ],
+      "why": "no head from an out-of-tree session"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh pr list --head feat/csv-quote-cells --json number"
+          }
+        }
+      ],
+      "why": "--head on a list call, not a create"
+    },
+    {
+      "answer": [],
+      "why": "no PR create at all"
+    }
+  ]
+}

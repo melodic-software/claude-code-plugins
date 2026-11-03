@@ -1,0 +1,56 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "WT=../eval-worker\nBRANCH=$(git -C \"$WT\" branch --show-current)\nREMOTE=$( cd \"$WT\" && bash \"/plugins/source-control/skills/pull-request/scripts/resolve-remote.sh\" --push ) || exit 1\ngit -C \"$WT\" fetch -q \"$REMOTE\" \"$BRANCH\"\n[ \"$(git -C \"$WT\" rev-parse HEAD)\" = \"$(git -C \"$WT\" rev-parse FETCH_HEAD)\" ]"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh pr create --draft --head \"$BRANCH\" --title 'feat: quote CSV cells' --body-file /tmp/pr-body.md"
+          }
+        }
+      ],
+      "why": "§2.7's resolve-remote --push and fetch, then the create"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C ../eval-worker push -u origin feat/csv-quote-cells"
+          }
+        }
+      ],
+      "why": "re-pushes to set the missing upstream"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd ../eval-worker && git push origin HEAD"
+          }
+        }
+      ],
+      "why": "re-pushes from the worktree"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/plugins/source-control/skills/pull-request/scripts/push-branch.sh\" --dir ../eval-worker"
+          }
+        }
+      ],
+      "why": "the normal create path's push step"
+    }
+  ]
+}
