@@ -11,7 +11,7 @@ effort, turn budget) and the App token grant. The config's contract is the
 |---|---|---|
 | `lane` | empty | The lane, its workflow's file stem; required unless `model-route` is set |
 | `activity` | empty | The activity to select from the lane's slots |
-| `model-route` | empty | A run that is no lane activity (`verify-pr`, `review-code`, `review-security`, `triage-issue`, `summarize-reuse`, `adjudicate-feedback`): resolve only its models profile. Set it or `lane`, not both |
+| `model-route` | empty | A run that is no lane activity (`verify-pr`, `review-code`, `review-security`, `triage-issue`, `summarize-reuse`, `adjudicate-feedback`, and `resolve-issue` for the upkeep and release intake model jobs): resolve only its models profile. Set it or `lane`, not both |
 | `base-path` | `.base` | The base-SHA checkout; every config, schema and vocabulary read is under it |
 | `config-path` | `docs/conventions/pr-pipeline.yaml` | The config, relative to `base-path`; for test callers only |
 | `output-path` | required | Where the `ResolvedConfig` JSON file is written |

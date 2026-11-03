@@ -1,0 +1,50 @@
+{
+  "description": "Done-when shapes the issue lane cannot finish, beside the built-in kinds in intake admission (.github/scripts/intake-triage/admit.mjs, unrunnableCriteria). Each `rules` row is {kind, match, unless}: `match` and `unless` are JavaScript regular expressions, matched case-insensitively against one task-list item's text; an item `match` finds and `unless` (null for none) does not is a done-when item the lane cannot perform, and its refusal names `kind`. Every row routes as the built-in host kinds do: the host queue (`host-run`), or the owner when an `eval` item also names a billing account. The built-in kinds are tried first and an item takes the first kind that matches. A row adds only what the built-in kinds miss, so `unless` keeps the shapes they leave with the lane (a no-spend harness command, a comment a script posts, a host named in prose). A file that does not read or parse, an empty `rules`, a row without a kind or `match`, or a pattern that does not compile throws out of admission, so no issue is admitted on a guess. `measured` records each row's score so a re-score stays comparable: host-run issues against lane-delivered controls, an issue counting when any of its done-when items matches.",
+  "measured": {
+    "window": "issues updated since 2026-10-27, scored 2026-11-03",
+    "sets": "154 host-run issues (an outcome=host-run lane comment, or a host-run or cannot-perform admission refusal) and 147 controls (closed by a merged work-resolve-issue lane pull request, without host-run); 52 + 28 read in full to write the patterns, 102 + 119 hold-out read from the body only",
+    "fields": "builtin: the built-in kinds alone; union: the built-in kinds and these rows; host_only_stops: the 52-issue sample's lane `host-only` stops flagged; host and control: issues matched of 154 and 147; holdout: host / control matched of 102 and 119; study: the study's frozen pattern, before the narrowing that keeps the built-in kinds' runnable shapes with the lane",
+    "builtin": { "host": 18, "control": 0, "precision": 1.0, "recall": 0.12, "holdout": "5/0" },
+    "union": { "host": 65, "control": 1, "precision": 0.98, "recall": 0.42, "holdout": "29/1", "host_only_stops": "22 of 28" },
+    "rows": {
+      "eval": { "host": 29, "control": 1, "precision": 0.97, "recall": 0.19, "holdout": "15/1", "study": "37/1, holdout 23/1" },
+      "tracker-output": { "host": 26, "control": 0, "precision": 1.0, "recall": 0.17, "holdout": "15/0", "study": "34/0, holdout 21/0" },
+      "measure-over-time": { "host": 11, "control": 0, "precision": 1.0, "recall": 0.07, "holdout": "1/0", "study": "12/0, holdout 1/0" },
+      "host-data": { "host": 9, "control": 0, "precision": 1.0, "recall": 0.06, "holdout": "2/0", "study": "9/1, holdout 2/1" },
+      "live-cc-probe": { "host": 4, "control": 0, "precision": 1.0, "recall": 0.03, "holdout": "0/0", "study": "5/0, holdout 0/0" },
+      "named-host": { "host": 7, "control": 0, "precision": 1.0, "recall": 0.05, "holdout": "0/0", "study": "11/3, holdout 2/2, before dropping `on a host` and `in Cursor`" }
+    }
+  },
+  "rules": [
+    {
+      "kind": "eval",
+      "match": "eval evidence|evals? showing no loss|before[/ -]and[/ -]after (?:evals?|trigger)|\\btrigger (?:rate|score)s?\\b|claude plugin eval|measured pass|\\b(?-i:VALID) runs?\\b|\\bevals?\\b[^.;]{0,60}\\bno loss\\b|\\bno loss\\b[^.;]{0,40}\\bevals?\\b|measured before and after on the subscription",
+      "unless": "claude plugin eval\\b[^,;:]*(?:--validate|\\bvalidate\\b|\\bdry[- ]run\\b|\\bno-spend\\b)"
+    },
+    {
+      "kind": "tracker-output",
+      "match": "\\b(?:comment|posted|recorded|reported)\\b[^.;]{0,40}\\b(?:on #\\d+|here)\\b|\\b(?:is|are) (?:recorded|reported) on this issue\\b|\\bsub-issue[^.;]{0,40}\\bis filed\\b|\\bparents open today\\b",
+      "unless": "^(?!.*\\bon this issue\\b)(?:\\s*(?:if|when|whenever|unless|once)\\b|.*\\b(?:comment|posted|recorded|reported|filed)\\b[^.;]*\\bby (?:the )?(?:\\S+\\.(?:mjs|js|ts|sh|py|ps1)|(?:\\S+ )?(?:workflow|script|lane|app|hook|skill|action|job|bot|sweep))\\b)|(?:\\b(?:workflow|lane|app|hook|action|job|bot|sweep)|\\S[-.]\\S*)['’]s (?:output|results?|findings?|answers?)\\b"
+    },
+    {
+      "kind": "measure-over-time",
+      "match": "\\b(?:re-?measured?|measured)\\b[^.;]{0,60}\\b(?:before and after|window|same (?:way|method)|per day|alone and in)|\\b\\d+ consecutive runs\\b|\\bwall[- ]clock\\b[^.;]{0,30}\\b(?:timings?|column)\\b|\\bfiring rate\\b",
+      "unless": null
+    },
+    {
+      "kind": "host-data",
+      "match": "\\b(?:session|recorded|operator['’]s) transcripts?\\b|\\b(?:calls?|writes?|reads?) (?:into|from|in|under) `?~/\\.claude|~/\\.claude\\S*`? as never read|~/\\.claude/projects\\b|\\b(?:command|session) corpus\\b|corpus replay|mod telemetry|request capture|window of the same length|comparable window|survey of all repositories",
+      "unless": null
+    },
+    {
+      "kind": "live-cc-probe",
+      "match": "behavior probe|Claude Code version|client versions|\\$\\.(?:settings|env)\\.",
+      "unless": null
+    },
+    {
+      "kind": "named-host",
+      "match": "\\b(?:windows(?: 11)?|wsl|git bash|macos)\\b[^.;]{0,40}\\b(?:host|machine|column|lane)s?\\b|\\b(?:on|from) (?:each|every|the|both) (?:operator|owner)['’]?s? (?:machines?|hosts?)\\b|\\boperator machines?\\b|\\bboth hosts\\b",
+      "unless": "\\b(?:says?|states?|documents?|covers?|names?|mentions?|describes?)\\b"
+    }
+  ]
+}

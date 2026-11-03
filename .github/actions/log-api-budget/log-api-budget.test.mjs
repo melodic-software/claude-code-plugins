@@ -1037,6 +1037,12 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
     // own notice (a key, and no other action from a checkout); both pinned below.
     "pr-run-activity-read.yml": { "broker-check": "github-token", "issue-fields": "github-token", summary: "github-token", report: "github-token" },
     "pr-run-activity-write.yml": { report: "github-token" },
+    "maintenance-tidy-code-upkeep.yml": {
+      gate: "github-token",
+      scan: "github-token",
+      "push-branches": ["lanes-app", "lanes-app github-token"],
+      publish: ["lanes-app", "lanes-app github-token"],
+    },
     "upstream-apply-changelog.yml": {
       gate: "github-token",
       scan: "github-token",

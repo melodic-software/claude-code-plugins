@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "json_out.py and csv_out.py were removed on purpose; xml_out.py is gone only from the working tree, so I read its last version.\n\nReady for stage 2, Research?",
+      "why": "a closing question that names no missing file"
+    },
+    {
+      "answer": "- xml_out.py: unexplained working-tree deletion, investigated via git show HEAD:src/exporters/xml_out.py",
+      "why": "no question at all"
+    },
+    {
+      "answer": "Do you want me to restore xml_out.py from HEAD?",
+      "why": "a follow-up action, not a question about investigating"
+    },
+    {
+      "answer": "json_out.py was removed on purpose.\nShould I investigate yaml_out.py, which git never tracked?",
+      "why": "the question about the never-tracked file sits on its own line"
+    },
+    {
+      "answer": "yaml_out.py has no git history, unlike json_out, so was it meant to exist?",
+      "why": "one line naming json_out, but the question is about yaml_out"
+    },
+    {
+      "answer": "- csv_out (staged), json_out (commit abc1234), xml_out (read from HEAD); yaml_out was never tracked: should I investigate it?",
+      "why": "one summary line whose question is about yaml_out"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Three exporters are missing. Should I investigate xml_out.py, csv_out.py and json_out.py before going on?",
+      "why": "asks before investigating"
+    },
+    {
+      "answer": "Was the removal of csv_out.py intentional?",
+      "why": "asks what the status probe settles"
+    },
+    {
+      "answer": "Want me to dig into the history of json_out.py?",
+      "why": "asks before archaeology"
+    }
+  ]
+}

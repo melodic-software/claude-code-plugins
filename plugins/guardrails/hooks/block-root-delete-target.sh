@@ -736,10 +736,14 @@
 #     program eval reads (`eval "$(cat)"`).
 #   * Expansion-built targets AND an expansion-built command word. Detection
 #     never evaluates a shell expansion. A bare variable operand is refused
-#     (above), but `rm -rf "$X/build"` is left alone, and so are an unquoted
-#     `$X/{a,b}` (its alternatives `$X/a` and `$X/b` are each left alone the
-#     same way; the quoted `"$X"/{a,b}` is refused as a partly quoted brace)
-#     and `$(printf 'r%s' 'm') -rf /`, whose substitution body is parsed (its
+#     (above), and so is an operand not fully quoted that opens with a name the
+#     command never sets to a blank-free value (`rm -rf $X/build`, `$X/{a,b}`,
+#     `"$X"/y`; Bash lane only), because the value splits on a blank. Replayed
+#     over one operator's recorded corpus (#11818), refusing every such opener
+#     fired on 157 commands, all of them on a name the command set or $TMPDIR,
+#     so those stay allowed. `rm -rf "$X/build"` is left alone, and so are
+#     ${X:?} and $HOME openers and
+#     `$(printf 'r%s' 'm') -rf /`, whose substitution body is parsed (its
 #     command word is `printf`) but whose RESULT is not. A command word that
 #     is `$SHELL`, `${SHELL}`, `$BASH` or `${BASH}`, quoted or not, is read
 #     as sh, so its -c operand is judged; any other expansion-built command
@@ -1747,6 +1751,86 @@ rdt_bare_var() {
     s="${s:${#unit}}"
   done
   ((safe == 0))
+}
+
+# rdt_name_set <NAME> <depth>: true when the command sets NAME to a value with
+# no blank: every assignment a literal, or built only from names that pass this
+# same test, and every `for NAME in` list unquoted. A substitution's value is
+# unknown and so fails, and so does anything that can hide a blank from this
+# reading: an escape, a value that goes on into a quote, a `+=`, a quote or escape
+# in a `for` list, a builtin that sets the name, an IFS change, or `eval`/`source`.
+# Past the call budget it fails too, so a refusal, not a hook timeout, ends a
+# chain built to run long. Read from the text, so a false pass only returns to
+# allowing the operand.
+RDT_NAME_SET_CALLS=0
+RDT_NAME_SET_MAX=256
+RDT_NAME_SET_FORBID_RE='(^|[^A-Za-z0-9_])IFS\+?=|(^|[;&|({'$'\n'']|(^|[[:space:]])(then|else|do|if|while|until|time|command|builtin|!))[[:space:]]*(eval|source)[[:space:]]|(^|[;&|({'$'\n''])[[:space:]]*\.[[:space:]]'
+# shellcheck disable=SC2016,SC2329  # literal `$` patterns; called from rdt_led_by_unbound
+rdt_name_set() {
+  local n="$1" t="$COMMAND" v grounded=0 self_ref re ref
+  local re_ref='\$\{?([A-Za-z_][A-Za-z0-9_]*)'
+  RDT_NAME_SET_CALLS=$((RDT_NAME_SET_CALLS + 1))
+  ((RDT_NAME_SET_CALLS > RDT_NAME_SET_MAX || $2 > 4)) && return 1
+  re="(^|[^A-Za-z0-9_])${n}\\+=|\\$\\{${n}:?=|(^|[^A-Za-z0-9_])(read|mapfile|readarray|getopts|select|printf[[:space:]]+-v|wait[[:space:]]+-p|(declare|typeset|local)[[:space:]]+-[A-Za-z]*n[A-Za-z]*)[[:space:]]([^;&|"$'\n'"]*[[:space:]])?${n}([^A-Za-z0-9_]|$)"
+  [[ "$t" =~ $re ]] && return 1
+  # Another word-split separator, or a command that can set any name out of sight.
+  [[ "$t" =~ $RDT_NAME_SET_FORBID_RE ]] && return 1
+  # A leading quote is the opening of a `bash -c '...'` program.
+  re="(^|[[:space:];&|(\"'])${n}=(\"[^\"]*\"|'[^']*'|[^[:space:];&|)\"']*)"
+  while [[ "$t" =~ $re ]]; do
+    v="${BASH_REMATCH[2]}"
+    t="${t#*"${BASH_REMATCH[0]}"}"
+    [[ -z "$t" || "$t" == [[:space:]\;\&\|\)]* ]] || return 1
+    [[ "$v" == *'('* || "$v" == *'`'* || "$v" == *\\* ]] && return 1
+    [[ "$v" == [\"\']* ]] && v="${v:1:${#v}-2}"
+    [[ "$v" == *[[:space:]]* ]] && return 1
+    self_ref=0
+    while [[ "$v" =~ $re_ref ]]; do
+      ref="${BASH_REMATCH[1]}"
+      v="${v/"${BASH_REMATCH[0]}"/}"
+      if [[ "$ref" == "$n" ]]; then
+        self_ref=1
+      else
+        rdt_name_set "$ref" $(($2 + 1)) || return 1
+      fi
+    done
+    # A positional, special or indirect expansion holds a value from outside.
+    [[ "$v" == *\$* ]] && return 1
+    ((self_ref)) || grounded=1
+  done
+  # An unquoted item splits before the loop binds it, so only a quote or an escape
+  # keeps a blank. A `for NAME` with no list loops over the positionals.
+  t="$COMMAND"
+  re="(^|[[:space:];&|(\"'])for[[:space:]]+${n}([^A-Za-z0-9_][[:space:]]*(in[[:space:]]+[^;"$'\n'"]*)?|$)"
+  while [[ "$t" =~ $re ]]; do
+    v="${BASH_REMATCH[3]}"
+    t="${t#*"${BASH_REMATCH[0]}"}"
+    [[ -n "$v" && "$v" != *[\`\"\'\\]* && "$v" != *'$('* ]] || return 1
+    grounded=1
+  done
+  # `S=$S/a` alone only appends to the value S came in with; a name set by nothing
+  # read here holds a value from outside.
+  ((grounded))
+}
+
+# rdt_led_by_unbound <operand>: true when the operand opens with an expansion
+# the command never sets, whose value splits on a blank when unquoted, so
+# `rm -rf $S/x` with S="/ tmp" deletes `/`. $HOME, $TMPDIR and ${NAME:?...} are
+# the openers left alone: the first two hold a known path, and `:?` aborts on an
+# empty value. `$(...)` is not judged here.
+# shellcheck disable=SC2016,SC2329  # literal `$` patterns; called from the operand loop
+rdt_led_by_unbound() {
+  local name re_plain='^\$([A-Za-z_][A-Za-z0-9_]*|[0-9]|[@*#?$!-])' re_brace='^\$\{([A-Za-z_][A-Za-z0-9_]*)\}' re_safe='^\$\{[A-Za-z_][A-Za-z0-9_]*:\?'
+  [[ "$1" =~ $re_safe ]] && return 1
+  if [[ "$1" =~ $re_plain || "$1" =~ $re_brace ]]; then
+    name="${BASH_REMATCH[1]}"
+    [[ "$name" == "HOME" || "$name" == "TMPDIR" ]] && return 1
+    # A positional or special parameter is never one the command assigns.
+    [[ "$name" =~ ^[A-Za-z_] ]] || return 0
+    rdt_name_set "$name" 0 && return 1
+    return 0
+  fi
+  [[ "$1" == '${'* ]]
 }
 
 # The outside-tree arm. RDT_ARM is 1 when the payload carries an absolute cwd;
@@ -6201,6 +6285,10 @@ rdt_check_operand() {
   # collapse, with its trailing nameless segments stripped OUTSIDE any `${...}`.
   rdt_strip_tail_to raw "${w,,}"
   if rdt_bare_var "$norm" || rdt_bare_var "$raw"; then
+    rdt_block "bare-variable" "$w"
+  fi
+  # A bash child of the PowerShell tool word-splits like the Bash tool does.
+  if ((${2:-0} < 2)) && { [[ "$TOOL_NAME" != "PowerShell" ]] || ((RDT_PS_BASHC)); } && rdt_led_by_unbound "$w"; then
     rdt_block "bare-variable" "$w"
   fi
   if ((RDT_ARM)); then

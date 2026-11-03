@@ -175,8 +175,8 @@ The lane runs from `.github/workflows/pr-unblock.yml`, with the dispatchers
 | 2 | gap | `.github/scripts/pr-unblock/dispatch.mjs:254`, `.github/scripts/pr-unblock/dispatch.mjs:835` | A non-5xx read failure counts as `failed` and exits 1. |
 | 3 | gap | `.github/scripts/pr-unblock/dispatch.mjs:229`, `.github/scripts/pr-unblock/limit-stop.mjs:21` | Failed runs, outage failures included, use up a cap for each head that blocks re-dispatch until a new push. That is a stored breaker. |
 | 4 | gap | `.github/scripts/pr-unblock/escalation-routes.json:27`, `.github/scripts/pr-unblock/report-escalation.sh:106` | A job fault, such as a lane token that was not obtained, files a fail route, and an unlisted reason holds the PR for a person. Its `clear` mode (`:74`) does clear its own status. |
-| 5 | gap | `.github/workflows/pr-unblock-dispatch.yml:109`, `.github/workflows/pr-feedback-dispatch.yml:381` | `degraded` gates the dispatch steps. |
-| 6 | gap | `.github/scripts/pr-unblock/gate-source.mjs:447`, `.github/workflows/pr-feedback-dispatch.yml:118` | `Promise.all` reads in parallel, and the sweep group uses `queue: max`. The `etag` use (`request-budget.mjs:86`) and the cron at minutes 9 and 39 are fine. |
+| 5 | gap | `.github/workflows/pr-unblock-dispatch.yml:109`, `.github/workflows/pr-feedback-dispatch.yml:388` | `degraded` gates the dispatch steps. |
+| 6 | gap | `.github/scripts/pr-unblock/gate-source.mjs:447`, `.github/workflows/pr-feedback-dispatch.yml:111` | `Promise.all` reads in parallel, and the sweep group uses `queue: max` (`:114`). The `etag` use (`request-budget.mjs:86`) and the cron at minutes 9 and 39 are fine. |
 
 ## pr-merge
 
