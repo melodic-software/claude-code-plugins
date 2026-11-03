@@ -122,7 +122,8 @@ personal variation is limited to lane names the team does not track: an uncommit
   (default 3, [reference/config.md](reference/config.md)) stop the run instead
   of piling on (bundled `open-pr-count.sh`, network access via your own `gh`
   auth).
-- **No auto-merge.** Tidy PRs are always merged by a human.
+- **The skill never merges.** The repository's merge lane, where it has one, or
+  a person merges a tidy PR.
 
 ## Works in any repo
 

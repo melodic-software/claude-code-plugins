@@ -163,7 +163,7 @@ function output(name, value) {
 
 const guardedFetch = rateLimitLatch.guard(globalThis.fetch);
 
-async function api(path, { method = "GET", body, allow404 = false } = {}) {
+export async function api(path, { method = "GET", body, allow404 = false } = {}) {
   const res = await guardedFetch(`${process.env.GITHUB_API_URL || "https://api.github.com"}${path}`, {
     method,
     headers: {

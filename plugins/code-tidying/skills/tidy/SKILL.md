@@ -202,7 +202,7 @@ The comment is never optional when a PR was created, and "Tidyings applied" is n
 
 If `source-control` is not installed, apply the same invariants inline: resolve issue-linkage before writing a closing keyword (`Closes #N` only after confirming issue #N exists in this repo, e.g. `gh issue view N`; otherwise state `No related issue: <reason>`), assemble the body via a quoted heredoc (`<<'EOF'`) plus parameter-expansion concat rather than an unquoted `<<EOF` (which would execute any `$(...)` embedded in prompt-derived text), and refuse to call `gh pr create` until the assembled body contains a valid closing keyword or the opt-out marker. In this fallback path only, the Tidyings-applied / Deferred-items / Lifted-HARD-exclusions sections stay in the PR body itself.
 
-Then monitor checks (`gh pr checks <n> --watch`) until green. Address review-bot findings: verify each against the current code, fix the correct ones, rebut the incorrect ones with evidence. **Manual merge by a human**; this skill does NOT auto-merge.
+Then monitor checks (`gh pr checks <n> --watch`) until green. Address review-bot findings: verify each against the current code, fix the correct ones, rebut the incorrect ones with evidence. This skill never merges: the repository's merge lane, where it has one, or a person does.
 
 ## Global HARD/SOFT exclusions
 
@@ -234,7 +234,7 @@ Bundled surfaces are gated by settings, environment, plan, and host; this sectio
 
 /source-control:babysit-prs
 
-It carries the opened tidy PR through CI and review findings; the merge stays with a human.
+It carries the opened tidy PR through CI and review findings; the merge is the repository's merge lane's or a person's.
 
 ## Gotchas
 
