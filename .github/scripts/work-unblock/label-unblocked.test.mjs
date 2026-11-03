@@ -4492,6 +4492,37 @@ test("a split parent stays open, and a later sweep writes nothing, when a sub-is
   }
 });
 
+// #12456 class A: a parent split by hand whose own task list is its
+// done-when (no split record, so no split parent), parked by admission on
+// SIZE_SPLIT_DONE. Once every sub-issue is closed as completed by a trusted
+// close, status: confirmed comes off, so intake admits it for one
+// verified-done run. A not_planned sub-issue (class B) or any other park
+// keeps it parked.
+const ownCriteria = { ...issue(30, { labels: ["status: confirmed"] }), body: "## Done when\n\n- [ ] The guide names every flag.\n- [ ] The tests cover each flag." };
+const parkedOn = (reason) => ({ id: 88, user: LANES_BOT, body: `${ADMIT_MARKER}\n${refusalText(reason)}`, created_at: STAMP });
+const reenterWrite = `DELETE /repos/${REPO}/issues/30/labels/status%3A%20confirmed`;
+
+test("a parent parked on split-done re-enters intake once its last sub-issue closes as completed", async () => {
+  const { github, calls } = splitWorld({ record: null, parent: ownCriteria, comments: [parkedOn(SIZE_SPLIT_DONE)] });
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writes(calls), [reenterWrite]);
+});
+
+test("a parent stays parked with a not_planned or open sub-issue, an untrusted close, or another park reason", async () => {
+  const outsider = { id: 4242, login: "someone-else", type: "User" };
+  for (const setup of [
+    { second: mergedSecond({ state_reason: "not_planned" }) },
+    { second: subIssue(32, { state: "open", closed_by: null }) },
+    { second: subIssue(32, { closed_by: outsider }) },
+    { comments: [parkedOn("the work-resolve-issue lane stopped on it (`verify-unmet`); the guide does not name --dry-run")] },
+    { parent: { ...ownCriteria, labels: [{ name: "status: confirmed" }, { name: "agent-ready" }] } },
+  ]) {
+    const { github, calls } = splitWorld({ record: null, parent: ownCriteria, comments: [parkedOn(SIZE_SPLIT_DONE)], ...setup });
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writes(calls), [], JSON.stringify(setup));
+  }
+});
+
 const EARLIER = "2026-10-01T00:00:00Z";
 const LATER = "2026-10-16T13:00:00Z";
 test("a split record stays open when it leaves an item out or does not match the sub-issues", async () => {

@@ -196,6 +196,31 @@ test("an instruction in the body or an outsider's comment reaches the lane only 
   }
 });
 
+// #12456 class A: a finished parent (admit.mjs finishedParent) carries
+// verify_close, the sub-issues the run's verify-and-close check stands on; a
+// sub-issue closed not planned (class B) or still open leaves it out.
+test("a parent whose every sub-issue a listed human closed as completed carries verify_close", async () => {
+  const child = (number, extra = {}) => ({ number, state: "closed", state_reason: "completed", closed_by: OWNER, repository_url: `https://api.github.com/repos/${REPO}`, ...extra });
+  const parentRun = (children) =>
+    run(
+      fakeGitHub({
+        comments: [],
+        issue: { ...ISSUE, sub_issues_summary: { total: children.length, completed: children.length } },
+        users: {
+          [`GET /repos/${REPO}/issues/6825/sub_issues?per_page=100&page=1`]: children,
+          ...Object.fromEntries(children.map((item) => [`GET /repos/${REPO}/issues/${item.number}`, item])),
+        },
+      }),
+    );
+  assert.deepEqual((await parentRun([child(80), child(81)])).issue.verify_close, { sub_issues: [80, 81] });
+  const elsewhere = child(81, { repository_url: "https://api.github.com/repos/other/repo" });
+  for (const second of [child(81, { state_reason: "not_planned" }), child(81, { state: "open", state_reason: null, closed_by: null }), elsewhere]) {
+    const { code, issue } = await parentRun([child(80), second]);
+    assert.equal(code, 0);
+    assert.equal(Object.hasOwn(issue, "verify_close"), false, JSON.stringify(second));
+  }
+});
+
 test("a listed bot without a [bot] login is kept as a bot and never a decision", async () => {
   const { issue } = await run(fakeGitHub({ comments: [comment(11, CURSOR_AGENT, "**Decision recorded.** → option 2")] }));
   assert.deepEqual(summary(issue), [["cursoragent", "bot", false]]);

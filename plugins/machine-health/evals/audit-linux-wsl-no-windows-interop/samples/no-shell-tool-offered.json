@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"model\":\"m\",\"tools\":[\"Glob\",\"Grep\",\"Read\",\"Skill\"]}\n{\"type\":\"result\",\"subtype\":\"success\"}", "why": "the run this case asks for" },
+    { "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"tools\":[\"Read\"]}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Bash and PowerShell are not available here.\"}]}}", "why": "the reply names the tools; the session had neither" }
+  ],
+  "fail": [
+    { "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"model\":\"m\",\"tools\":[\"Bash\",\"Glob\",\"Grep\",\"Read\",\"Skill\"]}", "why": "a suite-wide --allow-tools Bash reached this case" },
+    { "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"tools\":[\"Read\",\"PowerShell\"]}", "why": "PowerShell offered" }
+  ]
+}

@@ -3,6 +3,15 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.2.0] - 2026-11-03
+
+### Added
+
+- pull-request: `prep` runs a comment pass after simplify and before the simplify diff is
+  reviewed, through `/code-tidying:remove-comments --pipeline --added-since <base>` when that
+  plugin is enabled. An unattended run applies no comment edit unless the project's instructions
+  pre-approve it: it runs the pass in `report` mode and lists the proposals in the prep report.
+
 ## [6.1.4] - 2026-11-03
 
 ### Changed
