@@ -15,7 +15,7 @@ versioned; this log records each change to it.
 - **One fallback chain and one report line.** Reachability and preference becomes Reachability and
   the fallback chain: artifact, then file, then terminal, owned by `lib/view-registry.mjs`, and
   every view lane prints `view: <medium> (<what decided it>)`.
-- **A team `artifact` no longer publishes a digest.** `/review:explain-change` honoured a team
+- **A team `artifact` no longer publishes a digest.** `/review:explain-change` honored a team
   `artifact` before; under the walk it is ignored with a notice, and the shipped default applies.
 
 ## The genre rubric applied to `knowledge:course-digest` and `knowledge:map-corpus`, 2026-11-02

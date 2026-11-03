@@ -26,7 +26,7 @@ bump: major
 
 - a team `artifact` value no longer publishes a digest
 
-  A team file that says `artifact` was honoured before. It is now ignored with
+  A team file that says `artifact` was honored before. It is now ignored with
   a notice, and the shipped default applies, so a page from a repository that
   is not public, or a diff with a credential-shaped hunk, stays a local file.
   Set the `medium` option to `artifact` to publish such pages anyway.
