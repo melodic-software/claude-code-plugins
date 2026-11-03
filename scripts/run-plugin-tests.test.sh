@@ -11,9 +11,9 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUNNER="$ROOT/scripts/run-plugin-tests.sh"
 # The test-bash lane exports this on main; each case below sets it itself.
 unset PLUGIN_TEST_ADVISORY
-# scripts/check-affected.sh exports this to the suites it runs; the share cases
-# below set it themselves.
-unset PLUGIN_TEST_SHARE_WARN_ONLY
+# scripts/check-affected.sh exports these to the suites it runs; the share and
+# deadline cases below set them themselves.
+unset PLUGIN_TEST_SHARE_WARN_ONLY PLUGIN_TEST_DEADLINE PLUGIN_TEST_LEFT_FILE
 # CI's GITHUB_ACTIONS would turn the suite budget on for every case; the
 # suite-budget cases below turn it on themselves.
 export PLUGIN_TEST_SUITE_BUDGET=0
@@ -687,6 +687,99 @@ assert_output_has "the over-share suite is failed by name" "FAIL: plugins/slow/s
 PLUGIN_TEST_SHARE_WARN_ONLY=yes PLUGIN_TEST_SERIAL_LIST="$empty_list" \
   run_runner 2 "a share warn-only switch other than 0 or 1 is rejected" --root "$fail_root" --budget 60
 assert_output_has "the bad switch is named" "PLUGIN_TEST_SHARE_WARN_ONLY must be 0 or 1 (got 'yes')"
+
+# --- PLUGIN_TEST_DEADLINE: the local gate ends at its budget ---------------------
+#
+# Six suites of 3 s each, 18 s in all, against a deadline 2 s away: the first
+# launches at once and ends past the deadline, so no other launches. The run
+# takes one suite's 3 s; the 12 s bound is the 2 s deadline, that suite, and 7 s
+# for a loaded host, well under the 18 s of a run that ignores the deadline.
+deadline_root="$(make_root deadline)"
+for s in a b c d e f; do
+  write_suite "$deadline_root" "plugins/$s/$s.test.sh" 'sleep 3; echo "ok"'
+done
+left_file="$scratch/left.txt"
+start=$SECONDS
+printf -v now '%(%s)T' -1
+PLUGIN_TEST_DEADLINE=$((now + 2)) PLUGIN_TEST_LEFT_FILE="$left_file" PLUGIN_TEST_SECONDS_LIST="$no_seconds" \
+  PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "a run past its deadline stops launching and does not fail" \
+  --root "$deadline_root" --budget 2
+elapsed=$((SECONDS - start))
+if ((elapsed <= 12)); then
+  ok "the run ends within its deadline plus one suite (${elapsed}s)"
+else
+  fail "the run took ${elapsed}s against a 2 s deadline and 3 s suites; output: $RUN_OUTPUT"
+fi
+assert_output_has "the suite launched before the deadline ran" "PASS: plugins/a/a.test.sh"
+assert_output_lacks "a suite past the deadline did not run" "PASS: plugins/f/f.test.sh"
+assert_output_has "each suite left is named on the run's output" "LEFT TO CI: plugins/f/f.test.sh"
+assert_output_lacks "a run that left suites does not read as a full pass" "All plugin tests passed."
+assert_output_lacks "a suite left is not a suite that never reported" "no result recorded"
+left_want=$'plugins/b/b.test.sh\nplugins/c/c.test.sh\nplugins/d/d.test.sh\nplugins/e/e.test.sh\nplugins/f/f.test.sh'
+if [[ "$(cat "$left_file" 2>/dev/null)" == "$left_want" ]]; then
+  ok "the left file names every suite not launched, and only those"
+else
+  fail "left file: $(cat "$left_file" 2>/dev/null); output: $RUN_OUTPUT"
+fi
+
+# Without the deadline --budget still runs every suite, which is the only budget
+# any CI caller could pass.
+quick_root="$(make_root deadline-quick)"
+for s in a b c; do
+  write_suite "$quick_root" "plugins/$s/$s.test.sh" 'echo "ok"'
+done
+PLUGIN_TEST_SECONDS_LIST="$no_seconds" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
+  run_runner 0 "--budget alone ends nothing" --root "$quick_root" --budget 1
+assert_output_has "--budget alone runs the last suite" "PASS: plugins/c/c.test.sh"
+assert_output_lacks "--budget alone leaves nothing" "LEFT TO CI"
+
+# A deadline already past holds back the serial group too, and a run with nothing
+# failed still exits 0. The timings hold only what ran, which is nothing here.
+deadline_serial="$scratch/deadline-serial.txt"
+printf '%s\n' plugins/a/a.test.sh >"$deadline_serial"
+tfile="$scratch/deadline-timings.tsv"
+rm -f "$left_file"
+PLUGIN_TEST_DEADLINE=1 PLUGIN_TEST_LEFT_FILE="$left_file" PLUGIN_TEST_SECONDS_LIST="$no_seconds" \
+  PLUGIN_TEST_SERIAL_LIST="$deadline_serial" run_runner 0 "a deadline already past launches nothing" \
+  --root "$quick_root" --jobs 2 --budget 1 --timings "$tfile"
+assert_output_lacks "the serial suite did not run" "PASS: plugins/a/a.test.sh"
+assert_output_lacks "the parallel suite did not run" "PASS: plugins/c/c.test.sh"
+assert_output_has "the serial suite is named as left" "LEFT TO CI: plugins/a/a.test.sh"
+assert_output_has "the parallel suite is named as left" "LEFT TO CI: plugins/c/c.test.sh"
+if [[ ! -s "$tfile" && "$(wc -l <"$left_file")" -eq 3 ]]; then
+  ok "no timing row for a suite that never ran"
+else
+  fail "timings: $(cat "$tfile"); left: $(cat "$left_file" 2>/dev/null)"
+fi
+
+# A suite left never hides a suite that ran and failed.
+deadline_fail="$(make_root deadline-fail)"
+write_suite "$deadline_fail" plugins/a/a.test.sh 'sleep 3; echo "FAIL: broken" >&2; exit 1'
+write_suite "$deadline_fail" plugins/b/b.test.sh 'echo "ok"'
+printf -v now '%(%s)T' -1
+PLUGIN_TEST_DEADLINE=$((now + 2)) PLUGIN_TEST_SECONDS_LIST="$no_seconds" \
+  PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 1 "a failed suite still fails a run that left others" \
+  --root "$deadline_fail" --budget 2
+assert_output_has "the failed suite is named" "plugins/a/a.test.sh failed (exit 1)"
+assert_output_has "the suite left is named beside it" "LEFT TO CI: plugins/b/b.test.sh"
+
+# The deadline is this run's: a suite that starts a run of its own, as this file
+# does, must not inherit it, or that inner run would stop launching at once.
+deadline_inherit="$(make_root deadline-inherit)"
+# shellcheck disable=SC2016 # the fixture suite expands these, not this file.
+write_suite "$deadline_inherit" plugins/a/a.test.sh 'echo "saw deadline=${PLUGIN_TEST_DEADLINE-unset} left=${PLUGIN_TEST_LEFT_FILE-unset}"'
+printf -v now '%(%s)T' -1
+PLUGIN_TEST_DEADLINE=$((now + 600)) PLUGIN_TEST_LEFT_FILE="$left_file" PLUGIN_TEST_SECONDS_LIST="$no_seconds" \
+  PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "a run inside its deadline is a plain pass" \
+  --root "$deadline_inherit" --budget 600
+assert_output_has "a suite does not inherit the deadline" "saw deadline=unset left=unset"
+assert_output_has "a run inside its deadline reads as a full pass" "All plugin tests passed."
+
+for bad in x -1 ''; do
+  PLUGIN_TEST_DEADLINE="$bad" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
+    run_runner 2 "a deadline of '$bad' is rejected" --root "$deadline_inherit"
+done
+assert_output_has "the bad deadline is named" "PLUGIN_TEST_DEADLINE must be epoch seconds (got '')"
 
 # --- the per-suite budget: warn over the threshold, fail over the ceiling --------
 #

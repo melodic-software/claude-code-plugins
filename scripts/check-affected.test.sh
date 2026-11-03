@@ -42,6 +42,10 @@ echo "affected-tests ran" >&2
 [[ -z "${STUB_ARGS_LOG:-}" ]] || printf '%s\n' "$*" >"$STUB_ARGS_LOG"
 [[ -z "${STUB_ENV_LOG:-}" ]] || printf '%s' "${CHECK_DATA_ROOT-unset}" >"$STUB_ENV_LOG"
 [[ -z "${STUB_SHARE_LOG:-}" ]] || printf '%s' "${PLUGIN_TEST_SHARE_WARN_ONLY-unset}" >"$STUB_SHARE_LOG"
+[[ -z "${STUB_DEADLINE_LOG:-}" ]] || printf '%s' "${PLUGIN_TEST_DEADLINE-unset}" >"$STUB_DEADLINE_LOG"
+# The real runner writes the suites the deadline left to PLUGIN_TEST_LEFT_FILE.
+[[ -z "${STUB_LEFT:-}" ]] || printf '%s' "$STUB_LEFT" >"$PLUGIN_TEST_LEFT_FILE"
+sleep "${STUB_AFFECTED_SLEEP:-0}"
 # The real selector diffs its own tree's work tree, so the stub logs that.
 [[ -z "${STUB_STATUS_LOG:-}" ]] || git -C "$(dirname "$0")/.." status --porcelain --untracked-files=all >"$STUB_STATUS_LOG"
 [[ -v CHECK_DATA_ROOT ]] && { echo "affected-tests saw CHECK_DATA_ROOT" >&2; exit 1; }
@@ -300,6 +304,29 @@ run -u PLUGIN_TEST_SHARE_WARN_ONLY STUB_SHARE_LOG="$share_log" -- --base base --
 check "--tests passes PLUGIN_TEST_SHARE_WARN_ONLY=1 to the suites" '[[ $RC == 0 && $(cat "$share_log") == 1 ]]'
 run CHECK_DATA_ROOT="$repo" -- --base base --tests
 check "--tests keeps a caller's CHECK_DATA_ROOT from the suites" '[[ $RC == 0 && $ERR != *"saw CHECK_DATA_ROOT"* ]]'
+# The deadline is the budget counted from the run's start: read before and after
+# the run, it falls between the two clocks plus the 45 s asked for.
+deadline_log="$tmp/affected-deadline.log"
+printf -v before '%(%s)T' -1
+run STUB_DEADLINE_LOG="$deadline_log" -- --base base --tests --budget 45
+printf -v after '%(%s)T' -1
+got_deadline="$(cat "$deadline_log")"
+if [[ $RC == 0 && $got_deadline =~ ^[0-9]+$ ]] && ((got_deadline >= before + 45 && got_deadline <= after + 45)); then
+  ok "--tests hands the suites a deadline of the run's start plus its budget"
+else
+  bad "--tests hands the suites a deadline of the run's start plus its budget" "rc=$RC deadline=$got_deadline before=$before after=$after"
+fi
+run STUB_LEFT=$'plugins/a/a.test.sh\nplugins/b/b.test.sh\n' -- --base base --tests --budget 45
+check "--tests reads suites the budget left as a skip, never a pass" \
+  '[[ $RC == 0 && $ERR == *"SKIP tests (could not run, exit 2: 2 selected suite(s) left to CI, past the 45s budget)"* ]]'
+check "--tests names each suite the budget left" \
+  '[[ $ERR == *"SKIP tests: plugins/a/a.test.sh (past the 45s budget, left to CI)"* && $ERR == *"SKIP tests: plugins/b/b.test.sh (past the 45s budget, left to CI)"* ]]'
+run STUB_LEFT=$'plugins/a/a.test.sh\n' STUB_AFFECTED_TESTS=1 -- --base base --tests
+check "--tests still fails on a failed suite when the budget left others" \
+  '[[ $RC == 1 && $ERR == *"FAIL tests"* && $ERR == *"SKIP tests: plugins/a/a.test.sh ("* ]]'
+run STUB_LEFT=$'plugins/a/a.test.sh\n' STUB_AFFECTED_TESTS=3 STUB_NOT_RUN=$'eco/test_x.py\n' -- --base base --tests --budget 45
+check "--tests counts both the suites its budget left and those it does not run" \
+  '[[ $RC == 0 && $ERR == *"SKIP tests: plugins/a/a.test.sh ("* && $ERR == *"1 selected suite(s) left to CI, past the 45s budget"* ]]'
 run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN=$'eco/test_x.py\neco/X.Tests.ps1\n' -- --base base --tests
 check "--tests reports selected suites left unrun as a skip counting them, never a pass" \
   '[[ $RC == 0 && $ERR == *"SKIP tests (could not run, exit 2: 2 selected suite(s) not run here, left to their own CI lanes)"* ]]'
@@ -334,6 +361,13 @@ if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1 && command 
   run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN=$'pkg/demo/x.test.mjs\neco/test_x.py\n' -- --base base --tests
   check "--tests runs the Node package suites and still skips, counting, the ones left unrun" \
     '[[ $RC == 0 && $ERR == *"SKIP tests (could not run, exit 2: 1 selected suite(s) not run here"* ]]'
+  # Past the deadline the package's npm test does not start. Its suite fails, so
+  # a run that started it would fail tests.
+  # shellcheck disable=SC2059 # the format is the suite template above.
+  printf "$node_suite" 2 >"$repo/pkg/demo/x.test.mjs"
+  run STUB_AFFECTED_TESTS=3 STUB_AFFECTED_SLEEP=2 STUB_NOT_RUN=$'pkg/demo/x.test.mjs\n' -- --base base --tests --budget 1
+  check "--tests starts no Node package past its budget, and names it as left" \
+    '[[ $RC == 0 && $ERR != *"FAIL tests"* && $ERR == *"SKIP tests: pkg/demo/x.test.mjs (past the 1s budget, left to CI)"* ]]'
   rm -rf "$repo/pkg"
 else
   ok "SKIP Node package cases (node, npm or jq not installed)"
