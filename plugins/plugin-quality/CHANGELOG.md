@@ -5,6 +5,12 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.9] - 2026-11-03
+
+### Changed
+
+- Tidied the audit collectors: one per-heading state reset in collect-categories.sh, a guard clause and a single declaration alternation in collect-standards.sh, with a test that pins the `declare -x` and `typeset -x` forms.
+
 ## [0.18.8] - 2026-11-03
 
 ### Changed

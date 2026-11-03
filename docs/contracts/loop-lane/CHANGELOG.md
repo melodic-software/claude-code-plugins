@@ -5,6 +5,16 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [16.0.0] - 2026-11-03
+
+Major: the autonomy ladder's merge authority changes (§1).
+
+- **No work class gates the babysit loop's partition (§1).** A PR with a close-linked item is
+  eligible at a rung once that rung's promotion cells are promoted, as the merge gate maps them;
+  an item with no class is treated like any other. C5 stays the one class hold. Promotion evidence
+  credits each autonomous merge to the cells of the rung its lane pin names, and a merge with no
+  rung gets no credit while its contrary events count against every cell (#12748).
+
 ## [15.0.0] - 2026-11-01
 
 Major: §4 gains a loop-layer invariant, and a change to a loop-layer invariant is a major bump (see

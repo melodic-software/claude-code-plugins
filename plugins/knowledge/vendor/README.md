@@ -10,7 +10,9 @@ cache-isolated (it cannot reference packages outside its own directory).
   `skills/<skill>/extraction/package.json` links this single copy through
   `file:../../../vendor/*`, and `setup-deps.mjs` installs it into
   `${CLAUDE_PLUGIN_DATA}` via `npm install --install-links`. `absorb-upstream`
-  runs `repo-analysis/clone-cli.js` directly, which needs no install.
+  reads a repository through the GitHub API and uses no vendored library, so
+  `repo-analysis/` has no command-line entry; `clone.js` stays for the two
+  extraction packages.
 - `node-launcher/` is never installed: each extraction package's `run.mjs` and
   `setup-deps.mjs` import it by relative path, and `setup` runs its
   `setup-deps.mjs` with `--package`.

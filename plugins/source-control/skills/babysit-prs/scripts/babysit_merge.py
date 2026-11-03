@@ -4941,9 +4941,13 @@ def unattended_enqueue(
                 "is not enqueued"
             )
         inputs_read["updated"] = False
+    # The effective rung the gate enqueued under, which the promotion-evidence
+    # publisher credits; no merge rung leaves the pin without one.
+    rung = inputs.get("rung")
+    pin_rung = rung if rung in postmerge.PIN_RUNGS else None
     proc = gh_capture(
         ["api", "-X", "POST", f"repos/{repo}/issues/{number}/comments"]
-        + ["-f", f"body={postmerge.pin_comment(pin)}"]
+        + ["-f", f"body={postmerge.pin_comment(pin, pin_rung)}"]
     )
     if proc.returncode != 0:
         return hold(f"the pin comment could not be posted ({proc.stderr.strip()})")

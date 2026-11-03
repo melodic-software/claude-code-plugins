@@ -22,10 +22,10 @@ Assess against the staged workflow as a checklist, not full dimensional analysis
 
 | Stage | Done? | Note |
 |------|-------|------|
-| 1. Explore | Yes/No/Partial | (one line) |
-| 2. Research | Yes/No/Partial | |
-| 3. PRD | Yes/No/N/A | |
-| 4. Contract | Yes/No/N/A | |
+| 1. Interview | Yes/No/N/A | (one line) |
+| 2. Explore | Yes/No/Partial/N/A | |
+| 3. Research | Yes/No/Partial/N/A | |
+| 4. PRD | Yes/No/N/A | |
 | 5. Design | Yes/No/Early exit | |
 | 6. Plan | Yes/No/Partial/N/A | |
 | 7. Decompose | Yes/No/N/A | |

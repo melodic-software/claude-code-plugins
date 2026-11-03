@@ -1642,7 +1642,7 @@ test("run-claude-cli: the preamble names the review-thread tool's path and subco
   const run = launchThreads();
   assert.equal(run.status, 0, run.stdout);
   const sentence =
-    `The review-thread tool is ${FEEDBACK_TOOL}: run it by exactly this path as ${FEEDBACK_TOOL} list, ` +
+    `The review-thread tool is ${FEEDBACK_TOOL}: run it by exactly this path as ${FEEDBACK_TOOL} list, ${FEEDBACK_TOOL} notes, ` +
     `${FEEDBACK_TOOL} check-paths <path>... and ${FEEDBACK_TOOL} record <thread-id> <file>, with each disposition file in ${WORKSPACE}/.lane/scratch. ` +
     "The tool posts and commits nothing: a later job pushes your uncommitted fix and posts what you record. " +
     "To revert an executable bit the pull request added, run chmod -x on that file: the fix carries the mode, and only a mode back to the base's is pushed.";

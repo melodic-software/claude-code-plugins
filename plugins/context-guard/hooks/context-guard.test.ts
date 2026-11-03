@@ -28,6 +28,8 @@ type World = {
   tokens: number | undefined
   output: number
   window: number
+  // The auto-compact window the breakdown reports as rawMaxTokens; unset, the model's window.
+  compactWindow?: number
   version: string
   sid: string
   surfaces: string[]
@@ -93,7 +95,10 @@ const world = (stub: any, init: Partial<World> = {}, env: Record<string, string>
         context: {
           window: w.window,
           ...(known ? { percent: w.percent, tokens } : {}),
-          breakdown: { apiUsage: known ? { input_tokens: 5, output_tokens: w.output, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } : null },
+          breakdown: {
+            rawMaxTokens: w.compactWindow ?? w.window,
+            apiUsage: known ? { input_tokens: 5, output_tokens: w.output, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } : null,
+          },
         },
       },
     }
@@ -475,6 +480,51 @@ test('zones.json: an extra threshold gets its approach line and its line once pe
 test('shipped bands, 1000000 window: 26% used announces acceptable, never dumb; 51% announces dumb', async ($, on) => {
   const { w } = world(on, { window: 1_000_000 })
   expect(await walk($, w, [5, 26, 51])).toEqual([[], [crossing('acceptable')], [crossing('dumb')]])
+})
+
+// A lowered auto-compact window: the breakdown's rawMaxTokens. On a 200000 window
+// with a 100000 compaction window the percentage edges sit at 25 and 37.5 points of the window
+// (50 and 75 of 100000), while 30% and 40% (60000 and 80000 tokens) stay smart in the token shape.
+test('compaction window: a lowered window pulls the percentage edges toward it', async ($, on) => {
+  const { w } = world(on, { compactWindow: 100_000 })
+  expect(await walk($, w, [10, 30, 40])).toEqual([[], [crossing('acceptable')], [crossing('dumb')]])
+})
+
+test('compaction window: one equal to the model window, or above it, leaves the edges as they are', async ($, on) => {
+  const { w } = world(on, { compactWindow: 200_000 })
+  expect(await walk($, w, [10, 30, 40])).toEqual([[], [], []])
+  w.compactWindow = 400_000
+  expect(await walk($, w, [10, 30, 40])).toEqual([[], [], []])
+})
+
+test('compaction window: a zones.json threshold follows it too', async ($, on) => {
+  const { w } = world(on, { compactWindow: 100_000 })
+  zonesFile(w, { thresholds: [{ at_percent: 60, action: 'handoff' }] })
+  const passed = `context-guard: acceptable zone (2 of 3), past an operator threshold. context-guard (operator setting for a threshold): handoff.`
+  expect(await walk($, w, [10, 31])).toEqual([[], [crossing('acceptable'), passed]])
+})
+
+// The threshold fired at 30 points (60 of 100000); the window then grows to the model's, which
+// moves the edge to 60 points. 61% is past it, still acceptable, still the same cycle.
+test('compaction window: a threshold that fired stays fired when the window changes mid-cycle', async ($, on) => {
+  const { w } = world(on, { compactWindow: 100_000 })
+  zonesFile(w, { thresholds: [{ at_percent: 60, action: 'handoff' }] })
+  const passed = `context-guard: acceptable zone (2 of 3), past an operator threshold. context-guard (operator setting for a threshold): handoff.`
+  expect(await walk($, w, [10, 31])).toEqual([[], [crossing('acceptable'), passed]])
+  w.compactWindow = 200_000
+  expect(await walk($, w, [61])).toEqual([[]])
+})
+
+// 400000 of 1000000: the edges at 20 and 30 points (50 and 75 of 400000), the margin at 2.
+test('compaction window: the status tool publishes the edges in force and the window they follow', async ($, on) => {
+  world(on, { window: 1_000_000, compactWindow: 400_000, percent: 9 })
+  const answer = JSON.parse(String((await $.tool.call({ tool: 'mcp__context-guard__status' } as any)).result))
+  expect([answer.zone, answer.used_percentage, answer.bands, answer.approach_margin]).toEqual([
+    'smart',
+    9,
+    { smart_max_used_percentage: 20, acceptable_max_used_percentage: 30, smart_max_tokens: 128_000, acceptable_max_tokens: 500_000, auto_compact_window: 400_000 },
+    2,
+  ])
 })
 
 // The token edges of a 1000000-token window at 210000 and 410000; the percentage edges there
