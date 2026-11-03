@@ -23,6 +23,9 @@ export const MEDIUMS = Object.freeze({
   hosted: entry("hosted", true, "the shared page host", interactiveOnly, (view) => ({ location: "hosted", publish: view.path })),
 });
 
+/** The registry entry for `id`, own keys only, so an inherited name such as `toString` is no medium. */
+export const mediumOf = (id) => (typeof id === "string" && Object.hasOwn(MEDIUMS, id) ? MEDIUMS[id] : undefined);
+
 /** The one fallback chain: a view that cannot be served on a medium steps down this list. */
 export const FALLBACK_CHAIN = Object.freeze(["artifact", "file", "terminal"]);
 
@@ -49,6 +52,9 @@ export const LANES = Object.freeze(
   ),
 );
 
+/** The lane registration for `id`, own keys only. */
+export const laneOf = (id) => (typeof id === "string" && Object.hasOwn(LANES, id) ? LANES[id] : undefined);
+
 /** `medium` as `lane` reads it: `hosted` is `artifact` unless the lane sends pages to a page host. */
 export const readAs = (medium, laneEntry) => (medium === "hosted" && !laneEntry.hostedCapable ? "artifact" : medium);
 
@@ -61,9 +67,11 @@ export function fallBack(preferred, laneEntry, context = {}) {
   const want = readAs(preferred, laneEntry);
   const start = FALLBACK_CHAIN.indexOf(want === "hosted" ? "artifact" : want);
   const candidates = want === "hosted" ? ["hosted", ...FALLBACK_CHAIN.slice(start)] : FALLBACK_CHAIN.slice(start);
-  const first = MEDIUMS[want].reachable(context);
+  const wanted = mediumOf(want);
+  if (!wanted) throw new Error(`view-registry: unknown medium ${JSON.stringify(preferred)}`);
+  const first = wanted.reachable(context);
   if (first.ok) return { medium: want, fell: null };
-  const medium = candidates.find((id) => MEDIUMS[id].reachable(context).ok) ?? "terminal";
+  const medium = candidates.find((id) => mediumOf(id).reachable(context).ok) ?? "terminal";
   return { medium, fell: `${want} unreachable: ${first.reason}` };
 }
 

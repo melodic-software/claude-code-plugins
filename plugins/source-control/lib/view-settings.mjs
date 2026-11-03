@@ -28,7 +28,7 @@ import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readLayers } from "./config-cascade.mjs";
-import { LANES, MEDIUMS, NO_PREFERENCE, SCHEMA, fallBack, reportLines } from "./view-registry.mjs";
+import { NO_PREFERENCE, SCHEMA, fallBack, laneOf, mediumOf, reportLines } from "./view-registry.mjs";
 
 const CONCERN = "rendered-views";
 const HOME = "docs/conventions";
@@ -177,7 +177,7 @@ function retiredNotices(legacy, { plugin, root, userHome, dataDir }) {
     const value = mediumIn(bytes.toString("utf8"));
     const to = destination[kind] ?? TEAM_FILE;
     const caveat =
-      value && MEDIUMS[value]?.publishes
+      value && mediumOf(value)?.publishes
         ? to === TEAM_FILE
           ? "; a team file never publishes, so that value would be ignored there"
           : to === PERSONAL_FILE
@@ -199,7 +199,7 @@ function retiredNotices(legacy, { plugin, root, userHome, dataDir }) {
 // ------------------------------------------------------------ resolution
 
 /** True when the reader chose a publishing medium (the argument, or a trusted scope), which the publish gate takes as explicit: never the plugin default. */
-export const gateExplicit = ({ preferred, decidedBy }) => Boolean(MEDIUMS[preferred]?.publishes) && ["argument", "userConfig", "personal override"].includes(decidedBy);
+export const gateExplicit = ({ preferred, decidedBy }) => Boolean(mediumOf(preferred)?.publishes) && ["argument", "userConfig", "personal override"].includes(decidedBy);
 
 /**
  * @param {{lane: string, argument?: string|null, userConfig?: string|null, projectRoot?: string|null, teamRef?: string|null}} request
@@ -207,7 +207,7 @@ export const gateExplicit = ({ preferred, decidedBy }) => Boolean(MEDIUMS[prefer
  * @returns {{preferred: string|null, medium: string|null, decidedBy: string, notices: {kind: string, text: string}[]}}
  */
 export function resolveMedium({ lane, argument = null, userConfig = null, projectRoot = null, teamRef = null }, { userHome = homedir(), dataDir = null, interactive = true } = {}) {
-  const laneEntry = LANES[lane];
+  const laneEntry = laneOf(lane);
   if (!laneEntry) throw new Error(`view-settings: unknown lane ${JSON.stringify(lane)}`);
   const notices = [];
   const root = repoScopes(projectRoot, userHome) ? projectRoot : null;
@@ -219,7 +219,7 @@ export function resolveMedium({ lane, argument = null, userConfig = null, projec
     const { medium, fell } = fallBack(preferred, laneEntry, { interactive });
     return { preferred, medium, decidedBy: fell ? `fell back: ${fell}` : decidedBy, notices };
   };
-  if (MEDIUMS[argument]) return finish(argument, "argument");
+  if (mediumOf(argument)) return finish(argument, "argument");
 
   const shown = (path) => (path && root && isAbsolute(path) ? relative(root, path).split("\\").join("/") : path);
   for (const layer of layers) {
@@ -232,7 +232,7 @@ export function resolveMedium({ lane, argument = null, userConfig = null, projec
   const valueOf = (name) => layers.find((l) => l.name === name)?.values.medium;
   const personal = valueOf("local");
   let personalTrusted = false;
-  if (personal && MEDIUMS[personal]?.publishes) {
+  if (personal && mediumOf(personal)?.publishes) {
     const warnings = [];
     personalTrusted = overlayApplies(root, join(root, PERSONAL_FILE), warnings, { requireIgnored: true });
     for (const w of warnings) notices.push({ kind: "ignored", text: `personal override ${w.replace(/^overlay /, "")}` });
@@ -243,7 +243,7 @@ export function resolveMedium({ lane, argument = null, userConfig = null, projec
     ["team", valueOf("team"), false],
     ["userConfig", valueOf("userConfig"), true],
   ].filter(([, medium]) => medium && medium !== NO_PREFERENCE);
-  const local = scopes.find(([, medium]) => !MEDIUMS[medium].publishes);
+  const local = scopes.find(([, medium]) => !mediumOf(medium).publishes);
   if (local) return finish(local[1], local[0]);
   const teamValue = scopes.find(([name]) => name === "team")?.[1];
   if (teamValue) notices.push({ kind: "ignored", text: `team ${shown(layers.find((l) => l.name === "team").path)} sets medium: ${teamValue}; a team file never publishes, so it is ignored` });
@@ -265,9 +265,9 @@ export function main(argv, env = process.env) {
     if (!key || rest[i + 1] === undefined) return usage();
     request[key] = rest[i + 1];
   }
-  if (action !== "resolve" || !LANES[request.lane] || request.userConfig === undefined) return usage();
+  if (action !== "resolve" || !laneOf(request.lane) || request.userConfig === undefined) return usage();
   if (request.argument === NO_PREFERENCE) request.argument = null;
-  if (request.argument !== null && !MEDIUMS[request.argument]) return usage();
+  if (request.argument !== null && !mediumOf(request.argument)) return usage();
   const ci = Boolean(env.CI) && env.CI !== "false";
   const resolution = resolveMedium({ ...request, projectRoot: findRoot() }, { dataDir: env.CLAUDE_PLUGIN_DATA || null, interactive: !ci });
   process.stdout.write(`${JSON.stringify(resolution)}\n${reportLines(resolution).join("\n")}\n`);
