@@ -589,20 +589,31 @@ const keepReport = ({ code = "0", settle = 0, files = true } = {}) => {
     writeFileSync(join(report, "post-merge-code"), `${code}\n`);
     writeFileSync(join(report, "post-merge-code-sha"), `${"c".repeat(40)}\n`);
   }
+  const output = join(dir, "output");
+  writeFileSync(output, "");
   const run = spawnSync("bash", ["--noprofile", "--norc", "-c", script], {
-    env: { PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, REPO: "o/r" },
+    env: { PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, REPO: "o/r", GITHUB_OUTPUT: output },
     encoding: "utf8",
   });
-  return { body, status: run.status, kept: existsSync(report), settled: readFileSync(args, "utf8").trim(), stdout: run.stdout };
+  return {
+    body,
+    status: run.status,
+    kept: existsSync(report),
+    settled: readFileSync(args, "utf8").trim(),
+    stdout: run.stdout,
+    output: readFileSync(output, "utf8"),
+  };
 };
 
 test("a PR-scoped run keeps the last sweep's report only when settle --idle-tick keeps it", () => {
   const kept = keepReport();
   assert.equal(kept.status, 0);
   assert.equal(kept.kept, true);
+  assert.equal(kept.output, "stands=true\n");
+  assert.match(kept.body, /^ {8}id: keep-report\n/);
   // The same call post-merge-dispatch makes for a reused report.
   assert.match(kept.settled, /^\.base\/plugins\/source-control\/skills\/babysit-prs\/scripts\/babysit_verify_evidence\.py settle --idle-tick --repo o\/r --postmerge-result \S+\/post-merge\/post-merge\.json --code-sha c{40}$/);
-  assert.match(kept.body, /^ {8}if: steps\.lane-token\.outputs\.token != '' && github\.event_name == 'workflow_dispatch' && inputs\.pr\n/);
+  assert.match(kept.body, /\n {8}if: steps\.lane-token\.outputs\.token != '' && github\.event_name == 'workflow_dispatch' && inputs\.pr\n/);
   assert.match(kept.body, /\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n/);
   const arm = job("enable-auto-merge");
   assert.ok(arm.indexOf("- name: Read the post-merge report the last sweep kept") < arm.indexOf(`- name: ${KEEP_STEP}`));
@@ -620,8 +631,23 @@ test("a refused or unread settle leaves a PR-scoped run no report", () => {
     assert.equal(run.status, 0, why);
     assert.equal(run.kept, false, why);
     assert.equal(run.settled !== "", asked, why);
+    assert.equal(run.output, "stands=false\n", why);
     assert.match(run.stdout, /::notice::the last sweep's post-merge report does not stand for this run/, why);
   }
+});
+
+// With no standing report a wake decides nothing: the arm step, which would
+// read the room unreadable and disarm an armed lane pull request, is skipped.
+test("a PR-scoped run with no standing report skips the arm step, so it disarms nothing", () => {
+  const arm = job("enable-auto-merge");
+  const step = /- name: Arm and disarm auto-merge\n {8}id: arm\n {8}if: (.*)\n/.exec(arm)?.[1];
+  assert.equal(
+    step,
+    "steps.lane-token.outputs.token != '' && !(github.event_name == 'workflow_dispatch' && inputs.pr && steps.keep-report.outputs.stands != 'true')",
+  );
+  const report = /- name: Report the PR-scoped outcome\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)[1];
+  assert.match(report, /\n {10}STANDS: \$\{\{ steps\.keep-report\.outputs\.stands \}\}\n/);
+  assert.match(report, /elif \[ "\$STANDS" = false \]; then\n\s+OUTCOME="skipped: the last sweep's report does not stand"/);
 });
 const pullRequestEvent = (senderType) => ({
   event_name: "pull_request_target",

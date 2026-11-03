@@ -2495,9 +2495,12 @@ jobs:
       # 5) and `settle --idle-tick` keeps, so a verifying run or canary that
       # moved since its computedAt, changed quarantine markers or pins, or
       # any hold the report carries refuses it (postmerge.idle_refusal).
-      # Any refusal or failure removes the report: the room then reads
-      # unreadable, nothing arms, and the next sweep checks again.
+      # Any refusal or failure removes the report and skips the arm step: a
+      # wake with no standing report decides nothing, so it neither arms nor
+      # disarms (an unreadable room would disarm every armed lane pull
+      # request), and the next sweep checks again.
       - name: Keep the last sweep's report only while nothing it read has moved
+        id: keep-report
         if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr
         timeout-minutes: 3
         env:
@@ -2520,18 +2523,19 @@ jobs:
               kept=true
             fi
           fi
+          echo "stands=$kept" >>"$GITHUB_OUTPUT"
           if [ "$kept" = true ]; then
             echo "the last sweep's post-merge report still stands: nothing it reads has moved"
           else
             rm -rf "${last:?}"
-            echo "::notice::the last sweep's post-merge report does not stand for this run; nothing is armed, and the next sweep checks again"
+            echo "::notice::the last sweep's post-merge report does not stand for this run; nothing is armed or disarmed, and the next sweep checks again"
           fi
 
       # While merge.report-only is anything but false it reports each
       # decision and writes nothing.
       - name: Arm and disarm auto-merge
         id: arm
-        if: steps.lane-token.outputs.token != ''
+        if: steps.lane-token.outputs.token != '' && !(github.event_name == 'workflow_dispatch' && inputs.pr && steps.keep-report.outputs.stands != 'true')
         timeout-minutes: 18
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
@@ -2684,6 +2688,7 @@ jobs:
           ARM: ${{ steps.arm.outcome }}
           WHO: ${{ steps.who.outputs.proceed }}
           SUPERSEDED: ${{ steps.superseded.outputs.superseded }}
+          STANDS: ${{ steps.keep-report.outputs.stands }}
           CALLS: ${{ steps.budget-end.outputs.calls }}
         run: |
           if [ -z "$OUTCOME" ]; then
@@ -2691,6 +2696,8 @@ jobs:
               OUTCOME="skipped: the who step stopped it"
             elif [ "$SUPERSEDED" = true ]; then
               OUTCOME="skipped: a waiting run does this work"
+            elif [ "$STANDS" = false ]; then
+              OUTCOME="skipped: the last sweep's report does not stand"
             else
               OUTCOME="skipped: the arm step ended ${ARM:-unrun} with no outcome"
             fi
