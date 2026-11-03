@@ -15,8 +15,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { CACHE_ONLY_TIMEOUT_MS, CACHE_ONLY_WINDOW_MS, HOLD_LABELS, LANE_ROOM_TIMEOUT_MS, VERIFY_BUDGET_MS, VERIFY_TIMEOUT_MS } from "./enable-auto-merge.mjs";
-import { humanGatedLabelFrom } from "../pr-unblock/address-feedback.mjs";
+import { CACHE_ONLY_TIMEOUT_MS, CACHE_ONLY_WINDOW_MS, LANE_ROOM_TIMEOUT_MS, VERIFY_BUDGET_MS, VERIFY_TIMEOUT_MS } from "./enable-auto-merge.mjs";
 import { classify, resetLabel } from "../../actions/log-api-budget/rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -483,52 +482,35 @@ test("no workflow_run trigger wakes pr-merge, and the enable-auto-merge job skip
   assert.doesNotMatch(armIf, /workflow_run/);
   // A push to main is a merge landing, never a new lane pull request.
   assert.match(armIf, /github\.event_name != 'push'/);
-  assert.match(
-    arm,
-    /\n {4}concurrency:\n {6}group: \$\{\{ github\.event\.action == 'labeled' && 'pr-merge-hold-dequeue' \|\| 'pr-merge-enable-auto-merge' \}\}\n {6}queue: max\n/,
-  );
+  assert.match(arm, /\n {4}concurrency:\n {6}group: pr-merge-enable-auto-merge\n {6}queue: max\n/);
 });
 
 // A job its condition skips never joins the group, so a pull request the job
 // cannot arm (not the lanes App's) shows a skipped check, not one pending
 // behind every queued run. The other events keep their conditions.
-test("a pull request event wakes enable-auto-merge only for a lanes App pull request, or a hold label added", () => {
-  const armIf = /\n {4}if: >-\n([\s\S]*?)\n {4}(?:[a-z-]+:|#)/.exec(job("enable-auto-merge"))[1];
+test("a pull request event wakes enable-auto-merge only for a lanes App pull request", () => {
+  const armIf = /\n {4}if: >-\n([\s\S]*?)\n {4}[a-z-]+:/.exec(job("enable-auto-merge"))[1];
   assert.match(
     armIf,
-    /\(github\.event_name != 'pull_request_target'\n {6}\|\| \(github\.event\.pull_request\.head\.repo\.full_name == github\.repository\n {6}&& \(\(github\.event\.action == 'labeled'\n {6}&& contains\(fromJSON\('\[[^\]]*\]'\), github\.event\.label\.name\)\)\n {6}\|\| \(github\.event\.action != 'labeled'\n {6}&& format\('\{0\}', github\.event\.pull_request\.user\.id\) == vars\.AUTOMATION_LANES_APP_SENDER_ID\)\)\n {6}&& github\.event\.sender\.type != 'Bot'\)\)$/,
+    /\(github\.event_name != 'pull_request_target'\n {6}\|\| \(github\.event\.pull_request\.head\.repo\.full_name == github\.repository\n {6}&& format\('\{0\}', github\.event\.pull_request\.user\.id\) == vars\.AUTOMATION_LANES_APP_SENDER_ID\n {6}&& github\.event\.sender\.type != 'Bot'\)\)\n/,
   );
   assert.match(armIf, /^ {6}!cancelled\(\)\n/);
   assert.doesNotMatch(armIf, /schedule|workflow_dispatch/);
 });
 
-// The condition's hold labels are enable-auto-merge.mjs's own: HOLD_LABELS
-// and the human-gated label the base tracker config names, so a hold the
-// script refuses at arm is one a label added wakes it to dequeue.
-test("the labeled wake's hold labels are the script's HOLD_LABELS and the human-gated label", () => {
-  const armIf = /\n {4}if: >-\n([\s\S]*?)\n {4}[a-z-]+:/.exec(job("enable-auto-merge"))[1];
-  const listed = JSON.parse(/contains\(fromJSON\('(\[[^\]]*\])'\), github\.event\.label\.name\)/.exec(armIf)[1]);
-  const humanGated = humanGatedLabelFrom(fileURLToPath(new URL("../../../.work-item-tracker.json", import.meta.url)));
-  assert.deepEqual(listed, [...HOLD_LABELS, humanGated]);
-});
-
 // A bot-sent pull_request_target run would wait in the queue and then stop at
 // who.mjs (a bot is never a listed human), so the job's condition skips it
 // first. The condition's syntax is the subset JavaScript reads the same way,
-// so the test evaluates it against hand-written events, with contains() and
-// fromJSON() as GitHub documents them (contains is not case sensitive).
+// so the test evaluates it against hand-written events.
 const evalIf = (id, event, inputs = {}) => {
   const text = /\n {4}if: >-\n([\s\S]*?)\n {4}(?:[a-z-]+:|#)/.exec(`\n${job(id)}`)[1].replaceAll("\n", " ");
   const format = (template, value) => template.replace("{0}", value);
-  const contains = (search, item) => search.some((value) => String(value).toLowerCase() === String(item).toLowerCase());
-  return new Function("github", "vars", "cancelled", "format", "inputs", "contains", "fromJSON", `return (${text});`)(
+  return new Function("github", "vars", "cancelled", "format", "inputs", `return (${text});`)(
     { ref: "refs/heads/main", repository: "o/r", ...event },
     { AUTOMATION_LANES_APP_SENDER_ID: "99" },
     () => false,
     format,
     inputs,
-    contains,
-    JSON.parse,
   );
 };
 
@@ -667,38 +649,9 @@ test("a PR-scoped run with no standing report skips the arm step, so it disarms 
   assert.match(report, /\n {10}STANDS: \$\{\{ steps\.keep-report\.outputs\.stands \}\}\n/);
   assert.match(report, /elif \[ "\$STANDS" = false \]; then\n\s+OUTCOME="skipped: the last sweep's report does not stand"/);
 });
-const pullRequestEvent = (senderType, { action = "unlabeled", label = "needs-human", author = 99 } = {}) => ({
+const pullRequestEvent = (senderType) => ({
   event_name: "pull_request_target",
-  event: { action, label: { name: label }, sender: { type: senderType }, pull_request: { head: { repo: { full_name: "o/r" } }, user: { id: author } } },
-});
-
-// A label added only adds a hold: a hold label wakes the enable-auto-merge job
-// alone, for any author's pull request, and any other label wakes no job, so
-// that run makes no call. The labels and authors here are the issue's cases:
-// do-not-merge and needs-human are holds, `documentation` is not; author 7 is
-// a person, 99 the lanes App.
-test("a labeled event runs only enable-auto-merge, and only for a hold label a person added", () => {
-  const ids = ["post-merge-dispatch", "merge", "enable-auto-merge"];
-  const runs = (event) => ids.filter((id) => evalIf(id, event));
-  assert.deepEqual(runs(pullRequestEvent("User", { action: "labeled", label: "do-not-merge", author: 7 })), ["enable-auto-merge"]);
-  assert.deepEqual(runs(pullRequestEvent("User", { action: "labeled", label: "Needs-Human", author: 99 })), ["enable-auto-merge"]);
-  assert.deepEqual(runs(pullRequestEvent("User", { action: "labeled", label: "documentation", author: 99 })), []);
-  assert.deepEqual(runs(pullRequestEvent("Bot", { action: "labeled", label: "do-not-merge", author: 99 })), []);
-  // An unlabel keeps its rule: the merge job for any author, enable-auto-merge
-  // for the lanes App's.
-  assert.deepEqual(runs(pullRequestEvent("User", { author: 7 })), ["merge"]);
-  assert.deepEqual(runs(pullRequestEvent("User")), ["merge", "enable-auto-merge"]);
-  // The jobs that follow the merge job skip with it.
-  for (const id of ["dispatch-full-run", "gate-check"]) {
-    assert.match(job(id), /^ {4}needs: \[merge\]\n/);
-  }
-});
-
-// A scheduled run does not dequeue, so a labeled run is never superseded.
-test("a labeled run never skips its work as superseded", () => {
-  const step = /- name: Check for a newer run that does this work\n([\s\S]*?)(?=\n {6}- name: )/.exec(job("enable-auto-merge"))?.[1];
-  assert.match(step, /^ {8}id: superseded\n {8}if: steps\.who\.outputs\.proceed == 'true' && github\.event\.action != 'labeled'\n/);
-  assert.match(job("enable-auto-merge"), /\n {10}EVENT_ACTION: \$\{\{ github\.event\.action \}\}\n {10}EVENT_LABEL: \$\{\{ github\.event\.label\.name \}\}\n/);
+  event: { sender: { type: senderType }, pull_request: { head: { repo: { full_name: "o/r" } }, user: { id: 99 } } },
 });
 
 for (const id of ["merge", "enable-auto-merge"]) {
@@ -722,7 +675,7 @@ test("enable-auto-merge skips its work when a waiting run's enable-auto-merge jo
   const arm = job("enable-auto-merge");
   const step = /- name: Check for a newer run that does this work\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)?.[1];
   assert.ok(step, "a superseded step");
-  assert.match(step, /^ {8}id: superseded\n {8}if: steps\.who\.outputs\.proceed == 'true' && github\.event\.action != 'labeled'\n {8}continue-on-error: true\n/);
+  assert.match(step, /^ {8}id: superseded\n {8}if: steps\.who\.outputs\.proceed == 'true'\n {8}continue-on-error: true\n/);
   assert.match(step, /\n {10}ACTIONS_TOKEN: \$\{\{ github\.token \}\}\n {10}SUPERSEDED_JOB: enable-auto-merge\n/);
   assert.match(step, /\n {8}run: node \.base\/\.github\/scripts\/pr-merge\/superseded\.mjs\n/);
   const names = [...arm.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);

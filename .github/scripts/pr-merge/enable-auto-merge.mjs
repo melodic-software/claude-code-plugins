@@ -2,8 +2,8 @@
 // enable-auto-merge.mjs: turns on GitHub's native auto-merge for the lanes
 // App's open pull requests into main, and turns it off on one that now carries
 // a hold. No model. pr-merge.yml's enable-auto-merge job runs it when a listed
-// human unlabels a pull request, or adds a hold label to one (which also takes
-// it out of the merge queue), and on the schedule, which arms.
+// human edits, unlabels or readies a pull request, and on the schedule, which
+// arms.
 //
 // A pull request is armed only when all of these hold:
 // - The lanes App opened it (merge.agent-identity), into main, from a branch
@@ -172,9 +172,6 @@
 //                        PR-scoped workflow_dispatch's (inputs.pr), the only
 //                        one it handles; such a dispatch reads and arms it as
 //                        the schedule would, and writes WAKE_OUTPUT
-//   EVENT_ACTION, EVENT_LABEL  a pull_request_target run's action and, on
-//                        `labeled`, the label added: a labeled run only
-//                        dequeues or disarms on a hold (holdDequeue)
 //   EAM_SKIP_IN, EAM_SKIP_OUT  the skip records the last reader run kept, and
 //                        the file this one keeps (SKIPPABLE); no OUT, no skip
 //   SKIP_MAX_MINUTES, SKIP_MAX_SKIPS  merge.skip-unchanged's limits; 0 in either: no skip
@@ -214,7 +211,7 @@ import { pathToFileURL } from "node:url";
 
 import { createGitHub, errorLabel, GitHubError, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { DEQUEUE_MUTATION, humanGatedLabelFrom, quote } from "../pr-unblock/address-feedback.mjs";
+import { DEQUEUE_MUTATION, humanGatedLabelFrom, leaveQueueOnHold, QUEUE_ENTRY_QUERY, quote } from "../pr-unblock/address-feedback.mjs";
 import {
   lines as bodyLines,
   foreignMarker,
@@ -421,93 +418,14 @@ async function answerBody(text) {
 // LANE_HOLD), a cause a person must clear (owner decision Q-HOLDLINE).
 export const LANE_HOLD_REASON = "its body carries the lane's own 'Hold: a human merges this' line: a person merges it by hand, or removes that line";
 
-// The first hold label (HOLD_LABELS, then the human-gated label) among
-// `labels`, in any case; undefined when none is.
-export function holdLabel(labels, humanGated) {
-  const names = new Set(labels.map((label) => String(label?.name).toLowerCase()));
-  return [...HOLD_LABELS, humanGated].find((name) => names.has(name.toLowerCase()));
-}
-
-// A `labeled` run's one pull request, read live: the event names the label,
-// never whether it still holds.
-export const HOLD_PULL_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
-  repository(owner: $owner, name: $name) {
-    pullRequest(number: $number) {
-      id number state baseRefName
-      author { __typename login }
-      labels(first: 100) { totalCount nodes { name } }
-      autoMergeRequest { enabledAt }
-      mergeQueueEntry { id }
-    }
-  }
-}`;
-export const HOLD_DEQUEUE_TITLE = "pr-merge-hold-dequeue";
-export const holdDequeueLine = (number, label, outcome) =>
-  `::notice title=${HOLD_DEQUEUE_TITLE}::pr=${escapeCommand(number)} label=${escapeCommand(label)} outcome=${escapeCommand(outcome)}`;
-
-// A person added a label (EVENT_ACTION labeled): when a hold label stands on
-// the pull request now, it leaves the merge queue, so its merge group does not
-// run only for ci-status to fail it, and a lanes App pull request still armed
-// is disarmed. Any author: the queue also holds the pull requests the gate
-// enqueued. Two calls at most past the read, and one line naming the outcome.
-// Returns the exit code.
-async function holdDequeue(github, { repo, env, humanGated, write, slug, disarm }) {
-  const number = Number(env.EVENT_PR);
-  const said = (outcome) => console.log(holdDequeueLine(env.EVENT_PR ?? "", env.EVENT_LABEL ?? "", outcome));
-  let pull;
-  try {
-    pull = (await github("POST", "/graphql", { query: HOLD_PULL_QUERY, variables: { owner: repo[1], name: repo[2], number } }))?.data?.repository?.pullRequest;
-    if (pull != null && !whole(pull.labels)) {
-      pull.labels = await allLabels(github, repo[0], number);
-    }
-  } catch (error) {
-    said("refused:read-failed");
-    console.log(`::error title=enable-auto-merge::#${number} hold read: ${describe(error)}`);
-    return 1;
-  }
-  if (pull?.number !== number || pull.state !== "OPEN" || pull.baseRefName !== "main") {
-    said("refused:not-open-into-main");
-    return 0;
-  }
-  if (holdLabel(pull.labels?.nodes ?? [], humanGated) === undefined) {
-    said("refused:no-hold-label");
-    return 0;
-  }
-  const queued = pull.mergeQueueEntry != null;
-  const armed = pull.autoMergeRequest != null && pull.author?.__typename === "Bot" && pull.author.login === slug;
-  if (!queued && !armed) {
-    said("not-queued");
-    return 0;
-  }
-  if (!write) {
-    said("refused:report-only");
-    return 0;
-  }
-  let step = "dequeue";
-  try {
-    if (queued) {
-      await github("POST", "/graphql", { query: DEQUEUE_MUTATION, variables: { id: pull.id } });
-    }
-    step = "disarm";
-    if (armed) {
-      await disarm(pull);
-    }
-  } catch (error) {
-    said(`refused:${step}-failed`);
-    console.log(`::error title=enable-auto-merge::#${number} ${step}: ${describe(error)}`);
-    return 1;
-  }
-  said(queued ? "dequeued" : "disarmed");
-  return 0;
-}
-
 // Why `pull` must not be armed, or null when it may be.
 export function holdReason(pull, humanGated) {
   const labels = pull.labels?.nodes ?? [];
   if (!(pull.labels?.totalCount <= labels.length)) {
     return "its labels could not all be read";
   }
-  const label = holdLabel(labels, humanGated);
+  const names = new Set(labels.map((label) => String(label?.name).toLowerCase()));
+  const label = [...HOLD_LABELS, humanGated].find((name) => names.has(name.toLowerCase()));
   if (label !== undefined) {
     return `it carries ${label}`;
   }
@@ -1462,7 +1380,7 @@ export function unblockHold(stops) {
   if (!Array.isArray(stops)) {
     return "its head's pr-unblock statuses could not be read";
   }
-  return stops.length === 0 ? null : `a pr-unblock lane stopped its head (${stops.map(({ context, state }) => `${context} is ${state}`).join(", ")}), which ci-status fails in the merge queue`;
+  return stops.length === 0 ? null : `a pr-unblock lane stopped its head (${stops.map(({ context, state }) => `${context} is ${state}`).join(", ")}), which clears when the lane runs again`;
 }
 
 // What to do with one listed pull request: { action: arm | disarm | none, reason }.
@@ -1504,8 +1422,8 @@ export function decide(pull, { bot, humanGated, holdPaths = null, pathHolds = tr
   if (detail.filesCapped === true) {
     return { action: armed ? "disarm" : "none", reason: FILES_CAPPED_REASON, clears: "person" };
   }
-  // ci-status's merge-queue run fails a head a pr-unblock lane stopped, so it
-  // is never queued; a status list that did not read holds it too.
+  // A head a pr-unblock lane stopped is never queued: only this job reads the
+  // stop. A status list that did not read holds it too.
   const stopped = unblockHold(detail.unblockStops);
   // Review rounds the lane stopped as not converging at this head close below,
   // after the path, cost and discussion holds, as the verify cap does.
@@ -1732,11 +1650,7 @@ export async function main({ env = process.env, github, actions, verify, room, c
     if (!repo) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
     }
-    const labeled = env.EVENT_NAME === "pull_request_target" && env.EVENT_ACTION === "labeled";
     if (env.KILL_SWITCH !== "proceed") {
-      if (labeled) {
-        console.log(holdDequeueLine(env.EVENT_PR ?? "", env.EVENT_LABEL ?? "", "refused:kill-switch"));
-      }
       console.log("enable-auto-merge: the lanes kill switch stops this run; nothing read or armed");
       return 0;
     }
@@ -1808,9 +1722,6 @@ export async function main({ env = process.env, github, actions, verify, room, c
         console.log(`enable-auto-merge: #${pull.number} ${action} failed after a resend (${describe(error)}), but it is already ${action === "arm" ? `armed at ${pull.headRefOid}` : "unarmed"}, so an earlier send landed`);
       }
     };
-    if (labeled) {
-      return await holdDequeue(github, { repo, env, humanGated, write, slug, disarm: (pull) => sendSettled("disarm", pull) });
-    }
     verify ??= pythonVerify(env);
     whole ??= pythonWholeReview(env);
     const reads = READER_EVENTS.includes(env.EVENT_NAME);
@@ -1933,6 +1844,21 @@ export async function main({ env = process.env, github, actions, verify, room, c
     // would be all anyone saw.
     // Writes note sent or tried, for skip-unchanged.
     let sent = 0;
+    // A human-gated label this run added holds the pull request: a queued one
+    // leaves the queue (leaveQueueOnHold), which warns and never fails the note.
+    const leaveQueue = (pull, label) =>
+      leaveQueueOnHold({
+        pr: pull.number,
+        label,
+        readQueueEntry: async (pr) => {
+          const read = (await github("POST", "/graphql", { query: QUEUE_ENTRY_QUERY, variables: { owner: repo[1], name: repo[2], pr } }))?.data?.repository?.pullRequest;
+          if (typeof read?.id !== "string") {
+            throw new Error("the pull request did not read");
+          }
+          return { id: read.id, queued: read.mergeQueueEntry != null };
+        },
+        dequeuePull: (id) => github("POST", "/graphql", { query: DEQUEUE_MUTATION, variables: { id } }),
+      });
     const note = async (pull, detail, refusal) => {
       if (!reads || stopped !== null || refusal.clears === undefined) {
         return;
@@ -1991,6 +1917,7 @@ export async function main({ env = process.env, github, actions, verify, room, c
             return;
           }
           await github("POST", `${base}/${pull.number}/labels`, { labels: [writes.label] });
+          await leaveQueue(pull, writes.label);
           console.log(`enable-auto-merge: #${pull.number} labeled ${writes.label} again: its refusal comment stands and no person removed the label`);
           return;
         }
@@ -1999,6 +1926,7 @@ export async function main({ env = process.env, github, actions, verify, room, c
           : github("PATCH", `${base}/comments/${writes.commentId}`, { body: writes.body }));
         if (writes.label) {
           await github("POST", `${base}/${pull.number}/labels`, { labels: [writes.label] });
+          await leaveQueue(pull, writes.label);
         }
         console.log(`enable-auto-merge: #${pull.number} refusal noted on the pull request${writes.label ? `, labeled ${writes.label}` : ""}`);
       } catch (error) {

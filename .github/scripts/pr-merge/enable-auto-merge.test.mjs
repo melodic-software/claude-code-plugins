@@ -60,7 +60,6 @@ import {
   readRoom,
   TRUST_REFUSALS,
   FILES_CAPPED_REASON,
-  HOLD_PULL_QUERY,
   UNARMED_OUTPUT,
   WAKE_OUTPUT,
   verifyClears,
@@ -68,7 +67,7 @@ import {
   SKIP_STATE_PREFIX,
 } from "./enable-auto-merge.mjs";
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { DEQUEUE_MUTATION } from "../pr-unblock/address-feedback.mjs";
+import { DEQUEUE_MUTATION, QUEUE_ENTRY_QUERY } from "../pr-unblock/address-feedback.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { COMMENT_EDITED_QUERY, LANE_HOLD, PULL_OPENED_QUERY, VERIFY_PATH, personWrote, unblockStops, verdictHold } from "./merge-holds.mjs";
 import { VERIFY_PATH as RESOLVER_VERIFY_PATH } from "../pr-verify/resolve-pr.mjs";
@@ -142,7 +141,7 @@ const labels = (...names) => ({ totalCount: names.length, nodes: names.map((name
 // filesError: what every changed-files GET throws.
 // A pull request's `after` is its auto-merge state as the read-back sees it
 // (AUTO_MERGE_STATE_QUERY), else its listed state; `after: "error"` fails the read.
-function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, filesError = null, noteErrors = [], disarmError = null, pinError = null } = {}) {
+function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, filesError = null, noteErrors = [], disarmError = null, pinError = null, dequeueError = null } = {}) {
   const pins = [];
   const noteThrows = [...noteErrors];
   const armThrows = Object.fromEntries(Object.entries(armErrors).map(([id, errors]) => [id, [...errors]]));
@@ -310,6 +309,14 @@ function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, file
       const nodes = all.slice(start, start + 2);
       return { data: { node: { comments: { totalCount: all.length, pageInfo: { hasNextPage: start + 2 < all.length, endCursor: String(start + 2) }, nodes } } } };
     }
+    // A pull request's merge-queue entry: `queued` puts it in the queue.
+    if (body.query === QUEUE_ENTRY_QUERY) {
+      const found = pulls.find((candidate) => candidate.number === body.variables.pr);
+      return { data: { repository: { pullRequest: { id: found?.id, mergeQueueEntry: found?.queued ? { id: `MQE_${found.number}` } : null } } } };
+    }
+    if (body.query === DEQUEUE_MUTATION && dequeueError) {
+      throw dequeueError;
+    }
     if (body.query === ARM_MUTATION && armThrows[body.variables.id]?.length > 0) {
       throw armThrows[body.variables.id].shift();
     }
@@ -348,8 +355,8 @@ function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, file
   };
   const writes = () =>
     calls
-      .filter(({ method, path, body }) => method === "POST" && path === "/graphql" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY, UNLABELED_QUERY, DISCUSSION_PAGE_QUERIES.comments, THREAD_PAGE_QUERY, AUTO_MERGE_STATE_QUERY].includes(body.query) && !String(body.query).startsWith(SKIP_STATE_PREFIX))
-      .map(({ body }) => ({ mutation: body.query === ARM_MUTATION ? "arm" : body.query === DISARM_MUTATION ? "disarm" : "?", ...body.variables }));
+      .filter(({ method, path, body }) => method === "POST" && path === "/graphql" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY, UNLABELED_QUERY, DISCUSSION_PAGE_QUERIES.comments, THREAD_PAGE_QUERY, AUTO_MERGE_STATE_QUERY, QUEUE_ENTRY_QUERY].includes(body.query) && !String(body.query).startsWith(SKIP_STATE_PREFIX))
+      .map(({ body }) => ({ mutation: body.query === ARM_MUTATION ? "arm" : body.query === DISARM_MUTATION ? "disarm" : body.query === DEQUEUE_MUTATION ? "dequeue" : "?", ...body.variables }));
   return { github, writes, verify, verified, calls, notes, pins };
 }
 
@@ -3593,9 +3600,8 @@ test("serve asks for a kept answer only for an unarmed pull request, and never o
   assert.deepEqual(spawned[0].slice(spawned[0].indexOf("--answers-out"), spawned[0].indexOf("--answers-out") + 6), ["--answers-out", "/tmp/out.json", "--answers-mode", "serve", "--answers-in", "/tmp/in.json"]);
 });
 
-// ci-status's merge-queue run fails a head whose newest pr-unblock/* status by
-// github-actions[bot] is failure or error (pr-require-checks.yml "Fail a head a
-// pr-unblock lane stopped"), so enable-auto-merge never queues one.
+// enable-auto-merge never queues a head whose newest pr-unblock/* status by
+// github-actions[bot] is failure or error; ci-status does not read the stop.
 const BOT = { login: "github-actions[bot]" };
 const unblock = (context, state, creator = BOT, description = "stopped") => ({ context, state, creator, description });
 
@@ -3624,7 +3630,7 @@ test("a head a pr-unblock lane stopped is not queued and is named in the summary
   const stopped = pull(1, { verdict: PASSED, statuses: [unblock("pr-unblock/fix-ci", "failure")] });
   const { writes, lines } = await run([stopped], { GITHUB_STEP_SUMMARY: summary });
   assert.deepEqual(writes, []);
-  const reason = "a pr-unblock lane stopped its head (pr-unblock/fix-ci is failure), which ci-status fails in the merge queue";
+  const reason = "a pr-unblock lane stopped its head (pr-unblock/fix-ci is failure), which clears when the lane runs again";
   assert.ok(lines.some((line) => String(line).includes(reason)), lines.join("\n"));
   assert.equal(readFileSync(summary, "utf8"), `enable-auto-merge: #1 not queued: ${reason}\n`);
 
@@ -4040,90 +4046,39 @@ test("a skip record of another repository, from the future, or malformed skips n
   }
 });
 
-// A person adds a label after the pull request entered the merge queue: a
-// hold label standing on it now takes it out of the queue, or disarms a lanes
-// App pull request still armed, and the run says which in one notice.
-// Expected outcomes are the work item's: queued dequeues, armed disarms, no
-// hold left writes nothing.
-async function labeledRun(live, { env = {}, fail = null } = {}) {
-  const sent = [];
-  const github = async (method, path, body) => {
-    sent.push(body?.query === HOLD_PULL_QUERY ? "read" : body?.query === DEQUEUE_MUTATION ? `dequeue ${body.variables.id}` : body?.query === DISARM_MUTATION ? `disarm ${body.variables.id}` : `${method} ${path}`);
-    if (fail !== null && sent.at(-1).startsWith(fail)) {
-      throw new GitHubError(200, "POST /graphql (GraphQL errors)");
-    }
-    if (body?.query === HOLD_PULL_QUERY) {
-      return { data: { repository: { pullRequest: live } } };
-    }
-    return { data: {} };
-  };
-  const lines = [];
-  const log = console.log;
-  console.log = (line) => lines.push(line);
-  try {
-    const code = await main({ env: { ...ENV, EVENT_NAME: "pull_request_target", EVENT_ACTION: "labeled", EVENT_PR: "7", EVENT_LABEL: "do-not-merge", ...env }, github });
-    return { code, sent, notice: lines.filter((line) => line.startsWith("::notice title=pr-merge-hold-dequeue::")) };
-  } finally {
-    console.log = log;
-  }
-}
-const live = (overrides = {}) => ({
-  id: "PR_7",
-  number: 7,
-  state: "OPEN",
-  baseRefName: "main",
-  author: { __typename: "User", login: "someone" },
-  labels: { totalCount: 1, nodes: [{ name: "do-not-merge" }] },
-  autoMergeRequest: null,
-  mergeQueueEntry: null,
-  ...overrides,
-});
-const noticeOf = (outcome, label = "do-not-merge") => [`::notice title=pr-merge-hold-dequeue::pr=7 label=${label} outcome=${outcome}`];
+// The lanes App adding the human-gated label to a queued pull request takes it
+// out of the merge queue, so its merge group does not run only for ci-status
+// to fail it on the label: one queue read per label add, and the dequeue only
+// when it is queued. A refused dequeue warns; the label still holds it.
+const queueReads = (calls) => calls.filter(({ body }) => body?.query === QUEUE_ENTRY_QUERY).map(({ body }) => body.variables.pr);
+const holdNotice = (outcome) => `::notice title=hold-label-dequeue::pr=1 label=needs-human outcome=${outcome}`;
 
-test("a hold label added to a queued pull request dequeues it, whoever opened it", async () => {
-  const person = await labeledRun(live({ mergeQueueEntry: { id: "MQE_1" } }));
-  assert.equal(person.code, 0);
-  assert.deepEqual(person.sent, ["read", "dequeue PR_7"]);
-  assert.deepEqual(person.notice, noticeOf("dequeued"));
-  // A lanes App pull request still armed in the queue is disarmed too.
-  const lanes = await labeledRun(live({ author: LANES, autoMergeRequest: { enabledAt: NOW }, mergeQueueEntry: { id: "MQE_1" } }));
-  assert.deepEqual(lanes.sent, ["read", "dequeue PR_7", "disarm PR_7"]);
-  assert.deepEqual(lanes.notice, noticeOf("dequeued"));
-});
-
-test("a hold label added to an armed lanes App pull request not yet queued disarms it", async () => {
-  const { code, sent, notice } = await labeledRun(live({ author: LANES, autoMergeRequest: { enabledAt: NOW }, labels: { totalCount: 1, nodes: [{ name: "needs-human" }] } }), { env: { EVENT_LABEL: "needs-human" } });
+test("a human-gated label the lane adds to a queued pull request dequeues it", async () => {
+  const { code, writes, calls, notes, lines } = await run([pull(1, { files: COST_FILES, queued: true })]);
   assert.equal(code, 0);
-  assert.deepEqual(sent, ["read", "disarm PR_7"]);
-  assert.deepEqual(notice, noticeOf("disarmed", "needs-human"));
+  assert.deepEqual(notes.at(-1), { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } });
+  assert.deepEqual(queueReads(calls), [1]);
+  assert.deepEqual(writes, [{ mutation: "dequeue", id: "PR_1" }]);
+  assert.ok(lines.includes(holdNotice("dequeued")));
 });
 
-test("a labeled run writes nothing when no hold stands, the pull request is not queued or armed, or the lane only reports", async () => {
-  // The label came off again before the run read it.
-  const gone = await labeledRun(live({ labels: { totalCount: 1, nodes: [{ name: "documentation" }] }, mergeQueueEntry: { id: "MQE_1" } }));
-  assert.deepEqual([gone.sent, gone.notice], [["read"], noticeOf("refused:no-hold-label")]);
-  const idle = await labeledRun(live());
-  assert.deepEqual([idle.sent, idle.notice], [["read"], noticeOf("not-queued")]);
-  // A person's own auto-merge is theirs: only the lanes App's is disarmed.
-  const theirs = await labeledRun(live({ autoMergeRequest: { enabledAt: NOW } }));
-  assert.deepEqual([theirs.sent, theirs.notice], [["read"], noticeOf("not-queued")]);
-  const closed = await labeledRun(live({ state: "MERGED", mergeQueueEntry: { id: "MQE_1" } }));
-  assert.deepEqual([closed.sent, closed.notice], [["read"], noticeOf("refused:not-open-into-main")]);
-  const reported = await labeledRun(live({ mergeQueueEntry: { id: "MQE_1" } }), { env: { REPORT_ONLY: "true" } });
-  assert.deepEqual([reported.sent, reported.notice], [["read"], noticeOf("refused:report-only")]);
-  const off = await labeledRun(live({ mergeQueueEntry: { id: "MQE_1" } }), { env: { KILL_SWITCH: "" } });
-  assert.deepEqual([off.sent, off.notice], [[], noticeOf("refused:kill-switch")]);
+test("a human-gated label on a pull request not in the queue reads its entry once and writes nothing more", async () => {
+  const { code, writes, calls, lines } = await run([pull(1, { files: COST_FILES })]);
+  assert.equal(code, 0);
+  assert.deepEqual(queueReads(calls), [1]);
+  assert.deepEqual(writes, []);
+  assert.ok(lines.includes(holdNotice("not-queued")));
 });
 
-test("a refused dequeue fails the run and names it", async () => {
-  const { code, sent, notice } = await labeledRun(live({ mergeQueueEntry: { id: "MQE_1" } }), { fail: "dequeue" });
-  assert.equal(code, 1);
-  assert.equal(sent[0], "read");
-  assert.ok(sent.slice(1).every((call) => call === "dequeue PR_7"));
-  assert.deepEqual(notice, noticeOf("refused:dequeue-failed"));
+test("a refused dequeue warns and leaves the label add standing", async () => {
+  const { code, notes, lines } = await run([pull(1, { files: COST_FILES, queued: true })], {}, { dequeueError: new GitHubError(200, "POST /graphql (GraphQL errors)") });
+  assert.equal(code, 0);
+  assert.deepEqual(notes.at(-1), { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } });
+  assert.ok(lines.some((line) => String(line).startsWith("::warning::#1: could not dequeue it")));
+  assert.ok(lines.includes(holdNotice("refused:dequeue-failed")));
 });
 
-test("an unlabel run still takes the listing path, never the hold dequeue", async () => {
-  const { lines } = await run([pull(1)], { EVENT_NAME: "pull_request_target", EVENT_ACTION: "unlabeled", EVENT_PR: "1" });
-  assert.equal(lines.filter((line) => String(line).includes("pr-merge-hold-dequeue")).length, 0);
+test("a refusal that adds no label reads no queue entry", async () => {
+  const { calls } = await run([pull(1, { verdict: MISSING })]);
+  assert.deepEqual(queueReads(calls), []);
 });
