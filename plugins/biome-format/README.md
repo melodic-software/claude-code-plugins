@@ -2,10 +2,10 @@
 
 A Claude Code plugin that rewrites JavaScript, TypeScript, JSX, and JSON with
 [Biome](https://biomejs.dev/) in two places: once per batch of tool calls in a Claude Code session,
-and again at git pre-commit for every author. Both run `biome check --write`, which applies safe
-fixes, formatting, and import sorting, for `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.mts`,
-`.cts`, `.json`, and `.jsonc` files. Findings that remain are reported by the pre-commit entry, on
-the lines the commit adds; they no longer reach Claude on each edit.
+and again at git pre-commit for every author. Both run `biome check --write` on `.ts`, `.tsx`,
+`.js`, `.jsx`, `.mjs`, `.cjs`, `.mts`, `.cts`, `.json`, and `.jsonc` files. Findings that remain
+are reported by the pre-commit entry, on the lines the commit adds; they no longer reach Claude on
+each edit.
 
 It uses **your repository's own `biome.json`**. It ships no rules of its own and
 runs only when your repo has opted into Biome.
@@ -36,8 +36,11 @@ runs only when your repo has opted into Biome.
   from that config's directory with the files named relative to it, so a single repo-root (or
   subtree) config governs files in subdirectories beneath it and nested configs extend it.
   `BIOME_CONFIG_PATH` is unset for the run, so a stray export cannot swap the repo's config.
-- **Safe fixes only.** `biome check --write` never applies unsafe fixes, so an unused import stays
-  until you remove it; the pre-commit entry reports it.
+- **No unsafe fixes.** Neither run passes `--unsafe`, so a finding `--write` leaves in place stays
+  until you fix it; the pre-commit entry reports it.
+  - **Pointer**: when deciding what `--write` applies, fetch
+    [CLI: --write, --fix](https://biomejs.dev/reference/cli/#--write---fix) live.
+    **As of**: 2026-11-03. **Recheck trigger**: that section changes which fixes the flag applies.
 - **Pre-existing drift is rewritten whole.** The batch payload carries no pre-edit bytes, so a
   file that already drifted from your config is formatted in full, as the pre-commit entry would.
 - **Respects your ignores.** Biome honors your config's `files.includes` ignore rules even for an

@@ -22,6 +22,12 @@ finding the person wants fixed in a way `--fix` does not cover is a natural requ
 
 ## Presence
 
-Bundled skills can be removed by `disableBundledSkills` or hidden by `skillOverrides`, and vary by
-version and host, so the routing reads "when the surface resolves in this session" and never that
-it is present. Recheck when a release or docs change adds, removes, or renames a gating axis.
+Whether a bundled skill is present varies by session, so the routing reads "when the surface
+resolves in this session" and never that it is present.
+
+- **Pointer**: when checking what removes or hides a bundled skill, fetch
+  [settings reference: disableBundledSkills](https://code.claude.com/docs/en/settings-reference#disablebundledskills)
+  live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: that entry changes what it turns off, or a release adds, removes, or renames a
+  setting that hides bundled skills.

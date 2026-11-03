@@ -46,29 +46,32 @@ thing this plugin exists not to do.
 Both surfaces help a person write auto mode classifier content, so a request to "set up auto mode"
 can mean either.
 
-- **`/auto-mode-setup` (built-in command)**: drafts `autoMode.environment` entries from the
-  project and recent sessions, with optional rule tweaks, lets the person review the draft, and
-  saves it to user settings. It is reserved for the person to run; the model does not invoke it.
+- **`/auto-mode-setup` (built-in command)**: the person runs it; this skill never invokes it. What
+  it drafts, reads and saves is read from
+  [auto mode config: generate environment entries](https://code.claude.com/docs/en/auto-mode-config#generate-environment-entries)
+  live (as of 2026-11-03; recheck when that section changes what the command drafts or where it
+  saves).
 - **This skill (marketplace plugin).** Interviews for entries in every section (`environment`,
   `allow`, `soft_deny`, `hard_deny`), each with stated exclusions and a transcript-visible
   condition, and prints the block without writing anything.
 
 **Routing.** At the start of the run, offer it to the person:
-If /auto-mode-setup is available in your session (gate basis: hidden, gated by plan and version,
-and varying by platform; records in
-[reference/native-auto-mode-setup.md](reference/native-auto-mode-setup.md)), you can run it
-instead of or alongside this skill to have the `environment` section drafted from your sessions
+If /auto-mode-setup is available in your session (gate basis: its row of the commands reference;
+records in [reference/native-auto-mode-setup.md](reference/native-auto-mode-setup.md)), you can
+run it instead of or alongside this skill to have the `environment` section drafted from your sessions
 and saved for you; this interview then covers the allow and deny sections. If they take it, run
 Phase 1 again after it saves so the draft builds on what it wrote. When the caller passes
 `--unattended`, the run records the offer in its output instead of asking;
 without that flag it asks.
 
-**Mutation gate.** `/auto-mode-setup` writes user settings when the person confirms its draft. This
-skill writes nothing and never chains into that command on the person's behalf.
+**Mutation gate.** We treat `/auto-mode-setup` as writing user settings once the person accepts its
+draft. This skill writes nothing and never chains into `/auto-mode-setup` on the person's behalf.
 
-**Availability is never assumed.** The command is hidden, gated by plan and version, and varies by
-platform; this section states what to offer, never that it is present. The four-part records live
-in [reference/native-auto-mode-setup.md](reference/native-auto-mode-setup.md).
+**Availability is never assumed.** Offer the command when it resolves in this session, never assume
+it is present. Read what gates it from its row of
+[commands: all commands](https://code.claude.com/docs/en/commands#all-commands) live (as of
+2026-11-03; recheck when that row changes what gates the command). The four-part records live in
+[reference/native-auto-mode-setup.md](reference/native-auto-mode-setup.md).
 
 ## Inputs, and one deliberate omission
 
@@ -168,8 +171,10 @@ Two things to say while handing it over:
   The no-write posture is the skill's contract, not a default someone can opt out of.
 - **A drafted block is not a reviewed block.** After they paste it, `claude auto-mode critique` is what
   judges it. Say that rather than implying the draft is validated.
-- **`claude auto-mode reset` is never run.** It strips the `autoMode` section from user settings, and
-  on a chezmoi-managed home that loss is not recoverable from the settings file alone.
+- **`claude auto-mode reset` is never run.** On a chezmoi-managed home what it removes is not
+  recoverable from the settings file alone. Read what it removes from
+  [CLI reference: CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands) live (as
+  of 2026-11-03; recheck when that table changes what the reset subcommand removes).
 - **Prose provenance does not belong in an entry.** Dates, issue numbers, and prior-draft archaeology
   cost classifier attention and buy nothing; the critique names stripping them explicitly. Version
   control owns that history.
