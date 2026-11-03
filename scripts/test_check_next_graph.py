@@ -15,6 +15,8 @@ HERE = Path(__file__).resolve().parent
 SPEC = importlib.util.spec_from_file_location(
     "check_next_graph", HERE / "check-next-graph.py"
 )
+if SPEC is None or SPEC.loader is None:
+    raise ImportError(f"cannot load {HERE / 'check-next-graph.py'}")
 gate = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(gate)
 
@@ -128,6 +130,54 @@ class NextGraphTest(unittest.TestCase):
             err,
         )
         self.assertEqual(out, "")
+
+    def test_declared_skip_to_passes_only_its_own_edge(self) -> None:
+        self.fx.skill("p:start", "contract", "/p:interview")
+        self.fx.skill(
+            "p:interview",
+            "contract",
+            "- Locked: /p:design.\n- Build items: /p:decompose.",
+        )
+        self.fx.roster(
+            "p:start | entry: start",
+            "p:interview | skip-to: p:decompose an owner decision",
+            "p:design",
+            "p:plan",
+            "p:decompose",
+            "p:implement | terminal: end",
+        )
+        rc, _, err = self.fx.run()
+        self.assertEqual(rc, 0, err)
+
+        self.fx.skill(
+            "p:interview",
+            "contract",
+            "- Locked: /p:design.\n- Build items: /p:decompose.\n- No design question: /p:plan.",
+        )
+        rc, _, err = self.fx.run()
+        self.assertEqual(rc, 1)
+        self.assertNotIn("/p:decompose (decompose)", err)
+        self.assertIn(
+            "stage-skip: /p:interview (contract) routes to /p:plan (plan), skipping the design stage",
+            err,
+        )
+
+    def test_skip_to_without_a_target_exits_2(self) -> None:
+        self.fx.roster("p:interview | skip-to: an owner decision")
+        rc, _, err = self.fx.run()
+        self.assertEqual(rc, 2)
+        self.assertIn("'skip-to: <plugin:skill> <reason>'", err)
+
+    def test_misspelled_declaration_kinds_exit_2(self) -> None:
+        for line in (
+            "p:interview | entry point: an owner decision",
+            "p:interview | skip-to p:decompose: an owner decision",
+        ):
+            with self.subTest(line=line):
+                self.fx.roster(line)
+                rc, _, err = self.fx.run()
+                self.assertEqual(rc, 2)
+                self.assertIn("a declaration is 'entry: <reason>'", err)
 
     def test_backward_edge_is_not_a_skip(self) -> None:
         self.fx.skill(

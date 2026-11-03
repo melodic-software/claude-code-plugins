@@ -158,7 +158,7 @@ context_of() {
 # finish, a review thread the lane left open with no verdict to settle it),
 # also put the PR in the session-builder
 # queue with needs-session instead of in front of a person.
-HOLD_REASONS=(feedback-round-cap feedback-uncertain feedback-disputed
+HOLD_REASONS=(feedback-round-cap-security feedback-uncertain-security feedback-disputed-security
   feedback-question-intent feedback-question-design feedback-question-security
   dependency-security-close dependency-escalate dependency-fix-refused)
 SESSION_REASONS=(protected-path-conflict conflict-patch-protected-path
@@ -167,7 +167,8 @@ SESSION_REASONS=(protected-path-conflict conflict-patch-protected-path
   dependency-files-truncated dependency-control-uncited dependency-workflow-unpinned
   shared-copy-tooling-changed shared-copy-path-unregistered shared-copy-unexpected-path-staged
   shared-copy-patch-protected-path shared-copy-merge-conflicted
-  feedback-untaken-threads feedback-unadjudicated)
+  feedback-untaken-threads feedback-unadjudicated
+  feedback-round-cap feedback-uncertain feedback-disputed)
 FAIL_REASONS=(workflow-staged unexpected-path-staged repeat-cap unresolved-conflict conflict-patch-invalid conflict-patch-not-applied
   feedback-not-converging feedback-verifier-open feedback-not-landed feedback-invalid feedback-partial
   feedback-incomplete feedback-stood-open feedback-publish-failed

@@ -3,6 +3,14 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [9.0.0] - 2026-11-03
+
+### Changed
+
+- `/work-items:morning-brief` no longer reads `harness-ops.yaml` or `harness-ops.local.yaml`. It reads its Cost settings from the `morning_brief:` key of `work-items.yaml` in the convention home, with `work-items.local.yaml` beside it as the personal layer. `schemas/work-items.schema.json` now describes the `morning_brief` keys. To upgrade, move your `morning_brief:` block unchanged from `harness-ops.yaml` into `work-items.yaml`, and from `harness-ops.local.yaml` into `work-items.local.yaml`. A block left in the old files is read by nothing: every Cost key falls back to its default, so missing budgets and alerts stop being flagged, and the Cost section's `settings:` line reports defaults. `/harness-ops:setup check` reports a block left behind.
+- When `--data-dir` is not passed, the brief keeps its stranded-findings bookmark under `~/.claude/plugins/data/work-items`, or under `$CLAUDE_PLUGIN_DATA` when that directory belongs to work-items.
+- The skill now says it is GitHub-only: it reads GitHub and Azure directly, not through the tracker seam. Its eval prompts call `/work-items:morning-brief`.
+
 ## [8.1.2] - 2026-11-03
 
 ### Fixed

@@ -2287,7 +2287,7 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   resolved config; unreadable holds every PR), or, while some path is denied, for one too large
   for the compare listing to show whole. It adds the same line when the issue carries `merge: human` whose newest `labeled`
   event is a listed human's or the lanes App's, or cannot be read, and never for anyone else's.
-  A PR with that line also gets the `human-merge-hold` label right after it opens, or when the run
+  A PR with that line also gets the `do-not-merge` label right after it opens, or when the run
   reuses its open PR; the work class stays on the issue. A PR the label cannot reach is closed
   and the issue retried (`hold-label-failed`).
   The run's own summary is quoted with issue references broken, so squash-merging the PR closes only `#<n>`. Every stop takes the route its reason has in
