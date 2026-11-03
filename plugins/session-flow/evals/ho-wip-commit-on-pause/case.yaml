@@ -15,19 +15,19 @@ graders:
   - name: wip-commit-made
     type: tool_used
     tool: Bash
-    input_match: '\bgit\b(?:(?!\\n|;|&&|\|)[^\n])*?\bcommit\b'
+    input_match: '"command":"(?:[^"\\]|\\.)*?\bgit\b(?:(?!\\n|;|&&|\|)(?:[^"\\\n]|\\.))*?\bcommit\b'
     min: 1
     arm: with-only
   - name: staged-from-path-list
     type: tool_used
     tool: Bash
-    input_match: '\bgit\b(?:(?!\\n|;|&&|\|)[^\n])*?\badd\b(?:(?!\\n|;|&&|\|)[^\n])*?--pathspec-from-file'
+    input_match: '"command":"(?:[^"\\]|\\.)*?\bgit\b(?:(?!\\n|;|&&|\|)(?:[^"\\\n]|\\.))*?\badd\b(?:(?!\\n|;|&&|\|)(?:[^"\\\n]|\\.))*?--pathspec-from-file'
     min: 1
     arm: with-only
   - name: no-push
     type: tool_used
     tool: Bash
-    input_match: '\bgit\b(?:(?!\\n|;|&&|\|)[^\n])*?\bpush\b'
+    input_match: '"command":"(?:[^"\\]|\\.)*?\bgit\b(?:(?!\\n|;|&&|\|)(?:[^"\\\n]|\\.))*?\bpush\b'
     min: 0
     max: 0
     arm: both

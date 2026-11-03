@@ -9,9 +9,9 @@
     },
     {
       "answer": [
-        {"tool": "Bash", "input": {"command": "git -C /tmp/case commit -F .work/wip-msg.txt"}}
+        {"tool": "Bash", "input": {"command": "git -C \"/tmp/case dir\" commit -F .work/wip-msg.txt"}}
       ],
-      "why": "commits from a message file"
+      "why": "commits from a message file in a quoted directory"
     }
   ],
   "fail": [
@@ -21,6 +21,12 @@
         {"tool": "Bash", "input": {"command": "git log --oneline -5"}}
       ],
       "why": "reads state, never commits"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "git rev-parse --git-path MERGE_HEAD", "description": "Check for a merge before the WIP commit"}}
+      ],
+      "why": "only the description mentions a commit"
     }
   ]
 }

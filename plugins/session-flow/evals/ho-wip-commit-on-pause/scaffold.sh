@@ -16,6 +16,9 @@ EOF
 printf 'wip_commit: true\n' >docs/conventions/session-flow.yaml
 git add src docs
 git commit -q -m "feat: fixed retry delay"
+# The refusal checks read the default branch from origin/HEAD; without it the commit is refused.
+git update-ref refs/remotes/origin/main HEAD
+git symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
 
 git checkout -q -b feat/retry-backoff
 cat >src/retry.ts <<'EOF'
