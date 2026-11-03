@@ -1,0 +1,29 @@
+diff --git a/plugins/sample-kit/tests/status-json.test.mjs b/plugins/sample-kit/tests/status-json.test.mjs
+new file mode 100644
+index 0000000..5a6b7c8
+--- /dev/null
++++ b/plugins/sample-kit/tests/status-json.test.mjs
+@@ -0,0 +1,22 @@
++import assert from "node:assert/strict";
++import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
++import { tmpdir } from "node:os";
++import path from "node:path";
++import { test } from "node:test";
++
++import { status } from "../scripts/status.mjs";
++
++test("status --json prints ok and pending as one JSON object", (t) => {
++  for (const [state, expected] of [
++    [{ lastSync: { result: "success" }, queue: ["a", "b"] }, { ok: true, pending: 2 }],
++    [{ lastSync: { result: "failure" }, queue: [] }, { ok: false, pending: 0 }],
++  ]) {
++    const dir = mkdtempSync(path.join(tmpdir(), "sample-kit-"));
++    writeFileSync(path.join(dir, "state.json"), JSON.stringify(state));
++    const lines = [];
++    const log = t.mock.method(console, "log", (line) => lines.push(line));
++    status(dir, { json: true });
++    log.mock.restore();
++    rmSync(dir, { recursive: true, force: true });
++    assert.deepEqual(lines.map((line) => JSON.parse(line)), [expected]);
++  }
++});

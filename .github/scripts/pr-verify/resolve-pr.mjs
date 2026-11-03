@@ -135,6 +135,18 @@ const REFS_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
 }
 ${ACTOR}`;
 
+// A pull request a closing pull request's `Siblings:` line names, with what
+// creditedSiblings checks before crediting it.
+const SIBLING_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    issueOrPullRequest(number: $number) {
+      __typename
+      ... on PullRequest { number merged mergedAt baseRefName body lastEditedAt editor { ...actor } repository { nameWithOwner } closingIssuesReferences(first: 1) { totalCount } }
+    }
+  }
+}
+${ACTOR}`;
+
 // A size split's sub-issue's native parent, with the text admit.mjs specOf
 // reads, for splitChildBody.
 const PARENT_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
@@ -577,6 +589,69 @@ export function specChanged(passStarts, { linkedIssues: issues, specKind, bodyEd
   return !passStarts.some((start) => Date.parse(start ?? "") > changed);
 }
 
+// The pull requests the visible `Siblings: #<a>, #<b>` lines of a pull request
+// body name, read as refsIssue reads `Refs:` lines: from the first column,
+// outside an HTML comment and a fenced code block. A `Siblings:` line in any
+// other form, or more than SIBLINGS_MAX numbers, names none.
+export const SIBLINGS_MAX = 10;
+const SIBLINGS_LINE = /^siblings:/i;
+const SIBLINGS_PLAIN = /^Siblings:[ \t]*(#[1-9][0-9]{0,8}(?:[ \t]*,[ \t]*#[1-9][0-9]{0,8})*)[ \t]*$/;
+export function siblingNumbers(body) {
+  const numbers = new Set();
+  let fence = "";
+  for (const line of String(body ?? "").replace(/<!--[\s\S]*?(?:-->|$)/g, "").split(/\r\n|\r|\n/)) {
+    const marker = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+    if (fence) {
+      if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && line.slice(marker[0].length).replace(/[ \t]/g, "") === "") {
+        fence = "";
+      }
+      continue;
+    }
+    if (marker) {
+      fence = marker[1];
+      continue;
+    }
+    if (!SIBLINGS_LINE.test(line)) {
+      continue;
+    }
+    const plain = SIBLINGS_PLAIN.exec(line);
+    if (!plain) {
+      return [];
+    }
+    for (const digits of plain[1].match(/[0-9]+/g)) {
+      numbers.add(Number(digits));
+    }
+  }
+  return numbers.size <= SIBLINGS_MAX ? [...numbers] : [];
+}
+
+// The siblings a closing pull request's body names (siblingNumbers) that
+// delivered part of one of its issues: each merged into `base` in this
+// repository, closing no issue, with a `Refs:` line (refsIssue) naming that
+// issue, and its body unedited since the merge unless a trusted person edited
+// it last, with that body, which says the part. Read from GitHub, never from
+// the body's prose. A number that names nothing credits nothing; any other
+// failed read throws.
+async function creditedSiblings(readRefs, repository, number, body, base, humans) {
+  const [owner, name] = repository.split("/");
+  const credited = [];
+  for (const sibling of siblingNumbers(body).filter((n) => n !== number)) {
+    const answer = await readRefs("POST", "/graphql", { query: SIBLING_QUERY, variables: { owner, name, number: sibling } });
+    const node = answer?.data?.repository?.issueOrPullRequest;
+    if (answer?.errors ? !namesNothing(answer, "issueOrPullRequest") : node === null || typeof node !== "object") {
+      throw new Error(`#${number}: sibling #${sibling} could not be read`);
+    }
+    const merged = node?.__typename === "PullRequest" && node.number === sibling && node.merged === true && node.repository?.nameWithOwner === repository && node.baseRefName === base;
+    const slice = merged && node.closingIssuesReferences?.totalCount === 0;
+    const kept = node?.lastEditedAt == null || Date.parse(node.lastEditedAt) <= Date.parse(node.mergedAt ?? "") || trustedHuman(node.editor, humans);
+    const issue = slice && kept ? refsIssue(node.body) : null;
+    if (issue !== null) {
+      credited.push({ issue, number: sibling, body: String(node.body) });
+    }
+  }
+  return credited;
+}
+
 // The closing issues in this repository, or, when the pull request closes
 // none, the one issue its `Refs:` lines name (refsIssue), with their authors
 // and last body editors (`linkedIssues`), and the spec text: each body and comment written,
@@ -591,13 +666,16 @@ export function specChanged(passStarts, { linkedIssues: issues, specKind, bodyEd
 // left out. Other Bot and App text is left out even where
 // select-trusted-text keeps it, except the body of a sub-issue the lanes App
 // filed in a size split, under the split-child trust rule, `taskList` being
-// admission's `task-list` (admit.mjs splitChildBody, its one home).
+// admission's `task-list` (admit.mjs splitChildBody, its one home). Given the
+// `base` branch, a closing issue also carries the siblings that delivered part
+// of it (`credited_siblings`, creditedSiblings), so its diff is judged for the
+// rest.
 // The merge gate cannot see the refinement: an edit, a hide (isMinimized)
 // or a newer one after a pass leaves that pass standing. An edit only takes
 // the refinement out of spec, so no one gains a spec by it; a person's
 // correction made after a pass waits for the next head. `read` posts the
 // spec query for the variables it is given (resolvePull's folded one).
-export async function linkedIssues(github, readRefs, repository, number, humans, laneAppId, taskList, webHosts, read) {
+export async function linkedIssues(github, readRefs, repository, number, humans, laneAppId, taskList, webHosts, read, base) {
   const [owner, name] = repository.split("/");
   const variables = { owner, name, number };
   const data = await (read ? read(variables) : github("POST", "/graphql", { query: SPEC_QUERY, variables }));
@@ -653,6 +731,7 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
     }
   }
   const pullRequest = data.data.repository.pullRequest;
+  const siblings = base !== undefined && named === null && issues.length > 0 ? await creditedSiblings(readRefs, repository, number, pullRequest.body, base, humans) : [];
   return {
     // Who last edited the pull request's own body: null when never edited.
     bodyEditor: pullRequest.lastEditedAt == null ? null : (pullRequest.editor?.databaseId ?? 0),
@@ -692,6 +771,9 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
         // The body's done-when items that refinement lists as checks a
         // person runs (admit.mjs personChecks), each as written.
         ...(checks.length > 0 && { person_checks: checks.map((n) => taskItems(issue.body, taskList)[n - 1].text) }),
+        ...(siblings.some((sibling) => sibling.issue === issue.number) && {
+          credited_siblings: siblings.filter((sibling) => sibling.issue === issue.number).map(({ number: sibling, body }) => ({ number: sibling, body })),
+        }),
       };
     }),
   };
@@ -783,7 +865,7 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
     specPull = answer?.data?.repository?.pullRequest ?? null;
     return answer;
   };
-  const readSpecIssues = () => linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId, taskList, webHosts, readSpec);
+  const readSpecIssues = () => linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId, taskList, webHosts, readSpec, base);
   // One relink read per judgment, shared by every rule that weighs it: the
   // spec answer's, where a missing or malformed field reads as a failed
   // read, or RELINK_QUERY's when no spec read answered.
