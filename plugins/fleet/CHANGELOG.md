@@ -3,6 +3,12 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.16] - 2026-11-03
+
+### Fixed
+
+- The `reach` skill's description adds the trigger phrase 'one account for every lane' (445 to 475 characters), so a request to sign every lane into one account loads the skill, which declines it.
+
 ## [0.2.15] - 2026-11-03
 
 ### Changed
