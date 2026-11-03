@@ -343,10 +343,12 @@ jobs:
   # gate reads that job and this one, `review-handoffs-credit`. Its own
   # record carries the origin run forward in its name, so the window counts
   # from the credit stop, not the last skip, and a topped-up or rotated key
-  # is tried once it ends. It runs only where this attempt's trigger job
-  # would start the key legs, holds no secret, checks nothing out and reads
-  # only this workflow's runs. Every failure runs the key: the review job's
-  # `if` starts with !cancelled().
+  # is tried once it ends. It runs on every run of this attempt's trigger
+  # job, lane source or not, so each run the gate reads carries the record;
+  # only a run whose trigger job starts the key legs reports them skipped or
+  # hands them on. It holds no secret, checks nothing out and reads only this
+  # workflow's runs. Every failure runs the key: the review job's `if` starts
+  # with !cancelled().
   review-handoffs-credit:
     needs: trigger
     if: >-
@@ -355,9 +357,6 @@ jobs:
       && github.event.workflow_run.conclusion == 'success'
       && github.event.workflow_run.head_repository.full_name == github.repository
       && needs.trigger.outputs.run-attempt == github.run_attempt
-      && needs.trigger.outputs.proceed == 'true'
-      && needs.trigger.outputs.review == 'true'
-      && needs.trigger.outputs.judged != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     cache-mode: none
@@ -386,7 +385,7 @@ jobs:
       # Each skipped key leg's lane record: outcome skip, class credit-stop,
       # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped claude-review key leg
-        if: steps.gate.outputs.skip-key == 'true' && vars.CLAUDE_REVIEW_DISABLED != 'true'
+        if: steps.gate.outputs.skip-key == 'true' && needs.trigger.outputs.proceed == 'true' && needs.trigger.outputs.review == 'true' && needs.trigger.outputs.judged != 'true' && vars.CLAUDE_REVIEW_DISABLED != 'true'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
@@ -398,7 +397,7 @@ jobs:
           handoff: "true"
 
       - name: Report the skipped claude-security-review key leg
-        if: steps.gate.outputs.skip-key == 'true' && vars.CLAUDE_SECURITY_REVIEW_DISABLED != 'true'
+        if: steps.gate.outputs.skip-key == 'true' && needs.trigger.outputs.proceed == 'true' && needs.trigger.outputs.review == 'true' && needs.trigger.outputs.judged != 'true' && vars.CLAUDE_SECURITY_REVIEW_DISABLED != 'true'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
@@ -1245,7 +1244,9 @@ jobs:
       !cancelled()
       && github.ref == 'refs/heads/main'
       && (needs.review.outputs.claude-review != '' || needs.review.outputs.claude-security-review != ''
-      || needs.review.result == 'skipped' && needs.review-handoffs-credit.outputs.skip-key == 'true')
+      || needs.review.result == 'skipped' && needs.review-handoffs-credit.outputs.skip-key == 'true'
+      && needs.trigger.outputs.run-attempt == github.run_attempt && needs.trigger.outputs.proceed == 'true'
+      && needs.trigger.outputs.review == 'true' && needs.trigger.outputs.judged != 'true')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}
