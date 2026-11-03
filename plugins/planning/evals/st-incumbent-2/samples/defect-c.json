@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "- During the rollout, Leaseline cannot see `hf:` keys, so a seat held under Holdfast can get a second holder: AC1 breaks for up to ten minutes.\n",
+      "why": "bullet"
+    },
+    {
+      "answer": "| 1 | CRITICAL | Plan | Live holds under `hf:` are invisible to `lease:` code; the same seat can be double-sold in the rollout | Check both prefixes |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- Phase 2's rolling update leaves mixed versions for minutes, and two buyers can hold the same seat.\n",
+      "why": "rolling"
+    },
+    {
+      "answer": "| 2 | IMPORTANT | Plan | Existing Holdfast locks are not honored at cutover, so seats get oversold | Drain first |\n",
+      "why": "cutover"
+    },
+    {
+      "answer": "- Phase 2 says there is no data to migrate, but unexpired holds are unaware of leases, which violates AC1.\n",
+      "why": "quotes then contradicts"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "- Seats will not be double-sold during the rollout; holds expire in ten minutes.\n",
+      "why": "negated"
+    },
+    {
+      "answer": "- The rolling update is fine since holds are short-lived.\n",
+      "why": "dismissed"
+    },
+    {
+      "answer": "- Phase 2 needs a rollback if the hold error rate rises.\n",
+      "why": "generic rollout warning"
+    },
+    {
+      "answer": "- Phase 3 has no rollback step for the lockfile refresh.\n",
+      "why": "another finding"
+    },
+    {
+      "answer": "- Two buyers can lose out when a card is declined.\n",
+      "why": "nature without the cutover"
+    }
+  ]
+}

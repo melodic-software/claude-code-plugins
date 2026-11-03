@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: st-proposal-3
+description: Review of a draft proposal for a database-backed invoice job queue in a billing service.
+expected_outcome: "The review reports that BullMQ is rejected for needing Redis while the Rollout adds a Redis container itself; that createInvoice in src/invoice.ts does a plain insert with no unique constraint in migrations/001_init.sql, so it is not idempotent as the draft assumes; and that a worker killed after the claim leaves the job in running with nothing to reclaim it, against AC1 and deploy/compose.yml's short stop grace period. It does not say polling is wrong, since the pooler in transaction mode rules out LISTEN/NOTIFY."
+context:
+  scaffold_script: scaffold.sh

@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": "- `WithBuffer(500000)` does not hold 30 minutes: the 4.0.0 changelog stores n in a uint16, so it clamps to 65,535.\n",
+      "why": "bullet"
+    },
+    {
+      "answer": "| 1 | CRITICAL | Plan | `tidewrite.WithBuffer` is capped at 65,535 rows, about 4.5 minutes at 240 samples per second | Do not rely on it |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- The 500,000 buffer size cannot reach that number; the ring's index type sets a ceiling.\n",
+      "why": "ceiling"
+    },
+    {
+      "answer": "| 2 | IMPORTANT | Plan | Queue capacity maxes out at the uint16 limit, so Phase 1's arithmetic fails | Recompute |\n",
+      "why": "queue capacity"
+    },
+    {
+      "answer": "- Phase 1 treats 500000 as correct, but the value is truncated by the uint16 index.\n",
+      "why": "quotes then contradicts"
+    },
+    {
+      "answer": "- `WithBuffer(500000)` is capped at 65,535, so while retries fail in a 30-minute outage the full ring overwrites the oldest samples.\n",
+      "why": "names the ring overwrite, also a sound-part pass sample"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "- WithBuffer(500000) is not capped by Tidewrite, so Phase 1 holds.\n",
+      "why": "negated"
+    },
+    {
+      "answer": "- The 500,000 buffer size is fine: 240 per second for 30 minutes is 432,000.\n",
+      "why": "dismissed"
+    },
+    {
+      "answer": "- `WithBuffer(500000)` uses about 32 MB of memory.\n",
+      "why": "named, no nature"
+    },
+    {
+      "answer": "- Phase 3's metric has no alert threshold.\n",
+      "why": "another finding"
+    },
+    {
+      "answer": "- The uint16 index in Tidewrite is an implementation detail.\n",
+      "why": "nature without the setting"
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "- The `setInterval` sweep runs in all three replicas in `deploy/compose.yaml`, so a due subscription is charged up to three times.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- `runRenewalSweep` has no claim on rows: every API instance picks the same subscription from `findDue`.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | Sweep in `src/server.ts` starts per process; with 3 replicas AC1's charged-once fails | Fix before building |\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | Multiple containers double-charge renewals because `findDue` holds no lock | Fix before building |\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- The sweep is safe on one replica, but `compose.yaml` runs three.\n",
+      "why": "paraphrase"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "- The sweep across replicas is safe.\n",
+      "why": "named and dismissed"
+    },
+    {
+      "answer": "- The sweep does not run on multiple replicas.\n",
+      "why": "negated mention"
+    },
+    {
+      "answer": "- `runRenewalSweep` should log its duration.\n",
+      "why": "a finding about something else"
+    },
+    {
+      "answer": "- Concurrency could be a concern.\n",
+      "why": "generic, no target"
+    },
+    {
+      "answer": "- A slow sweep can overlap the next tick.\n",
+      "why": "a target with a different cause"
+    }
+  ]
+}

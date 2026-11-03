@@ -454,8 +454,8 @@ worked instance keeps a `fable-5` scope of its own.
 **Base row** · Unscoped. Promotion gate MET on 2026-08-08: the model-agnostic best-practices page
 states the claim under its all-current-models framing (section "Leverage thinking & interleaved
 thinking capabilities", on general instructions over prescriptive steps). **The worked instance
-below keeps a `fable-5` scope of its own**, because its basis is Fable-specific and the Opus guides
-disagree with it.
+below keeps a `fable-5` scope of its own**, because its basis is Fable-specific and the Opus 5 guide
+disagrees with it.
 
 - **Detect:** prior-model workarounds and over-prescriptive step lists: instructions enumerating
   behaviors a current model handles from a brief instruction, or scaffolding that pins an approach.
@@ -464,10 +464,11 @@ disagree with it.
   concurrent workers, a one-at-a-time rule, or an instruction to block until each subagent returns
   before dispatching the next, where the surface's own ground for it is that subagent handling is
   unreliable. On a Fable target we treat a throttle resting on that premise as the generic case
-  with a name on it. The Fable 5 guide ("Parallel subagents") and the Opus 5 and Opus 4.8 guides
-  ("Controlling subagent spawning") disagree on throttling subagent dispatch, so on `opus-5` and
-  `opus-4-8` targets this instance is inert, not merely unattested: there we treat a throttle as
-  the recommended shape rather than a workaround. **A cap carrying its own
+  with a name on it. The Fable 5 guide ("Parallel subagents") and the Opus 5 guide ("Controlling
+  subagent spawning") disagree on throttling subagent dispatch, so on an `opus-5` target this
+  instance is inert, not merely unattested: there we treat a throttle as the recommended shape
+  rather than a workaround. On an `opus-4-8` target it is unattested: the instance does not fire,
+  and we do not endorse the throttle either. **A cap carrying its own
   non-model rationale is not this instance.** Reviewability of returns, rate limits, cost, or
   shared mutable state each justify a bound on their own terms, and that justification is the
   surface's to make, not this row's to override.
@@ -478,8 +479,13 @@ disagree with it.
 - **Source:** prompting best practices, "Leverage thinking & interleaved thinking capabilities"
   (the gate-meeting, model-agnostic one). Convergent model guide: Fable 5, "Recommended
   scaffolding changes" (prior-model skills as too prescriptive). The worked instance's basis is
-  the same guide, "Parallel subagents"; its Opus counter-basis is the Opus 5 guide's and the Opus
-  4.8 guide's "Controlling subagent spawning". Pointer for the two Fable arms: on a `fable-5`
+  the same guide, "Parallel subagents"; its Opus counter-basis is the Opus 5 guide's "Controlling
+  subagent spawning". Pointer for the inert `opus-5` arm: fetch [Opus 5 guide, "Controlling
+  subagent spawning"](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5#controlling-subagent-spawning)
+  live; for the unattested `opus-4-8` arm, fetch [Opus 4.8 guide, "Controlling subagent
+  spawning"](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8#controlling-subagent-spawning)
+  live. As of: 2026-11-03. Recheck trigger: the Opus 5 section stops advising caps on delegation,
+  or the Opus 4.8 section starts advising them. Pointer for the two Fable arms: on a `fable-5`
   target, fetch [Fable 5 guide, "Parallel subagents"](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#parallel-subagents)
   live; on a `fable-5-1` target, fetch [Fable 5.1 guide, "Let the lead agent keep working while subagents run"](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#let-the-lead-agent-keep-working-while-subagents-run)
   live. As of: 2026-11-01. Recheck trigger: either section is renamed or stops advising against

@@ -439,6 +439,14 @@
         ".github/workflows/pr-feedback-dispatch.yml#post-verify-notes"
       ]
     },
+    "pr-feedback-deferral": {
+      "retention-days": 2,
+      "readers": [
+        ".github/scripts/pr-unblock/feedback-dispatch.mjs recoverDeferred lists it by exact name (DEFERRAL_MARKER) before any per-head pr-feedback-deferred read"
+      ],
+      "reason": "Must outlive every pr-feedback-deferred record (1 day) uploaded after it, so 2 days. It holds the reconciler's plan (kinds, run ids and paths, PR numbers, SHAs) and no model text, so no leak scan runs over it.",
+      "scan": "none"
+    },
     "rerun-ci-status-*": {
       "retention-days": 1,
       "readers": [

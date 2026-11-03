@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: st-incumbent-3
+description: "A draft plan for a river gauge ingest service decides whether to keep its database write client through database outages."
+expected_outcome: "A good review reports that the reasoning for keeping Tidewrite rests on the team's history with it and never weighs Streamsink's disk spool against AC1, that WithBuffer(500000) cannot hold that many rows because the 4.0.0 changelog stores the size in a uint16, and that watchDatabase in main.go exits after three failed checks, which wipes the in-memory queue during the outage it is meant to survive. It does not call retried batches a source of duplicate rows, since the primary key and ON CONFLICT DO NOTHING rule that out."
+context:
+  scaffold_script: scaffold.sh

@@ -5,6 +5,15 @@ All notable changes to the `writing` plugin are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-11-03
+
+### Fixed
+
+- `be-concise` declines again to restructure a dense message without shortening it and to reshape agent-facing instruction prose, even when the plugin it routes to is not enabled ([#12846](https://github.com/melodic-software/claude-code-plugins/issues/12846)).
+- `be-concise` runs its semantic-diff check when the original has more than three paragraphs or more than 250 words. It used to say "longer than a few paragraphs", which a model could not check.
+- Routes to `docs-hygiene` skills say "enabled" where they said "installed".
+- The wall-of-text eval fixture uses a relative deadline in place of a date that has passed.
+
 ## [0.2.1] - 2026-11-03
 
 ### Changed
