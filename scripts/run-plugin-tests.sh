@@ -2,7 +2,7 @@
 # Run every shell test suite in the repository and fail if any fails: the
 # plugin contract tests (plugins/**/*.test.sh), the repo-local hook tests
 # (.claude/hooks/*.test.sh), and the suites of the repository's own scripts and
-# shared libraries (scripts/**/*.test.sh, lib/**/*.test.sh). The repo-local
+# shared libraries (scripts/**/*.test.sh, lib/**/*.test.sh, .github/**/*.test.sh). The repo-local
 # hooks are tracked policy with the same test conventions as plugin hooks, and
 # a gate's self-test is a suite like any other: CI reaches it through the
 # affected-suite selector, not through a step of its own.
@@ -324,10 +324,10 @@ else
   cd "$script_dir/.." || exit 1
 fi
 
-mapfile -t tests < <(find plugins .claude/hooks scripts lib -type f -name '*.test.sh' 2>/dev/null | sort)
+mapfile -t tests < <(find plugins .claude/hooks .github scripts lib -type f -name '*.test.sh' 2>/dev/null | sort)
 
 if [[ ${#tests[@]} -eq 0 ]]; then
-  echo "error: no test suites found under plugins/, .claude/hooks/, scripts/ or lib/ (*.test.sh)" >&2
+  echo "error: no test suites found under plugins/, .claude/hooks/, .github/, scripts/ or lib/ (*.test.sh)" >&2
   exit 2
 fi
 if ((list)); then
