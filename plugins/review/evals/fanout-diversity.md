@@ -41,6 +41,10 @@ placement and the act-on cap. This file is the shape every slice of that eval fo
 - The M arms load a plugin outside `review`, so the eval target must contain both: stage
   `review` and `multi-agent` under one directory holding a `.claude-plugin/plugin.json`, and run
   `claude plugin eval <that directory> --eval-dir plugins/review/evals`.
+- `node` must resolve on the run's `PATH` without the operator's home directory. A version-manager
+  shim that reads its config from `HOME` fails under an isolated `HOME`: the review config read
+  then fails, so the report says `(default)` and the arm check fails, and in the M arms the
+  `multi-agent` hooks block every Bash call. Put the real `node` directory first on `PATH`.
 
 ## Case directory
 
@@ -71,6 +75,14 @@ because a case carries one prompt, one plugins list and one committed `review.ya
 | `sort-column` | none (decoy) |
 | `page-links` | none (decoy) |
 | `return-promise` | none (decoy) |
+| `request-options` | none (two defects): a shared default mutated; `retries: 0` read as unset |
+| `month-export` | none (two defects): the month's last day dropped; a boolean comparator |
+
+`request-options` and `month-export` plant two defects that share one ground-truth axis. The axis
+grades the fixture; it does not decide where the report files a finding. In the #12505 pilot the
+L arm put both defects under one heading, at positions 1 and 2, while the M arm split them across
+Spec and Standards. An act-on cap therefore reads within-heading positions only from runs that
+keep the two together.
 
 A decoy is a correct change that looks wrong, so it measures each arm's false positives. Its
 ground truth reads `none` for `defect` and `axis`, and its `not_defects` name the findings a
@@ -105,6 +117,9 @@ its four arm cases. The eval directory is hidden from the agent under test. Fiel
 - `axis`: `spec` when the change fails its stated purpose (the commit message's own claim), else
   `standards`. `none` for a decoy.
 - `not_defects`: claims the fixture's code refutes. The false-positive grader counts them.
+
+A fixture with two or more defects writes `defects:`, a list of entries each with `location`,
+`summary`, `failure` and `axis`, in place of `defect` and `axis`.
 
 ## Severity
 
@@ -178,3 +193,10 @@ Count the findings in the report's `## Findings` table with CRITICAL in their `T
 
 PASS if the count is 0. FAIL if the file is missing or empty, or the count is 1 or more.
 ```
+
+A fixture with `defects:` gets one recall grader per defect, `recall-<n>.md`, so a run that finds
+one defect and misses the other shows which. Each names its defect as `plants <count> defects.
+This grader checks defect <n>, at <location>: <summary>. What now fails: <failure>.`, drops the
+no-defect sentence, and ends its FAIL paragraph with `A finding about another planted defect does
+not count.` Its `false-positive.md` lists every defect, joined by "; and ", and reads `A finding
+about a planted defect never counts.`
