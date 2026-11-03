@@ -17,7 +17,6 @@ calling the video done.
 | Skill | What it does |
 |---|---|
 | `/explainer-video:produce <topic> [output dir]` | Plans three to six beats, writes a narration script (one paragraph per beat) and narrates it with `/speech:narrate` when that plugin is installed, writes `scene.py` (`Text` for words, `MathTypst` for math, `beat()` cues timed to the narration), renders it at low quality with `scripts/render.py`, fixes and re-renders until every check passes, reads the extracted frames back, then renders the delivery quality. |
-| `/explainer-video:check` | Read-only: one PASS/FAIL row each for Python 3.12 or 3.13, the installed ManimCE packages, ffmpeg and ffprobe. Installs nothing. |
 
 ## What every render checks
 
@@ -65,7 +64,7 @@ then holds only its `hold` seconds.
 
 ## Requirements
 
-`/explainer-video:check` reports each of these. `prerequisites.json` declares them.
+`python3 "<plugin root>/scripts/pydeps.py" check --data-dir "<plugin data>"` reports each of these. `prerequisites.json` declares them.
 
 - Python 3.12 or 3.13 with pip. Python 3.14 is not supported: moderngl and glcontext publish no
   3.14 wheel. `pydeps.py` uses the first of `python3.13`, `python3.12`, `python3` and `python` on

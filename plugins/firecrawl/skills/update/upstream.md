@@ -1,5 +1,5 @@
 <!-- firecrawl update state: do not edit by hand. -->
-<!-- Written by the skill's scripts/update.sh --apply. -->
+<!-- Written by the skill's scripts/update.sh --apply and --record-upstream. -->
 
 # Firecrawl skill upstream sync state
 

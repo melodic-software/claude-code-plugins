@@ -57,11 +57,11 @@
       "id": 5,
       "name": "missing-tool-routes-to-check",
       "prompt": "render.py exited 2: explainer-video: ffmpeg and ffprobe not found on PATH.",
-      "expected_output": "Does not try to install FFmpeg or any package. Runs or names /explainer-video:check and reports what it prints.",
+      "expected_output": "Does not try to install FFmpeg or any package. Runs or names pydeps.py check and reports what it prints.",
       "files": [],
       "expectations": [
         "Does not run a package manager or pip",
-        "Points at /explainer-video:check",
+        "Points at pydeps.py check",
         "Does not claim the video rendered"
       ]
     },

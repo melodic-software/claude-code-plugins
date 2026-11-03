@@ -347,19 +347,26 @@ attention. Climb only when the rung below loses something the reader needs.
 
 Accessibility is a standing reason to step back down a rung; see Accessibility floor.
 
-## Reachability and preference
+## Reachability and the fallback chain
 
-Reachability constrains; preference selects within reachable rungs; every degrade is
-visible and names its cause.
+Reachability constrains; preference selects; every fall is visible and names its cause. There is
+one fallback chain, owned by the medium registry (`lib/view-registry.mjs`): **published artifact,
+then local file, then terminal**. A view that cannot be served on its preferred medium steps down
+that chain to the first reachable one. `hosted` is read as `artifact` except in a lane registered
+as hosted-capable (only `/review:explain-change` today); there, a page that cannot reach the host
+steps to `artifact` first. Each medium's entry in the registry owns its own reachability check, so
+no skill lists conditions in its prose.
 
-| Environment | Reachable rungs |
+| Environment | Reachable media |
 |---|---|
 | Local interactive session | published artifact, local file, terminal |
 | Remote or web session | published artifact, a file sent to the user, terminal |
 | CI or non-interactive run | terminal or the record only, no view emitted |
 
-A skill that cannot serve its preferred rung says so and names the layer or environment
-fact that decided the outcome, rather than silently printing a dead file path.
+Every view lane prints one report line, `view: <medium> (<what decided it>)`, then one line per
+notice. What decided it is `argument`, `userConfig`, `team`, `personal override`, `plugin
+default`, or `fell back: <medium> unreachable: <reason>`, so a skill never prints a dead file path
+without saying why.
 
 ## Default ladder and its reconciliation
 
@@ -383,9 +390,9 @@ lane (`/review:explain-change`) ships `medium: artifact` as its default. Its pag
 built only by the shared builder from a checked-in template, and the artifact stays
 private to the reader until they share it. The default publishes only a public
 repository's diff with no credential-shaped hunk; any other diff falls back to `file`
-and the reader is told to set `medium: artifact` to publish it anyway. An operator who wants the digest local sets
-`medium: file` in their personal layer (`~/.claude/rendered-views.md` or the repo
-overlay); the cascade below resolves it like any other key.
+and the reader is told to set the review plugin's `medium` option to `artifact` to publish it
+anyway. An operator who wants the digest local sets that option to `file`, or `medium: file` in a
+personal override; the resolver below decides it like any other value.
 
 The deck lane (`/visualization:present`) is the second exception: a deck exists only as an
 Artifact made from the account's Slides type, so it publishes behind the same gate (see
@@ -428,12 +435,12 @@ Rules for a producer on a type:
   so no live embed, script, link, inline SVG, CSS function, or image taken from the source is sent.
 - **The publish gate decides first.** `lib/publish-gate.mjs` (shared with `/review:explain-change`)
   runs before the type's create call, which already publishes the title, so the create call takes
-  the title the gate read. The check script resolves the layers itself, not the model: only
-  `medium: artifact` from a layer a checked-out branch cannot write (the argument, the plugin's
-  option, `~/.claude/rendered-views.md`, or an untracked, gitignored overlay) publishes as is.
-  Otherwise the producer names the destination ("a private Artifact on claude.ai") and keeps the
-  view local when the source repository is not `PUBLIC` or any file looks like a credential, naming
-  `medium: artifact` in `~/.claude/rendered-views.md` as the opt-in.
+  the title the gate read. The check script resolves the medium itself through the shared
+  resolver, not the model: only an `artifact` choice from a scope a checked-out branch cannot write
+  (the argument, the plugin's `medium` option, or an untracked, gitignored personal override)
+  publishes as is. Otherwise the producer names the destination ("a private Artifact on
+  claude.ai") and keeps the view local when the source repository is not `PUBLIC` or any file looks
+  like a credential, naming the plugin's `medium` option set to `artifact` as the opt-in.
 - **A design system is optional.** It is used only when the user names one or the `quickstart`
   attaches the account's default.
 
@@ -449,9 +456,9 @@ Producers on a type: `/visualization:present` (Slides).
   `pages-publish` for `hosted`. Every other reader of the `medium` key, `/visualization:present` and
   every lane that does not call the gate included, treats `hosted` as `artifact`, so one personal
   value serves every lane.
-- **Only layers a checked-out branch cannot write select it**: the argument, the plugin's option,
-  `~/.claude/rendered-views.md`, or an untracked, gitignored overlay. A team `.claude/rendered-views.md` that says
-  `hosted` is reported and ignored.
+- **Only scopes a checked-out branch cannot write select it**: the argument, the plugin's `medium`
+  option, or an untracked, gitignored personal override. A team `docs/conventions/rendered-views.yaml`
+  that says `hosted` is reported and ignored.
 - **The destination never depends on the preference.** Which host a page reaches is the gate's
   decision alone, whichever layer chose `hosted`; no layer can skip a check or force the public
   host. The gate starts from `public` and only lowers it:
@@ -793,39 +800,53 @@ background. Those lists name layout habits (italic accent words in headings, num
 section labels, pill-shaped buttons, a hero banner). A lane that departs from the
 chrome's palette declares its own background instead of banning this one.
 
-## The `rendered-views` cascade concern
+## The `rendered-views` settings
 
-The cross-plugin output-format preference rides the
-[config-cascade convention](../config-cascade/README.md); this section is the concern's
-owner declaration.
+The cross-plugin `medium` preference rides the
+[config-cascade convention](../config-cascade/README.md) on the ADR 0075 scopes; this section is
+the concern's owner declaration. One resolver, `lib/view-settings.mjs`, applies it for every view
+lane. A skill runs its `resolve` command and never reads the files itself.
 
-- **Surface**: `.claude/rendered-views.md`, in all three layers (user-global
-  `~/.claude/rendered-views.md`, team `.claude/rendered-views.md`, overlay
-  `.claude/rendered-views.local.md`).
-- **Keys** (per-key override, declared here per the contract): `medium`, one of `auto`,
-  `terminal`, `file`, `artifact`, `hosted`; the preferred rung for rendered views, applied within
-  reachability. `hosted` sends a page to a shared page host in `/review:explain-change` and
-  is read as `artifact` by every other lane (see The `hosted` medium). Future keys are added here first. A lane's shipped default for `medium`
-  is the last tier of the ladder below; the digest's `artifact` default (see
-  Default ladder and its reconciliation) is one such default, and any layer that sets
-  `medium` overrides it.
-- **No policy-floor class, and `medium` is not a pure taste dial**: `medium` chooses whether
-  a view leaves the machine, and `artifact` and `hosted` publish it, so a personal value can
-  send content elsewhere. What keeps that safe is not the preference but the gate: a
-  publishing value counts only from a layer a checked-out branch cannot write, and for
-  `hosted` the gate alone decides the private host or a refusal, whatever the value says (see
-  The `hosted` medium). A future key that only shapes presentation is a taste dial that
-  weakens nothing another surface depends on (the `ai-slop` precedent).
-  The default direction holds: the team layer refines user-global, the overlay is the
-  operator's per-repo trump, and the user's global preference governs wherever no repo
-  layer speaks.
-- **Tier ladder across mechanisms**: explicit argument, then the plugin's own `userConfig`
-  dial, then this cascade surface, then the shipped default. Plugin `userConfig` dials
-  are never keys in this surface; a layer declaring one is reported as an inert unknown
-  key (the `bugs` partition precedent).
-- **Resolution**: per the contract's algorithm (anchor at the repo root, read every layer
-  that exists, report which layer supplied each value, degrade soft and visibly on a
-  malformed or absent layer).
+- **Scopes**: the argument, the lane plugin's `medium` userConfig option, the team file
+  `docs/conventions/rendered-views.yaml`, and the personal override
+  `docs/conventions/rendered-views.local.yaml`, both in the repository's convention home. The
+  resolver reads each scope's own value with the cascade's file reader and schema check
+  (`readLayers` in `lib/config-cascade.mjs`), never the merged result, so a lower scope's local
+  value survives a higher scope's publishing one.
+- **Keys**: `medium`, one of `auto`, `terminal`, `file`, `artifact`, `hosted`. `auto` is no
+  preference: it resolves exactly as unset. Future keys are added here first.
+- **Precedence and the publish trust walk.** `medium` chooses whether a view leaves the machine,
+  so precedence alone does not decide it:
+  1. The argument decides alone.
+  2. Otherwise a `terminal` or `file` value from any scope keeps the view local. When several
+     scopes set one, ADR 0075 precedence names the one used: personal override, then team, then
+     userConfig.
+  3. Otherwise the first publishing value (`artifact`, `hosted`) from a trusted scope wins: the
+     personal override, only while it is untracked and gitignored with no symlink, submodule or
+     tracked entry on its path, then userConfig. A team file never publishes, because a checked-out
+     branch can write it.
+  4. With no scope deciding, the lane's own default applies. It ships with the installed plugin,
+     which a checked-out branch cannot write, so a publishing default counts; it never counts as a
+     scope in step 2. The publish gate still checks content under a default: only steps 1 and 3
+     make a choice the gate takes as explicit.
+
+  An invalid value is reported and ignored without dropping another scope's value. This is not
+  plain ADR 0075 precedence: under it a personal `artifact` would override a team `file`.
+- **Team file from a git ref.** A lane that must not let a checked-out branch configure it
+  (`/review:explain-change`) reads the team file from a named commit (`--team-ref`), never the
+  working tree. A ref that names no commit reads no team file and says so.
+- **Retired files.** `~/.claude/rendered-views.md`, `.claude/rendered-views.md` and
+  `.claude/rendered-views.local.md` are no longer read. Each gives one notice per lane plugin per
+  project, naming its value and where to set it instead: the plugin's `medium` option, the team
+  file, or the personal override. A notice repeats only when the file changes. The shown-once
+  state lives in each plugin's data directory, keyed by project identity
+  ([plugin-data report keying](../plugin-data-report-keying/README.md), rule 1), and is written
+  atomically.
+- **Resolution**: `view-settings.mjs resolve --lane <id> --option <user_config.medium>
+  [--argument <medium>] [--team-ref <ref>]` prints the resolution as one JSON line (`preferred`,
+  `medium`, `decidedBy`, `notices`), then the report line (see Reachability and the fallback
+  chain). Each lane registers once in the medium registry with its view kinds, whether it is
+  hosted-capable, and its default.
 
 ## Template vendoring posture
 

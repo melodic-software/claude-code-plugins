@@ -1,7 +1,11 @@
 # Reading `aggregate-result.json`
 
-Read when a run has written its JSON, or when a wrapper needs to consume one. The document is the
-statement of record: with `--json <file>` the terminal summary table is suppressed entirely.
+Read when a run has written its JSON, or when a wrapper needs to consume one. This repository reads
+the document as the statement of record, never the terminal output. For what a `--json` run prints,
+see the `--json` row of
+[Command options](https://code.claude.com/docs/en/plugin-evals#command-options) and
+[JSON result](https://code.claude.com/docs/en/plugin-evals#json-result) (as of 2026-11-03; recheck
+when either changes what a `--json` run prints).
 
 ## Contents
 
@@ -222,9 +226,9 @@ case complete), read 2026-09-13.
 
 ## What a delta does and does not say
 
-- The delta is the with-arm case score minus the without-arm case score. A run score is the weighted
-  fraction of graders passed; a case score is the mean over runs; a case passes at or above
-  `--threshold`.
+- For how the delta, a run score and a case score are computed, and when a case passes, read
+  [How a case is scored](https://code.claude.com/docs/en/plugin-evals#how-a-case-is-scored) live
+  (as of 2026-11-03; recheck when that section changes a formula or the pass rule).
 - 1.00 in both arms proves the plugin contributed nothing to that case.
 - Absolute scores are not comparable across ablation modes: under `--ablation none` no grader is
   excluded, so the same suite scores differently. Hold the mode fixed or the trend line is fiction.

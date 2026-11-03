@@ -29,9 +29,11 @@ cookbook (`anthropics/claude-cookbooks` `misc/building_evals.ipynb`), fetched 20
 
 ## What runs where
 
-`claude plugin eval` is what runs and scores a plugin's eval cases: it loads the plugin, replays
-each case with the plugin and again with nothing loaded, grades both arms, and reports `WITH`,
-`W/OUT`, and the delta between them. It needs a recent Claude Code; for the minimum version, see
+`claude plugin eval` is what runs and scores a plugin's eval cases. For what one run does and what
+it reports, read
+[How an eval run works](https://code.claude.com/docs/en/plugin-evals#how-an-eval-run-works) live
+(as of 2026-11-03; recheck when that section changes how a run is graded or reported). It needs a
+recent Claude Code; for the minimum version, see
 [Requirements](https://code.claude.com/docs/en/plugin-evals#requirements) (as of 2026-10-11;
 recheck when that section's version floor changes). Every run and every judge grader is a metered
 model call on your own account.
@@ -41,10 +43,11 @@ preflights the machine and the target, validates the case files, prices the suit
 and reads the delta out of the result JSON. `/evals:validate` is the zero-spend half of the same
 work.
 
-The CLI reads a plugin's `evals/` tree (`prompt.md` plus `graders/*.md`, or `case.yaml`). That is
-the format `/evals:design` writes for a skill, and the one `claude plugin eval init` writes for a
-whole plugin; `/evals:validate` checks it. Anthropic's `skill-creator` plugin has its own JSON
-eval format, which the CLI does not read; convert those cases to the suite layout to run them here.
+Here `/evals:design` writes a skill's cases and `claude plugin eval init` a whole plugin's, both in
+the suite layout the CLI reads, and `/evals:validate` checks them. For that layout, read
+[Write a case manually](https://code.claude.com/docs/en/plugin-evals#write-a-case-manually) live
+(as of 2026-11-03; recheck when that section changes the case layout). This repository converts
+`skill-creator` `evals.json` cases into the suite rather than keeping both:
 `skills/plugin-eval/scripts/convert-evals-json.py <plugin-dir>` converts one plugin's `evals.json`
 cases into its `evals/` suite and removes the converted files.
 
@@ -106,9 +109,11 @@ knowledge router with no decision contract, per the migration playbook's warrant
 
 Eight `userConfig` keys. Two set the run's cost ceiling, read by `/evals:plugin-eval`:
 
-- **`max_cost_usd`** (number, default `5`): the ceiling passed to the CLI as `--max-cost-usd`. It
-  bounds one invocation rather than a session's total, and a suite that reaches it stops partway
-  with partial results, so raise it for a suite whose estimate is higher.
+- **`max_cost_usd`** (number, default `5`): the ceiling passed to the CLI as `--max-cost-usd`.
+  Raise it for a suite whose estimate is higher. For what the ceiling bounds and what a run that
+  reaches it returns, read the `--max-cost-usd` row of
+  [Command options](https://code.claude.com/docs/en/plugin-evals#command-options) live (as of
+  2026-11-03; recheck when that row changes).
 - **`unlimited_cost`** (boolean, default `false`): removes the ceiling and nothing else. The
   estimate still prints before the run, so an expensive suite is still visible before it starts.
 

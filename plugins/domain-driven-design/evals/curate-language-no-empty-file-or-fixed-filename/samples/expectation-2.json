@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Does not create empty glossary or context-map scaffolding and writes no file. It reports that creation is deferred until a real term resolves; any file name it mentions is a proposal for the user to confirm, not a decision.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

@@ -8,8 +8,9 @@
 // A pull request is armed only when all of these hold:
 // - The lanes App opened it (merge.agent-identity), into main, from a branch
 //   of this repository, and it is not a draft.
-// - It carries no hold: no `do-not-merge` and no human-gated label (the
-//   tracker's role label, `needs-human` by default), and no body hold: the
+// - It carries no hold: no HOLD_LABELS label (`do-not-merge`,
+//   `pr-verify-failed`, `security: outside-actor`) and no human-gated label
+//   (the tracker's role label, `needs-human` by default), and no body hold: the
 //   lane's own hold line (merge-holds.mjs LANE_HOLD), or hold text a person
 //   wrote (BODY_HOLD and personWrote). Labels past the listing's 100 are
 //   read whole.

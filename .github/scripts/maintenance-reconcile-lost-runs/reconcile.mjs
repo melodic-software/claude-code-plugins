@@ -130,9 +130,11 @@
 // shows that run completed at that attempt, head and updated_at: a new run or
 // attempt reads its jobs again. Only a whole, final listing whose every job's
 // steps listed in full is carried, so it carries no annotation, and a red head
-// re-reads nothing until it changes. Every decision still runs on each pass
-// against the jobs, now and the status pages, and act re-reads each run
-// before it writes.
+// re-reads nothing until it changes. A lost lane run's attempt-1 job read is
+// carried the same way while the run stays at attempt 1, so a lane run deferred
+// for want of a place is read once, not on every pass until it gets one.
+// Every decision still runs on each pass against the jobs, now and the status
+// pages, and act re-reads each run before it writes.
 //
 // Nothing is read from GitHub while githubstatus.com shows Actions as anything
 // but operational, or the status cannot be read, so a re-run never adds load
@@ -581,10 +583,25 @@ export const reviewStopped = (jobs) =>
 // A not-started hold is final only on a whole listing whose steps all listed,
 // and, when it lists no job, only once `settled` (the run's last change is a
 // pass interval old).
-async function holdReason(call, repo, runId, judge, settled) {
-  const listing = await call("GET", `/repos/${repo}/actions/runs/${runId}/attempts/1/jobs?per_page=100`);
+// A run still at attempt 1 is read from `carry` (the carried job reads, by
+// jobsKey) while its listing shows the same head and updated_at, and a whole
+// read whose every job's steps listed is put in `keep`, so a run deferred for
+// want of a place is not read again each pass until it gets one.
+async function holdReason(call, repo, run, judge, settled, carry = new Map(), keep = new Map()) {
+  const key = jobsKey(run.id, 1);
+  const current = run.status === "completed" && run.run_attempt === 1 && SHA.test(run.head_sha ?? "") && typeof run.updated_at === "string";
+  const carried = current ? carry.get(key) : undefined;
+  const hit = carried?.head === run.head_sha && carried?.updated_at === run.updated_at;
+  const listing = hit
+    ? { total_count: carried.jobs.length, jobs: carried.jobs }
+    : await call("GET", `/repos/${repo}/actions/runs/${run.id}/attempts/1/jobs?per_page=100`);
   if (!Array.isArray(listing?.jobs) || listing.total_count > 100) {
     throw new Error("its job listing is not one complete page");
+  }
+  if (hit) {
+    keep.set(key, carried);
+  } else if (current && wholeListing(listing) && listing.jobs.length > 0 && listing.jobs.every((job) => stepsKnown(job))) {
+    keep.set(key, { id: run.id, attempt: 1, head: run.head_sha, updated_at: run.updated_at, jobs: listing.jobs.map(slimJob) });
   }
   const jobs = await withAnnotations(call, repo, listing.jobs);
   // A job whose steps did not list in full (stepsKnown) throws too, so the
@@ -1044,7 +1061,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
           continue;
         }
         try {
-          const held = await holdReason(call, repo, r.id, judge, now - Date.parse(r.updated_at) >= PASS_MINUTES * 60_000);
+          const held = await holdReason(call, repo, r, judge, now - Date.parse(r.updated_at) >= PASS_MINUTES * 60_000, carriedJobs, keepJobs);
           if (held) {
             if (held.settle) {
               settle.push({ id: r.id, reason: held.reason });
