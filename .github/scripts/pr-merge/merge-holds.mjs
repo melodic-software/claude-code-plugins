@@ -1692,7 +1692,7 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
       console.log(`::error title=${VERIFIER_TITLE}::#${number}: ${escape(reason)}.`);
     }
     if (!reasons.length) {
-      console.log(`#${number}: no body hold, no member veto and no hold path.`);
+      console.log(`#${number}: no member veto and no hold path.`);
     }
     return reasons.length || verifier.length ? 1 : 0;
   } catch (error) {
