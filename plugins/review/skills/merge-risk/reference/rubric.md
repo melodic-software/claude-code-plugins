@@ -26,11 +26,11 @@ than the request.
 
 What the change reaches, judged by what it touches, never by diff size.
 
-- `HIGH` at least: the change widens what an automated actor may do or whom a gate trusts, such as
-  workflow permissions, tokens, secrets, merge or review gate rules, or instructions an agent
-  follows unattended.
-- `HIGH` at least: authentication, authorization, billing, personal data, or infrastructure as
-  code.
+- `HIGH` at least: the change widens what an automated actor may do or whom a gate trusts:
+  workflow permissions, tokens, secrets, merge or review gate rules, or a trusted-actor list. A
+  change to ordinary instructions or skill text that grants nothing new is not this case.
+- `HIGH` at least: authentication or authorization logic, billing, personal data, or
+  infrastructure as code.
 
 ## Verification
 

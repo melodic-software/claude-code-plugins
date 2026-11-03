@@ -15,8 +15,8 @@ describe("merge-risk", () => {
   test("the checker is the read-only brief-reviewer agent", () => {
     assert.match(skill, /## 3\. Check blind[\s\S]*?read-only\s+`review:brief-reviewer` agent/);
   });
-  test("the checker's brief carries only the pull request, repository, rubric and saved reads", () => {
-    assert.deepEqual([...new Set(brief.match(/<[^>]+>/g))].sort(), ["<dir>", "<n>", "<owner/repo>", "<rubric path>"]);
+  test("the checker's brief carries only the pull request, repository, rubric, door definition and saved reads", () => {
+    assert.deepEqual([...new Set(brief.match(/<[^>]+>/g))].sort(), ["<dir>", "<doors path>", "<n>", "<owner/repo>", "<rubric path>"]);
   });
   test("the rubric holds the five required areas", () => {
     for (const area of ["Alignment", "Impact", "Verification", "Reversibility", "Error detection"]) {
@@ -26,7 +26,7 @@ describe("merge-risk", () => {
   test("the skill points at the rubric instead of restating an area", () => {
     assert.ok(!/^## (Alignment|Impact|Verification|Reversibility|Error detection)$/m.test(skill));
   });
-  test("the skill grants no shell, so it cannot post or gate", () => {
+  test("the skill grants no shell", () => {
     const tools = /^allowed-tools: (.*)$/m.exec(skill)[1];
     assert.ok(!tools.includes("Bash"), tools);
   });
