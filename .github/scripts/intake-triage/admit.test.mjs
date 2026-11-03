@@ -2507,6 +2507,22 @@ describe("unrunnable-rules.json", () => {
     assert.equal(result.hostRun, undefined);
   });
 
+  // Review findings on #12628: an automation's or a conditional output stays
+  // with the lane, as the built-in comment kind leaves it, and eval words
+  // count only in eval context.
+  for (const line of [
+    "The workflow's results are reported on this issue.",
+    "When the check fails, a sub-issue is filed by the sweep.",
+    "The validator rejects invalid runs.",
+    "The `schedule` trigger runs the sweep.",
+    "A retrigger runs the failed job.",
+    "The move lands with no loss of git history.",
+  ]) {
+    test(`passes ${line}`, () => {
+      assert.equal(first(line), null);
+    });
+  }
+
   test("`unless` clears a row's match", () => {
     assert.equal(first("`claude plugin eval --validate` passes on the suite."), null);
     assert.equal(first("The README says Windows host support is fully implemented."), null);

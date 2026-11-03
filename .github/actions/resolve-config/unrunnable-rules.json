@@ -5,9 +5,9 @@
     "sets": "154 host-run issues (an outcome=host-run lane comment, or a host-run or cannot-perform admission refusal) and 147 controls (closed by a merged work-resolve-issue lane pull request, without host-run); 52 + 28 read in full to write the patterns, 102 + 119 hold-out read from the body only",
     "fields": "builtin: the built-in kinds alone; union: the built-in kinds and these rows; host_only_stops: the 52-issue sample's lane `host-only` stops flagged; host and control: issues matched of 154 and 147; holdout: host / control matched of 102 and 119; study: the study's frozen pattern, before the narrowing that keeps the built-in kinds' runnable shapes with the lane",
     "builtin": { "host": 18, "control": 0, "precision": 1.0, "recall": 0.12, "holdout": "5/0" },
-    "union": { "host": 66, "control": 1, "precision": 0.99, "recall": 0.43, "holdout": "30/1", "host_only_stops": "22 of 28" },
+    "union": { "host": 65, "control": 1, "precision": 0.98, "recall": 0.42, "holdout": "29/1", "host_only_stops": "22 of 28" },
     "rows": {
-      "eval": { "host": 30, "control": 1, "precision": 0.97, "recall": 0.19, "holdout": "16/1", "study": "37/1, holdout 23/1" },
+      "eval": { "host": 29, "control": 1, "precision": 0.97, "recall": 0.19, "holdout": "15/1", "study": "37/1, holdout 23/1" },
       "tracker-output": { "host": 26, "control": 0, "precision": 1.0, "recall": 0.17, "holdout": "15/0", "study": "34/0, holdout 21/0" },
       "measure-over-time": { "host": 11, "control": 0, "precision": 1.0, "recall": 0.07, "holdout": "1/0", "study": "12/0, holdout 1/0" },
       "host-data": { "host": 9, "control": 0, "precision": 1.0, "recall": 0.06, "holdout": "2/0", "study": "9/1, holdout 2/1" },
@@ -18,13 +18,13 @@
   "rules": [
     {
       "kind": "eval",
-      "match": "eval evidence|evals? showing no loss|before[/ -]and[/ -]after (?:evals?|trigger)|trigger (?:run|rate|score)s?|claude plugin eval|measured pass|VALID runs?|\\bno loss\\b|measured before and after on the subscription",
+      "match": "eval evidence|evals? showing no loss|before[/ -]and[/ -]after (?:evals?|trigger)|\\btrigger (?:rate|score)s?\\b|claude plugin eval|measured pass|\\b(?-i:VALID) runs?\\b|\\bevals?\\b[^.;]{0,60}\\bno loss\\b|\\bno loss\\b[^.;]{0,40}\\bevals?\\b|measured before and after on the subscription",
       "unless": "claude plugin eval\\b[^,;:]*(?:--validate|\\bvalidate\\b|\\bdry[- ]run\\b|\\bno-spend\\b)"
     },
     {
       "kind": "tracker-output",
       "match": "\\b(?:comment|posted|recorded|reported)\\b[^.;]{0,40}\\b(?:on #\\d+|here)\\b|\\b(?:is|are) (?:recorded|reported) on this issue\\b|\\bsub-issue[^.;]{0,40}\\bis filed\\b|\\bparents open today\\b",
-      "unless": null
+      "unless": "^\\s*(?:if|when|whenever|unless|once)\\b|\\bby (?:the )?(?:\\S+\\.(?:mjs|js|ts|sh|py|ps1)|(?:\\S+ )?(?:workflow|script|lane|app|hook|skill|action|job|bot|sweep))\\b|(?:\\b(?:workflow|lane|app|hook|action|job|bot|sweep)|\\S[-.]\\S*)['’]s (?:output|results?|findings?|answers?)\\b"
     },
     {
       "kind": "measure-over-time",
