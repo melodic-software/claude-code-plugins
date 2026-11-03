@@ -1069,6 +1069,10 @@ describe("decide", () => {
           ["Route the lane through Vertex AI.", "vertex ai"],
           ["Keep artifacts for 400 days.", "artifacts for 400 days"],
           ["Store the logs for 2 years.", "logs for 2 years"],
+          ["Deploy the job to AWS.", "aws"],
+          ["Run the eval through Bedrock.", "bedrock"],
+          ["Move the lane to Google Cloud.", "google cloud"],
+          ["Subscribe to Cloudflare Pro.", "cloudflare pro"],
         ]) {
           assert.equal(inBody(`- [ ] ${item}`), found, item);
         }
@@ -1105,7 +1109,7 @@ describe("decide", () => {
       });
 
       test("a billing account or plan named without taking on a charge", () => {
-        for (const item of ["Fix the map-deployment reader for AWS stacks.", "Document the openai/codex review lane.", "Write the implementation plan for the GitHub lane.", "Write the GitHub implementation plan.","Trim the logs for 7 days.", "Remove the OpenAI API key."]) {
+        for (const item of ["Fix the map-deployment reader for AWS stacks.", "Document the openai/codex review lane.", "Write the implementation plan for the GitHub lane.", "Write the GitHub implementation plan.", "Run the openai/codex review lane.", "Add a Cloudflare DNS record.", "Remove the AWS stack reader.", "Trim the logs for 7 days.","Remove the OpenAI API key."]) {
           admitted(issueOf({ body: `## Done when\n\n- [ ] ${item}` }));
         }
       });

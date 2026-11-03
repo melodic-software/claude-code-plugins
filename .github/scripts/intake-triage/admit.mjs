@@ -766,6 +766,11 @@ const CHARGING =
 // A billing account admission reads as a charge beside the shared words, in
 // every clause the cost words count in.
 const ADMIT_CHARGES = /\bazure\b/gi;
+// Another billing account reads as a charge only in a clause that takes
+// something on (CHARGING): work often names these without paying them.
+// `openai/codex` is a repository, and `deploy` in `map-deployment` is no verb.
+const ACCOUNT_CHARGES = /\b(?:aws|gcp|google cloud|openai|openrouter|bedrock)\b(?!\/)/gi;
+const accountsTakenOn = (clause) => (CHARGING.test(clause.replace(/[\w.]+[-/][\w./-]+/g, "")) ? [...clause.matchAll(ACCOUNT_CHARGES)].map((m) => m[0].toLowerCase()) : []);
 const SAFEGUARD = /\b(?:spend(?:ing)?[- ](?:limits?|caps?)|caps?|budgets?|quotas?)\b/i;
 // The charge a clause that lowers or raises a guard on money (SPEND_LIMIT)
 // reads as when it names no cost word: changing one is the owner's call either
@@ -808,7 +813,8 @@ export function workCharges({ title, body }, charges, isPublic, taskList) {
         .flatMap(clausesOf)
         .filter((clause) => !lowersOnly(clause, charges, isPublic))
         .flatMap((clause) => {
-          const words = clauseCharges(clause, charges, isPublic);
+          const named = clauseCharges(clause, charges, isPublic);
+          const words = named.length > 0 ? named : accountsTakenOn(clause);
           return words.length === 0 && SPEND_LIMIT.test(clause) && (LOWERING.test(clause) || CHARGING.test(clause)) ? [SPEND_GUARD] : words;
         }),
     ),
