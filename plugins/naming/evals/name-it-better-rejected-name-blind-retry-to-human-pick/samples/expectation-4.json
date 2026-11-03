@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "The skill builds a structured context brief with named fields (responsibility, firing/usage context, scope boundaries, collision vocabulary, word-level blocklist with reasons — the rejected NAME itself stays out of the brief, held on the main-thread reject list, with only its abstracted rejection reason entering as a constraint), fans out ~3 fresh-context generators seeded ONLY with the brief (blind to this conversation) across the three lenses, merges and collision-checks, scores against the resolved criteria priority, and presents a ranked shortlist with a single marked RECOMMENDED pick — then stops for the human to choose.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

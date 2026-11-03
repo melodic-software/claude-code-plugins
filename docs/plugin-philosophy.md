@@ -337,7 +337,7 @@ results, not omissions; the trigger, never the date, is what obliges re-deriving
 | [Monitors](https://code.claude.com/docs/en/plugins/components#monitors) | Wait | Experimental (`experimental.monitors`); interactive-CLI-only, unsandboxed at hook trust level, no `${user_config.*}` and no `CLAUDE_PLUGIN_OPTION_*` in monitor processes; keep running after mid-session disable. Re-verify before each audit. | 2026-07-17 |
 | [Themes](https://code.claude.com/docs/en/plugins/components#themes-and-output-styles) | Wait | Experimental (`experimental.themes`); schema may change between releases. Re-verify before each audit. | 2026-07-17 |
 | [Channels](https://code.claude.com/docs/en/plugins/components#channels) | Wait | No longer carries an official experimental label, but fails the adoption gate today: no fleet gap it fills. Re-verify before each audit. | 2026-07-17 |
-| [Dependencies](https://code.claude.com/docs/en/plugins/dependencies) | Adopt on need (hard requires only) | See the design boundary: hard requires only, semver-constrained, released via `{name}--v{version}` tags. None exist in this fleet today. | 2026-07-17 |
+| [Dependencies](https://code.claude.com/docs/en/plugins/dependencies) | Adopt on need (hard requires only) | Hard requires only. Two plugins declare them, neither with a version constraint: `core` (a bundle) and `playgrounds` (a cross-marketplace dependency). | 2026-11-03 |
 
 ### Windows exec-form probe
 
