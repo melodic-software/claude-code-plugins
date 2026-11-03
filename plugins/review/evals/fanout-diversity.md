@@ -28,12 +28,11 @@ placement and the act-on cap. This file is the shape every slice of that eval fo
   only the plugins under its target and gets a temporary home, so the Codex plugin and its login
   are absent
   ([How runs are isolated](https://code.claude.com/docs/en/plugin-evals#how-runs-are-isolated)).
-  The host run has to add the Codex plugin's directory to the X cases' `plugins` and make its
-  login reachable. Without that, Codex reports a skip and the arm check marks the run invalid.
-  The fanout skill finds the plugin through `claude plugin list --json`, which lists a plugin
-  loaded with `--plugin-dir` only when that flag precedes the subcommand
-  ([Plugin commands reference](https://code.claude.com/docs/en/plugins/cli-reference#plugin-list)),
-  so the host run also has to make `codex@openai-codex` an installed plugin in the run's home.
+  Never copy the Codex login into a run's home: the model under test could read it. Run the X
+  arms outside `claude plugin eval`, one `claude -p` per run with the case's scaffold, prompt and
+  `--plugin-dir` plugins on a host where the Codex plugin is installed and logged in, stop each
+  run's Codex broker and app-server when it ends, and grade the copied report with the case's
+  graders. A run is valid only when `arm-check` and `codex-ran` both pass.
 - Run every arm with `--scaffold --allow-tools Bash Write Workflow`. Without `Workflow` the sweep
   runs fanout's main-thread fallback, not `review:fanout-sweep`. Keep `TMPDIR` out of `/tmp` and
   `/var/tmp`, where the run's Bash cannot write its workspace (#12422).
@@ -50,7 +49,8 @@ because a case carries one prompt, one plugins list and one committed `review.ya
   `context.scaffold_script: scaffold.sh`.
 - `prompt.md`: frontmatter with `runs: 3`, then the arm's prompt.
 - `scaffold.sh`: the fixture's repository, with the arm's `review.yaml` committed on `main`.
-- `graders/arm-check.md`, `graders/recall.md` and `graders/false-positive.md`.
+- `graders/arm-check.md`, `graders/recall.md` and `graders/false-positive.md`; the X arms also
+  have `graders/codex-ran.md`.
 - `samples/<grader>.json` for each grader, with at least one `pass` and one `fail` entry, each an
   `answer` and a `why`. Calibration `build` skips a grader that judges a file, so the `recall`
   and `false-positive` samples record intent for a reader, not a calibration run.
@@ -85,7 +85,8 @@ its ## Surfaces section.` (with code spans around the path, the line name and th
 - Codex sentence for `mx` and `lx`: `Run the Codex surface as one of the orchestrators, and report
   it in ## Surfaces by the status its script prints.` The skill runs it through
   `skills/fanout/scripts/codex-review.sh`, and lists Codex under `Ran` only when the script printed
-  `codex: ran`, so a skipped Codex fails the arm check.
+  `codex: ran`. The arm check reads the reply's `Ran` list; `codex-ran` confirms the script's status
+  in the trace.
 
 The copy gives the file graders one fixed path, since the persisted file's name carries a
 timestamp. The reply's last lines give the arm check its input.
@@ -130,6 +131,12 @@ The `\|` in the `m` and `mx` rows is a table escape; the grader file holds a bar
 and runs only with two or more tiers, so the `m` and `mx` checks need two non-Codex `model:`
 leaves (or two `lane-verifier` leaves from the main-thread fallback). Codex listed as a tier does
 not count toward the two.
+
+### `codex-ran.md`
+
+A `regex` grader on `trace`, X arms only, byte-identical across them. It matches a tool result or
+text block whose content starts with `codex: ran`, so a skipped or failed Codex fails it, and so does
+a read of the script or the skill, which only quote that line. A fail means an invalid run.
 
 ### `recall.md` and `false-positive.md`
 
