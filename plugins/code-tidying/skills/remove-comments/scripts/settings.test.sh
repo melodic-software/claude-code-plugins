@@ -4,8 +4,9 @@
 #
 # Self-contained and cwd-independent; it changes only its own mktemp dir.
 # Expected values come from the key contract in SKILL.md "Settings": the team file
-# docs/conventions/code-tidying.yaml, the personal overlay
-# docs/conventions/code-tidying.local.yaml winning key by key, comment_posture in
+# <home>/code-tidying.yaml, the personal overlay <home>/code-tidying.local.yaml
+# winning key by key, <home> the bound convention home (reference/config.md, default
+# docs/conventions), comment_posture in
 # auto|none|necessary|explanatory, comment_edit_scope in diff|files,
 # class_c_max_lines from 1 to 40, and an invalid layer named and dropped.
 # test-scope: plugins/code-tidying/skills/remove-comments/scripts/settings.sh
@@ -75,6 +76,32 @@ repo="$(repo_with $'comment_posture: none\ncomment_posture: necessary\n' -)"
 check 'a key set twice is invalid' \
   "comment_posture${TAB}invalid${TAB}$TEAM: set 2 times"$'\n'"comment_posture${TAB}unset${TAB}no valid value in $TEAM or $PERSONAL" \
   "$(lines_for "$repo" comment_posture)"
+
+bound_repo() { # bound_repo <pointer line>: a repository whose root file binds a convention home
+  local d
+  d="$(mktemp -d "$TMP/bound.XXXXXX")"
+  git -C "$d" init -q
+  mkdir -p "$d/config/team"
+  printf '<!-- BEGIN GENERATED: convention-home -->\n%s\n<!-- END GENERATED: convention-home -->\n' "$1" >"$d/AGENTS.md"
+  printf 'comment_posture: necessary\ncomment_edit_scope: files\n' >"$d/config/team/code-tidying.yaml"
+  printf 'comment_edit_scope: diff\n' >"$d/config/team/code-tidying.local.yaml"
+  printf '%s\n' "$d"
+}
+
+repo="$(bound_repo 'Team conventions live in `config/team`.')"
+check 'a bound home supplies the team layer' \
+  "comment_posture${TAB}necessary${TAB}config/team/code-tidying.yaml" "$(lines_for "$repo" comment_posture)"
+check 'a bound home supplies the personal overlay' \
+  "comment_edit_scope${TAB}diff${TAB}config/team/code-tidying.local.yaml" "$(lines_for "$repo" comment_edit_scope)"
+
+repo="$(bound_repo 'Team conventions live in `config/missing`.')"
+check 'a broken pointer leaves the layers out' \
+  "comment_posture${TAB}unset${TAB}the convention-home pointer is broken" "$(lines_for "$repo" comment_posture)"
+
+repo="$(repo_with $'comment_posture: necessary\n' -)"
+printf '<!-- BEGIN GENERATED: convention-home -->\ndeclined\n<!-- END GENERATED: convention-home -->\n' >"$repo/AGENTS.md"
+check 'a declined home reads docs/conventions' \
+  "comment_posture${TAB}necessary${TAB}$TEAM" "$(lines_for "$repo" comment_posture)"
 
 outside="$(mktemp -d "$TMP/plain.XXXXXX")"
 check 'outside a git working tree the layers do not apply' \

@@ -153,10 +153,10 @@ personal variation is limited to lane names the team does not track: an uncommit
 
 Six `userConfig` options. Five tune `remove-comments`, and none of them
 loosens a gate: they set what a run removes, never what it may apply without a
-proof. They also read from the team file `docs/conventions/code-tidying.yaml`
-(schema: `schemas/code-tidying.schema.json`) and its personal overlay
-`docs/conventions/code-tidying.local.yaml`, which win over `userConfig` in that
-order. The sixth, `hard_exclusions`, is `userConfig` only: it is the
+proof. They also read from the team file `<home>/code-tidying.yaml` (schema:
+`schemas/code-tidying.schema.json`) and its personal overlay
+`<home>/code-tidying.local.yaml`, `<home>` being the bound convention home, else
+`docs/conventions`; these win over `userConfig` in that order. The sixth, `hard_exclusions`, is `userConfig` only: it is the
 personal-posture channel of the exclusion override above, and loosening is its
 whole job:
 

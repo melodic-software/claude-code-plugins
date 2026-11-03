@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Read remove-comments' settings from the repository's file layers: the team file
-# docs/conventions/code-tidying.yaml and the personal overlay
-# docs/conventions/code-tidying.local.yaml, the overlay winning key by key.
+# <home>/code-tidying.yaml and the personal overlay <home>/code-tidying.local.yaml,
+# the overlay winning key by key. <home> is the bound convention home
+# (reference/config.md), docs/conventions when none is bound or it was declined.
 #
 # Usage: settings.sh [<dir>]
 #
@@ -13,14 +14,13 @@
 # and, before a key's line, one line per layer that holds an invalid value:
 #   <key><TAB>invalid<TAB><file>: <what it holds>
 # A layer that does not apply (no git working tree, a root that is $HOME or an
-# ancestor of it) prints every key as unset with that reason. The caller resolves
+# ancestor of it, a broken pointer) prints every key as unset with that reason. The caller resolves
 # userConfig and the defaults (SKILL.md "Settings"). Exit 2 on a usage error.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-READER="$HERE/../../../lib/parse-concern-value.sh"
-TEAM="docs/conventions/code-tidying.yaml"
-PERSONAL="docs/conventions/code-tidying.local.yaml"
+LIB="$HERE/../../../lib"
+READER="$LIB/parse-concern-value.sh"
 KEYS=(comment_posture comment_edit_scope encode_constraints_unattended class_c_max_lines apply_local_renames)
 
 if (($# > 1)); then
@@ -53,6 +53,16 @@ home="$(cd "$HOME" 2>/dev/null && pwd -P)" || home="$HOME"
 if [[ "$home" == "$root" || "$home" == "${root%/}/"* ]]; then
   unset_all "repository root is \$HOME or an ancestor of it"
 fi
+
+conventions="$(bash "$LIB/resolve-convention-home.sh" --root "$root" 2>/dev/null)"
+case $? in
+0) ;;
+1 | 4) conventions=docs/conventions ;;
+3) unset_all "the convention-home pointer is broken" ;;
+*) unset_all "the convention home does not apply" ;;
+esac
+TEAM="$conventions/code-tidying.yaml"
+PERSONAL="$conventions/code-tidying.local.yaml"
 
 # Sets val to the layer's valid value for a key, or bad to a description of an
 # invalid one; both stay empty when the file does not set the key.
