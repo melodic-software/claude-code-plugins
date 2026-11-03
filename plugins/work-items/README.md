@@ -324,6 +324,7 @@ reads it from.
 | `work_loop_frontier_item_cap_ceiling` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_FRONTIER_ITEM_CAP_CEILING` | Ceiling on the adaptive cap for frontier-capability-tier items in the work-loop lane, which run at concurrency 1. Default 2; keep it at or below work_loop_item_cap_ceiling. The tier is read from the provider-permissioned label only; no label means the general tier (fail-closed). |
 | `work_loop_no_progress_threshold` | number<br>*min 1* | `3` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_NO_PROGRESS_THRESHOLD` | Consecutive no-progress cycles (actionable work in view, no item advanced, no PR opened) before the work-loop lane raises its stall escalation. Default 3. The lane escalates and keeps looping. Idle cycles with nothing actionable neither count nor reset. |
 | `work_loop_in_flight_stale_days` | number<br>*min 1* | `14` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_IN_FLIGHT_STALE_DAYS` | Age in days, from the PR's createdAt, past which a candidate's open closing PR (draft or ready) stops being silently excluded and the work-loop lane escalates it to the attended queue. Default 14. The drain report names it; the lane stores no state for it. |
+| `medium` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_MEDIUM` | Where /work-items:morning-brief's status page goes. auto (default): a local file; terminal: no page; file: a local file; artifact: a private Artifact; hosted is read as artifact. A team rendered-views file never publishes. |
 
 ### How to set these
 

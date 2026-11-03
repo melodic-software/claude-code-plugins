@@ -130,14 +130,16 @@ The zone is the owner's decision on #7679; the digest row is `docs/upstream/clau
 ## Status report page
 
 Genre: reports and status. In an interactive session, read [context/view.md](context/view.md) before
-running the script: it resolves the `medium` key and, when a page is wanted, has you save the same
-output the reader sees and build a collapsible, filterable page from it. The printed brief is the
-record; the page is a view of it. The brief holds issue and pull-request titles (K2), so only
+running the script: it resolves the medium through the shared resolver and, when a page is wanted,
+has you save the same output the reader sees and build a collapsible, filterable page from it. The
+printed brief is the record; the page is a view of it. The brief holds issue and pull-request titles (K2), so only
 `scripts/build-brief-view.mjs` writes the page, from its checked-in template (`templates/brief.html`) and the lines as escaped
-JSON data. Never hand-write the page or add script to it. A scheduled run, CI, or `medium: terminal`
-prints the brief only. `context/view.md` writes this skill's directory as `<skill-dir>`, which is
-`${CLAUDE_SKILL_DIR}`, and the plugin data dir as `<plugin-data>`, which is `${CLAUDE_PLUGIN_DATA}`;
-put those paths in place of the placeholders before running a command.
+JSON data. Never hand-write the page or add script to it. A scheduled run or CI prints the brief
+only, and so does a resolved medium that builds no page. `context/view.md` writes this skill's
+directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`, the plugin root as `<plugin-root>`, which
+is `${CLAUDE_PLUGIN_ROOT}`, the plugin data dir as `<plugin-data>`, which is `${CLAUDE_PLUGIN_DATA}`,
+and this plugin's `medium` option as `<medium option>`, which is `${user_config.medium}`; put those
+values in place of the placeholders before running a command.
 
 ## Degraded sections
 

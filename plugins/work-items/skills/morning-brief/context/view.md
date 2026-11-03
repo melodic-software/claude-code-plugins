@@ -16,27 +16,30 @@ data, never from markup or script you write. Do not edit the page after it is bu
 
 ## Resolve the medium
 
-Before running the script, first hit wins:
+Before running the script, run the shared medium resolver. When the reader named a medium in the
+request, add `--argument <medium>`, `<medium>` being that word, and take the word out of
+`$ARGUMENTS` before running either script below, since `morning-brief.sh` rejects it:
 
-1. The `medium` key of the `rendered-views` cascade: read whichever of `~/.claude/rendered-views.md`,
-   `<root>/.claude/rendered-views.md` and `<root>/.claude/rendered-views.local.md` exist. `<root>` is
-   `${CLAUDE_PROJECT_DIR}` when set, otherwise `git rev-parse --show-toplevel`, never the working
-   directory. When `<root>` is `$HOME`, an ancestor of `$HOME`, or not inside a git working tree, the team
-   and overlay layers are not applicable: say so and read the user-global layer only. A team or overlay path
-   that is the same file as the user-global one is skipped. A team layer that is not tracked is a hard stop;
-   an overlay that is staged or not gitignored is reported, not honored. The last layer that states
-   `medium:` wins. A layer that is malformed is reported and treated as absent.
-2. `auto`, which is also the value when no layer states one.
+```bash
+node "<plugin-root>/lib/view-settings.mjs" resolve --lane work-items:morning-brief --option "<medium option>"
+```
 
-| `medium` | Result |
-|---|---|
-| `terminal` | The brief only. Build nothing. |
-| `file`, or `auto` in an interactive session | Build the page to an untracked temp file and tell the reader its path. |
-| `artifact`, or `hosted` (never sent to a page host here) | From the team layer, which a checked-out branch can write: take the `file` row and say a team layer cannot publish. From any other layer: build the page, then publish that file with the Artifact tool when it is available. Otherwise take the `file` row and say why. Publishing does not lower the page's class. |
+It prints one JSON line, then the report line naming the medium and what decided it, then one line
+per notice; print the report and notice lines as they stand. The JSON's `medium` is the one to use.
+The resolver weighs the request, this plugin's `medium` option and the repository's rendered-views
+convention files, and never publishes on a team file's value: leave reading and weighing those
+files to it. When `node` is missing, the builder cannot run either: say so and print the brief only.
+When the resolver exits non-zero, it named a medium it does not know: print its stderr and run it
+again without `--argument`.
 
-Any other value is reported and treated as `auto`. Name the layer that supplied the value when you
-report the choice. Pointer: `docs/contracts/rendered-views/README.md` in the marketplace repository,
-"The `rendered-views` cascade concern".
+Deliver on the resolved medium. Read `<plugin-root>/lib/view-registry.mjs` and take the entry in
+`MEDIUMS` keyed by the JSON's `medium`:
+
+- Its `deliver` returns `location: "terminal"`: the brief only. Build nothing.
+- Any other entry: build the page (below) to an untracked temp file. When the entry's `publishes` is
+  `true`, publish that file with the Artifact tool when it is available, otherwise give the path and
+  say why in one line. When it is `false`, give the path. Publishing does not lower the page's
+  class.
 
 ## Build
 
