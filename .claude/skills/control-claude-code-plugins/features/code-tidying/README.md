@@ -4,6 +4,7 @@ The skills of `plugins/code-tidying`. Each one is driven with `<plugin-dir>` set
 
 ## Parts
 
+- `audit-comment-residue`: Classify code comments for history narration and session-reference residue.
 - `audit-dead-code`: Whole-repo dead-code hunt across four labeled lanes with adjudicated candidates.
 - `batch-simplify`: Batch-run simplification across changed files, or a whole repository, by ecosystem.
 - `remove-comments`: Remove comments that do not earn their keep, under a posture; audit comment residue read-only.

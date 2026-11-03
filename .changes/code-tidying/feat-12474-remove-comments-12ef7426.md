@@ -11,8 +11,8 @@ bump: minor
 
 ### Changed
 
-- `/code-tidying:dissolve-comments` is now `/code-tidying:remove-comments`, and `/code-tidying:audit-comment-residue` is its `audit` action. The old `aggressive` and `strip` tokens still work as `necessary` and `none`, and the old posture values still resolve. A linked workaround comment no longer survives `necessary`: it is deleted and listed as open root-cause work.
+- `/code-tidying:dissolve-comments` is now `/code-tidying:remove-comments`, which gains an `audit` action that holds the residue classifier. `/code-tidying:audit-comment-residue` stays as a read-only skill that runs that action. The old `aggressive` and `strip` tokens still work as `necessary` and `none`, and the old posture values still resolve. A linked workaround comment no longer survives `necessary`: it is deleted and listed as open root-cause work.
 
 ### Removed
 
-- The `dissolve-comments` and `audit-comment-residue` skills.
+- The `dissolve-comments` skill.

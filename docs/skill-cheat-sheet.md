@@ -180,6 +180,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
+| [`/code-tidying:audit-comment-residue`](../plugins/code-tidying/skills/audit-comment-residue/SKILL.md) | `code-tidying` | Classify code comments for history narration and session-reference residue |
 | [`/code-tidying:batch-simplify`](../plugins/code-tidying/skills/batch-simplify/SKILL.md) | `code-tidying` | Batch-run simplification across changed files, or a whole repository, by ecosystem |
 | [`/code-tidying:remove-comments`](../plugins/code-tidying/skills/remove-comments/SKILL.md) | `code-tidying` | Remove comments that do not earn their keep, under a posture; audit comment residue read-only |
 | [`/code-tidying:tidy-diff`](../plugins/code-tidying/skills/tidy-diff/SKILL.md) | `code-tidying` | Tidy one change's own lines before its commit, scoped by a file-and-line list |

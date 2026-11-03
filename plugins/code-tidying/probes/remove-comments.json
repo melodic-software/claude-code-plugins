@@ -2,8 +2,9 @@
   "skill": "code-tidying:remove-comments",
   "plugin": "code-tidying",
   "skill_dir": "plugins/code-tidying/skills/remove-comments",
-  "ranking_note": "Authored blind from the before descriptions at commit 11916cbf93f741882f68780cca63b74a30919980, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are every other model-invoked code-tidying skill (setup is user-invoked only). Queries with an acr- prefix, and neg-train-01 and neg-val-01 (now expected to trigger), cover the audit action.",
+  "ranking_note": "Authored blind from the before descriptions at commit 11916cbf93f741882f68780cca63b74a30919980, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are every other model-invoked code-tidying skill (setup is user-invoked only).",
   "competitors": [
+    "code-tidying:audit-comment-residue",
     "code-tidying:audit-dead-code",
     "code-tidying:batch-simplify",
     "code-tidying:tidy"
@@ -66,7 +67,7 @@
     {
       "id": "neg-train-01",
       "split": "train",
-      "expect_trigger": true,
+      "expect_trigger": false,
       "request": "Flag comments that reference our earlier conversation, but do not change anything."
     },
     {
@@ -102,7 +103,7 @@
     {
       "id": "neg-val-01",
       "split": "validation",
-      "expect_trigger": true,
+      "expect_trigger": false,
       "request": "Report which comments in the diff mention ticket numbers or PRs."
     },
     {
@@ -116,60 +117,6 @@
       "split": "validation",
       "expect_trigger": false,
       "request": "Find TODO comments and turn them into tracker issues."
-    },
-    {
-      "id": "acr-pos-train-01",
-      "split": "train",
-      "expect_trigger": true,
-      "request": "Before I commit this, look through the comments Claude added and flag any that talk about our chat or the plan."
-    },
-    {
-      "id": "acr-pos-train-02",
-      "split": "train",
-      "expect_trigger": true,
-      "request": "Some comments in src/payments say things like 'changed from the old approach'; can you list which ones are leftover narration?"
-    },
-    {
-      "id": "acr-pos-train-03",
-      "split": "train",
-      "expect_trigger": true,
-      "request": "Find comments in this module that point at JIRA tickets or PR numbers instead of explaining the code."
-    },
-    {
-      "id": "acr-pos-train-04",
-      "split": "train",
-      "expect_trigger": true,
-      "request": "Which code comments on this branch only make sense if you read the conversation that produced them?"
-    },
-    {
-      "id": "acr-pos-train-05",
-      "split": "train",
-      "expect_trigger": true,
-      "request": "Scan the services folder for comments like 'per step 3' or 'as you asked' and report them without editing anything."
-    },
-    {
-      "id": "acr-pos-train-06",
-      "split": "train",
-      "expect_trigger": true,
-      "request": "Review the comments in my diff for history lessons that belong in the commit message rather than the source."
-    },
-    {
-      "id": "acr-pos-val-01",
-      "split": "validation",
-      "expect_trigger": true,
-      "request": "Are there any comments in lib/ that say where the code was copied from or who asked for it?"
-    },
-    {
-      "id": "acr-pos-val-02",
-      "split": "validation",
-      "expect_trigger": true,
-      "request": "Do a read-only pass over the comments in this PR and tell me which ones are stale storytelling."
-    },
-    {
-      "id": "acr-pos-val-03",
-      "split": "validation",
-      "expect_trigger": true,
-      "request": "I suspect the agent left 'now uses X instead of Y' style notes everywhere in the code, can you classify them?"
     }
   ]
 }

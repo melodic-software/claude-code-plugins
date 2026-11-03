@@ -1,5 +1,5 @@
 ---
-description: "Edits code so its comments earn their keep under a posture (none or 'strip', necessary or 'aggressive', explanatory): deletes zero-information comments, renames or restructures so explanatory ones can go, keeps terse load-bearing ones; a 'safe' mode, and an edit-free 'report'. Its audit action is a read-only classifier that flags residue in code comments and edits nothing: history narration, plan or session references, conversational asides, ticket or PR back-references, origin notes, and workarounds with no link or removal condition. Use when asked to 'remove comments' or 'dissolve comments', when code has too many or agent-written comments, or to make code self-documenting; use its audit action when asked to 'audit code comments' or report which comments only make sense with the chat, plan, or ticket behind them, before a commit or on review."
+description: "Edits code so its comments earn their keep under a posture (none or 'strip', necessary or 'aggressive', explanatory): deletes zero-information comments, renames or restructures so explanatory ones can go, keeps terse load-bearing ones; a 'safe' mode, and an edit-free 'report'. Use when asked to 'remove comments' or 'dissolve comments', when code has too many or agent-written comments, or to make code self-documenting. Read-only residue flagging is /code-tidying:audit-comment-residue."
 argument-hint: "[audit|report|safe] [none|necessary|explanatory] [override] [--pipeline] [target]"
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/scope-code-files.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/added-lines.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/comment-tooling-probe.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/change-shape.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/comment-census.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/commented-out-code.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/rank-comment-targets.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/settings.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/changed-code-files.sh:*)", "Bash(git branch:*)", "Bash(git log:*)", "Bash(git ls-files:*)", "Bash(git diff:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(echo:*)"]
 disable-model-invocation: false
@@ -237,7 +237,6 @@ Doctrine, with what each source contributes and two misreadings corrected:
 | Old | Now |
 |---|---|
 | `/code-tidying:dissolve-comments` | `/code-tidying:remove-comments` |
-| `/code-tidying:audit-comment-residue` | `/code-tidying:remove-comments audit` |
 | `strip` | `none` |
 | `aggressive` | `necessary` |
 | posture `strict`, `balanced` | `explanatory` |

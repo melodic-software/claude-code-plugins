@@ -5,7 +5,7 @@ Beck's *Tidy First?* discipline agentically: small named tidyings, separated
 from behavioral changes by commit and by PR, under the shared PR scope budget
 shipped as [`reference/pr-scope-budget.md`](reference/pr-scope-budget.md).
 
-Six skills, one capability:
+Seven skills, one capability:
 
 - **`/code-tidying:remove-comments`**. Removes the comments in a diff or target
   that do not earn their keep (a clean tree widens to the branch diff, then to
@@ -32,6 +32,8 @@ Six skills, one capability:
   cross-language commented-out-code detector, and probes its reading layers
   (`scc`, `pygments`, `tree-sitter`, `pwsh`, `ruff`, `ast-grep`) at run time,
   naming what each absent one costs.
+- **`/code-tidying:audit-comment-residue`**. Flags out-of-context comment residue
+  and edits nothing, by running `remove-comments`' `audit` action.
 - **`/code-tidying:tidy`**. Proactively hunts a rotated, glob-scoped *lane* of
   the codebase for safe structural improvements (Beck's 15 tidyings + a Fowler
   subset + prose tidyings), applies scope-budgeted edits, and ships one tight
