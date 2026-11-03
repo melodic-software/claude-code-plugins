@@ -3,6 +3,15 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.3.0] - 2026-11-03
+
+### Changed
+
+- `interview`, `design`, `plan`: each states the level it decides: behavior for the interview, interfaces and contracts for design, files and symbols for plan (#12663).
+- `interview`, `wayfind`, `audit-answers`, `questionnaire`: `workflow-stage` is now `interview`, matching the workflow's renamed stage 1 (#12663).
+- `prd`, `wayfind`, README: the stated order is interview first, calling a PRD when product intent is unsettled; `prd` hands off to the interview in the same session instead of after clearing context (#12663).
+- `planning` tests: `decision-levels.test.sh` fails when any of the three stage skills loses or duplicates its level line.
+
 ## [1.2.0] - 2026-11-03
 
 ### Added

@@ -603,7 +603,7 @@
     {
       "id": 48,
       "name": "fanout-diversity-invalid-repository-value-drops-to-default",
-      "prompt": "/review:fanout run-everything\n\n[Scenario: the Workflow tool is available; a reviewable branch of 140 changed lines under greenhouse/sensors/, none of them in docs/conventions/. The user option renders as `model`. The setup-apply --check run exits 1 and prints `PASS downstream_probe: (unset)` and a WARN line saying docs/conventions/review.yaml sets fanout_diversity=models, which is not one of lens, model.]",
+      "prompt": "/review:fanout run-everything\n\n[Scenario: the Workflow tool is available; a reviewable branch of 140 changed lines under greenhouse/sensors/, none of them in docs/conventions/. The user option renders as `model`. The setup-apply --check run exits 1 and prints `PASS downstream_probe: (unset)` and a WARN line saying docs/conventions/review.yaml sets fanout_diversity=models, which is not one of lens, model, codex.]",
       "expected_output": "Names the file docs/conventions/review.yaml, the key fanout_diversity and the value models, and drops the repository layer for that key. No valid layer above it remains, so the key takes its default: reports `fanout_diversity: lens (default)` and launches with args.diversity set to lens. It does not fall back to the user option's model, and the run continues.",
       "files": [],
       "narration": true,
@@ -627,6 +627,35 @@
         "Reports fanout_diversity as `lens` from the default layer",
         "Launches the review:fanout-sweep workflow with args.diversity \"lens\"",
         "Does NOT take model from the edited docs/conventions/review.yaml"
+      ]
+    },
+    {
+      "id": 50,
+      "name": "fanout-diversity-codex-panel-runs-codex-when-present",
+      "prompt": "/review:fanout run-everything\n\n[Scenario: the Workflow tool is available; a reviewable branch of 110 changed lines under orders/, none of them in docs/conventions/, review base origin/main. The skill text shows the user option as the literal placeholder ${user_config.fanout_diversity}. The setup-apply --check run prints `PASS downstream_probe: (unset)` and `PASS fanout_diversity: codex`. codex@openai-codex is installed and logged in, so `codex-review.sh --base origin/main` prints `codex: ran` and then one finding.]",
+      "expected_output": "Reports `fanout_diversity: codex (docs/conventions/review.yaml)`. Runs `codex-review.sh --base origin/main` and again with `--adversarial` on the main thread, never a /codex:* command, and reports `panel: codex ran`. Launches review:fanout-sweep with args.diversity set to lens, so the lens roster runs and no model-tier lane-verifier leaves are dispatched. The ## Surfaces Ran list names Codex, and Codex's finding enters normalization.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports the line `fanout_diversity: codex (docs/conventions/review.yaml)`",
+        "Runs skills/fanout/scripts/codex-review.sh with --base origin/main, and again with --adversarial, rather than invoking /codex:review",
+        "Reports the line `panel: codex ran`",
+        "Launches the review:fanout-sweep workflow with args.diversity \"lens\", not \"model\" or \"codex\"",
+        "Lists Codex under the ## Surfaces Ran entry"
+      ]
+    },
+    {
+      "id": 51,
+      "name": "fanout-diversity-codex-panel-reports-skipped-when-absent",
+      "prompt": "/review:fanout run-everything\n\n[Scenario: the Workflow tool is available; a reviewable branch of 80 changed lines under warehouse/, none of them in docs/conventions/, review base origin/main. The user option renders as `codex`. The setup-apply --check run prints `INFO docs/conventions/review.yaml: absent; every key resolves from userConfig or its default`. codex@openai-codex is not installed, so `codex-review.sh --base origin/main` prints only `codex: skipped (codex@openai-codex is not installed or not enabled)`.]",
+      "expected_output": "Reports `fanout_diversity: codex (user option)` and `panel: codex skipped (codex@openai-codex is not installed or not enabled)`. Does not list Codex under Ran; the ## Surfaces line ends with `codex: skipped (codex@openai-codex is not installed or not enabled)`. The sweep does not stop: it launches review:fanout-sweep with args.diversity set to lens and persists the lens roster's findings.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports fanout_diversity as `codex` supplied by the user option layer",
+        "Reports the line `panel: codex skipped (codex@openai-codex is not installed or not enabled)`",
+        "Does NOT list Codex under the ## Surfaces Ran entry, and ends the ## Surfaces line with the codex: skipped status",
+        "Still launches the review:fanout-sweep workflow with args.diversity \"lens\" and persists the findings"
       ]
     }
   ]

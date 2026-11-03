@@ -133,6 +133,11 @@ linked item vouched for by a human (written by one with write access, or given t
 label by one in person with no body edit after). That skill's safety reference defines it, section
 "Unattended Merge Path".
 
+The babysit loop's rung partition (`/source-control:babysit-loop`, cycle step 3) is a third. It
+admits a change request at a rung once that rung's promotion cells are promoted, whatever class its
+item carries, none included, and holds only `C5`. Its promotion-evidence publisher credits each
+autonomous merge to the cells of the rung its lane pin names, never to a class.
+
 ## Promotion and demotion
 
 This promotion apparatus is a numeric predicate, a human-ratified flip, and automatic

@@ -85,7 +85,10 @@ cause for a behavior correction. Sometimes the right outcome is no check: the mo
 complies, the action is reversible, or the repo has nothing to wire a check into. An existing check
 that should have caught the mistake but is unwired (no CI or pre-commit step runs it) or broken is
 the finding, reported before any new check is proposed. A repo with no CI or pre-commit step to
-wire a check into is still reported as a finding, even when no check is proposed.
+wire a check into is still reported as a finding. It proposes a check only when a mistake in this
+session is one that check would have caught; otherwise it is reported as a standing gap with no
+proposal, since a check proposed from general practice rather than a session event tends to go
+unread by later sessions ([Treude and Baltes, RQ1](https://arxiv.org/html/2610.34938v1)).
 
 ## Memory
 

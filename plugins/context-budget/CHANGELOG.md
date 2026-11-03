@@ -7,6 +7,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [1.0.1] - 2026-11-03
+
+### Changed
+
+- The README, `/context-budget:audit` and its engine and report references no longer restate
+  upstream behavior: what `/context` itemizes, the skill-frontmatter subtraction from
+  `System tools` (now recorded as the engine's own observation), the bundled `explain-usage`
+  skill's description, the skill listing budget's unit, and what `/skill-doctor` and `/doctor`
+  cover. Each keeps its own rule and links the upstream section, or the local record where no
+  upstream page documents the fact, with an as-of date and a recheck trigger.
+
 ## [1.0.0] - 2026-11-03
 
 ### Removed
