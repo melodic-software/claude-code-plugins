@@ -4,7 +4,7 @@ bump: major
 
 ### Added
 
-- A `medium` option for the `/work-items:triage` board page ([#12711](https://github.com/melodic-software/claude-code-plugins/issues/12711)). Unset or `auto`, the page goes to a local file as before.
+- A `medium` option for the `/work-items:triage` board page ([#12711](https://github.com/melodic-software/claude-code-plugins/issues/12711)). Unset or `auto`, the page goes to a local file as before. Its fixed list of values is the plugin's first `options` field, so this plugin now needs Claude Code v2.1.271 or later.
 
 ### Changed
 
