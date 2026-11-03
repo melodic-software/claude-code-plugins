@@ -127,6 +127,10 @@ case "$verb" in
     echo "✘ Failed to clone marketplace repository"
     exit 1
   fi
+  # A refresh that only moves that file's mtime, or writes that settings file.
+  [[ -z "${CLAUDE_STUB_REFRESH_TOUCH:-}" ]] || touch "$CLAUDE_STUB_REFRESH_TOUCH"
+  [[ -z "${CLAUDE_STUB_REFRESH_SETTINGS:-}" ]] ||
+    printf '{"enabledPlugins":{"alpha@market1":false}}\n' >"$CLAUDE_STUB_REFRESH_SETTINGS"
   # A refresh rewrites the marketplace's lastUpdated, as the real one does.
   if [[ -n "${CLAUDE_STUB_REFRESH_STAMP:-}" ]]; then
     jq --arg mp "$mp" --arg t "$CLAUDE_STUB_REFRESH_STAMP" '.[$mp].lastUpdated = $t' \
@@ -3413,6 +3417,91 @@ assert_eq "refresh skip: a remote that moved on runs the refresh" "1" \
   "$(grep -c 'plugin marketplace update market1' "$case_dir/claude.log")"
 assert_eq "refresh skip: and its exit status is recorded" "0" \
   "$(jq -c '.marketplaces[0].refresh.rc' <<<"$out")"
+
+# ============================================================================
+# Cases: snapshot reuse. A read whose inputs (every path fleet-state.sh read) keep
+# their mtime and size reuses the stored report; a changed or newly created input
+# makes the next read run fleet-state.sh again. A current fleet takes five reads
+# (pre-refresh, pre, mid, pre-install, post) and the stub refresh is the only CLI
+# call, so the stub's refresh knobs are the only thing that changes a file.
+# ============================================================================
+reuse_case() {
+  CASE_NUM=$((CASE_NUM + 1))
+  case_dir=$(new_case_dir)
+  catalog_plugin "$case_dir" market1 alpha 0.1.0
+  write "$case_dir/installed_plugins.json" '{
+  "version": 1,
+  "plugins": {"alpha@market1": [{"scope": "user", "installPath": "y", "version": "0.1.0"}]}
+}'
+  write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+  write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}]}'
+  write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
+  mkdir -p "$case_dir/.claude"
+  setup_case "$case_dir"
+  # Inputs written a minute ago, so the first read's report can be stored.
+  find "$case_dir" -exec touch -d "@$(($(date +%s) - 60))" {} +
+  write "$case_dir/stubs/fleet-state.sh" "#!/usr/bin/env bash
+printf '%s\n' \"\$*\" >>\"$case_dir/fs.log\"
+exec bash \"$SCRIPT_DIR/fleet-state.sh\" \"\$@\"
+"
+  chmod +x "$case_dir/stubs/fleet-state.sh"
+  : >"$case_dir/fs.log"
+}
+# reuse_run <extra env...>: a sync run; sets out, run_dir and reads (the live
+# fleet-state.sh reads, projections left out).
+reuse_run() {
+  EXTRA_ENV=(SYNC_RUN_FLEET_STATE="$case_dir/stubs/fleet-state.sh" CLAUDE_PROJECT_DIR="$case_dir" CC_STUB_CLEAN=1 "$@")
+  out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+  run_dir=$(jq -r '.run_dir' <<<"$out")
+  reads=$(grep -vc -- '--from' "$case_dir/fs.log")
+}
+
+reuse_case
+reuse_run
+assert_eq "reuse: an unchanged fleet runs fleet-state.sh once for five reads" "1" "$reads"
+assert_eq "reuse: the journal names each of the four reuses" "4" \
+  "$(grep -c '^# fleet-state reuse ' "$run_dir/journal.log")"
+assert_contains "reuse: the journal names the read the report came from" \
+  "$(cat "$run_dir/journal.log")" "# fleet-state reuse post: inputs unchanged since the pre-refresh read"
+env FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
+  FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
+  FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" FLEET_STATE_CATALOG_DIR="$case_dir/catalog" \
+  CLAUDE_PROJECT_DIR="$case_dir" bash "$SCRIPT_DIR/fleet-state.sh" --marketplace market1 >"$case_dir/fresh.json"
+assert_eq "reuse: a reused report has the bytes a fresh read gives" "same" \
+  "$(cmp -s "$case_dir/fresh.json" "$run_dir/post.market1.json" && echo same || echo differ)"
+
+reuse_case
+reuse_run CLAUDE_STUB_REFRESH_STAMP=2026-02-02T00:00:00Z
+assert_eq "reuse: a rewritten input runs fleet-state.sh again" "2" "$reads"
+assert_eq "reuse: and the read after the rewrite sees it" "2026-02-02T00:00:00Z" \
+  "$(jq -r '.marketplace.lastUpdated' "$run_dir/pre.market1.json")"
+
+reuse_case
+reuse_run CLAUDE_STUB_REFRESH_TOUCH="$case_dir/user_settings.json"
+assert_eq "reuse: an input whose mtime alone moved runs fleet-state.sh again" "2" "$reads"
+assert_contains "reuse: the journal names that read" "$(cat "$run_dir/journal.log")" "# fleet-state read pre: "
+
+reuse_case
+reuse_run CLAUDE_STUB_REFRESH_SETTINGS="$case_dir/.claude/settings.local.json"
+assert_eq "reuse: a created settings file runs fleet-state.sh again" "2" "$reads"
+assert_eq "reuse: and the read after it sees the new scope" "false" \
+  "$(jq -r '.enabled["alpha@market1"]' "$run_dir/pre.market1.json")"
+
+# An `ask` pass stops on the install gap; a re-entry that installs nothing reads
+# nothing new, so it reuses the first pass's last report.
+reuse_case
+catalog_plugin "$case_dir" market1 beta 0.1.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
+find "$case_dir" -exec touch -d "@$(($(date +%s) - 60))" {} +
+EXTRA_ENV=(SYNC_RUN_FLEET_STATE="$case_dir/stubs/fleet-state.sh" CLAUDE_PROJECT_DIR="$case_dir" CC_STUB_CLEAN=1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new ask --journal-root "$case_dir/journal")
+run_dir=$(jq -r '.run_dir' <<<"$out")
+assert_eq "reuse: the ask pass stopped before install" "true" \
+  "$(jq -r '.marketplaces[0].stopped_before_install' <<<"$out")"
+: >"$case_dir/fs.log"
+out=$(run_sync "$case_dir" --only-install "" --run-dir "$run_dir")
+assert_eq "reuse: an --only-install re-entry that installs nothing runs no fleet-state.sh read" "0" \
+  "$(grep -vc -- '--from' "$case_dir/fs.log")"
 
 # ============================================================================
 if ((FAILED > 0)); then

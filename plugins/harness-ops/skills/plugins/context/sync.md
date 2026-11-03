@@ -136,6 +136,16 @@ the rule above. Re-reading state before each of sixty-odd calls would buy nothin
 serialization point, so no call tears a file, and losing the race on one id leaves that id at the
 version whoever won it wrote: the call degrades to a no-op.
 
+A re-read whose inputs did not change reuses the last report instead of running `fleet-state.sh`
+again. `fleet-state.sh` lists every path it read, absent ones included, and `sync-run.sh` reuses
+that read's report while each path keeps its mtime and size. A changed, created or removed path
+makes the read run again. The reuse holds within one invocation and into an `--only-install`
+re-entry run from the same directory and environment. `journal.log` records each read as
+`# fleet-state read <step>: elapsed <seconds>s, exit <rc>, ...` and each reuse as
+`# fleet-state reuse <step>: inputs unchanged since the <step> read`. The fingerprint does not
+cover the project root `git rev-parse` resolves when `CLAUDE_PROJECT_DIR` is unset, or a retargeted
+symlink.
+
 **The CLI's text cannot tell that race from a true no-op, but the run's snapshots can.** An id the
 CLI reports "already at the latest version (X)" is consistent with both a plugin that was current and
 one that something else moved after the pre-mutation read, so the script never decides from that

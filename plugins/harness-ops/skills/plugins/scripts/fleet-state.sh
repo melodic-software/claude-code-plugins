@@ -259,6 +259,13 @@
 #                          `currentProject` install flag. Falls back to the
 #                          cwd's git toplevel when unset (verified empirically
 #                          not reliably exported in every invocation context).
+#
+# Set by sync-run.sh:
+#   FLEET_STATE_READ_LIST  — a file this run writes on exit: every path it read
+#                          or tested, one per line, absent ones included, so the
+#                          caller can fingerprint the inputs by mtime and size.
+#                          Not covered by it: the `git rev-parse` fallback above
+#                          and the `realpath` resolution of symlinks.
 
 set -uo pipefail
 
@@ -693,6 +700,13 @@ if [[ -n "$FROM_REPORT" ]]; then
   exit 0
 fi
 
+# Every path read or tested from here on, written to FLEET_STATE_READ_LIST on exit.
+FS_READ_SET=()
+read_set() { [[ -z "${FLEET_STATE_READ_LIST:-}" ]] || FS_READ_SET+=("$@"); }
+[[ -z "${FLEET_STATE_READ_LIST:-}" ]] ||
+  trap 'printf "%s\n" ${FS_READ_SET[@]+"${FS_READ_SET[@]}"} >"$FLEET_STATE_READ_LIST"' EXIT
+read_set "$INSTALLED_JSON" "$MARKETPLACES_JSON" "$USER_SETTINGS"
+
 # --- Fail-loud presence checks for internal (undocumented) CC state -----------
 # These files are CC-internal, not a published contract. A shape drift means
 # our assumptions are stale — better to fail loud here than silently emit an
@@ -747,6 +761,7 @@ home_norm=""
 key_json=""
 plugin_root="${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT_DEFAULT}"
 prime_paths=()
+[[ -n "$PROJECT_ROOT" || "$MODE" == "list" ]] || read_set "$PWD/.claude"
 if [[ -z "$PROJECT_ROOT" && "$MODE" != "list" && -d "$PWD/.claude" ]]; then
   # `pwd -W` (Git Bash) yields the native drive-letter spelling — the form
   # CC-written projectPath records carry. A raw MSYS mount alias like /tmp
@@ -766,6 +781,7 @@ if [[ -z "$PROJECT_ROOT" && "$MODE" != "list" && -d "$PWD/.claude" ]]; then
   # success WITHOUT changing directory would otherwise make home_native the
   # cwd, so every corroborated non-git project would compare equal to $HOME and
   # lose its project settings entirely.
+  [[ -z "${HOME:-}" ]] || read_set "$HOME"
   if [[ -n "${HOME:-}" && -d "$HOME" ]]; then
     native_cwd_to home_native "$HOME"
   fi
@@ -872,6 +888,7 @@ fi
 settings_args=()
 [[ -f "$USER_SETTINGS" ]] && settings_args+=(--rawfile us "$USER_SETTINGS")
 if [[ -n "$PROJECT_ROOT" ]]; then
+  read_set "$PROJECT_ROOT/.claude/settings.json" "$PROJECT_ROOT/.claude/settings.local.json"
   [[ -f "$PROJECT_ROOT/.claude/settings.json" ]] &&
     settings_args+=(--rawfile ps "$PROJECT_ROOT/.claude/settings.json")
   [[ -f "$PROJECT_ROOT/.claude/settings.local.json" ]] &&
@@ -1030,7 +1047,9 @@ settings_bundle=""
 for pp in ${pp_lines[@]+"${pp_lines[@]}"}; do
   [[ -n "$pp" ]] || continue
   pp_fs="${pp//\\//}"
+  read_set "$pp_fs"
   if [[ -d "$pp_fs" ]]; then
+    read_set "$pp_fs/.git" "$pp_fs/.claude/settings.json"
     # A third column says whether the directory is a LINKED git worktree: its
     # `.git` is a file whose `gitdir:` line points into `<common>/worktrees/<name>`
     # (the git dir differs from the git common dir). A submodule's `.git` file is
@@ -1056,6 +1075,7 @@ for pp in ${pp_lines[@]+"${pp_lines[@]}"}; do
         /* | ?:/*) ;;
         *) pp_gd="$pp_fs/$pp_gd" ;;
         esac
+        read_set "$pp_gd/commondir"
         [[ -f "$pp_gd/commondir" ]] && pp_linked="true"
         ;;
       *) ;;
@@ -1333,6 +1353,7 @@ emit_marketplace() {
 
   if [[ -n "${FLEET_STATE_CATALOG_DIR:-}" ]]; then
     local fixture="$FLEET_STATE_CATALOG_DIR/$name.json"
+    read_set "$fixture"
     if [[ ! -f "$fixture" ]]; then
       error_block_to FS_BLOCK "$name" "no catalog fixture" "$auto_update_json" "$last_updated"
       return 1
@@ -1340,6 +1361,7 @@ emit_marketplace() {
     catalog_json="$fixture"
   else
     catalog_json="$install_location/.claude-plugin/marketplace.json"
+    read_set "$catalog_json"
     if [[ ! -f "$catalog_json" ]]; then
       error_block_to FS_BLOCK "$name" "marketplace.json not found at installLocation" "$auto_update_json" "$last_updated"
       return 1
@@ -1421,6 +1443,7 @@ emit_marketplace() {
     *) ;;
     esac
     cv_manifest=""
+    [[ -z "$cv_rel" ]] || read_set "$manifest_base/$cv_rel/.claude-plugin/plugin.json"
     if [[ -n "$cv_rel" && -f "$manifest_base/$cv_rel/.claude-plugin/plugin.json" ]]; then
       cv_manifest="$manifest_base/$cv_rel/.claude-plugin/plugin.json"
       prime+=("$cv_manifest")
@@ -1531,6 +1554,7 @@ if [[ "$MODE" == "default" && -z "$resolved_target" && -n "$phys_root" ]]; then
   mk_probe="$phys_root"
   for ((walk_level = 0; walk_level < 32; walk_level++)); do
     mk_manifest="$mk_probe/.claude-plugin/marketplace.json"
+    read_set "$mk_manifest"
     if [[ -f "$mk_manifest" ]]; then
       mk_candidate=""
       jq_to mk_candidate -r '.name // "" | if type == "string" then . else "" end' \
