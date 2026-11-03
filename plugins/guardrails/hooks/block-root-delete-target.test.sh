@@ -897,7 +897,22 @@ expect_both 'unset suffixed: read -a with a locale-quoted name blocks' 2 "${RDT_
 expect_both 'unset suffixed: printf -v with an ANSI-C escaped name blocks' 2 "${RDT_CWD[@]}" --command "S=/tmp; printf -v \$'\\x53' '/ tmp'; rm -rf \$S/x"
 expect_both 'unset suffixed: printf -v with a glued ANSI-C name blocks' 2 "${RDT_CWD[@]}" --command "S=/tmp; printf -v\$'S' '/ tmp'; rm -rf \$S/x"
 expect_both 'unset suffixed: a spaced subscript assignment blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; S[ 0 ]="/ tmp"; rm -rf $S/x'
-expect_both 'unset suffixed: a subscript only inside a string stays allowed' 0 "${RDT_CWD[@]}" --command 'S=/tmp/x; echo "S[1]"; echo "$(date)"; rm -rf $S/y'
+# Past the read, assignment and `for` forms, any mention of the name refuses,
+# even one only inside a string: the allowlist does not parse quotes.
+expect_both 'unset suffixed: the name inside a string blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp/x; echo "S[1]"; echo "$(date)"; rm -rf $S/y'
+expect_both 'unset suffixed: a quoted printf name with an ANSI-C name blocks' 2 "${RDT_CWD[@]}" --command "S=/tmp; pr\"\"intf -v \$'\\x53' '/ tmp'; rm -rf \$S/x"
+expect_both 'unset suffixed: a quoted printf name with a locale-quoted name blocks' 2 "${RDT_CWD[@]}" --command "S=/tmp; p''rintf -v \$\"S\" '/ tmp'; rm -rf \$S/x"
+expect_both 'unset suffixed: a quoted read name with a locale-quoted name blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; re""ad -a $"S" <f; rm -rf $S/x'
+expect_both 'unset suffixed: a quoted declare subscript blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; declare "S[0]"="/ tmp"; rm -rf $S/x'
+expect_both 'unset suffixed: a declare subscript with a quoted index blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; declare S"[0]"=x; rm -rf $S/x'
+expect_both 'unset suffixed: a quoted export assignment blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; export "S=/ tmp"; rm -rf $S/x'
+expect_both 'unset suffixed: a quoted readonly assignment blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; readonly "S=/ tmp"; rm -rf $S/x'
+expect_both 'unset suffixed: an ANSI-C export assignment blocks' 2 "${RDT_CWD[@]}" --command "S=/tmp; export \$'S=/ tmp'; rm -rf \$S/x"
+expect_both 'unset suffixed: a printf name from a default expansion blocks' 2 "${RDT_CWD[@]}" --command "S=/tmp; printf -v \${x:-S} '/ tmp'; rm -rf \$S/x"
+expect_both 'unset suffixed: a printf name from a brace expansion blocks' 2 "${RDT_CWD[@]}" --command "S=/tmp; printf -v {S,} '/ tmp'; rm -rf \$S/x"
+expect_both 'unset suffixed: a declare with a quoted name blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; declare "S"="/ tmp"; rm -rf $S/x'
+expect_both 'unset suffixed: an escaped assignment name blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; \S=x; rm -rf $S/x'
+expect_both 'unset suffixed: an export that reads another name stays allowed' 0 "${RDT_CWD[@]}" --command 'S=/tmp/x; export PATH="$PATH:/opt/bin"; echo "$(date)"; rm -rf $S/y'
 expect_both 'unset suffixed: ANSI-C quoting with no setter stays allowed' 0 "${RDT_CWD[@]}" --command "S=/tmp/x; echo \$'a\\tb'; echo \"\$(date)\"; rm -rf \$S/y"
 expect_both 'unset suffixed: read -r of another name stays allowed for r' 0 "${RDT_CWD[@]}" --command 'r=/tmp/x; read -r line </dev/null; rm -rf $r/y'
 expect_both 'unset suffixed: printf -v into another name stays allowed for v' 0 "${RDT_CWD[@]}" --command 'v=/tmp/x; printf -v output hello; rm -rf $v/y'

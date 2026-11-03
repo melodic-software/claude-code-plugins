@@ -1757,8 +1757,9 @@ rdt_bare_var() {
 # no blank: every assignment a literal, or built only from names that pass this
 # same test, and every `for NAME in` list unquoted. A substitution's value is
 # unknown and so fails, and so does anything that can hide a blank from this
-# reading: an escape, a value that goes on into a quote, a `+=`, a quote or escape
-# in a `for` list, a builtin that sets the name, an IFS change, or `eval`/`source`.
+# reading: an escape, a value that goes on into a quote, a quote or escape in a
+# `for` list, an IFS change, `eval`/`source`, or NAME anywhere outside a read, an
+# assignment or a `for` (an allowlist, so a setter needs no entry of its own).
 # Past the call budget it fails too, so a refusal, not a hook timeout, ends a
 # chain built to run long. Read from the text, so a false pass only returns to
 # allowing the operand.
@@ -1771,31 +1772,74 @@ rdt_name_set() {
   local re_ref='\$\{?([A-Za-z_][A-Za-z0-9_]*)'
   RDT_NAME_SET_CALLS=$((RDT_NAME_SET_CALLS + 1))
   ((RDT_NAME_SET_CALLS > RDT_NAME_SET_MAX || $2 > 4)) && return 1
-  # Bash removes quotes before a builtin parses its words, so the setter checks
-  # read the command with them gone (`printf -v"S"`, `read '-aS'`). `$'...'` and
-  # `$"..."` can spell the name in escapes this reading does not decode
-  # (`printf -v $'\x53'`), so beside a setter builtin they fail outright.
-  re='(^|[^A-Za-z0-9_])(read|mapfile|readarray|getopts|select|printf|wait|declare|typeset|local)([^A-Za-z0-9_]|$)'
-  [[ "$t" =~ $re && ("$t" == *"\$'"* || "$t" == *'$"'*) ]] && return 1
-  local tq="${t//[\"\'\\]/}"
-  re="(^|[^A-Za-z0-9_])${n}\\+=|\\$\\{${n}:?=|(^|[^A-Za-z0-9_])(read|mapfile|readarray|getopts|select|printf[[:space:]]+-v|wait[[:space:]]+-p|(declare|typeset|local)([[:space:]]+[-+][A-Za-z]+)*[[:space:]]+-[A-Za-z]*n[A-Za-z]*)[[:space:]]([^;&|"$'\n'"]*[[:space:]])?${n}([^A-Za-z0-9_]|$)"
-  [[ "$tq" =~ $re ]] && return 1
-  # A name-taking option with its name glued on (`printf -vS`, `read -raS`,
-  # `wait -pS`) sets the name with no `NAME=` showing.
-  local re_any="[[:space:]]([^;&|"$'\n'"]*[[:space:]])?-[A-Za-z]*"
-  re="(^|[^A-Za-z0-9_])(read${re_any}a|printf${re_any}v|wait${re_any}p)${n}([^A-Za-z0-9_]|$)"
-  [[ "$tq" =~ $re ]] && return 1
-  # So does a subscript assignment (`S[0]=`, `S[ 0 ]+=`): a `]=` somewhere after
-  # `NAME[`, so `echo "S[1]"` alone stays allowed.
-  re="(^|[[:space:];&|(\"'])${n}\\[.*\\]\\+?="
-  [[ "$t" =~ $re ]] && return 1
   # Another word-split separator, or a command that can set any name out of sight.
   [[ "$t" =~ $RDT_NAME_SET_FORBID_RE ]] && return 1
-  # A leading quote is the opening of a `bash -c '...'` program.
+  # Bash removes quotes before it finds a command name or a builtin parses its
+  # words, so the rest is read with them gone (`pr""intf -v"S"`, `read '-aS'`).
+  local tq="${t//[\"\'\\]/}" rest seg b w head post r_eq=0 r_for=0 q_eq=0 q_for=0
+  local -a words
+  # An indirect expansion can name anything.
+  [[ "$tq" == *'${!'* ]] && return 1
+  # A setter builtin can take a name built by expansion (`printf -v ${x:-S}`,
+  # `read {S,}`), a nameref flag, or a name spelled in `$'...'`/`$"..."` escapes
+  # this reading does not decode, so any of those beside one fails.
+  local re_set='(^|[^A-Za-z0-9_])(read|mapfile|readarray|getopts|select|printf|wait|declare|typeset|local|export|readonly)([[:blank:]][^;&|)'$'\n'']*|[;&|)'$'\n'']|$)'
+  rest="$tq"
+  while [[ "$rest" =~ $re_set ]]; do
+    b="${BASH_REMATCH[2]}" seg="${BASH_REMATCH[3]}"
+    rest="${rest#*"${BASH_REMATCH[0]}"}"
+    [[ "$t" == *"\$'"* || "$t" == *'$"'* ]] && return 1
+    if [[ "$b" == printf ]]; then
+      re='(^|[[:blank:]])-[A-Za-z]*v[[:blank:]]*[^[:blank:]]*[$`{]'
+      [[ "$seg" =~ $re ]] && return 1
+      continue
+    fi
+    re='(^|[[:blank:]])-[A-Za-z]*n'
+    [[ "$b" == declare || "$b" == typeset || "$b" == local ]] && [[ "$seg" =~ $re ]] && return 1
+    read -ra words <<<"$seg"
+    for w in ${words[@]+"${words[@]}"}; do
+      [[ "$w" == [\<\>]* || "$w" == [0-9][\<\>]* ]] && continue
+      [[ "${w%%=*}" == *[\$\`\{]* ]] && return 1
+    done
+  done
+  # Allowlist: past those, NAME may appear only as a read (`$NAME`, `${NAME...}`),
+  # an assignment `NAME=` or a `for NAME` at the start of a word, an option letter
+  # (`-S`), or inside a longer word. Anything else can set it: a setter's operand
+  # (`read S`, `export S`, `declare -n S=R`), an option glued to a setter's name
+  # (`printf -vS`), a subscript (`S[0]=`), `${S:=...}`, `+=`, or a brace (`{S,}`).
+  re_set='(^|[^A-Za-z0-9_])(read|mapfile|readarray|getopts|select|printf|wait|declare|typeset|local|export|readonly)([^A-Za-z0-9_]|$)'
+  local re_word_h='(^|[[:space:];&|(])$' re_for_h='(^|[[:space:];&|(])for[[:space:]]+$'
+  post="$tq" head=""
+  while [[ "$post" == *"$n"* ]]; do
+    head+="${post%%"$n"*}"
+    post="${post#*"$n"}"
+    if [[ "$post" == [A-Za-z0-9_]* ]]; then
+      :
+    elif [[ "$head" == *[A-Za-z0-9_] ]]; then
+      re='(^|[^A-Za-z0-9_])-[A-Za-z]+$'
+      seg="${head##*[;&|($'\n']}"
+      [[ "$head" =~ $re && "$seg" =~ $re_set ]] && return 1
+    elif [[ "$head" == *'$' || "$head" == *'${' || "$head" == *'${#' ]]; then
+      [[ "$head" == *'${' && ("$post" == =* || "$post" == :=*) ]] && return 1
+    elif [[ "$head" == *- ]]; then
+      :
+    elif [[ "$head" =~ $re_for_h ]]; then
+      q_for=$((q_for + 1))
+    elif [[ "$head" =~ $re_word_h && "$post" == =* ]]; then
+      q_eq=$((q_eq + 1))
+    else
+      return 1
+    fi
+    head+="$n"
+  done
+  # A leading quote is the opening of a `bash -c '...'` program; one that opens
+  # a word holding a blank (`export "S=/ tmp"`) hides the rest of the value.
   re="(^|[[:space:];&|(\"'])${n}=(\"[^\"]*\"|'[^']*'|[^[:space:];&|)\"']*)"
   while [[ "$t" =~ $re ]]; do
     v="${BASH_REMATCH[2]}"
     t="${t#*"${BASH_REMATCH[0]}"}"
+    r_eq=$((r_eq + 1))
+    [[ "${BASH_REMATCH[1]}" == [\"\'] && "$t" == [[:blank:]]* ]] && return 1
     [[ -z "$t" || "$t" == [[:space:]\;\&\|\)]* ]] || return 1
     [[ "$v" == *'('* || "$v" == *'`'* || "$v" == *\\* ]] && return 1
     [[ "$v" == [\"\']* ]] && v="${v:1:${#v}-2}"
@@ -1821,9 +1865,13 @@ rdt_name_set() {
   while [[ "$t" =~ $re ]]; do
     v="${BASH_REMATCH[3]}"
     t="${t#*"${BASH_REMATCH[0]}"}"
+    r_for=$((r_for + 1))
     [[ -n "$v" && "$v" != *[\`\"\'\\]* && "$v" != *'$('* ]] || return 1
     grounded=1
   done
+  # Every `NAME=` and `for NAME` the allowlist passed must be one read above; a
+  # quote or escape inside the name (`"S"=`, `\S=`, `for "S"`) hides it there.
+  ((r_eq == q_eq && r_for == q_for)) || return 1
   # `S=$S/a` alone only appends to the value S came in with; a name set by nothing
   # read here holds a value from outside.
   ((grounded))
