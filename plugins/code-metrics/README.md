@@ -162,14 +162,14 @@ root auto-discovers it.
 Every skill description in a session shares one listing budget, and Claude Code drops the
 least-invoked descriptions first when it overflows. Measured with
 `plugins/skill-quality/scripts/check-listing-budget.sh` over every marketplace plugin's skills on
-2026-09-05, this plugin adds six listing-eligible descriptions (`setup` is model-hidden and costs
+2026-11-03, this plugin adds five listing-eligible descriptions (`setup` is model-hidden and costs
 nothing) at these estimated sizes:
 
 | Measurement | Characters |
 |---|---|
-| Marketplace aggregate before this plugin | 135,541 |
-| Marketplace aggregate with this plugin | 141,411 |
-| This plugin alone | 5,870 |
+| Marketplace aggregate before this plugin | 139,091 |
+| Marketplace aggregate with this plugin | 141,819 |
+| This plugin alone | 2,728 |
 
 The aggregate is an upper-bound estimate against the documented 8,000-character fallback; a
 consumer who installs only this plugin sits well inside it, and `/doctor` reports the resolved

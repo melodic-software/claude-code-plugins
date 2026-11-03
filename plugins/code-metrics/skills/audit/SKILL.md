@@ -51,9 +51,9 @@ action per invocation.
 
 The `actions/` files write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`,
 and the plugin's root directory as `<plugin-root>`, which is `${CLAUDE_PLUGIN_ROOT}`. Put those
-paths in place of the placeholders before running a command: a `${…}` token is substituted in
-skill content but not in a supporting file, and the Bash tool does not receive the plugin
-variables. The plugins reference,
+paths in place of the placeholders before running a command: a `${…}` token in a supporting file
+is not one this plugin can rely on being expanded, either in the file or in the Bash tool. Where
+each plugin variable resolves, and where it is exported: the plugins reference,
 <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, as of
 2026-11-03; recheck when that table adds supporting files to where a `${…}` reference resolves, or
 the Bash tool starts receiving the plugin variables.
