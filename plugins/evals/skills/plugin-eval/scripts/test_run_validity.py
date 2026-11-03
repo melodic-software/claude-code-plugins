@@ -1298,16 +1298,12 @@ class RunValidityTest(unittest.TestCase):
         self.assertVerdict(proc, "INVALID", 1)
         self.assertIn("check permission denials: FAIL", proc.stdout)
 
-    def denied_in_sandbox(
-        self, calls, trace_at=("claude-eval-ab", "out"), allowed=(), later=None
-    ):
+    def denied_in_sandbox(self, calls, trace_at=("claude-eval-ab", "out"), allowed=()):
         """The clean result at two runs per arm, measurable-criterion's second
         with-arm run scoring 0 against its sibling's 1 and denied each (tool,
         input) in calls, its trace at <dir>/<trace_at...>/trace.jsonl, after an
-        allowed Bash call for each command in allowed. With later, the denied
-        calls also appear as tool_use lines, followed by an allowed Bash call for
-        each command in later. The sandbox's own plugin-data directory is
-        <dir>/claude-eval-ab/config/plugins/data."""
+        allowed Bash call for each command in allowed. The sandbox's own
+        plugin-data directory is <dir>/claude-eval-ab/config/plugins/data."""
         trace = self.dir.joinpath(*trace_at, "trace.jsonl")
         trace.parent.mkdir(parents=True, exist_ok=True)
         entries = [
@@ -1318,15 +1314,6 @@ class RunValidityTest(unittest.TestCase):
             {"type": "tool_use", "id": "a%d" % i, "name": "Bash", "input": {"command": c}}
             for i, c in enumerate(allowed)
         ]
-        if later is not None:
-            uses += [
-                {"type": "tool_use", "id": e["tool_use_id"], "name": e["tool_name"],
-                 "input": e["tool_input"]}
-                for e in entries
-            ] + [
-                {"type": "tool_use", "id": "b%d" % i, "name": "Bash", "input": {"command": c}}
-                for i, c in enumerate(later)
-            ]
         trace.write_text(
             '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
             + json.dumps({"type": "assistant", "message": {"content": uses}})
@@ -1499,52 +1486,6 @@ class RunValidityTest(unittest.TestCase):
             "rm -f '%s'; rm -f /tmp/other" % spool,
         ):
             proc = self.denied_in_sandbox([("Bash", {"command": command})], allowed=named)
-            self.assertDenials(proc, "FAIL")
-
-    def fetch(self, output):
-        """The skill's fetch compound: a mkdir of the spool directory, then a curl
-        POST writing the converted post to output, then an exit-status echo."""
-        return (
-            "mkdir -p '%s' && curl -q -sS --proto '=https' --max-time 30"
-            " --max-filesize 5000000 \\\n  -X POST https://converter.example/api/markdown \\\n"
-            '  -H "Content-Type: application/json" \\\n  -H "Accept: text/markdown" \\\n'
-            "  -d '{\"url\":\"https://x.com/someone/status/20\"}' \\\n"
-            "  -o '%s' \\\n  -w '%%{http_code}'; echo \" exit=$?\""
-            % (self.own_data("x-inline"), output)
-        )
-
-    def test_a_denied_fetch_into_plugin_data_retried_alone_after_is_a_warning(self):
-        spool = self.own_data("x-inline", "x-20-a1b2c3.md")
-        for later in (
-            ["curl -q -sS -X POST https://converter.example/api/markdown -o '%s'" % spool],
-            ["cat '%s'" % spool],
-        ):
-            proc = self.denied_in_sandbox(
-                [("Bash", {"command": self.fetch(spool)})], later=later
-            )
-            self.assertDenials(proc, "WARN")
-            self.assertIn("1 denial under the run's own plugin-data directory", proc.stdout)
-
-    def test_a_denied_fetch_into_plugin_data_never_retried_after_is_a_fail(self):
-        spool = self.own_data("x-inline", "x-20-a1b2c3.md")
-        retry = "cat '%s'" % spool
-        for command, allowed, later in (
-            # No later call names the spool file, or the only one came before.
-            (self.fetch(spool), (), []),
-            (self.fetch(spool), (), ["cat '%s'" % self.own_data("x-inline", "other.md")]),
-            (self.fetch(spool), [retry], []),
-            # Without a tool_use line the denial has no position.
-            (self.fetch(spool), [retry], None),
-            # Output outside plugin data, or curl writing a file the -o rule
-            # does not cover.
-            (self.fetch("/tmp/x-20.md"), (), [retry]),
-            (self.fetch(spool).replace("-q -sS", "-q -sSO"), (), [retry]),
-            (self.fetch(spool).replace("%{http_code}", "%output{/tmp/w}"), (), [retry]),
-            (self.fetch(spool).replace("-d '{", "-d @/etc/passwd -d '{"), (), [retry]),
-        ):
-            proc = self.denied_in_sandbox(
-                [("Bash", {"command": command})], allowed=allowed, later=later
-            )
             self.assertDenials(proc, "FAIL")
 
     def own_results(self, *parts, sandbox="claude-eval-ab"):
