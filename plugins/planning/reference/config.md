@@ -126,17 +126,45 @@ work_size:
 
 ## Convention-home keys
 
-Three interview keys resolve through the bound convention home and the four layers of
+Three interview keys and one plan key resolve through the bound convention home and the four layers of
 [ADR 0075](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md),
 lowest first: the default, the `userConfig` option of the same name, the team file
 `<home>/planning.yaml`, then the personal file `<home>/planning.local.yaml`.
-`answer_audit_rounds` and `wayfind_suggest_questions` have no `userConfig` option, so they skip that layer.
+`answer_audit_rounds`, `wayfind_suggest_questions` and `plan_stress_test` have no `userConfig`
+option, so they skip that layer.
 
 | Key | Values | Default | Reader |
 |---|---|---|---|
 | `question_pacing` | `round`, `single` | `round` | `/planning:interview`, first round: `round` asks the frontier as one set, `single` one question per message. A request in the session ("one at a time") overrides it for that session |
 | `answer_audit_rounds` | an integer, `0` or more | `2` | `/planning:interview`, after each round's read-back: offer `/planning:audit-answers` once when this many rounds were accepted whole; `0` never offers |
 | `wayfind_suggest_questions` | an integer, `0` or more | `27` | `/planning:interview`, at each round boundary: suggest `/planning:wayfind chart` once when the ledger's register holds more than this many questions; `0` never suggests |
+| `plan_stress_test` | a block map of `plan`, `proposal` and `incumbent`, each `auto`, `reviewer`, `devils-advocate` or `both` | `auto` for each | `/planning:plan` Steps 3 to 4: which stress-tests run on a draft of that mode |
+
+`plan_stress_test` modes, by the draft's main decision:
+
+- `incumbent`: whether to keep or replace an existing tool, library or approach.
+- `proposal`: whether to adopt a new approach or mechanism.
+- `plan`: how to build an approach that is already settled; any draft that fits neither above.
+
+Its values:
+
+- `auto`: the `plan-reviewer` agent always; `/planning:devils-advocate` in plan-review mode when
+  Step 3b's blast radius is MEDIUM or higher or a trigger matches.
+- `reviewer`: the `plan-reviewer` agent only, whatever the blast radius.
+- `devils-advocate`: `/planning:devils-advocate` only, whatever the blast radius.
+- `both`: both, whatever the blast radius.
+
+The default stays `auto` in every mode. The 12-plan eval could not measure what the stress test
+adds, because its negative control detected no loss
+([Probe result](https://github.com/melodic-software/claude-code-plugins/issues/12478#issuecomment-6610383544)).
+
+Under `devils-advocate` and `both`, an `incumbent` draft runs the skill's `incumbent` mode. Each mode
+resolves on its own, so a layer that sets one mode leaves the others to the layer below, and an
+invalid value drops only that mode's layer. The key is edited by hand: `/planning:setup apply` writes
+no maps. Only `/planning:plan` reads the key: a direct `/planning:devils-advocate` request ignores
+it and runs the mode its own arguments select (`incumbent` when that is the first argument after an
+optional depth token, plan-review otherwise). A change skipped under `/planning:plan`'s one-sentence
+rule has no draft to stress-test.
 
 Resolve `<home>` by running `bash "<plugin-root>/lib/resolve-convention-home.sh"` from the
 repository root (`<plugin-root>` per the reading skill's "Spoke paths"). Exit 0 prints the home.

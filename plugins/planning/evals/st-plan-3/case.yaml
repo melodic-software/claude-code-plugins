@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: st-plan-3
+description: A draft plan adds automatic subscription renewals to a TypeScript meal-box API.
+expected_outcome: A good review reports that Phase 4, the money module, serves no acceptance criterion; that PaymentClient.charge in src/payments/client.ts returns a declined result and never throws PaymentDeclined, so a decline reaches the paid branch and AC2 fails; and that the setInterval sweep starts in every API process while deploy/compose.yaml runs three replicas with no claim on due rows, so each subscription is charged by more than one. It does not ask for a new migration or index for the sweep, since db/migrations/003_next_renewal.sql already provides both.
+context:
+  scaffold_script: scaffold.sh

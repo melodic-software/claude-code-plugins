@@ -1,0 +1,4 @@
+plan_stress_test:
+  plan: auto
+  proposal: auto
+  incumbent: auto

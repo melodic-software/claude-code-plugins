@@ -1,0 +1,9 @@
+**Arguments.** `[deep|shallow] [incumbent [target]|<plan text or file path>]`.
+
+## Variables
+
+Arguments: `$ARGUMENTS`
+
+## Purpose
+
+Read the plan or incumbent named in the arguments and report what you think of it.

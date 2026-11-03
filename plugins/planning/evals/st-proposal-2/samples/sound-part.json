@@ -1,0 +1,62 @@
+{
+  "pass": [
+    {
+      "answer": "",
+      "why": "empty reply flags nothing"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean report"
+    },
+    {
+      "answer": "- Decoding onto the populated struct is correct: Config has only flat fields and nothing nested.\n",
+      "why": "approving mention"
+    },
+    {
+      "answer": "- Decoding the overlay does not lose any field, as the test shows.\n",
+      "why": "negated attack"
+    },
+    {
+      "answer": "| 1 | CRITICAL | Operations | ApplyEnv overwrites the overlay values with the compose variables | Remove them |\n",
+      "why": "a different defect"
+    },
+    {
+      "answer": "- There is no need for a deep merge over a flat Config.\n",
+      "why": "dismissed attack"
+    },
+    {
+      "answer": "- Environment variables overwrite overlay values after the files are merged.\n",
+      "why": "the env layer defect"
+    },
+    {
+      "answer": "- Decoding the overlay through Load starts from Defaults() and drops sink_url.\n",
+      "why": "a real finding about Load, not about decoding onto the struct"
+    },
+    {
+      "answer": "- A typo in an overlay key is lost silently when decoding into Config.\n",
+      "why": "unknown keys, a different finding"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- Decoding the overlay onto the struct loses the base values for keys it omits.\n",
+      "why": "bullet"
+    },
+    {
+      "answer": "| 1 | HIGH | Design | yaml.Unmarshal into Config zeroes fields the overlay leaves out | Use a real merge |\n",
+      "why": "table row, zeroes"
+    },
+    {
+      "answer": "- The layering needs a deep merge for the Config struct.\n",
+      "why": "deep merge attack"
+    },
+    {
+      "answer": "| 3 | IMPORTANT | Design | Merging the overlay this way is fragile for nested keys | Use Viper |\n",
+      "why": "nested, fragile"
+    },
+    {
+      "answer": "- Decoding onto the populated struct is the wrong layering; it should use Viper for the overlay.\n",
+      "why": "wrong"
+    }
+  ]
+}

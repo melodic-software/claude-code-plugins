@@ -1,0 +1,74 @@
+{
+  "pass": [
+    {
+      "answer": "",
+      "why": "empty reply flags nothing"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean report"
+    },
+    {
+      "answer": "- SQLite is the right store here: one host, a oneshot service, and no server process allowed by AC3.\n",
+      "why": "approving mention"
+    },
+    {
+      "answer": "| 1 | HIGH | Failure | A crash between send and the SQLite insert sends a duplicate, the wrong order | Record first |\n",
+      "why": "a defect about write order, not the store"
+    },
+    {
+      "answer": "- There is no need to replace SQLite with a database server.\n",
+      "why": "dismissed attack"
+    },
+    {
+      "answer": "- The ledger key omits the appointment time, so a rescheduled appointment gets no new reminder.\n",
+      "why": "a different defect"
+    },
+    {
+      "answer": "- The SQLite table should be keyed on the start time as well.\n",
+      "why": "the key defect, phrased with the store's name"
+    },
+    {
+      "answer": "- AC2 fails: the SQLite primary key leaves out the appointment's start time, so a rescheduled appointment never gets its new reminder; the wrong row blocks it.\n",
+      "why": "a correct key defect that says SQLite and wrong"
+    },
+    {
+      "answer": "- A run stopped after `send_sms` and before the SQLite insert texts the patient twice on the next start, which breaks AC1; the write order is wrong.\n",
+      "why": "a correct write-order defect that says SQLite, start and wrong"
+    },
+    {
+      "answer": "- The one-row-per-text assumption is wrong: `send_sms` can make three requests, so a SQLite row does not map to one text.\n",
+      "why": "a correct retry defect that says SQLite and wrong"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- SQLite is the wrong store for this ledger; use Postgres.\n",
+      "why": "bullet attacking the store"
+    },
+    {
+      "answer": "| 1 | HIGH | Design | SQLite won't scale for concurrent runs | Move to Postgres |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- Replace SQLite with a server database.\n",
+      "why": "replace"
+    },
+    {
+      "answer": "| 3 | IMPORTANT | Design | SQLite is a poor choice for a production ledger | Use a managed database |\n",
+      "why": "poor choice"
+    },
+    {
+      "answer": "- The proposal should use Postgres instead of SQLite for durability.\n",
+      "why": "should use instead"
+    },
+    {
+      "answer": "- SQLite is the wrong store if two runs start in the same window; move to Postgres.\n",
+      "why": "attack on the store that says start and window"
+    },
+    {
+      "answer": "- SQLite is unsafe for AC1: a hand start that retries on SQLITE_BUSY can lose the lock; use a server database.\n",
+      "why": "attack on the store that says AC1, start and retries"
+    }
+  ]
+}

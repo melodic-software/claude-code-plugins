@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "- Node 22 meets Leaseline's floor of Node 20, so no upgrade is needed.\n",
+      "why": "praises the element"
+    },
+    {
+      "answer": "- Leaseline's Node floor is not a conflict: `package.json` says >=22.\n",
+      "why": "negated attack"
+    },
+    {
+      "answer": "- `src/checkout/complete.ts` also imports Holdfast.\n",
+      "why": "other finding"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- Leaseline requires an upgrade of Node before Phase 1.\n",
+      "why": "bullet attack"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | Leaseline is incompatible with our Node version | Upgrade |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- The API's Node.js version is too old for Leaseline.\n",
+      "why": "too old"
+    },
+    {
+      "answer": "- There is a Node version mismatch between package.json and Leaseline.\n",
+      "why": "mismatch"
+    },
+    {
+      "answer": "| 2 | SUGGESTION | Plan | Node floor not satisfied by the image | Bump the image |\n",
+      "why": "not satisfied"
+    }
+  ]
+}

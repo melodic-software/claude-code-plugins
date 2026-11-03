@@ -1,16 +1,21 @@
 schema_version: "1.1"
 name: mp-sung-line-template
 graders:
+  # Both regex graders read the trace, one JSON message per line, and match only assistant text
+  # blocks: the meter.md Read result (a user line) holds a bracketed template, and the session's
+  # init line lists songwriting:co-write.
+  # A template is three bracketed slot numbers on one rendered line of a text block (`\\n` ends
+  # a rendered line inside the JSON string), or three `| [n] |` table cells in one text block.
   - name: positional-template
     type: regex
-    pattern: '\[[ \t]*\d{1,2}[ \t]*\][^\n]*?\[[ \t]*\d{1,2}[ \t]*\][^\n]*?\[[ \t]*\d{1,2}[ \t]*\]|(?:^[^\n]*\|[ \t]*\[[ \t]*\d{1,2}[ \t]*\][ \t]*\|[^\n]*\n(?:[^\n]*\n)*?){2}^[^\n]*\|[ \t]*\[[ \t]*\d{1,2}[ \t]*\][ \t]*\|'
+    pattern: '^\{"type":"assistant"[^\n]*?"type":"text","text":"(?:[^"\\]|\\.)*?(?:\[(?: |\\t)*\d{1,2}(?: |\\t)*\](?:[^"\\]|\\[^n])*?\[(?: |\\t)*\d{1,2}(?: |\\t)*\](?:[^"\\]|\\[^n])*?\[(?: |\\t)*\d{1,2}(?: |\\t)*\]|\|(?: |\\t)*\[(?: |\\t)*\d{1,2}(?: |\\t)*\](?: |\\t)*\|(?:[^"\\]|\\.)*?\|(?: |\\t)*\[(?: |\\t)*\d{1,2}(?: |\\t)*\](?: |\\t)*\|(?:[^"\\]|\\.)*?\|(?: |\\t)*\[(?: |\\t)*\d{1,2}(?: |\\t)*\](?: |\\t)*\|)'
     flags: 'm'
-    target: last_message
+    target: trace
   - name: routes-to-co-write
     type: regex
-    pattern: '\bco-write\b'
-    flags: 'i'
-    target: last_message
+    pattern: '^\{"type":"assistant"[^\n]*?"type":"text","text":"(?:[^"\\]|\\.)*?\bco-write\b'
+    flags: 'im'
+    target: trace
   - name: no-fitted-line
     type: llm
     focus: last_message

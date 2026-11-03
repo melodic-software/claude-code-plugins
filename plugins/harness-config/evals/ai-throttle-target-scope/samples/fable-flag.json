@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "fable-5: flag\nopus-5: endorse\nopus-4-8: neither"
+    },
+    {
+      "answer": "**fable-5**: flag\n**opus-5**: endorse\n**opus-4-8**: endorse"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "fable-5: neither\nopus-5: neither\nopus-4-8: neither",
+      "why": "the Fable-scoped instance does not fire"
+    },
+    {
+      "answer": "fable-5-1: flag",
+      "why": "names a different target"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "- `charge()` returns `{ status: \"declined\" }` on a 402 and never throws `PaymentDeclined`, so the Phase 1 catch is dead code.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- `PaymentDeclined` does not exist in `src/payments/client.ts`; declines resolve normally and get treated as paid.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | `PaymentClient.charge` does not throw on a decline, so AC2's `past_due` branch never runs | Fix before building |\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- The `catch` is correct only if `charge()` throws, and `charge()` doesn't throw on a decline.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | The client resolves with a declined result rather than an exception, contrary to the assumption | Fix before building |\n",
+      "why": "paraphrase"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "- `PaymentClient.charge` throwing `PaymentDeclined` is fine.\n",
+      "why": "named and dismissed"
+    },
+    {
+      "answer": "- `charge()` does not return on a decline; it throws `PaymentDeclined` as stated.\n",
+      "why": "negated mention"
+    },
+    {
+      "answer": "- `client.ts` has no timeout on `fetch`.\n",
+      "why": "a finding about something else"
+    }
+  ]
+}

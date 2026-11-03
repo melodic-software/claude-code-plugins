@@ -4,8 +4,8 @@ For a hard or wide plan, Step 2 can formulate through the saved `planning:plan-p
 instead of one draft: independent planners draft from distinct angles, independent judges score
 the drafts against a rubric, and one agent synthesizes a plan from the winner, grafting the best
 runner-up ideas. Everything after Step 2 is unchanged: the synthesized plan goes through the
-Step 3 fresh-context plan-reviewer dispatch, blast radius, the Step 4.7 outcome gate and the
-Step 5 approval gate like any other plan.
+stress-tests Step 3's `plan_stress_test` resolution selects, blast radius, the Step 4.7 outcome
+gate and the Step 5 approval gate like any other plan.
 
 ## When to take it
 

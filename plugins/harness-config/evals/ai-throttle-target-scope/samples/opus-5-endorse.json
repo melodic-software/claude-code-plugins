@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "fable-5: flag\nopus-5: endorse\nopus-4-8: neither"
+    },
+    {
+      "answer": "> `opus-5`: `endorse`"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "fable-5: flag\nopus-5: neither\nopus-4-8: neither",
+      "why": "drops the Opus 5 endorsement"
+    },
+    {
+      "answer": "opus-5-5: endorse",
+      "why": "names a different target"
+    }
+  ]
+}

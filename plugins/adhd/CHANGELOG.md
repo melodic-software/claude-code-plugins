@@ -3,6 +3,12 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.1] - 2026-11-03
+
+### Changed
+
+- **README**: the always-on non-goal no longer restates which hook events inject context. It points at the `SessionStart` hooks section with an as-of date and a recheck trigger, and keeps the decision to build an opt-in hook only on demonstrated demand (#12693).
+
 ## [0.9.0] - 2026-11-02
 
 ### Added

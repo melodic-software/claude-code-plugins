@@ -3,6 +3,14 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.15] - 2026-11-03
+
+### Changed
+
+- The `reach` skill and its relay reference no longer restate upstream behavior for idle notices from a `-p` sender, print-mode stdin, `wsl.exe --exec`, SessionEnd hook output, WSL interop, or the stream-json input schema ([#12696](https://github.com/melodic-software/claude-code-plugins/issues/12696)). Each rule stays, and each now points at the upstream section with an as-of date and a recheck trigger.
+
+- The eval suite moved from `skills/*/evals/evals.json` to `evals/<case>/case.yaml` and `prompt.md`, with deterministic graders where an expectation is mechanical ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)). Three legacy scenarios that the `fr-*` outcome cases already cover are dropped, and each kept prompt names the workspace fleet manifest.
+
 ## [0.2.14] - 2026-11-03
 
 ### Changed
