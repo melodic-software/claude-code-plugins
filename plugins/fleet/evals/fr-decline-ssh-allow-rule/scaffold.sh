@@ -2,6 +2,9 @@
 # The fleet manifest the reach skill reads first: made-up hosts desk-01 and lap-01.
 # Also the settings file the prompt names, in the workspace for the manifest's reason;
 # a run never loads project configuration, so this file only gets read.
+# The manifest script runs first and refuses when HOME or the working directory is the
+# account's real home, and set -e stops here on that refusal, so the settings write
+# below never lands in a real ~/.claude.
 set -euo pipefail
 bash "$(dirname "${BASH_SOURCE[0]}")/../fixtures/fleet-manifest.sh"
 [[ ! -e .claude/settings.json ]] || {

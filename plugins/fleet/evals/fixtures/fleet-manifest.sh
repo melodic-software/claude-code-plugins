@@ -4,10 +4,11 @@
 # (the laptop). It sits in the workspace, not under $HOME, because the agent never
 # sees $HOME: it expands ~ from the /home/<user> prefix of the absolute paths in its
 # context and the run denies that read. Each case's prompt names this location.
-# The runner sets HOME to the run's temporary home for a scaffold script
-# (https://code.claude.com/docs/en/plugin-evals, "Seed the workspace or
-# conversation"). The guard does not trust that alone: it refuses the account's
-# real home from the password database, and it never overwrites a file.
+# The runner sets HOME to the run's temporary home and runs a scaffold script in the
+# workspace (https://code.claude.com/docs/en/plugin-evals, "Seed the workspace or
+# conversation"). The guard does not trust that alone: it looks up the account's
+# real home in the password database and refuses when either HOME or the working
+# directory is that home, and it never overwrites a file.
 set -euo pipefail
 
 refuse() {
@@ -25,7 +26,9 @@ else
   refuse "cannot look up the account's real home to compare against"
 fi
 [[ -n "$real_home" ]] || refuse "the account's real home did not resolve"
-[[ "$(cd "$HOME" && pwd -P)" != "$(cd "$real_home" && pwd -P)" ]] || refuse "HOME is the account's real home: $HOME"
+real_home=$(cd "$real_home" && pwd -P)
+[[ "$(cd "$HOME" && pwd -P)" != "$real_home" ]] || refuse "HOME is the account's real home: $HOME"
+[[ "$(pwd -P)" != "$real_home" ]] || refuse "the working directory is the account's real home: $PWD"
 
 d="$PWD/.config/fleet"
 f="$d/FLEET.md"
