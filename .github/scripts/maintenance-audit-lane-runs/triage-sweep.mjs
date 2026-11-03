@@ -396,7 +396,7 @@ async function main() {
   const lines = [
     "### Triage sweep",
     "",
-    `Candidates: ${result.candidates}. Dispatched: ${numbers(result.dispatched)}. Handed to a maintainer after ${ATTEMPTS} runs that reached intake or ${RUN_LIMIT} dispatches:${numbers(result.handed)}. Handed off for too many comments: ${numbers(result.handedOff)}. Waiting on a run: ${numbers(result.waiting)}. Calls: ${budget.used}.`,
+    `Candidates: ${result.candidates}. Dispatched: ${numbers(result.dispatched)}. Handed to a maintainer after ${ATTEMPTS} runs that reached intake or ${RUN_LIMIT} dispatches: ${numbers(result.handed)}. Handed off for too many comments: ${numbers(result.handedOff)}. Waiting on a run: ${numbers(result.waiting)}. Calls: ${budget.used}.`,
     "",
     ...(result.truncated ? [`- ${result.truncated}`] : []),
     ...result.failed.map((f) => `- failed #${f.number}: ${f.error}`),
