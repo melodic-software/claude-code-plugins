@@ -1599,6 +1599,9 @@ class RecordLift(unittest.TestCase):
         gh = demotion_fake(self, body=body, state="OPEN", timelineItems={"nodes": []})
         gh.graphql["PolicyRecordLift"] = lift
         gh.rest[f"repos/{REPO}/git/ref/heads/main"] = {"object": {"sha": tip}}
+        # f.py at the record's SHA, the state just after the deletion: absent
+        # unless a test says otherwise, so it held none of the deleted lines.
+        gh.rest[f"repos/{REPO}/contents/f.py?ref={'b' * 40}"] = 404
         return gh
 
     def lifted(self, result: Any, at: str) -> None:
@@ -1861,6 +1864,37 @@ class RecordLift(unittest.TestCase):
                     self.lifted(result, "2026-10-12T10:00:00Z")
                 else:
                     self.assertEqual(result.reason, "#9 closed-by-non-human")
+
+    def test_a_copy_the_deletion_left_behind_is_not_a_restore(self) -> None:
+        # A reverted pull request that moved a line within f.py: the revert's
+        # diff records it deleted and the same revert adds it back elsewhere,
+        # so at the record's own SHA (the state just after the deletion) it is
+        # already there. Only copies beyond those count as restored.
+        body = REVERT_BODY + "\n\n" + policy.lift_block([("f.py", b"moved")])
+        for name, at_record, at_tip, lifts in (
+            ("only the copy the revert left", "moved\n", "moved\n", False),
+            ("one copy beyond it", "moved\n", "moved\nx\nmoved\n", True),
+            ("absent at the record, back at the tip", 404, "moved\n", True),
+        ):
+            with self.subTest(name):
+                gh = self.fake(body, lift_answer())
+                self.content(gh, "b" * 40, at_record)
+                self.content(gh, FIX_MERGE, at_tip)
+                self.assertEqual(not read_demotion().active, lifts)
+
+    def test_a_final_newline_is_no_restored_blank_line(self) -> None:
+        # A deleted blank line is back only when the file holds a blank line,
+        # not because its text ends with a newline.
+        body = REVERT_BODY + "\n\n" + policy.lift_block([("f.py", b"")])
+        for name, at_tip, lifts in (
+            ("only a final newline", "a\n", False),
+            ("a blank line between lines", "a\n\nb\n", True),
+        ):
+            with self.subTest(name):
+                gh = self.fake(body, lift_answer())
+                self.content(gh, "b" * 40, 404)
+                self.content(gh, FIX_MERGE, at_tip)
+                self.assertEqual(not read_demotion().active, lifts)
 
     def test_a_revert_record_lifts_once_the_reverted_lines_are_back(self) -> None:
         body = REVERT_BODY + "\n\n" + policy.lift_block([("f.py", b"gone one")])

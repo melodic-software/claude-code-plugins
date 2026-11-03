@@ -299,6 +299,8 @@ class Gh:
             return ok({"object": {"sha": FIX_MERGE}})
         if endpoint in self.files:
             return ok(self.files[endpoint])
+        if "/contents/" in endpoint:
+            return fail(404)
         raise AssertionError(f"unexpected gh call: {args}")
 
 
@@ -344,6 +346,17 @@ class CloseLifted(unittest.TestCase):
             comment.startswith(f"body=<!-- lift-evidence sha={FIX_MERGE} -->\n"), comment
         )
         self.assertIn("the deleted content is on main at", comment)
+
+    def test_a_copy_the_deletion_left_behind_closes_nothing(self) -> None:
+        # The close runs the merge gate's own rule: a deleted line the file
+        # still held at the record's SHA is no restore.
+        body = REVERT + "\n" + policy.lift_block([("f.py", b"gone")])
+        files = {
+            f"repos/{REPO}/contents/f.py?ref={FIX_MERGE}": "gone\n",
+            f"repos/{REPO}/contents/f.py?ref={'b' * 40}": "gone\n",
+        }
+        gh = Gh({9: body}, [], files)
+        self.assertEqual((self.run_close(gh), gh.writes), (0, []))
 
     def test_a_failed_evidence_comment_leaves_the_record_open(self) -> None:
         # The comment carries the lift evidence; without it the record must

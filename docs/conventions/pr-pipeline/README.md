@@ -1165,7 +1165,9 @@ the rules that only tighten in
   one week. A canary, revert or read-back record that no non-human edited lifts, open or not, on
   its own evidence (`babysit_merge_policy.py` `_lift`), in either of two ways. (1) Its own
   condition holds on main again: for a canary or revert record, every line its lift block counts is
-  in that path's file at main's tip, as often as it was deleted (once the lane closed it, at the
+  in that path's file at main's tip, as often as it was deleted, over and above the copies the file
+  held at the record's own SHA, so a moved or common line the deletion left behind is no restore
+  and a final newline is no blank line (once the lane closed it, at the
   commit its close comment's `<!-- lift-evidence sha=<S> -->` line names, so a later edit on main
   does not re-demote a closed record); for a read-back record, the pull
   request it names reads back after all (the agent identity's newest pin comment among its first

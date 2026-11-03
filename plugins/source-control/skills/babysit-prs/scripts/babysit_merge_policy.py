@@ -2101,21 +2101,31 @@ def read_lift_block(text: Any) -> dict[str, dict[str, int]] | None:
     return None
 
 
+def _line_counts(text: str | None) -> Counter[str]:
+    """The hash count of each line of `text`, as git counts lines: a final
+    newline ends the last line and adds no empty one. None counts nothing."""
+    lines = (text or "").split("\n")
+    if lines[-1] == "":
+        lines.pop()
+    return Counter(line_hash(line.encode("utf-8", "surrogateescape")) for line in lines)
+
+
 def _content_present(
-    owner: str, name: str, paths: dict[str, dict[str, int]], ref: str
+    owner: str, name: str, paths: dict[str, dict[str, int]], ref: str, base: str
 ) -> bool:
-    """Whether every deleted line a lift block counts is in its path's file at
-    `ref`, as often as it was deleted. A missing file is not present; a failed
-    read raises."""
+    """Whether every deleted line a lift block counts is back in its path's
+    file at `ref`, as often as it was deleted, over and above the copies the
+    file held at `base`, the record's own SHA (the state just after the
+    deletion): a copy the deletion left behind, such as a moved line or a
+    common one, is no restore. A file missing at `ref` is not present, one
+    missing at `base` held nothing; a failed read raises."""
     for path, wanted in paths.items():
         text = _raw_at(owner, name, path, ref)
         if text is None:
             return False
-        have = Counter(
-            line_hash(line.encode("utf-8", "surrogateescape"))
-            for line in text.split("\n")
-        )
-        if any(have[h] < n for h, n in wanted.items()):
+        have = _line_counts(text)
+        left = _line_counts(_raw_at(owner, name, path, base))
+        if any(have[h] < left[h] + n for h, n in wanted.items()):
             return False
     return True
 
@@ -2262,7 +2272,7 @@ def _lift(
         ref = green.main_tip()
         if pinned and green.on_main(pinned) and (pinned == sha or green.ahead(sha, pinned)):
             ref = pinned
-        if _content_present(owner, name, block, ref):
+        if _content_present(owner, name, block, ref, sha):
             return Lift(created, f"the deleted content is on main at {ref}", ref)
     timeline = json_object(record.get("timelineItems"))
     if json_object(timeline.get("pageInfo")).get("hasNextPage") is not False:
@@ -2295,7 +2305,7 @@ def _lift(
         if not green.on_main(oid):
             continue
         if signal == "canary" and not (
-            _content_present(owner, name, block, oid)
+            _content_present(owner, name, block, oid, sha)
             if block
             else _canary_green_at(owner, name, oid)
         ):
