@@ -10,22 +10,5 @@
       "use": "command_position_multishell"
     },
     "(?:(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?actionlint(?:\\.exe)?(?![\\w.\\-/])(?!(?:\\\\\\\"|')?\\s+-{1,2}version\\b)(?:\\\\\\\"|')?|(?:(?:bash|dash|zsh|sh)\\s+(?:-\\w+\\s+)*)?(?:\\\\\\\"|')?[^\\s\\\"\\\\;&|=']*(?:git-)?hooks/actionlint-check\\.sh)"
-  ],
-  "status-table": [
-    {
-      "use": "table_header_rule"
-    },
-    {
-      "use": "table_verdict_cell",
-      "with": {
-        "row": "actionlint(?![\\w.\\-/])"
-      }
-    },
-    {
-      "use": "table_verdict_cell",
-      "with": {
-        "row": "\\b[Nn]ode(?:\\.js)?(?![\\w.\\-/])"
-      }
-    }
   ]
 }
