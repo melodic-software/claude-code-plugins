@@ -1,0 +1,810 @@
+{
+  "description": "Done-when vectors from the 2026-11-03 host-run predictor study: one short rewritten item per study hit and false positive, per frozen class, each still matching that class's study pattern. `kind` is what unrunnableCriteria gives the item today, null for runnable; `set` is where the issue came from (sample or hold-out, host-run or lane-delivered control). admit.test.mjs asserts every `kind`, so a change to unrunnable-rules.json or a built-in kind shows here. #10241's measure-over-time hit matched only across two items and has no vector.",
+  "vectors": [
+    {
+      "issue": 6618,
+      "set": "holdout-host",
+      "class": "eval",
+      "line": "`bash plugins/skill-quality/scripts/measure-invocation.sh validate plugins/x/probes` exits 0 on the committed probe file.",
+      "kind": null,
+      "note": "known miss: a no-spend harness command, or a harness or plugin-eval name with no run verb before it or measured output after it, which the built-in eval kind leaves with the lane"
+    },
+    {
+      "issue": 7147,
+      "set": "sample-host",
+      "class": "eval",
+      "line": "`claude plugin eval` with `--judge-model opus` has run over `plugins/source-control/evals` on the subscription login.",
+      "kind": "eval"
+    },
+    {
+      "issue": 10222,
+      "set": "sample-host",
+      "class": "eval",
+      "line": "Every shipped description or body change is backed by a valid measured pass on the subscription.",
+      "kind": "eval"
+    },
+    {
+      "issue": 11128,
+      "set": "holdout-host",
+      "class": "eval",
+      "line": "Each ported eval case has before/after results in the PR, showing no loss.",
+      "kind": "eval"
+    },
+    {
+      "issue": 11187,
+      "set": "holdout-host",
+      "class": "eval",
+      "line": "The rule is stated once, with the case named as its eval evidence.",
+      "kind": "eval"
+    },
+    {
+      "issue": 11189,
+      "set": "holdout-host",
+      "class": "eval",
+      "line": "The rule is stated once, with the case named as its eval evidence.",
+      "kind": "eval"
+    },
+    {
+      "issue": 11191,
+      "set": "sample-host",
+      "class": "eval",
+      "line": "The rule is stated once, with the case named as its eval evidence.",
+      "kind": "eval"
+    },
+    {
+      "issue": 11192,
+      "set": "holdout-control",
+      "class": "eval",
+      "line": "The rule is stated once, with the case named as its eval evidence.",
+      "kind": "eval",
+      "note": "known false positive: a lane-delivered issue this row flags"
+    },
+    {
+      "issue": 11540,
+      "set": "sample-host",
+      "class": "eval",
+      "line": "A before and after trigger run on `plugins/ai-slop/probes/audit.json` compares the two descriptions.",
+      "kind": "eval"
+    },
+    {
+      "issue": 11549,
+      "set": "holdout-host",
+      "class": "eval",
+      "line": "A before and after eval on the design skill shows no loss from the choice.",
+      "kind": "eval"
+    },
+    {
+      "issue": 11560,
+      "set": "holdout-host",
+      "class": "eval",
+      "line": "Each `llm` grader is calibrated as `/evals:plugin-eval` \"Calibrating a judge\" says.",
+      "kind": null,
+      "note": "known miss: a no-spend harness command, or a harness or plugin-eval name with no run verb before it or measured output after it, which the built-in eval kind leaves with the lane"
+    },
+    {
+      "issue": 11561,
+      "set": "holdout-host",
+      "class": "eval",
+      "line": "Each `llm` grader is calibrated as `/evals:plugin-eval` \"Calibrating a judge\" says.",
+      "kind": null,
+      "note": "known miss: a no-spend harness command, or a harness or plugin-eval name with no run verb before it or measured output after it, which the built-in eval kind leaves with the lane"
+    },
+    {
+      "issue": 11563,
+      "set": "holdout-host",
+      "class": "eval",
+      "line": "Each `llm` grader is calibrated as `/evals:plugin-eval` \"Calibrating a judge\" says.",
+      "kind": null,
+      "note": "known miss: a no-spend harness command, or a harness or plugin-eval name with no run verb before it or measured output after it, which the built-in eval kind leaves with the lane"
+    },
+    {
+      "issue": 11564,
+      "set": "holdout-host",
+      "class": "eval",
+      "line": "Held-out triggering probes run via `measure-invocation emit-plugin-eval` with `--ablation none`.",
+      "kind": null,
+      "note": "known miss: a no-spend harness command, or a harness or plugin-eval name with no run verb before it or measured output after it, which the built-in eval kind leaves with the lane"
+    },
+    {
+      "issue": 11565,
+      "set": "holdout-host",
+      "class": "eval",
+      "line": "Held-out triggering probes run via `measure-invocation emit-plugin-eval` with `--ablation none`.",
+      "kind": null,
+      "note": "known miss: a no-spend harness command, or a harness or plugin-eval name with no run verb before it or measured output after it, which the built-in eval kind leaves with the lane"
+    },
+    {
+      "issue": 11566,
+      "set": "holdout-host",
+      "class": "eval",
+      "line": "Held-out triggering probes run via `measure-invocation emit-plugin-eval` with `--ablation none`.",
+      "kind": null,
+      "note": "known miss: a no-spend harness command, or a harness or plugin-eval name with no run verb before it or measured output after it, which the built-in eval kind leaves with the lane"
+    },
+    {
+      "issue": 11628,
+      "set": "holdout-host",
+      "class": "eval",
+      "line": "Every pass the decision reads from is judged VALID by `/evals:plugin-eval`.",
+      "kind": null,
+      "note": "known miss: a no-spend harness command, or a harness or plugin-eval name with no run verb before it or measured output after it, which the built-in eval kind leaves with the lane"
+    },
+    {
+      "issue": 11650,
+      "set": "holdout-host",
+      "class": "eval",
+      "line": "Each touched skill carries its eval evidence of no loss.",
+      "kind": "eval"
+    },
+    {
+      "issue": 11823,
+      "set": "sample-host",
+      "class": "eval",
+      "line": "Each change is measured before and after on the subscription login, with VALID runs per `run-validity.py`.",
+      "kind": "eval"
+    },
+    {
+      "issue": 12025,
+      "set": "holdout-host",
+      "class": "eval",
+      "line": "`claude plugin eval` runs the `wfh-grounding-*` cases with and without the plugin.",
+      "kind": "eval"
+    },
+    {
+      "issue": 12061,
+      "set": "holdout-host",
+      "class": "eval",
+      "line": "On the PR head, `claude plugin eval` runs the work-items cases with and without the plugin.",
+      "kind": "eval"
+    },
+    {
+      "issue": 12083,
+      "set": "sample-host",
+      "class": "eval",
+      "line": "The eval dispatch workflow runs `claude plugin eval` with `TMPDIR` set to a short directory.",
+      "kind": "eval"
+    },
+    {
+      "issue": 12151,
+      "set": "holdout-host",
+      "class": "eval",
+      "line": "`claude plugin eval` runs every `fanout-diversity-*` case at three runs per arm.",
+      "kind": "eval"
+    },
+    {
+      "issue": 12241,
+      "set": "holdout-host",
+      "class": "eval",
+      "line": "The after figure is measured the same way, with no loss of findings shown by the review evals.",
+      "kind": "eval"
+    },
+    {
+      "issue": 12243,
+      "set": "sample-host",
+      "class": "eval",
+      "line": "Each cut ships with eval evidence of no loss, as the skill criteria require.",
+      "kind": "eval"
+    },
+    {
+      "issue": 12357,
+      "set": "holdout-host",
+      "class": "eval",
+      "line": "Before and after are measured on VALID runs (`run-validity.py`), with a negative control.",
+      "kind": "eval"
+    },
+    {
+      "issue": 12358,
+      "set": "holdout-host",
+      "class": "eval",
+      "line": "Before and after are measured on VALID runs.",
+      "kind": "eval"
+    },
+    {
+      "issue": 12359,
+      "set": "holdout-host",
+      "class": "eval",
+      "line": "Before and after are measured on VALID runs.",
+      "kind": "eval"
+    },
+    {
+      "issue": 12468,
+      "set": "sample-host",
+      "class": "eval",
+      "line": "The skill's body size is recorded as already lean, with eval evidence of no loss for any cut.",
+      "kind": "eval"
+    },
+    {
+      "issue": 12474,
+      "set": "sample-host",
+      "class": "eval",
+      "line": "Each skill-body cut ships with before/after evals showing no loss (`/evals:plugin-eval`).",
+      "kind": "eval"
+    },
+    {
+      "issue": 12479,
+      "set": "sample-host",
+      "class": "eval",
+      "line": "The design skill's cut ships with before/after evals showing no loss.",
+      "kind": "eval"
+    },
+    {
+      "issue": 12486,
+      "set": "holdout-host",
+      "class": "eval",
+      "line": "Eval evidence of no loss of hook-notice behavior, per the skill criteria.",
+      "kind": "eval"
+    },
+    {
+      "issue": 12487,
+      "set": "holdout-host",
+      "class": "eval",
+      "line": "Eval evidence of no loss of hook-notice behavior, per the skill criteria.",
+      "kind": "eval"
+    },
+    {
+      "issue": 12488,
+      "set": "holdout-host",
+      "class": "eval",
+      "line": "Eval evidence of no loss of notice behavior, per the skill criteria.",
+      "kind": "eval"
+    },
+    {
+      "issue": 12489,
+      "set": "sample-host",
+      "class": "eval",
+      "line": "Eval evidence of no loss of triggering, per the skill criteria.",
+      "kind": "eval"
+    },
+    {
+      "issue": 12497,
+      "set": "sample-host",
+      "class": "eval",
+      "line": "Eval evidence of no loss of triggering, per the skill criteria.",
+      "kind": "eval"
+    },
+    {
+      "issue": 12498,
+      "set": "sample-host",
+      "class": "eval",
+      "line": "Eval evidence of no loss of triggering, per the skill criteria.",
+      "kind": "eval"
+    },
+    {
+      "issue": 12499,
+      "set": "sample-host",
+      "class": "eval",
+      "line": "Eval evidence of no loss of triggering, per the skill criteria.",
+      "kind": "eval"
+    },
+    {
+      "issue": 9293,
+      "set": "sample-host",
+      "class": "named-host",
+      "line": "Run `/machine-health:audit` on a Windows 11 host and confirm the report lists 27 check results.",
+      "kind": "a run on a host the lane is not"
+    },
+    {
+      "issue": 9529,
+      "set": "sample-host",
+      "class": "named-host",
+      "line": "Open an exported brief in the planning surface on a Windows 11 host and confirm the TLDR line renders.",
+      "kind": "a run on a host the lane is not"
+    },
+    {
+      "issue": 9711,
+      "set": "sample-host",
+      "class": "named-host",
+      "line": "Both hosts report an identical before/after comparison.",
+      "kind": "named-host"
+    },
+    {
+      "issue": 9735,
+      "set": "sample-host",
+      "class": "named-host",
+      "line": "On each operator machine, `/guardrails:setup apply install-commit-msg` has been re-run.",
+      "kind": "named-host"
+    },
+    {
+      "issue": 10241,
+      "set": "sample-host",
+      "class": "named-host",
+      "line": "`docs/test-wall-clock-baseline.md` has a filled Windows column, the host's OS build and Git Bash version.",
+      "kind": "named-host"
+    },
+    {
+      "issue": 11147,
+      "set": "holdout-host",
+      "class": "named-host",
+      "line": "The case passes on main and on the head, on a host where the plugin-eval sandbox is ready.",
+      "kind": null,
+      "note": "known miss: a bare `on a host` or `in Cursor`, dropped from the narrowed row"
+    },
+    {
+      "issue": 11599,
+      "set": "holdout-control",
+      "class": "named-host",
+      "line": "A default run on a host with a sibling WSL or Windows projects tree finds both.",
+      "kind": null,
+      "note": "a study false positive the narrowed row no longer flags"
+    },
+    {
+      "issue": 11605,
+      "set": "holdout-control",
+      "class": "named-host",
+      "line": "On a host with python3 and no jq, `permission-state.sh` reports the gap.",
+      "kind": null,
+      "note": "a study false positive the narrowed row no longer flags"
+    },
+    {
+      "issue": 11818,
+      "set": "sample-host",
+      "class": "named-host",
+      "line": "Corpus replay on a WSL host runs the delete-shaped Bash commands through the guard.",
+      "kind": "a run on a host the lane is not"
+    },
+    {
+      "issue": 12484,
+      "set": "sample-control",
+      "class": "named-host",
+      "line": "The note says `PostToolBatch` hooks do not run in Cursor.",
+      "kind": null,
+      "note": "a study false positive the narrowed row no longer flags"
+    },
+    {
+      "issue": 12485,
+      "set": "holdout-host",
+      "class": "named-host",
+      "line": "A merge probe is posted: on a host with one hook dependency hidden from `PATH`, the hook warns.",
+      "kind": null,
+      "note": "known miss: a bare `on a host` or `in Cursor`, dropped from the narrowed row"
+    },
+    {
+      "issue": 12489,
+      "set": "sample-host",
+      "class": "named-host",
+      "line": "A picker label re-observation in Claude Code and in Cursor shows no `/check` collision.",
+      "kind": null,
+      "note": "known miss: a bare `on a host` or `in Cursor`, dropped from the narrowed row"
+    },
+    {
+      "issue": 12567,
+      "set": "sample-host",
+      "class": "named-host",
+      "line": "Every path from `main` to code that runs on the owner's machines is listed.",
+      "kind": "named-host"
+    },
+    {
+      "issue": 12570,
+      "set": "sample-host",
+      "class": "named-host",
+      "line": "The step runs as written, shown by a merge probe on a host.",
+      "kind": null,
+      "note": "known miss: a bare `on a host` or `in Cursor`, dropped from the narrowed row"
+    },
+    {
+      "issue": 4225,
+      "set": "holdout-host",
+      "class": "host-data",
+      "line": "A clean run that deletes approved paths performs zero Write-tool calls into `~/.claude`.",
+      "kind": "host-data"
+    },
+    {
+      "issue": 9750,
+      "set": "sample-host",
+      "class": "host-data",
+      "line": "Each command of a recorded command corpus runs through the guard.",
+      "kind": "host-data"
+    },
+    {
+      "issue": 11818,
+      "set": "sample-host",
+      "class": "host-data",
+      "line": "Corpus replay runs the delete-shaped Bash commands through the guard before and after the change.",
+      "kind": "host-data"
+    },
+    {
+      "issue": 12152,
+      "set": "holdout-control",
+      "class": "host-data",
+      "line": "Each note's observation is one sentence, with no quoted transcript text and no person named.",
+      "kind": null,
+      "note": "a study false positive the narrowed row no longer flags"
+    },
+    {
+      "issue": 12242,
+      "set": "sample-host",
+      "class": "host-data",
+      "line": "The after figure comes from a comparable window.",
+      "kind": "host-data"
+    },
+    {
+      "issue": 12289,
+      "set": "holdout-host",
+      "class": "host-data",
+      "line": "Only lines that name `~/.claude/mutation-testing.md` as never read remain.",
+      "kind": "host-data"
+    },
+    {
+      "issue": 12468,
+      "set": "sample-host",
+      "class": "host-data",
+      "line": "The after figure covers a window of the same length.",
+      "kind": "host-data"
+    },
+    {
+      "issue": 12469,
+      "set": "sample-host",
+      "class": "host-data",
+      "line": "The after figure covers a window of the same length.",
+      "kind": "host-data"
+    },
+    {
+      "issue": 12470,
+      "set": "sample-host",
+      "class": "host-data",
+      "line": "Mod text per turn comes from mod telemetry or a request capture, per mod.",
+      "kind": "host-data"
+    },
+    {
+      "issue": 12567,
+      "set": "sample-host",
+      "class": "host-data",
+      "line": "Every path is listed from a survey of all repositories and machines.",
+      "kind": "host-data"
+    },
+    {
+      "issue": 7006,
+      "set": "sample-host",
+      "class": "live-cc-probe",
+      "line": "A recorded probe result with `context7:` and `ref:` lines.",
+      "kind": "a live Claude Code CLI run"
+    },
+    {
+      "issue": 9712,
+      "set": "sample-host",
+      "class": "live-cc-probe",
+      "line": "Each surface's result is listed with the Claude Code version.",
+      "kind": "live-cc-probe"
+    },
+    {
+      "issue": 12271,
+      "set": "sample-host",
+      "class": "live-cc-probe",
+      "line": "A probe of `$.settings.read` and `$.env.get` reports the effective auto-compact window.",
+      "kind": "live-cc-probe"
+    },
+    {
+      "issue": 12474,
+      "set": "sample-host",
+      "class": "live-cc-probe",
+      "line": "A behavior probe records, with the Claude Code version, whether a preloaded skill's lines run.",
+      "kind": "a live Claude Code CLI run"
+    },
+    {
+      "issue": 12489,
+      "set": "sample-host",
+      "class": "live-cc-probe",
+      "line": "The picker re-observation lists the client versions.",
+      "kind": "live-cc-probe"
+    },
+    {
+      "issue": 7147,
+      "set": "sample-host",
+      "class": "tracker-output",
+      "line": "A comment on this issue gives the per-grader agreement and the judge model used.",
+      "kind": "a comment instead of a file change"
+    },
+    {
+      "issue": 7556,
+      "set": "holdout-host",
+      "class": "tracker-output",
+      "line": "A comment on this issue starting `Probe result:` records the Cursor version.",
+      "kind": "a comment instead of a file change"
+    },
+    {
+      "issue": 9711,
+      "set": "sample-host",
+      "class": "tracker-output",
+      "line": "Both runs and a clean `chezmoi status` are recorded in a comment on #6185.",
+      "kind": "tracker-output"
+    },
+    {
+      "issue": 9712,
+      "set": "sample-host",
+      "class": "tracker-output",
+      "line": "A comment on #6228 records each surface's result.",
+      "kind": "tracker-output"
+    },
+    {
+      "issue": 9713,
+      "set": "holdout-host",
+      "class": "tracker-output",
+      "line": "A comment on #6405 links the run and states whether the summary matched.",
+      "kind": "tracker-output"
+    },
+    {
+      "issue": 9735,
+      "set": "sample-host",
+      "class": "tracker-output",
+      "line": "A comment on this issue lists the machines done.",
+      "kind": "a comment instead of a file change"
+    },
+    {
+      "issue": 9750,
+      "set": "sample-host",
+      "class": "tracker-output",
+      "line": "The measured rate is reported on this issue or its PR.",
+      "kind": "tracker-output"
+    },
+    {
+      "issue": 9766,
+      "set": "sample-host",
+      "class": "tracker-output",
+      "line": "A comment on #4224 records at most 1 prompt and at most 3 tool calls.",
+      "kind": "tracker-output"
+    },
+    {
+      "issue": 9770,
+      "set": "holdout-host",
+      "class": "tracker-output",
+      "line": "The false-positive rate on the recorded corpus is reported on this issue or its PR.",
+      "kind": "tracker-output"
+    },
+    {
+      "issue": 9778,
+      "set": "holdout-host",
+      "class": "tracker-output",
+      "line": "The git version and result are reported on this issue.",
+      "kind": "tracker-output"
+    },
+    {
+      "issue": 10241,
+      "set": "sample-host",
+      "class": "tracker-output",
+      "line": "A comment on #3716 states which of criteria 2, 3 and 4 are met.",
+      "kind": "tracker-output"
+    },
+    {
+      "issue": 10253,
+      "set": "holdout-host",
+      "class": "tracker-output",
+      "line": "A comment on #5682 gives per-agent, per-arm results.",
+      "kind": "tracker-output"
+    },
+    {
+      "issue": 11028,
+      "set": "holdout-host",
+      "class": "tracker-output",
+      "line": "The measured height in px is recorded in the PR body or a comment here.",
+      "kind": "tracker-output"
+    },
+    {
+      "issue": 11503,
+      "set": "holdout-host",
+      "class": "tracker-output",
+      "line": "The comparison on one pull request set is recorded on this issue, and the chosen option cites it.",
+      "kind": "tracker-output"
+    },
+    {
+      "issue": 11823,
+      "set": "sample-host",
+      "class": "tracker-output",
+      "line": "A change that shows a loss is recorded here and left out.",
+      "kind": "tracker-output"
+    },
+    {
+      "issue": 12025,
+      "set": "holdout-host",
+      "class": "tracker-output",
+      "line": "A comment on this issue whose first line starts with `Probe result:` gives the counts.",
+      "kind": null,
+      "note": "known miss: a comment on this issue, which the built-in comment kind owns with its own verbs and exclusions"
+    },
+    {
+      "issue": 12061,
+      "set": "holdout-host",
+      "class": "tracker-output",
+      "line": "A comment on each PR and on this issue gives the CLI version and per-case pass rates.",
+      "kind": null,
+      "note": "known miss: a comment on this issue, which the built-in comment kind owns with its own verbs and exclusions"
+    },
+    {
+      "issue": 12067,
+      "set": "holdout-host",
+      "class": "tracker-output",
+      "line": "A final comment on #6916 gives the total files covered.",
+      "kind": "tracker-output"
+    },
+    {
+      "issue": 12072,
+      "set": "sample-host",
+      "class": "tracker-output",
+      "line": "A comment on #7292 gives, per plugin, the number of findings still present.",
+      "kind": "tracker-output"
+    },
+    {
+      "issue": 12151,
+      "set": "holdout-host",
+      "class": "tracker-output",
+      "line": "A comment on this issue whose first line starts with `Probe result:` gives the counts.",
+      "kind": null,
+      "note": "known miss: a comment on this issue, which the built-in comment kind owns with its own verbs and exclusions"
+    },
+    {
+      "issue": 12155,
+      "set": "holdout-host",
+      "class": "tracker-output",
+      "line": "A comment on this issue gives the counts.",
+      "kind": "a comment instead of a file change"
+    },
+    {
+      "issue": 12271,
+      "set": "sample-host",
+      "class": "tracker-output",
+      "line": "The effective auto-compact window is recorded here, with the command and result.",
+      "kind": "tracker-output"
+    },
+    {
+      "issue": 12282,
+      "set": "holdout-host",
+      "class": "tracker-output",
+      "line": "Schedule demotion records close once main is green, per the owner's answer (recorded on #11022).",
+      "kind": "tracker-output"
+    },
+    {
+      "issue": 12284,
+      "set": "holdout-host",
+      "class": "tracker-output",
+      "line": "A findings comment on this issue covers CI/CD performance and the merge path.",
+      "kind": null,
+      "note": "known miss: a comment on this issue, which the built-in comment kind owns with its own verbs and exclusions"
+    },
+    {
+      "issue": 12357,
+      "set": "holdout-host",
+      "class": "tracker-output",
+      "line": "A loss is recorded here.",
+      "kind": "tracker-output"
+    },
+    {
+      "issue": 12358,
+      "set": "holdout-host",
+      "class": "tracker-output",
+      "line": "A loss is recorded here.",
+      "kind": "tracker-output"
+    },
+    {
+      "issue": 12359,
+      "set": "holdout-host",
+      "class": "tracker-output",
+      "line": "A loss is recorded here.",
+      "kind": "tracker-output"
+    },
+    {
+      "issue": 12456,
+      "set": "sample-host",
+      "class": "tracker-output",
+      "line": "The parents open today with every sub-issue closed are listed.",
+      "kind": "tracker-output"
+    },
+    {
+      "issue": 12485,
+      "set": "holdout-host",
+      "class": "tracker-output",
+      "line": "Before any edit, a comment here gives the measured `git diff --no-renames` byte size.",
+      "kind": "tracker-output"
+    },
+    {
+      "issue": 12486,
+      "set": "holdout-host",
+      "class": "tracker-output",
+      "line": "Before any edit, a comment here gives the measured `git diff --no-renames` byte size.",
+      "kind": "tracker-output"
+    },
+    {
+      "issue": 12487,
+      "set": "holdout-host",
+      "class": "tracker-output",
+      "line": "Before any edit, a comment here gives the measured `git diff --no-renames` byte size.",
+      "kind": "tracker-output"
+    },
+    {
+      "issue": 12488,
+      "set": "holdout-host",
+      "class": "tracker-output",
+      "line": "Before any edit, a comment here gives the measured `git diff --no-renames` byte size.",
+      "kind": "tracker-output"
+    },
+    {
+      "issue": 12489,
+      "set": "sample-host",
+      "class": "tracker-output",
+      "line": "A comment here gives a sized plan with the measured diff size of each rename.",
+      "kind": "tracker-output"
+    },
+    {
+      "issue": 12505,
+      "set": "sample-host",
+      "class": "tracker-output",
+      "line": "The arms are rerun over the new fixtures and the result is posted on #7584.",
+      "kind": "tracker-output"
+    },
+    {
+      "issue": 9750,
+      "set": "sample-host",
+      "class": "measure-over-time",
+      "line": "The measured firing rate on the corpus is stated.",
+      "kind": "measure-over-time"
+    },
+    {
+      "issue": 10460,
+      "set": "sample-host",
+      "class": "measure-over-time",
+      "line": "The test asserts on a controlled clock instead of on wall-clock timing.",
+      "kind": "measure-over-time"
+    },
+    {
+      "issue": 10492,
+      "set": "sample-host",
+      "class": "measure-over-time",
+      "line": "`ui.test.sh` passes 10 consecutive runs on a test-bash leg.",
+      "kind": "a repeated run"
+    },
+    {
+      "issue": 11823,
+      "set": "sample-host",
+      "class": "measure-over-time",
+      "line": "Each change is measured before and after on the subscription login.",
+      "kind": "eval"
+    },
+    {
+      "issue": 12241,
+      "set": "holdout-host",
+      "class": "measure-over-time",
+      "line": "The after figure is measured the same way.",
+      "kind": "measure-over-time"
+    },
+    {
+      "issue": 12242,
+      "set": "sample-host",
+      "class": "measure-over-time",
+      "line": "The after figure is measured the same way over a comparable window.",
+      "kind": "measure-over-time"
+    },
+    {
+      "issue": 12258,
+      "set": "sample-host",
+      "class": "measure-over-time",
+      "line": "Each SessionStart row is measured alone and in the full batch, n stated.",
+      "kind": "measure-over-time"
+    },
+    {
+      "issue": 12449,
+      "set": "sample-host",
+      "class": "measure-over-time",
+      "line": "Failed merge groups per day caused by holds are measured before and after.",
+      "kind": "measure-over-time"
+    },
+    {
+      "issue": 12468,
+      "set": "sample-host",
+      "class": "measure-over-time",
+      "line": "The after figure is measured the same way over a window of the same length.",
+      "kind": "measure-over-time"
+    },
+    {
+      "issue": 12469,
+      "set": "sample-host",
+      "class": "measure-over-time",
+      "line": "The after figure is measured the same way over a window of the same length.",
+      "kind": "measure-over-time"
+    },
+    {
+      "issue": 12470,
+      "set": "sample-host",
+      "class": "measure-over-time",
+      "line": "The after figure is measured over a window of the same length.",
+      "kind": "measure-over-time"
+    }
+  ]
+}
