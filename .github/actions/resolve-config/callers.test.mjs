@@ -698,13 +698,16 @@ test("pr-unblock.yml: report-stop-status runs when report-escalation does, or af
   const HEADS = ["resolve-conflicts-select", "address-feedback-select", "review-dependency-select", "fix-ci-context", "sync-shared-copies-select"];
   const EMITTERS = ["apply-conflict-patch", "publish-feedback", "apply-dependency-verdict", "apply-patch", "apply-shared-copies"];
   const RESOLVERS = ["address-feedback-select", "fix-ci-context"];
-  const context = ({ from = "", reason = "", headFrom = "resolve-conflicts-select", sha = head, rungUp = "", rungUpResult = "skipped", rungUpReason = "", rungUpSkip = "", landed = "", skip = "", resolved = "", resolvedResult = "success" } = {}) => ({
+  // The push job of each activity that pushes, before its select job's head.
+  const PUSHERS = { "resolve-conflicts-select": "apply-conflict-patch", "address-feedback-select": "apply-feedback-patch", "review-dependency-select": "apply-dependency-patch" };
+  const context = ({ from = "", reason = "", headFrom = "resolve-conflicts-select", sha = head, pushed = "", pushedSha = "", rungUp = "", rungUpResult = "skipped", rungUpReason = "", rungUpSkip = "", landed = "", skip = "", resolved = "", resolvedResult = "success" } = {}) => ({
     ...Object.fromEntries(SOURCES.map((id) => [`needs.${id}.outputs.escalation-reason`, id === from ? reason : ""])),
     ...Object.fromEntries(RESOLVERS.map((id) => [`needs.${id}.result`, id === resolved ? resolvedResult : "skipped"])),
     ...Object.fromEntries(RESOLVERS.map((id) => [`needs.${id}.outputs.stop-resolved`, id === resolved ? "true" : ""])),
     ...Object.fromEntries(EMITTERS.map((id) => [`needs.${id}.result`, id === landed ? "success" : "skipped"])),
     ...Object.fromEntries([...EMITTERS, "apply-patch-rung-up"].map((id) => [`needs.${id}.outputs.skip-reason`, id === landed ? skip : ""])),
     ...Object.fromEntries(HEADS.map((id) => [`needs.${id}.outputs.head-sha`, id === headFrom ? sha : ""])),
+    ...Object.fromEntries(Object.values(PUSHERS).map((id) => [`needs.${id}.outputs.pushed-commit`, id === pushed ? pushedSha : ""])),
     "needs.apply-patch.outputs.rung-up": rungUp,
     "needs.apply-patch-rung-up.result": rungUpResult,
     "needs.apply-patch-rung-up.outputs.escalation-reason": rungUpReason,
@@ -776,10 +779,18 @@ test("pr-unblock.yml: report-stop-status runs when report-escalation does, or af
   assert.equal(evaluate(escalation.if, failed()), true);
   assert.equal(evaluate(escalation.with["escalation-reason"], failed()), "feedback-publish-failed");
   assert.equal(stopSkip("feedback-publish-failed"), "lane-stopped", "routed to a failing status");
-  // The head is a select job's, never a model call's; the reason is the one
-  // report-escalation reads.
+  // The head is the commit the activity's push job pushed, else its select
+  // job's, never a model call's; the reason is the one report-escalation reads.
   const post = job.steps.find((step) => step.name === "Post the stop status");
-  assert.equal(post.env.HEAD_SHA.trim(), HEADS.map((id) => `needs.${id}.outputs.head-sha`).join(" || ").replace(/^/, "${{ ").replace(/$/, " }}"));
+  const heads = HEADS.flatMap((id) => (PUSHERS[id] ? [`needs.${PUSHERS[id]}.outputs.pushed-commit`, `needs.${id}.outputs.head-sha`] : [`needs.${id}.outputs.head-sha`]));
+  assert.equal(post.env.HEAD_SHA.trim(), `\${{ ${heads.join(" || ")} }}`);
+  const pushedSha = "d".repeat(40);
+  for (const headFrom of HEADS) {
+    assert.equal(evaluate(post.env.HEAD_SHA, context({ headFrom })), head, `${headFrom}'s head with no push`);
+    if (PUSHERS[headFrom]) {
+      assert.equal(evaluate(post.env.HEAD_SHA, context({ headFrom, pushed: PUSHERS[headFrom], pushedSha })), pushedSha, `${PUSHERS[headFrom]}'s pushed commit over ${headFrom}'s head`);
+    }
+  }
   // report-escalation's reason, except that a rung-up retry whose patch
   // applied is no stop.
   const reason = (extra) => evaluate(post.env.ESCALATION_REASON, context(extra));
@@ -2503,9 +2514,10 @@ const PATCH_LANES = [
     { "needs.address-feedback-select.outputs.proceed": "true" },
     "apply-feedback-patch",
   ],
-  // apply-dependency-patch stays out of report-escalation too: a refused
-  // patch leaves no fix commit, and the verdict job escalates
-  // dependency-fix-not-landed (apply-dependency-verdict.test.mjs).
+  // report-escalation takes nothing from apply-dependency-patch either: a
+  // refused patch leaves no fix commit, and the verdict job escalates
+  // dependency-fix-not-landed (apply-dependency-verdict.test.mjs). It needs
+  // the job only to match report-stop-status's needs (NEEDS_ONLY).
   [
     "pr-unblock.yml",
     "review-dependency",
@@ -2564,6 +2576,9 @@ const APPLY_GATE = {
 // resolve-conflicts's empty patch leaves the conflicts unresolved.
 // The push jobs whose pushed-commit report-escalation passes its gate.
 const PUSHED_COMMIT_READERS = new Set(["apply-feedback-patch"]);
+// The push jobs report-escalation needs, reading none of their outputs, so its
+// needs equal report-stop-status's, which posts on their pushed commit.
+const NEEDS_ONLY = new Set(["apply-dependency-patch"]);
 const EMPTY_RUNS_APPLY = { "fix-ci": true, "fix-docs": false, "address-feedback": false, "review-dependency": false, "resolve-conflicts": true };
 const PATCH_OUTPUTS = { "patch-state": "patch-state", "patch-sha256": "patch-sha256", "patch-attempt": "patch-attempt", "reply-attempt": "reply-attempt" };
 // The read runner output each push job reads per input: the scan job's alone,
@@ -2744,7 +2759,11 @@ for (const [file, firstId, subId, extraNeeds, extraProceed, applyId] of PATCH_LA
           assert.deepEqual([...new Set(reads)], ["outputs.pushed-commit"], `report-escalation reads only ${id}'s pushed-commit`);
           continue;
         }
-        assert.ok(!escalation.needs.includes(id), `report-escalation does not need ${id}`);
+        if (id === applyId && NEEDS_ONLY.has(applyId)) {
+          assert.ok(escalation.needs.includes(id), `report-escalation needs ${id}, as report-stop-status does`);
+        } else {
+          assert.ok(!escalation.needs.includes(id), `report-escalation does not need ${id}`);
+        }
         assert.deepEqual(reads, [], `report-escalation reads no ${id} output`);
       }
     }
