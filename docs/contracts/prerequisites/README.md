@@ -16,11 +16,20 @@ sh and the POSIX utilities are assumed and never declared.
 
 Three needs use a native surface instead, so the file never declares them:
 
-| Need | Declare it in | Why |
+| Need | Declare it in | Rule |
 | --- | --- | --- |
-| Another plugin that must be enabled | `dependencies` in `plugin.json` | Claude Code resolves and enforces it. An optional collaborator stays presence-gated in prose. |
-| A secret a hook or MCP server reads | a `userConfig` option with `sensitive: true` | Claude Code stores it in the credential store and hands it to hooks and servers. |
-| Node packages at the plugin root | `package.json` and a lockfile | Claude Code installs them. Packages it cannot install follow the [on-demand dependencies convention](../on-demand-dependencies/README.md); declare those as `node-pkg`. |
+| Another plugin that must be enabled | `dependencies` in `plugin.json` | The native field owns it. An optional collaborator stays presence-gated in prose. |
+| A secret a hook or MCP server reads | a `userConfig` option with `sensitive: true` | The native option owns it; a secret never goes in this file. |
+| Node packages at the plugin root | `package.json` and a lockfile | The native install owns them. Packages it cannot install follow the [on-demand dependencies convention](../on-demand-dependencies/README.md); declare those as `node-pkg`. |
+
+- **Pointer**: when checking what Claude Code does with a declared plugin dependency or a
+  sensitive option, fetch
+  [plugins manifest reference § dependencies](https://code.claude.com/docs/en/plugins/manifest-reference#dependencies)
+  and [§ User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+  live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: either section changes how a declared dependency or a sensitive option is
+  handled.
 
 The `env` kind is for a variable a command run through the Bash tool reads, such as a CLI's API
 key. `userConfig` values do not reach that environment.
@@ -171,8 +180,17 @@ because `setup` is manual-only (the
 
 | Notice | Fires | How |
 | --- | --- | --- |
-| `node` is missing | `SessionStart` except on compaction, once per session | harness-ops carries the fleet's one shell-form `SessionStart` row that runs `lib/prerequisites.sh node-notice`, then `lib/prerequisites.ps1 node-notice`. A POSIX shell (bash, or dash as `/bin/sh` on Debian and Ubuntu) takes the first and leaves at `${PPID:+exit}`, because every POSIX shell sets `PPID`; PowerShell, the default shell on Windows without Git Bash, has no `sh`, skips to the second. Both stubs share a latch keyed by session id in the temp directory, so a session sees one notice. The stubs still take a kill-switch option as the last argument; harness-ops' row passes none. |
+| `node` is missing | `SessionStart` except on compaction, once per session | harness-ops carries the fleet's one shell-form `SessionStart` row that runs `lib/prerequisites.sh node-notice`, then `lib/prerequisites.ps1 node-notice`. Under a POSIX shell the first command runs and `${PPID:+exit}` ends the row; under PowerShell the second command runs. Both stubs share a latch keyed by session id in the temp directory, so a session sees one notice. The stubs still take a kill-switch option as the last argument; harness-ops' row passes none. |
 | Another hook dependency is missing | `SessionStart` except on compaction, for an entry whose `for` names a hook, via harness-ops' runner of each `session_probe` plugin's `probe`; and at the point of use | `hook::require <id>` in `lib/hook-utils.sh`. It fails open: when `<id>` is not on `PATH` it prints one skip notice per session and agent and exits 0. The text comes from the plugin's declared entry, `degrade` and the install map, and ends with the checker command. An entry that names only a skill never notifies at session start. |
+
+- **Pointer**: when checking which shell runs the node-notice row on each platform, fetch the
+  `shell` field in [hooks § Command hook fields](https://code.claude.com/docs/en/hooks#command-hook-fields)
+  live; when checking which shells set `PPID`, fetch
+  [POSIX Shell Command Language § 2.5.3 Shell Variables](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html#tag_19_05_03)
+  live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: the hooks section changes the default shell on Windows, or a POSIX revision
+  changes what it says about `PPID`.
 
 Both session-start notices need harness-ops enabled. Without it, no notice says `node` is missing,
 and a missing hook dependency is reported only at the point of use, by `hook::require`. The
@@ -190,13 +208,18 @@ Both rows run synchronously, because their notices are for the user: an async ho
 as of 2026-11-02; recheck when that section changes who sees an async hook's `systemMessage`).
 
 The group holding the node-notice row and the group holding the runner row both carry
-`"matcher": "startup|resume|clear|fork"`, every SessionStart source but `compact` (the source
-list is the matcher table in
-[hooks § SessionStart](https://code.claude.com/docs/en/hooks#sessionstart), as of 2026-10-11;
-recheck when that table changes). A compaction keeps the session id (inferred from transcripts, which keep one sessionId across a compact boundary; not probed from a hook payload), and both latches with it, so a re-fire there prints
-nothing and only starts processes. `clear`, `resume` and `fork` stay: each can begin a context
-that has not seen the notice. `scripts/node-notice-rows.test.sh` pins both rows, their matcher,
-and that no other plugin carries a prerequisites row.
+`"matcher": "startup|resume|clear|fork"`, which leaves out `compact`. Both latches are keyed by
+session id, so where a compaction keeps the session id (this repository inferred that from
+transcripts and has not probed it from a hook payload), a re-fire there would find them set,
+print nothing and only start processes. `clear`, `resume` and `fork` stay: each can begin a context that has not seen the
+notice. `scripts/node-notice-rows.test.sh` pins both rows, their matcher, and that no other plugin
+carries a prerequisites row.
+
+- **Pointer**: when checking the SessionStart sources, or what a compaction does to the session
+  id, fetch [hooks § SessionStart](https://code.claude.com/docs/en/hooks#sessionstart) live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: the matcher table gains or drops a source, or the hooks page states whether
+  a compaction keeps the session id.
 
 `hook::require` reads an entry with bash alone, from its `id` to the next one, so write `id` first in every entry.
 

@@ -13,6 +13,10 @@ name: work-unblock
 # .github/scripts/work-unblock/label-unblocked.mjs; the lane and its
 # effect (mutate-tracker) are in docs/conventions/pr-pipeline.yaml.
 #
+# The same close run removes the closed issue's own queue labels (agent-ready,
+# status: ready, admission-deferred), so a hand-closed issue leaves the queue;
+# a post-merge fix issue keeps them for its reopen.
+#
 # It runs no AI model and never checks out anything but the main branch.
 # The label is added with a lanes App token from the token broker: a label
 # added with the job's own GITHUB_TOKEN could never start a workflow.
@@ -48,7 +52,8 @@ name: work-unblock
 # cancelled after admit and before resolve-issue started (pick-slot's timeout); a
 # run a newer agent-ready run replaced is not. It does that once per issue
 # per version of the lane's two workflow files on main, recorded in a comment,
-# and after that on a backoff (three hours, doubling each time, at most 24),
+# and after that on a backoff (its cause's limits.stranded-backoff-hours,
+# doubling each time, at most 24),
 # recorded in one comment it edits; it never adds needs-human for it. An open
 # pull request of a listed human's for the issue counts as work running on it.
 # When that run opened a lanes-App PR instead, and the PR merged with `Refs:`

@@ -33,6 +33,14 @@
         ".github/workflows/pr-verify.yml#check-intent-fallback"
       ]
     },
+    "key-credit-stop-pr-verify.yml-check-intent": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-verify.yml check-intent's \"Read the key's credit history\" step runs ci-workflows check-key-credit, which reads the newest marker of this exact name inside KEY_CREDIT_WINDOW_HOURS (1 hour unset, 24 at most for this retention)"
+      ],
+      "reason": "The marker only says the key hit a credit stop; the gate counts it for its window, an hour by default, so a day covers any window up to 24 hours and an expired marker runs the key, as before the gate.",
+      "scan": "upload"
+    },
     "pr-review-main-*": {
       "retention-days": "max",
       "readers": [
@@ -190,6 +198,14 @@
         ".github/workflows/pr-run-activity-write.yml patch-attempt download, same run, possibly an earlier attempt"
       ],
       "reason": "Every reader is in the same run; a manual re-run of the write job may read an earlier attempt, so 3 days covers a weekend.",
+      "scan": "upload"
+    },
+    "patch-pr-unblock-review-dependency-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-run-activity-write.yml patch-attempt download by the apply-dependency-pin job, same run"
+      ],
+      "reason": "The install-script pin patch review-dependency-select writes; read by its own run's apply-dependency-pin job, and a later run writes it again from the head, so 1 day, the minimum, is enough.",
       "scan": "upload"
     },
     "patch-pr-unblock-sync-shared-copies-*": {
@@ -358,6 +374,17 @@
         ".github/workflows/maintenance-reconcile-lost-runs.yml#reconcile"
       ]
     },
+    "key-credit-stop-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-review-main.yml review-handoffs-credit, through ci-workflows check-key-credit gate.cjs, in later runs inside vars.KEY_CREDIT_WINDOW_HOURS"
+      ],
+      "reason": "The gate counts a marker only inside its window, 1 hour unset, so 1 day covers it; a window over 24 hours ends at expiry. It holds only the run id the workflow writes, never model text, so it is not scanned.",
+      "scan": "none",
+      "uploads": [
+        ".github/workflows/pr-review-main.yml#review-handoffs"
+      ]
+    },
     "reconcile-settled-runs": {
       "retention-days": 1,
       "readers": [
@@ -395,6 +422,14 @@
       "uploads": [
         ".github/workflows/pr-feedback-dispatch.yml#post-verify-notes"
       ]
+    },
+    "pr-feedback-deferral": {
+      "retention-days": 2,
+      "readers": [
+        ".github/scripts/pr-unblock/feedback-dispatch.mjs recoverDeferred lists it by exact name (DEFERRAL_MARKER) before any per-head pr-feedback-deferred read"
+      ],
+      "reason": "Must outlive every pr-feedback-deferred record (1 day) uploaded after it, so 2 days. It holds the reconciler's plan (kinds, run ids and paths, PR numbers, SHAs) and no model text, so no leak scan runs over it.",
+      "scan": "none"
     },
     "rerun-ci-status-*": {
       "retention-days": 1,

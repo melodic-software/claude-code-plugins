@@ -1464,6 +1464,30 @@ class RunValidityTest(unittest.TestCase):
             proc = self.denied_in_sandbox([("Bash", {"command": command})], allowed=allowed)
             self.assertDenials(proc, "FAIL")
 
+    def test_a_compound_denial_of_plugin_data_and_echo_is_a_warning(self):
+        spool = self.own_data("x-inline", "x-1-a1b2c3.md")
+        for command in (
+            "rm -f '%s'; echo done" % spool,
+            "rm -f '%s'; echo \"rm exit=$?\"" % spool,
+            "rm -f '%s' && echo removed $HOME" % spool,
+        ):
+            proc = self.denied_in_sandbox([("Bash", {"command": command})])
+            self.assertDenials(proc, "WARN")
+            self.assertIn("1 denial under the run's own plugin-data directory", proc.stdout)
+
+    def test_a_compound_denial_of_plugin_data_and_a_writing_echo_is_a_fail(self):
+        spool = self.own_data("x-inline", "x-1-a1b2c3.md")
+        named = ["cat /etc/f /etc/passwd"]  # each outside path named by an allowed call
+        for command in (
+            "rm -f '%s'; echo x > /etc/f" % spool,
+            "rm -f '%s'; echo x>/etc/f" % spool,
+            "rm -f '%s'; echo $(cat /etc/passwd)" % spool,
+            "rm -f '%s'; echo `id`" % spool,
+            "rm -f '%s'; rm -f /tmp/other" % spool,
+        ):
+            proc = self.denied_in_sandbox([("Bash", {"command": command})], allowed=named)
+            self.assertDenials(proc, "FAIL")
+
     def own_results(self, *parts, sandbox="claude-eval-ab"):
         return str(self.dir.joinpath(
             sandbox, "config", "projects", "-tmp-claude-eval-ab-home-cwd",

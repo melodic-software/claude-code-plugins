@@ -3,6 +3,34 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.1] - 2026-11-03
+
+### Fixed
+
+`block-root-delete-target` now judges whether a command sets the name behind `rm -rf $S/x` with an allowlist instead of a list of setter shapes. With quotes and backslashes removed, as bash removes them before a builtin reads its words, `S` may appear only as a read (`$S`, `${S...}`), an assignment `S=` or a `for S` at the start of a word, an option letter, or inside a longer word. Any other mention refuses the operand: a setter's operand (`read S`, `export S`, `declare -n S=R`), an option glued to a setter's name (`printf -vS`), a subscript (`S[0]=`, `${S[0]:=...}`, any `${S[`), `${S:=...}`, or a brace (`{S,}`), however it is quoted. A glued option also refuses when the command word is built by expansion (`p${x}rintf -vS`, `$x -vS`), and an option letter counts only as a `-` that opens a word, so `${y:-S}` refuses. Beside a setter builtin, a name built by expansion (`printf -v ${x:-S}`), a nameref flag, or any `$'...'`/`$"..."` word also refuses, as do `${!...}` and a quote opening a `NAME=` word that holds a blank (`export "S=/ tmp"`). A mention of `S` only inside a string (`echo "S[1]"`) now refuses too. These refusals were not replayed against the corpus.
+
+## [1.1.0] - 2026-11-03
+
+### Added
+
+- `pre-commit-content` and `pre-push-content` skip machine-path findings in each path listed in the
+  repository's `docs/conventions/guardrails-content-exempt.tsv` (`path<TAB>reason` rows; a
+  directory ends in `/`), read from the default branch (`origin/HEAD`) so a change cannot exempt
+  its own lines. Listed paths are still scanned for secrets.
+- `skill-reference-verify` treats a repository whose plugins carry a `.codex-plugin/` or
+  `.cursor-plugin/` manifest as a marketplace, so its skill references are checked too.
+
+### Changed
+
+- `reference-verify`: a stale-path finding is printed and the push goes ahead, since a citation can
+  be correct as written (a deletion record). A cli-flag or skill-reference finding still fails it.
+
+### Fixed
+
+- `reference-verify` reports a file whose verifier input it could not build, whose verifier run
+  exited non-zero or whose verifier output jq could not read, and a pushed tip it could not check
+  out, as a finding that fails the push, instead of skipping it with exit 0.
+
 ## [1.0.4] - 2026-11-03
 
 ### Fixed

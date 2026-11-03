@@ -527,6 +527,42 @@ test("gh guard: a paginated secondary or abuse-detection limit waits the minute;
     }
   }));
 
+// A paginated call shows no headers, so a primary limit holds to the one open
+// window the token's earlier readings of the same route show (another route
+// may read another core counter); any other reading set keeps the
+// hour. The stop stays a guess (gh_read never waits on it).
+test("gh guard: a paginated primary limit holds to the reset of the one open window in earlier readings of its route, else the hour", () =>
+  withDir((dir) => {
+    const now = Math.floor(Date.now() / 1000);
+    const primary = "fail gh: API rate limit exceeded for installation ID 1. (HTTP 403)";
+    for (const [readings, seconds, label] of [
+      [[`200 5000 12 4988 ${now + 900} core repos/{repo}/pulls`, "request repos/o/r/pulls", `200 5000 10 4990 ${now + 900} core repos/{repo}/pulls`], 900, "one open core window"],
+      [[`200 5000 12 4988 ${now + 900} core repos/{repo}/pulls`, `200 5000 9 4991 ${now + 1800} core repos/{repo}/pulls`], 3600, "two open core windows"],
+      [[`200 5000 12 4988 ${now - 10} core repos/{repo}/pulls`], 3600, "a window already past"],
+      [["200 5000 12 4988 na core repos/{repo}/pulls"], 3600, "an unparsable reset"],
+      [[`200 5000 12 4988 ${now + 900} graphql graphql`], 3600, "an open window of another pool"],
+      [[`200 5000 12 4988 ${now + 900} core repos/{repo}`], 3600, "an open core window read on another route, maybe another counter"],
+      [[], 3600, "no readings"],
+    ]) {
+      rmSync(join(dir, "api-budget"), { recursive: true, force: true });
+      mkdirSync(join(dir, "api-budget"), { recursive: true });
+      if (readings.length) writeFileSync(join(dir, "api-budget", "github-token"), `${readings.join("\n")}\n`);
+      const out = guarded(dir, [primary], "gh api repos/o/r/pulls --paginate || true");
+      const [pool, left] = stopFor(dir);
+      assert.equal(pool, "*", label);
+      assert.ok(left >= seconds - 5 && left <= seconds, `${label}: stopped for ${left}s`);
+      assert.match(out.stderr, seconds === 900 ? /\(x-ratelimit-reset of an earlier reading\)/ : /\(fallback\)/, label);
+      assert.equal(readFileSync(join(dir, "api-budget", "guessed"), "utf8"), readFileSync(join(dir, "api-budget", "stop"), "utf8"), label);
+    }
+    // A secondary limit keeps its minute whatever the readings show.
+    rmSync(join(dir, "api-budget"), { recursive: true, force: true });
+    mkdirSync(join(dir, "api-budget"), { recursive: true });
+    writeFileSync(join(dir, "api-budget", "github-token"), `200 5000 12 4988 ${now + 900} core repos/o/r\n`);
+    guarded(dir, ["fail gh: You have exceeded a secondary rate limit. (HTTP 403)"], "gh api repos/o/r/pulls --paginate || true");
+    const [, left] = stopFor(dir);
+    assert.ok(left >= 55 && left <= 60, `secondary: stopped for ${left}s`);
+  }));
+
 // The call got a good answer, so it keeps gh's status: a caller that read a
 // failure would retry a write GitHub already accepted. The next call is
 // refused.
@@ -1033,8 +1069,8 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
     ),
     "pr-review-hosted.yml": { "resolve-model": "github-token", "kill-switch": "github-token" },
     "pr-review-security-hosted.yml": { "resolve-model": "github-token", "kill-switch": "github-token" },
-    // Not run, which logs before its head checkout, or scan, which writes its
-    // own notice (a key, and no other action from a checkout); both pinned below.
+    // Not run, which logs before its head checkout, or scan, which counts its
+    // own calls (a key, and no other action from a checkout); both pinned below.
     "pr-run-activity-read.yml": { "broker-check": "github-token", "issue-fields": "github-token", summary: "github-token", report: "github-token" },
     "pr-run-activity-write.yml": { report: "github-token" },
     "maintenance-tidy-code-upkeep.yml": {
@@ -1158,25 +1194,25 @@ test("intake-triage's dispatch jobs end with their own api-calls notice in the e
   }));
 
 // The scan job holds the scan-carrier key and loads no other action from a
-// checkout, and its only job-token calls are github-script's, which no counter
-// sees: a 0 count, with the steps that ran named as uncounted.
-test("pr-run-activity-read's scan job ends with a 0 api-calls notice naming its uncounted steps", () =>
+// checkout, so it sums the counts its two github-script steps write
+// (callers.test.mjs runs those steps) and ends with the notice in the
+// emitter's shape.
+test("pr-run-activity-read's scan job ends with its own api-calls notice in the emitter's shape", () =>
   withDir((dir) => {
     const env = { RUNNER_TEMP: dir, TMPDIR: dir };
-    const calls = "::notice title=api-calls::github-token=0 not-modified=0 graphql=0\n";
-    assert.equal(
-      lastRun("pr-run-activity-read.yml", "scan", env, { STAGED: "success", SCANNED: "failure" }),
-      `${calls}::notice title=api-uncounted::github-token stage-scanner:branches/contents leak-scan:branches/contents\n`,
-    );
-    assert.equal(
-      lastRun("pr-run-activity-read.yml", "scan", env, { STAGED: "success", SCANNED: "skipped" }),
-      `${calls}::notice title=api-uncounted::github-token stage-scanner:branches/contents\n`,
-    );
-    assert.equal(lastRun("pr-run-activity-read.yml", "scan", env, { STAGED: "skipped", SCANNED: "skipped" }), calls);
-    const text = readFileSync(new URL("../../workflows/pr-run-activity-read.yml", import.meta.url), "utf8");
-    const last = (/\n  scan:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n|$)/.exec(text)?.[1] ?? "").split(/\n {6}- name: /).at(-1);
-    assert.match(last, /\n {10}STAGED: \$\{\{ steps\.stage-scanner\.outcome \}\}\n {10}SCANNED: \$\{\{ steps\.leak-scan\.outcome \}\}\n/);
-    assert.match(text, /\n {6}- name: Stage the upload scanner\n {8}id: stage-scanner\n/);
+    const shape = execFileSync("bash", ["-c", `. "${LIB}"; api_budget_emit_calls github-token`], { encoding: "utf8", env: { PATH: process.env.PATH, ...env } });
+    const emitted = (stage, leak) => {
+      for (const [file, count] of [["scan-stage-calls", stage], ["scan-leak-calls", leak]]) {
+        rmSync(join(dir, file), { force: true });
+        if (count !== undefined) writeFileSync(join(dir, file), `${count}\n`);
+      }
+      return lastRun("pr-run-activity-read.yml", "scan", env);
+    };
+    assert.equal(emitted(), shape, "no count file is 0, as the emitter writes with no reading");
+    assert.equal(emitted(3), shape.replace("github-token=0", "github-token=3"), "a scan that stopped before its leak scan");
+    assert.equal(emitted(3, 2), shape.replace("github-token=0", "github-token=5"));
+    assert.equal(emitted("02", 2), shape.replace("github-token=0", "github-token=4"), "a count with a leading 0 is decimal");
+    assert.equal(emitted("3; rm", 2), shape.replace("github-token=0", "github-token=2"), "anything but a count is 0");
   }));
 
 // Head code runs in the activity run jobs after their head checkout, which

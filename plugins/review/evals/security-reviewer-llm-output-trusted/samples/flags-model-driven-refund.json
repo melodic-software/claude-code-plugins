@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "1. **Severity**: P1\n**Location**: `src/routes/assistant.js:21`\n**Risk**: The model's JSON picks the orderId and amount passed to payments.refund; a prompt injection in the message refunds any order.\n**Fix**: check ownership and amount in code.",
+      "why": "finding at the refund line naming any order"
+    },
+    {
+      "answer": "The refund's ownership and amount limits live only in the system prompt (src/routes/assistant.js:11).",
+      "why": "refund and prompt-only limits before the location"
+    },
+    {
+      "answer": "1. **Severity:** P1\n   **Location:** `src/routes/assistant.js:20-22` (with `:11` and `:17`)\n   **Risk:** The refund runs on whatever order ID and amount the model returns. The only limits are written in the prompt, and nothing in the code checks that the order belongs to the caller.",
+      "why": "baseline-shaped report: model-chosen refund with no ownership check in code"
+    },
+    {
+      "answer": "1. **Severity:** P1\n   **Location:** `src/routes/assistant.js:44-47` (with the system prompt at `:36`)\n   **Risk:** The only limits on refunds are written in the system prompt. The model's JSON goes straight to `payments.refund(orderId, amountCents)` with no check in code, so a customer can refund any order.",
+      "why": "right defect cited at diff-file lines 44 and 36, which map to source lines 19 and 11"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No findings.",
+      "why": "no finding"
+    },
+    {
+      "answer": "**Location**: `src/routes/assistant.js:19`\n**Risk**: JSON.parse throws on malformed text and returns a 500.",
+      "why": "right file, a robustness note with no trust boundary named"
+    },
+    {
+      "answer": "1. **Severity**: P3\n**Location**: `src/routes/assistant.js:19`\n**Risk**: Malformed model output causes JSON.parse to throw, so the handler rejects before the refund branch and the request fails with an unhandled rejection.\n**Fix**: wrap the parse in try/catch.",
+      "why": "parsing-only report that names the model output and the refund branch but no missing ownership or amount check"
+    },
+    {
+      "answer": "**Location**: `src/llm.js:7`\n**Risk**: the model output is logged with customer data.",
+      "why": "a different file"
+    }
+  ]
+}

@@ -3960,6 +3960,83 @@ class Assess(unittest.TestCase):
         self.assertEqual(result.reason, "promotion-unqualified:resolver-failed")
         self.assertIs(result.enabled, True)
 
+    def linked_issue(self, gh: Any, labels: list[str]) -> None:
+        issue = {
+            "number": ISSUE,
+            "lastEditedAt": None,
+            "author": user(OPERATOR),
+            "repository": {"nameWithOwner": REPO},
+            "labels": {
+                "totalCount": len(labels),
+                "nodes": [{"name": name} for name in labels],
+            },
+        }
+        # A person applied each label (REST timeline `labeled` events).
+        gh.rest[f"repos/{REPO}/issues/{ISSUE}/timeline?per_page=100"] = [
+            {
+                "event": "labeled",
+                "label": {"name": name},
+                "actor": {"login": OPERATOR, "type": "User"},
+                "created_at": "2026-10-11T09:00:00Z",
+            }
+            for name in labels
+        ]
+        gh.rest[f"repos/{REPO}/collaborators/{OPERATOR}/permission"] = {
+            "permission": "admin"
+        }
+        gh.rest[f"repos/{REPO}/issues/{ISSUE}/comments?per_page=100"] = [
+            lease_comment(IDENTITY, "2026-10-12T11:00:00Z")
+        ]
+        gh.graphql["PolicyEligibility"] = {
+            "repository": {
+                "pullRequest": {
+                    "number": 1,
+                    "createdAt": PR_CREATED,
+                    "lastEditedAt": None,
+                    "isCrossRepository": False,
+                    "baseRefName": "trunk",
+                    "author": bot("agent-lanes"),
+                    "headRepositoryOwner": {"login": "owner"},
+                    "labels": {"totalCount": 0, "nodes": []},
+                    "closingIssuesReferences": {"totalCount": 1, "nodes": [issue]},
+                }
+            }
+        }
+
+    def test_each_rung_admits_a_class_less_or_structural_item_and_holds_untrusted(
+        self,
+    ) -> None:
+        # Once the rung's cells are promoted, an item with no
+        # work-class label and a structural one pass the real `eligibility()`
+        # at both rungs (C2 is c2-mechanical; C3 is c3-autonomous and
+        # full-autonomy); the untrusted-provenance hold still refuses.
+        for rung in ("C2", "C3"):
+            for labels, reason in (
+                ([], None),
+                (["work-class: structural"], None),
+                (
+                    ["work-class: untrusted-provenance"],
+                    "ineligible:untrusted-provenance",
+                ),
+            ):
+                with self.subTest(rung=rung, labels=labels):
+                    gh = self.readable()
+                    self.linked_issue(gh, labels)
+                    with (
+                        self.at_rung(rung),
+                        mock.patch.object(
+                            policy,
+                            "in_flight",
+                            return_value=policy.InFlight(True, None),
+                        ),
+                    ):
+                        result = self.assess(
+                            post_merge=lambda floor, who: gate(),
+                            promotion=lambda s: PROMOTED,
+                        )
+                    self.assertEqual(result.reason, reason)
+                    self.assertIs(result.promoted, True)
+
     def test_the_real_eligibility_holds_an_untrusted_provenance_issue(self) -> None:
         # The trust hold through `eligibility()` itself, not a stubbed answer.
         gh = self.readable()
@@ -9181,6 +9258,7 @@ class DependabotEligibility(unittest.TestCase):
         paths: list[str],
         *,
         after: dict[str, str] | None = None,
+        before_text: dict[str, str] | None = None,
         modes: dict[str, dict[str, Any]] | None = None,
     ) -> None:
         """The lanes App's fix commit at the head on Dependabot's commit: its
@@ -9207,7 +9285,7 @@ class DependabotEligibility(unittest.TestCase):
         for path in paths:
             name = path.rsplit("/", 1)[-1]
             for ref, side in ((self.PARENT, before), (self.HEAD, bumped)):
-                text = (after or {}).get(path) if ref == self.HEAD else None
+                text = ((after if ref == self.HEAD else before_text) or {}).get(path)
                 gh.rest[f"repos/{REPO}/contents/{path}?ref={ref}"] = RawText(
                     text if text is not None else side.get(name, "")
                 )
@@ -9314,6 +9392,35 @@ class DependabotEligibility(unittest.TestCase):
             "dependabot-fix-content:fix-content:package-lock.json:"
             "lock-resolved:node_modules/x",
         )
+
+    def test_a_lanes_app_install_script_pin_move_is_eligible_and_no_other_pin(
+        self,
+    ) -> None:
+        cli = "@anthropic-ai/claude-code"
+
+        def manifest(pin: str) -> str:
+            return json.dumps(
+                {
+                    "devDependencies": {cli: "2.1.317"},
+                    "allowScripts": {f"{cli}@{pin}": True},
+                }
+            )
+
+        def reason(pin: str) -> str | None:
+            return self.lane_fix_reason(
+                ["package.json"],
+                before_text={"package.json": manifest("2.1.316")},
+                after={"package.json": manifest(pin)},
+            )
+
+        self.assertIsNone(reason("2.1.317"))
+        for pin in ("2.1.318", "*"):
+            with self.subTest(pin=pin):
+                self.assertEqual(
+                    reason(pin),
+                    "dependabot-fix-content:fix-content:package.json:"
+                    "package-json-key:allowScripts",
+                )
 
     def test_an_unreadable_fix_commit_file_list_refuses(self) -> None:
         # Unreadable is not "touches nothing": the .github/ boundary must hold.

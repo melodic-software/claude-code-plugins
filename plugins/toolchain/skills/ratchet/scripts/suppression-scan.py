@@ -1,6 +1,6 @@
 # GENERATED from lib/suppression-scan.py by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
-"""Find lint and type-checker suppressions in source files and say which carry a reason.
+"""Find lint, type-checker, coverage, mutation-testing and security-scanner suppressions in source files and say which carry a reason.
 
 Usage:
   suppression-scan.py [options] [--] [<path>...]
@@ -372,17 +372,39 @@ class CommentMarker:
     pattern: re.Pattern[str]
     names_rules: bool
     rules: re.Pattern[str] | None  # matched at the start of the text after the marker
+    token: re.Pattern[str] | None = None  # set for a marker found anywhere in a comment
 
 
-def _m(tool, kinds, pattern, rules=None, names_rules=True, lead=r"\s*\*?\s*"):
+def _m(
+    tool,
+    kinds,
+    pattern,
+    rules=None,
+    names_rules=True,
+    lead=r"\s*\*?\s*",
+    anywhere=False,
+):
     return CommentMarker(
         tool,
         kinds,
         re.compile(lead + pattern),
         names_rules,
         re.compile(rules) if rules else None,
+        re.compile(pattern) if anywhere else None,
     )
 
+
+SEMGREP_KINDS = (
+    "clike-js",
+    "python",
+    "shell",
+    "csharp",
+    "go",
+    "java",
+    "ruby",
+    "powershell",
+)
+ALL_COMMENT_KINDS = (*SEMGREP_KINDS, "markdown")
 
 COMMENT_MARKERS = (
     _m(
@@ -437,6 +459,48 @@ COMMENT_MARKERS = (
         r"rubocop\s*:\s*(?:disable|todo)\b",
         r"\s+(?P<r>[\w/]+(?:\s*,\s*[\w/]+)*)",
     ),
+    # Directives that switch off the evidence a quality bar rests on: coverage
+    # exclusions, mutation-testing exclusions and security-scanner suppressions.
+    _m(
+        "istanbul",
+        ("clike-js",),
+        r"istanbul\s+ignore\s+(?:if|else|next|file)\b",
+        names_rules=False,
+    ),
+    _m("c8", ("clike-js",), r"c8\s+ignore\s+(?:next|start)\b", names_rules=False),
+    _m(
+        "coverage.py",
+        ("python",),
+        r"(?:pragma|PRAGMA)[:\s]?\s*(?:no|NO)\s*(?:cover|COVER|branch|BRANCH)",
+        names_rules=False,
+    ),
+    _m(
+        "stryker",
+        ("clike-js",),
+        r"Stryker\s+disable(?:\s+next-line)?\b",
+        r"\s+(?P<r>\w+(?:\s*,\s*\w+)*)",
+    ),
+    _m(
+        "bandit",
+        ("python",),
+        r"nosec\b",
+        r":?\s*(?P<r>B[0-9]+(?:\s*,\s*B[0-9]+)*)",
+    ),
+    _m(
+        "semgrep",
+        (*SEMGREP_KINDS,),
+        r"nosemgrep\b",
+        r"\s*:\s*(?P<r>[\w.\-]+(?:\s*,\s*[\w.\-]+)*)",
+    ),
+    # Gitleaks skips a line that contains the marker, so it counts anywhere in a
+    # comment; text before it is the reason.
+    _m(
+        "gitleaks",
+        ALL_COMMENT_KINDS,
+        r"gitleaks:allow",
+        names_rules=False,
+        anywhere=True,
+    ),
 )
 
 # Code markers: an attribute, annotation or pragma found in the code outside
@@ -455,7 +519,9 @@ SEPARATORS = " \t:-/#*,;.>" + chr(0x2013) + chr(0x2014)
 ANY_MARKER = re.compile(
     r"eslint-disable|@ts-|noqa|(?:type|pyright)\s*:\s*ignore|pylint\s*:"
     r"|shellcheck\s+disable|pragma\s+warning|SuppressMessage|nolint"
-    r"|markdownlint-disable|rubocop\s*:|SuppressWarnings",
+    r"|markdownlint-disable|rubocop\s*:|SuppressWarnings"
+    r"|(?:istanbul|c8)\s+ignore|pragma[:\s]?\s*no\s*(?:cover|branch)|Stryker\s+disable|nosec|nosemgrep"
+    r"|gitleaks:allow",
     re.IGNORECASE,
 )
 
@@ -483,25 +549,48 @@ def _comment_records(lineno: int, kind: str, segments: list[Segment]) -> list[Re
     trailing: list[str] = []
     for segment in segments:
         text = segment.text
+        # A marker found anywhere in a comment (Gitleaks) is a record of its own;
+        # its text is taken out before the comment's first marker is read, so it
+        # is never that marker's reason. Reason text the comment states for the
+        # first marker also justifies the marker found anywhere in it.
+        anywhere = [m for m in COMMENT_MARKERS if kind in m.kinds and m.token]
+        found_anywhere = [m for m in anywhere if m.token.search(text)]
+        scrubbed = text
+        for m in found_anywhere:
+            scrubbed = m.token.sub(" ", scrubbed)
         marker = next(
-            (m for m in COMMENT_MARKERS if kind in m.kinds and m.pattern.match(text)),
+            (
+                m
+                for m in COMMENT_MARKERS
+                if kind in m.kinds and not m.token and m.pattern.match(scrubbed)
+            ),
             None,
         )
-        if marker is None:
+        if marker is None and not found_anywhere:
             reason = _reason(text)
             if reason:
                 trailing.append(reason)
             continue
-        rest = text[marker.pattern.match(text).end() :]
-        rules: list[str] = []
-        if marker.rules:
-            found = marker.rules.match(rest)
-            if found:
-                rules = _split_rules(found.group("r"))
-                rest = rest[found.end() :]
-        records.append(
-            Record(lineno, marker.tool, rules, marker.names_rules, _reason(rest))
-        )
+        shared = None  # the reason text the comment states for its first marker
+        if marker is not None:
+            matched = marker.pattern.match(scrubbed)
+            rest = scrubbed[matched.end() :]
+            rules: list[str] = []
+            if marker.rules:
+                found = marker.rules.match(rest)
+                if found:
+                    rules = _split_rules(found.group("r"))
+                    rest = rest[found.end() :]
+            shared = _reason(rest)
+            records.append(
+                Record(lineno, marker.tool, rules, marker.names_rules, shared)
+            )
+        for m in found_anywhere:
+            reason = shared
+            if marker is None:
+                hit = m.token.search(text)
+                reason = _reason(text[hit.end() :]) or _reason(text[: hit.start()])
+            records.append(Record(lineno, m.tool, [], m.names_rules, reason))
     if trailing:
         for record in records:
             if record.reason is None:

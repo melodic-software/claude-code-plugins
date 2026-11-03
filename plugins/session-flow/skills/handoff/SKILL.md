@@ -202,37 +202,8 @@ named with its file or option, the key and the value, and that layer is dropped:
 layer still wins, otherwise `false`. The handoff never stops on it. Report one line, for example
 `wip_commit: true (docs/conventions/session-flow.yaml)`. Resolved `false`: commit nothing.
 
-**Refuse, commit nothing, and say why in the save-point** when any of these holds. Read each
-from git, one command per call:
-
-- A sequencer operation is in progress: `git rev-parse --git-path <name>` names an existing path
-  for `MERGE_HEAD`, `REBASE_HEAD`, `CHERRY_PICK_HEAD` or `REVERT_HEAD`, or for the `rebase-merge`
-  or `rebase-apply` directory. A commit now would conclude that operation under a pause subject.
-- HEAD is detached: `git symbolic-ref -q HEAD` prints nothing.
-- HEAD is the default branch: `git symbolic-ref refs/remotes/origin/HEAD` names the same branch
-  as HEAD. When that command fails (no origin HEAD), the default branch is unknown: refuse.
-- A path is partially staged: it appears in both `git diff --cached --name-only -z` and
-  `git diff --name-only -z`. The unstaged hunks are a choice the user made; staging them undoes it.
-- A path outside this work holds staged changes. A commit takes the whole index, so it would
-  carry that path along.
-
-**Otherwise commit.** The paths are the tracked files this work changed, the ones the save-point's
-"File roles in this work" section names. Paths are data: never type one into a command line.
-Write the list NUL-separated to a file with the Write tool, check each entry against
-`git diff --name-only -z` output, and stage with
-`git add -u --pathspec-from-file=<list> --pathspec-file-nul`, which never picks up an untracked
-file. A tracked file changed outside this work stays out of the commit, and the save-point lists it
-as left uncommitted. Commit with the subject `chore(wip): <one-line state of the work>` and the
-repository's usual body and trailer rules, with every commit hook running. When a hook rejects the
-commit, do not retry it with hooks skipped and do not reword it to get past the hook: unstage the
-paths this step staged (`git restore --staged --pathspec-from-file=<list> --pathspec-file-nul`, the
-list holding only the paths that had no staged change before), leave the work in the working tree,
-and state the hook's message in the save-point. Never push.
-
-**Record it.** Put the commit SHA and subject under "Side effects already applied", or the refusal
-and its reason there instead, and list every untracked path under "File roles in this work",
-since the commit left them out. On the prompt-only path, which writes no file, the same facts go
-into the resume prompt as one bullet.
+Resolved `true`: run the refusal checks, stage and commit, and record the result per
+[`reference/wip-commit.md`](reference/wip-commit.md). Never push.
 
 ## Hand worktree claims to the resuming session
 
@@ -425,7 +396,7 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   remaining-work bullet: path, this session's id, handover before `check-enter` (OR none held)
 - [ ] `wip_commit` line reported, as on the full path; a commit, refusal or hook rejection is one
   bullet in the prompt, nothing pushed
-- [ ] If /export is available in your session (gate basis: **Verification record: `/export`** below), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. Prompt-only writes no file. **`--unattended`:** record the suggestion; do not ask.
+- [ ] If /export is available in your session (gate basis: [`reference/export-verification.md`](reference/export-verification.md)), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. Prompt-only writes no file. **`--unattended`:** record the suggestion; do not ask.
 - [ ] Purpose text (when the invocation carried any) travels inline as the `Purpose:` line below
   the goal quote and above the remaining-work bullets (engine doc, "The purpose argument tailors
   emphasis only"), never discarded; a goal-conflicting purpose flagged rather than obeyed. No
@@ -455,20 +426,15 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   enough to skip `/clear` and finish in-session"; the rails prompt and its below-rail notes follow
   these ticks as the response's final text (see "Output order is fixed" above)
 
-## Verification record: `/export`
+## Reference index. Load on demand
 
-This skill suggests `/export` to the person and never runs it, and gates the suggestion on the
-command being available in the person's session. Our probes back this: on Claude Code 2.1.241
-(2026-08-24), `claude --bare -p "/export <path>"` refused the command as unavailable in that
-environment, and on 2.1.263 (2026-09-11) it registered as an interactive local-jsx command, not a
-prompt, so the Skill tool never lists it. We found no switch that disables it.
-
-- **Pointer**: for the `/export` command, see
-  <https://code.claude.com/docs/en/commands#all-commands>; for the headless refusal and the
-  invocation mode, the probes above.
-- **As of**: 2026-09-29
-- **Recheck trigger**: a Claude Code release note or the commands page adds an `/export` format or
-  redaction flag, a headless or programmatic form, or an official conversation-sharing surface.
+| File | Load when |
+|------|-----------|
+| [reference/settle-in-flight.md](reference/settle-in-flight.md) | Off-thread work is still running before `save_point.py new` or the prompt-only rails prompt. |
+| [reference/wip-commit.md](reference/wip-commit.md) | `wip_commit` resolved `true` for a qualifying pause: the refusal checks, staging, the hook-rejection path and what the save-point records. |
+| [reference/pending-ci-caveat.md](reference/pending-ci-caveat.md) | Applying claim provenance to a fix still in CI, merge or another unreturned check. |
+| [reference/export-verification.md](reference/export-verification.md) | Deciding whether to suggest `/export`, or rechecking the probes behind that gate. |
+| [reference/phase-boundary-owner.md](reference/phase-boundary-owner.md) | A resident `/implementation:implement-dispatch` boundary asks who writes the handoff. |
 
 ## Next
 

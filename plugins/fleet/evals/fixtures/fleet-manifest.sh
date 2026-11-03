@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
-# Writes ~/.config/fleet/FLEET.md, the manifest the reach skill reads first, for two
-# made-up hosts: desk-01 (the desktop, where the run is) and lap-01 (the laptop).
-# The runner sets HOME to the run's temporary home for a scaffold script
-# (https://code.claude.com/docs/en/plugin-evals, "Seed the workspace or
-# conversation"). The guard does not trust that alone: it refuses the account's
-# real home from the password database, and it never overwrites a file.
+# Writes .config/fleet/FLEET.md in the workspace, the manifest the reach skill reads
+# first, for two made-up hosts: desk-01 (the desktop, where the run is) and lap-01
+# (the laptop). It sits in the workspace, not under $HOME, because the agent never
+# sees $HOME: it expands ~ from the /home/<user> prefix of the absolute paths in its
+# context and the run denies that read. Each case's prompt names this location.
+# The runner sets HOME to the run's temporary home and runs a scaffold script in the
+# workspace (https://code.claude.com/docs/en/plugin-evals, "Seed the workspace or
+# conversation"). The guard does not trust that alone: it looks up the account's
+# real home in the password database and refuses when either HOME or the working
+# directory is that home, and it never overwrites a file.
 set -euo pipefail
 
 refuse() {
@@ -22,9 +26,11 @@ else
   refuse "cannot look up the account's real home to compare against"
 fi
 [[ -n "$real_home" ]] || refuse "the account's real home did not resolve"
-[[ "$(cd "$HOME" && pwd -P)" != "$(cd "$real_home" && pwd -P)" ]] || refuse "HOME is the account's real home: $HOME"
+real_home=$(cd "$real_home" && pwd -P)
+[[ "$(cd "$HOME" && pwd -P)" != "$real_home" ]] || refuse "HOME is the account's real home: $HOME"
+[[ "$(pwd -P)" != "$real_home" ]] || refuse "the working directory is the account's real home: $PWD"
 
-d="$HOME/.config/fleet"
+d="$PWD/.config/fleet"
 f="$d/FLEET.md"
 [[ ! -e "$f" ]] || refuse "$f already exists"
 mkdir -p "$d"
@@ -43,6 +49,9 @@ Rendered for desk-01. Machines are addressed by hostname over the tailnet.
 - Windows console user: `EvalUser`
 - `claude.exe`: `/mnt/c/Users/EvalUser/.local/bin/claude.exe`
 - Windows scratch directory: `/mnt/c/Users/EvalUser/scratch`
+- `ssh-admin` is key-only and has no DPAPI. Anything needing `EvalUser`'s Windows credentials
+  runs through an on-demand task, which runs as `EvalUser`: `eval-sync`, `eval-backup`. Start
+  one over port 22 with `Start-ScheduledTask <name>` and read its log.
 
 ## lap-01 (laptop)
 
@@ -54,6 +63,9 @@ Rendered for desk-01. Machines are addressed by hostname over the tailnet.
 - Windows console user: `EvalUser`
 - `claude.exe`: `/mnt/c/Users/EvalUser/.local/bin/claude.exe`
 - Windows scratch directory: `/mnt/c/Users/EvalUser/scratch`
+- `ssh-admin` is key-only and has no DPAPI. Anything needing `EvalUser`'s Windows credentials
+  runs through an on-demand task, which runs as `EvalUser`: `eval-sync`, `eval-backup`. Start
+  one over port 22 with `Start-ScheduledTask <name>` and read its log.
 
 ## Reach from desk-01
 

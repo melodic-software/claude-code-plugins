@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Reads the spool file through to its end in successive bounded slices, then deletes it. Returns the whole article rather than the first slice, and if anything stops the read early, reports the result as partial and says where it stops.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

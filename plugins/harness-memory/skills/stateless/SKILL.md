@@ -19,10 +19,11 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/stateless/scripts/scope-report.sh" || echo "(
 
 # Stateless
 
-Inspect and disable Claude Code **auto memory**, the store Claude writes for itself, one
-directory per repo (`~/.claude/projects/<project>/memory/`, relocatable via
-`autoMemoryDirectory`). Governs auto-memory only. Not in scope: CLAUDE.md / CLAUDE.local.md /
-`.claude/rules/` (use `/harness-memory:audit`), transcripts, history, or shell snapshots. For the
+Inspect and disable Claude Code **auto memory**, the store Claude writes for itself. Where it
+lives is read at
+[Storage location](https://code.claude.com/docs/en/memory#storage-location) (as of 2026-11-03;
+recheck when that section moves the store or changes what relocates it). Governs auto-memory
+only. Not in scope: CLAUDE.md / CLAUDE.local.md / `.claude/rules/` (use `/harness-memory:audit`), transcripts, history, or shell snapshots. For the
 official full per-project wipe, use `claude purge`.
 [reference/official-guidance.md](reference/official-guidance.md), "Out of scope for this skill",
 records how this skill treats that command's scope; read the deletion plan and flags at
@@ -36,7 +37,7 @@ section before acting on a load-bearing fact.
 
 | Entity | Location | This skill |
 |--------|----------|-----------|
-| Auto-memory store | `~/.claude/projects/<project>/memory/` (or `autoMemoryDirectory`) | Yes. Status / disable / purge |
+| Auto-memory store | Per project; see Storage location above | Yes. Status / disable / purge |
 | `autoMemoryEnabled` setting | any settings scope | Yes. Reads and writes |
 | `CLAUDE_CODE_DISABLE_AUTO_MEMORY` | OS env or settings `env` block | Yes. Reads and writes |
 | CLAUDE.md / `.claude/rules/` | repo + user | No. Use `/harness-memory:audit` |
@@ -94,15 +95,18 @@ carrying `CLAUDE_PLUGIN_ROOT`.
 
 "Turn off auto memory" and "what has Claude saved" can land on either.
 
-- **`/memory` (built-in command)**: the person's interactive editor for CLAUDE.md files and the
-  auto-memory toggle and entries in the running session. This skill never runs it.
+- **`/memory` (built-in command)**: the person's own interactive command. This skill never runs
+  it.
+  - **Pointer**: for what it opens and toggles, read
+    [View and edit with `/memory`](https://code.claude.com/docs/en/memory#view-and-edit-with-memory).
+  - **As of**: 2026-11-03
+  - **Recheck trigger**: that section adds or drops what the command edits or toggles.
 - **This skill (marketplace plugin).** Reports the effective auto-memory state across every
   settings scope and the env var that overrides them, disables it durably through both levers,
   and purges the store behind a manifest and a confirmation gate.
 
 **Routing.** When the person wants a quick interactive toggle or a look at the saved entries,
-offer it to the person: If /memory is available in your session (gate basis: not gated in the
-extraction, though a host may lack it; records in
+offer it to the person: If /memory is available in your session (gate basis: the records in
 [reference/native-memory.md](reference/native-memory.md)), you can run it instead of or alongside
 this skill. Prefer this skill
 when precedence across scopes matters, when the env var is set, or for a durable disable or a

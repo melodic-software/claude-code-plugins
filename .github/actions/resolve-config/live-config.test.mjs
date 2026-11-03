@@ -158,6 +158,7 @@ test("live config: pr-unblock runs its slots in order", () => {
       "address-feedback",
       "apply-feedback-patch",
       "publish-feedback",
+      "resolve-feedback-threads",
       "review-dependency",
       "apply-dependency-patch",
       "apply-dependency-verdict",
@@ -342,6 +343,23 @@ test("live config: publish-feedback runs the reply script after address-feedback
   assert.deepEqual(
     resolveGrant(FILES, { lane: "pr-unblock", activity: "publish-feedback", configPath: CONFIG_PATH }),
     { effect: "publish-artifact", grant: { contents: "read", "pull-requests": "write", issues: "write" } },
+  );
+});
+
+// #12634: resolving a thread on an owner PR needs contents: write, so it
+// runs in its own script slot after publish-feedback, which keeps
+// publish-artifact, with no PR head checkout and on a PR head it never reads.
+test("live config: resolve-feedback-threads resolves after publish-feedback with mutate-branch and no head checkout", () => {
+  const slot = selected("pr-unblock", "resolve-feedback-threads");
+  assert.equal(slot.applies, true);
+  assert.equal(slot.kind, "script");
+  assert.equal(slot.script, ".github/scripts/pr-unblock/resolve-threads.mjs");
+  assert.equal(slot.checkout, "base");
+  assert.equal(slot["reads-untrusted"], true);
+  assert.deepEqual(slot.needs, ["publish-feedback"]);
+  assert.deepEqual(
+    resolveGrant(FILES, { lane: "pr-unblock", activity: "resolve-feedback-threads", configPath: CONFIG_PATH }),
+    { effect: "mutate-branch", grant: { contents: "write", "pull-requests": "read", issues: "read" } },
   );
 });
 

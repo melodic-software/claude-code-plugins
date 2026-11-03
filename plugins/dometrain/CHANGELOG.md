@@ -3,6 +3,18 @@
 All notable changes to the `dometrain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.13] - 2026-11-03
+
+### Changed
+
+- **README** and **setup skill**: passages that restated Dometrain's or Claude Code's documented behavior now point at the live upstream section with an as-of date and a recheck trigger. The removed passages covered the hosted server's endpoint and access requirement, the variable Dometrain's plugin reads, its install commands, license and authentication, plugin namespacing, rejection codes, variable expansion timing, `defaultEnabled`, and Dometrain's manifest name (#12693).
+
+## [0.8.12] - 2026-11-03
+
+### Changed
+
+- The `grounding` description says a plain how-to or design question on a covered topic qualifies without naming Dometrain, so the skill fires on such questions on Sonnet 5.5 (#12142).
+
 ## [0.8.11] - 2026-11-02
 
 ### Changed

@@ -24,11 +24,14 @@ The pipe is the bound and belongs in the command: the Bash tool returns the comp
 context, so a read-time cap ("read only the first 20 entries") bounds nothing.
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
-block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git. The dated record for that composition claim is the
-[gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation".
+separate body Bash calls rather than pre-compute lines.
+
+- **Pointer**: when deciding whether a gather line can move into the pre-compute block, fetch
+  [How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run)
+  live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section changes how a skill's injected commands are grouped into shell
+  invocations, or a release note names skill injected commands.
 
 ## Purpose
 
@@ -126,8 +129,8 @@ Multi-word old/new is fine. Separator is the only delimiter. Quote characters (`
    - **Certain**. Slash-token, path, frontmatter glob (high precision, auto-apply candidate)
    - **Chain-context**. Preceded/followed by other known skill names; numbered table rows; chain prose with multiple skill tokens
    - **Ambiguous**. Bare-token matches where token is in English-verb blocklist (`confirm`/`test`/`review`/`fix`/`clean`/`build`/`lint`/`verify`/`plan`/etc.)
-4. **Confirm**. Present buckets via `AskUserQuestion`:
-   - Certain → "auto-apply N matches?". Yes/no
+4. **Confirm**. Present the bucket-count report, gate proceed/abort via `AskUserQuestion`, then per bucket:
+   - Certain → no per-bucket question: auto-apply; the report gives the count, 1-2 examples and how to review one by one instead
    - Chain-context → "review N matches one-by-one?". Yes/skip-bucket/auto-apply-all
    - Ambiguous → per-match yes/no with surrounding context
 5. **Apply**, Edit each accepted match. Idempotent, running twice is safe.
@@ -157,7 +160,7 @@ Paths skipped from sweeps automatically:
 ## Edge cases
 
 - **English-verb collision**. Tokens like `confirm`, `test`, `review`, `clean`, `fix`, `build`, `lint`, `plan`, `run`, `view`, `start`, `stop`, `merge`, `split`, `sort`, `filter`, `group`, `head`, `body`, `link`, `list`, `work`, `log`, `watch`, `monitor`. Triage forces these into ambiguous bucket regardless of regex hit position. User confirms each.
-- **Concurrent sessions**. Edit tool's read-before-write guard catches racing edits. If guard fails, report to user and abort.
+- **Concurrent sessions**. If an Edit call fails, report to the user and abort. **Pointer**: when judging what the Edit tool checks before an edit applies, fetch [Edit tool behavior](https://code.claude.com/docs/en/tools-reference#edit-tool-behavior) live. **As of**: 2026-11-03. **Recheck trigger**: that section changes the checks an edit must pass, or how a file changed on disk since the last read is handled.
 - **Word-boundary trap**. `confirm` inside `confirmation` MUST NOT match. All bare-token patterns use `\b`.
 - **Slash-token specificity**. `/confirm` should match but not `/confirmation`, `/confirm-changes`, or `path/confirm`. Use `\B/<old>([^\w-]|$)` (non-word-boundary before the slash; a CONSUMED terminator after that excludes a hyphen). A trailing `\b` is not enough: it treats a hyphen as a boundary, so it matches inside kebab-case sibling commands, and Form 1 is Certain, so that auto-applies. The consumed character is not part of the reference.
 - **Frontmatter trailing newline**. YAML frontmatter description strings can span lines. Patterns must handle multi-line. Use `multiline: true` on the Grep tool.

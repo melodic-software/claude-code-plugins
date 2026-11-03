@@ -1,5 +1,69 @@
 # Changelog for the PR pipeline convention
 
+## [8.46.0] - 2026-11-03
+
+### Added
+
+- review-dependency moves the `@anthropic-ai/claude-code` install-script approval (`allowScripts`
+  in `package.json`) to the version `package-lock.json` installs, inside the Dependabot pull
+  request, with no model turn: `review-dependency-select` writes the one-line patch
+  (`install-script-pin.mjs`), and the new `apply-dependency-pin` job pushes it with
+  `apply-dependency-patch`'s existing grant under the new `install-script-pin` patch row. The
+  select step writes the lockfile's version only when it equals the exact version the manifest
+  pins. The row checks the manifest, not the lockfile: it admits the root `package.json` alone
+  with that one pin renamed to the exact version the manifest pins, unchanged from Dependabot's
+  commit. A downgrade, a name-only or wildcard key, another package's pin or any other change is
+  refused, and a refused push stops as `dependency-pin-invalid`, `dependency-pin-not-applied` or
+  `dependency-pin-protected-path` for the session queue. The pin round posts no round marker; the new head is reviewed as any other, and the
+  select step writes the from and to versions to its step summary.
+- `check-catalog` fails `ci-status` while the pin and the lockfile disagree, so a Dependabot bump
+  of the CLI sorts `review` and reaches the pin step.
+- The fix rule (`fixRefusal`) admits that pin move in a lanes App fix commit, so the pr-merge
+  lane can merge the reviewed pull request. The pin must name the exact version the manifest pins
+  both before and after the fix, so a fix cannot move the manifest and the pin together.
+
+## [8.45.1] - 2026-11-03
+
+### Fixed
+
+- The hourly triage sweep counts a dispatched intake run as an attempt only when its `intake-triage`
+  job ran, read from the run's jobs. A run the lanes kill switch or another gate skipped, or that was
+  cancelled before intake, no longer uses up an attempt and hands the issue to `needs-triage`; the
+  sweep dispatches it again, and 6 dispatches hand it off whatever reached intake. A jobs read that
+  fails counts the run, as before.
+
+- A lanes App pull request the merge gate refuses `verify:earlier-fail` no longer dead-ends once
+  its pr-verify fail-note threads are resolved. The dispatcher sends an address-feedback model
+  round naming the FAILed heads (`verify-earlier-fail-heads`, from the reader's `earlierFails`)
+  even with no unresolved thread. `address-feedback-select`, now with `actions: read`, reads
+  those FAILs' notes from their verdict artifacts as the model's work items, and stops
+  `feedback-verdict-unreadable` when it cannot. A push fixing a named note ends as any fix
+  round; no push with every note already addressed stops `feedback-already-addressed` with
+  `needs-session`.
+- The dispatcher reads for an earlier FAIL on a PR with no unresolved thread only when a fail note
+  from another head is on it, at most three times per pass. A read that fails or times out is
+  not taken as "no earlier FAIL": the unsent sweep sends that head again on a later pass while its
+  newest review run completed within the last two hours. Nothing records an answer.
+- `earlier-fail-notes.mjs` joins the hold floor as an enforcement path, since the merge gate's
+  code loads it.
+
+## [8.45.0] - 2026-11-03
+
+### Added
+
+- `limits.stranded-backoff-hours` sets, per cause (`no-run`, `no-report`, `failed-again`, `failed-mint`, `kill-switch`), the base hours of work-unblock's re-fire backoff for a stranded `agent-ready` issue, doubled once per re-fire already made and held at 24 hours. Every cause defaults to 3 hours, the base before this key existed.
+
+### Changed
+
+- pr-verify reads the key's credit history only for a head it would judge: the `check-intent-credit` job is gone, and its gate and skipped-leg report run inside `check-intent` after the resolver, the trigger gate and the reads hand-on. A run that skips at the resolver (a judged head, a draft, a run red for anything but a hold, no single PR) no longer spends the gate's reads or its own VM. A key the gate skips runs no pre-judge setup and no judge, writes no "no verdict" failure, and hands on through the `skip-key` job output, so `check-intent-subscription` now takes the carried reads instead of reading the PR again.
+- The gate now reads the key's credit stop from one artifact marker (ci-workflows check-key-credit at `bc62beb`): one artifact-list call per judged run instead of a run list and up to three job lists. After a judge step's credit-stop handoff, `check-intent` writes, scans and uploads the artifact the gate's `marker` output names, kept one day; the step that carried a record forward is gone, since the window counts from the marker's upload. pr-verify's other ci-workflows actions move to the same pin.
+
+## [8.44.7] - 2026-11-03
+
+### Changed
+
+- maintenance-reconcile-lost-runs carries a lost pr-verify or pr-review-main run's attempt-1 job read in its settled-runs file while the run stays at attempt 1 with the same head and `updated_at`. A lane run deferred for want of one of the 3 re-run places is read once, not on every pass until it gets a place.
+
 ## [8.44.6] - 2026-11-03
 
 ### Fixed

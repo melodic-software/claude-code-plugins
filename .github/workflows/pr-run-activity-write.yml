@@ -69,6 +69,15 @@ on:
         required: false
         type: string
         default: ""
+      verify-close:
+        description: >-
+          Issue mode, report-outcome: the sub-issue numbers, comma-joined,
+          of a finished parent (each closed as completed by a trusted close,
+          as the caller's admit job read them), which a verified-done stop
+          needs before it closes the issue. Empty otherwise.
+        required: false
+        type: string
+        default: ""
       dimension-skip:
         description: >-
           Issue mode, report-outcome: the issue-dimension skip reason
@@ -483,8 +492,10 @@ on:
           patch-credential, patch-not-applied or patch-protected-path; for apply-patch under
           patch-prepare merge-base, unresolved-conflict, workflow-staged,
           unexpected-path-staged, conflict-patch-invalid,
-          conflict-patch-not-applied or conflict-patch-protected-path; empty
-          otherwise.
+          conflict-patch-not-applied or conflict-patch-protected-path; for
+          apply-patch under patch-prepare install-script-pin,
+          dependency-pin-invalid, dependency-pin-not-applied or
+          dependency-pin-protected-path; empty otherwise.
           Set only by runner steps and the base's reply and verdict scripts.
         value: ${{ jobs.run.outputs.escalation-reason }}
       rung-up:
@@ -624,6 +635,7 @@ jobs:
           PATCH_BASE_SHA: ${{ inputs.patch-base-sha }}
           PATCH_RESUME_TIP: ${{ inputs.patch-resume-tip }}
           DIMENSION_SKIP: ${{ inputs.dimension-skip }}
+          VERIFY_CLOSE: ${{ inputs.verify-close }}
           PATCH_PREPARE: ${{ inputs.patch-prepare }}
           PATCH_MERGE_BASE_SHA: ${{ inputs.patch-merge-base-sha }}
           PATCH_MERGE_STATE: ${{ inputs.patch-merge-state }}
@@ -671,6 +683,12 @@ jobs:
             echo "::error::dimension-skip must be an issue-dimension skip reason, outside-author or workflow-stale, in issue mode"
             exit 1
           fi
+          # A finished parent's sub-issues are issue numbers, only in issue mode.
+          if [ -n "$VERIFY_CLOSE" ] && { [ -z "$ISSUE_NUMBER" ] ||
+            ! [[ $VERIFY_CLOSE =~ ^[1-9][0-9]{0,9}(,[1-9][0-9]{0,9})*$ ]]; }; then
+            echo "::error::verify-close must be comma-joined issue numbers, in issue mode"
+            exit 1
+          fi
           if ! [[ $APP_SENDER_ID =~ ^[1-9][0-9]*$ ]]; then
             echo "::error::the AUTOMATION_LANES_APP_SENDER_ID variable must hold the lanes App bot's numeric user id"
             exit 1
@@ -687,10 +705,12 @@ jobs:
             feedback-untaken-threads | feedback-publish-failed) ;;
             feedback-unadjudicated | feedback-question-intent | feedback-question-design) ;;
             feedback-question-security | feedback-stood-open | feedback-verifier-open) ;;
+            feedback-already-addressed | feedback-verdict-unreadable) ;;
             dependency-round-cap | dependency-invalid | dependency-fix-not-landed) ;;
             dependency-security-close | dependency-escalate | dependency-config-unreadable) ;;
             dependency-files-truncated | dependency-control-uncited | dependency-workflow-unpinned) ;;
             dependency-fix-refused) ;;
+            dependency-pin-invalid | dependency-pin-not-applied | dependency-pin-protected-path) ;;
             ci-fix-round-cap | ci-fix-empty | ci-fix-invalid | ci-fix-escalated) ;;
             ci-fix-protected-path | ci-fix-not-applied | ci-fix-weaken-retry | ci-fix-weaken-required) ;;
             conflict-patch-invalid | conflict-patch-not-applied | conflict-patch-protected-path) ;;
@@ -1277,12 +1297,13 @@ jobs:
           merge-multiple: true
 
       # Also issue mode: report-outcome trusts a merge: human label only from
-      # a listed human or the lanes App.
+      # a listed human or the lanes App; and a checkout: base script, which
+      # reads the owners and the reviewer bot from it.
       - name: Copy the trusted actors for the reply script
         id: reply-actors
         if: >-
           steps.lane-token.outputs.token != ''
-          && (inputs.review-replies || inputs.issue-number != '')
+          && (inputs.review-replies || inputs.issue-number != '' || steps.config.outputs.checkout == 'base')
           && steps.config.outputs.kind == 'script'
         env:
           COPY: ${{ runner.temp }}/base-script/.trusted-actors.json
@@ -1496,8 +1517,10 @@ jobs:
             ${{ steps.lane-token.outcome != 'skipped' && inputs.issue-number == '' && github.event_name == 'pull_request' && 'lane-token:compare' || '' }}
             ${{ steps.lane-token.outcome == 'success' && inputs.issue-number == '' && 'promote:pulls promote:issues/labels' || '' }}
 
+      # A `checkout: base` script activity skips it: the job holds only the
+      # trusted base checkout, and .base stays in place.
       - name: Check out the PR head
-        if: steps.lane-token.outputs.token != ''
+        if: steps.lane-token.outputs.token != '' && steps.config.outputs.checkout != 'base'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: >-
@@ -1516,7 +1539,7 @@ jobs:
 
       # The activity judges exactly the commit the check is posted on.
       - name: Assert the head is the gated SHA
-        if: steps.lane-token.outputs.token != ''
+        if: steps.lane-token.outputs.token != '' && steps.config.outputs.checkout != 'base'
         env:
           HEAD_SHA: >-
             ${{ inputs.issue-number != ''
@@ -2048,12 +2071,14 @@ jobs:
           RUNNER_CHECKS: ${{ inputs.runner-checks }}
           # Checked against the skip reasons by the job's first step.
           DIMENSION_SKIP: ${{ inputs.dimension-skip }}
+          # Checked as issue numbers by the job's first step.
+          VERIFY_CLOSE: ${{ inputs.verify-close }}
           # Issue mode only; report-outcome counts only `true`.
           COLLECT_REFUSED: ${{ inputs.issue-number != '' && inputs.collect-refused || '' }}
           # review-replies only; empty otherwise.
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           FEEDBACK_REPLIES_DIR: ${{ inputs.review-replies && format('{0}/feedback-replies', runner.temp) || '' }}
-          TRUSTED_ACTORS: ${{ (inputs.review-replies || inputs.issue-number != '') && format('{0}/base-script/.trusted-actors.json', runner.temp) || '' }}
+          TRUSTED_ACTORS: ${{ (inputs.review-replies || inputs.issue-number != '' || steps.config.outputs.checkout == 'base') && format('{0}/base-script/.trusted-actors.json', runner.temp) || '' }}
           RUN_SHA256: ${{ inputs.review-run-sha256 }}
           REPLIES_SHA256: ${{ inputs.review-replies-sha256 }}
           REVIEW_PATCH_STATE: ${{ inputs.review-replies && inputs.review-patch-state || '' }}
@@ -2163,6 +2188,15 @@ jobs:
               case $escalation in
                 unresolved-conflict | workflow-staged | unexpected-path-staged) ;;
                 conflict-patch-invalid | conflict-patch-not-applied | conflict-patch-protected-path) ;;
+                *) echo "::error::the escalation reason file holds no reason this script may give"; exit 1 ;;
+              esac
+              echo "escalation-reason=$escalation" >>"$GITHUB_OUTPUT"
+              exit 0
+            fi
+            # apply-patch under the install-script-pin row gives its own reasons alone.
+            if [ "$PREPARE:$PATCH_PREPARE" = apply-patch:install-script-pin ]; then
+              case $escalation in
+                dependency-pin-invalid | dependency-pin-not-applied | dependency-pin-protected-path) ;;
                 *) echo "::error::the escalation reason file holds no reason this script may give"; exit 1 ;;
               esac
               echo "escalation-reason=$escalation" >>"$GITHUB_OUTPUT"

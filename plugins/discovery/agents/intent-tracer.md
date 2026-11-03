@@ -280,12 +280,28 @@ choices, and you are the context that made them:
   stating the intent behind it, and whether anything you called `Supported` is an `Inferred` that
   got promoted by the pull of a tidy narrative.
 
-Assemble the evidence that criterion needs, per-claim `ref`, `kind` and `reliability` in the
-sidecar headers, which is what lets a verifier who never saw your run grade tier assignment off the
-artifact, then hand it back as a verification request. The mechanical criteria are yours: every
-claim in *What we found* cites a specific source, no claim rests on the shape of the code, every
+Assemble the evidence that criterion needs, per-claim `ref`, `kind`, `reliability` and `author_kind`
+in the sidecar headers, which is what lets a verifier who never saw your run grade tier assignment
+off the artifact, then hand it back as a verification request. The mechanical criteria are yours:
+every claim in *What we found* cites a specific source, no claim rests on the shape of the code, every
 category appears in *Sources consulted*, every skip carries a permitted reason, and hedged claims
 are hedged in the written output rather than flattened into confident prose.
+
+**Tag each source with who wrote its words, not whose login posted them.** Rule, and what to do when
+you cannot tell: `${CLAUDE_PLUGIN_ROOT}/skills/trace-intent/context/artifact-shape.md`, "`author_kind`
+says who wrote the words".
+
+**The author-kind check exits 0 before you hand back.** After the outcome gate and before the final
+write, run it as one plain command on your slice:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/check-author-kind.py" <memory-slice path>
+```
+
+A non-zero exit means fix and re-run: fix each claim or source its stderr names, by finding a
+person's own words or lowering the tier, never by retagging a relay, until it exits 0. Where
+`python3` does not resolve, use `python`. A check you cannot run at all is not a pass: name it in
+`open_questions`, and the parent's gate, which re-runs it, halts on it.
 
 ## Return exactly this, and nothing resembling a transcript
 

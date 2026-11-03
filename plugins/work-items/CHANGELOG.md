@@ -3,6 +3,42 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [9.1.2] - 2026-11-03
+
+### Fixed
+
+- The lane telemetry body gate's leak scan (`scanLeak` in the shared `lib/publish-gate.mjs` copy) now also decodes base64 and base64url runs, up to two layers and including runs of non-ASCII UTF-8 text, and refuses a body with a GitHub token or Anthropic key inside one (#8295).
+
+## [9.1.1] - 2026-11-03
+
+### Changed
+
+- The permission preflight reference, the tracker seam reference, `/work-items:attend-queue`,
+  `/work-items:setup`, the work-loop telemetry upsert reference and the GitHub adapter README no
+  longer restate upstream behavior: permission rule matching, when git sets `core.worktree`, the
+  `jq` install on Windows, `gh` flag spellings, `--limit` defaults, `--reason` values, `gh api`
+  field and placeholder handling, the sub-issue `--json` projection, GitHub search qualifiers, REST
+  pagination and assignee responses, closing keywords and linkage, `includeClosedPrs`,
+  cloud-session API refusals and issue form labels. Each keeps its own rule and links the upstream
+  section with an as-of date and a recheck trigger. The adapter README's "Edit labels / assignees"
+  recipe now shows the `--remove-assignee "@me"` call attend-queue and triage use.
+
+## [9.1.0] - 2026-11-03
+
+### Added
+
+- `/work-items:work` in the issue lane has a verify-and-close mode for a parent whose sub-issues are all closed as completed. When `issue.json` carries `verify_close`, the run builds nothing and checks each of the parent's own done-when items, citing the evidence for each. It then stops `verified-done`, which closes the parent, or `verify-unmet`, which names the unmet items and parks the parent.
+
+## [9.0.5] - 2026-11-03
+
+### Changed
+
+- `reference/work-class-labels.md`, `reference/label-taxonomy.md`, `reference/item-content-trust.md` and triage's `SKILL.md` and `context/apply-outcome.md` no longer say a merge partition reads the `work-class:` label, because no merge step decides by a class other than `work-class: untrusted-provenance` (owner decision Q85, [#9668](https://github.com/melodic-software/claude-code-plugins/issues/9668)). They now say triage stamps the class as a record. Of the class and provenance labels, only `work-class: untrusted-provenance` and `provenance: signal` hold an item for a person.
+
+### Fixed
+
+- `/work-items:morning-brief` lists `pr-review-main.yml` among its default lane workflows, so a live run reads that lane's key-credit records without `--lane-workflows`.
+
 ## [9.0.4] - 2026-11-03
 
 ### Added

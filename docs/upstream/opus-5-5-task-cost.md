@@ -221,9 +221,12 @@ Stated deviations from the docs and precedent (Q38):
 - **Unrouted dispatch keeps `opus` (Q20).** [Manage costs: Choose the right model](https://code.claude.com/docs/en/costs#choose-the-right-model)
   puts most coding on Sonnet. `implementation:implementer` stays on `opus` for any phase the plan
   does not mark `sonnet`. Reasons: a lane with no plan has no scope check, so it fails safe on the
-  stronger model; and on some providers the `sonnet` alias resolves to an older Sonnet unless
-  `ANTHROPIC_DEFAULT_SONNET_MODEL` is set ([Model configuration: Model aliases](https://code.claude.com/docs/en/model-config#model-aliases)),
-  so dispatch falls back to `implementer` there.
+  stronger model; and dispatch falls back to `implementer` when a third-party provider variable is
+  set and `ANTHROPIC_DEFAULT_SONNET_MODEL` is not, because this repository does not trust the
+  `sonnet` alias to name the current Sonnet there. When checking what the alias resolves to on a
+  provider, fetch [Model configuration: Model aliases](https://code.claude.com/docs/en/model-config#model-aliases)
+  live (as of 2026-11-03; recheck trigger: that section changes a provider's `sonnet` target or
+  how to pin it).
 
 Q42 outcome, from the plan approval gate: **keep**. These 12 rows of
 `plugins/harness-config/skills/audit-instructions/reference/criteria.md` overlap `/doctor

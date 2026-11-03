@@ -3,6 +3,12 @@
 All notable changes to the `ruff-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.1] - 2026-11-03
+
+### Changed
+
+- The README no longer restates Ruff's config discovery rules or how `--unfixable` combines with a configured `unfixable` list; it points at the Ruff docs sections instead.
+
 ## [1.0.0] - 2026-11-03
 
 ### Removed

@@ -1,5 +1,20 @@
 # Changelog: evals
 
+## [0.15.5] - 2026-11-03
+
+### Changed
+
+- plugin-eval: the "Iterating" section moves verbatim from SKILL.md to `reference/iterating.md`
+  (only its relative link changes). No action runs it, so the hub still holds every rule its
+  actions use; its intro says to answer tuning and confirm questions from that file. The body
+  drops from 41,783 to 40,550 bytes.
+
+## [0.15.4] - 2026-11-03
+
+### Fixed
+
+- `run-validity.py`'s `permission denials` check sets aside a denied compound Bash call whose only real work is under the run's own plugin-data directory when its other commands are an `echo` with no redirect or command substitution, as in `rm -f '<data>/f'; echo "rm exit=$?"` (#8635).
+
 ## [0.15.3] - 2026-11-03
 
 ### Changed

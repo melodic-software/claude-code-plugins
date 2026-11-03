@@ -80,8 +80,12 @@ marketplace id.
   list: `own marketplace unresolved (<origin>); matched by name`. On that fallback, a bare detect whose name
   the rows also list as a qualified third-party detect is left out of `installed` and reported in a
   per-row `uncertain` map: `{<row id>: "<name> also used by <name>@<marketplace>"}`.
-- For an own row, the marketplace entry name must equal the plugin's manifest name, because
-  `claude plugin list` ids use the entry name and the skill namespace uses the manifest name.
+- For an own row, the marketplace entry name must equal the plugin's manifest name, so the listed
+  plugin id and the skill namespace name the same plugin. When checking which name each one
+  uses, fetch
+  [plugins manifest reference § Metadata precedence](https://code.claude.com/docs/en/plugins/manifest-reference#metadata-precedence)
+  live (as of 2026-11-03; recheck trigger: that section changes which name the install id or the
+  component namespace takes).
 - A plugin disabled for the project counts as absent. `kind: tool` resolves from the session's tool
   listing. Tests run on fixtures, never on the live install.
 

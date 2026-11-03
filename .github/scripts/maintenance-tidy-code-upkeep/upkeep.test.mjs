@@ -278,20 +278,34 @@ function stubGh(name, script) {
 
 const runCli = (args, PATH, extraEnv = {}) => spawnSync("node", [SCRIPT, ...args], { encoding: "utf8", env: { ...process.env, PATH, ...extraEnv } });
 
-test("gate: the setting sets the cap, and the plan names the area", () => {
-  const repo = fixture("gate-ok", "upkeep_max_open: 1\n");
+test("gate: the setting sets the cap, and the plan names the area and the spec issue", () => {
+  const repo = fixture("gate-ok", "upkeep_max_open: 1\nupkeep_spec_issue: 12894\n");
   const PATH = stubGh("ok", `case "$*" in api*) echo '{"artifacts":[]}' ;; *--jq*) echo "4 0" ;; *) echo '[]' ;; esac`);
-  const result = runCli(["gate", "--root", repo], PATH);
+  const outputFile = join(dir, "gate-ok-output");
+  writeFileSync(outputFile, "");
+  const result = runCli(["gate", "--root", repo], PATH, { GITHUB_OUTPUT: outputFile });
   assert.equal(result.status, 0, result.stderr);
   const out = JSON.parse(result.stdout);
   assert.equal(out.proceed, true);
   assert.deepEqual(out.settings.upkeep_max_open, 1);
   assert.deepEqual(out.settings.upkeep_cadence, { value: "daily", source: "default" });
+  assert.deepEqual(out.settings.upkeep_spec_issue, { value: "12894", source: "team" });
   assert.deepEqual(out.areas, [{ area: "docs/conventions", glob: "docs/conventions/**", slug: "docs-conventions", overdue: false }]);
+  assert.match(readFileSync(outputFile, "utf8"), /^spec-issue=12894$/m);
+});
+
+test("gate: with no spec issue set, or one that is no issue number, the batch fails and plans nothing", () => {
+  const PATH = stubGh("nospec", `case "$*" in api*) echo '{"artifacts":[]}' ;; *--jq*) echo "4 0" ;; *) echo '[]' ;; esac`);
+  for (const [name, yaml] of [["gate-nospec", "upkeep_max_open: 3\n"], ["gate-badspec", "upkeep_spec_issue: '#12894'\n"]]) {
+    const result = runCli(["gate", "--root", fixture(name, yaml)], PATH);
+    assert.equal(result.status, 1, name);
+    assert.equal(result.stdout, "", name);
+    assert.match(result.stderr, /upkeep_spec_issue is not set/, name);
+  }
 });
 
 test("gate: at the cap the batch waits", () => {
-  const repo = fixture("gate-cap", "upkeep_max_open: 1\n");
+  const repo = fixture("gate-cap", "upkeep_max_open: 1\nupkeep_spec_issue: 12894\n");
   const PATH = stubGh("cap", `case "$*" in api*) echo '{"artifacts":[]}' ;; *--jq*) echo "4 1" ;; *) echo '[]' ;; esac`);
   const out = JSON.parse(runCli(["gate", "--root", repo], PATH).stdout);
   assert.deepEqual([out.proceed, out.reason, out.areas], [false, "cap", []]);

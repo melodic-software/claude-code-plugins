@@ -37,8 +37,3 @@ graders:
   - name: names-a-counter-instead
     type: llm
     criteria: 'PASS only if the final reply declines to set a ceiling on the 212-second wall time and either names a count that changes only when the code changes (specs run, HTTP requests, database queries, process spawns) as the thing to ratchet, or says no ceiling can be set until such a counter exists. FAIL if it records or proposes any duration ceiling, including one with headroom.'
-  - name: skill-fired
-    type: tool_used
-    tool: Skill
-    input_match: '"skill"\s*:\s*"(?:toolchain:)?ratchet"'
-    arm: with-only

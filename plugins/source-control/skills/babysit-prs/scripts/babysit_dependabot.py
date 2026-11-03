@@ -1173,17 +1173,80 @@ def _canonical(value: Any) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"))
 
 
+# The packages whose install script package.json's `allowScripts` approves for
+# one exact version, which a fix may move to the version the manifest pins.
+INSTALL_SCRIPT_PINS = ("@anthropic-ai/claude-code",)
+_EXACT_VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?")
+
+
+def pinned_version(manifest: dict[str, Any], name: str) -> str | None:
+    """The exact version `manifest` pins `name` to in a dependency section, or
+    None for a range, an absent name, or two sections that disagree."""
+    specs = {
+        _canonical(section[name])
+        for key in _DEPENDENCY_SECTIONS
+        if isinstance(section := manifest.get(key), dict) and name in section
+    }
+    if len(specs) != 1:
+        return None
+    spec = json.loads(next(iter(specs)))
+    return spec if isinstance(spec, str) and _EXACT_VERSION.fullmatch(spec) else None
+
+
+def allow_scripts_refusal(old: dict[str, Any], now: dict[str, Any]) -> str | None:
+    """Why an `allowScripts` change is not exactly one install-script pin
+    moved, or None: one INSTALL_SCRIPT_PINS key `<name>@<old>` becomes
+    `<name>@<new>` with the same value, `<new>` is the exact version the
+    manifest pins the package to on both sides (the version Dependabot set),
+    and every other key stays."""
+    was, is_ = old.get("allowScripts"), now.get("allowScripts")
+    if not isinstance(was, dict) or not isinstance(is_, dict):
+        return "allow-scripts-shape"
+    gone = [key for key in was if key not in is_]
+    added = [key for key in is_ if key not in was]
+    if len(gone) != 1 or len(added) != 1:
+        return "allow-scripts-not-one-pin"
+    if any(
+        _canonical(was[key]) != _canonical(is_[key]) for key in was if key != gone[0]
+    ):
+        return "allow-scripts-other-key"
+    name = next(
+        (
+            pin
+            for pin in INSTALL_SCRIPT_PINS
+            if gone[0].startswith(f"{pin}@") and added[0].startswith(f"{pin}@")
+        ),
+        None,
+    )
+    if name is None:
+        return "allow-scripts-package"
+    if _canonical(was[gone[0]]) != _canonical(is_[added[0]]):
+        return "allow-scripts-value"
+    # The version the commit before the fix (Dependabot's) pins, unchanged by
+    # the fix, so a fix cannot move the manifest and the pin together.
+    version = pinned_version(old, name)
+    if (
+        version is None
+        or pinned_version(now, name) != version
+        or added[0] != f"{name}@{version}"
+    ):
+        return "allow-scripts-version"
+    return None
+
+
 def package_json_refusal(before: Any, after: Any) -> str | None:
     """Only the version range of a dependency already listed in a dependency
-    section changes, to a plain semver range; every other key stays."""
+    section changes, to a plain semver range; every other key stays, except an
+    install-script pin moved to the pinned version (allow_scripts_refusal)."""
     old, now = _json_mapping(before), _json_mapping(after)
     if old is None or now is None:
         return "package-json-unreadable"
     for key in sorted(set(old) | set(now)):
         if key not in _DEPENDENCY_SECTIONS:
-            if _canonical(old.get(key)) != _canonical(now.get(key)) or (
-                (key in old) != (key in now)
-            ):
+            if (
+                _canonical(old.get(key)) != _canonical(now.get(key))
+                or ((key in old) != (key in now))
+            ) and (key != "allowScripts" or allow_scripts_refusal(old, now)):
                 return f"package-json-key:{key}"
             continue
         was, is_ = old.get(key), now.get(key)

@@ -4,7 +4,7 @@ argument-hint: "[topic]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  workflow-stage: contract
+  workflow-stage: interview
   summary: Turn a decision someone else must answer into an async questionnaire
 ---
 

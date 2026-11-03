@@ -4,6 +4,28 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [1.1.1] - 2026-11-03
+
+### Changed
+
+- `/knowledge:absorb-upstream` and its record template point at the upstream-drift convention's "What a row may describe" section for what a row may hold, the five-word test and what a **Stated** label links to, instead of restating those rules. The template keeps its What it does and Upstream problem columns (#12737).
+
+## [1.1.0] - 2026-11-03
+
+### Changed
+
+- `/knowledge:absorb-upstream` reads a repository through the GitHub REST API at the pin (the default branch head's commit) and no longer clones it, so no file of a repository source is written under a working tree or a temp directory. A symbolic link in the tree is reported as not read. A repository URL that does not read `public` stops with the local-checkout instruction, whatever the destination. A page is fetched into a new directory under `${CLAUDE_PLUGIN_DATA}` (#12709).
+
+### Removed
+
+- `vendor/repo-analysis/clone-cli.js` and its tests: nothing calls it now. `clone.js` stays for course-digest and video-digest (#12709).
+
+## [1.0.0] - 2026-11-03
+
+### Removed
+
+- The `check` skill is gone. To check this plugin's prerequisites, run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`.
+
 ## [0.32.2] - 2026-11-02
 
 ### Changed

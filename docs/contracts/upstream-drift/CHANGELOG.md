@@ -4,6 +4,21 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## [4.1.0] - 2026-11-03
+
+Additive guidance; minor under this contract's own rule. No required part, canonical name, or
+enforceability verdict changes.
+
+"Pinned git upstreams" gains "What a row may describe": a row may describe a unit's mechanism and
+the problem behind it in our own words, written from what was read at the pin, and never rewords an
+upstream sentence. The five-word test, which `/knowledge:absorb-upstream` stated before, now lives
+here: a run of five or more words shared with the linked upstream file, or with a **Stated**
+cell's source, other than a name, fails the cell. A **Stated** problem cell links to where the
+upstream gives the problem. A record of one web page follows the same rules against the page as
+read on its as-of date. "Required parts" points at the new section. The absorb-upstream record
+template and skill point at it instead of restating it
+([#12737](https://github.com/melodic-software/claude-code-plugins/issues/12737)).
+
 ## [4.0.0] - 2026-10-26
 
 Major under this contract's own rule: an enforceability verdict changes.

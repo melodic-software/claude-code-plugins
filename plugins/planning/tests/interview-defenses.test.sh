@@ -102,6 +102,7 @@ LOOP="$PLUGIN_DIR/skills/interview/context/loop.md"
 SWEEP="$PLUGIN_DIR/skills/interview/context/assumption-sweep.md"
 COVERAGE="$PLUGIN_DIR/skills/interview/context/coverage-prompt.md"
 EARS="$PLUGIN_DIR/skills/interview/context/ears.md"
+LANE_PAGE="$PLUGIN_DIR/skills/interview/context/lane-page.md"
 AUDIT="$PLUGIN_DIR/skills/audit-answers/SKILL.md"
 EVALS="$PLUGIN_DIR/skills/interview/evals/evals.json"
 FIXTURES="$PLUGIN_DIR/skills/interview/evals/fixtures"
@@ -422,9 +423,10 @@ declares_both_fixtures B "$CASE_B"
 # Adds idea-shaped trigger phrases
 # product action added: argument-hint and a router row only; the lock row and STOP-on-gap are byte-identical, product writes a verdict and never a Brief and gates its register before the verdict, and case 41 grades a first-question shape that licenses no silent capture or fudged gap
 # #12476: restate action added: argument-hint and a router row only; the lock row and STOP-on-gap are byte-identical, and restate decides nothing new, writes no Brief and reads silence as no yes
+# #12663: workflow-stage renamed contract -> interview only; every other key byte-identical, no qualifier added, so the auto-guard and lock STOP-on-gap defenses hold
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
-  "edb8927fa7b39d33b68303a8708b1942022a619749144fad5fb3d334cade143b"
+  "ea7eef41c36ed150d1e958085227751a5f590622725812cb10538a9c88013bf5"
 
 # The Gates block restates the auto-guard, the `lock` STOP-on-gap, the register gate, the
 # confirmation gate and the Step 4 `--brief` cross-check near the top of SKILL.md, where a
@@ -436,11 +438,13 @@ pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing su
 # question and keeps the halt, so neither the confirmation nor STOP-on-gap is loosened.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
 # The Gates block gains early twins of the Step 3 confirmation gate and the Step 4 --brief cross-check (#9864); each restates a halt its full rule holds (the --brief twin names the brief=unconfirmed exit and its fresh-Confirm clear, as Step 4 does), and the three earlier gate lines are byte-identical
+# #12660: the page-only clauses (the --surface flag on the Brief cross-check and its Gates twin, where the confirmation gate is shown, the facts-field citation, the full recap, the procedure-check exception's tick rows, and the terminal-lane wording) move to context/lane-page.md and SKILL.md names no surface value; the exception now applies only on a lane whose spoke says its restatement box offers commitment ticks, any other defect still halts, the register gate still holds those rows, and the lock row, STOP-on-gap, no-silent-resolve and fudge-prohibition lines are byte-identical
+# #12660: the Gates twin of the Brief cross-check says to re-read the lane spoke after a compaction, so the twin still reaches the spoke's flag; it adds a read and changes no halt
 pin_section "SKILL.md Gates section is unchanged (the early twin of the five gates)" \
   "$SKILL" \
   "## Gates" \
   "## Action Router" \
-  "51a7dec1194745926cd9e191ef719c090e1625f724e61f4c1fa5df39a985de2b"
+  "d963f560704a067489aba48d793b99fbf8a6fcbe983f7797b544f1703be782b9"
 for gate_line in \
   "**The user's decisions are never synthesized.**" \
   "**A gap during \`lock\` synthesis halts the run.**" \
@@ -602,11 +606,12 @@ pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as gove
 # Continuation wording (#7425): the me-mode lines recommend routing, name Step 5's fallback, drop a stale handoff-and-clear cross-reference and add a pointer record; no row resolves and every defense line is byte-identical
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
 # Both sections only gain the page-surface Step 4 command with --surface and a pointer to surface.md Wrap-up; every gate line stays, and --surface adds checks, so neither defense is weakened.
+# #12660: the page-only clauses (the --surface flag on the Brief cross-check and its Gates twin, where the confirmation gate is shown, the facts-field citation, the full recap, the procedure-check exception's tick rows, and the terminal-lane wording) move to context/lane-page.md and SKILL.md names no surface value; the exception now applies only on a lane whose spoke says its restatement box offers commitment ticks, any other defect still halts, the register gate still holds those rows, and the lock row, STOP-on-gap, no-silent-resolve and fudge-prohibition lines are byte-identical
 pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machinery lives here)" \
   "$SKILL" \
   "### Step 4. Persist the contract" \
   "### Step 5. Hand off" \
-  "d81a5c609d8d477dbd3939d2ba37bd2247d74eed655e6ffb7363b1f00c4333a3"
+  "daef77ba68a3ac3c6cac1e88d41d4e5965d27c8b108ec9752b7177a8a313c37b"
 # The `me` and `scope` routing lines also run loop.md's "Problem first" paragraph; it adds a
 # question and leaves the auto-guard, unattended and `lock` lines byte-identical.
 pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \`lock\` routing live here)" \
@@ -656,11 +661,12 @@ pin_case_digest "eval case A is unchanged (no criterion added that contradicts t
 # #12476: restate action added: argument-hint and a router row only; the lock row and STOP-on-gap are byte-identical, and restate decides nothing new, writes no Brief and reads silence as no yes
 # #12476 review: question_pacing takes its cascade value, the because lives on the Intent line, each new ask is registered like any question, a stated constraint is still written confirmed at once, and restate skips the resume prompt; each adds a registered row or narrows a step, resolves no row, and the lock, fudge, no-silent-resolve and blocker defenses are byte-identical
 # #12658: the lane table gives way to the surface registry (surfaces/registry.mjs resolve), its offer line opens the round-1 message, and the share row passes share as its argument; each changes how the surface is picked, resolves no row, and the lock row and STOP-on-gap are byte-identical
+# #12660: the Question lanes paragraph passes --data-dir and, on a caller-declared unattended run, --unattended to the surface resolver, and its one line may name an installed optional planner or offer an optional plugin (on a yes it installs at user scope and points to /reload-plugins; never required); the share row no longer names a page; each changes what the surface line says, resolves no row, and the lock row and STOP-on-gap are byte-identical
 pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and its reading live here)" \
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "298e9864e4f8df46d8b3deea403af71eb5724c815a325d623ee663d6a9da6b66"
+  "8e376330c3c795b0bd83b6dc227db2d036b651d670cdfdb8c975d9bcc2ddc924"
 # Re-pinned for the recap and procedure-check paragraph after the confirmation gate. It adds a
 # requirement before confirmation is asked (a register-sourced recap and a cited exit code) and
 # names what stays unchecked; the gate line, its `lock` exemption, and the halt rules are unchanged.
@@ -680,11 +686,12 @@ pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and i
 # Rounds gain topic groups, a closing index, a Held line, origin labels, single pacing and a discussing status that blocks like open; partial-round resolution, the no-silent-resolve rule, the confirmation-gate exemption, late commitment ids and the register gate are unchanged.
 # #5769: the Step 3 register gate and loop.md's gate list name the stale=<n> outcome as a halt, and Re-check covers answered rows; every existing halt is kept and none is qualified
 # #5769 review: a stale=<n> row is named as any status, as check-open-questions.sh counts it; no halt is removed or qualified
+# #12660: the page-only clauses (the --surface flag on the Brief cross-check and its Gates twin, where the confirmation gate is shown, the facts-field citation, the full recap, the procedure-check exception's tick rows, and the terminal-lane wording) move to context/lane-page.md and SKILL.md names no surface value; the exception now applies only on a lane whose spoke says its restatement box offers commitment ticks, any other defect still halts, the register gate still holds those rows, and the lock row, STOP-on-gap, no-silent-resolve and fudge-prohibition lines are byte-identical
 pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exemption lives here)" \
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
   "### Step 4. Persist the contract" \
-  "b078b836bde8cf30fdee4051c083e27899efb694b86162d6ce372f028d173ad6"
+  "077bbe3eb7c4fa85de36ce60800a1f767496203fef625458cd1d189ab6dd0410"
 # The not-adversarial bullet names the product action as its one exception, pointing at context/product.md; the fudge-prohibition bullet is byte-identical
 # #12476: the closing index table is dropped and the grilling steps added (a because on the goal, the quality bar when the user cannot judge, no nodding along, stated facts checked against code, a read-only run settles a fact, document-my-repo routed, probe topics read, a pointer to audit-answers); each adds a check or removes a summary table, resolves no row, and the no-silent-resolve, fudge, gap and blocker defenses are byte-identical
 # #12476: the no-tests bullet names the read-only Run it to settle it step as its one exception; the fudge prohibition line is byte-identical
@@ -706,11 +713,12 @@ pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibitio
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
 # Reworded phrases shared with mattpocock grilling (#9790): Stance names the wayfind trigger as an effort that will outrun a single session, Step 2 and the sweep run once no open question remains on the frontier, the coverage-prompt exemption still covers no other question, and the confirmation gate opens with the stop wording; every rule and its halt are unchanged
 # Question shape (#7475): every question opens with a referenced Context block, alternatives carry gain and cost, open questions are restated in full, a terminology matrix is agreed as a registered question, and codes show with their plain names (Checked against names constraints in words); each adds a requirement or a registered question, resolves no row, and the no-silent-resolve rule, the constraint-ledger rows and their re-check, and the late-commitment numbering are unchanged
+# #12660: the page-only clauses (the --surface flag on the Brief cross-check and its Gates twin, where the confirmation gate is shown, the facts-field citation, the full recap, the procedure-check exception's tick rows, and the terminal-lane wording) move to context/lane-page.md and SKILL.md names no surface value; the exception now applies only on a lane whose spoke says its restatement box offers commitment ticks, any other defect still halts, the register gate still holds those rows, and the lock row, STOP-on-gap, no-silent-resolve and fudge-prohibition lines are byte-identical
 pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates, currency, tripwire, sweep)" \
   "$SKILL" \
   "### Step 2. Drive the frontier-rounds loop" \
   "### Step 3. Recognize the stop condition" \
-  "84dd7366b274f9ac76dc5c19e33ad045083eba3208c3d37e09eada194db10d87"
+  "abd084e635fc62e94f42e57e290aa6cc366cac7eed359e7e26c2f180ad6b82a3"
 # Frontier-rounds step 4 now requires a `Basis:` line and limits convention-only recommending
 # to non-consequential questions; an unsettled consequential one is asked open, withheld. It adds
 # a requirement and resolves nothing new.
@@ -1011,8 +1019,22 @@ pin "SKILL.md: an upstream constraint is inherited" "$SKILL" \
   "a constraint taken from an upstream artifact is \`inherited\`"
 pin "SKILL.md: every recommendation names the constraints it was checked against" "$SKILL" \
   "\`Checked against: V1 ships without SSO; no new runtime dependencies\` or \`Checked against: none\`"
-pin "SKILL.md: on the page the citation opens the question's facts field" "$SKILL" \
+pin "lane-page.md: on the page the citation opens the question's facts field" "$LANE_PAGE" \
   "On the page it opens the question's \`facts\` field, each constraint named in words"
+# The Step 3 procedure-check exception is SKILL.md's (digested there, with every other defect
+# still halting); the page spoke only states that its restatement box offers the ticks.
+pin "lane-page.md: the page is the lane whose restatement box offers commitment ticks" "$LANE_PAGE" \
+  "this lane's restatement box offers commitment ticks, so SKILL.md's exception applies here"
+pin "lane-page.md: the page's Brief cross-check adds --surface" "$LANE_PAGE" \
+  "Step 4, Brief cross-check (and its Gates twin): add \`--surface '<data_dir>'\`"
+# The three pins above sit in this section; digesting it keeps an appended qualifier (one that
+# widens which defects the exception lets through, say) from slipping past them.
+# #12660: new digest over the page lane's part of SKILL.md Steps 2-4, moved here from SKILL.md's gate sections; it states only where the page shows each step and that its restatement box offers the ticks the Step 3 exception names, and the halts stay in SKILL.md
+pin_section "lane-page.md steps section is unchanged (the page's part of the Step 3 exception lives here)" \
+  "$LANE_PAGE" \
+  "## SKILL.md steps on this lane" \
+  "## Exit codes" \
+  "ae49eb827feabdbdabbb84f03622a2dcf7ecce910a9b8e2a849f512fe98e3abd"
 pin "SKILL.md: a question citing a constraint is never asked on a card" "$SKILL" \
   "one that cites a constraint is asked in prose"
 pin "SKILL.md: a relied-on inherited constraint is asked as a register row" "$SKILL" \
@@ -1082,6 +1104,16 @@ pin "surface.md routes an accept-audit event to audit-answers" "$PLUGIN_DIR/skil
   "the skill routes the round to \`/planning:audit-answers\`"
 pin "surface.md lists the accept-audit event kind" "$PLUGIN_DIR/skills/interview/context/surface.md" \
   "| \`accept-audit\` |"
+# #12660 moved the page clauses out of SKILL.md's gate sections; the page lane reads surface.md
+# beside lane-page.md (surface-registry.test.mjs), so these twins keep each moved gate there.
+pin "surface.md: the page's confirmation gate waits for confirm-understanding" "$PLUGIN_DIR/skills/interview/context/surface.md" \
+  "2. Wait for a \`confirm-understanding\` event."
+pin "surface.md: the page's restate keeps the full recap" "$PLUGIN_DIR/skills/interview/context/surface.md" \
+  "Leave out \`--changed\` here"
+pin "surface.md: the tick exception covers only unticked commitments, any other defect halts" "$PLUGIN_DIR/skills/interview/context/surface.md" \
+  "since the restatement box offers their ticks; a hedged row's condition is still open, so it halts; any other defect halts it, as SKILL.md Step 3 says."
+pin "surface.md: the page's Brief cross-check adds --surface" "$PLUGIN_DIR/skills/interview/context/surface.md" \
+  "On this lane, pass \`--surface '<data_dir>'\` to the Step 4 \`--brief --procedure\` gate"
 
 # A8. Whole-line pins — the five lines that ARE the STOP-on-gap defense. These catch the
 #     neutralize-in-place edit the phrase pins above cannot: a qualifier appended to any of

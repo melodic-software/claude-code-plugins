@@ -6,11 +6,14 @@ here. A conditional stage runs only when its trigger holds; otherwise it is skip
 
 These definitions govern the full path. A change whose diff is quick to review and cheap to retry
 takes the quick-change on-ramp (SKILL.md "On-ramps") instead: it enters at stage 8, where reading
-the code it needs is part of implement, and returns to stage 4 if its diff turns out not to be
+the code it needs is part of implement, and returns to stage 1 if its diff turns out not to be
 quick to review. A diff that adds types, public contracts, or module boundaries is not cheap to
-retry and takes the full path. New work whose diff fails either test enters at stage 4 (after
-stage 3 when the PRD trigger holds): the interview runs first, and stages 1-2 run as detours it
-triggers.
+retry and takes the full path. New work whose diff fails either test enters at stage 1, the
+interview, which calls stages 2-4 as detours when a question needs them.
+
+**The level each stage decides.** The interview decides behavior (the Brief), design decides
+interfaces and contracts, and plan decides files and symbols. A question at another stage's level
+goes back to that stage rather than being settled where it surfaced.
 
 **Effort per stage.** Each stage carries an **Effort** line naming the kind of work it is. To
 advise effort for a stage, read model-config's effort table (pointer below) when giving the
@@ -25,11 +28,32 @@ effort.
 - **As of**: 2026-10-02
 - **Recheck trigger**: the section is renamed or moved, or its table columns change.
 
-## 1. Explore
+## 1. Interview (optional: lock the brief before building)
+
+Drive fuzzy intent to a zero-ambiguity Brief before behavior-changing work: goal, constraints,
+acceptance criteria, captured assumptions. Persist it (a plan file in the repo's artifact location)
+so later stages aim at an explicit target instead of inferring one mid-task. It decides behavior;
+interfaces and contracts wait for design, files and symbols for plan.
+
+- Trigger conditions: intent is fuzzy, scope is uncalibrated, or, on the full path, the work
+  changes behavior, structure, or contracts
+- Skip conditions: a change whose diff is quick to review and cheap to retry (the quick-change
+  on-ramp), or follow-ups where the Brief IS the conversation
+- Front-loads clarification cost in one round-trip; ask the questions the design turns on one at a
+  time, highest architectural blast radius first
+- Calls explore, research or a PRD (stages 2-4), or a prototype, only when a question it asks
+  needs one, then resumes; none of them runs before it
+- **Effort:** scoping in question rounds the human answers one at a time
+
+## 2. Explore (conditional: a question needs the code read)
 
 Structured local codebase exploration: read the relevant code, git history, file layout, tests, and
 dependencies. Understand current state before changing anything.
 
+- Trigger conditions: a question the interview, design, or plan asks turns on what the code does
+  now
+- Skip conditions: nothing in the repository bears on the question (the interview's fast survey
+  answered it)
 - Survey breadth-first (glob/grep), confirm the files the change touches, then read those in full
 - When code, `git status` or history references a file that is not on disk, probe before any
   investigation the task did not ask for. Run
@@ -44,10 +68,13 @@ dependencies. Understand current state before changing anything.
   - **Not settled**: neither probe names the path, or a probe fails. Ask before investigating
 - **Effort:** reading and surveying code with no change made
 
-## 2. Research
+## 3. Research (conditional: a question rests on an external claim)
 
 External verification of technical claims: official docs, primary sources, current versions.
 
+- Trigger conditions: an answer or a later stage depends on a fact from outside the repository (a
+  documented default, limit, version, or behavior)
+- Skip conditions: no claim the work depends on comes from outside the repository
 - No claim the work depends on is accepted without verified, current information from authoritative
   sources
 - **Task size does NOT reduce research depth.** A one-line config change gets the same
@@ -57,14 +84,13 @@ External verification of technical claims: official docs, primary sources, curre
 - **Effort:** verifying technical claims against primary sources, where a wrong claim carries into
   the plan
 
-Discover (stages 1-2) and shape (stages 3-4) interleave: a contract locked first gives explore and
-research their scope, and either may run again after it. The numbering is the ladder's order, not
-the entry point.
+Stages 2-4 are detours: the interview, or a later stage, calls one when a question needs it, and
+the work returns to the stage that called it.
 
-## 3. PRD (conditional: lock product intent)
+## 4. PRD (conditional: lock product intent)
 
-Write down the problem, the users, and the success metrics before the engineering contract, so the
-contract aims at an agreed outcome.
+Write down the problem, the users, and the success metrics when the interview finds that product
+intent is unsettled, so the Brief aims at an agreed outcome.
 
 - Trigger conditions: the change is user-facing AND business-driven AND alignment across people
   matters (a new user-facing surface, a cross-team initiative)
@@ -76,20 +102,6 @@ contract aims at an agreed outcome.
   synthesis come before the PRD, through a user-experience capability (if installed, e.g.
   /user-experience:shape); without one, interview the human about the users inline
 - **Effort:** settling product intent with the human, one open question at a time
-
-## 4. Contract (optional: lock the brief before building)
-
-Drive fuzzy intent to a zero-ambiguity contract before behavior-changing work: goal, constraints,
-acceptance criteria, captured assumptions. Persist it (a plan file in the repo's artifact location)
-so later stages aim at an explicit target instead of inferring one mid-task.
-
-- Trigger conditions: intent is fuzzy, scope is uncalibrated, or, on the full path, the work
-  changes behavior, structure, or contracts
-- Skip conditions: a change whose diff is quick to review and cheap to retry (the quick-change
-  on-ramp), or follow-ups where the contract IS the conversation
-- Front-loads clarification cost in one round-trip; ask the questions the design turns on one at a
-  time, highest architectural blast radius first
-- **Effort:** scoping in question rounds the human answers one at a time
 
 ## 5. Design
 
@@ -189,7 +201,7 @@ and review criteria, or delegate to a fresh-context reviewer.
 Prove the change achieved its intent, with evidence.
 
 - Mechanical pass first: build + test + lint per the consuming repo's commands
-- Then outcome confirmation: does the result match the contract/plan? Exercise the affected flow,
+- Then outcome confirmation: does the result match the Brief and plan? Exercise the affected flow,
   not just the compiler
 - **Never claim improvement without before/after measurements.** Baselines first, measure deltas,
   report with data

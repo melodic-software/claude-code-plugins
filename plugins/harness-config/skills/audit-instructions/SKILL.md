@@ -249,11 +249,11 @@ One partition rule sizes lanes, a token budget: no lane cap and no line-count co
 dispatch first**: run `lane-runs.sh partition` over the inventoried files, then dispatch those lanes.
 
 A lane's budget is **0.25 of the lane model's own context window**, leaving the rest for the
-catalog, the lane brief, the lane's reasoning, and its report, at **3.5 bytes per token**, our
-setting (Pointer: for the characters-per-token estimate, see the [glossary entry for
-tokens](https://platform.claude.com/docs/en/about-claude/glossary#tokens). As of: 2026-09-28.
-Recheck trigger: that entry changes, or a lane overflows its window on a supported model).
-Non-ASCII text runs more bytes per character, so the estimate errs toward smaller lanes. Never state
+catalog, the lane brief, the lane's reasoning, and its report, at **2.7 bytes per token**, our
+setting for current tokenizers (Pointer: for the characters-per-token estimate by model, see the
+[glossary entry for tokens](https://platform.claude.com/docs/en/about-claude/glossary#tokens). As
+of: 2026-11-03. Recheck trigger: that entry changes, or a lane overflows its window on a supported
+model). Older tokenizers and non-ASCII text both err toward smaller lanes. Never state
 the budget as a line count: the line figure is derived per run from the bytes per line measured over the in-scope files.
 
 We size a lane by the context window of the model the lane runs on, never the parent's (Pointer:
@@ -272,7 +272,7 @@ group is its plugin (or the memory layer) and the unit is its skill (or the file
 
 ```shell
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/lane-runs.sh" partition \
-  --window-tokens <lane model window> --fraction 0.25 --bytes-per-token 3.5 <rows
+  --window-tokens <lane model window> --fraction 0.25 --bytes-per-token 2.7 <rows
 ```
 
 Plugins stay atomic: whole plugins pack into a lane up to the budget, and only a plugin whose
@@ -473,9 +473,9 @@ plainly that nothing has been applied.
 
 ## Gotchas
 
-- **Examples are not scaffolding.** Keep the 3–5 format/tone/structure-steering examples the docs
-  recommend; flag an example block only when it pins the model's *approach* to a task (behavioral
-  scaffolding), never when it steers output format.
+- **Examples are not scaffolding.** Flag an example block only when it pins the model's *approach*
+  to a task, never when it steers output format; for how many to keep, fetch [use examples effectively](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#use-examples-effectively)
+  live (as of 2026-11-03; recheck when that section changes how many examples or what they should steer).
 - **Bare-prohibition rewrites go positive first.** The primary remediation is "say what to do
   instead of what not to do"; adding a rationale is the fallback where a genuine hard "never"
   survives. Do not mechanically delete every prohibition the pre-scan flags.

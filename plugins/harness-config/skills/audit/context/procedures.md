@@ -8,23 +8,31 @@ secrets (Phase 1), and which findings the skill may auto-fix vs which need judgm
 Treat the file as secret-bearing regardless of deny rules. Run `check-structure.sh` first;
 supplemental jq: below.
 
-The safety here is *what gets emitted*, not what gets opened. `check-structure.sh` opens the file from
-inside a subprocess, which a `Read(...)` deny does not cover. It is safe because it emits counts and
-never values. The `cat … | jq` recipes below go the other way: `cat` is a file command Claude Code
-recognizes in Bash, so a project whose settings carry a `Read(./.claude/settings.local.json)` deny will
-block them. That is the correct outcome. Do not route around the block with an interpreter one-liner
+The safety here is *what gets emitted*, not what gets opened. `check-structure.sh` is safe because it
+emits counts and never values. The `cat … | jq` recipes below emit values, and a project whose
+settings carry a `Read(./.claude/settings.local.json)` deny may block them. That is the correct
+outcome. Do not route around the block with an interpreter one-liner
 (`python -c`, `node -e`) to dump content the sanctioned script will not emit. See "Scope of a Read
 deny" in [reference/required-permissions.md](../reference/required-permissions.md); that file's
 "Relation to the standards permission floor" says why the deny is a project's choice, not part of the
 baseline.
 
+- **Pointer**: when deciding which commands a `Read` deny blocks, fetch
+  [permissions: read and edit](https://code.claude.com/docs/en/permissions#read-and-edit) live.
+  **As of**: 2026-11-03. **Recheck trigger**: that section changes which Bash commands or
+  subprocesses a `Read` deny covers.
+
 **Counts are not guaranteed.** Where the project also enables the sandbox, a `Read` deny on the file
-merges into the sandbox filesystem boundary and the OS blocks `check-structure.sh` and its `tr`/`jq`
-children too, and the subprocess route closes. The script distinguishes that case: it reports
+can block `check-structure.sh` too. The script distinguishes that case: it reports
 `Readable: no` with a `not inspectable` note rather than `Valid JSON: no`, and does not fail the run.
 Treat that output as the answer. Record the file as not inspectable under the project's own
 configuration, carry that into the report, and do not escalate to another reader to get the counts
 anyway. A `Present: yes` / `Readable: no` pair is a correct result, not a broken audit.
+
+- **Pointer**: when deciding whether the sandbox blocks the script, fetch
+  [sandboxing: how sandboxing relates to permissions and permission modes](https://code.claude.com/docs/en/sandboxing#how-sandboxing-relates-to-permissions-and-permission-modes)
+  live. **As of**: 2026-11-03. **Recheck trigger**: that section changes how permission deny rules
+  feed the sandbox boundary.
 
 ```bash
 # Key inventory (no values)
@@ -62,13 +70,17 @@ cat .claude/settings.local.json | tr -d '\r' | jq '.permissions.deny // empty'
 Each approved edit to `settings.json` or `settings.local.json` goes through the
 built-in `update-config` skill when it resolves in this session, and directly when it does not
 (`.mcp.json` is always edited directly), except orphan-`false` plugin removal, which stays on
-`scripts/fix-plugin-drift.sh --yes` for its lower-precedence-scope check. In auto mode it needs the
-`[Self-Modification]` handshake: the classifier asks, and the user's explicit approval of that fix
-is the consent. Two operations are refused in auto mode: writing the team suppression record
-(`[Instruction Poisoning]`) and re-running `scripts/audit-engine.sh` for the after-fix summary
-(`[Self-Modification]`). The fallback for each is the operator applying the edit or running the
-re-run and pasting the output back; never retry around the refusal. The verification record for the
-category names is in [SKILL.md](../SKILL.md) "Refusals in auto mode".
+`scripts/fix-plugin-drift.sh --yes` for its lower-precedence-scope check. In auto mode the user's
+explicit approval of a fix is the consent for it. When the classifier refuses an operation, such as
+writing the team suppression record or re-running `scripts/audit-engine.sh` for the after-fix
+summary, the fallback is the operator applying the edit or running the re-run and pasting the output
+back; never retry around the refusal. The probe record of which operations were refused is in
+[SKILL.md](../SKILL.md) "Refusals in auto mode".
+
+- **Pointer**: when deciding what the classifier blocks, fetch
+  [permission modes: what the classifier blocks by default](https://code.claude.com/docs/en/permission-modes#what-the-classifier-blocks-by-default)
+  live. **As of**: 2026-11-03. **Recheck trigger**: that section changes what it blocks for edits to
+  settings or agent configuration.
 
 **The judgment on a baseline deny addition, stated.** Two things have to be checked before the rule is
 added, and neither is mechanical:
@@ -76,22 +88,26 @@ added, and neither is mechanical:
 1. **Is the family already covered?** A **live** `PreToolUse` hook on the tool surface that pattern
    defends may already block it, in which case the finding is `info` rather than `error` and the rule
    is redundant. See [required-permissions.md](../reference/required-permissions.md) "Narrowing the
-   baseline", whose three preconditions govern: installed and enabled is not enough (`disableAllHooks`,
-   the managed `allowManagedHooksOnly` lever, or a `strictPluginOnlyCustomization` value that covers
-   hooks switches hooks off; which values cover hooks is read from the pointer in
-   [validation-categories.md](validation-categories.md) Category D),
+   baseline", whose three preconditions govern: installed and enabled is not enough (a
+   hook-suppression lever can switch hooks off; read the levers from
+   [validation-categories.md](validation-categories.md) Category D, and which
+   `strictPluginOnlyCustomization` values cover hooks from
+   [settings reference: strictPluginOnlyCustomization](https://code.claude.com/docs/en/settings-reference#strictpluginonlycustomization)
+   live, as of 2026-11-03; recheck when that entry changes which values cover hooks),
    a `Bash` hook does not cover the `Read`-pattern family, and one command family's coverage says
    nothing about another's. **The inventory half is a lookup**: Phase 1.0's
    `scripts/check-hook-coverage.sh` enumerates settings-declared *and* plugin-declared hooks,
    resolving each enabled plugin through the installed-plugin registry. What stays a judgment is
    whether an enumerated hook covers *this* family, and where that script exited 1, the sources it
    names as unenumerated remain a question, not an absence.
-2. **Would the addition suppress a gate the project built on purpose?** Deny and ask rules are
-   evaluated regardless of what a `PreToolUse` hook returns, so adding a deny over a family a project
-   hook escalates to an *ask* replaces the prompt with an outright block and the human loses the
-   approve/reject decision. Fail-closed, so not a security regression but a workflow regression. See
-   "Interaction with hook-based gates" in the same file. (A hook that blocks by `exit 2` short-circuits
-   before permission rules, so nothing is suppressed there.)
+2. **Would the addition suppress a gate the project built on purpose?** Check whether a deny over a
+   family a project hook escalates to an *ask* would replace that prompt with an outright block, so
+   the human loses the approve/reject decision. That is fail-closed: a workflow regression, not a
+   security one. See "Interaction with hook-based gates" in the same file. Whether a hook's outcome
+   survives a deny or ask rule is read from
+   [permissions: precedence among rules, hooks, and mods](https://code.claude.com/docs/en/permissions#precedence-among-rules-hooks-and-mods)
+   live (as of 2026-11-03; recheck when that section changes how deny or ask rules rank against a
+   hook's result).
 
 *Moving* an existing deny rule from local to project stays mechanical, since it is bug #8961 placement,
 not a policy change.
