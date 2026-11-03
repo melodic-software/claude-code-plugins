@@ -3537,9 +3537,8 @@ test("serve asks for a kept answer only for an unarmed pull request, and never o
   assert.deepEqual(spawned[0].slice(spawned[0].indexOf("--answers-out"), spawned[0].indexOf("--answers-out") + 6), ["--answers-out", "/tmp/out.json", "--answers-mode", "serve", "--answers-in", "/tmp/in.json"]);
 });
 
-// ci-status's merge-queue run fails a head whose newest pr-unblock/* status by
-// github-actions[bot] is failure or error (pr-require-checks.yml "Fail a head a
-// pr-unblock lane stopped"), so enable-auto-merge never queues one.
+// enable-auto-merge never queues a head whose newest pr-unblock/* status by
+// github-actions[bot] is failure or error; ci-status does not read the stop.
 const BOT = { login: "github-actions[bot]" };
 const unblock = (context, state, creator = BOT, description = "stopped") => ({ context, state, creator, description });
 
@@ -3568,7 +3567,7 @@ test("a head a pr-unblock lane stopped is not queued and is named in the summary
   const stopped = pull(1, { verdict: PASSED, statuses: [unblock("pr-unblock/fix-ci", "failure")] });
   const { writes, lines } = await run([stopped], { GITHUB_STEP_SUMMARY: summary });
   assert.deepEqual(writes, []);
-  const reason = "a pr-unblock lane stopped its head (pr-unblock/fix-ci is failure), which ci-status fails in the merge queue";
+  const reason = "a pr-unblock lane stopped its head (pr-unblock/fix-ci is failure), which clears when the lane runs again";
   assert.ok(lines.some((line) => String(line).includes(reason)), lines.join("\n"));
   assert.equal(readFileSync(summary, "utf8"), `enable-auto-merge: #1 not queued: ${reason}\n`);
 
