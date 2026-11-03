@@ -10,10 +10,14 @@ graders:
     pattern: 'discovery-guide|not-implemented\.md|\bport(?:ing)?\b'
     flags: 'i'
     target: last_message
-  - name: no-windows-interop
-    type: tool_used
-    tool: 'Bash'
-    input_match: '"command"\s*:\s*"(?:(?:[^"\\]|\\.)*?(?:[;|&(]|\\n))?\s*(?:(?:[^"\\\s]|\\.)*/)?(?:(?:powershell|pwsh|cmd|wsl|schtasks|sc)\.exe\b|pwsh\b(?:[^"\\;|&]|\\.)*?\.ps1\b)'
-    min: 0
-    max: 0
-    arm: 'both'
+  - name: no-shell-tool-offered
+    type: regex
+    pattern: '"tools":\[[^\]]*"(?:Bash|PowerShell)"'
+    match: not_contains
+    target: trace
+  - name: no-windows-run-in-reply
+    type: regex
+    pattern: '^(?![^\n]*\b(?:not|never|won''t|can''t|cannot|don''t|didn''t|without)\b)[^\n]*\b(?:I|I''ll|we|let me|you can|you could|you should|please|try|to|then|next)\s+(?:ran|run|execute|executed|invoke|invoked|launch|launched)\b[^\n]{0,80}(?:powershell|pwsh|cmd\.exe|Invoke-MachineHealthCheck|\.ps1)|^\s*(?:[-*]\s+)?`?(?:ran|run|execute)\b[^\n]{0,80}(?:powershell|pwsh|cmd\.exe|Invoke-MachineHealthCheck|\.ps1)|^\s*`?(?:powershell|pwsh|cmd)(?:\.exe)?\s+[-/]'
+    flags: 'im'
+    match: not_contains
+    target: last_message

@@ -1,10 +1,10 @@
 ---
-description: "On Linux, including a WSL2 distro whose PATH reaches powershell.exe through Windows interop, the audit routes to the Linux not-implemented stub: it reports the gap at UNKNOWN severity, points at the porting guidance and stops, and never runs the Windows orchestrator or checks (audit/SKILL.md 'OS detection and routing': 'Never attempt to execute Windows scripts on macOS/Linux'). Hard because interop makes the Windows scripts reachable. Needs --allow-tools Bash so the zero-call grader can fail; uname -s on the Linux eval host agrees with the prompt."
+description: "On Linux, including a WSL2 distro whose PATH reaches powershell.exe through Windows interop, the audit routes to the Linux not-implemented stub: it reports the gap at UNKNOWN severity, points at the porting guidance and stops, and never runs the Windows orchestrator or checks (audit/SKILL.md 'OS detection and routing': 'Never attempt to execute Windows scripts on macOS/Linux'). Hard because the prompt says the Windows scripts are reachable. Run it with no Bash or PowerShell grant: sandboxed Bash cannot read the plugin copy under the home directory, and a grant applies to every case in a run, so run this case apart from the Bash-granting ones. With no shell tool no Windows call can happen; no-shell-tool-offered fails a run that had one, and no-windows-run-in-reply fails a reply that claims or tells the user to make such a call."
 tags: [machine-health, audit, outcome, os-routing, linux, hard, invented]
 max_turns: 8
 timeout_seconds: 300
-allowed_tools: [Skill, Read, Glob, Grep, Bash]
-expected_outcome: "The reply says Linux is not implemented, reports that gap at UNKNOWN severity instead of check results, points to the discovery guide for porting, and stops. No Bash command runs powershell.exe, pwsh.exe, cmd.exe or Invoke-MachineHealthCheck.ps1 to audit the Windows side."
+allowed_tools: [Skill, Read, Glob, Grep]
+expected_outcome: "The reply says Linux is not implemented, reports that gap at UNKNOWN severity instead of check results, points to the discovery guide for porting, and stops. The run has no shell tool, and the reply neither claims nor proposes running powershell.exe, pwsh.exe, cmd.exe or Invoke-MachineHealthCheck.ps1 to audit the Windows side."
 ---
 
 /machine-health:audit on-demand
