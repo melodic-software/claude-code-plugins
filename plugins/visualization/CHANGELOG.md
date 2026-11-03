@@ -3,6 +3,12 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.4] - 2026-11-03
+
+### Changed
+
+- The `visualize` skill no longer restates upstream behavior: how a saved option is substituted, where mermaid renders, what the terminal shows for a mermaid block, the count of stable mermaid families, and what the `ClaudeDesign` tool does ([#12696](https://github.com/melodic-software/claude-code-plugins/issues/12696)). Each decision stays, and where an upstream section covers the topic it now points there with an as-of date and a recheck trigger.
+
 ## [1.0.3] - 2026-11-03
 
 ### Fixed
