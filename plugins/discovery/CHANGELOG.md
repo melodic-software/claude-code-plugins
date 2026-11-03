@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [1.0.0] - 2026-11-03
+
+### Removed
+
+- `/discovery:check` is gone, with its probe file. To check this plugin's prerequisites, run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`, the command the hook notices already print. The hook registration probe moved to `scripts/check-hook-registration.sh`, which runs after the checker.
+
 ## [0.45.4] - 2026-11-02
 
 ### Changed

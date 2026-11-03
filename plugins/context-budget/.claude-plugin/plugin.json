@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "0.15.2",
+  "version": "0.15.3",
   "license": "MIT",
   "types": "./types/index.d.ts",
   "userConfig": {
