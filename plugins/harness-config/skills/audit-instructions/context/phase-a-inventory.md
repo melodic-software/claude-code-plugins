@@ -8,21 +8,24 @@ against a record set built any other way.
 Enumerate the locally-owned instruction surfaces in scope. All paths below are current per the
 official memory and `.claude`-directory docs (cited in the report's Sources line):
 
-- User: resolve the root as `${CLAUDE_CONFIG_DIR:-~/.claude}` (setting `CLAUDE_CONFIG_DIR`
-  relocates the whole `~/.claude` tree, so never hardcode `~/.claude`), then: `CLAUDE.md`,
-  `rules/`, `skills/`, `agents/`, `output-styles/` under that root.
+- User: resolve the root as `${CLAUDE_CONFIG_DIR:-~/.claude}`, never a hardcoded `~/.claude`,
+  then: `CLAUDE.md`, `rules/`, `skills/`, `agents/`, `output-styles/` under that root. When
+  deciding what the variable relocates, fetch
+  [env vars: variables](https://code.claude.com/docs/en/env-vars#variables) live (as of
+  2026-11-03; recheck when its `CLAUDE_CONFIG_DIR` row changes what the variable moves).
 - Project: `./CLAUDE.md` or `./.claude/CLAUDE.md`, `./CLAUDE.local.md`, and every nested
   `CLAUDE.md` / `CLAUDE.local.md` in subdirectories of the project tree (Claude loads these on
   demand when it reads files in those directories, so walk the tree and do not stop at the root);
   `.claude/rules/`, `.claude/skills/`, `.claude/agents/`, `.claude/output-styles/`.
 - **A natively read `AGENTS.md`**: `./AGENTS.md` and `./.claude/AGENTS.md`, each its own record, and
   every nested `AGENTS.md` in subdirectories of the project tree, on the same on-demand footing as
-  the nested `CLAUDE.md` files above. **Under the default instruction-files mode** a file is
-  natively read only where no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` sits **on its
-  own path**, from the working directory or any directory above it down to the directory holding
-  it; test the condition per file, not once at the root. Where one does displace it, Claude Code
-  reads the CLAUDE.md files instead and the `AGENTS.md` reaches context only as an import or a
-  symlink, which the importing record already covers. The root case is the condition
+  the nested `CLAUDE.md` files above. Whether a given file is natively read depends on the
+  instruction-files mode and on the CLAUDE.md files along its own path, so **test it per file,
+  never once at the root**. When deciding whether a file is displaced, fetch
+  [memory: choose which instruction files load](https://code.claude.com/docs/en/memory#choose-which-instruction-files-load)
+  live (as of 2026-11-03; recheck when that section changes which files displace an
+  `AGENTS.md`). A displaced file that an import or a symlink brings in is covered by the importing
+  record, not a record of its own. The root case is the condition
   `harness-memory`'s `skills/audit/scripts/lib/agents-md.sh` encodes.
   **Displacement is that mode's answer, not the only one, and this bullet does not restate the
   mode's values, its load order, or the scopes that honor it**: the four-part record for all of
@@ -129,13 +132,13 @@ involving one still carries the no-change representation and its routing recomme
 - **Auto memory, when it is on**: the `MEMORY.md` entrypoint at the effective auto-memory location
   (the highest-precedence scope that sets `autoMemoryDirectory`, otherwise
   `projects/<project>/memory/` under the **resolved** user root above, never a hardcoded
-  `~/.claude`, since `CLAUDE_CONFIG_DIR` moves `projects/` with the rest of the tree and a hardcoded
-  default misses the live `MEMORY.md` and compares against a store the session no longer
-  writes). **Resolve the effective enabled state first, by
-  precedence rather than by any single scope's value.** `CLAUDE_CODE_DISABLE_AUTO_MEMORY` is authoritative
-  wherever it is set (`=1` off, `=0` on, even against `autoMemoryEnabled: false`); with the variable
-  unset, apply settings precedence (managed > local > project > user) to `autoMemoryEnabled`, which
-  defaults to on. Reading a lower-scope `false` as decisive would drop a `MEMORY.md` a
+  `~/.claude`). **Resolve the effective enabled
+  state first, by precedence rather than by any single scope's value**: read
+  `CLAUDE_CODE_DISABLE_AUTO_MEMORY` first, then `autoMemoryEnabled` across the settings scopes.
+  When deciding what each value means, which one wins and what the default is, fetch
+  [memory: enable or disable auto memory](https://code.claude.com/docs/en/memory#enable-or-disable-auto-memory)
+  live (as of 2026-11-03; recheck when that section changes the variable, the setting or how they
+  combine). Reading a lower-scope `false` as decisive would drop a `MEMORY.md` a
   higher-precedence scope re-enabled, and inventorying unconditionally would pair live instructions
   against a file left on disk after auto memory was turned off, the same defect as reading a
   disabled plugin's cache. `/harness-memory:stateless` owns this resolver; its `status` action reports
@@ -155,8 +158,7 @@ involving one still carries the no-change representation and its routing recomme
   scope, and each scope has its own location; read the scope-to-directory mapping from
   [subagents: enable persistent memory](https://code.claude.com/docs/en/sub-agents#enable-persistent-memory)
   live (as of 2026-10-11; recheck when a scope or its directory changes), and resolve a user-scope
-  directory under the **resolved** user root above, never a hardcoded `~/.claude`, for the reason
-  the entry above gives.
+  directory under the **resolved** user root above, never a hardcoded `~/.claude`.
   [reference/conflict-criteria.md](../reference/conflict-criteria.md) keeps an agent-definition-versus-
   its-own-memory contradiction in scope precisely because those two *do* co-reside in that subagent,
   so this inventory has to reach it: enumerate that `MEMORY.md` for every inventoried agent whose

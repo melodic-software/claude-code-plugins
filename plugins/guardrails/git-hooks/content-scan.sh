@@ -24,7 +24,8 @@
 # gitignored files. Skipped: symbolic links, submodules and files over 1 MiB.
 # A file holding a NUL byte (whatever a `-diff` attribute says) is judged
 # whole for secrets only. The two guards' path exemptions apply (tests/fixtures
-# for secrets only). The message says how to fix the content; the scan never
+# for secrets only), and the repository's list (EXEMPT_LIST) exempts path
+# findings only. The message says how to fix the content; the scan never
 # suggests skipping it.
 
 # The pattern libraries: beside an installed copy (entry assets), or in the
@@ -69,8 +70,30 @@ sed() { scan_tool sed "$@"; }
 sort() { scan_tool sort "$@"; }
 cut() { scan_tool cut "$@"; }
 
-# Hardcoded-path exemptions, as hardcoded-path-check.sh has them.
+# The repository's own exemptions: EXEMPT_LIST on the default branch
+# (origin/HEAD), never the index or the work tree, so a change cannot exempt
+# its own lines; read by content_scan_init. One row per path, path<TAB>reason,
+# `#` starting a comment: a file, or a directory prefix ending in `/`. No ref
+# or no file exempts nothing. It exempts path findings only: secrets are still
+# scanned.
+EXEMPT_LIST=docs/conventions/guardrails-content-exempt.tsv
+repo_exempt=()
+
+# Path findings skip the repository's list and the built-in path set; secret
+# findings skip only the built-in set and test fixtures.
 path_exempt() {
+  local e
+  for e in ${repo_exempt[@]+"${repo_exempt[@]}"}; do
+    case "$e" in
+    */) [[ "$1" == "$e"* ]] && return 0 ;;
+    *) [[ "$1" == "$e" ]] && return 0 ;;
+    esac
+  done
+  builtin_exempt "$1"
+}
+
+# The built-in exemptions, as hardcoded-path-check.sh has them.
+builtin_exempt() {
   case "$1" in
   *.claude/hooks/* | *.lefthook/*) return 0 ;;
   *settings.local.json | *CLAUDE.local.md) return 0 ;;
@@ -85,17 +108,24 @@ path_exempt() {
   esac
 }
 
-# Secret exemptions, as secret-pattern-detection.sh has them: the path set
-# plus test fixtures.
+# Secret exemptions, as secret-pattern-detection.sh has them: the built-in
+# path set plus test fixtures.
 secret_exempt() {
   case "$1" in
   *tests/fixtures/* | *tests/testdata/* | *Tests/fixtures/* | *Tests/testdata/*) return 0 ;;
-  *) path_exempt "$1" ;;
+  *) builtin_exempt "$1" ;;
   esac
 }
 
 content_scan_init() {
   scan_error="$CHECKS_TMP/scan-error"
+  local row
+  repo_exempt=()
+  while IFS= read -r row || [[ -n "$row" ]]; do
+    row="${row%$'\r'}"
+    row="${row%%$'\t'*}"
+    [[ -n "$row" && "$row" != '#'* ]] && repo_exempt+=("$row")
+  done < <(git show "refs/remotes/origin/HEAD:$EXEMPT_LIST" 2>/dev/null)
   # The repository path itself is a finding, unless the checkout sits at,
   # above or below the home directory, where every home path would match it.
   scan_root="$PWD"
