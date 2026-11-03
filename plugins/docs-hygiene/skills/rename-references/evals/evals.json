@@ -596,6 +596,18 @@
         "`/confirm-changes` is named as what a trailing `\\b` wrongly matches",
         "The always-loaded surface is identified as the reason a stale directive there is worse than elsewhere"
       ]
+    },
+    {
+      "id": 49,
+      "name": "certain-bucket-auto-applies-and-reports",
+      "prompt": "Rename the skill /verify to /verify-changes. The sweep finds only slash-token and path references.",
+      "expected_output": "Every match is a Form 1 slash-token or Form 3 path, so all of them land in the Certain bucket. The skill reports the bucket counts with the Certain count and one or two example matches, says the user can answer \"review Certain one by one\" to review them per match instead, and gates only the proceed/abort decision. It asks no separate \"auto-apply N matches?\" question for the Certain bucket; on proceed, Phase 5 edits every Certain match.",
+      "files": [],
+      "expectations": [
+        "No `AskUserQuestion` asks whether to auto-apply the Certain bucket",
+        "The report gives the Certain count, one or two example matches, and how to review the bucket one by one instead",
+        "The proceed/abort gate still runs before any edit"
+      ]
     }
   ]
 }
