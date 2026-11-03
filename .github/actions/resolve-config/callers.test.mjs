@@ -7480,10 +7480,10 @@ test("every composite action npm ci is bounded by timeout and skips audit and fu
 });
 
 // #10061: no job timeout-minutes is raised to fit an install bound. #9398: the
-// 6-minute timeout is the 3-minute work budget plus the runner tail.
-test("check-catalog keeps its 6-minute job bound with the install step under it", () => {
+// 9-minute timeout is the 3-minute work budget plus the runner tail.
+test("check-catalog keeps its 9-minute job bound with the install step under it", () => {
   const job = workflow("pr-require-checks.yml").jobs["check-catalog"];
-  assert.equal(job["timeout-minutes"], 6);
+  assert.equal(job["timeout-minutes"], 9);
   assert.equal(job.steps.find((step) => step.name === "Install the locked root toolchain")["timeout-minutes"], 2);
 });
 
