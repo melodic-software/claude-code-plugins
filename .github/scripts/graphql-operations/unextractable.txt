@@ -1,6 +1,7 @@
 # The GraphQL sites graphql-operations.test.cjs cannot check, and the paths it
-# skips because their operations go to another GraphQL API. The schema beside
-# this file is https://docs.github.com/public/fpt/schema.docs.graphql, gzipped.
+# skips because their operations go to another GraphQL API. The schema,
+# schemas/github/schema.docs.graphql.gz, is
+# https://docs.github.com/public/fpt/schema.docs.graphql, gzipped.
 #
 #   exclude <path prefix> <reason>
 #   <file> <count> <reason>

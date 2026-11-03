@@ -37,8 +37,10 @@
 // operations go to another GraphQL API; the test fails when the counts differ
 // from that list, either way.
 //
-// The schema is GitHub's published SDL, the copy ci-workflows commits at
-// schemas/github/schema.docs.graphql.gz; refresh both with `gzip -9 -n` over
+// The schema is GitHub's published SDL, at
+// schemas/github/schema.docs.graphql.gz here and in ci-workflows (outside
+// .github/, so the review lanes can skip the blob); refresh both with
+// `gzip -9 -n` over
 // https://docs.github.com/public/fpt/schema.docs.graphql when an operation
 // needs a newer field.
 
@@ -52,7 +54,7 @@ const { gunzipSync } = require("node:zlib");
 const { buildSchema, Kind, parse, validate } = require("graphql");
 
 const ROOT = path.resolve(__dirname, "..", "..", "..");
-const SCHEMA = path.join(__dirname, "schema.docs.graphql.gz");
+const SCHEMA = path.join(ROOT, "schemas", "github", "schema.docs.graphql.gz");
 const ALLOWLIST = path.join(__dirname, "unextractable.txt");
 const SOURCE = /\.(?:c?js|mjs|sh|bash|ya?ml)$/;
 const OPENING =
