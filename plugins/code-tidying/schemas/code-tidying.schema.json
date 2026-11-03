@@ -14,7 +14,7 @@
     "upkeep_backstop": {
       "enum": ["weekly", "monthly"],
       "default": "weekly",
-      "description": "An area with no upkeep sweep inside this window is overdue, with or without churn."
+      "description": "An area changed since its last sweep is overdue once its oldest unswept commit is older than this window, and goes ahead of other changed areas. An unchanged area is never swept."
     },
     "upkeep_max_open": {
       "type": "integer",

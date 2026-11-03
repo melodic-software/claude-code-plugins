@@ -82,11 +82,10 @@ export function readPulls(fetchPage, windowStart) {
   return { pulls, truncated: true };
 }
 
-// paths: every tracked file. commits: { at (ms), paths } inside the backstop
-// window. pulls: the window's pull requests, plus every open one. Overdue areas
-// go first, churned ones among them, then the longest unswept: an area swept
-// this window waits behind every overdue one, and the cap decides how many a
-// batch reaches.
+// paths: every tracked file. commits: { at (ms), paths } and pulls: the same
+// lookback, plus every open pull request. Only an area with a commit after its
+// last sweep is eligible. It is overdue once that oldest unswept commit is past
+// the backstop window; overdue areas go first, then the oldest unswept.
 export function plan({ paths, commits, pulls, truncated, cadence, backstop, limit, open, throttled, now }) {
   const stop = (reason) => ({ proceed: false, reason, areas: [] });
   const windowDays = WINDOW_DAYS[backstop];
@@ -104,24 +103,19 @@ export function plan({ paths, commits, pulls, truncated, cadence, backstop, limi
     if (!found || rows.has(found.area)) continue;
     const slug = slugOf(found.area);
     const swept = last.get(slug) ?? 0;
-    rows.set(found.area, { ...found, slug, swept, churned: false, overdue: dayOf(now) - dayOf(swept) >= windowDays });
+    rows.set(found.area, { ...found, slug, swept, unswept: Infinity });
   }
   for (const commit of commits) {
     for (const path of commit.paths) {
       const row = rows.get(areaOf(path)?.area);
-      if (row && commit.at > row.swept) row.churned = true;
+      if (row && commit.at > row.swept) row.unswept = Math.min(row.unswept, commit.at);
     }
   }
 
-  const eligible = [...rows.values()].filter((row) => (row.churned || row.overdue) && !openSlugs.has(row.slug));
-  eligible.sort(
-    (a, b) =>
-      Number(b.overdue) - Number(a.overdue) ||
-      Number(b.churned) - Number(a.churned) ||
-      a.swept - b.swept ||
-      a.area.localeCompare(b.area),
-  );
-  const areas = eligible.slice(0, slots).map(({ area, glob, slug, churned, overdue }) => ({ area, glob, slug, churned, overdue }));
+  const overdue = (row) => dayOf(now) - dayOf(row.unswept) >= windowDays;
+  const eligible = [...rows.values()].filter((row) => row.unswept !== Infinity && !openSlugs.has(row.slug));
+  eligible.sort((a, b) => Number(overdue(b)) - Number(overdue(a)) || a.unswept - b.unswept || a.area.localeCompare(b.area));
+  const areas = eligible.slice(0, slots).map((row) => ({ area: row.area, glob: row.glob, slug: row.slug, overdue: overdue(row) }));
   return { proceed: areas.length > 0, reason: areas.length > 0 ? "due" : "nothing-due", areas };
 }
 
@@ -163,7 +157,7 @@ function gate(root, now) {
   const cadence = setting(root, "upkeep_cadence");
   const backstop = setting(root, "upkeep_backstop");
   const count = parseCount(run(root, "bash", [join(TIDY_SCRIPTS, "open-pr-count.sh")]));
-  const windowStart = now - WINDOW_DAYS[backstop.value] * DAY_MS;
+  const windowStart = now - 2 * WINDOW_DAYS[backstop.value] * DAY_MS;
   const { pulls: recent, truncated } = readPulls(
     (page) => JSON.parse(run(root, "gh", ["api", `repos/{owner}/{repo}/pulls?state=all&sort=created&direction=desc&per_page=100&page=${page}`, "--jq", PULL_FIELDS])),
     windowStart,

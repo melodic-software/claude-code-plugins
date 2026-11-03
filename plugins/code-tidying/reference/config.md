@@ -8,7 +8,7 @@ declined one. Zero config works: every key has a default.
 | Key | Values | Default | Meaning |
 |---|---|---|---|
 | `upkeep_cadence` | `daily`, `weekly` | `daily` | How often an upkeep batch may open pull requests. |
-| `upkeep_backstop` | `weekly`, `monthly` | `weekly` | An area with no upkeep sweep inside this window is overdue, with or without churn. |
+| `upkeep_backstop` | `weekly`, `monthly` | `weekly` | An area changed since its last sweep is overdue once its oldest unswept commit is older than this window, and goes ahead of other changed areas. An unchanged area is never swept. |
 | `upkeep_max_open` | integer, 1 or more | `3` | At most this many `chore/tidy-*` pull requests open at once: `/code-tidying:tidy` stops at it, and an upkeep batch opens only the difference. |
 
 `skills/tidy/scripts/upkeep-setting.sh <key>` is the one reader. It prints the value and the layer

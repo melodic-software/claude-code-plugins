@@ -48,37 +48,54 @@ test("a churned area swept before the commit is due; one swept after it is not",
     pulls: [pull("plugins-a", 3), pull("plugins-b", 1)],
     commits: [{ at: daysAgo(2), paths: ["plugins/a/x", "plugins/b/x"] }],
   });
-  assert.deepEqual(result.areas, [{ area: "plugins/a", glob: "plugins/a/**", slug: "plugins-a", churned: true, overdue: false }]);
+  assert.deepEqual(result.areas, [{ area: "plugins/a", glob: "plugins/a/**", slug: "plugins-a", overdue: false }]);
   assert.equal(result.proceed, true);
 });
 
-test("the weekly backstop picks a quiet area at 7 days, not at 6", () => {
-  const paths = ["plugins/a/x", "plugins/b/x"];
-  const result = plan({ ...base, paths, pulls: [pull("plugins-a", 7), pull("plugins-b", 6)] });
-  assert.deepEqual(result.areas.map((row) => row.area), ["plugins/a"]);
-  assert.equal(result.areas[0].overdue, true);
-  assert.equal(result.areas[0].churned, false);
-});
-
-test("a monthly backstop leaves a quiet area swept 7 days ago alone", () => {
-  const result = plan({ ...base, backstop: "monthly", paths: ["plugins/a/x"], pulls: [pull("plugins-a", 7)] });
+test("an unchanged area stays out however old its sweep", () => {
+  const result = plan({ ...base, paths: ["plugins/a/x", "plugins/b/x"], pulls: [pull("plugins-a", 13)] });
   assert.deepEqual(result, { proceed: false, reason: "nothing-due", areas: [] });
 });
 
-test("a never-swept area is overdue", () => {
-  assert.deepEqual(plan({ ...base, paths: ["scripts/x"] }).areas.map((row) => row.area), ["scripts"]);
+test("churn is overdue at 7 days under a weekly backstop, not at 6", () => {
+  const paths = ["plugins/a/x", "plugins/b/x"];
+  const commits = [
+    { at: daysAgo(7), paths: ["plugins/a/x"] },
+    { at: daysAgo(6), paths: ["plugins/b/x"] },
+  ];
+  const overdue = Object.fromEntries(plan({ ...base, paths, commits }).areas.map((row) => [row.area, row.overdue]));
+  assert.deepEqual(overdue, { "plugins/a": true, "plugins/b": false });
 });
 
-test("opens at most limit minus open, overdue before churned", () => {
+test("a monthly backstop does not call 7-day-old churn overdue", () => {
+  const result = plan({ ...base, backstop: "monthly", paths: ["plugins/a/x"], commits: [{ at: daysAgo(7), paths: ["plugins/a/x"] }] });
+  assert.equal(result.areas[0].overdue, false);
+});
+
+test("overdue is judged from the oldest unswept commit, not a newer one", () => {
+  const commits = [
+    { at: daysAgo(1), paths: ["plugins/a/x"] },
+    { at: daysAgo(8), paths: ["plugins/a/x"] },
+  ];
+  assert.equal(plan({ ...base, paths: ["plugins/a/x"], commits }).areas[0].overdue, true);
+});
+
+test("a churned area past the window goes ahead of newly churned ones, within the cap", () => {
   const result = plan({
     ...base,
     limit: 3,
     open: 1,
     paths: ["plugins/a/x", "plugins/b/x", "plugins/c/x", "plugins/d/x"],
-    pulls: [pull("plugins-a", 2), pull("plugins-b", 9), pull("plugins-c", 8), pull("plugins-d", 2)],
-    commits: [{ at: daysAgo(1), paths: ["plugins/a/x", "plugins/d/x"] }],
+    commits: [
+      { at: daysAgo(1), paths: ["plugins/a/x"] },
+      { at: daysAgo(2), paths: ["plugins/b/x"] },
+      { at: daysAgo(9), paths: ["plugins/c/x"] },
+    ],
   });
-  assert.deepEqual(result.areas.map((row) => row.area), ["plugins/b", "plugins/c"]);
+  assert.deepEqual(result.areas.map((row) => [row.area, row.overdue]), [
+    ["plugins/c", true],
+    ["plugins/b", false],
+  ]);
 });
 
 test("a batch at the cap waits", () => {
@@ -88,27 +105,34 @@ test("a batch at the cap waits", () => {
 });
 
 test("an area with an open sweep is skipped", () => {
-  const result = plan({ ...base, paths: ["plugins/a/x", "plugins/b/x"], pulls: [pull("plugins-a", 9, "OPEN")] });
+  const result = plan({
+    ...base,
+    paths: ["plugins/a/x", "plugins/b/x"],
+    pulls: [pull("plugins-a", 9, "OPEN")],
+    commits: [{ at: daysAgo(1), paths: ["plugins/a/x", "plugins/b/x"] }],
+  });
   assert.deepEqual(result.areas.map((row) => row.area), ["plugins/b"]);
 });
 
 test("a weekly cadence waits until 7 calendar days after the last sweep", () => {
   const paths = ["scripts/x", "plugins/a/x"];
-  assert.equal(plan({ ...base, cadence: "weekly", paths, pulls: [pull("scripts", 6)] }).reason, "cadence");
-  assert.equal(plan({ ...base, cadence: "weekly", paths, pulls: [pull("scripts", 7)] }).proceed, true);
+  const commits = [{ at: daysAgo(1), paths: ["plugins/a/x"] }];
+  assert.equal(plan({ ...base, cadence: "weekly", paths, commits, pulls: [pull("scripts", 6)] }).reason, "cadence");
+  assert.equal(plan({ ...base, cadence: "weekly", paths, commits, pulls: [pull("scripts", 7)] }).proceed, true);
 });
 
 test("a daily cadence waits the same UTC day and runs the next, under 24 hours later", () => {
   const paths = ["plugins/a/x"];
+  const commits = [{ at: daysAgo(1), paths }];
   const sameDay = { headRefName: "chore/tidy-adhoc-scripts-2026-11-20", createdAt: "2026-11-20T00:10:00Z", state: "MERGED" };
-  assert.equal(plan({ ...base, paths, pulls: [sameDay] }).reason, "cadence");
+  assert.equal(plan({ ...base, paths, commits, pulls: [sameDay] }).reason, "cadence");
   const yesterday = { headRefName: "chore/tidy-adhoc-scripts-2026-11-19", createdAt: "2026-11-19T06:30:00Z", state: "MERGED" };
-  assert.equal(plan({ ...base, paths, pulls: [yesterday] }).proceed, true);
+  assert.equal(plan({ ...base, paths, commits, pulls: [yesterday] }).proceed, true);
 });
 
 test("a tidy lane's branch is not an area sweep", () => {
   const lane = { headRefName: "chore/tidy-docs-prose-2026-11-20", createdAt: new Date(NOW).toISOString(), state: "OPEN" };
-  assert.equal(plan({ ...base, paths: ["scripts/x"], pulls: [lane] }).proceed, true);
+  assert.equal(plan({ ...base, paths: ["scripts/x"], commits: [{ at: daysAgo(1), paths: ["scripts/x"] }], pulls: [lane] }).proceed, true);
 });
 
 test("a sweep history the page cap cut plans nothing", () => {
@@ -191,7 +215,7 @@ test("gate: the setting sets the cap, and the plan names the area", () => {
   assert.equal(out.proceed, true);
   assert.deepEqual(out.settings.upkeep_max_open, 1);
   assert.deepEqual(out.settings.upkeep_cadence, { value: "daily", source: "default" });
-  assert.deepEqual(out.areas, [{ area: "docs/conventions", glob: "docs/conventions/**", slug: "docs-conventions", churned: true, overdue: true }]);
+  assert.deepEqual(out.areas, [{ area: "docs/conventions", glob: "docs/conventions/**", slug: "docs-conventions", overdue: false }]);
 });
 
 test("gate: at the cap the batch waits", () => {
