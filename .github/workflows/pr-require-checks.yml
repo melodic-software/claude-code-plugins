@@ -870,6 +870,8 @@ jobs:
           done
           echo "::error::could not mark ci-lanes pending on $HEAD_SHA; a contract-only run could carry an older verdict forward while this run is in flight."
           exit 1
+      - name: Lane finished
+        run: 'true'
 
   select-tests:
     # The contract-only gate, verbatim on every job but `ci-status` (see the
@@ -1214,6 +1216,8 @@ jobs:
         with:
           tokens: github-token
           outside: ${{ github.event_name == 'pull_request' && 'detect-changes:pulls/files' || '' }}
+      - name: Lane finished
+        run: 'true'
 
   # Public repository: every lane runs on GitHub-hosted ubuntu-24.04 (free for
   # public repositories); the local-runner selector is not permitted here.
@@ -1971,6 +1975,8 @@ jobs:
         uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
           tokens: github-token
+      - name: Lane finished
+        run: 'true'
 
   # THE SHELL LINTERS: ShellCheck, and the repo-local gates that read shell
   # source (GNU-only constructs, piped early-exit greps, temp-path cleanup,
@@ -2245,6 +2251,8 @@ jobs:
         uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
           tokens: github-token
+      - name: Lane finished
+        run: 'true'
 
   # PLUGIN CONTRACTS ACROSS FILES: the manifest schemas and duplicate keys, the
   # catalog presence and enablement, option docs, the changelog and vendor-bump
@@ -2778,6 +2786,8 @@ jobs:
         uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
           tokens: github-token
+      - name: Lane finished
+        run: 'true'
 
   # THE PLUGIN CHECKS THAT READ THE ROOT NPM INSTALL: `claude plugin validate`
   # over the plugins and the catalog (with the contract, catalog, cheatsheet
@@ -2920,6 +2930,8 @@ jobs:
         uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
           tokens: github-token
+      - name: Lane finished
+        run: 'true'
 
   # SKILL AND EVAL CONTRACTS: check 25 and the changed-skills gate, the
   # portability lint, leaf names, spoke paths, the listing budgets, the eval
@@ -3292,6 +3304,8 @@ jobs:
         uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
           tokens: github-token
+      - name: Lane finished
+        run: 'true'
 
   # THE TEST LANES RUN WHAT THE SELECTION SAYS. `select-tests` plans them once
   # (scripts/plan-test-lanes.sh): the shell suites the change selects go to
@@ -3607,6 +3621,8 @@ jobs:
             exit 1
           fi
           scripts/run-plugin-tests.sh --jobs 3 --suites-from "$RUNNER_TEMP/leg-suites.txt"
+      - name: Lane finished
+        run: 'true'
 
   # THE PYTHON SUITES THE CHANGE SELECTS, one pytest process per module, on one
   # to nine legs of about 180 suite-seconds (one module at a time). Every module
@@ -3755,6 +3771,8 @@ jobs:
             [ "$suite_rc" = 0 ] || rc=1
           done <"$RUNNER_TEMP/leg-suites.txt"
           exit "$rc"
+      - name: Lane finished
+        run: 'true'
 
   # THE NODE PACKAGES THE CHANGE REACHES: the five sub-projects with their own
   # install, typecheck, lint and test chains (the miro MCP server, the
@@ -3937,6 +3955,8 @@ jobs:
         with:
           path: ~/.npm
           key: ${{ steps.npm_cache.outputs.cache-primary-key }}
+      - name: Lane finished
+        run: 'true'
 
   # A pull request that hand-edits a file the standards sync-manifest manages
   # fails. A standards-sync pull request (melodic-standards-sync[bot], head
@@ -3969,6 +3989,8 @@ jobs:
           fetch-depth: 0
       - name: Guard managed files
         uses: melodic-software/ci-workflows/.github/actions/check-managed-files@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+      - name: Lane finished
+        run: 'true'
 
   # THE WHOLE-TREE CAN'T-FAIL SCAN, WHENEVER THERE IS NO DIFF BASE: the
   # schedule, a dispatch, and a pull request or merge group that
@@ -4011,6 +4033,8 @@ jobs:
         uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
           tokens: github-token
+      - name: Lane finished
+        run: 'true'
 
   ci-status:
     needs:
@@ -6516,13 +6540,13 @@ jobs:
       # leave a job open after `Complete job` until its `timeout-minutes` ends,
       # then record it `cancelled`: 31 jobs in 29 of 55 failed or cancelled
       # merge-queue runs (2026-11-02). This job does not run on a run-level cancel, so a
-      # cancelled lane here reached its limit. The lane counts as passed only when
-      # every step succeeded or skipped, `Complete job` is last, and the job ended
-      # at least 10 s after it: a limit that lands between two steps skips the rest
-      # and ends the job within seconds, which looks the same but for that gap
-      # (3 to 5 s on 4 of those 31, which stay red). Any read failure leaves the
-      # lane cancelled. Each cancelled lane writes a `cancelled-after-success`
-      # notice, the count to compare against that baseline.
+      # cancelled lane here reached its limit. A limit that lands between two steps
+      # skips the rest, so `success` and `skipped` alone do not show the work ran.
+      # Each lane's last step, `Lane finished`, runs only when no earlier step
+      # failed or was cancelled, so the lane counts as passed only when that step
+      # succeeded, no step did worse than skip, and `Complete job` is last. Any read
+      # failure leaves the lane cancelled. Each cancelled lane writes a
+      # `cancelled-after-success` notice, the count to compare against that baseline.
       - name: Check each skipped lane against scope
         id: lanes
         if: ${{ !cancelled() }}
@@ -6538,7 +6562,7 @@ jobs:
                 .steps as $s
                 | ($s | length) > 0 and $s[-1].name == "Complete job"
                   and all($s[]; .conclusion == "success" or .conclusion == "skipped")
-                  and ((.completed_at | fromdate) - ($s[-1].completed_at | fromdate)) >= 10;
+                  and any($s[]; .name == "Lane finished" and .conclusion == "success");
               to_entries[] | select(.value.result == "cancelled") | .key
               | . as $lane
               | select([$jobs[] | select(.name == $lane or (.name | startswith($lane + " (")))]
