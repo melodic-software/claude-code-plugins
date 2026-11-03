@@ -306,6 +306,8 @@ run_step() {
   mkdir -p "$TMP_ROOT/stub" "$TMP_ROOT/work/.base/.github/scripts"
   # The step judges each attempt with main's failing-checks.mjs: this tree's.
   ln -s "$ROOT/.github/scripts/post-merge-demotion-alert" "$TMP_ROOT/work/.base/.github/scripts/post-merge-demotion-alert"
+  # The dispatched-run wait reads red-main.confirm-wait-minutes from main's config.
+  ln -s "$ROOT/docs" "$TMP_ROOT/work/.base/docs"
   # BASE_GIT: main's history in the checkout, a copy of that repository.
   if [[ -n "${BASE_GIT:-}" ]]; then
     cp -R "$BASE_GIT/.git" "$TMP_ROOT/work/.base/.git"
