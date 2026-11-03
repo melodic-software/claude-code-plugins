@@ -78,7 +78,7 @@ Taking `playwright-cli snapshot` before interacting documents page structure the
 
 ### Capture emitted code into a file
 
-For mechanical capture into a file, redirect the normal output. `--raw` is the wrong mode here (it strips page status, generated code, and snapshots, returning only the result value):
+For mechanical capture into a file, redirect the normal output. `--raw` is the wrong mode here (it strips the generated code):
 
 ```bash
 playwright-cli open https://example.com | tee -a capture.log

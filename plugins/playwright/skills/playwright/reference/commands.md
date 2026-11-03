@@ -1,6 +1,6 @@
 # Command reference
 
-Distilled from upstream `@playwright/cli@0.1.22` SKILL.md. For verbatim upstream, see `vendor/SKILL.md` beside this skill.
+Distilled from upstream `@playwright/cli@0.1.23` SKILL.md. For verbatim upstream, see `vendor/SKILL.md` beside this skill.
 
 ## Contents
 
@@ -61,6 +61,7 @@ playwright-cli find "Sign in"                  # search a large snapshot for tex
 playwright-cli find --regex "Sign (in|up)"
 playwright-cli find --regex "/sign (in|up)/i"  # wrap in slashes for flags, e.g. case-insensitive
 playwright-cli find "Add" --filename=results.md  # too many matches: write them to a file
+playwright-cli find button --max-results=5     # cap the matches returned
 ```
 
 `find` is cheaper than a full `snapshot` when you only need to locate one or two elements on a large page. It returns matching nodes with a few lines of context, like `grep -C`.
@@ -84,8 +85,9 @@ playwright-cli press Escape
 playwright-cli keydown Shift && playwright-cli keyup Shift
 
 # Mouse:
-playwright-cli mousemove <x> <y>
-playwright-cli mousewheel 0 100                               # scroll
+playwright-cli mousemove <x> <y>                              # the wheel scrolls the element under the pointer
+playwright-cli mousewheel 0 100                               # scroll <dx> <dy> pixels
+playwright-cli mousewheel 0 -100                              # negative dy scrolls up
 ```
 
 ## Save-as
@@ -103,6 +105,7 @@ playwright-cli pdf --filename=page.pdf
 ```bash
 playwright-cli tab-list
 playwright-cli tab-new [url]
+playwright-cli tab-new [url] --isolated-context=user-b   # a second signed-in user: own cookies and storage, shared by tabs with the same name
 playwright-cli tab-close [index]
 playwright-cli tab-select <index>
 ```
@@ -137,7 +140,7 @@ playwright-cli webmcp-call search --params '{"query":"cats"}'
 
 ## Raw mode: pipe into jq, diff, and similar
 
-The global `--raw` flag strips status/code blocks from stdout and emits only the result value. Makes command output composable with Unix pipes.
+The global `--raw` flag strips status and generated-code blocks from stdout, which makes command output composable with Unix pipes. It keeps errors and the page snapshot, so an action such as `--raw click` prints a snapshot link: pipe only commands that return a value.
 
 ```bash
 playwright-cli --raw eval "JSON.stringify(performance.timing)" | jq '.loadEventEnd'
@@ -147,6 +150,8 @@ playwright-cli --raw snapshot > after.yml
 diff before.yml after.yml
 TOKEN=$(playwright-cli --raw cookie-get session_id)
 ```
+
+- **Pointer**: what `--raw` keeps, the "Raw output" section of `vendor/SKILL.md`. Probe: under 0.1.23, `--raw snapshot` printed the snapshot YAML and `--raw click` printed a snapshot link. **As of**: 2026-11-03. **Recheck trigger**: the frontmatter `upstream-version` moves.
 
 ## Open parameters
 
@@ -185,7 +190,9 @@ playwright-cli close
 playwright-cli open https://example.com
 playwright-cli click e4
 playwright-cli console          # list console messages
-playwright-cli network          # list network requests since load
+playwright-cli requests         # list network requests since load
+playwright-cli console --all    # multi-page flow: include entries from earlier navigations
+playwright-cli requests --all
 playwright-cli close
 ```
 
