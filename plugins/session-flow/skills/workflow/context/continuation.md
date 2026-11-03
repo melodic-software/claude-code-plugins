@@ -122,12 +122,23 @@ boundary.
    an open item or a finding still owed hands off rather than clears, so that state survives the
    reset. This is the first mechanism that pays a write cost without a live continuation attached:
    a handoff carries forward exactly the state that matters.* The skill ships in this plugin, so it
-   is never absent here; a handoff file is written through it, never free-hand.
+   is never absent here; a handoff file is written through it, never free-hand. At a boundary
+   between two human stages, the rule below narrows this edge.
 6. **Fallthrough: the next work is in the same phase or activity, or is the related next task** →
    `/compact <focus>`, typed by the user, the focus naming what the summary must keep. *Compaction
    is the default within a phase or activity, and it may repeat: a session already compacted
    compacts again when the window needs it. A related next task uses this stage's artifact or files
    and serves the same Original goal or work item, so the session's context is still its context.*
+
+**Between human stages, suggest a handoff only at context-guard zone `dumb`.** The human stages
+are the interview, PRD, design and plan (`context/steps.md`, stages 1, 4, 5 and 6, with the
+explore and research detours they call), and they run in one session. At a boundary between two of
+them, the move to the next stage does not by itself reach question 5: the router suggests
+`session-flow:handoff` for it only when the zone word is `dumb`. At `smart`, `acceptable` or
+`unknown` it goes on to question 6 and suggests `/compact <focus>` when the window needs it, or
+continues; for this boundary an `unknown` zone is not read as degraded. Questions 0, 1 and 4 still
+apply, and so does question 5 when the work leaves this session (the Timing paragraph below),
+because each rests on a fact or the user's own request, not on the window.
 
 **Timing.** Before stepping away for longer than the prompt cache lasts, route now: hand off before
 leaving.
@@ -135,7 +146,8 @@ leaving.
 **Same-task boundaries.** Whether the next stage is the same task follows the stage boundary:
 
 - within one phase or activity → `/compact <focus>` each time the window needs it (question 6).
-- explore → plan stays in one session, `/compact <focus>` when the window needs it.
+- interview → design → plan, with any explore or research detour, stays in one session,
+  `/compact <focus>` when the window needs it; a handoff only at zone `dumb` (the rule above).
 - a finished spec or plan → execution moves to a fresh session (question 5).
 - implementation → review runs in fresh context, for example a reviewer subagent.
 - two failed corrections on one issue → `/clear` (question 4).
