@@ -4380,12 +4380,12 @@ test("route close: report-delivered retries on a resumed branch when the run com
 
 // main against a fake API for the routes whose effect needs a read first.
 // `trusted` adds the trusted-actor list, whose humans' pull requests a wait accepts.
-const stopRun = async ({ reason, summary = "", routes, trusted = false, extraEnv = {}, extraFiles = {} }) => {
+const stopRun = async ({ reason, summary = "", routes, trusted = false, issue = ISSUE[2], extraEnv = {}, extraFiles = {} }) => {
   let result;
   const files = { "work-outcome.json": JSON.stringify({ exit: "stopped", reason, summary }), ...(trusted && { "trusted.json": TRUSTED_LIST }), ...extraFiles };
   await withAsyncDir(files, async (dir) => {
     const { fetch, calls } = fakeFetch([
-      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["GET", /\/issues\/77$/, 200, issue],
       ...routes,
       ["GET", /\/issues\/77\/comments/, 200, []],
       ["GET", /\/issues\/77\/events/, 200, []],
@@ -4713,6 +4713,51 @@ test("main posts a delivered report and closes the issue", async () => {
   assert.match(run.calls.find((c) => c.method === "POST").body.body, /three stale rows/);
   assert.match(run.calls.find((c) => c.method === "POST").body.body, /The run's report:\n\n> Rows 4, 9 and 12 name retired lanes\./);
   assert.deepEqual(run.calls.find((c) => c.method === "PATCH").body, { state: "closed", state_reason: "completed" });
+});
+
+// The App's close starts no work-unblock close run, so the queue labels the
+// issue carries come off before the close, agent-ready last.
+const withLabels = (...names) => ({ ...ISSUE[2], labels: names.map((name) => ({ name })) });
+const labelWrites = (calls) => calls.filter((c) => c.method === "DELETE" || c.method === "PATCH").map((c) => `${c.method} ${c.path.replace(/^.*\/issues\/77/, "")}`);
+test("main's close removes the queue labels the issue carries, before the close and agent-ready last", async () => {
+  const reason = "report-delivered: the audit found three stale rows";
+  const run = await stopRun({ reason, routes: [], issue: withLabels("status: ready", "admission-deferred", "agent-ready", "priority: low") });
+  assert.equal(run.code, 0);
+  assert.deepEqual(labelWrites(run.calls), ["DELETE /labels/status%3A%20ready", "DELETE /labels/admission-deferred", "DELETE /labels/agent-ready", "PATCH "]);
+  // None on the issue: the close is the only write.
+  const bare = await stopRun({ reason, routes: [], issue: withLabels("priority: low") });
+  assert.equal(bare.code, 0);
+  assert.deepEqual(labelWrites(bare.calls), ["PATCH "]);
+  // A label already gone (404) counts as removed.
+  const gone = await stopRun({ reason, routes: [["DELETE", /\/labels\/status%3A%20ready$/, 404, {}]], issue: withLabels("status: ready", "agent-ready") });
+  assert.equal(gone.code, 0);
+  assert.deepEqual(labelWrites(gone.calls), ["DELETE /labels/status%3A%20ready", "DELETE /labels/agent-ready", "PATCH "]);
+});
+
+// A label DELETE is idempotent, so a 5xx is resent (three tries in all); one
+// that keeps failing fails the run before the close: the issue stays open with
+// agent-ready, for work-unblock's sweep.
+const FAILED_STRIP = Array(3).fill("DELETE /labels/status%3A%20ready");
+test("main's close resends a failed queue-label removal, then leaves the issue open", async () => {
+  const run = await stopRun({
+    reason: "report-delivered: the audit found three stale rows",
+    routes: [["DELETE", /\/labels\/status%3A%20ready$/, 502, {}]],
+    issue: withLabels("status: ready", "agent-ready"),
+  });
+  assert.notEqual(run.code, 0);
+  assert.deepEqual(labelWrites(run.calls), FAILED_STRIP);
+});
+
+// A verified-done parent closes through the same route, so its queue labels
+// come off first too, and a failed removal leaves it open.
+test("main's verified-done close removes the queue labels before the close, and stays open when one fails", async () => {
+  const opts = { reason: VERIFIED, extraEnv: { VERIFY_CLOSE: "80,81" }, issue: withLabels("status: ready", "agent-ready") };
+  const run = await stopRun({ ...opts, routes: [subs(doneSub(80), doneSub(81))] });
+  assert.equal(run.code, 0);
+  assert.deepEqual(labelWrites(run.calls), ["DELETE /labels/status%3A%20ready", "DELETE /labels/agent-ready", "PATCH "]);
+  const failed = await stopRun({ ...opts, routes: [subs(doneSub(80), doneSub(81)), ["DELETE", /\/labels\/status%3A%20ready$/, 502, {}]] });
+  assert.notEqual(failed.code, 0);
+  assert.deepEqual(labelWrites(failed.calls), FAILED_STRIP);
 });
 
 test("retries count the App's retry markers since a listed human last added agent-ready, not this run's", () => {
