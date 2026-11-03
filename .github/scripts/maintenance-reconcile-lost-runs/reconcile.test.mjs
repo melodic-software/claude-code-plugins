@@ -708,7 +708,6 @@ test("a verify run whose credit gate skipped the key is read on the subscription
       { name: "Set up job", status: "completed", conclusion: "success" },
       { name: "Hand the reads on", status: "completed", conclusion: "success" },
       { name: "Read the key's credit history", status: "completed", conclusion: "success" },
-      { name: "Record the key's credit stop in run 200", status: "completed", conclusion: "success" },
       { name: JUDGE_PREDECESSOR, status: "completed", conclusion: "skipped" },
       { name: JUDGE_STEP, status: "completed", conclusion: "skipped" },
       { name: "Complete job", status: "completed", conclusion: "success" },
