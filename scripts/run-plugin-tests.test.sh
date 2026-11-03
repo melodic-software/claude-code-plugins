@@ -118,12 +118,14 @@ write_suite "$r" plugins/a/a.test.sh 'echo "ok: a"'
 write_suite "$r" scripts/check-x.test.sh 'echo "ok: gate self-test"'
 write_suite "$r" scripts/lib/helper.test.sh 'echo "ok: scripts lib"'
 write_suite "$r" lib/shared.test.sh 'echo "ok: shared lib"'
+write_suite "$r" .github/scripts/x/y.test.sh 'echo "ok: github"'
 write_suite "$r" tools/elsewhere.test.sh 'echo "ok: never discovered"'
-PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "scripts/ and lib/ suites run with the corpus" --root "$r"
+PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "scripts/, lib/ and .github/ suites run with the corpus" --root "$r"
 assert_output_has "a scripts/ suite is discovered" "PASS: scripts/check-x.test.sh"
 assert_output_has "a scripts/lib/ suite is discovered" "PASS: scripts/lib/helper.test.sh"
 assert_output_has "a lib/ suite is discovered" "PASS: lib/shared.test.sh"
-assert_output_lacks "a suite outside the four roots is not discovered" "tools/elsewhere.test.sh"
+assert_output_has "a .github/ suite is discovered" "PASS: .github/scripts/x/y.test.sh"
+assert_output_lacks "a suite outside the five roots is not discovered" "tools/elsewhere.test.sh"
 
 r="$(make_root fail)"
 write_suite "$r" plugins/a/a.test.sh 'echo "ok: a"'
