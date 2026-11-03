@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "The gate finds no anchored match, so the input is refused outright with a statement that it is not a recognized X post or article URL. No command is emitted, no request is made, and no attempt is made to escape, strip, or repair the string into something that matches.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

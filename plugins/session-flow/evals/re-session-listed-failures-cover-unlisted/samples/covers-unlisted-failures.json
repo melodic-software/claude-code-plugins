@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | CLAUDE.md | project | Rule | When a test fails before you have touched its code, run it on main (`git stash; pytest <test>`) before debugging it; a failure that also fails on main is not yours. | Basis: verified, the session's three failures all failed on main | High |",
+      "why": "a way to recognize any pre-existing failure"
+    },
+    {
+      "answer": "Recommendation 1: add to CLAUDE.md that tests/test_dates.py and tests/test_io.py fail on main, and that for any other failing test the session runs it on the base commit before treating it as its own.",
+      "why": "list plus a rule for unlisted cases"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Recommendation 1: add a known-failures list to CLAUDE.md: tests/test_dates.py::test_local_timezone, tests/test_io.py::test_reads_fixture, tests/test_io.py::test_reads_unicode_fixture.",
+      "why": "list only"
+    },
+    {
+      "answer": "Recommendation 1: list the three known failures in CLAUDE.md, and treat any failure not on that list as caused by your change.",
+      "why": "unlisted failures attributed to the session"
+    }
+  ]
+}

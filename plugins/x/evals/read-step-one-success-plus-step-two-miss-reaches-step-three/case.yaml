@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: 'read-step-one-success-plus-step-two-miss-reaches-step-three'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Reaches step 3 on step-1-success plus step-2-miss, not only when both fail'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'States explicitly that the result is truncated'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Does not reconstruct the missing posts from memory'
+    focus: 'trace'
