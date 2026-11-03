@@ -51,7 +51,7 @@
     },
     {
       "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s-01\",\"skills\":[\"songwriting:meter-prosody\",\"songwriting:co-write\",\"songwriting:rhyme\"]}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_02\",\"name\":\"Skill\",\"input\":{\"skill\":\"songwriting:co-write\",\"args\":\"line-brainstorm a car line on the same twelve notes\"}}]},\"parent_tool_use_id\":null}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"toolu_02\",\"type\":\"tool_result\",\"content\":\"Launching skill: songwriting:co-write\"}]}}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Base directory for this skill: /plugins/songwriting/skills/co-write\\n\\n## Line brainstorm\"}]}}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Three car lines on your notes:\\n\\n1. I keep the engine running every night for you\\n2. I leave the motor idling every night for you\"}]},\"parent_tool_use_id\":null}",
-      "why": "co-write only in a tool call's input; the reply never names the route"
+      "why": "co-write only in a tool call's input and no assistant text names it; a co-write reply that named itself would pass"
     }
   ]
 }
