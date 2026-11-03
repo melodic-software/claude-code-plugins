@@ -18,7 +18,8 @@ cut before wayfind" first, in round 1 when the request already shows it.
 ## Bigger than you thought? Check at every round boundary
 
 After each reply is recorded and before the next round is written, answer one question: did this
-turn out larger or foggier than it looked at entry? Each trigger has its own recommendation:
+turn out larger or foggier than it looked at entry? The first two triggers each have their own
+recommendation; the third is a pointer:
 
 - **Fog: more branches opened than closed → `/planning:wayfind chart`.** Recompute the frontier
   first, then count the branches this round's answers exposed (the questions the next round would
@@ -44,10 +45,10 @@ turn out larger or foggier than it looked at entry? Each trigger has its own rec
   below. It recommends nothing, so a `/session-flow:workflow` recommendation on the same boundary
   stands. Skip it when a wayfind recommendation has already been made in this session.
 
-On a trigger, recommend its route to the user in one short block (the trigger and its evidence,
-what it would carry over); never switch on your own. If it is not a trigger, say nothing and ask
-the next round. After the user declines, raise it again only when it escalates: the zone worsens
-further, or the other trigger fires.
+On a fog or context-zone trigger, recommend its route to the user in one short block (the trigger
+and its evidence, what it would carry over); never switch on your own. If neither fired, say nothing
+beyond the question-count pointer and ask the next round. After the user declines, raise it again
+only when it escalates: the zone worsens further, or the other of those two triggers fires.
 
 ## The handoff to wayfind
 
