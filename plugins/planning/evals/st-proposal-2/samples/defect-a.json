@@ -41,6 +41,10 @@
     {
       "answer": "- The site guide should list every setting a lead can change.\n",
       "why": "a finding about something else"
+    },
+    {
+      "answer": "- Nothing in the Out-of-scope list excludes the SIGHUP reload.\n",
+      "why": "nothing negation"
     }
   ]
 }

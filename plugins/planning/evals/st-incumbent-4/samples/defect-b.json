@@ -19,6 +19,14 @@
     {
       "answer": "- Sealbox 5.0 provides key rotation through rekey.\n",
       "why": "provides"
+    },
+    {
+      "answer": "- The claim that Sealbox 5.2.0 has no rekey is false: the 5.0.0 changelog adds `Sealbox.rekey`.\n",
+      "why": "quotes the claim, then calls it false"
+    },
+    {
+      "answer": "- The draft says Sealbox 5.2.0 lacks rekey, but `Sealbox.rekey` ships in 5.0.0.\n",
+      "why": "quotes the claim, then attacks it"
     }
   ],
   "fail": [
@@ -49,6 +57,14 @@
     {
       "answer": "- The claim that Sealbox cannot change a key is wrong.\n",
       "why": "generic, no function or version"
+    },
+    {
+      "answer": "- Sealbox 5.2.0 has no rekey, so the swap is needed.\n",
+      "why": "agrees with the draft"
+    },
+    {
+      "answer": "- Sealbox 5.2.0 has no rekey, but the reseal task cannot be re-run.\n",
+      "why": "dismissal, then a finding about something else"
     }
   ]
 }

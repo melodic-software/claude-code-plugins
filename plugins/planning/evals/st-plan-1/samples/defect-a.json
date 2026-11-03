@@ -27,6 +27,10 @@
     {
       "answer": "**AC-3 uncovered.** Nothing in the plan produces the CSV for finance.\n",
       "why": "paraphrase"
+    },
+    {
+      "answer": "- Phase 4 claims AC3 is covered, but no phase builds the monthly finance CSV.\n",
+      "why": "quotes the claim, then attacks it"
     }
   ],
   "fail": [

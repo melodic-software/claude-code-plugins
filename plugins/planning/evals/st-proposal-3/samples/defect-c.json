@@ -19,6 +19,10 @@
     {
       "answer": "- A worker that dies mid-job leaves that tenant's job stranded, and nothing re-queues it.\n",
       "why": "no use of the words running or claim"
+    },
+    {
+      "answer": "- The worker doesn't recover jobs left in `running` after a kill, so they are stuck.\n",
+      "why": "doesn't recover"
     }
   ],
   "fail": [

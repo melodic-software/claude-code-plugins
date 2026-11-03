@@ -21,6 +21,18 @@
       "why": "other finding"
     },
     {
+      "answer": "- None of the customer fields exceed the 4 KB value limit; email caps at 254 characters.\n",
+      "why": "none-of negation"
+    },
+    {
+      "answer": "- Nothing exceeds 4 KB: the largest sealed field is about 400 bytes.\n",
+      "why": "nothing negation"
+    },
+    {
+      "answer": "- The 4 KB value limit is fine, but the reseal task is wrong to assume a re-run works.\n",
+      "why": "approval, then a finding about something else"
+    },
+    {
       "answer": "- None of the customer fields exceed the 4 KB value limit; the largest is 254 characters.\n",
       "why": "negation four words before the attack"
     },
@@ -49,6 +61,14 @@
     {
       "answer": "| 2 | SUGGESTION | Plan | The value size claim is unverified | Measure |\n",
       "why": "unverified"
+    },
+    {
+      "answer": "- Nothing checks that sealed notes stay under the 4 KB value limit, so a long note can exceed it.\n",
+      "why": "nothing opens the attack"
+    },
+    {
+      "answer": "- The draft says the 4 KB value limit is fine, but sealed notes can exceed it.\n",
+      "why": "quotes the approval, then attacks it"
     }
   ]
 }

@@ -19,6 +19,10 @@
     {
       "answer": "- Phase 2 says there is no data to migrate, but unexpired holds are unaware of leases, which violates AC1.\n",
       "why": "quotes then contradicts"
+    },
+    {
+      "answer": "- Leaseline cannot detect double-held seats under the `hf:` prefix during the rolling deploy.\n",
+      "why": "cannot detect"
     }
   ],
   "fail": [
@@ -49,6 +53,10 @@
     {
       "answer": "- Two buyers can lose out when a card is declined.\n",
       "why": "nature without the cutover"
+    },
+    {
+      "answer": "- Seats will not be double-sold during the rolling deploy.\n",
+      "why": "negated attack"
     }
   ]
 }

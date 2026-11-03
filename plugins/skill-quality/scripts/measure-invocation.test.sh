@@ -141,14 +141,40 @@ else
 fi
 
 mkdir -p "$TMP/crossplugin/probes"
-jq '.competitors += ["other:rival"]' "$TMP/probes/target.json" >"$TMP/crossplugin/probes/target.json"
+jq '.competitors += ["other:rival", "third:rival"]' "$TMP/probes/target.json" >"$TMP/crossplugin/probes/target.json"
 out="$(run validate "$TMP/crossplugin/probes" 2>&1)"
 rc=$?
-if [[ $rc -eq 0 ]] && grep -q "WARN: .*target.json (fixture:target): competitor 'other:rival' is not from plugin 'fixture'" <<<"$out" &&
-  ! grep -q 'FAIL:' <<<"$out"; then
-  pass "validate WARNs on a cross-plugin competitor and still passes"
+if [[ $rc -eq 0 ]] &&
+  grep -q "WARN: .*target.json (fixture:target): 2 competitor(s) not from plugin 'fixture': 'other:rival', 'third:rival'" <<<"$out" &&
+  [[ "$(grep -c 'not from plugin' <<<"$out")" -eq 1 ]] &&
+  grep -q 'INFO: 2 competitor(s) in 1 probe file(s) are not from the file.s plugin;.*--verbose' <<<"$out" &&
+  grep -q 'validate: PASS (5 warning(s))' <<<"$out" &&
+  ! grep -q 'INFO: fixture:target: ' <<<"$out" && ! grep -q 'FAIL:' <<<"$out"; then
+  pass "validate WARNs once per file naming every cross-plugin competitor, counts each, and still passes"
 else
-  fail "cross-plugin competitor should WARN and exit 0 (rc=$rc): $out"
+  fail "cross-plugin competitors should give one WARN per file, the per-competitor count, and exit 0 (rc=$rc): $out"
+fi
+for args in "--verbose" "--verbose --copy-span 4" "--copy-span 4 --verbose"; do
+  # shellcheck disable=SC2086 # word-split the option list on purpose
+  out="$(run validate $args "$TMP/crossplugin/probes" 2>&1)"
+  rc=$?
+  if [[ $rc -eq 0 ]] &&
+    grep -q "WARN: .*target.json (fixture:target): competitor 'other:rival' is not from plugin 'fixture'; a rewrite" <<<"$out" &&
+    grep -q "WARN: .*competitor 'third:rival' is not from plugin 'fixture'" <<<"$out" &&
+    grep -q 'INFO: fixture:target: listing ' <<<"$out" &&
+    grep -q 'INFO: fixture:target: 20 queries (pos=10 neg=10 train=12 validation=8)' <<<"$out" &&
+    grep -q 'validate: PASS (5 warning(s))' <<<"$out" && ! grep -q 'competitor(s) in' <<<"$out"; then
+    pass "validate $args prints one WARN per competitor and the per-skill INFO lines"
+  else
+    fail "validate $args should print the per-competitor and per-skill lines (rc=$rc): $out"
+  fi
+done
+out="$(run validate --quiet "$TMP/probes" 2>&1)"
+rc=$?
+if [[ $rc -eq 2 ]] && grep -q 'unknown validate option --quiet' <<<"$out"; then
+  pass "validate rejects an unknown option"
+else
+  fail "validate --quiet should exit 2 (rc=$rc): $out"
 fi
 
 score_json="$(run score "$TMP/probes" 2>"$TMP/score.err")"

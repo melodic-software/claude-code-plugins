@@ -19,6 +19,14 @@
     {
       "answer": "| 1 | IMPORTANT | Plan | Phase 4 (money.ts refactor) maps to no criterion in the Brief | Fix before building |\n",
       "why": "paraphrase"
+    },
+    {
+      "answer": "- The plan says Phase 4 should not be cut, but the Money module serves no acceptance criterion.\n",
+      "why": "quotes the claim, then attacks it"
+    },
+    {
+      "answer": "- The plan does not flag that Phase 4's Money module serves no acceptance criterion.\n",
+      "why": "does not flag, said of the plan"
     }
   ],
   "fail": [

@@ -19,6 +19,14 @@
     {
       "answer": "- Phase 2 is treated as a one-shot, but a crash halfway leaves converted rows that break a rerun with BadEnvelope.\n",
       "why": "BadEnvelope"
+    },
+    {
+      "answer": "- The `customers:reseal` task is not safe to re-run: `Sealbox.open` raises `BadEnvelope` on rows already converted.\n",
+      "why": "not safe to re-run"
+    },
+    {
+      "answer": "- The plan says the reseal backfill is resumable, but a second run raises `BadEnvelope` on converted rows.\n",
+      "why": "quotes the claim, then attacks it"
     }
   ],
   "fail": [
@@ -49,6 +57,14 @@
     {
       "answer": "- `customers:reseal` takes six hours and fails to report progress.\n",
       "why": "named, no re-run"
+    },
+    {
+      "answer": "- The `customers:reseal` task is safe to re-run after an interruption.\n",
+      "why": "dismissal"
+    },
+    {
+      "answer": "- The reseal task is resumable, but Vaultline breaks the AC2 email lookup.\n",
+      "why": "dismissal, then a finding about something else"
     }
   ]
 }

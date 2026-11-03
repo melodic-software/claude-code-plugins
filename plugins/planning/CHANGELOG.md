@@ -3,6 +3,21 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.0] - 2026-11-03
+
+### Added
+
+- `plan`: `plan_stress_test` sets, per mode of the draft (`plan`, `proposal`, `incumbent`), which stress-tests `/planning:plan` runs: `auto` (the default, current behavior), `reviewer`, `devils-advocate` or `both`. It resolves through the convention home; `reference/config.md` defines the modes and values (#12478).
+- `evals`: the `plan-stress-test` suite, 12 seeded drafts across the three modes with deterministic graders, and `fixtures/stress-arm/prepare-arm.sh`, which sets up a plugin copy for one arm or for the suite's negative control (#12478).
+
+### Fixed
+
+- **The docs lookup removes its output directory.** The reading procedure's step 1 makes the
+  `--out` directory with `mktemp -d`; it now tells the reader to remove that directory by its
+  literal path when the lookup ends. Each lookup used to leave one `tmp.*` directory, up to
+  1.2 MB, in the OS temp folder
+  ([#9571](https://github.com/melodic-software/claude-code-plugins/issues/9571)).
+
 ## [2.0.1] - 2026-11-03
 
 ### Changed

@@ -19,6 +19,10 @@
     {
       "answer": "The key doesn't distinguish the old and new time of a rescheduled appointment.\n",
       "why": "negated phrasing that is a true finding"
+    },
+    {
+      "answer": "- The draft says the ledger is safe, but its key leaves out the start time, so a rescheduled appointment never gets its reminder.\n",
+      "why": "quotes the claim, then attacks it"
     }
   ],
   "fail": [
@@ -49,6 +53,10 @@
     {
       "answer": "- The ledger change is missing a test for a rescheduled appointment.\n",
       "why": "a test gap, not the key defect"
+    },
+    {
+      "answer": "- No reminder is suppressed when an appointment is rescheduled: the key is checked per window.\n",
+      "why": "no negation"
     }
   ]
 }
