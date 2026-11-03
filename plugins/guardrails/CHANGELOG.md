@@ -3,6 +3,16 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.1] - 2026-11-03
+
+### Fixed
+
+- deny a global git include.path write in block-cross-domain
+
+  An unconditional include can set the machine's git identity just as an
+  includeIf does, and the guard let `git config --global include.path`
+  through. It now treats the key and the include section as identity writes.
+
 ## [1.0.0] - 2026-11-03
 
 ### Removed

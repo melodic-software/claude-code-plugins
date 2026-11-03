@@ -241,7 +241,8 @@ user-generated strings with no `truncate`, `line-clamp`, `min-width: 0`, or `ove
 ```
 
 A flex child needs `min-width: 0` before `text-overflow: ellipsis` does anything. Recipe:
-`long-text-that-wraps-truncates-or-clamps`.
+`long-text-that-wraps-truncates-or-clamps`. Its fixed-size neighbor needs `flex-shrink: 0`, or a
+long name squeezes an avatar into an oval.
 
 That truncation needs a way to read the rest (a `title`, a tooltip, an expand control) is the
 `typography` concern's rule.
