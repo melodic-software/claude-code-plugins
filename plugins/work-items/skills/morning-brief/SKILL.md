@@ -39,6 +39,14 @@ across repos. It runs on the operator's machine with the operator's own `gh` and
 `az` logins; no CI workflow or schedule runs it, and it needs no credential of its
 own.
 
+**A GitHub-only surface.** The brief reads GitHub's queues, pull requests, review threads, Actions
+runs and billing, and Azure's cost data, so it names `gh` and `az` directly and does not go through
+the work-items tracker seam: it is a declared-provider surface, which keeps its provider details
+(ADR 0060 "Declared-provider surfaces stay as they are",
+`docs/adr/0060-abstract-provider-details-in-skills-behind-consumer-conventions-and-adapters.md` in
+the marketplace repository). A repository whose issues and pull requests are not on GitHub gets no
+brief from it.
+
 ## Run it
 
 ```bash
@@ -112,7 +120,7 @@ Every date stamp the brief prints is UTC and carries the label `UTC` (the header
 stranded window's start, each lane's `last-cycle`). The script reads its clock with `date -u`, and a
 stamp it parses without a zone is read as UTC. A scheduler's own zone is not assumed (the A10 row in
 `docs/upstream/claude-dev-building-effective-agent-automations.md` points to the live docs). So a
-scheduled prompt that runs this skill names the zone, for example "run `/harness-ops:morning-brief`; its stamps and ages are UTC". Never convert a
+scheduled prompt that runs this skill names the zone, for example "run `/work-items:morning-brief`; its stamps and ages are UTC". Never convert a
 stamp to another zone when printing it.
 
 The zone is the owner's decision on #7679; the digest row is `docs/upstream/claude-dev-building-effective-agent-automations.md` A10.
@@ -272,14 +280,14 @@ of the probe below:
 - **Recheck trigger**: a pipeline lane's model-usage rows show only the lane name, or GitHub
   documents how it names a reusable workflow's jobs.
 
-Each Cost setting is a flag and a key under `morning_brief:` in `harness-ops.yaml` in the
+Each Cost setting is a flag and a key under `morning_brief:` in `work-items.yaml` in the
 convention home (`--config-home`, else the checkout's `docs/conventions`), the team layer, and in
-`harness-ops.local.yaml` beside it, the gitignored personal layer. A flag beats the personal file,
+`work-items.local.yaml` beside it, the gitignored personal layer. A flag beats the personal file,
 which beats the team file, which beats the default; an invalid value is named on stderr and its key
 takes the default, never a lower layer's value; a file that cannot be parsed is named and skipped.
 The section's `settings:` line prints each value a flag or a file set, with its layer. The org must
 be a GitHub owner name and each alert percent an integer from 0 to 100. The keys and their meaning are
-in the plugin's `schemas/harness-ops.schema.json`; the layering is the config-cascade contract
+in the plugin's `schemas/work-items.schema.json`; the layering is the config-cascade contract
 (`docs/contracts/config-cascade/README.md` in the marketplace repository). Keep the subscription out of
 a public repository's team file: pass `--subscription` or set it in the personal file.
 

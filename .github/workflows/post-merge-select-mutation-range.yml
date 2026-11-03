@@ -7,7 +7,7 @@ name: post-merge-select-mutation-range
 # push event (src/github/context.ts:63-68, :251 at 16f9f71); it runs on this
 # workflow's workflow_run event instead.
 #
-# The paths below equal `mutate` in .claude/mutation-testing.md;
+# The paths below equal `mutate` in docs/conventions/mutation-testing.yaml;
 # .github/scripts/post-merge-test-mutation/report.test.mjs fails when they
 # differ.
 
@@ -28,6 +28,7 @@ on:
       - "!**/fixtures/**"
       - "!**/vendor/**"
       - "!.claude/**"
+      - "!docs/conventions/**"
 
 permissions: {}
 

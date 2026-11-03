@@ -28,10 +28,9 @@ The config resolves across three layers, lowest first: the user layer (`userConf
 `${CLAUDE_PLUGIN_ROOT}/schemas/mutation-testing.schema.json`) → local overlay
 (`.claude/mutation-testing.local.md`), later layers overriding scalars and unioning lists.
 
-For one release, the older team file `.claude/mutation-testing.md` is read only while `docs/conventions/mutation-testing.yaml` is absent:
-its fenced `yaml` block, with the same keys, is then the team layer. Report it as the older file
-and name `/mutation-testing:setup apply` as the move. With both present the YAML file is the whole
-team layer: the older file's keys are not merged in, and a warning names it as ignored.
+The team file of earlier releases, .claude/mutation-testing.md, is retired and never read as a
+layer. While it exists, `check` probe 6 reports it as INFO, which gates nothing, naming `apply` as the move, or, once
+the YAML file exists, deleting it; `apply` step 7 carries its keys over.
 
 There is no user-global file, and `~/.claude/mutation-testing.md` is never read: a per-person
 value lives in this plugin's `userConfig`, which Claude Code prompts for and stores. It carries two keys that mean the same thing in every repository,
@@ -94,7 +93,8 @@ run a mutation analysis. That is `/mutation-testing:audit`.
    and `/plugin configure` as the fix. Nothing readable →
    INFO naming the audit's fallback: `tool: manual`, the diff target from `origin/HEAD`, the
    changed source files, the effort cap, and a test command the user supplies or confirms at run
-   time. `apply` writes a config that replaces it.
+   time. `apply` writes a config that replaces it. The retired .claude/mutation-testing.md
+   present → INFO, as the merge model says; it never counts as a layer here.
 7. **Diff target resolves**, the configured target must resolve in this repository
    (`git rev-parse --verify <target>`). Unresolvable → FAIL naming it; a stale default here silently
    scopes a run to nothing or to everything. A `test-command` without `{tests}` as a standalone
@@ -190,11 +190,11 @@ unambiguous; ask only where the answer is genuinely the user's.
 7. **Write the config** to `docs/conventions/mutation-testing.yaml`, the template's YAML block
    without its Markdown, following
    [`${CLAUDE_PLUGIN_ROOT}/skills/setup/templates/config-template.md`](templates/config-template.md).
-   Keep every key name as the template spells it. When that file does not exist yet and the older
-   `.claude/mutation-testing.md` does, this first write carries every key of the older file's
-   `yaml` block with its value unchanged, a value settled in steps 2 to 6 replacing it; with
-   nothing to settle, the write is that move alone. Leave the older file in place and tell the
-   user to delete it once the YAML file is committed, since no later release reads it.
+   Keep every key name as the template spells it. When that file does not exist yet and the
+   retired .claude/mutation-testing.md does, this first write carries every key of the retired
+   file's `yaml` block with its value unchanged, a value settled in steps 2 to 6 replacing it; with
+   nothing to settle, the write is that move alone. Leave the retired file in place and tell the
+   user to delete it once the YAML file is committed, since the plugin does not read it.
 8. **Create the suppression record empty**, with its header comment and an empty `suppressions:`
    mapping, a **mapping, never a list**, since a list is taken whole and one personal entry would
    discard the team's entire accepted set. An empty record makes the first suppression an edit to a

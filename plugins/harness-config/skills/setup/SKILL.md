@@ -114,10 +114,6 @@ tracked/ignored question has opposite correct answers per layer, so verify each 
   uses: a non-zero exit is FAIL with the line it prints, because the engine then drops the whole team
   layer. The common cause is an unquoted `anchor/v1` key; the parser takes a plain key only of
   letters, digits, `_` and `-`, so the key is written `"anchor/v1":`.
-- **compatibility read** of the plugin's previous team location, `.claude/audit-pass.md`: the engine
-  reads its fenced block as the team layer only while `<home>/harness-config.yaml` is absent, for one
-  release. Present with the YAML absent is WARN, naming `apply` as the migration; present beside the
-  YAML is INFO, ignored by the engine and safe to delete.
 - **local overlay** `.claude/audit-pass.local.md`: must be gitignored and never staged. Staged or
   tracked is a FAIL: a personal deviation can reach team history.
 
@@ -168,15 +164,6 @@ Then converge the one surface this plugin owns, conservatively:
 - **No suppression record anywhere**: leave it that way and say so. Absent is valid; an empty
   scaffold is noise. Scaffold `<home>/harness-config.yaml` with the documented shape only on an
   explicit request.
-- **Team YAML absent, compatibility-read file present**: write `<home>/harness-config.yaml` with a
-  `suppressions` mapping carrying every entry of that file's block unchanged, keys and values as
-  written, with the `anchor/v1` key and each `date` quoted. The YAML parser unescapes `\\`, `\"`,
-  `\/` and `\t` inside double quotes and drops a comment tail (whitespace, then `#`) from a plain
-  value, which the old reader kept, so write each value so it reads back as the same text. Parse the result with the
-  `yaml-subset.awk` command above, then run
-  `bash ${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/audit-engine.sh --json` and confirm its
-  `suppressions` object lists no `malformed` team entry and the same applied entries as before. Leave the old file in place: the operator stages the YAML and deletes the
-  old file. The schema the YAML follows is `${CLAUDE_PLUGIN_ROOT}/schemas/harness-config.schema.json`.
 - **Team layer present but untracked**: report the STOP and the exact `git add` the operator should
   run. Never stage on their behalf.
 - **Overlay present but not ignored**: recommend the recursive `.claude/**/*.local.*` line and leave

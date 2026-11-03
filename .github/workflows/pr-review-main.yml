@@ -44,7 +44,8 @@ name: pr-review-main
 # next push reviews again.
 #
 # The trigger job reads the PR's files, then runs the trigger gate only for a
-# lane-source PR, once per run; the key leg takes its result, a boolean, the
+# lane-source PR whose head both lanes have not already reviewed (a verdict the
+# merge gate binds), once per run; no leg starts otherwise. The key leg takes its result, a boolean, the
 # PR number and two SHAs
 # checked against fixed shapes, only from the same run attempt, and gates
 # itself otherwise. The later legs gate themselves at their own start.
@@ -95,7 +96,8 @@ jobs:
     permissions:
       contents: read # check out main
       pull-requests: read # the PR and its files
-      actions: read # the upstream run the trigger gate reads
+      actions: read # the upstream run the trigger gate reads; the verdicts already uploaded
+      checks: read # the record job's check runs on the head
     outputs:
       run-attempt: ${{ github.run_attempt }}
       proceed: ${{ steps.gate.outputs.proceed }}
@@ -103,6 +105,7 @@ jobs:
       pr-number: ${{ steps.gate.outputs.pr-number }}
       head-sha: ${{ steps.gate.outputs.head-sha }}
       base-sha: ${{ steps.gate.outputs.base-sha }}
+      judged: ${{ steps.judged.outputs.judged }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -163,12 +166,122 @@ jobs:
           { echo "pr-number=$pr"; echo "review=$review"; } >>"$GITHUB_OUTPUT"
           echo "lane source changed: $review"
 
+      # A head both lanes already reviewed from main is not reviewed again:
+      # pr-require-checks completes several times on one head (a re-run after
+      # each review, a label or body edit), and each completion starts this
+      # run. judged=true only when the merge gate's own predicate
+      # (babysit_review_evidence `_main_bound`) binds both lanes at this head
+      # on what this step reads as the gate does (babysit_gh
+      # collect_main_reviews, collect_main_review_counts): a verdict artifact
+      # for the PR and the head's tree, from a pr-review-main run on main that
+      # completed with success, naming this head, beside the record job's
+      # check run with its counts. A verdict counts only when its run's main
+      # commit (the run's head_sha) has no diff from main's tip over the paths
+      # criteria.txt lists, so one judged under other criteria reviews again;
+      # the run need not be at the tip itself. That commit is fetched, when the
+      # one-commit checkout lacks it, anonymously, since this repository is
+      # public. A failed or cancelled run, a verdict for another head of the
+      # same tree, a lane with no verdict, or any failed read, fetch or diff
+      # leaves no output, and the review runs as before. The tree is the
+      # event's, for the event's head.
+      - name: Find a head both lanes already reviewed
+        id: judged
+        if: steps.files.outputs.review == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.files.outputs.pr-number }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          TREE_SHA: ${{ github.event.workflow_run.head_commit.tree_id }}
+          DIR: ${{ runner.temp }}/pr-review-main-judged
+        run: |
+          if ! [[ $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ && $HEAD_SHA =~ ^[0-9a-f]{40}$ && $TREE_SHA =~ ^[0-9a-f]{40}$ ]]; then
+            echo "the event names no tree for its head; the review runs"
+            exit 0
+          fi
+          mkdir -p "$DIR"
+          # Each call the gh wrapper sends counts toward the api-calls notice.
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          unread() {
+            echo "::warning::$1 did not read; the review runs"
+            exit 0
+          }
+          tip=$(git -C .base rev-parse --verify HEAD) || unread "the main checkout"
+          paths=$(awk '$1 ~ /^(copy|copy-if-present|read)$/ { sub("/[{]skill[}].*", "", $2); print $2 }' .base/.github/scripts/pr-review-main/criteria.txt) && [ -n "$paths" ] || unread "criteria.txt"
+          mapfile -t paths <<<"$paths"
+          declare -A diffs
+          # 0 when main commit $1 has the tip's criteria, 1 when it differs.
+          criteria_diff() {
+            if [ "$1" = "$tip" ]; then return 0; fi
+            if [ -z "${diffs[$1]:-}" ]; then
+              local rc=0
+              if ! git -C .base cat-file -e "$1^{commit}" 2>/dev/null; then
+                git -C .base fetch --quiet --no-tags --depth=1 origin "$1" || unread "main commit $1"
+              fi
+              git -C .base diff --quiet "$1" "$tip" -- "${paths[@]}" || rc=$?
+              [ "$rc" -le 1 ] || unread "the criteria diff from $1"
+              diffs[$1]=$rc
+            fi
+            return "${diffs[$1]}"
+          }
+          for lane in claude-review claude-security-review; do
+            name="pr-review-main-$lane-$PR_NUMBER-$TREE_SHA"
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$name&per_page=100" >"$DIR/listing.json" || unread "the $lane verdict listing"
+            # One page holds every review of the tree, or the review runs.
+            pairs=$(jq -r --arg name "$name" 'if .total_count > 100 then error("more than one page") else .artifacts[] | select(.name == $name and .expired == false) | "\(.id) \(.workflow_run.id)" end' "$DIR/listing.json") || unread "the $lane verdict listing"
+            if [ -z "$pairs" ]; then
+              echo "$lane has no verdict for this tree; the review runs"
+              exit 0
+            fi
+            : >"$DIR/$lane-records.jsonl"
+            while read -r artifact run; do
+              [[ $artifact =~ ^[1-9][0-9]{0,19}$ && $run =~ ^[1-9][0-9]{0,19}$ ]] || unread "the $lane verdict listing"
+              gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" >"$DIR/run.json" || unread "run $run"
+              # Only this workflow's main run counts, so no other run's artifact is fetched or unzipped.
+              rc=0
+              jq -e '.path == ".github/workflows/pr-review-main.yml" and .event == "workflow_run" and .head_branch == "main"' "$DIR/run.json" >/dev/null || rc=$?
+              [ "$rc" -le 1 ] || unread "run $run"
+              if [ "$rc" = 1 ]; then
+                echo "run $run is not a pr-review-main run on main; its $lane verdict does not count"
+                continue
+              fi
+              sha=$(jq -r '.head_sha' "$DIR/run.json") || unread "run $run"
+              [[ $sha =~ ^[0-9a-f]{40}$ ]] || unread "run $run"
+              if ! criteria_diff "$sha"; then
+                echo "run $run reviewed under other criteria than main's tip; its $lane verdict does not count"
+                continue
+              fi
+              gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact/zip" >"$DIR/verdict.zip" || unread "artifact $artifact"
+              unzip -p "$DIR/verdict.zip" verdict.json >"$DIR/verdict.json" || unread "artifact $artifact"
+              jq -nc --arg lane "$lane" --slurpfile listing "$DIR/listing.json" --slurpfile run "$DIR/run.json" --slurpfile verdict "$DIR/verdict.json" --argjson id "$artifact" \
+                '{lane: $lane, artifact: first($listing[0].artifacts[] | select(.id == $id)), run: $run[0], verdict: $verdict[0], on_branch: true}' >>"$DIR/$lane-records.jsonl" || unread "artifact $artifact"
+            done <<<"$pairs"
+            gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/check-runs?check_name=pr-review-main%3A%20$lane&filter=all&per_page=100" \
+              --jq 'if .total_count > 100 then error("more than one page") else [.check_runs[] | select(.app.slug == "github-actions") | .output.title // ""] end' >"$DIR/$lane-titles.json" || unread "the $lane check runs"
+          done
+          judged=$(python3 -I -c '
+          import json, re, sys
+          sys.path.insert(0, ".base/plugins/source-control/skills/babysit-prs/scripts")
+          import babysit_review_evidence as ev
+          directory, repo, pr, tree, head = sys.argv[1:]
+          # babysit_gh MAIN_REVIEW_CHECK_TITLE: a record title the gate reads as counts.
+          title = re.compile(r"findings=(\d{1,6}) critical=(\d{1,6})")
+          def bound(lane):
+              records = [json.loads(line) for line in open(f"{directory}/{lane}-records.jsonl", encoding="utf-8")]
+              titles = json.load(open(f"{directory}/{lane}-titles.json", encoding="utf-8"))
+              counts = [[int(m[1]), int(m[2])] for t in titles if (m := title.fullmatch(t))]
+              context = {"repo": repo, "pr": int(pr), "tree": tree, "branch": "main", "head_records": {lane: counts}}
+              return ev._main_bound(lane, head, records, context) is not None
+          print("true" if all(bound(lane) for lane in ev.LANES) else "false")
+          ' "$DIR" "$GITHUB_REPOSITORY" "$PR_NUMBER" "$TREE_SHA" "$HEAD_SHA") || unread "a verdict"
+          echo "both lanes already reviewed this head: $judged"
+          if [ "$judged" = true ]; then echo "judged=true" >>"$GITHUB_OUTPUT"; fi
+
       # The upstream run's actors, the re-runner and the PR author must all be
-      # on the trusted-actor list. Skipped when no lane would review, or when
-      # the PR changes no lane source.
+      # on the trusted-actor list. Skipped when no lane would review, when
+      # the PR changes no lane source, or when both lanes reviewed this head.
       - name: Check the trigger
         id: gate
-        if: steps.kill.outputs.proceed == 'true' && (vars.CLAUDE_REVIEW_DISABLED != 'true' || vars.CLAUDE_SECURITY_REVIEW_DISABLED != 'true') && steps.files.outputs.review != 'false'
+        if: steps.kill.outputs.proceed == 'true' && (vars.CLAUDE_REVIEW_DISABLED != 'true' || vars.CLAUDE_SECURITY_REVIEW_DISABLED != 'true') && steps.files.outputs.review != 'false' && steps.judged.outputs.judged != 'true'
         env:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
@@ -212,6 +325,9 @@ jobs:
         with:
           tokens: github-token
 
+  # No leg starts when the trigger job of this attempt found no lane source
+  # or a head both lanes already reviewed: the leg would review nothing. A
+  # leg re-run alone in a later attempt starts and gates itself.
   review:
     needs: trigger
     if: >-
@@ -219,6 +335,8 @@ jobs:
       && github.event.workflow_run.event == 'pull_request'
       && github.event.workflow_run.conclusion == 'success'
       && github.event.workflow_run.head_repository.full_name == github.repository
+      && (needs.trigger.outputs.run-attempt != github.run_attempt
+      || needs.trigger.outputs.review != 'false' && needs.trigger.outputs.judged != 'true')
     strategy:
       fail-fast: false
       matrix:
@@ -520,10 +638,11 @@ jobs:
           output-path: ${{ github.workspace }}/pr-review-main-data/context.json
           github-token: ${{ github.token }}
 
-      # The lane's criteria and the repository's standards, from main. The
-      # skill keeps its place under the plugin's layout, so a relative pointer
-      # in it (`../../reference/...`) resolves inside the data directory; the
-      # rules the code lane names go beside the standards.
+      # The lane's criteria and the repository's standards, from main, as
+      # criteria.txt lists them. The skill keeps its place under the plugin's
+      # layout, so a relative pointer in it (`../../reference/...`) resolves
+      # inside the data directory; the rules the code lane names go beside the
+      # standards.
       - name: Copy the review criteria
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
         env:
@@ -531,13 +650,13 @@ jobs:
           DATA: ${{ github.workspace }}/pr-review-main-data
         run: |
           mkdir -p "$DATA/review/skills" "$DATA/standards"
-          cp -R .base/plugins/review/skills/"$SKILL" "$DATA/review/skills/"
+          while read -r how src dest; do
+            case $how in copy | copy-if-present) ;; *) continue ;; esac
+            src=${src//"{skill}"/$SKILL}
+            if [ "$how" = copy-if-present ] && ! [ -e ".base/$src" ]; then continue; fi
+            cp -R ".base/$src" "$DATA/${dest//"{skill}"/$SKILL}"
+          done <.base/.github/scripts/pr-review-main/criteria.txt
           rm -rf "$DATA/review/skills/$SKILL/evals"
-          cp -R .base/plugins/review/reference "$DATA/review/reference"
-          cp .base/REVIEW.md "$DATA/standards/"
-          cp -R .base/docs/standards "$DATA/standards/standards"
-          if [ -d .base/docs/review ]; then cp -R .base/docs/review "$DATA/standards/review"; fi
-          if [ -d .base/.claude/rules ]; then cp -R .base/.claude/rules "$DATA/standards/rules"; fi
 
       - name: Resolve the review's model
         id: models
@@ -1355,10 +1474,11 @@ jobs:
           output-path: ${{ github.workspace }}/pr-review-main-data/context.json
           github-token: ${{ github.token }}
 
-      # The lane's criteria and the repository's standards, from main. The
-      # skill keeps its place under the plugin's layout, so a relative pointer
-      # in it (`../../reference/...`) resolves inside the data directory; the
-      # rules the code lane names go beside the standards.
+      # The lane's criteria and the repository's standards, from main, as
+      # criteria.txt lists them. The skill keeps its place under the plugin's
+      # layout, so a relative pointer in it (`../../reference/...`) resolves
+      # inside the data directory; the rules the code lane names go beside the
+      # standards.
       - name: Copy the review criteria
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
         env:
@@ -1366,13 +1486,13 @@ jobs:
           DATA: ${{ github.workspace }}/pr-review-main-data
         run: |
           mkdir -p "$DATA/review/skills" "$DATA/standards"
-          cp -R .base/plugins/review/skills/"$SKILL" "$DATA/review/skills/"
+          while read -r how src dest; do
+            case $how in copy | copy-if-present) ;; *) continue ;; esac
+            src=${src//"{skill}"/$SKILL}
+            if [ "$how" = copy-if-present ] && ! [ -e ".base/$src" ]; then continue; fi
+            cp -R ".base/$src" "$DATA/${dest//"{skill}"/$SKILL}"
+          done <.base/.github/scripts/pr-review-main/criteria.txt
           rm -rf "$DATA/review/skills/$SKILL/evals"
-          cp -R .base/plugins/review/reference "$DATA/review/reference"
-          cp .base/REVIEW.md "$DATA/standards/"
-          cp -R .base/docs/standards "$DATA/standards/standards"
-          if [ -d .base/docs/review ]; then cp -R .base/docs/review "$DATA/standards/review"; fi
-          if [ -d .base/.claude/rules ]; then cp -R .base/.claude/rules "$DATA/standards/rules"; fi
 
       - name: Resolve the review's model
         id: models
@@ -2194,10 +2314,11 @@ jobs:
           output-path: ${{ github.workspace }}/pr-review-main-data/context.json
           github-token: ${{ github.token }}
 
-      # The lane's criteria and the repository's standards, from main. The
-      # skill keeps its place under the plugin's layout, so a relative pointer
-      # in it (`../../reference/...`) resolves inside the data directory; the
-      # rules the code lane names go beside the standards.
+      # The lane's criteria and the repository's standards, from main, as
+      # criteria.txt lists them. The skill keeps its place under the plugin's
+      # layout, so a relative pointer in it (`../../reference/...`) resolves
+      # inside the data directory; the rules the code lane names go beside the
+      # standards.
       - name: Copy the review criteria
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
         env:
@@ -2205,13 +2326,13 @@ jobs:
           DATA: ${{ github.workspace }}/pr-review-main-data
         run: |
           mkdir -p "$DATA/review/skills" "$DATA/standards"
-          cp -R .base/plugins/review/skills/"$SKILL" "$DATA/review/skills/"
+          while read -r how src dest; do
+            case $how in copy | copy-if-present) ;; *) continue ;; esac
+            src=${src//"{skill}"/$SKILL}
+            if [ "$how" = copy-if-present ] && ! [ -e ".base/$src" ]; then continue; fi
+            cp -R ".base/$src" "$DATA/${dest//"{skill}"/$SKILL}"
+          done <.base/.github/scripts/pr-review-main/criteria.txt
           rm -rf "$DATA/review/skills/$SKILL/evals"
-          cp -R .base/plugins/review/reference "$DATA/review/reference"
-          cp .base/REVIEW.md "$DATA/standards/"
-          cp -R .base/docs/standards "$DATA/standards/standards"
-          if [ -d .base/docs/review ]; then cp -R .base/docs/review "$DATA/standards/review"; fi
-          if [ -d .base/.claude/rules ]; then cp -R .base/.claude/rules "$DATA/standards/rules"; fi
 
       - name: Resolve the review's model
         id: models
@@ -2689,7 +2810,8 @@ jobs:
   # write-verdict.mjs checked, from this run's own artifacts.
   record:
     needs: [review, review-subscription, review-fallback]
-    if: ${{ !cancelled() && github.ref == 'refs/heads/main' }}
+    # A skipped key leg reviewed nothing, so no later leg ran: nothing to record.
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.review.result != 'skipped' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

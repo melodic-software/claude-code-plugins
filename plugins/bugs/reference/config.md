@@ -17,13 +17,6 @@ Three layers, resolved in this order, where a later layer refines an earlier one
 | 2 | team (tracked) | `${CLAUDE_PROJECT_DIR}/docs/conventions/bugs.yaml` for the keys; `${CLAUDE_PROJECT_DIR}/docs/conventions/bugs.md` for prose and `## Gotchas` | must be tracked, the only layer teammates receive |
 | 3 | local overlay | `${CLAUDE_PROJECT_DIR}/.claude/bugs.local.md` | must be gitignored, never staged |
 
-**One-release fallback.** The team layer used to be `.claude/bugs.md`. For one release that file
-is still read: its YAML block only while `docs/conventions/bugs.yaml` is absent, and its
-`## Gotchas` section only while `docs/conventions/bugs.md` is absent. When the new file exists the
-old one is ignored for what the new one holds, and a report of the effective config names it as
-ignored. `/bugs:setup apply` moves the old file's values into `docs/conventions/bugs.yaml` and
-leaves the old file for the operator to delete.
-
 The team files sit in `docs/conventions/` whatever convention home the repository binds; a
 repository that binds another home still keeps them there.
 

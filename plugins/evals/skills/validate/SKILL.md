@@ -105,12 +105,14 @@ it must pass, near misses it must reject, an empty answer, and an answer to a di
 | A sample file with no must-pass or no must-fail answers, or named after no grader | WARN |
 | A setting the script cannot reproduce offline, such as the `y` or `v` regex flag | WARN |
 | A pattern with Python-only syntax: `\A`, `\Z`, `\z`, a possessive quantifier, an atomic group, a `(?P<` group or `(?P=` reference, a `(?#` comment, a `(?(` conditional. The finding names the grader and the token | FAIL |
-| With `node` on PATH: a regex that does not compile under JavaScript, or a sample JavaScript's `RegExp` sorts the other way | FAIL |
+| With `node` on PATH: a `pattern` or `input_match` that does not compile under JavaScript, or a sample JavaScript's `RegExp` sorts the other way | FAIL |
 | An `llm` or `baseline` grader with samples: they need a paid judge calibration run | WARN |
 
 The script FAILs the Python-only tokens listed above; that check needs nothing installed. When
-`node` is on PATH it also grades each regex grader and its samples through `RegExp`, and without
-`node` it skips that part silently.
+`node` is on PATH it also grades each regex grader and each `tool_used` `input_match`, with their
+samples, through `RegExp`, and without `node` it skips that part silently. A grader built from the
+shared matchers is checked by `scripts/check-matchers.py`, which requires `node`; the plugin
+README's shared grader matchers section covers it.
 
 The script never calls a judge. Samples on an `llm` grader are the labeled answers a calibration
 run feeds the judge, and that run is the operator's to start.

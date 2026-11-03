@@ -41,7 +41,9 @@ name: pr-unblock-dispatch
 # script logs its own call counts.
 # The heads whose check runs already handle them for good are carried from
 # run to run in the Actions cache (dispatch-record.mjs), so a later run skips
-# their reads. A run only skips work on the record, never dispatches on it.
+# their reads; a head a resolve-conflicts select job's stop handles is kept
+# with the base tip it was judged against, and read again once main moves. A
+# run only skips work on the record, never dispatches on it.
 
 on:
   push:

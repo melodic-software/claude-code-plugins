@@ -186,11 +186,11 @@ if [[ -s "$SINK_FILE" ]]; then
     fail "envelope: hook_event expected PostToolUse, got $he"
   fi
   # Validate status
-  st=$(jq -r '.status' "$SINK_FILE")
-  if [[ "$st" == "ok" ]]; then
+  status_val=$(jq -r '.status' "$SINK_FILE")
+  if [[ "$status_val" == "ok" ]]; then
     ok "envelope: status is ok"
   else
-    fail "envelope: status expected ok, got $st"
+    fail "envelope: status expected ok, got $status_val"
   fi
 else
   fail "envelope shape: sink file empty — emit did not fire or sink did not write"
@@ -1215,14 +1215,14 @@ fi
 # early not-proven return alike. `${#mb}` counts characters in the caller's
 # locale, so it moving would mean the caller was left in C.
 lc12g2_check() { # <label> <command...>
-  local label="$1" before_len mb='é日' st=0
+  local label="$1" before_len mb='é日' lc_rc=0
   shift
   before_len=${#mb}
-  "$@" >/dev/null 2>&1 || st=$?
-  if ((st == 127)); then
+  "$@" >/dev/null 2>&1 || lc_rc=$?
+  if ((lc_rc == 127)); then
     fail "C locale check $label: command not run"
   elif [[ "${#mb}" == "$before_len" ]]; then
-    ok "C locale restored after $label (rc $st)"
+    ok "C locale restored after $label (rc $lc_rc)"
   else
     fail "C locale leaked after $label: \${#mb} $before_len -> ${#mb}"
   fi
@@ -1590,7 +1590,7 @@ fi
 rm -rf "$DATA17" "$FAKEBIN17"
 
 # hook::require builds its notice from the declared prerequisites.json entry, and
-# falls back to a /<plugin>:check derived from the plugin root when there is none.
+# falls back to generic text when there is none; both end with the checker command.
 FAKEBIN17="$(make_stub_bin)"
 ROOT17="$(mktemp -d)/cache/market/demo-plug/1.2.3"
 mkdir -p "$ROOT17"
@@ -1627,11 +1627,12 @@ require17() {
 }
 # The expected texts are the notice template written out by hand for this
 # fixture: the model line states what is missing, what it costs, that the
-# notice does not repeat, and which skill diagnoses; the user line adds the
-# install route and why /<plugin>:check can pass while the hook cannot see the
-# tool.
-model17='tp: jq not on the hook PATH. Without jq, the "demo" hook is skipped. No further notice this session; /demo-plug:check diagnoses.'
-user17='tp: jq not on the hook PATH. Without jq, the "demo" hook is skipped. Install (docs: https://example.invalid/jq; brew: jq). Hooks read Claude Code'"'"'s PATH, not your shell profile. No further notice this session; /demo-plug:check diagnoses.'
+# notice does not repeat, and the command that runs the plugin's own checker;
+# the user line adds the install route and why that check can pass while the
+# hook cannot see the tool.
+cmd17="node \"$ROOT17/lib/prerequisites.mjs\" check \"$ROOT17\""
+model17='tp: jq not on the hook PATH. Without jq, the "demo" hook is skipped. No further notice this session; diagnose with: '"$cmd17"
+user17='tp: jq not on the hook PATH. Without jq, the "demo" hook is skipped. Install (docs: https://example.invalid/jq; brew: jq). Hooks read Claude Code'"'"'s PATH, not your shell profile. No further notice this session; diagnose with: '"$cmd17"
 declared17=$(require17 "$ROOT17")
 if jq -e --arg m "$model17" --arg u "$user17" \
   '.hookSpecificOutput.additionalContext == $m and .systemMessage == $u' <<<"$declared17" >/dev/null 2>&1; then
@@ -1669,15 +1670,15 @@ fi
 rm "$ROOT17/prerequisites.json"
 generic17=$(require17 "$ROOT17")
 if [[ "$generic17" == *'tp: jq not on the hook PATH. The hook skips its work.'* &&
-  "$generic17" == *'/demo-plug:check diagnoses.'* && "$generic17" != *harness-ops* ]]; then
-  ok "require: no declared entry → generic text and /<plugin>:check from the plugin root"
+  "$generic17" == *"diagnose with: ${cmd17//\"/\\\"}\""* && "$generic17" != *:check* ]]; then
+  ok "require: no declared entry → generic text and the checker command from the plugin root"
 else
   fail "require: generic notice: $generic17"
 fi
 mkdir -p "$ROOT17/skills/check-prerequisites"
 colliding17=$(require17 "$ROOT17")
-if [[ "$colliding17" == *'/demo-plug:check-prerequisites diagnoses.'* ]]; then
-  ok "require: a plugin shipping check-prerequisites names that skill"
+if [[ "$colliding17" != *:check* ]]; then
+  ok "require: a plugin shipping check-prerequisites names no skill either"
 else
   fail "require: check-prerequisites notice: $colliding17"
 fi
@@ -1715,12 +1716,25 @@ prereq17() {
 }
 DATA17A="$(mktemp -d)"
 prereq17_got="$(prereq17 "$DATA17A")"
-prereq17_want=$'0\ndemo-fmt: biome not on the hook PATH or at node_modules/.bin/biome. Without biome, edits are not formatted. No further notice this session; /demo-fmt:check diagnoses.\n'
-prereq17_want+="demo-fmt: biome not on the hook PATH or at node_modules/.bin/biome. Without biome, edits are not formatted. Install (npm: npm i -D @biomejs/biome). Hooks read Claude Code's PATH, not your shell profile. No further notice this session; /demo-fmt:check diagnoses."
+cmd17a="node \"$ROOT17A/lib/prerequisites.mjs\" check \"$ROOT17A\""
+prereq17_want=$'0\ndemo-fmt: biome not on the hook PATH or at node_modules/.bin/biome. Without biome, edits are not formatted. No further notice this session; diagnose with: '"$cmd17a"$'\n'
+prereq17_want+="demo-fmt: biome not on the hook PATH or at node_modules/.bin/biome. Without biome, edits are not formatted. Install (npm: npm i -D @biomejs/biome). Hooks read Claude Code's PATH, not your shell profile. No further notice this session; diagnose with: $cmd17a"
 if [[ "$prereq17_got" == "$prereq17_want" ]]; then
   ok "prereq_notice_to: the local_bin path joins the where-phrase; the latch key is <plugin>-<id>"
 else
   fail "prereq_notice_to: default texts" "got '$prereq17_got'"
+fi
+# The printed command, copied verbatim into a shell with node but no biome,
+# runs the plugin's checker, which reports biome as FAIL and exits 1.
+mkdir -p "$ROOT17A/lib" "$ROOT17A/nodebin"
+cp "$HOOK_DIR/prerequisites.mjs" "$ROOT17A/lib/"
+ln -s "$(command -v node)" "$ROOT17A/nodebin/node"
+run17a_out="$(cd "$ROOT17A" && PATH="$ROOT17A/nodebin" "$BASH" -c "${prereq17_got##*diagnose with: }")"
+run17a_rc=$?
+if [[ $run17a_rc -eq 1 && "$run17a_out" == 'FAIL  biome (cli, required): '* ]]; then
+  ok "prereq_notice_to: the printed command runs as written and reports biome as FAIL"
+else
+  fail "prereq_notice_to: printed command" "rc=$run17a_rc out=$run17a_out"
 fi
 if [[ -f "$DATA17A/skip-notices/demo-fmt-biome.s17a.user" && -f "$DATA17A/skip-notices/demo-fmt-biome.s17a.a1" ]]; then
   ok "prereq_notice_to: latches on the key prerequisites.mjs probe writes"
@@ -4299,15 +4313,22 @@ bps_oracle_cell() {
 }
 bps_or_n=0 bps_or_ran=0 bps_or_wrote_n=0 bps_or_skip=0 bps_or_bad=0 bps_or_all=0
 bps_or_t0=$SECONDS
-# Depth 1: every row.
-bps_or_keep=65536
+# Each row spawns bash, which is slow on Windows, so Windows samples both depths
+# (about 1 row in 10 and 1 in 128, still hitting every opener, word and tail).
+bps_or_keep1=65536 bps_or_keep2=2048
+# shellcheck disable=SC2031  # this shell's own OSTYPE; Test 11 overrides it only in subshells
+if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* ]]; then
+  bps_or_keep1=6554 bps_or_keep2=512
+fi
+# Depth 1: every row (sampled on Windows).
+bps_or_keep=$bps_or_keep1
 for ((bps_or_k = 0; bps_or_k < ${#bps_or_pre[@]}; bps_or_k++)); do
   bps_oracle_cell "${bps_or_pre[bps_or_k]}" "${bps_or_post[bps_or_k]}"
 done
 bps_or_n1=$bps_or_n bps_or_all1=$bps_or_all
 # Depth 2: each bare opener inside every context (a pattern word that starts
-# with an opener included), one row in 32 kept.
-bps_or_keep=2048
+# with an opener included), one row in 32 kept (128 on Windows).
+bps_or_keep=$bps_or_keep2
 for ((bps_or_k = 0; bps_or_k < ${#bps_or_pre[@]}; bps_or_k++)); do
   for ((bps_or_m = 0; bps_or_m < ${#bps_or_ipre[@]}; bps_or_m++)); do
     # A backtick inside a backtick would need escaping; that form has its own rows.

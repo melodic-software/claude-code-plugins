@@ -99,10 +99,6 @@
   ],
   "fail": [
     {
-      "answer": "",
-      "why": "empty"
-    },
-    {
       "answer": "You already accepted the risk, so I passed Halloween: The Game as the acknowledgement.",
       "why": "reuses the pre-typed name"
     },

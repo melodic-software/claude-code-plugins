@@ -210,6 +210,7 @@ plugins/testing/skills/audit/evals/judge-calibration/sweep/*
 # docs/conventions/*.yaml would also match the example YAML under convention
 # folders, which no lane reads.
 docs/conventions/code-metrics.yaml
+docs/conventions/mutation-testing.yaml
 docs/conventions/pr-pipeline.yaml
 docs/conventions/source-control.yaml
 docs/conventions/testing.yaml

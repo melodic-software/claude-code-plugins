@@ -15,17 +15,31 @@ placement and the act-on cap. This file is the shape every slice of that eval fo
 
 - Each arm's `scaffold.sh` commits `docs/conventions/review.yaml` with the arm's
   `fanout_diversity` on `main`, before the branch. The reviewed diff never edits it, so the skill
-  reads the repository layer and reports `fanout_diversity: <value> (docs/conventions/review.yaml)`.
+  reads the repository layer and reports `fanout_diversity: <value> (<layer>)`, where the layer
+  reads `repository` or `docs/conventions/review.yaml`.
 - The M arms load `multi-agent` so `/multi-agent:route` gives the role map that `model` spreads
   the review over. With fewer than two distinct tiers the sweep runs `lens`, and the arm check
   fails. Run every arm with the same `--model`, one whose role map resolves two or more distinct
   fan-out tiers.
-- The X arms cannot pass as committed. A `claude plugin eval` run loads only the plugins in its
-  `plugins` list and gets a temporary home and a withheld environment, so an installed `codex`
-  plugin (`codex@openai-codex`) and its login are absent
+- The X arms cannot pass as committed. Every command of `codex@openai-codex` 1.0.6,
+  `/codex:review` included, sets `disable-model-invocation: true`, so the model cannot start
+  Codex through those commands, and fanout runs it through
+  `skills/fanout/scripts/codex-review.sh` instead (#12495). A `claude plugin eval` run also loads
+  only the plugins under its target and gets a temporary home, so the Codex plugin and its login
+  are absent
   ([How runs are isolated](https://code.claude.com/docs/en/plugin-evals#how-runs-are-isolated)).
   The host run has to add the Codex plugin's directory to the X cases' `plugins` and make its
   login reachable. Without that, Codex reports a skip and the arm check marks the run invalid.
+  The fanout skill finds the plugin through `claude plugin list --json`, which lists a plugin
+  loaded with `--plugin-dir` only when that flag precedes the subcommand
+  ([Plugin commands reference](https://code.claude.com/docs/en/plugins/cli-reference#plugin-list)),
+  so the host run also has to make `codex@openai-codex` an installed plugin in the run's home.
+- Run every arm with `--scaffold --allow-tools Bash Write Workflow`. Without `Workflow` the sweep
+  runs fanout's main-thread fallback, not `review:fanout-sweep`. Keep `TMPDIR` out of `/tmp` and
+  `/var/tmp`, where the run's Bash cannot write its workspace (#12422).
+- The M arms load a plugin outside `review`, so the eval target must contain both: stage
+  `review` and `multi-agent` under one directory holding a `.claude-plugin/plugin.json`, and run
+  `claude plugin eval <that directory> --eval-dir plugins/review/evals`.
 
 ## Case directory
 
@@ -68,8 +82,10 @@ byte to .work/eval/findings.md, then end your reply with the report's fanout_div
 its ## Surfaces section.` (with code spans around the path, the line name and the heading).
 
 - Codex sentence for `l` and `m`: `Leave out the Codex surface even when it is installed.`
-- Codex sentence for `mx` and `lx`: `Run the Codex surface, /codex:review --wait --base
-  <review-base>, as one of the orchestrators, and list it in the ## Surfaces Ran entry.`
+- Codex sentence for `mx` and `lx`: `Run the Codex surface as one of the orchestrators, and report
+  it in ## Surfaces by the status its script prints.` The skill runs it through
+  `skills/fanout/scripts/codex-review.sh`, and lists Codex under `Ran` only when the script printed
+  `codex: ran`, so a skipped Codex fails the arm check.
 
 The copy gives the file graders one fixed path, since the persisted file's name carries a
 timestamp. The reply's last lines give the arm check its input.
@@ -104,10 +120,10 @@ ran or did not run against the arm), so count the run as invalid rather than as 
 
 | Arm | `pattern` |
 |---|---|
-| `l` | `^(?=[\s\S]*fanout_diversity: lens \(docs/conventions/review\.yaml\))(?=[\s\S]*## Surfaces[\s\S]*Ran: \[[^\]]*code-reviewer)(?![\s\S]*Ran: \[[^\]]*[Cc]odex)` |
-| `m` | `^(?=[\s\S]*fanout_diversity: model \(docs/conventions/review\.yaml\))(?=[\s\S]*## Surfaces[\s\S]*Ran: \[(?:(?:[^\]]*?model:(?![Cc]odex)){2}\|(?:[^\]]*?lane-verifier){2}))(?![\s\S]*Ran: \[[^\]]*[Cc]odex)` |
-| `mx` | `^(?=[\s\S]*fanout_diversity: model \(docs/conventions/review\.yaml\))(?=[\s\S]*## Surfaces[\s\S]*Ran: \[(?:(?:[^\]]*?model:(?![Cc]odex)){2}\|(?:[^\]]*?lane-verifier){2}))(?=[\s\S]*## Surfaces[\s\S]*Ran: \[[^\]]*[Cc]odex)` |
-| `lx` | `^(?=[\s\S]*fanout_diversity: lens \(docs/conventions/review\.yaml\))(?=[\s\S]*## Surfaces[\s\S]*Ran: \[[^\]]*code-reviewer)(?=[\s\S]*## Surfaces[\s\S]*Ran: \[[^\]]*[Cc]odex)` |
+| `l` | `^(?=[\s\S]*fanout_diversity: lens \((?:repository\|docs/conventions/review\.yaml)[^)]*\))(?=[\s\S]*## Surfaces[\s\S]*Ran: \[[^\]]*code-reviewer)(?![\s\S]*Ran: \[[^\]]*[Cc]odex)` |
+| `m` | `^(?=[\s\S]*fanout_diversity: model \((?:repository\|docs/conventions/review\.yaml)[^)]*\))(?=[\s\S]*## Surfaces[\s\S]*Ran: \[(?:(?:[^\]]*?model:(?![Cc]odex)){2}\|(?:[^\]]*?lane-verifier){2}))(?![\s\S]*Ran: \[[^\]]*[Cc]odex)` |
+| `mx` | `^(?=[\s\S]*fanout_diversity: model \((?:repository\|docs/conventions/review\.yaml)[^)]*\))(?=[\s\S]*## Surfaces[\s\S]*Ran: \[(?:(?:[^\]]*?model:(?![Cc]odex)){2}\|(?:[^\]]*?lane-verifier){2}))(?=[\s\S]*## Surfaces[\s\S]*Ran: \[[^\]]*[Cc]odex)` |
+| `lx` | `^(?=[\s\S]*fanout_diversity: lens \((?:repository\|docs/conventions/review\.yaml)[^)]*\))(?=[\s\S]*## Surfaces[\s\S]*Ran: \[[^\]]*code-reviewer)(?=[\s\S]*## Surfaces[\s\S]*Ran: \[[^\]]*[Cc]odex)` |
 
 The `\|` in the `m` and `mx` rows is a table escape; the grader file holds a bare `|`. Under
 `model`, the sweep labels its leaves `model:<tier>` (`plugins/review/workflows/fanout-sweep.js`)

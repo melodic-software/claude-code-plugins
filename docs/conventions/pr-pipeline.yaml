@@ -723,7 +723,8 @@ lanes:
       - activity: merge-pr
       # In its own job of pr-merge.yml, with its own token.
       - activity: enable-auto-merge
-  # Started by an issue closing and by an hourly sweep of recent closes
+  # Started by an issue closing and by a sweep of recent closes, hourly and
+  # after each finished work-resolve-issue run
   # (.github/workflows/work-unblock.yml).
   work-unblock:
     stage: work

@@ -3,12 +3,24 @@
     {
       "answer": "---\ntype: review-findings\nbranch: feat/warehouse-confirm\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/inventory.js:14 | code-reviewer | reserve reads the stock level, awaits confirmSku, then writes available - qty. Two checkouts for the last unit both read 1 during the await, both pass the check and both write 0, so one unit is sold twice. | Re-read and check the stock after the await |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
       "why": "names the concurrent reservations and the oversell at CRITICAL"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/warehouse-confirm\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | low | src/inventory.js:14 | code-reviewer | With the await between the check and the write, two checkouts reserving the last unit of a SKU at once both read 1, both pass the check and both write 0, so the unit is sold twice and neither gets an error. | Re-check the stock after confirmSku |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names the concurrent last-unit checkouts and the double sale at IMPORTANT; the low Confidence is ignored"
     }
   ],
   "fail": [
     {
       "answer": "---\ntype: review-findings\nbranch: feat/warehouse-confirm\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | medium | src/inventory.js:14 | code-reviewer | confirmSku adds a network round trip to every reservation; consider caching the result. | Cache confirmSku |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
       "why": "names the awaited call at SUGGESTION, without the concurrent input or the oversell"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/warehouse-confirm\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/inventory.js:9 | architecture-guardian | reserve now awaits the warehouse, so checkout must await reserve or it gets a pending promise. | Await reserve in checkout |\n| 2 | SUGGESTION | medium | src/inventory.js:14 | code-reviewer | Two checkouts for the last unit can both pass the check during the confirmSku await and both write 0, overselling it. | Re-check after the await |\n\n## Surfaces\n\nRan: [architecture-guardian@high, code-reviewer@high]. Returned no result: [].",
+      "why": "the only finding that names the race is SUGGESTION; the CRITICAL finding is the wrong caller claim"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/warehouse-confirm\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/inventory.js:14 | code-reviewer | reserve now awaits confirmSku between reading the stock level and writing it back. | Move confirmSku before the read |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names the changed lines at CRITICAL but neither concurrent checkouts nor the oversell, so it does not count"
     }
   ]
 }

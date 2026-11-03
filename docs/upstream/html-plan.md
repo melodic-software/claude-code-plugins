@@ -26,8 +26,17 @@ unmerged on 2026-10-06), so upstream changes arrive only as mirror commits.
 **Adaptation posture.** Ideas only. html-plan is not installed, vendored, wrapped or depended on,
 and no adapter renders our plans into its markup (#6917 constraint Q2). PLAN.md stays the record and
 HTML stays a view of it (`docs/contracts/rendered-views/README.md`). The one exception #6917 allows
-is a temporary trial install during workstream W5, removed when the trial ends; its outcome is to
-be recorded in this file.
+is a temporary trial install during workstream W5, removed when the trial ends.
+
+**Trial outcome (2026-11-02, [#10067](https://github.com/melodic-software/claude-code-plugins/issues/10067)).**
+html-plan at `88003be` planned #6927 beside `/planning:plan`; the install was removed after. The
+owner's review of the page changed D1 (the Brief stays first) and D3 (code detail moves to the
+design; plans anchor by path plus symbol), redefined D2 (slice seeding), and added three asks: an
+example that redraws per option, choices the session reads live, and a system-default theme
+toggle. Stock html-plan rendered a light page background under dark claim bars in dark mode;
+upstream's fix [#2406](https://github.com/anthropics/claude-plugins-community/pull/2406) was closed
+unmerged. Full record:
+[#6924 comment](https://github.com/melodic-software/claude-code-plugins/issues/6924#issuecomment-6589117909).
 
 **Open upstream issues at audit** (all open on 2026-10-10):
 [#2403](https://github.com/anthropics/claude-plugins-community/issues/2403) no LICENSE file in the

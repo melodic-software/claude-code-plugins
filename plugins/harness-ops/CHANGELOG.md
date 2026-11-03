@@ -3,6 +3,74 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.2.0] - 2026-11-03
+
+### Added
+
+- `update_other_paths` option and `--update-other-paths` flag for plugins sync, and a per-call duration in its journal
+
+### Changed
+
+- `/harness-ops:plugins sync` keeps the per-record divergence detail out of the digest it prints: `divergences.records` and the full per-path list go to `<run_dir>/divergences.<marketplace>.json`, named by `divergences.records_file`, and the digest carries `record_count`. `audit` still carries the records inline, since its scratch directory is removed on exit (#12542).
+- The report's `by project path:` list names only paths present on the machine. The paths that are not present get one count line, since the stale project records section counts them; the digest counts them in `divergences.blocked_paths` (#12542).
+
+- plugins sync no longer updates other present paths by default; the report counts the records it left and names the remedy
+
+## [6.1.0] - 2026-11-02
+
+### Added
+
+- `/harness-ops:plugins sync` records each `claude` call's wall time in the run journal (`# elapsed <seconds>s, exit <rc>`), and each digest block carries `cli: {calls, seconds}`, so a run's CLI time and the script's own time can be told apart.
+
+### Changed
+
+- Hook notices name the bundled checker command; `check` is optional (#12485).
+
+### Fixed
+
+- The shared hook library's Bash segment parser (`hook::bash_parse_segments`) now passes each substitution in an unquoted here-doc body (`$(...)`, a backtick pair, `${...}`, `$[...]`) to its callback as segments of their own, because bash runs them. A body under a quoted delimiter is still skipped as data.
+
+- `sync-run.sh` no longer starts one or more `jq` processes per plugin when it reads update results, builds the moved and downgraded rows, and counts monitors. On a 92-update bench with a stub CLI the first pass went from 113 s to 42 s, and an `--only-install` re-entry from 28 s to 4.4 s; the report is unchanged ([#12532](https://github.com/melodic-software/claude-code-plugins/issues/12532)).
+
+## [6.0.0] - 2026-11-02
+
+### Added
+
+- `/harness-ops:changelog apply --ci <release|range>` runs `apply` with nobody to answer. Only a cited, verified `correct` row confined to one owner plugin and not security-relevant is committed, on a local `changelog/<plugin>/v<range>` branch per owner plugin; every other row becomes a handoff. It asks nothing, pushes nothing, opens no pull request, files nothing and never moves the read marker, and writes `ci-plan.json` (branches with base and head commits and PR title and body, handoffs with dedupe keys) for the calling workflow. The rule and the plan format are in the skill's `context/ci-mode.md`.
+- Two eval cases: `cl-ci-cap-exceeded-stops` and `cl-ci-adopt-is-handoff`.
+
+### Changed
+
+- The lanes skill, its restart-consumer notes, the harness-ops schema and the probes' competitor lists name `/work-items:morning-brief`; the restart-consumer test reads the brief's discovery literals from its new path.
+
+### Removed
+
+- `/harness-ops:morning-brief` moved to the work-items plugin: invoke it as `/work-items:morning-brief`. The `az` prerequisite moved with it, and the unused generated copies `lib/view-builder.mjs` and `lib/view-runtime.js` are gone, since only the brief read them.
+
+### Fixed
+
+- The shared `hook-utils.sh` Bash command parser keeps a `#` right after the closing `)` of an
+  array assignment, an extglob, `$(…)`, `$((…))`, `<(…)` or `>(…)`, or after a closing backtick,
+  in its word, as Bash does, instead of reading it as a comment that hid the rest of the line.
+  Those frames now stay open across `;`, `|`, `&` and newlines inside them, a `case` pattern's
+  `)` no longer closes one, and `case` or `esac` inside arithmetic is read as a variable name.
+- A comment, a quote of any kind, a here-doc delimiter or a here-doc body inside backticks now
+  ends at the closing backtick, as in Bash; an escaped backtick does not close it, and outside a
+  comment or quote it opens or closes a nested substitution whose commands are read.
+- Case statements follow Bash's pattern-position rules: a pattern spelled `case` opens nothing,
+  `esac` after `|` is a pattern, `case x in esac` closes on one line, and `\;;` is a word and a
+  `;`, not a clause end, and a pattern word that starts with `$(…)`, a backtick or `@(…)` is
+  the first pattern word. Inside an extglob or arithmetic a `#`, `<` or `>` is literal text.
+- `((…) )` and `$((…) )`, which Bash re-reads as nested subshells, are read as commands with
+  real redirections, not as arithmetic. The parentheses of a `[[ … =~ … ]]` regex are regex
+  text, not an array assignment.
+- A here-doc takes its body only at a newline on the level where it was read, so one read
+  before a `$(…)`, backtick, `a=(…)` or `@(…)` that spans lines takes its body after the line
+  where that construct closes; a syntax error inside `a=(…)` cancels the line's here-docs.
+- For `!(x)#` and `f@()#`, where the `#` is literal with `shopt -s extglob` and a comment
+  without it, the parser now reports the commands of both readings, and `HOOK_HEREDOC_BODIES`
+  lists each here-doc body once, in source order.
+
 ## [5.6.0] - 2026-11-02
 
 ### Changed
