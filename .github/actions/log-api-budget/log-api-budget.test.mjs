@@ -1069,8 +1069,8 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
     ),
     "pr-review-hosted.yml": { "resolve-model": "github-token", "kill-switch": "github-token" },
     "pr-review-security-hosted.yml": { "resolve-model": "github-token", "kill-switch": "github-token" },
-    // Not run, which logs before its head checkout, or scan, which writes its
-    // own notice (a key, and no other action from a checkout); both pinned below.
+    // Not run, which logs before its head checkout, or scan, which counts its
+    // own calls (a key, and no other action from a checkout); both pinned below.
     "pr-run-activity-read.yml": { "broker-check": "github-token", "issue-fields": "github-token", summary: "github-token", report: "github-token" },
     "pr-run-activity-write.yml": { report: "github-token" },
     "maintenance-tidy-code-upkeep.yml": {
@@ -1194,25 +1194,25 @@ test("intake-triage's dispatch jobs end with their own api-calls notice in the e
   }));
 
 // The scan job holds the scan-carrier key and loads no other action from a
-// checkout, and its only job-token calls are github-script's, which no counter
-// sees: a 0 count, with the steps that ran named as uncounted.
-test("pr-run-activity-read's scan job ends with a 0 api-calls notice naming its uncounted steps", () =>
+// checkout, so it sums the counts its two github-script steps write
+// (callers.test.mjs runs those steps) and ends with the notice in the
+// emitter's shape.
+test("pr-run-activity-read's scan job ends with its own api-calls notice in the emitter's shape", () =>
   withDir((dir) => {
     const env = { RUNNER_TEMP: dir, TMPDIR: dir };
-    const calls = "::notice title=api-calls::github-token=0 not-modified=0 graphql=0\n";
-    assert.equal(
-      lastRun("pr-run-activity-read.yml", "scan", env, { STAGED: "success", SCANNED: "failure" }),
-      `${calls}::notice title=api-uncounted::github-token stage-scanner:branches/contents leak-scan:branches/contents\n`,
-    );
-    assert.equal(
-      lastRun("pr-run-activity-read.yml", "scan", env, { STAGED: "success", SCANNED: "skipped" }),
-      `${calls}::notice title=api-uncounted::github-token stage-scanner:branches/contents\n`,
-    );
-    assert.equal(lastRun("pr-run-activity-read.yml", "scan", env, { STAGED: "skipped", SCANNED: "skipped" }), calls);
-    const text = readFileSync(new URL("../../workflows/pr-run-activity-read.yml", import.meta.url), "utf8");
-    const last = (/\n  scan:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n|$)/.exec(text)?.[1] ?? "").split(/\n {6}- name: /).at(-1);
-    assert.match(last, /\n {10}STAGED: \$\{\{ steps\.stage-scanner\.outcome \}\}\n {10}SCANNED: \$\{\{ steps\.leak-scan\.outcome \}\}\n/);
-    assert.match(text, /\n {6}- name: Stage the upload scanner\n {8}id: stage-scanner\n/);
+    const shape = execFileSync("bash", ["-c", `. "${LIB}"; api_budget_emit_calls github-token`], { encoding: "utf8", env: { PATH: process.env.PATH, ...env } });
+    const emitted = (stage, leak) => {
+      for (const [file, count] of [["scan-stage-calls", stage], ["scan-leak-calls", leak]]) {
+        rmSync(join(dir, file), { force: true });
+        if (count !== undefined) writeFileSync(join(dir, file), `${count}\n`);
+      }
+      return lastRun("pr-run-activity-read.yml", "scan", env);
+    };
+    assert.equal(emitted(), shape, "no count file is 0, as the emitter writes with no reading");
+    assert.equal(emitted(3), shape.replace("github-token=0", "github-token=3"), "a scan that stopped before its leak scan");
+    assert.equal(emitted(3, 2), shape.replace("github-token=0", "github-token=5"));
+    assert.equal(emitted("02", 2), shape.replace("github-token=0", "github-token=4"), "a count with a leading 0 is decimal");
+    assert.equal(emitted("3; rm", 2), shape.replace("github-token=0", "github-token=2"), "anything but a count is 0");
   }));
 
 // Head code runs in the activity run jobs after their head checkout, which

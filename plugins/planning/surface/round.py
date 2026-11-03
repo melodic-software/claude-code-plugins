@@ -615,8 +615,8 @@ def check_reconciles(q, known):
 
 
 def require_depends(d):
-    """The resolved requireDepends: the repo file, the user file the server recorded, then the
-    data dir's settings.json."""
+    """The resolved requireDepends: planning's team and personal files, the user file the server
+    recorded, then the data dir's settings.json."""
     try:
         s = json.loads((d / bridge.session_files(NAME)[0]).read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -3054,7 +3054,9 @@ def cmd_ensure_running(d, a):
         user = str(Path(a.user_settings).resolve()) if a.user_settings else None
         recorded = s.get("userSettings") if live else None
         layers = user or (recorded if isinstance(recorded, str) else None)
-        settings, _ = Settings(repo_root(d)).resolve(d, layers)
+        resolver = Settings(repo_root(d))
+        settings, _ = resolver.resolve(d, layers)
+        resolver.retired_notices(d)
         stale = live and bridge.stale_build(s)
         if stale:
             # A server started before a plugin update runs the old code: start this build in its

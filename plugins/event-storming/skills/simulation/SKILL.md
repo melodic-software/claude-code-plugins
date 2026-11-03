@@ -40,14 +40,15 @@ For facilitation knowledge, format guidance, notation, and the no-args interacti
 
 This skill drives an EventStorming model onto a **Miro board** via the first-party **`miro` plugin**,
 a bundled local-stdio MCP server, enabled separately (`event-storming` does not bundle it). Its
-tools resolve under the plugin-provided prefix (normally **`mcp__plugin_miro_miro__`**), or under
-the directly configured one when the same server is set up at user or project scope (normally
-**`mcp__miro__`**, the miro README's opt-in override). So
+tools carry a prefix Claude Code assigns, which differs between the plugin-provided server and the
+same server configured directly at user or project scope (the miro README's opt-in override). So
 before any mode runs, check for callable tools whose names end in `__miro_list_boards` and
-`__miro_create_board` under either prefix. Match those Miro-specific tool names, not a server that
-merely happens to be called `miro`; a bare `miro_*` name does not resolve. Every `miro_*` tool named
-in this skill and its reference docs denotes that tool under whichever prefix the gate found.
-Naming basis: `reference/miro-integration.md` "Tool namespace".
+`__miro_create_board` under any prefix. Match those Miro-specific tool names, not a server that
+merely happens to be called `miro`. Every `miro_*` tool named in this skill and its reference docs
+denotes that tool under whichever prefix the gate found. Naming basis:
+`reference/miro-integration.md` "Tool namespace"; for the prefix format, fetch
+[Server names, tool names, and reloads](https://code.claude.com/docs/en/plugins/components#server-names-tool-names-and-reloads)
+live (as of 2026-11-03; recheck when that section changes the MCP tool-name format).
 
 - **Miro available** → run normally: create boards, place stickies, screenshot-verify each phase.
 - **Miro absent** → do NOT fail. Tell the user the `miro` plugin isn't enabled, then offer two paths
@@ -183,8 +184,11 @@ Load these based on the mode being run:
 ## Cross-run state
 
 Persist all generated state, session archives, board URLs, version metrics, run findings, under
-`${CLAUDE_PLUGIN_DATA}/` (the per-plugin directory that survives updates). Session archives go to
+`${CLAUDE_PLUGIN_DATA}/`. Session archives go to
 `${CLAUDE_PLUGIN_DATA}/sessions/<session-id>/`; comparison baselines (prior-version metrics) to a
 JSON/JSONL file such as `${CLAUDE_PLUGIN_DATA}/history.jsonl`. Never write generated state inside
-the plugin's own installed directory (`${CLAUDE_PLUGIN_ROOT}` is read-only under cache isolation)
-or into the consumer's project tree.
+the plugin's own installed directory (`${CLAUDE_PLUGIN_ROOT}`) or into the consumer's project tree.
+For what each directory guarantees, fetch
+[Reference plugin paths and store data](https://code.claude.com/docs/en/plugins/components#reference-plugin-paths-and-store-data)
+live (as of 2026-11-03; recheck when that section changes what survives a plugin update or where a
+plugin may write state).

@@ -79,10 +79,10 @@ place only on an explicit instruction to.
 
 ## Guard the meaning
 
-For anything longer than a few paragraphs, verify the rewrite with a
-fresh-context semantic diff before handing it over. Dispatch a subagent that
-did not write the rewrite, give it the before and after text, and have it
-report only:
+When the original has more than three paragraphs or more than 250 words,
+verify the rewrite with a fresh-context semantic diff before handing it over.
+Count the original's paragraphs and words before you start. Dispatch a
+subagent that did not write the rewrite, give it the before and after text, and have it report only:
 
 - **SEMANTIC LOSS.** Something the original stated that the rewrite does not.
 - **DROPPED DECISION, NUMBER, OR ASK.** Content that survived as words but
@@ -92,8 +92,9 @@ report only:
 - **FALSE POSITIVE.** A flagged item that is actually fine.
 
 Every finding cites the exact text. Restore anything confirmed lost, then hand
-over. For a short comment, show the before and after inline instead; a
-subagent round-trip costs more than the reader's whole message.
+over. For an original within both limits, such as a four-line comment, show
+the before and after inline instead; a subagent round-trip costs more than the reader's
+whole message.
 
 ## Report the result
 
@@ -107,16 +108,18 @@ a percentage claim.
 - **In-flight chat and code terseness:** `discipline:tighten-your-output` when
   the `discipline` plugin is enabled.
 - **Word-by-word trimming of repo markdown:** `docs-hygiene:compress` when the
-  `docs-hygiene` plugin is installed.
-- **Restructuring a dense message without shortening it** (chunking a
-  decision-heavy artifact one decision at a time): `adhd:clarify` when the
-  `adhd` plugin is enabled.
-- **Agent-facing instruction prose** (a skill body, a rules file, any text a
-  model follows): `docs-hygiene:write-for-agents` when the `docs-hygiene`
-  plugin is installed. Take properties 2 and 4 there and leave 1 and 3 behind.
+  `docs-hygiene` plugin is enabled.
+- **Does not restructure a dense message without shortening it** (chunking a
+  decision-heavy artifact one decision at a time), even when asked to and even
+  when no route is available. That is `adhd:clarify` when the `adhd` plugin is
+  enabled.
+- **Does not reshape agent-facing instruction prose** (a skill body, a rules
+  file, any text a model follows), even when asked to and even when no route is
+  available. That is `docs-hygiene:write-for-agents` when the `docs-hygiene`
+  plugin is enabled. Take properties 2 and 4 there and leave 1 and 3 behind.
 - **Documentation genre and language standards** (Diataxis type, terminology,
   controlled language at authoring time): `docs-hygiene:write-for-humans` when
-  the `docs-hygiene` plugin is installed.
+  the `docs-hygiene` plugin is enabled.
 - **AI-writing tells** (em dashes, chatbot phrasing, the rest of that catalog):
   `ai-slop:audit` when the `ai-slop` plugin is enabled. This skill inherits
   that plugin's config and adds no punctuation rule of its own.

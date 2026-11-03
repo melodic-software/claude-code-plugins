@@ -178,10 +178,11 @@ do not delete it. It must still be readable when they open it. Open it for the
 user (`start <path>` on Windows, `open <path>` on macOS, `xdg-open <path>` on
 Linux) and report the absolute path.
 
-A **mermaid diagram** is the sharp case: it renders natively only on a published
-Artifact. A local HTML file renders it only if the page **embeds** a mermaid
-renderer inline. Keep the file self-contained; never load a renderer from the
-network, which breaks offline use and, for `file` or otherwise sensitive output,
+A **mermaid diagram** is the sharp case. A local HTML file renders it only if the
+page **embeds** a mermaid renderer inline. What a published Artifact page may load
+is in [Artifacts: Page constraints](https://code.claude.com/docs/en/artifacts#page-constraints)
+(as of 2026-11-03; recheck when that table changes what a page may load). Keep
+the file self-contained; never load a renderer from the network, which breaks offline use and, for `file` or otherwise sensitive output,
 would expose the page to a third party. A plain file with a bare `mermaid` block
 does not render. So if no mermaid-capable surface is reachable and no trusted
 renderer can be embedded, deliver the mermaid **source** fence in the terminal and
@@ -235,10 +236,12 @@ first, when either is genuinely ambiguous:
   comparison is a table, a series is a chart, a where-does-this-live question is
   a file tree), render it without asking.
 
-The pasted-code case honors `${user_config.thin_context_prompt}`. Claude Code
-text-substitutes the configured value into this line; if it still shows the
-literal `${user_config.thin_context_prompt}` token or is empty, the option is
-unset and `auto` applies. `auto` is the behavior above; `always` offers the
+The pasted-code case honors `${user_config.thin_context_prompt}`. Read an empty
+value, or one that still reads as an unsubstituted `${user_config…}` placeholder,
+as unset, and apply `auto` (how a saved option reaches skill content:
+[Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value),
+as of 2026-11-03; recheck when that section says what an unset option renders).
+`auto` is the behavior above; `always` offers the
 ranked menu on any bare code paste; `never` renders the recommended form without
 asking. Any other value is reported and treated as `auto`.
 
@@ -251,9 +254,8 @@ interrogate form by form; one question, then render.
 
 ## Step 5: Render
 
-- **Terminal** renders GitHub-flavored markdown: tables, fenced code, blockquotes,
-  ASCII/Unicode. A ` ```mermaid ` block in the terminal is shown as **source, not a
-  rendered diagram**, so emit it as portable source the user can render elsewhere,
+- **Terminal**: use markdown tables, fenced code, blockquotes, and ASCII/Unicode.
+  Emit a ` ```mermaid ` block as portable source the user can render elsewhere,
   and prefer a page when the *rendered* diagram is the point.
 - **A rich page** follows the Artifact tool's own contract and, when an
   artifact-design capability is installed, its guidance. The page-contract facts
@@ -279,9 +281,11 @@ It turns the material into a slide deck when the request is for slides rather th
   surface become a silent failure. Degrade visibly to a local file or terminal.
 - **Craft is not this skill's job.** If you find yourself writing palette or axis
   guidance, stop and route to the chart-craft capability instead.
-- **A newer mermaid family may not render** in the bundled artifact renderer
-  (the 13 stable families are safe; the newest set is unverified. See the
-  catalog). Prefer a stable family, or verify before relying on a new one.
+- **Prefer a mermaid family known to render** on an Artifact page, or verify a
+  newer one before relying on it. The catalog's
+  [Mermaid diagram families](context/decision-matrix.md#mermaid-diagram-families)
+  records which families were checked, and Step 3's Page constraints pointer
+  says what a page may load.
 
 ## Boundary
 
@@ -336,10 +340,11 @@ its settings pointers move).
 A request to draw a layout or a deck can name a Claude Design project the person already has, and
 then it means that project, not a new render:
 
-- **`ClaudeDesign` (built-in tool)**: lists the person's claude.ai/design projects and reads and
-  writes files in an existing one (list, get a project, write, copy, and plan writes). The model
-  calls it by name. It does not create a new Design artifact; that is the bundled `design` skill
-  above, which the person runs.
+- **`ClaudeDesign` (built-in tool)**: the editor for a claude.ai/design project the person
+  already has; the model calls it by name. A new Design artifact comes from the bundled `design`
+  skill above, which the person runs
+  ([Artifacts: Draft a design canvas](https://code.claude.com/docs/en/artifacts#draft-a-design-canvas),
+  as of 2026-11-03; recheck when that section changes how a new design canvas is made).
 - **This skill (marketplace plugin)**: picks the form and medium and renders its own output.
 
 **Routing:** when the person names or links an existing claude.ai/design project, or asks for the

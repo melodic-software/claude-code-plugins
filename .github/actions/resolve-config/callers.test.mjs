@@ -694,9 +694,10 @@ test("pr-unblock.yml: report-stop-status runs when report-escalation does, or af
     "apply-patch",
     "sync-shared-copies-select",
     "apply-shared-copies",
+    "apply-dependency-pin",
   ];
   const HEADS = ["resolve-conflicts-select", "address-feedback-select", "review-dependency-select", "fix-ci-context", "sync-shared-copies-select"];
-  const EMITTERS = ["apply-conflict-patch", "publish-feedback", "apply-dependency-verdict", "apply-patch", "apply-shared-copies"];
+  const EMITTERS = ["apply-conflict-patch", "publish-feedback", "apply-dependency-verdict", "apply-patch", "apply-shared-copies", "apply-dependency-pin"];
   const RESOLVERS = ["address-feedback-select", "fix-ci-context"];
   // The push job of each activity that pushes, before its select job's head.
   const PUSHERS = { "resolve-conflicts-select": "apply-conflict-patch", "address-feedback-select": "apply-feedback-patch", "review-dependency-select": "apply-dependency-patch" };
@@ -707,7 +708,7 @@ test("pr-unblock.yml: report-stop-status runs when report-escalation does, or af
     ...Object.fromEntries(EMITTERS.map((id) => [`needs.${id}.result`, id === landed ? "success" : "skipped"])),
     ...Object.fromEntries([...EMITTERS, "apply-patch-rung-up"].map((id) => [`needs.${id}.outputs.skip-reason`, id === landed ? skip : ""])),
     ...Object.fromEntries(HEADS.map((id) => [`needs.${id}.outputs.head-sha`, id === headFrom ? sha : ""])),
-    ...Object.fromEntries(Object.values(PUSHERS).map((id) => [`needs.${id}.outputs.pushed-commit`, id === pushed ? pushedSha : ""])),
+    ...Object.fromEntries([...Object.values(PUSHERS), "apply-dependency-pin"].map((id) => [`needs.${id}.outputs.pushed-commit`, id === pushed ? pushedSha : ""])),
     "needs.apply-patch.outputs.rung-up": rungUp,
     "needs.apply-patch-rung-up.result": rungUpResult,
     "needs.apply-patch-rung-up.outputs.escalation-reason": rungUpReason,
@@ -782,13 +783,18 @@ test("pr-unblock.yml: report-stop-status runs when report-escalation does, or af
   // The head is the commit the activity's push job pushed, else its select
   // job's, never a model call's; the reason is the one report-escalation reads.
   const post = job.steps.find((step) => step.name === "Post the stop status");
-  const heads = HEADS.flatMap((id) => (PUSHERS[id] ? [`needs.${PUSHERS[id]}.outputs.pushed-commit`, `needs.${id}.outputs.head-sha`] : [`needs.${id}.outputs.head-sha`]));
+  // review-dependency has a second push job: the install-script pin, with no model turn.
+  const PIN = { "review-dependency-select": "apply-dependency-pin" };
+  const heads = HEADS.flatMap((id) => [...[PUSHERS[id], PIN[id]].filter(Boolean).map((push) => `needs.${push}.outputs.pushed-commit`), `needs.${id}.outputs.head-sha`]);
   assert.equal(post.env.HEAD_SHA.trim(), `\${{ ${heads.join(" || ")} }}`);
   const pushedSha = "d".repeat(40);
   for (const headFrom of HEADS) {
     assert.equal(evaluate(post.env.HEAD_SHA, context({ headFrom })), head, `${headFrom}'s head with no push`);
     if (PUSHERS[headFrom]) {
       assert.equal(evaluate(post.env.HEAD_SHA, context({ headFrom, pushed: PUSHERS[headFrom], pushedSha })), pushedSha, `${PUSHERS[headFrom]}'s pushed commit over ${headFrom}'s head`);
+    }
+    if (PIN[headFrom]) {
+      assert.equal(evaluate(post.env.HEAD_SHA, context({ headFrom, pushed: PIN[headFrom], pushedSha })), pushedSha, `${PIN[headFrom]}'s pushed commit over ${headFrom}'s head`);
     }
   }
   // report-escalation's reason, except that a rung-up retry whose patch
@@ -879,7 +885,7 @@ test("pr-unblock.yml: address-feedback and publish-feedback are reported neutral
 // fix-ci's one retry one model rung up runs inside the same pr-unblock run,
 // so whatever it ends in reaches report-escalation: only a clean apply of
 // the retry's patch leaves the PR unlabeled.
-const ESCALATING = ["resolve-conflicts-select", "apply-conflict-patch", "conflict-scan-refusal", "address-feedback-select", "publish-feedback", "review-dependency-select", "apply-dependency-verdict", "fix-ci-context", "apply-patch", "sync-shared-copies-select", "apply-shared-copies"];
+const ESCALATING = ["resolve-conflicts-select", "apply-conflict-patch", "conflict-scan-refusal", "address-feedback-select", "publish-feedback", "review-dependency-select", "apply-dependency-verdict", "fix-ci-context", "apply-patch", "sync-shared-copies-select", "apply-shared-copies", "apply-dependency-pin"];
 const rungUpContext = ({ rungUp = "true", result = "success", escalation = "", skip = "" } = {}) => ({
   ...Object.fromEntries(ESCALATING.map((job) => [`needs.${job}.outputs.escalation-reason`, ""])),
   "needs.apply-patch.outputs.rung-up": rungUp,
@@ -3104,6 +3110,39 @@ function gateApi(gate, { tip = async () => ({ data: { commit: { sha: GATE_TIP } 
     },
   };
 }
+
+// The scan job's job-end notice sums the counts its two github-script steps
+// write, each before its request, so a refused or failed request still counts.
+test("pr-run-activity-read.yml: the scan job's github-script steps count each request before sending it", async (t) => {
+  const root = tempDir("scan-calls-");
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const { createRequire } = await import("node:module");
+  const core = { setOutput: () => {}, setFailed: () => {}, warning: () => {}, info: () => {} };
+  const count = async (id, name, github, env = {}) => {
+    const step = scanSteps().find((s) => s.id === id);
+    assert.equal(step.env.CALLS_FILE, `\${{ runner.temp }}/${name}`, id);
+    const file = join(root, name);
+    rmSync(file, { force: true });
+    rmSync(join(root, "scan-gate"), { recursive: true, force: true });
+    await new AsyncFunction("require", "core", "github", "context", "process", step.with.script)(createRequire(import.meta.url), core, github, SCAN_CONTEXT, {
+      env: { ...env, CALLS_FILE: file },
+    }).catch(() => {});
+    return existsSync(file) ? readFileSync(file, "utf8") : null;
+  };
+  const refused = async () => {
+    throw new Error("refused");
+  };
+  const api = (getContent) => ({ rest: { repos: { getBranch: async () => ({ data: { commit: { sha: GATE_TIP } } }), getContent } } });
+  const served = async () => ({ data: { content: Buffer.from("export const x = 1;\n").toString("base64") } });
+  const stage = { RUNNER_TEMP: root };
+  assert.equal(await count("stage-scanner", "scan-stage-calls", api(served), stage), "3\n", "getBranch and two getContent");
+  assert.equal(await count("stage-scanner", "scan-stage-calls", api(refused), stage), "2\n", "a refused read still counts");
+  assert.equal(await count("stage-scanner", "scan-stage-calls", { rest: { repos: { getBranch: refused } } }, stage), "1\n");
+  const leak = { HEAD_SHA: "a".repeat(40) };
+  assert.equal(await count("leak-scan", "scan-leak-calls", api(refused), leak), "2\n", "getBranch and the gate's getContent");
+  assert.equal(await count("leak-scan", "scan-leak-calls", { rest: { repos: { getBranch: refused } } }, leak), "1\n");
+  assert.equal(await count("leak-scan", "scan-leak-calls", api(refused), {}), null, "no head: no request, no count");
+});
 
 // source, given the run's temp directory once the patch is collected, returns
 // the directory the scan reads the reply, run fields and patch from (the scan
@@ -7787,6 +7826,7 @@ test("every kill-switch-ok caller runs no token step and no dependent job on a k
     "work-resolve-issue.yml:resolve-issue-fallback -> pr-run-activity-read.yml",
     "pr-unblock.yml:apply-conflict-patch -> pr-run-activity-write.yml",
     "pr-unblock.yml:apply-dependency-patch -> pr-run-activity-write.yml",
+    "pr-unblock.yml:apply-dependency-pin -> pr-run-activity-write.yml",
     "pr-unblock.yml:apply-dependency-verdict -> pr-run-activity-write.yml",
     "pr-unblock.yml:apply-feedback-patch -> pr-run-activity-write.yml",
     "pr-unblock.yml:apply-patch -> pr-run-activity-write.yml",
@@ -8162,6 +8202,36 @@ test("pr-unblock.yml: sync-shared-copies-select proceeds on a written or empty s
   assert.deepEqual(decide({ "steps.head.outputs.applicable": "false" }), ["false", "not-applicable"], "another author or base");
   assert.deepEqual(decide({}), ["", ""], "stopped before deciding");
   assert.deepEqual(decide({ ...gated, "steps.prepare.outputs.merge-state": "clean" }), ["", ""], "the sync step failed");
+});
+
+// The install-script pin: review-dependency-select writes the patch from base
+// code with no model turn, and apply-dependency-pin pushes it with
+// apply-dependency-patch's grant under the install-script-pin row, which needs
+// no verdict. No model job, verdict job or round marker follows.
+test("pr-unblock.yml: apply-dependency-pin pushes only the select job's uploaded pin patch, under the install-script-pin row", () => {
+  const { jobs } = workflow("pr-unblock.yml");
+  const select = jobs["review-dependency-select"];
+  const upload = select.steps.find((step) => step.id === "upload-pin");
+  assert.equal(upload.with.name, "patch-pr-unblock-review-dependency-${{ github.run_attempt }}", "the name the write runner downloads for patch-activity review-dependency");
+  assert.equal(evaluate(upload.if, { "steps.select.outputs.pin-state": "written", "steps.scan-pin.outputs.clean": "true" }), true);
+  assert.equal(evaluate(upload.if, { "steps.select.outputs.pin-state": "written", "steps.scan-pin.outputs.clean": "false" }), false, "an unscanned patch is not uploaded");
+  const state = (outcome) => evaluate(select.outputs["pin-state"], { "steps.upload-pin.outcome": outcome });
+  assert.deepEqual([state("success"), state("skipped"), state("failure")], ["written", "", ""]);
+  const push = jobs["apply-dependency-pin"];
+  assert.deepEqual(push.needs, "review-dependency-select");
+  assert.equal(evaluate(push.if, { "needs.review-dependency-select.outputs.pin-state": "written" }), true);
+  assert.equal(evaluate(push.if, { "needs.review-dependency-select.outputs.pin-state": "" }), false);
+  assert.equal(push.uses, "./.github/workflows/pr-run-activity-write.yml");
+  assert.equal(push.with.activity, "apply-dependency-patch", "the existing mutate-branch grant, no new activity");
+  assert.equal(push.with["patch-prepare"], "install-script-pin");
+  assert.equal(push.with["patch-activity"], "review-dependency");
+  assert.equal(push.with["patch-head-sha"], "${{ needs.review-dependency-select.outputs.head-sha }}");
+  assert.equal(push.with["patch-verdict-attempt"], undefined, "the row requires no verdict");
+  const PATCH_RULES = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "patch-rules.json"), "utf8"));
+  assert.deepEqual(PATCH_RULES["install-script-pin"].requires, []);
+  assert.equal(PATCH_RULES["install-script-pin"]["content-rule"], "install-script-pin");
+  assert.equal(PATCH_RULES["install-script-pin"]["max-files"], 1);
+  assert.ok(!["review-dependency", "apply-dependency-patch", "apply-dependency-verdict"].some((name) => (jobs[name].needs ?? []).includes("apply-dependency-pin")), "no model or verdict job waits on the pin");
 });
 
 // The not-run job posts the activity's check on every head the select job

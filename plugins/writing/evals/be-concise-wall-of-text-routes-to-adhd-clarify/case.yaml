@@ -21,7 +21,7 @@ graders:
     focus: 'trace'
   - name: 'expectation-5'
     type: 'llm'
-    criteria: 'Output does not treat the memo''s length as filler to cut; it recognizes the content as dense (four interacting decisions with named constraints such as the 2026-10-02 reservation window and the 30-minute quarterly downtime cap)'
+    criteria: 'Output does not treat the memo''s length as filler to cut; it recognizes the content as dense (four interacting decisions with named constraints such as the reservation window that closes this Friday and the 30-minute quarterly downtime cap)'
     focus: 'trace'
   - name: 'expectation-6'
     type: 'llm'

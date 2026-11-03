@@ -117,6 +117,16 @@ test("a hit found only after escaped breaks decode names the file's own line", (
   assert.equal(result.summary, "### scan-upload withheld the upload\n\n- rule `GitHub token`, path `work-outcome.json`, line 2\n\n");
 });
 
+test("a base64-wrapped credential withholds the upload, and neither form reaches the output", (t) => {
+  const dir = workDir(t);
+  const wrapped = Buffer.from(`Authorization: token ${PLANTED}`).toString("base64");
+  writeFileSync(path.join(dir, "eval.json"), `{"a": 1}\n{"header": "${wrapped}"}\n`);
+  const result = run(dir, path.join(dir, "eval.json"));
+  withheld(result, "GitHub token");
+  assert.equal(result.summary, "### scan-upload withheld the upload\n\n- rule `GitHub token`, path `eval.json`, line 2\n\n");
+  assert.ok(!`${result.stdout}${result.stderr}${result.summary}`.includes(wrapped.slice(0, 12)), "the encoded value is never printed");
+});
+
 test("a credential in a file name withholds the upload and the summary never shows the name", (t) => {
   const dir = workDir(t);
   mkdirSync(path.join(dir, "out"));

@@ -201,7 +201,8 @@ Two settings, each set per user through the option below or per repository in
 for its safety fact (`run`) or only states it (`report`). It is a policy floor: `report` in either
 layer wins, and the repository value is read from the default branch. `fanout_diversity` decides
 whether `/review:fanout run-everything` runs one reviewer agent per concern (`lens`, the default)
-or sends one review prompt to each model tier the role map names (`model`). Keys, values and resolution:
+or sends one review prompt to each model tier the role map names (`model`), or runs the lens roster
+with the Codex reviewer as its model-diversity panel (`codex`). Keys, values and resolution:
 [`reference/config.md`](reference/config.md).
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
@@ -216,7 +217,7 @@ reads it from.
 | --- | --- | --- | --- | --- |
 | `connected_page_guard_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CONNECTED_PAGE_GUARD_ENABLED` | Runs the PreToolUse hook that denies an Artifact publish of an HTML page whose content security policy names a loopback connect-src. On by default. Turn off to allow publishing such a page. |
 | `downstream_probe` | string | `"run"` | `CLAUDE_PLUGIN_OPTION_DOWNSTREAM_PROBE` | run (default): /review:quality-gate downstream mode writes one probe for its safety fact in a temp directory outside the tree and runs it. report: it shows the probe without running it. report here or in a repository's docs/conventions/review.yaml (default branch) wins over run. |
-| `fanout_diversity` | string | `"lens"` | `CLAUDE_PLUGIN_OPTION_FANOUT_DIVERSITY` | lens (default): /review:fanout run-everything runs one reviewer agent per concern. model: it sends one review prompt to each distinct fan-out model tier instead. A repository's docs/conventions/review.yaml fanout_diversity wins over this option. |
+| `fanout_diversity` | string | `"lens"` | `CLAUDE_PLUGIN_OPTION_FANOUT_DIVERSITY` | lens (default): /review:fanout run-everything runs one reviewer agent per concern. model: one review prompt per fan-out model tier. codex: the lens roster plus the Codex reviewer as the model panel. A repository's docs/conventions/review.yaml fanout_diversity wins over this option. |
 | `medium` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_MEDIUM` | Where /review:explain-change sends a digest page. auto (default): the shipped artifact default, which the publish gate keeps local for a non-public repository or a credential-shaped diff; terminal: no page; file: a local file; artifact: publish anyway; hosted: the shared page host. |
 
 ### How to set these
