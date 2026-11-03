@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: 'read-handle-less-i-web-status-link-is-accepted'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Accepts the /i/web/status/ form rather than refusing it at the gate'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Does not fabricate a handle to force the URL into the /<handle>/status/<id> shape'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Attributes with the handle from the converted body, not from the URL'
+    focus: 'trace'

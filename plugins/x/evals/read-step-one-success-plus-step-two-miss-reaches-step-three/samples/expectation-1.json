@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Recognizes the thread is known-truncated even though step 1 succeeded, and reaches step 3 — reporting what each step did and asking for the remaining post URLs. Never presents the root alone as the complete thread.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}
