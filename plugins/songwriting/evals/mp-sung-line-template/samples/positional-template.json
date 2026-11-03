@@ -1,19 +1,40 @@
 {
   "pass": [
     {
-      "answer": "§3 Critique filter: run. The melody is fixed, so this is a fit question, answered in notes, not a length question.\n\nPositional template for line 2, from the recording:\n\n```text\nline: I  left  the  porch  light  burn-  ing  ev-  ery  night  for  you\nscan: u  u     u    /      u      /      u    u    u    /      u    u\nsyl:  1  2     3    [4]    5      [6]    7    8    9    [10]   11   12\n```\n\nTwelve notes, three strong slots at 4, 6 and 10. A car line has to put a meaning carrier on each bracketed slot and keep road signs off them. Writing that line is `/songwriting:co-write` line-brainstorm's job; take this template there."
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s-01\",\"skills\":[\"songwriting:meter-prosody\",\"songwriting:co-write\",\"songwriting:rhyme\"]}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/plugins/songwriting/context/pat-pattison/research/meter.md\",\"offset\":1700,\"limit\":80}}]},\"parent_tool_use_id\":null}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"toolu_01\",\"type\":\"tool_result\",\"content\":\"1700\\t### Fitting a replacement line\\n1701\\t\\n1702\\tTranscribe the sung line from the recording.\"}]}}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Positional template for line 2, from the recording:\\n\\n```text\\nline: I  left  the  porch  light  burn-  ing  ev-  ery  night  for  you\\nsyl:  1  2     3    [4]    5      [6]    7    8    9    [10]   11   12\\n```\\n\\nTwelve notes, three strong slots at 4, 6 and 10.\\n\\nWriting the car line is `/songwriting:co-write` line-brainstorm's job; take this template there.\"}]},\"parent_tool_use_id\":null}",
+      "why": "no hand-off: template and named route in the reply"
     },
     {
-      "answer": "| syl | 1 | 2 | 3 | [4] | 5 | [6] | 7 | 8 | 9 | [10] | 11 | 12 |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s-01\",\"skills\":[\"songwriting:meter-prosody\",\"songwriting:co-write\",\"songwriting:rhyme\"]}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/plugins/songwriting/context/pat-pattison/research/meter.md\",\"offset\":1700,\"limit\":80}}]},\"parent_tool_use_id\":null}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"toolu_01\",\"type\":\"tool_result\",\"content\":\"1700\\t### Fitting a replacement line\\n1701\\t\\n1702\\tTranscribe the sung line from the recording.\"}]}}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Positional template for line 2, from the recording:\\n\\n```text\\nline: I  left  the  porch  light  burn-  ing  ev-  ery  night  for  you\\nsyl:  1  2     3    [4]    5      [6]    7    8    9    [10]   11   12\\n```\\n\\nTwelve notes, three strong slots at 4, 6 and 10.\"}]},\"parent_tool_use_id\":null}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_02\",\"name\":\"Skill\",\"input\":{\"skill\":\"songwriting:co-write\",\"args\":\"line-brainstorm a car line on the same twelve notes\"}}]},\"parent_tool_use_id\":null}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"toolu_02\",\"type\":\"tool_result\",\"content\":\"Launching skill: songwriting:co-write\"}]}}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Base directory for this skill: /plugins/songwriting/skills/co-write\\n\\n## Line brainstorm\"}]}}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Three car lines on your notes:\\n\\n1. I keep the engine running every night for you\\n2. I leave the motor idling every night for you\"}]},\"parent_tool_use_id\":null}",
+      "why": "template written before the Skill hand-off; co-write's reply has no template"
+    },
+    {
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s-01\",\"skills\":[\"songwriting:meter-prosody\",\"songwriting:co-write\",\"songwriting:rhyme\"]}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/plugins/songwriting/context/pat-pattison/research/meter.md\",\"offset\":1700,\"limit\":80}}]},\"parent_tool_use_id\":null}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"toolu_01\",\"type\":\"tool_result\",\"content\":\"1790\\t```text\\n1791\\tsyl:  1   2   [3]   4   5   [6]   7   [8]   9\\n1792\\t```\"}]}}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_02\",\"name\":\"Skill\",\"input\":{\"skill\":\"songwriting:co-write\",\"args\":\"line-brainstorm a car line on the same twelve notes\"}}]},\"parent_tool_use_id\":null}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"toolu_02\",\"type\":\"tool_result\",\"content\":\"Launching skill: songwriting:co-write\"}]}}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Base directory for this skill: /plugins/songwriting/skills/co-write\\n\\n## Line brainstorm\"}]}}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Three car lines on your notes:\\n\\n1. I keep the engine running every night for you\\n2. I leave the motor idling every night for you\"}]},\"parent_tool_use_id\":null}",
+      "why": "a Skill call to songwriting:co-write is the accepted alternative"
+    },
+    {
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s-01\",\"skills\":[\"songwriting:meter-prosody\",\"songwriting:co-write\",\"songwriting:rhyme\"]}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Skill\",\"input\":{\"args\":\"line-brainstorm\",\"skill\":\"songwriting:co-write\"}}]},\"parent_tool_use_id\":null}",
+      "why": "Skill call with args before skill in the input"
+    },
+    {
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s-01\",\"skills\":[\"songwriting:meter-prosody\",\"songwriting:co-write\",\"songwriting:rhyme\"]}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"| syl | 1 | 2 | 3 | [4] | 5 | [6] | 7 | 8 | 9 | [10] | 11 | 12 |\\n| --- | --- | --- |\"}]},\"parent_tool_use_id\":null}",
       "why": "template as a table row"
     },
     {
-      "answer": "syl: 1 2 3 [ 4 ] 5 [ 6 ] 7 8 9 [ 10 ] 11 12",
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s-01\",\"skills\":[\"songwriting:meter-prosody\",\"songwriting:co-write\",\"songwriting:rhyme\"]}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"syl: 1 2 3 [ 4 ] 5 [ 6 ] 7 8 9 [ 10 ] 11 12\"}]},\"parent_tool_use_id\":null}",
       "why": "spaces inside the brackets"
     },
     {
-      "answer": "| syl | word | stress |\n| --- | --- | --- |\n| 1 | I | u |\n| 2 | left | u |\n| 3 | the | u |\n| [4] | porch | / |\n| 5 | light | u |\n| [6] | burn- | / |\n| 7 | ing | u |\n| 8 | ev- | u |\n| 9 | ery | u |\n| [10] | night | / |\n| 11 | for | u |\n| 12 | you | u |",
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s-01\",\"skills\":[\"songwriting:meter-prosody\",\"songwriting:co-write\",\"songwriting:rhyme\"]}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"syl:\\t1\\t2\\t3\\t[4]\\t5\\t[6]\\t7\\t8\\t9\\t[10]\\t11\\t12\"}]},\"parent_tool_use_id\":null}",
+      "why": "tab-separated slots, escaped as \\t in the trace"
+    },
+    {
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s-01\",\"skills\":[\"songwriting:meter-prosody\",\"songwriting:co-write\",\"songwriting:rhyme\"]}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"| syl | word |\\n| --- | --- |\\n| 1 | I |\\n| 2 | left |\\n| 3 | the |\\n| [4] | porch |\\n| 5 | light |\\n| [6] | burn- |\\n| 7 | ing |\\n| 8 | ev- |\\n| 9 | ery |\\n| [10] | night |\\n| 11 | for |\\n| 12 | you |\"}]},\"parent_tool_use_id\":null}",
       "why": "vertical table, one bracketed slot per row"
+    },
+    {
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s-01\",\"skills\":[\"songwriting:meter-prosody\",\"songwriting:co-write\",\"songwriting:rhyme\"]}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Positional template for line 2, from the recording:\\n\\n```text\\nline: I  left  the  porch  light  burn-  ing  ev-  ery  night  for  you\\nsyl:  1  2     3    [4]    5      [6]    7    8    9    [10]   11   12\\n```\\n\\nTwelve notes, three strong slots at 4, 6 and 10.\"},{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/plugins/songwriting/context/pat-pattison/research/meter.md\"}}]},\"parent_tool_use_id\":null}",
+      "why": "template text block and a tool call in the same message"
     }
   ],
   "fail": [
@@ -21,24 +42,44 @@
       "answer": ""
     },
     {
-      "answer": "Your line has 12 syllables and three stresses (porch, burn, night). Here's a car line that fits: \"I keep the engine running every night for you.\"",
-      "why": "counts but no positional template"
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s-01\",\"skills\":[\"songwriting:meter-prosody\",\"songwriting:co-write\",\"songwriting:rhyme\"]}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/plugins/songwriting/context/pat-pattison/research/meter.md\",\"offset\":1700,\"limit\":80}}]},\"parent_tool_use_id\":null}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"toolu_01\",\"type\":\"tool_result\",\"content\":\"1790\\t```text\\n1791\\tsyl:  1   2   [3]   4   5   [6]   7   [8]   9\\n1792\\t```\"}]}}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Your line has 12 syllables with stresses on porch, burn and night. Writing the car line is `/songwriting:co-write` line-brainstorm's job; take this template there.\"}]},\"parent_tool_use_id\":null}",
+      "why": "the only template is in the meter.md Read result, a user line"
     },
     {
-      "answer": "Stressed syllables: [4], then 6 and 10.",
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s-01\",\"skills\":[\"songwriting:meter-prosody\",\"songwriting:co-write\",\"songwriting:rhyme\"]}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Example:\\nsyl: 1 2 [3] 4 [5] 6 [7]\"}]}}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Here's a line that fits the notes: \\\"I keep the engine running every night for you.\\\"\"}]},\"parent_tool_use_id\":null}",
+      "why": "template only in a user text line"
+    },
+    {
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s-01\",\"skills\":[\"songwriting:meter-prosody\",\"songwriting:co-write\",\"songwriting:rhyme\"]}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"thinking\",\"thinking\":\"syl: 1 2 3 [4] 5 [6] 7 8 9 [10] 11 12\",\"signature\":\"sig\"}]},\"parent_tool_use_id\":null}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Here's a line that fits the notes: \\\"I keep the engine running every night for you.\\\"\"}]},\"parent_tool_use_id\":null}",
+      "why": "template only in a thinking block"
+    },
+    {
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s-01\",\"skills\":[\"songwriting:meter-prosody\",\"songwriting:co-write\",\"songwriting:rhyme\"]}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Stressed syllables: [4], then 6 and 10.\"}]},\"parent_tool_use_id\":null}",
       "why": "only one bracketed slot"
     },
     {
-      "answer": "I left the [PORCH] light [BURN]-ing every [NIGHT] for you",
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s-01\",\"skills\":[\"songwriting:meter-prosody\",\"songwriting:co-write\",\"songwriting:rhyme\"]}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"I left the [PORCH] light [BURN]-ing every [NIGHT] for you\"}]},\"parent_tool_use_id\":null}",
       "why": "brackets words, not numbered slots"
     },
     {
-      "answer": "See the meter notes [1] and the phrasing chapter [2].\nAlso [3] for greedy spots.",
-      "why": "citation markers on separate lines are not a template"
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s-01\",\"skills\":[\"songwriting:meter-prosody\",\"songwriting:co-write\",\"songwriting:rhyme\"]}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"See the meter notes [1] and the phrasing chapter [2].\\nAlso [3] for greedy spots.\"}]},\"parent_tool_use_id\":null}",
+      "why": "citation markers across rendered lines are not a template"
     },
     {
-      "answer": "| syl | word |\n| --- | --- |\n| [4] | porch |\n| 5 | light |\n| [6] | burn |",
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s-01\",\"skills\":[\"songwriting:meter-prosody\",\"songwriting:co-write\",\"songwriting:rhyme\"]}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Skill\",\"input\":{\"skill\":\"songwriting:rhyme\",\"args\":\"car\"}}]},\"parent_tool_use_id\":null}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Stresses fall on porch, burn and night.\"}]},\"parent_tool_use_id\":null}",
+      "why": "Skill call to rhyme, not co-write"
+    },
+    {
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s-01\",\"skills\":[\"songwriting:meter-prosody\",\"songwriting:co-write\",\"songwriting:rhyme\"]}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/plugins/songwriting/skills/co-write/SKILL.md\"}}]},\"parent_tool_use_id\":null}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Here's a line that fits the notes: \\\"I keep the engine running every night for you.\\\"\"}]},\"parent_tool_use_id\":null}",
+      "why": "Read of co-write's SKILL.md is not a Skill call"
+    },
+    {
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s-01\",\"skills\":[\"songwriting:meter-prosody\",\"songwriting:co-write\",\"songwriting:rhyme\"]}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"| syl | word |\\n| --- | --- |\\n| [4] | porch |\\n| 5 | light |\\n| [6] | burn |\"}]},\"parent_tool_use_id\":null}",
       "why": "only two bracketed rows"
+    },
+    {
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s-01\",\"skills\":[\"songwriting:meter-prosody\",\"songwriting:co-write\",\"songwriting:rhyme\"]}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Skill\",\"input\":{\"skill\":\"songwriting:co-writer\"}}]},\"parent_tool_use_id\":null}",
+      "why": "a different skill name that starts with co-write"
     }
   ]
 }
