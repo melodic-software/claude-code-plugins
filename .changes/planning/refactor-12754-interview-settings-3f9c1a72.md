@@ -17,3 +17,7 @@ bump: major
 
   When it exists, `ensure-running` prints one notice per data dir naming each
   of its keys and where it goes now; none of its values apply.
+
+### Security
+
+- the page server refuses a default convention home reached through a symlink, notes and drops an oversized or deeply nested planning YAML file, and its retired-file notice names keys, never their values

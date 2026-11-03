@@ -28,7 +28,6 @@ from pathlib import Path, PureWindowsPath
 from urllib.parse import quote
 
 from question_shape import restates, withheld
-from yaml_subset import YamlSubsetError
 from yaml_subset import parse as parse_yaml
 from session_bridge import (
     MAX_STREAMS,  # noqa: F401  # the stream limits, read through this module by its tests
@@ -264,7 +263,10 @@ def convention_home(repo):
     if code == 0 and out:
         return root, root / out, None
     if code in (1, 4):
-        return root, root / DEFAULT_HOME, None
+        home = root / DEFAULT_HOME
+        if home.resolve() != root.resolve() / DEFAULT_HOME:
+            return root, None, f"team and personal files skipped: {DEFAULT_HOME} is reached through a symlink"
+        return root, home, None
     if code == 5:
         return root, None, None
     why = err.splitlines()[-1] if err else f"exit {code}"
@@ -283,7 +285,7 @@ def yaml_section(path, label, note):
         doc = parse_yaml(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return {}
-    except (OSError, UnicodeDecodeError, YamlSubsetError) as e:
+    except (OSError, ValueError, RecursionError) as e:
         note(f"{shown} ignored: {e}")
         return {}
     if doc is None:
@@ -304,8 +306,9 @@ class Settings:
     """Resolves each key through the layers and names the layer its value came from.
 
     Problems (an unreadable file, an unknown or restricted key, an invalid value) are noted on
-    stderr once each; the key then keeps the value of the layer below, which for the team file is
-    the default and for the personal file the team value (ADR 0075's invalid-value rule).
+    stderr once each. An invalid team or personal value drops that layer and the key resolves its
+    default, never the team value (ADR 0075's invalid-value rule); an invalid user or session
+    value leaves the layer below in place.
     """
 
     def __init__(self, repo):
@@ -368,7 +371,11 @@ class Settings:
                     continue
                 err = setting_error(k, v)
                 if err:
-                    self.note(f"{layer} layer: {err}; the layer below applies")
+                    if layer in ("team", "personal"):
+                        self.note(f"{layer} layer: {err}; the default applies")
+                        out[k] = {"value": DEFAULT_SETTINGS[k], "layer": "default"}
+                    else:
+                        self.note(f"{layer} layer: {err}; the layer below applies")
                     continue
                 out[k] = {"value": v, "layer": layer}
         if out["settleQuiet"]["value"] > out["settleBurst"]["value"]:
@@ -416,8 +423,11 @@ class Settings:
     def retired_notices(self, data_dir):
         """Notes that the retired repo file is not read and where each of its keys goes now; once
         per data dir while the file's bytes are unchanged. Its values never apply."""
+        path = self.retired_file
         try:
-            raw = self.retired_file.read_bytes() if self.retired_file else None
+            # Only a regular file: a symlink could point the notice at any file the user can read.
+            regular = path is not None and not path.is_symlink() and path.is_file()
+            raw = path.read_bytes() if regular else None
         except OSError:
             raw = None
         if raw is None:
@@ -440,9 +450,8 @@ class Settings:
         if not isinstance(data, dict):
             self.note(f"  it is not a JSON object; its keys go to {SECTION} in {self.home_shown}/{TEAM_FILE}")
             data = {}
-        for k, v in data.items():
-            value = "" if k == "themeTokens" else f": {json.dumps(v)[:60]}"
-            self.note(f"  {k}{value} goes to {self.retired_destination(k)}")
+        for k in data:
+            self.note(f"  {k} goes to {self.retired_destination(k)}")
         try:
             record.write_text(json.dumps({**seen, shown: digest}) + "\n", encoding="utf-8")
         except OSError:

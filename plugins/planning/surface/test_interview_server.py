@@ -3415,13 +3415,39 @@ class TestSettingsResolver(unittest.TestCase):
         self.assertEqual(text.count("undoSeconds"), 1, text)
         self.assertEqual(text.count("bogus"), 1, text)
 
-    def test_an_invalid_personal_value_leaves_the_team_value(self):
+    def test_an_invalid_personal_value_resolves_the_default_not_the_team_value(self):
         repo = git_repo(self.tmp / "r")
         write_planning(repo, "interview_page:\n  undoSeconds: 20\n")
         write_planning(repo, "interview_page:\n  undoSeconds: 61\n", local=True)
         first, text = self.resolved(repo)
-        self.assertEqual(first["undoSeconds"], {"value": 20, "layer": "team"})
+        self.assertEqual(first["undoSeconds"], {"value": 5, "layer": "default"})
         self.assertIn("personal layer: undoSeconds must be", text)
+        self.assertIn("the default applies", text)
+
+    def test_an_oversized_integer_or_deep_nesting_is_noted_and_dropped(self):
+        for text in (
+            "interview_page:\n  port: " + "1" * 5000 + "\n",
+            "".join(f"{' ' * (2 * i)}k{i}:\n" for i in range(400)) + " " * 800 + "v: 1\n",
+        ):
+            with self.subTest(text=text[:30]):
+                repo = git_repo(self.tmp / f"r{len(text)}")
+                write_planning(repo, text)
+                first, out = self.resolved(repo)
+                self.assertEqual(first["port"]["layer"], "default")
+                self.assertEqual(out.count("planning.yaml ignored"), 1, out)
+
+    @unittest.skipIf(os.name == "nt", "symlinks need privileges on Windows")
+    def test_a_default_home_reached_through_a_symlink_is_not_read(self):
+        outside = self.tmp / "outside" / "conventions"
+        outside.mkdir(parents=True)
+        (outside / "planning.yaml").write_text("interview_page:\n  undoSeconds: 20\n", encoding="utf-8")
+        repo = self.tmp / "r"
+        repo.mkdir()
+        subprocess.run(["git", "init", "-q", str(repo)], check=True, timeout=TIMEOUT)
+        (repo / "docs").symlink_to(outside.parent)
+        first, text = self.resolved(repo)
+        self.assertEqual(first["undoSeconds"], {"value": 5, "layer": "default"})
+        self.assertIn("reached through a symlink", text)
 
     def test_an_unparsable_team_file_is_noted_and_dropped(self):
         repo = git_repo(self.tmp / "r")
@@ -3779,6 +3805,7 @@ class TestEnsureRunningSettings(unittest.TestCase):
         }
         for key, where in want.items():
             self.assertRegex(notice, rf"(?m)^settings:\s+{key}\b.*{re.escape(where)}", key)
+        self.assertNotIn("firefox", notice)
         state = json.loads(request(port, "GET", "/api/state", headers={"X-Interview-Token": session(self.dir)["token"]})[1])
         self.assertEqual(state["settings"]["undoSeconds"], {"value": 5, "layer": "default"})
         self.assertEqual(state["settings"]["displayName"], {"value": "You", "layer": "default"})
@@ -3788,7 +3815,16 @@ class TestEnsureRunningSettings(unittest.TestCase):
         self.assertIn("no longer read", self.ensure_run().stderr)
         self.assertNotIn("no longer read", self.ensure_run().stderr)
         self.legacy({"undoSeconds": 21})
-        self.assertIn("undoSeconds: 21", self.ensure_run().stderr)
+        self.assertIn("no longer read", self.ensure_run().stderr)
+
+    @unittest.skipIf(os.name == "nt", "symlinks need privileges on Windows")
+    def test_a_symlinked_retired_file_is_not_read(self):
+        secret = self.tmp / "credentials.json"
+        secret.write_text(json.dumps({"token": "s3cret-value"}), encoding="utf-8")
+        (self.repo / ".claude" / "interview-surface.json").symlink_to(secret)
+        stderr = self.ensure_run().stderr
+        self.assertNotIn("s3cret", stderr)
+        self.assertNotIn("token", stderr)
 
     def fallback_opened(self):
         # webbrowser waits for the program, so the URL is written before ensure-running returns.

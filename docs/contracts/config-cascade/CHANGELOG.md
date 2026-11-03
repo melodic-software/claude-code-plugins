@@ -15,7 +15,8 @@ No contract change.
   keys are read from `<home>/planning.yaml` and the personal `<home>/planning.local.yaml` by
   `surface/interview_server.py`, with no `userConfig` option; the planning Implementers and
   root-rule rows say so, and `.claude/interview-surface.json` leaves the location-axis list. That
-  file now gives a one-time notice and never a value.
+  file now gives a one-time notice naming each key's new place; it never supplies or prints a
+  value.
 - **`rendered-views` moves onto the ADR 0075 scopes, and its row stops saying it conforms.** The
   Implementers row now names the team file `docs/conventions/rendered-views.yaml`, the personal
   override `docs/conventions/rendered-views.local.yaml` and each view lane's `medium` option, and
