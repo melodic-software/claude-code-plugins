@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "const retry = { attempts: 3, backoff: \"exponential\" } satisfies RetryPolicy;\n",
+      "why": "the literal is checked and keeps its narrow type"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no artifact written"
+    },
+    {
+      "answer": "const retry: RetryPolicy = { attempts: 3, backoff: \"exponential\" };\n",
+      "why": "an annotation widens the value"
+    }
+  ]
+}
