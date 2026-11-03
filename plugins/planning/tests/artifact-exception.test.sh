@@ -33,8 +33,8 @@ else
   fail "the contract no longer keeps the PRD and interview views out of the exception"
 fi
 
-if grep -q 'the report line with `file` in place of the medium' "$REFERENCE" \
-  && grep -q '`view: file (plugin default)`' "$REFERENCE"; then
+if grep -qF "the report line with \`file\` in place of the medium" "$REFERENCE" \
+  && grep -qF "\`view: file (plugin default)\`" "$REFERENCE"; then
   ok "the reference reports a published-default session-written view as file"
 else
   fail "the reference does not report a session-written view as file when the medium publishes"
