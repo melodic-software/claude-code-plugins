@@ -10,7 +10,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../check-kill-switch/check-kill-switch.mjs";
-import { rateLimitLatch } from "../log-api-budget/rate-guard.mjs";
+import { rateLimitLatch, refusedForLimit, RESEND, SERVER_RETRY_BUDGET_MS } from "../log-api-budget/rate-guard.mjs";
 
 const ACTOR_KEYS = ["id", "kind", "login"];
 const KINDS = new Set(["human", "bot"]);
@@ -138,13 +138,15 @@ export const detailSuffix = (error) => (typeof error?.detail === "string" && err
 // pr-merge.yml's gate-check and clear-escalations). The last answer is
 // returned, or the last error thrown. Any other request, a mutation among
 // them, is sent once and never timed out; a 4xx is the caller's to handle, a
-// rate limit is the rate guard's (rate-guard.mjs), whose latch refuses any
-// attempt while its pool is stopped, and any other thrown error is raised at
-// once. A retry line names an error's name and cause code only: undici puts a
+// rate limit is the rate guard's (rate-guard.mjs), whose latch waits out a
+// stop that fits its budget (with sleep) and refuses any attempt past it, and
+// any other thrown error is raised at once. With resendLimited, an idempotent
+// request whose answer stopped its pool for no longer than the latch would
+// wait is sent again, inside the same 3 attempts, once the reset passes. A
+// retry line names an error's name and cause code only: undici puts a
 // whole header value, the token included, in some messages. createGitHub and
-// budgetedFetch both use it.
+// budgetedFetch both use it; budgetedFetch resends a rate-limited read itself.
 const SERVER_RETRY_DELAYS_MS = [2000, 4000];
-const SERVER_RETRY_BUDGET_MS = 60_000;
 const ATTEMPT_TIMEOUT_MS = 20_000;
 // A GraphQL query: a POST to /graphql whose document starts with `query` or
 // `{` past any `#` comments, holds no `mutation` or `subscription` word
@@ -205,33 +207,43 @@ export function retryServerErrors(
     now = () => Date.now(),
     attemptTimeoutMs = ATTEMPT_TIMEOUT_MS,
     latch = rateLimitLatch,
+    resendLimited = false,
   } = {},
 ) {
-  // Every attempt, a retry included, goes through the rate guard's latch.
-  fetchImpl = latch.guard(fetchImpl);
+  // Every attempt, a retry included, goes through the rate guard's latch,
+  // which waits out a short stop with this client's sleep.
+  fetchImpl = latch.guard(fetchImpl, { sleep });
   let spent = 0;
   return async function send(url, init = {}) {
     const method = init.method ?? "GET";
     const idempotent = method === "GET" || (method === "POST" && graphqlQuery(url, init));
     for (let attempt = 0; ; attempt += 1) {
+      // The latch's wait comes before the attempt's timeout and clock start, so
+      // it neither aborts the attempt nor counts against the retry budget.
+      await latch.waitOut(url, method, sleep);
       // Only an idempotent request is timed out: a write GitHub accepted slowly
       // must not look failed, so writes keep only the caller's signal.
       const timeout = idempotent ? AbortSignal.timeout(attemptTimeoutMs) : undefined;
       const signal = timeout && init.signal ? AbortSignal.any([init.signal, timeout]) : (timeout ?? init.signal);
       const started = now();
+      // Whether a rate-limit refusal of this attempt is sent again, which the
+      // guard reads (RESEND) so it fails nothing for it.
+      const resend = resendLimited && idempotent && SERVER_RETRY_DELAYS_MS[attempt] !== undefined && spent <= SERVER_RETRY_BUDGET_MS;
       let response;
       let error;
       let broken = false;
       try {
-        response = await fetchImpl(url, { ...init, signal });
+        response = await fetchImpl(url, { ...init, signal, [RESEND]: resend });
         broken = method === "GET" && (await brokenBody(response));
       } catch (thrown) {
         error = thrown;
       }
-      const failed = error !== undefined ? networkFailure(error) && !init.signal?.aborted : response.status >= 500 || broken;
-      spent += failed ? now() - started : 0;
+      // The latch waits out the reset before the resend, on its own budget.
+      const limited = resend && error === undefined && latch.waits(url) && (await refusedForLimit(response));
+      const failed = error !== undefined ? networkFailure(error) && !init.signal?.aborted : response.status >= 500 || broken || limited;
+      spent += failed && !limited ? now() - started : 0;
       const delay = SERVER_RETRY_DELAYS_MS[attempt];
-      const wait = delay === undefined ? 0 : Math.round(random() * delay);
+      const wait = delay === undefined || limited ? 0 : Math.round(random() * delay);
       if (!failed || !idempotent || delay === undefined || spent + wait > SERVER_RETRY_BUDGET_MS) {
         if (error !== undefined) {
           throw error;
@@ -239,6 +251,9 @@ export function retryServerErrors(
         return response;
       }
       await response?.body?.cancel().catch(() => {});
+      if (limited) {
+        continue;
+      }
       const what =
         error !== undefined
           ? `failed (${errorLabel(error)})`
@@ -255,8 +270,9 @@ export function retryServerErrors(
 // One function every API read and write goes through; tests replace it.
 // keepGraphQLErrors returns a GraphQL answer with its errors for the caller to
 // judge, instead of raising on any. A read answered 5xx is sent again
-// (retryServerErrors). A call while the rate guard's latch holds its pool
-// throws RateLimitStop without a request.
+// (retryServerErrors), and so is a read a rate limit refused once the latch
+// waits out its reset. A call while the rate guard's latch holds its pool past
+// the wait budget throws RateLimitStop without a request.
 export function createGitHub({
   token,
   apiUrl = "https://api.github.com",
@@ -270,7 +286,7 @@ export function createGitHub({
   attemptTimeoutMs,
   latch,
 }) {
-  const send = retryServerErrors(fetchImpl, { sleep, random, log, now, attemptTimeoutMs, latch });
+  const send = retryServerErrors(fetchImpl, { sleep, random, log, now, attemptTimeoutMs, latch, resendLimited: true });
   return async function github(method, apiPath, body, headers = {}, { signal } = {}) {
     const response = await send(`${apiUrl}${apiPath}`, {
       method,

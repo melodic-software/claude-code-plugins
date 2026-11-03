@@ -167,8 +167,10 @@ function fakeGitHub(answers) {
   };
 }
 
-function latchFor({ now = NOW } = {}) {
+// A latch on a fake clock: each wait moves the clock on instead of sleeping.
+function latchFor({ now = NOW, hold = false } = {}) {
   const lines = [];
+  const waits = [];
   let failed = 0;
   const clock = { now };
   const latch = createRateLimitLatch({
@@ -179,8 +181,13 @@ function latchFor({ now = NOW } = {}) {
     },
     limits: () => apiLimits({ resolvedPath: "" }),
     stopFile: null,
+    sleep: async (ms) => {
+      waits.push(ms);
+      clock.now += ms;
+    },
+    hold,
   });
-  return { latch, lines, clock, failed: () => failed };
+  return { latch, lines, clock, waits, failed: () => failed };
 }
 
 const PRIMARY = [403, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" }, { message: "API rate limit exceeded for installation ID 1." }];
@@ -203,7 +210,6 @@ test("retry-after is honored: refused before it ends, sent after", async () => {
   const { latch, clock } = latchFor();
   const fetch = latch.guard(gh.fetch);
   await fetch(URL_A);
-  clock.now = NOW + 119_000;
   await assert.rejects(fetch(URL_B), RateLimitStop);
   assert.equal(gh.sent.length, 1);
   clock.now = NOW + 121_000;
@@ -211,8 +217,46 @@ test("retry-after is honored: refused before it ends, sent after", async () => {
   assert.equal(gh.sent.length, 2);
 });
 
+// Outage posture element 1: a reset within the 60 s budget is waited out (the
+// reset plus a second, so the call lands after it), and the call goes; the
+// budget counts the resets, summed, so a second 31 s reset after a 30 s one
+// (61 s) is refused, red.
+test("a stop within the 60 s budget is waited out and the call sent; past the budget it is refused red", async () => {
+  const secondary = (seconds) => [403, { "retry-after": String(seconds) }, { message: "You have exceeded a secondary rate limit." }];
+  const gh = fakeGitHub([secondary(30), [200], secondary(31), [200]]);
+  const { latch, lines, waits, failed } = latchFor();
+  const fetch = latch.guard(gh.fetch);
+  await fetch(URL_A);
+  assert.equal(failed(), 1, "the answer that hit the limit still fails the step");
+  assert.equal((await fetch(URL_B)).status, 200);
+  assert.deepEqual(waits, [31_000]);
+  assert.equal(failed(), 1, "a waited-out stop fails nothing");
+  assert.ok(lines.some((line) => line.startsWith("::notice::") && line.includes("waits 31s")));
+  await fetch(URL_A);
+  await assert.rejects(fetch(URL_B), RateLimitStop);
+  assert.deepEqual(waits, [31_000], "31 s more would pass the budget");
+  assert.equal(gh.sent.length, 3);
+  assert.equal(failed(), 3);
+});
+
+// Outage posture element 2 (docs/outage-posture-audit.md): under
+// API_BUDGET_HOLD the step holds: a notice, no ::error, the step not failed;
+// the call is still refused, so a caller never reads a refusal as an answer.
+test("a holding latch refuses a stop past the budget with a notice and fails nothing", async () => {
+  const gh = fakeGitHub([PRIMARY, [200]]);
+  const { latch, lines, waits, failed } = latchFor({ hold: true });
+  const fetch = latch.guard(gh.fetch);
+  assert.equal((await fetch(URL_A)).status, 403);
+  await assert.rejects(fetch(URL_B), RateLimitStop);
+  assert.deepEqual(gh.sent, [`GET ${URL_A}`]);
+  assert.deepEqual(waits, []);
+  assert.equal(failed(), 0);
+  assert.deepEqual(lines.filter((line) => line.startsWith("::error::")), []);
+  assert.equal(lines.filter((line) => line.startsWith("::notice::") && line.includes("2026-10-23T10:33:20Z") && line.endsWith("this step holds")).length, 2);
+});
+
 test("a primary limit on core leaves graphql open; a secondary one stops every pool", async () => {
-  const gh = fakeGitHub([PRIMARY, [200], [403, { "retry-after": "60" }, { message: "secondary rate limit" }]]);
+  const gh = fakeGitHub([PRIMARY, [200], [403, { "retry-after": "120" }, { message: "secondary rate limit" }]]);
   const { latch } = latchFor();
   const fetch = latch.guard(gh.fetch);
   await fetch(URL_A);
@@ -325,8 +369,8 @@ test("the built-in defaults are the values rate-limits.json ships", () => {
 
 // The process-wide stop, end to end in a child process: createGitHub trips the
 // shared latch, then budgetedFetch's next call is refused without a request,
-// and the process exits 1 although main set exitCode 0.
-test("one limit stops every helper in the process, and the process exits red", () => {
+// and the process exits 1 although main set exitCode 0, unless the step holds.
+test("one limit stops every helper in the process, and the process exits red unless the step holds", () => {
   const script = `
     import { createGitHub } from "./.github/actions/check-trusted-trigger/check-trusted-trigger.mjs";
     import { budgetedFetch } from "./.github/scripts/pr-unblock/request-budget.mjs";
@@ -346,10 +390,17 @@ test("one limit stops every helper in the process, and the process exits red", (
     process.exitCode = 0;
   `;
   const root = new URL("../../../", import.meta.url).pathname;
-  const run = spawnSync(process.execPath, ["--input-type=module", "-e", script], { cwd: root, encoding: "utf8", env: { ...process.env, RESOLVED_CONFIG: "", RUNNER_TEMP: "" } });
-  assert.match(run.stdout, /sent=1 refused=RateLimitStop/);
-  assert.match(run.stdout, /::error::GET \/repos\/o\/r|::error::GET https:\/\/api\.github\.com\/repos\/o\/r /);
-  assert.equal(run.status, 1);
+  const run = (hold) => spawnSync(process.execPath, ["--input-type=module", "-e", script], { cwd: root, encoding: "utf8", env: { ...process.env, RESOLVED_CONFIG: "", RUNNER_TEMP: "", API_BUDGET_HOLD: hold } });
+  const red = run("");
+  assert.match(red.stdout, /sent=1 refused=RateLimitStop/);
+  assert.match(red.stdout, /::error::GET \/repos\/o\/r|::error::GET https:\/\/api\.github\.com\/repos\/o\/r /);
+  assert.equal(red.status, 1);
+  // A holding step: the same refusal, a notice for an error, and the caller's exit.
+  const held = run("1");
+  assert.match(held.stdout, /sent=1 refused=RateLimitStop/);
+  assert.match(held.stdout, /::notice::GET https:\/\/api\.github\.com\/repos\/o\/r hit GitHub's core API rate limit/);
+  assert.doesNotMatch(held.stdout, /::error::/);
+  assert.equal(held.status, 0);
 });
 
 // The job-wide stop: a latch writes its stop to the file the gh wrapper
