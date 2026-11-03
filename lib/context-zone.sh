@@ -70,6 +70,13 @@
 #     }
 #   }
 #
+# LOWERED AUTO-COMPACT WINDOW: when the snapshot's bands.auto_compact_window
+# is a number above 0 and below context_window_size (the mod publishes it only
+# then), the percentage edges are scaled by auto_compact_window /
+# context_window_size, as the mod scales its own, so zones.json percentages are
+# of the auto-compact window. Token bands are not scaled. Absent or out of
+# range, the edges stay as set.
+#
 # Window-class selection: the band row whose class key is the LARGEST one
 # ≤ context_window_size. A window smaller than every configured class has no
 # row — the token shape is not-computable for it (never borrow a larger
@@ -275,9 +282,18 @@ TOKEN_SEMANTICS_MIN_VERSION="2.1.132"
       elif ((($now - $e) < -60) or (($now - $e) > $stale)) then "unknown"
       else
         .context_window as $w
+        | (.bands? // null) as $b
+        | (if (($b | type) == "object")
+              and ((($b.auto_compact_window? // null) | type) == "number")
+              and ((($w.context_window_size? // null) | type) == "number")
+              and ($b.auto_compact_window > 0) and ($w.context_window_size > 0)
+              and ($b.auto_compact_window < $w.context_window_size)
+           then [($smax * $b.auto_compact_window) / $w.context_window_size,
+                 ($amax * $b.auto_compact_window) / $w.context_window_size]
+           else [$smax, $amax] end) as $pb
         | (if ((($w.used_percentage? // null) | type) == "number")
               and ($w.used_percentage >= 0) and ($w.used_percentage <= 100)
-           then band($w.used_percentage; $smax; $amax) else null end) as $pz
+           then band($w.used_percentage; $pb[0]; $pb[1]) else null end) as $pz
         | (if ((($w.total_input_tokens? // null) | type) == "number") and ($w.total_input_tokens >= 0)
               and ((($w.total_output_tokens? // null) | type) == "number") and ($w.total_output_tokens >= 0)
               and ((($w.context_window_size? // null) | type) == "number") and ($w.context_window_size > 0)

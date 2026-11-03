@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: 'reach-same-repo-session-picks-lane'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'expected-output'
+    type: 'llm'
+    criteria: 'Asks or determines which lane the other session is in. If it is in this same lane, routes to the built-in peer tools with no SSH and no relay. If it is in the other lane on this machine (WSL versus native Windows), uses the same-machine cross-lane row (R1 or R4) instead, because each lane lists only its own sessions.'
+    focus: 'trace'
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:fleet:)?reach"'

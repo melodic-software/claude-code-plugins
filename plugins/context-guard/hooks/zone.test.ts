@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 import cases from '../scripts/context-zone.fixtures.mjs'
-import { resolveZone } from './zone.ts'
+import { followWindow, resolveZone } from './zone.ts'
 
 // 2026-10-03T18:00:00Z, computed by hand: 1791050400 s.
 const NOW = 1_791_050_400
@@ -27,6 +27,22 @@ test('fixture: the shared file holds at least 100 cases', () => {
 for (const c of cases as Case[]) {
   test(`fixture: ${c.name}`, () => {
     expect(resolveZone({ sid: c.sid, snapshot: text(c.snapshot), zones: text(c.zones), nowSec: NOW })).toEqual({ word: c.word, notices: c.notices })
+  })
+}
+
+// The mod resolves before it publishes bands, passing the window it read as `follow`. On every
+// case that publishes a numeric auto-compact window, that call reaches the word the readers do.
+type Snap = { context_window: { context_window_size?: number }; bands?: { auto_compact_window?: unknown } }
+const lowered = (cases as Case[]).filter(c => typeof (c.snapshot as Snap | null)?.bands?.auto_compact_window === 'number')
+test('fixture: the shared file holds a lowered-window case', () => {
+  expect(lowered.some(c => c.word !== 'smart')).toBe(true)
+})
+for (const c of lowered) {
+  test(`fixture, as the mod resolves it: ${c.name}`, () => {
+    const { bands, ...body } = c.snapshot as Snap
+    const size = body.context_window.context_window_size ?? 0
+    const follow = (b: Parameters<typeof followWindow>[0]) => followWindow(b, size, bands?.auto_compact_window as number)
+    expect(resolveZone({ sid: c.sid, snapshot: text(body), zones: text(c.zones), nowSec: NOW, follow }).word).toBe(c.word)
   })
 }
 

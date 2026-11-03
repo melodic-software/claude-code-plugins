@@ -304,8 +304,8 @@ its event through unchanged.
   approach margin by the ratio, so `zones.json` percentages are of the auto-compact window. The
   token bands measure occupancy and stay as set. No hand retune of `zones.json` is needed for a
   lowered window; undo one made before this release, or it applies twice. The fallback resolver
-  `scripts/context-zone.sh` cannot see the window and still measures against the full one, so a
-  reader takes the snapshot's published `zone` and `bands`. After the auto-compact window is
+  `scripts/context-zone.sh` reads the snapshot's `bands.auto_compact_window` and scales its
+  percentage edges the same way, so it reaches the module's zone. After the auto-compact window is
   lowered, we never read `used_percentage` as a forecast of when compaction will run. **Pointer**:
   when deciding what the percentage is measured against, fetch
   [environment variables: variables](https://code.claude.com/docs/en/env-vars#variables) live.

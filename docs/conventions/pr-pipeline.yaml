@@ -157,6 +157,25 @@ activities:
     # Reads the replies the model wrote.
     reads-untrusted: true
     inputs: [pr, head-sha]
+  resolve-feedback-threads:
+    # On a pull request a trusted person opened, resolves the review-bot
+    # threads publish-feedback answered (or GitHub reports outdated) and could
+    # not resolve, with no CRITICAL or person-decided security finding and no
+    # comment by anyone but the review bots and the lanes App. A script, no
+    # model; it reads the threads from GitHub itself (resolve-threads.mjs).
+    script: .github/scripts/pr-unblock/resolve-threads.mjs
+    # Resolving a thread on a PR the lanes App did not open needs a writer,
+    # contents: write; it pushes nothing.
+    effect: mutate-branch
+    # No PR head checkout: the job holding the write holds only the trusted base.
+    checkout: base
+    gating: advisory
+    # Reads review comments, which quote the diff.
+    reads-untrusted: true
+    inputs: [pr]
+    applies-when:
+      labels-absent: [do-not-merge, "security: outside-actor"]
+      draft: [false]
   review-dependency:
     # Reviews one Dependabot pull request the classifier sorts `review` (a
     # major bump, an action publisher outside the allowlist, a group holding
@@ -703,7 +722,8 @@ activities:
     args: publish
     effect: publish-artifact
     gating: advisory
-    # Posts the plan's titles and bodies, which the model wrote.
+    # Posts the plan's titles and bodies, which the model wrote, each body after a
+    # `Refs: #<upkeep_spec_issue>` line (docs/conventions/code-tidying.yaml).
     reads-untrusted: true
 
 lanes:
@@ -749,6 +769,9 @@ lanes:
         needs: [address-feedback]
       - activity: publish-feedback
         needs: [address-feedback, apply-feedback-patch]
+      # Runs after publish-feedback, in its own job with its own token.
+      - activity: resolve-feedback-threads
+        needs: [publish-feedback]
       # Started by pr-unblock-dispatch.yml for review-tier Dependabot PRs.
       - activity: review-dependency
       # Run after review-dependency, each in its own job with its own token:
@@ -1497,6 +1520,8 @@ merge:
       - glob: ".github/scripts/pr-unblock/adjudicate-feedback.mjs"
         class: enforcement
       - glob: ".github/scripts/pr-unblock/publish-feedback.mjs"
+        class: enforcement
+      - glob: ".github/scripts/pr-unblock/resolve-threads.mjs"
         class: enforcement
       - glob: ".github/scripts/pr-unblock/request-budget.mjs"
         class: enforcement

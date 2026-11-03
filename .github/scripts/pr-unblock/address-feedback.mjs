@@ -643,9 +643,15 @@ export function humanGatedLabelFrom(path) {
 // set of ids, given on a PR carrying the human-gated label), a thread is
 // worked only when a reply is a fix request by one of them, after the
 // escalation when there is one.
+// A comment by a review bot: the reviewer bot, a listed review bot, or a
+// review lane's github-actions[bot] comment (threadAuthors, resolve-threads.mjs).
+export const isReviewerComment = (comment, { reviewerId, reviewerIds = [] }) =>
+  comment.authorId === reviewerId || reviewerIds.includes(comment.authorId) || isLaneComment(comment);
+// A pr-verify verifier note's root comment.
+export const isVerifierRoot = (comment) => comment?.authorId === MARKER_AUTHOR_ID && firstLine(comment.body) === VERIFY_NOTE_MARKER;
 export function threadAuthors(comments, { reviewerId, reviewerIds = [], appId, trustedHumans = new Set(), requesters = null, fixers = requesters ?? new Set() }) {
-  const verifier = comments.length > 0 && comments[0].authorId === MARKER_AUTHOR_ID && firstLine(comments[0].body) === VERIFY_NOTE_MARKER;
-  const reviewer = (comment) => comment.authorId === reviewerId || reviewerIds.includes(comment.authorId) || isLaneComment(comment);
+  const verifier = comments.length > 0 && isVerifierRoot(comments[0]);
+  const reviewer = (comment) => isReviewerComment(comment, { reviewerId, reviewerIds });
   const isHuman = (comment) =>
     trustedHumans.has(comment.authorId) && (comment.lastEditedAt == null || trustedHumans.has(comment.editorId));
   if (comments.length === 0 || (!reviewer(comments[0]) && !verifier && !isHuman(comments[0]))) {
@@ -1277,7 +1283,11 @@ export async function currentThreads({ api, pr, reviewerId, reviewerIds = [], ap
 const THREAD_QUERY = `query($id: ID!) {
   node(id: $id) {
     ... on PullRequestReviewThread {
-      isResolved pullRequest { number } comments(first: 100) { totalCount nodes { databaseId } }
+      isResolved isOutdated pullRequest { number }
+      comments(first: 100) {
+        totalCount
+        nodes { databaseId body lastEditedAt editor { ... on User { databaseId } ... on Bot { databaseId } } }
+      }
     }
   }
 }`;
@@ -1531,6 +1541,10 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
         pr: node?.pullRequest?.number,
         commentCount: node?.comments?.totalCount,
         commentIds: (node?.comments?.nodes ?? []).map((comment) => comment.databaseId),
+        // As listThreads' comment nodes, with each body: resolve-threads.mjs
+        // judges the thread again on them.
+        isOutdated: node?.isOutdated,
+        nodes: node?.comments?.nodes ?? [],
       };
     },
     // From git/ref, which GET /pulls can lag behind after a push.

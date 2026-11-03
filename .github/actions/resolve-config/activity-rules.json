@@ -27,6 +27,10 @@
     "forbidden-effects": ["mutate-branch", "mutate-tracker", "merge"],
     "never": "Writes to the branch, or posts anything but the recorded replies"
   },
+  "resolve-feedback-threads": {
+    "forbidden-effects": ["publish-artifact", "mutate-tracker", "merge"],
+    "never": "Runs a model or head code, pushes, or posts: it only resolves review threads"
+  },
   "review-dependency": {
     "forbidden-effects": ["publish-artifact", "mutate-tracker", "mutate-branch", "merge"],
     "never": "Holds a write token, posts to the pull request, merges or closes: its fix leaves only as a patch"

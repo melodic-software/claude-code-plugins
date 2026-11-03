@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: 'reach-multi-turn-resume'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'expected-output'
+    type: 'llm'
+    criteria: 'Recognizes this needs more than one turn. First call either chooses the id with claude -p --session-id <uuid> or reads session_id from claude -p --output-format json; the follow-up uses claude -p --resume <id> over the same host and lane. States that the id belongs to that machine and account and does not travel.'
+    focus: 'trace'
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:fleet:)?reach"'
+  - name: 'resumes-by-id'
+    type: 'regex'
+    pattern: '--resume\b'
+    flags: 'i'
+    target: 'last_message'

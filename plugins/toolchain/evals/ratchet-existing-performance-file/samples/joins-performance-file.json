@@ -3,6 +3,10 @@
     {
       "answer": "{\n  \"counters\": [\n    {\n      \"name\": \"import-spawns\",\n      \"command\": \"printf 'spawns=3\\\\n'\",\n      \"field\": \"spawns\",\n      \"ceiling\": 3,\n      \"goal\": \"startup spawns 5 -> 3. Correlation: unproven: no field data yet\"\n    },\n    {\n      \"name\": \"type-ignores\",\n      \"command\": \"bash count-ignores.sh\",\n      \"field\": \"ignores\",\n      \"ceiling\": 9,\n      \"goal\": \"no new type: ignore comments\"\n    }\n  ]\n}\n",
       "why": "both counters, the new one at 9"
+    },
+    {
+      "answer": "{\n  \"counters\": [\n    {\n      \"name\": \"import-spawns\",\n      \"command\": \"printf 'spawns=3\\\\n'\",\n      \"field\": \"spawns\",\n      \"ceiling\": 3,\n      \"goal\": \"startup spawns 5 -> 3. Correlation: unproven: no field data yet\"\n    },\n    {\n      \"name\": \"type-ignores\",\n      \"command\": \"bash count-ignores.sh\",\n      \"field\": \"ignores\",\n      \"goal\": \"no new type: ignore comments\",\n      \"ceiling\": 9\n    }\n  ]\n}\n",
+      "why": "the key order ratchet.py add writes: goal before ceiling"
     }
   ],
   "fail": [
@@ -13,6 +17,10 @@
     {
       "answer": "{\n  \"counters\": [\n    {\n      \"name\": \"import-spawns\",\n      \"command\": \"printf 'spawns=3\\\\n'\",\n      \"field\": \"spawns\",\n      \"ceiling\": 3,\n      \"goal\": \"startup spawns 5 -> 3. Correlation: unproven: no field data yet\"\n    },\n    {\n      \"name\": \"type-ignores\",\n      \"command\": \"bash count-ignores.sh\",\n      \"field\": \"ignores\",\n      \"ceiling\": 12,\n      \"goal\": \"no new type: ignore comments\"\n    }\n  ]\n}\n",
       "why": "headroom above the measured 9"
+    },
+    {
+      "answer": "{\n  \"counters\": [\n    {\n      \"name\": \"import-spawns\",\n      \"command\": \"printf 'spawns=3\\\\n'\",\n      \"field\": \"spawns\",\n      \"ceiling\": 9,\n      \"goal\": \"startup spawns 5 -> 3. Correlation: unproven: no field data yet\"\n    },\n    {\n      \"name\": \"type-ignores\",\n      \"command\": \"bash count-ignores.sh\",\n      \"field\": \"ignores\",\n      \"goal\": \"no new type: ignore comments\",\n      \"ceiling\": 12\n    }\n  ]\n}\n",
+      "why": "the 9 belongs to the other counter; the new one has headroom"
     }
   ]
 }

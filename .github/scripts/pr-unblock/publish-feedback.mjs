@@ -110,7 +110,7 @@ import {
   staleVerifyNotes,
   trustedHumansFrom,
 } from "./address-feedback.mjs";
-import { DISPUTED, LEFT_OPEN, parseVerdicts, settleDisputes } from "./adjudicate-feedback.mjs";
+import { DISPUTED, FINDING_ANSWERED, LEFT_OPEN, parseVerdicts, settleDisputes } from "./adjudicate-feedback.mjs";
 import { inThreadScope, NOTE_ID, THREAD_ID, threadsNamed } from "./thread-scope.mjs";
 import { stopSkip } from "./escalation-routes.mjs";
 
@@ -144,6 +144,13 @@ const LABELS = {
   UNCERTAIN: "UNCERTAIN, left open",
   "VALID-defer": "VALID (defer), left open",
 };
+
+// Whether a lane reply is one after which a lanes App PR's thread is resolved:
+// the VALID reply (renderReply) or an adjudication that found the finding
+// does not hold (FINDING_ANSWERED). On an owner PR such a thread is left open
+// here, and resolve-threads.mjs resolves it.
+const RESOLVING_FIRST_LINES = new Set([`**pr-unblock / address-feedback: ${LABELS.VALID}**`, FINDING_ANSWERED]);
+export const isResolvingAnswer = (body) => RESOLVING_FIRST_LINES.has(String(body ?? "").split("\n")[0].replace(/\r$/, ""));
 
 class Invalid extends Error {}
 

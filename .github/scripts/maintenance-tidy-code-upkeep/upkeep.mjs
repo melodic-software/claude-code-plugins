@@ -6,8 +6,10 @@
 //   gate [--root <dir>]
 //     Prints the batch as JSON: whether it may run and which areas to sweep,
 //     with `/code-tidying:tidy <glob>` opening one PR per area on the
-//     chore/tidy-adhoc-<slug>-YYYY-MM-DD branch that skill names. Exit 1 when
-//     a read fails: nothing is planned on a count it could not read.
+//     chore/tidy-adhoc-<slug>-YYYY-MM-DD branch that skill names, and the
+//     spec issue each pull request links. Exit 1 when a read fails, or when
+//     upkeep_spec_issue is not set: nothing is planned on a count it could
+//     not read, nor for a pull request with no spec.
 //
 // The gate derives churn from git log, so a push run GitHub lost drops no area
 // (dependabot-fragments.yml records that those happen).
@@ -191,6 +193,9 @@ function downloadRecord(root, artifact) {
 }
 
 function gate(root, now) {
+  // Every pull request links this issue as its spec; without one, pr-verify fails them all.
+  const specIssue = setting(root, "upkeep_spec_issue");
+  if (!specIssue.value) throw new Error(`upkeep_spec_issue is not set (${specIssue.source}); every upkeep pull request links it as its spec, so the batch opens none`);
   const cadence = setting(root, "upkeep_cadence");
   const backstop = setting(root, "upkeep_backstop");
   const count = parseCount(run(root, "bash", [join(TIDY_SCRIPTS, "open-pr-count.sh")]));
@@ -205,7 +210,7 @@ function gate(root, now) {
   const commits = parseLog(run(root, "git", ["log", `--since=${since}`, "--no-renames", "--name-only", "--format=%x00%H %ct"]));
   const paths = run(root, "git", ["ls-files"]).split("\n").filter(Boolean);
   const result = plan({ paths, commits, pulls: [...sweeps, ...openPulls], cleanSweeps, cadence: cadence.value, backstop: backstop.value, ...count, now });
-  return { ...result, settings: { upkeep_cadence: cadence, upkeep_backstop: backstop, upkeep_max_open: count.limit }, open: count.open };
+  return { ...result, settings: { upkeep_cadence: cadence, upkeep_backstop: backstop, upkeep_max_open: count.limit, upkeep_spec_issue: specIssue }, open: count.open };
 }
 
 function detect(root, before, after) {
@@ -245,7 +250,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       console.log(JSON.stringify(result, null, 2));
       if (process.env.GITHUB_OUTPUT) {
         const date = new Date(now).toISOString().slice(0, 10);
-        appendFileSync(process.env.GITHUB_OUTPUT, `proceed=${result.proceed}\nareas=${JSON.stringify(result.areas)}\ndate=${date}\n`);
+        appendFileSync(process.env.GITHUB_OUTPUT, `proceed=${result.proceed}\nareas=${JSON.stringify(result.areas)}\ndate=${date}\nspec-issue=${result.settings.upkeep_spec_issue.value}\n`);
       }
     } catch (error) {
       console.error(`upkeep gate: ${error.message.split("\n")[0]}`);
