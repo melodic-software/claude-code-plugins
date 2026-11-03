@@ -2254,6 +2254,51 @@ test("createGitHub counts the time a failed attempt took against the 60 s budget
   assert.deepEqual(slept, [2000]);
 });
 
+const limitedResponse = (seconds) => {
+  const { status, headers, body } = secondaryLimit(seconds);
+  return new Response(body, { status, headers });
+};
+
+test("createGitHub waits out the rate latch before an attempt's timeout starts, so the resent read goes out live", async () => {
+  const clock = { now: 0 };
+  const latch = createRateLimitLatch({ now: () => clock.now, log: () => {}, fail: () => {}, limits: () => ({}), stopFile: null });
+  // Each sleep moves the latch's clock on and takes 80 ms of real time, past
+  // the 30 ms attempt timeout.
+  const sleep = async (ms) => {
+    clock.now += ms;
+    await new Promise((resolve) => setTimeout(resolve, 80));
+  };
+  const answers = [limitedResponse(1), new Response('[{"number":7}]', { status: 200 })];
+  const aborted = [];
+  const fetchImpl = async (_url, init) => {
+    aborted.push(init.signal.aborted);
+    init.signal.throwIfAborted();
+    return answers.shift();
+  };
+  const github = createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl, latch, sleep, now: () => clock.now, attemptTimeoutMs: 30, random: () => 0, log: () => {} });
+  assert.deepEqual(await github("GET", PULLS_PATH), [{ number: 7 }]);
+  assert.deepEqual(aborted, [false, false], "the resent read goes out once, on a live signal");
+});
+
+test("createGitHub keeps the rate latch's wait out of the 60 s server-retry budget", async () => {
+  const clock = { now: 0 };
+  const latch = createRateLimitLatch({ now: () => clock.now, log: () => {}, fail: () => {}, limits: () => ({}), stopFile: null });
+  const slept = [];
+  const sleep = async (ms) => {
+    slept.push(ms);
+    clock.now += ms;
+  };
+  // A 55 s limit, then a 500 that takes 5 s, then the answer: 5 s of failed
+  // attempts fits the budget, while 56 s of latch wait plus them would not.
+  const answers = [() => limitedResponse(55), () => ((clock.now += 5000), new Response("{}", { status: 500 })), () => new Response('[{"number":7}]', { status: 200 })];
+  let sent = 0;
+  const fetchImpl = async () => answers[sent++]();
+  const github = createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl, latch, sleep, now: () => clock.now, random: () => 0, log: () => {} });
+  assert.deepEqual(await github("GET", PULLS_PATH), [{ number: 7 }]);
+  assert.equal(sent, 3);
+  assert.deepEqual(slept, [56_000, 0]);
+});
+
 const FAKE_TOKEN = "fake-secret-marker-9c41";
 
 test("createGitHub raises a non-network fetch error at once and never logs its message", async () => {

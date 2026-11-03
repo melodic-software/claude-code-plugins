@@ -218,6 +218,9 @@ export function retryServerErrors(
     const method = init.method ?? "GET";
     const idempotent = method === "GET" || (method === "POST" && graphqlQuery(url, init));
     for (let attempt = 0; ; attempt += 1) {
+      // The latch's wait comes before the attempt's timeout and clock start, so
+      // it neither aborts the attempt nor counts against the retry budget.
+      await latch.waitOut(url, method, sleep);
       // Only an idempotent request is timed out: a write GitHub accepted slowly
       // must not look failed, so writes keep only the caller's signal.
       const timeout = idempotent ? AbortSignal.timeout(attemptTimeoutMs) : undefined;

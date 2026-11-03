@@ -661,6 +661,9 @@ export function createRateLimitLatch({
       }
     },
     belowFloor: (url) => low.get(poolOf(url)) === true,
+    // Waits out url's stop when it fits the budget (with wait, the latch's own
+    // sleep when unset), so a caller can wait before it starts its own timers.
+    waitOut,
     // A fetch that waits out a stop that fits the budget (with sleep, the
     // latch's own when unset), checks the latch before each request, counts a
     // content-creating write, and reads each answer, keeping its rate-limit
