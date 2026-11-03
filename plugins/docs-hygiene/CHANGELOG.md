@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [2.4.1] - 2026-11-03
+
+### Changed
+
+- Cross-references to `code-tidying`'s comment skills now name `/code-tidying:remove-comments`, which replaces `dissolve-comments`, and its `audit` action.
+
 ## [2.4.0] - 2026-11-03
 
 ### Changed

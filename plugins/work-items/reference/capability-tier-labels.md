@@ -21,8 +21,8 @@ the general adaptive cap ceiling. A body or brief that mentions frontier tier is
 operator; it does not select the quota guard.
 
 **Security-surface dispatch is separate.** Security-surface work still routes to the frontier
-capability tier for model selection via work-class rules in the admission gate. That path does
-not substitute for the label when the quota guard needs to bind.
+capability tier for model selection, per the convention's tier rules. That path does not
+substitute for the label when the quota guard needs to bind.
 
 ## Escalation
 

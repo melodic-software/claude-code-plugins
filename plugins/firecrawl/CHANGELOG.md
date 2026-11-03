@@ -3,6 +3,22 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0] - 2026-11-03
+
+### Added
+
+- `batch-scrape` in `/firecrawl:firecrawl`, for many known URLs as one job
+
+### Changed
+
+- sync the wrapper skill with upstream and `firecrawl-cli` 1.26.24
+
+  `search-feedback` documents `--valuable-results` for returned results and
+  narrows `--valuable-sources` to URLs the search did not return. `crawl`
+  documents blocking on a job id and writes `--status` output to disk. The
+  wrapper no longer says the CLI reads exactly three env vars.
+  `/firecrawl:update` records the new upstream hash and CLI version.
+
 ## [0.7.8] - 2026-11-02
 
 ### Changed

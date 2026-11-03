@@ -124,14 +124,14 @@ test("a ready PR a person opened that changes Markdown is dispatched pr-refine.y
   assert.ok(lines.includes("fix-docs listing page 1: rateLimit.cost=3 remaining=4990"), "the listing's cost is logged");
 });
 
-test("a rate-limited run listing defers with a warning; any other listing error fails", async () => {
+test("a run listing that cannot be read, rate-limited or not, defers with a warning and fails nothing", async () => {
   const limited = Object.assign(new Error("GET runs returned 403"), { rateLimited: true });
   const deferred = await run({ pages: [[pr(5)]], workflowRuns: limited });
   assert.deepEqual(deferred.result, { dispatched: [], failed: 0 });
   assert.ok(deferred.lines.some((line) => line.startsWith("::warning::") && line.includes("rate limited")));
   const broken = await run({ pages: [[pr(5)]], workflowRuns: new Error("GET runs returned 404") });
-  assert.deepEqual(broken.result, { dispatched: [], failed: 1 });
-  assert.ok(broken.lines.some((line) => line.startsWith("::error::") && line.includes("404")));
+  assert.deepEqual(broken.result, { dispatched: [], failed: 0 });
+  assert.ok(broken.lines.some((line) => line.startsWith("::warning::") && line.includes("could not be read") && line.includes("404")));
 });
 
 test("a PR that changes no Markdown file is not dispatched; a file list cut off at 100 leaves it to the lane", async () => {
@@ -346,10 +346,11 @@ test("a fix-docs run that pushed its lanes App commit is left alone: its check i
   assert.ok(isHandled(record, CHECK, pr(53).headRefOid));
 });
 
-test("a failed history read counts as a failure and dispatches nothing for that PR", async () => {
-  const { api, result } = await run({ pages: [[pr(60), pr(61)]], failHistory: new Set([60]) });
+test("a failed history read skips that PR with a warning, fails nothing, and the others still go", async () => {
+  const { api, lines, result } = await run({ pages: [[pr(60), pr(61)]], failHistory: new Set([60]) });
   assert.deepEqual(numbers(api), ["61"]);
-  assert.equal(result.failed, 1);
+  assert.equal(result.failed, 0);
+  assert.ok(lines.includes("::warning::#60: could not read fix-docs history or holds: history read failed; skipped, a later run retries"), lines.join("\n"));
 });
 
 test("every listing page is read", async () => {
@@ -437,19 +438,20 @@ test("maxRunsPerHead sets the cap", async () => {
   assert.ok(isHandled(record, CHECK, pr(83).headRefOid));
 });
 
-test("a head whose runs cannot be read is not dispatched: a rate limit or a server error warns, any other error fails", async () => {
-  const cases = [
-    [Object.assign(new Error("GET jobs returned 403"), { rateLimited: true }), 0],
-    [Object.assign(new Error("GET jobs returned 502"), { status: 502 }), 0],
-    [Object.assign(new Error("GET jobs returned 401"), { status: 401 }), 1],
+test("a head whose runs cannot be read is not dispatched: a rate limit, a server error or any other answer warns and fails nothing", async () => {
+  const errors = [
+    Object.assign(new Error("GET jobs returned 403"), { rateLimited: true }),
+    Object.assign(new Error("GET jobs returned 502"), { status: 502 }),
+    Object.assign(new Error("GET jobs returned 401"), { status: 401 }),
   ];
-  for (const [error, failed] of cases) {
+  for (const error of errors) {
     const record = emptyRecord();
     kept(record, 84, ["401", "402", "403"]);
     const runJobs = new Map([["401", EMPTY_HEAD], ["402", error], ["403", EMPTY_HEAD]]);
-    const { api, result } = await run({ pages: [[pr(84)]], runJobs }, { record });
+    const { api, lines, result } = await run({ pages: [[pr(84)]], runJobs }, { record });
     assert.deepEqual(numbers(api), [], error.message);
-    assert.equal(result.failed, failed, error.message);
+    assert.equal(result.failed, 0, error.message);
+    assert.ok(lines.some((line) => line.startsWith("::warning::#84:") && line.includes(error.message)), error.message);
     assert.equal(isHandled(record, CHECK, pr(84).headRefOid), false, error.message);
     assert.deepEqual(record.docsRuns.get(pr(84).headRefOid), ["401", "402", "403"], error.message);
   }

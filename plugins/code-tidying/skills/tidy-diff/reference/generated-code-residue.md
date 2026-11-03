@@ -22,7 +22,7 @@ below that they still carry is named in the report.
 The **In tidy-diff** column says what the pass does with each finding:
 
 - **pass 2**: pass 2 has already triaged the comment, since
-  [triage.md](../../dissolve-comments/reference/triage.md) gives each comment kind below its class,
+  [triage.md](../../remove-comments/reference/triage.md) gives each comment kind below its class,
   and deleted it behind the COMMENT-ONLY proof or made it a proposal. This pass edits no comment;
   a comment pass 2 kept is named in the report beside pass 2's verdict, and a comment that an edit
   of this pass invalidates, or that the closing read flags, is a proposal.
@@ -37,7 +37,7 @@ The **In tidy-diff** column says what the pass does with each finding:
 
 One test covers every comment: **does it state something the code cannot?** A constraint, a unit,
 a tradeoff, the bug it works around: keep. Everything else: delete. The classes that apply that
-test live in [triage.md](../../dissolve-comments/reference/triage.md).
+test live in [triage.md](../../remove-comments/reference/triage.md).
 
 | Residue | Detection cue | Fix | In tidy-diff |
 |---|---|---|---|

@@ -3,6 +3,15 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.16] - 2026-11-03
+
+### Changed
+
+- `/repo-fleet-hygiene:audit` no longer restates git worktree list ordering, GitHub's GraphQL
+  limits, Git Bash's handling of Windows junctions, or what `core.bare` does and its remedy
+  command (`bare-repo-with-working-tree` stays manual review). It keeps its own
+  rules and links the upstream sections with an as-of date and a recheck trigger.
+
 ## [0.28.15] - 2026-11-02
 
 ### Changed

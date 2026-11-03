@@ -71,7 +71,8 @@
 //   included; one that names a billing account is a paid eval), a live
 //   Claude Code CLI run, a run repeated N times, a
 //   measurement over time, a comment on the issue instead of a file change,
-//   or a page on a host outside resolve-issue's web-access domains. When some
+//   a page on a host outside resolve-issue's web-access domains, or a row of
+//   .github/actions/resolve-config/unrunnable-rules.json. When some
 //   items are left for the lane and the issue lacks `host-run`, the refusal
 //   holds at needs-decision and recommends splitting those items off, which
 //   refine.mjs records; otherwise it parks at status: confirmed, adding
@@ -469,9 +470,12 @@ const EVAL_PATTERN = new RegExp(
 const SCRIPT_NOUN = String.raw`(?:workflow|script|lane|app|hook|skill|action|job|bot|sweep)`;
 const CONDITIONAL = /^\s*(?:if|when|whenever|unless|once)\b/i;
 const BY_SCRIPT = new RegExp(String.raw`^[^.;]*\bby (?:the )?(?:\S+\.(?:mjs|js|ts|sh|py|ps1)|(?:\S+ )?${SCRIPT_NOUN})\b`, "i");
+// The unrunnable-rules.json row whose eval item, naming a billing account, is
+// a paid eval too.
+const EVAL_RULE = "eval";
+// The built-in kinds; unrunnableCriteria tries a paid eval first, so a billed
+// eval on a named host still goes to the owner, and the rules rows last.
 const UNRUNNABLE = [
-  // First, so a billed eval on a named host still goes to the owner.
-  [PAID_EVAL, { test: (text) => EVAL_PATTERN.test(text) && BILLED.test(text) }],
   [
     "a run on a host the lane is not",
     /\b(?:on|from|in) (?:a |an |the |another |each )?(?:windows(?: 1[01])?|macos|mac|wsl2?|fleet|physical|desktop|remote|attended) (?:host|machine|workstation|laptop|desktop|box|vm)s?\b/i,
@@ -648,13 +652,18 @@ export const taskItems = (body, taskList) => {
 // perform, each item's text read as plainText. `webHosts` is resolve-issue's
 // web-access domains: "any" skips the URL check, an absent list allows only
 // GitHub and local hosts, and a `*.` entry allows that domain's subdomains.
-// Pure.
-export function unrunnableCriteria(body, taskList, webHosts) {
+// `rules` is unrunnableRulesOf's [kind, {test}] rows, tried after the
+// built-in kinds. Pure but for `rules`, read from unrunnable-rules.json when
+// not given; a file that does not read throws (issueUnrunnableRules).
+export function unrunnableCriteria(body, taskList, webHosts, rules = issueUnrunnableRules()) {
   const allowed = webHosts === "any" ? null : allowedBy([...GITHUB_HOSTS, ...(Array.isArray(webHosts) ? webHosts : [])].map((h) => h.toLowerCase()));
+  const evals = rules.filter(([kind]) => kind === EVAL_RULE);
+  const paid = { test: (text) => BILLED.test(text) && (EVAL_PATTERN.test(text) || evals.some(([, row]) => row.test(text))) };
+  const kinds = [[PAID_EVAL, paid], ...UNRUNNABLE, ...rules];
   const items = taskItems(body, taskList).map(({ text }) => plainText(text));
   const found = [];
   items.forEach((text, index) => {
-    let kind = UNRUNNABLE.find(([, pattern]) => pattern.test(text))?.[0];
+    let kind = kinds.find(([, pattern]) => pattern.test(text))?.[0];
     if (!kind && allowed) {
       // Clauses split on , ; and a colon that does not start ://.
       const outside = text
@@ -694,6 +703,39 @@ let pushRefusalNames;
 export function issuePushRefusals() {
   pushRefusalNames ??= pushRefusalsOf(new URL("../../actions/resolve-config/patch-rules.json", import.meta.url));
   return pushRefusalNames;
+}
+
+// [kind, {test}] for each `rules` row of the unrunnable-rules.json at `path`:
+// `match` finds the item and `unless`, when not null, does not. An empty
+// `rules`, a row without a kind or `match`, or a pattern that does not compile
+// throws, so admission fails closed rather than admit an item a row holds.
+export function unrunnableRulesOf(path) {
+  const { rules } = JSON.parse(readFileSync(path, "utf8"));
+  if (!Array.isArray(rules) || rules.length === 0) {
+    throw new Error(`${path}: \`rules\` must list at least one row`);
+  }
+  return rules.map((row, index) => {
+    const pattern = (key) => {
+      if (typeof row?.[key] !== "string" || row[key] === "") {
+        throw new Error(`${path}: rules[${index}] \`${key}\` must be a pattern`);
+      }
+      return new RegExp(row[key], "i");
+    };
+    if (typeof row?.kind !== "string" || row.kind === "") {
+      throw new Error(`${path}: rules[${index}] needs a kind`);
+    }
+    const match = pattern("match");
+    const unless = row.unless === null ? null : pattern("unless");
+    return [row.kind, { test: (text) => match.test(text) && !unless?.test(text) }];
+  });
+}
+
+let unrunnableRows;
+// unrunnableRulesOf the default branch's unrunnable-rules.json beside this
+// script, read once.
+export function issueUnrunnableRules() {
+  unrunnableRows ??= unrunnableRulesOf(new URL("../../actions/resolve-config/unrunnable-rules.json", import.meta.url));
+  return unrunnableRows;
 }
 
 let chargeWords;
@@ -1258,7 +1300,9 @@ export function admissionSettled(labels, events, isMark) {
 // (admissionFacts, chargeEditsOf) each refuse, and hold for a person unless
 // the read failed. Pure but for
 // `pushRefusals` and `charges`, read from patch-rules.json and
-// charge-words.json when not given; a file that does not read, or a
+// charge-words.json when not given, and unrunnable-rules.json
+// (unrunnableCriteria); a file that does not read, a malformed
+// unrunnable-rules.json (unrunnableRulesOf), or a
 // patch-rules.json row that refuses no protected path (pushRefusalsOf),
 // throws out of decide, so no issue is admitted on a guess.
 // `reported` (admissionFacts) maps a blocker the lanes App closed

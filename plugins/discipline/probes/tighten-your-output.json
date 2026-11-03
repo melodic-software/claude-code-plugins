@@ -7,7 +7,7 @@
     "writing:be-concise",
     "docs-hygiene:compress",
     "adhd:shape",
-    "code-tidying:dissolve-comments",
+    "code-tidying:remove-comments",
     "discipline:mind-your-maxims"
   ],
   "queries": [
