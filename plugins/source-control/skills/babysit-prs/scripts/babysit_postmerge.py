@@ -519,9 +519,14 @@ def _time(value: Any) -> datetime:
     return parsed
 
 
-def _call(args: list[str], label: str, error: type[RuntimeError]) -> Any:
+def _call(
+    args: list[str],
+    label: str,
+    error: type[RuntimeError],
+    env: Mapping[str, str] | None = None,
+) -> Any:
     try:
-        proc = gh_capture(args)
+        proc = gh_capture(args, env_overrides=env) if env else gh_capture(args)
     except (RuntimeError, ValueError, OSError) as exc:
         raise error(f"{label}: {exc}") from exc
     if proc.returncode != 0:
@@ -532,8 +537,8 @@ def _call(args: list[str], label: str, error: type[RuntimeError]) -> Any:
         raise error(f"{label}: {exc}") from exc
 
 
-def _read(args: list[str], label: str) -> Any:
-    return _call(args, label, PostMergeReadError)
+def _read(args: list[str], label: str, env: Mapping[str, str] | None = None) -> Any:
+    return _call(args, label, PostMergeReadError, env)
 
 
 def _write(args: list[str], label: str) -> Any:
@@ -4081,8 +4086,13 @@ def read_anchor(
     branch (default: the default branch) and identity, read once per process.
     At most ANCHOR_LISTING_PAGES listing pages and ANCHOR_READ_LIMIT REST
     reads; a read past them, a failed read, a refused or expired artifact and
-    a key mismatch are all None, so the caller keeps the policy floor."""
+    a key mismatch are all None, so the caller keeps the policy floor.
+    The Actions reads (listing, run record, download) use
+    `policy.ACTIONS_TOKEN_ENV`'s token when set: in pr-merge's gate steps
+    GH_TOKEN is the lane token, which holds no Actions permission."""
     now = now or datetime.now(UTC)
+    token = os.environ.get(policy.ACTIONS_TOKEN_ENV)
+    actions_env = {"GH_TOKEN": token} if token else None
     reads = 0
     try:
         owner, name = _split_repo(repo)
@@ -4110,6 +4120,7 @@ def read_anchor(
                         f"&per_page=100&page={page}",
                     ],
                     "anchor artifacts",
+                    actions_env,
                 )
             )
             items = list(map(json_object, json_array(listing.get("artifacts"))))
@@ -4128,7 +4139,11 @@ def read_anchor(
                     return None
                 reads += 1
                 record = json_object(
-                    _read(["api", f"repos/{repo}/actions/runs/{run_id}"], f"run {run_id}")
+                    _read(
+                        ["api", f"repos/{repo}/actions/runs/{run_id}"],
+                        f"run {run_id}",
+                        actions_env,
+                    )
                 )
                 if not ctx._lane_sender(record, ANCHOR_EVENTS):
                     continue
@@ -4136,6 +4151,7 @@ def read_anchor(
                 proc = gh_capture(
                     ["api", f"repos/{repo}/actions/artifacts/{item['id']}/zip"],
                     binary=True,
+                    env_overrides=actions_env,
                 )
                 if proc.returncode == 0:
                     anchor = _anchor_from(

@@ -21,12 +21,14 @@ import contextlib
 import dataclasses
 import io
 import json
+import os
 import pathlib
 import re
 import subprocess
 import sys
 import tempfile
 import unittest
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import parse_qsl
@@ -200,6 +202,8 @@ class FakeGh:
 
     def __init__(self) -> None:
         self.calls: list[list[str]] = []
+        # The GH_TOKEN override each call sent, by call; None for none.
+        self.tokens: list[str | None] = []
         self.merged: list[dict[str, Any]] = [merged_pr()]
         self.runs: dict[tuple[str, str], list[dict[str, Any]]] = {}
         self.attempts: dict[tuple[int, int], dict[str, Any]] = {}
@@ -281,8 +285,10 @@ class FakeGh:
         *,
         timeout_seconds: float | None = None,
         binary: bool = False,
+        env_overrides: Mapping[str, str] | None = None,
     ) -> subprocess.CompletedProcess[Any]:
         self.calls.append(list(args))
+        self.tokens.append((env_overrides or {}).get("GH_TOKEN"))
         joined = " ".join(args)
         for key in self.fail_reads:
             if key in joined:
@@ -4754,6 +4760,27 @@ class LaneFloorAnchor(CheckCase):
         pm._anchor_cache.clear()
         later = ANCHOR_AT + timedelta(hours=1)
         self.assertEqual(pm.lane_floor(REPO, IDENTITY, later)[0], later)
+
+    def test_the_actions_reads_use_the_job_token_when_one_is_set(self) -> None:
+        # pr-merge's gate steps run under the lane token, which holds no
+        # Actions permission, and pass the job token beside it.
+        self.publish(passed=[7002])
+        for token in ("job-tok", None):
+            with self.subTest(token=token):
+                self.gh.calls.clear()
+                self.gh.tokens.clear()
+                env = {pm.policy.ACTIONS_TOKEN_ENV: token} if token else {}
+                with mock.patch.dict("os.environ", env, clear=False):
+                    if not token:
+                        os.environ.pop(pm.policy.ACTIONS_TOKEN_ENV, None)
+                    self.assertIsNotNone(self.read())
+                sent = {
+                    " ".join(c): t
+                    for c, t in zip(self.gh.calls, self.gh.tokens, strict=True)
+                    if "/actions/" in " ".join(c)
+                }
+                self.assertEqual(len(sent), 3)
+                self.assertEqual(set(sent.values()), {token})
 
     def test_each_refused_sender_or_key_leaves_the_policy_floor(self) -> None:
         refusals: dict[str, tuple[dict[str, Any], dict[str, Any], dict[str, Any]]] = {
