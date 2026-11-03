@@ -522,21 +522,23 @@ test("ci-status holds a trusted-actor list widening until a trusted person appro
   assert.equal((await ci([[ACTORS, ".github/standards/trusted-actors/old.json", "renamed"]], { list: { [BASE]: listOf(KYLE), [HEAD]: listOf(KYLE) } })).code, 1);
 });
 
-// A body's hold text counts only when a person wrote some of it.
-test("a body hold counts only when a person wrote or edited the body", async () => {
-  const body = "Closes #40\n\nHold: wait for the release.";
-  const bot = { __typename: "Bot" };
-  const appOnly = await ci(["docs/a.md"], { body, writers: { author: bot, userContentEdits: { totalCount: 0, nodes: [] } } });
-  assert.equal(appOnly.code, 0, appOnly.out);
-  assert.match(appOnly.out, /hold text is the lanes App's own/);
-  const edited = await ci(["docs/a.md"], { body, writers: { author: bot, userContentEdits: { totalCount: 1, nodes: [{ editor: { __typename: "User" } }] } } });
-  assert.equal(edited.code, 1);
-  assert.match(edited.out, /its body holds it/);
-  // An edit list not read whole, or a failed read, counts as a person.
-  const cut = await ci(["docs/a.md"], { body, writers: { author: bot, userContentEdits: { totalCount: 101, nodes: [] } } });
-  assert.equal(cut.code, 1);
-  const unread = await ci(["docs/a.md"], { body, writers: "fail" });
-  assert.equal(unread.code, 1);
+// ci-status judges no body hold text, whoever wrote it: the lanes App's hold
+// line puts on `do-not-merge`. A hold path or a member's veto beside it holds.
+test("ci-status holds no body hold text, even a person's; a hold path or a member's veto still holds", async () => {
+  const body = "Closes #40\n\nHold: wait for the release.\n\ndo not merge";
+  const person = { __typename: "User" };
+  const written = await ci(["docs/a.md"], { body, writers: { author: person, userContentEdits: { totalCount: 0, nodes: [] } } });
+  assert.equal(written.code, 0, written.out);
+  assert.match(written.out, /^#99: no body hold, no member veto and no hold path\.$/m);
+  const pathed = await ci(["docs/held.md"], { body, denied: ["docs/held.md"] });
+  assert.equal(pathed.code, 1, pathed.out);
+  assert.match(pathed.out, /it changes docs\/held\.md, a hold path/);
+  assert.doesNotMatch(pathed.out, /its body holds it/);
+  const veto = { id: 1, user: { login: "kyle", id: 7, type: "User" }, author_association: "MEMBER", created_at: "2026-10-23T10:00:00Z", body: "Please do not merge this yet." };
+  const vetoed = await ci(["docs/a.md"], { body, reviews: [veto] });
+  assert.equal(vetoed.code, 1, vetoed.out);
+  assert.match(vetoed.out, /kyle asked not to merge it/);
+  assert.doesNotMatch(vetoed.out, /its body holds it/);
 });
 
 test("ci-status holds a cost path that an approval does not lift, and the owner's decision does", async () => {
@@ -1549,7 +1551,6 @@ test("queueHolds: each hold label holds with ci-status's text", () => {
     ["do-not-merge", "#7 carries the 'do-not-merge' label; the merge queue removes it. Remove the label and re-queue to merge."],
     ["needs-human", "#7 carries 'needs-human'; the merge queue removes it. Removing the label approves this pull request; re-queue it to merge."],
     ["pr-verify-failed", "#7 carries 'pr-verify-failed': pr-verify failed its head, and a pass at a new commit removes the label. The merge queue removes it; re-queue it once the label is off."],
-    ["human-merge-hold", "#7 carries 'human-merge-hold': a person merges it. The merge queue removes it; a person on the trusted-actor list removing the label approves it, then re-queue it to merge."],
     ["security: outside-actor", "#7 carries 'security: outside-actor': someone outside the organization wrote on it, and only a person removes the label. Re-queue it once the label is off."],
   ]) {
     assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull({ labels: [{ name: "bug" }, { name: label }] }), statuses: [] }), [want], label);
@@ -1576,14 +1577,13 @@ test("queueHolds: the human-gated label is the tracker's, trimmed, else needs-hu
   }
 });
 
-test("queueHolds: a pr-unblock stop on the head holds; a newer success or another account's status does not", () => {
+test("queueHolds: a pr-unblock stop on the head holds nothing; the do-not-merge label does", () => {
   const lane = { login: "github-actions[bot]" };
   const failure = { context: "pr-unblock/fix-ci", state: "failure", creator: lane, description: "The lane stopped" };
-  assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull(), statuses: [failure] }), [
-    `'pr-unblock/fix-ci' is failure on ${QUEUED}: The lane stopped. The lane that stopped clears it by running again on this head, or a new head carries none.`,
+  assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull(), statuses: [failure] }), []);
+  assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull({ labels: [{ name: "do-not-merge" }] }), statuses: [failure] }), [
+    "#7 carries the 'do-not-merge' label; the merge queue removes it. Remove the label and re-queue to merge.",
   ]);
-  assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull(), statuses: [{ ...failure, state: "success" }, failure] }), []);
-  assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull(), statuses: [{ ...failure, creator: { login: "someone" } }] }), []);
 });
 
 test("queueHolds: the kill switch holds only the lanes App's pull request, until both read false", () => {
@@ -1606,7 +1606,6 @@ test("queueHolds: the kill switch holds only the lanes App's pull request, until
 test("queueHolds: a pull request, label list or status list that does not read throws", () => {
   assert.throws(() => holdsModule.queueHolds({ pull: { number: 7, head: {} }, statuses: [] }), /does not read/);
   assert.throws(() => holdsModule.queueHolds({ pull: queuedPull({ labels: null }), statuses: [] }), /labels are not a list/);
-  assert.throws(() => holdsModule.queueHolds({ pull: queuedPull(), statuses: {} }), /not a list/);
 });
 
 // A member naming "the do-not-merge label" is not asking to hold the merge.

@@ -19,7 +19,7 @@ import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CI_WORKFLOWS, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, PR_UNBLOCK_STOP_NOTE, prefilterSpec, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, SETTLED_VERSION, TOO_OLD_DAYS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
+import { CI_WORKFLOWS, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, SETTLED_VERSION, TOO_OLD_DAYS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
 import { switchHold } from "../pr-merge/merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -1733,12 +1733,8 @@ test("ci-status's lanes-hold step still fails a lanes App PR with the kill-switc
   assert.ok(switchHold(lanes, { appId: "7", disabled: "true", repoDisabled: "false" }).startsWith(`#1: ${KILL_SWITCH_NOTE} (`));
 });
 
-// Any PR whose newest pr-require-checks run failed only in ci-status, on its
-// first attempt, on the pr-unblock step's notes: once no pr-unblock/* status
-// by github-actions[bot] fails the head (the lane's clear posted success over
-// its stop), that ci-status is re-run, recorded as attempt 2. The notes are
-// the ones ci-status wrote on #10828's head (check run 123256890668), and the
-// step's line is pinned below.
+// A ci-status that failed on a pr-unblock stop note (the step ci-status no
+// longer has) is not re-run: the reconciler has no stop kind.
 const STOP_LINE = (context = "pr-unblock/address-feedback", head = sha(1)) =>
   `'${context}' is failure on ${head}: Lane stopped: feedback-untaken-threads; checked again on a new head. The lane that stopped clears it by running again on this head, or a new head carries none.`;
 const stopJobs = ({ notes = [STOP_LINE()] } = {}) => [
@@ -1761,75 +1757,11 @@ const unblockStatus = (state, { context = "pr-unblock/address-feedback", creator
 // Newest first, as GitHub lists them: the clear over the stop.
 const cleared = (head = sha(1)) => ({ [head]: [unblockStatus("success"), unblockStatus("failure")] });
 
-test("a ci-status a pr-unblock stop failed is re-run once after the lane clears the stop, recorded, past the lookback", async () => {
-  for (const created of ["2026-10-19T19:00:00Z", "2026-10-12T19:00:00Z"]) {
-    const { code, outputs, reruns, failedJobReruns, calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: stopJobs(), created })], statuses: cleared() });
-    assert.equal(code, 0);
-    assert.deepEqual(failedJobReruns, [101]);
-    assert.deepEqual(reruns, []);
-    assert.deepEqual(records(outputs), [`reconcile-rerun-101-2-${sha(1)}`, "", ""]);
-    assert.ok(calls.includes(`GET /repos/${REPO}/commits/${sha(1)}/statuses?per_page=100&page=1`));
-  }
-  const again = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: stopJobs(), attempt: 2 })], statuses: cleared() });
-  assert.equal(again.code, 0);
-  assert.deepEqual(again.failedJobReruns, []);
-});
-
-test("a ci-status re-run waits for every pr-unblock stop on the head to clear, and reads only github-actions[bot]'s statuses", async () => {
-  const notes = [STOP_LINE(), STOP_LINE("pr-unblock/fix-ci")];
-  const statuses = { [sha(1)]: [unblockStatus("success"), unblockStatus("error", { context: "pr-unblock/fix-ci" }), unblockStatus("failure")] };
-  const standing = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: stopJobs({ notes }) })], statuses });
-  assert.deepEqual(standing.failedJobReruns, []);
-  const other = { [sha(1)]: [unblockStatus("success", { creator: { login: "someone" } }), unblockStatus("failure")] };
-  const forged = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: stopJobs() })], statuses: other });
-  assert.deepEqual(forged.failedJobReruns, []);
-});
-
-test("a ci-status with no pr-unblock stop note, or another failure beside it, is not re-run and its statuses are not read", async () => {
-  const cases = [
-    stopJobs({ notes: ["#1: the PR body holds it"] }),
-    stopJobs({ notes: [] }),
-    stopJobs({ notes: [STOP_LINE(), "the pull request title is not in Conventional Commits form"] }),
-    stopJobs().map((j) => (j.name === "ci-status" ? { ...j, notes: [...j.notes, { annotation_level: "failure", message: "Process completed with exit code 1." }] } : j)),
-  ];
-  for (const jobs of cases) {
-    const { code, calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs })], statuses: cleared() });
-    assert.equal(code, 0);
-    assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
-    assert.ok(!calls.some((c) => c.includes("/statuses")));
-  }
-  const passed = await reconcile({ pulls: [pr(1)], runs: [run(101, sha(1), { conclusion: "success" })], statuses: cleared() });
-  assert.deepEqual(passed.calls.filter((c) => c.startsWith("POST ") || c.includes("/statuses")), []);
-});
-
-test("an unreadable status list re-runs nothing and fails no listing", async (t) => {
-  const log = t.mock.method(console, "log", () => {});
-  const fail = { [`GET /repos/${REPO}/commits/${sha(1)}/statuses?per_page=100&page=1`]: new Error("HTTP 502") };
-  const { code, calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: stopJobs() })], statuses: cleared(), fail });
+test("a ci-status that failed on a pr-unblock stop note is not re-run, even once the stop cleared", async () => {
+  const { code, calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: stopJobs() })], statuses: cleared() });
   assert.equal(code, 0);
   assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
-  assert.ok(log.mock.calls.some((c) => String(c.arguments[0]).includes("#1: its pr-unblock statuses could not be read (HTTP 502)")));
-});
-
-test("a failed ci-status re-run after a cleared stop is a warning, and the run still passes", async (t) => {
-  const log = t.mock.method(console, "log", () => {});
-  const fail = { [`POST /repos/${REPO}/actions/runs/101/rerun-failed-jobs`]: new Error("HTTP 500") };
-  const { code, calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: stopJobs() })], statuses: cleared(), fail });
-  const lines = log.mock.calls.map((c) => String(c.arguments[0]));
-  assert.equal(code, 0);
-  assert.ok(calls.includes(`POST /repos/${REPO}/actions/runs/101/rerun-failed-jobs`));
-  assert.ok(lines.includes("::warning title=reconcile::#1 run 101: HTTP 500"));
-  assert.ok(!lines.some((l) => l.startsWith("::error")));
-});
-
-test("ci-status's pr-unblock step still writes the stop note the reconciler matches", () => {
-  const workflow = readFileSync(new URL("../../workflows/pr-require-checks.yml", import.meta.url), "utf8");
-  const step = /- name: Fail a head a pr-unblock lane stopped\n(?:(?:[ ]{8,}.*)?\n)+/.exec(workflow)?.[0] ?? "";
-  const line = step.split("\n").find((l) => l.includes(`echo "::error::'$context' is $state on $head: `));
-  assert.ok(line, "the stop error line is in the step");
-  assert.match(step, /done <<<"\$failing"\n[ ]+exit 1\n/);
-  assert.match(STOP_LINE("pr-unblock/conflict"), PR_UNBLOCK_STOP_NOTE);
-  assert.doesNotMatch(STOP_LINE("ci-lanes"), PR_UNBLOCK_STOP_NOTE);
+  assert.ok(!calls.some((c) => c.includes("/statuses")));
 });
 
 // A hosted review run the upstream-status gate stopped: its kill-switch job
