@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# test-scope: plugins/discovery/scripts/check-source-applicability.py
 # Black-box contract test for check-author-kind.py.
 #
 # Self-contained and cwd-independent; mutates only its own guarded mktemp dir.
