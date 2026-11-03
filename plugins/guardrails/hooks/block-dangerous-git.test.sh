@@ -766,7 +766,9 @@ run "here-docs nested nine deep, a \`!(x)#\` at each opener, padding innermost (
 bdg_ms=$(((${EPOCHREALTIME/./} - bdg_t0) / 1000))
 if ((bdg_ms < 10000)); then ok "nine nested !(x)# here-docs finish in ${bdg_ms} ms (under 10000)"; else bad "nine nested !(x)# here-docs took ${bdg_ms} ms (limit 10000)"; fi
 bdg_t0=${EPOCHREALTIME/./}
-run "here-docs nested nine deep, a \`!(x)#<<F\` at each opener, padding innermost (allowed)" "$(hd_nest_amb 9 "${bdg_pad#?}" '; !(x)#<<F')" 0
+# The innermost `<<F` has no body, so the here-doc never closes: bash runs the
+# rest with a warning, shfmt rejects it, and the guard refuses (exit 2).
+run "here-docs nested nine deep, a \`!(x)#<<F\` at each opener, the innermost unclosed (refused)" "$(hd_nest_amb 9 "${bdg_pad#?}" '; !(x)#<<F')" 2
 bdg_ms=$(((${EPOCHREALTIME/./} - bdg_t0) / 1000))
 if ((bdg_ms < 10000)); then ok "nine nested !(x)#<<F here-docs finish in ${bdg_ms} ms (under 10000)"; else bad "nine nested !(x)#<<F here-docs took ${bdg_ms} ms (limit 10000)"; fi
 run "unquoted heredoc body \$((1 + 2)) (allowed)" $'cat <<EOF\n$((1 + 2))\nEOF' 0
@@ -836,11 +838,14 @@ run "env-defined alias whose env name collides with an internal global (blocked)
 run "--config-env setting a NON-alias key (allowed)" "git --config-env=core.pager=PAGERVAR status" 0
 run "--config-env alias for a subcommand that is NOT invoked (allowed)" "git --config-env=alias.foo=AV status" 0
 run "inline value last-wins over an earlier --config-env for the same key (allowed)" "git --config-env=alias.rh=AV -c alias.rh=status rh" 0
-# A `$( )` env name is command-substituted by the shell before git and split by the
-# static parser — neither evaluates it, so no exec and nothing dangerous runs (git-fatal).
+# A `$( )` env name is command-substituted by the shell before git runs, so the
+# alias is whatever the substitution prints and the guard cannot read it: it
+# refuses. The substitution can name a variable holding a `!` alias that runs
+# (`NAME='!touch f' git --config-env=alias.rh=$(printf NAME) rh` creates f).
+# The guard itself still evaluates nothing.
 rm -f "$TEST_TMPDIR/pwned-dg"
-run "injection-shaped config-env env name (allowed — never evaluated)" \
-  "git --config-env=alias.rh=\$(touch $TEST_TMPDIR/pwned-dg) rh" 0
+run "injection-shaped config-env env name (blocked — the alias is not readable)" \
+  "git --config-env=alias.rh=\$(touch $TEST_TMPDIR/pwned-dg) rh" 2
 assert_file_absent "config-env injection: no exec for a shell-metachar env name" "$TEST_TMPDIR/pwned-dg"
 run "command -p git reset --hard (command wrapper option, blocked)" "command -p git reset --hard" 2
 run "command -- git reset --hard (command end-of-options, blocked)" "command -- git reset --hard" 2
@@ -2572,22 +2577,29 @@ run_pwsh "PS: quoted Path+Value flanked by an apostrophe (allowed — #2906 cont
 # subject through a substitution. A host without a working strace (Windows Git
 # Bash, macOS) skips visibly; the Linux CI lane is where the pins hold.
 #
-# The benign pin is EXACT on purpose. The two creations that used to remain
-# were `$(hook::buffer_stdin)` and the shared parser's `< <(printf …)`, both
-# in lib/hook-utils.sh; those landed in #3740/#3838, so the guard's own share
-# on a benign Bash call is now zero. A count that rises is a fork put back on
-# every Bash call. The other pins are DELTAS against that benign share, so they
+# The benign pin is EXACT on purpose: the guard's own share on a benign Bash
+# call is one shfmt parse and nothing else. A count that rises is a fork put back
+# on every Bash call. The other pins are DELTAS against that benign share, so they
 # read the cost of one path (a `!` alias reparse, its trailing arguments, the
 # hash-width probe) rather than the library's total. Under -f strace may split
-# a call into `<unfinished ...>` and `<... resumed>` halves, so both spellings
-# of a completed call are counted.
+# a call into `<unfinished ...>` and `<... resumed>` halves, so each call is
+# counted once, from its opening half.
+#
+# One parse (lib/hook-utils.sh hook::_bps_shfmt_to) creates 7 processes: the
+# `$( )` subshell, the group that carries fd 3, printf's pipeline element, the
+# group that starts shfmt, shfmt, the `read -t` group, and jq; and execs 2,
+# shfmt and jq.
+PARSE_CREATIONS=7
+PARSE_EXECVE=2
 strace_census() { # <payload> <guard> → CENSUS_RC CENSUS_CREATIONS CENSUS_EXECVE
   local log="$TEST_TMPDIR/strace.log"
   CENSUS_RC=0
   (cd "$REPO_SHA1" && env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR= \
     strace -f -e trace=clone,clone3,fork,vfork,execve -o "$log" \
     bash "$HOOK_DIR/run-guards.sh" "$2" <<<"$1" >/dev/null 2>&1) || CENSUS_RC=$?
-  CENSUS_CREATIONS=$(grep -cE '((clone|clone3|fork|vfork)\(|<\.\.\. (clone|clone3|fork|vfork) resumed>).* = [0-9]+$' "$log")
+  # A clone with CLONE_THREAD is a thread (shfmt is Go, whose runtime starts a
+  # varying number), not a process: counted from the opening half of each call.
+  CENSUS_CREATIONS=$(grep -E '(clone3?|v?fork)\(' "$log" | grep -v CLONE_THREAD | grep -cE '= [0-9]+$|<unfinished \.\.\.>$')
   CENSUS_EXECVE=$(grep -cE '(execve\(|<\.\.\. execve resumed>).* = 0$' "$log")
 }
 # guard_share <command> → SHARE_RC SHARE_CREATIONS SHARE_EXECVE (guard minus no-op)
@@ -2608,8 +2620,8 @@ if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true
   guard_share 'git status --short'
   benign_creations=$SHARE_CREATIONS
   assert_exit "strace: dispatched benign command exits 0" 0 "$SHARE_RC"
-  assert_eq "strace: guard's own process creations on a benign Bash call" 0 "$SHARE_CREATIONS"
-  assert_eq "strace: guard's own execve count on a benign Bash call" 0 "$SHARE_EXECVE"
+  assert_eq "strace: guard's own process creations on a benign Bash call are one parse" "$PARSE_CREATIONS" "$SHARE_CREATIONS"
+  assert_eq "strace: guard's own execve count on a benign Bash call is one parse" "$PARSE_EXECVE" "$SHARE_EXECVE"
 
   # The verdict path costs nothing the benign path did not: the eager telemetry
   # subject is gone from file scope, and emit_tel's own substitution stays
@@ -2620,14 +2632,13 @@ if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true
     "$benign_creations" "$SHARE_CREATIONS"
 
   # A `!` alias reparse composes the relocated base without a fork
-  # (hook::git_effective_dir_to assigns; no command substitution). The shared parser's
-  # `< <(printf …)` re-entry is gone with #3838, so the reparse adds nothing
-  # over the benign share.
+  # (hook::git_effective_dir_to assigns; no command substitution), so it adds
+  # exactly the second parse over the benign share.
   guard_share "git -c alias.y='!git status' y"
   alias_creations=$SHARE_CREATIONS
   assert_exit "strace: dispatched benign ! alias exits 0" 0 "$SHARE_RC"
-  assert_eq "strace: a ! alias reparse adds no process creations over benign" \
-    "$benign_creations" "$SHARE_CREATIONS"
+  assert_eq "strace: a ! alias reparse adds one parse's process creations over benign" \
+    $((benign_creations + PARSE_CREATIONS)) "$SHARE_CREATIONS"
 
   # Trailing arguments are shell-quoted with `printf -v`, so three of them add
   # nothing to the reparse's count.
@@ -2643,7 +2654,7 @@ if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true
   assert_exit "strace: lease pinned to a full SHA-1 object id still allowed under the tracer" 0 "$SHARE_RC"
   assert_eq "strace: the hash-width probe is one creation over benign" \
     $((benign_creations + 1)) "$SHARE_CREATIONS"
-  assert_eq "strace: the hash-width probe is one execve" 1 "$SHARE_EXECVE"
+  assert_eq "strace: the hash-width probe is one execve over the parse" $((PARSE_EXECVE + 1)) "$SHARE_EXECVE"
 
   # Same site, per-process: standalone (so the guard's main bash is the parent
   # of every substitution it opens), the process that execs `git rev-parse

@@ -625,7 +625,7 @@ assert_contains "unauthenticated -> carries gh's reason" "$OUT" "Bad credentials
 assert_contains "unauthenticated -> user channel too" "$OUT" '"systemMessage"'
 NOGH="$TEST_TMPDIR/nogh"
 mkdir -p "$NOGH"
-for t in bash jq cat mktemp rm git dirname timeout shfmt sleep; do
+for t in bash jq cat mktemp rm git dirname timeout shfmt; do
   p=$(command -v "$t") && ln -sf "$p" "$NOGH/$t"
 done
 scenario unresolved none green green
@@ -861,7 +861,11 @@ unresolvable "quoted heredoc opener after a \$( in quotes, then a backtick merge
 unresolvable "heredoc delimiter closed by a parenthesis, then a backtick merge" $'(cat <<\'E\')\nx\nE\ngh pr merge 5`echo 0` -R acme/widgets'
 unresolvable "<< inside \${...} is no heredoc, then a backtick merge" $'echo ${x:-<<\'E\' }\ngh pr merge 5`echo 0` -R acme/widgets\nE'
 unresolvable "<< inside ((...)) is no heredoc, then a backtick merge" $'((x = 1 <<\'E\' ))\ngh pr merge 5`echo 0` -R acme/widgets\nE'
-unresolvable "escaped quote in a double-quoted delimiter, then a backtick merge" $'cat <<"E\\"F"\nx\nE"F\ngh pr merge 5`echo 0` -R acme/widgets'
+# shfmt reads this delimiter differently from bash and finds the here-doc
+# unclosed, so the command reader refuses it before the guard's own check.
+run "escaped quote in a double-quoted delimiter, then a backtick merge (refused by the reader)" \
+  $'cat <<"E\\"F"\nx\nE"F\ngh pr merge 5`echo 0` -R acme/widgets' 2
+assert_contains "escaped quote in a double-quoted delimiter -> the reader names its refusal" "$ERR" "got no parse"
 unresolvable "backtick merge in a quoted heredoc fed to sudo -s" $'sudo -s <<\'E\'\ngh pr merge 5`echo 0` -R acme/widgets\nE'
 unresolvable "backtick merge in a quoted heredoc fed to ssh" $'ssh host <<\'E\'\ngh pr merge 5`echo 0` -R acme/widgets\nE'
 unresolvable "backtick merge in a quoted heredoc fed to a globbed command word" $'/bin/ba?h <<\'E\'\ngh pr merge 5`echo 0` -R acme/widgets\nE'

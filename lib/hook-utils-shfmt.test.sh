@@ -282,14 +282,15 @@ lbhome="$_T_TMP/lbhome"
 mkdir -p "$lbhome/.local/bin"
 ln -s "$(type -P shfmt)" "$lbhome/.local/bin/shfmt"
 # shellcheck disable=SC2016  # the child shell expands these
-if out=$(HOME=$lbhome "$BASH_BIN" -c 'source "$1/lib/hook-utils.sh"; cb() { printf "%s\n" "$*"; }; PATH=$2; hook::bash_parse_segments_shfmt "git status" cb' -- "$_T_ROOT" "$(stub_dir lb-no-shfmt jq sleep)" 2>&1) &&
+if out=$(HOME=$lbhome "$BASH_BIN" -c 'source "$1/lib/hook-utils.sh"; cb() { printf "%s\n" "$*"; }; PATH=$2; hook::bash_parse_segments_shfmt "git status" cb' -- "$_T_ROOT" "$(stub_dir lb-no-shfmt jq)" 2>&1) &&
   [[ "$out" == 'git status' ]]; then
   ok 'a shfmt in ~/.local/bin parses when PATH lacks one'
 else
   fail "a shfmt in ~/.local/bin: [$out]"
 fi
-# The paired success: the same stub layout with a shfmt that answers in time.
-d=$(stub_dir answers jq sleep shfmt)
+# The paired success: a shfmt that answers in time, on a PATH with no sleep or
+# timeout (the bound is the read -t builtin, so no timer process can be missing).
+d=$(stub_dir answers jq shfmt)
 # shellcheck disable=SC2016  # the child shell expands these
 if out=$("$BASH_BIN" -c 'source "$1/lib/hook-utils.sh"; cb() { printf "%s\n" "$*"; }; PATH=$2; hook::bash_parse_segments_shfmt "git status" cb' -- "$_T_ROOT" "$d" 2>&1) &&
   [[ "$out" == 'git status' ]]; then

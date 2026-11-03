@@ -4667,11 +4667,13 @@ def strip_q: [.Parts[]? |
 HOOK_BPS_TIMEOUT=5
 
 # hook::_bps_shfmt_to <var> <command>: <var> gets the jq list, or return 1 when
-# shfmt or jq is missing, fails or runs out of time. A background timer kills
-# shfmt, so the bound needs no `timeout` command, which stock macOS lacks, and no
-# `wait -n`, which Bash 3.2 lacks; a killed shfmt's status fails the pipeline.
-# Processes per parse: shfmt, jq, sleep, and the pipeline's subshells.
-# shellcheck disable=SC2030,SC2031  # pipefail and the job ids belong to this subshell
+# shfmt or jq is missing, fails or runs out of time. The bound is the `read -t`
+# builtin: one subshell starts shfmt, writes its pid, waits for it and writes its
+# status; the next reads the pid, then the status within the bound, and kills
+# shfmt when none comes. No `timeout` command (stock macOS lacks it), no
+# `wait -n` (Bash 3.2 lacks it), and no timer process, so a parse that answers
+# in time always runs the same processes: shfmt, jq and the pipeline subshells.
+# shellcheck disable=SC2030,SC2031  # pipefail belongs to this subshell
 hook::_bps_shfmt_to() {
   local __hu_bs_out __hu_bs_st
   HOOK_BPS_FAIL=""
@@ -4687,22 +4689,19 @@ hook::_bps_shfmt_to() {
   }
   __hu_bs_out=$(
     set -o pipefail
-    printf '%s' "$2" | {
-      shfmt -ln bash --to-json <&0 2>/dev/null &
-      __hu_bs_p=$!
-      {
-        sleep "${HOOK_BPS_TIMEOUT:-5}" &
-        __hu_bs_s=$!
-        trap 'kill "$__hu_bs_s" 2>/dev/null; exit 0' TERM
-        wait "$__hu_bs_s"
+    {
+      printf '%s' "$2" | {
+        shfmt -ln bash --to-json <&0 2>/dev/null >&3 &
+        printf '%s\n' "$!"
+        wait "$!"
+        printf '%s\n' "$?"
+      } 2>/dev/null | {
+        read -r __hu_bs_p
+        read -r -t "${HOOK_BPS_TIMEOUT:-5}" __hu_bs_rc && exit "$__hu_bs_rc"
         kill "$__hu_bs_p" 2>/dev/null
-      } >/dev/null 2>&1 &
-      __hu_bs_w=$!
-      wait "$__hu_bs_p"
-      __hu_bs_rc=$?
-      kill "$__hu_bs_w" 2>/dev/null
-      exit "$__hu_bs_rc"
-    } | jq -j "$HOOK_BPS_JQ" 2>/dev/null
+        exit 142
+      }
+    } 3>&1 | jq -j "$HOOK_BPS_JQ" 2>/dev/null
   ) || {
     __hu_bs_st=$?
     if ((__hu_bs_st > 128)); then

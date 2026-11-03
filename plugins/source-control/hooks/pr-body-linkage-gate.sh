@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # PreToolUse hook: block a bare `gh pr create` / `gh pr edit` whose PR BODY
-# carries a negated closing reference.
+# carries a negated closing reference. A command the shared reader cannot parse
+# (lib/hook-utils.sh: shfmt missing, failing, too slow, or a syntax error such
+# as an unterminated here-doc) is denied too, before any body is judged.
 #
 # WHY IT EXISTS — a negated closer (`does not close #N`) still closes the issue
 # on merge, because GitHub's closing-keyword parser ignores the negation, and CI
@@ -48,6 +50,8 @@
 # command `gh` itself rejects), an absent body flag (`--fill`, `--template`,
 # `--editor`, `--web`, the interactive prompt), or an unreadable body file all
 # ALLOW: guessing at a body this hook cannot see would block compliant calls.
+# The exception is a command the reader cannot parse at all, which is denied
+# (see the first paragraph).
 # A stalled or unreadable hook payload allows too — unlike the sibling SECURITY
 # guards, refusing an arbitrary Bash command because this POLICY gate could not
 # read its own stdin is a worse failure than missing one body check.
