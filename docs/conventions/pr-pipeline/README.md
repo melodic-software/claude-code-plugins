@@ -883,9 +883,12 @@ and none has to. The `review-threads` row alone also refuses a new file at mode 
 change to that mode (`new-exec-bit`), so address-feedback can drop an executable bit but never
 add one; `ci-context` and `issue` keep setting script bits. The `ci-context` and `review-threads`
 rows also refuse, in any case and through any `..` segment, a `.gitattributes` file at any depth
-(`gitattributes`), a path whose first segment is `.husky` (`husky`) and `lefthook.yml` at the root
-(`lefthook`): each changes what git, or a hook it runs, does on the next checkout or commit, so
-fix-ci and address-feedback cannot change them. No other row names these three.
+(`gitattributes`), a path whose first segment is `.husky` (`husky`) and every file lefthook reads
+its config or hook scripts from (`lefthook`): at the root, `lefthook`, `.lefthook`, `lefthook-local`
+and `.lefthook-local` with `.yml`, `.yaml`, `.toml`, `.json` or `.jsonc`; under a root `.config/`,
+`lefthook` and `lefthook-local` with those extensions; and a path whose first segment is `.lefthook`
+or `.lefthook-local`. Each changes what git, or a hook it runs, does on the next checkout or commit,
+so fix-ci and address-feedback cannot change them. No other row names these three.
 The `ci-context`, `docs`, `default`, `issue` and `merge-base` rows cap a patch at 300 paths, and the
 `merge-base` row a merge commit at 300 new blobs.
 `checkPatchRules` in
