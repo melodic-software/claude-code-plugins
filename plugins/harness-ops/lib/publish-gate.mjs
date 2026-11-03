@@ -279,8 +279,11 @@ export function deeperLeak(text, diff = false) {
 // (sk-ant- and 20 characters, 27 bytes: 4 * ceil(27 / 3) = 36). Node's base64 decoder reads the
 // base64url alphabet too (https://nodejs.org/api/buffer.html#buffers-and-character-encodings).
 // Each run decodes at all four offsets, so a stray alphabet character before it (a diff's +, a
-// path's /) does not shift every group. Only a decoding at least 90% printable ASCII is read or
-// decoded again, to ENCODED_DEPTH layers, so image and gzip runs pass; the first ENCODED_PROBE
+// path's /) does not shift every group. Only a decoding at least 90% printable is read or decoded
+// again, to ENCODED_DEPTH layers, so image and gzip runs pass. Well-formed UTF-8 (a character cut
+// at the end left pending) counts by character, C0 and C1 controls but tab, LF and CR not
+// printable, so emoji, accented or CJK text counts; random and compressed bytes are almost never
+// well-formed, and those count by byte, printable ASCII only. The first ENCODED_PROBE
 // characters (66 bytes) decide that before the rest is decoded, so a binary run costs 66 bytes
 // an offset whatever its length. ENCODED_CAP bounds the decoded bytes per call across runs,
 // offsets and layers: at most 3 decoded bytes per input character (four offsets of 3/4 each), so
@@ -302,10 +305,26 @@ function* encodedRuns(text) {
     start = i + 1;
   }
 }
+const textual = (code) => (code >= 0x20 && code < 0x7f) || code > 0x9f || code === 9 || code === 10 || code === 13;
 const printable = (bytes) => {
+  let text;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(bytes, { stream: true });
+  } catch {
+    text = null;
+  }
   let count = 0;
-  for (const byte of bytes) if ((byte >= 0x20 && byte < 0x7f) || byte === 9 || byte === 10 || byte === 13) count += 1;
-  return count >= bytes.length * 0.9;
+  let total = 0;
+  if (text) {
+    for (const c of text) {
+      total += 1;
+      if (textual(c.codePointAt(0))) count += 1;
+    }
+  } else {
+    total = bytes.length;
+    for (const byte of bytes) if (byte < 0x80 && textual(byte)) count += 1;
+  }
+  return count >= total * 0.9;
 };
 
 /** The first CREDENTIAL_SHAPES label inside a base64 run of `text`, decoded up to `depth` layers within `cap` decoded bytes, or null. */
