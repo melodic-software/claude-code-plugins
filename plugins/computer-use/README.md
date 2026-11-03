@@ -29,9 +29,10 @@ documented upstream:
 - **Claude's input does not reset the idle timer.** Synthesized input does not reset the OS idle timer, so
   a long session hits the screensaver or display-sleep timeout no matter how much Claude is
   clicking, and cannot recover itself once it does. Measured, not inferred.
-- **Screenshot quality is a fixed pixel budget, not a scale factor**, so the intuitive fixes
-  (smaller monitor, lower resolution) do not work and one non-obvious one (`zoom`, which
-  re-captures at full resolution) does.
+- **`zoom` is the lever for screenshot detail**, not the display: it re-captures a region at
+  full resolution. For how screenshots are downscaled, see
+  [Computer use: Screenshots are downscaled automatically](https://code.claude.com/docs/en/computer-use#screenshots-are-downscaled-automatically)
+  (as of 2026-11-03; recheck when that section changes how the target size is set).
 - **Capture and input failures are environment state**, not tool defects, and each has a
   distinct signature worth reading rather than retrying past.
 
