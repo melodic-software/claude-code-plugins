@@ -52,6 +52,11 @@ root, and different resources never share one:
    part a truncated prefix cannot lose, and it recomputes identically on resume. (The hash suffix
    also makes a Windows-reserved base name impossible, so no reserved-name escape is needed.)
 
+- **Pointer**: <https://www.gnu.org/software/coreutils/manual/html_node/sha2-utilities.html#sha2-utilities_003a-Print-or-check-SHA_002d2-digests>
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section changes which command prints a SHA-256 digest, or its output
+  format.
+
 Never build a path from raw URL text (a crafted URL could steer a filename toward path
 traversal), and confirm the resolved work root is still inside `<resolved-root>/.work/` before
 writing.
