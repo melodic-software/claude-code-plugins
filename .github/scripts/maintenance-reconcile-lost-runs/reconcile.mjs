@@ -909,7 +909,6 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       // A newest checks run that failed only in ci-status: a review a kill
       // switch stopped is re-run once nothing would stop it again, a lanes App
       // PR's that the kill switch failed is re-run now that the switch is off,
-      // any PR's that a pr-unblock stop failed once no stop fails the head,
       // and any PR's that a running review failed once the reviews are done.
       // The tested run's jobs are reused when it is that run.
       if (set.length === 0 && isRedChecks(checks)) {

@@ -685,6 +685,25 @@ activities:
     gating: advisory
     # Posts the plan's titles and bodies, which the model wrote.
     reads-untrusted: true
+  apply-upkeep-branches:
+    # Recreates each chore/tidy-adhoc-<slug>-<date> branch the code-tidying upkeep
+    # model job committed, as one lanes App commit through the Git Data API. A
+    # script, no model. .github/workflows/maintenance-tidy-code-upkeep.yml runs it.
+    script: .github/scripts/maintenance-tidy-code-upkeep/batch.mjs
+    args: push
+    effect: mutate-branch
+    gating: advisory
+    # Reads the plan and the bundle the model wrote.
+    reads-untrusted: true
+  publish-upkeep-prs:
+    # Opens one pull request per pushed branch that has none; push applies upkeep_max_open. A script,
+    # no model. .github/workflows/maintenance-tidy-code-upkeep.yml runs it.
+    script: .github/scripts/maintenance-tidy-code-upkeep/batch.mjs
+    args: publish
+    effect: publish-artifact
+    gating: advisory
+    # Posts the plan's titles and bodies, which the model wrote.
+    reads-untrusted: true
 
 lanes:
   # Started by the agent-ready label on an issue (.github/workflows/work-resolve-issue.yml).
@@ -785,6 +804,16 @@ lanes:
         needs: [apply-changelog]
       - activity: publish-changelog-intake
         needs: [apply-changelog-branches]
+  # Started daily and by a listed human's dispatch
+  # (.github/workflows/maintenance-tidy-code-upkeep.yml). Push and pull request
+  # open are separate jobs: the broker refuses contents and pull-requests write in
+  # one mint.
+  maintenance-tidy-code-upkeep:
+    stage: maintenance
+    slots:
+      - activity: apply-upkeep-branches
+      - activity: publish-upkeep-prs
+        needs: [apply-upkeep-branches]
 
 # The model, effort and turn budget of every model run (README.md, Models).
 # Aliases only, never full model IDs. A profile with no effort keeps its
@@ -1536,6 +1565,8 @@ merge:
       - glob: ".github/workflows/maintenance-audit-lane-runs.yml"
         class: gate
       - glob: ".github/workflows/maintenance-reconcile-lost-runs.yml"
+        class: gate
+      - glob: ".github/workflows/maintenance-tidy-code-upkeep.yml"
         class: gate
       - glob: ".github/workflows/post-merge-demotion-alert.yml"
         class: gate

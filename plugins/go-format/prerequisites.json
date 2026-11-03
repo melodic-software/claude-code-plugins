@@ -18,8 +18,7 @@
       "degrade": "Without goimports, the hook cannot format edited Go files.",
       "install": {
         "go": "go install golang.org/x/tools/cmd/goimports@latest"
-      },
-      "check": "/go-format:check"
+      }
     },
     {
       "id": "jq",
@@ -36,8 +35,7 @@
       "degrade": "Without jq, the go-format hooks skip their work.",
       "install": {
         "docs": "https://jqlang.org/download/"
-      },
-      "check": "/go-format:check"
+      }
     },
     {
       "id": "node",
@@ -54,8 +52,7 @@
       "degrade": "Without node, the go-format hooks cannot launch, so they do nothing.",
       "install": {
         "docs": "https://nodejs.org/en/download"
-      },
-      "check": "/go-format:check"
+      }
     }
   ]
 }

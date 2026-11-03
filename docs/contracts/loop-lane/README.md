@@ -467,9 +467,9 @@ clause: an escalating lane decided to hold, drafted its explanation first, and a
   same check: its merge-group run's `ci-status` re-reads the label and fails, and the queue removes
   the PR. A label that lands after that run's `ci-status` passed does not stop the merge, so on a
   queued PR also dequeue it (the `dequeuePullRequest` command under **Hold a PR** in
-  [§7](#7-operator-steering-through-github-state)). A PR **comment is never a hold**: comments are
-  advisory by construction; no gate reads them, and an escalation comment on the PR obliges
-  nothing until the label is on.
+  [§7](#7-operator-steering-through-github-state)). A PR **comment is advisory, except a member's
+  veto comment, which holds a lanes App pull request** (above): an escalation comment on the PR
+  obliges nothing until the label is on.
 - **Hold first, explain second.** The moment a lane decides a PR must not merge, it applies
   `do-not-merge`, before drafting the escalation comment and before assembling the supporting
   evidence. Explain-then-hold inverts the deadline: the drafting time is exactly the window a

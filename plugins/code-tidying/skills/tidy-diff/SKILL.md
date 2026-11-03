@@ -60,9 +60,9 @@ markdown runs only the markdown passes.
    whose scope is the session's own diff rather than this line list; the record for that surface
    is [bundled-simplify.md](../tidy/reference/bundled-simplify.md#decision-records).
 2. **Delete zero-information comments in the code lines.** Classify each comment that sits in a
-   listed line per [triage.md](../dissolve-comments/reference/triage.md), skipping the exempt
-   surfaces in [safety.md](../dissolve-comments/reference/safety.md). Apply class A only, the
-   `safe` mode of `/code-tidying:dissolve-comments`, proving each deletion before the real file
+   listed line per [triage.md](../remove-comments/reference/triage.md), skipping the exempt
+   surfaces in [safety.md](../remove-comments/reference/safety.md). Apply class A only, the
+   `safe` mode of `/code-tidying:remove-comments`, proving each deletion before the real file
    changes: write the file with the comment deleted to the scratch directory the session's
    instructions name (else the system temp directory), keeping its extension, then run
    `${CLAUDE_SKILL_DIR}/scripts/change-shape.sh <file> <scratch copy>`. Only on exit 0
