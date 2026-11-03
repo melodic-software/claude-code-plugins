@@ -3,7 +3,7 @@
 A Claude Code plugin for **structured discovery before changes**. Understand what
 IS (the local codebase), what SHOULD BE (current external sources), and what WAS
 and why (the reasoning behind a past decision) before any code is written. Those
-three skills sit on the evidence-substrate axis and **dispatch a purpose-built
+three skills sit on the evidence-source axis and **dispatch a purpose-built
 subagent by default**, so the reading stays out of the main conversation;
 `blindspot` serves the USER's understanding rather than the agent's.
 
@@ -100,7 +100,7 @@ shape.
   Explore composes `/toolchain:check`'s covered-ecosystem detection and root
   adjacency when that plugin is installed (documented fallback table when it is
   not; explore-owned inventories for build configs, runtime probes, and
-  ecosystems the seam does not cover stay explore-owned). It does not bake a
+  ecosystems `/toolchain:check` does not cover stay explore-owned). It does not bake a
   second covered-ecosystem inventory.
 - **Reads your conventions, assumes none.** Project rules, preferred-source
   rosters, per-ecosystem source mappings, and any stated direction come from your

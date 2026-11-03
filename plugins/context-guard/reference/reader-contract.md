@@ -522,7 +522,7 @@ is input-token-based and answers *distance to compaction*, while the token bands
 A configured window is a fill threshold, so compare it against the percentage shape and let the
 occupancy bands move independently.
 
-One consequence matters enough to state on its own: we read `used_percentage` as a share of the
+We read `used_percentage` as a share of the
 whole window the model offers, so after the auto-compact window is lowered, **we never read the
 percentage as a forecast of when compaction will run**. A consumer reading only the percentage
 will not see the trigger coming. Pointer: for the `CLAUDE_CODE_AUTO_COMPACT_WINDOW` row, see
