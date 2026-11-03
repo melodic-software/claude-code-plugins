@@ -1415,7 +1415,9 @@ test("every credential scan has a timeout of at most 2 minutes, and the upload i
   const action = readFileSync(new URL("../../actions/scan-upload/action.yml", import.meta.url), "utf8");
   assert.match(action, /\n {4}value: \$\{\{ steps\.scan\.outputs\.clean \}\}\n/);
   const scanner = readFileSync(new URL("../../actions/scan-upload/scan-upload.mjs", import.meta.url), "utf8");
-  assert.equal(scanner.match(/appendFileSync\(/g)?.length, 1, "one write to GITHUB_OUTPUT");
+  assert.equal(scanner.match(/appendFileSync\(env\.GITHUB_OUTPUT\b/g)?.length, 1, "one write to GITHUB_OUTPUT");
+  assert.equal(scanner.match(/appendFileSync\(/g)?.length, 2, "the only other write is the job summary's");
+  assert.equal(scanner.match(/appendFileSync\(env\.GITHUB_STEP_SUMMARY\b/g)?.length, 1);
   assert.ok(scanner.indexOf('appendFileSync(env.GITHUB_OUTPUT, "clean=true\\n")') > scanner.indexOf("result = scanPaths(entries)"));
 });
 

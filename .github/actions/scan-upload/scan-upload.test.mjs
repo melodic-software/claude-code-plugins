@@ -108,6 +108,15 @@ test("a zero-width match writes the rule, path and line and none of the line", (
   assert.ok(!result.summary.includes("aaaaaa") && !result.summary.includes("bbbbbb"), "no character of the match");
 });
 
+test("a hit found only after escaped breaks decode names the file's own line", (t) => {
+  const dir = workDir(t);
+  // One physical line: the token follows a `\n` escape, so only the decoded view separates it.
+  writeFileSync(path.join(dir, "work-outcome.json"), `{"a": 1}\n${JSON.stringify({ summary: `first\nsecond\n${PLANTED}` })}\n`);
+  const result = run(dir, path.join(dir, "work-outcome.json"));
+  withheld(result, "GitHub token");
+  assert.equal(result.summary, "### scan-upload withheld the upload\n\n- rule `GitHub token`, path `work-outcome.json`, line 2\n\n");
+});
+
 test("a credential in a file name withholds the upload and the summary never shows the name", (t) => {
   const dir = workDir(t);
   mkdirSync(path.join(dir, "out"));
