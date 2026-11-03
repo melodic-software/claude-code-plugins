@@ -451,8 +451,9 @@ export function pinnedVersion(manifest, name) {
 
 // Why an `allowScripts` change is not exactly one install-script pin moved,
 // or null: one INSTALL_SCRIPT_PINS key `<name>@<old>` becomes `<name>@<new>`
-// with the same value, `<new>` is the exact version `now` pins the package to,
-// and every other key stays.
+// with the same value, `<new>` is the exact version the manifest pins the
+// package to on both sides (the version Dependabot set), and every other key
+// stays.
 export function allowScriptsRefusal(old, now) {
   const was = old?.allowScripts;
   const is = now?.allowScripts;
@@ -465,8 +466,11 @@ export function allowScriptsRefusal(old, now) {
   const name = INSTALL_SCRIPT_PINS.find((pin) => gone[0].startsWith(`${pin}@`) && added[0].startsWith(`${pin}@`));
   if (!name) return "allow-scripts-package";
   if (canonical(was[gone[0]]) !== canonical(is[added[0]])) return "allow-scripts-value";
-  const version = pinnedVersion(now, name);
-  if (version === null || added[0] !== `${name}@${version}`) return "allow-scripts-version";
+  // The version the commit before the fix (Dependabot's) pins, unchanged by
+  // the fix, so a fix cannot move the manifest and the pin together, to a
+  // downgrade or anything else.
+  const version = pinnedVersion(old, name);
+  if (version === null || pinnedVersion(now, name) !== version || added[0] !== `${name}@${version}`) return "allow-scripts-version";
   return null;
 }
 

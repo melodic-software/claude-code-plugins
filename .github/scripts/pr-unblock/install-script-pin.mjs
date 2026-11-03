@@ -1,11 +1,13 @@
 // Moves package.json's install-script approval for @anthropic-ai/claude-code
 // (`allowScripts`, one exact version) to the version package-lock.json
-// installs, so a Dependabot bump of the CLI keeps its postinstall. It runs no
-// head code: the manifest and lockfile are data. review-dependency.mjs select
-// writes its patch, which apply-dependency-patch pushes under patch-rules.json's
-// install-script-pin row, whose content rule (dependency-classify.mjs
-// installScriptPinRefusal) admits exactly this edit. `check` exits 1 when the
-// pin and the lockfile disagree, for pr-require-checks.yml.
+// installs, so a Dependabot bump of the CLI keeps its postinstall. It writes
+// that version only when it is also the exact version package.json pins,
+// since the push rule (dependency-classify.mjs installScriptPinRefusal, under
+// patch-rules.json's install-script-pin row) checks the pin against the
+// manifest's version as Dependabot set it, not the lockfile. It runs no head
+// code: the manifest and lockfile are data. review-dependency.mjs select
+// writes its patch, which apply-dependency-pin pushes. `check` exits 1 when
+// the pin and the lockfile disagree, for pr-require-checks.yml.
 //
 //   node install-script-pin.mjs check [dir]
 

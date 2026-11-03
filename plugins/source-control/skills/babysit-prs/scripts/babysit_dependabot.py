@@ -1196,8 +1196,9 @@ def pinned_version(manifest: dict[str, Any], name: str) -> str | None:
 def allow_scripts_refusal(old: dict[str, Any], now: dict[str, Any]) -> str | None:
     """Why an `allowScripts` change is not exactly one install-script pin
     moved, or None: one INSTALL_SCRIPT_PINS key `<name>@<old>` becomes
-    `<name>@<new>` with the same value, `<new>` is the exact version `now` pins
-    the package to, and every other key stays."""
+    `<name>@<new>` with the same value, `<new>` is the exact version the
+    manifest pins the package to on both sides (the version Dependabot set),
+    and every other key stays."""
     was, is_ = old.get("allowScripts"), now.get("allowScripts")
     if not isinstance(was, dict) or not isinstance(is_, dict):
         return "allow-scripts-shape"
@@ -1221,8 +1222,14 @@ def allow_scripts_refusal(old: dict[str, Any], now: dict[str, Any]) -> str | Non
         return "allow-scripts-package"
     if _canonical(was[gone[0]]) != _canonical(is_[added[0]]):
         return "allow-scripts-value"
-    version = pinned_version(now, name)
-    if version is None or added[0] != f"{name}@{version}":
+    # The version the commit before the fix (Dependabot's) pins, unchanged by
+    # the fix, so a fix cannot move the manifest and the pin together.
+    version = pinned_version(old, name)
+    if (
+        version is None
+        or pinned_version(now, name) != version
+        or added[0] != f"{name}@{version}"
+    ):
         return "allow-scripts-version"
     return None
 

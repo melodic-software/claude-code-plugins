@@ -192,6 +192,14 @@
       "reason": "Every reader is in the same run; a manual re-run of the write job may read an earlier attempt, so 3 days covers a weekend.",
       "scan": "upload"
     },
+    "patch-pr-unblock-review-dependency-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-run-activity-write.yml patch-attempt download by the apply-dependency-pin job, same run"
+      ],
+      "reason": "The install-script pin patch review-dependency-select writes; read by its own run's apply-dependency-pin job, and a later run writes it again from the head, so 1 day, the minimum, is enough.",
+      "scan": "upload"
+    },
     "patch-pr-unblock-sync-shared-copies-*": {
       "retention-days": 1,
       "readers": [

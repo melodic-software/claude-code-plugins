@@ -2313,7 +2313,7 @@ jobs:
       # this round, so nothing else uploads that name.
       - name: Upload the pin patch
         id: upload-pin
-        if: steps.select.outputs.pin-state == 'written' && steps.scan-pin.outputs.clean == 'true'
+        if: (steps.select.outputs.pin-state == 'written') && steps.scan-pin.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: patch-pr-unblock-review-dependency-${{ github.run_attempt }}

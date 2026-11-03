@@ -832,6 +832,10 @@ const FIX_VECTORS = [
   ["package.json", FIX_PKG({ "@anthropic-ai/claude-code": "2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.316": true } }), FIX_PKG({ "@anthropic-ai/claude-code": "2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@*": true } }), "package-json-key:allowScripts"],
   ["package.json", FIX_PKG({ "@anthropic-ai/claude-code": "^2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.316": true } }), FIX_PKG({ "@anthropic-ai/claude-code": "^2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.317": true } }), "package-json-key:allowScripts"],
   ["package.json", FIX_PKG({ x: "1.0.1" }, { allowScripts: { "x@1.0.0": true } }), FIX_PKG({ x: "1.0.1" }, { allowScripts: { "x@1.0.1": true } }), "package-json-key:allowScripts"],
+  // A fix that moves the manifest and the pin together, to a downgrade or
+  // past Dependabot's version: the pin follows only the version Dependabot set.
+  ["package.json", FIX_PKG({ "@anthropic-ai/claude-code": "2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.316": true } }), FIX_PKG({ "@anthropic-ai/claude-code": "2.1.300" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.300": true } }), "package-json-key:allowScripts"],
+  ["package.json", FIX_PKG({ "@anthropic-ai/claude-code": "2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.316": true } }), FIX_PKG({ "@anthropic-ai/claude-code": "2.1.318" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.318": true } }), "package-json-key:allowScripts"],
   ["package.json", FIX_PKG({ "@anthropic-ai/claude-code": "2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.316": true, "e@1.0.0": true } }), FIX_PKG({ "@anthropic-ai/claude-code": "2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.317": true, "e@1.0.0": true, "f@1.0.0": true } }), "package-json-key:allowScripts"],
 ];
 

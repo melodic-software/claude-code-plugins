@@ -180,6 +180,7 @@ SESSION_REASONS=(protected-path-conflict conflict-patch-protected-path
   feedback-protected-path ci-fix-protected-path ci-fix-weaken-required ci-fix-escalated
   dependency-round-cap dependency-fix-not-landed dependency-config-unreadable
   dependency-files-truncated dependency-control-uncited dependency-workflow-unpinned
+  dependency-pin-invalid dependency-pin-not-applied dependency-pin-protected-path
   shared-copy-tooling-changed shared-copy-path-unregistered shared-copy-unexpected-path-staged
   shared-copy-patch-protected-path shared-copy-merge-conflicted
   feedback-untaken-threads feedback-unadjudicated

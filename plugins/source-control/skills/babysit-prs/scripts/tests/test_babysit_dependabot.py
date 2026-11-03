@@ -1639,6 +1639,20 @@ FIX_VECTORS: list[tuple[str, str, str, str | None]] = [
         _pkg({"x": "1.0.1"}, allowScripts={"x@1.0.1": True}),
         "package-json-key:allowScripts",
     ),
+    # A fix that moves the manifest and the pin together, to a downgrade or
+    # past Dependabot's version: the pin follows only the version Dependabot set.
+    (
+        "package.json",
+        _pkg({_CLI: "2.1.317"}, allowScripts={f"{_CLI}@2.1.316": True}),
+        _pkg({_CLI: "2.1.300"}, allowScripts={f"{_CLI}@2.1.300": True}),
+        "package-json-key:allowScripts",
+    ),
+    (
+        "package.json",
+        _pkg({_CLI: "2.1.317"}, allowScripts={f"{_CLI}@2.1.316": True}),
+        _pkg({_CLI: "2.1.318"}, allowScripts={f"{_CLI}@2.1.318": True}),
+        "package-json-key:allowScripts",
+    ),
     (
         "package.json",
         _pkg(

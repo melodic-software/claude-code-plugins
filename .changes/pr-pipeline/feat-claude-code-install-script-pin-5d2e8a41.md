@@ -9,12 +9,15 @@ bump: minor
   request, with no model turn: `review-dependency-select` writes the one-line patch
   (`install-script-pin.mjs`), and the new `apply-dependency-pin` job pushes it with
   `apply-dependency-patch`'s existing grant under the new `install-script-pin` patch row. The
-  row admits the root `package.json` alone with that one pin renamed to the exact version the
-  manifest pins; a name-only or wildcard key, another package's pin or any other change is
+  select step writes the lockfile's version only when it equals the exact version the manifest
+  pins. The row checks the manifest, not the lockfile: it admits the root `package.json` alone
+  with that one pin renamed to the exact version the manifest pins, unchanged from Dependabot's
+  commit. A downgrade, a name-only or wildcard key, another package's pin or any other change is
   refused, and a refused push stops as `dependency-pin-invalid`, `dependency-pin-not-applied` or
   `dependency-pin-protected-path` for the session queue. The pin round posts no round marker; the new head is reviewed as any other, and the
   select step writes the from and to versions to its step summary.
 - `check-catalog` fails `ci-status` while the pin and the lockfile disagree, so a Dependabot bump
   of the CLI sorts `review` and reaches the pin step.
 - The fix rule (`fixRefusal`) admits that pin move in a lanes App fix commit, so the pr-merge
-  lane can merge the reviewed pull request.
+  lane can merge the reviewed pull request. The pin must name the exact version the manifest pins
+  both before and after the fix, so a fix cannot move the manifest and the pin together.
