@@ -89,25 +89,28 @@ Verified findings leave through one ladder: in an interactive session a local fi
 no documented contract change, a test file to extend) is fixed in that session through the implement
 lane; a non-local or security-relevant one, and every finding from an unattended run, is filed with
 `--track`. Root-causing routes to `/debugging:debug`, and anything security-relevant routes to the
-`review:security-review` lane. On a cloud or scheduled session the plugin data directory does not
-outlive the container, so pass `--track`: the filed item is the only durable output and is what the
-next rotation reads back.
+`review:security-review` lane. On a cloud or scheduled session, pass `--track`: the filed item is
+the output the plugin relies on to outlive the session, and it is what the next rotation reads
+back. When checking where the plugin data directory lives and how long it is kept, fetch
+[plugins manifest reference: Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
+live (as of 2026-11-03; recheck trigger: that section changes where `${CLAUDE_PLUGIN_DATA}` lives
+or when it is deleted).
 
 ## Configuration
 
 Two surfaces with two different owners.
 
-**Personal.** One optional `userConfig` value, prompted by Claude Code at enable time:
+**Personal.** One optional `userConfig` value, owned by Claude Code:
 
 | Option | Type | Effect |
 |--------|------|--------|
 | `output_dir` | directory | Where `--file` writes reports. **Leave unset** and reports go to the plugin's own persistent data directory. Set it to a path in your repository if you want bug reports committed alongside your code. |
 
-Claude Code owns this value, and changes route through Claude Code's own configuration prompt.
-Which settings files it is read from is upstream-owned: see
-[settings reference: `pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
-(as of 2026-10-11; recheck when that section changes which settings files option values are read
-from).
+Changes to it go through Claude Code's own plugin configuration. When checking when Claude Code
+prompts for the value and where it stores it, fetch
+[plugins manifest reference: User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+live (as of 2026-11-03; recheck trigger: that section changes when an option is prompted for or
+where its value is stored).
 
 **Team, the tracked `docs/conventions/bugs.yaml`**, which `/bugs:scan` reads for its lanes
 (`lanes`) and its filing policy (`filing_posture`), checked against
@@ -220,9 +223,11 @@ write. Without it, in a GitHub repository with the `gh` CLI available:
 gh issue create --type Bug --body-file <report-path>
 ```
 
-Let `gh` prompt for the title interactively. `--type Bug` sets the native GitHub Issue
-Type (org repos; omit on repos without native Issue Types, adding a `type: bug` label instead). If filing non-interactively, never paste
-the reporter's title text into the command string. Write it to a file and pass
+Let `gh` prompt for the title interactively. On a repository without native Issue Types, omit
+`--type Bug` and add a `type: bug` label instead. When checking what `--type` takes, fetch
+[gh issue create: Options](https://cli.github.com/manual/gh_issue_create#options) live (as of
+2026-11-03; recheck trigger: that section renames or drops `--type`). If filing
+non-interactively, never paste the reporter's title text into the command string. Write it to a file and pass
 `--title "$(cat <title-file>)"`: the substitution result is a quoted argument value and
 is not re-parsed, so backticks or `$( )` in reporter text cannot execute.
 

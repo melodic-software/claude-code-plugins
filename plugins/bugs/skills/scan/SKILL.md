@@ -61,10 +61,16 @@ no filing.
 Durable cursor state never lives in `.work/`: a fresh clone or `git clean` erases it. The ladder
 re-derives the cursor from rungs 1–3 and never treats a cache note there as authority.
 
-**Cloud or scheduled runs.** `${CLAUDE_PLUGIN_DATA}` is ephemeral on a cloud session and unreachable
-from the next scheduled run on another host. Pass `--track` there: a filed item is the only output
-that survives, and it is what rung 1 of the cursor ladder reads back. Without `--track` such a run's
-findings live only in the transcript.
+**Cloud or scheduled runs.** Pass `--track` there: this skill treats a filed item as the only output
+that outlives such a run, and it is what rung 1 of the cursor ladder reads back. Without `--track`,
+the next run has no filed item to read back.
+
+- **Pointer**: when deciding whether `${CLAUDE_PLUGIN_DATA}` outlives a run, fetch
+  [plugins manifest reference § Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
+  live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section changes where the plugin data directory lives or when it is
+  deleted.
 
 ## Modes
 
