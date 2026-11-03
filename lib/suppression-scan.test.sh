@@ -179,6 +179,81 @@ assert_eq "--count adds the correctness line when rules are listed" "suppression
 unjustified=4
 correctness=3" "$out"
 
+# ---- coverage, mutation-testing and security-scanner directives --------------------
+# Each spelling is the one the tool's own docs give (listed in the audit-suppressions
+# skill's Upstream syntax record). A mention inside a string literal or prose is no directive.
+EVD="$TEST_TMPDIR/evidence"
+mkdir -p "$EVD"
+putv() { printf '%s\n' "${@:2}" >"$EVD/$1"; }
+putv cov.js \
+  '/* istanbul ignore next */' \
+  '/* istanbul ignore next: the CLI entry is covered by an end-to-end run */' \
+  '/* c8 ignore start */' \
+  '/* c8 ignore next 2 */ // the exit path is tested elsewhere' \
+  'const s = "/* istanbul ignore next */";' \
+  '// explains why istanbul ignore next is banned' \
+  'const t = "/* c8 ignore start */";'
+putv cov.py \
+  'def f():  # pragma: no cover' \
+  'def g():  # pragma: no cover  # only reached on Windows' \
+  's = "# pragma: no cover"' \
+  'if x:  # pragma: no branch' \
+  'def h():  # pragma no cover' \
+  'def i():  # pragma: nocover' \
+  'if y:  # pragma nobranch' \
+  'def j():  # Pragma no cover'
+putv mut.js \
+  '// Stryker disable next-line EqualityOperator: the <= mutant is equivalent' \
+  '// Stryker disable all' \
+  '// Stryker restore all' \
+  'const m = "// Stryker disable all";'
+putv sec.js \
+  'foo(); // nosemgrep: example.rule-id' \
+  'const n = "// nosemgrep: example.rule-id";'
+putv sec.py \
+  'os.system(cmd)  # nosec B605, B607 the command is a fixed literal' \
+  'h = md5(x)  # nosec' \
+  's = "# nosec"' \
+  'x = f(y)  # nosemgrep: example.rule-id  # the argument is a fixed literal' \
+  'token = "example"  # gitleaks:allow' \
+  'token = "example"  # fixture credential; gitleaks:allow' \
+  's = "gitleaks:allow"' \
+  'h = "x"  # nosec B105 gitleaks:allow' \
+  'p = "x"  # noqa: S105 gitleaks:allow' \
+  'q = f(z)  # nosec: B602 the argv is a fixed literal' \
+  'password = "x"  # nosec B105 fixture credential gitleaks:allow'
+putv sec.sh \
+  'run "$cmd" # nosemgrep' \
+  'echo "# nosemgrep: example.rule-id"'
+out="$(cd "$EVD" && "$PY" "$SCANNER" . | summarize)"
+assert_eq "each coverage, mutation and security directive is found with its rules and justification, and none in a string or prose" \
+  "cov.js:1 istanbul - no
+cov.js:2 istanbul - yes
+cov.js:3 c8 - no
+cov.js:4 c8 - yes
+cov.py:1 coverage.py - no
+cov.py:2 coverage.py - yes
+cov.py:4 coverage.py - no
+cov.py:5 coverage.py - no
+cov.py:6 coverage.py - no
+cov.py:7 coverage.py - no
+mut.js:1 stryker EqualityOperator yes
+mut.js:2 stryker all no
+sec.js:1 semgrep example.rule-id no
+sec.py:1 bandit B605,B607 yes
+sec.py:2 bandit - no
+sec.py:4 semgrep example.rule-id yes
+sec.py:5 gitleaks - no
+sec.py:6 gitleaks - yes
+sec.py:8 bandit B105 no
+sec.py:8 gitleaks - no
+sec.py:9 gitleaks - no
+sec.py:9 noqa S105 no
+sec.py:10 bandit B602 yes
+sec.py:11 bandit B105 yes
+sec.py:11 gitleaks - yes
+sec.sh:1 semgrep - no" "$out"
+
 # ---- --exclude ------------------------------------------------------------------
 # The report counts the files left once `scope.exclude` has dropped its matches;
 # the frozen count takes the same globs and must agree with it.
@@ -214,7 +289,8 @@ PATHGLOB="$SCRIPT_DIR/../plugins/code-metrics/scripts/pathglob.py"
 # The audit matches `scope.exclude` with pathglob.translate; the scanner carries
 # its own copy of that translation. Run both over one table so a change to either
 # fails here instead of letting --count and the report drift apart.
-drift="$("$PY" -I - "$SCANNER" "$PATHGLOB" <<'PYEOF'
+drift="$(
+  "$PY" -I - "$SCANNER" "$PATHGLOB" <<'PYEOF'
 import importlib.util, re, sys
 
 def load(name, path):
