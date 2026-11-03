@@ -168,8 +168,10 @@ run_apply() {
   log "upstream version:     $upstream_ver"
   log "upstream dist.shasum: $upstream_sha"
 
+  # LICENSE comes from the package root, not the compared skill directory, so it
+  # would read as wholly deleted and fill the preview.
   section "Diff against vendor/ (first 200 lines)"
-  diff -ruN --exclude=.markdownlint-cli2.jsonc "$VENDOR_DIR" "$upstream_dir" | head -200 || true
+  diff -ruN --exclude=.markdownlint-cli2.jsonc --exclude=LICENSE "$VENDOR_DIR" "$upstream_dir" | head -200 || true
 
   # The vendor lint override is repo-local (disables markdownlint for verbatim
   # third-party content) — it survives the wholesale replacement.
