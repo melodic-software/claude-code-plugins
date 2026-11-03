@@ -1,8 +1,6 @@
 schema_version: "1.1"
 name: 'use-shadowed-name-is-not-invoked'
 plugins: ["../..", "playground-stub"]
-context:
-  scaffold_script: scaffold.sh
 graders:
   - name: 'mismatch-read-as-shadow'
     type: 'llm'

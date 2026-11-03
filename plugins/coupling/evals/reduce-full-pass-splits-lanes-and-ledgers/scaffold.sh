@@ -3,7 +3,7 @@ set -euo pipefail
 here="$(dirname "${BASH_SOURCE[0]}")"
 bash "$here/../fixtures/repo.sh"
 mkdir -p src/orders services/storefront services/backoffice
-for name in list show cancel refund export archive restore notify invoice report audit; do
+for name in list show cancel refund exportOrder archive restore notify invoice report audit; do
   printf 'export const %s = (order: { status: string }) => order.status === "archived" ? null : order;\n' "$name" >"src/orders/$name.ts"
 done
 cat >services/storefront/update-order.sql <<'EOF'

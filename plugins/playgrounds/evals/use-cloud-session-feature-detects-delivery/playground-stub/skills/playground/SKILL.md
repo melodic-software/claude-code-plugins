@@ -5,7 +5,8 @@ description: Creates interactive HTML playgrounds — self-contained single-file
 
 # Playground (eval stand-in)
 
-This is an eval-only stand-in for the upstream playground skill. Do not write any file.
+This is an eval-only stand-in for the upstream playground skill. Write no file.
 
-Reply with one line: `playground stand-in: would generate playground.html for: $ARGUMENTS`, then
-stop.
+Say that the playground for `$ARGUMENTS` would be written to `playground.html` in the working
+directory. Then carry on with whatever the calling skill or the request still needs, such as
+delivery of the file or a warning to the user; this stand-in does not end the turn.

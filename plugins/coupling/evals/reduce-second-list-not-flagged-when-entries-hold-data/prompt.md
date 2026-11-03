@@ -2,6 +2,8 @@
 description: 'The scaffold repository has i18n/strings.json with 600 keys that name no file; the hotspot ranking itself is narrated, since collision-hotspots.sh needs a GitHub remote.'
 tags: ['reduce']
 allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+max_turns: 40
+timeout_seconds: 900
 expected_outcome: 'Checks the ranked file for a second list, finds no list whose entries mostly name tracked paths (a below row), and does not report it as a second list or offer the derive-from-tree comparison; it stays a collision hotspot ranked like any other.'
 ---
 
