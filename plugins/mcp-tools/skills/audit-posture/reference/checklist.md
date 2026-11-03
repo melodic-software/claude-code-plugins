@@ -52,17 +52,23 @@ Reads the `launcher` and `pin` columns. Mechanical: no judgment beyond this tabl
 | `local-path`, `not-a-package` | n/a | n/a |
 | `wrapped` (launcher `local`) | WARN | WARN |
 
-- A package runner resolves the spec each time the server starts, so an unversioned or
-  `@latest` spec runs whatever the registry serves that day. This is why it is the only FAIL.
-- A container launcher resolves a tag when the image is pulled, not on every start, so a floating
-  tag is WARN there. It is still not pinned: only an `@sha256:` digest is.
+- An unversioned or `@latest` spec on a package runner is the only FAIL.
+- A floating tag on a container launcher is WARN, not FAIL. It is still not pinned: only an
+  `@sha256:` digest is.
+- **Pointer**: when checking how a package runner resolves a spec, fetch the
+  [npx Description](https://docs.npmjs.com/cli/commands/npx#description) live; when checking
+  whether the npm registry lets a published version change, fetch the
+  [npm unpublish policy, Considerations](https://docs.npmjs.com/policies/unpublish#considerations)
+  live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: either section changes how a spec without a version resolves or whether a
+  used `package@version` can be published again.
 - `local` launchers (`pin` = `local-path` or `not-a-package`) and `remote` rows (`pin` = `n/a`)
   are `n/a` for P1. Name a `local-path` row in the details so the operator knows the code on disk
   is theirs to track.
 - `tarball` is an `http(s)://` spec ending in `.tgz` or `.tar.gz` on a host other than the npm
   registry: the URL is fixed, but the bytes behind it can change. A `registry.npmjs.org` tarball
-  whose file name ends in `-<version>.tgz` reads `exact`, because the npm registry does not
-  republish a version.
+  whose file name ends in `-<version>.tgz` reads `exact` (the unpublish-policy pointer above).
 - `unparsed` means the script could not isolate a package spec without risking printing an
   argument that may be a secret, so the package column reads `-`. It also covers a `command`
   field holding a whole command line, a URL whose userinfo cannot be separated from the host
