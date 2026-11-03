@@ -194,8 +194,8 @@ through unchanged.
   windowless body from replacing windows. Last-writer-wins still applies between sessions: a
   session whose last API response is minutes old can write its older reading over a newer one,
   until the next write from a session with a fresher response.
-- **Fail-open capability detection.** Sessions whose auth exposes no subscription windows write an
-  honest snapshot without `rate_limits`; consumers treat that as unknown and
+- **Fail-open capability detection.** Sessions whose auth exposes no subscription windows write a
+  snapshot without `rate_limits`; consumers treat that as unknown and
   run reactive-only rather than throttling on fabricated data. Cloud / remote sessions typically
   have no file a consumer can read. That is the same unknown → reactive-only classification,
   documented as the expected degraded mode in
