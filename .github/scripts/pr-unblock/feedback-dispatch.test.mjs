@@ -5,7 +5,7 @@ import { test } from "node:test";
 
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, parseRecord, serializeRecord } from "./dispatch-record.mjs";
-import { createGitHubApi, dispatchFeedback, failureAnnotation, FAILED_RUN_WINDOW_HOURS, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, reviewRunAt, SWEEP_HEAD_CAP, sweepReleased } from "./feedback-dispatch.mjs";
+import { createGitHubApi, dispatchFeedback, failureAnnotation, FAILED_RUN_WINDOW_HOURS, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, reviewRunAt, SWEEP_HEAD_CAP, sweepReleased, UNSENT_GRACE_MS } from "./feedback-dispatch.mjs";
 import { onReviewedHead, threadAuthors } from "./address-feedback.mjs";
 import { verifyReader } from "./verify-cap.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -2515,9 +2515,13 @@ test("a review-lane hold at the head gates a github-actions[bot] lane thread (#1
   assert.ok(lines.at(-1).includes("is labeled needs-human (review-hold: "), lines.at(-1));
 });
 
-test("the sweep does not revisit a head the human gate skipped once the label is off", async () => {
-  // The skipped dispatch posted no reply check, so sweepOne finds no release.
-  const api = { ...fakeApi({ pulls: pull(), threads: [LANE_FINDING] }), listOpenPulls: async () => pull() };
+// #12578, #12604, #12605: each review completion skipped on an artifact listing
+// past the caller's limit, a cause that clears on a later read, and no review
+// run followed, so one advisory lane thread held each lanes App PR until a
+// person dispatched it.
+const DEADLINE = "verify:unreadable: the artifact listing does not fit in the caller's limit: repository artifacts: 13962 artifacts in 140 pages need 147 s";
+const REVIEWED = upstreamRun({ id: 13, run_started_at: "2026-10-17T12:00:00Z", updated_at: "2026-10-17T12:10:00Z" });
+const sweepUnsent = async (api, verifyCapped, now = Date.parse("2026-10-17T12:20:00Z")) => {
   const lines = [];
   const result = await sweepReleased({
     api,
@@ -2526,10 +2530,55 @@ test("the sweep does not revisit a head the human gate skipped once the label is
     appSenderId: APP_ID,
     trustedHumans: new Set([KYLE.databaseId]),
     resolveSlot: async () => resolvedLane(),
+    verifyCapped,
+    now,
     log: (line) => lines.push(line),
   });
-  assert.equal(result, null);
-  assert.deepEqual(api.calls.dispatch, []);
+  return { result, lines };
+};
+const unsentApi = (options = {}) => {
+  const api = sweepApi({ checksAt: {}, threads: [LANE_FINDING], reviewRuns: { [HEAD]: [REVIEWED] }, ...options });
+  api.listWorkflowRuns = async () => options.workflowRuns ?? [];
+  return api;
+};
+
+test("the sweep sends a lanes App head with an unresolved thread that no round was sent for, once its skip clears", async () => {
+  // The review completion's read did not fit; the head stays unrecorded.
+  const record = emptyRecord();
+  const skipped = await decide(fakeApi({ pulls: pull(), threads: [LANE_FINDING] }), resolvedLane(), { record, verifyCapped: () => DEADLINE });
+  assert.equal(skipped.result, null);
+  assert.equal(record.handled.size, 0);
+
+  // The tick's read fits, so the head is sent through its newest review run.
+  const api = unsentApi();
+  const { result } = await sweepUnsent(api, () => null);
+  assert.deepEqual(result, { number: 42, workflowRunId: "38779200001", upstreamRunId: 13 });
+  assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["pr-number"]), ["42"]);
+
+  // A read that still does not fit sends nothing, and the next tick tries again.
+  const still = unsentApi();
+  assert.equal((await sweepUnsent(still, () => DEADLINE)).result, null);
+  assert.deepEqual(still.calls.dispatch, []);
+});
+
+test("the unsent-head sweep leaves a head with a round, no unresolved thread, a review inside the grace, or a run since its review", async () => {
+  for (const [label, options, now] of [
+    ["a round at the head", { checksAt: { [HEAD]: [answeredRound] } }],
+    ["every thread resolved", { threads: [thread([CLAUDE], true)] }],
+    ["no completed review run", { reviewRuns: {} }],
+    ["a review completed inside the grace", {}, Date.parse("2026-10-17T12:10:00Z") + UNSENT_GRACE_MS - 1],
+    ["a review with no completion time", { reviewRuns: { [HEAD]: [upstreamRun({ id: 13, run_started_at: "2026-10-17T12:00:00Z" })] } }],
+    ["a run since its review", { workflowRuns: [{ id: 9, status: "completed", display_title: TITLE_42, created_at: "2026-10-17T12:05:00Z" }] }],
+    ["do-not-merge", { openPulls: pull({ labels: [{ name: "do-not-merge" }] }) }],
+  ]) {
+    const api = unsentApi(options);
+    const { result } = await sweepUnsent(api, () => null, now);
+    assert.equal(result, null, label);
+    assert.deepEqual(api.calls.dispatch, [], label);
+  }
+  // A run from before the review does not hold it.
+  const older = unsentApi({ workflowRuns: [{ id: 8, status: "completed", display_title: TITLE_42, created_at: "2026-10-17T11:00:00Z" }] });
+  assert.equal((await sweepUnsent(older, () => null)).result?.number, 42);
 });
 
 // A label coming off a PR starts pr-merge.yml on pull_request_target; its
