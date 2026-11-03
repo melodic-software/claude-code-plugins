@@ -4530,14 +4530,14 @@ hook::bash_parse_segments() {
 #
 # Once the parse returns, HOOK_HEREDOC_BODIES holds one
 # `<start> <end> <quoted> <closed> <delimiter>` entry per here-doc body in the
-# tree, a substitution's included, in the order the callback sees their
-# openers, so the n-th `<<` counted across the callbacks owns entry n: the byte
+# tree, a substitution's included, in source order. Entry n is not the body
+# of the n-th `<<` a callback sees: a statement with no command word, a
+# substitution's or a body's own here-doc, or a second reading can shift that
+# count, so a consumer reads the bodies as a set. Each entry holds the byte
 # offsets in the command of the body's first byte and of the byte just past its
 # delimiter line; 1 when the delimiter was quoted or escaped (`<<'EOF'`,
 # `<<\EOF`), so bash expands nothing in the body; 1 when a delimiter line ended
 # the body; and the delimiter, quotes removed, which may hold spaces.
-# HOOK_HEREDOC_BODIES_SRC holds the same entries in source order, for a scan
-# that walks the command from its start.
 hook::bash_parse_segments_uncached() {
   hook::bash_parse_segments_shfmt "$1" "$2"
 }
@@ -4643,23 +4643,14 @@ def strip_q: [.Parts[]? |
     else (.Value // ([.Parts[]?.Value] | join(""))) end] | join("");
 [.. | objects] as $all
 | [$all[] | select(.Hdoc.Pos? != null) | [.Hdoc.Pos.Offset, .Hdoc.End.Offset]] as $hb
-# Each here-doc opener ranked in the order the callback sees it: by its
-# statement as the segments are sorted, then by place. A consumer numbers
-# bodies by counting openers in callback order, so the list follows that rank.
-| [$all[] | select(has("Cmd") or has("Redirs")) | select(has("Type") | not)
-   | .Pos.Offset as $so
-   | (if any($hb[]; $so >= .[0] and $so < .[1]) then 1 else 0 end) as $k
-   | (.Redirs // [])[] | select(.Op == "<<" or .Op == "<<-") | [$k, $so, .OpPos.Offset]]
-  | (sort | map(.[2])) as $hord
 # A command inside a here-doc body comes after the top-level ones, so a callback
 # that reads the segment before (a pipe into a shell) still reads the top-level one.
 | ([$all[] | select(has("Cmd") or has("Redirs")) | select(has("Type") | not) | stmt
     | .k = (.o as $o | if any($hb[]; $o >= .[0] and $o < .[1]) then 1 else 0 end)]
    | sort_by([.k, .o]) | map(.t) | add // [])
   + ([$all[] | select(.Op == "<<" or .Op == "<<-")
-     | .OpPos.Offset as $p
      | {o: .OpPos.Offset,
-        t: ["H", (.Hdoc.Pos.Offset // -1), .OpPos.Offset, (($hord | indices($p) | .[0]) // (100000 + $p)),
+        t: ["H", (.Hdoc.Pos.Offset // -1), .OpPos.Offset,
             (if (.Word | has_quoted or has_esc) then 1 else 0 end),
             (if .Op == "<<-" then 1 else 0 end), (.Word | strip_q)]}]
      | sort_by(.o) | map(.t) | add // [])
@@ -4808,7 +4799,7 @@ hook::_bps_tree_word() {
 # runs them in its own locale. Dynamic scope.
 # shellcheck disable=SC2154,SC2034  # the __hu_b* names are hook::bash_parse_segments_shfmt's
 hook::_bps_tree_decode() {
-  local __hu_bi=0 __hu_bo __hu_brk __hu_bq __hu_bw __hu_bk __hu_bn=${#__hu_bt[@]} __hu_br __hu_bj __hu_bs __hu_bl __hu_bd __hu_be __hu_bc __hu_bp __hu_bstrip __hu_bquoted
+  local __hu_bi=0 __hu_bo __hu_bq __hu_bw __hu_bk __hu_bn=${#__hu_bt[@]} __hu_br __hu_bj __hu_bs __hu_bl __hu_bd __hu_be __hu_bc __hu_bp __hu_bstrip __hu_bquoted
   local __hu_bcn=${#__hu_bcmd}
   __hu_bp=0
   while ((__hu_bi < __hu_bn)); do
@@ -4839,7 +4830,6 @@ hook::_bps_tree_decode() {
       # from the tree because the tree stops at the delimiter's first bytes.
       __hu_bs=${__hu_bt[__hu_bi++]}
       __hu_bo=${__hu_bt[__hu_bi++]}
-      __hu_brk=${__hu_bt[__hu_bi++]}
       __hu_bquoted=${__hu_bt[__hu_bi++]}
       __hu_bstrip=${__hu_bt[__hu_bi++]}
       __hu_bd=${__hu_bt[__hu_bi++]}
@@ -4868,10 +4858,7 @@ hook::_bps_tree_decode() {
       ((__hu_be > __hu_bcn)) && __hu_be=$__hu_bcn
       __hu_bp=$__hu_be
       __hu_hs+=("$__hu_bs")
-      # Bodies are scanned in source order (an empty body's start reads the one
-      # before it) and listed by the opener's callback rank.
-      __hu_hb[__hu_brk]="$__hu_bs $__hu_be $__hu_bquoted $__hu_bc $__hu_bd"
-      __hu_hbs+=("$__hu_bs $__hu_be $__hu_bquoted $__hu_bc $__hu_bd")
+      __hu_hb+=("$__hu_bs $__hu_be $__hu_bquoted $__hu_bc $__hu_bd")
       # Bash joins a backslash-newline before it reads an unquoted body, so
       # `$\<newline>(cmd)` is a substitution that shfmt's body text does not hold.
       # Bash runs that body up to its first error, so the joined reading refuses
@@ -4975,7 +4962,7 @@ hook::bash_parse_segments_shfmt() {
   # array: on bash 3.2 `local -A` fails and an indexed array would evaluate the
   # pattern text as an arithmetic subscript, running any `$(...)` in it.
   local __hu_pseen=$'\n' __hu_pk
-  local -a __hu_bt=() __hu_ac=() __hu_rc=() __hu_wd=() __hu_wq=() __hu_rop=() __hu_rfd=() __hu_rtg=() __hu_rq=() __hu_ro=() __hu_hb=() __hu_hbs=() __hu_hs=() __hu_pt=() __hu_bt_more=()
+  local -a __hu_bt=() __hu_ac=() __hu_rc=() __hu_wd=() __hu_wq=() __hu_rop=() __hu_rfd=() __hu_rtg=() __hu_rq=() __hu_ro=() __hu_hb=() __hu_hs=() __hu_pt=() __hu_bt_more=()
   if ! hook::_bps_shfmt_to __hu_bout "$__hu_bcmd"; then
     ((__hu_bsoft)) && return 1
     hook::_bps_refuse
@@ -5044,8 +5031,6 @@ hook::bash_parse_segments_shfmt() {
   # Set last: a callback's own parse would overwrite it.
   # shellcheck disable=SC2034  # result global is consumed by the sourcing guard
   HOOK_HEREDOC_BODIES=(${__hu_hb[@]+"${__hu_hb[@]}"})
-  # shellcheck disable=SC2034  # result global is consumed by the sourcing guard
-  HOOK_HEREDOC_BODIES_SRC=(${__hu_hbs[@]+"${__hu_hbs[@]}"})
   return 0
 }
 

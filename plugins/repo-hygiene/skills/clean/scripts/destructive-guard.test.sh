@@ -127,6 +127,11 @@ nested_cmds=(
   # after the shell that reads its own here-doc as a script.
   $'X=$(true <<A\nx\nA\n) bash <<A\ngit reset --hard\nA'
   $'cat <<E\n$(cat <<F\nf\nF\n)\nE\nbash <<G\ngit reset --hard\nG'
+  # A body with no opener a callback counts (a redirect-only statement) and an
+  # opener with no body in the list (a joined body's or a pattern's second
+  # reading): every body is read as the shell's script, whatever the count says.
+  $'<<A\nz\nA\nbash <<A\ngit reset --hard\nA\ncat <<A\nx\\\ny\nA'
+  $'<<A\nz\nA\nbash <<A\ngit reset --hard\nA\necho @(cat <<B\nb\nB\n)'
   "git --git-dir /r/.git reset --hard"
   "git --work-tree /r stash drop"
 )
@@ -148,6 +153,7 @@ literal_cmds=(
   "ssh -l h 'git stash drop'"
   "printf 'git status\n' | bash"
   $'bash <<\'EOF\'\necho hi\nEOF'
+  $'cat <<A\ndocs\nA\nbash <<B\necho hi\nB'
   $'cat <<\'EOF\' > notes.md\ngit stash drop\nEOF'
   "echo 'rm -rf build' | tee bash"
   "bash scripts/x.sh <<< 'git stash drop'"

@@ -722,7 +722,6 @@ RUN_GUARDS_BPS_RTGT=()
 RUN_GUARDS_BPS_RQ=()
 RUN_GUARDS_BPS_ROPQ=()
 RUN_GUARDS_BPS_HD=()
-RUN_GUARDS_BPS_HDS=()
 
 # shellcheck disable=SC2329  # invoked by every guard sourced below
 hook::bash_parse_segments() {
@@ -751,7 +750,6 @@ hook::bash_parse_segments() {
   RUN_GUARDS_BPS_RQ=(${__rg_bps_rq[@]+"${__rg_bps_rq[@]}"})
   RUN_GUARDS_BPS_ROPQ=(${__rg_bps_ropq[@]+"${__rg_bps_ropq[@]}"})
   RUN_GUARDS_BPS_HD=(${HOOK_HEREDOC_BODIES[@]+"${HOOK_HEREDOC_BODIES[@]}"})
-  RUN_GUARDS_BPS_HDS=(${HOOK_HEREDOC_BODIES_SRC[@]+"${HOOK_HEREDOC_BODIES_SRC[@]}"})
   RUN_GUARDS_BPS_HAVE=1
 }
 
@@ -813,8 +811,6 @@ run_guards::bps_replay() {
   HOOK_SEG_REDIR_QUOTED=()
   HOOK_SEG_REDIR_OPAQUE=()
   HOOK_HEREDOC_BODIES=(${RUN_GUARDS_BPS_HD[@]+"${RUN_GUARDS_BPS_HD[@]}"})
-  # shellcheck disable=SC2034  # read by the guard the replay serves
-  HOOK_HEREDOC_BODIES_SRC=(${RUN_GUARDS_BPS_HDS[@]+"${RUN_GUARDS_BPS_HDS[@]}"})
   RUN_GUARDS_BPS_DEPTH=$__rg_depth
 }
 

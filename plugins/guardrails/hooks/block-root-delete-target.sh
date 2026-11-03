@@ -4923,30 +4923,23 @@ rdt_interp_check() {
   return 0
 }
 
-# rdt_ix_heredocs <text>: after the parse of <text>, judge each heredoc body an
-# interpreter or a shell reads as its program, in the language rdt_hd_lang
-# records for its index (sh for a shell, read by rdt_shell_prog), under the
-# directory-change state rdt_hd_st recorded where the interpreter ran. The
-# index is trusted only when the parse reports as many bodies as the segments
-# carried openers and each recorded index holds a body with the recorded
-# delimiter; otherwise (an opener on a segment with no word, or one with no
-# body) every body is judged in each recorded language. A directory change an
-# interpreter's code makes is dropped afterwards: it ran in the interpreter's
-# child. A shell body is judged from every origin the command has, and the
-# ones its cd lines add are kept, since its targets index them.
+# rdt_ix_heredocs <text>: after the parse of <text>, judge every heredoc body
+# of the command as the program of each interpreter or shell that reads a
+# heredoc, in the language rdt_hd_lang records for it (sh for a shell, read by
+# rdt_shell_prog), under the directory-change state rdt_hd_st recorded where it
+# ran. No body is matched to its opener by count: a statement with no command
+# word, a substitution's or a body's own here-doc, or a second reading of the
+# command can each shift that count, so the body a shell reads cannot be named
+# for certain. A directory change an interpreter's code makes is dropped
+# afterwards: it ran in the interpreter's child. A shell body is judged from
+# every origin the command has, and the ones its cd lines add are kept, since
+# its targets index them.
 # shellcheck disable=SC2329  # invoked from rdt_parse
 rdt_ix_heredocs() {
-  local k m every=0 st e no d0="$rdt_deleter" unk0="$rdt_cd_unknown" ref0="$rdt_cd_refuse"
+  local k m st no d0="$rdt_deleter" unk0="$rdt_cd_unknown" ref0="$rdt_cd_refuse"
   local -a hdb=(${HOOK_HEREDOC_BODIES[@]+"${HOOK_HEREDOC_BODIES[@]}"}) ix=() lg=() sts=() bodies=() orig=()
-  ((${#hdb[@]} == rdt_hd_n)) || every=1
-  for k in "${!rdt_hd_lang[@]}"; do
-    st="${rdt_hd_st[k]-}"
-    e="${hdb[k]-}"
-    [[ -n "$e" && "${e#* * * * }" == "${st#* * * }" ]] || every=1
-  done
   for k in "${!rdt_hd_lang[@]}"; do
     for ((m = 0; m < ${#hdb[@]}; m++)); do
-      ((every || m == k)) || continue
       ix+=("$m")
       lg+=("${rdt_hd_lang[k]}")
       sts+=("${rdt_hd_st[k]-}")

@@ -209,13 +209,12 @@ hd_are 'an empty body' $'cat <<E\nE\nx' '8 10 0 1 E'
 # Offsets by hand: the body starts on the line after its own opener.
 hd_are 'an empty body whose opener is on line 2' $'echo hi\ncat <<\'E\'\nE' '18 19 1 1 E'
 hd_are 'an empty body after an earlier body' $'cat <<A\na\nA\necho y\ncat <<B\nB' '8 12 0 1 A|27 28 0 1 B'
-# Listed in the order the callbacks see the openers (offsets by hand): the
-# statement that holds the substitution is called back before its contents,
-# and a body's own statements after every top-level one.
-hd_are 'a substitution here-doc follows its statement in callback order' \
-  $'X=$(true <<A\nx\nA\n) bash <<A\nrm -rf /\nA' '28 38 0 1 A|13 17 0 1 A'
-hd_are 'a body-nested here-doc follows the top-level ones' \
-  $'cat <<E\n$(cat <<F\nf\nF\n)\nE\nbash <<G\ngit reset --hard\nG' '8 26 0 1 E|35 53 0 1 G|18 22 0 1 F'
+# Source order, a substitution's and a body's own here-docs included (offsets
+# by hand).
+hd_are 'a substitution here-doc is listed in source order' \
+  $'X=$(true <<A\nx\nA\n) bash <<A\nrm -rf /\nA' '13 17 0 1 A|28 38 0 1 A'
+hd_are 'a body-nested here-doc is listed in source order' \
+  $'cat <<E\n$(cat <<F\nf\nF\n)\nE\nbash <<G\ngit reset --hard\nG' '8 26 0 1 E|18 22 0 1 F|35 53 0 1 G'
 hd_are 'a backslash-quoted delimiter' $'cat <<\\E\nx\nE\n' '9 13 1 1 E'
 
 # --- the caller's locale is put back -----------------------------------------
