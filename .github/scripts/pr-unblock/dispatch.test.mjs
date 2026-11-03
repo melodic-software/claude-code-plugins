@@ -6,7 +6,9 @@ import { test } from "node:test";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, markHandled, parseRecord, serializeRecord } from "./dispatch-record.mjs";
-import { createGitHubApi, dispatchConflicting, dispatchSharedCopies, main, shareTimeline } from "./dispatch.mjs";
+import { createGitHubApi, dispatchConflicting, dispatchSharedCopies, LIST_QUERY, listAll, main, shareTimeline } from "./dispatch.mjs";
+import { dispatchCiFixes } from "./fix-ci-dispatch.mjs";
+import { dispatchDocsFixes } from "./fix-docs-dispatch.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -1203,6 +1205,55 @@ test("the GitHub adapter calls the documented endpoints", async () => {
     requests[3].url,
     "https://api.example/repos/octo/repo/actions/workflows/pr-unblock.yml/runs?event=workflow_dispatch&per_page=100",
   );
+});
+
+test("resolve-conflicts, fix-ci and fix-docs page through one listing: each page is one GraphQL request, and a failed page is sent again", async () => {
+  const draft = (number) => ({ ...pr(number), isDraft: true, headRefOid: String(number).repeat(40).slice(0, 40), files: { nodes: [{ path: "README.md" }], pageInfo: { hasNextPage: false } } });
+  const page = (nodes, endCursor) => ({
+    data: {
+      rateLimit: { cost: 2, remaining: 4000 },
+      repository: { ref: { target: { committedDate: "2026-11-01T00:00:00Z" } }, pullRequests: { nodes, pageInfo: { hasNextPage: endCursor !== null, endCursor } } },
+    },
+  });
+  const sent = [];
+  let failSecondPage = true;
+  const api = createGitHubApi({
+    token: "t0ken",
+    repository: "octo/repo",
+    apiUrl: "https://api.example",
+    graphqlUrl: "https://api.example/graphql",
+    fetch: async (url, init) => {
+      const body = JSON.parse(init.body);
+      sent.push(body);
+      if (body.variables.after === "c1" && failSecondPage) {
+        failSecondPage = false;
+        return { ok: false, status: 502, json: async () => ({}) };
+      }
+      return { ok: true, status: 200, json: async () => (body.variables.after === null ? page([draft(5)], "c1") : page([draft(6)], null)) };
+    },
+  });
+  await assert.rejects(listAll(api, "main"), /returned 502/);
+  assert.deepEqual((await listAll(api, "main")).map((node) => node.number), [5, 6]);
+  const lines = [];
+  const log = (line) => lines.push(line);
+  assert.deepEqual(await dispatchCiFixes({ api, runId: "1", log, appSenderId: 100, maxDispatch: 2, restarts: 1 }), { dispatched: [], failed: 0 });
+  assert.deepEqual(await dispatchDocsFixes({ api, runId: "1", log, maxDispatch: 2 }), { dispatched: [], failed: 0 });
+  assert.deepEqual(sent.map((body) => body.variables.after), [null, "c1", "c1"], "page 1 once, page 2 again only after it failed");
+  assert.ok(sent.every((body) => body.query === LIST_QUERY));
+  for (const activity of ["fix-ci", "fix-docs"]) {
+    for (const n of [1, 2]) {
+      assert.ok(lines.includes(`${activity} listing page ${n}: rateLimit.cost=2 remaining=4000`), `${activity} page ${n}`);
+    }
+  }
+  const ci = await api.listCiFixCandidates({ base: "main" });
+  assert.equal(ci.baseCommittedAt, "2026-11-01T00:00:00Z");
+  assert.deepEqual((await api.listDocsFixCandidates({ base: "main" })).pullRequests.nodes[0].files.nodes, [{ path: "README.md" }]);
+  assert.equal(sent.length, 3, "the later views read no page again");
+  // Each consumer's own fields: resolve-conflicts's mergeable state and
+  // Dependabot's commit count, fix-ci's rollup states, fix-docs's file paths.
+  for (const field of ["mergeable", "changedFiles", "commits(last: 1) {\n          totalCount", "conclusion title completedAt", "files(first: 100) { nodes { path } pageInfo { hasNextPage } }", "first: 50"]) {
+    assert.ok(LIST_QUERY.includes(field), field);
+  }
 });
 
 test("the required-run read takes the newest pr-require-checks run that tested the head", async () => {
