@@ -11,6 +11,10 @@
     {
       "answer": "@dataclass(frozen=True)\nclass Money:\n    currency: Currency\n    minor_units: int  # cents for USD/EUR, yen for JPY\n",
       "why": "an integer field named for the minor units"
+    },
+    {
+      "answer": "Money stores amounts in the currency's smallest unit as an integer.\n",
+      "why": "smallest unit stated in prose with the long form"
     }
   ],
   "fail": [
@@ -33,6 +37,14 @@
     {
       "answer": "- `Decimal` amounts with per-currency rounding rules, rather than integer minor units.\n",
       "why": "integer minor units named only as the rejected option"
+    },
+    {
+      "answer": "- `Decimal` amounts with per-currency rounding rules, rather than an integer count of minor units.\n",
+      "why": "the rejected option with an article"
+    },
+    {
+      "answer": "Totals keep a `Decimal` instead of an integer number of minor units.\n",
+      "why": "the rejected option after instead of"
     }
   ]
 }
