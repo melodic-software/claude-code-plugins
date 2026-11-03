@@ -687,7 +687,7 @@ assert_present 'the joint-inference check ties the primary to role: primary' \
 assert_absent 'no file says the sub-agents page has no partial-return semantics' \
   'partial-return semantics'
 for file in skills/explore/reference/dispatch.md skills/research/context/dispatch.md \
-  skills/trace-intent/context/dispatch.md reference/parent-contract.md; do
+  reference/parent-contract.md; do
   assert_present "$file quotes the current partial-marking behavior" \
     "$file" 'returns its output marked as partial'
 done

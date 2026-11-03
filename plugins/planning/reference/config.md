@@ -126,16 +126,17 @@ work_size:
 
 ## Convention-home keys
 
-Two interview keys resolve through the bound convention home and the four layers of
+Three interview keys resolve through the bound convention home and the four layers of
 [ADR 0075](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md),
 lowest first: the default, the `userConfig` option of the same name, the team file
 `<home>/planning.yaml`, then the personal file `<home>/planning.local.yaml`.
-`answer_audit_rounds` has no `userConfig` option, so it skips that layer.
+`answer_audit_rounds` and `wayfind_suggest_questions` have no `userConfig` option, so they skip that layer.
 
 | Key | Values | Default | Reader |
 |---|---|---|---|
 | `question_pacing` | `round`, `single` | `round` | `/planning:interview`, first round: `round` asks the frontier as one set, `single` one question per message. A request in the session ("one at a time") overrides it for that session |
 | `answer_audit_rounds` | an integer, `0` or more | `2` | `/planning:interview`, after each round's read-back: offer `/planning:audit-answers` once when this many rounds were accepted whole; `0` never offers |
+| `wayfind_suggest_questions` | an integer, `0` or more | `27` | `/planning:interview`, at each round boundary: suggest `/planning:wayfind chart` once when the ledger's register holds more than this many questions; `0` never suggests |
 
 Resolve `<home>` by running `bash "<plugin-root>/lib/resolve-convention-home.sh"` from the
 repository root (`<plugin-root>` per the reading skill's "Spoke paths"). Exit 0 prints the home.
@@ -146,6 +147,14 @@ Any other exit (2 or 3) skips both file layers, with the cause named in the one-
 root rule above applies to the two file layers, and the unset and invalid-value rules to every
 layer. Report the value and the layer that supplied it in
 one line.
+
+The `wayfind_suggest_questions` default is `judgment`, set from a measurement that did not separate
+the groups. Across 26 interview efforts in one operator's transcripts (2026-09-27 to 2026-10-28),
+first-session question counts ran 6 to 98 for the 17 efforts that spanned more than one session and
+8 to 27 for the 9 that did not (AUC 0.80). `27` is the largest single-session count, so it errs
+toward not suggesting: 10 of the 17 and none of the 9 pass it. None of the 26 invoked wayfind in the
+interview's session, so the count shows a span of sessions, not that wayfind would have helped.
+Recheck when interviews that reached wayfind can be counted.
 
 ## Probe topics
 

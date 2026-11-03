@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "The register holds 31 questions, past wayfind_suggest_questions (27, default). The interview may be outrunning one session; /planning:wayfind chart would carry this ledger over if the effort is still foggy.\n\nQ32: **Do invoices keep their current numbering after the merge?**",
+      "why": "slash form with the count and the next question"
+    },
+    {
+      "answer": "Past the threshold, so planning:wayfind is an option if this is still foggy. Round 7 follows.",
+      "why": "no leading slash"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Q32: **Do invoices keep their current numbering after the merge?**\n\nMy recommendation: **yes**, the existing numbers are printed on issued invoices.",
+      "why": "asks the round and never names wayfind"
+    },
+    {
+      "answer": "We have covered a lot of ground, so consider a map of the remaining decisions.",
+      "why": "a different answer that does not name the skill"
+    }
+  ]
+}

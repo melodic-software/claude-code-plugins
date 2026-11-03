@@ -19,11 +19,11 @@ invocation:
 - Project root, `git rev-parse --show-toplevel`
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
-block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git. The dated record for that composition claim is the
-[gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation".
+separate body Bash calls rather than pre-compute lines, one command per call, so each git read
+reaches the shell on its own. How the harness runs a skill's injected commands is
+[skills: inject dynamic context](https://code.claude.com/docs/en/skills#inject-dynamic-context)'s
+to say (as of 2026-11-03; recheck when that section states how a block's commands are grouped
+into shell invocations).
 
 ## Purpose
 
@@ -53,8 +53,11 @@ checker before dispatching, and a denied or errored probe **halts** rather than 
 All three reasons in full, and the halt rule: [`context/dispatch.md`](context/dispatch.md).
 
 **Discipline-liveness token.** A dispatched agent receives this body through its `skills:` preload,
-and a preload that fails to resolve is skipped **silently**. Logged to the debug log and nowhere
-else. The dated record for that harness behavior is
+and nothing else in its run shows whether that preload resolved. What the harness does with one
+that fails is
+[subagents: preload skills into subagents](https://code.claude.com/docs/en/sub-agents#preload-skills-into-subagents)'s
+to say (as of 2026-11-03; recheck when that section changes what a missing or disabled skill
+does). The dated record for that harness behavior is
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
 "Harness facts the dispatch design rests on".
 The disk fallback Reads this same file, so a matching `preload_token` is file-identity, **not** proof that preload fired. A missing or mismatched token is a **hard failure: the parent discards the run**. Provenance is `preload: fired | fallback`; `fallback` is the accepted recovery.

@@ -946,7 +946,7 @@ each entry once.
 | Within one PR, across write lanes | One queue: a write job waits for the one ahead and never cancels it | job group `pr-pipeline-write-<n>`, `queue: max`, on every write caller job |
 | `pr-unblock-dispatch` | One run at a time; a push cancels the run going, and a tick or hand run waits behind it; any newer run replaces one still waiting | workflow group `pr-unblock-dispatch`, `cancel-in-progress: ${{ github.event_name == 'push' }}` |
 | `pr-feedback-dispatch` | One run per reviewed head at a time; a waiting one is replaced | workflow group `pr-feedback-dispatch-<head SHA>` |
-| `pr-merge` `enable-auto-merge`, across PRs | One run at a time, sweeps and verdict wakes alike, since the lane-room check is not re-read after arming; none is cancelled, and a waiting sweep, or a newer wake for the same PR, does a wake's work. At the measured peak of 31 `pr-verify` completions in 15 minutes, all of them wakes, the job's 42-minute ceiling queues about 87, under GitHub's cap of 100; a run past the cap leaves its PR to the next scheduled run | job group `pr-merge-enable-auto-merge`, `queue: max` |
+| `pr-merge` `enable-auto-merge`, across PRs | One run at a time, sweeps and verdict wakes alike, since the lane-room check is not re-read after arming; none is cancelled, and a waiting sweep, or a newer wake for the same PR, does a wake's work. At the measured peak of 31 `pr-verify` completions in 15 minutes, all of them wakes, the job's 44-minute ceiling queues about 91, under GitHub's cap of 100; a run past the cap leaves its PR to the next scheduled run | job group `pr-merge-enable-auto-merge`, `queue: max` |
 
 The write group sits on each caller job, behind an `if:` that leaves out the lanes App's own
 `pull_request` events, so a lane's push never queues a job in it.
@@ -1887,8 +1887,12 @@ edited after arming to drop its link or name another issue does not merge on tha
 or pass-notes verdict wakes it for that one pull request: `pr-verify.yml`'s `wake-pr-merge` job
 dispatches a PR-scoped `pr-merge.yml` run (`-f pr=<n>`, run name `pr-merge: arm #<n>`) that
 reads and arms only that pull request, its lane room from the last sweep's post-merge report,
-and skips the merge job, `post-merge-dispatch` and every other sweep job. Its `api-calls` totals
-and outcome land in one `pr-merge-wake` notice. The 30-minute schedule is the backstop that arms
+and skips the merge job, `post-merge-dispatch` and every other sweep job. That report stands only
+while `settle --idle-tick` keeps it; when it does not, the wake never reuses it but runs the
+post-merge check fresh on its own read-only token, and arms only when that check passes (exit 0
+or 5) and `settle --idle-tick` keeps the fresh report too, since the wake starts no full run or
+re-run. Its `api-calls` totals, which report the room came from (`report=last`, `fresh` or `none`) and
+the outcome land in one `pr-merge-wake` notice. The 30-minute schedule is the backstop that arms
 what a wake missed and disarms what the events missed; a listed human's unlabel wakes it too. A
 `Hold:` line added after arming fails `ci-status` on that edit, on the pull request and in the
 merge queue, and the next scheduled run disarms. The issue lane finishing does not wake it:
