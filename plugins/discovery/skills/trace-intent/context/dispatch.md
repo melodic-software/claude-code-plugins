@@ -64,7 +64,19 @@ failure this gate exists to catch is a payload carrying no pointer at all.
    whose value the payload did not supply**. **The `index=` path in that output is authoritative**
    downstream: the verifier's `target` and the handoff pointer come from it, not from `artifact:`.
 
-3. **The coverage map is read, not scored.** `categories_unavailable` carries a reason per entry, and
+3. **The author-kind check re-runs on disk.** The tracer ran it before hand-back; its word is not
+   evidence.
+
+   ```bash
+   "<plugin-root>/scripts/check-author-kind.py" <the retained memory-slice path>
+   ```
+
+   Cite the exit status: 0 pass; 1 a violation, one stderr line per claim or source at fault; 2
+   ungradeable. Both 1 and 2 are FAILs and take the recovery ladder: resume the tracer with the
+   reported lines. Where `python3` does not resolve, run it with `python`. The rule is in
+   [`artifact-shape.md`](artifact-shape.md), "`author_kind` says who wrote the words".
+
+4. **The coverage map is read, not scored.** `categories_unavailable` carries a reason per entry, and
    the only two admissible reasons are the two under **Skipping a category** in `SKILL.md`. An entry
    giving any other reason, such as "probably nothing there" or "unlikely to be documented", is a
    **failed dispatch**, because deciding in advance that a source is empty is the blind spot this
@@ -117,7 +129,7 @@ resume is addressed). Dated record:
 Exit 1 with `persistence: by-value` in the payload means the agent finished and its environment
 refused every write. There the parent **writes the slice itself** from the artifact bodies the
 payload carries verbatim, into the memory-slice path it resolved before dispatch, and then **re-runs
-step 2 above**. The workflow proceeds only when that check comes back 0.
+steps 2 and 3 above**. The workflow proceeds only when both checks come back 0.
 
 Two conditions bind that write:
 
