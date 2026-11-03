@@ -6,4 +6,4 @@ expected_outcome: 'Emits the -o target and the delete with the concrete path in 
 
 /x:read https://x.com/jack/status/20
 
-(The resolved plugin data directory is /c/Users/dev$user/.claude/plugin-data/x.)
+(In this environment `mktemp -d` prints /c/Users/dev$user/AppData/Local/Temp/tmp.k3Qx9aZbTw.)
