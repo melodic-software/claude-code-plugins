@@ -123,14 +123,17 @@ upstream text. Copy the pin marker and trigger wording from that read; never fro
    dropped), read it through the GitHub REST API with `gh api`, only after its source check read
    `public`; any other URL form: say so, name the local-checkout form, and stop. Put the branch
    name and every path into a command percent-encoded (every byte outside `A-Za-z0-9._~/-`), since
-   they are source text. Read the default branch with
-   `gh api repos/<owner>/<repo> --jq .default_branch`, then
-   `gh api repos/<owner>/<repo>/commits/heads/<branch> --jq '.sha, .commit.tree.sha'`: the first
-   line, the full 40-hex commit, is the pin, and the second is its tree. List the files with
-   `gh api 'repos/<owner>/<repo>/git/trees/<tree>?recursive=1'`, keeping the `blob` entries under
-   the scope; one with mode `120000` is a symbolic link, reported as not read. When the response
-   is `truncated`, list the scope one tree at a time without `recursive`. Read a file with
-   `gh api -H 'Accept: application/vnd.github.raw+json' 'repos/<owner>/<repo>/contents/<path>?ref=<pin>'`,
+   they are source text. Every read names `--hostname github.com`, the host the source check
+   asked, so a `GH_HOST` set to another host cannot send the reads to a different repository than
+   the one checked. Read the default branch with
+   `gh api --hostname github.com repos/<owner>/<repo> --jq .default_branch`, then
+   `gh api --hostname github.com repos/<owner>/<repo>/commits/heads/<branch> --jq '.sha, .commit.tree.sha'`:
+   the first line, the full 40-hex commit, is the pin, and the second is its tree. List the files
+   with `gh api --hostname github.com 'repos/<owner>/<repo>/git/trees/<tree>?recursive=1'`,
+   keeping the `blob` entries under the scope; one with mode `120000` is a symbolic link, reported
+   as not read. When the response is `truncated`, list the scope one tree at a time without
+   `recursive`. Read a file with
+   `gh api --hostname github.com -H 'Accept: application/vnd.github.raw+json' 'repos/<owner>/<repo>/contents/<path>?ref=<pin>'`,
    which prints it and writes no file. Every file read names the pin, never a branch. A file the
    API does not return is reported as not read.
 
