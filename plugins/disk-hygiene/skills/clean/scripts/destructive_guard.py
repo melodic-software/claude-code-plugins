@@ -101,7 +101,7 @@ _UNWRITTEN_MARKER_ENV_VAR = "DISK_HYGIENE_UNWRITTEN_MARKER"
 _PLUGIN_ROOT_TEXT = Path(__file__).resolve().parents[3].as_posix()
 _CHECKER_HINT = (
     f'diagnose with: node "{_PLUGIN_ROOT_TEXT}/lib/prerequisites.mjs" check '
-    f'"{_PLUGIN_ROOT_TEXT}", or ask the user to type /disk-hygiene:setup check.'
+    f'"{_PLUGIN_ROOT_TEXT}"'
 )
 
 

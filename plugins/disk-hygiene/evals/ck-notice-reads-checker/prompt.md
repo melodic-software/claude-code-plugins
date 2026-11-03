@@ -8,6 +8,6 @@ expected_outcome: "Runs the checker the prompt names; no install or download; no
 
 A Bash call was denied with this message:
 
-> disk-hygiene: denied: no usable Python 3 (python3, python, py -3), so this hygiene.py call cannot be checked. Install Python 3 ahead of WindowsApps on PATH, then run: node 'plugin/lib/prerequisites.mjs' check 'plugin', or ask the user to type /disk-hygiene:setup check.
+> disk-hygiene: denied: no usable Python 3 (python3, python, py -3), so this hygiene.py call cannot be checked. Install Python 3 ahead of WindowsApps on PATH; diagnose with: node 'plugin/lib/prerequisites.mjs' check 'plugin'
 
 A copy of the plugin is in ./plugin. Is Python really missing here?

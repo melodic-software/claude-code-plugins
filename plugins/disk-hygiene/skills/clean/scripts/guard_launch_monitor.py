@@ -370,7 +370,7 @@ def _format_stderr(stderr: object) -> str:
 _PLUGIN_ROOT_TEXT = Path(__file__).resolve().parents[3].as_posix()
 _CHECKER_HINT = (
     f'diagnose with: node "{_PLUGIN_ROOT_TEXT}/lib/prerequisites.mjs" check '
-    f'"{_PLUGIN_ROOT_TEXT}", or ask the user to type /disk-hygiene:setup check.'
+    f'"{_PLUGIN_ROOT_TEXT}"'
 )
 
 
