@@ -19,7 +19,7 @@ graders:
     arm: with-only
   - name: pass-fail-row-each
     type: llm
-    criteria: 'PASS only if the reply gives a result of PASS or FAIL for node and a separate result of PASS or FAIL for jq, under any labels or layout. A result counts only if the reply states it as what was found. FAIL if either tool has no result, if the two share one result, or if the reply only says what it would do.'
+    criteria: 'PASS only if the reply gives a result of PASS or FAIL for node and a separate result of PASS or FAIL for jq, under any labels or layout. A result counts only if the reply uses the word PASS or FAIL for it and states it as what was found; saying a tool is installed, present or fine with neither word is no result. FAIL if either tool has no result, if one overall result names neither tool, or if the reply only says what it would do.'
     focus: last_message
     arm: both
   - name: no-install
