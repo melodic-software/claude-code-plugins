@@ -1,4 +1,4 @@
-"""Find lint and type-checker suppressions in source files and say which carry a reason.
+"""Find lint, type-checker, coverage, mutation-testing and security-scanner suppressions in source files and say which carry a reason.
 
 Usage:
   suppression-scan.py [options] [--] [<path>...]
@@ -382,6 +382,18 @@ def _m(tool, kinds, pattern, rules=None, names_rules=True, lead=r"\s*\*?\s*"):
     )
 
 
+SEMGREP_KINDS = (
+    "clike-js",
+    "python",
+    "shell",
+    "csharp",
+    "go",
+    "java",
+    "ruby",
+    "powershell",
+)
+ALL_COMMENT_KINDS = (*SEMGREP_KINDS, "markdown")
+
 COMMENT_MARKERS = (
     _m(
         "eslint",
@@ -435,6 +447,40 @@ COMMENT_MARKERS = (
         r"rubocop\s*:\s*(?:disable|todo)\b",
         r"\s+(?P<r>[\w/]+(?:\s*,\s*[\w/]+)*)",
     ),
+    # Directives that switch off the evidence a quality bar rests on: coverage
+    # exclusions, mutation-testing exclusions and security-scanner suppressions.
+    _m(
+        "istanbul",
+        ("clike-js",),
+        r"istanbul\s+ignore\s+(?:if|else|next|file)\b",
+        names_rules=False,
+    ),
+    _m("c8", ("clike-js",), r"c8\s+ignore\s+(?:next|start)\b", names_rules=False),
+    _m(
+        "coverage.py",
+        ("python",),
+        r"(?i:pragma\s*:\s*no\s+(?:cover|branch)\b)",
+        names_rules=False,
+    ),
+    _m(
+        "stryker",
+        ("clike-js",),
+        r"Stryker\s+disable(?:\s+next-line)?\b",
+        r"\s+(?P<r>\w+(?:\s*,\s*\w+)*)",
+    ),
+    _m(
+        "bandit",
+        ("python",),
+        r"nosec\b",
+        r"\s+(?P<r>B[0-9]+(?:\s*,\s*B[0-9]+)*)",
+    ),
+    _m(
+        "semgrep",
+        (*SEMGREP_KINDS,),
+        r"nosemgrep\b",
+        r"\s*:\s*(?P<r>[\w.\-]+(?:\s*,\s*[\w.\-]+)*)",
+    ),
+    _m("gitleaks", ALL_COMMENT_KINDS, r"gitleaks\s*:\s*allow\b", names_rules=False),
 )
 
 # Code markers: an attribute, annotation or pragma found in the code outside
@@ -453,7 +499,9 @@ SEPARATORS = " \t:-/#*,;.>" + chr(0x2013) + chr(0x2014)
 ANY_MARKER = re.compile(
     r"eslint-disable|@ts-|noqa|(?:type|pyright)\s*:\s*ignore|pylint\s*:"
     r"|shellcheck\s+disable|pragma\s+warning|SuppressMessage|nolint"
-    r"|markdownlint-disable|rubocop\s*:|SuppressWarnings",
+    r"|markdownlint-disable|rubocop\s*:|SuppressWarnings"
+    r"|(?:istanbul|c8)\s+ignore|pragma\s*:\s*no\s|Stryker\s+disable|nosec|nosemgrep"
+    r"|gitleaks\s*:\s*allow",
     re.IGNORECASE,
 )
 
