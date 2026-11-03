@@ -32,10 +32,10 @@ bash <skill-dir>/scripts/<name>.sh
 Files: `context/action-router.md`, `context/clean-batch.md`, `context/git-branch-cleanup.md`,
 `context/git-tree-reset.md`, `context/git-tree-reset-batch.md`, `context/preflight.md`.
 
-They load on demand when `SKILL.md` routes into a step and reach the model through the Read tool as
-plain bytes, so no `${…}` token in them is substituted. A token there would reach the Bash tool
-unexpanded: `${CLAUDE_SKILL_DIR}` expands from an unset environment variable to `/scripts/x.sh`,
-and `${CLAUDE_PLUGIN_ROOT}` to a path that resolves against nothing. They write the skill directory as
+They load on demand when `SKILL.md` routes into a step and reach the model through the Read tool.
+We never put a `${…}` token in them: we do not rely on one being substituted in a file read
+through the Read tool (where Claude Code substitutes one is in the Available string substitutions
+pointer above). They write the skill directory as
 the `<skill-dir>` placeholder, which `SKILL.md`'s `## Spoke paths` section defines, and Claude puts
 that path in before running the command.
 

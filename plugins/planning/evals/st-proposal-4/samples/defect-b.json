@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "- The UTC assumption is false: config/stations.toml has three stations with `clock = \"local\"`, and src/ingest.rs stores ts as received.\n",
+      "why": "bullet"
+    },
+    {
+      "answer": "| 1 | CRITICAL | Assumption | valley-03 reports local time, so its readings land in the wrong hour's segment | Normalize ts in compact |\n",
+      "why": "table row, wrong hour"
+    },
+    {
+      "answer": "- Stations are not all on UTC (see stations.toml), so the segment hour is wrong for them.\n",
+      "why": "not all on UTC"
+    },
+    {
+      "answer": "| 2 | HIGH | Assumption | stations.toml shows local clocks with a utc_offset_minutes field, contradicting the draft | Apply the offset |\n",
+      "why": "contradicting"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "The UTC assumption is correct for the archive.\n",
+      "why": "named and dismissed"
+    },
+    {
+      "answer": "stations.toml does not show local clocks.\n",
+      "why": "negated mention"
+    },
+    {
+      "answer": "- UTC timestamps should have better validation.\n",
+      "why": "anchor with a generic warning"
+    },
+    {
+      "answer": "- The backup step should verify checksums from the manifest.\n",
+      "why": "a finding about something else"
+    }
+  ]
+}

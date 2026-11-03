@@ -647,7 +647,10 @@ root-level script path fails red rather than copying the whole base tree. Its en
 
 Exit 0 is success, non-zero is failure, and a reason file whose value is not a skip reason is a
 failure. A script that gets `GH_TOKEN` must not execute code from the PR head. The head checkout
-persists no credentials, so a `read` script cannot push. The write file also exports its
+persists no credentials, so a `read` script cannot push. A leaf that sets `checkout: base`
+(resolve-config's `checkout` output) skips the head checkout and its SHA assert: the job keeps only
+the trusted base checkout at `.base`, credentials not persisted, and gets `TRUSTED_ACTORS` as a
+`review-replies` script does. The write file also exports its
 `escalation-reason` input as `ESCALATION_REASON` (empty unless a caller passes one), which the
 `report-escalation` leaf reads, and `TRACKER_CONFIG`, the base's `.work-item-tracker.json` copied
 to `$RUNNER_TEMP/base-script` before the head checkout and checked against its recorded SHA-256

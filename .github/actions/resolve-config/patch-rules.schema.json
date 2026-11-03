@@ -10,6 +10,7 @@
     "ci-context": { "$ref": "#/$defs/row" },
     "review-threads": { "$ref": "#/$defs/row" },
     "dependency-review": { "$ref": "#/$defs/row" },
+    "install-script-pin": { "$ref": "#/$defs/row" },
     "merge-base": { "$ref": "#/$defs/row" },
     "shared-copies": { "$ref": "#/$defs/row" },
     "docs": { "$ref": "#/$defs/row" },
@@ -106,8 +107,8 @@
           "description": "The producer report apply-patch reads; ci-escalations: the checks the model escalated."
         },
         "content-rule": {
-          "enum": ["dependency-version-change", "pr-mode-revert"],
-          "description": "What each changed file's bytes must also meet, after every refusal and allow rule passes and before any commit is built; a refusal escalates as protected-path. dependency-version-change: each file modified in place, a regular file, an npm or pip manifest or lock file in fix scope, changed only by a version (dependency-classify.mjs fixRefusal). pr-mode-revert: a file whose mode changes between 100644 and 100755 takes the mode the path has at the merge base of the PR head and its base, read through the GitHub API; content-only changes read nothing."
+          "enum": ["dependency-version-change", "install-script-pin", "pr-mode-revert"],
+          "description": "What each changed file's bytes must also meet, after every refusal and allow rule passes and before any commit is built; a refusal escalates as protected-path. dependency-version-change: each file modified in place, a regular file, an npm or pip manifest or lock file in fix scope, changed only by a version (dependency-classify.mjs fixRefusal). install-script-pin: the root package.json alone, under dependency-version-change, with one allowScripts install-script pin moved to the exact version the manifest pins and nothing else (dependency-classify.mjs installScriptPinRefusal). pr-mode-revert: a file whose mode changes between 100644 and 100755 takes the mode the path has at the merge base of the PR head and its base, read through the GitHub API; content-only changes read nothing."
         },
         "clean-patch": {
           "const": true,

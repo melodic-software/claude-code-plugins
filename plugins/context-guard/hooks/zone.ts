@@ -136,13 +136,25 @@ export const zoneOfWindow = (w: Json, cliVersion: unknown, bands: Bands): Zone |
 export const ofWindow = (percent: number, window: number, compactWindow: number | undefined) =>
   compactWindow !== undefined && window > 0 && compactWindow > 0 && compactWindow < window ? (percent * compactWindow) / window : percent
 
-// The mod's own addition: percentage edges that follow a lowered auto-compact window. The shell
-// resolver cannot see that window, so resolveZone applies it only when a caller passes it.
+// Percentage edges that follow a lowered auto-compact window. The mod passes the window it read
+// as `follow`; without one, resolveZone takes the snapshot's bands.auto_compact_window, as the
+// shell resolver does.
 export const followWindow = (bands: Bands, window: number, compactWindow: number | undefined): Bands => ({
   ...bands,
   smart: ofWindow(bands.smart, window, compactWindow),
   acceptable: ofWindow(bands.acceptable, window, compactWindow),
 })
+
+const windowSize = (w: Json) => {
+  const size = orNull(w.context_window_size)
+  return isNumber(size) ? size : 0
+}
+
+const publishedWindow = (s: Json) => {
+  const b = orNull(s.bands)
+  const acw = isObject(b) ? orNull(b.auto_compact_window) : null
+  return isNumber(acw) ? acw : undefined
+}
 
 export const resolveZone = (args: {
   sid: string
@@ -155,7 +167,6 @@ export const resolveZone = (args: {
   if (!/^[A-Za-z0-9_-]+$/.test(args.sid) || args.snapshot === null) return unknown()
   const read = readBands(args.zones)
   const { notices } = read
-  const bands = args.follow ? args.follow(read.bands) : read.bands
   const parsed = parse(args.snapshot)
   if (!parsed.ok || !isObject(parsed.value)) return unknown(notices)
   const s = parsed.value
@@ -167,6 +178,7 @@ export const resolveZone = (args: {
   if (at === undefined) return unknown(notices)
   const age = args.nowSec - at
   if (age < -60 || age > STALENESS_SECONDS) return unknown(notices)
+  const bands = args.follow ? args.follow(read.bands) : followWindow(read.bands, windowSize(w), publishedWindow(s))
   const zone = zoneOfWindow(w, s.cli_version, bands)
   return zone === undefined ? unknown(notices) : { word: zone, notices }
 }

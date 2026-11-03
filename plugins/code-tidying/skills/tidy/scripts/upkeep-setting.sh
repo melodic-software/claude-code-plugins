@@ -2,10 +2,11 @@
 # Resolve one upkeep setting: the team layer at <home>/code-tidying.yaml, else
 # the default. Keys and layers: reference/config.md.
 #
-# Usage: upkeep-setting.sh upkeep_cadence|upkeep_backstop|upkeep_max_open
+# Usage: upkeep-setting.sh upkeep_cadence|upkeep_backstop|upkeep_max_open|upkeep_spec_issue
 #
 # Prints <value><TAB><source> and exits 0. <source> is `team`, `default`, or
-# `default (<why the team value was dropped>)`. Exit 2 on a usage error.
+# `default (<why the team value was dropped>)`. upkeep_spec_issue's default is
+# empty: the caller refuses to run without it. Exit 2 on a usage error.
 #
 # The root is the git toplevel of CLAUDE_PROJECT_DIR, else of the current
 # directory.
@@ -27,8 +28,12 @@ upkeep_max_open)
   default=3
   valid='^[1-9][0-9]{0,3}$'
   ;;
+upkeep_spec_issue)
+  default=
+  valid='^[1-9][0-9]{0,8}$'
+  ;;
 *)
-  echo "upkeep-setting: usage: upkeep-setting.sh upkeep_cadence|upkeep_backstop|upkeep_max_open" >&2
+  echo "upkeep-setting: usage: upkeep-setting.sh upkeep_cadence|upkeep_backstop|upkeep_max_open|upkeep_spec_issue" >&2
   exit 2
   ;;
 esac

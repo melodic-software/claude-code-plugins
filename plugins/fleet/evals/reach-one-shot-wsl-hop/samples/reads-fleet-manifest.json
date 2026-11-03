@@ -1,0 +1,74 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "fleet:reach"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "~/.config/fleet/FLEET.md"
+          }
+        }
+      ],
+      "why": "check3 runs 0 and 2"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "fleet:reach"
+          }
+        },
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "**/fleet/FLEET.md"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "~/.config/fleet/FLEET.md"
+          }
+        }
+      ],
+      "why": "check3 run 1: Glob, then Read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "fleet:reach"
+          }
+        }
+      ],
+      "why": "never reads the manifest"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "fleet:reach"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "~/.ssh/config"
+          }
+        }
+      ],
+      "why": "reads another file"
+    }
+  ]
+}

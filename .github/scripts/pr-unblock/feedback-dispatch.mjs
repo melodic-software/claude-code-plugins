@@ -161,14 +161,13 @@
 // pr-merge runs on every pull_request_target event, so a head whose releasing
 // skips reached SWEEP_HEAD_CAP is skipped there as the sweep skips it.
 //
-// Both review lanes, and any re-run, finish on one head, so a run leaves a
-// record for the next run at that head (dispatch-record.mjs, carried in the
-// Actions cache): a head whose check runs handle it for good, once a reply
-// check started after its newest address-feedback check, is skipped before
-// any read, and a head whose dispatched run for this PR is still queued or
-// going is skipped after the PR read, with one read of that run in place of
-// the comment, thread and run listings. Each shortcut stands for a skip the
-// full path would also reach.
+// main() reads and writes a dispatch record (dispatch-record.mjs) at
+// DISPATCH_RECORD, but the workflow carries it to no later run: the job's
+// workflow_run cache token is read-only, so each run starts from an empty
+// record and takes the full path. With a carried record, a head whose check
+// runs handle it for good would be skipped before any read, and a head whose
+// dispatched run is still going after the PR read. Each shortcut stands for a
+// skip the full path also reaches.
 
 import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -1209,6 +1208,14 @@ export async function recoverLost({ api, repository, appSenderId, log, settings 
 // itself, since check-trusted-trigger trusts a dispatcher only at attempt 1
 // or re-run by a listed human; this tick, an attempt-1 run, sends it.
 export const DEFERRED_RECORD = /^pr-feedback-deferred-([0-9a-f]{40})-(fail|pass)$/;
+// The artifact the reconciler uploads before it re-runs a Verdict
+// (maintenance-reconcile-lost-runs.yml), kept a day longer than any record
+// that re-run leaves; the only re-runner a record is trusted from
+// (deferringRun). With none listed unexpired, no record can be either, and
+// the per-head reads are skipped.
+export const DEFERRAL_MARKER = "pr-feedback-deferral";
+// One listing page; a full one may hide an unexpired row, so it counts as one.
+const ARTIFACT_PAGE = 100;
 const ACTIONS_BOT = "github-actions[bot]";
 
 // Whether `run`, the run that uploaded a deferred record, is a
@@ -1228,10 +1235,20 @@ const deferringRun = (run, repository) =>
 // record's upload, when its notes reached the PR, so a round before then
 // does not hold it; a PASS as a pass-only round. A run of the activity for
 // the PR created after the record holds it, so each record is sent once.
-// Each head costs two exact-name artifact reads, fail then pass; a record
-// whose read fails is logged and left to the next tick.
+// One DEFERRAL_MARKER read first; only while it lists an unexpired marker
+// (or the read fails, or the page is full) does each head cost two
+// exact-name artifact reads, fail then pass; a record whose read fails is
+// logged and left to the next tick.
 export async function recoverDeferred({ api, repository, appSenderId, log, settings = DEFAULTS, ...rest }) {
-  const pulls = (await openPulls({ api, repository, appSenderId, settings, rest })).filter((pull) => pull.user?.id === appSenderId);
+  try {
+    const markers = await api.listArtifactsNamed(DEFERRAL_MARKER);
+    if (markers.length < ARTIFACT_PAGE && !markers.some((row) => row?.name === DEFERRAL_MARKER && row.expired === false)) {
+      return null;
+    }
+  } catch (error) {
+    log(`::warning::the ${DEFERRAL_MARKER} listing failed (${error.message}); every head's deferred records are read`);
+  }
+  const pulls =(await openPulls({ api, repository, appSenderId, settings, rest })).filter((pull) => pull.user?.id === appSenderId);
   for (const pull of pulls) {
     const head = pull.head.sha;
     for (const verdict of ["fail", "pass"]) {
@@ -1463,9 +1480,11 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       }
       throw new Error(`${workflow} has more than 1000 finished runs since ${since}`);
     },
-    // The repository's artifacts with exactly this name, newest first.
+    // The repository's artifacts with exactly this name
+    // (https://docs.github.com/en/rest/actions/artifacts#list-artifacts-for-a-repository),
+    // one page of ARTIFACT_PAGE.
     async listArtifactsNamed(name) {
-      const query = new URLSearchParams({ name, per_page: "10" });
+      const query = new URLSearchParams({ name, per_page: String(ARTIFACT_PAGE) });
       return (await request(`${repo}/actions/artifacts?${query}`)).artifacts ?? [];
     },
     // A run's latest attempt's jobs, with their steps.
