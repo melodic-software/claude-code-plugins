@@ -3,6 +3,13 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.37.1] - 2026-11-03
+
+### Changed
+
+- The README and `/code-tidying:tidy` now say the repository's merge lane, where it has one, or a
+  person merges a tidy PR; the skill itself never merges.
+
 ## [0.37.0] - 2026-11-03
 
 ### Added
