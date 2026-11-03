@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.36.0] - 2026-11-03
+
+### Changed
+
+- **`dissolve-comments` widens to the repository rung without asking** ([#12588](https://github.com/melodic-software/claude-code-plugins/issues/12588)). When an empty argument resolves to the repository rung, step 1 now takes it in every mode instead of asking first. Outside `report`, that rung runs in safe mode whatever the posture or dial token, and the report names the rung, its file count and the explicit-target re-run that narrows the scope or applies the full contract. Outside `report`, `aggressive` and `strip` now apply to the whole repository only through an explicit target.
+
 ## [0.35.5] - 2026-11-03
 
 ### Fixed

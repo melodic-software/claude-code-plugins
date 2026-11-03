@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/code-tidying/schemas/code-tidying.schema.json",
+  "title": "code-tidying team config",
+  "description": "Schema for <home>/code-tidying.yaml, the team layer of the code-tidying plugin's upkeep settings. Keys and resolution: plugins/code-tidying/reference/config.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "upkeep_cadence": {
+      "enum": ["daily", "weekly"],
+      "default": "daily",
+      "description": "How often an upkeep batch may open pull requests."
+    },
+    "upkeep_backstop": {
+      "enum": ["weekly", "monthly"],
+      "default": "weekly",
+      "description": "An area changed since its last sweep is overdue once its oldest unswept commit is older than this window, and goes ahead of other changed areas. An unchanged area is never swept."
+    },
+    "upkeep_max_open": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 3,
+      "description": "At most this many chore/tidy-* pull requests open at once: /code-tidying:tidy stops at it, and an upkeep batch opens only the difference."
+    }
+  }
+}
