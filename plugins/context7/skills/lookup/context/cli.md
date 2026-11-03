@@ -38,12 +38,10 @@ Set it wherever your project manages local environment variables (shell profile,
 | `ctx7 remove` / `uninstall` | Remove a `setup`-installed agent configuration (this plugin does NOT use it) |
 | `ctx7 upgrade` | Self-upgrade the CLI |
 
-**This plugin does not use `ctx7 skills` or `ctx7 generate`, because the installed CLI does not have
-them.** Upstream removed both, so no behavior here depends on them; `ctx7 setup` is what still
-installs skills, and this plugin does not use it either (see below).
+**This plugin does not use `ctx7 skills` or `ctx7 generate`,** and no behavior here depends on them.
 
-- **Pointer**: when deciding whether either can be used, run `ctx7 --help` and `ctx7 skills` on the
-  installed CLI and fetch [upstash/context7#3425](https://github.com/upstash/context7/pull/3425) live.
+- **Pointer**: for whether the CLI has either, run `ctx7 --help` and `ctx7 skills` on the installed
+  CLI and fetch [upstash/context7#3425](https://github.com/upstash/context7/pull/3425) live.
 - **As of**: 2026-11-03
 - **Recheck trigger**: `ctx7 --help` lists `skills` or `generate`, or the `update` action reports an
   npm `latest` newer than 0.8.2.
@@ -80,10 +78,10 @@ error. Lookups stay `ctx7 library`, then `ctx7 docs`.
 
 ### Setup / install flags (why this plugin doesn't use them)
 
-`ctx7 setup --claude --project --cli` installs Upstash's skills into `.claude/skills/`. **Never run it, and never run `ctx7 skills install` if a guide names it**; the installed CLI no longer has that command (see [Commands](#commands)). This plugin does not use them because:
+`ctx7 setup --claude --project --cli` installs Upstash's skills into `.claude/skills/`. **Never run it, and never run `ctx7 skills install` if a guide names it** (the record under [Commands](#commands) says where to check that command). This plugin does not use them because:
 
 1. Installing creates a parallel `find-docs/` skill that fragments the lookup surface. This plugin owns the lookup workflow
-2. A re-run of `ctx7 setup` overwrites the skill files it installed with zero warning, so Windows gotcha notes, CLI-vs-MCP guidance, and action dispatch added there would not last
+2. An upstream-installed copy is not where this plugin keeps its customizations: the Windows gotcha notes, CLI-vs-MCP guidance, and action dispatch stay in this plugin
 3. This plugin's `update` action ([update.md](update.md)) fetches upstream skill content for diffing, but integrates changes manually. A human reviews the merge
 
 ## Environment variables

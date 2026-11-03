@@ -247,6 +247,7 @@ printf '%s\n' "$STUB_UNAME"
 EOF
 cat >"$APPLY/tools/cygpath" <<'EOF'
 #!/usr/bin/env bash
+[[ "$1" == "-u" && "$2" == 'C:\fixture\npm' ]] || exit 1
 printf '%s\n' "$STUB_CYGPATH_RESULT"
 EOF
 chmod +x "$APPLY/tools/npm" "$APPLY/tools/curl" "$APPLY/tools/uname" "$APPLY/tools/cygpath"
@@ -340,7 +341,7 @@ reset_apply "1.0.0"
 place_firecrawl "$APPLY/prefix/bin"
 run_stubbed_apply "$APPLY/prefix/bin" "1.0.0"
 assert_apply_wrote_nothing "version unchanged after install"
-assert_contains "version unchanged after install: names both versions" "$apply_out" "1.0.0"
+assert_contains "version unchanged after install: names the version it read" "$apply_out" "reports 1.0.0"
 assert_contains "version unchanged after install: names the expected version" "$apply_out" "2.0.0"
 
 # Git Bash: the prefix prints as a CRLF-terminated Windows path and is the bin itself.

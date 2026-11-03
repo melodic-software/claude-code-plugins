@@ -244,7 +244,7 @@ run_apply() {
   fi
   log "installed: $current (was: ${previous_ver:-none})"
   if [[ "$current" != "$latest" ]]; then
-    err "firecrawl reports $current after install, expected $latest; upstream.md not written"
+    err "firecrawl reports $current after install, expected $latest; upstream.md not written — rollback: npm install -g ${NPM_PKG}@${previous_ver:-<previous>}"
     return 2
   fi
   firecrawl --status 2>&1 | head -10 || true
@@ -303,9 +303,9 @@ facing: run in a working-tree checkout of the plugin, not an installed copy.
            Exit 0 if in sync, 1 if drift detected, 2 on prerequisite/network error.
 
   --apply  Run npm install -g firecrawl-cli@latest and refresh upstream.md.
-           Exit 2, writing nothing, when something other than npm's global bin
-           owns the firecrawl command, or the command does not read npm latest
-           after the install.
+           Exit 2 before installing, writing nothing, when something other than
+           npm's global bin owns the firecrawl command. Exit 2 after installing,
+           without writing upstream.md, when the command does not read npm latest.
            Does NOT rewrite SKILL.md — that's Claude's integration step, governed
            by SKILL.md Preservation rules.
 
