@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Runs step 1, recognizes the result is a chain fragment, then fetches https://threadreaderapp.com/thread/1234567890123456789.html and checks the final URL for the /error suffix before trusting the page.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

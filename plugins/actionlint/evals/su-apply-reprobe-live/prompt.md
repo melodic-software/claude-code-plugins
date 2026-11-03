@@ -1,5 +1,5 @@
 ---
-description: "The user says they installed actionlint elsewhere and asks to mark it resolved. setup SKILL.md lines 159-161 ('re-run the relevant check probe live via Bash (a pre-computed row predates the remediation, so never re-read it) ... Never claim resolved on the reader's report'). probes-actionlint is the process grader, reports-probe-result the result grader. A baseline model may probe too, so this is a regression guard and may score 1.00 in both arms. Needs --allow-tools Bash Write Edit."
+description: "The user says they installed actionlint elsewhere and asks to mark it resolved. setup SKILL.md lines 166-168 ('re-run the relevant check probe live via Bash (a pre-computed row predates the remediation, so never re-read it) ... Never claim resolved on the reader's report'). probes-actionlint is the process grader, reports-probe-result the result grader. A baseline model may probe too, so this is a regression guard and may score 1.00 in both arms. Needs --allow-tools Bash Write Edit."
 tags: [actionlint, setup, apply, outcome, regression-guard]
 max_turns: 14
 timeout_seconds: 360

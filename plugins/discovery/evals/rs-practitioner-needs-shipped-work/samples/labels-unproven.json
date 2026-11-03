@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "No. With no shipped work and no employer, the thread's Sources cell is labeled unproven; it can still corroborate.",
+      "why": "meets the outcome"
+    },
+    {
+      "answer": "Label it **Unproven** and never cite it as an authority.",
+      "why": "meets the outcome"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Treat it as Tier 2 because of its reach.",
+      "why": "misses the outcome"
+    },
+    {
+      "answer": "Label it unverified and move on.",
+      "why": "misses the outcome"
+    },
+    {
+      "answer": "",
+      "why": "misses the outcome"
+    }
+  ]
+}

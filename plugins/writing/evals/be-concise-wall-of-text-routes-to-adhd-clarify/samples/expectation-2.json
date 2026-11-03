@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Routes away rather than reshaping. 'This is a wall of text' asks for a dense, decision-heavy message to be restructured one decision at a time with its jargon defined and nothing lost, which is `adhd:clarify`, presence-gated on the `adhd` plugin. This skill shortens; that one does not. The memo is already dense (four interacting decisions, each with named constraints), so cutting words would strip the precision the reader needs to decide. Offers this skill only as the follow-on if the user actually wants it shorter for someone else to read. No rewrite and no word counts are produced.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}
