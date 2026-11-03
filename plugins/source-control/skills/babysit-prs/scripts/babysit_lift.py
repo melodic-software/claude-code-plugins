@@ -176,6 +176,11 @@ def close_lifted(repo: str, identity: str | None) -> int:
                 + f"This record lifted: {lift.why}. The lane closed it by the merge "
                 "gate's own rule (babysit_merge_policy.py `_lift`).",
             )
+            # The comment is the lift's evidence pin: without it the record
+            # stays open and labeled for the next run to retry.
+            if comment.returncode:
+                print(f"::warning::could not comment on #{number}: left open")
+                continue
             unlabel = _api(
                 "-X",
                 "DELETE",
@@ -190,7 +195,7 @@ def close_lifted(repo: str, identity: str | None) -> int:
                 "-f",
                 "state_reason=completed",
             )
-            if comment.returncode or close.returncode:
+            if close.returncode:
                 print(f"::warning::could not close #{number}")
                 continue
             if unlabel.returncode and policy.gh_http_status(unlabel.stderr or "") != 404:
