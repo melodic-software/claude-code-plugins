@@ -1314,6 +1314,26 @@ test("a verdict the kill switch kept from its PR is applied once the switch lift
   assert.deepEqual(reruns, []);
 });
 
+// The re-run leaves a pr-feedback-deferred record, so the plan names the
+// marker the dispatch tick lists first (feedback-dispatch.mjs DEFERRAL_MARKER).
+test("a plan that re-runs a stopped verdict asks for the deferral marker, and one that does not leaves it", async () => {
+  assert.equal((await reconcile({ pulls: [], runs: [verdictRun(401)] })).outputs.deferral, "true");
+  assert.equal((await reconcile({ pulls: [pr(1)], runs: [run(101, sha(1))] })).outputs.deferral, "");
+});
+
+test("the marker upload comes after the plan and before the act step, kept longer than the record", () => {
+  const text = readFileSync(new URL("../../workflows/maintenance-reconcile-lost-runs.yml", import.meta.url), "utf8");
+  const mark = text.indexOf("      - name: Mark the deferred verdicts\n");
+  assert.ok(text.indexOf("      - name: Find lost runs\n") < mark && mark < text.indexOf("      - name: Re-run lost runs\n"));
+  const step = text.slice(mark, text.indexOf("\n\n", mark));
+  assert.match(step, /if: steps\.plan\.outputs\.deferral == 'true'\n/);
+  assert.match(step, /name: pr-feedback-deferral\n/);
+  assert.match(step, /retention-days: 2$/);
+  // A failed upload skips the act step (no status function there), so no
+  // record is written without its marker.
+  assert.match(text, /- name: Re-run lost runs\n {8}if: steps\.pace\.outputs\.paced != 'true'\n/);
+});
+
 test("while the kill switch is on, no stopped verdict is read or re-run", async () => {
   const { code, calls } = await reconcile({ pulls: [], runs: [verdictRun(401)], env: { KILL_SWITCH: "" } });
   assert.equal(code, 0);

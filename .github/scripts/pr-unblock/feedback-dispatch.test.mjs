@@ -5,7 +5,7 @@ import { test } from "node:test";
 
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, parseRecord, serializeRecord } from "./dispatch-record.mjs";
-import { createGitHubApi, dispatchFeedback, failureAnnotation, FAILED_RUN_WINDOW_HOURS, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, reviewRunAt, SWEEP_HEAD_CAP, sweepReleased, UNSENT_GRACE_MS } from "./feedback-dispatch.mjs";
+import { createGitHubApi, DEFERRAL_MARKER, dispatchFeedback, failureAnnotation, FAILED_RUN_WINDOW_HOURS, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, reviewRunAt, SWEEP_HEAD_CAP, sweepReleased, UNSENT_GRACE_MS } from "./feedback-dispatch.mjs";
 import { onReviewedHead, threadAuthors } from "./address-feedback.mjs";
 import { verifyReader } from "./verify-cap.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -2112,12 +2112,14 @@ const deferredRecord = (verdict, head = HEAD, overrides = {}) => ({
   workflow_run: { id: 610 },
   ...overrides,
 });
-function deferredApi({ records = [deferredRecord("fail")], rerun = deferredRerun(), checks = [answeredRound], ...options } = {}) {
+// The marker the reconciler uploads before it re-runs a Verdict.
+const deferralMarker = (overrides = {}) => ({ name: DEFERRAL_MARKER, expired: false, created_at: "2026-10-17T13:00:00Z", workflow_run: { id: 620 }, ...overrides });
+function deferredApi({ records = [deferredRecord("fail")], markers = [deferralMarker()], rerun = deferredRerun(), checks = [answeredRound], ...options } = {}) {
   const api = recoveryApi({ runs: [], checksAt: { [HEAD]: checks }, ...options });
   api.nameReads = [];
   api.listArtifactsNamed = async (name) => {
     api.nameReads.push(name);
-    return records.filter((record) => record.name === name);
+    return [...markers, ...records].filter((record) => record.name === name);
   };
   api.getWorkflowRun = async (id) => (id === rerun.id ? rerun : { id });
   return api;
@@ -2162,8 +2164,40 @@ test("a deferred record is found by name, however many runs the window holds", a
   const api = deferredApi();
   api.listRecentRuns = async () => many;
   await sweepMain(t, api, TICK, NOW);
-  assert.deepEqual(api.nameReads, [`pr-feedback-deferred-${HEAD}-fail`]);
+  assert.deepEqual(api.nameReads, [DEFERRAL_MARKER, `pr-feedback-deferred-${HEAD}-fail`]);
   assert.equal(api.calls.dispatch.length, 1);
+});
+
+// The reconciler lists the marker before any Verdict re-run, kept a day
+// longer than the record, so with none unexpired no record can be either.
+test("with no unexpired deferral marker, the tick reads no head's deferred records", async (t) => {
+  for (const [label, markers] of [
+    ["no marker", []],
+    ["an expired marker", [deferralMarker({ expired: true })]],
+  ]) {
+    const api = deferredApi({ markers, records: [] });
+    await sweepMain(t, api, TICK, NOW);
+    assert.deepEqual(api.nameReads, [DEFERRAL_MARKER], label);
+    assert.deepEqual(api.calls.dispatch, [], label);
+  }
+});
+
+test("a failed marker read, or a full page of expired markers, still reads every head's records and sends the deferral", async (t) => {
+  const failed = deferredApi();
+  const listNamed = failed.listArtifactsNamed;
+  failed.listArtifactsNamed = async (name) => {
+    if (name === DEFERRAL_MARKER) {
+      throw new Error("GET artifacts returned 502");
+    }
+    return listNamed(name);
+  };
+  const { lines } = await sweepMain(t, failed, TICK, NOW);
+  assert.ok(lines.some((line) => line.startsWith("::warning::") && line.includes(DEFERRAL_MARKER)), lines.join("\n"));
+  assert.equal(failed.calls.dispatch.length, 1);
+  const full = deferredApi({ markers: Array.from({ length: 100 }, () => deferralMarker({ expired: true })) });
+  await sweepMain(t, full, TICK, NOW);
+  assert.deepEqual(full.nameReads, [DEFERRAL_MARKER, `pr-feedback-deferred-${HEAD}-fail`]);
+  assert.equal(full.calls.dispatch.length, 1);
 });
 
 test("a deferred record any other run uploaded, or an expired one, sends nothing", async (t) => {
