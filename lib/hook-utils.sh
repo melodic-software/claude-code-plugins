@@ -4653,8 +4653,8 @@ def strip_q: [.Parts[]? |
   + ([$all[] | select(.Type == "ExtGlob")
       | if .Op == "!(" then ["X", 0, .OpPos.Offset]
         elif (.Pattern.Value == "") then ["X", 1, .OpPos.Offset]
-        else empty end] | add // [])
-  + ([$all[] | select(.Array != null) | ["Y", .End.Offset]] | add // [])
+        else empty end] | sort_by(.[2]) | add // [])
+  + ([$all[] | select(.Array != null) | ["Y", .End.Offset]] | sort_by(.[1]) | add // [])
   + ([$all[] | select(.Type == "CmdSubst" and .Backquotes)
       | ["B", .Pos.Offset, .End.Offset,
          (if any(.. | objects; .Op == "<<" or .Op == "<<-") then 1 else 0 end)]] | add // [])
@@ -4833,6 +4833,7 @@ hook::_bps_tree_decode() {
       done
       ((__hu_be > __hu_bcn)) && __hu_be=$__hu_bcn
       __hu_bp=$__hu_be
+      __hu_hs+=("$__hu_bs")
       __hu_hb+=("$__hu_bs $__hu_be $__hu_bquoted $__hu_bc $__hu_bd")
       # Bash joins a backslash-newline before it reads an unquoted body, so
       # `$\<newline>(cmd)` is a substitution that shfmt's body text does not hold.
@@ -4848,11 +4849,26 @@ hook::_bps_tree_decode() {
       __hu_bs=${__hu_bt[__hu_bi++]}
       __hu_be=${__hu_bt[__hu_bi++]}
       __hu_bc=${__hu_bt[__hu_bi++]}
-      ((__hu_bc)) && return 1
+      if ((__hu_bc)); then
+        HOOK_BPS_FAIL="a here-doc opened inside backticks, which bash reads differently"
+        return 1
+      fi
+      # A body placed inside backticks belongs to an opener before them: bash
+      # reads it after the line the backticks end on. The empty-body fallback
+      # above (the line after the opener) can land inside them.
+      for __hu_bj in ${__hu_hs[@]+"${__hu_hs[@]}"}; do
+        if ((__hu_bj > __hu_bs && __hu_bj < __hu_be)); then
+          HOOK_BPS_FAIL="a here-doc body that starts inside backticks, which bash reads differently"
+          return 1
+        fi
+      done
       __hu_bl=${__hu_bcmd:__hu_bs+1:__hu_be-__hu_bs-2}
       __hu_bd=${__hu_bl//\\\\/}
       __hu_bd=${__hu_bd//\\\`/}
-      [[ "$__hu_bd" == *\`* ]] && return 1
+      if [[ "$__hu_bd" == *\`* ]]; then
+        HOOK_BPS_FAIL="backticks bash would end at a different backtick"
+        return 1
+      fi
       if [[ "$__hu_bl" == *\\\`* ]]; then
         __hu_bl=${__hu_bl//\\\\/$'\x01'}
         __hu_bl=${__hu_bl//\\\`/\`}
@@ -4863,6 +4879,7 @@ hook::_bps_tree_decode() {
     P) __hu_pt+=("${__hu_bt[__hu_bi++]}") ;;
     X)
       # The extglob-off reading: `!(` is a negated subshell, `f@()` a function.
+      # The entries come in offset order, so each shift lands past the last.
       __hu_bk=${__hu_bt[__hu_bi++]}
       __hu_bs=${__hu_bt[__hu_bi++]}
       if ((__hu_bk == 0)); then
@@ -4883,7 +4900,10 @@ hook::_bps_tree_decode() {
         ((__hu_bsshift += 1))
       fi
       ;;
-    *) return 1 ;;
+    *)
+      HOOK_BPS_FAIL="a parse tree entry the reader does not know"
+      return 1
+      ;;
     esac
   done
 }
@@ -4891,12 +4911,15 @@ hook::_bps_tree_decode() {
 # hook::bash_parse_segments_shfmt <command> <callback> [soft]: every simple
 # command in the tree reaches <callback>, the extglob-off reading and each
 # extglob pattern's commands too. With no parse it refuses the call (exit 2),
-# or with [soft] returns 1: a second reading that is a syntax error is one bash
-# rejects as well, and the first reading already stands.
+# or with [soft] returns 1. An extglob pattern's text is parsed soft: a pattern
+# that is no command list runs nothing. A whole-command second reading (the
+# extglob-off one, the array `#` one) is not: bash runs every command before
+# the line its syntax error is on, so a reading that does not parse refuses.
+# shellcheck disable=SC2034  # HOOK_SEG_* are read by the callback's caller
 hook::bash_parse_segments_shfmt() {
   local __hu_bcmd=$1 __hu_bcb=$2 __hu_bsoft=${3:-0} __hu_bout=""
   local __hu_off="" __hu_sp="" __hu_bshift=0 __hu_bsshift=0
-  local -a __hu_bt=() __hu_ac=() __hu_rc=() __hu_wd=() __hu_wq=() __hu_rop=() __hu_rfd=() __hu_rtg=() __hu_rq=() __hu_ro=() __hu_hb=() __hu_pt=() __hu_bt_more=()
+  local -a __hu_bt=() __hu_ac=() __hu_rc=() __hu_wd=() __hu_wq=() __hu_rop=() __hu_rfd=() __hu_rtg=() __hu_rq=() __hu_ro=() __hu_hb=() __hu_hs=() __hu_pt=() __hu_bt_more=()
   if ! hook::_bps_shfmt_to __hu_bout "$__hu_bcmd"; then
     ((__hu_bsoft)) && return 1
     hook::_bps_refuse
@@ -4930,8 +4953,11 @@ hook::bash_parse_segments_shfmt() {
   HOOK_SEG_REDIR_OPAQUE=()
   # The array `#` reading replaces a tree that took the rest of its line for a
   # comment, so it is a reading of the whole command like the extglob-off one.
-  for __hu_x in ${__hu_pt[@]+"${__hu_pt[@]}"} ${__hu_off:+"$__hu_off"} ${__hu_sp:+"$__hu_sp"}; do
+  for __hu_x in ${__hu_pt[@]+"${__hu_pt[@]}"}; do
     [[ -n "$__hu_x" ]] && hook::bash_parse_segments_shfmt "$__hu_x" "$__hu_bcb" 1
+  done
+  for __hu_x in ${__hu_off:+"$__hu_off"} ${__hu_sp:+"$__hu_sp"}; do
+    hook::bash_parse_segments_shfmt "$__hu_x" "$__hu_bcb" "$__hu_bsoft" || return 1
   done
   # A backtick's own text is a command as written, so it refuses as the command does.
   for __hu_x in ${__hu_bt_more[@]+"${__hu_bt_more[@]}"}; do

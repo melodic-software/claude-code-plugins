@@ -337,6 +337,10 @@ hit_print() { printf '%s\n' "$*"; }
   form handled 'echo @(`echo HIT >&2`)'
   form handled 'echo @(<(echo HIT >&2))'
   form refused 'f@()#; echo HIT >&2'
+  # Nested: the extglob-off rewrite applies its edits in offset order.
+  form handled $'cat <<E2; !(x)#\n$(cat <<E1; !(x)#\n$(echo HIT >&2\n)\nE1\n)\nE2'
+  # The extglob-off reading runs a here-doc before its open quote's error.
+  form refused $'!(x)#\'\ncat <<B\n$(echo HIT >&2)\nB\n\' ; cat <<C\nc\nC'
   # case patterns.
   form handled 'echo $(case x in a|esac) :;; esac)#; echo HIT >&2'
   form handled 'echo $(case x in esac)#; echo HIT >&2'
@@ -367,6 +371,9 @@ hit_print() { printf '%s\n' "$*"; }
   form refused "echo \`\$'\`; echo HIT >&2 #'\`"
   form refused "echo \`'\`; echo HIT >&2 #'"
   form refused $'echo `cat <<E`\necho HIT >&2\nE'
+  # An opener before backticks that span lines, and an empty body: the reader
+  # would place the body inside the backticks.
+  form refused $'cat <<A; echo `:\necho HIT >&2`\nA'
   form handled 'echo `echo \`:\`#; echo HIT >&2`'
   form handled 'echo `echo \`echo \\\`echo HIT >&2\\\`\``'
   # A backslash-newline bash joins before it reads an unquoted here-doc body.

@@ -4015,99 +4015,143 @@ bps_segments_are() {
   fi
 }
 
-bps_segments_are 'array assignment ) leaves a # after it literal' \
-  'a=(x)#y; git reset --hard' 'a=' 'x' '#y' 'git reset --hard'
-bps_segments_are 'extglob ) leaves a # after it literal' \
-  '@(x)#y; git reset --hard' '@' 'x' '#y' 'git reset --hard'
-bps_segments_are '# after whitespace past an array assignment is a comment' \
-  'a=(x) #; git reset --hard' 'a=' 'x'
+# bps_bash_hit <desc> <command>: the split bash runs, checked against bash. With
+# every `git reset --hard` turned into `echo HIT >&2`, bash (extglob off or on,
+# in a scratch directory) prints HIT exactly when the reader hands `echo HIT`
+# to the callback. The reader may hand over more (both readings of an
+# extglob-ambiguous `#`), which only adds checks.
+bps_hit_dir="$WORK/bps-hit"
+mkdir -p "$bps_hit_dir"
+bps_bash_hit() {
+  local desc="$1" h="${2//git reset --hard/"echo HIT >&2"}" m o ran=no seen=no
+  for m in +O -O; do
+    o=$(cd "$bps_hit_dir" && "$BASH" "$m" extglob -c "$h" 2>&1 >/dev/null </dev/null)
+    [[ $'\n'"$o"$'\n' == *$'\nHIT\n'* ]] && ran=yes
+  done
+  o=$(
+    # shellcheck disable=SC2329  # the parse callback
+    bps_print() { printf '%s\n' "$*"; }
+    hook::bash_parse_segments "$h" bps_print 2>/dev/null
+  )
+  [[ $'\n'"$o"$'\n' == *$'\necho HIT\n'* ]] && seen=yes
+  if [[ "$ran" == "$seen" ]]; then
+    ok "bash_parse_segments: $desc (bash runs it: $ran)"
+  else
+    fail "bash_parse_segments $desc: bash runs it: $ran, the reader hands it over: $seen"
+  fi
+}
+# bps_refused <desc> <command> <reason>: the reader refuses (exit 2, in a child)
+# and its refusal names <reason>.
+bps_refused() {
+  local desc="$1" out rc=0
+  out=$(
+    # shellcheck disable=SC2329  # the parse callback
+    bps_print() { :; }
+    hook::bash_parse_segments "$2" bps_print 2>&1
+  ) || rc=$?
+  if ((rc == 2)) && [[ "$out" == *'got no parse'*"$3"* ]]; then
+    ok "bash_parse_segments: $desc (refused: $3)"
+  else
+    fail "bash_parse_segments $desc: want refused naming [$3], exit $rc, [$out]"
+  fi
+}
+
+
+bps_bash_hit 'array assignment ) leaves a # after it literal' \
+  'a=(x)#y; git reset --hard'
+bps_bash_hit 'extglob ) leaves a # after it literal' \
+  '@(x)#y; git reset --hard'
+bps_bash_hit '# after whitespace past an array assignment is a comment' \
+  'a=(x) #; git reset --hard'
 bps_segments_are 'subshell ) still starts a comment at a following #' \
   '(x)#y; git reset --hard' 'x'
 bps_segments_are 'subshell ( at a word boundary still splits' \
   'true; (git reset --hard)' 'true' 'git reset --hard'
-bps_segments_are 'extglob alternation | keeps the frame open' \
-  '@(a|b)#y; git reset --hard' '@' 'a' 'b' '#y' 'git reset --hard'
-bps_segments_are 'f@()# yields the extglob-on word reading, then the function-definition comment' \
-  'f@()#y; git reset --hard' 'f@' '#y' 'git reset --hard'
-bps_segments_are 'bare !(x)# yields the extglob-on word reading, then the negated-subshell comment' \
-  '!(x)#; git reset --hard' '!' 'x' '#' 'git reset --hard'
-bps_segments_are 'the extglob-on reading keeps a second # in the word' \
-  '!(x)##; git reset --hard' '!' 'x' '##' 'git reset --hard'
-bps_segments_are 'the extglob-on reading runs past the line: a quote it opens can close later' \
-  $'!(x)#\'\n\'; git reset --hard' '!' 'x' $'#\n' 'git reset --hard' '; git reset --hard'
-bps_segments_are 'the extglob-on reading keeps a pending here-doc body out of commands' \
-  $'cat <<EOF; !(x)#; :\ngit reset --hard\nEOF\necho done' 'cat' '!' 'x' '#' ':' 'echo done' 'echo done'
+bps_bash_hit 'extglob alternation | keeps the frame open' \
+  '@(a|b)#y; git reset --hard'
+# shellcheck disable=SC2016  # the backticks are shfmt's message text
+bps_refused 'f@()# yields the extglob-on word reading, then the function-definition comment' \
+  'f@()#y; git reset --hard' \
+  '`foo()` must be followed by a statement'
+bps_bash_hit 'bare !(x)# yields the extglob-on word reading, then the negated-subshell comment' \
+  '!(x)#; git reset --hard'
+bps_bash_hit 'the extglob-on reading keeps a second # in the word' \
+  '!(x)##; git reset --hard'
+bps_refused 'the extglob-on reading runs past the line: a quote it opens can close later' \
+  $'!(x)#\'\n\'; git reset --hard' \
+  reached\ EOF\ without\ closing\ quote\ \`\'\`
+bps_bash_hit 'the extglob-on reading keeps a pending here-doc body out of commands' \
+  $'cat <<EOF; !(x)#; :\ngit reset --hard\nEOF\necho done'
 # shellcheck disable=SC2016  # the substitutions are the command text under test
 {
-  bps_segments_are '$(…) ) leaves a # after it literal' \
-    'echo $(:)#; git reset --hard' 'echo $' ':' '#' 'git reset --hard'
-  bps_segments_are '$((…)) ) leaves a # after it literal' \
-    'echo $((1))#; git reset --hard' 'echo $' '1' '#' 'git reset --hard'
-  bps_segments_are 'a ; inside $(…) keeps its frame' \
-    'echo $(:;:)#; git reset --hard' 'echo $' ':' ':' '#' 'git reset --hard'
-  bps_segments_are 'a newline inside $(…) keeps its frame' \
-    $'echo $(:\n:)#; git reset --hard' 'echo $' ':' ':' '#' 'git reset --hard'
-  bps_segments_are 'a case pattern ) inside $(…) pops no frame' \
-    'echo $(case x in x) :;; esac)#; git reset --hard' 'echo $' 'case x in x' ':' 'esac' '#' 'git reset --hard'
-  bps_segments_are 'a # after a case pattern ) inside $(…) is a comment' \
-    $'a=($(case x in x)#\'\ngit reset --hard;; esac))' 'a=' '$' 'case x in x' 'git reset --hard' 'esac'
-  bps_segments_are '# after whitespace past $(…) is a comment' \
-    'echo $(:) #; git reset --hard' 'echo $' ':'
-  bps_segments_are 'closing backtick leaves a # after it literal' \
-    'echo `:`#; git reset --hard' 'echo' ':' '#' 'git reset --hard'
-  bps_segments_are 'a ; inside backticks keeps the frame' \
-    'echo `:;:`#; git reset --hard' 'echo' ':' ':' '#' 'git reset --hard'
-  bps_segments_are 'a comment inside backticks ends at the closing backtick' \
-    'echo `#`; git reset --hard' 'echo' 'git reset --hard'
-  bps_segments_are 'an escaped backtick inside a backtick comment does not close it' \
-    $'echo `# \\`; git reset --hard\n:`' 'echo' ':'
-  bps_segments_are 'a backtick after an escaped backslash closes the substitution' \
-    $'echo `# \\\\`; git reset --hard\n:`' 'echo' 'git reset --hard' ':'
-  bps_segments_are 'case inside $((…)) is a variable, not a case statement' \
-    'echo $((case))#; git reset --hard' 'echo $' 'case' '#' 'git reset --hard'
-  bps_segments_are 'esac inside $((…)) closes no case frame' \
+  bps_bash_hit '$(…) ) leaves a # after it literal' \
+    'echo $(:)#; git reset --hard'
+  bps_bash_hit '$((…)) ) leaves a # after it literal' \
+    'echo $((1))#; git reset --hard'
+  bps_bash_hit 'a ; inside $(…) keeps its frame' \
+    'echo $(:;:)#; git reset --hard'
+  bps_bash_hit 'a newline inside $(…) keeps its frame' \
+    $'echo $(:\n:)#; git reset --hard'
+  bps_bash_hit 'a case pattern ) inside $(…) pops no frame' \
+    'echo $(case x in x) :;; esac)#; git reset --hard'
+  bps_bash_hit 'a # after a case pattern ) inside $(…) is a comment' \
+    $'a=($(case x in x)#\'\ngit reset --hard;; esac))'
+  bps_bash_hit '# after whitespace past $(…) is a comment' \
+    'echo $(:) #; git reset --hard'
+  bps_bash_hit 'closing backtick leaves a # after it literal' \
+    'echo `:`#; git reset --hard'
+  bps_bash_hit 'a ; inside backticks keeps the frame' \
+    'echo `:;:`#; git reset --hard'
+  bps_bash_hit 'a comment inside backticks ends at the closing backtick' \
+    'echo `#`; git reset --hard'
+  bps_bash_hit 'an escaped backtick inside a backtick comment does not close it' \
+    $'echo `# \\`; git reset --hard\n:`'
+  bps_refused 'a backtick after an escaped backslash closes the substitution' \
+    $'echo `# \\\\`; git reset --hard\n:`' \
+    'reached EOF without closing quote "`"'
+  bps_bash_hit 'case inside $((…)) is a variable, not a case statement' \
+    'echo $((case))#; git reset --hard'
+  bps_refused 'esac inside $((…)) closes no case frame' \
     'case x in x) echo $((esac))#; git reset --hard;; esac' \
-    'case x in x' 'echo $' 'esac' '#' 'git reset --hard' 'esac'
-  bps_segments_are 'a ( group inside $((…)) keeps the arithmetic frame' \
-    'echo $(( (1) ))#; git reset --hard' 'echo $' '1' '#' 'git reset --hard'
-  bps_segments_are 'a $(…) inside $((…)) is a command context again' \
-    'echo $(( $(case x in x) echo 1;; esac) ))#; git reset --hard' \
-    'echo $' '$' 'case x in x' 'echo 1' 'esac' '#' 'git reset --hard'
-  bps_segments_are '# after a ((…)) command is a comment' \
-    '((case))#; git reset --hard' 'case'
-  bps_segments_are 'a case pattern spelled case after ;; opens no case frame' \
-    'echo $(case x in x) :;; case) :;; esac)#; git reset --hard' \
-    'echo $' 'case x in x' ':' 'case' ':' 'esac' '#' 'git reset --hard'
-  bps_segments_are 'a case pattern spelled case after a newline opens no case frame' \
-    $'echo $(case x in\ncase) :;; esac)#; git reset --hard' \
-    'echo $' 'case x in' 'case' ':' 'esac' '#' 'git reset --hard'
-  bps_segments_are 'a case pattern in parentheses spelled case opens no case frame' \
-    'echo $(case x in (case) :;; esac)#; git reset --hard' \
-    'echo $' 'case x in' 'case' ':' 'esac' '#' 'git reset --hard'
-  bps_segments_are "a \$'…' inside backticks ends at the closing backtick" \
-    "echo \`\$'\`; git reset --hard #'\`" 'echo' '' 'git reset --hard'
-  bps_segments_are 'a quoted here-doc delimiter inside backticks ends at the closing backtick' \
-    "echo \`cat <<'\`; git reset --hard #'\`" 'echo' 'cat' 'git reset --hard'
-  bps_segments_are 'a here-doc opened inside backticks takes no body after them' \
-    $'echo `cat <<E`\ngit reset --hard\nE' 'echo' 'cat' 'git reset --hard' 'E'
-  bps_segments_are 'an esac after | in a case pattern is a pattern word' \
-    'echo $(case x in a|esac) :;; esac)#; git reset --hard' \
-    'echo $' 'case x in a' 'esac' ':' 'esac' '#' 'git reset --hard'
-  bps_segments_are 'an esac right after in closes the case' \
-    'echo $(case x in esac)#; git reset --hard' 'echo $' 'case x in esac' '#' 'git reset --hard'
-  bps_segments_are 'an escaped ; before a ; is a word, not a clause end' \
-    'echo $(case x in x) \;; case y in y) :;; esac;; z) :;; esac)#; git reset --hard' \
-    'echo $' 'case x in x' ';' 'case y in y' ':' 'esac' 'z' ':' 'esac' '#' 'git reset --hard'
-  bps_segments_are 'an escaped backtick inside backticks opens a nested substitution' \
-    'echo `echo \`git reset --hard\``' 'echo' 'echo' 'git reset --hard'
-  bps_segments_are 'escaped backticks two levels deep open a nested substitution' \
-    'echo `echo \`echo \\\`git reset --hard\\\`\``' 'echo' 'echo' 'echo' 'git reset --hard'
-  bps_segments_are 'a # right after a nested substitution is literal' \
-    'echo `echo \`:\`#; git reset --hard`' 'echo' 'echo' ':' '#' 'git reset --hard'
+    '`case` statement must end with `esac`'
+  bps_bash_hit 'a ( group inside $((…)) keeps the arithmetic frame' \
+    'echo $(( (1) ))#; git reset --hard'
+  bps_bash_hit 'a $(…) inside $((…)) is a command context again' \
+    'echo $(( $(case x in x) echo 1;; esac) ))#; git reset --hard'
+  bps_bash_hit '# after a ((…)) command is a comment' \
+    '((case))#; git reset --hard'
+  bps_bash_hit 'a case pattern spelled case after ;; opens no case frame' \
+    'echo $(case x in x) :;; case) :;; esac)#; git reset --hard'
+  bps_bash_hit 'a case pattern spelled case after a newline opens no case frame' \
+    $'echo $(case x in\ncase) :;; esac)#; git reset --hard'
+  bps_bash_hit 'a case pattern in parentheses spelled case opens no case frame' \
+    'echo $(case x in (case) :;; esac)#; git reset --hard'
+  bps_refused "a \$'…' inside backticks ends at the closing backtick" \
+    "echo \`\$'\`; git reset --hard #'\`" \
+    'backticks bash would end at a different backtick'
+  bps_refused 'a quoted here-doc delimiter inside backticks ends at the closing backtick' \
+    "echo \`cat <<'\`; git reset --hard #'\`" \
+    'unclosed here-document "`; git reset --hard #"'
+  bps_refused 'a here-doc opened inside backticks takes no body after them' \
+    $'echo `cat <<E`\ngit reset --hard\nE' \
+    'a here-doc opened inside backticks, which bash reads differently'
+  bps_bash_hit 'an esac after | in a case pattern is a pattern word' \
+    'echo $(case x in a|esac) :;; esac)#; git reset --hard'
+  bps_bash_hit 'an esac right after in closes the case' \
+    'echo $(case x in esac)#; git reset --hard'
+  bps_bash_hit 'an escaped ; before a ; is a word, not a clause end' \
+    'echo $(case x in x) \;; case y in y) :;; esac;; z) :;; esac)#; git reset --hard'
+  bps_bash_hit 'an escaped backtick inside backticks opens a nested substitution' \
+    'echo `echo \`git reset --hard\``'
+  bps_bash_hit 'escaped backticks two levels deep open a nested substitution' \
+    'echo `echo \`echo \\\`git reset --hard\\\`\``'
+  bps_bash_hit 'a # right after a nested substitution is literal' \
+    'echo `echo \`:\`#; git reset --hard`'
   bps_segments_are 'an escaped backtick outside backticks stays a literal character' \
     'echo \`; git reset --hard' 'echo `' 'git reset --hard'
-  bps_segments_are 'a here-doc body inside backticks ends at the closing backtick' \
-    $'echo `cat <<E\nx`\ngit reset --hard\nE' 'echo' 'cat' 'git reset --hard' 'E'
+  bps_refused 'a here-doc body inside backticks ends at the closing backtick' \
+    $'echo `cat <<E\nx`\ngit reset --hard\nE' \
+    'unclosed here-document `E`'
 }
 
 # bps_heredocs_are <desc> <command> <entry>...: HOOK_HEREDOC_BODIES after the parse.
@@ -4126,15 +4170,16 @@ bps_heredocs_are() {
 }
 bps_heredocs_are 'a here-doc both extglob readings see is listed once' \
   $'cat <<EOF; !(x)#; :\nbody\nEOF\necho done' '20 29 0 1 EOF'
-bps_heredocs_are 'a [[ =~ ]] regex group keeps a pending here-doc' \
-  $'cat <<E; [[ $s =~ k=(a|b) ]]\nit\'s\nE\ngit reset --hard' '29 36 0 1 E'
+bps_refused 'a [[ =~ ]] regex group keeps a pending here-doc' \
+  $'cat <<E; [[ $s =~ k=(a|b) ]]\nit\'s\nE\ngit reset --hard' \
+  reached\ EOF\ without\ closing\ quote\ \`\'\`
 # shellcheck disable=SC2016  # the substitutions are the command text under test
 {
-  bps_segments_are 'a pattern word that starts with $(…) is the first pattern word' \
-    'echo $(case x in $(:)|esac) :;; esac)#; git reset --hard' \
-    'echo $' 'case x in $' ':' 'esac' ':' 'esac' '#' 'git reset --hard'
-  bps_segments_are 'a ((…) ) that is not arithmetic is a nested subshell' \
-    "((bash <<< 'rm -rf ~') )" 'bash'
+  bps_bash_hit 'a pattern word that starts with $(…) is the first pattern word' \
+    'echo $(case x in $(:)|esac) :;; esac)#; git reset --hard'
+  bps_refused 'a ((…) ) that is not arithmetic is a nested subshell' \
+    "((bash <<< 'rm -rf ~') )" \
+    '`<<` must be followed by an expression'
 }
 # bps_redirs_are <desc> <command> <op target>...: every redirection reported.
 # shellcheck disable=SC2329  # invoked indirectly as the parse callback
@@ -4157,31 +4202,40 @@ bps_redirs_are() {
     fail "bash_parse_segments $desc: got [$got], want [$want]"
   fi
 }
-bps_redirs_are 'a here-string inside a ((…) ) subshell is a redirection' \
-  "((bash <<< 'rm -rf ~') )" '<<< rm -rf ~'
+# shellcheck disable=SC2016  # the backticks are shfmt's message text
+bps_refused 'a here-string inside a ((…) ) subshell is a redirection' \
+  "((bash <<< 'rm -rf ~') )" \
+  '`<<` must be followed by an expression'
 # shellcheck disable=SC2016  # the substitution is the command text under test
-bps_redirs_are 'a here-string inside a $((…) ) substitution is a redirection' \
-  "echo \$((bash <<< 'rm -rf ~') )" '<<< rm -rf ~'
-bps_redirs_are 'a write inside a ((…) ) subshell is a redirection' \
-  '((cat f > ../other/x) )' '> ../other/x'
-bps_heredocs_are 'a here-doc read before a backtick takes its body after the backtick line' \
-  $'cat <<A; echo `:\ngit reset --hard`\nA' '35 36 0 1 A'
-bps_heredocs_are 'here-docs from both extglob readings come in source order' \
-  $'!(x)#\'\ncat <<B\nb\nB\n\' ; cat <<C\nc\nC' '15 19 0 1 B' '31 34 0 1 C'
-bps_segments_are 'a quote inside backticks ends at the closing backtick' \
-  "echo \`'\`; git reset --hard #'" 'echo' '' 'git reset --hard'
-bps_segments_are 'process substitution ) leaves a # after it literal' \
-  'cat <(:)#; git reset --hard' 'cat' ':' '#' 'git reset --hard'
-bps_segments_are 'a ; inside an extglob keeps its frame' \
-  'echo @(x;y)#; git reset --hard' 'echo @' 'x' 'y' '#' 'git reset --hard'
-bps_segments_are 'a newline inside an array assignment keeps its frame' \
-  $'a=(x\ny)#; git reset --hard' 'a=' 'x' 'y' '#' 'git reset --hard'
+bps_refused 'a here-string inside a $((…) ) substitution is a redirection' \
+  "echo \$((bash <<< 'rm -rf ~') )" \
+  '`<<` must be followed by an expression'
+# shellcheck disable=SC2016  # the backticks are shfmt's message text
+bps_refused 'a write inside a ((…) ) subshell is a redirection' \
+  '((cat f > ../other/x) )' \
+  'not a valid arithmetic operator: `f`'
+bps_refused 'a here-doc read before a backtick takes its body after the backtick line' \
+  $'cat <<A; echo `:\ngit reset --hard`\nA' \
+  'a here-doc body that starts inside backticks, which bash reads differently'
+bps_refused 'here-docs from both extglob readings come in source order' \
+  $'!(x)#\'\ncat <<B\nb\nB\n\' ; cat <<C\nc\nC' \
+  reached\ EOF\ without\ closing\ quote\ \`\'\`
+bps_refused 'a quote inside backticks ends at the closing backtick' \
+  "echo \`'\`; git reset --hard #'" \
+  'reached EOF without closing quote "`"'
+bps_bash_hit 'process substitution ) leaves a # after it literal' \
+  'cat <(:)#; git reset --hard'
+bps_bash_hit 'a ; inside an extglob keeps its frame' \
+  'echo @(x;y)#; git reset --hard'
+bps_bash_hit 'a newline inside an array assignment keeps its frame' \
+  $'a=(x\ny)#; git reset --hard'
 # shellcheck disable=SC2016  # the substitution is the command text under test
-bps_segments_are 'substitution inside an array assignment stays a segment' \
-  'a=($(git reset --hard))#y' 'a=' '$' 'git reset --hard' '#y'
+bps_bash_hit 'substitution inside an array assignment stays a segment' \
+  'a=($(git reset --hard))#y'
 # shellcheck disable=SC2016  # the parameter expansion is the command text under test
-bps_segments_are '( inside an open ${...} opens no word-continuing frame' \
-  'echo ${x#*(}; case x in x)#y' 'echo ${x#*' '}' 'case x in x'
+bps_refused '( inside an open ${...} opens no word-continuing frame' \
+  'echo ${x#*(}; case x in x)#y' \
+  '`case` statement must end with `esac`'
 
 # --- Oracle table: whatever bash runs, the parser must hand to the callback ---
 # Each row puts a tricky word inside one opener, or inside an opener nested in
@@ -4446,13 +4500,15 @@ bps_redir_case 'quoted operand carrying whitespace stays one target' \
   'ARGV:echo x R:>||/dev/null ../../etc/pw|1|0'
 # A here-doc opener is a redirection whose target is the DELIMITER; a redirect
 # glued to that delimiter ends the delimiter word and is its own redirection.
-bps_redir_case 'here-doc opener with a redirect glued to the delimiter' \
+# shellcheck disable=SC2016  # the backticks are shfmt's message text
+bps_refused 'here-doc opener with a redirect glued to the delimiter, no body' \
   'cat <<EOF>file' \
-  'ARGV:cat R:<<||EOF|0|0 R:>||file|0|0'
+  'unclosed here-document `EOF`'
 # `)` is a metacharacter, so it ends the delimiter word as it does in bash.
-bps_redir_case 'here-doc delimiter ended by a closing parenthesis' \
+# shellcheck disable=SC2016  # the backticks are shfmt's message text
+bps_refused 'here-doc delimiter ended by a closing parenthesis, no body' \
   "(cat <<'E')" \
-  'ARGV:cat R:<<||E|1|0'
+  'unclosed here-document `E`'
 # An fd dup names an fd, not a file, and does not consume the following word —
 # so the later stdout redirect is still recorded as its own.
 bps_redir_case 'fd dup then a stdout redirect' \
@@ -4463,11 +4519,11 @@ bps_redir_case 'fd dup then a stdout redirect' \
 bps_redir_case 'escaped separator keeps the redirect in the same segment' \
   'echo x \; > f' \
   'ARGV:echo x ; R:>||f|0|0'
-# A here-string whose quote never closes: the operator is real, the string it
-# would carry is not recoverable, so the record is OPAQUE.
-bps_redir_case 'unterminated here-string is opaque' \
+# A here-string whose quote never closes is a syntax error: refused.
+# shellcheck disable=SC2016  # the backticks are shfmt's message text
+bps_refused 'unterminated here-string' \
   'read x <<<"abc' \
-  'ARGV:read x R:<<<||abc|1|1'
+  'reached EOF without closing quote `"`'
 # Bash allows a redirection before the command word; argv is unchanged by it.
 bps_redir_case 'redirect ahead of the command word' \
   '>file echo x' \
@@ -4505,7 +4561,8 @@ bps_hd_case() { # <desc> <command> <want entries joined by |>
 }
 bps_hd_case "three on one line: quoted, <<- double-quoted, unquoted" \
   $'cat <<\'A\' <<-"B" <<C\na\nA\n\tb\n\tB\nc\nC\necho done' '21 25 1 1 A|25 31 1 1 B|31 35 0 1 C'
-bps_hd_case "a body with no delimiter line runs to the end" $'cat <<\\EOF\nx' '11 12 1 0 EOF'
+# shellcheck disable=SC2016  # the backticks are shfmt's message text
+bps_refused "a body with no delimiter line" $'cat <<\\EOF\nx' 'unclosed here-document `EOF`'
 bps_hd_case "an opener inside double quotes is not one" $'echo "<<\'EOF\'"\nx\nEOF' ''
 bps_hd_case "a multibyte body is counted in bytes" $'cat <<\'E\'\né\nE\n' '10 15 1 1 E'
 bps_hd_case "a closing parenthesis ends the delimiter" $'(cat <<\'E\')\nx\nE\necho done' '12 16 1 1 E'
@@ -4528,8 +4585,8 @@ bps_mb_case() { # <desc> <command> <want words joined by |>
 bps_mb_run() {
   bps_mb_case "multibyte words survive the byte walk" \
     'echo "héllo wörld ✓" 日本語 𝄞' 'echo|héllo wörld ✓|日本語|𝄞'
-  bps_mb_case "an invalid UTF-8 byte stays the byte it was" \
-    $'printf \xff\xfe \xc3' $'printf|\xff\xfe|\xc3'
+  bps_refused "an invalid UTF-8 byte" \
+    $'printf \xff\xfe \xc3' 'invalid UTF-8 encoding'
   bps_mb_case "a multibyte heredoc body is skipped, the next line parsed" \
     $'cat <<EOF\nünï ✓\nEOF\necho après' 'echo|après'
   local mb='é日' before

@@ -23,6 +23,7 @@ say which mode applies.
 | `echo @(x;y)#; cmd` | on: `;` is pattern text | the on reading | handled |
 | `` echo @(`cmd`) ``, `echo @(<(cmd))` | on: `cmd` runs | pattern text | handled: each pattern is also parsed as a command |
 | `f@()#; cmd` | on: one word, then `cmd`; off: a function | syntax error | refused |
+| `!(x)#'` newline `cat <<B` … `B` newline `'` | off: the lines before the open quote run, a here-doc and its body included, then a syntax error | the on reading | refused: a second reading of the whole command that does not parse refuses, since bash runs every line before its error |
 
 ## `case` patterns
 
@@ -64,6 +65,7 @@ reads quotes and here-docs inside first.
 | Form | Bash | shfmt | Status |
 |---|---|---|---|
 | `$\` newline `(cmd)` in an unquoted body | the backslash-newline goes first, so `cmd` runs | body text | handled: the reader parses the joined body as well |
+| A here-doc opener, then a backtick substitution that spans lines, then an empty body | the body starts after the line the backticks end on | an empty body has no position, and the reader would place it on the line after the opener, inside the backticks | refused |
 
 ## Arithmetic
 
