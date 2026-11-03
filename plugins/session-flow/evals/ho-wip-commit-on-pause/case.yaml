@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: ho-wip-commit-on-pause
+description: 'Handoff WIP commit: in a repository whose docs/conventions/session-flow.yaml sets wip_commit: true, a user-typed /session-flow:handoff that asks to pause makes one local chore(wip): commit of the tracked change, staged from a NUL-separated path list with git add -u --pathspec-from-file, and never pushes. A run needs --scaffold and --allow-tools Bash Write Edit.'
+tags: [handoff, wip-commit]
+plugins: ["../.."]
+expected_outcome: 'The run resolves wip_commit to true from the conventions file, runs the refusal checks (none holds on the feature branch), stages src/retry.ts with git add -u --pathspec-from-file=<list> --pathspec-file-nul, commits it with a chore(wip): subject, records the SHA in the save-point, and ends with the railed resume prompt. It never pushes.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/session-flow:handoff retry-backoff I am pausing this for the night, save my place'
+  allowed_tools: [Bash, Read, Write, Edit, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 600
+graders:
+  - name: wip-commit-made
+    type: tool_used
+    tool: Bash
+    input_match: '\bgit\b(?:(?!\\n|;|&&|\|)[^\n])*?\bcommit\b'
+    min: 1
+    arm: with-only
+  - name: staged-from-path-list
+    type: tool_used
+    tool: Bash
+    input_match: '\bgit\b(?:(?!\\n|;|&&|\|)[^\n])*?\badd\b(?:(?!\\n|;|&&|\|)[^\n])*?--pathspec-from-file'
+    min: 1
+    arm: with-only
+  - name: no-push
+    type: tool_used
+    tool: Bash
+    input_match: '\bgit\b(?:(?!\\n|;|&&|\|)[^\n])*?\bpush\b'
+    min: 0
+    max: 0
+    arm: both
