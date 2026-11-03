@@ -280,6 +280,7 @@
       "files": [],
       "expectations": [
         "Derives the lane budget from the lane model's context window, not a fixed line count",
+        "Passes --bytes-per-token 2.7 to lane-runs.sh partition",
         "Keeps every plugin that fits atomic, never splitting it across lanes",
         "Splits only the oversized plugin, by skill",
         "The cost line names the split plugin and how many lanes it became",
