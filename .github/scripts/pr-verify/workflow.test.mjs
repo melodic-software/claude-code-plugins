@@ -984,6 +984,9 @@ test("wake-pr-merge runs after every verdict job, only on an uploaded pass, hold
   assert.match(log, /^ {8}if: always\(\)$/m);
   assert.match(log, /^ {10}tokens: github-token$/m);
   assert.match(job, /^ {8}continue-on-error: true$/m);
+  // A failed wake job never fails the run: pr-merge counts a pass only from
+  // a run that ended success.
+  assert.match(job, /^ {4}timeout-minutes: 5\n {4}continue-on-error: true\n {4}permissions:$/m);
 });
 
 // The wake step's script, from its `run: |` to the next step.

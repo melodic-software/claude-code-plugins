@@ -5333,7 +5333,9 @@ jobs:
   # actions: write, pull-requests: read and contents: read (for main's
   # api-budget library alone), runs no model, and passes the
   # verdict jobs' outputs through env, checked in bash. A failed dispatch
-  # only warns: the run's verdict stands, and the schedule arms it.
+  # only warns: the run's verdict stands, and the schedule arms it. A failed
+  # job (timeout, lost runner) leaves the run's conclusion to the verdict jobs,
+  # since pr-merge counts a pass only from a run that ended success.
   wake-pr-merge:
     needs: [check-intent, check-intent-subscription, check-intent-fallback]
     if: >-
@@ -5347,6 +5349,7 @@ jobs:
       || needs.check-intent-fallback.outputs.verdict == 'pass-notes')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    continue-on-error: true
     permissions:
       actions: write # start pr-merge.yml on main for this pull request
       pull-requests: read # read the pull request's author: only a lanes App one is woken
