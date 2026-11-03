@@ -55,9 +55,11 @@ Exit: 0 every case passed (validate: valid; recheck: listed, even when none);
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
+import secrets
 import shutil
 import subprocess
 import sys
@@ -82,6 +84,11 @@ DEFAULT_SUITE_RUNS = 20
 DEFAULT_TIMEOUT = 300
 DRY_RUN_VERSION = "0.0.0-dry-run"
 TEXT_CLIP = 300
+# A plant_env value: this fixed prefix, then random hex. The prefix lets anyone search
+# a run's output for a leak without knowing the value; the temp directory holds only
+# its hash.
+PLANT_PREFIX = "probe-fake-"
+PLANT_HASH_FILE = ".probe-plant-sha256"
 # Case fields passed to the CLI as tool rule lists, comma-joined.
 TOOL_LISTS = (
     ("allowed_tools", "--allowedTools"),
@@ -300,6 +307,23 @@ def case_problems(case: dict, by_id: dict[str, dict]) -> list[str]:
     for flag in ("verdict_only", "explicit"):
         if not isinstance(case.get(flag, False), bool):
             problems.append(f"{cid}: {flag} must be true or false")
+    plant = case.get("plant_env")
+    if plant is not None:
+        if not isinstance(plant, str) or not plant or plant in ENV_ALLOWLIST:
+            problems.append(
+                f"{cid}: plant_env must name a variable the runner does not pass "
+                "through, so it cannot replace the turn's authentication"
+            )
+        if case.get("verdict_only") is not True:
+            problems.append(f"{cid}: a plant_env case must be verdict_only")
+    if "result_match" in target:
+        try:
+            if not re.search(
+                target["result_match"], str(case.get("match") or "dry run")
+            ):
+                problems.append(f"{cid}: match is not of target.result_match's shape")
+        except (re.error, TypeError) as exc:
+            problems.append(f"{cid}: target.result_match is not a regex: {exc}")
     timeout = case.get("timeout", DEFAULT_TIMEOUT)
     if isinstance(timeout, bool) or not isinstance(timeout, int) or timeout <= 0:
         problems.append(f"{cid}: timeout must be a positive whole number of seconds")
@@ -503,6 +527,14 @@ def verdict(case: dict, obs: dict) -> dict:
     select = target.get("select", "first")
     if select == "first":
         seen = seen[:1]
+    shape = target.get("result_match")
+    if shape and not all(re.search(shape, s["text"]) for s in seen):
+        # Not the output the case reads, such as a denial or a broken tool call.
+        return {
+            **row,
+            "verdict": "inconclusive",
+            "note": "the target call's result is not of result_match's shape",
+        }
     hits = [s for s in seen if satisfies(s, case)]
     passed = bool(hits) if select == "any" else len(hits) == len(seen)
     shown = (hits or seen)[0]
@@ -836,6 +868,18 @@ def rejudge(
     return rows
 
 
+def plant(case: dict, workdir: Path) -> dict:
+    """A fresh fake value for the case's plant_env, leaving only its hash on disk."""
+    name = case.get("plant_env")
+    if not name:
+        return {}
+    value = PLANT_PREFIX + secrets.token_hex(32)
+    (workdir / PLANT_HASH_FILE).write_text(
+        hashlib.sha256(value.encode()).hexdigest(), encoding="utf-8"
+    )
+    return {name: value}
+
+
 def run_case(case: dict, runner, keep: bool, live: bool) -> dict:
     row = base_row(case)
     # A dry run checks the case's wiring, which no platform rules out.
@@ -844,9 +888,13 @@ def run_case(case: dict, runner, keep: bool, live: bool) -> dict:
         return {**row, "verdict": "skipped", "note": reason}
     if not cli_args_ok(case.get("cli_args") or []):
         return {**row, "verdict": "error", "note": "cli_args is not allowed flag-value pairs"}
+    # The stream of a run that saves one could carry the planted value.
+    if case.get("plant_env") and case.get("verdict_only") is not True:
+        return {**row, "verdict": "error", "note": "a plant_env case must be verdict_only"}
     workdir = Path(tempfile.mkdtemp(prefix="cc-probe-"))
     try:
         case_dir = case["dir"]
+        planted = plant(case, workdir)
         scaffold = case_dir / "scaffold.sh"
         if scaffold.is_file():
             try:
@@ -894,8 +942,10 @@ def run_case(case: dict, runner, keep: bool, live: bool) -> dict:
             case_dir,
             json_escape=False,
         )
+        # The planted value goes only here: rows are built from case, never resolved.
         resolved = {
             **case,
+            "env": {**(case.get("env") or {}), **planted},
             **{
                 field: [
                     substitute(rule, workdir, case_dir, json_escape=False)
