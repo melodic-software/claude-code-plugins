@@ -1806,9 +1806,13 @@ rdt_name_set() {
   # an assignment `NAME=` or a `for NAME` at the start of a word, an option letter
   # (`-S`), or inside a longer word. Anything else can set it: a setter's operand
   # (`read S`, `export S`, `declare -n S=R`), an option glued to a setter's name
-  # (`printf -vS`), a subscript (`S[0]=`), `${S:=...}`, `+=`, or a brace (`{S,}`).
+  # (`printf -vS`), a subscript (`S[0]=`, `${S[0]:=...}`), `${S:=...}`, `+=`, or a
+  # brace (`{S,}`).
   re_set='(^|[^A-Za-z0-9_])(read|mapfile|readarray|getopts|select|printf|wait|declare|typeset|local|export|readonly)([^A-Za-z0-9_]|$)'
+  # A command word built by expansion (`p${x}rintf`, `$x`) can be a setter, and an
+  # option letter is a `-` that opens a word, never `${y:-S}`.
   local re_word_h='(^|[[:space:];&|(])$' re_for_h='(^|[[:space:];&|(])for[[:space:]]+$'
+  local re_cmd_x='^[[:space:]]*[^[:space:]]*[$`]' re_opt_h='(^|[[:space:]])-$'
   post="$tq" head=""
   while [[ "$post" == *"$n"* ]]; do
     head+="${post%%"$n"*}"
@@ -1818,10 +1822,10 @@ rdt_name_set() {
     elif [[ "$head" == *[A-Za-z0-9_] ]]; then
       re='(^|[^A-Za-z0-9_])-[A-Za-z]+$'
       seg="${head##*[;&|($'\n']}"
-      [[ "$head" =~ $re && "$seg" =~ $re_set ]] && return 1
+      [[ "$head" =~ $re && ("$seg" =~ $re_set || "$seg" =~ $re_cmd_x) ]] && return 1
     elif [[ "$head" == *'$' || "$head" == *'${' || "$head" == *'${#' ]]; then
-      [[ "$head" == *'${' && ("$post" == =* || "$post" == :=*) ]] && return 1
-    elif [[ "$head" == *- ]]; then
+      [[ "$head" == *'${' && ("$post" == =* || "$post" == :=* || "$post" == '['*) ]] && return 1
+    elif [[ "$head" =~ $re_opt_h ]]; then
       :
     elif [[ "$head" =~ $re_for_h ]]; then
       q_for=$((q_for + 1))

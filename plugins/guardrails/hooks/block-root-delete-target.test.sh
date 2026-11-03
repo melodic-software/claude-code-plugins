@@ -930,6 +930,12 @@ expect_both 'unset suffixed: mapfile after an assignment blocks' 2 "${RDT_CWD[@]
 expect_both 'unset suffixed: getopts after an assignment blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; getopts ab S; rm -rf $S/x'
 expect_both 'unset suffixed: a nameref after an assignment blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; declare -n S=T; rm -rf $S/x'
 expect_both 'unset suffixed: a := default blocks' 2 "${RDT_CWD[@]}" --command 'S=; : ${S:=/ tmp}; rm -rf $S/x'
+expect_both 'unset suffixed: a subscripted := default blocks' 2 "${RDT_CWD[@]}" --command 'S=; : ${S[0]:=/ tmp}; rm -rf $S/x'
+expect_both 'unset suffixed: a subscripted = default blocks' 2 "${RDT_CWD[@]}" --command 'S=; : ${S[0]=/ tmp}; rm -rf $S/x'
+expect_both 'unset suffixed: a nested subscript default blocks' 2 "${RDT_CWD[@]}" --command 'S=; : ${S[a[0]]:=/ tmp}; rm -rf $S/x'
+expect_both 'unset suffixed: a printf name split by an expansion blocks' 2 "${RDT_CWD[@]}" --command "S=/tmp; p\${x}rintf -vS '/ tmp'; rm -rf \$S/x"
+expect_both 'unset suffixed: a setter named by a variable blocks' 2 "${RDT_CWD[@]}" --command "x=printf; S=/tmp; \$x -vS '/ tmp'; rm -rf \$S/x"
+expect_both 'unset suffixed: a nameref to a default expansion blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; d${x}eclare -n R=${y:-S}; R="/ tmp"; rm -rf $S/x'
 expect_both 'unset suffixed: an array value blocks' 2 "${RDT_CWD[@]}" --command 'S=(/ tmp); rm -rf $S/x'
 expect_both 'unset suffixed: an IFS change blocks' 2 "${RDT_CWD[@]}" --command 'S=a:/:b; IFS=:; rm -rf $S/x'
 expect_both 'unset suffixed: eval after an assignment blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; eval "$C"; rm -rf $S/x'
