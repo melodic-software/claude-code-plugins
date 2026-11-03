@@ -21,3 +21,4 @@ graders:
     type: 'tool_used'
     tool: 'Bash'
     input_match: 'collision-hotspots\.sh'
+    arm: 'with-only'

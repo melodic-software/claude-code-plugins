@@ -1,6 +1,6 @@
 ---
 description: 'The scaffold repository has config/services.json with 40 entries (name, owner, path), each path a tracked services/ folder, and a plain build.sh; the hotspot ranking itself is narrated, since collision-hotspots.sh needs a GitHub remote.'
-tags: ['reduce']
+tags: ['reduce', 'narration']
 allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
 max_turns: 40
 timeout_seconds: 900

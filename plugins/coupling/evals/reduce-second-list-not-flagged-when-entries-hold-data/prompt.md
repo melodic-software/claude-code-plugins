@@ -1,6 +1,6 @@
 ---
 description: 'The scaffold repository has i18n/strings.json with 600 keys that name no file; the hotspot ranking itself is narrated, since collision-hotspots.sh needs a GitHub remote.'
-tags: ['reduce']
+tags: ['reduce', 'narration']
 allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
 max_turns: 40
 timeout_seconds: 900
