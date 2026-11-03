@@ -4542,6 +4542,11 @@ def read_shared(path: str) -> policy.SharedPostMerge | None:
             demotion=demotion,
             floor=policy._time(payload.get("since")),
             gate=gate_from_report(report),
+            policy_floor=(
+                policy._time(shared["policyFloor"])
+                if shared.get("policyFloor")
+                else None
+            ),
         )
     except (OSError, ValueError, policy.PolicyReadError):
         return None
@@ -4571,6 +4576,9 @@ def write_shared(path: str, shared: policy.SharedPostMerge) -> bool:
                 "clearedAt": cleared,
             },
             "identity": shared.identity,
+            "policyFloor": (
+                shared.policy_floor.isoformat() if shared.policy_floor else None
+            ),
             "selfLogins": sorted(shared.self_logins),
             "laneMergesOnly": shared.lane_merges_only,
             "computedAt": shared.computed_at.isoformat(),
@@ -4628,7 +4636,8 @@ def _unreadable_at(
     shared = json_object(payload.get("shared"))
     job = {
         "mainSha": shared.get("mainSha"),
-        "since": payload.get("since"),
+        # The gate passes the policy floor, which an anchored report keeps here.
+        "since": shared.get("policyFloor") or payload.get("since"),
         "identity": shared.get("identity"),
         "laneMergesOnly": shared.get("laneMergesOnly"),
         "computedAt": shared.get("computedAt"),
@@ -4829,6 +4838,36 @@ def _judge_run(args: argparse.Namespace) -> int:
     return code
 
 
+def anchor_covered(
+    repo: str, identity: str, report: Mapping[str, Any]
+) -> list[Any]:
+    """The report's `settle` entries the current anchor already passed: merged
+    at or before it, or carried in its `passed`. A settled merge counts only
+    by its marker, which never moves the anchor (`advance_anchor`), so a
+    marker on a merge the anchor has not passed would hold it for good; such
+    a merge is settled once a later anchor passes it. No anchor settles none."""
+    anchor = read_anchor(repo, identity)
+    if anchor is None:
+        return []
+    merged = {
+        m.get("number"): m.get("mergedAt")
+        for m in map(json_object, json_array(report.get("autoMerges")))
+    }
+
+    def covered(number: Any) -> bool:
+        try:
+            at = merged.get(number)
+            return number in anchor.passed or (bool(at) and _time(at) <= anchor.at)
+        except PostMergeReadError:
+            return False
+
+    return [
+        e
+        for e in json_array(report.get("settle"))
+        if covered(json_object(e).get("number"))
+    ]
+
+
 def _settle_from(repo: str, path: str, identity: str) -> int:
     """`--settle-from`: mark settled each merge a readable check report lists
     in `settle`. Nothing here changes that check's verdict, so every outcome
@@ -4839,7 +4878,7 @@ def _settle_from(repo: str, path: str, identity: str) -> int:
     except (OSError, ValueError) as exc:
         report = {"error": f"{type(exc).__name__}: {exc}"}
     if report.get("readable") is True:
-        posted, warnings = settle(repo, report.get("settle"), identity)
+        posted, warnings = settle(repo, anchor_covered(repo, identity, report), identity)
     else:
         posted, warnings = [], [f"settle-unposted: no readable report at {path}"]
     json.dump({"settled": posted, "warnings": warnings}, sys.stdout, indent=2)
@@ -5006,6 +5045,8 @@ def main(argv: list[str] | None = None) -> int:
                     "selfLogins": list(args.self_login),
                     "laneMergesOnly": args.lane_merges_only,
                     "computedAt": computed_at.isoformat(),
+                    # `since` may be anchored (`lane_floor`); reuse binds to this.
+                    "policyFloor": since.isoformat(),
                 }
         except policy.PolicyReadError as exc:
             json.dump({"ok": False, "error": f"floor unreadable: {exc}"}, sys.stdout)

@@ -4844,6 +4844,39 @@ class LaneFloorAnchor(CheckCase):
         self.assertEqual(data["laneMergesOnly"], True)
         self.assertEqual((data["repo"], data["branch"]), (REPO, "main"))
 
+    def test_a_shared_answer_keeps_the_policy_floor_it_was_anchored_from(
+        self,
+    ) -> None:
+        # Reuse binds to the policy floor (`shared_refusal`, `_unreadable_at`),
+        # never to the anchored `since`.
+        gate = pm.gate_from_report({"readable": False, "reason": "unreadable: x"})
+        shared = pm.policy.SharedPostMerge(
+            main_sha=TIP_SHA,
+            config_sha=HEAD_SHA,
+            identity=IDENTITY,
+            self_logins=frozenset(),
+            lane_merges_only=True,
+            computed_at=datetime.now(UTC),
+            demotion=pm.policy.Demotion(False, None, (), None, None),
+            floor=ANCHOR_AT,
+            gate=gate,
+            policy_floor=SINCE,
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            path = str(pathlib.Path(tmp) / "post-merge.json")
+            self.assertTrue(pm.write_shared(path, shared))
+            data = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
+            data["readable"] = True
+            pathlib.Path(path).write_text(json.dumps(data), encoding="utf-8")
+            read = pm.read_shared(path)
+            assert read is not None
+            self.assertEqual((read.floor, read.policy_floor), (ANCHOR_AT, SINCE))
+            data["readable"] = False
+            pathlib.Path(path).write_text(json.dumps(data), encoding="utf-8")
+            for floor, found in ((SINCE, True), (ANCHOR_AT, False)):
+                known = pm._unreadable_at(path, TIP_SHA, floor, IDENTITY, True)
+                self.assertEqual(known is not None, found, floor)
+
     def test_a_gate_uses_the_anchored_floor(self) -> None:
         self.publish()
         with mock.patch.object(pm, "_default_is_human", return_value=human):

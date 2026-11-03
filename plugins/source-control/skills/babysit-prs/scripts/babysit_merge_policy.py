@@ -6060,6 +6060,9 @@ class SharedPostMerge:
     demotion: Demotion
     floor: datetime
     gate: PostMergeGate
+    # The policy floor (`merged_since_floor`) `floor` was anchored from, which
+    # `shared_refusal` compares; None when `floor` is the policy floor.
+    policy_floor: datetime | None = None
 
 
 def newest_config_commit(repo: str, sha: str) -> str:
@@ -6213,7 +6216,7 @@ def shared_refusal(
         # walks its own config history to the floor it would read.
         if newest_config_commit(
             repo, base_sha
-        ) != shared.config_sha and shared.floor != merged_since_floor(
+        ) != shared.config_sha and (shared.policy_floor or shared.floor) != merged_since_floor(
             repo, base_sha, shared.demotion, authority
         ):
             return "floor-differs"
@@ -6499,6 +6502,7 @@ def assess(
         if post_merge is not None
         else PostMergeGate("unchecked", {}, None)
     )
+    policy_floor = None if reuse else floor
     if not reuse:
         floor = gate.floor_from(floor)
     details["mergedSince"] = floor.isoformat()
@@ -6525,6 +6529,7 @@ def assess(
                     demotion=demotion,
                     floor=floor,
                     gate=gate,
+                    policy_floor=policy_floor,
                 )
             )
     if gate.refusal:
@@ -6823,9 +6828,8 @@ def _recompute_shared(
         self_logins=self_logins,
         permission=permission_reader(repo),
     )
-    floor = merged_since_floor(repo, head, demotion, PR_MERGE)
-    gate = post_merge(floor, identity)
-    floor = gate.floor_from(floor)
+    policy_floor = merged_since_floor(repo, head, demotion, PR_MERGE)
+    gate = post_merge(policy_floor, identity)
     if gate.report.get("readable") is not True:
         return None
     return SharedPostMerge(
@@ -6836,8 +6840,9 @@ def _recompute_shared(
         lane_merges_only=True,
         computed_at=computed_at,
         demotion=demotion,
-        floor=floor,
+        floor=gate.floor_from(policy_floor),
         gate=gate,
+        policy_floor=policy_floor,
     )
 
 
