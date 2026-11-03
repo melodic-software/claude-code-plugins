@@ -5907,7 +5907,7 @@ hook::_bps_refuse() {
 # hook::_bps_close_word.
 # shellcheck disable=SC2154  # __hu_bt, __hu_bi and __hu_bcmd are hook::_bps_tree_decode's
 hook::_bps_tree_word() {
-  local __hu_bn __hu_bv __hu_btag __hu_ba
+  local __hu_bn __hu_bv __hu_btag __hu_bansi
   __hu_bq=${__hu_bt[__hu_bi++]}
   __hu_bn=${__hu_bt[__hu_bi++]}
   __hu_bw=""
@@ -5917,8 +5917,8 @@ hook::_bps_tree_word() {
     case "$__hu_btag" in
     L) __hu_bw+=$__hu_bv ;;
     A)
-      hook::ansi_c_decode_to __hu_ba "$__hu_bv"
-      __hu_bw+=$__hu_ba
+      hook::ansi_c_decode_to __hu_bansi "$__hu_bv"
+      __hu_bw+=$__hu_bansi
       ;;
     *) __hu_bw+=${__hu_bcmd:${__hu_bv%:*}:$((${__hu_bv#*:} - ${__hu_bv%:*}))} ;;
     esac
