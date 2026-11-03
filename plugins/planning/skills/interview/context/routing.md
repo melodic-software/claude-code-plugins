@@ -25,7 +25,7 @@ turn out larger or foggier than it looked at entry? Each trigger has its own rec
   add) against the rows it moved to a terminal status. Register rows alone miss this: a new
   branch gets its row only when it is asked. Two rounds running with more opened than closed is
   the trigger; one is noise. This is the fog evidence wayfind's too-big AND foggy stop rule needs,
-  so wayfind is never recommended without it.
+  so a recommendation to chart always rests on it.
 - **Size alone: the context zone has worsened → `/session-flow:workflow`.** The session's
   context-guard report (the zone line the module injects, or its `mcp__context-guard__status`
   tool) puts the session in a worse zone than the one it reported at entry. Use only a report the
@@ -33,6 +33,15 @@ turn out larger or foggier than it looked at entry? Each trigger has its own rec
   token or percentage figure here, because the zone thresholds belong to context-guard. No report,
   or `unknown`, is not a trigger. With no fog trigger, this recommends routing the continuation
   through `/session-flow:workflow` (Step 5), not wayfind. When both hold, recommend wayfind.
+- **Question count: the register passed `wayfind_suggest_questions` → suggest `/planning:wayfind
+  chart`.** Resolve the key per [`<plugin-root>/reference/config.md`](../../../reference/config.md)
+  "Convention-home keys" (no `userConfig` layer; the default is `27`; `0` never suggests). Count the
+  rows in the ledger's `## Open-question register`, every status. The first time the count passes
+  the value, say once, in one short block after the read-back: the count, the value and its layer,
+  that the interview may be outrunning one session, and that `/planning:wayfind chart` would carry
+  this ledger over if the effort is still foggy. That block is a pointer, not a question: it waits
+  for nothing, the next round goes out as usual, and a reply asking for wayfind takes the handoff
+  below. Skip it when a wayfind recommendation has already been made in this session.
 
 On a trigger, recommend its route to the user in one short block (the trigger and its evidence,
 what it would carry over); never switch on your own. If it is not a trigger, say nothing and ask
