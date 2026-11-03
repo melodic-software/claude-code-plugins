@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.0.0] - 2026-11-03
+
+### Removed
+
+- The `check` skill is gone, with its probe file. To check this plugin's prerequisites, run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`, the command the hook notices already print. The `SessionStart` node notice now names `/harness-ops:prerequisites`.
+
 ## [7.0.1] - 2026-11-03
 
 ### Changed

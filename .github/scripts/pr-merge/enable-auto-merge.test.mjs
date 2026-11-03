@@ -67,6 +67,7 @@ import {
   SKIP_STATE_PREFIX,
 } from "./enable-auto-merge.mjs";
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { DEQUEUE_MUTATION, QUEUE_ENTRY_QUERY } from "../pr-unblock/address-feedback.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { COMMENT_EDITED_QUERY, LANE_HOLD, PULL_OPENED_QUERY, VERIFY_PATH, personWrote, unblockStops, verdictHold } from "./merge-holds.mjs";
 import { VERIFY_PATH as RESOLVER_VERIFY_PATH } from "../pr-verify/resolve-pr.mjs";
@@ -140,7 +141,7 @@ const labels = (...names) => ({ totalCount: names.length, nodes: names.map((name
 // filesError: what every changed-files GET throws.
 // A pull request's `after` is its auto-merge state as the read-back sees it
 // (AUTO_MERGE_STATE_QUERY), else its listed state; `after: "error"` fails the read.
-function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, filesError = null, noteErrors = [], disarmError = null, pinError = null } = {}) {
+function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, filesError = null, noteErrors = [], disarmError = null, pinError = null, dequeueError = null } = {}) {
   const pins = [];
   const noteThrows = [...noteErrors];
   const armThrows = Object.fromEntries(Object.entries(armErrors).map(([id, errors]) => [id, [...errors]]));
@@ -308,6 +309,14 @@ function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, file
       const nodes = all.slice(start, start + 2);
       return { data: { node: { comments: { totalCount: all.length, pageInfo: { hasNextPage: start + 2 < all.length, endCursor: String(start + 2) }, nodes } } } };
     }
+    // A pull request's merge-queue entry: `queued` puts it in the queue.
+    if (body.query === QUEUE_ENTRY_QUERY) {
+      const found = pulls.find((candidate) => candidate.number === body.variables.pr);
+      return { data: { repository: { pullRequest: { id: found?.id, mergeQueueEntry: found?.queued ? { id: `MQE_${found.number}` } : null } } } };
+    }
+    if (body.query === DEQUEUE_MUTATION && dequeueError) {
+      throw dequeueError;
+    }
     if (body.query === ARM_MUTATION && armThrows[body.variables.id]?.length > 0) {
       throw armThrows[body.variables.id].shift();
     }
@@ -346,8 +355,8 @@ function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, file
   };
   const writes = () =>
     calls
-      .filter(({ method, path, body }) => method === "POST" && path === "/graphql" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY, UNLABELED_QUERY, DISCUSSION_PAGE_QUERIES.comments, THREAD_PAGE_QUERY, AUTO_MERGE_STATE_QUERY].includes(body.query) && !String(body.query).startsWith(SKIP_STATE_PREFIX))
-      .map(({ body }) => ({ mutation: body.query === ARM_MUTATION ? "arm" : body.query === DISARM_MUTATION ? "disarm" : "?", ...body.variables }));
+      .filter(({ method, path, body }) => method === "POST" && path === "/graphql" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY, UNLABELED_QUERY, DISCUSSION_PAGE_QUERIES.comments, THREAD_PAGE_QUERY, AUTO_MERGE_STATE_QUERY, QUEUE_ENTRY_QUERY].includes(body.query) && !String(body.query).startsWith(SKIP_STATE_PREFIX))
+      .map(({ body }) => ({ mutation: body.query === ARM_MUTATION ? "arm" : body.query === DISARM_MUTATION ? "disarm" : body.query === DEQUEUE_MUTATION ? "dequeue" : "?", ...body.variables }));
   return { github, writes, verify, verified, calls, notes, pins };
 }
 
@@ -4035,4 +4044,51 @@ test("a skip record of another repository, from the future, or malformed skips n
     writeFileSync(path, JSON.stringify(data));
     assert.equal((await skipRun([riskHeld()], { from: path, minutes: 15 })).details, 1, name);
   }
+});
+
+// The lanes App adding the human-gated label to a queued pull request takes it
+// out of the merge queue, so its merge group does not run only for ci-status
+// to fail it on the label: one queue read per label add, and the dequeue only
+// when it is queued. A refused dequeue warns; the label still holds it.
+const queueReads = (calls) => calls.filter(({ body }) => body?.query === QUEUE_ENTRY_QUERY).map(({ body }) => body.variables.pr);
+const holdNotice = (outcome) => `::notice title=hold-label-dequeue::pr=1 label=needs-human outcome=${outcome}`;
+
+test("a human-gated label the lane adds to a queued pull request dequeues it", async () => {
+  const { code, writes, calls, notes, lines } = await run([pull(1, { files: COST_FILES, queued: true })]);
+  assert.equal(code, 0);
+  assert.deepEqual(notes.at(-1), { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } });
+  assert.deepEqual(queueReads(calls), [1]);
+  assert.deepEqual(writes, [{ mutation: "dequeue", id: "PR_1" }]);
+  assert.ok(lines.includes(holdNotice("dequeued")));
+});
+
+test("a human-gated label on a pull request not in the queue reads its entry once and writes nothing more", async () => {
+  const { code, writes, calls, lines } = await run([pull(1, { files: COST_FILES })]);
+  assert.equal(code, 0);
+  assert.deepEqual(queueReads(calls), [1]);
+  assert.deepEqual(writes, []);
+  assert.ok(lines.includes(holdNotice("not-queued")));
+});
+
+test("a refused dequeue warns and leaves the label add standing", async () => {
+  const { code, notes, lines } = await run([pull(1, { files: COST_FILES, queued: true })], {}, { dequeueError: new GitHubError(200, "POST /graphql (GraphQL errors)") });
+  assert.equal(code, 0);
+  assert.deepEqual(notes.at(-1), { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } });
+  assert.ok(lines.some((line) => String(line).startsWith("::warning::#1: could not dequeue it")));
+  assert.ok(lines.includes(holdNotice("refused:dequeue-failed")));
+});
+
+test("a refused pull request whose label the lane puts back while queued is dequeued", async () => {
+  const laneComment = lanesSaid(laneNote(MISSING_REASON));
+  const posted = { ...lanesSaid(personNote(LANE_HOLD_NOTE), "2026-10-23T10:05:00Z"), databaseId: 78, createdAt: "2026-10-23T10:05:00Z" };
+  const { code, notes, writes, lines } = await run([laneHeld(1, { discussion: { comments: [laneComment, posted] }, queued: true })]);
+  assert.equal(code, 0);
+  assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } }]);
+  assert.deepEqual(writes, [{ mutation: "dequeue", id: "PR_1" }]);
+  assert.ok(lines.includes(holdNotice("dequeued")));
+});
+
+test("a refusal that adds no label reads no queue entry", async () => {
+  const { calls } = await run([pull(1, { verdict: MISSING })]);
+  assert.deepEqual(queueReads(calls), []);
 });
