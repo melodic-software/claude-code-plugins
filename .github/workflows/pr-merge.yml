@@ -2600,9 +2600,11 @@ jobs:
               echo "::notice::the fresh post-merge check (exit $fresh) does not stand for this run; nothing is armed or disarmed, and the next sweep checks again"
             fi
           fi
-          echo "stands=$kept" >>"$GITHUB_OUTPUT"
-          echo "fresh=$fresh" >>"$GITHUB_OUTPUT"
-          echo "fresh-reason=${reason//[$'\r\n']/ }" >>"$GITHUB_OUTPUT"
+          {
+            echo "stands=$kept"
+            echo "fresh=$fresh"
+            echo "fresh-reason=${reason//[$'\r\n']/ }"
+          } >>"$GITHUB_OUTPUT"
 
       # While merge.report-only is anything but false it reports each
       # decision and writes nothing.
