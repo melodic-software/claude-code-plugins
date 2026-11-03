@@ -234,16 +234,19 @@ const trimBlank = (lines) => {
 /**
  * A markdown record's `## Design` section: the title from the record's first `# ` heading, the
  * text before the first `### ` subsection, and each subsection's lines as written. A heading
- * inside a code fence is text.
+ * inside a code fence is text; a fence closes only on a bare run of its own character at least as
+ * long as the opening run (CommonMark).
  */
 function parseDesign(record) {
   if (!isText(record)) throw new ViewBuildError(["the design record must be markdown text"]);
-  let [fenced, inDesign, found, title] = [false, false, false, null];
+  let [fence, inDesign, found, title] = [null, false, false, null];
   const intro = [];
   const sections = [];
   for (const line of lf(record).split("\n")) {
-    const heading = fenced ? null : /^(#{1,6})[ \t]+(.+?)[ \t]*$/.exec(line);
-    if (/^[ \t]*(```|~~~)/.test(line)) fenced = !fenced;
+    const heading = fence ? null : /^(#{1,6})[ \t]+(.+?)[ \t]*$/.exec(line);
+    const run = /^[ \t]*(`{3,}(?=[^`]*$)|~{3,})(.*)$/.exec(line);
+    if (!fence && run) fence = run[1];
+    else if (fence && run && run[1][0] === fence[0] && run[1].length >= fence.length && !run[2].trim()) fence = null;
     const level = heading?.[1].length;
     if (level === 1) title ??= heading[2];
     if (level <= 2) {

@@ -99,6 +99,32 @@ const runtime = loadRuntime();
   check("every view-builder copy imports beside its registry", failedImports.length === 0, failedImports.join("; "));
 }
 
+// --------------------------------------------- design record code fences
+{
+  const { VIEW_KINDS } = await import(lib("view-builder.mjs"));
+  const record = [
+    "# Fenced plan",
+    "## Design",
+    "### Layout",
+    "````markdown",
+    "```",
+    "## Not a heading",
+    "~~~",
+    "````",
+    "### Contracts",
+    "The builder owns the page.",
+    "## Next",
+  ].join("\n");
+  const { sections } = VIEW_KINDS.design.parse(record);
+  check(
+    "a shorter or other-character fence line does not close a four-backtick fence",
+    JSON.stringify(sections.map((s) => s.name)) === JSON.stringify(["Layout", "Contracts"]),
+    JSON.stringify(sections),
+  );
+  check("the fenced ## line stays text in its subsection", sections[0]?.lines.includes("## Not a heading"), JSON.stringify(sections[0]));
+  check("the subsection after the fence keeps its lines", JSON.stringify(sections[1]?.lines) === JSON.stringify(["The builder owns the page."]), JSON.stringify(sections[1]));
+}
+
 // The hostile-input corpus: script tags, event handlers, javascript: URLs, SVG
 // script, data-block breakouts, prototype keys.
 const hostile = [

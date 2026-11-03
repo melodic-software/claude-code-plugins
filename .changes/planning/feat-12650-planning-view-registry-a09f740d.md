@@ -11,3 +11,4 @@ bump: minor
 
 - The plan, brainstorm and design views ship a private Artifact as their default medium. The publish gate keeps the view a local file for a repository that is not public or a record with anything credential-shaped in it, unless the `medium` option or the request says to publish; set the `medium` option to `file` to keep them local. The PRD and interview views stay local files.
 - The plan and brainstorm views render as entries of the shared view-kind registry; their JSON shapes are unchanged.
+- The design view reads code fences by the CommonMark rule: a fence closes only on a run of its own character at least as long as the one that opened it, so a shorter fence line or a `##` line inside a longer fence no longer ends the `## Design` section.
