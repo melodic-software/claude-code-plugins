@@ -1,0 +1,17 @@
+[
+  {
+    "sha": "88003be1129c09381d27100b37a8fdc21b3214bf",
+    "commit": {
+      "author": {
+        "name": "Thariq Shihipar",
+        "date": "2026-10-05T19:46:48Z"
+      },
+      "committer": {
+        "name": "Thariq Shihipar",
+        "date": "2026-10-05T19:46:48Z"
+      },
+      "message": "html-plan: calmer page style"
+    },
+    "html_url": "https://github.com/anthropics/claude-plugins-community/commit/88003be1129c09381d27100b37a8fdc21b3214bf"
+  }
+]

@@ -2,9 +2,8 @@
   "skill": "explainer-video:produce",
   "plugin": "explainer-video",
   "skill_dir": "plugins/explainer-video/skills/produce",
-  "ranking_note": "Authored from the before descriptions at commit 968bfeb77df9416c9dd074ed9de3c7ac4f4049a7, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are explainer-video:check (read-only readiness of Python, ManimCE, ffmpeg and ffprobe, never renders), animation:produce (hand-drawn film from style packs with boards and an approval gate), user-interface:write-animation (one interface animation in the project's UI stack), speech:narrate (text-to-speech audio and word timings only, no video), playwright:demo-video (recorded screen demo of a web UI change for a PR), visualization:present (slide deck through the Slides Artifact type) and visualization:visualize (a static diagram, chart or page for the conversation). produce owns scripting, narrating, rendering and self-checking a short ManimCE explainer video.",
+  "ranking_note": "Authored from the before descriptions at commit 968bfeb77df9416c9dd074ed9de3c7ac4f4049a7, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are animation:produce (hand-drawn film from style packs with boards and an approval gate), user-interface:write-animation (one interface animation in the project's UI stack), speech:narrate (text-to-speech audio and word timings only, no video), playwright:demo-video (recorded screen demo of a web UI change for a PR), visualization:present (slide deck through the Slides Artifact type) and visualization:visualize (a static diagram, chart or page for the conversation). produce owns scripting, narrating, rendering and self-checking a short ManimCE explainer video.",
   "competitors": [
-    "explainer-video:check",
     "animation:produce",
     "user-interface:write-animation",
     "speech:narrate",
