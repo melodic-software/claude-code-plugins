@@ -276,9 +276,12 @@ means the root's pointers are ambiguous: that root takes the verifier on every v
 and the brief says the restatement check could not grade its pointers to sub-slice claims.
 Any other non-zero exit sends the synthesis back for rewriting, like any failure above. A root that
 adds one claim, a cross-topic conclusion included, takes the verifier on every verifier-owned row
-too, and takes the same `--sub-slice` run as its step 5 (the plain run when its sub-slices share
-an ID), so its own claims and its pointers to sub-slice claims are both checked before the
-verifier is dispatched.
+too, and takes the same `--sub-slice` run as its step 5, so its own claims and its pointers to
+sub-slice claims are both checked before the verifier is dispatched. When that run exits 2 because
+two sub-slices declare one ID, run the plain check on the root for its own claims instead, and the
+brief says the restatement check could not grade its pointers to sub-slice claims. When it exits 2
+because one of the root's own claims reuses a sub-slice's ID, the root renumbers that claim and
+reruns the `--sub-slice` check.
 
 ## The coverage ledger is graded separately, and its freshness is not bound
 
