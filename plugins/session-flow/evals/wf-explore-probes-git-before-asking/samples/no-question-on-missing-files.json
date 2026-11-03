@@ -15,6 +15,14 @@
     {
       "answer": "json_out.py was removed on purpose.\nShould I investigate yaml_out.py, which git never tracked?",
       "why": "the question about the never-tracked file sits on its own line"
+    },
+    {
+      "answer": "yaml_out.py has no git history, unlike json_out, so was it meant to exist?",
+      "why": "one line naming json_out, but the question is about yaml_out"
+    },
+    {
+      "answer": "- csv_out (staged), json_out (commit abc1234), xml_out (read from HEAD); yaml_out was never tracked: should I investigate it?",
+      "why": "one summary line whose question is about yaml_out"
     }
   ],
   "fail": [

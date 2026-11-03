@@ -42,7 +42,7 @@ graders:
     arm: both
   - name: no-question-on-missing-files
     type: regex
-    pattern: '^(?=[^\n]*(?:csv_out|json_out|xml_out))(?=[^\n]*\b(?:investigat|look into|dig into|intentional|on purpose|meant to|archaeolog|history))[^\n]*\?'
+    pattern: '^(?![^\n]*yaml_out)(?=[^\n]*(?:csv_out|json_out|xml_out))(?=[^\n]*\b(?:investigat|look into|dig into|intentional|on purpose|meant to|archaeolog|history))[^\n]*\?'
     flags: 'mi'
     match: not_contains
     arm: both
