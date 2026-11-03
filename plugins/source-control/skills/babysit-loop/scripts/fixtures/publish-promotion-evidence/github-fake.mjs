@@ -8,13 +8,11 @@ import { ghFailure } from "../../publish-promotion-evidence.mjs";
 // Real `gh api` responses, recorded 2026-10-12 and 2026-10-13 and trimmed to the fields the
 // publisher reads: from this repository (PRs #7352 and #7063, a merge commit, a check run, a
 // status, an issue event, a review, a comment page, workflow runs, a compare, NOT_FOUND and 422
-// answers) and one ConnectedEvent from cli/cli #14616. The comment page's body is trimmed to its
-// first line. Each case copies a record and varies number, labels, merger and timestamps.
+// answers). The comment page's body is trimmed to its first line. Each case copies a record and
+// varies number, labels, merger, timestamps and the rung its pin names.
 export const REC = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "recorded.json"), "utf8"));
 export const REPO = "melodic-software/claude-code-plugins";
 export const LANE = "lane-bot[bot]";
-export const MECHANICAL = "work-class: mechanical";
-export const SCOPED = "work-class: scoped";
 export const MISSED = "ai-review: missed-blocking";
 // The recorded check run and status name the post-merge gate in every case.
 export const GATE = [REC.checkRun.name, REC.status.context];
@@ -31,20 +29,19 @@ export const page1 = (nodes, hasNextPage = false) => ({ pageInfo: { hasNextPage 
 export function pr(
   number,
   mergedAt,
-  { labels = [], merger = LANE, title = REC.pullListItem.title, body = REC.pullListItem.body, linked = [], timeline = [], lastEditedAt = null, patch = {}, base = "main", head = shaOf(number + 0x100000) } = {},
+  { rung, labels = [], merger = LANE, title = REC.pullListItem.title, body = REC.pullListItem.body, timeline = [], patch = {}, base = "main", head = shaOf(number + 0x100000) } = {},
 ) {
   const names = labels.map((name) => ({ name }));
   return {
+    // The rung the default pin comment names (none when unset).
+    pinRung: rung,
     graph: {
       ...REC.pullGraph.data.repository.pullRequest,
       number,
       headRefOid: head,
       mergedAt,
-      lastEditedAt,
       mergeCommit: { oid: shaOf(number) },
       mergedBy: actorOf(merger),
-      labels: page1(names),
-      closingIssuesReferences: page1(linked),
       timelineItems: page1(timeline),
       autoMerge: { nodes: [] },
       author: actorOf(LANE),
@@ -95,7 +92,8 @@ export const wfRun = (id, event, sha, created, { conclusion = "success", status 
 // `diverged`: head SHAs a compare reports as diverged. A PR number not in `pulls` answers with the
 // recorded NOT_FOUND response.
 // The lane posts a pin comment on every PR it enqueues and dispatches a full run after every merge
-// (babysit_merge.py --unattended, babysit_postmerge.py), so each PR gets a correct pin and a green
+// (babysit_merge.py --unattended, babysit_postmerge.py), so each PR gets a correct pin (naming the
+// rung `pr()` was given, if any) and a green
 // lane dispatch run on its merge commit an hour after merging, unless `comments` sets that PR's
 // comments or `noDefaultDispatch` is set; an explicit run with the same id replaces the default.
 // Each workflow's runs carry run_number 1, 2, ... in creation order unless a run sets its own (a
@@ -106,7 +104,8 @@ export const wfRun = (id, event, sha, created, { conclusion = "success", status 
 // is a hole); `goneIssues`: numbers a read of answers 410 Gone; `missingIssues`: numbers it answers
 // 404; `discussions`: discussion number to author login, whose numbers also read 404 as issues;
 // `lateRuns`: run ids the run listing shows on every page but the first, as if listed mid-read.
-export const pinComment = (sha) => ({ author: actorOf(LANE), body: `<!-- babysit-merge-pin sha=${sha} -->\nThe unattended merge path enqueued this pull request at head \`${sha}\`.`, lastEditedAt: null });
+// babysit_postmerge.py pin_comment: the old shape names no rung, the new one `rung=C2|C3`.
+export const pinComment = (sha, rung) => ({ author: actorOf(LANE), body: `<!-- babysit-merge-pin sha=${sha}${rung ? ` rung=${rung}` : ""} -->\nThe unattended merge path enqueued this pull request at head \`${sha}\`.`, lastEditedAt: null });
 export const demotionIssue = (number, createdAt, { author = "github-actions[bot]", body = REC.demotionIssue.body, updatedAt = createdAt, comments = [], edits = [], editCount = edits.length } = {}) => ({
   ...REC.demotionIssue,
   number,
@@ -153,7 +152,7 @@ export function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}
       assert.doesNotMatch(graphql.query, /mutation/);
       if (/pullRequest\(number:\$number\)\{comments\(/.test(graphql.query)) {
         const pull = pulls.find((p) => p.graph.number === graphql.variables.number);
-        const all = comments[graphql.variables.number] ?? [pinComment(pull.graph.headRefOid)];
+        const all = comments[graphql.variables.number] ?? [pinComment(pull.graph.headRefOid, pull.pinRung)];
         const n = Number(graphql.variables.c ?? 0);
         const nodes = all.slice(n * 100, (n + 1) * 100);
         const more = all.length > (n + 1) * 100;

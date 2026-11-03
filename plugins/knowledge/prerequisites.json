@@ -252,14 +252,15 @@
       "kind": "cli",
       "need": "optional",
       "for": [
-        "skill:course-digest"
+        "skill:course-digest",
+        "skill:absorb-upstream"
       ],
       "detect": {
         "any": [
           "gh"
         ]
       },
-      "degrade": "Without gh, /knowledge:course-digest cannot analyze a course's code repository; the rest of the digest is unchanged.",
+      "degrade": "Without gh, /knowledge:course-digest cannot analyze a course's code repository; the rest of the digest is unchanged. /knowledge:absorb-upstream cannot read a repository URL and stops with the local-checkout instruction.",
       "install": {
         "docs": "https://cli.github.com/",
         "brew": "gh",
