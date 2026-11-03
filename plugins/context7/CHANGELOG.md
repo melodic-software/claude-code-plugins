@@ -3,6 +3,14 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.7] - 2026-11-03
+
+### Changed
+
+- On an ambiguous library match, the lookup workflow queries the top two candidates' docs and picks the one that answers the question, naming the rejected runner-up; it asks the user only when both answer equally well (#12589).
+
+- **`/context7:lookup` synced to upstash/context7 `ceaf5f9`.** The vendored `context7-cli` baseline is refreshed, and `metadata.upstream-version` names that commit. Its new `ctx7 search` command is not ported: the current `ctx7` release does not have it, so the CLI reference records that with a recheck trigger, and lookups stay `ctx7 library`, then `ctx7 docs`.
+
 ## [0.8.6] - 2026-11-02
 
 ### Changed

@@ -237,12 +237,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
           BABYSIT_POSTMERGE_ATTEMPTS: ${{ runner.temp }}/post-merge-attempts.json
+          # Where the check writes the lane floor's anchor, uploaded below.
+          BABYSIT_POSTMERGE_ANCHOR: ${{ runner.temp }}/post-merge-anchor/anchor.json
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           last=$RUNNER_TEMP/post-merge-last
           scripts=.base/plugins/source-control/skills/babysit-prs/scripts
           code='' code_sha=''
+          mkdir -p "$RUNNER_TEMP/post-merge-anchor"
           # The completed attempts the last check read, which the check
           # answers with no read (babysit_postmerge.py ATTEMPTS_ENV); kept
           # below whether or not the check runs.
@@ -339,6 +342,32 @@ jobs:
           path: ${{ runner.temp }}/post-merge-report/
           retention-days: 1
           if-no-files-found: error
+
+      # The lane floor's anchor the check wrote (babysit_postmerge.py
+      # ANCHOR_ENV), which the next lane check reads back only from this job's
+      # runs on main. Only this job uploads it; a run whose check wrote none
+      # (an idle tick, an unreadable check) leaves the last one standing.
+      - name: Scan the upload for credentials
+        id: scan-upload-5
+        if: >-
+          steps.post-merge.conclusion == 'success'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/post-merge-anchor/anchor.json
+
+      - name: Keep the lane floor's anchor
+        if: >-
+          (steps.post-merge.conclusion == 'success') && steps.scan-upload-5.outputs.clean == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pr-merge-post-merge-anchor
+          path: ${{ runner.temp }}/post-merge-anchor/anchor.json
+          retention-days: 7
+          if-no-files-found: ignore
 
       # The same body as dispatch-full-run's step of this name; see there.
       # It runs whether or not the post-merge check did, while the lane is

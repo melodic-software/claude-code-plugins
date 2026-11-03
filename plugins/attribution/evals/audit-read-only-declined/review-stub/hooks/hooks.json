@@ -1,0 +1,15 @@
+{
+  "description": "Names this stand-in's root at session start, so the producer-contract lookup can read it.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"The review plugin's root is ${CLAUDE_PLUGIN_ROOT}. Its producer-contract files are ${CLAUDE_PLUGIN_ROOT}/reference/findings-file-shape.md and ${CLAUDE_PLUGIN_ROOT}/skills/fanout/SKILL.md: read those two with the Read tool; nothing else there is needed.\""
+          }
+        ]
+      }
+    ]
+  }
+}

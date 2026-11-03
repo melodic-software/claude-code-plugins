@@ -1,5 +1,5 @@
 ---
-description: "Scrape, search, crawl, map, parse, or interact with web pages via the firecrawl-cli binary, writing results to disk instead of streaming them into context. Actions: scrape, search, crawl, map, parse, interact, agent, monitor, developer, research, doctor, search-feedback, credit-usage. Use when: 'scrape this page', 'crawl this site', 'search the web for X', 'WebFetch is blocked', 'this page needs JS', 'extract the text from this PDF', when WebFetch returns 403 or 429 behind an anti-bot layer such as Cloudflare or PerimeterX, or for a natural-language web research task. Skip for plain unprotected pages (WebFetch suffices) or when synthesis is wanted rather than primary source."
+description: "Scrape, search, crawl, map, parse, or interact with web pages via the firecrawl-cli binary, writing results to disk instead of streaming them into context. Actions: scrape, batch-scrape, search, crawl, map, parse, interact, agent, monitor, developer, research, doctor, search-feedback, credit-usage. Use when: 'scrape this page', 'crawl this site', 'search the web for X', 'WebFetch is blocked', 'this page needs JS', 'extract the text from this PDF', when WebFetch returns 403 or 429 behind an anti-bot layer such as Cloudflare or PerimeterX, or for a natural-language web research task. Skip for plain unprotected pages (WebFetch suffices) or when synthesis is wanted rather than primary source."
 argument-hint: "<scrape|search|crawl|map|parse|interact|agent|monitor|developer|research|doctor|…> [args]"
 user-invocable: true
 disable-model-invocation: false
@@ -10,7 +10,7 @@ metadata:
   summary: Scrape, search, crawl, or parse web pages when WebFetch is blocked
 ---
 
-**Arguments.** `<scrape|search|crawl|map|parse|interact|agent|monitor|developer|research|doctor|…> [args]`. The command is required; the full set adds `search-feedback` and `credit-usage`.
+**Arguments.** `<scrape|search|crawl|map|parse|interact|agent|monitor|developer|research|doctor|…> [args]`. The command is required; the full set adds `batch-scrape`, `search-feedback` and `credit-usage`.
 
 ## Pre-computed context
 
@@ -37,6 +37,7 @@ defeat WebFetch in the first place.
 | Need web search, not a known URL | `firecrawl search` | Search-and-scrape in one call |
 | Discovering all URLs on a site | `firecrawl map` | Cheap URL-only discovery |
 | Bulk extraction across a site | `firecrawl crawl` | Follows links, respects depth |
+| Many URLs already known | `firecrawl batch-scrape` | One async job, no link following |
 | Local PDF / DOCX / XLSX / HTML file on disk → markdown | `firecrawl parse` | Server-side text extraction; no local Office tooling required |
 | Natural-language "find me X on the web" | `firecrawl agent` | Hosted agent with Spark models |
 
@@ -116,11 +117,12 @@ Direct stdout is acceptable only for tiny, single-paragraph results (e.g., "get 
 
 ## Commands
 
-Thirteen subcommands. One-line purpose below; **full flag detail + examples in `context/commands.md`**. Read it when constructing any non-trivial call. `firecrawl <cmd> --help` is the live fallback.
+Fourteen subcommands. One-line purpose below; **full flag detail + examples in `context/commands.md`**. Read it when constructing any non-trivial call. `firecrawl <cmd> --help` is the live fallback.
 
 | Command | Purpose |
 |---|---|
 | `scrape <url>` | Single URL → markdown/html/json/screenshot |
+| `batch-scrape <urls>` | Known URL list → one async job, results as JSON |
 | `search "<q>"` | Query → ranked URLs (+ optional `--scrape`) |
 | `crawl <url>` | Follow links from a seed (bulk, expensive; `map` first) |
 | `map <url>` | Fast URL-only discovery, no content |
@@ -136,7 +138,7 @@ Thirteen subcommands. One-line purpose below; **full flag detail + examples in `
 
 ## Configuration & defaults
 
-The CLI reads exactly three env vars (`FIRECRAWL_API_KEY` / `FIRECRAWL_API_URL` / `FIRECRAWL_NO_TELEMETRY`), a set of global flags (`-o`, `--json`, `--status`, …), and built-in non-env defaults (5-job concurrency, 60s search timeout, automatic retry/backoff, `.firecrawl/` local cache). Full tables in `context/configuration.md`. **Prefer env-var auth over `firecrawl config` / `firecrawl login`**. Those persist to a user-level config dir that becomes a second source of truth alongside the env var.
+The CLI takes three env vars worth setting (`FIRECRAWL_API_KEY` / `FIRECRAWL_API_URL` / `FIRECRAWL_NO_TELEMETRY`), a set of global flags (`-o`, `--json`, `--status`, …), and built-in non-env defaults (5-job concurrency, 60s search timeout, automatic retry/backoff, `.firecrawl/` local cache). Full tables in `context/configuration.md`. **Prefer env-var auth over `firecrawl config` / `firecrawl login`**. Those persist to a user-level config dir that becomes a second source of truth alongside the env var.
 
 ## Prerequisites
 
@@ -148,7 +150,7 @@ npm install -g firecrawl-cli
 
 Authenticate via the `FIRECRAWL_API_KEY` environment variable (OS user scope); the CLI reads it automatically. Avoid `firecrawl login`. It writes a separate user-level config that diverges from the env-var flow.
 
-Do not run `firecrawl init --all --browser`. That command installs upstream's CLI skills globally for every detected agent, and its workflow skills too when selected, a parallel install that shadows nothing but duplicates this plugin's capability and drifts from it. What `init` installs is in the [firecrawl-cli README](https://www.npmjs.com/package/firecrawl-cli) (as of 2026-10-12, CLI 1.26.3; recheck when `/firecrawl:update` reports a CLI release). This plugin is the maintained integration; updates arrive through `/plugin marketplace update`.
+Do not run `firecrawl init --all --browser`. That command installs upstream's CLI skills globally for every detected agent, and its workflow skills too when selected, a parallel install that shadows nothing but duplicates this plugin's capability and drifts from it. What `init` installs is in the [firecrawl-cli README](https://www.npmjs.com/package/firecrawl-cli) (as of 2026-11-03, CLI 1.26.24; recheck when `/firecrawl:update` reports a CLI release). This plugin is the maintained integration; updates arrive through `/plugin marketplace update`.
 
 ## Updating the skill and CLI
 

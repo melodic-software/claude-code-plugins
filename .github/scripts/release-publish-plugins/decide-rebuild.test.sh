@@ -212,8 +212,25 @@ FAKE_PRS="$(pr_json MERGEABLE)" run_decide GATE_RC=0 FAKE_CI=success
 check 'behind+passed: no rebuild' false "$(val rebuild)"
 FAKE_PRS="$(pr_json MERGEABLE do-not-merge)" run_decide GATE_RC=0 FAKE_CI=success
 check 'behind+passed, held: no failure notice' '0 false' "$(grep -c 'ci-status failed' <<<"$OUT" || true) $(val rebuild)"
+check 'behind+passed, held: not queued' true "$(val held)"
+FAKE_PRS="$(pr_json MERGEABLE pr-verify-failed)" run_decide GATE_RC=0 FAKE_CI=success
+check 'behind+passed, pr-verify-failed: not queued, not rebuilt' 'true false' "$(val held) $(val rebuild)"
 FAKE_PRS="$(pr_json MERGEABLE | jq -c '.[0].labels = null')" run_decide GATE_RC=0 FAKE_CI=success
-check 'behind+passed: no hold read' '0 false' "$RC $(val rebuild)"
+check 'behind+passed, hold read failure: non-zero exit (never queued)' 1 "$((RC != 0))"
+check 'behind+passed, hold read failure: no rebuild or held written' ' ' "$(val rebuild) $(val held)"
+
+echo '# not queued, current, hold labels keep it out of the merge queue'
+new_fixture no
+for label in pr-verify-failed do-not-merge needs-human; do
+  FAKE_PRS="$(pr_json MERGEABLE "$label")" run_decide GATE_RC=0
+  check "current $label: exit 0" 0 "$RC"
+  check "current $label: held, no rebuild" 'true false' "$(val held) $(val rebuild)"
+  check "current $label: the notice names it" 1 "$(grep -c "^::notice::.*not queuing.*'$label'" <<<"$OUT" || true)"
+done
+FAKE_PRS="$(pr_json MERGEABLE)" run_decide GATE_RC=0
+check 'current, no label: not held' '' "$(val held)"
+FAKE_PRS="$(pr_json MERGEABLE needs-issue-linkage)" run_decide GATE_RC=0
+check 'current, other label: not held' '' "$(val held)"
 
 # run <started_at|null> <conclusion> [app id]: one completed ci-status run.
 run() { printf '{"started_at":%s,"status":"completed","conclusion":"%s","app":{"id":%s}}' "$1" "$2" "${3:-15368}"; }

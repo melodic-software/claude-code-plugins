@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "- `src/exporters/json_out.py`: deleted on purpose in `3f9c2ab` (refactor: drop the json exporter). Skipped.",
+      "why": "SHA and subject"
+    },
+    {
+      "answer": "| json_out.py | removed by commit a1b2c3d4e5 |",
+      "why": "SHA in a table row"
+    },
+    {
+      "answer": "- json_out.py: intentional removal\n  commit: \"refactor: Drop the JSON exporter\"",
+      "why": "subject on the next line, different case"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "- json_out.py was deleted at some point.",
+      "why": "no commit cited"
+    },
+    {
+      "answer": "- csv_out.py: removed in 3f9c2ab",
+      "why": "wrong file"
+    }
+  ]
+}

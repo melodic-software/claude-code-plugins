@@ -552,9 +552,21 @@ const legSteps = (body) => body.split(/^(?= {6}- name: )/m).filter((s) => s.star
 
 // The reconciler reads every job's steps by name, so a leg whose judge step
 // another name hid would hide a lost run.
+// pr-verify's judging legs; its other job, the credit gate, runs no model
+// and writes nothing, so it holds no step the reconciler reads.
+const judgingLegs = () => {
+  const jobs = verifyLegs();
+  const legs = jobs.filter(({ body }) => /^ {8}id: judge$/m.test(body));
+  for (const { name, body } of jobs.filter((job) => !legs.includes(job))) {
+    assert.doesNotMatch(body, /run-claude-cli|secrets\.|upload-artifact/, name);
+    for (const step of [JUDGE_STEP, JUDGE_PREDECESSOR, WRITE_STEP]) assert.ok(!legSteps(body).some((s) => s.startsWith(`      - name: ${step}\n`)), `${name}: ${step}`);
+  }
+  assert.equal(legs.length, 3);
+  return legs;
+};
+
 test("pr-verify still names its judge step as the reconciler reads it, in every leg", () => {
-  const legs = verifyLegs();
-  assert.ok(legs.length > 1);
+  const legs = judgingLegs();
   for (const { name, body } of legs) {
     const steps = legSteps(body);
     const names = steps.map((s) => s.match(/^ {6}- name: (.+)$/m)[1]);
@@ -685,6 +697,41 @@ test("a verify run is read across all three legs: a fallback write held, a fallb
   assert.deepEqual(records(lost.outputs), [`reconcile-rerun-201-2-${MAIN_TIP}`, "", ""]);
 });
 
+// With the key out of credit, the credit gate skips check-intent and the
+// subscription leg judges: its own steps tell a write held from a run lost.
+test("a verify run whose credit gate skipped the key is read on the subscription leg", async () => {
+  const gate = {
+    name: "check-intent-credit",
+    status: "completed",
+    conclusion: "success",
+    steps: [
+      { name: "Set up job", status: "completed", conclusion: "success" },
+      { name: "Read the key's credit history", status: "completed", conclusion: "success" },
+      { name: "Record the key's credit stop in run 200", status: "completed", conclusion: "success" },
+      { name: "Complete job", status: "completed", conclusion: "success" },
+    ],
+  };
+  const key = { name: "check-intent", status: "completed", conclusion: "skipped", steps: [] };
+  const subscription = (write, upload) => ({
+    name: "check-intent-subscription",
+    status: "completed",
+    conclusion: "failure",
+    steps: [
+      { name: "Set up job", status: "completed", conclusion: "success" },
+      { name: JUDGE_PREDECESSOR, status: "completed", conclusion: "success" },
+      { name: JUDGE_STEP, status: "completed", conclusion: "success" },
+      { name: WRITE_STEP, status: "completed", conclusion: write },
+      { name: "Upload the verdict", status: "completed", conclusion: upload },
+      { name: "Complete job", status: "completed", conclusion: "success" },
+    ],
+  });
+  const held = await reconcile({ pulls: [], runs: [{ ...verifyRun(201, { conclusion: "failure" }), jobs: [gate, key, subscription("success", "failure")] }] });
+  assert.deepEqual(held.reruns, []);
+  const lost = await reconcile({ pulls: [], runs: [{ ...verifyRun(201, { conclusion: "failure" }), jobs: [gate, key, subscription("skipped", "skipped")] }] });
+  assert.deepEqual(lost.reruns, [201]);
+  assert.deepEqual(records(lost.outputs), [`reconcile-rerun-201-2-${MAIN_TIP}`, "", ""]);
+});
+
 test("a verify run that failed on its first attempt is recorded and re-run once", async () => {
   const { code, reruns, outputs } = await reconcile({
     pulls: [],
@@ -721,8 +768,7 @@ test("a failed verify run's second attempt is never re-run", async () => {
 });
 
 test("pr-verify fails a run the kill switch stopped in every leg, so the reconciler sees it", () => {
-  const legs = verifyLegs();
-  assert.ok(legs.length > 1);
+  const legs = judgingLegs();
   for (const { name, body } of legs) {
     const reports = legSteps(body).filter((s) => s.startsWith("      - name: Report the kill switch\n"));
     assert.equal(reports.length, 1, name);
@@ -1724,7 +1770,7 @@ test("a kill-switch re-run shares the cap of 3, and one re-run since the listing
 
 test("ci-status's lanes-hold step still fails a lanes App PR with the kill-switch note the reconciler matches", () => {
   const workflow = readFileSync(new URL("../../workflows/pr-require-checks.yml", import.meta.url), "utf8");
-  const step = /- name: Fail a lanes App pull request its body or a member holds\n(?:(?:[ ]{8,}.*)?\n)+/.exec(workflow)?.[0] ?? "";
+  const step = /- name: Fail a lanes App pull request on kill switch, hold path, verifier or veto\n(?:(?:[ ]{8,}.*)?\n)+/.exec(workflow)?.[0] ?? "";
   assert.match(step, /LANES_DISABLED: \$\{\{ vars\.CLAUDE_LANES_DISABLED \}\}/);
   // The step prints merge-holds.mjs switchHold's reason as its error.
   assert.match(step, /const \{ switchHold \} = await import\(/);

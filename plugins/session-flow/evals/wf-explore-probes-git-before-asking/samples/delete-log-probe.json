@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "git log --oneline -1 --diff-filter=D -- src/exporters/json_out.py" } }
+      ],
+      "why": "the rule's own probe"
+    },
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "git log --diff-filter=AD --name-status -- src/exporters" } }
+      ],
+      "why": "a filter that includes deletes"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "git log --oneline -- src/exporters/json_out.py" } }
+      ],
+      "why": "plain history, no delete filter"
+    },
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "git log --diff-filter=A -- src/exporters/json_out.py" } }
+      ],
+      "why": "filters for additions only"
+    }
+  ]
+}
