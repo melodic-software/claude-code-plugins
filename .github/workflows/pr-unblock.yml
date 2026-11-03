@@ -375,8 +375,9 @@ jobs:
   # neutral on the head the select job read: the slot's skip reason, else
   # clean-merge (the push job commits it), else the stop's own skip
   # (escalation-routes.mjs stopSkip: lane-stopped for a stop routed to a
-  # failing status, which ends the head; awaiting-human for one held for a
-  # person). A kill-switch stop reads no head, and nothing is posted; nor is
+  # failing status, which ends the head until the base moves;
+  # awaiting-human for one held for a person). A kill-switch stop reads no
+  # head, and nothing is posted; nor is
   # an up-to-date skip, since a neutral check would end the head for the
   # dispatcher should a later default-branch push conflict with it.
   resolve-conflicts-not-run:

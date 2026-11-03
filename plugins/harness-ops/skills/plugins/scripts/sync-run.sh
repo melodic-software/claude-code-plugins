@@ -84,7 +84,7 @@
 #   each `{total, outside_marketplaces, resolution}`, and the top-level `total` and
 #   `outside_marketplaces` sum the two; the wait between the passes is in neither.
 #   Each marketplace block: {name, timings, catalog_last_updated, catalog_source,
-#    source_checkout, source_pull, auto_update, refresh:{rc,output,predicted}, project_root,
+#    source_checkout, source_pull, auto_update, refresh:{rc,output,predicted,skipped}, project_root,
 #    in_repo:{updated,failed,would_update,live_read},
 #    user_sweep:{updated,failed,would_update,withheld_downgrades},
 #    downgraded, moved_during_run, noop_unverified, install_gap, installed, installed_with_unset_user_config,
@@ -123,8 +123,12 @@
 #   the run moved (the row `self_updated` is true for), else null.
 #   `updated_with_monitors[]` is `{id, scope, monitors}` for each plugin this
 #   run moved whose installed manifest declares a monitor.
+#   `refresh.skipped` is `{head, ref}` when `git ls-remote` showed the source's
+#   ref at the clone's HEAD and the run skipped the refresh (see
+#   `refresh_skip_check`), with `rc` null; otherwise null.
 #   `catalog_last_updated` is the marketplace's lastUpdated as Step 2's read saw
-#   it, after Step 1's refresh; a background refresh can move it later in the run.
+#   it, after Step 1's refresh; a skipped refresh leaves the last one's stamp, and
+#   a background refresh can move it later in the run.
 #   `timings` holds one key per step plus `unattributed`, the rest of the block's
 #   `total`, so the steps and the remainder sum to it.
 #   `in_repo_records` counts the project/local records belonging to the repo the
@@ -220,6 +224,8 @@ FLEET_STATE="${SYNC_RUN_FLEET_STATE:-$SCRIPT_DIR/fleet-state.sh}"
 CACHE_CHECK="${SYNC_RUN_CACHE_CHECK:-$SCRIPT_DIR/cache-content-check.sh}"
 NORMALIZE="${SYNC_RUN_NORMALIZE:-$SCRIPT_DIR/normalize-enabled-plugins.sh}"
 CLAUDE_BIN="${SYNC_RUN_CLAUDE_BIN:-claude}"
+# Read by the Step 1 skip check only, from the same file fleet-state.sh reads.
+MARKETPLACES_JSON="${FLEET_STATE_MARKETPLACES_JSON:-$HOME/.claude/plugins/known_marketplaces.json}"
 # The stale-project-records section prints at most this many parent directories.
 STALE_PARENT_ROWS=10
 # Each Divergences sub-line names at most this many ids of its project path.
@@ -1048,8 +1054,8 @@ own_plugin_name() {
 # Diff `catalog_versions` across consecutive saved snapshots and report the FIRST
 # interval in which any id moved backward. That interval is what names the cause:
 # in `sync` a regression across pre-refresh->pre is this run's refresh pulling a
-# source that moved backward, while one appearing later is the checkout changing
-# under the run. REPORT-ONLY — its output never becomes an id list handed to a CLI.
+# source that moved backward (unless `refresh.skipped` is set, when nothing was
+# pulled), while one appearing later is the checkout changing under the run. REPORT-ONLY — its output never becomes an id list handed to a CLI.
 catalog_regression_rows() {
   local __interval_var="$1"
   local __rows_var="$2"
@@ -1511,6 +1517,7 @@ reset_marketplace_state() {
   INSTALL_GAP="[]" ENABLE_GAP="[]" NORMALIZE_JSON="null" CACHE_JSON="null"
   SELF_UPDATED="false" SELF_UPDATE="null" INSTALL_DEFERRED="false" STOPPED_BEFORE_INSTALL="false"
   REFRESH_RC="null" REFRESH_OUT="" REFRESH_REASON="" REFRESH_PREDICTED="false" REFRESH_FAILED=0
+  REFRESH_SKIP_JSON="null"
   CATALOG_LAST_UPDATED="" PROJECT_ROOT_JSON="null" SOURCE_PULL_JSON="null"
   # Step stamps (start, end) for this marketplace; an empty pair is a step this
   # invocation did not run and reads `null` in the digest, never 0.
@@ -1537,7 +1544,8 @@ persist_first_pass_rows() {
   json_array_of us_f ${US_FAILED[@]+"${US_FAILED[@]}"}
   json_strings_of errs ${MP_ERRORS[@]+"${MP_ERRORS[@]}"}
   json_object_file "$RUN_DIR/.first-pass-args.$mp.json" \
-    errors "$errs" ir_failed "$ir_f" us_failed "$us_f" source_pull "$SOURCE_PULL_JSON"
+    errors "$errs" ir_failed "$ir_f" us_failed "$us_f" source_pull "$SOURCE_PULL_JSON" \
+    refresh_skipped "$REFRESH_SKIP_JSON"
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to persisted -c \
     --arg refresh_rc "$REFRESH_RC" \
@@ -1549,7 +1557,8 @@ persist_first_pass_rows() {
                      else ($refresh_rc | tonumber? // $refresh_rc) end),
                 output: $refresh_out,
                 reason: $refresh_reason,
-                predicted: ($refresh_predicted == "true")}}' "$RUN_DIR/.first-pass-args.$mp.json"
+                predicted: ($refresh_predicted == "true"),
+                skipped: .refresh_skipped}}' "$RUN_DIR/.first-pass-args.$mp.json"
   printf '%s\n' "$persisted" >"$RUN_DIR/first-pass.$mp.json"
 }
 
@@ -1581,6 +1590,8 @@ restore_first_pass_rows() {
   jq_to REFRESH_REASON -r '.refresh.reason // ""' "$sidecar"
   jq_to REFRESH_PREDICTED -r 'if .refresh.predicted == true then "true" else "false" end' "$sidecar"
   jq_to REFRESH_RC -r 'if .refresh.rc == null then "null" else (.refresh.rc | tostring) end' "$sidecar"
+  jq_to REFRESH_SKIP_JSON -c '.refresh.skipped // null' "$sidecar"
+  [[ -n "$REFRESH_SKIP_JSON" ]] || REFRESH_SKIP_JSON="null"
   jq_to SOURCE_PULL_JSON -c '.source_pull // null' "$sidecar"
   [[ -n "$SOURCE_PULL_JSON" ]] || SOURCE_PULL_JSON="null"
 }
@@ -1673,6 +1684,86 @@ source_fast_forward() {
   fi
 }
 
+# --- the remote commit check that can stand in for Step 1's refresh -----------------
+# `claude plugin marketplace update` re-clones a git-backed marketplace on every
+# call. When the clone already sits at the commit its source points at, that
+# refresh lands the same catalog, so this asks the remote with `git ls-remote`,
+# which writes no FETCH_HEAD, refs or objects, and sets REFRESH_SKIP_JSON to
+# `{head, ref}` only when every check holds: a `github` or `git` source, a clone
+# root at installLocation whose origin is that source, no modified or untracked file,
+# a pinned `ref` checked out as that branch, and the remote's ref (`HEAD` when
+# unpinned) at the clone's HEAD. Anything else, an unreachable remote included,
+# leaves it `null` and the refresh runs.
+refresh_skip_check() {
+  local mp="$1"
+  local fields=""
+  local loc="" kind="" repo="" url="" pin=""
+  local origin="" origin_rc=0 head="" branch="" dirty="" ref="HEAD" remote="" sha="" name="" remote_sha=""
+  REFRESH_SKIP_JSON="null"
+  [[ -f "$MARKETPLACES_JSON" ]] || return 0
+  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+  jq_to fields -r --arg mp "$mp" '
+    # A source key this check does not know could be a pin it would ignore.
+    .[$mp] | if type == "object" and (.source | type) == "object"
+                and ((.source | keys) - ["source", "repo", "url", "ref", "path"]) == [] then
+      [.installLocation, .source.source, .source.repo, .source.url, .source.ref]
+      | map(. // "" | tostring | gsub("[\u001f\n]"; " ")) | join("\u001f")
+    else "" end' "$MARKETPLACES_JSON" 2>/dev/null || return 0
+  [[ -n "$fields" ]] || return 0
+  IFS=$'\x1f' read -r loc kind repo url pin <<<"$fields"
+  loc="${loc//\\//}"
+  [[ "$kind" == "github" || "$kind" == "git" ]] || return 0
+  # The clone's own root, so git never walks up into an enclosing repository.
+  [[ -n "$loc" && -e "$loc/.git" ]] || return 0
+  local g=(git --no-optional-locks -C "$loc")
+  origin=$("${g[@]}" remote get-url origin 2>/dev/null) || return 0
+  origin="${origin%/}"
+  origin="${origin%.git}"
+  if [[ "$kind" == "github" ]]; then
+    [[ -n "$repo" ]] || return 0
+    shopt -s nocasematch
+    [[ "$origin" == *[/@]github.com[/:]"$repo" ]]
+    origin_rc=$?
+    shopt -u nocasematch
+    ((origin_rc == 0)) || return 0
+  else
+    url="${url%/}"
+    [[ -n "$url" && "$origin" == "${url%.git}" ]] || return 0
+  fi
+  # Untracked files count too: a re-clone would drop them.
+  dirty=$("${g[@]}" status --porcelain 2>/dev/null) || return 0
+  [[ -z "$dirty" ]] || return 0
+  head=$("${g[@]}" rev-parse -q --verify 'HEAD^{commit}' 2>/dev/null) || return 0
+  if [[ -n "$pin" ]]; then
+    branch=$("${g[@]}" symbolic-ref -q --short HEAD 2>/dev/null) || return 0
+    [[ "$branch" == "$pin" ]] || return 0
+    ref="refs/heads/$pin"
+  fi
+  # Stdin closed and prompts off, as for the fast-forward: a remote that needs a
+  # credential fails here and the refresh runs instead. ssh gets BatchMode only
+  # when the user configured no ssh command of their own.
+  local ssh_env=()
+  if [[ -z "${GIT_SSH_COMMAND:-}" && -z "${GIT_SSH:-}" ]] &&
+    ! "${g[@]}" config --get core.sshCommand >/dev/null 2>&1; then
+    ssh_env=("GIT_SSH_COMMAND=ssh -o BatchMode=yes")
+  fi
+  remote=$(env ${ssh_env[@]+"${ssh_env[@]}"} GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never \
+    "${g[@]}" ls-remote origin "$ref" 2>/dev/null </dev/null) || return 0
+  while IFS=$'\t' read -r sha name; do
+    if [[ "${name//$'\r'/}" == "$ref" ]]; then
+      remote_sha="$sha"
+      break
+    fi
+  done <<<"$remote"
+  [[ "$remote_sha" == "$head" ]] || return 0
+  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+  if ! jq_to REFRESH_SKIP_JSON -c -n --arg h "$head" --arg r "$ref" '{head: $h, ref: $r}'; then
+    REFRESH_SKIP_JSON="null"
+    return 0
+  fi
+  echo "marketplace refresh skipped for $mp: $loc is at $head, the commit origin $ref points at" >>"$JOURNAL_LOG"
+}
+
 # --- one snapshot read ----------------------------------------------------------
 # `fleet-state.sh --marketplace <mp>` into $2, with its stderr captured and, on a
 # non-zero exit, recorded as a per-marketplace error named for the step ($3).
@@ -1751,14 +1842,19 @@ run_marketplace() {
       if ((PULL_SOURCES_SET == 1)) && name_listed "$mp" "$PULL_SOURCES"; then
         source_fast_forward "$mp" "$pre_refresh"
       fi
-      run_cli "claude plugin marketplace update $mp" plugin marketplace update "$mp"
-      clock_into T_MU_E
-      REFRESH_RC="$CLI_RC"
-      trunc REFRESH_OUT "$CLI_OUT"
-      REFRESH_REASON=$(cli_outcome_line "$CLI_OUT")
-      if ((CLI_RC != 0)); then
-        REFRESH_FAILED=1
-        mp_error "marketplace refresh failed (exit $CLI_RC): ${REFRESH_REASON}, so the catalog may be stale and install/enable maintenance is deferred"
+      refresh_skip_check "$mp"
+      if [[ "$REFRESH_SKIP_JSON" != "null" ]]; then
+        clock_into T_MU_E
+      else
+        run_cli "claude plugin marketplace update $mp" plugin marketplace update "$mp"
+        clock_into T_MU_E
+        REFRESH_RC="$CLI_RC"
+        trunc REFRESH_OUT "$CLI_OUT"
+        REFRESH_REASON=$(cli_outcome_line "$CLI_OUT")
+        if ((CLI_RC != 0)); then
+          REFRESH_FAILED=1
+          mp_error "marketplace refresh failed (exit $CLI_RC): ${REFRESH_REASON}, so the catalog may be stale and install/enable maintenance is deferred"
+        fi
       fi
     fi
   else
@@ -2918,7 +3014,7 @@ emit_marketplace_block() {
   local jq_err=""
   json_object_file "$args_file" \
     refresh_rc "${REFRESH_RC:-null}" refresh_predicted "$REFRESH_PREDICTED" \
-    project_root "$PROJECT_ROOT_JSON" \
+    refresh_skipped "$REFRESH_SKIP_JSON" project_root "$PROJECT_ROOT_JSON" \
     ir_u "$ir_u" ir_f "$ir_f" ir_w "$ir_w" ir_l "$ir_l" \
     us_u "$us_u" us_f "$us_f" us_w "$us_w" wh "$wh" dg "$dg" \
     moved "$moved" noop_unverified "$NOOP_UNVERIFIED" \
@@ -2959,7 +3055,7 @@ emit_marketplace_block() {
       if $s == "" or $e == "" then null else ([0, ((ms($s; $e) | floor) / 1000)] | max) end;
     def dur_up($s; $e):
       if $s == "" or $e == "" then null else ([0, ((ms($s; $e) | ceil) / 1000)] | max) end;
-    . as {$refresh_rc, $refresh_predicted, $project_root, $ir_u, $ir_f, $ir_w, $ir_l,
+    . as {$refresh_rc, $refresh_predicted, $refresh_skipped, $project_root, $ir_u, $ir_f, $ir_w, $ir_l,
           $us_u, $us_f, $us_w, $wh, $dg, $moved, $noop_unverified, $install_gap, $inst,
           $enable_gap, $en, $pr, $rec, $deferred, $stopped, $normalize, $cache, $reg_rows,
           $div, $self_updated, $self_update, $extras, $checkout, $pull, $unset_cfg,
@@ -2986,7 +3082,8 @@ emit_marketplace_block() {
      catalog_last_updated: (if $lastUpdated == "" then null else $lastUpdated end),
      source_checkout: $checkout,
      source_pull: $pull,
-     refresh: {rc: $refresh_rc, output: $refresh_out, reason: $refresh_reason, predicted: $refresh_predicted},
+     refresh: {rc: $refresh_rc, output: $refresh_out, reason: $refresh_reason, predicted: $refresh_predicted,
+               skipped: $refresh_skipped},
      project_root: $project_root,
      in_repo: {updated: $ir_u, failed: $ir_f, would_update: $ir_w, live_read: $ir_l},
      user_sweep: {updated: $us_u, failed: $us_f, would_update: $us_w,

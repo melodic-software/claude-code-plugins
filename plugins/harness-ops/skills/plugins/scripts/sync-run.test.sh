@@ -3321,6 +3321,100 @@ assert_eq "ignored local settings: the stop and the untried record are failures"
   "$(jq -r '[.marketplaces[0].in_repo.failed[] | select(.stopped == true)] | length' <<<"$out")"
 
 # ============================================================================
+# Case: Step 1 skips the marketplace refresh when `git ls-remote` shows the
+# source's ref at the clone's HEAD, and runs it when a pinned ref is another
+# branch, a tracked file is modified, or the remote has moved on
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+catalog_plugin "$case_dir" market1 alpha 0.3.0
+write "$case_dir/installed_plugins.json" '{
+  "version": 1,
+  "plugins": {"alpha@market1": [{"scope": "user", "installPath": "y", "version": "0.3.0"}]}
+}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
+git init -q -b main "$case_dir/origin"
+printf 'one\n' >"$case_dir/origin/f"
+fixture_git "$case_dir/origin" add f
+fixture_git "$case_dir/origin" commit -q -m one
+git clone -q "$case_dir/origin" "$case_dir/mkt"
+origin_url=$(git -C "$case_dir/mkt" remote get-url origin)
+clone_head=$(git -C "$case_dir/mkt" rev-parse HEAD)
+# known_mkt <ref>: the marketplace record for the clone, pinned to <ref> when given.
+known_mkt() {
+  jq -n --arg loc "$case_dir/mkt" --arg url "$origin_url" --arg ref "$1" \
+    '{market1: {source: ({source: "git", url: $url} + (if $ref == "" then {} else {ref: $ref} end)),
+                installLocation: $loc, lastUpdated: "2026-01-01T00:00:00Z"}}' \
+    >"$case_dir/known_marketplaces.json"
+}
+# skip_run: one sync with a fresh CLI log.
+skip_run() {
+  : >"$case_dir/claude.log"
+  run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal"
+}
+known_mkt ""
+setup_case "$case_dir"
+EXTRA_ENV=(CC_STUB_CLEAN=1)
+out=$(skip_run)
+rc=$?
+assert_exit "refresh skip: exit 0" 0 "$rc"
+assert_eq "refresh skip: no marketplace update call at the remote's commit" "0" \
+  "$(grep -c 'plugin marketplace' "$case_dir/claude.log")"
+assert_eq "refresh skip: the digest names the commit and the ref asked for" "$clone_head HEAD" \
+  "$(jq -r '.marketplaces[0].refresh.skipped | "\(.head) \(.ref)"' <<<"$out")"
+assert_eq "refresh skip: no exit status for a call not made" "null" \
+  "$(jq -c '.marketplaces[0].refresh.rc' <<<"$out")"
+assert_eq "refresh skip: the check is timed as the marketplace update" "number" \
+  "$(jq -r '.marketplaces[0].timings.marketplace_update | type' <<<"$out")"
+run_dir=$(jq -r '.run_dir' <<<"$out")
+assert_eq "refresh skip: the journal records the skip" "1" \
+  "$(grep -c 'marketplace refresh skipped for market1' "$run_dir/journal.log")"
+assert_contains "refresh skip: the report says the refresh was skipped" "$(<"$run_dir/report.txt")" \
+  "refresh skipped: the clone is at ${clone_head:0:12}, where origin HEAD points"
+
+known_mkt main
+out=$(skip_run)
+assert_eq "refresh skip: a ref pinned to the checked-out branch asks for that branch" "refs/heads/main" \
+  "$(jq -r '.marketplaces[0].refresh.skipped.ref' <<<"$out")"
+
+known_mkt release
+out=$(skip_run)
+assert_eq "refresh skip: a ref pinned to another branch runs the refresh" "1" \
+  "$(grep -c 'plugin marketplace update market1' "$case_dir/claude.log")"
+assert_eq "refresh skip: a refresh that ran records no skip" "null" \
+  "$(jq -c '.marketplaces[0].refresh.skipped' <<<"$out")"
+
+known_mkt ""
+printf 'edited\n' >"$case_dir/mkt/f"
+out=$(skip_run)
+assert_eq "refresh skip: a modified tracked file runs the refresh" "1" \
+  "$(grep -c 'plugin marketplace update market1' "$case_dir/claude.log")"
+git -C "$case_dir/mkt" checkout -q -- f
+
+printf 'left over\n' >"$case_dir/mkt/untracked"
+out=$(skip_run)
+assert_eq "refresh skip: an untracked file runs the refresh" "1" \
+  "$(grep -c 'plugin marketplace update market1' "$case_dir/claude.log")"
+rm -f "$case_dir/mkt/untracked"
+
+known_mkt main
+jq '.market1.source.sha = "0000000"' "$case_dir/known_marketplaces.json" >"$case_dir/km.next" &&
+  mv "$case_dir/km.next" "$case_dir/known_marketplaces.json"
+out=$(skip_run)
+assert_eq "refresh skip: a source key the check does not know runs the refresh" "1" \
+  "$(grep -c 'plugin marketplace update market1' "$case_dir/claude.log")"
+known_mkt ""
+
+printf 'two\n' >"$case_dir/origin/f"
+fixture_git "$case_dir/origin" commit -q -am two
+out=$(skip_run)
+assert_eq "refresh skip: a remote that moved on runs the refresh" "1" \
+  "$(grep -c 'plugin marketplace update market1' "$case_dir/claude.log")"
+assert_eq "refresh skip: and its exit status is recorded" "0" \
+  "$(jq -c '.marketplaces[0].refresh.rc' <<<"$out")"
+
+# ============================================================================
 if ((FAILED > 0)); then
   printf '\n%d test(s) failed\n' "$FAILED" >&2
   exit 1
