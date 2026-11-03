@@ -1,0 +1,44 @@
+name: maintenance-code-tidying-upkeep
+
+# Code-tidying upkeep's per-merge detection: names the areas each merge changed
+# in the job summary. No model, no write, no pull request. The daily batch's
+# gate is .github/scripts/maintenance-code-tidying-upkeep/upkeep.mjs gate, which
+# derives churn from git log, so a lost run here drops no area.
+
+on:
+  push:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  detect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read # read the pushed range
+    steps:
+      - name: Check out the pushed commit's scripts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          filter: blob:none
+          sparse-checkout: |
+            /.github/actions/setup-pinned-node/
+            /.github/scripts/maintenance-code-tidying-upkeep/
+            /.node-version
+          sparse-checkout-cone-mode: false
+
+      - name: Set up Node
+        uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .node-version
+
+      # Trees only: naming the changed paths reads no file content.
+      - name: Name the changed areas
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+        run: |
+          [[ $BEFORE =~ ^[0-9a-f]{40}$ ]] && git fetch --quiet --no-tags --depth=1 --filter=blob:none origin "$BEFORE" || true
+          node .github/scripts/maintenance-code-tidying-upkeep/upkeep.mjs detect --before "$BEFORE" --after "$AFTER"
