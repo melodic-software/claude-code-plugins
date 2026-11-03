@@ -39,7 +39,7 @@ The disk fallback Reads this same file, so a matching token is file-identity, **
 
    Cite the **exit status**, 0 usable, 1 no usable artifact set, 2 ungradeable, not a reading of the directory: the context most motivated to call the dispatch finished would be the reader. Only the slice path and `--index-name` are required; the bare form is still a real gate, each optional check reporting `unchecked`, never a quiet pass. Append `--expect-sidecars <n>` when the payload reported a `sidecars:` count, and **drop any flag whose value the payload did not supply**. **The `index=` path in that output is authoritative** downstream: the verifier's `target` and the handoff pointer come from it, not from `artifact:`.
 
-   On an N-topic fan-out, grade each sub-slice before the synthesis: "The deep tier" below.
+   On an N-topic fan-out, grade each sub-slice before the synthesis, then send the synthesis to a fresh verifier for the verifier-owned rows (the one exception, and the rest: "The deep tier" below).
 
 3. **The coverage claim is graded from the ledger, not from the payload.** `coverage: complete` mirrors outcome-gate criterion 11, which the run graded on **itself**. When a `research-checklist.md` sits beside the index step 2 named, run `"${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh"` (or the `.py` twin) on `<that index's directory>/research-checklist.md` and cite its exit status. 0 complete, 1 unmarked rows, 2 ungradeable, and **both non-zero values are FAILs**. No ledger on disk is correct **only** when the artifact records the corpus as unbounded; a bounded corpus with no ledger is a Phase 0 that never ran, whatever the payload says.
 
