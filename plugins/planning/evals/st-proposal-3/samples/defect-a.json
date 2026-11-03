@@ -15,6 +15,10 @@
     {
       "answer": "| 2 | HIGH | Consistency | The BullMQ rejection is undercut: the team runs Redis anyway | Revisit it |\n",
       "why": "undercut, anyway"
+    },
+    {
+      "answer": "- The draft doesn't notice it contradicts itself: BullMQ is rejected for needing Redis, and the Rollout adds a Redis container.\n",
+      "why": "doesn't notice"
     }
   ],
   "fail": [

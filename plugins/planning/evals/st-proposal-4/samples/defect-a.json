@@ -15,6 +15,10 @@
     {
       "answer": "| 2 | HIGH | Requirement | AC2 is unmet: a station-day read touches every segment of that day | Change the layout |\n",
       "why": "unmet"
+    },
+    {
+      "answer": "- `tools/plot_station.py` does not read one file per day: with hourly segments it opens 24 for one station.\n",
+      "why": "does not read one file"
     }
   ],
   "fail": [
@@ -45,6 +49,10 @@
     {
       "answer": "- plot_station.py fails on a missing manifest once hourly segments ship.\n",
       "why": "a different failure in the same tool"
+    },
+    {
+      "answer": "- `plot_station.py` does not open more than one segment per station-day.\n",
+      "why": "negated attack"
     }
   ]
 }

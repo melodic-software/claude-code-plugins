@@ -19,6 +19,14 @@
     {
       "answer": "- complete.ts contradicts the one-module claim.\n",
       "why": "contradicts"
+    },
+    {
+      "answer": "- The plan does not call out `src/checkout/complete.ts`, which also calls Holdfast's `extendLock`.\n",
+      "why": "call out is not call"
+    },
+    {
+      "answer": "- The plan assumes `complete.ts` does not use Holdfast, yet `completeCheckout` also calls `extendLock`.\n",
+      "why": "quotes the claim, then attacks it"
     }
   ],
   "fail": [
@@ -49,6 +57,10 @@
     {
       "answer": "- The holds module also uses `ioredis`.\n",
       "why": "nature without the file"
+    },
+    {
+      "answer": "- `src/checkout/complete.ts` does not call Holdfast.\n",
+      "why": "dismissal"
     }
   ]
 }

@@ -15,6 +15,10 @@
     {
       "answer": "| 1 | IMPORTANT | Plan | A crash after the `SentReminder` insert loses that reminder, since no later tick picks it up | Fix before building |\n",
       "why": "a separate risk, table row"
+    },
+    {
+      "answer": "- The unique index means a restart cannot send twice.\n",
+      "why": "negated attack"
     }
   ],
   "fail": [
@@ -37,6 +41,18 @@
     {
       "answer": "- The insert in Phase 2 double-sends on retry.\n",
       "why": "double send"
+    },
+    {
+      "answer": "- The unique index on `(AppointmentId, Kind)` does not stop a race between two overlapping ticks, so both send.\n",
+      "why": "does not stop a race"
+    },
+    {
+      "answer": "- The unique index is not enough: a restart after the insert sends a duplicate.\n",
+      "why": "not enough"
+    },
+    {
+      "answer": "- No lock means duplicate sends after a restart.\n",
+      "why": "no opens the attack"
     }
   ]
 }

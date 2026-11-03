@@ -19,6 +19,18 @@
     {
       "answer": "- `src/checkout/complete.ts` also imports Holdfast.\n",
       "why": "other finding"
+    },
+    {
+      "answer": "- None of the packages conflict with Node 22; Leaseline's floor is Node 20.\n",
+      "why": "none-of negation"
+    },
+    {
+      "answer": "- Leaseline runs on Node 22 without an upgrade.\n",
+      "why": "approval"
+    },
+    {
+      "answer": "- Node 22 is fine for Leaseline, but the rollout plan is wrong about `hf:` holds.\n",
+      "why": "approval, then a finding about something else"
     }
   ],
   "fail": [
@@ -41,6 +53,10 @@
     {
       "answer": "| 2 | SUGGESTION | Plan | Node floor not satisfied by the image | Bump the image |\n",
       "why": "not satisfied"
+    },
+    {
+      "answer": "- Leaseline can't run without a Node upgrade, since it needs a newer runtime than the API image.\n",
+      "why": "without an upgrade opens the attack"
     }
   ]
 }
