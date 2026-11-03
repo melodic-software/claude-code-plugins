@@ -845,6 +845,7 @@ def lift_answer(
     references: list[dict[str, Any]] = (),
     pull: dict[str, Any] | None = None,
     comments: list[dict[str, Any]] = (),
+    reference: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """`PolicyRecordLift`'s data: the pull requests that cross-reference the
     record, its comments and, for a read-back record, the pull request it
@@ -852,7 +853,15 @@ def lift_answer(
     issue = {
         "timelineItems": {
             "pageInfo": {"hasNextPage": False},
-            "nodes": [{"source": p} for p in references],
+            # Each reference made by the identity before its merge
+            # (`merged_pull`'s 2026-10-13T09:00:00Z), unless `reference`
+            # says otherwise.
+            "nodes": [
+                {"actor": bot("agent-lanes"), "referencedAt": "2026-10-13T08:00:00Z"}
+                | (reference or {})
+                | {"source": p}
+                for p in references
+            ],
         },
         "comments": {"pageInfo": {"hasNextPage": False}, "nodes": list(comments)},
     }
@@ -1624,6 +1633,33 @@ class RecordLift(unittest.TestCase):
         gh = self.fake(REVERT_BODY, lift_answer([merged_pull()]), tip=MAIN_TIP)
         gh.rest[f"repos/{REPO}/compare/{FIX_MERGE}...{MAIN_TIP}"] = {"status": "ahead"}
         self.lifted(read_demotion(), "2026-10-13T09:00:00Z")
+
+    def test_only_a_trusted_reference_made_before_the_merge_lifts(self) -> None:
+        # Anyone can mention the record in a comment on a merged pull request,
+        # which makes a reference too; that must not lift any record.
+        green = {
+            "conclusion": "success", "event": "push", "head_sha": FIX_MERGE,
+            "head_branch": "main", "head_repository": {"full_name": REPO},
+        }
+        canary_runs = (
+            f"repos/{REPO}/actions/workflows/post-merge-detect-silent-revert.yml/runs"
+            f"?head_sha={FIX_MERGE}&event=push&status=success&per_page=100"
+        )
+        empty_canary = CANARY_BODY + "\n" + policy.lift_block([])
+        for body in (REVERT_BODY, empty_canary):
+            for name, reference, lifts in (
+                ("the identity, before the merge", {}, True),
+                ("a person with write access", {"actor": user(OPERATOR)}, True),
+                ("a person who can only read", {"actor": user("reader")}, False),
+                ("an outside account", {"actor": user("stranger")}, False),
+                ("another bot", {"actor": bot("renovate")}, False),
+                ("no actor", {"actor": None}, False),
+                ("the identity, after the merge", {"referencedAt": "2026-10-13T10:00:00Z"}, False),
+            ):
+                with self.subTest(body=body.split(" -->")[0], reference=name):
+                    gh = self.fake(body, lift_answer([merged_pull()], reference=reference))
+                    gh.rest[canary_runs] = {"workflow_runs": [green]}
+                    self.assertEqual(not read_demotion().active, lifts)
 
     def test_the_earliest_qualifying_merge_is_the_clear(self) -> None:
         later = merged_pull(8, mergedAt="2026-10-14T09:00:00Z")

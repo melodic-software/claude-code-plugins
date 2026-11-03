@@ -1163,7 +1163,10 @@ the rules that only tighten in
   request it names reads back after all (the agent identity's newest pin comment among its first
   100 comments is unedited, was posted no later than the merge and names the head that merged).
   The record's creation is the clear time. (2) A pull request that references the record merges
-  into `main` of this repository after it was filed, at a merge commit on main's history, and the
+  into `main` of this repository after it was filed, at a merge commit on main's history; the
+  reference was made no later than the merge by a person with write access or the agent identity
+  (anyone can mention the record in a comment on a pull request, merged or not, which also makes a
+  reference); and the
   record's own condition holds at that merge commit: a canary record's counted lines are in the tree
   there, or, when its block says the merge deleted nothing (the canary failed on its self-test,
   replay or restoration step), a canary push run passed there; the pull request reads back, for a

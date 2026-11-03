@@ -1755,7 +1755,8 @@ def _lift_query(with_pull: bool) -> str:
     pull request `$p` too."""
     references = (
         "issue(number:$n){timelineItems(itemTypes:[CROSS_REFERENCED_EVENT],first:100){"
-        "pageInfo{hasNextPage} nodes{... on CrossReferencedEvent{source{"
+        "pageInfo{hasNextPage} nodes{... on CrossReferencedEvent{referencedAt "
+        "actor{__typename login} source{"
         "__typename ... on PullRequest{" + LIFT_PULL + "}}}}} "
         "comments(first:100){pageInfo{hasNextPage} "
         "nodes{author{__typename login} body lastEditedAt}}}"
@@ -2187,7 +2188,9 @@ def _lift(
     once the pull request its body names, merged at the record's SHA, reads
     back (`_read_back_holds`). The record's creation is the clear time.
     (2) A pull request that references the record merges into main after it
-    was filed, in this repository, at a merge commit on main's history, and
+    was filed, in this repository, at a merge commit on main's history, the
+    reference made no later than the merge by a person with write access or
+    the agent identity, and
     the record's own condition holds at that merge commit: a canary record's
     content is in the tree there, or, for a canary record whose block says
     nothing was deleted, a canary push run passed there; that pull request
@@ -2276,6 +2279,14 @@ def _lift(
             != f"{owner}/{name}".casefold()
             or not SHA_RE.fullmatch(oid)
             or _time(pull.get("mergedAt")) <= created
+            # Made before the merge by a write-access person or the agent
+            # identity: anyone can mention the record in a comment on a
+            # pull request, merged or not, and that makes a reference too.
+            or _time(node.get("referencedAt")) > _time(pull.get("mergedAt"))
+            or not (
+                human(node.get("actor"))
+                or (identity and actor_key(node.get("actor")) == identity.strip().casefold())
+            )
             or (signal == "read-back" and not _read_back_holds(pull, identity))
         ):
             continue

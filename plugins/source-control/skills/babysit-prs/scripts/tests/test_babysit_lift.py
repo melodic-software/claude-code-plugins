@@ -268,7 +268,12 @@ class Gh:
             if "PolicyRecordLift" in query:
                 issue = {
                     "timelineItems": {"pageInfo": {"hasNextPage": False}, "nodes": [
-                        {"source": p} for p in self.references
+                        {
+                            "actor": {"__typename": "Bot", "login": "agent-lanes"},
+                            "referencedAt": "2026-10-13T08:00:00Z",
+                            "source": p,
+                        }
+                        for p in self.references
                     ]},
                     "comments": {"pageInfo": {"hasNextPage": False}, "nodes": []},
                 }
