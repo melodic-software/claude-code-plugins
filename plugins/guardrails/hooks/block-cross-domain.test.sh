@@ -942,6 +942,83 @@ flat "a cwd in a domain root's hyphenated sibling is neutral" "${B_ROOT}-x" "ls 
 call "$ROOTED" "$A_ROOT/repo" 'ls ~/repos/github.com/beta-org-unlisted/repo'
 verdict "an unlisted owner that starts with a listed owner and a hyphen" deny
 
+# Only an occurrence that names a path spends its text: a second name that merely
+# starts like the longer owner is still the shorter owner's, in separate words
+# and in one word, where the parse hands both names over together.
+flat "a longer owner's cwd, its own tree and a name only the shorter owner fits" \
+  "$FLAT/beta-org-labs-x" "ls $FLAT/beta-org-labs-a $FLAT/beta-org-labsfoo" deny "'beta'"
+flat "a longer owner's cwd, the same two names in one word" \
+  "$FLAT/beta-org-labs-x" "bash -c 'ls $FLAT/beta-org-labs-a $FLAT/beta-org-labsfoo'" deny "'beta'"
+flat "a shorter owner's cwd, the same two names" \
+  "$FLAT/beta-org-repo" "ls $FLAT/beta-org-labs-a $FLAT/beta-org-labsfoo" deny "'labs'"
+flat "a shorter owner's cwd, the same two names in one word" \
+  "$FLAT/beta-org-repo" "bash -c 'ls $FLAT/beta-org-labs-a $FLAT/beta-org-labsfoo'" deny "'labs'"
+flat "a shorter owner's cwd, its own names alone" \
+  "$FLAT/beta-org-repo" "ls $FLAT/beta-org-z $FLAT/beta-org-labsfoo" allow
+
+# holder <label> <data dir> <cwd> <command> <deny|allow> [<cwd's domain> <the
+# deny reason's domain list>]: the same check against any map.
+holder() {
+  call "$2" "$3" "$4"
+  assert_exit "$1: exit 0" 0 "$GUARD_RC"
+  verdict "$1" "$5"
+  [[ "$5" == deny ]] || return 0
+  local reason
+  reason=$(jq -r '.hookSpecificOutput.permissionDecisionReason // empty' <<<"$GUARD_OUT")
+  assert_contains "$1: the reason names the cwd's domain" "$reason" "identity domain '$6'"
+  assert_contains "$1: the reason names that domain alone" "$reason" "another domain ($7)"
+}
+
+# A root and a name inside it that only a `-` ties to another domain's owner:
+# the root keeps its claim and the owner adds one, so both are named.
+ANCESTOR="$TEST_TMPDIR/ancestor-map"
+write_map "$ANCESTOR" "$(MSYS_NO_PATHCONV=1 jq -n --arg os "$OS_KEY" --arg x "$HOME_DIR/src" '{
+  domains: {xroot: {roots: {($os): [$x]}}, yowner: {roots: {}, owners: ["acme"]}}}')"
+OWNER_CWD="$HOME_DIR/src/github.com/acme/repo"
+ROOT_CWD="$HOME_DIR/src/other"
+UNLISTED_CWD="$HOME_DIR/src/github.com/acme-labs/repo"
+holder "ancestor root: from the owner's domain, a name only a hyphen ties to it" "$ANCESTOR" "$OWNER_CWD" \
+  'ls ~/src/github.com/acme-labs/repo' deny yowner "'xroot'"
+holder "ancestor root: from the root's domain, the same name" "$ANCESTOR" "$ROOT_CWD" \
+  'ls ~/src/github.com/acme-labs/repo' deny xroot "'yowner'"
+holder "ancestor root: from a neutral cwd, the same name" "$ANCESTOR" "$NEUTRAL" \
+  'ls ~/src/github.com/acme-labs/repo' allow
+holder "ancestor root: a cwd a hyphen ties to the owner stays the root's, its root's path" "$ANCESTOR" "$UNLISTED_CWD" \
+  'ls ~/src/other' allow
+holder "ancestor root: a cwd a hyphen ties to the owner stays the root's, the owner's directory" "$ANCESTOR" "$UNLISTED_CWD" \
+  'ls ~/src/github.com/acme/repo' deny xroot "'yowner'"
+holder "ancestor root: an owner's directory stays inner, from the root's domain" "$ANCESTOR" "$ROOT_CWD" \
+  'ls ~/src/github.com/acme/repo' deny xroot "'yowner'"
+holder "ancestor root: an owner's directory stays inner, from the owner's domain" "$ANCESTOR" "$OWNER_CWD" \
+  'ls ~/src/github.com/acme/repo' allow
+holder "ancestor root: a cwd in the owner's directory is the owner's" "$ANCESTOR" "$OWNER_CWD" \
+  'ls ~/src/other' deny yowner "'xroot'"
+
+# The same root and owner in one domain: the cwd and the name are that domain's.
+SAME_ROOT="$HOME_DIR/same"
+SAME_OTHER="$TEST_TMPDIR/same-other"
+SAMEMAP="$TEST_TMPDIR/same-map"
+write_map "$SAMEMAP" "$(MSYS_NO_PATHCONV=1 jq -n --arg os "$OS_KEY" --arg r "$SAME_ROOT" --arg o "$SAME_OTHER" '{
+  domains: {own: {roots: {($os): [$r]}, owners: ["acme"]}, other: {roots: {($os): [$o]}}},
+  owner_roots: {($os): [$r]}}')"
+holder "one domain's root and owner: a hyphen's cwd, its own other tree" "$SAMEMAP" "$SAME_ROOT/acme-x" \
+  "ls $SAME_ROOT/acme-y" allow
+holder "one domain's root and owner: a hyphen's cwd, another domain" "$SAMEMAP" "$SAME_ROOT/acme-x" \
+  "ls $SAME_OTHER" deny own "'other'"
+
+# A root spends only the occurrences it names: a longer sibling name inside an
+# outer root still names the outer root.
+SIBLING_OUTER="$TEST_TMPDIR/sibling"
+SIBLINGMAP="$TEST_TMPDIR/sibling-map"
+write_map "$SIBLINGMAP" "$(MSYS_NO_PATHCONV=1 jq -n --arg os "$OS_KEY" --arg o "$SIBLING_OUTER" --arg i "$SIBLING_OUTER/work" '{
+  domains: {outer: {roots: {($os): [$o]}}, inner: {roots: {($os): [$i]}}}}')"
+holder "a root's longer sibling after the root itself names the outer root" "$SIBLINGMAP" "$SIBLING_OUTER/work/repo" \
+  "ls $SIBLING_OUTER/work/x $SIBLING_OUTER/workshop" deny inner "'outer'"
+holder "the same two names in one word" "$SIBLINGMAP" "$SIBLING_OUTER/work/repo" \
+  "bash -c 'ls $SIBLING_OUTER/work/x $SIBLING_OUTER/workshop'" deny inner "'outer'"
+holder "a root alone stays inner" "$SIBLINGMAP" "$SIBLING_OUTER/work/repo" \
+  "ls $SIBLING_OUTER/work/x" allow
+
 # --- Under the dispatcher, and on the shipped row -----------------------------
 guard_invoke --via dispatched --cwd "$A_ROOT/repo" --command "ls $B_ROOT" -- \
   "CLAUDE_PLUGIN_DATA=$DATA" GUARDRAILS_CROSS_DOMAIN_TRACE=1 "HOME=$HOME_DIR"

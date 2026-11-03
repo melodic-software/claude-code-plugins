@@ -262,7 +262,9 @@ full rules. Never runs from bare `apply`.
    `~/src/github.com` and `~/worktrees/github.com`, also pass `--owner-root DIR`, repeatable,
    for each directory that holds one directory per owner, such as `"$(ghq root)/github.com"`,
    or flat `<owner>-<repo>-<slug>` trees, such as `"$(git config worktreeroot.path)"`. A
-   flat tree whose name does not start with its owner stays unguarded. A shared exception
+   flat tree whose name does not start with its owner stays unguarded, and a name that does
+   also names any other domain's root above it, so a session in either domain is denied it.
+   A shared exception
    opens PATH, a directory of domain TO, to sessions in the FROM domains, one way; the script
    refuses a PATH that is
    not TO's tree or below it or one of TO's owner directories, and a FROM that lists TO. A

@@ -103,8 +103,12 @@
 # with `acme` and `acme-labs` listed, `acme-labs-x` is acme-labs's even when it
 # is acme's repository `labs-x`, so that tree is open to an acme-labs session
 # and denied to an acme one. An owner no domain lists, such as `acme-labs` with
-# only `acme` listed, reads as acme's, a nested root's `acme-labs/` included,
-# which only adds denies.
+# only `acme` listed, reads as acme's, a nested root's `acme-labs/` included.
+# A name only a `-` ties to an owner also leaves a shorter root above it named,
+# so a session in either domain is denied it. A cwd only a `-` ties to an owner
+# is that owner's domain only when no root or owner's directory holds it. So
+# against the exact test the `-` takes no name or cwd from a domain that held
+# it: it only adds names, and so denies.
 # `\` reads as `/` and a run of separators as one, so `C:\x`,
 # `C:\\x` and `C:/x` are one spelling. A path on a drive is also named in its
 # other drive forms (`C:/x`, `/c/x`, `/cygdrive/c/x`, `/mnt/c/x`, where a
@@ -665,12 +669,37 @@ bcd::names() {
     fi
     bcd::named "${BCD_NEEDLE_DOMAIN[i]}" "${BCD_NEEDLE_PATH[i]}"
     if ((BCD_NEEDLE_PATH[i])); then
-      t=${t//"$n"/ }
+      bcd::spend "$n" "${BCD_NEEDLE_PATH[i]}"
     elif [[ "${BCD_NEEDLE_DOMAIN[i]}" != "$BCD_CWD_DOMAIN" ]]; then
       BCD_FOREIGN_MARKER=1
     fi
   done
   return 0
+}
+
+# bcd::spend <needle> <its kind>: a named path, in bcd::names's text `t`. Each
+# occurrence that names it becomes a space; one inside a longer name is kept. One
+# only a `-` ties to an owner's directory stays for a shorter root to name as well,
+# with a newline before its last segment so a shorter owner no longer fits it.
+bcd::spend() {
+  local rest=$t out="" pre before after
+  while [[ "$rest" == *"$1"* ]]; do
+    pre=${rest%%"$1"*}
+    rest=${rest#*"$1"}
+    before=${pre: -1}
+    [[ -n "$pre" ]] || before=${out: -1}
+    after=${rest:0:1}
+    if [[ "$before" == [a-z0-9._-] ]]; then
+      out+=$pre$1
+    elif [[ "$2" == 3 && "$after" == - ]]; then
+      out+="$pre${1%/*}/"$'\n'"${1##*/}"
+    elif [[ "$after" == [a-z0-9._-] ]]; then
+      out+=$pre$1
+    else
+      out+="$pre "
+    fi
+  done
+  t=$out$rest
 }
 
 # bcd::spend_open <needle> <its to domain>: an open shared exception's path, in
@@ -1441,16 +1470,22 @@ bcd::write_deny() {
 }
 
 bcd::classify_cwd() {
-  local cwd r i best=0
+  local cwd r i best=0 tied=0 tied_domain=""
   [[ -n "$BCD_CWD_RAW" ]] || return 0
   bcd::norm_to cwd "$BCD_CWD_RAW"
   for ((i = 0; i < ${#BCD_ROOT[@]}; i++)); do
     r=${BCD_ROOT[i]}
-    if ((${#r} > best)) && [[ "$cwd" == "$r" || "$cwd" == "$r"/* || (${BCD_ROOT_KIND[i]} == 3 && "$cwd" == "$r"-*) ]]; then
-      best=${#r}
-      BCD_CWD_DOMAIN=${BCD_ROOT_DOMAIN[i]}
+    if [[ "$cwd" == "$r" || "$cwd" == "$r"/* ]]; then
+      if ((${#r} > best)); then
+        best=${#r}
+        BCD_CWD_DOMAIN=${BCD_ROOT_DOMAIN[i]}
+      fi
+    elif ((BCD_ROOT_KIND[i] == 3 && ${#r} > tied)) && [[ "$cwd" == "$r"-* ]]; then
+      tied=${#r}
+      tied_domain=${BCD_ROOT_DOMAIN[i]}
     fi
   done
+  ((best)) || BCD_CWD_DOMAIN=$tied_domain
 }
 
 [[ -n "${HOME:-}" ]] && bcd::norm_to BCD_HOME "$HOME"
