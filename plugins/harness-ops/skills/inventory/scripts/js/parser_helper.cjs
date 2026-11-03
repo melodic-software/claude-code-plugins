@@ -542,6 +542,32 @@ function functionBinding(entry, parents, fn) {
   return v && v.defs.length === 1 && v.references.every((r) => !r.isWrite() || r.identifier === holder.id) ? v : null;
 }
 
+// Every name the module exports the variable `v` under, "default" included.
+function exportNames(parents, v) {
+  const def = v.defs[0];
+  const holder = parents.get(def.type === "Variable" ? def.parent : def.node);
+  const names = holder?.type === "ExportNamedDeclaration" ? [v.name] : holder?.type === "ExportDefaultDeclaration" ? ["default"] : [];
+  for (const r of v.references) {
+    const spec = parents.get(r.identifier);
+    if (spec?.type === "ExportSpecifier" && spec.local === r.identifier) names.push(spec.exported.name ?? spec.exported.value);
+  }
+  return names;
+}
+
+// Whether sloppy code could change a parameter of the function `fn`
+// unseen, through `arguments` (an arrow's `arguments` is its caller's).
+function argumentsAliased(entry, fn) {
+  if (fn.type === "ArrowFunctionExpression") return false;
+  const scope = entry.manager.acquire(fn, true);
+  return !scope || scope.set.get("arguments")?.references.length > 0;
+}
+
+// A function declaration in a block, which sloppy code also binds outside it.
+function inBlock(parents, fn) {
+  const holder = parents.get(fn);
+  return fn.type === "FunctionDeclaration" && !["Program", "ExportNamedDeclaration"].includes(holder?.type) && !FUNCTIONS.has(parents.get(holder)?.type);
+}
+
 // The two values `Flow.values` lists that are no function.
 const uncallable = (value) => value === "undefined" || value === "uncallable";
 // Whether one of `values` may be undefined: an imported binding may be,
@@ -929,7 +955,7 @@ class Flow {
       if (r.isWrite()) continue;
       const call = this.parents.get(r.identifier);
       if (call?.type !== "CallExpression" || call.callee !== r.identifier) {
-        throw new Unresolved("the function is used other than by a call", r.identifier.start);
+        throw new Unresolved("the parameter's function is used other than by a call", r.identifier.start);
       }
       if (call.arguments.slice(0, index + 1).some((a) => a.type === "SpreadElement")) {
         throw new Unresolved("a spread before the argument", call.start);
@@ -1484,6 +1510,131 @@ function keyValuesOf(entry) {
   return keyValues;
 }
 
+// What a number or bigint's string form can be whole (NUMERIC_KEY), and
+// what a string starting (NUMERIC_HEAD) or ending (NUMERIC_TAIL) with one
+// can be: digits with a sign, point or exponent, `Infinity` or `NaN`.
+const NUMERIC_KEY = /^(?:-?(?:\d|Infinity$)|NaN$)/;
+const NUMERIC_HEAD = /^(?:[-\d]|Infinity|NaN)/;
+const NUMERIC_TAIL = /(?:\d|Infinity|NaN)$/;
+const SPELL_STEPS = 512;
+
+// Whether the program runs strict: it holds an import or export, which
+// makes it a module, or its first statement is a "use strict" directive.
+const strictCode = (ast) =>
+  ast.body[0]?.directive === "use strict" || ast.body.some((s) => s.type === "ImportDeclaration" || s.type.startsWith("Export"));
+
+// Whether a computed key in the module may spell the property key `name`:
+// `spells(node, name)`, from `keyValues` (`keyValuesOf`) where that knows
+// every value. Where it does not, the key is still bounded when it is:
+//   - a `+`, which makes a number or a string starting with its left
+//     side's value and ending with its right side's (`n+1` ends in a
+//     digit), `+=` by its right side the same way, or a template, which
+//     starts and ends with its own text;
+//   - a branch of `?:` or a logical operator, the last of a sequence, or
+//     an `=` assignment's value, each bounded the same way;
+//   - a variable, by each write `keyValues` reads;
+//   - a parameter with no default, pattern or rest, never written, of a
+//     function bound to one name, never exported, only ever called
+//     directly with no spread up to it, reading no `arguments` and not
+//     declared in a block, by each call's argument.
+// A variable met again while it is being read adds nothing. Past
+// SPELL_STEPS steps only `keyValues` answers, and so it does for code that
+// may run sloppy (`strictCode`), which can call a function through
+// `f.caller` and binds a block function's name outside its block, and for
+// a module with a direct `eval`, which can write any variable or call any
+// function unseen.
+function keySpellsOf(entry, keyValues) {
+  const parents = parentsOf(entry);
+  const seen = new Set();
+  const known = new Map();
+  let steps = 0;
+  const valuesOf = (node) => {
+    if (!known.has(node)) known.set(node, keyValues(node));
+    return known.get(node);
+  };
+  const exact = (values, name) => values.has(name) || (values.has(NUMBER) && NUMERIC_KEY.test(name));
+  // Whether `name` may start (`head`) or end with a value of `side`.
+  const affix = (side, name, head) => {
+    const values = valuesOf(side);
+    if (values === null) return true;
+    const numeric = head ? NUMERIC_HEAD : NUMERIC_TAIL;
+    return [...values].some((v) => (v === NUMBER ? numeric.test(name) : head ? name.startsWith(v) : name.endsWith(v)));
+  };
+  const written = (v, name, next) => {
+    const def = v.defs[0];
+    if (def.type !== "Variable" || def.node.id !== def.name || isLoop(parents.get(def.parent))) return true;
+    // A `var` read before its initializer runs is undefined.
+    if ((def.parent.kind === "var" || def.node.init === null) && name === "undefined") return true;
+    return v.references.some((r) => {
+      if (!r.isWrite()) return false;
+      if (r.identifier === def.name) return def.node.init !== null && next(def.node.init);
+      const w = parents.get(r.identifier);
+      if (w?.type === "UpdateExpression") return NUMERIC_KEY.test(name);
+      return w?.type !== "AssignmentExpression" || w.left !== r.identifier || next(w);
+    });
+  };
+  const passed = (v, name, next) => {
+    const def = v.defs[0];
+    const fn = def.node;
+    const index = fn.params.indexOf(def.name);
+    if (index < 0 || v.references.some((r) => r.isWrite()) || inBlock(parents, fn) || argumentsAliased(entry, fn)) return true;
+    const callee = functionBinding(entry, parents, fn);
+    if (!callee || exportNames(parents, callee).length > 0) return true;
+    return callee.references.some((r) => {
+      if (r.isWrite()) return false;
+      const call = parents.get(r.identifier);
+      if (call?.type !== "CallExpression" || call.callee !== r.identifier) return true;
+      if (call.arguments.slice(0, index + 1).some((a) => a.type === "SpreadElement")) return true;
+      const arg = call.arguments[index];
+      return arg === undefined ? name === "undefined" : next(arg);
+    });
+  };
+  const walk = (node, name, depth) => {
+    const values = valuesOf(node);
+    if (values !== null) return exact(values, name);
+    if (++steps > SPELL_STEPS || depth > 16) return true;
+    const next = (n) => walk(n, name, depth + 1);
+    switch (node.type) {
+      case "BinaryExpression":
+        return node.operator !== "+" || NUMERIC_KEY.test(name) || (affix(node.left, name, true) && affix(node.right, name, false));
+      case "TemplateLiteral": {
+        const texts = node.quasis.map((q) => q.value.cooked);
+        return texts.some((t) => typeof t !== "string") || (name.startsWith(texts[0]) && name.endsWith(texts.at(-1)));
+      }
+      case "ConditionalExpression":
+        return next(node.consequent) || next(node.alternate);
+      case "LogicalExpression":
+        return next(node.left) || next(node.right);
+      case "SequenceExpression":
+        return next(node.expressions.at(-1));
+      case "AssignmentExpression":
+        if (node.operator === "=") return next(node.right);
+        return node.operator !== "+=" || NUMERIC_KEY.test(name) || affix(node.right, name, false);
+      case "Identifier": {
+        const v = entry.refs.get(node.start)?.resolved;
+        if (!v || v.defs.length !== 1) return true;
+        if (seen.has(v)) return false;
+        seen.add(v);
+        try {
+          return v.defs[0].type === "Parameter" ? passed(v, name, next) : written(v, name, next);
+        } finally {
+          seen.delete(v);
+        }
+      }
+    }
+    return true;
+  };
+  const bounded = !entry.evals && strictCode(entry.ast);
+  return (node, name) => {
+    if (!bounded) {
+      const values = valuesOf(node);
+      return values === null || exact(values, name);
+    }
+    steps = 0;
+    return walk(node, name, 0);
+  };
+}
+
 // `Object` or `Reflect`, as a name or a member (`globalThis.Object`); by
 // name, so a shadowing binding counts too.
 const isDefinerHome = (n) =>
@@ -1601,17 +1752,6 @@ function freshnessOf(entry) {
     const own = prop?.type === "Property" && prop.value === def.name && parents.get(prop) === def.node.id;
     return own && isObject(def.node.init) ? keyName(prop.key, prop.computed) : null;
   };
-  // Every name the module exports `v` under, "default" included.
-  const exportNames = (v) => {
-    const def = v.defs[0];
-    const holder = parents.get(def.type === "Variable" ? def.parent : def.node);
-    const names = holder?.type === "ExportNamedDeclaration" ? [v.name] : holder?.type === "ExportDefaultDeclaration" ? ["default"] : [];
-    for (const r of v.references) {
-      const spec = parents.get(r.identifier);
-      if (spec?.type === "ExportSpecifier" && spec.local === r.identifier) names.push(spec.exported.name ?? spec.exported.value);
-    }
-    return names;
-  };
   // The built-in constructor `node` names by its unshadowed global name, or null.
   const builtinNamed = (node) =>
     node?.type === "Identifier" && BUILTIN_CONSTRUCTORS.has(node.name) && entry.refs.get(node.start)?.resolved === null ? node.name : null;
@@ -1703,19 +1843,7 @@ function freshnessOf(entry) {
     // Any other write, a loop head's (`for(var v of a)`) included, rules it out.
     const later = (r) => r.identifier === id || (!r.isWrite() && r.from.variableScope === v.scope.variableScope && r.identifier.start >= set.end);
     const param = v.defs[0].type === "Parameter";
-    return v.references.every(later) && !(param && aliased(block)) ? set : null;
-  };
-  // Whether sloppy code could change a parameter of the function `fn`
-  // unseen, through `arguments` (an arrow's `arguments` is its caller's).
-  const aliased = (fn) => {
-    if (fn.type === "ArrowFunctionExpression") return false;
-    const scope = entry.manager.acquire(fn, true);
-    return !scope || scope.set.get("arguments")?.references.length > 0;
-  };
-  // A function declaration in a block, which sloppy code also binds outside it.
-  const inBlock = (fn) => {
-    const holder = parents.get(fn);
-    return fn.type === "FunctionDeclaration" && !["Program", "ExportNamedDeclaration"].includes(holder?.type) && !FUNCTIONS.has(parents.get(holder)?.type);
+    return v.references.every(later) && !(param && argumentsAliased(entry, block)) ? set : null;
   };
   const passed = new Map();
   // Parameter `index` of the function `fn`, never written: what every call
@@ -1726,8 +1854,8 @@ function freshnessOf(entry) {
     const key = `${fn.start}:${index}`;
     if (passed.has(key)) return passed.get(key);
     passed.set(key, null);
-    const v = inBlock(fn) || aliased(fn) ? null : functionBinding(entry, parents, fn);
-    const names = v && exportNames(v);
+    const v = inBlock(parents, fn) || argumentsAliased(entry, fn) ? null : functionBinding(entry, parents, fn);
+    const names = v && exportNames(parents, v);
     let out = names && !names.includes("default") ? { needs: new Set(names.map((n) => JSON.stringify([n, index]))), trusts: new Set() } : null;
     for (const r of out ? v.references : []) {
       const call = parents.get(r.identifier);
@@ -1747,8 +1875,8 @@ function freshnessOf(entry) {
   const boundThis = (fn, depth) => {
     if (bound.has(fn)) return bound.get(fn);
     bound.set(fn, null);
-    const v = inBlock(fn) ? null : functionBinding(entry, parents, fn);
-    let out = v && exportNames(v).length === 0 ? trusting(FRESH, "bind") : null;
+    const v = inBlock(parents, fn) ? null : functionBinding(entry, parents, fn);
+    let out = v && exportNames(parents, v).length === 0 ? trusting(FRESH, "bind") : null;
     for (const r of out ? v.references : []) {
       if (r.isWrite()) continue;
       const member = parents.get(r.identifier);
@@ -1860,7 +1988,9 @@ function freshnessOf(entry) {
 //     evaluate to is: a literal, a number (arithmetic, `++`, a unary
 //     minus), a boolean or typeof result, or a variable every write of
 //     which is one of those (`for(let i=0;...;i++)o[i]=`, a TypeScript
-//     enum's `e[e.X=1]=`); it then counts only for the names it spells;
+//     enum's `e[e.X=1]=`); it then counts only for the names it spells,
+//     and so does a key `keySpellsOf` bounds (`o[n+1]=`, a template, a
+//     parameter whose callers pass known keys);
 //   - a call given one of the names as a string or `Symbol.x` argument
 //     (`Object.defineProperty(o,"includes",...)`, `o.__defineGetter__("has")`,
 //     `Reflect.set(o,"some",f)`, or any other callee that may pass it on);
@@ -1985,10 +2115,14 @@ function sinkHits(entry, names, depth, loaders = new Set()) {
     if (ref.isWrite() && names.has(ref.identifier.name)) hit("global-write", ref.identifier.name, ref.identifier);
   }
   const keyValues = keyValuesOf(entry);
-  // The trusted names a computed `key` may spell, or null when it may spell any.
+  const spells = keySpellsOf(entry, keyValues);
+  // The trusted names a computed `key` may spell, or null when it may spell
+  // `__proto__`, or may be a number while a trusted name is numeric.
   const keyNames = (key) => {
+    if (spells(key, "__proto__")) return null;
     const values = keyValues(key);
-    if (values === null || values.has("__proto__") || (values.has(NUMBER) && numericName)) return null;
+    if (values === null) return [...names].filter((n) => spells(key, n));
+    if (values.has(NUMBER) && numericName) return null;
     return [...values].filter((v) => v !== NUMBER && names.has(v));
   };
   const numericName = [...names].some((n) => String(Number(n)) === n || n === "-0");
@@ -2013,8 +2147,7 @@ function sinkHits(entry, names, depth, loaders = new Set()) {
       const up = parents.get(top);
       if (up?.type === "MemberExpression" && up.object === top) {
         const key = keyName(up.property, up.computed);
-        const keys = key === null ? keyValues(up.property) : new Set([key]);
-        if (keys === null || keys.has("constructor")) return false;
+        if (key === null ? spells(up.property, "constructor") : key === "constructor") return false;
       } else if (up?.type !== "ChainExpression" && !isCallee(up, top)) {
         break;
       }
@@ -2043,9 +2176,14 @@ function sinkHits(entry, names, depth, loaders = new Set()) {
   // Whether the property key `key` may be `constructor`.
   const maySpellConstructor = (key, computed) => {
     const name = keyName(key, computed);
-    const keys = name === null ? keyValues(key) : new Set([name]);
-    return keys === null || keys.has("constructor");
+    return name === null ? spells(key, "constructor") : name === "constructor";
   };
+  // Whether the property key `key` may spell a member whose read counts
+  // wherever it stands, inert or not: `eval`, `Function`, a vm runner, or
+  // `__defineGetter__`/`__defineSetter__`.
+  const maySpellAnywhereSink = (key, computed) =>
+    keyName(key, computed) === null &&
+    ["eval", "Function", ...VM_RUNNERS, "__defineGetter__", "__defineSetter__"].some((name) => spells(key, name));
   // Whether the `constructor` read as `node` is only discarded, tested,
   // compared by identity, the right of `instanceof`, or followed by a
   // `name` read or a plain `prototype` write: none of these calls it or
@@ -2186,12 +2324,44 @@ function sinkHits(entry, names, depth, loaders = new Set()) {
     // A function's `constructor` is the Function constructor, so is any
     // object's `constructor.constructor`, and neither needs the name
     // `Function` (`(()=>1).constructor("code")()`). A compound write
-    // (`x.constructor+=s`) reads and coerces it first.
+    // (`x.constructor+=s`) reads and coerces it first. An inert read
+    // clears a key only when it can spell none of the members the next
+    // check counts wherever they are read: that check leaves every key that
+    // may spell `constructor` to this one, so a key that may spell both
+    // (`e[k];` with `k` unknown) must not slip past the two.
     const overwritten = isTarget(parents, node) && !(holder?.type === "AssignmentExpression" && holder.operator !== "=");
     const constructorRead =
-      (node.type === "MemberExpression" && !overwritten && maySpellConstructor(node.property, node.computed) && !constructorInert(node)) ||
+      (node.type === "MemberExpression" &&
+        !overwritten &&
+        maySpellConstructor(node.property, node.computed) &&
+        (!constructorInert(node) || maySpellAnywhereSink(node.property, node.computed))) ||
       (node.type === "Property" && holder?.type === "ObjectPattern" && maySpellConstructor(node.key, node.computed));
     if (constructorRead) hit("function-constructor", null, node);
+    // A computed key known not to spell `constructor` may still spell
+    // another member the checks here name only literally: `eval`,
+    // `Function`, a vm runner, or `__defineGetter__`/`__defineSetter__`
+    // (`globalThis[`ev${"al"}`]`, or a parameter only ever passed
+    // "Function"). A read of one counts as the named read counts. A key
+    // that may spell `constructor` is judged by the check above.
+    if (node.type === "MemberExpression" && node.computed && member === null && !isTarget(parents, node) && !maySpellConstructor(node.property, true)) {
+      const may = (name) => spells(node.property, name);
+      if (may("eval")) hit("indirect-eval", null, node);
+      else if (may("Function")) hit("function-constructor", null, node);
+      else if ([...VM_RUNNERS].some(may)) hit("vm-string-code", null, node);
+      else if (may("__defineGetter__") || may("__defineSetter__")) hit("definer-escape", null, node);
+    }
+    // A destructured key reads its member as `o[k]` does, literal or
+    // computed (`const{eval:f}=o`, `const{[k]:F}=o` with `k` only ever
+    // "Function"). A literal vm runner or getter definer key is counted
+    // where its own name is checked.
+    if (node.type === "Property" && holder?.type === "ObjectPattern" && !maySpellConstructor(node.key, node.computed)) {
+      const name = keyName(node.key, node.computed);
+      const may = (n) => (name === null ? spells(node.key, n) : name === n);
+      if (may("eval")) hit("indirect-eval", null, node);
+      else if (may("Function")) hit("function-constructor", null, node);
+      else if (name === null && [...VM_RUNNERS].some(may)) hit("vm-string-code", null, node);
+      else if (name === null && (may("__defineGetter__") || may("__defineSetter__"))) hit("definer-escape", null, node);
+    }
     // node:vm runs strings as code, and even a new context reaches this
     // realm (`this.constructor.constructor("...")()` inside
     // `runInNewContext` patches the outer prototypes). Any load of the vm
@@ -2210,7 +2380,7 @@ function sinkHits(entry, names, depth, loaders = new Set()) {
     // A load the scan cannot name may load node:vm, and `loads` never sees
     // one in code a `Function` call folded to.
     const unseen = depth > 0 && loadedFile(node) !== null;
-    if (unseen || (unknownLoad(node, parents, keyValues, paramSpecs) && !held.cleared.has(node))) hit("unknown-load", null, node);
+    if (unseen || (unknownLoad(node, parents, spells, paramSpecs) && !held.cleared.has(node))) hit("unknown-load", null, node);
     if (definerOf(node) !== null && !(holder?.type === "CallExpression" && holder.callee === node)) {
       hit("definer-escape", null, node);
     } else if (isDefinerHome(node) && !(holder?.type === "MemberExpression" && holder.property === node && !holder.computed)) {
@@ -2349,23 +2519,20 @@ function scanFor(req) {
 // `(0,require)`), a `typeof` test, `require.resolve`, or a member read only
 // tested for truth (`onlyTested`, lodash's `w&&w.require&&w.require("util")`).
 // A binding named `require` is no use.
-// A computed member or destructured key counts when `keyValues` (from
-// `keyValuesOf`) finds it unknown or able to spell `require`
-// (`module[k]`, `x["req"+"uire"]`, `{[k]:r}=globalThis`), except the
+// A computed member or destructured key counts when `spells` (from
+// `keySpellsOf`) finds it may spell `require` (`module[k]`,
+// `x["req"+"uire"]`, `{[k]:r}=globalThis`), except the
 // target of a plain `o[k]=v`; even a literal specifier does not name its file.
 // A specifier `paramSpecs` (from `paramSpecsOf`) names the literals of is
 // named too.
-function unknownLoad(node, parents, keyValues, paramSpecs = () => null) {
+function unknownLoad(node, parents, spells, paramSpecs = () => null) {
   const parent = parents.get(node);
   if (node.type === "ImportExpression") return literalString(node.source) === null;
   // `import.meta` other than read by name can hand out its `require`
   // (`var m=import.meta`, `{require:r}=import.meta`), and so can any
   // destructured `require` key.
   if (isImportMeta(node)) return !(parent?.type === "MemberExpression" && parent.object === node && memberName(parent) !== null);
-  const mayRequire = (key) => {
-    const values = keyValues(key);
-    return values === null || values.has("require");
-  };
+  const mayRequire = (key) => spells(key, "require");
   if (node.type === "Property" && parent?.type === "ObjectPattern") {
     const key = keyName(node.key, node.computed);
     return key === null ? mayRequire(node.key) : key === "require";
@@ -2546,7 +2713,7 @@ function scanOf(ast) {
   let computed = false;
   const deferred = () => {
     computed = true;
-    return new Set();
+    return false;
   };
   // A specifier that is a variable may be a parameter `paramSpecsOf` names.
   const deferredSpecs = (arg) => {
@@ -2595,13 +2762,13 @@ function scanOf(ast) {
 // name (`unknownLoad` with the key's provenance).
 function computedLoads(entry) {
   const parents = parentsOf(entry);
-  const keyValues = keyValuesOf(entry);
+  const spells = keySpellsOf(entry, keyValuesOf(entry));
   const paramSpecs = paramSpecsOf(entry);
   const files = new Set();
   const stack = [entry.ast];
   while (stack.length) {
     const node = stack.pop();
-    if (unknownLoad(node, parents, keyValues, paramSpecs) && !aliasInit(node, parents.get(node))) return new Set([UNKNOWN_FILE]);
+    if (unknownLoad(node, parents, spells, paramSpecs) && !aliasInit(node, parents.get(node))) return new Set([UNKNOWN_FILE]);
     if (isRequire(node)) for (const spec of paramSpecs(node.arguments[0]) ?? []) files.add(fileName(spec));
     for (const key of Object.keys(node)) {
       const child = node[key];
