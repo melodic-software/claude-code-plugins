@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "| Area | Level | Why | Check |\n|---|---|---|---|\n| Migration | HIGH | drops orders.coupon_code and its data | agreed |",
+      "why": "table row"
+    },
+    {
+      "answer": "| **Reversibility** | **CRITICAL** | the dropped column's data does not come back on revert | disputed |",
+      "why": "bold table row"
+    },
+    {
+      "answer": "- **Migrations**: HIGH, the column and every stored code are dropped (agreed)",
+      "why": "list row"
+    },
+    {
+      "answer": "- Order totals (MEDIUM): placeOrder no longer applies the discount itself",
+      "why": "list row with parenthesised level"
+    }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty reply" },
+    {
+      "answer": "| Area | Level | Why |\n|---|---|---|\n| Migration | | |",
+      "why": "row with no level or why"
+    },
+    {
+      "answer": "The migration is risky and the cart logic is fine.",
+      "why": "prose with no level"
+    },
+    {
+      "answer": "Here is how to configure a coupon in the admin panel.",
+      "why": "answer to a different question"
+    }
+  ]
+}

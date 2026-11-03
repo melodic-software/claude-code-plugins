@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "Two triggers fired (files and risk-path), so I can write a digest of #77 as a local file. Want it?", "why": "trigger names" },
+    { "answer": "This PR touches a risk path (migrations/) and four files; shall I write the explainer to a local file?", "why": "paraphrase" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty reply" },
+    { "answer": "The files trigger fired; want a digest?", "why": "names only one trigger" },
+    { "answer": "Here is how to configure a coupon in the admin panel.", "why": "answer to a different question" }
+  ]
+}

@@ -44,8 +44,8 @@ author's claim and check it against the diff.
 
 ## Reversibility
 
-How hard the change is to undo once it has run, by the door definition in
-[`<plugin-root>/reference/one-way-doors.md`](../../../reference/one-way-doors.md).
+How hard the change is to undo once it has run, by the door definition the skill passes beside
+this rubric ([`one-way-doors.md`](../../../reference/one-way-doors.md) at the plugin root).
 
 - `HIGH` at least: a one-way door.
 
