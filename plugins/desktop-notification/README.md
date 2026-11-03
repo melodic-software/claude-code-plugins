@@ -37,8 +37,13 @@ notification, and, on macOS and Linux, an OS-native desktop toast.
 | OS | Tool | Requirement |
 |---|---|---|
 | macOS | [`osascript … display notification`](https://code-maven.com/display-notification-from-the-mac-command-line) | Built-in. No dependency. First run prompts to allow notifications for the terminal app. |
-| Linux | [`notify-send`](https://man.archlinux.org/man/notify-send.1.en) (libnotify) | Install `libnotify-bin` (Debian/Ubuntu) or `libnotify` (Fedora). Without it, the `os_toast` channel is a silent no-op. |
+| Linux | [`notify-send`](https://man.archlinux.org/man/notify-send.1.en#DESCRIPTION) | Needs `notify-send` on `PATH`. Without it, the `os_toast` channel is a silent no-op. |
 | Windows / other | none | No OS-toast branch: a fire-and-forget hook process leaves no live activator host for a WinRT toast to render into, so it would never reliably surface. The `terminal_notify` channel (OSC 9) carries Windows attention; which Windows terminals handle OSC 9 is read at the Emit terminal notifications pointer record above, which carries this cell's as-of date and recheck trigger. |
+
+- **Pointer**: when checking what `notify-send` is and the project that ships it, fetch
+  [notify-send(1)](https://man.archlinux.org/man/notify-send.1.en#DESCRIPTION) live.
+  **As of**: 2026-11-03. **Recheck trigger**: that page moves, or the command is renamed or
+  leaves libnotify.
 
 The OS toast body includes the current git branch when the project is a git
 repository (e.g. `Waiting for your input — feat/my-branch`); outside a repo it is
@@ -83,7 +88,7 @@ are disabled and the bundled checker reports it, because a Notification hook has
 channel of its own. Relay: what it can return is in the Notification pointer record under
 [Behavior](#behavior). **As of**: 2026-10-11. **Recheck trigger**: that record leaves Behavior,
 or its own recheck trigger fires. macOS needs nothing
-further; Linux needs `libnotify` only for the `os_toast` channel; Windows needs
+further; Linux needs `notify-send` only for the `os_toast` channel; Windows needs
 nothing (terminal channels only). Telemetry
 timing uses `EPOCHREALTIME` (Bash 5.0+); on older bash the telemetry envelope is
 skipped while notifications still fire.

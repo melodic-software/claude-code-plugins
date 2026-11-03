@@ -83,16 +83,15 @@ instruction text of both kinds, output-style markdown, CLAUDE.md / a natively re
 depends on whether `AGENTS.md` support is available in the session and on the instruction-files mode, and this body does not
 restate the condition**: the four-part record for both questions is this plugin's
 [reference/agents-md-liveness.md](../../reference/agents-md-liveness.md); resolve it there, not from
-a copy that can drift. **Displacement is the default mode's answer, not the only one**: under the
-`claude-md-and-agents-md` setting both files load, so an `AGENTS.md` beside a `CLAUDE.md` is live
-there and belongs in the set even though the default mode would call it displaced. The record says
-which scopes honor the setting; resolve the **effective** value across them, not one scope's copy,
-which answers the wrong question whichever way the override runs.
+a copy that can drift. **The set follows the effective mode, not the default mode's answer**: an
+`AGENTS.md` beside a `CLAUDE.md` belongs in the set whenever the effective mode loads it. The record
+says which scopes honor the setting; resolve the **effective** value across them, not one scope's
+copy, which answers the wrong question whichever way the override runs.
 **The mode is the second question, not the only one, and either can rule the file out.** Availability
-comes first and is not a mode question: a session where support is unavailable, for a reason that
-record lists, reads no `AGENTS.md` under ANY mode, and inventorying one would let Phase C propose
-posture additions to a surface nothing loads. No hooks setting is among those reasons. Two of the
-mode's four values, `claude-md` and `managed-only`, rule it out the same way. Exclude on a condition
+comes first and is not a mode question: a session where support is unavailable, for a reason the
+liveness record lists, reads no `AGENTS.md` under ANY mode, and inventorying one would let Phase C
+propose posture additions to a surface nothing loads. No hooks setting is among those reasons. A
+mode that loads no `AGENTS.md` rules it out the same way. Exclude on a condition
 known to rule it out; most are readable, so resolve before falling back.
 **Where a condition stays unresolved, inventory the file but carry the doubt into the finding.**
 Phase C judges every inventoried component and emits a `MISSING` posture for it, so silently
@@ -102,6 +101,11 @@ condition as its failed predicate, the verdict the closed token set below reserv
 that did not hold. That keeps the surface in the report without asserting a gap the reader cannot
 act on. Only where the file is genuinely not read does it reach context as an import, which the
 importing record already covers.
+
+- **Pointer**: when deciding which files a mode loads, fetch
+  [memory: choose which instruction files load](https://code.claude.com/docs/en/memory#choose-which-instruction-files-load)
+  live. **As of**: 2026-11-03. **Recheck trigger**: that section adds, removes or changes a mode.
+
 **The inventory bounds what may produce a finding, not what counts as evidence.** Phase C's
 mechanical-gate rule reads outside it to establish PRESENCE, which can only turn a MISSING into a
 PRESENT, never add a finding on an excluded surface.

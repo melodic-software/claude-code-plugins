@@ -48,7 +48,8 @@ name: work-unblock
 # cancelled after admit and before resolve-issue started (pick-slot's timeout); a
 # run a newer agent-ready run replaced is not. It does that once per issue
 # per version of the lane's two workflow files on main, recorded in a comment,
-# and after that on a backoff (three hours, doubling each time, at most 24),
+# and after that on a backoff (its cause's limits.stranded-backoff-hours,
+# doubling each time, at most 24),
 # recorded in one comment it edits; it never adds needs-human for it. An open
 # pull request of a listed human's for the issue counts as work running on it.
 # When that run opened a lanes-App PR instead, and the PR merged with `Refs:`

@@ -41,7 +41,7 @@ still deletes a linked workaround comment and lists it as open root-cause work.
 | *(empty)* | Batch audit of the uncommitted code files (`<skill-dir>/scripts/changed-code-files.sh`); with none, exit 0 with "No uncommitted code files. Pass a file/dir target." |
 | `<file>` | Single-file audit |
 | `<dir>` | Batch audit, filenames sorted lexically |
-| `--added-since <base> [target]` | Only comments on lines the branch adds against the merge base of `<base>` and `HEAD` (tracked files; a deleted file adds nothing), combined with any target; with no target, the code files that gained lines. An unknown base exits 2: report it and stop. Pull-request prep runs this form over a change's added lines |
+| `--added-since <base> [target]` | Only comments on lines the branch adds against the merge base of `<base>` and `HEAD` (tracked files; a deleted file adds nothing), combined with any target; with no target, the code files that gained lines. An unknown base exits 2: report it and stop. |
 
 Run `<skill-dir>/scripts/detect.sh` (with `--added-since <base>` when given) on the targets and map
 its emitted facts to the per-file table in the output schema, using the treatments above.

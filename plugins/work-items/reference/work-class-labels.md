@@ -1,8 +1,10 @@
 # Work-class labels
 
-Canonical `work-class:` axis members for the merge partition and the untrusted-provenance floor.
-The work-loop admission gate does not decide by work class: only `work-class: untrusted-provenance`
-or `provenance: signal` holds an item for a person.
+Canonical `work-class:` axis members, which triage stamps as a record of an item's risk class.
+Admission, the merge step and the issue lane's stop routing decide nothing by `read-only`,
+`mechanical`, `scoped` or `structural`, or by a missing class. Of the class and provenance labels,
+only `work-class: untrusted-provenance` and `provenance: signal` hold an item for a person, as a
+provenance hold.
 Classification criteria (the risk-property bundles behind C1–C5) live in the `autonomy`
 plugin's [`work-classes.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/reference/guardrails/work-classes.md);
 this leaf owns the **label strings** triage stamps and setup migrates.
@@ -19,7 +21,7 @@ this leaf owns the **label strings** triage stamps and setup migrates.
 
 Discover live members through the bound adapter's label listing (GitHub:
 `gh label list --limit 200 | grep -i work-class`). An item carries **at most one**
-`work-class:` label; the merge partition and the frontier floor read the label only, never a
+`work-class:` label; the frontier floor reads the label only, never a
 `Work-class: C<n>` body trailer.
 
 ## Who applied the role label

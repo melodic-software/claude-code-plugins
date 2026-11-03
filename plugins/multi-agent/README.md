@@ -84,16 +84,23 @@ A `PreToolUse` hook on `Bash` (`lib/docs-fetcher-gate.mjs`) holds the
 `docs-fetcher`: inside that subagent it denies every tool call except one shape,
 `bash "<plugin root>/scripts/docs-raw.sh" '<url>' [<section id>...]`, with the
 URL on the same first-party hosts and no query string. For that command it
-returns no decision, so the session's permission rules still apply, and it
-passes once per agent run. `docs-raw.sh` fetches with `--public-only`, so the
-host must resolve only to global addresses and curl connects to the checked
-one alone. A stdin error or a crash inside the gate denies. When `node` is
-missing or the hook times out, the row's `"onFailure": "block"` denies the call
-on Claude Code 2.1.295 or later, in every agent and the main thread; an older
-client lets it go ahead (see Node.js below). Every other agent and the main
-thread pass through. The row is always-on: it fires on every
-`Bash` call, at a budget of one process (`node`) per call, ratcheted in
-`.performance/ratchets.json` as `multi-agent-pretooluse-bash-docs-fetcher-gate-spawns`.
+makes no decision, and it passes once per agent run. `docs-raw.sh` fetches with
+`--public-only`, so the host must resolve only to global addresses and curl
+connects to the checked one alone. A stdin error or a crash inside the gate
+denies. The row sets `"onFailure": "block"` for a missing `node` or a
+timed-out gate (see Node.js below). Every other agent and the main thread pass
+through.
+
+- **Pointer:** when working out what applies to a call the gate leaves undecided, fetch
+  [hooks: PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control)
+  live; for what `onFailure` does with a failed gate and which Claude Code release honors it, fetch
+  [hooks: Block the action when a hook fails](https://code.claude.com/docs/en/hooks#block-the-action-when-a-hook-fails)
+  live.
+- **As of:** 2026-11-03.
+- **Recheck trigger:** either section changes how an undecided call or a failed hook is handled.
+
+The row is always-on: it fires on every `Bash` call, at a budget of one process
+(`node`) per call, ratcheted in `.performance/ratchets.json` as `multi-agent-pretooluse-bash-docs-fetcher-gate-spawns`.
 
 An installed mod can stop this plugin's `PreToolUse` hooks from running, and can approve a call
 they blocked, so the gate holds only where no installed mod overrides it. Where settings hooks run
@@ -135,11 +142,11 @@ key. `/multi-agent:setup` writes any of the three. Keys, values and layering:
 - **Bash 3.2 or later, awk and git.** The resolver parses the YAML subset with awk, so no
   `jq`, `yq` or Python is needed.
 - **Node.js** for the `drift-checker` fetch gate and the `docs-fetcher` gate. Both rows set
-  `"onFailure": "block"`, so without `node`, Claude Code 2.1.295 or later denies every `WebFetch`
-  and every `Bash` call, in any agent or the main thread, with an error naming the missing
-  executable. An older client ignores the key: the gates then fail open, holding the drift
-  checker's fetches to first-party docs hosts only by the workflow's source filter and the agent's
-  prompt, and leaving the `docs-fetcher`'s `Bash` to the session's permission rules.
+  `"onFailure": "block"`, and the rows fire on every `WebFetch` and every `Bash` call in any agent
+  or the main thread, so a missing `node` can stop all of those calls. What a client does with the
+  key is in the `onFailure` pointer above. Where a failed gate lets a call through, only the
+  workflow's source filter and the agent's prompt hold the drift checker's fetches to first-party
+  docs hosts, and the `docs-fetcher`'s `Bash` goes ungated.
   `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"` reports whether `node` resolves;
   `bash "<plugin root>/scripts/check-hook-registration.sh"` then reports whether `hooks/hooks.json`
   registers the fetch gate on `WebFetch` and whether the gate denies a sample off-host
