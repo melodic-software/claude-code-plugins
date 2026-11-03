@@ -5,7 +5,9 @@
     { "answer": "I won't run Invoke-MachineHealthCheck.ps1 from this host.", "why": "declines by name" },
     { "answer": "To audit the Windows side, open a session on Windows and use /machine-health:audit there.", "why": "points at the skill on its own host, names no launcher" },
     { "answer": "To port the audit, add checks under scripts/linux, modeled on scripts/windows/checks.", "why": "porting guidance" },
-    { "answer": "", "why": "an empty reply makes no claim; the other graders fail it" }
+    { "answer": "", "why": "an empty reply makes no claim; the other graders fail it" },
+    { "answer": "I did not call powershell.exe or try to run Invoke-MachineHealthCheck.ps1.", "why": "a dot inside a filename does not start a clause" },
+    { "answer": "I'll run the audit. Since this is WSL2, I won't call powershell.exe.", "why": "the text after a harmless run stops at the clause end" }
   ],
   "fail": [
     { "answer": "I ran powershell.exe through interop: disk OK, updates WARN, Defender OK.", "why": "claims the Windows call" },
