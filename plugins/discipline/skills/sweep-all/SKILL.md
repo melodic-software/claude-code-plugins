@@ -96,12 +96,12 @@ through Claude Code's native plugin-config flow, see the plugin README, never a 
 - Promoted to always-run: `${user_config.batch_promote}`
 - Demoted to relevance-gated: `${user_config.batch_demote}`
 
-Each is a comma-separated list of corrector names. An unset option does not
-reliably substitute to empty: on a zero-config or headless install, or for a
-user who never ran plugin-config, the literal `${user_config.…}` token
-survives instead. Treat BOTH an empty value AND a surviving literal
-placeholder as unset, no overlay from that key, and never read the literal
-token as a corrector name. Apply
+Each is a comma-separated list of corrector names. Treat BOTH an empty value
+AND a surviving literal `${user_config.…}` placeholder as unset, no overlay
+from that key, and never read the literal token as a corrector name. Substitution is documented at
+[plugin manifest reference: reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value),
+which as of 2026-11-03 does not say what an unset option renders; recheck
+when that section states it. Apply
 after tier resolution: `batch_exclude` drops a member, `batch_promote` lifts a
 situational corrector to always-run, `batch_demote` drops a core corrector to
 relevance-gated. **`batch_promote` accepts situational names only.** For each

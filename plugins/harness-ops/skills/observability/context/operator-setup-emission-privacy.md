@@ -35,8 +35,11 @@ under OAuth, are read live.
 
 ### Traces (user scope)
 
-`CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1` + `OTEL_TRACES_EXPORTER=otlp` (span tracing, required
-for traces) go beside the baseline in user scope. They add structure, not content.
+The span-tracing variables go beside the baseline in user scope. Which variables enable traces,
+and what the spans carry, are read live from
+[monitoring: traces (beta)](https://code.claude.com/docs/en/monitoring-usage#traces-beta)
+(as of 2026-11-03; recheck when that section changes the variables that enable tracing or the
+span attributes).
 
 ### Structure-only keys (committed project `env`)
 
