@@ -237,10 +237,25 @@ handed that filename must get a readable document.
 `CI-02`). The index Summary, the Settled list and the rest of the handoff, catalog and table cells,
 and sidecar abstracts cite a claim by that ID instead of restating its figures, qualifiers or
 attribution, and a line that names a claim at `HIGH (single source)`, `MEDIUM` or `LOW` carries that
-label verbatim on the same line: `(M1, HIGH (single source))`. When a verifier fails a restatement,
-shrink it to a pointer rather than adding text. Rule and ID grammar:
+label verbatim on the same line: `(M1, HIGH (single source))`. No `RESEARCH.md` line that names a
+claim's ID carries `every`, `all`, `none` or `only`. When a check or a verifier fails a
+restatement, shrink it to a pointer rather than adding text. Every claim also declares
+`claim_kind:` (`content` or `behavior`) and `source_owner:`. Rule and ID grammar:
 `${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md`, "Restatements cite; they do not
 restate".
+
+**Both write-time checks exit 0 before you hand back.** After the outcome gate and before the final
+write, run each as one plain command on your slice:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/check-restatement-labels.py" <memory-slice path>
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check-claim-eligibility.py" <memory-slice path>
+```
+
+A non-zero exit means fix and re-run: fix each line or claim its stderr names, then run both
+again, until both exit 0. Where `python3` does not resolve, use `python`. A check you cannot run
+at all is not a pass: name it in `open_questions`, and the parent's gate, which re-runs both, halts
+on it.
 
 **Paths in the artifact are machine-agnostic.** Resolve absolute paths to work, but never echo one
 into an artifact; every path you record is relative to the repo root, or to the working directory

@@ -72,10 +72,17 @@ label: a line that names a claim at `HIGH (single source)`, `MEDIUM` or `LOW` ca
 verbatim on the same line, as in `(M1, HIGH (single source))`, and so does any cell that does
 restate a claim. The flag stays visible wherever the claim goes (`discipline.md`, "Single-source
 first-party content claims"), and a Gap never reads as a finding.
+
+So the Summary, the Settled list and the rest of the handoff are ID pointers with their labels and
+nothing else from the claim: `Settled: M1 (HIGH (single source)), K9.` A line of `RESEARCH.md`
+that names a claim's ID carries no sweep word (`every`, `all`, `none`, `only`), because a sweep
+word on a pointer widens the claim it names. Sidecar bodies are where a claim is said in full, so
+the sweep-word rule reads the index only.
 `scripts/check-restatement-labels.py` reports every line of the index and the sidecars, outside the
-`claims:` headers and the fetch log, that names such a claim's ID without its label. The parent runs
-it after the acceptance gate, advisory for now ([`dispatch.md`](dispatch.md), "The restatement check
-is advisory").
+`claims:` headers and the fetch log, that names a labeled claim's ID without its label, and every
+index line that names any claim's ID beside a sweep word. It fails closed: the researcher runs it
+before hand-back and fixes each reported line until it exits 0, and the parent re-runs it in the
+acceptance gate ([`dispatch.md`](dispatch.md), "The restatement and eligibility checks").
 
 ## The sidecars: `RESEARCH-<section>.md`
 
@@ -99,6 +106,8 @@ claims:
   - claim: "<one-line claim>"
     id: M1                    # the claim ID every restatement cites; unique in the slice
     confidence: HIGH          # HIGH | HIGH (single source) | MEDIUM | LOW
+    claim_kind: behavior      # content | behavior: what a page says, or what a product does
+    source_owner: "<publisher that owns the artifact or product the claim is about>"
     single_source: "<why only one publisher exists; for a paper's reports-claim, also the paper's publisher and the product it owns that the paper measured>"   # only at HIGH (single source); omit otherwise
     tiers: [0, 1]             # source tiers backing this claim
     applies_to: "<product> <version range>"   # the claim's target, or version-independent
@@ -127,6 +136,20 @@ optional hyphen, digits, and an optional lowercase letter (`M1`, `CI-02`, `S2a`)
 slice's sidecars. The index and every sidecar body cite a claim by it, so a restatement is a pointer
 that resolves to one header entry. A claim with no `id:` cannot be cited, and the restatement check
 never looks for it.
+
+**`claim_kind:` and `source_owner:` are declared on every claim, so a script can check the flag
+and the tier mix before a verifier sees them.** `claim_kind` is `content` (what an artifact says: a page, file, changelog, help text, or
+what a paper reports) or `behavior` (what a product does when it runs), split as `discipline.md`'s
+"A behavior claim is not a content claim" says. `source_owner` names the publisher that owns the
+artifact or product the claim is about, written as that publisher's `pool` is written.
+`scripts/check-claim-eligibility.py` fails a claim missing either. It also fails a
+`HIGH (single source)` claim that is not `content`, has no `single_source:` reason, or whose
+primary's `pool` is not its `source_owner` (a third-party report about someone else's product);
+a `HIGH` claim with fewer than three `current` Tier 0/1 sources in distinct pools (two Tier 1 and
+one Tier 2 is `MEDIUM`, per `discipline.md`'s "Confidence calibration"); and a `subject_pool`
+claim above `MEDIUM`. The researcher runs it before hand-back until it exits 0, and the parent
+re-runs it in the acceptance gate. Whether the declared kind and the `single_source:` reason are
+true stays with the verifier.
 
 **`single_source:` is the flag's reason, and criterion 4 grades it.** A claim at
 `HIGH (single source)` carries it; no other claim does. It states why only one publisher of the

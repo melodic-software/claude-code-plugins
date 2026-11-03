@@ -27,10 +27,11 @@ The base is `--base <ref>` when given, else `refs/remotes/origin/HEAD`, else the
 
 The ladder advances on **absence** of a rung, never on emptiness: a rung that exists but yields zero
 code files is reported with `files=0`, so a docs-only branch reports its files as out of scope
-instead of silently escalating to the whole repository. Widening to the `repository` rung is
-confirmed with the user in an interactive session; a non-interactive run proceeds in **safe** mode
-on any widened rung, whatever the posture or dial token. `aggressive` and `strip` reach a widened
-rung only through that interactive confirmation; an explicit target is the other way to mean it.
+instead of silently escalating to the whole repository. Widening to the `repository` rung is taken
+without asking and runs in **safe** mode, whatever the posture or dial token, with the rung, its file
+count and the explicit-target re-run in the report; `report` keeps its posture or dial there, since
+it edits nothing. Outside `report`, a non-interactive run proceeds in safe mode on any widened rung,
+and `aggressive` and `strip` apply to the whole repository only through an explicit target.
 
 Granularity is per file: every comment in a listed file is triaged, not only the lines the diff
 added. That is deliberate. A pull request that touches a file is the moment its existing comments

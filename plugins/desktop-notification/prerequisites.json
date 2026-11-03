@@ -15,8 +15,7 @@
       "degrade": "Without node, the desktop-notification hooks cannot launch, so they do nothing.",
       "install": {
         "docs": "https://nodejs.org/en/download"
-      },
-      "check": "/desktop-notification:check"
+      }
     },
     {
       "id": "jq",
@@ -33,8 +32,7 @@
       "degrade": "Without jq, the desktop-notification hooks skip their work.",
       "install": {
         "docs": "https://jqlang.org/download/"
-      },
-      "check": "/desktop-notification:check"
+      }
     }
   ]
 }

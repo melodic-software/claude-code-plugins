@@ -15,8 +15,7 @@
       "degrade": "Without node, the session-flow hooks cannot launch, so they do nothing.",
       "install": {
         "docs": "https://nodejs.org/en/download"
-      },
-      "check": "/session-flow:check"
+      }
     },
     {
       "id": "jq",
@@ -34,8 +33,7 @@
       "degrade": "Without jq, the session-flow hooks skip their work, and fetch-docs.sh exits before reading anything so /session-flow:retro reads a docs page with WebFetch instead.",
       "install": {
         "docs": "https://jqlang.org/download/"
-      },
-      "check": "/session-flow:check"
+      }
     },
     {
       "id": "gh",
