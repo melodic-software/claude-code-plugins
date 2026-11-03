@@ -1,5 +1,5 @@
 {
-  "name": "maintenance-code-tidying-upkeep",
+  "name": "maintenance-tidy-code-upkeep",
   "private": true,
   "scripts": {
     "test": "node --test"
