@@ -442,12 +442,16 @@ against Claude Code 2.1.263. Recheck when the issue reopens or closes as complet
 refresh against a non-empty marketplace directory succeeds here; route the recheck through
 `/harness-ops:known-issues check-all`.
 
-**A refresh that would land the same commit is skipped.** The CLI re-clones a `github` or `git`
-marketplace on every refresh, which took 9.0 s of a 16.7 s first pass on one host. `marketplace
-update` moves such a source to the latest commit of its pinned `ref`, else of the default branch
-([plugin commands reference](https://code.claude.com/docs/en/plugins/cli-reference#plugin-marketplace-update),
-read 2026-11-02). So before the call the script runs `git ls-remote origin` in the clone, asking
-for `refs/heads/<ref>` when the source pins a `ref` and for `HEAD` otherwise. It skips the call only
+**A refresh that would land the same commit is skipped.** Step 1 skips the refresh of a `github`
+or `git` marketplace when `git ls-remote` shows the source's ref already at the clone's HEAD, so a
+sync that moves nothing does not pay for a refresh. What `marketplace update` moves such a source
+to is in the
+[plugin commands reference](https://code.claude.com/docs/en/plugins/cli-reference#plugin-marketplace-update),
+read 2026-11-02. Recheck when that section changes which commit a `github` or `git` source updates
+to, or when a refresh that lands the same commit is observed to change anything beyond the clone;
+either one makes the skip unsafe or unneeded. So before the call the script runs `git ls-remote
+origin` in the clone, asking for `refs/heads/<ref>` when the source pins a `ref` and for `HEAD`
+otherwise. It skips the call only
 when the source carries no key beyond `source`, `repo`, `url`, `ref` and `path`, `installLocation`
 is the clone's root, its `origin` is the recorded source, `git status` lists no modified or
 untracked file, a pinned ref is the checked-out branch, and the remote answers with the clone's
@@ -456,8 +460,8 @@ journal and a `refresh skipped` row under the marketplace header say so, the dig
 `refresh.skipped` holds `{head, ref}` with `refresh.rc` null, and `lastUpdated` keeps the last
 refresh's stamp. Every other case runs the refresh: another source kind, a pinned ref that is a tag
 or a different branch, an unreachable remote, or one that asks for a credential, since prompts are
-off and stdin is closed. The skip rests on the catalog files being the same at the same commit; the
-docs do not say whether a refresh that moves nothing does other work. To force one, run `claude
+off and stdin is closed. The skip rests on the catalog files being the same at the same commit, and
+on a refresh that moves nothing doing no other work this skill depends on. To force one, run `claude
 plugin marketplace update <mp>` directly.
 
 The snapshot goes first because it is the only read taken while the catalog is still pre-refresh,
