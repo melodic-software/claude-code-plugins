@@ -1,5 +1,7 @@
 schema_version: "1.1"
 name: 'codify-model-invoked-note-appends'
+context:
+  scaffold_script: scaffold.sh
 graders:
   - name: 'appends-model-invoked-note'
     type: 'llm'
