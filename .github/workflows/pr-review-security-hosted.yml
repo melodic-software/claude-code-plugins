@@ -227,6 +227,10 @@ jobs:
       lane: security
       publish: comments
       lane-transcript-public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+      # Hours a key credit stop keeps runs on the subscription, as in
+      # pr-verify.yml and pr-review-main.yml (1 unset). fromJSON makes it the
+      # number the input takes.
+      key-credit-window-hours: ${{ fromJSON(vars.KEY_CREDIT_WINDOW_HOURS || '1') }}
       # Empty unless resolve-model succeeded, so a failed job's partial output
       # never reaches the review.
       model-args: ${{ needs.resolve-model.result == 'success' && needs.resolve-model.outputs.claude-args || '' }}

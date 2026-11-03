@@ -101,6 +101,13 @@ for pair in 'pr-review-hosted.yml pr-review:' 'pr-review-security-hosted.yml pr-
   else
     fail "$file does not grant actions: read to job ${job%:}"
   fi
+  # The key-credit window matches pr-verify.yml's: vars.KEY_CREDIT_WINDOW_HOURS,
+  # 1 hour unset, not pr-review-cli's 6-hour default.
+  if grep -qxF "      key-credit-window-hours: \${{ fromJSON(vars.KEY_CREDIT_WINDOW_HOURS || '1') }}" "$caller"; then
+    ok "$file passes the 1-hour key-credit window"
+  else
+    fail "$file does not pass key-credit-window-hours from vars.KEY_CREDIT_WINDOW_HOURS with a 1-hour default"
+  fi
   paths="$(awk '/^      hold-paths: \|$/ { on = 1; next } on && /^        / { sub(/^ +/, ""); print; next } on { exit }' "$caller")"
   # test_merge_holds_sync.py checks the list covers the path floor; here the
   # two callers agree and keep the trusted-actor list and the security
