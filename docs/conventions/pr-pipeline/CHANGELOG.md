@@ -1,5 +1,42 @@
 # Changelog for the PR pipeline convention
 
+## [8.48.0] - 2026-11-03
+
+### Changed
+
+- A work-resolve-issue run whose patch the scan job refused for its size (`scan-refused-patch`)
+  now goes to intake for a split, with one re-entry, instead of retrying: a fresh run re-spent a
+  model run on work too large for one patch. Admission parks such an issue for intake's split at
+  any Size, a listed human's included, until a listed human adds `agent-ready` again, since
+  re-triage rates Size from the issue text alone and would admit it at Small or Medium again.
+
+- `post-merge-demotion-alert.yml` writes a lift block into each canary and revert record it files: the lines `scripts/check-silent-revert.sh` attributes to a culprit in the pushed commits (its new opt-in `DELETED_SINK`), or the lines the revert commits deleted. A canary record `babysit_postmerge.py --remediate` filed first gets the block as a comment. The record bodies say they lift once that content is back on main or a referencing pull request merges with it.
+- The `close-cleared` job checks out main and runs `babysit_lift.py close`, which comments on, unlabels and closes each lifted canary, revert or read-back record; it now also holds `pull-requests: read`. The pr-pipeline README states the lift rule and its one exception, a canary record with no lift block.
+
+- pr-verify and pr-review-main pin ci-workflows check-key-credit at `09cf6f2`, which adds the
+  probing marker: once a credit stop is past its window but still kept, the first gate names
+  itself the probe and later gates skip the key while its marker is fresh, so one run tries the
+  key after the window ends instead of every run that reads before the next credit stop lands.
+  Each gate job writes, scans and uploads `key-credit-probing-<workflow>-<key-job>` right after
+  the gate step, kept one day, with the runner's token and no added job permission.
+  pr-review-main's gate job checks nothing out, so it scans with ci-workflows' `scan-upload`.
+  The gate makes a second artifact-list call in recovery. pr-verify's other ci-workflows actions
+  move to the same pin, which brings in run-claude-cli's limit-stop handoff for a token leg that
+  timed out under a rejected rate limit.
+
+### Fixed
+
+- The shared rate guard (`rate-guard.mjs`) waits out a rate-limit reset that fits its 60 s budget
+  (`SERVER_RETRY_BUDGET_MS`, resets summed per latch) and sends the call, instead of refusing it.
+  `createGitHub` (`check-trusted-trigger.mjs`) sends a read a rate limit refused once more after
+  the reset, inside its 3 attempts, and that refusal no longer fails the step; a write is never
+  resent. A reset past the budget is still refused.
+- A step that holds (`API_BUDGET_HOLD=1`) gets a rate limit as a `::notice::` instead of an
+  `::error::`: the Node guard leaves the exit to the caller instead of failing the step, and the
+  `api-budget.bash` gh wrapper prints a notice. The call is still refused or returns 1, so a gate
+  that does not hold, such as `ci-status` or the trusted-trigger check, still fails closed. No
+  workflow sets the variable yet. A stop the job's stop file cannot take still fails the step.
+
 ## [8.47.0] - 2026-11-03
 
 ### Added

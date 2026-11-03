@@ -1,0 +1,10 @@
+---
+description: 'The scaffold repository has three pages under docs/ that each restate the API port and key path.'
+tags: ['reduce']
+allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+max_turns: 40
+timeout_seconds: 900
+expected_outcome: 'Scans the docs altitude for cross-document coupling, verifies findings, ranks them, writes the ledger, and stops — no file edits outside the ledger, no branch, no push, no tracker items.'
+---
+
+/coupling:reduce dry-run docs

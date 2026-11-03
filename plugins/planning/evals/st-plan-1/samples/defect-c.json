@@ -19,6 +19,18 @@
     {
       "answer": "| 1 | IMPORTANT | Plan | Phase 1 commits per member, so a retry charges them again | Fix before building |\n",
       "why": "paraphrase"
+    },
+    {
+      "answer": "- The `run-job` retry wrapper cannot prevent a duplicate ledger entry: `accrue_fines` commits per member with no unique key.\n",
+      "why": "cannot prevent"
+    },
+    {
+      "answer": "- The plan assumes `accrue_fines` is idempotent, but `member_ledger` has no unique constraint, so a rerun adds a second row.\n",
+      "why": "quotes the claim, then attacks it"
+    },
+    {
+      "answer": "- `member_ledger` has no duplicate entry guard, so a `run-job` retry fines the member twice.\n",
+      "why": "no duplicate guard"
     }
   ],
   "fail": [

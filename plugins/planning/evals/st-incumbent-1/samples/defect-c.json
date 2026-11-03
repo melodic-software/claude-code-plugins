@@ -19,6 +19,10 @@
     {
       "answer": "- Two containers on the `reminders-state` volume risk a corrupted jobs.db, since the store has no file lock.\n",
       "why": "corruption phrasing"
+    },
+    {
+      "answer": "- Sharding by `SHARD_INDEX` does not prevent duplicate sends: both workers load the same job store and fire every job.\n",
+      "why": "does not prevent duplicates"
     }
   ],
   "fail": [
@@ -49,6 +53,10 @@
     {
       "answer": "- `worker-0` has no health check in compose.\n",
       "why": "service named, nature absent"
+    },
+    {
+      "answer": "- `worker-1` will not double-send: `SHARD_INDEX` splits the jobs between the two workers.\n",
+      "why": "negated attack"
     }
   ]
 }

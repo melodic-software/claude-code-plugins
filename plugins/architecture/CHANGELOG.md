@@ -3,6 +3,12 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.3] - 2026-11-03
+
+### Changed
+
+- The rendered-view reference is now a synced copy of the one shared rendered-view procedure, and the shared medium resolver modules (`view-settings.mjs` and the modules it loads) ship under `lib/` ([#12667](https://github.com/melodic-software/claude-code-plugins/issues/12667)); no skill changes how it resolves the medium yet.
+
 ## [1.4.2] - 2026-11-02
 
 ### Changed

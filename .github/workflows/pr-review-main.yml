@@ -342,10 +342,14 @@ jobs:
   # routes a key leg's credit stop, uploads the artifact the gate's `marker`
   # output names, and the gate lists that one name, so the window counts
   # from the credit stop, not the last skip, and a topped-up or rotated key
-  # is tried once it ends. Only a run whose trigger job starts the key legs
+  # is tried once it ends. Once that stop is past the window but still kept,
+  # a second read lists the probing marker: the first gate after the window
+  # uploads it and passes the key, and later gates skip while it is fresh, so
+  # one run tries the key. Only a run whose trigger job starts the key legs
   # reports them skipped or hands them on. It holds no secret, checks
   # nothing out and reads only this repository's marker artifacts. Every
-  # failure runs the key: the review job's `if` starts with !cancelled().
+  # failure runs the key and writes no probe: the review job's `if` starts
+  # with !cancelled().
   review-handoffs-credit:
     needs: trigger
     if: >-
@@ -367,10 +371,50 @@ jobs:
         id: gate
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/check-key-credit@bc62beb95a989641f30552a932a132ebb8ecd801 # bc62beb 2026-11-03
+        uses: melodic-software/ci-workflows/.github/actions/check-key-credit@09cf6f2ecd22f7188e62552dea9af48adbd23bb1 # 09cf6f2 2026-11-03
         with:
           key-job: review-handoffs
           window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}
+
+      # Read by the next runs' gates: the probing marker the gate names
+      # (gate.cjs probeName) when this run tries the key first after a credit
+      # stop's window, so they skip while this run's key legs do. Uploaded
+      # right after the read to keep the gap short; a key leg's credit stop
+      # makes review-handoffs upload the credit-stop marker, which takes over.
+      # Written only when this run's key legs start (the review job's trigger
+      # terms, proceed included), so a run that reviews nothing never holds the
+      # key off. The name is written out so its retention row claims it. This
+      # job checks nothing out, so the scan is ci-workflows' own action at the
+      # gate's pin. An artifact upload uses the runner's token, so the job keeps
+      # actions: read.
+      - name: Write the key's probing marker
+        id: probe-marker
+        if: always() && steps.gate.outputs.probing-marker == 'key-credit-probing-pr-review-main.yml-review-handoffs' && needs.trigger.outputs.proceed == 'true' && needs.trigger.outputs.review != 'false' && needs.trigger.outputs.judged != 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          mkdir -p "$RUNNER_TEMP/key-credit-probing"
+          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-probing/run-id"
+
+      - name: Scan the key's probing marker for credentials
+        id: probe-marker-scan
+        if: always() && steps.probe-marker.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@09cf6f2ecd22f7188e62552dea9af48adbd23bb1 # 09cf6f2 2026-11-03
+        with:
+          path: ${{ runner.temp }}/key-credit-probing/run-id
+
+      - name: Upload the key's probing marker
+        if: (always() && steps.probe-marker.outcome == 'success') && steps.probe-marker-scan.outputs.clean == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: key-credit-probing-pr-review-main.yml-review-handoffs
+          path: ${{ runner.temp }}/key-credit-probing/run-id
+          if-no-files-found: error
+          retention-days: 1
 
       # Each skipped key leg's lane record: outcome skip, class credit-stop,
       # handed off, so leg counts before and after the gate compare.
