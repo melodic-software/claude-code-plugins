@@ -1144,12 +1144,14 @@ run_stub() {
   # The gql double serves the stranded fixtures by cursor alone, so a gql run
   # takes its stuck and owner-touch reads from empty fixtures unless MB_STUCK_LIVE
   # or MB_TOUCH_LIVE is set; a later --stuck-json or --touch-json in "$@" wins.
-  local mode="$1" stuck=()
+  # MB_NO_DATA_DIR omits --data-dir, so the brief resolves its own fallback.
+  local mode="$1" stuck=() data=(--data-dir "${MB_DATA_DIR:-$TMP/data}")
   shift
+  [[ -n "${MB_NO_DATA_DIR:-}" ]] && data=()
   [[ "$mode" == gql && -z "${MB_STUCK_LIVE:-}" ]] && stuck=(--stuck-json "$TMP/stuck-empty.json")
   [[ "$mode" == gql && -z "${MB_TOUCH_LIVE:-}" ]] && stuck+=(--touch-json "$TMP/touch-empty.json")
   PATH="$GH_STUB_DIR:$PATH" MB_GH_MODE="$mode" MB_GH_FIXTURES="${MB_GH_FIXTURES:-$TMP/rest}" \
-    bash "$BRIEF" --now "$NOW" --stale-hours 6 --repo "$FIXTURE_REPO" --data-dir "${MB_DATA_DIR:-$TMP/data}" \
+    bash "$BRIEF" --now "$NOW" --stale-hours 6 --repo "$FIXTURE_REPO" ${data[@]+"${data[@]}"} \
     "${COST_ARGS[@]}" ${stuck[@]+"${stuck[@]}"} "$@" 2>&1
 }
 
@@ -1545,6 +1547,28 @@ assert_contains "paging: the header prints the window bounds" "$STR_PAGE" "merge
 assert_contains "paging: a merge inside the floor is reported" "$STR_PAGE" "[P1] #500"
 assert_not_contains "paging: a merge before the floor is not reported" "$STR_PAGE" "#501"
 assert_eq "bookmark: a full read saves this run's floor" "2026-07-17T08:00Z" "$(bookmark_of "$TMP/data-page")"
+
+# With no --data-dir, the bookmark goes to a work-items CLAUDE_PLUGIN_DATA, else
+# to ~/.claude/plugins/data/work-items; never to a harness-ops data dir. The
+# brief gets a fake HOME; its jq and python3 keep the real one, since a version
+# manager's shim resolves the tool from HOME.
+REALHOME_BIN="$TMP/realhome-bin"
+mkdir -p "$REALHOME_BIN"
+for tool in jq python3; do
+  tool_path="$(command -v "$tool")" || continue
+  printf '#!/usr/bin/env bash\nHOME=%q exec %q "$@"\n' "$HOME" "$tool_path" >"$REALHOME_BIN/$tool"
+  chmod +x "$REALHOME_BIN/$tool"
+done
+MB_NO_DATA_DIR=1 CLAUDE_PLUGIN_DATA="$TMP/plugdata/work-items-mkt" HOME="$TMP/home-seg" PATH="$REALHOME_BIN:$PATH" \
+  MB_GH_FIXTURES="$STR" run_stub gql "${FIX_ARGS[@]}" >/dev/null
+assert_eq "data-dir fallback: a work-items CLAUDE_PLUGIN_DATA holds the bookmark" "2026-07-17T08:00Z" \
+  "$(bookmark_of "$TMP/plugdata/work-items-mkt")"
+MB_NO_DATA_DIR=1 CLAUDE_PLUGIN_DATA="$TMP/plugdata/harness-ops" HOME="$TMP/home-fb" PATH="$REALHOME_BIN:$PATH" \
+  MB_GH_FIXTURES="$STR" run_stub gql "${FIX_ARGS[@]}" >/dev/null
+assert_eq "data-dir fallback: a harness-ops CLAUDE_PLUGIN_DATA falls back to the home work-items dir" "2026-07-17T08:00Z" \
+  "$(bookmark_of "$TMP/home-fb/.claude/plugins/data/work-items")"
+assert_eq "data-dir fallback: no harness-ops data dir is written" "absent" \
+  "$([[ -e "$TMP/plugdata/harness-ops" || -e "$TMP/home-fb/.claude/plugins/data/harness-ops" ]] && echo present || echo absent)"
 
 mkdir -p "$TMP/data-mark/morning-brief/$FIXTURE_REPO"
 printf '2026-07-10T08:00Z\n' >"$TMP/data-mark/morning-brief/$FIXTURE_REPO/stranded-cutoff"
