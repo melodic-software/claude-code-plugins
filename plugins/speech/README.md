@@ -16,7 +16,7 @@ interactive page can then follow the voice word by word.
 | Skill | What it does |
 |---|---|
 | `/speech:narrate <script>` | Writes `narration.wav` (24 kHz mono) and `words.json` (one `{word, start, end}` per script word) |
-| `/speech:setup [check \| apply install-model]` | `check` is the same report; `apply install-model` downloads the pinned model files |
+| `/speech:setup [check \| apply install-model]` | `check` is the read-only report from `scripts/check.py`: one PASS or FAIL row per prerequisite, each FAIL with its remedy; `apply install-model` downloads the pinned model files |
 
 ## The kokoro backend
 
