@@ -88,13 +88,13 @@ bound_repo() { # bound_repo <pointer line>: a repository whose root file binds a
   printf '%s\n' "$d"
 }
 
-repo="$(bound_repo 'Team conventions live in `config/team`.')"
+repo="$(bound_repo "Team conventions live in \`config/team\`.")"
 check 'a bound home supplies the team layer' \
   "comment_posture${TAB}necessary${TAB}config/team/code-tidying.yaml" "$(lines_for "$repo" comment_posture)"
 check 'a bound home supplies the personal overlay' \
   "comment_edit_scope${TAB}diff${TAB}config/team/code-tidying.local.yaml" "$(lines_for "$repo" comment_edit_scope)"
 
-repo="$(bound_repo 'Team conventions live in `config/missing`.')"
+repo="$(bound_repo "Team conventions live in \`config/missing\`.")"
 check 'a broken pointer leaves the layers out' \
   "comment_posture${TAB}unset${TAB}the convention-home pointer is broken" "$(lines_for "$repo" comment_posture)"
 
