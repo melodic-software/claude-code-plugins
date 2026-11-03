@@ -124,10 +124,11 @@ defers until the docs are reachable. Never finalize a draft on a shape or limit 
 
 ## Step 2. Draft the condition
 
-The evaluator judges the condition against **what Claude has already surfaced in the transcript**;
-it does not run commands or read files. Every claim in the condition must be something Claude's own
-output can demonstrate. Avoid conditions the transcript cannot show (subjective quality, external
-state Claude never surfaces).
+Every claim in the condition must be something Claude's own output in the transcript can
+demonstrate. Avoid conditions the transcript cannot show (subjective quality, external state Claude
+never surfaces). What the evaluator reads:
+[How evaluation works](https://code.claude.com/docs/en/goal#how-evaluation-works), as of
+2026-11-03; recheck when that section changes what the evaluator receives or can call.
 
 Structure the draft to the shape Step 1 read off the live page; this file does not restate its
 elements. Keep each prescribed element separately identifiable, so Step 3's tightening pass can
@@ -181,9 +182,8 @@ on the wrong evidence. Build the Step 1 shape from these three moves; they feed 
    verdict. "…a report where you have verified every citation by fetching it and confirming the
    page supports the claim" is checkable; "…a report whose citations are correct" is not.
 
-The judgment is not self-review: it is delegated to a fresh-context evaluator model that receives
-only the condition and the conversation and calls nothing, so move 3 is credited only by verification Claude **performed in the transcript**; a
-claim that checking happened reads the same as the checking. Word it so the doing leaves visible
+Move 3 is credited only by verification Claude **performed in the transcript** (the evaluator
+pointer is in Step 2); a claim that checking happened reads the same as the checking. Word it so the doing leaves visible
 output (the fetches, the diffs, the command runs). Subjective quality stays out of the condition
 except as whatever moves 1–3 made observable.
 
@@ -287,13 +287,15 @@ in [reference/native-goal.md](reference/native-goal.md).
   substitute a token estimate.
 - **Never hardcode the limit or the shape** into a draft, this file, or the script. They are read
   live each run.
-- **Over-limit submission behavior is undocumented**. There is no stated truncation or rejection
-  semantics, so the pre-submission counter is the only guard. Do not assume the app will trim.
+- **The pre-submission counter is the only length guard.** Do not assume the app trims an
+  over-limit condition. The limit is in
+  [Write an effective condition](https://code.claude.com/docs/en/goal#write-an-effective-condition),
+  as of 2026-11-03; recheck when that section says what happens to an over-limit condition.
 - **A long goal run draws usage on every turn.** We treat a goal left waiting on background work as
   still spending usage, so flag it when drafting a goal that waits on background work. Pointer:
   for why usage climbs in a long session and the setting that turns goal check-ins off, see
   <https://code.claude.com/docs/en/costs#why-usage-climbs-in-a-long-session>. As of: 2026-10-01.
   Recheck trigger: that section moves or stops naming goal check-ins.
-- **A goal does not change permissions.** If the stated check runs a command, the user still gets
-  asked unless auto mode or their settings already allow it. Flag it when the check is a shell
-  command.
+- **Flag a goal whose check is a shell command**, and point the user at
+  [Set a goal](https://code.claude.com/docs/en/goal#set-a-goal) for how goal turns get permission,
+  as of 2026-11-03; recheck when that section changes how a goal interacts with permission modes.
