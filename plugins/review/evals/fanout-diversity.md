@@ -29,11 +29,13 @@ placement and the act-on cap. This file is the shape every slice of that eval fo
   are absent
   ([How runs are isolated](https://code.claude.com/docs/en/plugin-evals#how-runs-are-isolated)).
   Never copy the Codex login into a run's home: the model under test could read it. Run the X
-  arms outside `claude plugin eval`, one `claude -p` per run with the case's scaffold, prompt and
-  `--plugin-dir` plugins on a host where the Codex plugin is installed and logged in, stop each
-  run's Codex broker and app-server when it ends, and grade the copied report with the case's
-  graders. A run is valid only when `arm-check` and `codex-ran` both pass.
-- Run every arm with `--scaffold --allow-tools Bash Write Workflow`. Without `Workflow` the sweep
+  arms outside `claude plugin eval`, one `claude -p --output-format stream-json --verbose
+  --permission-mode auto` per run with the case's scaffold, prompt and `--plugin-dir` plugins, on
+  a host where the Codex plugin is installed and logged in, keep the stream as the run's trace, and
+  stop each run's Codex broker and app-server when it ends. Grade `arm-check` on the final message,
+  `codex-ran` on the trace, and `recall` and `false-positive` on the copied report. A run is valid
+  only when `arm-check` and `codex-ran` both pass.
+- Run the L and M arms with `--scaffold --allow-tools Bash Write Workflow`. Without `Workflow` the sweep
   runs fanout's main-thread fallback, not `review:fanout-sweep`. Keep `TMPDIR` out of `/tmp` and
   `/var/tmp`, where the run's Bash cannot write its workspace (#12422).
 - The M arms load a plugin outside `review`, so the eval target must contain both: stage
