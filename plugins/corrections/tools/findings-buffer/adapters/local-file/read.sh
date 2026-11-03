@@ -27,22 +27,32 @@ if [[ -n "$SINCE" && ! "$SINCE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}
   exit 2
 fi
 
-ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
+COMMON="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" && [[ -d "$COMMON" ]] || {
   echo "read.sh: not inside a git repository" >&2
   exit 3
 }
 
-FILE="$ROOT/.work/buffer/findings.jsonl"
-for p in "$ROOT/.work" "$ROOT/.work/buffer" "$FILE"; do
-  if [[ -L "$p" ]]; then
-    echo "read.sh: $p is a symlink; the buffer must be a plain directory in the repository" >&2
-    exit 2
-  fi
-done
-[[ -f "$FILE" ]] || exit 0
+# The shared file, then the per-worktree file appends wrote before the buffer moved.
+FILES=()
+refuse_links() {
+  local p
+  for p in "$@"; do
+    if [[ -L "$p" ]]; then
+      echo "read.sh: $p is a symlink; the buffer must be a plain directory" >&2
+      exit 2
+    fi
+  done
+}
+refuse_links "$COMMON/findings-buffer" "$COMMON/findings-buffer/findings.jsonl"
+[[ -f "$COMMON/findings-buffer/findings.jsonl" ]] && FILES+=("$COMMON/findings-buffer/findings.jsonl")
+if TOP="$(git rev-parse --show-toplevel 2>/dev/null)" && [[ -n "$TOP" ]]; then
+  refuse_links "$TOP/.work" "$TOP/.work/buffer" "$TOP/.work/buffer/findings.jsonl"
+  [[ -f "$TOP/.work/buffer/findings.jsonl" ]] && FILES+=("$TOP/.work/buffer/findings.jsonl")
+fi
+[[ ${#FILES[@]} -gt 0 ]] || exit 0
 
 if [[ -z "$SINCE" ]]; then
-  cat "$FILE" || exit 1
+  cat "${FILES[@]}" || exit 1
   exit 0
 fi
 
@@ -55,4 +65,4 @@ command -v jq >/dev/null 2>&1 || {
 # a bare "Z", and the contract allows returning rows older than --since. A row with
 # no string ts is kept.
 jq -c --arg s "${SINCE:0:19}" \
-  'select((.ts | type) != "string" or .ts[0:19] >= $s)' "$FILE" || exit 1
+  'select((.ts | type) != "string" or .ts[0:19] >= $s)' "${FILES[@]}" || exit 1

@@ -66,9 +66,9 @@ make_broken() {
 D="$(make_broken drops)"
 cat >"$D/append.sh" <<'EOF'
 #!/usr/bin/env bash
-ROOT="$(git rev-parse --show-toplevel)" || exit 3
-mkdir -p "$ROOT/.work/buffer"
-head -n 1 >>"$ROOT/.work/buffer/findings.jsonl"
+COMMON="$(git rev-parse --path-format=absolute --git-common-dir)" || exit 3
+mkdir -p "$COMMON/findings-buffer"
+head -n 1 >>"$COMMON/findings-buffer/findings.jsonl"
 EOF
 bash "$CONF" "$D" >/dev/null 2>&1
 expect_exit 1 $? "an adapter that loses a row fails"
@@ -89,27 +89,27 @@ expect_exit 1 $? "an unparsable capabilities.json fails"
 D="$(make_broken lax)"
 cat >"$D/read.sh" <<'EOF'
 #!/usr/bin/env bash
-ROOT="$(git rev-parse --show-toplevel)" || exit 3
-cat "$ROOT/.work/buffer/findings.jsonl" 2>/dev/null
+COMMON="$(git rev-parse --path-format=absolute --git-common-dir)" || exit 3
+cat "$COMMON/findings-buffer/findings.jsonl" 2>/dev/null
 exit 0
 EOF
 bash "$CONF" "$D" >/dev/null 2>&1
 expect_exit 1 $? "an adapter that accepts a bad argument fails"
 
-# local-file stores under .work/buffer/findings.jsonl
+# local-file stores under <git common dir>/findings-buffer/findings.jsonl
 REPO="$TEST_TMPDIR/repo"
 git init -q -b main "$REPO" >/dev/null 2>&1
 printf '{"obs_id":"x","ts":"2026-10-21T00:00:00Z"}\n' | (cd "$REPO" && bash "$LOCAL/append.sh")
-if [[ -s "$REPO/.work/buffer/findings.jsonl" ]]; then
-  pass "local-file creates .work/buffer/findings.jsonl on first append"
+if [[ -s "$REPO/.git/findings-buffer/findings.jsonl" ]]; then
+  pass "local-file creates .git/findings-buffer/findings.jsonl on first append"
 else
-  fail "local-file creates .work/buffer/findings.jsonl on first append"
+  fail "local-file creates .git/findings-buffer/findings.jsonl on first append"
 fi
 
 # a malformed row stores nothing and exits 2
 printf '{"obs_id":"y","ts":"2026-10-21T00:00:01Z"}\nnot json\n' | (cd "$REPO" && bash "$LOCAL/append.sh" >/dev/null 2>&1)
 expect_exit 2 $? "append.sh with a malformed row exits 2"
-if [[ "$(wc -l <"$REPO/.work/buffer/findings.jsonl")" -eq 1 ]]; then
+if [[ "$(wc -l <"$REPO/.git/findings-buffer/findings.jsonl")" -eq 1 ]]; then
   pass "a malformed row stores nothing from that call"
 else
   fail "a malformed row stores nothing from that call"
@@ -120,7 +120,7 @@ for bad in '{oops}' '{}' '{"obs_id":"z"}' '{"obs_id":"z","ts":"2026-10-21T00:00:
   printf '%s\n' "$bad" | (cd "$REPO" && bash "$LOCAL/append.sh" >/dev/null 2>&1)
   expect_exit 2 $? "append.sh rejects $bad"
 done
-if [[ "$(wc -l <"$REPO/.work/buffer/findings.jsonl")" -eq 1 ]]; then
+if [[ "$(wc -l <"$REPO/.git/findings-buffer/findings.jsonl")" -eq 1 ]]; then
   pass "rejected rows store nothing"
 else
   fail "rejected rows store nothing"
@@ -145,7 +145,7 @@ done
 nf_append() { (cd "$REPO" && PATH="$NOFLOCK" bash "$LOCAL/append.sh"); }
 printf '{"obs_id":"nf1","ts":"2026-10-21T00:00:03Z"}\n' | nf_append
 expect_exit 0 $? "append.sh without flock exits 0"
-if [[ ! -e "$REPO/.work/buffer/.lockdir" ]]; then
+if [[ ! -e "$REPO/.git/findings-buffer/.lockdir" ]]; then
   pass "the mkdir lock is released after an append"
 else
   fail "the mkdir lock is released after an append"
@@ -153,19 +153,19 @@ fi
 
 # TERM while waiting on a live holder: the waiter never held the lock, so the
 # holder's lock stays; TERM to the holder side is the trap path below.
-mkdir "$REPO/.work/buffer/.lockdir"
-printf '%s\n' "$$" >"$REPO/.work/buffer/.lockdir/pid"
+mkdir "$REPO/.git/findings-buffer/.lockdir"
+printf '%s\n' "$$" >"$REPO/.git/findings-buffer/.lockdir/pid"
 (cd "$REPO" && PATH="$NOFLOCK" exec bash "$LOCAL/append.sh" <<<'{"obs_id":"nf-wait","ts":"2026-10-21T00:00:05Z"}') 2>/dev/null &
 waiter=$!
 sleep 0.5
 kill -TERM "$waiter" 2>/dev/null
 wait "$waiter" 2>/dev/null
-if [[ "$(cat "$REPO/.work/buffer/.lockdir/pid" 2>/dev/null)" == "$$" ]]; then
+if [[ "$(cat "$REPO/.git/findings-buffer/.lockdir/pid" 2>/dev/null)" == "$$" ]]; then
   pass "a TERMed waiter leaves another holder's lock in place"
 else
   fail "a TERMed waiter leaves another holder's lock in place"
 fi
-rm -rf "$REPO/.work/buffer/.lockdir"
+rm -rf "$REPO/.git/findings-buffer/.lockdir"
 
 # TERM to a holder: a slow sync stub keeps the holder inside the lock; bash runs
 # the TERM trap once the stub returns, and the EXIT trap releases the lock.
@@ -178,34 +178,34 @@ chmod +x "$SLOW/sync"
 (cd "$REPO" && PATH="$SLOW" exec bash "$LOCAL/append.sh" <<<'{"obs_id":"nf-term","ts":"2026-10-21T00:00:06Z"}') 2>/dev/null &
 holder=$!
 for _ in $(seq 1 50); do
-  [[ -f "$REPO/.work/buffer/.lockdir/pid" ]] && break
+  [[ -f "$REPO/.git/findings-buffer/.lockdir/pid" ]] && break
   sleep 0.1
 done
 kill -TERM "$holder" 2>/dev/null
 wait "$holder" 2>/dev/null
-if [[ ! -e "$REPO/.work/buffer/.lockdir" ]]; then
+if [[ ! -e "$REPO/.git/findings-buffer/.lockdir" ]]; then
   pass "the mkdir lock is released when its holder gets TERM"
 else
   fail "the mkdir lock is released when its holder gets TERM"
-  rm -rf "$REPO/.work/buffer/.lockdir"
+  rm -rf "$REPO/.git/findings-buffer/.lockdir"
 fi
 
 sleep 0 &
 dead=$!
 wait "$dead"
-mkdir "$REPO/.work/buffer/.lockdir"
-printf '%s\n' "$dead" >"$REPO/.work/buffer/.lockdir/pid"
-before="$(wc -l <"$REPO/.work/buffer/findings.jsonl")"
+mkdir "$REPO/.git/findings-buffer/.lockdir"
+printf '%s\n' "$dead" >"$REPO/.git/findings-buffer/.lockdir/pid"
+before="$(wc -l <"$REPO/.git/findings-buffer/findings.jsonl")"
 start=$SECONDS
 ERR="$(printf '{"obs_id":"nf2","ts":"2026-10-21T00:00:04Z"}\n' | nf_append 2>&1 >/dev/null)"
 RC=$?
 if [[ $RC -eq 1 && $((SECONDS - start)) -lt 5 && "$ERR" == *".lockdir is stale"*"remove it"* \
-  && "$(wc -l <"$REPO/.work/buffer/findings.jsonl")" -eq "$before" ]]; then
+  && "$(wc -l <"$REPO/.git/findings-buffer/findings.jsonl")" -eq "$before" ]]; then
   pass "a dead holder's lock fails fast, names the lock and stores nothing"
 else
   fail "a dead holder's lock fails fast, names the lock and stores nothing" "exit $RC after $((SECONDS - start))s: $ERR"
 fi
-rm -rf "$REPO/.work/buffer/.lockdir"
+rm -rf "$REPO/.git/findings-buffer/.lockdir"
 
 # perl's flock (flock hidden from PATH, perl present): it locks .lock, an append
 # after a SIGKILLed holder succeeds, and parallel appends never share the lock
@@ -219,7 +219,7 @@ if perl -MConfig -MFcntl=:flock -e 'exit !$Config{d_flock}' >/dev/null 2>&1; the
   pl_append() { (cd "$PREPO" && PATH="$PERLBIN" bash "$LOCAL/append.sh"); }
   printf '{"obs_id":"pl1","ts":"2026-10-21T00:00:07Z"}\n' | pl_append
   RC=$?
-  if [[ $RC -eq 0 && -f "$PREPO/.work/buffer/.lock" ]]; then
+  if [[ $RC -eq 0 && -f "$PREPO/.git/findings-buffer/.lock" ]]; then
     pass "append.sh without flock takes perl's flock on .lock"
   else
     fail "append.sh without flock takes perl's flock on .lock" "exit $RC"
@@ -253,12 +253,12 @@ EOF
   ERR="$(printf '{"obs_id":"pl2","ts":"2026-10-21T00:00:09Z"}\n' | pl_append 2>&1 >/dev/null)"
   RC=$?
   if [[ $RC -eq 0 && $((SECONDS - start)) -lt 5 \
-    && "$(grep -c '"obs_id":"pl2"' "$PREPO/.work/buffer/findings.jsonl")" -eq 1 ]]; then
+    && "$(grep -c '"obs_id":"pl2"' "$PREPO/.git/findings-buffer/findings.jsonl")" -eq 1 ]]; then
     pass "without flock, an append after a SIGKILLed holder exits 0 and stores its row"
   else
     fail "without flock, an append after a SIGKILLed holder exits 0 and stores its row" "exit $RC after $((SECONDS - start))s: $ERR"
   fi
-  rm -rf "$PREPO/.work/buffer/.lockdir"
+  rm -rf "$PREPO/.git/findings-buffer/.lockdir"
 
   # A sync stub that finds another appender inside the lock records an overlap;
   # each appender stays inside long enough for one to show.
@@ -288,7 +288,7 @@ EOF
   done
   bad=0
   for p in "${pids[@]}"; do wait "$p" || bad=$((bad + 1)); done
-  ids="$(jq -rR 'fromjson | .obs_id' "$PREPO/.work/buffer/findings.jsonl" 2>/dev/null)"
+  ids="$(jq -rR 'fromjson | .obs_id' "$PREPO/.git/findings-buffer/findings.jsonl" 2>/dev/null)"
   RC=$?
   off=""
   for i in $(seq 1 $N); do
@@ -308,48 +308,41 @@ else
   printf 'ok %d - perl flock checks # SKIP no perl with native flock(2)\n' "$CASE_NUM"
 fi
 
-# the buffer is git-ignored, and symlinks never redirect rows or truncate the lock
+# the buffer sits where git tracks nothing, and symlinks never redirect rows or truncate the lock
 LREPO="$TEST_TMPDIR/links"
+LBUF="$LREPO/.git/findings-buffer"
 git init -q -b main "$LREPO" >/dev/null 2>&1
 la() { (cd "$LREPO" && bash "$LOCAL/append.sh" >/dev/null 2>&1); }
 printf '{"obs_id":"g","ts":"2026-10-21T00:00:00Z"}\n' | la
-if [[ "$(cat "$LREPO/.work/buffer/.gitignore" 2>/dev/null)" == "*" \
-  && -z "$(git -C "$LREPO" status --porcelain --untracked-files=all)" ]]; then
-  pass "first append writes .work/buffer/.gitignore with *, so git sees no rows"
+if [[ -s "$LBUF/findings.jsonl" && -z "$(git -C "$LREPO" status --porcelain --untracked-files=all --ignored)" ]]; then
+  pass "first append stores under .git/findings-buffer, so git sees no rows"
 else
-  fail "first append writes .work/buffer/.gitignore with *, so git sees no rows"
+  fail "first append stores under .git/findings-buffer, so git sees no rows"
 fi
-rm -f "$LREPO/.work/buffer/.gitignore"
-printf '{"obs_id":"g2","ts":"2026-10-21T00:00:00Z"}\n' | la
-if [[ "$(cat "$LREPO/.work/buffer/.gitignore" 2>/dev/null)" == "*" ]]; then
-  pass "an append restores a missing .gitignore in an existing buffer directory"
-else
-  fail "an append restores a missing .gitignore in an existing buffer directory"
-fi
-GI_OUT="$TEST_TMPDIR/gitignore-target"
-rm -f "$LREPO/.work/buffer/.gitignore" "$GI_OUT"
-ln -s "$GI_OUT" "$LREPO/.work/buffer/.gitignore"
-printf '{"obs_id":"g3","ts":"2026-10-21T00:00:00Z"}\n' | la
-RC=$?
-if [[ $RC -eq 2 && ! -e "$GI_OUT" ]]; then
-  pass "append.sh refuses a symlinked .gitignore and writes nothing through it"
-else
-  fail "append.sh refuses a symlinked .gitignore and writes nothing through it" "exit $RC"
-fi
-rm -f "$LREPO/.work/buffer/.gitignore"
 if command -v flock >/dev/null 2>&1; then
-  printf 'keep\n' >"$LREPO/.work/buffer/.lock"
+  printf 'keep\n' >"$LBUF/.lock"
   printf '{"obs_id":"g2","ts":"2026-10-21T00:00:00Z"}\n' | la
-  if [[ "$(cat "$LREPO/.work/buffer/.lock")" == "keep" ]]; then
+  if [[ "$(cat "$LBUF/.lock")" == "keep" ]]; then
     pass "the flock path does not truncate .lock"
   else
     fail "the flock path does not truncate .lock"
   fi
 fi
+LOCK_OUT="$TEST_TMPDIR/lock-target"
+rm -f "$LBUF/.lock" "$LOCK_OUT"
+ln -s "$LOCK_OUT" "$LBUF/.lock"
+printf '{"obs_id":"g3","ts":"2026-10-21T00:00:00Z"}\n' | la
+RC=$?
+if [[ $RC -eq 2 && ! -e "$LOCK_OUT" ]]; then
+  pass "append.sh refuses a symlinked .lock and writes nothing through it"
+else
+  fail "append.sh refuses a symlinked .lock and writes nothing through it" "exit $RC"
+fi
+rm -f "$LBUF/.lock"
 OUTSIDE="$TEST_TMPDIR/outside.jsonl"
 : >"$OUTSIDE"
-mv "$LREPO/.work/buffer/findings.jsonl" "$LREPO/.work/buffer/real.jsonl"
-ln -s "$OUTSIDE" "$LREPO/.work/buffer/findings.jsonl"
+mv "$LBUF/findings.jsonl" "$LBUF/real.jsonl"
+ln -s "$OUTSIDE" "$LBUF/findings.jsonl"
 printf '{"obs_id":"s1","ts":"2026-10-21T00:00:00Z"}\n' | la
 RC=$?
 if [[ $RC -eq 2 && ! -s "$OUTSIDE" ]]; then
@@ -361,15 +354,83 @@ fi
 expect_exit 2 $? "read.sh refuses a symlinked findings.jsonl"
 OUTDIR="$TEST_TMPDIR/outside-dir"
 mkdir -p "$OUTDIR"
-rm -rf "$LREPO/.work/buffer"
-ln -s "$OUTDIR" "$LREPO/.work/buffer"
+rm -rf "$LREPO/.git/findings-buffer"
+ln -s "$OUTDIR" "$LBUF"
 printf '{"obs_id":"s2","ts":"2026-10-21T00:00:00Z"}\n' | la
 RC=$?
 if [[ $RC -eq 2 && -z "$(ls -A "$OUTDIR")" ]]; then
-  pass "append.sh refuses a symlinked .work/buffer and writes nothing there"
+  pass "append.sh refuses a symlinked .git/findings-buffer and writes nothing there"
 else
-  fail "append.sh refuses a symlinked .work/buffer and writes nothing there" "exit $RC"
+  fail "append.sh refuses a symlinked .git/findings-buffer and writes nothing there" "exit $RC"
 fi
+(cd "$LREPO" && bash "$LOCAL/read.sh" >/dev/null 2>&1)
+expect_exit 2 $? "read.sh refuses a symlinked .git/findings-buffer"
+
+# every worktree of one clone shares one buffer
+MAIN="$TEST_TMPDIR/shared-main"
+LINKED="$TEST_TMPDIR/shared-linked"
+git init -q -b main "$MAIN" >/dev/null 2>&1
+git -C "$MAIN" -c user.name=fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false \
+  commit -q --allow-empty -m fixture
+git -C "$MAIN" worktree add -q -b linked "$LINKED" >/dev/null 2>&1
+printf '{"obs_id":"from-linked","ts":"2026-10-21T00:00:00Z"}\n' | (cd "$LINKED" && bash "$LOCAL/append.sh")
+if grep -q '"obs_id":"from-linked"' <<<"$(cd "$MAIN" && bash "$LOCAL/read.sh")" \
+  && grep -q '"obs_id":"from-linked"' "$MAIN/.git/findings-buffer/findings.jsonl"; then
+  pass "a row appended in a linked worktree is read from the main worktree"
+else
+  fail "a row appended in a linked worktree is read from the main worktree"
+fi
+printf '{"obs_id":"from-main","ts":"2026-10-21T00:00:00Z"}\n' | (cd "$MAIN" && bash "$LOCAL/append.sh")
+if grep -q '"obs_id":"from-main"' <<<"$(cd "$LINKED" && bash "$LOCAL/read.sh")"; then
+  pass "a row appended in the main worktree is read from a linked worktree"
+else
+  fail "a row appended in the main worktree is read from a linked worktree"
+fi
+pids=()
+for i in $(seq 1 6); do
+  for w in "$MAIN" "$LINKED"; do
+    printf '{"obs_id":"w%d-%s","ts":"2026-10-21T00:00:00Z"}\n' "$i" "${w##*-}" | (cd "$w" && bash "$LOCAL/append.sh") &
+    pids+=($!)
+  done
+done
+bad=0
+for p in "${pids[@]}"; do wait "$p" || bad=$((bad + 1)); done
+ids="$(cd "$MAIN" && bash "$LOCAL/read.sh" | jq -r .obs_id)"
+off=""
+for i in $(seq 1 6); do
+  for s in main linked; do
+    cnt="$(grep -cx "w$i-$s" <<<"$ids")"
+    [[ "$cnt" == 1 ]] || off="$off w$i-$s(x$cnt)"
+  done
+done
+if [[ $bad -eq 0 && -z "$off" ]]; then
+  pass "concurrent appends from two worktrees all exit 0 and store every row once"
+else
+  fail "concurrent appends from two worktrees all exit 0 and store every row once" "$bad failed, off:$off"
+fi
+
+# rows in the per-worktree .work/buffer file written before the buffer moved are still read
+LEGACY="$LINKED/.work/buffer"
+mkdir -p "$LEGACY"
+printf '{"obs_id":"legacy-new","ts":"2026-10-22T00:00:00Z"}\n{"obs_id":"legacy-old","ts":"2020-01-01T00:00:00Z"}\n' \
+  >"$LEGACY/findings.jsonl"
+OUT="$(cd "$LINKED" && bash "$LOCAL/read.sh")"
+if grep -q '"obs_id":"legacy-new"' <<<"$OUT" && grep -q '"obs_id":"legacy-old"' <<<"$OUT" \
+  && grep -q '"obs_id":"from-main"' <<<"$OUT"; then
+  pass "read.sh returns the legacy .work/buffer rows beside the shared rows"
+else
+  fail "read.sh returns the legacy .work/buffer rows beside the shared rows" "out: $OUT"
+fi
+OUT="$(cd "$LINKED" && bash "$LOCAL/read.sh" --since 2026-10-21T12:00:00Z)"
+if grep -q '"obs_id":"legacy-new"' <<<"$OUT" && ! grep -q '"obs_id":"legacy-old"' <<<"$OUT"; then
+  pass "read.sh --since filters the legacy rows too"
+else
+  fail "read.sh --since filters the legacy rows too" "out: $OUT"
+fi
+mv "$LEGACY/findings.jsonl" "$LEGACY/real.jsonl"
+ln -s "$LEGACY/real.jsonl" "$LEGACY/findings.jsonl"
+(cd "$LINKED" && bash "$LOCAL/read.sh" >/dev/null 2>&1)
+expect_exit 2 $? "read.sh refuses a symlinked legacy findings.jsonl"
 
 # outside a repository
 NOREPO="$TEST_TMPDIR/norepo"
