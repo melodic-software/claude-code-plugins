@@ -461,7 +461,8 @@
       "scan": "upload"
     },
     "tidy-code-upkeep-sweeps": {
-      "retention-days": 90,
+      "retention-days": "max",
+      "max-reader": ".github/scripts/maintenance-tidy-code-upkeep/upkeep.mjs",
       "readers": [
         ".github/scripts/maintenance-tidy-code-upkeep/upkeep.mjs gate treats each listed area as swept at the record's commit time"
       ],

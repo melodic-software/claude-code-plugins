@@ -1,6 +1,7 @@
 # yaml-language-server: $schema=../../plugins/code-tidying/schemas/code-tidying.schema.json
 # Team layer for the code-tidying plugin's upkeep settings.
 # Keys and resolution: plugins/code-tidying/reference/config.md.
-upkeep_cadence: daily
+# Daily returns once open pull requests reach zero.
+upkeep_cadence: weekly
 upkeep_backstop: weekly
 upkeep_max_open: 3

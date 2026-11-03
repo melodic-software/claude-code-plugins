@@ -112,11 +112,28 @@ test("a clean sweep today holds a daily cadence", () => {
   assert.equal(plan({ ...base, paths: ["scripts/x"], commits: [{ sha: "1", at: daysAgo(1), paths: ["scripts/x"] }], cleanSweeps: today }).reason, "cadence");
 });
 
+const MAIN_RUN = { head_branch: "main", repository_id: 1, head_repository_id: 1 };
+
+test("readCleanSweeps keeps only this repository's main runs", () => {
+  const record = () => JSON.stringify({ at: 100, slugs: ["plugins-a"] });
+  const row = (workflow_run) => ({ expired: false, workflow_run });
+  assert.deepEqual(readCleanSweeps([row({ ...MAIN_RUN, head_branch: "feat/x" })], record), []);
+  assert.deepEqual(readCleanSweeps([row({ ...MAIN_RUN, head_repository_id: 2 })], record), []);
+  assert.deepEqual(readCleanSweeps([row(undefined)], record), []);
+  assert.deepEqual(readCleanSweeps([row(MAIN_RUN)], record), [{ slug: "plugins-a", at: 100_000 }]);
+});
+
+test("a record that does not parse is dropped, and the rest still count", () => {
+  const artifacts = [{ id: 1, workflow_run: MAIN_RUN }, { id: 2, workflow_run: MAIN_RUN }];
+  const read = (artifact) => (artifact.id === 1 ? "not json" : JSON.stringify({ at: 100, slugs: ["plugins-a"] }));
+  assert.deepEqual(readCleanSweeps(artifacts, read), [{ slug: "plugins-a", at: 100_000 }]);
+});
+
 test("readCleanSweeps skips an expired record and drops a malformed slug", () => {
   const at = new Date(daysAgo(1)).toISOString();
   const artifacts = [
-    { id: 1, created_at: at, expired: false },
-    { id: 3, created_at: at, expired: true },
+    { id: 1, created_at: at, expired: false, workflow_run: MAIN_RUN },
+    { id: 3, created_at: at, expired: true, workflow_run: MAIN_RUN },
   ];
   const read = (artifact) => {
     assert.equal(artifact.id, 1);
@@ -127,14 +144,14 @@ test("readCleanSweeps skips an expired record and drops a malformed slug", () =>
 
 test("a commit newer than the swept base but older than the record's artifact is still due", () => {
   const paths = ["plugins/a/x"];
-  const artifact = { created_at: new Date(daysAgo(1)).toISOString(), expired: false };
+  const artifact = { created_at: new Date(daysAgo(1)).toISOString(), expired: false, workflow_run: MAIN_RUN };
   const cleanSweeps = readCleanSweeps([artifact], () => JSON.stringify({ at: daysAgo(3) / 1000, slugs: ["plugins-a"] }));
   const commits = [{ sha: "1", at: daysAgo(2), paths }];
   assert.deepEqual(plan({ ...base, paths, commits, cleanSweeps }).areas.map((row) => row.area), ["plugins/a"]);
 });
 
 test("a record with no valid time is dropped", () => {
-  const artifact = { created_at: new Date(daysAgo(1)).toISOString(), expired: false };
+  const artifact = { created_at: new Date(daysAgo(1)).toISOString(), expired: false, workflow_run: MAIN_RUN };
   for (const at of [undefined, 0, -1, "100", 1.5]) {
     assert.deepEqual(readCleanSweeps([artifact], () => JSON.stringify({ at, slugs: ["plugins-a"] })), []);
   }

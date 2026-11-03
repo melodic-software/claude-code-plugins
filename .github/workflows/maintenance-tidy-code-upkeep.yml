@@ -395,6 +395,7 @@ jobs:
     environment: pr-pipeline-scan-carrier
     permissions:
       contents: read # check out main
+      pull-requests: read # read the open tidy pull request count for the cap
     outputs:
       clean: ${{ steps.upload.outcome == 'success' }}
       branches: ${{ steps.check.outputs.branches }}
@@ -452,6 +453,7 @@ jobs:
           IN: ${{ runner.temp }}/scan-in
           OUT: ${{ runner.temp }}/scan-out
           RECORD_DIR: ${{ runner.temp }}/scan-record
+          GH_TOKEN: ${{ github.token }}
           AREAS: ${{ needs.gate.outputs.areas }}
           DATE: ${{ needs.gate.outputs.date }}
           BASE_SHA: ${{ needs.gate.outputs.base-sha }}

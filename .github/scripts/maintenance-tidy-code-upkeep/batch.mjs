@@ -1,9 +1,9 @@
 // The daily batch's scripted steps around its model job. No model runs here.
 //   prompt   writes the model's prompt from the areas the gate chose
-//   scan     checks the sealed plan and branches and writes what the scans read
-//            and what push and publish get (no write token)
+//   scan     checks the sealed plan and branches, applies the cap, and writes what
+//            the scans read and what push and publish get (no write token)
 //   push     recreates each scanned branch as one lanes App commit (mutate-branch)
-//   publish  opens one pull request per pushed branch, within the cap (publish-artifact)
+//   publish  opens one pull request per pushed branch that has none (publish-artifact)
 // The plan and each tree come from the model job, so every field is data. Messages
 // name indexes, never values: the scan job reports them before it scans anything.
 import { execFileSync } from "node:child_process";
@@ -156,6 +156,42 @@ export function sortSweeps(sweeps, areas, { rawOf, binary }) {
 // The sweep record: the areas, and the committer time of the commit the model swept.
 export const sweepRecord = (slugs, committedAt) => JSON.stringify({ at: Number(committedAt), slugs });
 
+// The cap, read again here because a batch can take an hour, and before any branch exists, so none
+// is left with no pull request. A sweep past it is not recorded: its area stays due for the next run.
+export function withinCap(kept, { open, limit, throttled }) {
+  return throttled ? [] : kept.slice(0, Math.max(0, limit - open));
+}
+
+const pullsOf = (repository, branch) => `/repos/${repository}/pulls?state=all&head=${repository.split("/")[0]}:${encodeURIComponent(branch)}`;
+
+// A branch push's re-run finds. At the planned tree it is this batch's, and publish opens what it
+// lacks. Another tree is an earlier run's: done once it has a pull request, else stranded, so stop.
+export async function findExisting(read, repository, { branch, tree, i }) {
+  const ref = await read(`/repos/${repository}/git/ref/heads/${branch}`, { allow404: true });
+  if (!ref) return { exists: false };
+  const tip = ref.object?.sha;
+  const commit = SHA.test(tip ?? "") ? await read(`/repos/${repository}/git/commits/${tip}`) : null;
+  if (commit?.tree?.sha === tree) return { exists: true, head: tip };
+  if (!(await read(pullsOf(repository, branch)))?.length) throw new Error(`sweeps[${i}]'s branch already exists with another tree and no pull request; open one for it or delete it, then dispatch again`);
+  return { exists: true };
+}
+
+// One pull request per branch still at the head push left, skipping one that already has its own,
+// so a re-run after a failed POST opens only the rest. Returns how many it opened.
+export async function openPulls(read, repository, sweeps, heads) {
+  let opened = 0;
+  for (const sweep of sweeps) {
+    const ref = await read(`/repos/${repository}/git/ref/heads/${sweep.branch}`, { allow404: true });
+    if (!SHA.test(heads[sweep.branch] ?? "") || ref?.object?.sha !== heads[sweep.branch]) continue;
+    if ((await read(pullsOf(repository, sweep.branch))).length) continue;
+    await read(`/repos/${repository}/pulls`, { method: "POST", body: { title: sweep.pr.title, body: sweep.pr.body, head: sweep.branch, base: "main" } });
+    opened++;
+  }
+  return opened;
+}
+
+const readCount = (repo) => parseCount(execFileSync("bash", [OPEN_PR_COUNT], { cwd: repo, encoding: "utf8", env: { ...process.env, CLAUDE_PROJECT_DIR: repo } }));
+
 function scan(env) {
   const { IN, OUT, RECORD_DIR, DATE: date, BASE_SHA: baseSha, REPO_DIR: repo } = env;
   const areas = parseAreas(env.AREAS);
@@ -166,10 +202,12 @@ function scan(env) {
   const heads = sweeps.filter((sweep) => sweep.outcome === "pr").map((sweep) => sweep.head_sha);
   if (heads.length && !existsSync(bundle)) throw new Error("the plan names branches and the model job left no bundle");
   for (const head of heads) git(repo, ["fetch", "--quiet", "--no-tags", bundle, `${head}:refs/scan/${head}`]);
-  const { kept, recorded } = sortSweeps(sweeps, areas, {
+  const sorted = sortSweeps(sweeps, areas, {
     rawOf: (head) => netRawDiff(repo, baseSha, head),
     binary: (head) => git(repo, ["diff", "--numstat", "--no-renames", baseSha, head]).split("\n").some((line) => line.startsWith("-\t-\t")),
   });
+  const { recorded } = sorted;
+  const kept = withinCap(sorted.kept, readCount(repo));
 
   mkdirSync(OUT, { recursive: true });
   writeFileSync(join(IN, "diffs.txt"), kept.map((sweep) => git(repo, ["diff", "--no-renames", baseSha, sweep.head_sha])).join("\n"));
@@ -199,7 +237,9 @@ async function push(env) {
     const raw = netRawDiff(repo, baseSha, commit);
     const { area } = areas.find((row) => row.slug === sweep.slug);
     if (!staysInArea(raw, area) || changesHoldPath(raw)) throw new Error(`sweeps[${i}] leaves its area or changes a hold path; the scan job should have dropped it`);
-    if (await api(`/repos/${repository}/git/ref/heads/${sweep.branch}`, { allow404: true })) {
+    const existing = await findExisting(api, repository, { branch: sweep.branch, tree: synthetic[i].tree, i });
+    if (existing.exists) {
+      if (existing.head) heads[sweep.branch] = existing.head;
       console.log(`sweeps[${i}]'s branch already exists; not pushed`);
       continue;
     }
@@ -214,25 +254,15 @@ async function push(env) {
     heads[sweep.branch] = head;
   }
   output("heads", JSON.stringify(heads));
-  console.log(`${Object.keys(heads).length} of ${sweeps.length} branches pushed`);
-}
-
-// The pull requests this run may open: the cap is read again here, since a batch can take an hour.
-export function toOpen(sweeps, heads, { open, limit, throttled }) {
-  const pushed = sweeps.filter((sweep) => SHA.test(heads[sweep.branch] ?? ""));
-  return throttled ? [] : pushed.slice(0, Math.max(0, limit - open));
+  console.log(`${Object.keys(heads).length} of ${sweeps.length} branches are at their planned tree`);
 }
 
 async function publish(env) {
-  const { DATE: date, BASE_SHA: baseSha, PLAN_FILE, GITHUB_REPOSITORY: repository, REPO_DIR: repo } = env;
+  const { DATE: date, BASE_SHA: baseSha, PLAN_FILE, GITHUB_REPOSITORY: repository } = env;
   const areas = parseAreas(env.AREAS);
   const sweeps = validatePlan(readFileSync(PLAN_FILE, "utf8"), { areas, date, baseSha });
-  const count = parseCount(execFileSync("bash", [OPEN_PR_COUNT], { cwd: repo, encoding: "utf8", env: { ...process.env, CLAUDE_PROJECT_DIR: repo } }));
-  const chosen = toOpen(sweeps, JSON.parse(env.HEADS || "{}"), count);
-  for (const sweep of chosen) {
-    await api(`/repos/${repository}/pulls`, { method: "POST", body: { title: sweep.pr.title, body: sweep.pr.body, head: sweep.branch, base: "main" } });
-  }
-  console.log(`opened ${chosen.length} pull requests; ${count.open} were open, the limit is ${count.limit}`);
+  const opened = await openPulls(api, repository, sweeps, JSON.parse(env.HEADS || "{}"));
+  console.log(`opened ${opened} pull requests`);
 }
 
 function prompt(env) {

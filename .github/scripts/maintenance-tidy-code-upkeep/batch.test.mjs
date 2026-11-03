@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { branchOf, parseAreas, promptText, sortSweeps, staysInArea, sweepRecord, toOpen, validatePlan } from "./batch.mjs";
+import { branchOf, findExisting, openPulls, parseAreas, promptText, sortSweeps, staysInArea, sweepRecord, validatePlan, withinCap } from "./batch.mjs";
 
 const BASE = "a".repeat(40);
 const HEAD = "b".repeat(40);
@@ -92,11 +92,46 @@ test("the sweep record holds git's committer time as a number, and the slugs", (
   assert.equal(sweepRecord(["scripts"], "1793000000"), '{"at":1793000000,"slugs":["scripts"]}');
 });
 
-test("toOpen opens only pushed branches, at most limit minus open", () => {
+test("withinCap keeps at most limit minus open, and none while throttled", () => {
   const a = prSweep();
   const b = prSweep({ slug: "scripts", branch: "chore/tidy-adhoc-scripts-2026-11-03" });
-  const heads = { [a.branch]: HEAD, [b.branch]: HEAD };
-  assert.deepEqual(toOpen([a, b], heads, { open: 2, limit: 3, throttled: false }), [a]);
-  assert.deepEqual(toOpen([a, b], heads, { open: 3, limit: 3, throttled: true }), []);
-  assert.deepEqual(toOpen([a, b], { [b.branch]: HEAD }, { open: 0, limit: 3, throttled: false }), [b]);
+  assert.deepEqual(withinCap([a, b], { open: 2, limit: 3, throttled: false }), [a]);
+  assert.deepEqual(withinCap([a, b], { open: 3, limit: 3, throttled: true }), []);
+  assert.deepEqual(withinCap([a, b], { open: 0, limit: 3, throttled: false }), [a, b]);
+});
+
+const OTHER = "e".repeat(40);
+const reader = (routes) => async (path) => {
+  const hit = Object.keys(routes).find((prefix) => path.includes(prefix));
+  return hit ? routes[hit] : null;
+};
+
+test("a re-run finds its branch at the planned tree and hands publish the tip", async () => {
+  const read = reader({ "/git/ref/": { object: { sha: HEAD } }, "/git/commits/": { tree: { sha: "tree" } } });
+  assert.deepEqual(await findExisting(read, "o/r", { branch: "b", tree: "tree", i: 0 }), { exists: true, head: HEAD });
+});
+
+test("no branch yet is not an existing one", async () => {
+  assert.deepEqual(await findExisting(reader({}), "o/r", { branch: "b", tree: "tree", i: 0 }), { exists: false });
+});
+
+test("another tree with a pull request is done; with none it stops the run", async () => {
+  const routes = { "/git/ref/": { object: { sha: HEAD } }, "/git/commits/": { tree: { sha: "other" } } };
+  assert.deepEqual(await findExisting(reader({ ...routes, "/pulls?": [{ number: 1 }] }), "o/r", { branch: "b", tree: "tree", i: 0 }), { exists: true });
+  await assert.rejects(findExisting(reader({ ...routes, "/pulls?": [] }), "o/r", { branch: "b", tree: "tree", i: 2 }), /sweeps\[2\]/);
+});
+
+test("openPulls opens only branches at their head with no pull request", async () => {
+  const a = prSweep();
+  const posted = [];
+  const read = async (path, options = {}) => {
+    if (options.method === "POST") return posted.push(options.body.head);
+    if (path.includes("/git/ref/heads/moved")) return { object: { sha: OTHER } };
+    if (path.includes("/git/ref/")) return { object: { sha: HEAD } };
+    return path.includes("has-pr") ? [{ number: 1 }] : [];
+  };
+  const sweeps = [a, { ...a, branch: "has-pr" }, { ...a, branch: "moved" }, { ...a, branch: "not-pushed" }];
+  const heads = { [a.branch]: HEAD, "has-pr": HEAD, moved: HEAD };
+  assert.equal(await openPulls(read, "o/r", sweeps, heads), 1);
+  assert.deepEqual(posted, [a.branch]);
 });
