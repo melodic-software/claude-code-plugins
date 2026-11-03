@@ -388,6 +388,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/workflows/intake-reenter.yml", "gate"],
   [".github/workflows/intake-triage.yml", "gate"],
   [".github/workflows/maintenance-audit-lane-runs.yml", "gate"],
+  [".github/workflows/maintenance-code-tidying-upkeep.yml", "gate"],
   [".github/workflows/maintenance-reconcile-lost-runs.yml", "gate"],
   [".github/workflows/post-merge-demotion-alert.yml", "gate"],
   [".github/workflows/post-merge-test-mutation.yml", "gate"],

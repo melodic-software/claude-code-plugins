@@ -12,7 +12,8 @@
 // The gate derives churn from git log, so a push run GitHub lost drops no area
 // (dependabot-fragments.yml records that those happen).
 import { execFileSync } from "node:child_process";
-import { appendFileSync } from "node:fs";
+import { appendFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -22,6 +23,7 @@ const DAY_MS = 86_400_000;
 const WINDOW_DAYS = { daily: 1, weekly: 7, monthly: 30 };
 const PULL_LIST_LIMIT = 1000;
 const NEVER_SWEPT_DAYS = 90;
+export const SWEEP_ARTIFACT = "code-tidying-upkeep-sweeps";
 const SAFE_AREA = /^[A-Za-z0-9_][A-Za-z0-9._-]*(\/[A-Za-z0-9._-]+)?$/;
 const ADHOC_BRANCH = /^chore\/tidy-adhoc-(.+)-\d{4}-\d{2}-\d{2}$/;
 
@@ -84,12 +86,13 @@ export function lookbackStart(pulls, now) {
 // pulls: every sweep. Only an area with a commit after its
 // last sweep is eligible. It is overdue once that oldest unswept commit is past
 // the backstop window; overdue areas go first, then the oldest unswept.
-export function plan({ paths, commits, pulls, truncated, cadence, backstop, limit, open, throttled, now }) {
+export function plan({ paths, commits, pulls, cleanSweeps = [], truncated, cadence, backstop, limit, open, throttled, now }) {
   const stop = (reason) => ({ proceed: false, reason, areas: [] });
   const windowDays = WINDOW_DAYS[backstop];
   if (truncated) return stop("sweep-history-truncated");
 
   const { last, open: openSlugs, merges } = sweepsOf(pulls);
+  for (const { slug, at } of cleanSweeps) last.set(slug, Math.max(last.get(slug) ?? 0, at));
   const newest = Math.max(0, ...last.values());
   if (newest > 0 && dayOf(now) - dayOf(newest) < WINDOW_DAYS[cadence]) return stop("cadence");
   const slots = Math.max(0, limit - open);
@@ -116,6 +119,20 @@ export function plan({ paths, commits, pulls, truncated, cadence, backstop, limi
   eligible.sort((a, b) => Number(overdue(b)) - Number(overdue(a)) || a.unswept - b.unswept || a.area.localeCompare(b.area));
   const areas = eligible.slice(0, slots).map((row) => ({ area: row.area, glob: row.glob, slug: row.slug, overdue: overdue(row) }));
   return { proceed: areas.length > 0, reason: areas.length > 0 ? "due" : "nothing-due", areas };
+}
+
+// The clean-sweep records: artifacts the scan job left, one per run. read(artifact)
+// gives its sweeps.json text. A slug outside the shape is dropped.
+export function readCleanSweeps(artifacts, read) {
+  const sweeps = [];
+  for (const artifact of artifacts) {
+    if (artifact.expired) continue;
+    const at = Date.parse(artifact.created_at);
+    for (const slug of JSON.parse(read(artifact)).slugs ?? []) {
+      if (/^[a-z0-9-]+$/.test(slug)) sweeps.push({ slug, at });
+    }
+  }
+  return sweeps;
 }
 
 export function parseCount(text) {
@@ -153,6 +170,16 @@ function setting(root, key) {
   return { value, source };
 }
 
+function downloadRecord(root, artifact) {
+  const dir = mkdtempSync(join(tmpdir(), "upkeep-record-"));
+  try {
+    run(root, "gh", ["run", "download", String(artifact.workflow_run.id), "--name", SWEEP_ARTIFACT, "--dir", dir]);
+    return readFileSync(join(dir, "sweeps.json"), "utf8");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 function gate(root, now) {
   const cadence = setting(root, "upkeep_cadence");
   const backstop = setting(root, "upkeep_backstop");
@@ -161,10 +188,12 @@ function gate(root, now) {
   const sweeps = JSON.parse(run(root, "gh", ["pr", "list", "--state", "all", "--limit", String(PULL_LIST_LIMIT), "--search", "head:chore/tidy-adhoc-", "--json", "headRefName,createdAt,state,mergeCommit"]));
   const truncated = sweeps.length >= PULL_LIST_LIMIT;
   const openPulls = JSON.parse(run(root, "gh", ["pr", "list", "--state", "open", "--limit", String(PULL_LIST_LIMIT), "--json", "headRefName,createdAt,state"]));
+  const records = JSON.parse(run(root, "gh", ["api", `repos/{owner}/{repo}/actions/artifacts?name=${SWEEP_ARTIFACT}&per_page=100`])).artifacts ?? [];
+  const cleanSweeps = readCleanSweeps(records, (artifact) => downloadRecord(root, artifact));
   const since = new Date(lookbackStart(sweeps, now)).toISOString();
   const commits = parseLog(run(root, "git", ["log", `--since=${since}`, "--no-renames", "--name-only", "--format=%x00%H %ct"]));
   const paths = run(root, "git", ["ls-files"]).split("\n").filter(Boolean);
-  const result = plan({ paths, commits, pulls: [...sweeps, ...openPulls], truncated, cadence: cadence.value, backstop: backstop.value, ...count, now });
+  const result = plan({ paths, commits, pulls: [...sweeps, ...openPulls], cleanSweeps, truncated, cadence: cadence.value, backstop: backstop.value, ...count, now });
   return { ...result, settings: { upkeep_cadence: cadence, upkeep_backstop: backstop, upkeep_max_open: count.limit }, open: count.open };
 }
 
@@ -200,7 +229,13 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     detect(root, option(args, "--before", ""), option(args, "--after", ""));
   } else if (command === "gate") {
     try {
-      console.log(JSON.stringify(gate(root, Date.now()), null, 2));
+      const now = Date.now();
+      const result = gate(root, now);
+      console.log(JSON.stringify(result, null, 2));
+      if (process.env.GITHUB_OUTPUT) {
+        const date = new Date(now).toISOString().slice(0, 10);
+        appendFileSync(process.env.GITHUB_OUTPUT, `proceed=${result.proceed}\nareas=${JSON.stringify(result.areas)}\ndate=${date}\n`);
+      }
     } catch (error) {
       console.error(`upkeep gate: ${error.message.split("\n")[0]}`);
       process.exit(1);

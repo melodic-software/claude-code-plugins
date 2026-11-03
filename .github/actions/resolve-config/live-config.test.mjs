@@ -663,6 +663,18 @@ test("live config: upstream-apply-changelog pushes with contents write only and 
   });
 });
 
+test("live config: the code-tidying upkeep lane pushes with contents write only and publishes without it", () => {
+  const grant = (activity) => resolveGrant(FILES, { lane: "maintenance-code-tidying-upkeep", activity, configPath: CONFIG_PATH });
+  assert.deepEqual(grant("apply-upkeep-branches"), {
+    effect: "mutate-branch",
+    grant: { contents: "write", "pull-requests": "read", issues: "read" },
+  });
+  assert.deepEqual(grant("publish-upkeep-prs"), {
+    effect: "publish-artifact",
+    grant: { contents: "read", "pull-requests": "write", issues: "write" },
+  });
+});
+
 test("live config: fix-docs applies to a Markdown change and waits on do-not-merge", () => {
   assert.equal(selected("pr-refine", "fix-docs").applies, true);
   assert.equal(
