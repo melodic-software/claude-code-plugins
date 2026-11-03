@@ -4652,7 +4652,11 @@ def strip_q: [.Parts[]? |
             (if .Op == "<<-" then 1 else 0 end), (.Word | strip_q)]}]
      | sort_by(.o) | map(.t) | add // [])
   + ([$all[] | select(.Type == "ExtGlob") | ["P", .Pattern.Value]] | add // [])
-  + ([$all[] | select(.Type == "ExtGlob")
+  # The extglob-off reading is of a `!(` or `f@()` that opens a command. As an
+  # argument or a [[ ]] pattern, bash with extglob off rejects the line and runs
+  # nothing, so there is no second reading to take.
+  + ([$all[] | select(.Type == "CallExpr") | .Args[0].Pos.Offset?] as $cw
+     | [$all[] | select(.Type == "ExtGlob") | select(.OpPos.Offset as $o | any($cw[]; . == $o))
       | if .Op == "!(" then ["X", 0, .OpPos.Offset]
         elif (.Pattern.Value == "") then ["X", 1, .OpPos.Offset]
         else empty end] | sort_by(.[2]) | add // [])
@@ -4916,9 +4920,9 @@ hook::_bps_tree_decode() {
 # hook::bash_parse_segments_shfmt <command> <callback> [soft]: every simple
 # command in the tree reaches <callback>, the extglob-off reading and each
 # extglob pattern's commands too. With no parse it refuses the call (exit 2),
-# or with [soft] returns 1. An extglob pattern's text is parsed soft unless it
-# holds a substitution: a pattern that is no command list runs nothing, but its
-# substitutions run. A whole-command second reading (the extglob-off one, the
+# or with [soft] returns 1. An extglob pattern holding a substitution refuses;
+# one without is parsed soft, since a pattern that is no command list runs
+# nothing. A whole-command second reading (the extglob-off one, the
 # array `#` one), a backtick's unescaped text and a joined here-doc body are not
 # soft: bash runs every command before its syntax error, so they refuse.
 # shellcheck disable=SC2034  # HOOK_SEG_* are read by the callback's caller
@@ -4957,16 +4961,20 @@ hook::bash_parse_segments_shfmt() {
   HOOK_SEG_REDIR_TARGET=()
   HOOK_SEG_REDIR_QUOTED=()
   HOOK_SEG_REDIR_OPAQUE=()
-  # Each extglob pattern's text, for the commands its substitutions run (shfmt
-  # keeps a pattern as one literal). A pattern with no substitution that is no
-  # command list runs nothing, so it is parsed soft. One holding `$(`, a
-  # backtick, `<(` or `>(` refuses when it does not parse, as the command would.
+  # Each extglob pattern's text (shfmt keeps a pattern as one literal). A pattern
+  # holding `$(`, a backtick, `<(` or `>(` is refused outright: bash runs those
+  # substitutions when it expands the word, and no reparse of the pattern as a
+  # command reads it as bash does (a `#` or newline there is literal to bash and
+  # a comment or separator to a command parse). A pattern without one runs
+  # nothing, so it is parsed soft for any commands its text spells.
   for __hu_x in ${__hu_pt[@]+"${__hu_pt[@]}"}; do
     [[ -n "$__hu_x" ]] || continue
     # shellcheck disable=SC2016  # literal substitution openers, not expansions
     case "$__hu_x" in
     *'$('* | *'`'* | *'<('* | *'>('*)
-      hook::bash_parse_segments_shfmt "$__hu_x" "$__hu_bcb" "$__hu_bsoft" || return 1
+      HOOK_BPS_FAIL="a substitution inside an extglob pattern, which bash runs when it expands the word"
+      ((__hu_bsoft)) && return 1
+      hook::_bps_refuse
       ;;
     *) hook::bash_parse_segments_shfmt "$__hu_x" "$__hu_bcb" 1 ;;
     esac

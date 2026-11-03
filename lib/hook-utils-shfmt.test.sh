@@ -46,6 +46,17 @@ segs_are() {
   if [[ "$got" == "$want" ]]; then ok "$desc"; else fail "$desc: got [$got], want [$want]"; fi
 }
 
+# parses_with <desc> <command> <segment>: in a child, the reader exits 0 and
+# hands <segment> to the callback (a refusal would end this shell).
+parses_with() {
+  local out rc=0
+  out=$(
+    # shellcheck disable=SC2329  # the parse callback
+    pw_cb() { printf '%s\n' "$*"; }
+    hook::bash_parse_segments_shfmt "$2" pw_cb 2>&1
+  ) || rc=$?
+  if ((rc == 0)) && [[ $'\n'"$out"$'\n' == *$'\n'"$3"$'\n'* ]]; then ok "$1"; else fail "$1: exit $rc, [$out]"; fi
+}
 # has_seg <desc> <command> <segment>: that segment is among them.
 has_seg() {
   local desc=$1 cmd=$2 want=$3 s
@@ -82,10 +93,15 @@ has_seg() {
     'echo $(case x in a|esac) :;; esac)#; git reset --hard' 'git reset --hard'
   has_seg 'extglob-off reading of !(…) runs the subshell' '!(git reset --hard)' 'git reset --hard'
   has_seg 'extglob-on reading of !(x)# runs what follows' '!(x)#; git reset --hard' 'git reset --hard'
-  has_seg 'a backtick inside an extglob pattern' 'echo @(`git reset --hard`)' 'git reset --hard'
-  has_seg 'a process substitution inside an extglob pattern' 'echo @(<(git reset --hard))' 'git reset --hard'
   has_seg 'array then # keeps what follows' 'a=(x)#y; git reset --hard' 'git reset --hard'
 
+  # The extglob-off reading applies to a `!(` that opens a command. As an
+  # argument or a [[ ]] pattern, bash with extglob off rejects the line and runs
+  # nothing, so the call is read once and allowed.
+  parses_with 'a !(…) argument is allowed' 'ls !(*.md)' 'ls !(*.md)'
+  parses_with 'a !(…) after -- is allowed' 'rm -- !(keep.txt)' 'rm -- !(keep.txt)'
+  parses_with 'a !(…) [[ pattern is allowed' '[[ $x == !(foo) ]]' '[[ $x == !(foo) ]]'
+  parses_with 'shopt then a !(…) argument is allowed' $'shopt -s extglob\nls !(x)' 'ls !(x)'
   # Multibyte UTF-8 is read as written; a byte that is not UTF-8 is refused.
   segs_are 'multibyte UTF-8 words are read as written' 'echo héllo 日本 ✓' 'echo héllo 日本 ✓'
   # A quoted here-doc body expands nothing, and is not a command.
@@ -353,14 +369,21 @@ hit_print() { printf '%s\n' "$*"; }
   form handled 'echo @(a|b)#; echo HIT >&2'
   form handled 'echo @(x;y)#; echo HIT >&2'
   form handled '!(echo HIT >&2)'
-  form handled 'echo @(`echo HIT >&2`)'
-  form handled 'echo @(<(echo HIT >&2))'
+  # A substitution inside a pattern is refused outright, however the pattern reads.
+  form refused 'echo @(`echo HIT >&2`)'
+  form refused 'echo @(<(echo HIT >&2))'
   form refused 'f@()#; echo HIT >&2'
   # A pattern bash expands runs its substitutions; shfmt keeps the pattern as
   # one literal, so one that does not parse as a command must refuse.
   form refused 'echo @($(echo HIT >&2)|)'
   form refused 'echo +(`echo HIT >&2`|)'
   form refused 'echo @(;$(echo HIT >&2))'
+  # A `#` or a newline inside a pattern is literal to bash, but a reparse of
+  # the pattern as a command would read a comment there: no reparse is trusted.
+  form refused 'echo @(#$(echo HIT >&2))'
+  form refused 'echo @(x #$(echo HIT >&2))'
+  form refused $'echo @(x\n$(echo HIT >&2))'
+  form refused $'echo *(x\t#`echo HIT >&2`)'
   # Nested: the extglob-off rewrite applies its edits in offset order.
   form handled $'cat <<E2; !(x)#\n$(cat <<E1; !(x)#\n$(echo HIT >&2\n)\nE1\n)\nE2'
   # The extglob-off reading runs a here-doc before its open quote's error.

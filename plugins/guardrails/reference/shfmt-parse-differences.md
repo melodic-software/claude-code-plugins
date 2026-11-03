@@ -19,9 +19,10 @@ say which mode applies.
 |---|---|---|---|
 | `!(x)#; cmd` | off: negated subshell, then a comment; on: a pattern word, then `cmd` | the on reading | handled: the reader also parses the off reading |
 | `!(cmd)` | off: a subshell running `cmd` | a pattern, no command | handled: each pattern is also parsed as a command |
+| `ls !(*.md)`, `[[ $x == !(y) ]]` (a `!(` that is not a command word) | off: a syntax error, so nothing on that line runs | a pattern | handled: read once; the extglob-off reading applies only where `!(` opens a command |
 | `@(x)#; cmd`, `echo @(a\|b)#; cmd` | on: one word, then `cmd`; off: syntax error | the on reading | handled |
 | `echo @(x;y)#; cmd` | on: `;` is pattern text | the on reading | handled |
-| `` echo @(`cmd`) ``, `echo @(<(cmd))` | on: `cmd` runs | pattern text | handled: each pattern is also parsed as a command |
+| `` echo @(`cmd`) ``, `echo @(<(cmd))`, `echo @(#$(cmd))`, `echo @(x #$(cmd))` | on: `cmd` runs (a `#` or newline in a pattern is literal) | pattern text | refused: a pattern holding a substitution is refused, since no reparse of it as a command reads it as bash does |
 | `f@()#; cmd` | on: one word, then `cmd`; off: a function | syntax error | refused |
 | `!(x)#'` newline `cat <<B` … `B` newline `'` | off: the lines before the open quote run, a here-doc and its body included, then a syntax error | the on reading | refused: a second reading of the whole command that does not parse refuses, since bash runs every line before its error |
 

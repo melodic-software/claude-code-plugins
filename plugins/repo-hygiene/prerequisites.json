@@ -87,8 +87,7 @@
       "install": {
         "docs": "https://github.com/mvdan/sh#shfmt",
         "brew": "shfmt",
-        "winget": "mvdan.shfmt",
-        "apt": "shfmt"
+        "winget": "mvdan.shfmt"
       },
       "check": "/harness-ops:prerequisites"
     }
