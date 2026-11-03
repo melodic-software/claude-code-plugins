@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: st-plan-2
+description: A draft plan adds a bin-to-bin transfer command to a Go warehouse stock service.
+expected_outcome: A good review reports that the Phase 3 sanity check moves 5 from a bin holding 20, so it never exercises the overdraw refusal it says it watches; that Server.transfer saves bins.json before appending to the journal, the reverse of Server.adjust, so a stop between the two leaves bins.json ahead of the journal and store.Open refuses to start; and that bin capacity in config/warehouse.yaml is capacity_kg, a weight, which the plan compares directly with an on-hand count. It does not ask for a file lock, since Server.handle holds s.mu for every command and stockd is the only process touching the data directory.
+context:
+  scaffold_script: scaffold.sh

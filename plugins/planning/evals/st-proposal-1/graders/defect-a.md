@@ -1,0 +1,6 @@
+---
+type: regex
+pattern: '^(?![^\n]*(?:\bno\s+(?:\w+\s+)?(?:issue|problem|concern|risk|finding|gap|defect)s?\b|\bnot\s+(?:a|an)\s+(?:\w+\s+)?(?:issue|problem|concern|risk|gap|defect)\b|\b(?:is|are|looks?|seems?)\s+(?:(?!not\b)\w+\s+)?(?:fine|ok|okay|correct|sound|safe|good)\b|\bno\s+need\s+to\b|\bdon''t\s+see\s+(?:a|any)\b))(?!(?![^\n]*\b(?:but|however|actually|yet|though|although)\b)[^\n]*(?:\bnot\b|n''t\b|\bnever\b)\s+(?:\w+\s+){0,2}(?:suppress|block|skip|collid|break|violat|fail))(?=[^\n]*(?:\breschedul\w*|\bmov(?:ed|es|ing)\b|\bAC2\b))(?=[^\n]*(?:\bkey\b|\bappointment_id\b|\bwindow_name\b|\bledger\b|\bsent_reminders\b|\bprimary\s+key\b))[^\n]*(?:\bsuppress\w*|\bblocks?\s+(?:the\s+)?(?:\w+\s+)?(?:reminder|send|text|sms)\b|\bskips?\s+(?:the\s+)?(?:\w+\s+)?(?:reminder|send|text|sms)\b|\bcollid\w*|\bcollision\w*|\bsame\s+(?:key|row|pair)\b|\bexisting\s+(?:row|entry|key)\b|\b(?:leaves?\s+out|omits?|lacks?|missing|ignores?|excludes?|without|no)\b[^\n]*\b(?:time|start\w*|date)\b|\bnever\s+(?:gets?|receives?|sends?)\b|\bno\s+(?:new|fresh|second)\s+(?:reminder|sms|text)\b|\b(?:does\s+not|doesn''t|cannot|can''t|won''t|will\s+not)\s+(?:distinguish|tell|get|receive|send)\b|\bAC2\b[^\n]*\b(?:fails?|violat\w*|breaks?|unmet)\b|\b(?:fails?|violat\w*|breaks?|(?:does\s+not|doesn''t|cannot|can''t)\s+(?:meet|satisfy))\s+AC2\b)'
+flags: mi
+target: last_message
+---

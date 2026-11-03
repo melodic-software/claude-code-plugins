@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "- `capacity_kg` in `config/warehouse.yaml` is a weight, but the Phase 2 check compares it to a unit count.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- The check looks right only if capacity counts units, but `capacity_kg` is a weight.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- The capacity assumption is false: the file holds kilograms and needs `unit_kg` to convert on-hand.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | Capacity is in kg while `OnHand` counts units: `OnHand(to) + qty` cannot be compared directly | Fix before building |\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | warehouse.yaml capacity and on-hand are in different units, so AC2 is wrong for PLATE-20 | Fix before building |\n",
+      "why": "paraphrase"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "- `capacity_kg` in the config is fine.\n",
+      "why": "named and dismissed"
+    },
+    {
+      "answer": "- Capacity is in units, not kg, so the comparison holds.\n",
+      "why": "negated mention"
+    },
+    {
+      "answer": "- `config/warehouse.yaml` does not list a bin for returns.\n",
+      "why": "a finding about something else"
+    }
+  ]
+}

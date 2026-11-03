@@ -8,7 +8,7 @@
 # (fixtures/coverage/lcov-cluster.info covers both cluster copies of the
 # registry's shared file), and the markdown rendering.
 #
-# Complexity comes from the sibling audit-complexity script, so its collectors
+# Complexity comes from the audit skill's audit-complexity script, so its collectors
 # are stubbed at runtime the same way its own suite does it: a temporary bin/
 # prepended to a filtered PATH carries a fake `lizard` replaying
 # fixtures/tool-output/lizard.csv (function start AND end lines) and a fake

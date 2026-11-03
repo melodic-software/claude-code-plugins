@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [3.0.3] - 2026-11-03
+
+### Changed
+
+- `audit-instructions`: on an `opus-4-8` target, row I8's delegation-throttle instance no longer endorses a throttle as the recommended shape; only `opus-5` keeps that, with pointers to both Opus guides' "Controlling subagent spawning" sections. Eval case `ai-throttle-target-scope` covers it.
+
 ## [3.0.2] - 2026-11-03
 
 ### Fixed

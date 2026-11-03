@@ -10,8 +10,8 @@ Quality is partly subjective, but some aspects ARE measurable:
 
 | Quality aspect | Measurable proxy | How to check |
 |---------------|-----------------|--------------|
-| Complexity | Cyclomatic complexity, nesting depth | `/code-metrics:audit-complexity --json` when the `code-metrics` plugin is enabled (treat the pair as INCONCLUSIVE when `status` is `empty` on either side, or when the two documents' `schema` values or `root.path` differ; a baseline taken before `code-metrics/v2` is a v1 document and must be re-taken); otherwise count conditionals, measure max nesting |
-| Size | Lines of code, file count, method length | `/code-metrics:audit-size --json` when the `code-metrics` plugin is enabled (same INCONCLUSIVE rule); otherwise a line counter (`wc -l` on POSIX/Git Bash, `Measure-Object -Line` in PowerShell), `git diff --stat` |
+| Complexity | Cyclomatic complexity, nesting depth | `/code-metrics:audit complexity --json` when the `code-metrics` plugin is enabled (treat the pair as INCONCLUSIVE when `status` is `empty` on either side, or when the two documents' `schema` values or `root.path` differ; a baseline taken before `code-metrics/v2` is a v1 document and must be re-taken); otherwise count conditionals, measure max nesting |
+| Size | Lines of code, file count, method length | `/code-metrics:audit size --json` when the `code-metrics` plugin is enabled (same INCONCLUSIVE rule); otherwise a line counter (`wc -l` on POSIX/Git Bash, `Measure-Object -Line` in PowerShell), `git diff --stat` |
 | Coupling | Dependency count, import count | Count import/dependency declarations (`import`/`require`/`using`, package or project references) |
 | Cohesion | Methods per class, related functionality | Inspect class responsibility |
 | Duplication | Repeated code blocks | `/code-metrics:audit-duplication --json` when the `code-metrics` plugin is enabled (same INCONCLUSIVE rule); otherwise grep for similar patterns |

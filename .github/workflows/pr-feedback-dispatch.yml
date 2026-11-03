@@ -507,9 +507,14 @@ jobs:
   # attempt comes just before the re-run. A head with no run of the
   # other lane (one lane only) re-runs on this lane alone. A head the PR has
   # moved past, or a closed PR, is left alone. A ci-status job not started
-  # yet, or one that started more than 60 s after both lanes finished (the
-  # margin covers a lagging read), reads them anyway, so it is left alone
-  # too; one that
+  # yet, or one that began reading the reviews more than 60 s after both
+  # lanes finished (the margin covers a lagging read), reads them anyway, so
+  # it is left alone too. So is one that passed, having begun that read at or
+  # after both lanes finished: it counted both finished reviews, so a re-run
+  # can only pass again, and still starts pr-verify on the head again. The
+  # read's start is ci-status's `Require both review lanes on this head`
+  # step's, else the job's, which is earlier: the jobs API can list a job's
+  # steps empty. One that
   # started earlier and is still in progress waits for its run, polled every
   # 60 s for at most 10 minutes, then is re-run. No model, and no checkout
   # but the trusted-actors list and the api-budget library: the token can
@@ -680,7 +685,7 @@ jobs:
           # completion exists only while the other lane is running), and
           # maintenance-reconcile-lost-runs re-runs one red only on a pending
           # or missing review, at attempt 1, after its PENDING_BACKOFF_MINUTES.
-          # Should both re-run it, the started_at check below ends this job on
+          # Should both re-run it, the read_at check below ends this job on
           # an attempt that started after the lanes finished. What overlap
           # remains is two POSTs inside check-then-act gaps, which GitHub would refuse while the first re-run is going
           # (UNVERIFIED) rather than start a third attempt. Should both land,
@@ -792,12 +797,22 @@ jobs:
               ;;
             esac
           fi
-          started_at=$(jq -r '.started_at // ""' <<<"${job:-null}")
-          if [ "$(jq -r --arg s "$started_at" --arg d "$done_at" \
-            'try (($s | fromdateiso8601) > ($d | fromdateiso8601) + 60) catch false' <<<null)" = true ]; then
-            echo "ci-status of run $id started at $started_at, after both lanes finished ($done_at); it read them."
+          # When ci-status began reading the reviews: its review-lanes step's
+          # start, else the job's. Read late, or passed on a read after both
+          # lanes finished, it is left alone (see the job comment).
+          read_at=$(jq -r 'first(((.steps // [])[] | select(.name == "Require both review lanes on this head") | .started_at | strings),
+            (.started_at | strings)) // ""' <<<"${job:-null}")
+          case $(jq -r --arg s "$read_at" --arg d "$done_at" 'try (($s | fromdateiso8601) as $r | ($d | fromdateiso8601) as $t
+            | if $r > $t + 60 then "late" elif .conclusion == "success" and $r >= $t then "passed" else "" end) catch ""' <<<"${job:-null}") in
+          late)
+            echo "ci-status of run $id began reading the reviews at $read_at, after both lanes finished ($done_at); it read them."
             exit 0
-          fi
+            ;;
+          passed)
+            echo "ci-status of run $id passed, reading the reviews from $read_at, after both lanes finished ($done_at); a re-run can only pass again."
+            exit 0
+            ;;
+          esac
           while [ "$(jq -r .status <<<"$run")" != completed ]; do
             if [ "$waited" -ge "$POLL_LIMIT_SECONDS" ]; then
               echo "::error::run $id on $HEAD_SHA has not finished after ${waited}s; re-run its ci-status job once it does."

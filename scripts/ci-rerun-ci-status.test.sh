@@ -11,8 +11,9 @@
 # and the rerun-ci-status record of the attempt the re-run starts, which the
 # record step uploads before the re-run step re-runs it, unless the review run
 # was re-run by anyone but a listed human. The other lane still going, a
-# closed PR, a moved head, no run yet, a ci-status not started or one started
-# after both lanes finished is left alone. A rate limit waits for its reset
+# closed PR, a moved head, no run yet, a ci-status not started, one that began
+# reading the reviews after both lanes finished, or one that passed on a read
+# at or after their finish is left alone. A rate limit waits for its reset
 # within the cap, or fails past it. Unreadable reads fail. Each
 # path's API call count is pinned, and each response's rate-limit reading is
 # kept for the job-end api-budget notice.
@@ -231,8 +232,13 @@ runs() {
   local IFS=,
   printf '{"workflow_runs":[%s]}' "$*"
 }
-# cijob <status> [started_at]
-cijob() { jq -cn --arg st "$1" --arg at "${2:-$EARLY}" '{jobs: [{id: 7, name: "lint-repo", status: "completed"}, {id: 77, name: "ci-status", status: $st, started_at: $at}]}'; }
+# cijob <status> [started_at] [conclusion] [review-lanes step started_at]
+cijob() {
+  jq -cn --arg st "$1" --arg at "${2:-$EARLY}" --arg c "${3:-}" --arg step "${4:-}" '{jobs: [{id: 7, name: "lint-repo", status: "completed"},
+    {id: 77, name: "ci-status", status: $st, started_at: $at}
+    + (if $c == "" then {} else {conclusion: $c} end)
+    + (if $step == "" then {} else {steps: [{name: "Aggregate lane results", started_at: $at}, {name: "Require both review lanes on this head", started_at: $step}]} end)]}'
+}
 
 # The reconciler-record check's stand-in logs the run it was asked about and
 # exits STUB_RECORD_RC (0 vouches, 3 refuses).
@@ -392,7 +398,7 @@ STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC")")"
 
 # ci-status that already read both finished lanes is left alone.
 STUB_JOBS="$(cijob completed "$AFTER")"
-expect "a ci-status that started after both lanes finished is left alone" 0 "started at $AFTER, after both lanes finished ($LATER)"
+expect "a ci-status that started after both lanes finished is left alone" 0 "began reading the reviews at $AFTER, after both lanes finished ($LATER)"
 check_reran 0 "a fresh ci-status is not re-run"
 check_calls 3 "a fresh ci-status costs no PR read and no re-run"
 STUB_JOBS="$(cijob completed 2026-10-23T10:03:00Z)"
@@ -403,6 +409,33 @@ STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC")")" STUB_JOBS="$(cijob 
 expect "a ci-status that started the second the last lane finished is re-run" 0 "Re-running ci-status (job 77)"
 STUB_JOBS="$(cijob completed 2026-10-23T10:06:00Z)"
 expect "a ci-status that started within 60 s of the last lane is re-run" 0 "Re-running ci-status (job 77)"
+# The read starts at ci-status's review-lanes step when the jobs API lists
+# it, else at the job's start; a job held before that step reads the lanes late.
+STUB_JOBS="$(cijob completed "$EARLY" failure "$AFTER")"
+expect "a ci-status whose review-lanes step began after the margin is left alone" 0 "began reading the reviews at $AFTER, after both lanes finished ($LATER)"
+check_reran 0 "a late review read is not re-run"
+check_calls 3 "a late review read costs no PR read"
+STUB_JOBS="$(cijob completed "$EARLY" failure 2026-10-23T10:05:30Z)"
+expect "a failed ci-status whose review-lanes step began inside the margin is re-run" 0 "Re-running ci-status (job 77)"
+# A ci-status that passed on a read at or after both lanes finished counted
+# both reviews: a re-run could only pass again.
+for c in "$LATER" 2026-10-23T10:05:30Z; do
+  STUB_JOBS="$(cijob completed "$EARLY" success "$c")"
+  expect "a pass read at $c, after both lanes finished, is left alone" 0 "ci-status of run 9 passed, reading the reviews from $c, after both lanes finished ($LATER); a re-run can only pass again."
+  check_reran 0 "a pass read at $c is not re-run"
+  check_calls 3 "a pass read at $c costs no PR read"
+done
+STUB_JOBS="$(cijob completed "$LATER" success)"
+expect "a pass with no steps listed reads from the job's start" 0 "passed, reading the reviews from $LATER"
+STUB_JOBS="$(cijob completed "$EARLY" success 2026-10-23T10:04:59Z)"
+expect "a pass read before the last lane finished is re-run" 0 "Re-running ci-status (job 77)"
+check_reran 1 "a pass that could not count the last lane is re-run"
+STUB_JOBS="$(cijob completed "$EARLY" success)"
+expect "a pass with no steps listed and a job started before the lanes finished is re-run" 0 "Re-running ci-status (job 77)"
+for c in failure cancelled; do
+  STUB_JOBS="$(cijob completed "$EARLY" "$c" "$LATER")"
+  expect "a $c ci-status read when both lanes finished is re-run" 0 "Re-running ci-status (job 77)"
+done
 STUB_JOBS="$(cijob completed "$AFTER")" STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC" pull_request 2026-10-23T10:05)")"
 LANE_DONE_AT=$DONE expect "an unreadable finish time of the other lane means a re-run" 0 "Re-running ci-status (job 77)"
 STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC")")"

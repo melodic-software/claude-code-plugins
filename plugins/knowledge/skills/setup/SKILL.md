@@ -92,9 +92,10 @@ reports "already configured".
    the scope passed and enables the plugin there; from the home directory pass `user`. Check each
    route's own failure signal: `claude plugin configure` rejects a bad value with exit 1 and saves
    nothing, but stores an empty string as `""`; the rerun prints a warning for a rejected value yet
-   exits 0, so read its output. Afterwards rerun `check` in a **fresh session**, because the rendered
-   `${user_config.*}` is injected at skill load, so a same-session check still reports the OLD
-   value; report the observed effective value, never an unobserved change.
+   exits 0, so read its output. Afterwards rerun `check` in a **fresh session** and report the
+   observed effective value, never an unobserved change. For where `${user_config.*}` resolves, see
+   [Plugin manifest reference: Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
+   (as of 2026-11-03; recheck when that section changes when skill content takes a value).
    For a root outside the project and home directories, recommend the portable value forms from the
    README's option table (`~` prefix or `${NAME}` / `%NAME%` env-var reference) instead of a literal
    machine path, which guardrail hardcoded-path checks rightly block.

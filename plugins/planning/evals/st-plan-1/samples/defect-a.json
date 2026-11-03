@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": "- AC3 has no phase: the monthly finance CSV is never built.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- AC3 looks right in the Brief, but no phase builds the CSV.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- AC3 isn't covered by any phase.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- No phase satisfies AC3; Phases 1 to 3 claim AC1, AC2 and AC4 only.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | The finance CSV from AC3 is missing from the plan | Fix before building |\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | AC3 is not implemented: no phase builds the monthly export, and it is absent from Files affected | Fix before building |\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "**AC-3 uncovered.** Nothing in the plan produces the CSV for finance.\n",
+      "why": "paraphrase"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "- AC3 is covered by Phase 2, so the CSV is fine.\n",
+      "why": "named and dismissed"
+    },
+    {
+      "answer": "- AC3 is not missing; the CSV falls out of the ledger.\n",
+      "why": "negated mention"
+    },
+    {
+      "answer": "- Phase 2 has no test for a member exactly at the cap.\n",
+      "why": "a finding about something else"
+    },
+    {
+      "answer": "- AC3's CSV is sent and checked monthly by Phase 2.\n",
+      "why": "word ending in nt, an affirmation"
+    }
+  ]
+}

@@ -113,7 +113,7 @@ bundled default.
 
 ## Next
 
-`/code-metrics:audit-complexity`. The sibling `audit-*` skills cover the other measures.
+`/code-metrics:audit complexity`. The other `audit` actions and `audit-*` skills cover the rest.
 
 ## Gotchas
 

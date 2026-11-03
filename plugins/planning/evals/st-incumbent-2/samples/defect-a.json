@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "- Emberstore 6.1 row claims (`HOLD_UNTIL`) were never weighed: the seats database already in compose could hold seats with no library.\n",
+      "why": "bullet naming the feature"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | The draft does not consider Emberstore's `CLAIM ... UNTIL`, which meets AC1 and AC2 | Compare it to Leaseline |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- `HOLD_UNTIL` in docs/vendor/emberstore-release-notes.md is an alternative that would retire holds-redis.\n",
+      "why": "alternative"
+    },
+    {
+      "answer": "| 2 | IMPORTANT | Plan | Emberstore 6.2 could replace Leaseline and Redis for holds; Why overlooks it | Add it to Why |\n",
+      "why": "overlooks"
+    },
+    {
+      "answer": "- Holds could use the built-in row claim in Emberstore instead of a new library.\n",
+      "why": "built-in"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "- Emberstore's HOLD_UNTIL is not an alternative here, because holds must stay in Redis.\n",
+      "why": "dismissed"
+    },
+    {
+      "answer": "- Emberstore row claims cannot replace Leaseline.\n",
+      "why": "negated"
+    },
+    {
+      "answer": "- Emberstore 6.2 is the current image in compose.\n",
+      "why": "named, no nature"
+    },
+    {
+      "answer": "- Phase 3 has no rollback step for the lockfile refresh.\n",
+      "why": "another finding"
+    },
+    {
+      "answer": "- Consider a simpler rollout for Phase 2.\n",
+      "why": "generic, nature word without the feature"
+    }
+  ]
+}
