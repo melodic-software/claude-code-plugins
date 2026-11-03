@@ -26,14 +26,16 @@ Read for the `Passed on retry` and `Run signals to echo` rules in `SKILL.md` §2
 
 ```bash
 # Use the project's configured linter — biome.json → Biome; eslint config → ESLint
-cd "$PROJECT_DIR" && npx biome check .
+cd "$PROJECT_DIR" && npx @biomejs/biome check .
 
 # Format-only (/toolchain:lint --fix)
-cd "$PROJECT_DIR" && npx biome format --write <files>
+cd "$PROJECT_DIR" && npx @biomejs/biome format --write <files>
 
 # Code-fix (lint autofixes — /toolchain:lint --code-fix only)
-cd "$PROJECT_DIR" && npx biome check --write <files>
+cd "$PROJECT_DIR" && npx @biomejs/biome check --write <files>
 ```
+
+Name the scoped package `@biomejs/biome` through `npx`: the unscoped `biome` npm package is an unrelated tool, and with no local install `npx biome` fetches and runs it, exiting 0 without checking or formatting anything. `npx @biomejs/biome` runs the project's pinned install when it has one. When the project pins Biome, its consumer `check-cmd`, `fix-cmd` and `code-fix-cmd` may instead name the local binary (`node_modules/.bin/biome`), or a `biome` binary on PATH when there is no local one, in place of `npx`.
 
 ## Gotchas
 
