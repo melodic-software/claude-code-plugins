@@ -270,8 +270,9 @@ makes a retried or repeated publish of one plan file each child once. Without `-
 call creates an item. The check is one read of the parent's children before the write, with no
 compare-and-set, so two calls that run at the same moment can still both create. GitHub reads the
 parent's sub-issues in the target repository with their `closedAt` in one GraphQL query;
-local-markdown reads each child's `closed_at` frontmatter field, and a closed child without one
-counts as closed earlier. The linear seed does not run the check yet; the gitea seed refuses
+local-markdown reads each child's `closed_at` frontmatter field, which only the file edit that
+closes the item sets (see "local-markdown adapter"), and a closed child without one counts as
+closed earlier. The linear seed does not run the check yet; the gitea seed refuses
 `--parent`.
 
 `label-provenance` answers who applied each named label and whether that person may grant
@@ -901,8 +902,12 @@ network tool (`gh`, `curl`); the conformance suite runs it in CI, offline.
   file exists and that are `open`, or `closed` with any non-empty `state_reason` other
   than `completed` (such as `not_planned` or `duplicate`); those closed ones also count
   in `blocked_by_wont_do_count`. A closed item with no `state_reason` was completed. An optional
-  `closed_at` field (a UTC timestamp string) records when the item was closed; `create-item`'s
-  sibling check reads it (see "Verbs"). The lease is the same inline marker used
+  `closed_at` field (a UTC ISO-8601 timestamp string) holds when the item was closed, and
+  `create-item`'s sibling check reads it (see "Verbs"). This adapter has no close verb (the seam
+  has none, by design), so no verb writes `state` or `closed_at`: whoever closes an item by
+  editing its file sets `state: "closed"` and, for the sibling check to count the close as
+  recent, `closed_at`. A closed item without `closed_at` counts as closed more than 24 hours
+  ago and never blocks a new create. The lease is the same inline marker used
   everywhere (see "Lease protocol"), appended to the item file.
 - **Identity.** No authenticated provider user exists offline, so `claim` records the
   holder from `git config user.name` (falling back to `$USER`, then `local`) and
