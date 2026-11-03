@@ -103,8 +103,9 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   read-only file system at a relative path or under the run's sandbox, in any case: the run's
   workspace or `TMPDIR` was not writable, so the score measures the sandbox, not the skill. A
   read-only path elsewhere is the sandbox working as designed and does not fail the check, nor
-  does a failed call that only reads absolute paths through those readers, joined by `;`, `&&`,
-  `||` or newlines, such as a grep of a saved tool result: it prints the text it read.
+  does a relative one in a failed call that only reads absolute paths through those readers,
+  joined by `;`, `&&`, `||` or newlines, such as a grep of a saved tool result: it prints the text
+  it read. A path under the run's sandbox fails the run whatever the call ran.
 - `plugins loaded` fails a with-arm run whose trace init line has a `plugin_errors` entry for a
   `suite.plugins` plugin, or leaves that plugin out of its `plugins` list. That run ran without the
   plugin under test. The detail names the plugin and the error type, such as

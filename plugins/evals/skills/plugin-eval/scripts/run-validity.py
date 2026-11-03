@@ -47,9 +47,9 @@ one line per check, detail lines indented under it:
                       slash-invoked `context: fork` skill) and passes. Any run
                       fails whose failed Bash result reports a read-only file
                       system at a relative path or under the run's sandbox (its
-                      workspace and TMPDIR), unless the call only reads (such
-                      as a grep of a saved tool result, which prints the text
-                      it read), or whose user line's local-command-stderr shows
+                      workspace and TMPDIR), a relative path only when the call
+                      does more than read (a grep of a saved tool result prints
+                      the text it read), or whose user line's local-command-stderr shows
                       a skill's pre-computed command failing
     plugins loaded    every suite.plugins plugin, named by its
                       .claude-plugin/plugin.json (else its directory), is in
@@ -756,8 +756,10 @@ def shell_failure(run):
     starting, or every one of at least MIN_BASH_CALLS Bash calls failing with no
     output. A failed call that printed output ran, so the shell worked. A denied
     call never reached the shell, so it counts toward none; check_denials judges
-    it. A call that only reads (only_reads), such as a grep of a saved tool
-    result, prints a read-only file system only as text it read."""
+    it. A relative read-only path in a call that only reads (only_reads), such
+    as a grep of a saved tool result, is text it read; a path under the run's
+    sandbox, fresh per run, is always this run's, as when Bash cannot write its
+    cwd file to TMPDIR whatever the command."""
     sandbox = sandbox_dir(run)
     bash_ids, failed_ids, commands = set(), set(), {}
     for line in run.trace or []:
@@ -774,8 +776,9 @@ def shell_failure(run):
                     continue
                 if block.get(RESULT_ERROR) is not True:
                     continue
-                if not only_reads(commands.get(block.get(RESULT_USE_ID))) and any(
-                    in_run_sandbox(p, sandbox)
+                reads = only_reads(commands.get(block.get(RESULT_USE_ID)))
+                if any(
+                    in_run_sandbox(p, sandbox) and (rooted(p) or not reads)
                     for p in read_only_targets(block.get(CONTENT))
                 ):
                     return (

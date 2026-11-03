@@ -738,12 +738,11 @@ class RunValidityTest(unittest.TestCase):
         # matching nothing makes the call fail.
         saved = self.dir.joinpath(
             "sb-q", "config", "projects", "p", "s", "tool-results", "abc.txt")
-        tmp = self.dir / "sb-q" / "tmp" / "cwd-6a70"
         for command, text in (
             ('F=%s; grep -n Read-only "$F"; grep -n EROFS "$F"' % saved,
              "Exit code 1\n12:touch: cannot touch 'out.txt': Read-only file system"),
             ("F=%s\ngrep -n line $F && grep -c EROFS ${F}" % saved,
-             "Exit code 1\n3:/bin/bash: line 1: %s: Read-only file system\n0" % tmp),
+             "Exit code 1\n3:/bin/bash: line 1: made-by-bash: Read-only file system\n0"),
             ("grep -n Read-only %s | head -5; grep -q EROFS %s" % (saved, saved),
              "Exit code 1\n12:made-by-bash: Read-only file system"),
         ):
@@ -754,14 +753,20 @@ class RunValidityTest(unittest.TestCase):
         saved = self.dir.joinpath(
             "sb-w", "config", "projects", "p", "s", "tool-results", "abc.txt")
         text = "Exit code 1\ntouch: cannot touch 'out.txt': Read-only file system"
-        for command in (
-            "F=%s; grep -n x $F; touch out.txt" % saved,
-            "grep -n x %s > out.txt" % saved,
-            "F=$(pwd)/out.txt; grep -n x $F",
-            "F=out.txt; grep -n x $G",
-            "grep -n x out.txt",
+        # Bash writes its cwd file to TMPDIR whatever the command, and a path under
+        # this run's sandbox, fresh per run, can only be this run's.
+        cwd_file = ("Exit code 1\n/bin/bash: line 1: %s: Read-only file system"
+                    % (self.dir / "sb-w" / "tmp" / "cwd-6a70"))
+        for command, out in (
+            ("F=%s; grep -n x $F; touch out.txt" % saved, text),
+            ("grep -n x %s > out.txt" % saved, text),
+            ("F=$(pwd)/out.txt; grep -n x $F", text),
+            ("F=out.txt; grep -n x $G", text),
+            ("grep -n x out.txt", text),
+            ("cat %s" % (self.dir / "sb-w" / "home" / "cwd" / "README.md"), cwd_file),
+            ("F=%s; grep -n x $F" % saved, "Exit code 1\n3:" + cwd_file.split("\n")[1]),
         ):
-            proc = self.reads_trace("sb-w", command, text)
+            proc = self.reads_trace("sb-w", command, out)
             self.assertVerdict(proc, "INVALID", 1)
             self.assertIn("read-only file system in the run's workspace or TMPDIR",
                           proc.stdout, command)
