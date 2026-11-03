@@ -32,6 +32,12 @@ When the person asking supplies a theory, such as "I assume this was for perform
 hypothesis to test, not a conclusion to confirm. Check it against the record independently and report
 what the record says, including when it says nothing.
 
+## Reading a login as the author
+
+A comment under a person's login may be an agent's words. Graded as that person's, it makes a
+`Direct` claim out of an agent's report. Tag who wrote the words:
+[`artifact-shape.md`](artifact-shape.md), "`author_kind` says who wrote the words".
+
 ## Skipping a search by anticipation
 
 Deciding up front that the tracker or the design docs will not have it. The cost of a search that

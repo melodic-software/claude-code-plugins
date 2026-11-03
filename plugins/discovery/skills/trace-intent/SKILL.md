@@ -70,7 +70,7 @@ are in the parent contract**. Copy the one matching this session's shell, becaus
 `touch` is not a command in PowerShell and its directory flag is a parameter error there.
 
 **Post-dispatch, the payload is graded off disk before it is believed**. `status: complete` is the
-agent's claim about its own run, and a claim is not evidence. The gate's three steps, the reason this
+agent's claim about its own run, and a claim is not evidence. The gate's four steps, the reason this
 family ships no coverage ledger, the by-value rung, and the boundary the parent still owns after the
 gate passes are in [`context/dispatch.md`](context/dispatch.md). Two things worth knowing before you
 get there: **any non-zero exit halts the workflow**, and a gate that could not run is a FAIL rather
@@ -111,6 +111,12 @@ Every citation also carries a short reliability note: who wrote it, how close th
 decision, and how old it is (a review comment by the change's author and a wiki page four years
 stale are both `Direct`). This is a note, not a second ladder. Only the tier decides which section
 a claim lands in.
+
+### `Direct` needs a person's own words
+
+Each source records `author_kind: owner-quote | agent-relay`: who wrote the words, not whose login
+posted them. When you cannot tell, it is `agent-relay`, and a claim whose sources are all
+`agent-relay` is not `Direct`. Rule and check: [`context/artifact-shape.md`](context/artifact-shape.md).
 
 ### Code shape is not intent evidence
 
