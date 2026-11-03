@@ -49,6 +49,7 @@ mcp__context7__query-docs(libraryId: "/org/project", query: "...")
 - Always resolve first; the docs step rejects anything but a resolved ID, unless the user supplied one in `/org/project` form.
 - One concept per query; run a separate lookup per independent topic, and at most 3 lookup commands per topic. When Context7 does not cover it, answer from training knowledge and say so.
 - Never put API keys, passwords or other credentials in a query: it is sent to the Context7 backend.
+- Keep the two steps above as the default. `ctx7 search "<question>"` is an option for a question that spans several libraries or names none, only when `ctx7 --help` lists it. When to choose it and where its behavior is read: [context/cli.md](context/cli.md#commands).
 
 Both paths read the same backend. Prefer the MCP server for conversational lookups: it returns more per call (measured ratio in [context/mcp.md](context/mcp.md)), clean markdown, needs no `MSYS_NO_PATHCONV`, and is discoverable from your tool list. Use the CLI to pipe or save output (`grep`, `jq`, `> docs.md`), in scripts and loops, for `--json` extraction, or when no MCP server is configured or `mcp.context7.com` is blocked. Flags and errors: [context/cli.md](context/cli.md).
 
@@ -77,7 +78,7 @@ never hand a `${…}` token from those files to the Bash tool.
 
 ## Gotchas
 
-- **Windows Git Bash** rewrites `ctx7 docs /org/project` into `C:/Program Files/Git/org/project`. Always prefix `ctx7 docs` with `MSYS_NO_PATHCONV=1`; `ctx7 library` is unaffected. Detail: [context/cli.md](context/cli.md).
+- **Windows Git Bash** rewrites `ctx7 docs /org/project` into `C:/Program Files/Git/org/project`. Always prefix `ctx7 docs`, and `ctx7 search --library /org/project`, with `MSYS_NO_PATHCONV=1`; `ctx7 library` is unaffected. Detail: [context/cli.md](context/cli.md).
 - The CLI has no flag for content depth; for more per call, use the MCP server.
 - Never run `ctx7 setup`, or `ctx7 skills install` if a guide names it: this plugin owns the lookup surface, and a second copy of Upstash's `find-docs` fragments lookups and drifts on its own.
 - This skill retrieves library docs only. Architecture decisions and other questions that need cross-checked sources go to a research workflow.
