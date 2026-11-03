@@ -11,7 +11,7 @@
 #
 # Exit codes:
 #   0  no drift
-#   1  drift: a pinned file changed or is gone, or a new file appeared under skills/
+#   1  drift: a pinned file changed or is gone, or a new file appeared at the root or under skills/
 #   2  unverifiable (git missing, network) or usage
 #
 # Tests source this file and replace fetch_tree.
@@ -20,33 +20,39 @@ set -uo pipefail
 
 UPSTREAM_REPO="emilkowalski/skills"
 UPSTREAM_BRANCH="main"
-PIN="2d228630ba1446365f614a108cb8252f1feda202"
+PIN="f1090bec277140d02ed202440185ad9d02ac1490"
 # upstream path|pinned blob SHA, for every file a row in the record takes from
 PINNED=(
   "LICENSE|57b46f1fd11dc62351ea548104a88aa3f659c11b"
-  "performance-cheatsheet.md|5b279577685cebabbfbb0197bd6b3a74591b3392"
+  "performance-cheatsheet.md|15f73d24a3b0e8a44d96d16d996719565b3ab7d5"
+  "ui-cheatsheet.md|a5c803280b82f72dd11ed2136caaf0ea8c139a5c"
   "skills/animate/RECIPES.md|6744891261bdf0bb0473d77f2cc706f2d78b574e"
-  "skills/animate/SKILL.md|7c3b20c6ed681b2d47c9ca9e3ee0e659ed47d032"
-  "skills/animation-performance/SKILL.md|d688dd7c3ba143c6ae17efd2bc665380d5252c5a"
+  "skills/animate/SKILL.md|2d3b63acc5e2afcbf54b5ba59792e69fa51bcb0d"
+  "skills/animation-performance/SKILL.md|74c421e4e673cab84490f8b17b89735c30b0f555"
   "skills/animation-vocabulary/SKILL.md|5ab2976514c74a194ebf069506d95ff3a5a0084f"
   "skills/apple-design/SKILL.md|adf68c517f2d7d2781587d619de07f4de286da57"
   "skills/break-ui/CATALOG.md|46962bb89445b8526ea94994a79b49508573b5fd"
   "skills/break-ui/SKILL.md|091a28d488662d2451131f1aaa60a6dcd2391932"
-  "skills/emil-design-eng/SKILL.md|62ce902af8dd32c590ea7203e9ab2edb1d6ef81a"
+  "skills/emil-design-eng/SKILL.md|dc063c2a861922c1c9f2412b824b0862746304f5"
   "skills/find-animation-opportunities/SKILL.md|d3b030fbca9abad9220a032f72d425c6b7fa2de8"
-  "skills/improve-animations/AUDIT.md|94056154e532d695b8792ea67d701625b4f43b6e"
+  "skills/improve-animations/AUDIT.md|0862c446eea250326cdd2054fc3492c6707f4cf7"
   "skills/improve-animations/PLAN-TEMPLATE.md|239026b91f8032df191dde2085fd796b8c116d91"
   "skills/improve-animations/SKILL.md|d6e77f37272329af0cc36f9eeedbe5226e86ce63"
   "skills/mobile-native/SKILL.md|94bba21fcb990b850e06effbf5709c96a07446ad"
   "skills/pick-ui-library/SKILL.md|5e0028e988b88d2a88a019fdc978b4732243e467"
   "skills/prototype/PICKER.md|aaa88c0eba38eb01c00d4eb2b144e39f808fc26a"
   "skills/prototype/SKILL.md|dbcc1a23c66933f7372c0aacbce2b0d7cc6100b6"
-  "skills/review-animations/SKILL.md|577a64397267ce20960de2202950594d5bd6f9b6"
-  "skills/review-animations/STANDARDS.md|863ea12ea94c1f7a47b5f7e1019e976aa82bd4cd"
+  "skills/remove-animations/SKILL.md|100b7b7666f7d09c69a75ebb793e30e607058e77"
+  "skills/review-animations/SKILL.md|591397b5308266f76671dacc3e44830a3e3e535f"
+  "skills/review-animations/STANDARDS.md|67b6edb5ed45aeafe7e3706bb76e27f3bd209a92"
 )
-# Skill files present at the pin that the record omits; a change to them is not
-# drift, but a path under skills/ that is in neither list is a new upstream file.
+# Files present at the pin that the record omits; a change to them is not drift,
+# but a root or skills/ path in neither list is a new upstream file.
 KNOWN_OMITTED=(
+  ".gitattributes"
+  ".gitignore"
+  ".pl"
+  "README.md"
   "skills/animate-expo/RECIPES.md"
   "skills/animate-expo/SKILL.md"
   "skills/ask-sonner/API.md"
@@ -105,10 +111,10 @@ run_check() {
     fi
   done
 
-  section "New upstream skill files"
+  section "New upstream files"
   known="$(printf '%s\n' "${PINNED[@]%%|*}" "${KNOWN_OMITTED[@]}")"
   while read -r _ path; do
-    [[ "$path" == skills/* ]] || continue
+    [[ "$path" == skills/* || "$path" != */* ]] || continue
     grep -qxF -- "$path" <<<"$known" && continue
     log "NEW        ${path}"
     drift=1
@@ -130,7 +136,7 @@ Usage: check-emilkowalski-drift.sh [--check | --help]
 
   --check  (default) Read-only: read the upstream tree once, compare the blob SHA of
            each pinned emilkowalski/skills file with its pin, and report new files
-           under skills/. Exit 0 no drift, 1 drift, 2 unverifiable.
+           at the root or under skills/. Exit 0 no drift, 1 drift, 2 unverifiable.
   --help   Show this message.
 EOF
 }

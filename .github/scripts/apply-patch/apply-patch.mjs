@@ -94,6 +94,10 @@ const REGULAR = "100644";
 const EXECUTABLE = "100755";
 const ZERO = /^0+$/;
 
+const lefthookConfigs = (...stems) => new Set(stems.flatMap((stem) => ["yml", "yaml", "toml", "json", "jsonc"].map((ext) => `${stem}.${ext}`)));
+const LEFTHOOK_ROOT_CONFIGS = lefthookConfigs("lefthook", ".lefthook", "lefthook-local", ".lefthook-local");
+const LEFTHOOK_DOT_CONFIGS = lefthookConfigs("lefthook", "lefthook-local");
+
 // Path refusals a row may add to the universal set, in any case and through
 // any .. segment; rename-into-refused does not read them.
 const ROW_PATH_RULES = {
@@ -104,7 +108,7 @@ const ROW_PATH_RULES = {
   // or commit on any machine.
   gitattributes: (s) => s.at(-1) === ".gitattributes",
   husky: (s) => s[0] === ".husky",
-  lefthook: (s) => s.length === 1 && s[0] === "lefthook.yml",
+  lefthook: (s) => s[0] === ".lefthook" || s[0] === ".lefthook-local" || (s.length === 1 && LEFTHOOK_ROOT_CONFIGS.has(s[0])) || (s.length === 2 && s[0] === ".config" && LEFTHOOK_DOT_CONFIGS.has(s[1])),
 };
 const rowPathRule = (name) => (entry) => ROW_PATH_RULES[name](segments(entry.path));
 

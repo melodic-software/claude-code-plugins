@@ -18,9 +18,12 @@ import {
   countRestarts,
   countTurnCapRestarts,
   decide,
+  DECISION_LINE,
+  REFINE_MARKER,
   doneEvidence,
   ESCALATION_MARKER,
   findPrior,
+  redispatchComment,
   limitedMarker,
   readLaneCredential,
   withCredential,
@@ -411,7 +414,56 @@ test("the model's text is cut to the length caps after escaping", () => {
   });
   // 3000 for the summary, 20 items of 300 for the list, plus the fixed text.
   assert.ok(plan.body.length < 3000 + 20 * 305 + 1000, String(plan.body.length));
-  assert.ok(!/&l?t?$|&lt$/m.test(plan.body.split("## Fix")[0].trim()), "no half-cut entity");
+  assert.ok(!/&[a-z]*…$/m.test(plan.body), "no half-cut entity before the cut marker");
+  assert.ok(/&lt;…$/m.test(plan.body), plan.body);
+});
+
+const LONG_ITEM = `${"word ".repeat(70)}tail`;
+const itemLines = (body, heading) => section(body, heading).split("\n").filter((line) => line.startsWith("- "));
+
+test("a long item is cut at its last word inside the cap and marked", () => {
+  const body = bodyOf({ ...done, changes: [LONG_ITEM], verification: [LONG_ITEM], not_done: [LONG_ITEM] });
+  for (const heading of ["Fix", "Verification", "Not verified"]) {
+    const [line] = itemLines(body, heading);
+    assert.ok(/^- (word )+word…$/.test(line), `${heading}: ${line}`);
+    assert.ok(line.length - 2 <= 300, `${heading}: ${line.length}`);
+  }
+});
+
+test("a long summary is cut at a word and marked", () => {
+  const quote = section(bodyOf({ ...done, summary: `${"word ".repeat(700)}tail` }), "Summary");
+  assert.ok(/word…$/.test(quote.trim()), quote.slice(-40));
+  assert.ok(!quote.includes("tail"), quote.slice(-40));
+});
+
+test("an item that is one token past the cap is cut hard and marked", () => {
+  assert.deepEqual(itemLines(bodyOf({ ...done, changes: ["x".repeat(400)] }), "Fix"), [`- ${"x".repeat(299)}…`]);
+});
+
+test("a cut never splits a surrogate pair", () => {
+  for (const pad of [298, 299]) {
+    const [line] = itemLines(bodyOf({ ...done, changes: [`${"x".repeat(pad)}${"😀".repeat(20)}`] }), "Fix");
+    assert.equal(Buffer.from(line, "utf8").toString("utf8"), line, `pad ${pad}`);
+    assert.ok(line.endsWith("…"), line);
+  }
+});
+
+test("a cut that keeps only whitespace is empty, and leading whitespace does not drop the token after it", () => {
+  const quote = section(bodyOf({ ...done, summary: " ".repeat(3500) }), "Summary");
+  assert.ok(quote.endsWith("\n> (none)"), quote);
+  assert.deepEqual(itemLines(bodyOf({ ...done, changes: [`  ${"x".repeat(400)}`] }), "Fix"), [`- ${"x".repeat(297)}…`]);
+});
+
+test("a runner check name past the cap is cut at a word", () => {
+  const check = `${"step ".repeat(70)}tail`;
+  const [result] = readChecks(checksFile({ results: [{ check, exit: 0 }] }), { branch: BRANCH }).results;
+  assert.match(result.check, /^(step )+step…$/);
+  assert.ok(result.check.length <= 300, String(result.check.length));
+});
+
+test("an item within the cap is unchanged", () => {
+  const item = `${"a".repeat(296)} end`;
+  assert.deepEqual(itemLines(bodyOf({ ...done, changes: [item, "short ünïcode 😀 item"] }), "Fix"), [`- ${item}`, "- short ünïcode 😀 item"]);
 });
 
 // CommonMark decodes `&commat;` to `@` and `&num;` to `#`, and GitHub links a
@@ -1919,7 +1971,7 @@ test("main on a resumed stop with no commit of its own names no branch", async (
       ]);
       assert.equal(await main({ env: env(dir), fetch }), 0);
       assert.ok(!calls.some((c) => c.path.endsWith("/pulls")));
-      const comment = calls.find((c) => c.path.endsWith("/issues/77/comments")).body.body;
+      const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/issues/77/comments")).body.body;
       assert.ok(!comment.includes(RESUMED), comment);
       assert.equal(parseOutcomeMarker(comment).onResumed, true, comment);
     },
@@ -4042,6 +4094,122 @@ test("main on a pushback whose work-outcome.json names cause cost-risk holds it 
   });
 });
 
+// Ledger L7: write-issue.mjs leaves out a record posted after the run's
+// admission, so a pushback hold would wait on an answer the issue already
+// has. The answer re-dispatches the lane once, with a fresh admission; any
+// other late comment takes the hold as before.
+const ADDED = "2026-10-02T00:00:00Z";
+const LATE = "2026-10-02T01:00:00Z";
+const late = (id, userId, body, { at = LATE, type = "User", login = "someone", app = null } = {}) =>
+  issueComment(id, userId, body, { user: { id: userId, type, login }, created_at: at, updated_at: at, performed_via_github_app: app });
+const DECISION_BODY = "**Decision recorded.** Change only the README.";
+const readyAdd = (id, actor, at) => ({ id, event: "labeled", label: { name: "agent-ready" }, actor, created_at: at });
+const OWNER_ADD = readyAdd(1, { id: OWNER_ID, login: "kyle-sexton" }, ADDED);
+const redispatchRecord = (id, names, at = LATE) => late(id, 337595936, `<!-- work-resolve-issue outcome=redispatch run=99 -->\n<!-- work-resolve-issue redispatch comment=${names} -->\nre-dispatched`, { at, type: "Bot", login: BOT });
+async function runLateRecord(comments, { events = [OWNER_ADD], reason = "Which file?", labels = ["agent-ready", "status: ready"] } = {}) {
+  const pushback = JSON.stringify({ exit: "pushback", reason, cause: "intent", title: "", summary: "" });
+  let result;
+  await withAsyncDir({ "work-outcome.json": pushback, "lane.json": JSON.stringify({ branch: "" }), "trusted.json": TRUSTED_LIST }, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77\/comments$/, 200, comments],
+      ["GET", /\/issues\/77\/events$/, 200, events],
+      ["GET", /\/issues\/77$/, 200, { number: 77, state: "open", labels: labels.map((name) => ({ name })) }],
+      ["POST", /\/issues\/77\/labels$/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\/status%3A%20ready$/, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch }), 0);
+    const posted = calls.filter((c) => c.method === "POST" && c.path.endsWith("/comments")).map((c) => c.body.body);
+    const labeled = calls.filter((c) => c.method === "POST" && c.path.endsWith("/labels")).map((c) => c.body.labels);
+    const removed = calls.filter((c) => c.method === "DELETE").map((c) => decodeURIComponent(c.path.split("/labels/")[1]));
+    result = { posted, labeled, removed, redispatches: posted.filter((body) => body.includes("<!-- work-resolve-issue redispatch comment=")) };
+  });
+  return result;
+}
+
+test("a listed human's decision posted after admission re-dispatches a pushback hold exactly once, with a fresh admission", async () => {
+  const { posted, labeled, redispatches } = await runLateRecord([late(5, OWNER_ID, DECISION_BODY, { login: "kyle-sexton" })]);
+  assert.deepEqual(redispatches, [`<!-- work-resolve-issue outcome=redispatch run=123 -->\n<!-- work-resolve-issue redispatch comment=5 -->\nA record this run did not read was posted after its admission: ${commentUrl(5)}. The run's report-outcome removed and added back \`status: ready\` and \`agent-ready\`, so a fresh run admits the issue as it stands now and reads it.`]);
+  assert.equal(posted.length, 1, "no hand-back comment beside the redispatch record");
+  assert.deepEqual(labeled, [["status: ready"], ["agent-ready"]], "no needs-human, and status: ready lands between the agent-ready moves");
+});
+
+test("intake's refinement posted after admission re-dispatches a pushback hold once", async () => {
+  const refinement = late(6, 337595936, "<!-- intake-triage refinement -->\nDone when: the README says so.", { type: "Bot", login: BOT });
+  const { redispatches, labeled } = await runLateRecord([refinement]);
+  assert.equal(redispatches.length, 1);
+  assert.deepEqual(labeled, [["status: ready"], ["agent-ready"]]);
+});
+
+test("a late comment that is no decision, or is not a listed human's own, or predates admission, takes the hold", async () => {
+  const cases = {
+    "a listed human's comment without the decision line": [late(5, OWNER_ID, "Change only the README.")],
+    "an unlisted account's decision line": [late(5, 999, DECISION_BODY)],
+    "a listed human's decision posted through an App": [late(5, OWNER_ID, DECISION_BODY, { app: { id: 1 } })],
+    "a decision posted before the agent-ready add": [late(5, OWNER_ID, DECISION_BODY, { at: "2026-10-01T23:59:59Z" })],
+  };
+  for (const [name, comments] of Object.entries(cases)) {
+    const { redispatches, labeled } = await runLateRecord(comments);
+    assert.deepEqual(redispatches, [], name);
+    assert.deepEqual(labeled, [["needs-human"]], name);
+  }
+});
+
+// A security stop reaches a person first, whatever was posted since.
+test("a security-risk hold takes the hold even with a listed human's late decision", async () => {
+  const { redispatches, labeled } = await runLateRecord([late(5, OWNER_ID, DECISION_BODY)], { reason: "security-risk: the change prints a token." });
+  assert.deepEqual(redispatches, []);
+  assert.deepEqual(labeled, [["needs-human"]]);
+});
+
+test("a redispatch record whose label move did not land is finished without a second record; one the App's re-add followed is done", async () => {
+  const comments = [late(5, OWNER_ID, DECISION_BODY), redispatchRecord(6, 5)];
+  const unfinished = await runLateRecord(comments);
+  assert.equal(unfinished.posted.length, 0, "no second record and no hand-back comment");
+  assert.deepEqual(unfinished.labeled, [["status: ready"], ["agent-ready"]]);
+  const appAdd = readyAdd(2, { id: 337595936, login: BOT }, "2026-10-02T01:00:01Z");
+  const finished = await runLateRecord(comments, { events: [OWNER_ADD, appAdd] });
+  assert.deepEqual(finished.redispatches, []);
+  assert.deepEqual(finished.labeled, [["needs-human"]]);
+});
+
+// Each label call after the agent-ready DELETE can fail; a re-run of the
+// report then finds agent-ready off by the App's own hand and finishes the
+// move, while a person's removal still takes the hold.
+test("a redispatch move stopped after the App removed agent-ready is finished on a re-run; a person's removal takes the hold", async () => {
+  const comments = [late(5, OWNER_ID, DECISION_BODY), redispatchRecord(6, 5)];
+  const unlabel = (actor) => ({ id: 3, event: "unlabeled", label: { name: "agent-ready" }, actor, created_at: "2026-10-02T01:00:01Z" });
+  const resumed = await runLateRecord(comments, { events: [OWNER_ADD, unlabel({ id: 337595936, login: BOT })], labels: ["status: ready"] });
+  assert.equal(resumed.posted.length, 0, "no second record and no hand-back comment");
+  assert.deepEqual(resumed.removed, ["status: ready"], "agent-ready is already off, so only status: ready is removed");
+  assert.deepEqual(resumed.labeled, [["status: ready"], ["agent-ready"]]);
+  const person = await runLateRecord(comments, { events: [OWNER_ADD, unlabel({ id: OWNER_ID, login: "kyle-sexton" })], labels: ["status: ready"] });
+  assert.deepEqual(person.redispatches, []);
+  assert.deepEqual(person.labeled, [["needs-human"]]);
+});
+
+// The stopped run may have committed to its lane branch; the record's outcome
+// marker reports that run, so the fresh admission runs the model instead of
+// reusing the branch unread.
+test("a redispatch record reports its run's lane branch, so findPrior runs fresh instead of reusing it", () => {
+  const body = redispatchComment({ id: 5, html_url: commentUrl(5) }, "400");
+  assert.deepEqual(parseOutcomeMarker(body), { outcome: "redispatch", resets: null, run: "400", onResumed: false });
+  const branches = [branchFact(lane(400))];
+  assert.equal(prior({ branches }).action, "reuse", "unreported without the record");
+  assert.deepEqual(prior({ branches, markers: [{ ...parseOutcomeMarker(body), at: Date.parse(LATE) }] }), { action: "run" });
+});
+
+// report-outcome restates these because a script activity runs from a copy
+// of its own directory; the sources they restate must not drift from them.
+test("report-outcome's restated decision line and refinement marker match their sources", async () => {
+  const admit = await import("../intake-triage/admit.mjs");
+  assert.equal(REFINE_MARKER, admit.REFINE_MARKER);
+  const { isDecisionComment } = await import("../../actions/select-trusted-text/select-trusted-text.mjs");
+  const decision = (body) => ({ comment: { user: { id: OWNER_ID }, performed_via_github_app: null, body }, lastEditedAt: null, lastEditorId: null });
+  assert.equal(isDecisionComment(decision(`${DECISION_LINE} yes`), HUMANS), true);
+});
+
 // stop-routes.json routes every stop. Expected values are the owner's
 // direction of 2026-10-27: a person only for an intent, design, security or
 // cost reason; a host-only or protected-path stop to the host queue's one
@@ -4177,12 +4345,35 @@ test("route close: already-done and report-delivered close the issue as complete
   const report = stoppedPlan("report-delivered: the report is below", { issueLabels: ["agent-ready", "work-class: read-only"], branch: "" });
   assert.equal(closeStop(report.comment).stop, "report-delivered");
   assert.equal(closeStop(stoppedPlan("the tests failed").comment), null, "a retry comment is no close");
-  // A report closes only a read-only issue the run committed nothing for.
+  // A report closes only an issue the run committed nothing for.
   assert.equal(stoppedPlan("report-delivered: the report is below").action, "retry");
-  for (const opts of [{}, { issueLabels: ["agent-ready"], branch: "" }, { issueLabels: ["agent-ready", "work-class: read-only"], branch: "work/7" }]) {
+  for (const opts of [{}, { issueLabels: ["agent-ready", "work-class: read-only"], branch: "work/7" }]) {
     const retry = stoppedPlan("report-delivered: the report is below", opts);
     assert.equal(retry.action, "retry");
     assert.match(retry.comment, /so it retries instead of closing\./, retry.comment);
+  }
+});
+
+// Owner Q85: a stop routes by no work class, or by a missing one.
+test("route close: report-delivered closes a class-less or structural issue with no branch, and retries with one", () => {
+  for (const issueLabels of [["agent-ready"], ["agent-ready", "work-class: structural"]]) {
+    const closed = stoppedPlan("report-delivered: the report is below", { issueLabels, branch: "" });
+    assert.equal(closed.action, "close", issueLabels.join());
+    assert.equal(closeStop(closed.comment).stop, "report-delivered");
+    const retry = stoppedPlan("report-delivered: the report is below", { issueLabels, branch: "work/7" });
+    assert.equal(retry.action, "retry", issueLabels.join());
+    assert.match(retry.comment, /so it retries instead of closing\./, retry.comment);
+  }
+});
+
+// The earlier run's commits are unmerged on the branch this run resumed, so a
+// report that committed nothing of its own closes nothing.
+test("route close: report-delivered retries on a resumed branch when the run committed nothing, keeping that branch for the next run", () => {
+  for (const issueLabels of [["agent-ready"], ["agent-ready", "work-class: structural"]]) {
+    const plan = stoppedPlan("report-delivered: the report is below", { issueLabels, branch: "", resumed: "work/7-earlier" });
+    assert.equal(plan.action, "retry", issueLabels.join());
+    assert.match(plan.comment, /The run committed to a branch, or resumed one, so it retries instead of closing\./, plan.comment);
+    assert.equal(parseOutcomeMarker(plan.comment).onResumed, true, plan.comment);
   }
 });
 

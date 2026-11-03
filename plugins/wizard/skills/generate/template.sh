@@ -170,7 +170,7 @@ open_url() {
       xdg-open "$url"
     elif command -v open >/dev/null 2>&1; then
       open "$url"
-    else warn "no browser opener found; open this address yourself: $url"; fi
+    else false; fi
   } >/dev/null 2>&1 || warn "the browser did not open; open this address yourself: $url"
 }
 
@@ -218,7 +218,9 @@ gate() {
 # pair of surrounding quotes stripped (write_env stores values single-quoted,
 # so re-run defaults must offer the value back, not the quoting). For a
 # single-quoted line, write_env's escaping ('\'' for an embedded ') is also
-# reversed, so Enter-keeps-current never re-escapes an already-escaped value.
+# reversed, so Enter-keeps-current never re-escapes an already-escaped value. A
+# double-quoted value holding a backslash, $, ` or " cannot be decoded safely,
+# so it returns status 1 and the prompt asks again.
 _existing() {
   _valid_key "$1"
   [[ -f "$ENV_FILE" ]] || return 1
@@ -232,7 +234,10 @@ _existing() {
       val="${val:1:${#val}-2}"
       val="${val//"$esc"/\'}"
       ;;
-    \"*\") val="${val:1:${#val}-2}" ;;
+    \"*\")
+      val="${val:1:${#val}-2}"
+      [[ "$val" != *[\\\$\"\`]* ]] || return 1
+      ;;
     *) ;; # unquoted (hand-written line), offer verbatim
     esac
   fi

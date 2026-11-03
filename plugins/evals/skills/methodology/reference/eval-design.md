@@ -49,9 +49,13 @@ quickly and cheaply graded; put that at the center of design choices.
 
 Constrain the output format to make cheap grading possible: e.g. "return just the number of legs as
 an integer and nothing else" (plus a small `max_tokens`) turns a free-form task into an exact-match
-one. Size `max_tokens` for the model under evaluation: where thinking is always on it counts
-against the same limit, so a value tight enough to fence a bare integer can cut the response off
-before the answer is written. Constrain the format in the prompt and leave the limit headroom.
+one. For a model under evaluation whose thinking shares that limit, constrain the format in the
+prompt and leave `max_tokens` headroom rather than fencing the answer with a tight limit.
+
+- **Pointer**: when sizing `max_tokens` for a model that thinks, fetch
+  [Budget rules and tuning](https://platform.claude.com/docs/en/build-with-claude/extended-thinking#budget-rules-and-tuning)
+  live. **As of**: 2026-11-03. **Recheck trigger**: that section changes how thinking tokens count
+  against `max_tokens`.
 
 ## Effort as an eval axis
 

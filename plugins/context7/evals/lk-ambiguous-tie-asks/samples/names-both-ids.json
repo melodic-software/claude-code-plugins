@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "Both candidates document retries with exponential backoff, so the probe can't settle which one you mean. Which library are you using: `/lumen-http/lumen` (HTTP client) or `/lumenjs/lumen` (React fetch wrapper)?"
+    },
+    {
+      "answer": "Two libraries named Lumen answer this equally well: /lumen-http/lumen and /lumenjs/lumen. Did you mean the HTTP client or the React wrapper?"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Using `/lumen-http/lumen`: set `retry: { limit: 3, backoff: \"exponential\" }` on the client.",
+      "why": "picked one on a tie and named only it"
+    },
+    {
+      "answer": "Which Lumen do you use, the HTTP client or the React fetch wrapper?",
+      "why": "asks but names neither ID"
+    }
+  ]
+}

@@ -323,8 +323,13 @@ const STEP_FAILED = /^\d{4}-\d\d-\d\dT[\d:.]+Z ##\[error\]Process completed with
 // minted; a MINT_STEP success with it skipped is a mint that stopped green.
 const STAGE_STEP = "Stage the activity from the base";
 // request-lane-token's notice when kill-switch-ok ends a kill-switch refusal
-// green with no token.
-const STOPPED = /^\d{4}-\d\d-\d\dT[\d:.]+Z ##\[notice\]lane-token-stopped: the broker refused the token because a lanes kill switch is on(?:,|$)/;
+// green with no token, at a mint or at broker-check's check.
+const STOPPED =
+  /^\d{4}-\d\d-\d\dT[\d:.]+Z ##\[notice\]lane-(?:token-stopped: the broker refused the token|check-stopped: the broker refused the check) because a lanes kill switch is on(?:,|$)/;
+// broker-check's step after BROKER_STEP that runs in issue mode exactly on
+// the broker's allow; a BROKER_STEP success with it skipped is a check that
+// stopped green.
+const LEASE_STEP = "Claim the issue with a lane lease";
 // The runner's markers around request-lane-token's one composite step, its
 // `Request the lane token` with id `request`; a STOPPED line counts only
 // between the job's first start marker and its end marker.
@@ -1250,7 +1255,8 @@ async function laneRuns(actions, repo, number, addedAt) {
 // log (`mint-failed`, which wins; the read runner resolve-issue calls has no
 // MINT_STEP, so its broker ask is the one the broker can fail), had the broker
 // refuse it for the kill switch at broker-check or a mint (failed, or stopped
-// green with its STOPPED notice), or had broker-check
+// green with its STOPPED notice: at broker-check, BROKER_STEP succeeded and
+// LEASE_STEP skipped), or had broker-check
 // skip its broker ask for the kill switch (`breaker`), was skipped by the WIP
 // cap (`capped`: pick-slot ran, resolve-issue did not), or was skipped by the
 // admit job's blocker gate (`blocked`: its BLOCKER_STEP ran and pick-slot did
@@ -1285,6 +1291,7 @@ async function didNoWork(jobsOf, refusalOf, runs) {
     const calls = RESOLVE_CALLS.flatMap(named);
     const killed = calls.some((job) => endedAt(job, KILL_STEP, "success") && endedAt(job, BROKER_STEP, "skipped"));
     const checked = calls.find((job) => failedAt(job, BROKER_STEP));
+    const checkStopped = calls.find((job) => job.conclusion === "success" && endedAt(job, BROKER_STEP, "success") && endedAt(job, LEASE_STEP, "skipped"));
     const minting = jobs.find((job) => failedAt(job, MINT_STEP));
     const stopped = jobs.find(stoppedAt);
     const capped =
@@ -1294,20 +1301,22 @@ async function didNoWork(jobsOf, refusalOf, runs) {
     const blocked =
       named("admit").some((job) => (job?.steps ?? []).some((step) => step?.name === BLOCKER_STEP && step.conclusion === "success")) &&
       named("pick-slot").every((job) => job.conclusion === "skipped");
-    // One log per run: broker-check's when it refused, else the first failed
-    // mint's, else the first stopped mint's.
+    // One log per run: broker-check's when it refused, failed or stopped
+    // green, else the first failed mint's, else the first stopped mint's.
     const refused = killed
       ? null
       : checked
         ? refusalOf(checked, "check")
-        : minting
-          ? refusalOf(minting, "token")
-          : stopped
-            ? refusalOf(stopped, "stop")
-            : null;
+        : checkStopped
+          ? refusalOf(checkStopped, "stop")
+          : minting
+            ? refusalOf(minting, "token")
+            : stopped
+              ? refusalOf(stopped, "stop")
+              : null;
     if (killed || (await refused) === BREAKER) {
-      atLeast("breaker", run, killed || checked ? "check" : "token");
-    } else if (minting || checked || stopped) {
+      atLeast("breaker", run, killed || checked || checkStopped ? "check" : "token");
+    } else if (minting || checked || checkStopped || stopped) {
       atLeast("mint-failed");
     } else if (capped) {
       atLeast("capped");

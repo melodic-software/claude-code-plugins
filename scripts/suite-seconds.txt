@@ -165,7 +165,7 @@ plugins/code-tidying/scripts/test_change_shape.py 32
 plugins/code-tidying/scripts/test_comment_census.py 2
 plugins/code-tidying/scripts/test_commented_out_code.py 7
 plugins/code-tidying/scripts/test_rank_comment_targets.py 3
-plugins/code-tidying/skills/audit-comment-residue/scripts/detect.test.sh 4
+plugins/code-tidying/skills/remove-comments/scripts/detect.test.sh 4
 plugins/code-tidying/skills/audit-dead-code/scripts/dead-code-scan.test.sh 5
 plugins/code-tidying/skills/tidy/scripts/open-pr-count.test.sh 1
 plugins/context-budget/hooks/settings-write-ask.test.sh 1

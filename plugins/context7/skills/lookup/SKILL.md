@@ -6,8 +6,8 @@ disable-model-invocation: false
 allowed-tools:
   - "Bash(ctx7 --version*)"
 metadata:
-  upstream-version: upstash/context7@158ad26261019f4036571b475d9ba87065c4973f
-  synced: 2026-10-20
+  upstream-version: upstash/context7@ceaf5f91f48949eaa6e4da5e66f3f59d1b44556d
+  synced: 2026-11-03
   workflow-stage: research
   summary: Look up current library docs, API references, and examples via Context7
 shell: bash
@@ -79,5 +79,5 @@ never hand a `${…}` token from those files to the Bash tool.
 
 - **Windows Git Bash** rewrites `ctx7 docs /org/project` into `C:/Program Files/Git/org/project`. Always prefix `ctx7 docs` with `MSYS_NO_PATHCONV=1`; `ctx7 library` is unaffected. Detail: [context/cli.md](context/cli.md).
 - The CLI has no flag for content depth; for more per call, use the MCP server.
-- Never run `ctx7 skills install` into `.claude/skills/`: this plugin owns the lookup surface, and a second copy of Upstash's `find-docs` fragments lookups and drifts on its own.
+- Never run `ctx7 setup`, or `ctx7 skills install` if a guide names it: this plugin owns the lookup surface, and a second copy of Upstash's `find-docs` fragments lookups and drifts on its own.
 - This skill retrieves library docs only. Architecture decisions and other questions that need cross-checked sources go to a research workflow.

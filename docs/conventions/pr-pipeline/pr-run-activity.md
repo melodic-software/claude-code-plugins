@@ -172,7 +172,7 @@ times out after 10 minutes. In order:
    `check-kill-switch` step then stops the lane, and the check is neutral `kill-switch`.
 4. [`request-lane-token`](../../../.github/actions/request-lane-token/README.md) in `check` mode
    asks the broker's check endpoint whether the lane may run
-   ([below](#the-check-endpoint)). The check mints nothing.
+   ([below](#the-check-endpoint)), with `kill-switch-ok`. The check mints nothing.
 5. In issue mode, after an allow, claims the issue with a lease comment through the work-items
    tracker's `claim --lease-only --holder <vars.AUTOMATION_LANES_APP_SENDER_ID>` on its own
    `GITHUB_TOKEN`, with a TTL longer than the run job's timeout. When a live lease older than its
@@ -194,15 +194,20 @@ times out after 10 minutes. In order:
    that backed off as `already-leased` skips the earlier-work check, so it names no `reuse-branch`
    and the caller's report-outcome does not run on it.
 
-Any answer but an allow, or no answer, fails the job, which skips the run job. The report job
-passes the broker-check job's result as `run-result` whenever it is not `success`, so a failure
-posts a failure check and a cancel follows `report-check-run`'s cancel rule. A broker denial is
-red, not neutral, `kill-switch` included: step 3 already stopped the common case. Off
-`pull_request`, a failed broker-check job posts no check, since no
-head SHA was gated ([Runs that post no check](#runs-that-post-no-check)).
+A 403 `kill-switch` (a switch turned on after step 3 read it) ends step 4 green with the
+`lane-check-stopped` notice and the job's `skip-reason` output `kill-switch`, a designed stop: the
+run job and every job after it skip, no lease is claimed, the report job posts no lane run report
+comment, and its check is neutral `kill-switch` (`not-run-reason`). The read file exposes the
+output as `skip-reason`. A caller's later leg that still starts asks the broker again, which reads
+the switch live, so it stops the same way while the switch is on. Any other answer but an allow, or
+no answer, fails the job, which skips the run job. The report job passes the broker-check job's
+result as `run-result` whenever it is not `success`, so a failure posts a failure check and a
+cancel follows `report-check-run`'s cancel rule. Off `pull_request`, a failed or stopped
+broker-check job posts no check, since no head SHA was gated
+([Runs that post no check](#runs-that-post-no-check)).
 
-The job outputs `allowed` (`true` only when step 4 succeeded) and `attempt`
-(`github.run_attempt`). "Re-run failed jobs" reuses a successful broker-check job and its outputs,
+The job outputs `allowed` (`true` only when step 4 succeeded with the broker's allow), `skip-reason`
+and `attempt` (`github.run_attempt`). "Re-run failed jobs" reuses a successful broker-check job and its outputs,
 so in the read file, right after its own kill-switch step proceeds, the run job fails red with
 `kill-switch` unless `allowed` is `true` and `attempt` equals its own run attempt. That also fails
 a run whose broker-check job skipped the broker on a kill-switch stop its run job no longer sees.
@@ -729,7 +734,9 @@ fallback runs unless the first call's `<call> / report` job has a `Post the chec
 succeeded. A skipped or absent report job, which every handoff leaves, decides that at once from
 the job's own conclusion; a report that ran answers through its step, which the script reads again
 with backoff for about five minutes while the jobs listing returns it empty, then fails the job with
-one error line. A failed read runs the fallback too, except for `fix-docs`.
+one error line. Each read after the first sends each listing page that came with an `etag` as a
+conditional request, and a `304` reuses the page it already read. A failed read runs the fallback
+too, except for `fix-docs`.
 `fix-docs-subscription` also needs the first call's `<call> / broker-allowed` job to show the
 broker's allow (the broker step, when that job is absent): `fix-docs` posts nothing on a
 decline, so a kill switch or a refusal starts no second leg, and a failed read starts none either.
@@ -1940,7 +1947,9 @@ exactly; a job that calls the read file passes it by name only,
 the `scan` job may name an `environment`, `pr-pipeline-scan-carrier`. The one second holder (owner
 decision, 2026-11-02) is `upstream-apply-changelog.yml`'s `scan` job: one `open` step, the same
 action and exact `private-key`, after the main-only gate job, with `contents: read` alone, no
-id-token and a read-only cache; the environment admits main only. GitHub gives an environment
+id-token and a read-only cache; the environment admits main only. The third holder ([owner
+decision, 2026-11-03](https://github.com/melodic-software/claude-code-plugins/issues/12475)) is
+`maintenance-tidy-code-upkeep.yml`'s `scan` job, under the same limits, with no model in that job. GitHub gives an environment
 secret to a reusable workflow only when the caller passes it by name, and the value it then holds
 is the environment's only in the job that names the environment
 ([Reuse workflows](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows)).
@@ -1986,7 +1995,10 @@ Claude Code release it works as a `MAJOR.MINOR.PATCH` string, and none of `pr_nu
 `issue_number` or `dispatcher_run_id`; the broker refuses `release` from any other caller. Its
 dispatch, and a re-run of either, must be started by a listed human. Each of its jobs mints one
 effect: the broker never grants `contents` and `pull_requests` write in one mint, nor `merge` or
-`actions`. An `issues` request, allowed from `work-resolve-issue.yml`, `work-unblock.yml`
+`actions`. A request from `maintenance-tidy-code-upkeep.yml`, on its daily `schedule` or a
+`workflow_dispatch`, names no `pr_number`, `issue_number`, `release` or `dispatcher_run_id`; its dispatch, and
+a re-run of either, must be started by a listed human, and the broker limits its grant to a branch push
+or a pull request open. An `issues` request, allowed from `work-resolve-issue.yml`, `work-unblock.yml`
 and `intake-triage.yml`, sends `issue_number` (the `issue-number` input) instead, and neither of the
 other two. From `work-resolve-issue.yml` its actor, the labeler, must be a listed human, or the
 lanes App; from the other two a listed human. `work-unblock.yml` (also on its hourly `schedule`)
@@ -2033,14 +2045,14 @@ reason; no response at all is `broker-unreachable`. Broker reasons:
 | 400 | (none) | The body is not `{lane, activity, pr_number?, issue_number?, release?, dispatcher_run_id?}` with valid names, positive integers and a `MAJOR.MINOR.PATCH` release, `issue_number` is missing on `issues` or present off it, or `release` is missing from `upstream-apply-changelog.yml` or present from any other caller |
 | 403 | `invalid-token`, `wrong-audience` | The OIDC token does not verify, or is for another audience |
 | 403 | `wrong-owner`, `repo-not-allowed`, `self-hosted-runner` | Not a melodic-software repository on the broker's allowlist, or not a GitHub-hosted runner |
-| 403 | `event-not-allowed` | Not `pull_request` on `refs/pull/<n>/merge`, or `workflow_dispatch` or `workflow_run` on `refs/heads/main`, or `issues` on `refs/heads/main` from `work-resolve-issue.yml`, `work-unblock.yml` or `intake-triage.yml`, or `schedule` on `refs/heads/main` from `pr-merge.yml`, `work-unblock.yml` or `upstream-apply-changelog.yml` only |
+| 403 | `event-not-allowed` | Not `pull_request` on `refs/pull/<n>/merge`, or `workflow_dispatch` or `workflow_run` on `refs/heads/main`, or `issues` on `refs/heads/main` from `work-resolve-issue.yml`, `work-unblock.yml` or `intake-triage.yml`, or `schedule` on `refs/heads/main` from `pr-merge.yml`, `work-unblock.yml`, `upstream-apply-changelog.yml` or `maintenance-tidy-code-upkeep.yml` only |
 | 403 | `workflow-not-allowed` | The job is not this repository's `pr-run-activity-write.yml`, or the caller is not a lane under `lanes:` in the tip's `pr-pipeline.yaml` |
 | 403 | `workflow-modified` | The caller or `pr-run-activity-write.yml` differs from the default-branch tip (a report job, `work-resolve-issue` `report-outcome` or `pr-unblock` `report-escalation`, still mints when every main commit that changed the file is signed, GitHub-made, on a linear range and landed after run start, at most 50 minutes ago: [azure-iac#39](https://github.com/melodic-software/azure-iac/pull/39)) |
 | 403 | `workflow-modified` | With `dispatcher_run_id`: the dispatcher workflow at the dispatcher run's head differs from the tip (same report-job exception) |
 | 403 | `lane-mismatch` | The requested lane is not the caller's file stem |
 | 403 | `activity-not-in-lane`, `slot-disabled`, `config-invalid`, `effect-forbidden-by-lane` | The tip config does not give this activity a write grant |
 | 403 | `effect-read` | The activity is `read`; it belongs in the read file |
-| 403 | `untrusted-actor`, `untrusted-author`, `bot-actor` | The actor, the PR author or a re-runner is not on the tip's trusted-actor list (a scheduled `pr-merge.yml` run has no actor check, and its re-runner must be a listed human; a scheduled `work-unblock.yml` run has no actor check either and skips the workflow's own closer check, so the broker alone gates its re-runs; a `github-actions[bot]` dispatch of `intake-triage.yml` has no actor check and needs its issue open, and its re-runner must be a listed human; a scheduled `upstream-apply-changelog.yml` run has no actor check, and its re-runner must be a listed human), or is the lanes bot |
+| 403 | `untrusted-actor`, `untrusted-author`, `bot-actor` | The actor, the PR author or a re-runner is not on the tip's trusted-actor list (a scheduled `pr-merge.yml` run has no actor check, and its re-runner must be a listed human; a scheduled `work-unblock.yml` run has no actor check either and skips the workflow's own closer check, so the broker alone gates its re-runs; a `github-actions[bot]` dispatch of `intake-triage.yml` has no actor check and needs its issue open, and its re-runner must be a listed human; a scheduled `upstream-apply-changelog.yml` or `maintenance-tidy-code-upkeep.yml` run has no actor check, and its re-runner must be a listed human), or is the lanes bot |
 | 403 | `untrusted-actor` | With `dispatcher_run_id` from `github-actions[bot]`: the dispatcher run or this run is missing or fails a dispatcher check above |
 | 503 | `github-unavailable` | With `dispatcher_run_id`: a dispatcher, run, tag or compare read failed; nothing was minted |
 | 403 | `pr-not-eligible` | The PR is not open, not from a branch of this repository, or does not target `main` |
@@ -2059,9 +2071,10 @@ from its `skip-reason` output. The pr-unblock dispatchers count a `kill-switch` 
 did no work (`limit-stop.mjs` `killSwitchStop`): on the activity's own check it does not handle the
 head, and on a push, reply or verdict job's check it releases the head's earlier activity checks as
 a lane stop does, both under the per-head caps. They run only with the switch off, so the head is
-dispatched again once the switch lifts. An issue run's denial stays red, since work-unblock re-fires
-its issue from the failed mint step, and so does a `report-escalation` run's, since no dispatcher
-re-fires it and a skip would drop the escalation's comment and label.
+dispatched again once the switch lifts. An issue run's stopped mint, or its broker-check stopped
+green, is a breaker trip work-unblock re-fires from the stop notice. A `report-escalation` run's
+denial stays red, since no dispatcher re-fires it and a skip would drop the escalation's comment
+and label.
 
 ### A workflow file the PR changes
 
@@ -2094,7 +2107,8 @@ replaced by `/check`, with `Authorization: Bearer <OIDC token>` and the body
 same token, claim, repository and kill-switch checks as a mint, with `pr-run-activity-read.yml` as
 the job's workflow, and mints and reserves nothing, so re-running all jobs asks again. It answers 200
 `{"decision": "allow", "lane", "activity"}`; the client fails red with `lane-check-denied` unless
-`decision` is `allow` and `lane` and `activity` are its own. Any other status fails red with
+`decision` is `allow` and `lane` and `activity` are its own. A 403 `kill-switch` is the stop
+[above](#the-broker-check-job). Any other status fails red with
 `lane-check-denied`, the status and the broker's reason, from the table above minus the
 mint-only rows; no response is `broker-unreachable`. The lanes bot is refused only on a mint, so
 a `workflow_run` read lane still runs after a bot push. It checks no actor either, so a
@@ -2376,9 +2390,9 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   which counts `outcome=intake` as a hand-back, sends the issue back through intake. `close`
   comments, removes `agent-ready` and closes the issue as completed: `already-done` only once a
   cited merged pull request (the first three `#<n>` are tried) or commit is on the default branch
-  and its commit message closes the issue, and `report-delivered` only on a
-  `work-class: read-only` issue the run committed nothing for, with the run's `summary` as the
-  report; either retries otherwise. Dependents and split parents count the lanes App's
+  and its commit message closes the issue, and `report-delivered` only on an
+  issue the run committed nothing for and resumed no branch on, whatever its work class, with the
+  run's `summary` as the report; either retries otherwise. Dependents and split parents count the lanes App's
   `already-done` close as trusted only while that evidence re-checks true when they read it
   (`isTrustedClose` in check-trusted-trigger, through `.github/scripts/lib/done-evidence.mjs`); a
   `report-delivered` close, or any read that fails, counts for nothing. `fail` removes `agent-ready`, adds no label and comments

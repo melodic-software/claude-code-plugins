@@ -7,9 +7,11 @@ The facts each route rests on (who can start it, what it needs, what it cannot s
 
 ## Check usage first
 
-Every route spends the person's plan limits, a cloud session included (its native-surfaces row).
-Before recommending or starting a route, read the snapshot file under the rate-limit floor below
-and act on what it says:
+Before recommending or starting any route, a cloud one included, read the snapshot file under the
+rate-limit floor below and act on what it says. For how a cloud session counts against the plan,
+see the rate-limits entry of
+[Limitations](https://code.claude.com/docs/en/claude-code-on-the-web#limitations) (as of
+2026-11-03; recheck when that entry changes how cloud sessions count toward plan limits).
 
 - **A window at or past 95:** report the window, its percentage and its reset in local time beside
   the recommendation, with the options: start the route anyway, switch accounts
@@ -18,14 +20,19 @@ and act on what it says:
 - **Every window in the file below it** (one window alone counts): put each one's percentage and
   reset time beside the recommendation, and say which routes run until stopped (`/autofix-pr`, a
   background agent, the babysit loop). The person decides.
-- **Unknown** (no file, a stale snapshot, no `rate_limits`, as in a cloud session or under API-key
-  auth): say so and point at `/usage` beside the row the person's situation picks. For a person
+- **Unknown** (no file, a stale snapshot, or no `rate_limits`; for when the status line data
+  carries none, see
+  [Available data](https://code.claude.com/docs/en/statusline#available-data), as of 2026-11-03,
+  recheck when that section changes when `rate_limits` is present): say so and point at `/usage`
+  beside the row the person's situation picks. For a person
   who is staying, prefer `monitor`, which stays in view, over an open-ended route; for one who is
   leaving, keep their row and say its launch is unchecked against the windows.
 
-The check covers the moment of launch only. `/autofix-pr` runs in a cloud session with no
-snapshot file, so nothing pauses it as the windows fill; a local `monitor` or loop that trips
-later follows the floor's drain-then-pause, which pauses only an opted-in session.
+The check covers the moment of launch only, and nothing here checks `/autofix-pr` again once it
+starts; for where it runs, see
+[Auto-fix pull requests](https://code.claude.com/docs/en/claude-code-on-the-web#auto-fix-pull-requests)
+(as of 2026-11-03; recheck when that section changes where auto-fix runs). A local `monitor` or
+loop that trips later follows the floor's drain-then-pause, which pauses only an opted-in session.
 
 ## Rate-limit guard floor (inlined)
 
@@ -89,7 +96,7 @@ would pick; without that flag it asks.
 | Staying | `/source-control:pull-request monitor <N>` in this session | The model, now |
 | Leaving, machine stays on, this conversation should keep going | `/background` detaches this whole session | The person types it |
 | Leaving, machine stays on, a fresh agent is enough | `/session-flow:continue-in-background` seeded with `monitor <N>`, a fresh background agent under this skill's full monitor discipline | The model, only on the person's explicit yes |
-| Leaving, machine may go off | `/autofix-pr` with the prompt below, from a terminal on the PR's branch | The person types it |
+| Leaving, machine may go off | `/autofix-pr` with the prompt below | The person types it |
 | Several open PRs, not just this one | `/source-control:babysit-loop <owner/repo>` under `/loop` | The person, or the model on request |
 
 Recommend the first row that fits and say why in one line. A local route keeps this skill's
@@ -101,8 +108,11 @@ what it judges clear, so the prompt below carries that discipline to it in words
 The model never runs it; it prints it filled in. Give the person:
 
 1. The checkout to run it from: the worktree path, or a checkout of the PR head
-   ([GitHub](../../../reference/providers/github/README.md#change-the-pull-request)). It finds the
-   PR from the current branch.
+   ([GitHub](../../../reference/providers/github/README.md#change-the-pull-request)). For how the
+   command picks the PR, read
+   [Auto-fix pull requests](https://code.claude.com/docs/en/claude-code-on-the-web#auto-fix-pull-requests)
+   live (as of 2026-11-03; recheck when that section changes how the terminal command finds the
+   PR).
 2. The command, with `<N>` and the project line filled:
 
    ```text
@@ -117,9 +127,9 @@ The model never runs it; it prints it filled in. Give the person:
    most likely to break (for example, commit subjects and the PR title stay Conventional Commits);
    drop the slot when there is none.
 3. Its preconditions and limits: read the auto-fix rows of [native-surfaces.md](native-surfaces.md)
-   and the live sections they point at, and list each for the person. Auto-fix cannot react to a
-   merge conflict, so add: when the base moves, run `/source-control:pull-request ready` again,
-   which merges it.
+   and the live sections they point at, and list each for the person. Always add this
+   repository's rule: when the base moves, run `/source-control:pull-request ready` again, which
+   merges it.
 
 When the person also keeps `monitor` running here, both push to one branch; the Mutation gate in
 [SKILL.md](../SKILL.md) covers that.

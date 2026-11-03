@@ -3422,6 +3422,7 @@ jobs:
       - apply-feedback-patch
       - publish-feedback
       - review-dependency-select
+      - apply-dependency-patch
       - apply-dependency-verdict
       - fix-ci-context
       - apply-patch
@@ -3475,15 +3476,19 @@ jobs:
       # One activity runs per dispatch, so one select job's head is set; a
       # reason is a fixed enum value from a base script or this run's jobs,
       # which report-escalation.sh rejects unless the routing table lists it.
-      # No reason: the attempt did not stop, and clear runs instead.
+      # No reason: the attempt did not stop, and clear runs instead. A commit
+      # the activity's push job pushed comes before its select head: the
+      # reply and verdict jobs can stop after that push, and a status on the
+      # head before it leaves the PR's head with no failing status.
       - name: Post the stop status
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pr-number }}
           HEAD_SHA: >-
-            ${{ needs.resolve-conflicts-select.outputs.head-sha || needs.address-feedback-select.outputs.head-sha
-            || needs.review-dependency-select.outputs.head-sha || needs.fix-ci-context.outputs.head-sha
-            || needs.sync-shared-copies-select.outputs.head-sha }}
+            ${{ needs.apply-conflict-patch.outputs.pushed-commit || needs.resolve-conflicts-select.outputs.head-sha
+            || needs.apply-feedback-patch.outputs.pushed-commit || needs.address-feedback-select.outputs.head-sha
+            || needs.apply-dependency-patch.outputs.pushed-commit || needs.review-dependency-select.outputs.head-sha
+            || needs.fix-ci-context.outputs.head-sha || needs.sync-shared-copies-select.outputs.head-sha }}
           ESCALATION_REASON: >-
             ${{ needs.resolve-conflicts-select.outputs.escalation-reason
             || needs.apply-conflict-patch.outputs.escalation-reason
@@ -3522,6 +3527,7 @@ jobs:
       - apply-feedback-patch
       - publish-feedback
       - review-dependency-select
+      - apply-dependency-patch
       - apply-dependency-verdict
       - fix-ci-context
       - apply-patch

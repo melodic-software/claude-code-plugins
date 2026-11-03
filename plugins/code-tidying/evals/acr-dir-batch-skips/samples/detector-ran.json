@@ -5,13 +5,13 @@
         {
           "tool": "Skill",
           "input": {
-            "skill": "code-tidying:audit-comment-residue"
+            "skill": "code-tidying:remove-comments"
           }
         },
         {
           "tool": "Bash",
           "input": {
-            "command": "/p/skills/audit-comment-residue/scripts/detect.sh scripts/"
+            "command": "/p/skills/remove-comments/scripts/detect.sh scripts/"
           }
         }
       ]
