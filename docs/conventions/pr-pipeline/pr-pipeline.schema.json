@@ -143,6 +143,18 @@
           "default": 2,
           "description": "Times work-unblock restarts an issue whose stop routes to retry in the issue lane's stop-routes.json, since a listed human last added agent-ready; past it the stop takes the retry-spent route. 0 never retries."
         },
+        "stranded-backoff-hours": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Per cause work-unblock's sweep re-fires a stranded agent-ready issue for, the base hours of its re-fire backoff: the wait after the run ended (or the label was added) is these hours doubled once per re-fire already made on the same lane workflow files, or per trip past limit-stops-per-issue for kill-switch, up to 24 hours. no-run: no work-resolve-issue run started, and these hours are also the wait before the first re-fire; no-report: a run ended green with no report and no pull request, the same; failed-again: a re-fired run failed or was cancelled again, so the wait is at least twice these hours; failed-mint: a run got no lane token, backed off only past limit-stops-per-issue re-fires, so the wait is at least these hours doubled that many times; kill-switch: a run the lanes kill switch refused, backed off past limit-stops-per-issue trips.",
+          "properties": {
+            "no-run": { "type": "integer", "minimum": 1, "maximum": 24, "default": 3 },
+            "no-report": { "type": "integer", "minimum": 1, "maximum": 24, "default": 3 },
+            "failed-again": { "type": "integer", "minimum": 1, "maximum": 24, "default": 3 },
+            "failed-mint": { "type": "integer", "minimum": 1, "maximum": 24, "default": 3 },
+            "kill-switch": { "type": "integer", "minimum": 1, "maximum": 24, "default": 3 }
+          }
+        },
         "fix-ci-per-run": {
           "type": "integer",
           "minimum": 1,

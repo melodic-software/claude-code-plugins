@@ -80,8 +80,8 @@ restores the FAIL semantics.
    and probe ONLY that family's requirement (the hook's `case "$(uname -s)"` does exactly this):
    - **Linux**. `command -v notify-send` (libnotify). FAIL only if the `os_toast` channel is
      enabled and it is absent; otherwise INFO. Absent → the `os_toast` channel is a
-     documented silent no-op; remediation is the README's install hint (`libnotify-bin` on
-     Debian/Ubuntu, `libnotify` on Fedora). The terminal channels are unaffected.
+     documented silent no-op; remediation is the missing-`notify-send` entry under `apply`.
+     The terminal channels are unaffected.
    - **macOS (Darwin)**. INFO: `osascript` is built-in, no dependency. Note the first toast
      prompts to allow notifications for the terminal app.
    - **Windows / other**. INFO: the hook has no `os_toast` branch on this platform (a
@@ -106,8 +106,7 @@ nothing and writes nothing, so every remediation is a pointer the user acts on:
 - **missing `jq` / old Bash**. The platform install instructions from the README Requirements
   section. This skill never installs system packages.
 - **missing `notify-send`** (Linux, `os_toast` enabled). `sudo apt install libnotify-bin`
-  (Debian/Ubuntu) or `sudo dnf install libnotify` (Fedora), per the README's per-OS table.
-  Guidance only. The user runs it.
+  (Debian/Ubuntu) or `sudo dnf install libnotify` (Fedora). Guidance only. The user runs it.
 - **a toggle is off**. Reconfigure through Claude Code's native flow, per the marketplace's
   plugin-reconfiguration convention, which owns the verified-version record
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>):

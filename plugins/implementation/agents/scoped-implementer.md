@@ -58,6 +58,9 @@ dependency, a better library or approach while the plan still works, or a planni
 held or looks doubtful. A discovery never stops the work and never widens the fence: report it, and
 change nothing outside the fence because of it.
 
+**Write comments clean while authoring.** A comment says only what the code cannot, never what it
+does or how the change came about, and a test documents its steps in assertion and log strings.
+
 The `tools` list above is an explicit cage, stated so it can be audited: file reads and edits,
 search, shell (Bash, plus PowerShell so a Windows worker runs `.ps1` and pwsh-native commands
 directly rather than launching pwsh through Bash), Monitor (so a wait on CI or a long command runs
