@@ -2733,6 +2733,81 @@ test("a green run whose kill-switch check did not run, or whose broker ask ran, 
   }
 });
 
+// broker-check passes kill-switch-ok, so a broker kill-switch refusal ends its
+// broker ask green with a `lane-check-stopped` notice, no allow, and the lease
+// step skipped; the run job skips and the run ends green. The log's shape is
+// saved run 41576258964's broker-check job, its composite step with id
+// broker.request.
+const checkStoppedLog = (line = "lane-check-stopped: the broker refused the check because a lanes kill switch is on, a designed stop; this run runs no lane and skips the rest") =>
+  [
+    "2026-11-03T04:35:21.1799019Z ##[group]Run ./.base/.github/actions/request-lane-token",
+    "2026-11-03T04:35:21.1800000Z ##[endgroup]",
+    "2026-11-03T04:35:21.2126706Z ##[start-action display=Request the lane token;id=broker.request]",
+    "2026-11-03T04:35:21.2130000Z ##[group]Run set -euo pipefail",
+    "2026-11-03T04:35:21.2140000Z ##[endgroup]",
+    `2026-11-03T04:35:22.4470871Z ##[notice]${line}`,
+    "2026-11-03T04:35:22.4521682Z ##[end-action id=broker.request;outcome=success;conclusion=success;duration_ms=1239]",
+    "",
+  ].join("\n");
+const CHECK_STOPPED = [
+  ADMITTED,
+  pickSlot,
+  {
+    id: BROKER_CHECK_ID,
+    name: "resolve-issue / broker-check",
+    conclusion: "success",
+    runner_id: 12,
+    started_at: "2026-10-16T10:01:00Z",
+    steps: [
+      { name: "Check the kill switch", conclusion: "success" },
+      { name: "Ask the broker whether the lane may run", conclusion: "success" },
+      { name: "Claim the issue with a lane lease", conclusion: "skipped" },
+    ],
+  },
+  { name: "resolve-issue / run", conclusion: "skipped", steps: [] },
+  { name: "report-outcome", conclusion: "skipped", steps: [] },
+];
+
+test("a green run whose broker ask the kill switch stopped is a breaker trip at broker-check, read from one log", async () => {
+  const logs = { [BROKER_CHECK_ID]: checkStoppedLog() };
+  const { github, actions, calls } = stalledRun({ jobs: CHECK_STOPPED, logs, conclusion: "success" });
+  assert.equal(await sweep({ github, actions }), 0);
+  tripped(calls);
+  assert.deepEqual(logReads(calls), [`GET /repos/${REPO}/actions/jobs/${BROKER_CHECK_ID}/logs`]);
+  // No model ran, so the first sweep after it ended re-fires it, as a check-stage trip.
+  const recent = stalledRun({ jobs: CHECK_STOPPED, logs, conclusion: "success", ended: "2026-10-16T11:58:00Z" });
+  assert.equal(await sweep({ github: recent.github, actions: recent.actions }), 0);
+  tripped(recent.calls);
+  // Past the failed-mint bound it still goes as a trip.
+  const pumped = stalledRun({ jobs: CHECK_STOPPED, logs, conclusion: "success", ...earlierPumps(3) });
+  assert.equal(await sweep({ github: pumped.github, actions: pumped.actions }), 0);
+  tripped(pumped.calls);
+});
+
+test("a green broker ask whose log does not carry the check-stop notice is a failed mint, never a breaker trip", async () => {
+  for (const [name, log] of [
+    ["a lookalike notice", checkStoppedLog("lane-check-stopped: the broker refused the check because a lanes kill switch is onward")],
+    ["the mint's notice text with the check's prefix", checkStoppedLog("lane-check-stopped: the broker refused the token because a lanes kill switch is on")],
+    ["a warning, not a notice", checkStoppedLog().replace("##[notice]", "##[warning]")],
+    ["no log", undefined],
+  ]) {
+    const { github, actions, calls } = stalledRun({ jobs: CHECK_STOPPED, logs: log === undefined ? {} : { [BROKER_CHECK_ID]: log }, conclusion: "success" });
+    assert.equal(await sweep({ github, actions }), 0, name);
+    assert.deepEqual(writes(calls), refired(30), name);
+  }
+});
+
+test("a broker ask that allowed, so its lease step ran, is no check stop and reads no log", async () => {
+  const [admit, slot, check, ...rest] = CHECK_STOPPED;
+  for (const conclusion of ["success", "failure"]) {
+    const ran = { ...check, steps: check.steps.map((step) => (step.name === "Claim the issue with a lane lease" ? { ...step, conclusion } : step)) };
+    const { github, actions, calls } = stalledRun({ jobs: [admit, slot, ran, ...rest], logs: { [BROKER_CHECK_ID]: checkStoppedLog() }, conclusion: "success" });
+    assert.equal(await sweep({ github, actions }), 0, conclusion);
+    assert.deepEqual(logReads(calls), [], conclusion);
+    assert.ok(!writes(calls).some(isBreakerRecord), conclusion);
+  }
+});
+
 test("a broker-check breaker trip is not re-fired while the issue lane is paused over its cap", async () => {
   for (const jobs of [BROKER_REFUSED, KILL_SKIPPED]) {
     const { github, actions, calls } = stalledRun({
@@ -2786,6 +2861,10 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
   const read = jobs(workflow("pr-run-activity-read.yml"));
   assert.ok(steps(read["broker-check"]).includes("Ask the broker whether the lane may run"));
   assert.ok(steps(read["broker-check"]).includes("Check the kill switch"));
+  // A green broker ask is a stop exactly when the lease step after it, which runs only on an allow, skipped.
+  const checkSteps = steps(read["broker-check"]);
+  assert.ok(checkSteps.indexOf("Claim the issue with a lane lease") > checkSteps.indexOf("Ask the broker whether the lane may run"));
+  assert.match(read["broker-check"], /^ {6}- name: Claim the issue with a lane lease\n {8}id: lease\n {8}if: inputs\.issue-number != '' && steps\.broker\.outcome == 'success' && steps\.broker\.outputs\.allowed == 'true'\n/m);
   assert.ok(read.run !== undefined);
   assert.ok(steps(read.run).includes("Stop on stale workflow files"));
   for (const id of ["broker-check", "run"]) {

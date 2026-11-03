@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
@@ -594,15 +594,16 @@ test("a finished run, another PR's run or another activity's run does not hold t
   assert.deepEqual(dispatchedNumbers(api), ["28"]);
 });
 
-test("an unreadable run listing dispatches nothing and counts as a failure", async () => {
+test("an unreadable run listing holds: nothing dispatched, a warning, and no failure", async () => {
   const { api, lines, run } = harness({
     pages: [[pr(29)]],
     workflowRuns: new Error("runs read failed"),
   });
   const result = await run();
   assert.deepEqual(api.calls.dispatch, []);
-  assert.equal(result.failed, 1);
-  assert.ok(lines.some((line) => line.startsWith("::error::") && line.includes("runs read failed")));
+  assert.deepEqual(result, { dispatched: [], failed: 0 });
+  assert.ok(lines.some((line) => line.startsWith("::warning::") && line.includes("could not be read") && line.includes("runs read failed")));
+  assert.ok(!lines.some((line) => line.startsWith("::error::")));
 });
 
 // The error the adapter throws when budgetedFetch gave up on a rate limit.
@@ -661,16 +662,17 @@ test("dispatches pr-unblock.yml on main with pr-number and dispatcher-run-id, lo
   assert.equal(result.failed, 0);
 });
 
-test("a failed dispatch or check-run read is reported and the other PRs still go", async () => {
+test("a failed dispatch counts as a failure, a failed check-run read skips its PR with a warning, and the other PRs still go", async () => {
   const unreadable = pr(61);
-  const { api, run } = harness({
+  const { api, lines, run } = harness({
     pages: [[unreadable, pr(62), pr(63)]],
     failChecks: new Set([unreadable.headRefOid]),
     failDispatch: new Set(["62"]),
   });
   const result = await run();
   assert.deepEqual(dispatchedNumbers(api), ["62", "63"]);
-  assert.equal(result.failed, 2);
+  assert.equal(result.failed, 1);
+  assert.ok(lines.some((line) => line.startsWith("::warning::#61:") && line.includes("check-runs read failed")));
 });
 
 test("a 200 dispatch with no workflow_run_id counts as failed and is not reported dispatched", async () => {
@@ -738,7 +740,9 @@ test("a workflow_run_id that is not 1 to 15 digits without a leading zero counts
   }
 });
 
-test("a check-run read GitHub still answers 5xx after its retries skips that PR with a warning; any other error fails", async () => {
+// The outage posture's element 2: a failed read holds, whatever GitHub
+// answered (docs/outage-posture-audit.md).
+test("a check-run read that fails, on a 5xx after its retries or any other answer, skips that PR with a warning and fails nothing", async () => {
   const { api, lines, run } = harness({ pages: [[pr(97), pr(98)]] });
   const listCheckRuns = api.listCheckRuns;
   let error = Object.assign(new Error("GET check-runs returned 503"), { status: 503 });
@@ -751,7 +755,19 @@ test("a check-run read GitHub still answers 5xx after its retries skips that PR 
   assert.deepEqual(await run(), { dispatched: [{ number: 98, workflowRunId: "9098" }], failed: 0 });
   assert.ok(lines.some((line) => line.startsWith("::warning::#97:") && line.includes("503")));
   error = Object.assign(new Error("GET check-runs returned 401"), { status: 401 });
-  assert.equal((await run()).failed, 1);
+  assert.equal((await run()).failed, 0);
+  assert.ok(lines.some((line) => line.startsWith("::warning::#97:") && line.includes("401")));
+  assert.ok(!lines.some((line) => line.startsWith("::error::")));
+});
+
+test("a mergeable re-query that fails skips the PRs it was for with a warning, fails nothing, and the others still go", async () => {
+  const { api, lines, run } = harness({ pages: [[pr(201, { mergeable: "UNKNOWN" }), pr(202)]] });
+  api.getPulls = async () => {
+    throw Object.assign(new Error("POST https://api.example/graphql returned 404"), { status: 404 });
+  };
+  assert.deepEqual(await run(), { dispatched: [{ number: 202, workflowRunId: "9202" }], failed: 0 });
+  assert.ok(lines.includes("::warning::could not re-query the mergeable state of #201: POST https://api.example/graphql returned 404; skipped, a later run retries"), lines.join("\n"));
+  assert.ok(!lines.some((line) => line.includes("still UNKNOWN")), "a failed re-query is not reported as still UNKNOWN");
 });
 
 test("a 15-digit workflow_run_id is accepted", async () => {
@@ -944,10 +960,34 @@ test("main lists each workflow's runs once, and a rate-limited listing ends the 
   assert.ok(lines.includes("dispatched 0 run(s), 0 failure(s)"));
 });
 
-test("main still exits 1 on a run listing that fails for any other reason", async () => {
-  const { api, code } = await mainWithFailedListing(new Error("GET runs returned 404"));
-  assert.equal(code, 1);
+test("main also ends green with nothing dispatched on a run listing that fails for any other reason", async () => {
+  const { api, code, lines } = await mainWithFailedListing(new Error("GET runs returned 404"));
+  assert.equal(code, 0);
   assert.deepEqual(api.calls.dispatch, []);
+  assert.ok(lines.includes("dispatched 0 run(s), 0 failure(s)"));
+  assert.ok(lines.some((line) => line.startsWith("::warning::pr-unblock.yml run listing could not be read (GET runs returned 404)")), lines.join("\n"));
+});
+
+test("main ends green, dispatching and recording nothing, on an open pull request listing it cannot read", async () => {
+  const api = fakeApi({ pages: [[pr(185)]] });
+  api.listOpenPulls = async () => {
+    throw Object.assign(new Error("POST https://api.example/graphql returned 401"), { status: 401 });
+  };
+  const lines = [];
+  const dir = tempDir("pr-unblock-dispatch-");
+  try {
+    const out = join(dir, "out");
+    const code = await main(
+      { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: out, APP_SENDER_ID: String(LANES_APP), BASE_PATH: dir },
+      { api, sleep: async () => {}, log: (line) => lines.push(line), loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] },
+    );
+    assert.equal(code, 0);
+    assert.deepEqual(api.calls.dispatch, []);
+    assert.equal(existsSync(out), false, "no run-ids and no record-changed output");
+    assert.deepEqual(lines, ["::warning::the open pull request listing could not be read (POST https://api.example/graphql returned 401); nothing dispatched, a later run retries"]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 // main with fix-docs candidates whose history reads go through the real
@@ -1002,7 +1042,9 @@ test("a fix-docs history read that keeps answering 502 skips that PR with a warn
   assert.equal(code, 0);
 });
 
-test("a rate-limited fix-docs history read is sent once and fails the run", async () => {
+// The step still ends red on the limit: the rate guard's latch fails the
+// process, which this test's latch does not.
+test("a rate-limited fix-docs history read is sent once and holds that PR", async () => {
   const reset = Math.floor(Date.now() / 1000) + 19 * 60;
   const limited = () =>
     new Response('{"message":"API rate limit exceeded for installation."}', {
@@ -1012,8 +1054,8 @@ test("a rate-limited fix-docs history read is sent once and fails the run", asyn
   const { api, code, lines, sent } = await mainWithHistoryAnswers(new Map([[194, [limited, limited]]]), [docsPull(194)]);
   assert.equal(sent.get(194), 1);
   assert.deepEqual(dispatchedNumbers(api), []);
-  assert.ok(lines.some((line) => line.startsWith("::error::") && line.includes("#194")));
-  assert.equal(code, 1);
+  assert.ok(lines.some((line) => line.startsWith("::warning::#194: could not read fix-docs history or holds")), lines.join("\n"));
+  assert.equal(code, 0);
 });
 
 test("the adapter marks a run listing budgetedFetch gave up on as rate limited, and a refusal as not", async () => {

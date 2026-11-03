@@ -116,8 +116,11 @@ a single `#` and a space, outside a code fence), and the
 gate reads only that slot. An `INTENT.md` whose slot still holds the marker is a run that stopped
 before its final write, and the gate refuses it with exit 1, which routes to that same ladder.
 
-At the turn limit, a subagent that reaches `maxTurns` returns its output marked as partial, and
-the parent can resume it. Dated record:
+A run that stops at its turn limit goes through that same ladder, resume first. What the harness
+returns at the limit, and how a resume works, is
+[subagents: resume subagents](https://code.claude.com/docs/en/sub-agents#resume-subagents)'s to
+say (as of 2026-11-03; recheck when that section changes what a turn-limit stop returns or how a
+resume is addressed). Dated record:
 [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
 "A turn-limit stop returns partial output, and the parent can resume the agent".
 

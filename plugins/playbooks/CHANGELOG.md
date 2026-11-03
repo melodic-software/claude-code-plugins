@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.27.8] - 2026-11-03
+
+### Changed
+
+- Cross-references to `code-tidying`'s comment skills now name `/code-tidying:remove-comments`, which replaces `dissolve-comments`, and its `audit` action.
+
 ## [0.27.7] - 2026-11-02
 
 ### Changed

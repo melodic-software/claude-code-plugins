@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "surface: terminal (default). Also available: page. Ask for one by name to switch.\n\nRound 1.\n\nQ1: **How many delivery attempts before the sender gives up?**\nContext: the sender makes one POST per event today and retries nothing (user, this message).\nMy recommendation: five attempts.\nBasis: verified, user, this message (one POST, no retries)\n\nIs there something else that would change these recommendations?",
+      "why": "the offer is one line, then the round follows"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Round 1.\n\nQ1: **How many delivery attempts before the sender gives up?**\nMy recommendation: five attempts.\nBasis: verified, user, this message",
+      "why": "no offer line"
+    },
+    {
+      "answer": "surface: terminal (default). Also available: page. Ask for one by name to switch.\n\nRound 1 ...\n\nsurface: terminal (default). Also available: page. Ask for one by name to switch.",
+      "why": "the offer line is printed twice"
+    },
+    {
+      "answer": "Surfaces:\n- terminal (default)\n- page\n\nRound 1 ...",
+      "why": "the offer is spread over a list, not one line"
+    }
+  ]
+}

@@ -41,7 +41,6 @@
 import { LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { isHandled, markHandled, emptyRecord } from "./dispatch-record.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
-import { serverFailure } from "./request-budget.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -215,12 +214,8 @@ export async function dispatchDocsFixes({
   try {
     runs = await api.listWorkflowRuns(workflow);
   } catch (error) {
-    if (error.rateLimited) {
-      log(`::warning::${workflow} run listing is rate limited (${error.message}); no fix-docs dispatched, a later run retries`);
-      return { dispatched, failed };
-    }
-    log(`::error::could not list ${workflow} runs: ${error.message}`);
-    return { dispatched, failed: 1 };
+    log(`::warning::${workflow} run listing ${error.rateLimited ? "is rate limited" : "could not be read"} (${error.message}); no fix-docs dispatched, a later run retries`);
+    return { dispatched, failed };
   }
   let sent = 0;
   for (const node of candidates) {
@@ -265,12 +260,8 @@ export async function dispatchDocsFixes({
         continue;
       }
     } catch (error) {
-      if (serverFailure(error)) {
-        log(`::warning::#${node.number}: could not read fix-docs history or holds: ${error.message}; skipped, a later run retries`);
-        continue;
-      }
-      failed += 1;
-      log(`::error::#${node.number}: could not read fix-docs history or holds: ${error.message}`);
+      // A read that fails, whatever GitHub answered, holds the PR for a later run.
+      log(`::warning::#${node.number}: could not read fix-docs history or holds: ${error.message}; skipped, a later run retries`);
       continue;
     }
     // The per-head cap is the loop's hard end, so a head whose runs cannot be
@@ -286,11 +277,8 @@ export async function dispatchDocsFixes({
       } catch (error) {
         if (error.rateLimited) {
           log(`::warning::#${node.number}: its fix-docs run read is rate limited (${error.message}); no fix-docs dispatched, a later run retries`);
-        } else if (serverFailure(error)) {
-          log(`::warning::#${node.number}: could not read its fix-docs runs: ${error.message}; skipped, a later run retries`);
         } else {
-          failed += 1;
-          log(`::error::#${node.number}: could not read its fix-docs runs (${error.message}); left for a later run`);
+          log(`::warning::#${node.number}: could not read its fix-docs runs: ${error.message}; skipped, a later run retries`);
         }
         continue;
       }

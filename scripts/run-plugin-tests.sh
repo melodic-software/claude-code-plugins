@@ -2,7 +2,7 @@
 # Run every shell test suite in the repository and fail if any fails: the
 # plugin contract tests (plugins/**/*.test.sh), the repo-local hook tests
 # (.claude/hooks/*.test.sh), and the suites of the repository's own scripts and
-# shared libraries (scripts/**/*.test.sh, lib/**/*.test.sh). The repo-local
+# shared libraries (scripts/**/*.test.sh, lib/**/*.test.sh, .github/**/*.test.sh). The repo-local
 # hooks are tracked policy with the same test conventions as plugin hooks, and
 # a gate's self-test is a suite like any other: CI reaches it through the
 # affected-suite selector, not through a step of its own.
@@ -38,9 +38,10 @@
 # suite never starts late and outlasts the rest of its leg; a suite the file
 # does not list counts 0 and keeps its sorted place after the listed ones.
 #
-# BUDGET. --budget SECONDS is the wall clock the whole run aims to finish in,
-# for the local affected-only run (scripts/check-affected.sh --tests). A run
-# over it reports the overrun and its three slowest suites, and does not fail.
+# BUDGET. --budget SECONDS is the wall clock a run is timed against, for the
+# local affected-only run (scripts/check-affected.sh --tests). A run over it
+# reports the overrun and its three slowest suites, and does not fail. It ends
+# nothing by itself: only PLUGIN_TEST_DEADLINE, below, stops a suite launching.
 # Each suite gets a share, and a suite that takes longer than its share fails
 # by name, unless PLUGIN_TEST_SHARE_WARN_ONLY=1 (below): the share is its scripts/suite-seconds.txt median times
 # $PLUGIN_TEST_SHARE_MARGIN (default 3), and never less than
@@ -52,6 +53,14 @@
 # local gate, a suite over its share is a warning instead, so a suite that
 # passes on a loaded host does not fail the run; a suite that fails still does.
 # Without --budget no suite is timed against a share, which is how CI runs.
+#
+# DEADLINE. PLUGIN_TEST_DEADLINE=<epoch seconds> ends a run at that time: a suite
+# not started by then never starts, and suites already running finish. Each
+# suite left prints `LEFT TO CI: <suite>`, and goes on a line of the file
+# PLUGIN_TEST_LEFT_FILE names. A suite left is neither a pass nor a failure, so
+# it changes the exit code only by not failing. Only scripts/check-affected.sh
+# sets these, because CI's test lanes run every suite they select. No suite
+# inherits them, so a run a suite starts for itself keeps every suite it selects.
 #
 # SUITE BUDGET. On GitHub Actions (GITHUB_ACTIONS=true) every suite is timed
 # against a per-suite threshold and ceiling: over the threshold it prints
@@ -179,6 +188,15 @@ if [[ "${1:-}" == "--worker" ]]; then
   suite="${keyed#*:}"
   log_dir="${PLUGIN_TEST_LOG_DIR:?--worker needs PLUGIN_TEST_LOG_DIR}"
   log="$log_dir/$key"
+  deadline="${PLUGIN_TEST_DEADLINE:-}"
+  unset PLUGIN_TEST_DEADLINE PLUGIN_TEST_LEFT_FILE
+  if [[ -n "$deadline" ]]; then
+    printf -v now '%(%s)T' -1
+    if ((now >= deadline)); then
+      : >"$log.left"
+      exit 0
+    fi
+  fi
   rc=0
   test_git_env::isolate "$log.gitconfig" || exit 2
   start=$SECONDS
@@ -264,6 +282,10 @@ if [[ ! "$jobs" =~ ^[1-9][0-9]*$ ]]; then
   echo "error: --jobs must be a positive integer (got '$jobs')" >&2
   exit 2
 fi
+if [[ -v PLUGIN_TEST_DEADLINE && ! "$PLUGIN_TEST_DEADLINE" =~ ^[0-9]+$ ]]; then
+  echo "error: PLUGIN_TEST_DEADLINE must be epoch seconds (got '$PLUGIN_TEST_DEADLINE')" >&2
+  exit 2
+fi
 share_margin="${PLUGIN_TEST_SHARE_MARGIN:-3}"
 share_default="${PLUGIN_TEST_SHARE_DEFAULT:-30}"
 share_warn_only="${PLUGIN_TEST_SHARE_WARN_ONLY:-0}"
@@ -324,10 +346,10 @@ else
   cd "$script_dir/.." || exit 1
 fi
 
-mapfile -t tests < <(find plugins .claude/hooks scripts lib -type f -name '*.test.sh' 2>/dev/null | sort)
+mapfile -t tests < <(find plugins .claude/hooks .github scripts lib -type f -name '*.test.sh' 2>/dev/null | sort)
 
 if [[ ${#tests[@]} -eq 0 ]]; then
-  echo "error: no test suites found under plugins/, .claude/hooks/, scripts/ or lib/ (*.test.sh)" >&2
+  echo "error: no test suites found under plugins/, .claude/hooks/, .github/, scripts/ or lib/ (*.test.sh)" >&2
   exit 2
 fi
 if ((list)); then
@@ -536,10 +558,17 @@ total_optional_skips=0
 total_discriminating_skips=0
 skipped_suites=()
 timings=()
+left=()
 
 for i in "${!tests[@]}"; do
   t="${tests[$i]}"
   log="$log_dir/${suite_keys[$i]}"
+  # A suite can reach this marker, so it never outranks a recorded result, and it
+  # means nothing on a run with no deadline.
+  if [[ ! -f "$log.rc" && -n "${PLUGIN_TEST_DEADLINE:-}" && -f "$log.left" ]]; then
+    left+=("$t")
+    continue
+  fi
   if [[ ! -f "$log.rc" ]]; then
     echo "FAIL: $t (no result recorded; the worker never reported)" >&2
     suite_annotate error "$t" "$t failed (no result recorded; the worker never reported)"
@@ -615,6 +644,14 @@ elif [[ -n "$budget" ]]; then
   echo "The suites took ${run_seconds}s of the ${budget}s budget."
 fi
 
+if ((${#left[@]} > 0)); then
+  printf 'LEFT TO CI: %s\n' "${left[@]}"
+  if [[ -n "${PLUGIN_TEST_LEFT_FILE:-}" ]] && ! printf '%s\n' "${left[@]}" >"$PLUGIN_TEST_LEFT_FILE"; then
+    echo "error: cannot write PLUGIN_TEST_LEFT_FILE: $PLUGIN_TEST_LEFT_FILE" >&2
+    exit 2
+  fi
+fi
+
 if ((total_discriminating_skips > 0)); then
   {
     echo "DISCRIMINATING SKIP(s) mean discriminating coverage did not run —"
@@ -635,7 +672,9 @@ if [[ $failed -ne 0 ]]; then
   echo "One or more plugin tests failed." >&2
   exit 1
 fi
-if ((advisory_failed > 0)); then
+if ((${#left[@]} > 0)); then
+  echo "The plugin tests that ran passed; ${#left[@]} suite(s) left to CI (named above)."
+elif ((advisory_failed > 0)); then
   echo "All required plugin tests passed; ${advisory_failed} advisory suite(s) FAILED (named above)."
 elif ((total_optional_skips > 0)); then
   echo "All executed plugin tests passed; ${total_optional_skips} case(s) skipped (named above)."

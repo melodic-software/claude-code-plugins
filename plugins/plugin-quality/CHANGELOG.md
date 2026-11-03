@@ -5,6 +5,12 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.7] - 2026-11-03
+
+### Changed
+
+- The return contract (`/plugin-quality:report`) caps a dispatched agent's whole final message at 4,096 bytes; detail that does not fit goes in the agent's artifact.
+
 ## [0.18.6] - 2026-11-02
 
 ### Changed

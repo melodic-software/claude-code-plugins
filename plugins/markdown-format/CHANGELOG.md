@@ -3,6 +3,18 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.1] - 2026-11-03
+
+### Changed
+
+- README: the config discovery, code-loading config, ignore-source and `ignores` passages no longer restate markdownlint-cli2 or git behavior. Each keeps what the plugin does and links the markdownlint-cli2 or `git check-ignore` section that owns the detail, with an as-of date and a recheck trigger.
+
+## [1.0.0] - 2026-11-03
+
+### Removed
+
+- The `check` skill is gone. To check this plugin's prerequisites, run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`.
+
 ## [0.17.4] - 2026-11-02
 
 ### Changed

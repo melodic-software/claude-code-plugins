@@ -1,6 +1,6 @@
 // /visualization:present: the deck gate (root outside a working tree and reached
 // through no symlink, a plain-text title, K2 slides on an allowlist, medium
-// resolved from the user's own layers, the shared publish gate over every file)
+// resolved by the shared medium resolver, the shared publish gate over every file)
 // and the skill's contract (quickstart at run time, no hard-coded type_url, gate
 // before the create call, the create call's title read from the gate).
 import { strict as assert } from "node:assert";
@@ -21,7 +21,7 @@ after(() => rmSync(scratch, { recursive: true, force: true }));
 const HOME = join(scratch, "home");
 mkdirSync(join(HOME, ".claude"), { recursive: true });
 /** The gate with no user layers unless a test names them: an empty home, no project. */
-const checkDeck = ({ layers, ...input }) => gate({ ...input, layers: { home: HOME, project: null, ...layers } });
+const checkDeck = ({ layers, ...input }) => gate({ ...input, layers: { home: HOME, project: null, dataDir: null, ...layers } });
 
 let n = 0;
 function deck(slides, index = { v: 4, title: "Talk", order: Object.keys(slides) }, root = join(scratch, `deck-${(n += 1)}`)) {
@@ -41,17 +41,14 @@ function repo(files, ignore = []) {
   git("init", "-q");
   if (ignore.length) writeFileSync(join(dir, ".gitignore"), `${ignore.join("\n")}\n`);
   for (const [path, text, tracked] of files) {
+    mkdirSync(dirname(join(dir, path)), { recursive: true });
     writeFileSync(join(dir, path), text);
     if (tracked) git("add", "-f", "--", path);
   }
   return dir;
 }
-function home(text) {
-  const dir = join(scratch, `home-${(n += 1)}`);
-  mkdirSync(join(dir, ".claude"), { recursive: true });
-  writeFileSync(join(dir, ".claude/rendered-views.md"), text);
-  return dir;
-}
+const TEAM = "docs/conventions/rendered-views.yaml";
+const PERSONAL = "docs/conventions/rendered-views.local.yaml";
 
 describe("check-deck", () => {
   test("a clean deck from a public or repository-free source publishes, and names the title to create with", () => {
@@ -75,6 +72,18 @@ describe("check-deck", () => {
     assert.equal(result.medium, "file");
     assert.match(result.reason, /^deck line \d+ looks like a Anthropic key$/);
     assert.ok(!JSON.stringify(result).includes(key));
+  });
+  test("a private source kept local by the gate reports file and why, not the artifact default", () => {
+    const { result } = checkDeck({ root: deck(plain), visibility: "PRIVATE", cls: "K1" });
+    assert.equal(result.medium, "file");
+    assert.equal(result.report[0], "view: file (publish gate: repository visibility is PRIVATE, not PUBLIC)");
+  });
+  test("a credential kept local by the gate reports file and why, not the artifact default", () => {
+    const key = `${"sk-"}ant-${"x".repeat(24)}`;
+    const { result } = checkDeck({ root: deck(plain, { v: 4, title: key, order: ["cover"] }), visibility: "PUBLIC", cls: "K0" });
+    assert.equal(result.medium, "file");
+    assert.match(result.report[0], /^view: file \(publish gate: deck line \d+ looks like a Anthropic key\)$/);
+    assert.ok(!result.report.join("\n").includes(key));
   });
   for (const [what, index] of [
     ["no title", { v: 4, order: ["cover"] }],
@@ -182,41 +191,42 @@ describe("check-deck", () => {
     const root = deck(plain);
     const medium = (layers, visibility = "PRIVATE") => checkDeck({ root, visibility, cls: "K1", layers }).result;
     test("a tracked team file cannot force publish", () => {
-      const project = repo([[".claude/rendered-views.md", "medium: artifact\n", true]]);
+      const project = repo([[TEAM, "medium: artifact\n", true]]);
       const result = medium({ project });
       assert.equal(result.medium, "file");
       assert.match(result.reason, /visibility is PRIVATE/);
     });
     test("a team file can keep a deck local", () => {
-      const project = repo([[".claude/rendered-views.md", "medium: file\n", true]]);
+      const project = repo([[TEAM, "medium: file\n", true]]);
       const result = medium({ project }, "PUBLIC");
       assert.equal(result.medium, "file");
-      assert.match(result.reason, /rendered-views\.md sets medium: file$/);
+      assert.equal(result.reason, "team sets medium: file");
+      assert.equal(result.report[0], "view: file (team)");
     });
-    test("an overlay publishes only untracked and gitignored", () => {
-      const overlay = ".claude/rendered-views.local.md";
-      const tracked = medium({ project: repo([[overlay, "medium: artifact\n", true]]) });
+    test("a personal override publishes only untracked and gitignored", () => {
+      const tracked = medium({ project: repo([[PERSONAL, "medium: artifact\n", true]]) });
       assert.equal(tracked.medium, "file");
-      assert.ok(tracked.warnings.some((w) => /tracked in git/.test(w)));
-      const unignored = medium({ project: repo([[overlay, "medium: artifact\n", false]]) });
+      assert.ok(tracked.report.some((w) => /tracked in git/.test(w)));
+      const unignored = medium({ project: repo([[PERSONAL, "medium: artifact\n", false]]) });
       assert.equal(unignored.medium, "file");
-      assert.ok(unignored.warnings.some((w) => /not gitignored.*layer ignored/.test(w)));
-      assert.equal(medium({ project: repo([[overlay, "medium: artifact\n", false]], [overlay]) }).medium, "artifact");
+      assert.ok(unignored.report.some((w) => /not gitignored.*layer ignored/.test(w)));
+      const ignored = medium({ project: repo([[PERSONAL, "medium: artifact\n", false]], [PERSONAL]) });
+      assert.equal(ignored.medium, "artifact");
+      assert.equal(ignored.reason, "personal override sets medium: artifact");
     });
-    test("the user file, the plugin option, and the argument are trusted; an unset option is not", () => {
-      assert.equal(medium({ home: home("medium: artifact\n") }).medium, "artifact");
+    test("the plugin option and the argument are trusted; an unset option is not", () => {
       assert.equal(medium({ option: "artifact" }).medium, "artifact");
       for (const option of ["auto", "", "${user_config.medium}"]) assert.equal(medium({ option }).medium, "file");
-      assert.equal(medium({ home: home("medium: file\n"), argument: "artifact" }).medium, "artifact");
+      assert.equal(medium({ option: "file", argument: "artifact" }).medium, "artifact");
       assert.equal(medium({ argument: "terminal" }, "PUBLIC").medium, "terminal");
     });
     test("hosted is treated as artifact: a deck is never sent to a page host", () => {
-      for (const layers of [{ home: home("medium: hosted\n") }, { option: "hosted" }, { argument: "hosted" }]) {
+      for (const layers of [{ option: "hosted" }, { argument: "hosted" }]) {
         const result = medium(layers);
         assert.equal(result.medium, "artifact");
         assert.match(result.reason, /sets medium: hosted, treated as artifact$/);
       }
-      const team = medium({ project: repo([[".claude/rendered-views.md", "medium: hosted\n", true]]) });
+      const team = medium({ project: repo([[TEAM, "medium: hosted\n", true]]) });
       assert.equal(team.medium, "file");
     });
   });
@@ -228,7 +238,7 @@ describe("check-deck", () => {
     mkdirSync(bin, { recursive: true });
     writeFileSync(join(bin, "pages-publish"), `#!/bin/sh\ntouch "${marker}"\n`);
     chmodSync(join(bin, "pages-publish"), 0o755);
-    const env = { ...process.env, HOME, USERPROFILE: HOME, CLAUDE_PROJECT_DIR: join(scratch, "no-project"), PATH: `${bin}${delimiter}${process.env.PATH}` };
+    const env = { ...process.env, HOME, USERPROFILE: HOME, CLAUDE_PLUGIN_DATA: "", CLAUDE_PROJECT_DIR: join(scratch, "no-project"), PATH: `${bin}${delimiter}${process.env.PATH}` };
     const out = spawnSync(process.execPath, [CHECK, deck(plain), "PUBLIC", "--class", "K0", "--argument", "hosted"], { encoding: "utf8", env });
     assert.equal(out.status, 0, out.stderr);
     assert.equal(JSON.parse(out.stdout).medium, "artifact");
@@ -236,7 +246,7 @@ describe("check-deck", () => {
   });
 
   test("the CLI refuses a missing class or an unknown flag, and reads only the given layers", () => {
-    const env = { ...process.env, HOME, USERPROFILE: HOME, CLAUDE_PROJECT_DIR: join(scratch, "no-project") };
+    const env = { ...process.env, HOME, USERPROFILE: HOME, CLAUDE_PLUGIN_DATA: "", CLAUDE_PROJECT_DIR: join(scratch, "no-project") };
     const run = (args) => spawnSync(process.execPath, [CHECK, ...args], { encoding: "utf8", env });
     const root = deck(plain);
     assert.equal(run([root, "PUBLIC"]).status, 2);
@@ -259,7 +269,7 @@ describe("skill contract", () => {
   test("gates before the create call and names the destination", () => {
     assert.match(skill, /Before the type's own create call/);
     assert.match(skill, /publishing as a private Artifact on claude\.ai/);
-    assert.match(skill, /`medium: artifact` in\s+`~\/\.claude\/rendered-views\.md`/);
+    assert.match(skill, /this plugin's `medium` option set to `artifact`/);
   });
   test("the script, not the model, resolves the layers; a team layer cannot publish", () => {
     assert.match(skill, /--option "\$\{user_config\.medium\}"/);
