@@ -173,12 +173,12 @@ and is empty until one is made.
 | `plugins/code-metrics/scripts/persist-report.test.sh` | 0 | |
 | `plugins/code-metrics/scripts/python-resolve.test.sh` | 0 | |
 | `plugins/code-metrics/scripts/tool-free-path.test.sh` | 8 | |
-| `plugins/code-metrics/skills/audit-complexity/scripts/audit-complexity.test.sh` | 17 | |
 | `plugins/code-metrics/skills/audit-coverage/scripts/audit-coverage.test.sh` | 60 | |
 | `plugins/code-metrics/skills/audit-duplication/scripts/audit-duplication.test.sh` | 40 | |
-| `plugins/code-metrics/skills/audit-size/scripts/audit-size.test.sh` | 16 | |
 | `plugins/code-metrics/skills/audit-suppressions/scripts/audit-suppressions.test.sh` | 10 | |
-| `plugins/code-metrics/skills/audit-type-debt/scripts/audit-type-debt.test.sh` | 10 | |
+| `plugins/code-metrics/skills/audit/scripts/audit-complexity.test.sh` | 17 | |
+| `plugins/code-metrics/skills/audit/scripts/audit-size.test.sh` | 16 | |
+| `plugins/code-metrics/skills/audit/scripts/audit-type-debt.test.sh` | 10 | |
 | `plugins/code-metrics/skills/setup/scripts/setup-check.test.sh` | 21 | |
 | `plugins/code-tidying/scripts/added-lines.test.sh` | 1 | |
 | `plugins/code-tidying/scripts/allowed-tools-pairing.test.sh` | 0 | |

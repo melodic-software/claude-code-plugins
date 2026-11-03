@@ -9,7 +9,7 @@
     "debugging:debug",
     "debugging:analyze-profile",
     "improvement:find",
-    "code-metrics:audit-complexity"
+    "code-metrics:audit"
   ],
   "queries": [
     {

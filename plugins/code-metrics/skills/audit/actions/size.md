@@ -1,26 +1,10 @@
----
-description: "Measure lines per file for the changed files (the default), explicit paths, or the whole tree (`--all`), every text file in every lane, each beside a configurable reference with its provenance, longest first. Reports, never gates. Use when: 'how long are these files', 'lines per file', 'file size audit', 'which files are too big', 'LOC per file', 'is this file over 1000 lines', 'count lines in the change'. Complexity: /code-metrics:audit-complexity."
-argument-hint: "[--json] [--all] [--base <ref>] [<path>...]"
-user-invocable: true
-disable-model-invocation: false
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/audit-size.sh:*)", "Bash(git branch --show-current:*)"]
-shell: bash
-metadata:
-  workflow-stage: anytime
-  summary: Lines per file beside a cited reference, no verdict
----
-
-## Pre-computed context
-
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-
-## Purpose
+# Size
 
 Lines per file is the one measure on the operator's list with a crisp definition and no
-standard-backed file-level threshold. This skill reports the number, per file in the scope, beside
-a reference whose provenance is printed with it, and stops there: no pass or fail, no severity, no
-finding. Deciding what to do with a long file is the reader's call; the report gives them the
-number and the citation.
+standard-backed file-level threshold. This action reports the number, per file in the scope,
+beside a reference whose provenance is printed with it, and stops there: no pass or fail, no
+severity, no finding. Deciding what to do with a long file is the reader's call; the report gives
+them the number and the citation.
 
 Two collectors, tried in order:
 
@@ -40,10 +24,10 @@ other does; `lanes.other.enabled: false` opts it out.
 ## Run it
 
 ```bash
-"${CLAUDE_SKILL_DIR}/scripts/audit-size.sh"                      # the change: diff from the merge-base plus uncommitted files
-"${CLAUDE_SKILL_DIR}/scripts/audit-size.sh" src/ lib/util.py     # explicit paths (a missing one is a usage error)
-"${CLAUDE_SKILL_DIR}/scripts/audit-size.sh" --all                # every tracked or untracked-but-not-ignored file
-"${CLAUDE_SKILL_DIR}/scripts/audit-size.sh" --json --all src/    # the code-metrics/v2 document instead of markdown
+"<skill-dir>/scripts/audit-size.sh"                      # the change: diff from the merge-base plus uncommitted files
+"<skill-dir>/scripts/audit-size.sh" src/ lib/util.py     # explicit paths (a missing one is a usage error)
+"<skill-dir>/scripts/audit-size.sh" --all                # every tracked or untracked-but-not-ignored file
+"<skill-dir>/scripts/audit-size.sh" --json --all src/    # the code-metrics/v2 document instead of markdown
 ```
 
 Present the markdown report to the user as printed. It opens with the scope and a "Coverage of
@@ -72,7 +56,7 @@ side as INCONCLUSIVE); otherwise keep the JSON beside your notes and compare by 
 ## Configuration
 
 Everything tunable resolves through the code-metrics layers (user-global, team
-`docs/conventions/code-metrics.yaml`, local overlay; per-key override; keys in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`): the reference
+`docs/conventions/code-metrics.yaml`, local overlay; per-key override; keys in `<plugin-root>/reference/config.md`): the reference
 (`size.file_lines`), the mode (`size.mode`: `file-lines`, or `iso-8.2.115`, which adds a
 `function_lines` measure comparing each function's non-empty lines against
 `size.function_lines_pct` of the file's, from a collector that reports function ranges such as
@@ -80,19 +64,14 @@ Everything tunable resolves through the code-metrics layers (user-global, team
 per-lane collector order. The report names the layer that supplied any value a personal layer
 changed. `/code-metrics:setup` writes the team file and probes the collectors.
 
-## What this skill does not do
+## What this action does not do
 
 - It does not run tests, edit files, or install `scc`; when `scc` is absent the run table says so
   and the bundled counter answers.
 - It does not judge: no threshold here is a bar, and no `check` gate exists in this version.
 - It does not measure complexity, duplication, coverage, or type debt; those are the sibling
-  `audit-*` skills in this plugin, and `/code-metrics:principles` explains what each number can and
-  cannot tell you.
-
-## Next
-
-- The numbers feed a before-and-after comparison: `/verification:measure metrics`.
-- A file is about to be called too long: `/code-metrics:principles`.
+  `audit` actions and `audit-*` skills in this plugin, and `/code-metrics:principles` explains
+  what each number can and cannot tell you.
 
 ## Gotchas
 
