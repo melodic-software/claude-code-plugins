@@ -76,7 +76,8 @@ a regular file). `apply` is the fix.
    (`downstream_probe`: `run`, the default, unless the team wants `/review:quality-gate downstream`
    to state its probe without running it, in which case `report`; `fanout_diversity`: `lens`, the
    default, unless the team wants `/review:fanout run-everything` to run each review prompt on
-   several model tiers, in which case `model`). Never invent a key the schema
+   several model tiers, in which case `model`, or to use the Codex reviewer as its model-diversity
+   panel, in which case `codex`). Never invent a key the schema
    does not list. `downstream_probe` is a policy floor read from the default branch, so a value
    written here takes effect once it is merged there.
 2. **Write.** One call with every value:

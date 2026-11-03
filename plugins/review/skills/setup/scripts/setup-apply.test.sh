@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Tests for setup-apply.mjs: the narrow write of docs/conventions/review.yaml.
 # Each case builds its own repository root in a temp directory; expected values
-# come from the schema's allowed values (run, report; lens, model) and the script's stated
+# come from the schema's allowed values (run, report; lens, model, codex) and the script's stated
 # exit codes, not from the script's output.
 # test-scope: plugins/review/lib/parse-concern-value.sh plugins/review/lib/resolve-convention-home.sh
 set -uo pipefail
@@ -623,13 +623,18 @@ out="$(run --root "$R24" --check --ref origin/main)"
 assert_eq "case 24: a committed bad value exits 1" "1" "$?"
 assert_contains "case 24: a committed bad value keeps the valid key" "$out" "PASS downstream_probe: report"
 
-# --- Case 26: fanout_diversity takes lens or model (the schema's enum) ---------
+# --- Case 26: fanout_diversity takes lens, model or codex (the schema's enum) --
 R26="$(new_root c26)"
 run --root "$R26" fanout_diversity=model >/dev/null
 assert_eq "case 26: fanout_diversity=model exits 0" "0" "$?"
 assert_eq "case 26: the file holds fanout_diversity: model" "1" "$(grep -cx 'fanout_diversity: model' "$(yaml_of "$R26")")"
 out="$(run --root "$R26" --check)"
 assert_contains "case 26: --check reports fanout_diversity" "$out" "PASS fanout_diversity: model"
+R26C="$(new_root c26c)"
+run --root "$R26C" fanout_diversity=codex >/dev/null
+assert_eq "case 26: fanout_diversity=codex exits 0" "0" "$?"
+out="$(run --root "$R26C" --check)"
+assert_contains "case 26: --check reports fanout_diversity codex" "$out" "PASS fanout_diversity: codex"
 R26B="$(new_root c26b)"
 printf 'downstream_probe: run\n' >"$(yaml_of "$R26B")"
 before="$(cat "$(yaml_of "$R26B")")"

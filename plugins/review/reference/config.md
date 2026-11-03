@@ -9,7 +9,7 @@ file or local overlay sets these keys. `/review:setup apply` writes the reposito
 | Key | Values | Default | Reader |
 |---|---|---|---|
 | `downstream_probe` | `run`, `report` | `run` | `/review:quality-gate` downstream mode (Step 2): `run` writes the safety-fact probe in a temporary directory outside the tree and runs it; `report` states the probe without running it. Level rule: policy floor, `report` in any layer wins; the repository value is read from the default branch |
-| `fanout_diversity` | `lens`, `model` | `lens` | `/review:fanout` run-everything step 5 and its fallback: `lens` runs one reviewer agent per concern; `model` sends one review prompt to each distinct fan-out model tier of the role map. Level rule: later layer; the repository layer is skipped when the reviewed change set edits `docs/conventions/review.yaml` |
+| `fanout_diversity` | `lens`, `model`, `codex` | `lens` | `/review:fanout` run-everything steps 3 and 5 and its fallback: `lens` runs one reviewer agent per concern; `model` sends one review prompt to each distinct fan-out model tier of the role map; `codex` runs the surfaces `lens` runs, with no model tiers, and reports the Codex reviewer as the model-diversity panel in a `panel:` line, `skipped` when Codex is absent. Level rule: later layer; the repository layer is skipped when the reviewed change set edits `docs/conventions/review.yaml` |
 
 ## Resolution
 
