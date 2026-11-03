@@ -4554,6 +4554,8 @@ test("scan job: every run job output set after head code must be in its closed s
   }
 });
 
+const CARRIER_HOLDERS = ["upstream-apply-changelog.yml", "maintenance-tidy-code-upkeep.yml"];
+
 test("pr-run-activity-read.yml: the scan-carrier key is passed by name by each read-runner caller, read by the scan job's decode step alone, and its environment is on that job alone", () => {
   const files = workflowFiles();
   const read = workflow("pr-run-activity-read.yml");
@@ -4568,7 +4570,7 @@ test("pr-run-activity-read.yml: the scan-carrier key is passed by name by each r
         assert.equal(job.secrets["scan-carrier-private-key"], CARRIER_PASS, `${file} ${id}`);
         const rest = { ...job, secrets: { ...job.secrets, "scan-carrier-private-key": undefined } };
         assert.doesNotMatch(JSON.stringify(rest), /SCAN_CARRIER_PRIVATE_KEY|scan-carrier-private-key/i, `${file} ${id}`);
-      } else if (file !== "pr-run-activity-read.yml" && !(file === "upstream-apply-changelog.yml" && id === "scan")) {
+      } else if (file !== "pr-run-activity-read.yml" && !(CARRIER_HOLDERS.includes(file) && id === "scan")) {
         assert.doesNotMatch(JSON.stringify(job), /SCAN_CARRIER_PRIVATE_KEY|scan-carrier-private-key/i, `${file} ${id}`);
       }
     }
@@ -4584,27 +4586,31 @@ test("pr-run-activity-read.yml: the scan-carrier key is passed by name by each r
   assert.equal(open.with["private-key"], CARRIER_SECRET);
   assert.equal(open.env, undefined);
   assert.equal(open.uses, "./.base/.github/actions/open-lane-output");
-  // The second holder (owner decision, 2026-11-02): upstream-apply-changelog.yml's scan job, one
-  // open step, only while it runs from main with no id-token, no write token and a read-only cache.
-  const intake = workflow("upstream-apply-changelog.yml").jobs;
-  for (const [id, job] of Object.entries(intake)) {
-    const steps = (job.steps ?? []).filter((step) => /scan-carrier-private-key|SCAN_CARRIER_PRIVATE_KEY/i.test(JSON.stringify(step)));
-    assert.deepEqual(steps.map((step) => step.id), id === "scan" ? ["open"] : [], `upstream-apply-changelog.yml ${id}`);
+  // The second holder (owner decision, 2026-11-02) and the third (2026-11-03, #12475): each scan
+  // job, one open step and no model, only while it runs from main with no id-token, no write token
+  // and a read-only cache.
+  for (const file of CARRIER_HOLDERS) {
+    const intake = workflow(file).jobs;
+    for (const [id, job] of Object.entries(intake)) {
+      const steps = (job.steps ?? []).filter((step) => /scan-carrier-private-key|SCAN_CARRIER_PRIVATE_KEY/i.test(JSON.stringify(step)));
+      assert.deepEqual(steps.map((step) => step.id), id === "scan" ? ["open"] : [], `${file} ${id}`);
+    }
+    const holder = intake.scan;
+    const intakeOpen = holder.steps.find((s) => s.id === "open");
+    assert.deepEqual(stepSecrets(intakeOpen), ["SCAN_CARRIER_PRIVATE_KEY"]);
+    assert.equal(intakeOpen.with["private-key"], "${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}");
+    assert.equal(intakeOpen.env, undefined);
+    assert.equal(intakeOpen.uses, "./.base/.github/actions/open-lane-output");
+    assert.deepEqual(holder.permissions, { contents: "read" });
+    assert.equal(holder["cache-mode"], "read");
+    assert.ok(!holder.steps.some((step) => String(step.uses ?? "").includes("/run-claude-cli@")), `${file} scan runs no model`);
+    // Main only: the scan job runs after the gate job, which runs only on refs/heads/main.
+    assert.ok([holder.needs].flat().includes("gate"));
+    assert.match(intake.gate.if ?? "", /github\.ref == 'refs\/heads\/main'/);
   }
-  const holder = intake.scan;
-  const intakeOpen = holder.steps.find((s) => s.id === "open");
-  assert.deepEqual(stepSecrets(intakeOpen), ["SCAN_CARRIER_PRIVATE_KEY"]);
-  assert.equal(intakeOpen.with["private-key"], "${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}");
-  assert.equal(intakeOpen.env, undefined);
-  assert.equal(intakeOpen.uses, "./.base/.github/actions/open-lane-output");
-  assert.deepEqual(holder.permissions, { contents: "read" });
-  assert.equal(holder["cache-mode"], "read");
-  // Main only: the scan job runs after the gate job, which runs only on refs/heads/main.
-  assert.ok([holder.needs].flat().includes("gate"));
-  assert.match(intake.gate.if ?? "", /github\.ref == 'refs\/heads\/main'/);
   for (const file of files) {
     for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
-      if ((file === "pr-run-activity-read.yml" || file === "upstream-apply-changelog.yml") && id === "scan") assert.equal(job.environment, "pr-pipeline-scan-carrier");
+      if ((file === "pr-run-activity-read.yml" || CARRIER_HOLDERS.includes(file)) && id === "scan") assert.equal(job.environment, "pr-pipeline-scan-carrier");
       else assert.doesNotMatch(JSON.stringify(job.environment ?? ""), /pr-pipeline-scan-carrier/, `${file} ${id}`);
     }
   }
@@ -7641,6 +7647,8 @@ test("every kill-switch-ok caller runs no token step and no dependent job on a k
     "work-resolve-issue.yml:report-skip -> pr-run-activity-write.yml",
     "upstream-apply-changelog.yml:push-branches",
     "upstream-apply-changelog.yml:publish",
+    "maintenance-tidy-code-upkeep.yml:push-branches",
+    "maintenance-tidy-code-upkeep.yml:publish",
   ].sort());
 });
 
@@ -7809,6 +7817,7 @@ test("every job that runs or reads untrusted head content has a read-only Action
     "pr-review-main.yml": ["review", "review-subscription", "review-fallback"],
     "pr-verify.yml": ["check-intent", "check-intent-subscription", "check-intent-fallback"],
     "upstream-apply-changelog.yml": ["model", "scan", "push-branches", "publish"],
+    "maintenance-tidy-code-upkeep.yml": ["model", "scan", "push-branches", "publish"],
   };
   for (const [file, names] of Object.entries(readOnly)) {
     const { jobs } = workflow(file);
