@@ -118,6 +118,8 @@ lib/parse-concern-value.sh plugins/testing/scripts/parse-concern-value.sh
 lib/parse-concern-value.sh plugins/planning/skills/setup/scripts/parse-concern-value.sh
 lib/parse-concern-value.sh plugins/discipline/skills/setup/scripts/parse-concern-value.sh
 lib/parse-concern-value.sh plugins/docs-hygiene/lib/parse-concern-value.sh
+lib/parse-concern-value.sh plugins/code-tidying/lib/parse-concern-value.sh
+lib/yaml-subset.awk plugins/code-tidying/lib/yaml-subset.awk
 lib/yaml-subset.awk plugins/harness-memory/skills/audit/scripts/yaml-subset.awk
 lib/yaml-subset.awk plugins/session-flow/skills/retro/scripts/yaml-subset.awk
 lib/yaml-subset.awk plugins/discovery/skills/setup/scripts/yaml-subset.awk
@@ -493,6 +495,7 @@ lib/yaml-subset.mjs plugins/verification/lib/yaml-subset.mjs
 lib/resolve-convention-home.sh plugins/discipline/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/discovery/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/docs-hygiene/lib/resolve-convention-home.sh
+lib/resolve-convention-home.sh plugins/code-tidying/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/education/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/review/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/session-flow/lib/resolve-convention-home.sh
