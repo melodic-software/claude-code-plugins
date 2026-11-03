@@ -1,15 +1,16 @@
 schema_version: "1.1"
 name: 'read-http-200-without-conversion-is-a-failure'
+context:
+  scaffold_script: scaffold.sh
 graders:
-  - name: 'expectation-1'
-    type: 'llm'
-    criteria: 'Validates that the response actually carries converted content rather than trusting the status code'
-    focus: 'trace'
-  - name: 'expectation-2'
-    type: 'llm'
-    criteria: 'Captures and reports the status code rather than inferring outcome from body shape'
-    focus: 'trace'
-  - name: 'expectation-3'
-    type: 'llm'
-    criteria: 'Never reports a failed fetch as an empty post'
-    focus: 'trace'
+  - name: 'no-page-text'
+    type: 'regex'
+    pattern: '9e4b7c2qhalvern31'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'says-no-post'
+    type: 'regex'
+    pattern: '(?<!\bnot )(?<!\bnot a )(?<!n[’'']t )(?<!n[’'']t a )\b(?:failed|fails?|failures?|unsuccessful)\b|(?<!\bno )(?<!\bnot a )(?<!\bnot an )\b(?:bot[- ]?(?:check|challenge|detection|protection)|(?:anti-bot|browser|security|captcha|javascript) (?:check|challenge|interstitial|page)|challenge (?:page|body|screen|interstitial)|interstitial|captcha)\b|\bno (?:converted |markdown |actual |post )?(?:content|markdown|conversion|post text)\b|\b(?:is|was|contains|holds) (?:not|n[’'']t) (?:the|a|any) (?:post|conversion|converted)\b|\bnot (?:converted|a conversion)\b'
+    flags: 'i'
+    target: 'last_message'

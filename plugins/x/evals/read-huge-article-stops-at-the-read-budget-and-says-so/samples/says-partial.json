@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "This is a partial result. I read the first 256 KB, up to Station 26, and stopped there.",
+      "why": "prose, partial"
+    },
+    {
+      "answer": "**Truncated** at the read budget: Stations 1-25 only.",
+      "why": "bold label, truncated"
+    },
+    {
+      "answer": "- Stopped at the 256 KB ceiling\n- The sign-off is beyond it",
+      "why": "list, stopped at the ceiling"
+    },
+    {
+      "answer": "Below is not the full article: I read only the first slices of the file.",
+      "why": "not the full article"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Here is the full article: 450 stations of routine tide readings, signed off by the survey office.",
+      "why": "the likely no-plugin answer: presents it as complete"
+    },
+    {
+      "answer": "The article is not partial; I read every line of it.",
+      "why": "negated partial"
+    },
+    {
+      "answer": "The article isn't truncated, and the station log runs to Station 450.",
+      "why": "negated truncated"
+    }
+  ]
+}

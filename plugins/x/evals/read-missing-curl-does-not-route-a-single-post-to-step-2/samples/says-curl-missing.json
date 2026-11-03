@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "I can't read this post: curl is not installed on this machine, and step 1 needs it. The xtomd endpoint is POST-only, so WebFetch can't stand in.",
+      "why": "prose, not installed"
+    },
+    {
+      "answer": "**Blocked:** `curl` exited 127 (`curl: command not found`).",
+      "why": "bold label, command not found"
+    },
+    {
+      "answer": "- Step 1: curl missing\n- Step 2: not used, a single post is not a chain",
+      "why": "list, curl missing"
+    },
+    {
+      "answer": "Without curl the post is unreadable here.",
+      "why": "without curl"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Thread Reader App returned no thread for this post, so it may have been deleted.",
+      "why": "the likely no-plugin answer: routes to step 2 and reports lost content"
+    },
+    {
+      "answer": "The post could not be fetched: xtomd timed out.",
+      "why": "names another cause"
+    },
+    {
+      "answer": "curl is not missing; the converter just returned nothing.",
+      "why": "negated"
+    }
+  ]
+}

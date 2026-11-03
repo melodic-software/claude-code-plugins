@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "That fetch failed: the 200 carried an HTML page, not a conversion.",
+      "why": "prose, failed"
+    },
+    {
+      "answer": "**Result:** bot-challenge page. xtomd answered 200, but the body is the challenge interstitial.",
+      "why": "bold label, bot-challenge"
+    },
+    {
+      "answer": "- curl exit 0, HTTP 200\n- The file holds no converted content, only HTML\n- I can't read the post from it",
+      "why": "list, no converted content"
+    },
+    {
+      "answer": "The saved file is not the post; it is a browser check page with no Markdown.",
+      "why": "browser check page"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The post is empty: it has no text, only a request to enable JavaScript and cookies.",
+      "why": "the likely no-plugin answer: reports a failed fetch as an empty post"
+    },
+    {
+      "answer": "HTTP 200 means the conversion succeeded. Here is the post.",
+      "why": "trusts the 200"
+    },
+    {
+      "answer": "The fetch did not fail and there is no bot challenge here; the post says one moment, please.",
+      "why": "negated failure and negated challenge"
+    }
+  ]
+}
