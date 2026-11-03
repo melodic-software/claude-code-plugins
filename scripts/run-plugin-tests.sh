@@ -563,7 +563,9 @@ left=()
 for i in "${!tests[@]}"; do
   t="${tests[$i]}"
   log="$log_dir/${suite_keys[$i]}"
-  if [[ -f "$log.left" ]]; then
+  # A suite can reach this marker, so it never outranks a recorded result, and it
+  # means nothing on a run with no deadline.
+  if [[ ! -f "$log.rc" && -n "${PLUGIN_TEST_DEADLINE:-}" && -f "$log.left" ]]; then
     left+=("$t")
     continue
   fi

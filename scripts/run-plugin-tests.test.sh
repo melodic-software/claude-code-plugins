@@ -776,6 +776,28 @@ PLUGIN_TEST_DEADLINE=$((now + 600)) PLUGIN_TEST_LEFT_FILE="$left_file" PLUGIN_TE
 assert_output_has "a suite does not inherit the deadline" "saw deadline=unset left=unset"
 assert_output_has "a run inside its deadline reads as a full pass" "All plugin tests passed."
 
+# A suite inherits PLUGIN_TEST_LOG_DIR, so it can write its own left marker. That
+# never turns a failure into a pass, with a deadline or without one. Its key is
+# 000000: the only suite in its root.
+deadline_forge="$(make_root deadline-forge)"
+# shellcheck disable=SC2016 # the fixture suite expands this, not this file.
+write_suite "$deadline_forge" plugins/a/a.test.sh ': >"$PLUGIN_TEST_LOG_DIR/000000.left"; exit 1'
+PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 1 "a suite's own left marker does not hide its failure" --root "$deadline_forge"
+assert_output_has "the failure is still named" "plugins/a/a.test.sh failed (exit 1)"
+assert_output_lacks "a suite that ran is not left" "LEFT TO CI"
+printf -v now '%(%s)T' -1
+PLUGIN_TEST_DEADLINE=$((now + 600)) PLUGIN_TEST_SERIAL_LIST="$empty_list" \
+  run_runner 1 "a recorded result wins over a left marker inside a deadline" --root "$deadline_forge"
+# With no deadline a left marker means nothing: a worker killed before it records
+# a result is still the failure it always was.
+deadline_killed="$(make_root deadline-killed)"
+# shellcheck disable=SC2016 # the fixture suite expands these, not this file.
+write_suite "$deadline_killed" plugins/a/a.test.sh ': >"$PLUGIN_TEST_LOG_DIR/000000.left"; kill -9 "$PPID"'
+killed_serial="$scratch/killed-serial.txt"
+printf '%s\n' plugins/a/a.test.sh >"$killed_serial"
+PLUGIN_TEST_SERIAL_LIST="$killed_serial" run_runner 1 "with no deadline a left marker does not excuse a missing result" --root "$deadline_killed"
+assert_output_has "the missing result is named" "no result recorded"
+
 for bad in x -1 ''; do
   PLUGIN_TEST_DEADLINE="$bad" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
     run_runner 2 "a deadline of '$bad' is rejected" --root "$deadline_inherit"

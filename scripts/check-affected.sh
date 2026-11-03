@@ -744,7 +744,7 @@ elif ((run_tests)); then
   # exit 2, whose last line run_check puts in the skip. A suite the budget left is
   # the same SKIP, and also gets its own SKIP line, so the report names it.
   affected() {
-    local rc=0 s pkg ex t n=0 missing='' now
+    local rc=0 node_rc=0 s pkg ex t n=0 missing='' now
     local -a pkgs=() exclusions=() node=() unrun=() left=()
     local -A pkg_suites=()
     leave() {
@@ -808,7 +808,10 @@ elif ((run_tests)); then
           continue
         fi
         printf '%s' "${pkg_suites[$pkg]}" >"$out.node" || return 2
-        bash "$tools/scripts/run-outside-node-suites.sh" --paths "$out.node" || return
+        # A failure outranks a package that could not run, so one never hides the other.
+        rc=0
+        bash "$tools/scripts/run-outside-node-suites.sh" --paths "$out.node" || rc=$?
+        ((rc == 0 || node_rc == 1)) || node_rc=$rc
       done
     fi
     local summary=''
@@ -817,10 +820,9 @@ elif ((run_tests)); then
       printf 'not run here: %s\n' "${unrun[@]}"
       summary+="${summary:+; }${#unrun[@]} selected suite(s) not run here, left to their own CI lanes${missing:+ ($missing not installed)}"
     fi
-    if [[ -n "$summary" ]]; then
-      echo "$summary"
-      return 2
-    fi
+    [[ -z "$summary" ]] || echo "$summary"
+    ((node_rc == 0)) || return "$node_rc"
+    [[ -z "$summary" ]] || return 2
   }
   if ((npm_failed)); then
     skip tests "npm dependencies did not install"

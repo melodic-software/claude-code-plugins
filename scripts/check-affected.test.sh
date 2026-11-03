@@ -62,7 +62,7 @@ cp "$SELF_DIR/check-affected-gates.txt" "$repo/scripts/"
 mkdir -p "$repo/scripts/lib"
 cp "$SELF_DIR/lib/read-list.sh" "$SELF_DIR/lib/test-git-env.sh" "$repo/scripts/lib/"
 cp "$SELF_DIR/run-outside-node-suites.sh" "$repo/scripts/"
-printf '# fixture\npkg/demo\n' >"$repo/scripts/outside-node-packages.txt"
+printf '# fixture\npkg/demo\npkg/other\n' >"$repo/scripts/outside-node-packages.txt"
 printf '# fixture\nfixtures/\n' >"$repo/scripts/outside-node-exclusions.txt"
 : >"$repo/_typos.toml"
 # The workflow typos reads its exclusions from: its typos step's `exclude:` line.
@@ -368,6 +368,22 @@ if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1 && command 
   run STUB_AFFECTED_TESTS=3 STUB_AFFECTED_SLEEP=2 STUB_NOT_RUN=$'pkg/demo/x.test.mjs\n' -- --base base --tests --budget 1
   check "--tests starts no Node package past its budget, and names it as left" \
     '[[ $RC == 0 && $ERR != *"FAIL tests"* && $ERR == *"SKIP tests: pkg/demo/x.test.mjs (past the 1s budget, left to CI)"* ]]'
+  # A failed package does not stop the next: pkg/demo fails first, pkg/other
+  # still runs, and the run still fails.
+  mkdir -p "$repo/pkg/other"
+  printf '{"name":"other","private":true,"scripts":{"test":"touch ran.marker"}}\n' >"$repo/pkg/other/package.json"
+  : >"$repo/pkg/other/y.test.mjs"
+  both_packages=$'pkg/demo/x.test.mjs\npkg/other/y.test.mjs\n'
+  run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN="$both_packages" -- --base base --tests
+  check "--tests runs the next Node package after one fails, and still fails" \
+    '[[ $RC == 1 && $ERR == *"FAIL tests"* && -f "$repo/pkg/other/ran.marker" ]]'
+  # pkg/demo starts inside a 15 s budget, far enough for a loaded host, and fails
+  # past it, so pkg/other does not start and is named.
+  rm -f "$repo/pkg/other/ran.marker"
+  printf '{"name":"demo","private":true,"scripts":{"test":"sleep 16; exit 1"}}\n' >"$repo/pkg/demo/package.json"
+  run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN="$both_packages" -- --base base --tests --budget 15
+  check "--tests names the Node package a failed one's overrun left, and still fails" \
+    '[[ $RC == 1 && $ERR == *"FAIL tests"* && ! -e "$repo/pkg/other/ran.marker" && $ERR == *"SKIP tests: pkg/other/y.test.mjs (past the 15s budget, left to CI)"* ]]'
   rm -rf "$repo/pkg"
 else
   ok "SKIP Node package cases (node, npm or jq not installed)"
