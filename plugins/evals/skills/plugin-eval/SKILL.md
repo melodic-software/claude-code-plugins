@@ -26,11 +26,19 @@ reads the delta. It never re-implements grading and never simulates a run or a s
 | `ci` | Answer from the CI section below |
 | `init [<name>]` | Scaffold a suite: `claude plugin eval init --bare <name>` where there is no terminal |
 
-This page holds every rule the actions use; answer from it. Each upstream specific it states has a
-row under [Sources](#sources). Background for a human reader:
-[case-authoring.md](reference/case-authoring.md), [reading-results.md](reference/reading-results.md)
-(JSON fields), [ci.md](reference/ci.md) (workflow file, exit codes, parser), and
-[records.md](reference/records.md) (the observations behind each source row).
+This page holds the rules every action uses; answer from it, and read a reference file when its row
+below fits the question. Each upstream specific it states has a row under [Sources](#sources).
+
+| File | Read when |
+|---|---|
+| [calibrating-a-judge.md](reference/calibrating-a-judge.md) | Calibrating an `llm` grader's judge (Run step 2) |
+| [iterating.md](reference/iterating.md) | Tuning one case after a read, or confirming a change |
+| [boundary.md](reference/boundary.md) | The question is what the CLI owns, or a skill-creator `evals.json` |
+| [case-authoring.md](reference/case-authoring.md) | Background for a human reader on writing cases |
+| [reading-results.md](reference/reading-results.md) | JSON fields, denials, what a delta does and does not say |
+| [ci.md](reference/ci.md) | Workflow file, exit codes, parser |
+| [sandboxes.md](reference/sandboxes.md) | Sandbox start, the link swap, removing kept sandboxes |
+| [records.md](reference/records.md) | The observations behind each source row |
 
 ## Preflight
 
@@ -371,49 +379,10 @@ noise report's verdict is that the interval excludes 0 with the with-arm ahead, 
 no verdict it disagrees with, every counted run did the task, and a gap claimed beyond one model has
 its second-model run; otherwise `do not promote`, followed by the first condition that failed. Then remove the run's sandboxes, once its traces are no longer needed: [sandboxes.md](reference/sandboxes.md#removing-a-reads-sandboxes).
 
-## Iterating
-
-1. Read the delta column first, never the absolute score. The read is done when each case is
-  either a number or an explicit "not comparable".
-2. The usual first finding: a delta near zero with the case's `tool_used: Skill` grader failing means the model is not
-  choosing the skill on natural phrasing. Fix the skill's `description`, not the case, and re-run
-  that one case until the grader passes. A passing fired grader shows the trigger works; it is not
-  evidence that the skill improved, and any claim of a gain still needs a VALID run and its noise
-  report.
-3. That grader passing and a negative delta: suspect the judge before the plugin, since a small
-  judge marks a correct answer wrong on formatting. Re-run with a larger `--judge-model` and
-  tighten the rubric until it survives a rubric silent on form.
-4. Iterate on one case with `--case <name> --runs 1 --ablation none` (it reports `SCORE` and
-  `PASS%`, no delta). One run is noisy, so confirm any change at 3 runs per case, the only repeat
-  count this repository sets ([local-decisions.md, Repeat count](../methodology/reference/local-decisions.md#repeat-count)),
-  and read the confirm's noise report before trusting it.
-5. Give each case one grader on the result and one on how the model got there (`tool_used` or
-  `tool_order`). That pairing separates "the answer was right" from "the plugin is why".
-
 ## Calibrating a judge
 
-Trust an `llm` grader's scores only after its judge, the model the suite uses, agrees with labeled
-answers on at least 90% of runs; a pass says nothing about another model. Before the first full
-run, calibrate every LLM-judge grader the harness can reproduce (one with labeled samples, judging
-text); the default judge is uncalibrated until it passes. Report any other judge grader as
-uncalibrated, never trusted silently. Labels are the must-pass and must-fail answers in the case's
-`samples/<grader>.json`, set by three agents independently with the user settling every
-disagreement:
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/calibrate-judge.py" build --suite <eval-dir> --out <empty dir outside the repo>
-claude plugin eval <out> --trust-plugin --ablation none --threshold 0 --runs 3 --judge-model <the suite's judge model> --keep-temp --no-publish --json <out>/results.json
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/calibrate-judge.py" score --manifest <out>/manifest.json <out>/results.json
-```
-
-`--threshold 0` keeps the CLI's exit code about errors, since must-fail cases are meant to score 0.
-
-`score` prints a `FAIL grader` line for each grader under 90% and exits 1; fix that rubric, or move
-the whole suite to a stronger judge, and calibrate again before reading its scores. Its false
-positives and negatives name the samples to read first. A sample with no reproduced run is listed
-`untested`, counts toward no agreement, and shows in the verdict line; raise `--runs` or tighten
-the prompt before reading the grader's score. What `build` writes and skips, and which runs
-`score` leaves out: [case-authoring.md, Calibration samples](reference/case-authoring.md#calibration-samples).
+The agreement bar, the commands and what to do on a miss:
+[calibrating-a-judge.md](reference/calibrating-a-judge.md).
 
 ## CI
 
@@ -423,17 +392,6 @@ read as a plugin regression; pass `--trust-plugin` because a non-TTY job is othe
 read the JSON in addition to the exit code. Exit 1 still fails the job on a below-threshold case,
 but it is overloaded across six causes and exit 2 means partial, so the JSON is what tells a
 reader which one happened and whether the arms were comparable at all (pointer: the CI pins row under [Sources](#sources)).
-
-## Boundary, the built-in `plugin eval` command
-
-- The **CLI** (`plugin eval`, a built-in command) owns execution, grading, the ablation arms, the JSON and the HTML report. It is gated
-  by the version floor under Preflight, so this skill reads the version and never assumes the
-  command is available. This skill owns what surrounds a spend: the preflight, the no-spend
-  validation, the estimate and ceiling, target routing and the reading discipline. It never re-implements grading and never simulates a run or a score.
-- Success criteria and case design belong to `/evals:design`; come here once a suite exists.
-- The skill-creator JSON eval format is not a suite this command reads. Convert its cases to case
-  directories (`/evals:design skill <name>` writes them), check those with `/evals:validate`, then
-  run them here. To move one plugin's `evals.json` cases into its suite, run `python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/convert-evals-json.py" <plugin-dir>` (`--dry-run` prints the case count and writes nothing; `--help` prints what it writes), then `/evals:validate` on the plugin's `evals/`.
 
 ## Next
 
