@@ -5,7 +5,7 @@ context:
 graders:
   - name: 'login-at-console'
     type: 'regex'
-    pattern: '^(?=[\s\S]*(?:/login\b|\bsign(?:ing)? in again\b|\blog(?:ging)? in again\b|\bsign(?:ing)? back in\b|\bre-?authenticat\w+))(?=[\s\S]*\b(?:(?<!a )console|RDP|Remote Desktop|(?<!being )physically|in person|(?<!being )at (?:the|that) (?:machine|laptop|keyboard)|sitting at)\b)'
+    pattern: '^(?=[\s\S]*(?:/login\b|\bsign(?:ing)? in again\b|\blog(?:ging)? in again\b|\bsign(?:ing)? back in\b|\bre-?auth\w*))(?=[\s\S]*\b(?:(?<!a )console|RDP|Remote Desktop|(?<!being )physically|in person|(?<!being )at (?:the|that) (?:machine|laptop|keyboard)|sitting at)\b)'
     flags: 'i'
     target: 'last_message'
   - name: 'no-credential-in-prompt'
