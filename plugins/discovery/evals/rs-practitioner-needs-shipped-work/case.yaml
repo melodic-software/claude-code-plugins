@@ -16,7 +16,7 @@ graders:
     arm: both
   - name: not-cited-as-authority
     type: regex
-    pattern: '\b(?:not|never|cannot|can''t|can ?not|isn''t|is not|shouldn''t|should not|no)\b[^\n]{0,60}\b(?:a |an )?(?:recognized |recognised )?(?:authority|authoritative)\b'
+    pattern: '\b(?:not|never|cannot|can''t|can ?not|isn''t|is not|shouldn''t|should not|no)\b[^\n]{0,60}\b(?:a |an )?(?:recognized )?(?:authority|authoritative)\b'
     flags: 'i'
     arm: both
   - name: no-researcher-dispatch
