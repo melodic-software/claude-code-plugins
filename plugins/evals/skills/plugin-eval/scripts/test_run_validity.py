@@ -760,6 +760,8 @@ class RunValidityTest(unittest.TestCase):
         for command, out in (
             ("F=%s; grep -n x $F; touch out.txt" % saved, text),
             ("grep -n x %s > out.txt" % saved, text),
+            ("grep x>out.txt %s" % saved, text),
+            ("F=%s; grep x>out.txt $F" % saved, text),
             ("F=$(pwd)/out.txt; grep -n x $F", text),
             ("F=out.txt; grep -n x $G", text),
             ("grep -n x out.txt", text),
@@ -1563,6 +1565,7 @@ class RunValidityTest(unittest.TestCase):
             "F=$(id); grep x $F " + saved,
             "F=%s grep x $F" % saved,
             "F=%s; grep x $F $G" % saved,
+            "F=%s; grep x>out.txt $F" % saved,
             "F=%s/*.txt; cat $F" % self.own_results("tool-results"),
             "IFS=/; F=%s; cat $F" % saved,
         ):

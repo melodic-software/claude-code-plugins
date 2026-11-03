@@ -1381,7 +1381,8 @@ def inline_assignments(command):
     outside single quotes replaced by its value. None when the command does not
     parse, an opening value is not one literal word (UNRECORDED_VALUE) or names a
     shell-set variable, names were recorded and the command holds a NO_RESOLVE
-    mark, or a word keeps an expansion, glob or brace outside single quotes."""
+    mark, a word holds an unquoted < or > (a redirect), or a word keeps an
+    expansion, glob or brace outside single quotes."""
     tokens = shell_tokens(command)
     if tokens is None:
         return None
@@ -1413,6 +1414,8 @@ def inline_assignments(command):
             continue
         text = ""
         for part, quote in value:
+            if quote is None and ("<" in part or ">" in part):
+                return None
             if quote != "'":
                 part = EXPANSION.sub(
                     lambda m: names.get(m.group(1) or m.group(2), m.group(0)), part
