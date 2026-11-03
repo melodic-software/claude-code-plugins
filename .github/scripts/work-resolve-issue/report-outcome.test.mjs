@@ -4379,12 +4379,12 @@ test("route close: report-delivered retries on a resumed branch when the run com
 
 // main against a fake API for the routes whose effect needs a read first.
 // `trusted` adds the trusted-actor list, whose humans' pull requests a wait accepts.
-const stopRun = async ({ reason, summary = "", routes, trusted = false }) => {
+const stopRun = async ({ reason, summary = "", routes, trusted = false, issue = ISSUE[2] }) => {
   let result;
   const files = { "work-outcome.json": JSON.stringify({ exit: "stopped", reason, summary }), ...(trusted && { "trusted.json": TRUSTED_LIST }) };
   await withAsyncDir(files, async (dir) => {
     const { fetch, calls } = fakeFetch([
-      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["GET", /\/issues\/77$/, 200, issue],
       ...routes,
       ["GET", /\/issues\/77\/comments/, 200, []],
       ["GET", /\/issues\/77\/events/, 200, []],
@@ -4615,24 +4615,34 @@ test("main posts a delivered report and closes the issue", async () => {
 });
 
 // The App's close starts no work-unblock close run, so the queue labels the
-// close's answer still shows come off right after it, agent-ready last.
-test("main's close removes the queue labels the closed issue still carries, after the close and agent-ready last", async () => {
-  const closedWith = (labels) => ["PATCH", /\/issues\/77$/, 200, { state: "closed", labels: labels.map((name) => ({ name })) }];
-  const run = await stopRun({ reason: "report-delivered: the audit found three stale rows", routes: [closedWith(["status: ready", "admission-deferred", "agent-ready", "priority: low"])] });
+// issue carries come off before the close, agent-ready last.
+const withLabels = (...names) => ({ ...ISSUE[2], labels: names.map((name) => ({ name })) });
+const labelWrites = (calls) => calls.filter((c) => c.method === "DELETE" || c.method === "PATCH").map((c) => `${c.method} ${c.path.replace(/^.*\/issues\/77/, "")}`);
+test("main's close removes the queue labels the issue carries, before the close and agent-ready last", async () => {
+  const reason = "report-delivered: the audit found three stale rows";
+  const run = await stopRun({ reason, routes: [], issue: withLabels("status: ready", "admission-deferred", "agent-ready", "priority: low") });
   assert.equal(run.code, 0);
-  const after = run.calls.slice(run.calls.findIndex((c) => c.method === "PATCH") + 1).map((c) => `${c.method} ${c.path.replace(/^.*\/issues\/77/, "")}`);
-  assert.deepEqual(after, ["DELETE /labels/status%3A%20ready", "DELETE /labels/admission-deferred", "DELETE /labels/agent-ready"]);
-  // None left on the issue: nothing more is written after the close.
-  const bare = await stopRun({ reason: "report-delivered: the audit found three stale rows", routes: [closedWith(["priority: low"])] });
+  assert.deepEqual(labelWrites(run.calls), ["DELETE /labels/status%3A%20ready", "DELETE /labels/admission-deferred", "DELETE /labels/agent-ready", "PATCH "]);
+  // None on the issue: the close is the only write.
+  const bare = await stopRun({ reason, routes: [], issue: withLabels("priority: low") });
   assert.equal(bare.code, 0);
-  assert.deepEqual(bare.calls.slice(bare.calls.findIndex((c) => c.method === "PATCH") + 1), []);
+  assert.deepEqual(labelWrites(bare.calls), ["PATCH "]);
   // A label already gone (404) counts as removed.
-  const gone = await stopRun({
-    reason: "report-delivered: the audit found three stale rows",
-    routes: [closedWith(["status: ready", "agent-ready"]), ["DELETE", /\/labels\/status%3A%20ready$/, 404, {}]],
-  });
+  const gone = await stopRun({ reason, routes: [["DELETE", /\/labels\/status%3A%20ready$/, 404, {}]], issue: withLabels("status: ready", "agent-ready") });
   assert.equal(gone.code, 0);
-  assert.ok(gone.calls.some((c) => c.method === "DELETE" && c.path.endsWith("/77/labels/agent-ready")));
+  assert.deepEqual(labelWrites(gone.calls), ["DELETE /labels/status%3A%20ready", "DELETE /labels/agent-ready", "PATCH "]);
+});
+
+// A label DELETE is not resent, so a 5xx on one fails the run before the
+// close: the issue stays open with agent-ready, for work-unblock's sweep.
+test("main's close leaves the issue open when a queue-label removal fails", async () => {
+  const run = await stopRun({
+    reason: "report-delivered: the audit found three stale rows",
+    routes: [["DELETE", /\/labels\/status%3A%20ready$/, 502, {}]],
+    issue: withLabels("status: ready", "agent-ready"),
+  });
+  assert.notEqual(run.code, 0);
+  assert.deepEqual(labelWrites(run.calls), ["DELETE /labels/status%3A%20ready"]);
 });
 
 test("retries count the App's retry markers since a listed human last added agent-ready, not this run's", () => {

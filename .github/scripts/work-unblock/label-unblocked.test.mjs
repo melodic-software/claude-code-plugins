@@ -4571,15 +4571,33 @@ test("the last sub-issue closing by a listed human or a merge closes its split p
 });
 
 // The App's close starts no close run, so the split parent's queue labels
-// come off right after it: only those present, agent-ready last.
-test("closing a split parent removes the queue labels it carries, agent-ready last", async () => {
+// come off before it: only those present, agent-ready last.
+test("closing a split parent removes the queue labels it carries before the close, agent-ready last", async () => {
   const { github, calls } = splitWorld({ parent: issue(30, { labels: ["agent-ready", "status: ready", "priority: high"] }) });
   assert.equal(await sweep({ github }), 0);
   assert.deepEqual(writtenPaths(calls), [
-    ...closeParentWrites,
+    closeParentWrites[0],
     `DELETE /repos/${REPO}/issues/30/labels/status%3A%20ready`,
     `DELETE /repos/${REPO}/issues/30/labels/agent-ready`,
+    closeParentWrites[1],
   ]);
+});
+
+// A failed removal stops the close, so the parent stays open with agent-ready
+// for the next sweep.
+test("a failed queue-label removal leaves the split parent open", async (t) => {
+  const { github: inner, calls } = splitWorld({ parent: issue(30, { labels: ["agent-ready", "status: ready"] }) });
+  const github = async (method, path, body) => {
+    if (method === "DELETE" && path.endsWith("/issues/30/labels/status%3A%20ready")) {
+      calls.push(`${method} ${path}`);
+      throw Object.assign(new Error("DELETE failed with status 502"), { status: 502 });
+    }
+    return inner(method, path, body);
+  };
+  const log = t.mock.method(console, "log", () => {});
+  assert.equal(await sweep({ github }), 1);
+  log.mock.restore();
+  assert.deepEqual(writtenPaths(calls), [closeParentWrites[0], `DELETE /repos/${REPO}/issues/30/labels/status%3A%20ready`]);
 });
 
 test("a split parent stays open while a sub-issue is open, or closed by someone else, or with no split record from the App", async () => {

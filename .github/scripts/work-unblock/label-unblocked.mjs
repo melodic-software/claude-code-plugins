@@ -14,7 +14,7 @@
 // (agent-ready, `status: ready`, admission-deferred; stripClosed), only those
 // present, unless it is open again or is a post-merge fix issue. A bot's close
 // runs no close path: where the lanes App closes an issue itself (a split
-// parent here, report-outcome's close route) it strips them after the close,
+// parent here, report-outcome's close route) it strips them before the close,
 // and the sweep strips each issue in its window a listed human or a merge
 // closed (a merge the App ran among them).
 //
@@ -2170,9 +2170,10 @@ async function closeDoneParent({ github, repo, parent, humans, closes, bot }) {
       body: `${SPLIT_CLOSED}\nEvery sub-issue of this split is closed as completed by a listed human or a merge (${children.map((child) => `#${child.number}`).join(", ")}), so the lanes App closes it as completed.`,
     });
   }
-  await github("PATCH", base, { state: "closed", state_reason: "completed" });
-  // The App's close starts no close run, so its queue labels come off here.
+  // The App's close starts no close run, so its queue labels come off here,
+  // before the close: a failed removal leaves the parent open.
   const removed = await stripQueueLabels(github, base, labelNames(parent));
+  await github("PATCH", base, { state: "closed", state_reason: "completed" });
   console.log(`label-unblocked: split parent #${parent.number} closed as completed; removed ${removed.length} queue label(s)`);
 }
 
