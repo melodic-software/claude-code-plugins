@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [6.0.0] - 2026-11-03
+
+### Removed
+
+- The `check` skill is gone, with its probe file. To check this plugin's prerequisites, run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`.
+
 ## [5.0.2] - 2026-11-03
 
 ### Changed

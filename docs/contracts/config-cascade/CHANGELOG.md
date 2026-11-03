@@ -11,6 +11,9 @@ adding an optional layer or relaxing a rule additively is a minor bump.
 
 No contract change.
 
+- **`code-tidying` (`upkeep_*`) joins the Implementers and root-rule tables.** Its upkeep keys live
+  in `<home>/code-tidying.yaml`, team layer over the default, with no `userConfig` option and no
+  overlay.
 - **`bugs` and `harness-config` (`audit-pass`) drop their one-release team reads.** The Implementers
   rows no longer name `.claude/bugs.md` or `.claude/audit-pass.md`: the team layer is the
   `docs/conventions/` file alone.
