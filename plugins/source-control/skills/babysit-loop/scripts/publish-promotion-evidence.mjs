@@ -9,7 +9,7 @@
 //          --gate-check <check or context name> [--gate-check ...] [--through <ISO>] [--ai-reviewer <login> ...] [--missed-blocking-label <name>] [--out <dir>]
 // Exit 0 = report printed (and published with --out); 1 = publish refused; 2 = usage or GitHub read error.
 //
-// Report mode (no --out) prints {repo, since, through, events, unresolvedReverts, gateFailures, unclassedAutonomous, cells} to
+// Report mode (no --out) prints {repo, since, through, events, unresolvedReverts, gateFailures, noRungAutonomous, cells} to
 // stdout and writes nothing. --through defaults to, and is clamped to, now. With --out it also
 // writes <dir>/evidence.json (the events array) and <dir>/evidence.meta.json ({generated_at,
 // through, sha256, prev_sha256}). Both temp files are written before either rename, the events
@@ -46,23 +46,19 @@
 // an edit history that cannot be read whole, is a gate-failure on every cell at its creation and
 // at each repeat-failure comment inside the window: records only ever add events.
 //
-// Anything a lane can write into a PR or commit degrades to a listing or to unclassed-autonomous,
+// Anything a lane can write into a PR or commit degrades to a listing or to no-rung-autonomous,
 // never to a refused publish. What refuses is GitHub itself being unreadable: a failed read, an
 // unparsable date, a compare that is neither ahead, identical nor behind.
 //
 // What counts (judgment where the contract names no GitHub source):
-// - A merged PR's work class is the highest `work-class:` label (the label set
-//   the work-items plugin's work-class label reference defines) on the issues it linked
-//   at merge and on the PR, each label set rebuilt as of merged_at by undoing later
-//   labeled/unlabeled events, so relabeling after the merge changes nothing. The linked set is
-//   closingIssuesReferences with later ConnectedEvent/DisconnectedEvent undone; when the PR body
-//   was edited after the merge, its closing-keyword links at merge are unknown and the class is
-//   none. A label, linked-issue or timeline list that is unreadable or has another page leaves
-//   the merge unclassed and counts it as autonomous.
-// - A C2/C3 merge is counted. An autonomous merge with no class is listed in
-//   unclassedAutonomous, never counted toward a positive term, and each of its contrary events
-//   is emitted against every promotable cell.
-// - reverted-merge: an autonomous C2/C3 merge named by a merged PR body or a default-branch
+// - An autonomous merge's rung is the one its lane pin names (`rung=C2|C3`, babysit_postmerge.py
+//   pin_comment): the effective rung the gate enqueued it under. No work-class label is read.
+//   A merge counts toward its rung's cells: C2 merges toward the C2 terms, C3 merges toward the
+//   C3 terms. An autonomous merge with no rung (no lane pin at its head, a pin of the older shape
+//   naming none, a native auto-merge, another bot's merge, or an unreadable timeline page) is
+//   listed in noRungAutonomous, never counted toward a positive term, and each of its contrary
+//   events is emitted against every promotable cell. A human merge has no rung.
+// - reverted-merge: an autonomous merge named by a merged PR body or a default-branch
 //   commit as `Reverts <owner/repo>#<n>` (GitHub's revert button) or `This reverts commit
 //   <sha>` (git revert); one event at each date a revert of the merge is seen, so a revert found
 //   later with an earlier date adds an event rather than moving a published one. A merged PR
@@ -86,9 +82,9 @@
 //   same check name on that commit succeeded. The gate-pass term also fails while a run is in
 //   progress or a context's latest status is not success.
 // - verification-divergence: a human (a User actor outside --lane-login) applied
-//   --missed-blocking-label to a merged C3 PR (cell C3-ai-review-blocking) or an autonomous C2
-//   PR (cell C2-auto-merge), read from the label timeline, so removing the label later does not
-//   undo it.
+//   --missed-blocking-label to a merged PR, read from the label timeline, so removing the label
+//   later does not undo it: against C2-auto-merge for a C2 merge, every cell for an autonomous
+//   merge with no rung, and C3-ai-review-blocking otherwise (a C3 merge or a human merge).
 // - A cell's window runs from its first counted merge to its last.
 // - re-earned: {cell, event: "re-earned", at, since}, emitted when the cell's report() predicate
 //   passes over only the merges after `since`, the latest `at` or `discovered` of any contrary
@@ -113,15 +109,6 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
-const CLASS_LABELS = {
-  "work-class: read-only": "C1",
-  "work-class: mechanical": "C2",
-  "work-class: scoped": "C3",
-  // Structural risk shows in the diff the review lanes read: it counts as
-  // scoped work.
-  "work-class: structural": "C3",
-  "work-class: untrusted-provenance": "C5",
-};
 const GATE_FAILED = new Set(["failure", "timed_out", "startup_failure"]);
 const GATE_OK = new Set(["success", "neutral", "skipped"]);
 const STATUS_FAILED = new Set(["failure", "error"]);
@@ -158,7 +145,7 @@ function realGh(path, graphql) {
 
 // A reference a lane can write (a PR number, a commit SHA) that names nothing: listed, never fatal.
 export class UnresolvableError extends PublishError {}
-// A page that is unreadable or has another page: the merge's class is unknown.
+// A page that is unreadable or has another page: the merge's autonomy and rung are unknown.
 class IncompleteError extends PublishError {}
 
 // A failed `gh api` call. Only two answers are not read failures: GraphQL NOT_FOUND on the pull
@@ -195,10 +182,8 @@ function ms(value, what) {
 
 const PULL_QUERY =
   "query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){" +
-  "number headRefOid mergedAt lastEditedAt mergeCommit{oid} mergedBy{__typename login} author{__typename login} isCrossRepository labels(first:100){pageInfo{hasNextPage} nodes{name}} " +
-  "closingIssuesReferences(first:50){pageInfo{hasNextPage} nodes{number labels(first:100){pageInfo{hasNextPage} nodes{name}}}} " +
-  "timelineItems(first:100,itemTypes:[CONNECTED_EVENT,DISCONNECTED_EVENT,ADDED_TO_MERGE_QUEUE_EVENT]){pageInfo{hasNextPage} nodes{__typename " +
-  "... on ConnectedEvent{createdAt subject{__typename ... on Issue{number}}} ... on DisconnectedEvent{createdAt subject{__typename ... on Issue{number}}} " +
+  "number headRefOid mergedAt mergeCommit{oid} mergedBy{__typename login} author{__typename login} isCrossRepository " +
+  "timelineItems(first:100,itemTypes:[ADDED_TO_MERGE_QUEUE_EVENT]){pageInfo{hasNextPage} nodes{__typename " +
   "... on AddedToMergeQueueEvent{createdAt actor{__typename login} enqueuer{__typename login}}}} " +
   "autoMerge:timelineItems(itemTypes:[AUTO_MERGE_ENABLED_EVENT,AUTO_MERGE_DISABLED_EVENT],last:1){nodes{__typename " +
   "... on AutoMergeEnabledEvent{createdAt actor{__typename login}} ... on AutoMergeDisabledEvent{createdAt actor{__typename login}}}}}}}";
@@ -234,20 +219,6 @@ function pages(gh, path, key) {
     out.push(...items);
     if (items.length < PAGE) return out;
   }
-}
-
-function workClass(names) {
-  return names.map((name) => CLASS_LABELS[name]).filter(Boolean).sort().at(-1) ?? null;
-}
-
-// The label set as of `atMs`: the current set with every later labeled/unlabeled event undone.
-function labelsAsOf(current, events, atMs) {
-  const set = new Set(current);
-  const later = events
-    .filter((e) => (e.event === "labeled" || e.event === "unlabeled") && ms(e.created_at, "a label event") > atMs)
-    .sort((a, b) => ms(b.created_at, "a label event") - ms(a.created_at, "a label event"));
-  for (const e of later) e.event === "labeled" ? set.delete(e.label?.name) : set.add(e.label?.name);
-  return [...set];
 }
 
 function eventKey(event) {
@@ -291,8 +262,8 @@ const legacyDiscovered = (generatedMs) => isoSeconds(ceilSecond(generatedMs));
 
 // babysit_postmerge.py read_pin: the newest comment by the identity whose first line is the pin
 // marker, read through at most PIN_PAGE_LIMIT pages; none, an edited one, or a longer thread is
-// no pin.
-const PIN_RE = /^<!-- babysit-merge-pin sha=([0-9a-f]{40}) -->$/;
+// no pin. A pin is {sha, rung}: the rung the gate enqueued under, null in the older shape.
+const PIN_RE = /^<!-- babysit-merge-pin sha=([0-9a-f]{40})(?: rung=(C2|C3))? -->$/;
 const PIN_QUERY =
   "query($owner:String!,$name:String!,$number:Int!,$c:String){repository(owner:$owner,name:$name){pullRequest(number:$number){" +
   "comments(first:100,after:$c){pageInfo{hasNextPage endCursor} nodes{author{__typename login} body lastEditedAt}}}}}";
@@ -309,7 +280,9 @@ function readPin(gh, owner, name, number, lane) {
     pins.push(...comments.nodes.filter((c) => lane.has(actorKey(c?.author)) && PIN_RE.test(firstLine(c?.body))));
     if (!comments.pageInfo.hasNextPage) {
       const last = pins.at(-1);
-      return last && !last.lastEditedAt ? PIN_RE.exec(firstLine(last.body))[1] : null;
+      if (!last || last.lastEditedAt) return null;
+      const [, sha, rung = null] = PIN_RE.exec(firstLine(last.body));
+      return { sha, rung };
     }
     cursor = comments.pageInfo.endCursor;
     if (typeof cursor !== "string" || !cursor) throw new PublishError(`#${number} pin: a next page with no cursor`);
@@ -593,36 +566,22 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   };
   const [owner, name] = repo.split("/");
 
-  // The class at merge: labels of the PR and of the issues linked at merge, each rebuilt as of
-  // mergedAt. Links: the current set with later Connected/Disconnected events undone; a body
-  // edited after the merge leaves the closing-keyword links unknown, so the class is too.
-  const classAtMerge = (g, timeline) => {
-    const atMs = ms(g.mergedAt, `#${g.number} mergedAt`);
-    if (g.lastEditedAt && ms(g.lastEditedAt, `#${g.number} lastEditedAt`) > atMs) return { cls: null, reason: "PR body edited after the merge: closing-keyword links unknown" };
-    const linked = new Map();
-    for (const issue of onePage(g.closingIssuesReferences, `closingIssuesReferences of #${g.number}`)) {
-      linked.set(issue.number, onePage(issue.labels, `labels of issue #${issue.number}`).map((label) => label?.name));
-    }
-    // A ConnectedEvent on a PR timeline names the issue as `subject` (recorded from cli/cli #14616);
-    // any other shape after the merge leaves the links unknown.
-    const laterLinks = timeline
-      .filter((e) => ["ConnectedEvent", "DisconnectedEvent"].includes(e.__typename) && ms(e.createdAt, "a link event") > atMs)
-      .sort((a, b) => ms(b.createdAt, "a link event") - ms(a.createdAt, "a link event"));
-    if (laterLinks.some((e) => e.subject?.__typename !== "Issue" || !Number.isInteger(e.subject.number))) {
-      return { cls: null, reason: "a link event after the merge has an unrecognized shape: links unknown" };
-    }
-    for (const e of laterLinks) {
-      if (e.__typename === "ConnectedEvent") linked.delete(e.subject.number);
-      else if (!linked.has(e.subject.number)) {
-        const labels = gh(`repos/${repo}/issues/${e.subject.number}`)?.labels;
-        if (!Array.isArray(labels)) throw new IncompleteError(`labels of issue #${e.subject.number} unreadable`);
-        linked.set(e.subject.number, labels.map((label) => label?.name));
-      }
-    }
-    const names = labelsAsOf(onePage(g.labels, `labels of #${g.number}`).map((label) => label?.name), eventsOf(g.number), atMs);
-    for (const [issue, labels] of linked) names.push(...labelsAsOf(labels, eventsOf(issue), atMs));
-    const cls = workClass(names);
-    return { cls, reason: cls ? null : "no work-class label at merge" };
+  // Each lane pin read once: the read-back and the rung share it.
+  const pins = new Map();
+  const pinOf = (number) => {
+    if (!pins.has(number)) pins.set(number, readPin(gh, owner, name, number, lane));
+    return pins.get(number);
+  };
+
+  // The rung an autonomous merge ran under, from the lane pin at its head; a human merge has none.
+  const rungOf = (g, { autonomous, byIdentity, native }) => {
+    if (!autonomous) return { rung: null, reason: null };
+    if (!byIdentity) return { rung: null, reason: "not enqueued by a lane identity: no pin" };
+    if (native) return { rung: null, reason: "a native auto-merge posts no pin" };
+    const pin = pinOf(g.number);
+    if (pin === null) return { rung: null, reason: "no unedited lane pin" };
+    if (pin.sha !== g.headRefOid) return { rung: null, reason: "the pin names another head" };
+    return pin.rung ? { rung: pin.rung, reason: null } : { rung: null, reason: "the pin names no rung" };
   };
 
   // Autonomy as babysit_merge_policy.py derive_auto_merge reads it: the latest
@@ -655,22 +614,27 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
       if (!g?.mergedAt) throw new UnresolvableError(`#${number} is not a merged pull request`);
       ms(g.mergedAt, `#${number} mergedAt`);
       const base = { number, mergedAt: g.mergedAt, sha: g.mergeCommit?.oid, head: g.headRefOid, reverted: false };
-      // A page a lane can make incomplete or unreadable leaves the merge unclassed-autonomous.
+      // A page a lane can make incomplete or unreadable leaves the merge autonomous with no rung.
+      let timeline;
       try {
-        const timeline = onePage(g.timelineItems, `timeline of #${number}`);
-        details.set(number, { ...base, ...classAtMerge(g, timeline), ...autonomousOf(g, timeline) });
+        timeline = onePage(g.timelineItems, `timeline of #${number}`);
       } catch (error) {
         if (!(error instanceof IncompleteError)) throw error;
         // Who enqueued it is unknown too, so it also owes a pin.
-        details.set(number, { ...base, cls: null, reason: "a linked-issue, label or timeline page is unreadable or incomplete: class unknown", autonomous: true, byIdentity: true });
+        details.set(number, { ...base, rung: null, reason: "the timeline page is unreadable or incomplete: rung unknown", autonomous: true, byIdentity: true });
+      }
+      if (timeline) {
+        const autonomy = autonomousOf(g, timeline);
+        details.set(number, { ...base, ...autonomy, ...rungOf(g, autonomy) });
       }
     }
     return details.get(number);
   };
-  // Tracked: C2/C3 merges, and autonomous merges with no class, which are never counted toward
-  // a positive term but whose contrary events go against every cell.
-  const tracked = merged.map((pr) => record(pr.number)).filter((r) => ["C2", "C3"].includes(r.cls) || (r.autonomous && r.cls === null));
-  const cellsOf = (r) => (r.cls ? [`${r.cls}-auto-merge`] : CELLS);
+  const all = merged.map((pr) => record(pr.number));
+  // Tracked: autonomous merges. One with no rung is never counted toward a positive term, and its
+  // contrary events go against every cell.
+  const tracked = all.filter((r) => r.autonomous);
+  const cellsOf = (r) => (r.rung ? [`${r.rung}-auto-merge`] : CELLS);
   const bySha = new Map(tracked.map((r) => [r.sha, r]));
 
   // Reverts, from merged PR bodies and default-branch commit messages; every date per target.
@@ -734,7 +698,7 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
       unresolvedReverts.push({ target: number, reason: "not a merged pull request" });
       continue;
     }
-    if (target.autonomous && (["C2", "C3"].includes(target.cls) || target.cls === null)) {
+    if (target.autonomous) {
       target.reverted = true;
       for (const at of dates) for (const cell of cellsOf(target)) addEvent(cell, "reverted-merge", at);
     }
@@ -745,13 +709,13 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   // check()'s read-back for a merge a lane identity enqueued.
   const readBack = (r) => {
     const deadline = ms(r.mergedAt, `#${r.number} mergedAt`) + DISPATCH_DEADLINE_MS;
-    const pinned = readPin(gh, owner, name, r.number, lane);
+    const pinned = pinOf(r.number);
     if (pinned === null) {
       return throughMs > deadline
         ? { failure: { check: "pin read-back", conclusion: "no unedited pin comment by a lane identity", at: isoSeconds(deadline) } }
         : { pending: true };
     }
-    return pinned === r.head ? {} : { failure: { check: "pin read-back", conclusion: `headRefOid ${r.head} is not the pinned ${pinned}`, at: r.mergedAt } };
+    return pinned.sha === r.head ? {} : { failure: { check: "pin read-back", conclusion: `headRefOid ${r.head} is not the pinned ${pinned.sha}`, at: r.mergedAt } };
   };
 
   // Post-merge gate on each autonomous merge commit: the --gate-check runs and status contexts.
@@ -800,17 +764,19 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   }
 
   // Human-confirmed missed-blocking AI-review findings, from the label timeline.
-  for (const r of tracked.filter((c) => c.cls === "C3" || c.autonomous)) {
+  // On every merge in the window: a human merge ran under no rung, so its finding is the AI
+  // review's alone.
+  for (const r of all) {
     const confirmed = eventsOf(r.number).filter(
       (e) => e.event === "labeled" && e.label?.name === missedBlockingLabel && e.actor?.type === "User" && !lane.has(loginKey(e.actor.login)) && inWindow(e.created_at),
     );
     r.missedBlocking = confirmed.length > 0 ? 1 : 0;
-    const cells = r.cls === "C3" ? ["C3-ai-review-blocking"] : r.cls === "C2" ? ["C2-auto-merge"] : CELLS;
+    const cells = r.rung === "C2" ? ["C2-auto-merge"] : r.autonomous && !r.rung ? CELLS : ["C3-ai-review-blocking"];
     for (const e of confirmed) for (const cell of cells) addEvent(cell, "verification-divergence", e.created_at);
   }
   const reviewers = new Set(aiReviewers);
   if (reviewers.size > 0) {
-    for (const r of tracked.filter((c) => c.cls === "C3")) {
+    for (const r of tracked.filter((c) => c.rung === "C3")) {
       r.aiReviewed = pages(gh, `repos/${repo}/pulls/${r.number}/reviews`).some((review) => reviewers.has(review.user?.login));
     }
   }
@@ -846,8 +812,8 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
     events: [...sorted, ...reEarned(tracked, sorted, reviewers.size > 0)].sort(byInstant),
     unresolvedReverts,
     gateFailures,
-    unclassedAutonomous: [...details.values()]
-      .filter((r) => r.autonomous && r.cls === null && (tracked.includes(r) || r.reverted))
+    noRungAutonomous: [...details.values()]
+      .filter((r) => r.autonomous && r.rung === null && (tracked.includes(r) || r.reverted))
       .map((r) => ({ number: r.number, reason: r.reason })),
     cells: report(tracked, sorted, reviewers.size > 0),
   };
@@ -875,16 +841,16 @@ function cell(window, terms) {
   return { window, pass: terms.every((t) => t.pass), terms };
 }
 
-// Thresholds are work-classes.md's suggested defaults.
+// Thresholds are work-classes.md's suggested defaults; "C2" and "C3" name the rung a merge ran
+// under (its pin), not a work class.
 function report(counted, events, reviewsMeasured) {
-  const c2 = counted.filter((r) => r.cls === "C2" && r.autonomous);
-  const c3 = counted.filter((r) => r.cls === "C3" && r.autonomous);
-  const c3All = counted.filter((r) => r.cls === "C3");
+  const c2 = counted.filter((r) => r.rung === "C2" && r.autonomous);
+  const c3 = counted.filter((r) => r.rung === "C3" && r.autonomous);
   const c2Window = windowOf(c2);
   const reverted = (records) => records.filter((r) => r.reverted).length;
   const missed = (records) => records.reduce((sum, r) => sum + (r.missedBlocking ?? 0), 0);
   const c2Demotions = events.filter((e) => e.cell === "C2-auto-merge").length;
-  const reviewed = c3All.filter((r) => r.aiReviewed);
+  const reviewed = c3.filter((r) => r.aiReviewed);
   return {
     "C2-auto-merge": cell(c2Window, [
       term("autonomous C2 completions", c2.length, ">= 20", c2.length >= 20),
@@ -901,11 +867,11 @@ function report(counted, events, reviewsMeasured) {
       term("C3 reverted merges", reverted(c3), "0", reverted(c3) === 0),
       term("C3 human-confirmed missed-blocking findings", missed(c3), "0", missed(c3) === 0),
     ]),
-    "C3-ai-review-blocking": cell(windowOf(c3All), [
+    "C3-ai-review-blocking": cell(windowOf(c3), [
       reviewsMeasured
         ? term("advisory AI reviews on C3", reviewed.length, ">= 30", reviewed.length >= 30)
         : term("advisory AI reviews on C3", null, ">= 30", false, { unmeasured: "no --ai-reviewer given" }),
-      term("human-confirmed missed-blocking findings", missed(c3All), "0", missed(c3All) === 0),
+      term("human-confirmed missed-blocking findings", missed(c3), "0", missed(c3) === 0),
     ]),
   };
 }

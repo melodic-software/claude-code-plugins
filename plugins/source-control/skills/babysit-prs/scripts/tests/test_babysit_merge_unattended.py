@@ -842,6 +842,7 @@ class Unattended(unittest.TestCase):
         self.hold_hook: Any = lambda kwargs: None
         self.prior: dict[str, Any] | None = None
         self.log: list[str] = []
+        self.pin_lines: list[str] = []
         self.rules = QUEUE_RULES
         # -1: the queue re-read is whole; any other count truncates it.
         self.entries_total: int | None = -1
@@ -1171,6 +1172,8 @@ class Unattended(unittest.TestCase):
         joined = " ".join(args)
         if "babysit-merge-pin" in joined:
             self.log.append("pin")
+            body = next(a for a in args if a.startswith("body="))
+            self.pin_lines.append(body.removeprefix("body=").split("\n", 1)[0])
         elif "babysit-merge-risk" in joined:
             self.log.append("risk-comment:" + args[2])
         elif "disablePullRequestAutoMerge" in joined:
@@ -1473,6 +1476,31 @@ class LaneMode(Unattended):
             out["unattended"]["enqueue"]["killSwitch"],
             {"proceed": True, "reason": "proceed"},
         )
+
+    def test_the_pin_names_the_rung_the_lane_enqueued_under(self) -> None:
+        # Issue #12748: the publisher credits a merge to its rung's cells, read
+        # from the pin. merge.rung C2 under c2-mechanical is rung C2; merge.rung
+        # C3 under c3-autonomous or full-autonomy is C3, and a C2 cap lowers it.
+        for config_rung, loop, cap, expected in (
+            ("C2", "c2-mechanical", "", "C2"),
+            ("C3", "c3-autonomous", "", "C3"),
+            ("C3", "full-autonomy", "", "C3"),
+            ("C3", "full-autonomy", "C2", "C2"),
+        ):
+            with self.subTest(config_rung=config_rung, loop=loop, cap=cap):
+                self.config = dataclasses.replace(
+                    self.config, rung=config_rung, loop_merge=loop
+                )
+                self.log, self.pin_lines = [], []
+                code, out = self.run_main(
+                    "--authority", "pr-merge", "--lane-kill-switch", "proceed",
+                    "--lane-rung-cap", cap,
+                )  # fmt: skip
+                self.assertEqual(code, 0, out["blockers"])
+                self.assertEqual(
+                    self.pin_lines,
+                    [f"<!-- babysit-merge-pin sha={HEAD} rung={expected} -->"],
+                )
 
     def test_a_human_do_not_merge_comment_holds_the_enqueue(self) -> None:
         self.comments = [

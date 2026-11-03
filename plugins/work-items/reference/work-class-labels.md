@@ -1,6 +1,7 @@
 # Work-class labels
 
-Canonical `work-class:` axis members for the merge partition and the untrusted-provenance floor.
+Canonical `work-class:` axis members. Only the untrusted-provenance floor decides anything by
+them: no merge partition reads a work class.
 The work-loop admission gate does not decide by work class: only `work-class: untrusted-provenance`
 or `provenance: signal` holds an item for a person.
 Classification criteria (the risk-property bundles behind C1–C5) live in the `autonomy`
@@ -19,7 +20,7 @@ this leaf owns the **label strings** triage stamps and setup migrates.
 
 Discover live members through the bound adapter's label listing (GitHub:
 `gh label list --limit 200 | grep -i work-class`). An item carries **at most one**
-`work-class:` label; the merge partition and the frontier floor read the label only, never a
+`work-class:` label; the untrusted-provenance floor reads the label only, never a
 `Work-class: C<n>` body trailer.
 
 ## Who applied the role label

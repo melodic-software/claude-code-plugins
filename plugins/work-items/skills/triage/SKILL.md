@@ -35,7 +35,7 @@ It binds every step below, hardest at step 1.
 
 ## Scope: raw intake only
 
-**Classification vocabulary.** The merge partition and the untrusted-provenance floor read the `work-class:` label axis (`read-only`,
+**Classification vocabulary.** The untrusted-provenance floor reads the `work-class:` label axis (`read-only`,
 `mechanical`, `scoped`, `structural`, `untrusted-provenance`). Human-readable aliases of the
 autonomy plugin's `C1`–`C5` contract. Canonical members and migration status:
 [`${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md);
