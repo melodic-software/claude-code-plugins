@@ -372,15 +372,25 @@ class CommentMarker:
     pattern: re.Pattern[str]
     names_rules: bool
     rules: re.Pattern[str] | None  # matched at the start of the text after the marker
+    token: re.Pattern[str] | None = None  # set for a marker found anywhere in a comment
 
 
-def _m(tool, kinds, pattern, rules=None, names_rules=True, lead=r"\s*\*?\s*"):
+def _m(
+    tool,
+    kinds,
+    pattern,
+    rules=None,
+    names_rules=True,
+    lead=r"\s*\*?\s*",
+    anywhere=False,
+):
     return CommentMarker(
         tool,
         kinds,
         re.compile(lead + pattern),
         names_rules,
         re.compile(rules) if rules else None,
+        re.compile(pattern) if anywhere else None,
     )
 
 
@@ -474,7 +484,7 @@ COMMENT_MARKERS = (
         "bandit",
         ("python",),
         r"nosec\b",
-        r"\s+(?P<r>B[0-9]+(?:\s*,\s*B[0-9]+)*)",
+        r":?\s*(?P<r>B[0-9]+(?:\s*,\s*B[0-9]+)*)",
     ),
     _m(
         "semgrep",
@@ -489,7 +499,7 @@ COMMENT_MARKERS = (
         ALL_COMMENT_KINDS,
         r"gitleaks:allow",
         names_rules=False,
-        lead=r"(?P<pre>.*?)",
+        anywhere=True,
     ),
 )
 
@@ -539,33 +549,45 @@ def _comment_records(lineno: int, kind: str, segments: list[Segment]) -> list[Re
     trailing: list[str] = []
     for segment in segments:
         text = segment.text
+        # A marker found anywhere in a comment (Gitleaks) is a record of its own;
+        # its text is taken out before the comment's first marker is read, so it
+        # is never that marker's reason.
+        anywhere = [m for m in COMMENT_MARKERS if kind in m.kinds and m.token]
+        found_anywhere = [m for m in anywhere if m.token.search(text)]
+        scrubbed = text
+        for m in found_anywhere:
+            scrubbed = m.token.sub(" ", scrubbed)
         marker = next(
-            (m for m in COMMENT_MARKERS if kind in m.kinds and m.pattern.match(text)),
+            (
+                m
+                for m in COMMENT_MARKERS
+                if kind in m.kinds and not m.token and m.pattern.match(scrubbed)
+            ),
             None,
         )
-        if marker is None:
+        if marker is None and not found_anywhere:
             reason = _reason(text)
             if reason:
                 trailing.append(reason)
             continue
-        matched = marker.pattern.match(text)
-        rest = text[matched.end() :]
-        before = matched.groupdict().get("pre")
-        rules: list[str] = []
-        if marker.rules:
-            found = marker.rules.match(rest)
-            if found:
-                rules = _split_rules(found.group("r"))
-                rest = rest[found.end() :]
-        records.append(
-            Record(
-                lineno,
-                marker.tool,
-                rules,
-                marker.names_rules,
-                _reason(rest) or (_reason(before) if before else None),
+        if marker is not None:
+            matched = marker.pattern.match(scrubbed)
+            rest = scrubbed[matched.end() :]
+            rules: list[str] = []
+            if marker.rules:
+                found = marker.rules.match(rest)
+                if found:
+                    rules = _split_rules(found.group("r"))
+                    rest = rest[found.end() :]
+            records.append(
+                Record(lineno, marker.tool, rules, marker.names_rules, _reason(rest))
             )
-        )
+        for m in found_anywhere:
+            reason = None
+            if marker is None:
+                hit = m.token.search(text)
+                reason = _reason(text[hit.end() :]) or _reason(text[: hit.start()])
+            records.append(Record(lineno, m.tool, [], m.names_rules, reason))
     if trailing:
         for record in records:
             if record.reason is None:
