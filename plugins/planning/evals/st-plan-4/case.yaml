@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: st-plan-4
 description: A draft plan adds SMS appointment reminders to a C# clinic worker service.
-expected_outcome: A good review reports that AC4 is claimed by Phase 2 but no step reads SmsOptOut, so opted-out patients still get messages; that the StartsAt-is-UTC assumption is contradicted by Import/AppointmentImporter.cs, which stores the clinic's local calendar time unconverted; and that appsettings.Production.json, loaded after appsettings.json in Program.cs, already sets Reminders Enabled false and HoursBefore 48, so the new section has no effect in production. It does not call the insert-before-send step a source of duplicate messages, since ClinicDbContext has a unique index on AppointmentId and Kind.
+expected_outcome: A good review reports that AC4 is claimed by Phase 2 but no step reads SmsOptOut, so opted-out patients still get messages; that the StartsAt-is-UTC assumption is contradicted by Import/AppointmentImporter.cs, which stores the clinic's local calendar time unconverted; and that appsettings.Production.json, loaded after appsettings.json in Program.cs, already sets Reminders Enabled false and HoursBefore 48, so the new section has no effect in production. It does not call the insert-before-send step a source of duplicate messages, since ClinicDbContext has a unique index on AppointmentId and Kind and Phase 3 retries only a refused send within the same tick, never a row from an earlier tick.
 context:
   scaffold_script: scaffold.sh

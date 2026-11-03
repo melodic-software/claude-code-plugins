@@ -19,6 +19,14 @@
     {
       "answer": "- `WithBuffer(500000)` is capped at 65,535.\n",
       "why": "other finding"
+    },
+    {
+      "answer": "- `WithBuffer(500000)` is capped at 65,535, so while retries fail in a 30-minute outage the full ring overwrites the oldest samples.\n",
+      "why": "a correct defect-b report naming the ring overwrite"
+    },
+    {
+      "answer": "- During the outage the retry backlog fills the buffer and new rows overwrite earlier ones.\n",
+      "why": "defect-b overwrite worded around the buffer"
     }
   ],
   "fail": [
@@ -41,6 +49,10 @@
     {
       "answer": "| 2 | IMPORTANT | Plan | `ON CONFLICT DO NOTHING` is wrong here | Upsert |\n",
       "why": "wrong"
+    },
+    {
+      "answer": "- A retried flush overwrites rows that the first attempt already stored.\n",
+      "why": "overwrite attack on the retry"
     }
   ]
 }

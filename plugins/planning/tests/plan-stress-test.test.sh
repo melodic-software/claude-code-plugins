@@ -6,6 +6,8 @@
 # control's rule in plugins/playbooks/skills/skill-authoring/reference/rewrite-a-plugin.md: the
 # degraded copy keeps its frontmatter and loses its procedure.
 # test-scope: plugins/planning/schemas/planning.schema.json
+# test-scope: plugins/planning/reference/config.md
+# test-scope: plugins/planning/skills/plan/SKILL.md
 # test-scope: plugins/planning/evals/fixtures/stress-arm/*
 # test-scope: plugins/planning/evals/st-*/*
 set -uo pipefail
@@ -54,6 +56,34 @@ check_file 'an unknown mode is refused' 1 'plan_stress_test:
 check_file 'a value outside the list is refused' 1 'plan_stress_test:
   plan: never'
 check_file 'a flat value is refused' 1 'plan_stress_test: both'
+
+# Issue #12478's done-when: the key is per mode, and the default matches the eval, auto in each mode.
+schema_modes="$(node -e 'const p = require(process.argv[1]).properties.plan_stress_test.properties;
+console.log(Object.keys(p).sort().map((k) => `${k}=${p[k].default}`).join(" "))' \
+  "$PLUGIN_DIR/schemas/planning.schema.json" 2>&1)"
+if [[ "$schema_modes" == 'incumbent=auto plan=auto proposal=auto' ]]; then
+  ok 'the schema has exactly the three modes, each defaulting to auto'
+else
+  fail "the schema has exactly the three modes, each defaulting to auto (got: $schema_modes)"
+fi
+
+# The key resolves through the convention home: config.md lists it under "Convention-home keys" with
+# default auto for each mode, and Step 3 of the plan skill resolves it through that section.
+section() { awk -v start="$2" -v stop="$3" 'index($0, start) == 1 { on = 1; print; next } on && index($0, stop) == 1 { exit } on' "$1"; }
+home_keys="$(section "$PLUGIN_DIR/reference/config.md" '## Convention-home keys' '## ')"
+if grep -qE '^\| `plan_stress_test` \|.*\| `auto` for each \|' <<<"$home_keys"; then
+  ok 'config.md lists plan_stress_test as a convention-home key defaulting to auto'
+else
+  fail 'config.md lists plan_stress_test as a convention-home key defaulting to auto'
+fi
+step3="$(section "$PLUGIN_DIR/skills/plan/SKILL.md" '### Step 3: Plan Stress-Test' '### ')"
+for needle in 'plan_stress_test' 'reference/config.md' '"Convention-home keys"'; do
+  if grep -qF "$needle" <<<"$step3"; then
+    ok "plan Step 3 resolves the key through: $needle"
+  else
+    fail "plan Step 3 resolves the key through: $needle"
+  fi
+done
 
 # Each arm's copy gives every mode that arm's value, and the copy's file passes the schema.
 for value in reviewer devils-advocate both auto; do

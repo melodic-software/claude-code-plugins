@@ -9,11 +9,11 @@
       "why": "approves"
     },
     {
-      "answer": "- Phase 2 ignores `SmsOptOut`; add it to the selection.\n- `StartsAt` is local time; convert with `Clinic:TimeZone`.\n- `appsettings.Production.json` overrides `Enabled`; set it there.\n- A send that succeeds at the provider but fails before `ProviderMessageId` is saved is retried and sent twice; `SentReminder` does nothing there.\n",
+      "answer": "- Phase 2 ignores `SmsOptOut`; add it to the selection.\n- `StartsAt` is local time; convert with `Clinic:TimeZone`.\n- `appsettings.Production.json` overrides `Enabled`; set it there.\n- Phase 3 never retries a timed-out send, so AC3's three tries cover only refusals; say so in the runbook.\n",
       "why": "a strong full report with a neighboring Phase 3 finding"
     },
     {
-      "answer": "| 1 | IMPORTANT | Plan | A crash after the `SentReminder` insert loses that reminder until a later retry tick | Fix before building |\n",
+      "answer": "| 1 | IMPORTANT | Plan | A crash after the `SentReminder` insert loses that reminder, since no later tick picks it up | Fix before building |\n",
       "why": "a separate risk, table row"
     }
   ],

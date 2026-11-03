@@ -19,6 +19,10 @@
     {
       "answer": "- Phase 1 treats 500000 as correct, but the value is truncated by the uint16 index.\n",
       "why": "quotes then contradicts"
+    },
+    {
+      "answer": "- `WithBuffer(500000)` is capped at 65,535, so while retries fail in a 30-minute outage the full ring overwrites the oldest samples.\n",
+      "why": "names the ring overwrite, also a sound-part pass sample"
     }
   ],
   "fail": [

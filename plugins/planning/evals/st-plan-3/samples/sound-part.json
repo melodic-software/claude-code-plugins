@@ -15,6 +15,10 @@
     {
       "answer": "| 1 | IMPORTANT | Plan | `next_renewal_at` index is in place; no migration needed for Phase 2 | Fix before building |\n",
       "why": "table row approving"
+    },
+    {
+      "answer": "- Migration 003's `DEFAULT now()` sets `next_renewal_at` to the deploy time, so every subscription is due on first deploy.\n",
+      "why": "a different, correct finding about the migration's default"
     }
   ],
   "fail": [

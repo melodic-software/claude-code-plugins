@@ -216,8 +216,8 @@ Patients with a confirmed appointment get one SMS reminder a day ahead, with no 
 ### Acceptance criteria
 - AC1: A confirmed appointment produces one SMS 24 hours before its start, give or take ten minutes.
 - AC2: An appointment cancelled before the send time produces no SMS.
-- AC3: A failed send is tried up to three times, and each delivered reminder records the provider's
-  message id.
+- AC3: A send the provider refuses is tried up to three times, and each delivered reminder records
+  the provider's message id.
 - AC4: A patient with `SmsOptOut` set receives no reminder.
 
 ### Out-of-scope
@@ -262,11 +262,15 @@ ahead. One tick calls the fake gateway once, and a second tick does not call it.
 
 - `ISmsGateway.SendAsync` is called with the patient's `MobileNumber`.
 - On success, store the return value in `SentReminder.ProviderMessageId`.
-- On an exception, increment `Attempts`. Each tick also picks up rows with no `ProviderMessageId` and
-  `Attempts` below 3.
+- When the provider answers with an error status (`HttpRequestException.StatusCode` is set, so it
+  took no message), increment `Attempts` and call again in the same tick, up to three calls in all.
+- Any other failure (a timeout, a crash, an exception after the provider answered) leaves the row
+  without a `ProviderMessageId`, and no tick picks up a row from an earlier tick. That reminder is
+  lost rather than sent twice: a missed reminder costs less than a duplicate.
 
-**Sanity Check:** a fake gateway that fails twice and then succeeds leaves `Attempts == 2` and a stored
-message id after three ticks.
+**Sanity Check:** a fake gateway that refuses twice with status 503 and then succeeds leaves
+`Attempts == 2` and a stored message id after one tick. A fake that times out leaves no message id,
+and the next tick does not call it.
 
 ### Load-bearing assumptions
 - `Appointment.StartsAt` is stored in UTC, so comparing it with `DateTime.UtcNow` gives the correct

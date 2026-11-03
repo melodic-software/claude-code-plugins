@@ -140,11 +140,11 @@ option, so they skip that layer.
 | `wayfind_suggest_questions` | an integer, `0` or more | `27` | `/planning:interview`, at each round boundary: suggest `/planning:wayfind chart` once when the ledger's register holds more than this many questions; `0` never suggests |
 | `plan_stress_test` | a block map of `plan`, `proposal` and `incumbent`, each `auto`, `reviewer`, `devils-advocate` or `both` | `auto` for each | `/planning:plan` Steps 3 to 4: which stress-tests run on a draft of that mode |
 
-`plan_stress_test` modes, by what the draft is:
+`plan_stress_test` modes, by the draft's main decision:
 
-- `incumbent`: its main decision is keeping or replacing an existing tool, library or approach.
-- `proposal`: it recommends an approach or mechanism and has no `### Phase` section yet.
-- `plan`: any other draft.
+- `incumbent`: whether to keep or replace an existing tool, library or approach.
+- `proposal`: whether to adopt a new approach or mechanism.
+- `plan`: how to build an approach that is already settled; any draft that fits neither above.
 
 Its values:
 
@@ -161,8 +161,10 @@ adds, because its negative control detected no loss
 Under `devils-advocate` and `both`, an `incumbent` draft runs the skill's `incumbent` mode. Each mode
 resolves on its own, so a layer that sets one mode leaves the others to the layer below, and an
 invalid value drops only that mode's layer. The key is edited by hand: `/planning:setup apply` writes
-no maps. A direct `/planning:devils-advocate` request runs whatever the key says, and a change skipped
-under `/planning:plan`'s one-sentence rule has no draft to stress-test.
+no maps. Only `/planning:plan` reads the key: a direct `/planning:devils-advocate` request ignores
+it and runs the mode its own arguments select (`incumbent` when that is the first argument after an
+optional depth token, plan-review otherwise). A change skipped under `/planning:plan`'s one-sentence
+rule has no draft to stress-test.
 
 Resolve `<home>` by running `bash "<plugin-root>/lib/resolve-convention-home.sh"` from the
 repository root (`<plugin-root>` per the reading skill's "Spoke paths"). Exit 0 prints the home.

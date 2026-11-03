@@ -59,17 +59,17 @@
       "default": 27
     },
     "plan_stress_test": {
-      "description": "Per mode of the draft, which stress-tests /planning:plan runs. auto: plan-reviewer always, /planning:devils-advocate when the blast-radius assessment calls for it. reviewer: plan-reviewer only. devils-advocate: /planning:devils-advocate only. both: both, whatever the blast radius. A direct /planning:devils-advocate request runs whatever this says.",
+      "description": "Per mode of the draft, which stress-tests /planning:plan runs. auto: plan-reviewer always, /planning:devils-advocate when the blast-radius assessment calls for it. reviewer: plan-reviewer only. devils-advocate: /planning:devils-advocate only. both: both, whatever the blast radius. Only /planning:plan reads this key: a direct /planning:devils-advocate request ignores it and runs the mode its own arguments select.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
         "plan": {
-          "description": "A draft with phases that is not mainly a keep-or-replace decision.",
+          "description": "A draft whose main decision is how to build an approach that is already settled, or that fits neither other mode.",
           "enum": ["auto", "reviewer", "devils-advocate", "both"],
           "default": "auto"
         },
         "proposal": {
-          "description": "A draft that recommends an approach or mechanism and has no phases yet.",
+          "description": "A draft whose main decision is whether to adopt a new approach or mechanism.",
           "enum": ["auto", "reviewer", "devils-advocate", "both"],
           "default": "auto"
         },
