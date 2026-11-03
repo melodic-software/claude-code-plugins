@@ -3765,10 +3765,11 @@ test("pr-run-activity-write.yml: after the skill, no checkout's post step finds 
   // Pinned, as the revoke step is: the skill could have changed PATH or BASH_ENV.
   assert.equal(remove.run, undefined);
   assert.match(remove.uses, /^actions\/github-script@[0-9a-f]{40}$/);
-  // A failed skill still runs it; a script activity, which needs its checkout, never does.
-  assert.equal(remove.if, steps.find((s) => s.id === "act-result").if);
+  // A failed or cancelled skill still runs it, since the post steps run after a
+  // cancel; a script activity, which needs its checkout, never does.
   assert.equal(evaluate(remove.if, { "steps.act-skill.outcome": "success" }), true);
   assert.equal(evaluate(remove.if, { "steps.act-skill.outcome": "failure" }), true);
+  assert.equal(evaluate(remove.if, { "steps.act-skill.outcome": "cancelled" }), true);
   assert.equal(evaluate(remove.if, { "steps.act-skill.outcome": "skipped" }), false);
   // No step a skill run reaches after it runs git or checks out.
   const gitAfter = steps.slice(at((s) => s === remove) + 1).filter((s) => /\bgit\b/.test(String(s.run ?? "")) || String(s.uses ?? "").startsWith("actions/checkout@"));
