@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/catalog-cursor\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/routes/catalog.js:11 | code-reviewer | The query filters id > cursor but orders by name, so a product with a lower id and a later name (1 Zebra after 2 Apple, 3 Mango) is never returned and the feed export misses it. | Fix it |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "every CRITICAL finding is a planted defect"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/catalog-cursor\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/routes/catalog.js:11 | code-reviewer | The query filters id > cursor but orders by name, so a product with a lower id and a later name (1 Zebra after 2 Apple, 3 Mango) is never returned and the feed export misses it. | Fix it |\n| 2 | CRITICAL | high | src/routes/catalog.js:24 | code-reviewer | A malformed after value throws in decodeCursor and crashes the route with a 500. | Fix it |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "a CRITICAL finding makes a claim the ground truth marks wrong"
+    }
+  ]
+}

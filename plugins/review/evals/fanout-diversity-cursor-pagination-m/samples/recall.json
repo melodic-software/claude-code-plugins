@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/catalog-cursor\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | high | src/routes/catalog.js:11 | code-reviewer | The query filters id > cursor but orders by name, so a product with a lower id and a later name (1 Zebra after 2 Apple, 3 Mango) is never returned and the feed export misses it. | Fix it |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names the failing input and what fails, at IMPORTANT"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/catalog-cursor\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | high | src/routes/catalog.js:11 | code-reviewer | The query filters id > cursor but orders by name, so a product with a lower id and a later name (1 Zebra after 2 Apple, 3 Mango) is never returned and the feed export misses it. | Fix it |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names the defect only at SUGGESTION"
+    }
+  ]
+}

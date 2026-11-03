@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: fix/coupon-last-day\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | high | src/coupons.js:9 | code-reviewer | new Date(`${expiresOn}T23:59:59.999`) is server-local time, and the Dockerfile sets TZ=UTC, so a coupon still expires at 7 pm New York time on its last day; the tests pass only because npm test pins TZ to New York. | Fix it |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names the failing input and what fails, at IMPORTANT"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: fix/coupon-last-day\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | high | src/coupons.js:9 | code-reviewer | new Date(`${expiresOn}T23:59:59.999`) is server-local time, and the Dockerfile sets TZ=UTC, so a coupon still expires at 7 pm New York time on its last day; the tests pass only because npm test pins TZ to New York. | Fix it |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names the defect only at SUGGESTION"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+fixture: request-options
+source_case: none
+defects:
+  - location: src/http/options.js:17
+    summary: "when a caller passes a token but no headers, buildOptions writes the Authorization header into the shared DEFAULTS.headers object, because opts.headers is still that object"
+    failure: "after one signed-in profile() or orders() call, every later request built without headers, such as the anonymous priceList() call, sends that user's bearer token, so the token goes to the CDN-cached price list and anonymous requests run as that user"
+    axis: standards
+  - location: src/http/options.js:15
+    summary: "retries now uses ||, so an explicit retries: 0 becomes the default 3"
+    failure: "the unchanged charge() in src/api/payments.js passes retries: 0 so a timed-out POST is never repeated; it now retries up to three times, and a charge that went through but timed out charges the card again"
+    axis: standards
+not_defects:
+  - "a caller's own headers are dropped (they are merged over DEFAULTS.headers)"
+  - "a timeout below 250 ms is passed through (it is raised to 250)"

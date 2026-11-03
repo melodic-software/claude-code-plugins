@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: fix/coupon-last-day\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/coupons.js:9 | code-reviewer | new Date(`${expiresOn}T23:59:59.999`) is server-local time, and the Dockerfile sets TZ=UTC, so a coupon still expires at 7 pm New York time on its last day; the tests pass only because npm test pins TZ to New York. | Fix it |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "every CRITICAL finding is a planted defect"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: fix/coupon-last-day\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/coupons.js:9 | code-reviewer | new Date(`${expiresOn}T23:59:59.999`) is server-local time, and the Dockerfile sets TZ=UTC, so a coupon still expires at 7 pm New York time on its last day; the tests pass only because npm test pins TZ to New York. | Fix it |\n| 2 | CRITICAL | high | src/coupons.js:18 | code-reviewer | A coupon with no minSubtotalCents is now refused as below minimum. | Fix it |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "a CRITICAL finding makes a claim the ground truth marks wrong"
+    }
+  ]
+}

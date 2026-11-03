@@ -1,0 +1,10 @@
+fixture: tenant-settings-cache
+source_case: none
+defect:
+  location: src/settings.js:14
+  summary: "getSettings now loads settings per tenant but keeps the cache key \"settings\", and cached() in the unchanged src/cache.js keeps one process-wide entry per key for ten minutes"
+  failure: "after one tenant's checkout loads settings, every other tenant's checkout gets that tenant's currency, locale and tax rule for up to ten minutes, so a EUR store shows totals in a USD store's currency, or the reverse"
+axis: spec
+not_defects:
+  - "a missing tenant id reaches the database (getSettings throws first)"
+  - "an unknown host reaches checkout with no tenant (resolveTenant answers 404 first)"

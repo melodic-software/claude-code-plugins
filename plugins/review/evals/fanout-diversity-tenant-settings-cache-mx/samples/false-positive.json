@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/tenant-settings\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/settings.js:14 | code-reviewer | The cache key is still \"settings\", so cached() returns the first tenant's settings to every tenant for ten minutes and a EUR store formats totals in USD. | Fix it |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "every CRITICAL finding is a planted defect"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/tenant-settings\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/settings.js:14 | code-reviewer | The cache key is still \"settings\", so cached() returns the first tenant's settings to every tenant for ten minutes and a EUR store formats totals in USD. | Fix it |\n| 2 | CRITICAL | high | src/routes/checkout.js:7 | code-reviewer | A request from an unknown host reaches checkout with no tenant and crashes on req.tenant.id. | Fix it |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "a CRITICAL finding makes a claim the ground truth marks wrong"
+    }
+  ]
+}

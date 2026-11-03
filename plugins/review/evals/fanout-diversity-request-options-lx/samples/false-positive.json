@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/request-token\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/http/options.js:17 | code-reviewer | With no headers passed, opts.headers is DEFAULTS.headers, so the token is written into the shared defaults and the anonymous priceList() call after a profile() call sends that user's bearer token. | Fix it |\n| 2 | CRITICAL | high | src/http/options.js:15 | code-reviewer | rest.retries || 3 turns charge()'s retries: 0 into 3, so a timed-out charge POST is sent again and can charge the card twice. | Fix it |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "every CRITICAL finding is a planted defect"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/request-token\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/http/options.js:17 | code-reviewer | With no headers passed, opts.headers is DEFAULTS.headers, so the token is written into the shared defaults and the anonymous priceList() call after a profile() call sends that user's bearer token. | Fix it |\n| 2 | CRITICAL | high | src/http/options.js:15 | code-reviewer | rest.retries || 3 turns charge()'s retries: 0 into 3, so a timed-out charge POST is sent again and can charge the card twice. | Fix it |\n| 3 | CRITICAL | high | src/http/options.js:12 | code-reviewer | A caller's own headers replace the defaults, so User-Agent is dropped from every account call. | Fix it |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "a CRITICAL finding makes a claim the ground truth marks wrong"
+    }
+  ]
+}
