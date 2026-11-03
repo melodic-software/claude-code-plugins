@@ -186,7 +186,7 @@ function workTree(dir) {
  * @param {{root: string, visibility: string, cls: string, layers?: {argument?: string|null, option?: string|null, home?: string, project?: string|null, dataDir?: string|null}}} input
  */
 export function checkDeck({ root, visibility, cls, layers = {} }) {
-  const local = (exit, reason, extra = {}) => ({ exit, result: { medium: "file", class: cls, reason, ...extra } });
+  const local = (exit, reason, refused) => ({ exit, result: { medium: "file", class: cls, reason, ...(refused && { refused }) } });
   const resolved = resolve(root);
   if (lstatSync(resolved).isSymbolicLink() || realpathSync(resolved) !== resolved) {
     return local(2, `the deck root ${resolved} is or passes through a symlink; pass its real path`);
@@ -212,7 +212,7 @@ export function checkDeck({ root, visibility, cls, layers = {} }) {
   if (badTitle) return local(1, badTitle);
   if (cls === "K2") {
     const refused = k2Refusals(files);
-    if (refused.length) return local(1, "a K2 deck carries more than text in the slide format", { refused });
+    if (refused.length) return local(1, "a K2 deck carries more than text in the slide format", refused);
   }
   const { argument = null, option = null, home, project = findRoot(), dataDir = process.env.CLAUDE_PLUGIN_DATA || null } = layers;
   const resolution = resolveMedium({ lane: "visualization:present", argument, userConfig: option, projectRoot: project }, { ...(home ? { userHome: home } : {}), dataDir });
