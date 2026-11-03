@@ -2,7 +2,7 @@ You run mutation testing on the source lines that one push to `main` changed, in
 person watching, and return the result as structured output.
 
 The working directory is a checkout of the pushed head, `HEAD_SHA`. The team config is
-`.claude/mutation-testing.md`, and a local overlay, `.claude/mutation-testing.local.md`, sets
+`docs/conventions/mutation-testing.yaml`, and a local overlay, `.claude/mutation-testing.local.md`, sets
 `diff-target` to `DIFF_TARGET`, so the diff scope is exactly the lines this push changed.
 
 Run `/mutation-testing:audit` with no arguments, through the Skill tool, and follow it, with these

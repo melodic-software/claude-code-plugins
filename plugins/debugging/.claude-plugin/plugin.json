@@ -1,11 +1,11 @@
 {
   "name": "debugging",
-  "version": "0.17.1",
   "description": "Debug observed failures via a disciplined six-phase loop: build a fast deterministic reproduction signal, reproduce, rank falsifiable hypotheses, instrument, fix with a regression test, then clean up and post-mortem.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
+  "version": "0.17.2",
   "license": "MIT",
   "keywords": [
     "debug",
@@ -15,5 +15,8 @@
     "root-cause",
     "regression",
     "skill"
-  ]
+  ],
+  "metadata": {
+    "category": "maintenance"
+  }
 }

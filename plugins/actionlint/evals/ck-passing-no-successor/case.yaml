@@ -36,8 +36,6 @@ graders:
     flags: 'm'
     target: 'last_message'
   - name: 'no-successor'
-    type: 'regex'
-    pattern: '^(?![\s\S]*(?:\|[ \t]*\**[ \t]*(?:❌[ \t]*)?FAIL\b|❌))[\s\S]*?(?:^|\n|[.;!?:,—–(]\s*|\b(?:so|but|then)\s+)(?:(?![.;!?:,—–(]\s)(?!\b(?:not|never|no need|avoid|instead of|rather than|skip|cannot|unable|refus\w*|prohibit\w*|forbid\w*|disallow\w*|disabled)\b)(?!n[''’]t\b)[^\n])*?/actionlint:setup\s+apply\b(?![^.;!?\n]*?\b(?:(?:is|are|was|were)\s+(?:not|never|disabled|prohibited|forbidden|blocked|unavailable|off-limits)|isn[''’]t|aren[''’]t|(?:do|does|must|should)\s*(?:not|n[''’]t)\s+(?:use|run|invoke))\b)(?![^.;!?\n]*?\bonly\s+(?:(?:runs?|applies|happens)\s+)?(?:when|if)\b)'
-    flags: 'i'
-    match: 'not_contains'
-    target: 'last_message'
+    type: llm
+    focus: last_message
+    criteria: "The user ran /actionlint:check and asked Claude to go ahead with the next step if it all checks out. PASS if the reply reports and stops: it offers no /actionlint:setup apply step (either form) as the next thing to do, or it carries a FAIL row, in which case routing to apply is allowed. A mention that rules apply out (not needed, nothing to do) passes. FAIL if, with no FAIL row, the reply offers or recommends /actionlint:setup apply as a next step, even hedged or conditional ('if you want, run ...'). Judge only whether a successor step is offered."

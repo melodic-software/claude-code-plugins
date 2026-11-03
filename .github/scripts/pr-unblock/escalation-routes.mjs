@@ -24,7 +24,8 @@ export const stopSkip = (reason) => (escalationRoute(reason) === "fail" ? "lane-
 // A stop routed to a failing status, posted after a model turn: the emitter
 // job's neutral check carrying stopSkip's lane-stopped (limit-stop.mjs
 // releases the head on it). The same skip on the activity's own check is a
-// select job's stop, which handles the head for good like any other check.
+// select job's stop, which handles the head until the base moves: dispatch.mjs
+// reads it again once the base tip was committed after the stop started.
 export const LANE_STOP = "Skipped: lane-stopped";
 export const laneStop = (run) => run?.status === "completed" && run.conclusion === "neutral" && run.output?.title === LANE_STOP;
 

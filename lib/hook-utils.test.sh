@@ -186,11 +186,11 @@ if [[ -s "$SINK_FILE" ]]; then
     fail "envelope: hook_event expected PostToolUse, got $he"
   fi
   # Validate status
-  st=$(jq -r '.status' "$SINK_FILE")
-  if [[ "$st" == "ok" ]]; then
+  status_val=$(jq -r '.status' "$SINK_FILE")
+  if [[ "$status_val" == "ok" ]]; then
     ok "envelope: status is ok"
   else
-    fail "envelope: status expected ok, got $st"
+    fail "envelope: status expected ok, got $status_val"
   fi
 else
   fail "envelope shape: sink file empty — emit did not fire or sink did not write"
@@ -1215,14 +1215,14 @@ fi
 # early not-proven return alike. `${#mb}` counts characters in the caller's
 # locale, so it moving would mean the caller was left in C.
 lc12g2_check() { # <label> <command...>
-  local label="$1" before_len mb='é日' st=0
+  local label="$1" before_len mb='é日' lc_rc=0
   shift
   before_len=${#mb}
-  "$@" >/dev/null 2>&1 || st=$?
-  if ((st == 127)); then
+  "$@" >/dev/null 2>&1 || lc_rc=$?
+  if ((lc_rc == 127)); then
     fail "C locale check $label: command not run"
   elif [[ "${#mb}" == "$before_len" ]]; then
-    ok "C locale restored after $label (rc $st)"
+    ok "C locale restored after $label (rc $lc_rc)"
   else
     fail "C locale leaked after $label: \${#mb} $before_len -> ${#mb}"
   fi
@@ -1590,7 +1590,7 @@ fi
 rm -rf "$DATA17" "$FAKEBIN17"
 
 # hook::require builds its notice from the declared prerequisites.json entry, and
-# falls back to a /<plugin>:check derived from the plugin root when there is none.
+# falls back to generic text when there is none; both end with the checker command.
 FAKEBIN17="$(make_stub_bin)"
 ROOT17="$(mktemp -d)/cache/market/demo-plug/1.2.3"
 mkdir -p "$ROOT17"
@@ -1627,11 +1627,12 @@ require17() {
 }
 # The expected texts are the notice template written out by hand for this
 # fixture: the model line states what is missing, what it costs, that the
-# notice does not repeat, and which skill diagnoses; the user line adds the
-# install route and why /<plugin>:check can pass while the hook cannot see the
-# tool.
-model17='tp: jq not on the hook PATH. Without jq, the "demo" hook is skipped. No further notice this session; /demo-plug:check diagnoses.'
-user17='tp: jq not on the hook PATH. Without jq, the "demo" hook is skipped. Install (docs: https://example.invalid/jq; brew: jq). Hooks read Claude Code'"'"'s PATH, not your shell profile. No further notice this session; /demo-plug:check diagnoses.'
+# notice does not repeat, and the command that runs the plugin's own checker;
+# the user line adds the install route and why that check can pass while the
+# hook cannot see the tool.
+cmd17="node \"$ROOT17/lib/prerequisites.mjs\" check \"$ROOT17\""
+model17='tp: jq not on the hook PATH. Without jq, the "demo" hook is skipped. No further notice this session; diagnose with: '"$cmd17"
+user17='tp: jq not on the hook PATH. Without jq, the "demo" hook is skipped. Install (docs: https://example.invalid/jq; brew: jq). Hooks read Claude Code'"'"'s PATH, not your shell profile. No further notice this session; diagnose with: '"$cmd17"
 declared17=$(require17 "$ROOT17")
 if jq -e --arg m "$model17" --arg u "$user17" \
   '.hookSpecificOutput.additionalContext == $m and .systemMessage == $u' <<<"$declared17" >/dev/null 2>&1; then
@@ -1669,15 +1670,15 @@ fi
 rm "$ROOT17/prerequisites.json"
 generic17=$(require17 "$ROOT17")
 if [[ "$generic17" == *'tp: jq not on the hook PATH. The hook skips its work.'* &&
-  "$generic17" == *'/demo-plug:check diagnoses.'* && "$generic17" != *harness-ops* ]]; then
-  ok "require: no declared entry → generic text and /<plugin>:check from the plugin root"
+  "$generic17" == *"diagnose with: ${cmd17//\"/\\\"}\""* && "$generic17" != *:check* ]]; then
+  ok "require: no declared entry → generic text and the checker command from the plugin root"
 else
   fail "require: generic notice: $generic17"
 fi
 mkdir -p "$ROOT17/skills/check-prerequisites"
 colliding17=$(require17 "$ROOT17")
-if [[ "$colliding17" == *'/demo-plug:check-prerequisites diagnoses.'* ]]; then
-  ok "require: a plugin shipping check-prerequisites names that skill"
+if [[ "$colliding17" != *:check* ]]; then
+  ok "require: a plugin shipping check-prerequisites names no skill either"
 else
   fail "require: check-prerequisites notice: $colliding17"
 fi
@@ -1715,12 +1716,25 @@ prereq17() {
 }
 DATA17A="$(mktemp -d)"
 prereq17_got="$(prereq17 "$DATA17A")"
-prereq17_want=$'0\ndemo-fmt: biome not on the hook PATH or at node_modules/.bin/biome. Without biome, edits are not formatted. No further notice this session; /demo-fmt:check diagnoses.\n'
-prereq17_want+="demo-fmt: biome not on the hook PATH or at node_modules/.bin/biome. Without biome, edits are not formatted. Install (npm: npm i -D @biomejs/biome). Hooks read Claude Code's PATH, not your shell profile. No further notice this session; /demo-fmt:check diagnoses."
+cmd17a="node \"$ROOT17A/lib/prerequisites.mjs\" check \"$ROOT17A\""
+prereq17_want=$'0\ndemo-fmt: biome not on the hook PATH or at node_modules/.bin/biome. Without biome, edits are not formatted. No further notice this session; diagnose with: '"$cmd17a"$'\n'
+prereq17_want+="demo-fmt: biome not on the hook PATH or at node_modules/.bin/biome. Without biome, edits are not formatted. Install (npm: npm i -D @biomejs/biome). Hooks read Claude Code's PATH, not your shell profile. No further notice this session; diagnose with: $cmd17a"
 if [[ "$prereq17_got" == "$prereq17_want" ]]; then
   ok "prereq_notice_to: the local_bin path joins the where-phrase; the latch key is <plugin>-<id>"
 else
   fail "prereq_notice_to: default texts" "got '$prereq17_got'"
+fi
+# The printed command, copied verbatim into a shell with node but no biome,
+# runs the plugin's checker, which reports biome as FAIL and exits 1.
+mkdir -p "$ROOT17A/lib" "$ROOT17A/nodebin"
+cp "$HOOK_DIR/prerequisites.mjs" "$ROOT17A/lib/"
+ln -s "$(command -v node)" "$ROOT17A/nodebin/node"
+run17a_out="$(cd "$ROOT17A" && PATH="$ROOT17A/nodebin" "$BASH" -c "${prereq17_got##*diagnose with: }")"
+run17a_rc=$?
+if [[ $run17a_rc -eq 1 && "$run17a_out" == 'FAIL  biome (cli, required): '* ]]; then
+  ok "prereq_notice_to: the printed command runs as written and reports biome as FAIL"
+else
+  fail "prereq_notice_to: printed command" "rc=$run17a_rc out=$run17a_out"
 fi
 if [[ -f "$DATA17A/skip-notices/demo-fmt-biome.s17a.user" && -f "$DATA17A/skip-notices/demo-fmt-biome.s17a.a1" ]]; then
   ok "prereq_notice_to: latches on the key prerequisites.mjs probe writes"
@@ -3984,6 +3998,350 @@ if [[ "${bps_all[*]-}" == "echo x#y git reset --hard" ]]; then
   ok "bash_parse_segments: mid-word # stays literal through reset"
 else
   fail "bash_parse_segments mid-word # stays literal through reset: got [${bps_all[*]-}], want [echo x#y git reset --hard]"
+fi
+
+# bps_segments_are <desc> <command> <segment>...: each segment's words, space-joined.
+bps_segments_are() {
+  local desc="$1" cmd="$2" got want
+  shift 2
+  bps_all=()
+  hook::bash_parse_segments "$cmd" bps_collect_all
+  got="$(printf '%s|' ${bps_all[@]+"${bps_all[@]}"})"
+  want="$(printf '%s|' "$@")"
+  if [[ "$got" == "$want" ]]; then
+    ok "bash_parse_segments: $desc"
+  else
+    fail "bash_parse_segments $desc: got [$got], want [$want]"
+  fi
+}
+
+bps_segments_are 'array assignment ) leaves a # after it literal' \
+  'a=(x)#y; git reset --hard' 'a=' 'x' '#y' 'git reset --hard'
+bps_segments_are 'extglob ) leaves a # after it literal' \
+  '@(x)#y; git reset --hard' '@' 'x' '#y' 'git reset --hard'
+bps_segments_are '# after whitespace past an array assignment is a comment' \
+  'a=(x) #; git reset --hard' 'a=' 'x'
+bps_segments_are 'subshell ) still starts a comment at a following #' \
+  '(x)#y; git reset --hard' 'x'
+bps_segments_are 'subshell ( at a word boundary still splits' \
+  'true; (git reset --hard)' 'true' 'git reset --hard'
+bps_segments_are 'extglob alternation | keeps the frame open' \
+  '@(a|b)#y; git reset --hard' '@' 'a' 'b' '#y' 'git reset --hard'
+bps_segments_are 'f@()# yields the extglob-on word reading, then the function-definition comment' \
+  'f@()#y; git reset --hard' 'f@' '#y' 'git reset --hard'
+bps_segments_are 'bare !(x)# yields the extglob-on word reading, then the negated-subshell comment' \
+  '!(x)#; git reset --hard' '!' 'x' '#' 'git reset --hard'
+bps_segments_are 'the extglob-on reading keeps a second # in the word' \
+  '!(x)##; git reset --hard' '!' 'x' '##' 'git reset --hard'
+bps_segments_are 'the extglob-on reading runs past the line: a quote it opens can close later' \
+  $'!(x)#\'\n\'; git reset --hard' '!' 'x' $'#\n' 'git reset --hard' '; git reset --hard'
+bps_segments_are 'the extglob-on reading keeps a pending here-doc body out of commands' \
+  $'cat <<EOF; !(x)#; :\ngit reset --hard\nEOF\necho done' 'cat' '!' 'x' '#' ':' 'echo done' 'echo done'
+# shellcheck disable=SC2016  # the substitutions are the command text under test
+{
+  bps_segments_are '$(…) ) leaves a # after it literal' \
+    'echo $(:)#; git reset --hard' 'echo $' ':' '#' 'git reset --hard'
+  bps_segments_are '$((…)) ) leaves a # after it literal' \
+    'echo $((1))#; git reset --hard' 'echo $' '1' '#' 'git reset --hard'
+  bps_segments_are 'a ; inside $(…) keeps its frame' \
+    'echo $(:;:)#; git reset --hard' 'echo $' ':' ':' '#' 'git reset --hard'
+  bps_segments_are 'a newline inside $(…) keeps its frame' \
+    $'echo $(:\n:)#; git reset --hard' 'echo $' ':' ':' '#' 'git reset --hard'
+  bps_segments_are 'a case pattern ) inside $(…) pops no frame' \
+    'echo $(case x in x) :;; esac)#; git reset --hard' 'echo $' 'case x in x' ':' 'esac' '#' 'git reset --hard'
+  bps_segments_are 'a # after a case pattern ) inside $(…) is a comment' \
+    $'a=($(case x in x)#\'\ngit reset --hard;; esac))' 'a=' '$' 'case x in x' 'git reset --hard' 'esac'
+  bps_segments_are '# after whitespace past $(…) is a comment' \
+    'echo $(:) #; git reset --hard' 'echo $' ':'
+  bps_segments_are 'closing backtick leaves a # after it literal' \
+    'echo `:`#; git reset --hard' 'echo' ':' '#' 'git reset --hard'
+  bps_segments_are 'a ; inside backticks keeps the frame' \
+    'echo `:;:`#; git reset --hard' 'echo' ':' ':' '#' 'git reset --hard'
+  bps_segments_are 'a comment inside backticks ends at the closing backtick' \
+    'echo `#`; git reset --hard' 'echo' 'git reset --hard'
+  bps_segments_are 'an escaped backtick inside a backtick comment does not close it' \
+    $'echo `# \\`; git reset --hard\n:`' 'echo' ':'
+  bps_segments_are 'a backtick after an escaped backslash closes the substitution' \
+    $'echo `# \\\\`; git reset --hard\n:`' 'echo' 'git reset --hard' ':'
+  bps_segments_are 'case inside $((…)) is a variable, not a case statement' \
+    'echo $((case))#; git reset --hard' 'echo $' 'case' '#' 'git reset --hard'
+  bps_segments_are 'esac inside $((…)) closes no case frame' \
+    'case x in x) echo $((esac))#; git reset --hard;; esac' \
+    'case x in x' 'echo $' 'esac' '#' 'git reset --hard' 'esac'
+  bps_segments_are 'a ( group inside $((…)) keeps the arithmetic frame' \
+    'echo $(( (1) ))#; git reset --hard' 'echo $' '1' '#' 'git reset --hard'
+  bps_segments_are 'a $(…) inside $((…)) is a command context again' \
+    'echo $(( $(case x in x) echo 1;; esac) ))#; git reset --hard' \
+    'echo $' '$' 'case x in x' 'echo 1' 'esac' '#' 'git reset --hard'
+  bps_segments_are '# after a ((…)) command is a comment' \
+    '((case))#; git reset --hard' 'case'
+  bps_segments_are 'a case pattern spelled case after ;; opens no case frame' \
+    'echo $(case x in x) :;; case) :;; esac)#; git reset --hard' \
+    'echo $' 'case x in x' ':' 'case' ':' 'esac' '#' 'git reset --hard'
+  bps_segments_are 'a case pattern spelled case after a newline opens no case frame' \
+    $'echo $(case x in\ncase) :;; esac)#; git reset --hard' \
+    'echo $' 'case x in' 'case' ':' 'esac' '#' 'git reset --hard'
+  bps_segments_are 'a case pattern in parentheses spelled case opens no case frame' \
+    'echo $(case x in (case) :;; esac)#; git reset --hard' \
+    'echo $' 'case x in' 'case' ':' 'esac' '#' 'git reset --hard'
+  bps_segments_are "a \$'…' inside backticks ends at the closing backtick" \
+    "echo \`\$'\`; git reset --hard #'\`" 'echo' '' 'git reset --hard'
+  bps_segments_are 'a quoted here-doc delimiter inside backticks ends at the closing backtick' \
+    "echo \`cat <<'\`; git reset --hard #'\`" 'echo' 'cat' 'git reset --hard'
+  bps_segments_are 'a here-doc opened inside backticks takes no body after them' \
+    $'echo `cat <<E`\ngit reset --hard\nE' 'echo' 'cat' 'git reset --hard' 'E'
+  bps_segments_are 'an esac after | in a case pattern is a pattern word' \
+    'echo $(case x in a|esac) :;; esac)#; git reset --hard' \
+    'echo $' 'case x in a' 'esac' ':' 'esac' '#' 'git reset --hard'
+  bps_segments_are 'an esac right after in closes the case' \
+    'echo $(case x in esac)#; git reset --hard' 'echo $' 'case x in esac' '#' 'git reset --hard'
+  bps_segments_are 'an escaped ; before a ; is a word, not a clause end' \
+    'echo $(case x in x) \;; case y in y) :;; esac;; z) :;; esac)#; git reset --hard' \
+    'echo $' 'case x in x' ';' 'case y in y' ':' 'esac' 'z' ':' 'esac' '#' 'git reset --hard'
+  bps_segments_are 'an escaped backtick inside backticks opens a nested substitution' \
+    'echo `echo \`git reset --hard\``' 'echo' 'echo' 'git reset --hard'
+  bps_segments_are 'escaped backticks two levels deep open a nested substitution' \
+    'echo `echo \`echo \\\`git reset --hard\\\`\``' 'echo' 'echo' 'echo' 'git reset --hard'
+  bps_segments_are 'a # right after a nested substitution is literal' \
+    'echo `echo \`:\`#; git reset --hard`' 'echo' 'echo' ':' '#' 'git reset --hard'
+  bps_segments_are 'an escaped backtick outside backticks stays a literal character' \
+    'echo \`; git reset --hard' 'echo `' 'git reset --hard'
+  bps_segments_are 'a here-doc body inside backticks ends at the closing backtick' \
+    $'echo `cat <<E\nx`\ngit reset --hard\nE' 'echo' 'cat' 'git reset --hard' 'E'
+}
+
+# bps_heredocs_are <desc> <command> <entry>...: HOOK_HEREDOC_BODIES after the parse.
+bps_heredocs_are() {
+  local desc="$1" cmd="$2" got want
+  shift 2
+  bps_all=()
+  hook::bash_parse_segments "$cmd" bps_collect_all
+  got="$(printf '%s|' ${HOOK_HEREDOC_BODIES[@]+"${HOOK_HEREDOC_BODIES[@]}"})"
+  want="$(printf '%s|' "$@")"
+  if [[ "$got" == "$want" ]]; then
+    ok "bash_parse_segments: $desc"
+  else
+    fail "bash_parse_segments $desc: got [$got], want [$want]"
+  fi
+}
+bps_heredocs_are 'a here-doc both extglob readings see is listed once' \
+  $'cat <<EOF; !(x)#; :\nbody\nEOF\necho done' '20 29 0 1 EOF'
+bps_heredocs_are 'a [[ =~ ]] regex group keeps a pending here-doc' \
+  $'cat <<E; [[ $s =~ k=(a|b) ]]\nit\'s\nE\ngit reset --hard' '29 36 0 1 E'
+# shellcheck disable=SC2016  # the substitutions are the command text under test
+{
+  bps_segments_are 'a pattern word that starts with $(…) is the first pattern word' \
+    'echo $(case x in $(:)|esac) :;; esac)#; git reset --hard' \
+    'echo $' 'case x in $' ':' 'esac' ':' 'esac' '#' 'git reset --hard'
+  bps_segments_are 'a ((…) ) that is not arithmetic is a nested subshell' \
+    "((bash <<< 'rm -rf ~') )" 'bash'
+}
+# bps_redirs_are <desc> <command> <op target>...: every redirection reported.
+# shellcheck disable=SC2329  # invoked indirectly as the parse callback
+bps_redir_collect() {
+  local r
+  for ((r = 0; r < ${#HOOK_SEG_REDIR_OP[@]}; r++)); do
+    bps_all+=("${HOOK_SEG_REDIR_OP[r]} ${HOOK_SEG_REDIR_TARGET[r]}")
+  done
+}
+bps_redirs_are() {
+  local desc="$1" cmd="$2" got want
+  shift 2
+  bps_all=()
+  hook::bash_parse_segments "$cmd" bps_redir_collect
+  got="$(printf '%s|' ${bps_all[@]+"${bps_all[@]}"})"
+  want="$(printf '%s|' "$@")"
+  if [[ "$got" == "$want" ]]; then
+    ok "bash_parse_segments: $desc"
+  else
+    fail "bash_parse_segments $desc: got [$got], want [$want]"
+  fi
+}
+bps_redirs_are 'a here-string inside a ((…) ) subshell is a redirection' \
+  "((bash <<< 'rm -rf ~') )" '<<< rm -rf ~'
+# shellcheck disable=SC2016  # the substitution is the command text under test
+bps_redirs_are 'a here-string inside a $((…) ) substitution is a redirection' \
+  "echo \$((bash <<< 'rm -rf ~') )" '<<< rm -rf ~'
+bps_redirs_are 'a write inside a ((…) ) subshell is a redirection' \
+  '((cat f > ../other/x) )' '> ../other/x'
+bps_heredocs_are 'a here-doc read before a backtick takes its body after the backtick line' \
+  $'cat <<A; echo `:\ngit reset --hard`\nA' '35 36 0 1 A'
+bps_heredocs_are 'here-docs from both extglob readings come in source order' \
+  $'!(x)#\'\ncat <<B\nb\nB\n\' ; cat <<C\nc\nC' '15 19 0 1 B' '31 34 0 1 C'
+bps_segments_are 'a quote inside backticks ends at the closing backtick' \
+  "echo \`'\`; git reset --hard #'" 'echo' '' 'git reset --hard'
+bps_segments_are 'process substitution ) leaves a # after it literal' \
+  'cat <(:)#; git reset --hard' 'cat' ':' '#' 'git reset --hard'
+bps_segments_are 'a ; inside an extglob keeps its frame' \
+  'echo @(x;y)#; git reset --hard' 'echo @' 'x' 'y' '#' 'git reset --hard'
+bps_segments_are 'a newline inside an array assignment keeps its frame' \
+  $'a=(x\ny)#; git reset --hard' 'a=' 'x' 'y' '#' 'git reset --hard'
+# shellcheck disable=SC2016  # the substitution is the command text under test
+bps_segments_are 'substitution inside an array assignment stays a segment' \
+  'a=($(git reset --hard))#y' 'a=' '$' 'git reset --hard' '#y'
+# shellcheck disable=SC2016  # the parameter expansion is the command text under test
+bps_segments_are '( inside an open ${...} opens no word-continuing frame' \
+  'echo ${x#*(}; case x in x)#y' 'echo ${x#*' '}' 'case x in x'
+
+# --- Oracle table: whatever bash runs, the parser must hand to the callback ---
+# Each row puts a tricky word inside one opener, or inside an opener nested in
+# another, closes them, then appends `echo HIT >&2` after a `#`, a newline, or
+# a here-doc body. Bash itself, with extglob off and on, run in a scratch
+# directory, decides two things: whether HIT runs, and whether the redirect
+# word `:>hook-oracle-w` writes its file. When either mode runs HIT, some
+# segment the parser reports must be `echo HIT`; when either mode writes the
+# file, some segment must carry the redirect target `hook-oracle-w`. A row that
+# is a syntax error in both modes and does neither is skipped. Expectations
+# come from the bash running the test, never from here.
+bps_or_tmp=$(mktemp -d)
+# bps_oracle <command>: sets bps_or_hit and bps_or_wrote to 1 when either mode
+# runs HIT or writes the file; returns 2 when neither happened and both modes
+# report a syntax error, else 0.
+bps_oracle() {
+  local m out serr=0 w=0
+  bps_or_hit=0 bps_or_wrote=0
+  [[ "$1" == *hook-oracle-w* ]] && w=1
+  for m in +O -O; do
+    rm -f "$bps_or_tmp/hook-oracle-w"
+    out=$(cd "$bps_or_tmp" && exec bash "$m" extglob -c "$1" 2>&1 >/dev/null </dev/null)
+    [[ $'\n'"$out"$'\n' == *$'\nHIT\n'* ]] && bps_or_hit=1
+    [[ -e "$bps_or_tmp/hook-oracle-w" ]] && bps_or_wrote=1
+    [[ "$out" == *'syntax error'* ]] && serr=$((serr + 1))
+    # Nothing the other mode does can add to a row that already did both.
+    ((bps_or_hit && (bps_or_wrote || !w))) && return 0
+  done
+  ((!bps_or_hit && !bps_or_wrote && serr == 2)) && return 2
+  return 0
+}
+# shellcheck disable=SC2016  # the substitutions are the command text under test
+{
+  # Openers as prefix and closer pairs: `$(`, `$((`, `((`, `((…) )` and
+  # `$((…) )` (which bash reads as nested subshells), `<(`, a backtick,
+  # `a=(`, `@(`, and a `[[ =~ ]]` regex group; then a case pattern position
+  # (after `in` on its line or the next, after `|`, `;;`, `;&`, `;;&` and
+  # `(`), a case closed right after the word or one clause on, a clause body
+  # alone and before a nested case, and a pattern word followed by `|esac`.
+  # The bare openers below are also nested inside every context, so in a case
+  # pattern position they start the pattern word.
+  bps_or_ipre=('$(' '$((' '$((' '((' '((' '<(' '`' 'a=(' '@(' '[[ x =~ k=(' '[[ x =~ (')
+  bps_or_ipost=(')' '))' ') )' '))' ') )' ')' '`' ')' ')' ') ]]' ') ]]')
+  bps_or_pre=('echo $(' 'echo $((' '((' '((' 'echo $((' 'cat <(' 'echo `' 'a=('
+    'echo @(' '[[ x =~ k=(' '[[ x =~ ('
+    'echo $(case x in ' $'echo $(case x in\n' 'echo $(case x in a|'
+    'echo $(case x in a) :;; ' 'echo $(case x in a) :;& ' 'echo $(case x in a) :;;& '
+    'echo $(case x in (' 'echo $(case x in ' 'echo $(case x in a) :;; '
+    'echo $(case x in a) ' 'echo $(case x in a) '
+    'echo $(case x in ' 'echo $(case x in a) :;; ')
+  bps_or_post=(')' '))' '))' ') )' ') )' ')' '`' ')'
+    ')' ') ]]' ') ]]'
+    ') :;; esac)' ') :;; esac)' ') :;; esac)'
+    ') :;; esac)' ') :;; esac)' ') :;; esac)'
+    ') :;; esac)' ')' ')'
+    ';; esac)' ' case y in y) :;; esac;; z) :;; esac)'
+    '|esac) :;; esac)' '|esac) :;; esac)')
+  bps_or_words=('case' 'esac' 'in' '\;;' '\)' '\`' '")"' '#' '<<E'
+    ':>hook-oracle-w' 'a|b' 'x<y')
+  # Where the word sits: alone, as an argument, before a newline inside the
+  # opener, and before a newline and the trailing command inside the opener.
+  bps_or_before=('' ': ' '' '')
+  bps_or_after=('' '' $'\n:' $'\necho HIT >&2\n')
+  # What comes before the opener: nothing, or a here-doc still pending.
+  bps_or_leads=('' 'cat <<E; ')
+  # After the opener: a `#`, a newline, or a here-doc body holding a quote.
+  bps_or_tails=('#; echo HIT >&2' $'\necho HIT >&2' $'\nit\'s\nE\necho HIT >&2')
+}
+# The parse callback for the table: argv words, plus every redirect target.
+bps_or_collect() {
+  bps_all+=("${*}")
+  bps_or_tg+=(${HOOK_SEG_REDIR_TARGET[@]+"${HOOK_SEG_REDIR_TARGET[@]}"})
+}
+# bps_oracle_row <command>: count the row; fail when bash runs HIT and no
+# segment is `echo HIT`, or when bash writes the file and no segment redirects
+# to it.
+bps_oracle_row() {
+  local rc=0 s seen=0
+  bps_or_n=$((bps_or_n + 1))
+  bps_oracle "$1" || rc=$?
+  if ((rc == 2)); then
+    bps_or_skip=$((bps_or_skip + 1))
+    return 0
+  fi
+  ((bps_or_hit || bps_or_wrote)) || return 0
+  bps_or_ran=$((bps_or_ran + bps_or_hit))
+  bps_or_wrote_n=$((bps_or_wrote_n + bps_or_wrote))
+  bps_all=()
+  bps_or_tg=()
+  hook::bash_parse_segments "$1" bps_or_collect
+  if ((bps_or_hit)); then
+    for s in ${bps_all[@]+"${bps_all[@]}"}; do
+      [[ "$s" == 'echo HIT' ]] && seen=1
+    done
+    if ((!seen)); then
+      bps_or_bad=$((bps_or_bad + 1))
+      fail "bash_parse_segments oracle: bash runs HIT but the parser hides it: $(printf '%q' "$1")"
+    fi
+  fi
+  if ((bps_or_wrote)); then
+    seen=0
+    for s in ${bps_or_tg[@]+"${bps_or_tg[@]}"}; do
+      [[ "$s" == 'hook-oracle-w' ]] && seen=1
+    done
+    if ((!seen)); then
+      bps_or_bad=$((bps_or_bad + 1))
+      fail "bash_parse_segments oracle: bash writes hook-oracle-w but the parser reports no such redirect: $(printf '%q' "$1")"
+    fi
+  fi
+}
+# bps_oracle_cell <prefix> <post>: every word, placement, tail and lead inside
+# one opener (or nested pair) given as its prefix and closer. Rows past the
+# first depth are sampled: a row is kept when its running index hashes below
+# bps_or_keep out of 65536 (Knuth's multiplicative hash, so the kept rows are
+# the same on every run and spread across all dimensions).
+bps_oracle_cell() {
+  local p w t l
+  for ((p = 0; p < ${#bps_or_before[@]}; p++)); do
+    for w in "${bps_or_words[@]}"; do
+      for t in "${bps_or_tails[@]}"; do
+        for l in "${bps_or_leads[@]}"; do
+          bps_or_all=$((bps_or_all + 1))
+          (((bps_or_all * 40503) % 65536 < bps_or_keep)) || continue
+          bps_oracle_row "$l$1${bps_or_before[p]}$w${bps_or_after[p]}$2$t"
+        done
+      done
+    done
+  done
+}
+bps_or_n=0 bps_or_ran=0 bps_or_wrote_n=0 bps_or_skip=0 bps_or_bad=0 bps_or_all=0
+bps_or_t0=$SECONDS
+# Each row spawns bash, which is slow on Windows, so Windows samples both depths
+# (about 1 row in 10 and 1 in 128, still hitting every opener, word and tail).
+bps_or_keep1=65536 bps_or_keep2=2048
+# shellcheck disable=SC2031  # this shell's own OSTYPE; Test 11 overrides it only in subshells
+if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* ]]; then
+  bps_or_keep1=6554 bps_or_keep2=512
+fi
+# Depth 1: every row (sampled on Windows).
+bps_or_keep=$bps_or_keep1
+for ((bps_or_k = 0; bps_or_k < ${#bps_or_pre[@]}; bps_or_k++)); do
+  bps_oracle_cell "${bps_or_pre[bps_or_k]}" "${bps_or_post[bps_or_k]}"
+done
+bps_or_n1=$bps_or_n bps_or_all1=$bps_or_all
+# Depth 2: each bare opener inside every context (a pattern word that starts
+# with an opener included), one row in 32 kept (128 on Windows).
+bps_or_keep=$bps_or_keep2
+for ((bps_or_k = 0; bps_or_k < ${#bps_or_pre[@]}; bps_or_k++)); do
+  for ((bps_or_m = 0; bps_or_m < ${#bps_or_ipre[@]}; bps_or_m++)); do
+    # A backtick inside a backtick would need escaping; that form has its own rows.
+    [[ "${bps_or_post[bps_or_k]}" == '`' && "${bps_or_ipost[bps_or_m]}" == '`' ]] && continue
+    bps_oracle_cell "${bps_or_pre[bps_or_k]}${bps_or_ipre[bps_or_m]}" \
+      "${bps_or_ipost[bps_or_m]}${bps_or_post[bps_or_k]}"
+  done
+done
+rm -rf "${bps_or_tmp:?}"
+if ((bps_or_ran == 0 || bps_or_wrote_n == 0)); then
+  fail "bash_parse_segments oracle: bash ran HIT in $bps_or_ran rows and wrote the file in $bps_or_wrote_n, so the table checks too little"
+elif ((bps_or_bad == 0)); then
+  ok "bash_parse_segments oracle: depth 1 $bps_or_n1 of $bps_or_all1 rows, depth 2 $((bps_or_n - bps_or_n1)) of $((bps_or_all - bps_or_all1)) sampled; $bps_or_ran run HIT and $bps_or_wrote_n write in bash, $bps_or_skip syntax errors skipped, none hidden ($((SECONDS - bps_or_t0)) s)"
 fi
 
 # ANSI-C $'…' bodies decode in-process via ansi_c_decode_to (no $(printf) fork).

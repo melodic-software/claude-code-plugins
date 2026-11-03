@@ -1,11 +1,11 @@
 {
   "name": "actionlint",
-  "version": "0.16.1",
   "description": "Lint GitHub Actions workflows with actionlint at git pre-commit, on changed lines, for every author; optionally check uncommitted workflow changes when a turn ends.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
+  "version": "0.16.4",
   "license": "MIT",
   "keywords": [
     "actionlint",
@@ -15,6 +15,9 @@
     "linter",
     "hook"
   ],
+  "metadata": {
+    "category": "development"
+  },
   "userConfig": {
     "actionlint_enabled": {
       "type": "boolean",

@@ -3,6 +3,52 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.84.5] - 2026-11-02
+
+### Changed
+
+- Hook notices name the bundled checker command; `check` is optional (#12485).
+
+### Security
+
+- Every Bash guard now judges the commands that the substitutions in an unquoted here-doc body run. The shared segment parse skipped every here-doc body, whatever its quoting, so `cat <<EOF` with `$(git reset --hard)`, a backticked command, `${x:-$(...)}` or `$[$(...)]` in its body passed every guard that reads that parse. Each such substitution is now parsed into segments that every guard judges as it judges the same command at top level. A body under a quoted delimiter (`<<'EOF'`, `<<"EOF"`, `<<\EOF`) is still data, and `$(date)` or `$HOME` in an unquoted body is still allowed.
+
+## [0.84.4] - 2026-11-02
+
+### Fixed
+
+- The pre-commit content check no longer blocks a merge commit because of a secret or
+  machine-specific path that the merged branch already holds, such as a line that reached `main`
+  through a pull request merged on GitHub. A merge is now judged on the lines its conflict resolution
+  adds, the way the pre-push content check already judges it. A secret or path that the resolution
+  adds still blocks.
+
+- `block-dangerous-git` now blocks a destructive git command placed after a `#` that Bash reads
+  as literal text, not a comment, such as `a=(x)#; git reset --hard` or `echo $(:)#; git reset
+  --hard`. The shared `hook-utils.sh` Bash command parser keeps a `#` right after the closing `)`
+  of an array assignment, an extglob, `$(…)`, `$((…))` or `<(…)`, or after a closing backtick, in
+  its word, as Bash does. Those frames now stay open across `;`, `|`, `&` and newlines inside
+  them, a `case` pattern's `)` no longer closes one, and `case` or `esac` inside arithmetic is
+  read as a variable name, so `echo $((case))#; git reset --hard` is blocked.
+- A comment, a quote of any kind, a here-doc delimiter or a here-doc body inside backticks now
+  ends at the closing backtick, as in Bash, so ``echo `#`; git reset --hard`` is blocked; an
+  escaped backtick does not close it, and outside a comment or quote it opens or closes a nested
+  substitution whose commands are checked.
+- Case statements follow Bash's pattern-position rules: a pattern spelled `case` opens nothing,
+  `esac` after `|` is a pattern, `case x in esac` closes on one line, and `\;;` is a word and a
+  `;`, not a clause end, and a pattern word that starts with `$(…)`, a backtick or `@(…)` is
+  the first pattern word. Inside an extglob or arithmetic a `#`, `<` or `>` is literal text.
+- `((…) )` and `$((…) )`, which Bash re-reads as nested subshells, are read as commands with
+  real redirections, so `((bash <<< 'rm -rf ~') )` is checked. The parentheses of a
+  `[[ … =~ … ]]` regex are regex text, not an array assignment.
+- A here-doc takes its body only at a newline on the level where it was read, so one read
+  before a `$(…)`, backtick, `a=(…)` or `@(…)` that spans lines takes its body after the line
+  where that construct closes; a syntax error inside `a=(…)` cancels the line's here-docs.
+- For `!(x)#` and `f@()#`, where the `#` is literal with `shopt -s extglob` and a comment
+  without it, the parser now reports the commands of both readings, so a command after the `#`
+  is checked either way. `HOOK_HEREDOC_BODIES` still lists each here-doc body once, in source
+  order.
+
 ## [0.84.3] - 2026-11-02
 
 ### Fixed

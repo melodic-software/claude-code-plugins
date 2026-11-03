@@ -602,11 +602,180 @@ run "git push origin main >push.log (redirect target dropped, allowed)" "git pus
 run "cat <(git reset --hard) (process substitution, blocked)" "cat <(git reset --hard)" 2
 run "diff <(git status) <(git reset --hard) (second substitution, blocked)" "diff <(git status) <(git reset --hard)" 2
 run "cat <(git status) (safe substitution, allowed)" "cat <(git status)" 0
+# Bash keeps the ) of a word-continuing ( in its word, so a # right after it is literal.
+run "a=(x)#; git reset --hard (array assignment, blocked)" "a=(x)#; git reset --hard" 2
+run "@(x)#; git reset --hard (extglob, blocked)" "@(x)#; git reset --hard" 2
+run "@(a|b)#; git reset --hard (extglob alternation, blocked)" "@(a|b)#; git reset --hard" 2
+run "f@()#' then a later line (function definition comment, blocked)" $'f@()#\'\n{ :; }\ngit reset --hard' 2
+run "a=(x y) git reset --hard (command after an array assignment, blocked)" "a=(x y) git reset --hard" 2
+run "a=(\$(git reset --hard)) (substitution inside an array assignment, blocked)" "a=(\$(git reset --hard))" 2
+run "f@() { git reset --hard; }; f@ (function name ending in @, blocked)" "f@() { git reset --hard; }; f@" 2
+run "!(git reset --hard) (negated subshell, blocked)" "!(git reset --hard)" 2
+run "echo \${x#*(}; case x in x) git reset --hard;; esac (literal ( in \${…}, blocked)" \
+  "echo \${x#*(}; case x in x) git reset --hard;; esac" 2
+# Bash keeps the closing ) or backtick of a substitution in its word too.
+run "echo \$(:)#; git reset --hard (command substitution, blocked)" "echo \$(:)#; git reset --hard" 2
+run "echo \$((1))#; git reset --hard (arithmetic expansion, blocked)" "echo \$((1))#; git reset --hard" 2
+run "echo \$(:;:)#; git reset --hard (separator inside the substitution, blocked)" "echo \$(:;:)#; git reset --hard" 2
+run "echo \`:\`#; git reset --hard (backtick substitution, blocked)" "echo \`:\`#; git reset --hard" 2
+run "cat <(:)#; git reset --hard (process substitution, blocked)" "cat <(:)#; git reset --hard" 2
+run "echo \`#\`; git reset --hard (comment inside backticks, blocked)" "echo \`#\`; git reset --hard" 2
+run "echo \`'\`; git reset --hard #' (quote inside backticks, blocked)" "echo \`'\`; git reset --hard #'" 2
+run "echo \$(case x in x) :;; esac)#; git reset --hard (case inside a substitution, blocked)" \
+  "echo \$(case x in x) :;; esac)#; git reset --hard" 2
+run "a=(\$(case x in x)#' then a later line (case pattern comment, blocked)" \
+  $'a=($(case x in x)#\'\ngit reset --hard;; esac))' 2
+run "echo @(x;y)#; git reset --hard (separator inside an extglob, blocked)" "echo @(x;y)#; git reset --hard" 2
+run "a=(x⏎y)#; git reset --hard (newline inside an array assignment, blocked)" $'a=(x\ny)#; git reset --hard' 2
+# With extglob on, !(x)# and f@()# are one word and the # is literal; off, it is a comment.
+run "!(x)#; git reset --hard (extglob-on reading, blocked)" "!(x)#; git reset --hard" 2
+run "f@()#; git reset --hard (extglob-on reading, blocked)" "f@()#; git reset --hard" 2
+run "!(x)##; git reset --hard (second # in the extglob word, blocked)" "!(x)##; git reset --hard" 2
+run "!(x)#' then a quote closing on the next line (extglob-on reading, blocked)" $'!(x)#\'\n\'; git reset --hard' 2
+run "!(x)#; git backslash-newline reset --hard (extglob-on reading, blocked)" $'!(x)#; git \\\nreset --hard' 2
+run "echo \$(:) #; git reset --hard (comment after whitespace, allowed)" "echo \$(:) #; git reset --hard" 0
+# Inside arithmetic, case and esac are variable names.
+run "echo \$((case))#; git reset --hard (case as an arithmetic variable, blocked)" "echo \$((case))#; git reset --hard" 2
+run "a=( \$((case)) )#; git reset --hard (arithmetic case inside an array assignment, blocked)" \
+  "a=( \$((case)) )#; git reset --hard" 2
+run "case x in x) echo \$((esac))#; git reset --hard;; esac (arithmetic esac in a case arm, blocked)" \
+  "case x in x) echo \$((esac))#; git reset --hard;; esac" 2
+run "echo \`# \\\`; git reset --hard⏎:\` (escaped backtick inside a backtick comment, allowed)" \
+  $'echo `# \\`; git reset --hard\n:`' 0
+run "echo \`# \\\\\\\\\`; git reset --hard⏎:\` (backtick after an escaped backslash closes it, blocked)" \
+  $'echo `# \\\\`; git reset --hard\n:`' 2
+# In a case pattern position only esac is a reserved word.
+run "echo \$(case x in x) :;; case) :;; esac)#; git reset --hard (pattern spelled case, blocked)" \
+  "echo \$(case x in x) :;; case) :;; esac)#; git reset --hard" 2
+run "echo \$(case x in⏎case) :;; esac)#; git reset --hard (pattern spelled case after a newline, blocked)" \
+  $'echo $(case x in\ncase) :;; esac)#; git reset --hard' 2
+run "echo \$(case x in a|esac) :;; esac)#; git reset --hard (esac after | is a pattern, blocked)" \
+  "echo \$(case x in a|esac) :;; esac)#; git reset --hard" 2
+run "echo \$(case x in esac)#; git reset --hard (esac right after in closes the case, blocked)" \
+  "echo \$(case x in esac)#; git reset --hard" 2
+run "\\;; before a nested case is a word and a ; (blocked)" \
+  "echo \$(case x in x) \\;; case y in y) :;; esac;; z) :;; esac)#; git reset --hard" 2
+run "cat <<A; echo \`:⏎git reset --hard\`⏎A (here-doc body comes after the backtick line, blocked)" \
+  $'cat <<A; echo `:\ngit reset --hard`\nA' 2
+# A pattern word that starts with a substitution is the first pattern word.
+run "echo \$(case x in \$(:)|esac) :;; esac)#; git reset --hard (pattern starting with \$(…), blocked)" \
+  "echo \$(case x in \$(:)|esac) :;; esac)#; git reset --hard" 2
+run "echo \$(case x in \`:\`|esac) :;; esac)#; git reset --hard (pattern starting with a backtick, blocked)" \
+  "echo \$(case x in \`:\`|esac) :;; esac)#; git reset --hard" 2
+# The parentheses of a [[ =~ ]] regex are regex text, not an array assignment.
+run "cat <<E; [[ \$s =~ k=(a|b) ]]⏎it's⏎E⏎git reset --hard (regex group with |, blocked)" \
+  $'cat <<E; [[ $s =~ k=(a|b) ]]\nit\'s\nE\ngit reset --hard' 2
+run "cat <<E; [[ \$s =~ k=(a>b) ]]⏎it's⏎E⏎git reset --hard (regex group with >, blocked)" \
+  $'cat <<E; [[ $s =~ k=(a>b) ]]\nit\'s\nE\ngit reset --hard' 2
+# Array subscripts keep their quotes and substitutions; ( inside ${…} is text.
+# shellcheck disable=SC2016  # the substitutions are the command text under test
+{
+  run "a=([\$(git reset --hard)]=1) (substitution in a subscript, blocked)" \
+    'a=([$(git reset --hard)]=1)' 2
+  run "a=([\`git reset --hard\`]=1) (backtick in a subscript, blocked)" \
+    'a=([`git reset --hard`]=1)' 2
+  run "a=([\"x]\"]=1); git reset --hard #\" (quoted ] in a subscript, blocked)" \
+    'declare -A a; a=(["x]"]=1); git reset --hard #"' 2
+  run "a=([']'x]=1); git reset --hard (single-quoted ] in a subscript, blocked)" \
+    "declare -A a; a=([']'x]=1); git reset --hard" 2
+  run "a=([\"]\"]=1); git reset --hard (double-quoted ] in a subscript, blocked)" \
+    'declare -A a; a=(["]"]=1); git reset --hard' 2
+  run "m=(['[']=1); git reset --hard (quoted [ in a subscript, blocked)" \
+    "declare -A m=(['[']=1); git reset --hard" 2
+  run "cat <<E; a=(\${x/(/y})⏎it's⏎E⏎git reset --hard (( inside \${…} in an array, blocked)" \
+    $'cat <<E; a=(${x/(/y})\nit\'s\nE\ngit reset --hard' 2
+}
+# Every quoted or delimited reader ends at the closing backtick.
+run "echo \`\$'\`; git reset --hard #'\` (ANSI-C quote inside backticks, blocked)" \
+  "echo \`\$'\`; git reset --hard #'\`" 2
+run "echo \`cat <<'\`; git reset --hard #'\` (quoted here-doc delimiter inside backticks, blocked)" \
+  "echo \`cat <<'\`; git reset --hard #'\`" 2
+run "echo \`cat <<E\`⏎git reset --hard⏎E (here-doc opened inside backticks, blocked)" \
+  $'echo `cat <<E`\ngit reset --hard\nE' 2
+# shellcheck disable=SC2016  # the backticks are the command text under test
+{
+  run "echo \`echo \\\`git reset --hard\\\`\` (nested backtick substitution, blocked)" \
+    'echo `echo \`git reset --hard\``' 2
+  run "echo \`echo \\\`:\\\`#; git reset --hard\` (# after a nested substitution, blocked)" \
+    'echo `echo \`:\`#; git reset --hard`' 2
+  run "doubly nested escaped backticks around git reset --hard (blocked)" \
+    'echo `echo \`echo \\\`git reset --hard\\\`\``' 2
+  run "nested escaped backticks around a harmless command (allowed)" \
+    'echo `echo \`echo ok\``' 0
+}
+run "echo \`cat <<E⏎x\`⏎git reset --hard⏎E (here-doc body ends at the closing backtick, blocked)" \
+  $'echo `cat <<E\nx`\ngit reset --hard\nE' 2
 run "heredoc body with git reset (stdin, not a command, allowed)" $'cat >notes <<EOF\ngit reset --hard\nEOF' 0
 run "quoted-delimiter heredoc with git push --force (allowed)" $'cat <<\'EOF\'\ngit push --force\nEOF' 0
 run "tab-indented heredoc <<- body (allowed)" $'cat <<-EOF\n\tgit reset --hard\n\tEOF' 0
 run "real git reset --hard after a heredoc (blocked)" $'cat <<EOF\nhello\nEOF\ngit reset --hard' 2
 run "here-string git reset --hard (not a heredoc, blocked)" $'git reset --hard <<<input' 2
+# bash runs each substitution in an unquoted heredoc body; a quoted body is data.
+run "unquoted heredoc body \$(git reset --hard) (blocked)" $'cat <<EOF\n$(git reset --hard)\nEOF' 2
+run "unquoted heredoc body backticked git reset --hard (blocked)" $'cat >notes <<EOF\nnote: `git reset --hard`\nEOF' 2
+run "<<-EOF body \$(git clean -fd) (blocked)" $'cat <<-EOF\n\t$(git clean -fd)\n\tEOF' 2
+run "unquoted heredoc body \${x:-\$(git reset --hard)} (blocked)" $'cat <<EOF\n${x:-$(git reset --hard)}\nEOF' 2
+run "unquoted heredoc body \$[\$(git reset --hard)] (blocked)" $'cat <<EOF\n$[$(git reset --hard)]\nEOF' 2
+run "unquoted heredoc body, a quoted ) inside \$( ) (blocked)" $'cat <<EOF\n$(echo ")"; git reset --hard)\nEOF' 2
+run "unquoted heredoc body, a commented ) inside \$( ) (blocked)" $'cat <<EOF\n$(: # )\ngit reset --hard)\nEOF' 2
+run "unquoted heredoc body, a case pattern ) inside \$( ) (blocked)" $'cat <<EOF\n$(case x in x) git reset --hard;; esac)\nEOF' 2
+run "unquoted heredoc body, a heredoc inside \$( ) (blocked)" $'cat <<EOF\n$(cat <<X\n)\nX\ngit reset --hard\n)\nEOF' 2
+run "unquoted heredoc body, a quoted } inside \${ cmd; } (blocked)" $'cat <<EOF\n${ echo "}"; git reset --hard; }\nEOF' 2
+run "unquoted heredoc body, a quoted ) inside \$(( ) ) (blocked)" $'cat <<EOF\n$((echo \')\' \')\'; git reset --hard) )\nEOF' 2
+run "unquoted heredoc body, a case pattern ) inside \$(( ) ) (blocked)" $'cat <<EOF\n$((case x in y) ;; x) git reset --hard;; esac) )\nEOF' 2
+run "unquoted heredoc body, a backslash-newline inside \$( (blocked)" $'cat <<EOF\n$\\\n(git reset --hard)\nEOF' 2
+run "unquoted heredoc body, a backslash-newline before a comment in \$( ) (blocked)" $'cat <<EOF\n$(: \\\n# )\ngit reset --hard)\nEOF' 2
+run "unquoted heredoc body, a backslash-newline inside a case word (blocked)" $'cat <<EOF\n$(cas\\\ne x in x) git reset --hard;; esac)\nEOF' 2
+run "unquoted heredoc body, apostrophes around a backslash-newline \$( (blocked)" $'cat <<EOF\ndon\'t $\\\n(git reset --hard) won\'t\nEOF' 2
+run "unquoted heredoc body, apostrophes around \$( ) after a backslash-newline elsewhere (blocked)" $'cat <<EOF\nx\\\ny\nit\'s $(git reset --hard) ok\'\nEOF' 2
+run "unquoted heredoc body, a comment after a subshell ) in \$( ) (blocked)" $'cat <<EOF\n$( (:)# )\ngit reset --hard)\nEOF' 2
+run "unquoted heredoc body, a comment after a subshell ) in \$(( ) (blocked)" $'cat <<EOF\n$((:)# )\ngit reset --hard)\nEOF' 2
+run "unquoted heredoc body, a backslash-newline in prose with \$HOME (allowed)" $'cat <<EOF\nit\'s a long \\\nline in $HOME\nEOF' 0
+hd_lines() { # <line> <count>: that line repeated, each after a newline
+  local s='' i
+  for ((i = 0; i < $2; i++)); do s+=$'\n'"$1"; done
+  printf '%s' "$s"
+}
+hd_nest() { # <levels>: `git reset --hard` inside that many nested here-doc bodies
+  local s='git reset --hard' i
+  for ((i = 1; i <= $1; i++)); do s=$'cat <<E'"$i"$'\n$('"$s"$'\n)\nE'"$i"; done
+  printf '%s' "$s"
+}
+run "here-docs nested ten deep in substitutions, innermost \$(git reset --hard) (blocked)" "$(hd_nest 10)" 2
+# shellcheck disable=SC2016  # literal shell text under test
+run "unquoted heredoc body of 20 \$(<<X lines, then git reset --hard (blocked)" "cat <<EOF$(hd_lines '$(<<X' 20)"$'\nEOF\ngit reset --hard' 2
+# Each `$( <<X` line opens a body holding the lines after it; the parse count
+# must stay linear in them, far inside the Bash row's 60 s hook timeout.
+bdg_t0=${EPOCHREALTIME/./}
+# shellcheck disable=SC2016  # literal shell text under test
+run "git reset --hard, then an unquoted heredoc body of 20 \$(: <<X lines (blocked)" "git reset --hard; cat <<EOF$(hd_lines '$(: <<X' 20)"$'\nEOF' 2
+bdg_ms=$(((${EPOCHREALTIME/./} - bdg_t0) / 1000))
+if ((bdg_ms < 10000)); then ok "20 nested \$(: <<X lines finish in ${bdg_ms} ms (under 10000)"; else bad "20 nested \$(: <<X lines took ${bdg_ms} ms (limit 10000)"; fi
+hd_nest_amb() { # <levels> <inner> [<after>]: hd_nest with <after> (default `; !(x)#`) after each opener
+  local s=$2 i
+  for ((i = 1; i <= $1; i++)); do s=$'cat <<E'"$i${3-; !(x)#}"$'\n$('"$s"$'\n)\nE'"$i"; done
+  printf '%s' "$s"
+}
+# An extglob-ambiguous `)#` after each nested opener: the extglob-on reading
+# and the extglob-off one both see every body, and its substitutions must still
+# be parsed once, not once per reading at each level.
+run "here-docs nested four deep, a \`!(x)#\` at each opener, innermost git reset --hard (blocked)" "$(hd_nest_amb 4 'git reset --hard')" 2
+bdg_pad=$(hd_lines ': padding padding padding padding padding padding' 60)
+bdg_t0=${EPOCHREALTIME/./}
+run "here-docs nested nine deep, a \`!(x)#\` at each opener, padding innermost (allowed)" "$(hd_nest_amb 9 "${bdg_pad#?}")" 0
+bdg_ms=$(((${EPOCHREALTIME/./} - bdg_t0) / 1000))
+if ((bdg_ms < 10000)); then ok "nine nested !(x)# here-docs finish in ${bdg_ms} ms (under 10000)"; else bad "nine nested !(x)# here-docs took ${bdg_ms} ms (limit 10000)"; fi
+bdg_t0=${EPOCHREALTIME/./}
+run "here-docs nested nine deep, a \`!(x)#<<F\` at each opener, padding innermost (allowed)" "$(hd_nest_amb 9 "${bdg_pad#?}" '; !(x)#<<F')" 0
+bdg_ms=$(((${EPOCHREALTIME/./} - bdg_t0) / 1000))
+if ((bdg_ms < 10000)); then ok "nine nested !(x)#<<F here-docs finish in ${bdg_ms} ms (under 10000)"; else bad "nine nested !(x)#<<F here-docs took ${bdg_ms} ms (limit 10000)"; fi
+run "unquoted heredoc body \$((1 + 2)) (allowed)" $'cat <<EOF\n$((1 + 2))\nEOF' 0
+run "second heredoc on the line, unquoted, \$(git reset --hard) (blocked)" $'cat <<\'A\' - <<B\nx\nA\n$(git reset --hard)\nB' 2
+run "quoted-delimiter heredoc body \$(git reset --hard) (data, allowed)" $'cat <<\'EOF\'\n$(git reset --hard)\nEOF' 0
+run "double-quoted-delimiter heredoc body \$(git reset --hard) (data, allowed)" $'cat <<"EOF"\n$(git reset --hard)\nEOF' 0
+run "backslashed-delimiter heredoc body \$(git reset --hard) (data, allowed)" $'cat <<\\EOF\n$(git reset --hard)\nEOF' 0
+run "escaped \\\$(git reset --hard) in an unquoted body (literal, allowed)" $'cat <<EOF\n\\$(git reset --hard)\nEOF' 0
+run "unquoted heredoc body \$(git status) and \$HOME (allowed)" $'cat <<EOF\n$(git status) in $HOME\nEOF' 0
 run "git -c alias.rh='reset --hard' rh (inline git alias, blocked)" "git -c alias.rh='reset --hard' rh" 2
 run "git -c alias.nuke='!git reset --hard' nuke (inline shell alias, blocked)" "git -c alias.nuke='!git reset --hard' nuke" 2
 run "git -c alias.st=status st (safe alias, allowed)" "git -c alias.st=status st" 0
@@ -904,8 +1073,7 @@ run_pwsh "PS: NO-GIT label in scriptblock (allowed — #2592)" \
 run_pwsh "PS: gh title mentioning -git and PowerShell (allowed — #2592)" \
   "gh issue create --title 'guardrails: block-dangerous-git.sh blocks PowerShell commands'" 0
 # Intermediate path directory named Git is not a git invocation.
-run_pwsh "PS: call-op to bash under Git\\bin (allowed — #2592, basename is bash)" \
-  "& 'C:\\Program Files\\Git\\bin\\bash.exe' -c 'echo ok'" 0 # portability-ok: Windows path string in a test fixture, not a regex/sed construct
+run_pwsh "PS: call-op to bash under Git\\bin (allowed — #2592, basename is bash)" "& 'C:\\Program Files\\Git\\bin\\bash.exe' -c 'echo ok'" 0 # portability-ok: Windows path strings in a test label and fixture, not a regex/sed construct
 # Drive-relative git.exe (C:git.exe) must still count as git (Codex review on #2592).
 run_pwsh "PS: drive-relative C:git.exe reset --hard (blocked — #2592)" \
   "& 'C:git.exe' --% reset --hard" 2

@@ -1,0 +1,26 @@
+{
+  "no-ack-flag": [
+    {
+      "use": "command_anywhere"
+    },
+    "-AcceptAntiCheatRisk\\b"
+  ],
+  "no-force-flag": [
+    {
+      "use": "command_anywhere"
+    },
+    "\\s-Force\\b"
+  ],
+  "no-apply-run": [
+    {
+      "use": "command_anywhere"
+    },
+    "-Verb\\s+apply\\b"
+  ],
+  "no-eac-tamper": [
+    {
+      "use": "command_anywhere"
+    },
+    "(?:\\brm\\b|\\brmdir\\b|\\bdel\\b|Remove-Item|Rename-Item|Move-Item|\\bmv\\b|\\bsc(?:\\.exe)?\\s+(?:stop|delete|config)\\b|Stop-Service|Set-Service)(?:[^\"\\\\]|\\\\.)*?EasyAntiCheat"
+  ]
+}

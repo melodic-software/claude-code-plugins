@@ -3,12 +3,24 @@
     {
       "answer": "---\ntype: review-findings\nbranch: refactor/return-await\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | low | src/users.js:9 | code-reviewer | loadProfile now only forwards findUser; the route could call findUser directly. | Consider inlining loadProfile |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
       "why": "no finding has CRITICAL in its Tier column"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/return-await\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | high | src/users.js:9 | code-reviewer | Without the await, loadProfile returns a pending promise and the route gets a Promise instead of the user. | Restore the await |\n| 2 | IMPORTANT | medium | src/users.js:9 | security-reviewer | A rejected findUser lookup now goes unhandled because the await is gone. | Restore the await |\n\n## Surfaces\n\nRan: [code-reviewer@high, security-reviewer@high]. Returned no result: [].",
+      "why": "decoy: only CRITICAL findings count, and both wrong claims here are IMPORTANT"
     }
   ],
   "fail": [
     {
       "answer": "---\ntype: review-findings\nbranch: refactor/return-await\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/users.js:9 | code-reviewer | Dropping the await means a rejected database query is no longer caught and now crashes the process as an unhandled rejection. | Restore the await |\n\n## Surfaces\n\nRan: [code-reviewer@high, security-reviewer@high]. Returned no result: [].",
       "why": "a CRITICAL finding makes the wrong claim that a rejection now goes unhandled"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/return-await\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | low | src/users.js:9 | code-reviewer | loadProfile could be inlined into the route. | Inline loadProfile |\n| 2 | CRITICAL | low | src/db.js:3 | security-reviewer | new pg.Pool() sets no connection limit or timeout, so a slow database can exhaust connections under load. | Configure the pool |\n\n## Surfaces\n\nRan: [code-reviewer@high, security-reviewer@high]. Returned no result: [].",
+      "why": "decoy: every CRITICAL finding counts, including one about unchanged src/db.js outside not_defects; the low Confidence is ignored"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/return-await\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | medium | src/users.js:5 | architecture-guardian | This branch changes findUser to return null for a missing row instead of throwing, so the route's error path no longer runs. | Revert findUser |\n\n## Surfaces\n\nRan: [architecture-guardian@high]. Returned no result: [].",
+      "why": "a CRITICAL finding claims findUser changed on this branch"
     }
   ]
 }

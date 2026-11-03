@@ -250,6 +250,8 @@ def block($d):
          "    predicted against the unrefreshed catalog (lastUpdated \(.catalog_last_updated // "unknown")), a lower bound on what sync would update"
        elif .refresh.rc != null and .refresh.rc != 0 then
          "  refresh failed (exit \(.refresh.rc)): \(.refresh | reported)"
+       elif .refresh.skipped != null then
+         "  refresh skipped: the clone is at \(.refresh.skipped.head | short_sha), where origin \(.refresh.skipped.ref) points"
        else empty end),
 
       # In-repo: a fixed row with three variants, picked by two digest fields.
@@ -284,6 +286,13 @@ def block($d):
        end),
 
       # The records of every other present path, updated from that path.
+      (if (($op.skipped.records // 0) > 0) then
+         "Behind in other paths: \($op.skipped.records) record(s) in \($op.skipped.paths) path(s), not updated",
+         "  remedy: /harness-ops:plugins sync --update-other-paths"
+       else empty end),
+      (if ($op.catalog_moved // 0) > 0 then
+         "Catalog moved during this run: \($op.catalog_moved) plugin(s), records updated before the move lag it"
+       else empty end),
       (if $audit then
          (if (($op.would_update // []) | length) > 0 then
             "Would update in other paths: \($op.would_update | length) record(s)",
@@ -421,17 +430,24 @@ def block($d):
       # One sub-line per project path holding a skewed record, so the count names where
       # the work is. A path converge cannot act on says why; a digest written before
       # `class` renders every path bare. A digest written before `by_path` renders the
-      # count lines alone.
-      ((.divergences.by_path // []) as $paths
-       | if ($paths | length) == 0 then empty
+      # count lines alone. The paths that are not present get one count line, since
+      # the stale project records section counts each of them; a digest written before
+      # `blocked_paths` carries them in `by_path`, and the count is taken from there.
+      ((.divergences.by_path // []) as $all
+       | [$all[] | select(.class != "blocked")] as $paths
+       | (.divergences.blocked_paths
+          // ([$all[] | select(.class == "blocked")] | {paths: length, records: (map(.count) | add // 0)})) as $absent
+       | if ($paths | length) == 0 and ($absent.paths // 0) == 0 then empty
          else
            "  by project path:",
            ($paths[]
             | "    - \(.path)"
-              + (if .class == "blocked" then " (not present)"
-                 elif .class == "worktree" then " (linked worktree)" else "" end)
+              + (if .class == "worktree" then " (linked worktree)" else "" end)
               + ": \(.count) diverging record(s): \(.ids | join(", "))"
-              + (if (.more // 0) > 0 then ", +\(.more) more" else "" end))
+              + (if (.more // 0) > 0 then ", +\(.more) more" else "" end)),
+           (if ($absent.paths // 0) > 0 then
+              "    - \($absent.paths) path(s) not present: \($absent.records) diverging record(s), counted under Stale project records"
+            else empty end)
          end),
 
       # The digest names this plugin's own row; a digest written before it did

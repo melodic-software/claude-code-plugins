@@ -3,6 +3,18 @@
     {
       "answer": "Intent: ops can download the filtered order list from the admin orders page as CSV.\nChanged since read-back: Q5, the file is now orders-export-<timestamp>.csv.\nNew assumptions from the sweep: exports run synchronously in the request; the export respects the user's row-level permissions.\nQ1-Q4 and Q6-Q8 stand as read back.\n\nConfirm, or give me the numbers to change.",
       "why": "intent, the change, the two new assumptions, nothing re-listed"
+    },
+    {
+      "answer": "Intent: CSV export of the admin orders page.\nChanged since read-back: Q5, orders-export-<timestamp>.csv.\nQ1-Q4 and Q6-Q8 are unchanged.\nNew assumptions: the export respects row-level permissions, and it runs synchronously in the request, which the 50,000-row cap with gzip off keeps bounded.\n\nConfirm, or name the items to change.",
+      "why": "two unchanged values cited as context for an assumption, not re-listed"
+    },
+    {
+      "answer": "Intent: CSV export of the admin orders page.\nChanged since read-back: Q5, the file is now orders-export-<timestamp>.csv, with the timestamp in UTC to match your timestamps answer.\nQ1-Q4 and Q6-Q8 stand as read back.\nNew assumptions: exports run synchronously in the request; the export respects row-level permissions.\n\nConfirm, or name the items to change.",
+      "why": "one unchanged value (UTC) cited for the changed Q5, not re-listed"
+    },
+    {
+      "answer": "Intent: CSV export of the admin orders page.\nChanged since read-back: Q5, orders-export-<timestamp>.csv.\nThe other seven answers are unchanged.\nQ9: Should exports run synchronously in the request? The 50,000-row cap bounds the work, but the request timeout is unknown.\nNew assumption: the export respects row-level permissions.\n\nAnswer Q9, then confirm.",
+      "why": "one unchanged value (the 50,000-row cap) cited for a new question, not re-listed"
     }
   ],
   "fail": [

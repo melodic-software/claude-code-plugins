@@ -3,6 +3,18 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.9] - 2026-11-03
+
+### Fixed
+
+- The shared `lib/publish-gate.mjs` copy's leak scan (`scanLeak`) now also reads JSON-encoded text with its `\n`, `\r` and `\t` escapes decoded, so a credential at the start of a line or after a tab blocks. Nothing in this plugin calls `scanLeak`, and its publish gate behaves as before (#12562).
+
+## [0.13.8] - 2026-11-02
+
+### Changed
+
+- Hook notices name the bundled checker command; `check` is optional (#12485).
+
 ## [0.13.7] - 2026-11-02
 
 ### Changed

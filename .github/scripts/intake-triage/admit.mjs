@@ -13,8 +13,9 @@
 // (workCharges), and on an edit that moved one into code (revisionWraps),
 // whatever the verdict flagged.
 // Criterion 4 (no protected path named) applies only to the paths the issue
-// lane cannot push (unpushablePaths), named outside a clause that leaves them
-// unchanged ("no file under X is edited"). This checks the rest:
+// lane cannot push, named in a criterion (unpushablePaths) or anywhere in the
+// body outside a code fence (bodyUnpushablePaths), outside a clause that
+// leaves them unchanged ("no file under X is edited"). This checks the rest:
 //
 // - 2: the Issue Type is in `types`, or in `types-under-parent` under an open
 //   parent issue a listed human filed that awaits no decision; a type in
@@ -36,7 +37,10 @@
 //   (refinementSpec); and the body of a sub-issue a size split filed, under
 //   the split-child trust rule (splitChildBody). Nothing else the lanes App wrote counts,
 //   an App-filed issue included, and an issue with more comments than the
-//   100 pr-verify reads is refused, since pr-verify stops on it;
+//   100 pr-verify reads is refused, since pr-verify stops on it. On a triage
+//   verdict, when the criteria are all that is missing and intake's
+//   refinement of the body is due (refineDue), the issue waits at
+//   `status: ready` for it instead of being refused;
 // - attended (owner decision 2026-10-28): no manual external step. The
 //   counted refinement's External state line (externalState) reading
 //   `manual (...)` refuses, parks at status: confirmed and adds `attended`,
@@ -63,8 +67,9 @@
 //   admission-deferred add (deferralLapsed);
 // - lane-runnable done-when: no task-list item asks for what an unattended
 //   lane run cannot do (unrunnableCriteria below): a run on a named host or
-//   OS, a paid eval (trigger probes and before-and-after eval numbers
-//   included), a live Claude Code CLI run, a run repeated N times, a
+//   OS, a model eval run (trigger probes and before-and-after eval numbers
+//   included; one that names a billing account is a paid eval), a live
+//   Claude Code CLI run, a run repeated N times, a
 //   measurement over time, a comment on the issue instead of a file change,
 //   or a page on a host outside resolve-issue's web-access domains. When some
 //   items are left for the lane and the issue lacks `host-run`, the refusal
@@ -85,8 +90,9 @@
 //   could not read (fail-open), or with the lane paused over the WIP or held
 //   cap (from wip.pause-from), the issue gets
 //   `admission-deferred`, which work-unblock's hourly sweep admits once there
-//   is room. With room, an issue still waits behind an older open issue in
-//   `admission-deferred`, so admission takes the oldest first (owner Q95).
+//   is room. With room, an issue still waits behind an older open issue
+//   deferred for room alone (deferredAhead), so admission takes the oldest
+//   first (owner Q95); one deferred for an open pull request or a hold is not ahead.
 //   Runs for other issues read the same room in parallel, so a capped issue
 //   first claims its place with `admission-deferred` and takes `agent-ready`
 //   only while fewer than the room entered admission ahead of it
@@ -437,33 +443,40 @@ const FREE = String.raw`(?![^,;:]*\b(?:validate|dry[- ]run|no-spend)\b)`;
 // The trigger-probe harness or the plugin-eval command, not its own test;
 // the harness's validate, score, compare and emit-plugin-eval run no model.
 const EVAL_HARNESS = String.raw`(?:\bmeasure-invocation(?!\.test\b)(?!(?:\.sh)?\s+(?:score|compare|emit-plugin-eval)\b)|\/evals:plugin-eval)\b${FREE}`;
-// The unrunnable kind that can bill the owner: an owner decision, never the
-// host queue.
+// A model eval run spends subscription usage or the accounts' promotional API
+// credits, which stop at a spending limit and never bill (owner direction
+// 2026-11-02), so it goes to the host queue. Only one that names a billing
+// account (BILLED) can bill the owner: an owner decision, never the host queue.
+export const EVAL_RUN = "a model eval run";
 export const PAID_EVAL = "a paid eval";
+// A provider other than the subscriptions and the credits (Bedrock, Vertex,
+// Foundry, a cloud account, `--provider`, `CLAUDE_CODE_USE_*`) bills too.
+const BILLED =
+  /\b(?:azure|larger(?:[- ][a-z]+){0,3}[- ]runners?|(?:actions|private[- ]repo(?:sitory)?) (?:minutes|storage)|api keys? (?:beyond|outside|past) the (?:promotional )?credits?|paid api keys?|billed api keys?|bedrock|vertex|foundry|aws|amazon|gcp|google cloud|openai|openrouter|claude_code_use_\w+)\b|--provider\b/i;
+const EVAL_PATTERN = new RegExp(
+  [
+    String.raw`\b(?:run|execute|launch|start)\b[^,;:]{0,40}\b(?:paid evals?|claude plugin eval\b${FREE})`,
+    // The trigger probes and plugin evals a measured skill rewrite reports:
+    // the harness with a run before it or a measured output after it.
+    String.raw`\b(?:run|execute|launch|start)\b[^,;:]{0,40}${EVAL_HARNESS}`,
+    String.raw`${EVAL_HARNESS}[^,;:.]{0,60}\b(?:trigger (?:scores?|rates?)|with and without|deltas?|before and (?:the )?after)\b`,
+    String.raw`\bPR body\b[^.;]{0,120}\bbefore and (?:the )?after\b[^.;]{0,60}\b(?:numbers|trigger rates?|scores?)\b`,
+  ].join("|"),
+  "i",
+);
 // What an automation does stays with the lane: an item that only describes it
 // is code the lane can write.
 const SCRIPT_NOUN = String.raw`(?:workflow|script|lane|app|hook|skill|action|job|bot|sweep)`;
 const CONDITIONAL = /^\s*(?:if|when|whenever|unless|once)\b/i;
 const BY_SCRIPT = new RegExp(String.raw`^[^.;]*\bby (?:the )?(?:\S+\.(?:mjs|js|ts|sh|py|ps1)|(?:\S+ )?${SCRIPT_NOUN})\b`, "i");
 const UNRUNNABLE = [
+  // First, so a billed eval on a named host still goes to the owner.
+  [PAID_EVAL, { test: (text) => EVAL_PATTERN.test(text) && BILLED.test(text) }],
   [
     "a run on a host the lane is not",
     /\b(?:on|from|in) (?:a |an |the |another |each )?(?:windows(?: 1[01])?|macos|mac|wsl2?|fleet|physical|desktop|remote|attended) (?:host|machine|workstation|laptop|desktop|box|vm)s?\b/i,
   ],
-  [
-    PAID_EVAL,
-    new RegExp(
-      [
-        String.raw`\b(?:run|execute|launch|start)\b[^,;:]{0,40}\b(?:paid evals?|claude plugin eval\b${FREE})`,
-        // The trigger probes and plugin evals a measured skill rewrite reports:
-        // the harness with a run before it or a measured output after it.
-        String.raw`\b(?:run|execute|launch|start)\b[^,;:]{0,40}${EVAL_HARNESS}`,
-        String.raw`${EVAL_HARNESS}[^,;:.]{0,60}\b(?:trigger (?:scores?|rates?)|with and without|deltas?|before and (?:the )?after)\b`,
-        String.raw`\bPR body\b[^.;]{0,120}\bbefore and (?:the )?after\b[^.;]{0,60}\b(?:numbers|trigger rates?|scores?)\b`,
-      ].join("|"),
-      "i",
-    ),
-  ],
+  [EVAL_RUN, EVAL_PATTERN],
   // The lane's Bash runs only named wrappers, and a nested CLI gets no credential.
   [
     "a live Claude Code CLI run",
@@ -740,21 +753,66 @@ const workSections = (prose, text, workHeadings) => {
   return { known, lines };
 };
 
+// What the issue will do, not background text (owner decision 2026-10-31
+// Q1): a charge word counts in every clause but one that only lowers or
+// removes the charge (LOWERING) and does not also take one on (CHARGING), such
+// as "shorten their retention" or "set a retention policy". An unlisted verb
+// still counts, so the cost hold fails closed. A clause that lowers a guard on
+// spend (SAFEGUARD), or names a charge it moves to (TOWARD), still counts.
+const LOWERING =
+  /\b(?:shorten\w*|reduc\w*|lower\w*|drop\w*|remov\w*|delete[sd]?|deleting|disable[sd]?|disabling|(?:cut|cuts|cutting)(?! over)|bound|bounds|bounded|bounding|trim\w*|turn(?:s|ed|ing)? off|cancel\w*|retir\w*|set(?:s|ting)? (?:an? |the )(?:[\w-]+ ){0,2}polic(?:y|ies))\b/i;
+const CHARGING =
+  /\b(?:buy|buys|buying|bought|purchas\w*|pay|pays|paying|add|adds|adding|added|creat\w*|provision\w*|deploy\w*|enabl\w*|turn(?:s|ed|ing)? on|rais\w*|increase[sd]?|increasing|extend\w*|lengthen\w*|upgrad\w*|take|takes|taking|mov(?:e|es|ed|ing)|switch\w*|migrat\w*|adopt\w*|subscrib\w*|needs?|requires?|uses?|using|runs?|running|bump\w*|doubl\w*|expand\w*|spin(?:s|ning)? up|spun up|allocate[sd]?|allocating|allocations?|configure[sd]?|configuring|keep|keeps|keeping|kept|sign(?:s|ed|ing)? up|opt(?:s|ed|ing)? in|set(?:s|ting)?(?! (?:an? |the )(?:[\w-]+ ){0,2}polic))\b/i;
+// A billing account admission reads as a charge beside the shared words, in
+// every clause the cost words count in.
+const ADMIT_CHARGES = /\bazure\b/gi;
+const SAFEGUARD = /\b(?:spend(?:ing)?[- ](?:limits?|caps?)|caps?|budgets?|quotas?)\b/i;
+// The charge a clause that lowers or raises a guard on money (SPEND_LIMIT)
+// reads as when it names no cost word: changing one is the owner's call either
+// way. A lane's verify, round, turn or API cap is not one.
+const SPEND_GUARD = "a spend guard";
+const SPEND_LIMIT = /\b(?:spend(?:ing)?|billing|costs?|budget|dollar)[- ](?:limits?|caps?|budgets?|quotas?)\b|\b(?:limits?|caps?|budgets?|quotas?) (?:on|for) (?:spend\w*|billing|costs?)\b|\$\s?\d/i;
+const TOWARD = /\b(?:for|with|in favou?r of|instead of|in place of|over to)\b/i;
+const clauseCharges = (clause, charges, isPublic) => [...chargeWordsIn(clause, charges, isPublic), ...[...clause.matchAll(ADMIT_CHARGES)].map((m) => m[0].toLowerCase())];
+// A clause whose charge words the work only lowers: a LOWERING verb, no
+// CHARGING one, no SAFEGUARD, and no charge word after a TOWARD marker.
+const lowersOnly = (clause, charges, isPublic) => {
+  if (!LOWERING.test(clause) || CHARGING.test(clause) || SAFEGUARD.test(clause)) {
+    return false;
+  }
+  const at = clause.search(TOWARD);
+  return at < 0 || clauseCharges(clause.slice(at), charges, isPublic).length === 0;
+};
+// A clause ends at a sentence end, or at a line break before a blank line or
+// a list item.
+const clausesOf = (text) => String(text).split(/[.;!?](?=\s|$)|\n(?=\s*(?:$|[-*+]\s|\d+[.)]\s))/);
+
 // The charge words in what an issue will do, each once: its `title`, and its
 // `body`'s task items and work sections (workSections), or the whole body with
-// neither. Each is read alone, so a fence one leaves open never closes in the
-// other. Comments are not read. Pure.
+// neither, each counted in every clause but a LOWERING one. Each is read alone, so a
+// fence one leaves open never closes in the other. Comments are not read.
+// Pure.
 export function workCharges({ title, body }, charges, isPublic, taskList) {
   const read = (text) => withoutCode(text, charges.code);
   const prose = read(body);
   const lines = prose.split("\n");
   // An item's extent comes from `body`: a line of code alone blanks to
   // nothing, which would end the item. Its words come from outside code.
-  const items = taskItems(body, taskList).flatMap(({ line, more }) => [line, ...more].map((index) => lines[index]));
+  const items = taskItems(body, taskList).map(({ line, more }) => [line, ...more].map((index) => lines[index]).join(" "));
   const sections = workSections(prose, body, charges.workHeadings);
   const whole = !sections.known && !hasTaskLine(prose, taskList);
-  const parts = [read(title), ...items, ...(whole ? [prose] : sections.lines)];
-  return [...new Set(parts.flatMap((part) => chargeWordsIn(part, charges, isPublic)))];
+  const parts = [read(title), ...items, ...(whole ? [prose] : [sections.lines.join("\n")])];
+  return [
+    ...new Set(
+      parts
+        .flatMap(clausesOf)
+        .filter((clause) => !lowersOnly(clause, charges, isPublic))
+        .flatMap((clause) => {
+          const words = clauseCharges(clause, charges, isPublic);
+          return words.length === 0 && SPEND_LIMIT.test(clause) && (LOWERING.test(clause) || CHARGING.test(clause)) ? [SPEND_GUARD] : words;
+        }),
+    ),
+  ];
 }
 
 const tally = (words) => words.reduce((counts, word) => counts.set(word, (counts.get(word) ?? 0) + 1), new Map());
@@ -970,9 +1028,46 @@ export function unpushablePaths(body, taskList, names, workflows) {
   return [...new Set(paths)];
 }
 
+// A body line that cites evidence ("Basis: ...", "See ..."), and a path cited
+// at a line (`a.yml:3`): what the body points at, not what the work changes.
+const EVIDENCE_LINE = /^\s*(?:[-*+]\s+|\d+[.)]\s+)?(?:\*\*|_)?(?:basis|evidence|source|sources|see|seen in|refs?|cited?)\b/i;
+const CITED_AT = /`[^`\n]*:\d+(?:-\d+)?`|\S+:\d+(?:-\d+)?(?=[\s.,;)\]]|$)/g;
+
+// The paths the prose of `body` names that apply-patch refuses under `names`:
+// each line outside a code fence and outside every task-list item (which
+// unpushablePaths reads), read as plainText, less an evidence line, a path
+// cited at a line, and a path named only in a shape that leaves it
+// unmodified (NEGATED), each once. Consecutive prose lines are read as one
+// paragraph, so a negation soft-wrapped across lines still holds; a blank
+// line, a bullet, a heading or a line left out ends one. Pure.
+export function bodyUnpushablePaths(body, taskList, names, workflows) {
+  const lines = String(body ?? "").split("\n");
+  const blocks = fenceBlocks(lines);
+  const items = new Set(taskItems(body, taskList).flatMap(({ line, more }) => [line, ...more]));
+  const paragraphs = [];
+  let open = false;
+  lines.forEach((raw, index) => {
+    const line = plainText(raw);
+    if (blocks[index] !== 0 || items.has(index) || EVIDENCE_LINE.test(line) || line.trim() === "") {
+      open = false;
+      return;
+    }
+    const starts = BULLET.test(raw) || /^\s*#/.test(raw);
+    if (open && !starts) {
+      paragraphs[paragraphs.length - 1] += ` ${line.trim()}`;
+    } else {
+      paragraphs.push(line);
+    }
+    open = !/^\s*#/.test(raw);
+  });
+  const paths = paragraphs.flatMap((text) => pathTokens(withoutNegated(text.replace(CITED_AT, " ")), workflows).filter((path) => names.some((name) => PROTECTED_REFUSALS[name].test({ path: dotted(path) }))));
+  return [...new Set(paths)];
+}
+
 // The refusal reason for unrunnableCriteria's result, with the split it
-// recommends, or null when every item is runnable. Host work goes to the host
-// queue (`host-run`); a paid eval, which can bill the owner, to the owner.
+// recommends, or null when every item is runnable. Host work, a model eval
+// run included, goes to the host queue (`host-run`); a paid eval, which names
+// a billing account and so can bill the owner, to the owner.
 export function unrunnableReason({ items, found }) {
   if (found.length === 0) {
     return null;
@@ -1141,7 +1236,8 @@ export function admissionSettled(labels, events, isMark) {
 // refusal that parks at needs-decision: an untrusted author or provenance, a
 // lanes App issue no size split filed, a person-held label, a body `Hold:`
 // line or a charge word (the owner's 2026-10-26 rule keeps a
-// person out of every other refusal), a paid-eval done-when item, or, on an
+// person out of every other refusal), a paid-eval done-when item (one that
+// names a billing account; a model eval run alone goes to the host queue), or, on an
 // issue without a trusted `host-run` (addedByTrusted), done-when items a lane
 // run cannot perform beside items it can, which refine
 // splits only from needs-decision (refine.mjs splitOf). `hostRun: true` asks
@@ -1257,8 +1353,10 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   const criteria = unrunnableCriteria(lines.join("\n"), rules["task-list"], webHosts);
   const unrunnable = unrunnableReason(criteria);
   // An issue a listed human or the App put in the host queue parks at
-  // status: confirmed. A paid eval can bill the owner, an owner stop reason
-  // (docs/contracts/loop-lane/README.md), so it holds for a person.
+  // status: confirmed. A paid eval names a billing account and can bill the
+  // owner, an owner stop reason (docs/contracts/loop-lane/README.md), so it
+  // holds for a person; a model eval run spends only usage and credits that
+  // stop at a limit, so it is host work.
   const paid = criteria.found.some(({ kind }) => kind === PAID_EVAL);
   const queued = labels.includes(HOST_RUN) && addedByTrusted(events, HOST_RUN, humans, appId);
   const queue = unrunnable !== null && !queued && !paid;
@@ -1273,9 +1371,17 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   // The title is not read: it names the subject, often a workflow whose
   // script alone changes. Each text is read alone, so a fence one leaves open
   // does not run on into the next.
-  const unpushable = [...new Set(texts.flatMap((text) => unpushablePaths(text, rules["task-list"], pushRefusals, workflows)))];
+  // The body's own prose counts too, whoever wrote it, less the checks a
+  // person runs (personChecks).
+  const body = String(spec?.body ?? issue.body ?? "");
+  const unpushable = [
+    ...new Set([
+      ...texts.flatMap((text) => unpushablePaths(text, rules["task-list"], pushRefusals, workflows)),
+      ...bodyUnpushablePaths(moved.length > 0 ? withoutItems(body, rules["task-list"], moved) : body, rules["task-list"], pushRefusals, workflows),
+    ]),
+  ];
   if (unpushable.length > 0) {
-    refuse.push(`a criterion names ${unpushable.join(", ")}, which the issue lane cannot push (patch-protected-path); a builder session takes it`);
+    refuse.push(`its body or a criterion names ${unpushable.join(", ")}, which the issue lane cannot push (patch-protected-path); a builder session takes it`);
   }
   // A metered or renewing charge needs the owner's decision, whatever the
   // verdict flagged. A word an edit moved into code leaves this read, so that
@@ -1367,6 +1473,14 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   }
   if (!hold && openSubs.length > 0) {
     return { verdict: "wait", reasons: wait, pulls };
+  }
+  // On a triage verdict whose only obstacle is the criteria, intake's
+  // refinement (refineDue) may supply them, so the issue waits at status:
+  // ready, and refine.mjs asks triage again once its refinement holds them.
+  // The criteria gate itself stands: only the refusal becomes a wait.
+  const criteriaOnly = refuse.length === 1 && refuse[0] === noTrustedSpec(rules["task-list"]);
+  if (criteriaOnly && !hold && parked.length === 0 && wait.length === 0 && verdict.writtenAt !== undefined && !labels.includes("needs-human") && refineDue(spec, humans, appId, rules["task-list"])) {
+    return { verdict: "wait", reasons: [`${refuse[0]}; intake's refinement of this body is due and may supply them`], pulls: [] };
   }
   if (refuse.length > 0) {
     // host-run starts an unattended host run, so it goes only on an issue
@@ -1607,6 +1721,30 @@ export async function specOf(github, repository, number) {
   }
   const { body, lastEditedAt, author, editor } = issue;
   return { body, lastEditedAt, author, editor, commentCount: issue.comments.totalCount, comments: issue.comments.nodes };
+}
+
+// refine.mjs isThin's task-list prefix.
+const REFINE_TASK = "- [ ] ";
+
+// Whether intake's refinement run follows this triage of `spec` and its
+// refinement will count: refine.mjs refines a body with no REFINE_TASK line
+// (isThin) that the lanes App (`appId`) has not refined yet (bodyVersion),
+// admission counts it only on a body a listed human wrote
+// (countedRefinement), and refine asks triage again only while the comments,
+// admission's own and the refinement included, stay under SPEC_COMMENTS.
+// `taskList` must be refine's prefix. Pure.
+export function refineDue(spec, humans, appId, taskList) {
+  if (!spec || taskList !== REFINE_TASK || appId === undefined || !writtenBy(humans)(spec) || !(spec.commentCount + 2 <= SPEC_COMMENTS)) {
+    return false;
+  }
+  const body = String(spec.body ?? "");
+  if (body.split("\n").some((line) => line.trimStart().startsWith(REFINE_TASK))) {
+    return false;
+  }
+  const version = bodyVersion(body);
+  return !(spec.comments ?? []).some(
+    (comment) => comment?.author?.__typename === "Bot" && comment.author.databaseId === appId && String(comment.body ?? "").startsWith(REFINE_MARKER) && String(comment.body).split("\n")[1] === version,
+  );
 }
 
 export const noTrustedSpec = (taskList) =>
@@ -2185,14 +2323,25 @@ export async function admissionFacts({ github, repository, number, issue, rules,
   };
 }
 
-// Whether an open issue created before `issue` carries admission-deferred:
-// one search. An unreadable or incomplete answer counts as one, since the
-// sweep admits deferred issues oldest first anyway. It counts every older
-// deferred issue, including one the sweep keeps deferred for an open pull
-// request or an untrusted label; that costs a newer issue at most one hourly
-// sweep's wait, never a stall, and reading each one's events to tell them
-// apart would cost a call per deferred issue.
-async function deferredAhead(github, repository, issue) {
+// How many of the oldest older deferred issues deferredAhead reads.
+export const DEFERRED_AHEAD_READS = 10;
+
+// Whether an older deferred issue waits only for room: it keeps status: ready
+// and carries no person's hold (DEFERRAL_HOLDS) or UNTRUSTED, the issues the
+// sweep keeps deferred for something other than room or drops. Pure.
+export const roomDeferred = (labels) => {
+  const lower = names(labels).map((name) => String(name).toLowerCase());
+  return lower.includes(READY) && !lower.includes(UNTRUSTED) && !DEFERRAL_HOLDS.some((name) => lower.includes(name));
+};
+
+// Whether an open issue created before `issue` is deferred for room alone: it
+// carries admission-deferred, roomDeferred holds, and `pullsFor(number)`
+// (openPullsFor) names no open pull request for it, which the sweep waits on
+// instead of room. One search reads the oldest DEFERRED_AHEAD_READS; past
+// them, an older deferred issue counts as one. An unreadable or incomplete
+// answer counts as one, since the sweep admits deferred issues oldest first
+// anyway.
+export async function deferredAhead(github, repository, issue, pullsFor = (number) => openPullsFor(github, repository, number)) {
   const created = Date.parse(issue.created_at);
   if (!Number.isFinite(created)) {
     return true;
@@ -2200,8 +2349,16 @@ async function deferredAhead(github, repository, issue) {
   const before = new Date(created).toISOString().replace(/\.\d{3}Z$/, "+00:00");
   const q = `repo:${repository} is:issue is:open label:${DEFERRED} created:<${before}`;
   try {
-    const answer = await github("GET", `/search/issues?q=${encodeURIComponent(q)}&per_page=1`);
-    return answer?.incomplete_results !== false || answer.total_count !== 0;
+    const answer = await github("GET", `/search/issues?q=${encodeURIComponent(q)}&sort=created&order=asc&per_page=${DEFERRED_AHEAD_READS}`);
+    if (answer?.incomplete_results !== false || !Array.isArray(answer.items) || !Number.isSafeInteger(answer.total_count)) {
+      return true;
+    }
+    for (const item of answer.items) {
+      if (roomDeferred(item?.labels) && (await pullsFor(item.number)).length === 0) {
+        return true;
+      }
+    }
+    return answer.total_count > answer.items.length;
   } catch {
     return true;
   }
@@ -2356,7 +2513,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
   const full = s.paused || unread || !s.admission_open || (s.admission_room ?? 1) <= 0;
   if (full || (await deferredAhead(github, repository, issue))) {
     const why = !full
-      ? `an older ${DEFERRED} issue is ahead of it`
+      ? `an older issue deferred for room (${DEFERRED}) is ahead of it`
       : s.paused
         ? `the lane is paused (${s.pause_reason})`
         : unread

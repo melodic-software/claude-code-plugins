@@ -2,7 +2,8 @@
 
 // Generates the grouped plugin catalog in docs/catalog.md from the manifests,
 // per the generation contract in docs/catalog-taxonomy.md: marketplace.json owns
-// each plugin's category and ordering; plugin.json owns each description. The
+// the ordering; plugin.json owns each description and category (metadata.category,
+// copied into marketplace.json by scripts/generate-marketplace.mjs). The
 // block between the catalog markers is generated, never hand-edited. Run with no
 // argument to rewrite the block; run with --check to fail on drift (CI gate).
 
@@ -84,7 +85,7 @@ function taxonomyCategories() {
   return values;
 }
 
-// An unknown category in marketplace.json hard-errors below, but that gate is
+// An unknown category hard-errors below, but that gate is
 // one-way: it never compares CATEGORY_ORDER back to the document that claims
 // sole ownership of the vocabulary. Assert full order equality on
 // every run (generate and --check both), so a value added, dropped, renamed,
@@ -116,8 +117,8 @@ function buildBlock() {
   for (const plugin of marketplace.plugins) {
     if (!byCategory.has(plugin.category)) {
       throw new Error(
-        `${plugin.name}: category "${plugin.category}" is not in the taxonomy ` +
-          "vocabulary (docs/catalog-taxonomy.md). Add it there and to CATEGORY_ORDER first.",
+        `${plugin.name}: category "${plugin.category}" (plugin.json metadata.category) is not in ` +
+          "the taxonomy vocabulary (docs/catalog-taxonomy.md). Add it there and to CATEGORY_ORDER first.",
       );
     }
     const path = plugin.source.replace(/^\.\//, "");

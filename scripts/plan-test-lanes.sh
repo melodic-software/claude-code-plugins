@@ -56,8 +56,8 @@
 #
 # LEGS ARE SIZED FROM SUITE-SECONDS: ceil(seconds / budget), at least 1, at most
 # the lane's cap and the suite count. test-bash takes 120 s a leg (three suites
-# run at a time, so about 40 s of wall) up to 7 legs, and the whole tree always
-# takes 7; test-python takes 180 s a leg (one suite at a time) up to 9. A
+# run at a time, so about 40 s of wall) up to 12 legs, and the whole tree always
+# takes 12; test-python takes 180 s a leg (one suite at a time) up to 9. A
 # suite's seconds are its median wall in scripts/suite-seconds.txt, measured
 # over whole-tree CI runs; a suite the file does not list counts the mean of
 # the listed suites of its runner, rounded and at least 5, and a suite
@@ -373,7 +373,7 @@ pack() {
         if (p ~ /^plugins\/harness-ops\/skills\/inventory\//) s = s " inventory"
         if (p ~ /^plugins\/harness-ops\//) s = s " duckdb"
         if (p ~ /^plugins\/testing\/skills\/check-visual-parity\//) s = s " visualcheck"
-        if (p ~ /^plugins\/planning\/shared\/tests\/ui-[a-z]\.test\.sh$/ || p == "plugins/planning/shared/tests/align.test.sh") s = s " browser"
+        if (p ~ /^plugins\/planning\/shared\/tests\/(ui|align)-[a-z]\.test\.sh$/) s = s " browser"
         if (p == "plugins/guardrails/git-hooks/lefthook-remote.test.sh") s = s " lefthook"
         if (p == "plugins/playwright/skills/demo-video/scripts/demo-video.test.sh") s = s " demovideo"
         return s
@@ -424,7 +424,7 @@ pack() {
       }' || die "planning the $lane legs failed"
 }
 
-pack bash 120 7 "$whole" 3 "$WORK/bash" scripts/run-plugin-tests-serial.txt
+pack bash 120 12 "$whole" 3 "$WORK/bash" scripts/run-plugin-tests-serial.txt
 pack python 180 9 0 1 "$WORK/python"
 echo "node=$([[ -n "$node_packages" ]] && echo true || echo false)"
 echo "node_packages=$node_packages"

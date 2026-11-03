@@ -165,9 +165,11 @@ concurrency:
 # 2026-11-02 09:24 to 14:32Z, 2, held at the floor of 3; check-catalog work
 # 64 / 65 over the same 39 runs, 2, held at 3;
 # check-skills at most 585 / 645, the wall of a measured job
-# that ran all of its steps and more, 15; test-bash per leg about 230 on the
-# whole tree (171 s of suites estimated from scripts/suite-seconds.txt, a 158 s
-# suite among them, plus about 55 s of setup), 9; test-python per leg about
+# that ran all of its steps and more, 15; test-bash per leg about 340 on the
+# whole tree (12 legs; at 7, main's job p95 per leg was 428 to 516; a leg ends
+# no sooner than its longest suite, align.test.sh at about 310 s since
+# block-root-delete-target.test.sh runs in five parts, plus about 40 to 55 s of
+# setup), 9; test-python per leg about
 # 240 on the whole tree (1462 s of suites over 9 legs estimated from
 # scripts/suite-seconds.txt, which main measured 10 to 25% higher, plus 30 to
 # 75 s of setup; at 5 legs main's job p95 reached 414), 7;
@@ -3310,10 +3312,10 @@ jobs:
   # its row for that lane says 'false'; any other skipped lane is red
   # (scripts/check-docs-only-gate.sh pins both halves).
   #
-  # ONE TO SIX LEGS, SIZED FROM THE SELECTION. The plan packs the selected
+  # ONE TO TWELVE LEGS, SIZED FROM THE SELECTION. The plan packs the selected
   # suites into legs of about 120 suite-seconds each (scripts/suite-seconds.txt),
-  # longest first onto the least-loaded leg, at most six, and six on the whole
-  # tree. A leg costs about 45 s of setup before it runs a suite, so the count
+  # longest first onto the least-loaded leg, at most twelve, and twelve on the
+  # whole tree. A leg costs about 45 s of setup before it runs a suite, so the count
   # follows the work rather than a fixed fan-out. The job key stays one entry in
   # `ci-status.needs` at any size. `fail-fast: false` because a leg is a slice
   # of one selection: cancelling the others on the first failure would hide

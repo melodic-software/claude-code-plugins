@@ -3,6 +3,46 @@
 All notable changes to the `explainer-video` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.9] - 2026-11-02
+
+### Changed
+
+- Hook notices name the bundled checker command; `check` is optional (#12485).
+
+### Fixed
+
+- The shared hook library's Bash segment parser (`hook::bash_parse_segments`) now passes each substitution in an unquoted here-doc body (`$(...)`, a backtick pair, `${...}`, `$[...]`) to its callback as segments of their own, because bash runs them. A body under a quoted delimiter is still skipped as data.
+
+## [0.4.8] - 2026-11-02
+
+### Changed
+
+- The `SessionStart` hook `install-python-deps.sh` starts no process while its ready stamp holds: after a successful install with an interpreter found on PATH, `pydeps.py` writes `<data>/python/.hook-ready`, and the hook skips the interpreter probe, `cygpath` and the ManimCE load probe until the plugin root, a candidate interpreter's resolution, that interpreter's file, `requirements.txt`, `pydeps.py` or `pydeps.json` changes, or the installed set is gone. `pydeps.py run` drops the stamp when the set is missing or a script exits non-zero, and `check` when a row fails, so the next session start probes and rebuilds ([#12258](https://github.com/melodic-software/claude-code-plugins/issues/12258)).
+
+### Fixed
+
+- The shared `hook-utils.sh` Bash command parser keeps a `#` right after the closing `)` of an
+  array assignment, an extglob, `$(…)`, `$((…))`, `<(…)` or `>(…)`, or after a closing backtick,
+  in its word, as Bash does, instead of reading it as a comment that hid the rest of the line.
+  Those frames now stay open across `;`, `|`, `&` and newlines inside them, a `case` pattern's
+  `)` no longer closes one, and `case` or `esac` inside arithmetic is read as a variable name.
+- A comment, a quote of any kind, a here-doc delimiter or a here-doc body inside backticks now
+  ends at the closing backtick, as in Bash; an escaped backtick does not close it, and outside a
+  comment or quote it opens or closes a nested substitution whose commands are read.
+- Case statements follow Bash's pattern-position rules: a pattern spelled `case` opens nothing,
+  `esac` after `|` is a pattern, `case x in esac` closes on one line, and `\;;` is a word and a
+  `;`, not a clause end, and a pattern word that starts with `$(…)`, a backtick or `@(…)` is
+  the first pattern word. Inside an extglob or arithmetic a `#`, `<` or `>` is literal text.
+- `((…) )` and `$((…) )`, which Bash re-reads as nested subshells, are read as commands with
+  real redirections, not as arithmetic. The parentheses of a `[[ … =~ … ]]` regex are regex
+  text, not an array assignment.
+- A here-doc takes its body only at a newline on the level where it was read, so one read
+  before a `$(…)`, backtick, `a=(…)` or `@(…)` that spans lines takes its body after the line
+  where that construct closes; a syntax error inside `a=(…)` cancels the line's here-docs.
+- For `!(x)#` and `f@()#`, where the `#` is literal with `shopt -s extglob` and a comment
+  without it, the parser now reports the commands of both readings, and `HOOK_HEREDOC_BODIES`
+  lists each here-doc body once, in source order.
+
 ## [0.4.7] - 2026-11-02
 
 ### Changed

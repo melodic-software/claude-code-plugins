@@ -3757,6 +3757,43 @@ test("pr-run-activity-read.yml: after the collector, no checkout's post step fin
   assert.equal(runStep(remove, state.temp, {}).status, 1, "an unset workspace removes nothing");
 });
 
+test("pr-run-activity-write.yml: after the skill, no checkout's post step finds a .git/config to run git in", async (t) => {
+  const steps = workflow("pr-run-activity-write.yml").jobs.run.steps;
+  const remove = steps.find((s) => s.name === "Remove the checkouts' .git directories");
+  const at = (predicate) => steps.findIndex(predicate);
+  assert.equal(at((s) => s === remove), at((s) => s.id === "act-result") + 1, "right after the turn-cap check, the skill's own next step");
+  // Pinned, as the revoke step is: the skill could have changed PATH or BASH_ENV.
+  assert.equal(remove.run, undefined);
+  assert.match(remove.uses, /^actions\/github-script@[0-9a-f]{40}$/);
+  // A failed or cancelled skill still runs it, since the post steps run after a
+  // cancel; a script activity, which needs its checkout, never does.
+  assert.equal(evaluate(remove.if, { "steps.act-skill.outcome": "success" }), true);
+  assert.equal(evaluate(remove.if, { "steps.act-skill.outcome": "failure" }), true);
+  assert.equal(evaluate(remove.if, { "steps.act-skill.outcome": "cancelled" }), true);
+  assert.equal(evaluate(remove.if, { "steps.act-skill.outcome": "skipped" }), false);
+  // No step a skill run reaches after it runs git or checks out.
+  const gitAfter = steps.slice(at((s) => s === remove) + 1).filter((s) => /\bgit\b/.test(String(s.run ?? "")) || String(s.uses ?? "").startsWith("actions/checkout@"));
+  assert.deepEqual(gitAfter.map((s) => s.name), []);
+  const { createRequire } = await import("node:module");
+  const run = async (env) => {
+    let failed = null;
+    const core = { setFailed: (message) => (failed = message) };
+    await new AsyncFunction("require", "core", "process", remove.with.script)(createRequire(import.meta.url), core, { env });
+    return failed;
+  };
+  const state = plantedCheckout(t);
+  state.plant();
+  mkdirSync(join(state.work, ".base", ".git"), { recursive: true });
+  writeFileSync(join(state.work, ".base", ".git", "config"), "[core]\n\tfsmonitor = /bin/false\n");
+  assert.notEqual(await run({ WORKSPACE: "" }), null, "an empty workspace fails");
+  assert.equal(existsSync(join(state.work, ".git", "config")), true, "and removes nothing");
+  assert.equal(await run({ WORKSPACE: state.work }), null);
+  assert.equal(existsSync(join(state.work, ".git", "config")), false);
+  assert.equal(existsSync(join(state.work, ".base", ".git", "config")), false);
+  assert.equal(readFileSync(join(state.work, "tracked.txt"), "utf8"), "unchanged\n", "the work tree stays");
+  assert.equal(await run({ WORKSPACE: state.work }), null, "nothing to remove is no failure");
+});
+
 // --- the model job's payloads to the scan job, sealed ---
 
 // name=value lines from a GITHUB_OUTPUT file; the carry and seal steps write no heredoc.
@@ -4138,6 +4175,7 @@ test("the collect step classes a run whose issue file was not written, ahead of 
       ...context,
     });
   assert.equal(at({ "steps.write-issue.outputs.refused": "edited", "steps.write-issue.outcome": "failure" }), "issue-edited");
+  assert.equal(at({ "steps.write-issue.outputs.refused": "edited-trusted", "steps.write-issue.outcome": "failure" }), "issue-edited-trusted");
   assert.equal(at({ "steps.write-issue.outcome": "failure" }), "issue-file");
   assert.equal(at({ "steps.act-key.outputs.lane-class": "max-turns" }), "max-turns");
   assert.equal(at({ "steps.act-token.outputs.lane-class": "rate-limit" }), "rate-limit");
@@ -7866,4 +7904,34 @@ test("pr-run-activity-read.yml: issue-fields logs the API budget only when it ch
   assert.equal(runs("success"), true);
   assert.equal(runs(""), false, "the checkout skipped: no claim and no prune list");
   assert.equal(runs("failure"), false);
+});
+
+// A finished work-resolve-issue run starts the sweep: from main and this
+// repository only, whatever it concluded, unless it ran no job.
+test("work-unblock.yml: a finished work-resolve-issue run in this repository sweeps, a skipped or fork run does not", () => {
+  const doc = workflow("work-unblock.yml");
+  assert.deepEqual(doc.on.workflow_run, { workflows: ["work-resolve-issue"], types: ["completed"] });
+  const job = doc.jobs["label-unblocked"];
+  const runs = ({ event = "workflow_run", ref = "refs/heads/main", head = "melodic-software/claude-code-plugins", conclusion = "success", sender = "Bot" } = {}) =>
+    evaluate(job.if, {
+      "github.event.workflow_run.head_repository.full_name": head,
+      "github.event.workflow_run.conclusion": conclusion,
+      "github.event.sender.type": sender,
+      "github.event_name": event,
+      "github.repository": "melodic-software/claude-code-plugins",
+      "github.ref": ref,
+    });
+  for (const conclusion of ["success", "failure", "cancelled", "timed_out"]) assert.equal(runs({ conclusion }), true, conclusion);
+  assert.equal(runs({ conclusion: "skipped" }), false, "a run from a label other than agent-ready ran no job");
+  assert.equal(runs({ head: "someone/fork" }), false, "a fork's run");
+  assert.equal(runs({ ref: "refs/heads/feature" }), false);
+  assert.equal(runs({ event: "issues", sender: "Bot" }), false, "a bot's close still skips");
+  assert.equal(runs({ event: "issues", sender: "User" }), true);
+  const config = job.steps.find((step) => step.id === "config");
+  const resolves = (event, who, kill = "true") =>
+    evaluate(config.if, { "steps.kill.outputs.proceed": kill, "steps.who.outputs.proceed": who, "github.event_name": event });
+  assert.equal(resolves("workflow_run", ""), true, "the sweep has no closer to check");
+  assert.equal(resolves("issues", ""), false);
+  assert.equal(resolves("issues", "true"), true);
+  assert.equal(resolves("workflow_run", "", "false"), false, "the kill switch stops it");
 });

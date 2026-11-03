@@ -1,11 +1,11 @@
 {
   "name": "harness-ops",
-  "version": "5.6.0",
-  "description": "Claude Code operations: audit-skill-visibility (skills the listing budget hides), inventory (every invocable surface), audit-install-state, audit-performance (slowness), audit-mod-posture (mods and the guard), audit-native-overlap (skills duplicating built-ins), observability (telemetry), known-issues, changelog, behavior-probes, prerequisites, check, machine-profile, plugins (update the fleet), morning-brief, lanes (background loop sessions), setup. Plus opt-in hook event logs.",
+  "description": "Claude Code operations: audit-skill-visibility (skills the listing budget hides), inventory (every invocable surface), audit-install-state, audit-performance (slowness), audit-mod-posture (mods and the guard), audit-native-overlap (skills duplicating built-ins), observability (telemetry), known-issues, changelog, behavior-probes, prerequisites, check, machine-profile, plugins (update the fleet), lanes (background loop sessions), setup. Plus opt-in hook event logs.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
+  "version": "6.2.1",
   "license": "MIT",
   "keywords": [
     "claude-code",
@@ -22,8 +22,12 @@
     "marketplace",
     "dashboard",
     "performance",
-    "diagnostics"
+    "diagnostics",
+    "skill"
   ],
+  "metadata": {
+    "category": "claude-code"
+  },
   "userConfig": {
     "registry_dir": {
       "type": "string",
@@ -56,6 +60,12 @@
       "title": "Marketplaces without the autoUpdate hint",
       "description": "Comma-separated marketplace names whose sync report shows autoUpdate: off without the suggestion to enable it. Empty, the default, keeps the suggestion for every marketplace with autoUpdate off.",
       "default": ""
+    },
+    "update_other_paths": {
+      "type": "boolean",
+      "title": "Update other paths on sync",
+      "description": "Whether sync also updates the outdated project and local plugin records of every other present path on this machine, one CLI call per record. Off (the default), sync reports how many it left and how to update them.",
+      "default": false
     },
     "skill_usage_audit_enabled": {
       "type": "boolean",

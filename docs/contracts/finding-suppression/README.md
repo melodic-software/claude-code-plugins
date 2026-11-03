@@ -30,7 +30,7 @@ The consuming plugin names its own surface. The first adopter, `harness-config`'
 | Order | Layer | Path |
 |---|---|---|
 | 1 | user-global | `~/.claude/audit-pass.md` |
-| 2 | team (tracked) | `<home>/harness-config.yaml` (`<home>` from the convention-home pointer line, default `docs/conventions`); `.claude/audit-pass.md` only while that file is absent, for one release |
+| 2 | team (tracked) | `<home>/harness-config.yaml` (`<home>` from the convention-home pointer line, default `docs/conventions`) |
 | 3 | local overlay (gitignored) | `.claude/audit-pass.local.md` |
 
 In a YAML concern file the `suppressions` mapping sits at the root with the entry shape below; a

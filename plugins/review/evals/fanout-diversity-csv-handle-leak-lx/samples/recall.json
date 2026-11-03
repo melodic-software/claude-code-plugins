@@ -3,12 +3,24 @@
     {
       "answer": "---\ntype: review-findings\nbranch: feat/csv-header-check\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | high | src/import-csv.js:10 | code-reviewer | The try/finally is gone, so a CSV with the wrong header throws before file.close() and its handle stays open. importAll catches the error and moves to the next upload, so a batch of bad files leaks one handle each until open fails with EMFILE. | Close the handle in a finally block |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
       "why": "names the wrong-header input and the leaked handle at IMPORTANT"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/csv-header-check\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | high | src/import-csv.js:10 | code-reviewer | When the header is not sku,qty,price, countRows throws before file.close() runs, so that upload's handle stays open. importAll catches the error and goes on, so a nightly batch with many bad files leaks a handle per file until open fails with EMFILE. | Close the handle in a finally block |\n| 2 | IMPORTANT | medium | src/import-all.js:10 | architecture-guardian | importAll now stops at the first CSV with a bad header, so the rest of the batch is never counted. | Catch each file's error |\n| 3 | SUGGESTION | low | src/import-csv.js:7 | code-reviewer | The BOM strip could use a named constant. | Name the BOM |\n\n## Surfaces\n\nRan: [code-reviewer@high, architecture-guardian@high]. Returned no result: [].",
+      "why": "the leak finding names the bad header, the open handle and EMFILE at IMPORTANT; a wrong extra finding does not affect recall"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/csv-header-check\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | high | src/import-csv.js:12 | code-reviewer | file.close() is no longer inside a finally block. | Restore the try/finally |\n| 2 | IMPORTANT | low | src/import-csv.js:10 | security-reviewer | A CSV whose first row is not the expected header, or whose read fails, throws with its file handle still open; over a nightly run of many bad uploads the process hits EMFILE and later opens fail. | Close the handle in a finally block |\n\n## Surfaces\n\nRan: [code-reviewer@high, security-reviewer@high]. Returned no result: [].",
+      "why": "one finding names the bad input and the EMFILE failure at IMPORTANT, so not every finding naming the defect is SUGGESTION; low Confidence is ignored"
     }
   ],
   "fail": [
     {
       "answer": "---\ntype: review-findings\nbranch: feat/csv-header-check\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | medium | src/import-csv.js:3 | code-reviewer | HEADER is hard-coded; consider reading the expected columns from config. | Move HEADER to config |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
       "why": "names the changed lines at SUGGESTION, without the bad input or the leaked handle"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/csv-header-check\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | high | src/import-csv.js:10 | code-reviewer | A CSV with the wrong header throws before file.close(), so each bad upload in the nightly batch leaks a handle until later opens fail with EMFILE. | Close the handle in a finally block |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names the bad header and the EMFILE failure, but its Tier is SUGGESTION; high Confidence is not severity"
     }
   ]
 }

@@ -1,0 +1,134 @@
+{
+  "skill": "work-items:morning-brief",
+  "plugin": "work-items",
+  "skill_dir": "plugins/work-items/skills/morning-brief",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the sibling work-items skills and nearby skills in other plugins a request borders.",
+  "competitors": [
+    "work-items:attend-queue",
+    "work-items:decompose",
+    "work-items:measure-delivery",
+    "work-items:onboard-adapter",
+    "work-items:scan-todos",
+    "work-items:setup",
+    "work-items:ship",
+    "work-items:track",
+    "work-items:triage",
+    "work-items:work",
+    "work-items:work-loop",
+    "harness-ops:lanes",
+    "harness-ops:observability",
+    "source-control:babysit-prs",
+    "source-control:pull-request",
+    "session-flow:orient"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Give me my operator morning pass for this repo."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What needs my attention in the queues today?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Show merge-ready PRs and the decisions waiting on me."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "How many open items sit in each queue label right now?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is the loop lane telemetry fresh or stale?"
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Print the daily standup dashboard for this GitHub repository."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Which parked decisions have a recommendation I should sign off on?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "One-pass view of queues, merge-ready pull requests and lane freshness please."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Quick ops overview before I start the day."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "What's waiting for me across the work queues? Don't change anything."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Triage this new issue and decide if it's real."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Merge the PRs that are ready."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Catch me up on where this session stands."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Start the work lanes for the morning."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Babysit my open pull requests."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Answer the escalations in the human queue."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What happened in this session so far?"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Create an issue for the flaky test."
+    }
+  ]
+}
