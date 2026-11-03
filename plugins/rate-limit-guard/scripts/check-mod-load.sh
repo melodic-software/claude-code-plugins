@@ -35,7 +35,12 @@ if [[ -z "$floor" ]]; then
   row mods-floor FAIL "prerequisites.json declares no mods floor on its claude entry"
 elif [[ -z "$version" ]]; then
   row mods-floor FAIL "claude did not report a version, so the mods floor $floor could not be checked"
-elif [[ "$(printf '%s\n%s\n' "$floor" "$version" | sort -V | head -n 1)" == "$floor" ]]; then
+elif awk -v v="$version" -v f="$floor" 'BEGIN {
+  nv = split(v, a, "."); nf = split(f, b, ".")
+  for (i = 1; i <= (nv > nf ? nv : nf); i++) {
+    if (a[i] + 0 != b[i] + 0) exit (a[i] + 0 < b[i] + 0)
+  }
+}'; then
   row mods-floor PASS "claude $version meets the mods floor $floor"
 else
   row mods-floor FAIL "mods off: claude $version is older than the mods floor $floor, unsupported"

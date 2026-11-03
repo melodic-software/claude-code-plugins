@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # test-scope: plugins/rate-limit-guard/prerequisites.json
 # Tests for check-mod-load.sh against a fixture plugin whose floor is 2.1.287.
-# 2.1.1000 is the case a string compare gets wrong.
+# 2.1.1000 and 2.1.9 are the cases a string compare gets wrong.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -10,7 +10,10 @@ trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$WORK/p/scripts" "$WORK/bin"
 cp "$HERE/check-mod-load.sh" "$WORK/p/scripts/"
 CHECK="$WORK/p/scripts/check-mod-load.sh"
-printf '{"requires":[\n{\n"id": "node",\n"detect": {"version": {"min": "9.9.9"}}\n},\n{\n"id": "claude",\n"detect": {"version": {\n"min": "2.1.287"\n}}\n}\n]}\n' >"$WORK/p/prerequisites.json"
+set_floor() {
+  printf '{"requires":[\n{\n"id": "node",\n"detect": {"version": {"min": "9.9.9"}}\n},\n{\n"id": "claude",\n"detect": {"version": {\n"min": "%s"\n}}\n}\n]}\n' "$1" >"$WORK/p/prerequisites.json"
+}
+set_floor 2.1.287
 fails=0
 expect() { # <name> <want-exit> <want-output-fragment>
   if [[ "$code" == "$2" && "$out" == *"$3"* ]]; then
@@ -33,12 +36,21 @@ stub 2.1.286
 expect "one below the floor fails" 1 $'mods-floor\tFAIL\tmods off: claude 2.1.286 is older than the mods floor 2.1.287'
 stub 2.1.1000
 expect "the floor compares numerically" 0 $'mods-floor\tPASS\tclaude 2.1.1000'
+stub 2.1.9
+expect "2.1.9 is below the floor 2.1.287" 1 $'mods-floor\tFAIL\tmods off: claude 2.1.9 is older than the mods floor 2.1.287'
+stub 2.2.0
+expect "2.2.0 is above the floor 2.1.287" 0 $'mods-floor\tPASS\tclaude 2.2.0 meets the mods floor 2.1.287'
+set_floor 2.1.9
+stub 2.1.287
+expect "2.1.287 is above the floor 2.1.9" 0 $'mods-floor\tPASS\tclaude 2.1.287 meets the mods floor 2.1.9'
+set_floor 2.1.287
+stub 2.1.1000
 expect "the session row names the status tool" 0 $'session\tINFO\tlook for mcp__rate-limit-guard__status'
 
 rm -f "$WORK/bin/claude"
 bin="$WORK/noclaude"
 mkdir -p "$bin"
-for t in bash cat dirname head sed sort printf; do
+for t in bash cat dirname sed printf; do
   p="$(command -v "$t")" && [[ "$p" == /* ]] && ln -sf "$p" "$bin/$t"
 done
 out="$(PATH="$bin" "$bin/bash" "$CHECK")"
