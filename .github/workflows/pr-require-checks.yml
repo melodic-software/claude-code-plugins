@@ -5028,6 +5028,17 @@ jobs:
           msg="draft: lanes not run; the ready_for_review run lints and tests this SHA"
           echo "::notice::$msg"
           echo "$msg" >>"$GITHUB_STEP_SUMMARY"
+      - name: Resolve main's tip
+        id: tip
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        env:
+          TIP_BRANCH: ${{ github.event.repository.default_branch }}
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
       # The cost-hold and lanes-hold steps below run node; pin it to main's
       # .node-version, as every other Node job is, rather than the runner
       # image's default. The same checkout of the default branch holds the
@@ -5038,10 +5049,10 @@ jobs:
       # module they import (scripts/ci-lanes-pr-hold.test.sh checks the list).
       # No pull request code is checked out and no credential is kept.
       - name: Check out main's Node pin and verdict reader
-        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && steps.tip.outputs.sha != '' }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
           sparse-checkout: |

@@ -67,7 +67,7 @@ jobs:
       - name: Check out main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: refs/heads/main
+          ref: ${{ github.sha }}
           path: .base
           persist-credentials: false
           sparse-checkout: |
@@ -172,7 +172,7 @@ jobs:
       - name: Check out main's tools
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: refs/heads/main
+          ref: ${{ github.sha }}
           path: .base
           persist-credentials: false
 
@@ -428,7 +428,7 @@ jobs:
       - name: Check out main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: refs/heads/main
+          ref: ${{ github.sha }}
           path: .base
           persist-credentials: false
           sparse-checkout: |

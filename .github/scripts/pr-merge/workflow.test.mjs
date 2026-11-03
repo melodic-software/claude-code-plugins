@@ -55,6 +55,7 @@ test("dispatch-full-run ends once it dispatches: no wait on the run it started",
   assert.deepEqual(
     [...dispatch.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]),
     [
+      "Resolve main's tip",
       "Check out the api-budget library",
       "Read main's full-run cover",
       "Start the full CI run on main",
@@ -367,8 +368,8 @@ test("the dispatch job's token is actions: write and contents: read, and nothing
     ["actions: write", "contents: read"],
   );
   const checkout = dispatch.split("\n      - name: Check out the api-budget library\n")[1].split("\n      - name: ")[0];
-  assert.match(checkout, /^ {8}continue-on-error: true\n/);
-  assert.match(checkout, /\n {10}ref: refs\/heads\/main\n {10}path: \.base\n {10}persist-credentials: false\n {10}sparse-checkout: \|\n {12}\/\.github\/actions\/log-api-budget\/\n {12}\/\.github\/actions\/scan-upload\/\n {12}\/lib\/publish-gate\.mjs\n {10}sparse-checkout-cone-mode: false\n/);
+  assert.match(checkout, /^ {8}if: steps\.tip\.outputs\.sha != ''\n {8}continue-on-error: true\n/);
+  assert.match(checkout, /\n {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n {10}path: \.base\n {10}persist-credentials: false\n {10}sparse-checkout: \|\n {12}\/\.github\/actions\/log-api-budget\/\n {12}\/\.github\/actions\/scan-upload\/\n {12}\/lib\/publish-gate\.mjs\n {10}sparse-checkout-cone-mode: false\n/);
 });
 
 // The cover read and each dispatch POST leave a rate-limit reading, so the
@@ -1132,7 +1133,7 @@ test("the pr-merge/unarmed statuses are posted by a job of their own, with statu
     ["contents: read", "statuses: write"],
   );
   assert.doesNotMatch(post, /lane-token|request-lane-token|id-token/);
-  assert.match(post, /\n {10}ref: refs\/heads\/main\n {10}path: \.base\n {10}persist-credentials: false\n/);
+  assert.match(post, /\n {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n {10}path: \.base\n {10}persist-credentials: false\n/);
   // The statuses reach the script through its environment, never the shell.
   assert.match(post, /\n {10}STATUSES: \$\{\{ needs\.enable-auto-merge\.outputs\.unarmed-statuses \}\}\n {8}run: node \.base\/\.github\/scripts\/pr-merge\/post-unarmed-status\.mjs\n/);
 });
