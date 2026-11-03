@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "- Phase 2 claims AC4, but no step filters on `SmsOptOut`.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- Phase 2 looks right for AC1, but `SmsOptOut` is never read.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- AC4 isn't implemented by any step.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- Nothing in the plan reads `SmsOptOut`, so opted-out patients still get a text.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | AC4 is not implemented: the selection in Phase 2 ignores `Patient.SmsOptOut` | Fix before building |\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | Opt-out is never checked by any phase despite the `Satisfies` line | Fix before building |\n",
+      "why": "paraphrase"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "- `SmsOptOut` is fine in Phase 2.\n",
+      "why": "named and dismissed"
+    },
+    {
+      "answer": "- AC4 is covered by Phase 2's selection.\n",
+      "why": "negated mention"
+    },
+    {
+      "answer": "- Phase 1 has no check for a negative `PollSeconds`.\n",
+      "why": "a finding about something else"
+    },
+    {
+      "answer": "- AC4 is handled by Phase 2's current filter on `SmsOptOut`.\n",
+      "why": "word ending in nt, an affirmation"
+    }
+  ]
+}

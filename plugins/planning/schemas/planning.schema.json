@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/planning/schemas/planning.schema.json",
   "title": "Planning team config",
-  "description": "Schema for a repository's docs/conventions/planning.yaml: the team layer of the planning plugin's settings. A value here overrides the same key in the plugin's userConfig. Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md. question_pacing and answer_audit_rounds are read from <home>/planning.yaml in a bound convention home, and from <home>/planning.local.yaml above it (docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md).",
+  "description": "Schema for a repository's docs/conventions/planning.yaml: the team layer of the planning plugin's settings. A value here overrides the same key in the plugin's userConfig. Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md. question_pacing, answer_audit_rounds and plan_stress_test are read from <home>/planning.yaml in a bound convention home, and from <home>/planning.local.yaml above it (docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md).",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -51,6 +51,28 @@
       "type": "integer",
       "minimum": 0,
       "default": 2
+    },
+    "plan_stress_test": {
+      "description": "Per mode of the draft, which stress-tests /planning:plan runs. auto: plan-reviewer always, /planning:devils-advocate when the blast-radius assessment calls for it. reviewer: plan-reviewer only. devils-advocate: /planning:devils-advocate only. both: both, whatever the blast radius. A direct /planning:devils-advocate request runs whatever this says.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "plan": {
+          "description": "A draft with phases that is not mainly a keep-or-replace decision.",
+          "enum": ["auto", "reviewer", "devils-advocate", "both"],
+          "default": "auto"
+        },
+        "proposal": {
+          "description": "A draft that recommends an approach or mechanism and has no phases yet.",
+          "enum": ["auto", "reviewer", "devils-advocate", "both"],
+          "default": "auto"
+        },
+        "incumbent": {
+          "description": "A draft whose main decision is keeping or replacing an existing tool, library or approach. devils-advocate and both run the skill's incumbent mode; auto runs its plan-review mode.",
+          "enum": ["auto", "reviewer", "devils-advocate", "both"],
+          "default": "auto"
+        }
+      }
     },
     "pre_confirmed_label": {
       "description": "A tracker label name. In an unattended run, an item carrying it that states its problem counts as problem-confirmed. Unset: no label pre-confirms; the comment marker in context/problem-framing.md still applies.",

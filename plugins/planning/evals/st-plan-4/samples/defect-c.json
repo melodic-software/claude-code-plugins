@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": "- `appsettings.Production.json` already sets `Reminders.Enabled` to false and overrides the new section.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- The `appsettings.json` section is fine, but `appsettings.Production.json` overrides it.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- `appsettings.Production.json` sets `Enabled` false; the plan does not override it, so reminders never send.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- In production the worker stays disabled: `appsettings.Production.json` is loaded after `appsettings.json`.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | `appsettings.Production.json` has `\"Enabled\": false, \"HoursBefore\": 48`, which wins over Phase 1's values | Fix before building |\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | Phase 1 edits only `appsettings.json`, so production settings keep `HoursBefore` at 48 and reminders never send | Fix before building |\n",
+      "why": "paraphrase"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "- `appsettings.Production.json` is fine.\n",
+      "why": "named and dismissed"
+    },
+    {
+      "answer": "- `appsettings.Production.json` does not override the section.\n",
+      "why": "negated mention"
+    },
+    {
+      "answer": "- `appsettings.Production.json` should move the database path to an env var.\n",
+      "why": "a finding about something else"
+    },
+    {
+      "answer": "- Config layering could be a concern.\n",
+      "why": "generic, no file"
+    },
+    {
+      "answer": "- `Reminders` should be disabled by default in development.\n",
+      "why": "other point with no target"
+    }
+  ]
+}

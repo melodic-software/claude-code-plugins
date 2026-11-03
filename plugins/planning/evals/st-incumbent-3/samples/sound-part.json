@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "- A retried batch is correct: `ON CONFLICT DO NOTHING` prevents duplicate rows.\n",
+      "why": "praises the element"
+    },
+    {
+      "answer": "- Retries add no duplicates, because of the primary key.\n",
+      "why": "negated attack"
+    },
+    {
+      "answer": "- `WithBuffer(500000)` is capped at 65,535.\n",
+      "why": "other finding"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- A retried flush can write duplicate samples into the table.\n",
+      "why": "bullet attack"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | Tidewrite's retry is at-least-once, so rows double-count | Dedupe |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- `insertSample` is not idempotent.\n",
+      "why": "not idempotent"
+    },
+    {
+      "answer": "- Replaying the queue after an outage produces duplicates.\n",
+      "why": "replay"
+    },
+    {
+      "answer": "| 2 | IMPORTANT | Plan | `ON CONFLICT DO NOTHING` is wrong here | Upsert |\n",
+      "why": "wrong"
+    }
+  ]
+}

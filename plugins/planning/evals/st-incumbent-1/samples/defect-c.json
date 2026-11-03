@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "- Phase 1 mounts one `jobs.db` on `worker-0` and `worker-1`; each wheel loads every job in the file, so both fire every clinic and owners get duplicates.\n",
+      "why": "bullet naming the services"
+    },
+    {
+      "answer": "| 1 | CRITICAL | Plan | A single shared store breaks the SHARD_INDEX split: the two workers both load all jobs and send twice | One store per shard |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- The changelog says a store file serves one Wheel at a time and takes no lock, but compose runs two workers sharing the store file.\n",
+      "why": "one Wheel phrasing"
+    },
+    {
+      "answer": "| 2 | IMPORTANT | Plan | Sharding is lost once both workers read `/state/jobs.db`: double-sends break AC2 | Separate volumes |\n",
+      "why": "double-sends"
+    },
+    {
+      "answer": "- Two containers on the `reminders-state` volume risk a corrupted jobs.db, since the store has no file lock.\n",
+      "why": "corruption phrasing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "- The two workers will not duplicate reminders because each has its own shard.\n",
+      "why": "negated"
+    },
+    {
+      "answer": "- Sharing the store across worker-0 and worker-1 is fine.\n",
+      "why": "dismissed"
+    },
+    {
+      "answer": "- A shard rebalance is not a problem here; double-sends are not a concern.\n",
+      "why": "negated concern"
+    },
+    {
+      "answer": "- Phase 3 has no test for a refused gateway request.\n",
+      "why": "another finding"
+    },
+    {
+      "answer": "- `worker-0` has no health check in compose.\n",
+      "why": "service named, nature absent"
+    }
+  ]
+}

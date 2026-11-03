@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "",
+      "why": "empty reply flags nothing"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean report"
+    },
+    {
+      "answer": "- SQLite is the right store here: one host, a oneshot service, and no server process allowed by AC3.\n",
+      "why": "approving mention"
+    },
+    {
+      "answer": "| 1 | HIGH | Failure | A crash between send and the SQLite insert sends a duplicate, the wrong order | Record first |\n",
+      "why": "a defect about write order, not the store"
+    },
+    {
+      "answer": "- There is no need to replace SQLite with a database server.\n",
+      "why": "dismissed attack"
+    },
+    {
+      "answer": "- The ledger key omits the appointment time, so a rescheduled appointment gets no new reminder.\n",
+      "why": "a different defect"
+    },
+    {
+      "answer": "- The SQLite table should be keyed on the start time as well.\n",
+      "why": "the key defect, phrased with the store's name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- SQLite is the wrong store for this ledger; use Postgres.\n",
+      "why": "bullet attacking the store"
+    },
+    {
+      "answer": "| 1 | HIGH | Design | SQLite won't scale for concurrent runs | Move to Postgres |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- Replace SQLite with a server database.\n",
+      "why": "replace"
+    },
+    {
+      "answer": "| 3 | IMPORTANT | Design | SQLite is a poor choice for a production ledger | Use a managed database |\n",
+      "why": "poor choice"
+    },
+    {
+      "answer": "- The proposal should use Postgres instead of SQLite for durability.\n",
+      "why": "should use instead"
+    }
+  ]
+}

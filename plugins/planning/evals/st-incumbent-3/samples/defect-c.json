@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "- `watchDatabase` in `main.go` calls `log.Fatalf` after three failed checks, about a minute into an outage, and the restart wipes the in-memory queue.\n",
+      "why": "bullet"
+    },
+    {
+      "answer": "| 1 | CRITICAL | Plan | `maxBadCheck` kills the process during an outage; the ring buffer lives in process memory, so queued samples are lost | Stop exiting on a bad check |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- `Restart=always` in ingest.service brings up an empty queue after watchDatabase exits, so AC1 fails: samples are gone.\n",
+      "why": "service file"
+    },
+    {
+      "answer": "| 2 | IMPORTANT | Plan | The health check's exit means the in-memory buffer does not survive any outage over a minute | Remove the exit |\n",
+      "why": "does not survive"
+    },
+    {
+      "answer": "- log.Fatalf in main.go destroys the buffer the plan relies on.\n",
+      "why": "destroys"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "- `watchDatabase` will not clear the queue, since the ring outlives a failed check.\n",
+      "why": "negated"
+    },
+    {
+      "answer": "- The health check's exit is fine; the in-memory queue is reloaded.\n",
+      "why": "dismissed"
+    },
+    {
+      "answer": "- A restart could lose the queue, so consider durability.\n",
+      "why": "generic: no project cause"
+    },
+    {
+      "answer": "- Phase 3's metric has no alert threshold.\n",
+      "why": "another finding"
+    },
+    {
+      "answer": "- `watchDatabase` should log at a higher level.\n",
+      "why": "named, no nature"
+    }
+  ]
+}

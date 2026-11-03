@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "- A worker killed after committing the claim leaves the job stuck in `running`, and nothing reclaims it, so that tenant misses its invoice (AC1).\n",
+      "why": "bullet"
+    },
+    {
+      "answer": "| 1 | CRITICAL | Operations | Deploys stop workers after 5s; claimed jobs are stranded in running with no reaper | Add a lease |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- Crashed workers orphan their claimed rows: the claim query selects only `queued`.\n",
+      "why": "orphan"
+    },
+    {
+      "answer": "| 2 | HIGH | Failure | There is no lease on a claimed job, so a job remains running forever after a restart | Add claimed_at |\n",
+      "why": "no lease, forever"
+    },
+    {
+      "answer": "- A worker that dies mid-job leaves that tenant's job stranded, and nothing re-queues it.\n",
+      "why": "no use of the words running or claim"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "A worker that dies leaves the job stuck in running, which is fine because an engineer can fix it.\n",
+      "why": "named and dismissed"
+    },
+    {
+      "answer": "Claimed jobs are not stuck after a restart.\n",
+      "why": "negated mention"
+    },
+    {
+      "answer": "- The worker needs better error handling.\n",
+      "why": "anchor with a generic warning"
+    },
+    {
+      "answer": "- The email template is outside this draft's scope.\n",
+      "why": "a finding about something else"
+    },
+    {
+      "answer": "- The job queue could get stuck behind one large tenant.\n",
+      "why": "stuck for another reason, with no worker death or claim"
+    }
+  ]
+}

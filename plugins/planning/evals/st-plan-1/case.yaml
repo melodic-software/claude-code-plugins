@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: st-plan-1
+description: A draft plan adds overdue fines, a checkout limit and notices to a Python library lending system.
+expected_outcome: A good review reports that the monthly finance CSV in AC3 has no phase; that the plan's belief about renewals moving loans.due_at is contradicted by library/loans.py, which records the extension in loan_renewals, so renewed loans would be fined; and that accrue_fines under the bin/run-job retry wrapper, committing per member with no uniqueness in db/schema.sql, adds a second ledger entry when it runs again on the same date. It does not attack writing notices to notice_outbox, since the cron file already runs flush_outbox.
+context:
+  scaffold_script: scaffold.sh

@@ -1,0 +1,6 @@
+---
+type: regex
+pattern: '^(?![^\n]*\bNo plan gaps found)(?![^\n]*\b(?:is|are|was|were|looks?|seems?|remains?)\s+(?!not\b|never\b)(?:(?:perfectly|entirely|totally|already|also|still|actually)\s+)?(?:fine|ok|okay|good|correct|accurate|sound|acceptable|safe|justified|reasonable)\b(?![^\n]*\b(?:but|however|yet)\b))(?![^\n]*\b(?:no|not\s+an?|n''t\s+an?)\s+(?:\w+\s+){0,2}(?:issue|problem|concern|risk|defect|gap|finding|blocker)s?\b)(?![^\n]*\b(?:nothing\s+wrong|no\s+need\s+to|need\s+not|can\s+be\s+ignored|no\s+action\s+needed|no\s+changes?\s+needed)\b)(?![^\n]*\b(?:doesn''t|does\s+not|won''t|will\s+not|not|never)\s+(?:\w+\s+)?(?:break|fail|lose|drop|remove)\b)(?=[^\n]*(?:\bvaultline\b|\bAC2\b|\bemail_bidx\b|\bsupport_lookup\b|\bSupportLookup\b))(?=[^\n]*(?:\bblind[- ]?index\w*|\bdeterministic\w*|\bexact[- ]match\w*|\bemail\s+(?:search|lookup)\b|\b(?:search|look\s*up|lookup|find)\s+(?:\w+\s+){0,2}(?:by\s+)?email\b|\bfind_by\b|\bequal(?:ity)?\s+(?:lookup|search)\b|\bemail_bidx\b|\bsame\s+(?:plaintext|value|email)\b|\bequal\s+plaintexts?\b))[^\n]*(?:\black\w*|\bwithout\b|\b(?:doesn''t|does\s+not|cannot|can''t|won''t|will\s+not|never)\b|\bnot\s+(?:met|support\w*|provid\w*|offer\w*|satisf\w*|match\w*|found)\b|\brandom\w*|\bdifferent\b|\bdiffer\w*|\bbreak\w*|\bunmet\b|\bfails?\b|\bnon-?deterministic\b)'
+flags: mi
+target: last_message
+---

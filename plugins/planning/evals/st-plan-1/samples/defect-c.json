@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "- `accrue_fines` is not idempotent: a `run-job` retry after a partial run posts a second entry for members already committed.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- A rerun on the same date doubles the fine in `member_ledger`, which has no unique key.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- Phase 1 is fine on one run, but a `run-job` retry doubles the fine.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | `bin/run-job --retries 3` reruns `accrue_fines` and duplicates ledger rows after a mid-run failure | Fix before building |\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | Phase 1 commits per member, so a retry charges them again | Fix before building |\n",
+      "why": "paraphrase"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "- `accrue_fines` is idempotent, so `run-job` retries are fine.\n",
+      "why": "named and dismissed"
+    },
+    {
+      "answer": "- `accrue_fines` cannot duplicate ledger rows on a retry.\n",
+      "why": "negated mention"
+    },
+    {
+      "answer": "- `accrue_fines` should log how long it took.\n",
+      "why": "a finding about something else"
+    },
+    {
+      "answer": "- Consider better error handling in the nightly job.\n",
+      "why": "generic warning"
+    },
+    {
+      "answer": "- A rerun doubles the fine.\n",
+      "why": "problem with no target"
+    }
+  ]
+}

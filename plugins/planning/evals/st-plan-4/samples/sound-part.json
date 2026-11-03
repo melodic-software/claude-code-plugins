@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "- Inserting `SentReminder` first is right: the unique index prevents duplicate sends.\n",
+      "why": "approves"
+    },
+    {
+      "answer": "- Phase 2 ignores `SmsOptOut`; add it to the selection.\n- `StartsAt` is local time; convert with `Clinic:TimeZone`.\n- `appsettings.Production.json` overrides `Enabled`; set it there.\n- A send that succeeds at the provider but fails before `ProviderMessageId` is saved is retried and sent twice; `SentReminder` does nothing there.\n",
+      "why": "a strong full report with a neighbouring Phase 3 finding"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | A crash after the `SentReminder` insert loses that reminder until a later retry tick | Fix before building |\n",
+      "why": "a separate risk, table row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- Phase 2 can send duplicate reminders after a restart.\n",
+      "why": "claims duplicates"
+    },
+    {
+      "answer": "- The `SentReminder` insert races with an overlapping tick.\n",
+      "why": "claims a race"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | A restart sends the message twice since `SentReminder` is written first | Fix before building |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- Overlapping ticks produce duplicate SMS for one appointment.\n",
+      "why": "overlap"
+    },
+    {
+      "answer": "- The insert in Phase 2 double-sends on retry.\n",
+      "why": "double send"
+    }
+  ]
+}

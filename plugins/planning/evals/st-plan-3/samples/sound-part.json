@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "- `findDue` already has its index from `003_next_renewal.sql`, so Phase 2 is right to add no migration.\n",
+      "why": "approves"
+    },
+    {
+      "answer": "- Phase 4 serves no criterion; cut it.\n- `charge()` never throws `PaymentDeclined`; branch on the returned status.\n- The sweep runs in every replica; Phase 2 needs a migration adding a claim column so only one replica charges.\n- Add a unique index in `findDue`'s path so a row cannot be claimed twice.\n",
+      "why": "a strong full report with natural fixes"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | `next_renewal_at` index is in place; no migration needed for Phase 2 | Fix before building |\n",
+      "why": "table row approving"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- `findDue` has no index on `next_renewal_at`.\n",
+      "why": "claims no index"
+    },
+    {
+      "answer": "- Phase 2 needs a migration for `next_renewal_at`.\n",
+      "why": "wants a migration"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | Missing index for `findDue`, so the sweep scans the table | Fix before building |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- `findDue` should add an index.\n",
+      "why": "should add"
+    },
+    {
+      "answer": "- The `next_renewal_at` column does not exist yet.\n",
+      "why": "says it is absent"
+    }
+  ]
+}

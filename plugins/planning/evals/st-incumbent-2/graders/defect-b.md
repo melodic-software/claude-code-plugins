@@ -1,0 +1,6 @@
+---
+type: regex
+pattern: '^(?![^\n]*\bNo plan gaps found)(?![^\n]*\b(?:is|are|was|were|looks?|seems?|remains?)\s+(?!not\b|never\b)(?:(?:perfectly|entirely|totally|already|also|still|actually)\s+)?(?:fine|ok|okay|good|correct|accurate|sound|acceptable|safe|justified|reasonable)\b(?![^\n]*\b(?:but|however|yet)\b))(?![^\n]*\b(?:no|not\s+an?|n''t\s+an?)\s+(?:\w+\s+){0,2}(?:issue|problem|concern|risk|defect|gap|finding|blocker)s?\b)(?![^\n]*\b(?:nothing\s+wrong|no\s+need\s+to|need\s+not|can\s+be\s+ignored|no\s+action\s+needed|no\s+changes?\s+needed)\b)(?![^\n]*\b(?:does\s+not|doesn''t|never)\s+(?:\w+\s+)?(?:call|use|import)\b)(?=[^\n]*(?:\bcomplete\.ts\b|\bcompleteCheckout\b|\bextendLock\b|\bsrc/checkout\b))[^\n]*(?:\balso\s+(?:calls?|uses?|imports?)\b|\bsecond\s+(?:caller|call\s*site|use\w*|import\w*|module)\b|\banother\s+(?:caller|call\s*site|use\w*|import\w*|module)\b|\bnot\s+(?:the\s+)?(?:only|one)\b|\bnot\s+(?:\w+\s+){0,2}(?:listed|covered|migrated|mentioned|included|changed|updated)\b|\bmisse[sd]\b|\boverlook\w*|\bstill\s+(?:calls?|uses?|imports?)\b|\bomit\w*|\bimports?\s+(?:\w+\s+){0,2}holdfast\b|\bcalls?\s+(?:\w+\s+){0,2}holdfast\b|\bcontradict\w*|\bunmigrated\b|\bignor\w*|\bholdfast(?:''s)?\s+(?:\w+\s+)?(?:extend|caller|import)\w*)'
+flags: mi
+target: last_message
+---

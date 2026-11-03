@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: st-proposal-2
+description: Review of a draft proposal for per-site settings overlays in a warehouse scan forwarding service.
+expected_outcome: "The review reports that the SIGHUP reload is work the Out-of-scope list excludes; that config.Load in internal/config/config.go logs and falls back to defaults rather than exiting, against the draft's assumption and AC2; and that the SCANHUB_ variables in deploy/docker-compose.yml, applied by ApplyEnv after the files, beat the overlay's values and defeat AC1. It does not say decoding onto the populated struct loses fields, since Config is flat and a test pins the behaviour."
+context:
+  scaffold_script: scaffold.sh
