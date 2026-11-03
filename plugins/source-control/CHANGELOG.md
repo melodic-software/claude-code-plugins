@@ -3,6 +3,23 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.1.0] - 2026-11-03
+
+### Added
+
+- babysit-prs: the pr-merge lane's post-merge check now starts from a floor anchor that
+  pr-merge.yml's post-merge-dispatch job keeps as the `pr-merge-post-merge-anchor` artifact. The
+  anchor moves past merges the check judged final from their runs. An unverified merge holds it,
+  and so does a merge counted only by its settled marker. A missing or refused anchor falls back
+  to today's floor, so a long verified history no longer stops the lane with
+  `merged-history-truncated`.
+
+## [6.0.2] - 2026-11-03
+
+### Fixed
+
+- refuse publishing a contrary event with no discovered time
+
 ## [6.0.1] - 2026-11-03
 
 ### Changed
