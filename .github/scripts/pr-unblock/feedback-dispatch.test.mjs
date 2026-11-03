@@ -5,7 +5,7 @@ import { test } from "node:test";
 
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, parseRecord, serializeRecord } from "./dispatch-record.mjs";
-import { createGitHubApi, dispatchFeedback, EARLIER_FAIL_READS, failureAnnotation, FAILED_RUN_WINDOW_HOURS, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, reviewRunAt, SWEEP_HEAD_CAP, sweepReleased, UNSENT_GRACE_MS } from "./feedback-dispatch.mjs";
+import { createGitHubApi, dispatchFeedback, EARLIER_FAIL_READ, EARLIER_FAIL_READS, failureAnnotation, FAILED_RUN_WINDOW_HOURS, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, reviewRunAt, SWEEP_HEAD_CAP, sweepReleased, UNSENT_GRACE_MS } from "./feedback-dispatch.mjs";
 import { onReviewedHead, threadAuthors } from "./address-feedback.mjs";
 import { verifyReader } from "./verify-cap.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -1628,7 +1628,8 @@ test("one pass spends at most EARLIER_FAIL_READS verifier reads on PRs with no u
   let reads = 0;
   const verifyCapped = () => {
     reads += 1;
-    return { cap: null, supersededAtHead: false, earlierFailHeads: [] };
+    // A failed read records nothing, so each candidate stays one to read.
+    return { cap: null, supersededAtHead: false, earlierFailHeads: [], readFailed: true };
   };
   const record = emptyRecord();
   const skipped = [];
@@ -2633,9 +2634,10 @@ test("a review-lane hold at the head gates a github-actions[bot] lane thread (#1
 // person dispatched it.
 const DEADLINE = "verify:unreadable: the artifact listing does not fit in the caller's limit: repository artifacts: 13962 artifacts in 140 pages need 147 s";
 const REVIEWED = upstreamRun({ id: 13, run_started_at: "2026-10-17T12:00:00Z", updated_at: "2026-10-17T12:10:00Z" });
-const sweepUnsent = async (api, verifyCapped, now = Date.parse("2026-10-17T12:20:00Z")) => {
+const sweepUnsent = async (api, verifyCapped, now = Date.parse("2026-10-17T12:20:00Z"), extra = {}) => {
   const lines = [];
   const result = await sweepReleased({
+    ...extra,
     api,
     repository: REPOSITORY,
     runId: RUN_ID,
@@ -2674,6 +2676,73 @@ test("the sweep sends a lanes App head with an unresolved thread that no round w
   const still = unsentApi();
   assert.equal((await sweepUnsent(still, () => DEADLINE)).result, null);
   assert.deepEqual(still.calls.dispatch, []);
+});
+
+// Codex P2 on #12843: with every fail-note thread resolved, a verifier read
+// that failed answered "no earlier FAIL", and no sweep took a thread-less
+// head, so the round was never sent. A failed read (readFailed) now leaves
+// the head unrecorded and the unsent sweep reads it again on a later pass;
+// an answer of no earlier FAIL is recorded, and no pass reads it again.
+test("a thread-less head whose verifier read failed is read again on a later pass; one answered no earlier FAIL is not", async () => {
+  const notes = [failNote(true)];
+  const record = emptyRecord();
+  let reads = 0;
+  const first = await decide(fakeApi({ threads: notes }), resolvedLane(), {
+    record,
+    verifyCapped: () => {
+      reads += 1;
+      return { cap: null, supersededAtHead: false, earlierFailHeads: [], readFailed: true };
+    },
+  });
+  assert.equal(first.result, null);
+  assert.equal(reads, 1);
+  assert.match(first.lines.at(-1), /verifier read for an earlier FAIL failed/);
+  assert.equal(record.handled.size, 0);
+
+  // Pass 2, the tick: the unsent sweep reads the head again and sends the round.
+  const api = unsentApi({ threads: notes });
+  const { result } = await sweepUnsent(
+    api,
+    () => {
+      reads += 1;
+      return { cap: null, supersededAtHead: false, earlierFailHeads: [OLD_HEAD] };
+    },
+    undefined,
+    { record },
+  );
+  assert.equal(reads, 2);
+  assert.equal(result?.number, 42);
+  assert.equal(api.calls.dispatch[0].inputs["verify-earlier-fail-heads"], OLD_HEAD);
+
+  // A cap read that could not count every FAIL is retried the same way.
+  const unread = emptyRecord();
+  await decide(fakeApi({ threads: notes }), resolvedLane(), { record: unread, verifyCapped: () => ({ cap: DEADLINE, supersededAtHead: false, earlierFailHeads: [] }) });
+  assert.equal(unread.handled.size, 0);
+
+  // An answer of no earlier FAIL is recorded, and a later pass reads nothing.
+  const answered = emptyRecord();
+  await sweepUnsent(unsentApi({ threads: notes }), () => ({ cap: null, supersededAtHead: false, earlierFailHeads: [] }), undefined, { record: answered });
+  assert.ok(answered.handled.get(EARLIER_FAIL_READ)?.has(HEAD));
+  let later = 0;
+  const again = await sweepUnsent(
+    unsentApi({ threads: notes }),
+    () => {
+      later += 1;
+      return null;
+    },
+    undefined,
+    { record: answered },
+  );
+  assert.equal(again.result, null);
+  assert.equal(later, 0);
+
+  // A thread-less head with no fail note from another head stays out of the sweep.
+  let none = 0;
+  await sweepUnsent(unsentApi({ threads: [thread([CLAUDE], true)] }), () => {
+    none += 1;
+    return null;
+  });
+  assert.equal(none, 0);
 });
 
 test("the unsent-head sweep leaves a head with a round, no unresolved thread, a review inside the grace, or a run since its review", async () => {

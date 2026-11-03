@@ -210,7 +210,8 @@ export const EARLIER_FAILS = "earlierFails";
 // so, so a failed read, an answer for another head or a reader without the
 // field is not superseded, and `earlierFailHeads` the FAILed heads behind a
 // `verify:earlier-fail` refusal (every one a commit id other than the head),
-// else empty.
+// else empty. `readFailed` is true when the read failed, timed out, did not
+// parse or answered for another head.
 export function verifyReader(env, { spawn = spawnAsync, log = (line) => console.log(line), carry = fetchCarry } = {}) {
   let carried = null;
   let deadlineMissed = false;
@@ -244,7 +245,8 @@ export function verifyReader(env, { spawn = spawnAsync, log = (line) => console.
       }
     } catch (error) {
       log(`::warning::#${number}: the verifier reader did not read its FAIL cap (${oneLine(error.message)}); the round runs under its own caps`);
-      return { cap: null, supersededAtHead: false, earlierFailHeads: [] };
+      // readFailed: no answer at all, which is not "no earlier FAIL".
+      return { cap: null, supersededAtHead: false, earlierFailHeads: [], readFailed: true };
     }
     const answer = (cap) => ({ cap, supersededAtHead: report[SUPERSEDED_AT_HEAD] === true, earlierFailHeads: [] });
     if (report.refusal === EARLIER_FAIL) {

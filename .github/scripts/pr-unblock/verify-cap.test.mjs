@@ -123,14 +123,17 @@ test("the reader's supersededAtHead reaches the caller only as true from a read 
   const read = (done) => verifyReader({ GITHUB_REPOSITORY: REPO }, { spawn: () => done, log: () => {} })({ number: 42, head: HEAD, base: BASE });
   assert.deepEqual(await read(answer({ refusal: null, supersededAtHead: true })), { cap: null, supersededAtHead: true, earlierFailHeads: [] });
   assert.deepEqual(await read(answer({ refusal: "verify:spec-changed", supersededAtHead: true })), { cap: null, supersededAtHead: true, earlierFailHeads: [] });
+  for (const done of [answer({ refusal: "verify:fail", supersededAtHead: false }), answer({ refusal: null }), answer({ refusal: null, supersededAtHead: "true" })]) {
+    assert.deepEqual(await read(done), { cap: null, supersededAtHead: false, earlierFailHeads: [] }, JSON.stringify(done));
+  }
+  // A read with no answer for the head says so (readFailed), so a caller
+  // tells it from "no earlier FAIL" (#12843 review).
   for (const done of [
-    answer({ refusal: "verify:fail", supersededAtHead: false }),
-    answer({ refusal: null }),
-    answer({ refusal: null, supersededAtHead: "true" }),
     answer({ refusal: null, supersededAtHead: true, head: "c".repeat(40) }),
     { status: 1, stdout: "", stderr: "gh: rate limited" },
+    { status: null, stdout: "", stderr: "", error: new Error("spawnSync python3 ETIMEDOUT") },
   ]) {
-    assert.deepEqual(await read(done), { cap: null, supersededAtHead: false, earlierFailHeads: [] }, JSON.stringify(done));
+    assert.deepEqual(await read(done), { cap: null, supersededAtHead: false, earlierFailHeads: [], readFailed: true }, JSON.stringify(done));
   }
   assert.deepEqual(await read(answer({ refusal: "verify:repeated-fail", detail: CAPPED, supersededAtHead: false })), { cap: `verify:repeated-fail: ${CAPPED}`, supersededAtHead: false, earlierFailHeads: [] });
 });
