@@ -108,7 +108,7 @@ Run in order. Each phase has one job, and every phase runs whatever the tidying'
 1. Resolve the lane from `$ARGUMENTS` per the Action Router.
 2. Load the lane per **Lane resolution** and read the full file(s), merging both layers when the project lane declares `## Merge semantics`. The resolved lane owns scope globs, watch-for list, lane-specific exclusions, verification commands, Conventional Commits type, and preferred research sources.
 3. Resolve the HARD-path override channels per `reference/exclusions.md` section 4 (the `override` argument, `.claude/code-tidying/exclusion-overrides.md`, then `hard_exclusions`) and write down the lifted set with the channel that lifted each entry. Empty is the normal answer.
-4. Backlog throttle (skipped under `in-place`): if ≥3 open PRs match `chore/tidy-*` (pre-computed context above), STOP, surface a one-line note, and exit cleanly. It is a stop signal, not a warning: reviews are backed up, so do not queue one more.
+4. Backlog throttle (skipped under `in-place`): if the pre-computed context above reports `Throttle active: yes` (open `chore/tidy-*` PRs at the `upkeep_max_open` limit, [reference/config.md](../../reference/config.md)), STOP, surface a one-line note, and exit cleanly. It is a stop signal, not a warning: reviews are backed up, so do not queue one more.
 5. Find the anchor commit: the most recent merged `chore/tidy-<lane>-` PR for this lane (or `git log --grep` if none merged yet), the "what has drifted since the last sweep" baseline.
 
 ### Phase B. Branch
