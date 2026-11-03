@@ -33,6 +33,13 @@
 // every lane pull request and disarms one on a hold, and only it arms:
 // pull_request_target, then workflow_dispatch and schedule.
 //
+// A PR-scoped dispatch (pr-merge.yml inputs.pr, its run name rotation.mjs
+// WAKE_TITLE) arms only its one pull request, so, like pull_request_target,
+// it supersedes no sweep. Its own run (DISPATCH_PR set) is superseded by a
+// sweep as any run is, and by a pending PR-scoped dispatch for the same pull
+// request that the who step lets on: github-actions[bot]'s first attempt
+// (who.mjs verdictWake), or one a listed human started.
+//
 // Any failure answers `superseded=false`: the job does its work as it would
 // without this check. One REST call to list pending runs, then one jobs read
 // per eligible run, at most MAX_JOB_READS, with the job's own token
@@ -44,6 +51,7 @@
 //   GITHUB_RUN_ID        this run, never its own successor
 //   GITHUB_EVENT_NAME    this run's event
 //   SUPERSEDED_JOB       the job asking: merge (default) or enable-auto-merge
+//   DISPATCH_PR          this run's pull request when it is PR-scoped
 //   TRUSTED_ACTORS_PATH  trusted-actors.json from the default branch tip
 //   GITHUB_OUTPUT        receives superseded=true or superseded=false
 //   GITHUB_STEP_SUMMARY  the skip is listed there when set
@@ -53,6 +61,8 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, loadTrustedList, REPOSITORY } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { WAKE_TITLE } from "./rotation.mjs";
+import { GITHUB_ACTIONS_BOT_ID } from "./who.mjs";
 
 export const RANKS = Object.freeze({
   merge: Object.freeze({ pull_request_target: 0, workflow_dispatch: 1, schedule: 2 }),
@@ -68,22 +78,42 @@ const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 const startedByHuman = ({ humans }, run) =>
   [run.actor?.id, run.triggering_actor?.id].every((id) => Number.isInteger(id) && humans.has(id));
 
+const NUMBER = /^[1-9][0-9]{0,15}$/;
+
+// A PR-scoped dispatch's pull request as its run name gives it, or null for
+// a run that is not one (an unreadable number reads as no pull request).
+const scopeOf = (run) => {
+  if (run?.event !== "workflow_dispatch") return null;
+  const found = WAKE_TITLE.exec(String(run.display_title ?? ""));
+  return found === null ? null : NUMBER.test(found[1]) ? found[1] : "";
+};
+
 // The pending runs whose job, if still waiting, does all this run's job does.
-export function eligible(runs, { runId, event, trusted, ranks }) {
-  return runs.filter(
-    (run) =>
-      run?.status === "pending" &&
-      String(run.id) !== runId &&
-      Object.hasOwn(ranks, run.event) &&
-      ranks[run.event] >= ranks[event] &&
-      // An event run reads only its own pull request (pr-merge.yml EVENT_PR).
-      run.event !== "pull_request_target" &&
-      // A dispatch on another branch runs that branch's copy of the workflow.
-      run.head_branch === "main" &&
-      (run.event === "schedule"
-        ? run.run_attempt === 1 || trusted.humans.has(run.triggering_actor?.id)
-        : startedByHuman(trusted, run)),
-  );
+// `scope`: this run's pull request when it is PR-scoped, else null.
+export function eligible(runs, { runId, event, trusted, ranks, scope = null }) {
+  return runs.filter((run) => {
+    if (
+      !(
+        run?.status === "pending" &&
+        String(run.id) !== runId &&
+        Object.hasOwn(ranks, run.event) &&
+        ranks[run.event] >= ranks[event] &&
+        // An event run reads only its own pull request (pr-merge.yml EVENT_PR).
+        run.event !== "pull_request_target" &&
+        // A dispatch on another branch runs that branch's copy of the workflow.
+        run.head_branch === "main"
+      )
+    ) {
+      return false;
+    }
+    const other = scopeOf(run);
+    if (other !== null) {
+      // A PR-scoped dispatch does only a PR-scoped run's work for its own pull request.
+      const wake = run.actor?.id === Number(GITHUB_ACTIONS_BOT_ID) && run.triggering_actor?.id === run.actor.id && run.run_attempt === 1;
+      return scope !== null && other !== "" && other === scope && (wake || startedByHuman(trusted, run));
+    }
+    return run.event === "schedule" ? run.run_attempt === 1 || trusted.humans.has(run.triggering_actor?.id) : startedByHuman(trusted, run);
+  });
 }
 
 export async function main({ env = process.env, actions } = {}) {
@@ -111,7 +141,10 @@ export async function main({ env = process.env, actions } = {}) {
     if (!Array.isArray(listing?.workflow_runs)) {
       throw new Error("the pending run listing has an unexpected shape");
     }
-    const runs = eligible(listing.workflow_runs, { runId: String(env.GITHUB_RUN_ID), event, trusted, ranks });
+    // A PR-scoped run whose input is no pull request number does nothing, so
+    // nothing does its work either.
+    const scope = event === "workflow_dispatch" && env.DISPATCH_PR ? (NUMBER.test(env.DISPATCH_PR) ? env.DISPATCH_PR : "") : null;
+    const runs = eligible(listing.workflow_runs, { runId: String(env.GITHUB_RUN_ID), event, trusted, ranks, scope });
     for (const run of runs.slice(0, MAX_JOB_READS)) {
       const read = await actions("GET", `/repos/${env.GITHUB_REPOSITORY}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`);
       if (!Array.isArray(read?.jobs)) {

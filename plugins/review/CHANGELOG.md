@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.0.0] - 2026-11-03
+
+### Removed
+
+- `/review:check` is gone, with its probe file. To check this plugin's prerequisites, run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`, the command the hook notices already print. The connected-page guard registration probe moved to `scripts/check-hook-registration.sh`, which runs after the checker.
+
 ## [4.0.3] - 2026-11-03
 
 ### Fixed
