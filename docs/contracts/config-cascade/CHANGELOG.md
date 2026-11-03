@@ -11,6 +11,14 @@ adding an optional layer or relaxing a rule additively is a minor bump.
 
 No contract change.
 
+- **`rendered-views` moves onto the ADR 0075 scopes, and its row stops saying it conforms.** The
+  Implementers row now names the team file `docs/conventions/rendered-views.yaml`, the personal
+  override `docs/conventions/rendered-views.local.yaml` and each view lane's `medium` option, and
+  declares the publish trust walk as a deviation from later-layer-wins: a branch-writable layer can
+  keep a view local but never publish it. `lib/config-cascade.mjs` gains `readLayers`, each layer's
+  own values unmerged, which `lib/view-settings.mjs` uses; `resolve()` is unchanged. The root-rule
+  row moves `rendered-views` from prose only to implements, and its `.claude/` surface leaves the
+  location-axis list.
 - **`code-tidying` (`upkeep_*`) joins the Implementers and root-rule tables.** Its upkeep keys live
   in `<home>/code-tidying.yaml`, team layer over the default, with no `userConfig` option and no
   overlay.

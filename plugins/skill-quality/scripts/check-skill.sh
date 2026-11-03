@@ -8,7 +8,8 @@
 # phrase carried (a deliberate consolidation of near-synonym triggers into
 # intent categories) or restores it. Check 3 never fails the run.
 #
-# Exit 0 = all checks pass; 1 = one or more check failures; 2 = usage/env error.
+# Exit 0 = all checks pass; 1 = one or more check failures; 2 = usage/env error;
+# 3 = no failure, but PLUGIN_TEST_DEADLINE left script tests unrun.
 #
 # Usage:
 #   bash check-skill.sh [--require-evals] <skill-name>
@@ -53,6 +54,12 @@
 # CHECK_SKILL_SKIP_SCRIPT_TESTS=1 skips check 7 (the skill's scripts/*.test.sh)
 # for callers whose test tier runs those suites itself, such as
 # scripts/check-affected.sh without --tests.
+#
+# PLUGIN_TEST_DEADLINE=<epoch seconds>, which scripts/check-affected.sh --tests
+# sets, ends check 7 at that time: a script test not started by then never
+# starts and prints `SKIP <path> (past the deadline, left to CI)`. Tests that ran
+# keep their verdict, and with no failure the run ends INCOMPLETE at exit 3,
+# never PASS. A script test does not inherit it. Unset, every script test runs.
 #
 # Skills root resolution (first hit wins):
 #   1. CHECK_SKILL_SKILLS_ROOT env var (explicit override)
@@ -231,6 +238,10 @@ if [[ -n "${CHECK_SKILL_ONLY:-}" && "$CHECK_SKILL_ONLY" != 25 ]]; then
   printf 'Error: CHECK_SKILL_ONLY=%s is not supported; only 25 can run alone\n' "$CHECK_SKILL_ONLY" >&2
   exit 2
 fi
+if [[ -n "${PLUGIN_TEST_DEADLINE+x}" && ! "$PLUGIN_TEST_DEADLINE" =~ ^[0-9]+$ ]]; then
+  printf "Error: PLUGIN_TEST_DEADLINE must be epoch seconds (got '%s')\n" "$PLUGIN_TEST_DEADLINE" >&2
+  exit 2
+fi
 
 # Git is optional. Plugin-cache installs are plain trees; non-git checks still
 # run when CHECK_SKILL_SKILLS_ROOT (or CLAUDE_PROJECT_DIR) points at them.
@@ -379,6 +390,7 @@ if ((${#DISPATCH_ROOTS[@]} > 0)); then
   DISPATCH_PASSED=0
   DISPATCH_FAILED=0
   DISPATCH_ENV_ERR=0
+  DISPATCH_LEFT=0
   for dispatch_root in "${DISPATCH_ROOTS[@]}"; do
     printf '=== %s ===\n' "$dispatch_root"
     dispatch_found=0
@@ -414,6 +426,7 @@ if ((${#DISPATCH_ROOTS[@]} > 0)); then
       case $? in
       0) DISPATCH_PASSED=$((DISPATCH_PASSED + 1)) ;;
       1) DISPATCH_FAILED=$((DISPATCH_FAILED + 1)) ;;
+      3) DISPATCH_LEFT=$((DISPATCH_LEFT + 1)) ;;
       *) DISPATCH_ENV_ERR=1 ;;
       esac
     done
@@ -424,6 +437,7 @@ if ((${#DISPATCH_ROOTS[@]} > 0)); then
     ((dispatch_found == 0)) && printf 'No skills found under: %s\n' "$dispatch_root"
   done
   printf '\n%d passed, %d failed\n' "$DISPATCH_PASSED" "$DISPATCH_FAILED"
+  ((DISPATCH_LEFT == 0)) || printf '%d skill(s) left script tests to CI, counted in neither tally above\n' "$DISPATCH_LEFT"
   # An environment error is not a finding, so it must not be reported as one.
   # The rollup wording is pinned by the skill body and the suite, and a run that
   # never produced a verdict belongs in neither tally, so the shortfall is said
@@ -433,6 +447,7 @@ if ((${#DISPATCH_ROOTS[@]} > 0)); then
     exit 2
   fi
   ((DISPATCH_FAILED > 0)) && exit 1
+  ((DISPATCH_LEFT > 0)) && exit 3
   exit 0
 elif ((${#DISPATCH_BAD_PATHS[@]} > 0)); then
   # A positional carrying a path separator can never be a skill name, so an
@@ -594,6 +609,7 @@ ROUTER_CHARS_PER_TOKEN=4
 
 FAILED=0
 WARNINGS=0
+SCRIPT_TESTS_LEFT=0
 
 err() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -723,6 +739,10 @@ summarize() {
   if ((FAILED > 0)); then
     printf 'CHECK-SKILL %s: FAIL — %d error(s), %d warning(s)\n' "$SKILL_NAME" "$FAILED" "$WARNINGS" >&2
     exit 1
+  fi
+  if ((SCRIPT_TESTS_LEFT > 0)); then
+    printf 'CHECK-SKILL %s: INCOMPLETE — 0 errors, %d warning(s), %d script test(s) left to CI\n' "$SKILL_NAME" "$WARNINGS" "$SCRIPT_TESTS_LEFT"
+    exit 3
   fi
   printf 'CHECK-SKILL %s: PASS — 0 errors, %d warning(s)\n' "$SKILL_NAME" "$WARNINGS"
   exit 0
@@ -1414,6 +1434,11 @@ elif [[ -d "$SKILL_DIR/scripts" ]]; then
         continue
       fi
     fi
+    if [[ -n "${PLUGIN_TEST_DEADLINE:-}" ]] && (($(date +%s) >= PLUGIN_TEST_DEADLINE)); then
+      printf 'SKIP %s (past the deadline, left to CI)\n' "$test_rel"
+      SCRIPT_TESTS_LEFT=$((SCRIPT_TESTS_LEFT + 1))
+      continue
+    fi
     # env -u: this gate may run inside git-hook chains where git exports
     # GIT_DIR/GIT_INDEX_FILE — a fixture `git init` in a test would then mutate
     # the real repo. Strip before exec.
@@ -1424,7 +1449,7 @@ elif [[ -d "$SKILL_DIR/scripts" ]]; then
     # broke. Success stays silent: the reason to suppress was log noise, and that
     # reason does not apply to the run that just went red.
     test_out=""
-    if test_out="$("${GIT_UNSET[@]}" -u CHECK_SKILL_INVOKING_TOPLEVEL bash "$test_sh" 2>&1 </dev/null)"; then
+    if test_out="$("${GIT_UNSET[@]}" -u CHECK_SKILL_INVOKING_TOPLEVEL -u PLUGIN_TEST_DEADLINE bash "$test_sh" 2>&1 </dev/null)"; then
       note "script test passed: ${test_sh#"$SKILL_DIR"/}"
     else
       err "script test failed: ${test_sh#"$SKILL_DIR"/}"

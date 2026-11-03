@@ -210,7 +210,27 @@ scripts/lib/config-cascade.mjs
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
-lib/config-cascade.mjs -> plugins/*/scripts/lib/config-cascade.mjs
+lib/config-cascade.mjs -> plugins/*/scripts/lib/config-cascade.mjs plugins/*/lib/config-cascade.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/config-cascade.mjs, carried beside the medium resolver.
+lib/config-cascade.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/view-settings.mjs, the medium resolver every view lane calls.
+lib/view-settings.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/view-settings.mjs -> plugins/*/lib/view-settings.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/view-registry.mjs, the medium registry and fallback chain.
+lib/view-registry.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/view-registry.mjs -> plugins/*/lib/view-registry.mjs
 
 # No dedicated check: the resolver's contract test, which travels with it.
 # Canonical copy: plugins/context-guard/scripts/context-zone.test.sh; copy it

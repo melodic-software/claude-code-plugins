@@ -18,7 +18,7 @@ Collect these with **individual** Bash calls, one command per call, never combin
 - Recent commits, `git log --oneline -5`
 - Working tree status (empty = clean), `git status --porcelain | head -10`
 
-Keep the pipe in the command: a read-time cap bounds nothing, since the Bash tool returns the full output first. Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as body Bash calls, not pre-compute lines: the pre-compute block runs as one shell invocation, and a worktree-isolated session refuses a compound command that contains git. Dated record: the [gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation), "The pre-compute block runs as one shell invocation".
+Keep the pipe in the command: a read-time cap bounds nothing, since the Bash tool returns the full output first. Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as body Bash calls, not pre-compute lines. How the harness runs a skill's injected commands: [How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run), as of 2026-11-03; recheck when that section changes how injected commands run.
 
 ## Variables
 
@@ -192,7 +192,7 @@ Each tier's template in [`context/templates.md`](context/templates.md) sets whic
 
 Test seams (where, and at how few, the feature is tested) are not a PRD concern: `/planning:design` sketches them as a design thread and `/planning:plan`'s Test strategy sets the boundaries.
 
-Optionally offer to render the finalized PRD as a self-contained HTML pitch view for non-engineer stakeholders: a static generated view, never an editor with real data bound in. PRD.md stays the record. Write the view to the OS temp directory, never beside `PRD.md`, per the artifact protocol linked above. Resolve `medium` first per [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md) "Other optional views": `terminal` skips the offer.
+Optionally offer to render the finalized PRD as a self-contained HTML pitch view for non-engineer stakeholders: a static generated view, never an editor with real data bound in. PRD.md stays the record. Write the view to the OS temp directory, never beside `PRD.md`, per the artifact protocol linked above. Resolve `medium` (option `${user_config.medium}`) first per [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md) "Other optional views": `terminal` skips the offer.
 
 ### Step 6. Hand off
 
@@ -209,11 +209,11 @@ Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
 
 ## Acceptance-criteria capture
 
-Two behaviors apply when this PRD writes verifiable statements (the Step 4 success-metrics and user-story rows and any acceptance criterion).
+Two behaviors apply to this PRD's verifiable statements (the Step 4 success-metrics and user-story rows and any acceptance criterion).
 
 ### Coverage prompt. Always on, asked once
 
-While capturing those verifiable statements, ask ONE question: are they missing an **unwanted-behavior** case (an `IF <trigger>, THEN <response>` criterion) and a **state-driven** case (a `WHILE <state>, <response>` criterion)? One prompt covering both, never a per-criterion interrogation, and **"neither applies" is a valid answer** that closes it for the session. This runs whatever the acceptance-criteria format resolves to, and with no convention surface present at all; it is a coverage check, not a format.
+While capturing them, ask ONE question: are they missing an **unwanted-behavior** case (an `IF <trigger>, THEN <response>` criterion) and a **state-driven** case (a `WHILE <state>, <response>` criterion)? One prompt covering both, never a per-criterion interrogation, and **"neither applies" is a valid answer** that closes it for the session. This runs whatever the acceptance-criteria format resolves to, and with no convention surface present at all; it is a coverage check, not a format.
 
 ### Non-interactive runs skip the ask and say so
 

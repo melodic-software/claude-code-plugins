@@ -3,9 +3,9 @@
 // before anything is sent to claude.ai. Refuses a root inside a working tree (a
 // view never sits beside its record) or reached through a symlink, gates the
 // deck title the create call will use, refuses a K2 slide holding anything
-// outside a fixed text-and-layout allowlist, resolves the user's own medium
-// layers, then runs the shared publish gate over every file the publish would
-// send. Prints one JSON object.
+// outside a fixed text-and-layout allowlist, resolves the medium through the
+// shared medium resolver, then runs the shared publish gate over every file the
+// publish would send. Prints one JSON object.
 //
 //   check-deck.mjs <root> <PUBLIC|PRIVATE|INTERNAL|UNKNOWN|NONE> --class K0|K1|K2
 //                  [--argument terminal|file|artifact] [--option <plugin medium option>]
@@ -14,7 +14,9 @@
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { publishGate, trustedMedium } from "../../../lib/publish-gate.mjs";
+import { publishGate } from "../../../lib/publish-gate.mjs";
+import { reportLines } from "../../../lib/view-registry.mjs";
+import { findRoot, gateExplicit, resolveMedium } from "../../../lib/view-settings.mjs";
 
 // ------------------------------------------------------------ K2 allowlist
 
@@ -181,7 +183,7 @@ function workTree(dir) {
 }
 
 /**
- * @param {{root: string, visibility: string, cls: string, layers?: {argument?: string|null, option?: string|null, home?: string, project?: string|null}}} input
+ * @param {{root: string, visibility: string, cls: string, layers?: {argument?: string|null, option?: string|null, home?: string, project?: string|null, dataDir?: string|null}}} input
  */
 export function checkDeck({ root, visibility, cls, layers = {} }) {
   const local = (exit, reason) => ({ exit, result: { medium: "file", class: cls, reason } });
@@ -214,19 +216,22 @@ export function checkDeck({ root, visibility, cls, layers = {} }) {
       return { exit: 1, result: { medium: "file", class: cls, reason: "a K2 deck carries more than text in the slide format", refused } };
     }
   }
-  const { medium: chosen, source, warnings } = trustedMedium(layers);
-  const extra = warnings.length ? { warnings } : {};
-  if (chosen === "terminal" || chosen === "file") {
-    return { exit: 0, result: { medium: chosen, class: cls, reason: `${source} sets medium: ${chosen}`, ...extra } };
+  const { argument = null, option = null, home, project = findRoot(), dataDir = process.env.CLAUDE_PLUGIN_DATA || null } = layers;
+  const resolution = resolveMedium({ lane: "visualization:present", argument, userConfig: option, projectRoot: project }, { ...(home ? { userHome: home } : {}), dataDir });
+  const { medium, preferred, decidedBy } = resolution;
+  if (medium === "terminal" || medium === "file") {
+    return { exit: 0, result: { medium, class: cls, reason: `${decidedBy} sets medium: ${medium}`, report: reportLines(resolution) } };
   }
-  // A deck is many files on a Slides type, never one page, so it is never sent to a page host.
-  const medium = chosen === "hosted" ? "artifact" : chosen;
+  // The lane reads hosted as artifact: a deck is many files on a Slides type, never one page, so it is never sent to a page host.
+  const explicit = gateExplicit(resolution);
   const text = files.map(([p, t]) => `${p}\n${t}`).join("\n");
-  const gate = publishGate({ explicit: medium === "artifact", visibility, text, subject: "deck" });
-  if (medium === "artifact") gate.reason = `${source} sets medium: ${chosen === "hosted" ? "hosted, treated as artifact" : "artifact"}`;
+  const gate = publishGate({ explicit, visibility, text, subject: "deck" });
+  if (explicit) gate.reason = `${decidedBy} sets medium: ${preferred === "hosted" ? "hosted, treated as artifact" : "artifact"}`;
   // The title is printed only for a create call; a deck kept local never echoes it.
   const named = gate.medium === "artifact" ? { title } : {};
-  return { exit: 0, result: { class: cls, files: files.length, ...named, ...gate, ...extra } };
+  // The report names the medium the deck goes to: when the gate keeps it local, the gate decided.
+  const report = reportLines(gate.medium === medium ? resolution : { ...resolution, medium: gate.medium, decidedBy: `publish gate: ${gate.reason}` });
+  return { exit: 0, result: { class: cls, files: files.length, ...named, ...gate, report } };
 }
 
 function main(argv) {
