@@ -180,7 +180,7 @@ Run the static validator before every paid pass; it checks the bounds above with
 
 ## Calibration samples
 
-What the [calibrating-a-judge.md](calibrating-a-judge.md) commands do with a case's `samples/<grader>.json`:
+What the hub's "Calibrating a judge" commands do with a case's `samples/<grader>.json`:
 
 - `build` writes one case per sample into an empty plugin: the source case's prompt goes out
   unchanged, and an appended system prompt presents the sample as fixed test material for the agent

@@ -26,19 +26,15 @@ reads the delta. It never re-implements grading and never simulates a run or a s
 | `ci` | Answer from the CI section below |
 | `init [<name>]` | Scaffold a suite: `claude plugin eval init --bare <name>` where there is no terminal |
 
-This page holds the rules every action uses; answer from it, and read a reference file when its row
-below fits the question. Each upstream specific it states has a row under [Sources](#sources).
-
-| File | Read when |
-|---|---|
-| [calibrating-a-judge.md](reference/calibrating-a-judge.md) | Calibrating an `llm` grader's judge (Run step 2) |
-| [iterating.md](reference/iterating.md) | Tuning one case after a read, or confirming a change |
-| [boundary.md](reference/boundary.md) | The question is what the CLI owns, or a skill-creator `evals.json` |
-| [case-authoring.md](reference/case-authoring.md) | Background for a human reader on writing cases |
-| [reading-results.md](reference/reading-results.md) | JSON fields, denials, what a delta does and does not say |
-| [ci.md](reference/ci.md) | Workflow file, exit codes, parser |
-| [sandboxes.md](reference/sandboxes.md) | Sandbox start, the link swap, removing kept sandboxes |
-| [records.md](reference/records.md) | The observations behind each source row |
+This page holds every rule the actions use; answer from it. Each upstream specific it states has a
+row under [Sources](#sources). In every reference file, `<skill-dir>` is this skill's directory,
+`${CLAUDE_SKILL_DIR}`. Background for a human reader:
+[case-authoring.md](reference/case-authoring.md), [reading-results.md](reference/reading-results.md)
+(JSON fields), [ci.md](reference/ci.md) (workflow file, exit codes, parser), and
+[records.md](reference/records.md) (the observations behind each source row). Two topics are not
+actions and are answered from their own files, never from this page alone: tuning one case after a
+read or confirming a change ([iterating.md](reference/iterating.md)), and what the CLI owns or how
+to move a skill-creator `evals.json` into a suite ([boundary.md](reference/boundary.md)).
 
 ## Preflight
 
@@ -381,8 +377,28 @@ its second-model run; otherwise `do not promote`, followed by the first conditio
 
 ## Calibrating a judge
 
-The agreement bar, the commands and what to do on a miss:
-[calibrating-a-judge.md](reference/calibrating-a-judge.md).
+Trust an `llm` grader's scores only after its judge, the model the suite uses, agrees with labeled
+answers on at least 90% of runs; a pass says nothing about another model. Before the first full
+run, calibrate every LLM-judge grader the harness can reproduce (one with labeled samples, judging
+text); the default judge is uncalibrated until it passes. Report any other judge grader as
+uncalibrated, never trusted silently. Labels are the must-pass and must-fail answers in the case's
+`samples/<grader>.json`, set by three agents independently with the user settling every
+disagreement:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/calibrate-judge.py" build --suite <eval-dir> --out <empty dir outside the repo>
+claude plugin eval <out> --trust-plugin --ablation none --threshold 0 --runs 3 --judge-model <the suite's judge model> --keep-temp --no-publish --json <out>/results.json
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/calibrate-judge.py" score --manifest <out>/manifest.json <out>/results.json
+```
+
+`--threshold 0` keeps the CLI's exit code about errors, since must-fail cases are meant to score 0.
+
+`score` prints a `FAIL grader` line for each grader under 90% and exits 1; fix that rubric, or move
+the whole suite to a stronger judge, and calibrate again before reading its scores. Its false
+positives and negatives name the samples to read first. A sample with no reproduced run is listed
+`untested`, counts toward no agreement, and shows in the verdict line; raise `--runs` or tighten
+the prompt before reading the grader's score. What `build` writes and skips, and which runs
+`score` leaves out: [case-authoring.md, Calibration samples](reference/case-authoring.md#calibration-samples).
 
 ## CI
 
