@@ -18,8 +18,12 @@ is called done.
 Run every script through the launcher, which uses the packages the SessionStart hook installed and
 never installs:
 `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/pydeps.py run --data-dir "${CLAUDE_PLUGIN_DATA}" -- <script> ...`.
-When it exits 2 with a repair line, or `render.py` names a missing tool, run `/explainer-video:check`
-and report what it prints.
+When it exits 2 with a repair line, or `render.py` names a missing tool, run the read-only readiness
+report, `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/pydeps.py check --data-dir "${CLAUDE_PLUGIN_DATA}"`, and report the rows it prints. When `python3` is not found, run the same line
+with `python`, and on Windows then with a `python.exe` path that `py -0p` lists. Never start it
+through `py`; for why, read what a `py` launch does with no runtime installed in
+[Python on Windows, basic use](https://docs.python.org/3/using/windows.html#basic-use) (as of
+2026-10-04; recheck when the Python install manager changes what a launch command does).
 
 ## Where the files go
 
@@ -129,9 +133,9 @@ record bundle or beside the markdown record they explain
 
 ## Next
 
-/explainer-video:check
+/harness-ops:prerequisites
 
-When a render stops with a repair line or a missing tool.
+When a render stops with a missing tool, it lists the declared tools this machine lacks.
 
 ## Gotchas
 

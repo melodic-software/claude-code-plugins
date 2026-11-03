@@ -78,7 +78,7 @@ test("dispatches review-dependency for a review-tier Dependabot PR", async () =>
   });
 });
 
-test("a check-run read GitHub still answers 5xx after its retries skips that PR with a warning; any other error fails", async () => {
+test("a check-run read that fails, on a 5xx after its retries, a rate limit or any other answer, skips that PR with a warning and fails nothing", async () => {
   const api = fakeApi({ nodes: [pr(4), pr(5)] });
   const listCheckRuns = api.listCheckRuns;
   let error = Object.assign(new Error("GET check-runs returned 502"), { status: 502 });
@@ -92,8 +92,15 @@ test("a check-run read GitHub still answers 5xx after its retries skips that PR 
   const skipped = await run(api, { log: (line) => lines.push(line) });
   assert.deepEqual(skipped, { dispatched: [{ number: 5, workflowRunId: "7005" }], failed: 0 });
   assert.ok(lines.some((line) => line.startsWith("::warning::#4:") && line.includes("502")));
-  error = Object.assign(new Error("GET check-runs returned 403"), { status: 403, rateLimited: true });
-  assert.equal((await run(api)).failed, 1, "a rate limit still fails");
+  for (const other of [
+    Object.assign(new Error("GET check-runs returned 403"), { status: 403, rateLimited: true }),
+    Object.assign(new Error("GET check-runs returned 404"), { status: 404 }),
+  ]) {
+    error = other;
+    lines.length = 0;
+    assert.equal((await run(api, { log: (line) => lines.push(line) })).failed, 0, other.message);
+    assert.ok(lines.some((line) => line.startsWith("::warning::#4:") && line.includes(other.message)), other.message);
+  }
 });
 
 test("leaves auto-tier bumps, other authors, drafts and forks alone", async () => {

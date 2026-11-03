@@ -125,7 +125,7 @@ class MissingPrerequisites(unittest.TestCase):
                 narrate.espeak_phonemizer('en-us')
         finally:
             narrate.shutil.which = real
-        self.assertIn('/speech:check', str(e.exception))
+        self.assertIn('check.py', str(e.exception))
         self.assertIn('never ships it', str(e.exception))
 
     def test_an_unknown_voice_is_exit_1(self):

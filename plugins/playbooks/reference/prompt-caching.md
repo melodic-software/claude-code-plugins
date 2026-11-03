@@ -156,11 +156,13 @@ moves there.
   standing instruction. Pointer: for long outputs at the top effort levels, see
   [Leave room for long outputs at xhigh and max effort](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#leave-room-for-long-outputs-at-xhigh-and-max-effort).
   As of: 2026-11-01. Recheck trigger: a re-read of that section no longer supporting this row.
-- **Automation.** When the bundled `claude-api` skill resolves in this session, its
-  `cost-optimize` subcommand profiles spend and proposes these levers against an application,
-  measuring against an eval when one exists. Wrap or point to it rather than rebuilding the audit;
-  it proposes rather than silently applies. The routing between that surface and this playbook is
-  the `## Boundary` section in the fable-5 skill body.
+- **Automation.** When the bundled `claude-api` skill resolves in this session, wrap or point to
+  its `cost-optimize` subcommand rather than rebuilding the cost audit. Pointer: when deciding what
+  that subcommand covers, fetch
+  [skills: Work on Claude API projects](https://code.claude.com/docs/en/skills#work-on-claude-api-projects)
+  live. As of: 2026-11-03. Recheck trigger: that section renames, moves or drops `cost-optimize`.
+  The routing between that surface and this playbook is the `## Boundary` section in the fable-5
+  skill body.
 
 ## Request assembly
 

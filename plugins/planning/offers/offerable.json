@@ -1,0 +1,12 @@
+{
+  "plugins": [
+    {
+      "name": "html-plan",
+      "marketplace": "claude-community",
+      "repo": "anthropics/claude-plugins-community",
+      "kind": "planner",
+      "invoke": "/html-plan",
+      "helps": "writes the plan as one interactive HTML page"
+    }
+  ]
+}

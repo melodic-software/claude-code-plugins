@@ -3,6 +3,44 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.1.4] - 2026-11-03
+
+### Changed
+
+- pull-request: the monitor entry and per-iteration checklists move from SKILL.md to
+  `reference/monitor.md`, which `monitor`, `comments` and `full` already read, so `create` and
+  `ready` loads no longer carry them. The text moves verbatim except three paths, now written
+  `<skill-dir>` and `<plugin-root>` as reference files require. The body drops from 51,224 to
+  35,846 bytes; SKILL.md keeps a Monitor entry section that sends Phase 3 to the moved
+  checklists before any polling. Two eval cases cover the moved text: a behavior finding gets a
+  failing test first, and a person's review thread stays unresolved.
+
+## [6.1.3] - 2026-11-03
+
+### Added
+
+- The bundled publish gate (`lib/publish-gate.mjs`) gains `locateHit` and `hitFingerprint`: for a blocked leak-scan hit, the rule, the path and the line number, with no character of the match and every character outside printable ASCII escaped. `scanLeak` is unchanged.
+
+## [6.1.2] - 2026-11-03
+
+### Changed
+
+- babysit-prs, pull-request, worktree and the worktree-root convention: passages that restated
+  upstream behavior (GitHub's `mergeStateStatus`, subagent resume, git hooks and config keys,
+  Bash working-directory carry-over, `/autofix-pr` and cloud-session limits, status line
+  `rate_limits`, `plugin uninstall` flags, ghq and jq output) now keep only this plugin's rule and
+  point at the upstream section with an as-of date and a recheck trigger.
+
+- carries the shared medium resolver (`lib/view-settings.mjs`,
+  `lib/view-registry.mjs`) and the libraries it imports
+
+  No skill of this plugin calls it yet; its view lanes move onto it in a
+  later change.
+
+### Fixed
+
+- state that only a head pushed while the PR is a draft reads `local`; a PR moved back to draft keeps its ready head's test-lane results
+
 ## [6.1.1] - 2026-11-03
 
 ### Changed
