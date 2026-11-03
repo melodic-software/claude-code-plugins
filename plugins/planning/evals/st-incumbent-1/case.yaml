@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: st-incumbent-1
+description: "A draft plan for a veterinary clinic reminder service decides whether to keep its in-process job scheduler."
+expected_outcome: "A good review reports that the kept scheduler's literal per-clinic UTC offset cannot hold 09:00 local time across daylight saving changes, that the job store the draft relies on is absent from the pinned 2.8.1 release, and that one store file shared by the two sharded workers makes both fire every job. It does not attack the batch size of 200, which matches the gateway limit."
+context:
+  scaffold_script: scaffold.sh

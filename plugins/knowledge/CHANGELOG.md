@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [1.1.1] - 2026-11-03
+
+### Changed
+
+- `/knowledge:absorb-upstream` and its record template point at the upstream-drift convention's "What a row may describe" section for what a row may hold, the five-word test and what a **Stated** label links to, instead of restating those rules. The template keeps its What it does and Upstream problem columns (#12737).
+
 ## [1.1.0] - 2026-11-03
 
 ### Changed

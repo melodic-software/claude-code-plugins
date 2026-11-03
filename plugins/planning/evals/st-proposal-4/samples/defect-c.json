@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "- A compaction takes eight minutes but cron starts one every five, with no lock, so two runs overlap and rewrite manifest.json over each other.\n",
+      "why": "bullet"
+    },
+    {
+      "answer": "| 1 | CRITICAL | Operations | The `*/5` compact entry has no flock, unlike ingest; concurrent runs lose manifest entries | Wrap it in flock |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- Two compactions at once race on manifest.json and the last rename wins.\n",
+      "why": "race phrasing"
+    },
+    {
+      "answer": "| 2 | HIGH | Failure | wxarchive compact runs without a lock, so a manifest update can be lost in parallel runs | Add a lock |\n",
+      "why": "without a lock"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "Overlapping compact runs are fine because the rename is atomic.\n",
+      "why": "named and dismissed"
+    },
+    {
+      "answer": "Compaction runs do not overlap.\n",
+      "why": "negated mention"
+    },
+    {
+      "answer": "- The compact subcommand needs better error handling.\n",
+      "why": "anchor with a generic warning"
+    },
+    {
+      "answer": "- The tools should log which segment they read.\n",
+      "why": "a finding about something else"
+    },
+    {
+      "answer": "- Compaction should be tested with concurrent ingest.\n",
+      "why": "ingest beside compaction, not two compactions"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: st-proposal-1
+description: Review of a draft proposal for a send ledger in a clinic appointment reminder job.
+expected_outcome: "The review reports that the ledger key leaves out the appointment time, so a moved appointment never gets its new reminder (AC2); that send_sms in reminders/gateway.py sends up to three requests, against the draft's one-request assumption; and that a run stopped after the send and before the insert texts the patient twice on the next start (AC1). It does not call SQLite the wrong store, since the job runs on one host as a oneshot service."
+context:
+  scaffold_script: scaffold.sh

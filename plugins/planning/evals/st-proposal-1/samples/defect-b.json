@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "- The load-bearing assumption is false: `send_sms` in reminders/gateway.py retries up to `attempts` times, so one call can be three requests.\n",
+      "why": "bullet"
+    },
+    {
+      "answer": "| 2 | IMPORTANT | Assumption | gateway.py has a retry loop; a timeout after the provider accepted means a duplicate text with one ledger row | Remove it or send an idempotency key |\n",
+      "why": "table row, retry loop"
+    },
+    {
+      "answer": "- The draft says send_sms never retries, but gateway.py loops over `attempts`.\n",
+      "why": "quotes the negated claim then contradicts it"
+    },
+    {
+      "answer": "| 4 | HIGH | Plan | send_sms can make 3 requests per call (config attempts = 3), so a row does not map to one text | Fix the assumption |\n",
+      "why": "table row, three requests"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "The send_sms retries are fine; AC1 still holds.\n",
+      "why": "named and dismissed"
+    },
+    {
+      "answer": "send_sms does not retry, so one call is one request.\n",
+      "why": "negated mention"
+    },
+    {
+      "answer": "- `send_sms` should have better error handling.\n",
+      "why": "anchor with a generic warning"
+    },
+    {
+      "answer": "- The migration to the ledger should be logged in the rollout.\n",
+      "why": "a finding about something else"
+    }
+  ]
+}
