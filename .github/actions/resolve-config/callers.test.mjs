@@ -7499,6 +7499,18 @@ test("every model leg is followed by a sealed transcript upload of its own execu
   assert.ok(legs >= 13, `only ${legs} model legs found`);
 });
 
+test("every caller of a reusable holding model legs passes the transcript key", () => {
+  let callers = 0;
+  for (const file of workflowFiles()) {
+    for (const [jobId, job] of Object.entries(workflow(file).jobs ?? {})) {
+      if (!/\/ci-workflows\/\.github\/workflows\/(pr-review-cli|intake-triage)\.yml@/.test(String(job.uses ?? ""))) continue;
+      callers++;
+      assert.equal(job.with?.["lane-transcript-public-key"], "${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}", `${file}#${jobId}`);
+    }
+  }
+  assert.ok(callers >= 3, `only ${callers} callers found`);
+});
+
 // request-lane-token's kill-switch-ok ends a kill-switch refusal green with no
 // token, so nothing after it may run on success() alone: every later step is
 // gated, a step that reads the token runs only when it is set, and a job that
