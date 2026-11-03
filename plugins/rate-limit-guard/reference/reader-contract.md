@@ -215,7 +215,7 @@ what fail-open forbids.
 
 **Documented residual (not closed here):** no producer is known to write the snapshot file where a cloud
 / remote consumer can read it today. Shipping or verifying one, whether fleet `cloud-environment` wiring, a synced
-snapshot, or a harness/API exposure, is the residual path to proactive mode in cloud. Until it lands, unknown → reactive-only is the complete honest
+snapshot, or a harness/API exposure, is the residual path to proactive mode in cloud. Until it lands, unknown → reactive-only is the whole
 contract. Do not open a tracking issue solely
 to restate this residual; the residual is this paragraph.
 
