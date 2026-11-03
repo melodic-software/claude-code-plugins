@@ -258,7 +258,10 @@ full rules. Never runs from bare `apply`.
 3. **Values the profile lacks.** Owners, identity markers, `az_config_dir` and shared
    exceptions are not discovered. In an attended run, ask for them once, by domain name, and
    pass them as `--owner NAME=OWNER`, `--marker NAME=TEXT`, `--az-config-dir NAME=DIR` and
-   `--shared-exception FROM[,FROM...]:TO=PATH`. A shared exception opens PATH, a directory
+   `--shared-exception FROM[,FROM...]:TO=PATH`. When the machine keeps repositories outside
+   `~/src/github.com` and `~/worktrees/github.com`, also pass `--owner-root DIR`, repeatable,
+   for each directory that holds one directory per owner, such as `"$(ghq root)/github.com"`.
+   A flat worktree root has no such directory. A shared exception opens PATH, a directory
    of domain TO, to sessions in the FROM domains, one way; the script refuses a PATH that is
    not TO's tree or below it or one of TO's owner directories, and a FROM that lists TO. A
    value nobody gives is left out of the map. A map that still holds a plain-path
