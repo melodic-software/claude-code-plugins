@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# changed-code-files.sh — list uncommitted code files for the audit-comment-residue
-# and dissolve-comments skills' `## Pre-computed context` blocks.
+# changed-code-files.sh — list uncommitted code files for remove-comments' audit
+# action.
 #
 # Kept out of SKILL.md: skill argument substitution rewrites `$<digit>` anywhere in a
 # skill body, which corrupted this awk's `substr($0, ...)` calls inline.

@@ -35,7 +35,7 @@ tracked markdown a repository maintains.
    skill that gates its entry point on that binary; `extract-ssot` names it as
    one option for a ship-gate lint step. The README Requirements section
    states that split.
-3. **Not a code-comment tool.** `code-tidying:audit-comment-residue` owns
+3. **Not a code-comment tool.** `code-tidying:remove-comments audit` owns
    non-markdown files, even where the residue shapes are identical.
 4. **Not a commit or PR authoring tool.** `source-control` owns commit-message
    shape and the marketplace owns PR-body sections.

@@ -1,5 +1,6 @@
 schema_version: "1.1"
 name: audit-stamp-declined-reported
+plugins: ["../..", "review-stub"]
 context:
   scaffold_script: scaffold.sh
 graders:
@@ -40,3 +41,7 @@ graders:
     min: 0
     max: 0
     arm: 'both'
+  - name: 'findings-file-written'
+    type: 'file_exists'
+    path: '.work/reviews/**/*-attribution.md'
+    arm: 'with-only'

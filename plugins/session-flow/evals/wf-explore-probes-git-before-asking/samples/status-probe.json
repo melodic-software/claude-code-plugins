@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "git --no-optional-locks status --porcelain -- src/exporters/csv_out.py" } }
+      ],
+      "why": "the rule's own probe"
+    },
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "git status --short" } }
+      ],
+      "why": "a whole-tree status still names each path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "ls src/exporters" } }
+      ],
+      "why": "no git probe"
+    },
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "echo status && ls src/exporters" } }
+      ],
+      "why": "the word status outside a git call"
+    }
+  ]
+}
