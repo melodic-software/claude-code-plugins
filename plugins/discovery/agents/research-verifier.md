@@ -126,7 +126,7 @@ recorded qualifier. The rule is in
 unless two sub-slices declare one ID: then the brief says so, and the label and sweep words of each
 pointer to a sub-slice claim are yours to check against the sub-slice sidecars. A slice-root
 synthesis that adds no claims of its own and cites by ID otherwise takes no verifier at all: that
-check is its whole row 12 grading.
+check is its whole row 12 grading, and the parent grades its row 14 by the rule above.
 
 Fetch each page once, and read each file once; the rule is stated once in
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)

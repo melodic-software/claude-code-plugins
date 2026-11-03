@@ -255,10 +255,12 @@ sub-slice for re-dispatch.
 **A slice-root synthesis that adds no claims and cites by ID needs no verifier.** When the
 slice-root index writes no claim of its own (no `RESEARCH-*.md` sidecar at the root, or only
 `claims: []`) and cites each sub-slice claim by its `id:` with that claim's label, every claim it
-carries already has its sub-slice's verdict, so rows 4, 7 and 14 have nothing of the root's own to
-grade. Its pointers are the one thing left: a Settled line that drops a `HIGH (single source)`
-label, or widens a claim with a sweep word, is the drift row 12 exists to catch. A script covers
-them. Run the restatement check on the root with one `--sub-slice` per sub-slice:
+carries already has its sub-slice's verdict, so neither row 4 nor row 7 has anything of the
+root's own to grade. Two things are left. Row 14 is the root's own: its `accepted:` count and, at zero, its
+Summary are written by the synthesis, not inherited. Its pointers are the other: a Settled line
+that drops a `HIGH (single source)` label, or widens a claim with a sweep word, is the drift row 12
+exists to catch. A script covers the pointers. Run the restatement check on the root with one
+`--sub-slice` per sub-slice:
 
 ```bash
 "<plugin-root>/scripts/check-restatement-labels.py" <slice root> --sub-slice <sub-slice> [--sub-slice <sub-slice>]...
@@ -269,11 +271,17 @@ for lines, and fails a root pointer that drops its claim's label or carries a sw
 `--sub-slice` it would find no ID to look for at a `claims: []` root and pass without reading a
 pointer, and it exits 2 at a root with no sidecar, so the flag is not optional here. Cite its exit
 status as acceptance-gate step 5 for the root; the eligibility check has no claim of the root's to
-read and is not run there. On exit 0, write `verification: skipped (cost)` into the root index,
-dispatch no verifier, and say in its outcome-gate result that the root adds no claims and that the
-restatement check over its sub-slices passed. An exit 2 because two sub-slices declare one ID
-means the root's pointers are ambiguous: that root takes the verifier on every verifier-owned row,
-and the brief says the restatement check could not grade its pointers to sub-slice claims.
+read and is not run there. Then grade row 14 on the root by the verifier's own rule
+([`../../../agents/research-verifier.md`](../../../agents/research-verifier.md), the paragraph that
+opens "Rows 4, 7 and 12 hold vacuously"): count the distinct sub-slice claim IDs the root's index
+carries that their sub-slice accepted, and compare with the root's `accepted:`; at zero, the
+Summary opens with `Inconclusive: no claim accepted.` A missing field, a different number or a
+zero that reads as an answer sends the synthesis back for rewriting. Once row 14 passes, act on
+the exit status. On exit 0, write `verification: skipped (cost)` into the root index,
+dispatch no verifier, and say in its outcome-gate result that the root adds no claims, that the
+restatement check over its sub-slices passed, and that its accepted count matched. An exit 2
+because two sub-slices declare one ID means the root's pointers are ambiguous: that root takes
+the verifier on every verifier-owned row, and the brief says the restatement check could not grade its pointers to sub-slice claims.
 Any other non-zero exit sends the synthesis back for rewriting, like any failure above. A root that
 adds one claim, a cross-topic conclusion included, takes the verifier on every verifier-owned row
 too, and takes the same `--sub-slice` run as its step 5, so its own claims and its pointers to
