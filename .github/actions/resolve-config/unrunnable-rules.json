@@ -33,7 +33,7 @@
     },
     {
       "kind": "host-data",
-      "match": "\\b(?:session|recorded|operator['’]s) transcripts?\\b|~/\\.claude|\\b(?:command|session) corpus\\b|corpus replay|mod telemetry|request capture|window of the same length|comparable window|survey of all repositories",
+      "match": "\\b(?:session|recorded|operator['’]s) transcripts?\\b|\\b(?:calls?|writes?|reads?) (?:into|from|in|under) `?~/\\.claude|~/\\.claude\\S*`? as never read|~/\\.claude/projects\\b|\\b(?:command|session) corpus\\b|corpus replay|mod telemetry|request capture|window of the same length|comparable window|survey of all repositories",
       "unless": null
     },
     {

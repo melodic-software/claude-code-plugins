@@ -425,6 +425,22 @@
       "kind": "host-data"
     },
     {
+      "issue": 12628,
+      "set": "review-control",
+      "class": "lane",
+      "line": "`context-zone.sh` reads `~/.claude/settings.json` when the project file is absent.",
+      "kind": null,
+      "note": "a code change that names the path, kept with the lane (review thread on #12628)"
+    },
+    {
+      "issue": 12628,
+      "set": "review-control",
+      "class": "lane",
+      "line": "The setup skill's docs name `~/.claude/CLAUDE.md` as the user-level file.",
+      "kind": null,
+      "note": "a doc edit that names the path, kept with the lane (review thread on #12628)"
+    },
+    {
       "issue": 12468,
       "set": "sample-host",
       "class": "host-data",
