@@ -252,13 +252,16 @@ they graduate into a skill body only on observed, repeated stumble evidence:
   a design decision hidden in a collapsed section.
 
 Two more from Addy Osmani's "Critical thinking when agents do the work"
-(`https://x.com/addyosmani/status/2117512471930167377`, 2026-11-03), tracked as eval
-candidates in #12938:
+(`https://x.com/addyosmani/status/2117512471930167377`, 2026-11-03), both BEHAVIORAL
+under ADR 0025:
 
-- **Prediction-first** (delegation): before handing a non-trivial task to an agent, write
-  the answer you expect, then compare it with what comes back.
-- **Weekly no-agent practice** (skill upkeep): do one real task a week without an agent;
-  once a month, note what you have stopped doing and decide which of it you accept losing.
+- **Prediction-first** (delegation, BEHAVIORAL): before handing a non-trivial task to an
+  agent, write the answer you expect, then compare it with what comes back. Eval candidate:
+  [#12938](https://github.com/melodic-software/claude-code-plugins/issues/12938).
+- **Weekly no-agent practice** (skill upkeep, BEHAVIORAL): do one real task a week without
+  an agent; once a month, note what you have stopped doing and decide which of it you accept
+  losing. Eval candidate:
+  [#12938](https://github.com/melodic-software/claude-code-plugins/issues/12938).
 
 ## Sources and citation shape
 
