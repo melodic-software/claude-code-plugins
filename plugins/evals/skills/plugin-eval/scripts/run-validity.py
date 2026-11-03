@@ -47,9 +47,10 @@ one line per check, detail lines indented under it:
                       slash-invoked `context: fork` skill) and passes. Any run
                       fails whose failed Bash result reports a read-only file
                       system at a relative path or under the run's sandbox (its
-                      workspace and TMPDIR), or whose user line's
-                      local-command-stderr shows a skill's pre-computed command
-                      failing
+                      workspace and TMPDIR), unless the call only reads (such
+                      as a grep of a saved tool result, which prints the text
+                      it read), or whose user line's local-command-stderr shows
+                      a skill's pre-computed command failing
     plugins loaded    every suite.plugins plugin, named by its
                       .claude-plugin/plugin.json (else its directory), is in
                       each with-arm run's init plugins list with no
@@ -80,7 +81,8 @@ one line per check, detail lines indented under it:
                       Code persists a large tool result the session already
                       received, and a Bash pipeline of cat, head, wc, grep and
                       sed -n reading only there, with no redirect, other
-                      operator or unquoted expansion; with
+                      operator or unquoted expansion, after any opening
+                      NAME=value commands whose names it expands; with
                       --own-copy-search-warns, so is a Read, Grep or
                       Glob aimed only at or under the plugin copy the run's
                       init line lists as loaded (a suite.root or suite.plugins
@@ -240,6 +242,7 @@ BASH_EXEC = re.compile(r"`|\$\(|[\r\n]")
 # a backslash quotes the command differently for bash than for shlex.
 QUOTED_SPAN = re.compile(r"'[^']*'|\"(?:[^\"\\]|\\.)*\"")
 UNQUOTED_EXPANSION = re.compile(r"[{*?\[$\\]")
+QUOTED_EXPANSION = re.compile(r"[$`]")  # inside double quotes
 DENIAL_TOOL, DENIAL_ID, DENIAL_INPUT = "tool_name", "tool_use_id", "tool_input"
 MESSAGE, CONTENT, BLOCK_TYPE = "message", "content", "type"  # message.content[].type
 TOOL_USE, USE_ID, USE_NAME, USE_INPUT = "tool_use", "id", "name", "input"
@@ -753,13 +756,15 @@ def shell_failure(run):
     starting, or every one of at least MIN_BASH_CALLS Bash calls failing with no
     output. A failed call that printed output ran, so the shell worked. A denied
     call never reached the shell, so it counts toward none; check_denials judges
-    it."""
+    it. A call that only reads (only_reads), such as a grep of a saved tool
+    result, prints a read-only file system only as text it read."""
     sandbox = sandbox_dir(run)
-    bash_ids, failed_ids = set(), set()
+    bash_ids, failed_ids, commands = set(), set(), {}
     for line in run.trace or []:
         for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
             if block.get(BLOCK_TYPE) == TOOL_USE and block.get(USE_NAME) == BASH_TOOL:
                 bash_ids.add(block.get(USE_ID))
+                commands[block.get(USE_ID)] = as_dict(block.get(USE_INPUT)).get(BASH_COMMAND)
             elif (
                 block.get(BLOCK_TYPE) == TOOL_RESULT
                 and block.get(RESULT_USE_ID) in bash_ids
@@ -769,7 +774,7 @@ def shell_failure(run):
                     continue
                 if block.get(RESULT_ERROR) is not True:
                     continue
-                if any(
+                if not only_reads(commands.get(block.get(RESULT_USE_ID))) and any(
                     in_run_sandbox(p, sandbox)
                     for p in read_only_targets(block.get(CONTENT))
                 ):
@@ -1366,12 +1371,90 @@ def bash_paths(command):
     return paths + (None,) if unresolved or not paths else paths
 
 
+def inline_assignments(command):
+    """(names, items) for a Bash command: names maps each NAME=value command that
+    opens it, standing alone before a ;, newline or &&, to its value; items is the
+    rest as ("op", text) and ("word", literal text) pairs, each $NAME or ${NAME}
+    outside single quotes replaced by its value. None when the command does not
+    parse, an opening value is not one literal word (UNRECORDED_VALUE) or names a
+    shell-set variable, names were recorded and the command holds a NO_RESOLVE
+    mark, or a word keeps an expansion, glob or brace outside single quotes."""
+    tokens = shell_tokens(command)
+    if tokens is None:
+        return None
+    names, start = {}, 0
+    while True:
+        end = next((k for k in range(start, len(tokens)) if tokens[k][0] == "op"), None)
+        words = [parts for _, parts in tokens[start:end]]
+        if (
+            end is None
+            or not words
+            or tokens[end][1] not in (";", "\n", "&&")
+            or not all(assignment(parts) for parts in words)
+        ):
+            break
+        for parts in words:
+            match = assignment(parts)
+            name = match.group(1)
+            value = parts[0][0][match.end() :] + "".join(t for t, _ in parts[1:])
+            if UNRECORDED_VALUE.search(value) or name in SHELL_SET or name.startswith("BASH"):
+                return None
+            names[name] = value
+        start = end + 1
+    if names and any(mark in command for mark in NO_RESOLVE):
+        return None
+    items = []
+    for kind, value in tokens[start:]:
+        if kind == "op":
+            items.append((kind, value))
+            continue
+        text = ""
+        for part, quote in value:
+            if quote != "'":
+                part = EXPANSION.sub(
+                    lambda m: names.get(m.group(1) or m.group(2), m.group(0)), part
+                )
+                if (UNQUOTED_EXPANSION if quote is None else QUOTED_EXPANSION).search(part):
+                    return None
+            text += part
+        items.append((kind, text))
+    return names, items
+
+
+def joined(items):
+    """inline_assignments items as one command, each word quoted as a literal."""
+    return " ".join(text if kind == "op" else shlex.quote(text) for kind, text in items)
+
+
+def only_reads(command):
+    """True when every command of a Bash command, after its opening assignments
+    (inline_assignments), is a read bash_read_paths accepts, joined only by ;,
+    newlines, && or ||. Such a command writes nothing, so a read-only file system
+    its output reports is text it read, not its own failure."""
+    resolved = inline_assignments(command) if isinstance(command, str) else None
+    if resolved is None:
+        return False
+    segments, current = [], []
+    for kind, text in resolved[1] + [("op", None)]:
+        if kind == "op" and text in (";", "\n", "&&", "||", None):
+            if current:
+                segments.append(current)
+            current = []
+        else:
+            current.append((kind, text))
+    return bool(segments) and all(bash_read_paths(joined(s)) is not None for s in segments)
+
+
 def bash_read_paths(command):
     """The path operands of a Bash command that only reads: a pipeline of
     BASH_READERS commands, each with only its listed flags, sed with -n and a
-    SED_PRINT script. None for any other command, a redirect or other operator,
-    command substitution, an UNQUOTED_EXPANSION character outside quotes, a path
-    UNRESOLVED matches, or no path at all."""
+    SED_PRINT script, after any opening assignments it then expands
+    (inline_assignments). None for any other command, a redirect or other
+    operator, command substitution, an UNQUOTED_EXPANSION character outside
+    quotes, a path UNRESOLVED matches, or no path at all."""
+    resolved = inline_assignments(command) if isinstance(command, str) else None
+    if resolved and resolved[0]:
+        command = joined(resolved[1])
     if (
         not isinstance(command, str)
         or BASH_EXEC.search(command)

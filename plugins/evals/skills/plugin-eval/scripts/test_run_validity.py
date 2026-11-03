@@ -712,6 +712,60 @@ class RunValidityTest(unittest.TestCase):
         )
         self.assertIn("check session started: PASS", proc.stdout)
 
+    def reads_trace(self, name, command, text):
+        """A trace at <dir>/<name>/out/ with one failed Bash call running command."""
+        trace = self.dir / name / "out" / "trace.jsonl"
+        trace.parent.mkdir(parents=True, exist_ok=True)
+        trace.write_text(
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
+            + json.dumps({"type": "assistant", "message": {"content": [
+                {"type": "tool_use", "id": "b0", "name": "Bash",
+                 "input": {"command": command}}]}}) + "\n"
+            + json.dumps({"type": "user", "message": {"content": [
+                {"type": "tool_result", "tool_use_id": "b0", "is_error": True,
+                 "content": text}]}}) + "\n"
+            + '{"type":"result","subtype":"success","is_error":false,"num_turns":4}\n',
+            encoding="utf-8",
+        )
+        result = self.write(self.clean())
+        data = load(result)
+        data["cases"][1]["arms"]["without"][0].update(tracePath=str(trace), turns=4)
+        result.write_text(json.dumps(data), encoding="utf-8")
+        return self.run_script(result, "--runs", "1")
+
+    def test_a_failed_read_quoting_a_read_only_file_system_passes(self):
+        # A grep of a saved tool result prints the text it read; its last grep
+        # matching nothing makes the call fail.
+        saved = self.dir.joinpath(
+            "sb-q", "config", "projects", "p", "s", "tool-results", "abc.txt")
+        tmp = self.dir / "sb-q" / "tmp" / "cwd-6a70"
+        for command, text in (
+            ('F=%s; grep -n Read-only "$F"; grep -n EROFS "$F"' % saved,
+             "Exit code 1\n12:touch: cannot touch 'out.txt': Read-only file system"),
+            ("F=%s\ngrep -n line $F && grep -c EROFS ${F}" % saved,
+             "Exit code 1\n3:/bin/bash: line 1: %s: Read-only file system\n0" % tmp),
+            ("grep -n Read-only %s | head -5; grep -q EROFS %s" % (saved, saved),
+             "Exit code 1\n12:made-by-bash: Read-only file system"),
+        ):
+            proc = self.reads_trace("sb-q", command, text)
+            self.assertIn("check session started: PASS", proc.stdout, command)
+
+    def test_a_failed_write_beside_a_read_still_reports_a_read_only_file_system(self):
+        saved = self.dir.joinpath(
+            "sb-w", "config", "projects", "p", "s", "tool-results", "abc.txt")
+        text = "Exit code 1\ntouch: cannot touch 'out.txt': Read-only file system"
+        for command in (
+            "F=%s; grep -n x $F; touch out.txt" % saved,
+            "grep -n x %s > out.txt" % saved,
+            "F=$(pwd)/out.txt; grep -n x $F",
+            "F=out.txt; grep -n x $G",
+            "grep -n x out.txt",
+        ):
+            proc = self.reads_trace("sb-w", command, text)
+            self.assertVerdict(proc, "INVALID", 1)
+            self.assertIn("read-only file system in the run's workspace or TMPDIR",
+                          proc.stdout, command)
+
     def test_a_read_only_mention_outside_a_bash_result_passes(self):
         trace = self.dir / "ro-read.jsonl"
         trace.write_text(
@@ -1482,6 +1536,33 @@ class RunValidityTest(unittest.TestCase):
             self.assertDenials(proc, "WARN")
             self.assertIn("1 denied read of the session's own tool results, not counted",
                           proc.stdout)
+
+    def test_a_bash_read_of_tool_results_named_by_a_variable_is_a_warning(self):
+        saved = self.own_results("tool-results", "toolu_01Example.txt")
+        for command in (
+            'F=%s; grep -n foo "$F"' % saved,
+            "F=%s && grep foo ${F} | head -5" % saved,
+            "D=%s\nF=%s\ncat -n $D $F" % (saved, saved),
+        ):
+            proc = self.denied_in_sandbox([("Bash", {"command": command})])
+            self.assertDenials(proc, "WARN")
+            self.assertIn("1 denied read of the session's own tool results, not counted",
+                          proc.stdout)
+
+    def test_a_bash_read_through_a_variable_beyond_tool_results_still_fails(self):
+        saved = self.own_results("tool-results", "a.txt")
+        for command in (
+            'F=%s; rm "$F"' % saved,
+            "F=/etc/hosts; grep x $F",
+            "F=%s; grep x $F; curl example.com" % saved,
+            "F=$(id); grep x $F " + saved,
+            "F=%s grep x $F" % saved,
+            "F=%s; grep x $F $G" % saved,
+            "F=%s/*.txt; cat $F" % self.own_results("tool-results"),
+            "IFS=/; F=%s; cat $F" % saved,
+        ):
+            proc = self.denied_in_sandbox([("Bash", {"command": command})])
+            self.assertDenials(proc, "FAIL")
 
     def test_the_slice_c_bash_read_backs_read_valid(self):
         # The two denials that left audit-prompting-postures one valid case of three.

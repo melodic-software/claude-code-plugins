@@ -62,7 +62,8 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   the same run (with no expansion left unresolved), and a `Read`, `Grep` or `Glob` aimed only under the
   session's own `<sandbox>/config/projects/*/*/tool-results/`, where it reads back output it already
   received. A Bash pipeline of `cat`, `head`, `wc`, `grep` and `sed -n` that reads only there is set
-  aside the same way. Any other Bash call (a
+  aside the same way, also after opening `NAME=value` commands whose names it expands
+  (`F=<saved>; grep -n x "$F"`). Any other Bash call (a
   redirect, another command or operator, an unquoted glob, brace or `$`, or a path outside that
   directory), a write, or any other
   path in the config directory (`settings.json` included) keeps the rules below. The third applies
@@ -101,7 +102,9 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   failed for pattern` (a skill's pre-computed command failed), or a failed Bash result reporting a
   read-only file system at a relative path or under the run's sandbox, in any case: the run's
   workspace or `TMPDIR` was not writable, so the score measures the sandbox, not the skill. A
-  read-only path elsewhere is the sandbox working as designed and does not fail the check.
+  read-only path elsewhere is the sandbox working as designed and does not fail the check, nor
+  does a failed call that only reads absolute paths through those readers, joined by `;`, `&&`,
+  `||` or newlines, such as a grep of a saved tool result: it prints the text it read.
 - `plugins loaded` fails a with-arm run whose trace init line has a `plugin_errors` entry for a
   `suite.plugins` plugin, or leaves that plugin out of its `plugins` list. That run ran without the
   plugin under test. The detail names the plugin and the error type, such as
