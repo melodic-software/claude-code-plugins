@@ -21,7 +21,7 @@ and the session-bridge watcher. Python 3 standard library only.
 | `session-bridge.conf` | `NAME=shared`, `CONTROL=share.sh` |
 | `schema/*.schema.json` | The persisted and wire shapes: `state`, `ops`, `event`, `question-shape`, and `wire` (the heartbeat body and a presence entry, kept only in memory) |
 | `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/connect.js`, `/question-shape.js`, `/core.css`, `/app.css`, `/question-shape.css`, `/proto.js`, `/web-vitals.attribution.iife.js`), plus `/proto/<qid>` (`proto.html`) for a prototype question; `proto-pin.js` is served only inside an html variant (see [Prototype page](#prototype-page)). `core.js` is the only code that talks to the server: it polls `/api/state?since=<rev>`, reloads the page when the build changes, builds the state `app.js` reads, and words errors by their code. `question-shape.js` and `question-shape.css` hold what the 1:1 page (`surface/interview_server.py` serves both) shares with this one: the markdown renderer, the composer kit, the visual-viewport fit, and the own-option id. The guest secret stays under the prototype's `localStorage` key, `secret`. `web-vitals.attribution.iife.js` is the web-vitals 6.2.3 attribution build, copied unedited from its npm package, with that package's Apache-2.0 license beside it as `web-vitals.LICENSE` (not served). `web/harness.html` is test-only and off the allowlist: `ui_inputs.js` serves it into the page's origin from the browser |
-| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_server_live.py`, `test_cfdns.py`, `test_load.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_chat_history.js`, `ui_lists.js`, `ui_proto.js`, `ui_proto_versions.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `ui_clientlog.js`, `ui_telemetry.js`, `ui_advance.js`, `ui_speech.js`, `ui_askbox.js`, `ui_myreports.js`, `ui_welcome.js`, `ui_review.js`, `ui_move.js`, `test_people_proposals.py`, `ui_claude_proposals.js`, `align.test.sh` (with `align.js`), `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
+| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_server_live.py`, `test_cfdns.py`, `test_load.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_chat_history.js`, `ui_lists.js`, `ui_proto.js`, `ui_proto_versions.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `ui_clientlog.js`, `ui_telemetry.js`, `ui_advance.js`, `ui_speech.js`, `ui_askbox.js`, `ui_myreports.js`, `ui_welcome.js`, `ui_review.js`, `ui_move.js`, `test_people_proposals.py`, `ui_claude_proposals.js`, `align-a.test.sh`, `align-b.test.sh` and `align-c.test.sh` (with `align-run.sh` and `align.js`), `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
 
 ## Run
 
@@ -1265,7 +1265,7 @@ node plugins/planning/shared/tests/ui_per_device.js
 node plugins/planning/shared/tests/ui_review.js
 node plugins/planning/shared/tests/ui_rail_header.js
 node plugins/planning/shared/tests/ui_reopen.js
-bash plugins/planning/shared/tests/align.test.sh
+node plugins/planning/shared/tests/align.js
 ```
 
 `ui_connect.js` checks Connect your Claude for a desktop guest and a 390x844 phone guest: the
@@ -1392,8 +1392,9 @@ per-person view, and Approve new joins. `ui_acceptance.js` checks the Brief acce
 suite drives in a browser: the join note and a refused join, Claude's take, the round states and toasts, Follow,
 Reconnecting, the new guest link, the ended session, the Host view per role, the phone header and height, and
 the views sharing data.
-`align.test.sh` (about 3 minutes) is the C41 pixel pass over 49 views; `ALIGN_VIEWS` and
-`ALIGN_SIZES` narrow it.
+`align.js` (about 3 minutes) is the C41 pixel pass over 49 views; `ALIGN_VIEWS` and
+`ALIGN_SIZES` narrow it. CI runs it in three parts by size, `align-a.test.sh` to `align-c.test.sh`, each
+the sizes its `PARTS` puts in that part.
 
 `ui_journey.js` drives the page in Chromium against `ensure-running` on spare ports with the fake
 tunnel: the owner and a guest join, answer, vote, lock, pick, react and send a round; every state

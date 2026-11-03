@@ -20,12 +20,16 @@
 #   sync-run.sh [--marketplace <name> | --all] --journal-root <dir>
 #               [--install-new all|none|ask] [--allow-downgrade] [--render]
 #               [--source-pull ask|never] [--pull-source <names>]
-#               [--quiet-auto-update <names>]
+#               [--quiet-auto-update <names>] [--update-other-paths]
 #   sync-run.sh [--marketplace <name> | --all] --audit
 #               [--install-new all|none|ask] [--allow-downgrade] [--render]
 #               [--source-pull ask|never] [--quiet-auto-update <names>]
+#               [--update-other-paths]
 #   sync-run.sh --only-install <ids> --run-dir <dir> [--marketplace <name> | --all]
 #               [--render]
+#
+# `--update-other-paths` turns on Step 3a, one serial CLI call per lagging record
+# in every other present path. Off, those records are counted and left alone.
 #
 # `--source-pull` is the rendered `directory_source_pull` option (ask, the
 # default, or never; any other value is treated as ask and named in the digest).
@@ -80,7 +84,7 @@
 #   each `{total, outside_marketplaces, resolution}`, and the top-level `total` and
 #   `outside_marketplaces` sum the two; the wait between the passes is in neither.
 #   Each marketplace block: {name, timings, catalog_last_updated, catalog_source,
-#    source_checkout, source_pull, auto_update, refresh:{rc,output,predicted}, project_root,
+#    source_checkout, source_pull, auto_update, refresh:{rc,output,predicted,skipped}, project_root,
 #    in_repo:{updated,failed,would_update,live_read},
 #    user_sweep:{updated,failed,would_update,withheld_downgrades},
 #    downgraded, moved_during_run, noop_unverified, install_gap, installed, installed_with_unset_user_config,
@@ -90,10 +94,13 @@
 #    stale_project_records, user_scope_orphans, installed_disabled, delisted,
 #    delisted_project, delisted_settings_only, other_paths, self_updated, self_update,
 #    updated_with_monitors, errors}
-#   `other_paths` is `{updated, failed, not_moved, would_update}` for the
-#   project/local records of every OTHER present path (a user home and a linked
-#   worktree included) whose version is below a readable catalog version: sync
-#   runs `update -s <scope>` from that path and reads each record back.
+#   `other_paths` is `{updated, failed, not_moved, would_update, skipped,
+#   catalog_moved}` for the project/local records of every OTHER present path (a
+#   user home and a linked worktree included) whose version is below a readable
+#   catalog version: with `--update-other-paths`, sync runs `update -s <scope>`
+#   from that path and reads each record back. Without it, `skipped` is `{records,
+#   paths}` for those records, and no call is made. `catalog_moved` counts the
+#   plugins whose catalog version changed between the pre and post reads.
 #   `updated[]` is `{id, scope, path, old, new}`, `would_update[]` (audit) is
 #   `{id, scope, path, old, catalog}`, `not_moved[]` is `{id, scope, path,
 #   version, catalog, label}` for a linked-worktree or user-home record the call
@@ -116,8 +123,12 @@
 #   the run moved (the row `self_updated` is true for), else null.
 #   `updated_with_monitors[]` is `{id, scope, monitors}` for each plugin this
 #   run moved whose installed manifest declares a monitor.
+#   `refresh.skipped` is `{head, ref}` when `git ls-remote` showed the source's
+#   ref at the clone's HEAD and the run skipped the refresh (see
+#   `refresh_skip_check`), with `rc` null; otherwise null.
 #   `catalog_last_updated` is the marketplace's lastUpdated as Step 2's read saw
-#   it, after Step 1's refresh; a background refresh can move it later in the run.
+#   it, after Step 1's refresh; a skipped refresh leaves the last one's stamp, and
+#   a background refresh can move it later in the run.
 #   `timings` holds one key per step plus `unattributed`, the rest of the block's
 #   `total`, so the steps and the remainder sum to it.
 #   `in_repo_records` counts the project/local records belonging to the repo the
@@ -127,8 +138,8 @@
 #   with the full `[{path,count}]` in `list_file` (null under --audit);
 #   `user_home_records` is `{total, paths}` for the project/local records whose
 #   projectPath is a user home (`projectPathIsHome`) and that are still below
-#   the catalog version, or have none to compare (under --audit, less the
-#   present ones sync would update), which `divergences` and `divergences_here`
+#   the catalog version, or have none to compare (under --audit or without
+#   --update-other-paths, less the present ones Step 3a would update), which `divergences` and `divergences_here`
 #   never count;
 #   `cache_content.scope` is `user`, the only
 #   records Step 5b compares, and `cache_content.stale[]` is
@@ -213,6 +224,8 @@ FLEET_STATE="${SYNC_RUN_FLEET_STATE:-$SCRIPT_DIR/fleet-state.sh}"
 CACHE_CHECK="${SYNC_RUN_CACHE_CHECK:-$SCRIPT_DIR/cache-content-check.sh}"
 NORMALIZE="${SYNC_RUN_NORMALIZE:-$SCRIPT_DIR/normalize-enabled-plugins.sh}"
 CLAUDE_BIN="${SYNC_RUN_CLAUDE_BIN:-claude}"
+# Read by the Step 1 skip check only, from the same file fleet-state.sh reads.
+MARKETPLACES_JSON="${FLEET_STATE_MARKETPLACES_JSON:-$HOME/.claude/plugins/known_marketplaces.json}"
 # The stale-project-records section prints at most this many parent directories.
 STALE_PARENT_ROWS=10
 # Each Divergences sub-line names at most this many ids of its project path.
@@ -308,6 +321,7 @@ SOURCE_PULL_OFF=""
 PULL_SOURCES=""
 PULL_SOURCES_SET=0
 QUIET_AUTO_UPDATE=""
+UPDATE_OTHER_PATHS=0
 
 usage() {
   cat <<'EOF'
@@ -317,10 +331,11 @@ Usage:
   sync-run.sh [--marketplace <name> | --all] --journal-root <dir>
               [--install-new all|none|ask] [--allow-downgrade] [--render]
               [--source-pull ask|never] [--pull-source <names>]
-              [--quiet-auto-update <names>]
+              [--quiet-auto-update <names>] [--update-other-paths]
   sync-run.sh [--marketplace <name> | --all] --audit
               [--install-new all|none|ask] [--allow-downgrade] [--render]
               [--source-pull ask|never] [--quiet-auto-update <names>]
+              [--update-other-paths]
   sync-run.sh --only-install <ids> --run-dir <dir> [--marketplace <name> | --all]
               [--render]
 
@@ -330,6 +345,8 @@ digest line; the report is written to <run_dir>/report.txt either way.
 issuing it, and leaves nothing behind.
 --pull-source fast-forwards each named marketplace's directory checkout before
 its refresh, only when the checkout is clean, tracking, not ahead and behind.
+--update-other-paths updates the lagging records of every other present path, one
+call per record; without it they are counted in the report and left alone.
 
 Exit: 0 the run completed (per-marketplace and per-id failures are in the digest);
 2 usage error, jq missing, or a run-level failure that left no digest.
@@ -419,6 +436,10 @@ while [[ $# -gt 0 ]]; do
     }
     QUIET_AUTO_UPDATE="$2"
     shift 2
+    ;;
+  --update-other-paths)
+    UPDATE_OTHER_PATHS=1
+    shift
     ;;
   -h | --help)
     usage
@@ -1033,8 +1054,8 @@ own_plugin_name() {
 # Diff `catalog_versions` across consecutive saved snapshots and report the FIRST
 # interval in which any id moved backward. That interval is what names the cause:
 # in `sync` a regression across pre-refresh->pre is this run's refresh pulling a
-# source that moved backward, while one appearing later is the checkout changing
-# under the run. REPORT-ONLY — its output never becomes an id list handed to a CLI.
+# source that moved backward (unless `refresh.skipped` is set, when nothing was
+# pulled), while one appearing later is the checkout changing under the run. REPORT-ONLY — its output never becomes an id list handed to a CLI.
 catalog_regression_rows() {
   local __interval_var="$1"
   local __rows_var="$2"
@@ -1135,9 +1156,13 @@ would_pins() {
   local __var="$1"
   local ir_w
   json_array_of ir_w ${IR_WOULD[@]+"${IR_WOULD[@]}"}
+  local skipped="$RUN_DIR/.other-paths-skipped.$2.jsonl"
+  [[ -f "$skipped" ]] || skipped=/dev/null
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to "$__var" -c -n --argjson ir "$ir_w" --argjson op "$OTHER_PATHS_JSON" \
-    '[($ir[] | {id, scope, current: true}), ($op.would_update[]? | {id, scope, path})]' || printf -v "$__var" '%s' "[]"
+    --slurpfile skipped "$skipped" \
+    '[($ir[] | {id, scope, current: true}), ($op.would_update[]? | {id, scope, path}), $skipped[]]' ||
+    printf -v "$__var" '%s' "[]"
   [[ -n "${!__var}" ]] || printf -v "$__var" '%s' "[]"
 }
 
@@ -1161,7 +1186,7 @@ divergence_block() {
   # step's doing, so it is split out of the interval it first appeared in.
   local moved_rows
   local would
-  would_pins would
+  would_pins would "$mp"
   json_array_of moved_rows ${MOVED_DURING[@]+"${MOVED_DURING[@]}"}
   json_object_file "$RUN_DIR/.divergence-args.$mp.json" moved "$moved_rows" wt "$linked" would "$would"
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
@@ -1170,8 +1195,9 @@ divergence_block() {
     --argjson cap "$DIVERGENCE_PATH_IDS" "$ACTIONABLE_DEF$TRIPLE_DEF"'
     . as {$moved, $wt, $would}
     # Under --audit nothing moved, so a pin sync would forward-update (Step 2 or
-    # Step 3a) is read at the catalog version: it is not work for converge. A
-    # linked worktree keeps its own version, since update leaves it behind there.
+    # Step 3a) is read at the catalog version: it is not work for converge. So is a
+    # pin Step 3a skipped, which `--update-other-paths` moves. A linked worktree
+    # keeps its own version, since update leaves it behind there.
     | ($q[0] | if ($would | length) == 0 then . else
         .catalog_versions as $cv
         | ([.installed[]? | select(.currentProject == true) | {id, scope, path: .projectPath}]) as $cur
@@ -1283,10 +1309,12 @@ divergence_block() {
 }
 
 # --- Step 3a — forward-update the records of every other present path --------------
-# Step 2 updates the records of the repo the run stands in; this step takes the
-# project/local records of every OTHER path that is present, a user home and a
-# linked worktree included, and runs `claude plugin update <id> -s <scope>` from
-# that path, since the two scopes have no path flag. Forward only: a record is
+# Step 2 updates the records of the repo the run stands in; with
+# `--update-other-paths` this step takes the project/local records of every OTHER
+# path that is present, a user home and a linked worktree included, and runs
+# `claude plugin update <id> -s <scope>` from that path, since the two scopes have
+# no path flag. Calls stay serial: concurrent `update` calls lost records in a
+# sandbox probe. Without the flag it only counts them. Forward only: a record is
 # called only when its version and the catalog's both parse and the record is
 # below, so a deliberate pin above the catalog, a catalog that moved backward,
 # and an id with no readable catalog version are never touched.
@@ -1378,6 +1406,14 @@ other_paths_step() {
     mp_error "other-paths selection failed, step not run"
     return 0
   fi
+  if ((UPDATE_OTHER_PATHS == 0)); then
+    # Pins for divergence_block's would list, kept out of the digest, which would
+    # otherwise carry one row per record.
+    printf '%s\n' "$cands" | jq -c -R 'select(. != "") | gsub("\r"; "") | split("\u001f")
+      | {path: .[0], id: .[1], scope: .[2]}' >"$RUN_DIR/.other-paths-skipped.$mp.jsonl" ||
+      mp_error "other-paths count failed"
+    return 0
+  fi
   while IFS=$'\x1f' read -r path id scope old cat label home; do
     path="${path//$'\r'/}" id="${id//$'\r'/}" scope="${scope//$'\r'/}" old="${old//$'\r'/}"
     cat="${cat//$'\r'/}" label="${label//$'\r'/}" home="${home//$'\r'/}"
@@ -1424,6 +1460,8 @@ finalize_other_paths() {
   local file="$RUN_DIR/other-paths.$mp.json"
   local rows_file="$RUN_DIR/.other-paths-rows.$mp.json"
   local post="$RUN_DIR/post.$mp.json"
+  local pre="$RUN_DIR/pre.$mp.json"
+  local skipped="$RUN_DIR/.other-paths-skipped.$mp.jsonl"
   local rows
   local result=""
   if ((ONLY_INSTALL_MODE == 1)); then
@@ -1433,9 +1471,13 @@ finalize_other_paths() {
   json_array_of rows ${PATH_ROWS[@]+"${PATH_ROWS[@]}"}
   printf '%s\n' "$rows" >"$rows_file"
   [[ -f "$post" ]] || post="$rows_file"
+  [[ -f "$pre" ]] || pre="$rows_file"
+  [[ -f "$skipped" ]] || skipped=/dev/null
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  jq_to result -c -n --slurpfile rows "$rows_file" --slurpfile post "$post" "$TRIPLE_DEF"'
+  jq_to result -c -n --slurpfile rows "$rows_file" --slurpfile post "$post" --slurpfile pre "$pre" \
+    --slurpfile skipped "$skipped" "$TRIPLE_DEF"'
     ($post[0] | if type == "object" then . else {} end) as $q
+    | ($pre[0] | if type == "object" then . else {} end) as $p
     | [$rows[0][] | select(.result == "called")
        | . as $r
        | . + {new: (first($q.installed[]? | select(.id == $r.id and .scope == $r.scope
@@ -1449,7 +1491,10 @@ finalize_other_paths() {
                 + [$called[] | select((.moved | not) and .label == "" and (.home | not))
                    | {id, scope, path, stopped: false,
                       reason: ("the record did not move: still at \(.new // "an unread version"), the catalog reads \(.catalog)")}]),
-       would_update: [$rows[0][] | select(.result == "would") | {id, scope, path, old, catalog}]}' || result=""
+       would_update: [$rows[0][] | select(.result == "would") | {id, scope, path, old, catalog}],
+       skipped: {records: ($skipped | length), paths: ($skipped | map(.path) | unique | length)},
+       catalog_moved: (($p.catalog_versions // {}) as $a | ($q.catalog_versions // {}) as $b
+                       | [$a | keys[] | select($b[.] != null and $a[.] != null and $a[.] != $b[.])] | length)}' || result=""
   if [[ -n "$result" ]]; then
     OTHER_PATHS_JSON="$result"
   else
@@ -1472,10 +1517,11 @@ reset_marketplace_state() {
   INSTALL_GAP="[]" ENABLE_GAP="[]" NORMALIZE_JSON="null" CACHE_JSON="null"
   SELF_UPDATED="false" SELF_UPDATE="null" INSTALL_DEFERRED="false" STOPPED_BEFORE_INSTALL="false"
   REFRESH_RC="null" REFRESH_OUT="" REFRESH_REASON="" REFRESH_PREDICTED="false" REFRESH_FAILED=0
+  REFRESH_SKIP_JSON="null"
   CATALOG_LAST_UPDATED="" PROJECT_ROOT_JSON="null" SOURCE_PULL_JSON="null"
   # Step stamps (start, end) for this marketplace; an empty pair is a step this
   # invocation did not run and reads `null` in the digest, never 0.
-  T_PRR_S="" T_PRR_E="" T_MU_S="" T_MU_E="" T_IR_S="" T_IR_E="" T_US_S="" T_US_E=""
+  T_PRR_S="" T_PRR_E="" T_MU_S="" T_MU_E="" T_IR_S="" T_IR_E="" T_OP_S="" T_OP_E="" T_US_S="" T_US_E=""
   T_PI_S="" T_PI_E="" T_IE_S="" T_IE_E="" T_CC_S="" T_CC_E="" T_PR_S="" T_PR_E=""
   T_FN_S="" T_MP_S="" T_MP_E=""
   CACHE_CHECK_RAN=0
@@ -1498,7 +1544,8 @@ persist_first_pass_rows() {
   json_array_of us_f ${US_FAILED[@]+"${US_FAILED[@]}"}
   json_strings_of errs ${MP_ERRORS[@]+"${MP_ERRORS[@]}"}
   json_object_file "$RUN_DIR/.first-pass-args.$mp.json" \
-    errors "$errs" ir_failed "$ir_f" us_failed "$us_f" source_pull "$SOURCE_PULL_JSON"
+    errors "$errs" ir_failed "$ir_f" us_failed "$us_f" source_pull "$SOURCE_PULL_JSON" \
+    refresh_skipped "$REFRESH_SKIP_JSON"
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to persisted -c \
     --arg refresh_rc "$REFRESH_RC" \
@@ -1510,7 +1557,8 @@ persist_first_pass_rows() {
                      else ($refresh_rc | tonumber? // $refresh_rc) end),
                 output: $refresh_out,
                 reason: $refresh_reason,
-                predicted: ($refresh_predicted == "true")}}' "$RUN_DIR/.first-pass-args.$mp.json"
+                predicted: ($refresh_predicted == "true"),
+                skipped: .refresh_skipped}}' "$RUN_DIR/.first-pass-args.$mp.json"
   printf '%s\n' "$persisted" >"$RUN_DIR/first-pass.$mp.json"
 }
 
@@ -1542,6 +1590,8 @@ restore_first_pass_rows() {
   jq_to REFRESH_REASON -r '.refresh.reason // ""' "$sidecar"
   jq_to REFRESH_PREDICTED -r 'if .refresh.predicted == true then "true" else "false" end' "$sidecar"
   jq_to REFRESH_RC -r 'if .refresh.rc == null then "null" else (.refresh.rc | tostring) end' "$sidecar"
+  jq_to REFRESH_SKIP_JSON -c '.refresh.skipped // null' "$sidecar"
+  [[ -n "$REFRESH_SKIP_JSON" ]] || REFRESH_SKIP_JSON="null"
   jq_to SOURCE_PULL_JSON -c '.source_pull // null' "$sidecar"
   [[ -n "$SOURCE_PULL_JSON" ]] || SOURCE_PULL_JSON="null"
 }
@@ -1634,6 +1684,86 @@ source_fast_forward() {
   fi
 }
 
+# --- the remote commit check that can stand in for Step 1's refresh -----------------
+# `claude plugin marketplace update` re-clones a git-backed marketplace on every
+# call. When the clone already sits at the commit its source points at, that
+# refresh lands the same catalog, so this asks the remote with `git ls-remote`,
+# which writes no FETCH_HEAD, refs or objects, and sets REFRESH_SKIP_JSON to
+# `{head, ref}` only when every check holds: a `github` or `git` source, a clone
+# root at installLocation whose origin is that source, no modified or untracked file,
+# a pinned `ref` checked out as that branch, and the remote's ref (`HEAD` when
+# unpinned) at the clone's HEAD. Anything else, an unreachable remote included,
+# leaves it `null` and the refresh runs.
+refresh_skip_check() {
+  local mp="$1"
+  local fields=""
+  local loc="" kind="" repo="" url="" pin=""
+  local origin="" origin_rc=0 head="" branch="" dirty="" ref="HEAD" remote="" sha="" name="" remote_sha=""
+  REFRESH_SKIP_JSON="null"
+  [[ -f "$MARKETPLACES_JSON" ]] || return 0
+  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+  jq_to fields -r --arg mp "$mp" '
+    # A source key this check does not know could be a pin it would ignore.
+    .[$mp] | if type == "object" and (.source | type) == "object"
+                and ((.source | keys) - ["source", "repo", "url", "ref", "path"]) == [] then
+      [.installLocation, .source.source, .source.repo, .source.url, .source.ref]
+      | map(. // "" | tostring | gsub("[\u001f\n]"; " ")) | join("\u001f")
+    else "" end' "$MARKETPLACES_JSON" 2>/dev/null || return 0
+  [[ -n "$fields" ]] || return 0
+  IFS=$'\x1f' read -r loc kind repo url pin <<<"$fields"
+  loc="${loc//\\//}"
+  [[ "$kind" == "github" || "$kind" == "git" ]] || return 0
+  # The clone's own root, so git never walks up into an enclosing repository.
+  [[ -n "$loc" && -e "$loc/.git" ]] || return 0
+  local g=(git --no-optional-locks -C "$loc")
+  origin=$("${g[@]}" remote get-url origin 2>/dev/null) || return 0
+  origin="${origin%/}"
+  origin="${origin%.git}"
+  if [[ "$kind" == "github" ]]; then
+    [[ -n "$repo" ]] || return 0
+    shopt -s nocasematch
+    [[ "$origin" == *[/@]github.com[/:]"$repo" ]]
+    origin_rc=$?
+    shopt -u nocasematch
+    ((origin_rc == 0)) || return 0
+  else
+    url="${url%/}"
+    [[ -n "$url" && "$origin" == "${url%.git}" ]] || return 0
+  fi
+  # Untracked files count too: a re-clone would drop them.
+  dirty=$("${g[@]}" status --porcelain 2>/dev/null) || return 0
+  [[ -z "$dirty" ]] || return 0
+  head=$("${g[@]}" rev-parse -q --verify 'HEAD^{commit}' 2>/dev/null) || return 0
+  if [[ -n "$pin" ]]; then
+    branch=$("${g[@]}" symbolic-ref -q --short HEAD 2>/dev/null) || return 0
+    [[ "$branch" == "$pin" ]] || return 0
+    ref="refs/heads/$pin"
+  fi
+  # Stdin closed and prompts off, as for the fast-forward: a remote that needs a
+  # credential fails here and the refresh runs instead. ssh gets BatchMode only
+  # when the user configured no ssh command of their own.
+  local ssh_env=()
+  if [[ -z "${GIT_SSH_COMMAND:-}" && -z "${GIT_SSH:-}" ]] &&
+    ! "${g[@]}" config --get core.sshCommand >/dev/null 2>&1; then
+    ssh_env=("GIT_SSH_COMMAND=ssh -o BatchMode=yes")
+  fi
+  remote=$(env ${ssh_env[@]+"${ssh_env[@]}"} GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never \
+    "${g[@]}" ls-remote origin "$ref" 2>/dev/null </dev/null) || return 0
+  while IFS=$'\t' read -r sha name; do
+    if [[ "${name//$'\r'/}" == "$ref" ]]; then
+      remote_sha="$sha"
+      break
+    fi
+  done <<<"$remote"
+  [[ "$remote_sha" == "$head" ]] || return 0
+  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+  if ! jq_to REFRESH_SKIP_JSON -c -n --arg h "$head" --arg r "$ref" '{head: $h, ref: $r}'; then
+    REFRESH_SKIP_JSON="null"
+    return 0
+  fi
+  echo "marketplace refresh skipped for $mp: $loc is at $head, the commit origin $ref points at" >>"$JOURNAL_LOG"
+}
+
 # --- one snapshot read ----------------------------------------------------------
 # `fleet-state.sh --marketplace <mp>` into $2, with its stderr captured and, on a
 # non-zero exit, recorded as a per-marketplace error named for the step ($3).
@@ -1712,14 +1842,19 @@ run_marketplace() {
       if ((PULL_SOURCES_SET == 1)) && name_listed "$mp" "$PULL_SOURCES"; then
         source_fast_forward "$mp" "$pre_refresh"
       fi
-      run_cli "claude plugin marketplace update $mp" plugin marketplace update "$mp"
-      clock_into T_MU_E
-      REFRESH_RC="$CLI_RC"
-      trunc REFRESH_OUT "$CLI_OUT"
-      REFRESH_REASON=$(cli_outcome_line "$CLI_OUT")
-      if ((CLI_RC != 0)); then
-        REFRESH_FAILED=1
-        mp_error "marketplace refresh failed (exit $CLI_RC): ${REFRESH_REASON}, so the catalog may be stale and install/enable maintenance is deferred"
+      refresh_skip_check "$mp"
+      if [[ "$REFRESH_SKIP_JSON" != "null" ]]; then
+        clock_into T_MU_E
+      else
+        run_cli "claude plugin marketplace update $mp" plugin marketplace update "$mp"
+        clock_into T_MU_E
+        REFRESH_RC="$CLI_RC"
+        trunc REFRESH_OUT "$CLI_OUT"
+        REFRESH_REASON=$(cli_outcome_line "$CLI_OUT")
+        if ((CLI_RC != 0)); then
+          REFRESH_FAILED=1
+          mp_error "marketplace refresh failed (exit $CLI_RC): ${REFRESH_REASON}, so the catalog may be stale and install/enable maintenance is deferred"
+        fi
       fi
     fi
   else
@@ -1852,7 +1987,11 @@ run_marketplace() {
       return 0
     fi
 
+    # The mid read above selects Step 3a's records, so it is timed with the step.
+    T_OP_S="$T_US_S"
     other_paths_step "$mp"
+    clock_into T_OP_E
+    T_US_S="$T_OP_E"
 
     project_ids downgrade-candidates "$RUN_DIR/mid.$mp.json" "$RUN_DIR/downgrades.$mp.txt"
     dg_rc=$?
@@ -2546,7 +2685,7 @@ report_extras() {
   # the groups past the cap.
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to "$__var" -c --argjson cap "$STALE_PARENT_ROWS" --arg list_file "$list_file" \
-    --argjson audit "$([[ "$MODE" == "audit" ]] && echo true || echo false)" \
+    --argjson left_to_step3a "$([[ "$MODE" == "audit" || "$UPDATE_OTHER_PATHS" == 0 ]] && echo true || echo false)" \
     "$ACTIONABLE_DEF$TRIPLE_DEF"'
     def parent: capture("^(?<p>.*[/\\\\])[^/\\\\]+[/\\\\]*$").p // .;
     ([.divergences[]? | actionable | .id]) as $act
@@ -2554,12 +2693,12 @@ report_extras() {
     | ([.installed[]? | select(.currentProject == true) | .id]) as $here
     | ([.installed[]? | select(.projectPathPresent == false)]) as $absent
     # A home record still below the catalog, or with no version to compare: the
-    # ones Step 3a could not move. Under --audit, the present ones it would move
-    # are left out.
+    # ones Step 3a could not move. Under --audit or with Step 3a off, the present
+    # ones it would move are left out.
     | ([.installed[]? | select(.projectPathIsHome == true)
         | select(($cv[.id] | triple) as $c | (.version | triple) as $v
                  | ($c == null or $v == null or $v < $c)
-                   and (($audit and .projectPathPresent == true and $c != null and $v != null) | not))]) as $homes
+                   and (($left_to_step3a and .projectPathPresent == true and $c != null and $v != null) | not))]) as $homes
     | {auto_update: .marketplace.autoUpdate,
        user_home_records: {total: ($homes | length),
                            paths: ($homes | map(.projectPath) | unique)},
@@ -2875,7 +3014,7 @@ emit_marketplace_block() {
   local jq_err=""
   json_object_file "$args_file" \
     refresh_rc "${REFRESH_RC:-null}" refresh_predicted "$REFRESH_PREDICTED" \
-    project_root "$PROJECT_ROOT_JSON" \
+    refresh_skipped "$REFRESH_SKIP_JSON" project_root "$PROJECT_ROOT_JSON" \
     ir_u "$ir_u" ir_f "$ir_f" ir_w "$ir_w" ir_l "$ir_l" \
     us_u "$us_u" us_f "$us_f" us_w "$us_w" wh "$wh" dg "$dg" \
     moved "$moved" noop_unverified "$NOOP_UNVERIFIED" \
@@ -2897,6 +3036,7 @@ emit_marketplace_block() {
     --arg t_prr_s "$T_PRR_S" --arg t_prr_e "$T_PRR_E" \
     --arg t_mu_s "$T_MU_S" --arg t_mu_e "$T_MU_E" \
     --arg t_ir_s "$T_IR_S" --arg t_ir_e "$T_IR_E" \
+    --arg t_op_s "$T_OP_S" --arg t_op_e "$T_OP_E" \
     --arg t_us_s "$T_US_S" --arg t_us_e "$T_US_E" \
     --arg t_pi_s "$T_PI_S" --arg t_pi_e "$T_PI_E" \
     --arg t_ie_s "$T_IE_S" --arg t_ie_e "$T_IE_E" \
@@ -2915,7 +3055,7 @@ emit_marketplace_block() {
       if $s == "" or $e == "" then null else ([0, ((ms($s; $e) | floor) / 1000)] | max) end;
     def dur_up($s; $e):
       if $s == "" or $e == "" then null else ([0, ((ms($s; $e) | ceil) / 1000)] | max) end;
-    . as {$refresh_rc, $refresh_predicted, $project_root, $ir_u, $ir_f, $ir_w, $ir_l,
+    . as {$refresh_rc, $refresh_predicted, $refresh_skipped, $project_root, $ir_u, $ir_f, $ir_w, $ir_l,
           $us_u, $us_f, $us_w, $wh, $dg, $moved, $noop_unverified, $install_gap, $inst,
           $enable_gap, $en, $pr, $rec, $deferred, $stopped, $normalize, $cache, $reg_rows,
           $div, $self_updated, $self_update, $extras, $checkout, $pull, $unset_cfg,
@@ -2923,6 +3063,7 @@ emit_marketplace_block() {
     | {pre_refresh_read: dur($t_prr_s; $t_prr_e),
      marketplace_update: dur($t_mu_s; $t_mu_e),
      in_repo_update: dur($t_ir_s; $t_ir_e),
+     other_paths: dur($t_op_s; $t_op_e),
      user_sweep: dur($t_us_s; $t_us_e),
      pre_install_read: dur($t_pi_s; $t_pi_e),
      install_enable: dur($t_ie_s; $t_ie_e),
@@ -2941,7 +3082,8 @@ emit_marketplace_block() {
      catalog_last_updated: (if $lastUpdated == "" then null else $lastUpdated end),
      source_checkout: $checkout,
      source_pull: $pull,
-     refresh: {rc: $refresh_rc, output: $refresh_out, reason: $refresh_reason, predicted: $refresh_predicted},
+     refresh: {rc: $refresh_rc, output: $refresh_out, reason: $refresh_reason, predicted: $refresh_predicted,
+               skipped: $refresh_skipped},
      project_root: $project_root,
      in_repo: {updated: $ir_u, failed: $ir_f, would_update: $ir_w, live_read: $ir_l},
      user_sweep: {updated: $us_u, failed: $us_f, would_update: $us_w,
@@ -3023,6 +3165,7 @@ if ((ONLY_INSTALL_MODE == 1)); then
       jq_to SOURCE_PULL_INVALID -r '.source_pull_invalid // ""' "$RUN_DIR/flags.json" 2>/dev/null
       jq_to SOURCE_PULL_OFF -r '.source_pull_off // ""' "$RUN_DIR/flags.json" 2>/dev/null
       jq_to QUIET_AUTO_UPDATE -r '.quiet_auto_update // [] | join(",")' "$RUN_DIR/flags.json" 2>/dev/null
+      jq_to UPDATE_OTHER_PATHS -r 'if .update_other_paths == true then 1 else 0 end' "$RUN_DIR/flags.json" 2>/dev/null
       # The saved reason stands unless this session is the autonomous one.
       [[ -z "${CLAUDE_CODE_REMOTE:-}" ]] || apply_pull_policy
       ;;
@@ -3045,8 +3188,10 @@ else
   FLAG_QAU="[]"
   # shellcheck disable=SC2086  # word splitting on the comma-folded list is the point
   json_strings_of FLAG_QAU ${QUIET_AUTO_UPDATE//,/ }
-  printf '{"allow_downgrade":%s,"install_new":%s,"install_new_invalid":%s,"source_pull":%s,"source_pull_invalid":%s,"source_pull_off":%s,"quiet_auto_update":%s}\n' \
-    "$FLAG_AD" "$FLAG_IN" "$FLAG_INV" "$FLAG_SP" "$FLAG_SPI" "$FLAG_SPO" "$FLAG_QAU" >"$RUN_DIR/flags.json"
+  FLAG_UOP="false"
+  ((UPDATE_OTHER_PATHS == 0)) || FLAG_UOP="true"
+  printf '{"allow_downgrade":%s,"install_new":%s,"install_new_invalid":%s,"source_pull":%s,"source_pull_invalid":%s,"source_pull_off":%s,"quiet_auto_update":%s,"update_other_paths":%s}\n' \
+    "$FLAG_AD" "$FLAG_IN" "$FLAG_INV" "$FLAG_SP" "$FLAG_SPI" "$FLAG_SPO" "$FLAG_QAU" "$FLAG_UOP" >"$RUN_DIR/flags.json"
 fi
 
 # The first pass's run-level timings, written by that pass once its clock stops

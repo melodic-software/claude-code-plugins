@@ -196,10 +196,12 @@ mk plugins/planning/shared/tests/ui-require-browser.test.sh
 plan -- plugins/planning/shared/tests/ui-require-browser.test.sh
 is "$(key bash_needs)" '{"0":""}'
 check "the UI runner's own suite, which runs stubs, gets no Chromium" $?
-mk plugins/planning/shared/tests/align.test.sh
-plan -- plugins/planning/shared/tests/align.test.sh
-is "$(key bash_needs)" '{"0":"browser"}'
-check "the shared-page alignment suite gets Chromium on whatever leg it lands" $?
+for part in a b c; do
+  mk "plugins/planning/shared/tests/align-$part.test.sh"
+  plan -- "plugins/planning/shared/tests/align-$part.test.sh"
+  is "$(key bash_needs)" '{"0":"browser"}'
+  check "the shared-page alignment suite's part $part gets Chromium on whatever leg it lands" $?
+done
 rm -rf "$repo/plugins/planning"
 
 mk plugins/guardrails/git-hooks/lefthook-remote.test.sh

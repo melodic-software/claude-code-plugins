@@ -341,10 +341,8 @@ Then three short sections the engine's document already carries:
 For a finding the operator keeps, print its `suppress:` line as a stanza to paste under
 `suppressions:` in `docs/conventions/harness-config.yaml` (team layer, in the bound convention home):
 `check`, `claim`, `sites` with `surface` and a quoted `"anchor/v1":` key, a non-empty `reason`, and
-today's `date`, keyed by the engine's `finding_id`. When `suppressions.layers` reports the team layer
-as a compatibility read, point the operator at `/harness-config:setup apply` first: once the YAML exists
-the engine ignores the older team file, so a YAML with only the new stanza un-suppresses every earlier
-entry. That is the declared route for session posture; the skill never infers posture from the environment.
+today's `date`, keyed by the engine's `finding_id`. A suppression entry is the declared route for
+session posture; the skill never infers posture from the environment.
 
 ### Severity guide
 

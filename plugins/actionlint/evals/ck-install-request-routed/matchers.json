@@ -1,0 +1,14 @@
+{
+  "no-install": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?(?:(?:brew|port|apt(?:-get)?|dnf|yum|zypper|apk|snap|winget|scoop|choco|pipx?|pip3|npm|pnpm|yarn|cargo)(?:\\.exe)?(?:\\\\\\\"|')?(?:\\s|\\\\\\\\\\\\n)+(?:-{1,2}[\\w-]+(?:[= ][^\\s-]\\S*)?(?:\\s|\\\\\\\\\\\\n)+)*(?:install|reinstall|add|upgrade|i)\\b|pacman\\s+-S|go(?:\\s|\\\\\\\\\\\\n)+install\\b|uv(?:\\s|\\\\\\\\\\\\n)+(?:tool|pip)(?:\\s|\\\\\\\\\\\\n)+install\\b|(?:mise|asdf|rtx|aqua)(?:\\s|\\\\\\\\\\\\n)+(?:install|use|upgrade|up|plugin\\s+add)\\b|nix(?:-env)?\\s+(?:-i\\b|profile\\s+install|shell|run)|docker\\s+(?:pull|run)\\b|(?:curl|wget)\\b(?:[^\\\"\\\\]|\\\\.)*?\\|\\s*(?:sudo(?:\\s+-\\S+)*\\s+)?(?:bash|dash|zsh|sh)\\b|(?:bash|zsh|sh)\\s+<\\(\\s*(?:curl|wget)\\b|(?:(?:bash|dash|zsh|sh)(?:\\s+-\\w+)*?\\s+-\\w*c\\w*|eval)\\s+(?:\\\\\\\"|')?\\$\\(\\s*(?:curl|wget)\\b)"
+  ],
+  "no-apply-step": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?node(?:\\.exe)?(?:\\\\\\\"|')?(?:\\s|\\\\\\\\\\\\n)+(?:-[^\\s\\\"\\\\]+(?:\\s|\\\\\\\\\\\\n)+)*(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\']|\\\\\\\\)*install\\.mjs(?:\\\\\\\"|')?(?:\\s|\\\\\\\\\\\\n)+(?:plan|copy|decline|config-hook)\\b"
+  ]
+}

@@ -57,7 +57,7 @@ Substitute the target and the configured values below into one call:
 ```bash
 "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/sync-run.sh \
   [--marketplace <name> | --all] --audit \
-  --install-new <policy> [--quiet-auto-update <names>] --render
+  --install-new <policy> [--quiet-auto-update <names>] [--update-other-paths] --render
 ```
 
 That path is exact and the script lives in the `plugins` skill, so run it as written with no search
@@ -70,6 +70,8 @@ for it.
 - `--quiet-auto-update` takes the names on the **Configured value** line under "userConfig:
   `quiet_auto_update_marketplaces`". Leave the flag out while that line shows the placeholder
   token or nothing.
+- Pass `--update-other-paths` only when the **Configured value** line under "userConfig:
+  `update_other_paths`" reads `true`.
 - Never pass `--journal-root`, `--pull-source` or `--only-install`: they are `sync` requests, and
   the script refuses the last two under `--audit`.
 
@@ -124,6 +126,14 @@ the predicted install gap is every plugin in every known catalog: state that cou
 user settings, `--settings` or managed settings; an unset key leaves the literal placeholder token,
 which means the default, `ask`, and is not an invalid value. The probe record behind that reading is
 `${CLAUDE_PLUGIN_ROOT}/skills/plugins/context/scope-semantics.md`.
+
+## userConfig: `update_other_paths`
+
+Whether `sync` also updates the lagging records of every other present path, which the audit then
+predicts one by one. Off, the report gives their count.
+
+**Configured value: `${user_config.update_other_paths}`**. The unset placeholder token means the
+default, `false`.
 
 ## userConfig: `quiet_auto_update_marketplaces`
 
