@@ -17,7 +17,8 @@ plugins/planning/shared/tests/ui-timings.txt
 plugins/planning/shared/tests/ui-parts.txt
 plugins/planning/shared/tests/ui-run.sh
 plugins/planning/shared/tests/ui-[a-z].test.sh
-plugins/planning/shared/tests/align.test.sh
+plugins/planning/shared/tests/align-run.sh
+plugins/planning/shared/tests/align-[a-z].test.sh
 plugins/planning/shared/tests/align-require-browser.test.sh
 plugins/planning/shared/tests/ui-require-browser.test.sh
 plugins/planning/shared/README.md

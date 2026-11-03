@@ -48,6 +48,41 @@ eval format, which the CLI does not read; convert those cases to the suite layou
 `skills/plugin-eval/scripts/convert-evals-json.py <plugin-dir>` converts one plugin's `evals.json`
 cases into its `evals/` suite and removes the converted files.
 
+## Shared grader matchers
+
+A `regex` or `tool_used` grader is static text in `case.yaml`, so the binary cannot call a helper
+when it grades. Shapes that recur across cases live once in `matchers/fragments.json` instead, and a
+case builds a grader from them in `<case>/matchers.json`:
+
+```json
+{"no-token-shell": [{"use": "command_position"}, "(?:curl|wget)\\b",
+                    {"use": "token_argument"}, "AbCdEfGhIjKlMnOp"]}
+```
+
+Each part is literal regex or a fragment, joined in order; `"with": {"row": "..."}` fills a
+fragment's `{{row}}` slot. The fragments cover mechanically exact shapes only:
+
+| Fragment | Matches |
+|---|---|
+| `command_position` | a Bash command string up to where a command starts (POSIX shells) |
+| `command_position_multishell` | the same, also through PowerShell, `cmd /c`, `python -m`, `$(` |
+| `command_anywhere` | anywhere inside the Bash command string |
+| `token_argument` | the rest of the same simple command, up to a token |
+| `table_header_rule` | a Markdown table's header rule line |
+| `table_verdict_cell` | a table row naming `{{row}}` with a literal PASS/FAIL/INFO/WARN cell |
+
+A grader that judges a meaning (a refusal, a report, a pick) is an `llm` grader, not a fragment.
+
+`skills/validate/scripts/check-matchers.py <eval-dir>...` fails when a fragment's samples or a
+built grader's samples sort the wrong way under Python's `re` or node's `RegExp` (the binary's
+engine), when a built grader has no must-pass and must-fail samples, or when the `case.yaml` text
+differs from its build; `--write` rewrites the drifted lines. Its suite, `check-matchers.test.sh`,
+runs it over every plugin's evals in CI.
+
+To add a fragment, give it a `summary`, its `text`, a `probe` grader built from it, and `samples`
+with answers that must pass and answers that must fail, near misses included. To build a grader,
+write its `matchers.json` entry, run `check-matchers.py --write`, and add `samples/<grader>.json`.
+
 ## Upstream sync
 
 The reference content distills a live Anthropic doc page. Every reference file carries a

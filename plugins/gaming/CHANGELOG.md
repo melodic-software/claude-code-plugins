@@ -3,6 +3,12 @@
 All notable changes to the `gaming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.19] - 2026-11-03
+
+### Changed
+
+- The dlss5 eval cases' Bash graders build their command pattern from the evals plugin's shared matchers, with no change to any pattern. The reply graders that judge a refusal or a reading (`force-not-a-way`, `proxy-not-a-way`, `refuses-anticheat-tamper`, `typed-name-after-review`, `no-pretyped-name-ack`, `user-moves`, `not-corrupted`, `verify-not-needed`, `reshade-kept`, `not-proof-of-none`) are `llm` graders now, each with at least eight near-miss fail samples.
+
 ## [0.10.18] - 2026-11-02
 
 ### Changed

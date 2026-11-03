@@ -1,0 +1,8 @@
+{
+  "no-shell-move": [
+    {
+      "use": "command_anywhere"
+    },
+    "(?:\\bmv\\b|\\bcp\\b|\\brsync\\b|\\brm\\b|Move-Item|Copy-Item|Remove-Item|Rename-Item|\\brobocopy\\b|\\bxcopy\\b|\\bmove\\b)(?:[^\"\\\\]|\\\\.)*?(?:Documents|Gaming|LEDGER)"
+  ]
+}

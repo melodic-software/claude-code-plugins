@@ -29,7 +29,7 @@ block is composed; the skills section changes how a block's commands are run.
 
 ## Pre-computed context
 
-Lane config: !`ls "${CLAUDE_PROJECT_DIR:-.}/docs/conventions/bugs.yaml" 2>/dev/null || ls "${CLAUDE_PROJECT_DIR:-.}/.claude/bugs.md" 2>/dev/null || echo "absent — bundled default lanes apply"`
+Lane config: !`ls "${CLAUDE_PROJECT_DIR:-.}/docs/conventions/bugs.yaml" 2>/dev/null || echo "absent — bundled default lanes apply"`
 
 Consumer gotchas:
 !`bash "${CLAUDE_PLUGIN_ROOT}/scripts/concat-gotchas.sh" || echo "(consumer gotchas unavailable)"`
@@ -77,8 +77,7 @@ findings live only in the transcript.
 | `--dry-run` | **Plan-and-report only** | Full hunt + verification, report to stdout, zero persistence and zero cursor advance. Composable with any mode; overrides `--track`. |
 | `--unattended` | **Unattended** | The caller declares that nobody is present (a loop, a routine, a lane rule). No scanned code runs, every survivor is `verified-by-reading`, and Step 7 routes as unattended. Composable with any mode. |
 
-`lanes` and `filing_posture` resolve from `docs/conventions/bugs.yaml`, the team layer; the old
-`.claude/bugs.md` is read only while that file is absent, as the one-release fallback. Keys,
+`lanes` and `filing_posture` resolve from `docs/conventions/bugs.yaml`, the team layer. Keys,
 layers, and merge semantics live only in
 [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md). When no layer
 declares lanes, use the bundled generic default lanes in [`context/lenses.md`](context/lenses.md).

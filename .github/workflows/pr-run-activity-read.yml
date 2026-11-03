@@ -2004,9 +2004,11 @@ jobs:
           OUT_DIR: ${{ runner.temp }}/work-outcome
           # A run whose issue file was not written never started: issue-edited
           # when the issue changed after its label (write-issue's refused
-          # output), issue-file for any other cause, so report-outcome names it.
+          # output), issue-edited-trusted when only listed accounts changed
+          # it, issue-file for any other cause, so report-outcome names it.
           LANE_CLASS: >-
-            ${{ steps.write-issue.outputs.refused == 'edited' && 'issue-edited'
+            ${{ steps.write-issue.outputs.refused == 'edited-trusted' && 'issue-edited-trusted'
+            || steps.write-issue.outputs.refused == 'edited' && 'issue-edited'
             || steps.write-issue.outcome == 'failure' && 'issue-file'
             || steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class
             || steps.act-fallback.outputs.lane-class }}
