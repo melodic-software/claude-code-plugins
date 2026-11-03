@@ -122,7 +122,7 @@
           "min": "3.14.1"
         }
       },
-      "degrade": "With shfmt missing, these gates deny the commands they read; a shfmt older than v3.14.1 may read commands differently.",
+      "degrade": "With shfmt missing, pr-body-linkage-gate.sh and worktree-add-containment-gate.sh deny the commands they read, and worktree-add-claim-gate.sh, which runs after the command, leaves it unclaimed; a shfmt older than v3.14.1 may read commands differently.",
       "install": {
         "docs": "https://github.com/mvdan/sh#shfmt"
       }

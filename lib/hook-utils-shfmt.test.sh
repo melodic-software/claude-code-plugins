@@ -261,6 +261,11 @@ stub_shfmt() { # <dir> <body>
 
 # Missing: jq resolves, shfmt does not.
 refused_with 'refused when shfmt is missing' "$(stub_dir no-shfmt jq)"
+# The fail-open switch is the library's own: an inherited one turns nothing off.
+export HOOK_BPS_FAIL_OPEN=1
+refused_with 'refused when shfmt is missing, HOOK_BPS_FAIL_OPEN=1 inherited' "$(stub_dir no-shfmt jq)"
+export -n HOOK_BPS_FAIL_OPEN
+HOOK_BPS_FAIL_OPEN=0
 # Missing the other way: shfmt resolves, jq does not.
 d=$(stub_dir no-jq shfmt)
 refused_with 'refused when jq is missing' "$d"

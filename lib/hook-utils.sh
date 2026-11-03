@@ -4677,6 +4677,12 @@ HOOK_BPS_TIMEOUT=5
 # command takes a handful.
 HOOK_BPS_MAX_PARSES=64
 
+# Set to 1 by a hook that runs after the call (PostToolUse) and fails open: a
+# parse the reader cannot complete then exits 0 quietly instead of refusing,
+# since there is nothing left to block. Assigned here so the environment cannot
+# turn it on for a hook that blocks.
+HOOK_BPS_FAIL_OPEN=0
+
 # hook::_bps_shfmt_to <var> <command>: <var> gets the jq list, or return 1 when
 # shfmt or jq is missing, fails or runs out of time. The bound is the `read -t`
 # builtin: one subshell starts shfmt, writes its pid, waits for it and writes its
@@ -4750,6 +4756,7 @@ hook::_bps_install_note() {
 # with no tree the guard cannot say what it would run. Shared across a dispatcher's
 # guards when guard::say_once is there. Its reason is what the model can act on.
 hook::_bps_refuse() {
+  ((${HOOK_BPS_FAIL_OPEN:-0})) && exit 0
   local __hu_br_m="BLOCKED: the guard reads a command through shfmt and got no parse (${HOOK_BPS_FAIL:-no reason recorded}), so it cannot check this call. Fix the syntax, or install shfmt and jq, then reissue the call."
   if declare -F guard::say_once >/dev/null; then
     guard::say_once shfmt-unparsable "$__hu_br_m"
