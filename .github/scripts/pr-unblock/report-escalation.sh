@@ -9,8 +9,9 @@
 #   question, a CRITICAL security risk or a billing risk, a person's own
 #   thread or hold): hands the PR to a person with one machine-marked comment
 #   holding the reason, the resume key and how to resume, plus the
-#   human-gated role label. A reason the table does not list holds too, with
-#   no activity to resume (fail-safe).
+#   human-gated role label; a PR the label goes on while it sits in the merge
+#   queue leaves it (leave_queue). A reason the table does not list holds
+#   too, with no activity to resume (fail-safe).
 # - route `fail` (a stop the lane's own bounded retries did not mend): no
 #   human-gated label; the entry's `label` (needs-session), when it names one,
 #   puts the PR in the session-builder queue for a change the lane cannot
@@ -67,6 +68,35 @@ die() {
 }
 
 routes=$(dirname "${BASH_SOURCE[0]}")/escalation-routes.json
+
+# After the hold route adds the human-gated label: a queued PR leaves the merge
+# queue, so its group does not run only for ci-status to fail it on the label.
+# The read and the dequeue are address-feedback.mjs's QUEUE_ENTRY_QUERY and
+# DEQUEUE_MUTATION (leaveQueueOnHold), the one copy of each. A refused read or
+# dequeue warns and the escalation goes on: the label is the hold. Prints one
+# hold-label-dequeue notice.
+leave_queue() {
+  local queries answer entry outcome number=${PR_NUMBER:-} repo=${GITHUB_REPOSITORY:-}
+  if ! queries=$(QUEUE_MODULE="$(dirname "${BASH_SOURCE[0]}")/address-feedback.mjs" node --input-type=module -e '
+    const { pathToFileURL } = await import("node:url");
+    const m = await import(pathToFileURL(process.env.QUEUE_MODULE).href);
+    process.stdout.write(JSON.stringify({ read: m.QUEUE_ENTRY_QUERY, dequeue: m.DEQUEUE_MUTATION }));'); then
+    outcome=refused:queries-unread
+    echo "::warning::#$number: the merge-queue queries did not load; it was not dequeued"
+  elif ! answer=$(gh api graphql -f "query=$(jq -r .read <<<"$queries")" -f "owner=${repo%/*}" -f "name=${repo#*/}" -F "pr=$number") ||
+    ! entry=$(jq -er '.data.repository.pullRequest | select(.id | type == "string") | [.id, (.mergeQueueEntry != null)] | @tsv' <<<"$answer"); then
+    outcome=refused:read-failed
+    echo "::warning::#$number: its merge-queue entry did not read; it was not dequeued"
+  elif [[ ${entry#*$'\t'} != true ]]; then
+    outcome=not-queued
+  elif gh api graphql -f "query=$(jq -r .dequeue <<<"$queries")" -f "id=${entry%%$'\t'*}" >/dev/null; then
+    outcome=dequeued
+  else
+    outcome=refused:dequeue-failed
+    echo "::warning::#$number: could not dequeue it; ci-status still fails its merge group on $1"
+  fi
+  echo "::notice title=hold-label-dequeue::pr=$number label=$1 outcome=$outcome"
+}
 
 # `clear`: an attempt of ACTIVITY on HEAD_SHA ended without a stop (a same-head
 # retry landed). When the newest status of the activity's context on the
@@ -335,6 +365,7 @@ EOF
 
 if [[ $labeled != true ]]; then
   gh api -X POST "$issue/labels" -f "labels[]=$label" >/dev/null
+  leave_queue "$label"
 fi
 gh api -X POST "$issue/comments" -F "body=@$body" >/dev/null || die "cannot post the escalation comment; the $label label is on"
 echo "escalated: $ESCALATION_REASON, label $label, resume key $HEAD_SHA"

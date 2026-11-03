@@ -154,9 +154,9 @@
 #   - `git config` with `--global`, `--system` or `--file <identity file>`
 #     (`-f`, `--file=`) that sets, adds, replaces or unsets user.email,
 #     user.signingkey, user.useConfigOnly, credential.helper (and its
-#     credential.<url>.helper form), core.sshCommand, core.hooksPath or an
-#     includeIf key, in the old form or after `set` or `unset`; one that
-#     renames or removes the user, core, credential or an includeIf section;
+#     credential.<url>.helper form), core.sshCommand, core.hooksPath, include.path
+#     or an includeIf key, in the old form or after `set` or `unset`; one that
+#     renames or removes the user, core, credential, include or an includeIf section;
 #     and `--edit` or `edit`, which may touch every key;
 #   - a shell write to an identity file: an output redirection to it (the
 #     targets of `&>`, `&>>` and `>|`, which the parse splits at the `&` or
@@ -1209,7 +1209,7 @@ bcd::write_word() { # <command word or operator> <operand>
 bcd::identity_key() { # <config key>
   case "${1,,}" in
   user.email | user.signingkey | user.useconfigonly | credential.helper | credential.*.helper | \
-    core.sshcommand | core.hookspath | includeif.*) return 0 ;;
+    core.sshcommand | core.hookspath | include.path | includeif.*) return 0 ;;
   *) return 1 ;;
   esac
 }
@@ -1217,7 +1217,7 @@ bcd::identity_key() { # <config key>
 # shellcheck disable=SC2329  # reached from the parse callback
 bcd::identity_section() { # <config section>
   case "${1,,}" in
-  user | core | credential | credential.* | includeif.*) return 0 ;;
+  user | core | credential | credential.* | include | includeif.*) return 0 ;;
   *) return 1 ;;
   esac
 }

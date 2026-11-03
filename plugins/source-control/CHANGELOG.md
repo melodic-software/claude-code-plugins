@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.0.1] - 2026-11-03
+
+### Changed
+
+- `babysit-prs`: the pr-verify verdict reader now runs in FAIL index mode. It reads a pull request's FAILs from the FAIL index plus the committed `verify-legacy-fails.json`, which lists the 550 FAILs uploaded before the index existed, instead of paging the whole artifact listing on every judgment.
+
+## [6.0.0] - 2026-11-03
+
+### Removed
+
+- The `check` skill is gone. To check this plugin's prerequisites, run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`, the command the hook notices already print.
+
 ## [5.6.5] - 2026-11-03
 
 ### Changed
