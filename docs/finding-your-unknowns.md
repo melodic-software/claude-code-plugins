@@ -252,16 +252,31 @@ they graduate into a skill body only on observed, repeated stumble evidence:
   a design decision hidden in a collapsed section.
 
 Two more from Addy Osmani's "Critical thinking when agents do the work"
-(`https://x.com/addyosmani/status/2117512471930167377`, 2026-11-03), both BEHAVIORAL
-under ADR 0025:
+(`https://x.com/addyosmani/status/2117512471930167377`, published 2026-11-03), both
+BEHAVIORAL under ADR 0025; the dispositions are in
+[the upstream record](upstream/x-com-addyosmani-status-2117512471930167377.md). The page
+returned HTTP 402 to an unattended fetch on 2026-11-03, so no snapshot or hash is recorded.
+Recheck trigger: a raw retrieval, which records its date and hash here.
 
 - **Prediction-first** (delegation, BEHAVIORAL): before handing a non-trivial task to an
-  agent, write the answer you expect, then compare it with what comes back. Eval candidate:
-  [#12938](https://github.com/melodic-software/claude-code-plugins/issues/12938).
+  agent, write the answer you expect, then compare it with what comes back. Evidence: the
+  article's argument only; no test of the practice is on record. Candidate homes, only if
+  stumble evidence appears: `discovery:blindspot` and `planning:interview` intake. Eval
+  candidate: [#12938](https://github.com/melodic-software/claude-code-plugins/issues/12938).
 - **Weekly no-agent practice** (skill upkeep, BEHAVIORAL): do one real task a week without
   an agent; once a month, note what you have stopped doing and decide which of it you accept
-  losing. Eval candidate:
+  losing. Evidence: the article's argument only; no test of the practice is on record.
+  Candidate home, only if stumble evidence appears: `education:teach`. Eval candidate:
   [#12938](https://github.com/melodic-software/claude-code-plugins/issues/12938).
+
+A related experiment is Shaw and Nave's "cognitive surrender" SSRN working paper
+(`https://papers.ssrn.com/abstract=6097646`). SSRN returned HTTP 403 on 2026-11-03, so the
+paper is unread here. Secondary coverage
+(`https://thedecisionlab.com/insights/technology/when-ai-becomes-part-of-how-we-reason`,
+read 2026-11-03 through a summarizing fetch, so no hash is recorded) describes a design that
+tests neither practice: Study 3 gave feedback only together with per-question rewards. A web
+search on 2026-11-03 found no independent replication. Recheck trigger: a raw retrieval of
+the SSRN page.
 
 ## Sources and citation shape
 

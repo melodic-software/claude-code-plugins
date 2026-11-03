@@ -23,7 +23,8 @@ path into another plugin; add a `competitor_dirs` entry only for a rival outside
   from the same plugin, so a parallel rewrite in another plugin cannot move that score. A probe
   set meant for live `emit-plugin-eval` runs may also list rivals from other plugins: each
   emitted case loads their plugins beside the target, and the before and after runs load the
-  same copies. `validate` warns on each cross-plugin rival as a reminder of that trade.
+  same copies. `validate` warns once per probe file, naming each cross-plugin rival, as a
+  reminder of that trade (`--verbose` prints one warning per rival).
 - **Frozen before the rewrite.** Commit the set before the description changes, and leave it
   unchanged through the rewrite.
 

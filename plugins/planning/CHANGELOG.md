@@ -3,6 +3,19 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.1] - 2026-11-03
+
+### Changed
+
+- `reference/rendered-view.md` is now a synced copy of the one shared rendered-view procedure ([#12667](https://github.com/melodic-software/claude-code-plugins/issues/12667)); planning's steps, data shapes and session connection are unchanged.
+
+### Fixed
+
+- the stress-test eval graders no longer pass a draft-word exclusion, a negation that bridges verbs or misses none/nothing, or an exclusion phrase that opens a real attack; a quoted claim lifts a dismissal only when a contrast word (but, however, yet) follows it, and a dismissal is also lifted when a contrast word is followed by the defect's target term. Known limits: a claim rebutted without a contrast word is not credited, and an unrelated contrast clause can still lift it
+
+  All 48 graders in the `st-*` cases carry the tightened patterns, and 131 new
+  sample answers pin them, 80 of which the old patterns sorted wrong.
+
 ## [2.1.0] - 2026-11-03
 
 ### Added
