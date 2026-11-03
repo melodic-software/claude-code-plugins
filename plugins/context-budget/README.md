@@ -3,11 +3,13 @@
 Measure a Claude Code session's fixed startup context payload **per item**, on your machine, at a
 pinned binary, and record what every trim actually saved.
 
-Per-skill, per-agent, and per-MCP-tool attribution stays with the built-in `/context` command.
-This plugin covers what our measurements see `/context` report only as totals: the built-in tool
-pools, `System tools` and `System tools (deferred)`. Together they are typically the largest
-single contributor to the fixed payload, which is why the plugin targets them. It attributes them
-per tool by A/B differencing: a baseline headless session versus one session per candidate
+This plugin attributes the built-in tool pools, `System tools` and `System tools (deferred)`, per
+tool. Together they are typically the largest single contributor to the fixed payload, which is
+why the plugin targets them. The rest of the breakdown stays with the built-in `/context` command;
+what it itemizes is read at its row in
+[commands § All commands](https://code.claude.com/docs/en/commands#all-commands)
+(as of 2026-11-03; recheck when that row changes what `/context` itemizes). The plugin attributes
+the pools by A/B differencing: a baseline headless session versus one session per candidate
 tool with that tool denied by bare name. The two attributed buckets compose differently:
 deferred-side deltas add, so a basket's deferred saving is the sum of its members, while
 prefix-side deltas double-count, so their sum is only an upper bound on the basket's prefix
@@ -192,8 +194,8 @@ tool needs its own probe, and NotebookEdit was not probed.
 - **Every report is stamped** with the measured binary path and version, the measurement mode,
   and the session kind. Machines with two CLI installs get an answer per binary, not a blend.
 - **Comparability is enforced, not advised.** `System tools` deltas are only valid between runs
-  with identical skill listings (listed skill frontmatter is subtracted from that bucket); the
-  engine fingerprints the listing per run and marks violating comparisons incomparable rather
+  with identical skill listings (why: `skills/audit/reference/engine.md` "Comparability rules");
+  the engine fingerprints the listing per run and marks violating comparisons incomparable rather
   than reporting their numbers.
 - **Levers are catalogued data.** Each row in
   `skills/audit/reference/levers.json` carries its honesty category (does it remove weight, work
