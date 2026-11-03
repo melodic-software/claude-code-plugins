@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [2.4.0] - 2026-11-03
+
+### Changed
+
+- `compress`: on a clean tree, once the repo-wide run is accepted and the free audit has run, the skill no longer asks about scope and concurrency. It takes the defaults (the top 10 COMPRESS files by expected yield, 2 concurrent subagents, always-loaded files excluded) and reports them in one line with how to override each. The confirmation before the run stays, and always-loaded files are still compressed only on an explicit opt-in.
+
 ## [2.3.3] - 2026-11-02
 
 ### Changed
