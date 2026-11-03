@@ -1353,7 +1353,10 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
     let result = { items: [], failed: 0 };
     const write = () => {
       writeFileSync(env.PLAN_PATH, JSON.stringify(result));
-      const outputs = recordOutputs(result.items);
+      // A Verdict re-run leaves a pr-feedback-deferred record, so the plan
+      // names it first (DEFERRAL_MARKER): the tick reads per-head records only
+      // while one is listed.
+      const outputs = { ...recordOutputs(result.items), deferral: result.items.some((item) => item.kind === "verdict") ? "true" : "" };
       if (outputs["record-1"] !== "") {
         writeFileSync(env.RECORD_PATH, JSON.stringify(result.items.filter(recorded)));
       }

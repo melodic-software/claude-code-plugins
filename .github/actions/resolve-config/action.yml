@@ -188,6 +188,9 @@ outputs:
   prepare:
     description: "The leaf's prepare mode (`merge-base`), empty when it sets none."
     value: ${{ steps.resolve.outputs.prepare }}
+  checkout:
+    description: "A script activity's checkout in the write runner: `head` (the default) or `base` (no head checkout); empty for a skill."
+    value: ${{ steps.resolve.outputs.checkout }}
   contents:
     description: The App grant's `contents` permission for the activity's effect.
     value: ${{ steps.resolve.outputs.contents }}
