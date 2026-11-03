@@ -40,9 +40,11 @@ sharing a name, a non-positive `weight`, `runs` / `max_turns` / `timeout_seconds
 `env` key that does not match `EVAL_[A-Z0-9_]*`, a case that has a `case.yaml` but no
 `schema_version` or `name` in it or in `prompt.md` frontmatter (without a `case.yaml` the binary
 supplies both), a case with no prompt (`prompt.md` body or `execution.prompt`), a grader missing an
-option its type requires, and a `schema_version` that is not a quoted version string or whose
-major is newer than the binary supports. The complete sets the script checks, so a question about
-a key or a type is answered here without opening the script:
+option its type requires, a grader or `prompt.md` whose frontmatter holds `---` on a line other
+than its two delimiter lines (the binary cannot load the file; spell it `-{3}` in a regex), and a
+`schema_version` that is not a quoted version string or whose major is newer than the binary
+supports. The complete sets the script checks, so a question about a key or a type is answered
+here without opening the script:
 
 - `prompt.md` frontmatter keys: `schema_version`, `name`, `description`, `tags`, `plugins`,
   `runs`, `expected_outcome`, `model`, `max_turns`, `timeout_seconds`, `allowed_tools`,
