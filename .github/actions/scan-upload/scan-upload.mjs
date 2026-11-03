@@ -5,8 +5,10 @@
 // A credential format or a hidden assignment withholds the upload; the broad
 // assignment label only warns. A link, a non-regular file, a glob or `!`
 // entry, a compressed file (whose bytes the scan cannot read) or an
-// unreadable path is a fault, which withholds it too. Nothing it prints
-// carries a matched value or a file name.
+// unreadable path is a fault, which withholds it too. Nothing it prints to
+// the log carries a matched value or a file name. On a pattern block it
+// writes the hit's fingerprint (lib/publish-gate.mjs hitFingerprint: rule,
+// path, line, the match's first characters masked) to GITHUB_STEP_SUMMARY.
 //
 //   SCAN_PATHS=<the upload's path input> scan-upload.mjs
 // Writes clean=true to GITHUB_OUTPUT only when every file was judged clean.
@@ -16,21 +18,28 @@ import { appendFileSync, lstatSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import { scanLeak, WARN_ONLY } from "../../../lib/publish-gate.mjs";
+import { hitFingerprint, scanLeak, WARN_ONLY } from "../../../lib/publish-gate.mjs";
 
 const COMPRESSED = [Buffer.from([0x1f, 0x8b]), Buffer.from("PK\x03\x04", "latin1"), Buffer.from("(\xb5/\xfd", "latin1")];
 
 /**
  * Every file under each of `entries` (the upload's path lines), judged by
- * scanLeak. Returns `{ withheld: {label, credential} | null, warned, files }`.
+ * scanLeak. Returns `{ withheld: {label, credential, fingerprint?} | null, warned, files }`,
+ * fingerprint the summary line for a pattern block.
  */
 export function scanPaths(entries) {
   let warned = false;
   let files = 0;
   const withhold = (label, credential = false) => ({ withheld: { label, credential }, warned, files });
-  const judge = (bytes) => {
+  const judge = (bytes, where) => {
     const { block, credential, warn } = scanLeak(bytes);
-    if (block) return { label: block, credential };
+    if (block) {
+      let fingerprint = null;
+      try {
+        fingerprint = hitFingerprint(bytes, block, where);
+      } catch {}
+      return { label: block, credential, fingerprint };
+    }
     warned ||= Boolean(warn);
     return null;
   };
@@ -55,7 +64,7 @@ export function scanPaths(entries) {
     if (COMPRESSED.some((magic) => bytes.subarray(0, magic.length).equals(magic))) {
       return { label: "a compressed file, whose bytes the scan cannot read" };
     }
-    return judge(Buffer.from(name, "utf8")) ?? judge(bytes);
+    return judge(Buffer.from(name, "utf8"), "a file name") ?? judge(bytes, name);
   };
   for (const line of entries) {
     const entry = line.trim();
@@ -85,6 +94,11 @@ export function main(env = process.env) {
   }
   const { withheld, warned, files } = result;
   if (withheld) {
+    if (withheld.fingerprint && env.GITHUB_STEP_SUMMARY) {
+      try {
+        appendFileSync(env.GITHUB_STEP_SUMMARY, `### scan-upload withheld the upload\n\n${withheld.fingerprint}\n`);
+      } catch {}
+    }
     process.stdout.write(
       `::error::scan-upload: ${withheld.label}; nothing is uploaded${withheld.credential ? ". Rotate this credential" : ""}\n`,
     );

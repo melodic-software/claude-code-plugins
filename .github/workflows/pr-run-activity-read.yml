@@ -2744,7 +2744,8 @@ jobs:
       # step naming the pattern, never the value, and says to rotate it; a
       # patch that does not apply, or a scan that does not finish (the
       # timeout included), fails it with no rotation; every upload and
-      # summary after it needs clean == 'true'. Those two faults find no
+      # summary after it needs clean == 'true'. A pattern block writes only
+      # its redacted fingerprint to this step's summary. Those two faults find no
       # credential, so they set refused=fault, which retries, once the patch's
       # text was judged with no binary hunk's bytes unread, or when the run
       # left no patch; any other fault holds, and a timeout sets no output, so
@@ -2807,7 +2808,7 @@ jobs:
               const specifiers = [...source.matchAll(/\bfrom\s*['"]([^'"]+)['"]|^\s*import\s*['"]([^'"]+)['"]|\bimport\s*\(\s*['"]?([^'")]*)/gm)].map((match) => match[1] ?? match[2] ?? match[3]);
               if (specifiers.some((name) => !name.startsWith('node:'))) throw new Error('the gate imports more than node builtins');
               fs.writeFileSync(path.join(scratch, 'publish-gate.mjs'), source);
-              const { WARN_ONLY, scanLeak, changedBytes } = await import(pathToFileURL(path.join(scratch, 'publish-gate.mjs')).href);
+              const { WARN_ONLY, scanLeak, changedBytes, hitFingerprint } = await import(pathToFileURL(path.join(scratch, 'publish-gate.mjs')).href);
               // git with no global or system config, in a fresh bare repository
               // that borrows at most the checkout's objects and nothing else
               // from its .git (collect-patch.sh runs the same way).
@@ -2878,12 +2879,20 @@ jobs:
               // credential format blocks and asks for rotation; the one broad
               // label only warns, on a plain line. Each source has a kind,
               // which names no model-chosen text.
+              // A block keeps its fingerprint (hitFingerprint: rule, file,
+              // line, the match's first characters masked) for the summary;
+              // a gate without it, or a throw in it, keeps none.
               const warned = new Set();
+              const files = new Map([[reply, 'reply.txt'], [turns, 'act-turns.json'], [patch, 'patch.diff'], [replies, 'replies.jsonl'], [verdict, 'dependency-verdict.json'], [outcome, 'work-outcome.json'], [lane, 'lane.json']]);
               const judge = (kind, bytes, diff = false) => {
                 if (hit || !bytes) return;
                 const { block, credential: format, warn } = scanLeak(bytes, { diff });
-                if (block) hit = { label: block, credential: format };
-                else if (warn) warned.add(kind);
+                if (block) {
+                  hit = { label: block, credential: format };
+                  try {
+                    if (typeof hitFingerprint === 'function') hit.fingerprint = hitFingerprint(bytes, block, files.get(bytes) ?? 'a file the patch makes', { diff });
+                  } catch {}
+                } else if (warn) warned.add(kind);
               };
               judge('the reply', reply);
               judge('the reply', turns);
@@ -2933,6 +2942,11 @@ jobs:
             core.setOutput('clean', hit ? 'false' : 'true');
             if (hit) {
               if (hit.fault && !binary && (judged || !read(PATCH_FILE))) core.setOutput('refused', 'fault');
+              if (hit.fingerprint && process.env.GITHUB_STEP_SUMMARY) {
+                try {
+                  fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### leak-scan blocked the outputs\n\n${hit.fingerprint}\n`);
+                } catch {}
+              }
               core.setFailed(`leak-scan: ${hit.label}; nothing is uploaded or summarized${hit.credential ? '\nrotate this credential' : ''}`);
             }
 

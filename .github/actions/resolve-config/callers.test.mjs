@@ -2899,7 +2899,8 @@ test("pr-run-activity-read.yml: the leak scan runs after the decode and gates ev
   assert.deepEqual(steps.slice(0, 2).map((step) => step.id ?? step.name), ["Require the checked issue fields", "Assert the default branch is set"]);
   assert.deepEqual(["base", "key", "open", "decode"].map(at), [2, 3, 4, 5]);
   assert.ok(at("decode") < scan);
-  const outputs = steps.filter((step) => (isUpload(step) && !String(step.with.name).startsWith("verdict-")) || writesSummary(step));
+  // The scan's own summary is the redacted fingerprint of a block (the test below).
+  const outputs = steps.filter((step) => step.id !== "leak-scan" && ((isUpload(step) && !String(step.with.name).startsWith("verdict-")) || writesSummary(step)));
   assert.equal(outputs.length, 6);
   const context = (clean) => ({
     "inputs.issue-number": "7",
@@ -4203,6 +4204,23 @@ test("a run whose issue file was not written still seals and publishes its lane.
   const { failed, files } = await decode(t, decodeEnv(outputs, { "issue-number": "7" }, open, { "issue-run-started": "true", "resume-branch": "" }));
   assert.equal(failed, null);
   assert.equal(JSON.parse(files["lane.json"]).class, "issue-edited");
+});
+
+// Run 41423780812 (#12331) blocked an "Anthropic key" and kept nothing to tell a fixture from a key.
+test("scan job: a block writes the hit's rule, file, line and masked prefix to the step summary, never the key", async (t) => {
+  const summary = join(tempDir("leak-scan-summary-"), "summary.md");
+  t.after(() => rmSync(dirname(summary), { recursive: true, force: true }));
+  writeFileSync(summary, "");
+  const { clean, failed } = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "skill-reply", "work-outcome.json"), `{\n"summary": "${KEY}"\n}\n`), undefined, { env: { GITHUB_STEP_SUMMARY: summary } });
+  assert.equal(clean, "false");
+  assert.match(failed, /^leak-scan: Anthropic key; nothing is uploaded/);
+  const written = readFileSync(summary, "utf8");
+  assert.equal(written, "### leak-scan blocked the outputs\n\n- rule `Anthropic key`, path `work-outcome.json`, line 2, match `sk-ant********`\n\n");
+  assert.ok(!written.includes(KEY.slice(0, 7)), "no seventh character of the key");
+  // A clean scan writes nothing.
+  writeFileSync(summary, "");
+  assert.equal((await scanWith(t, () => {}, undefined, { env: { GITHUB_STEP_SUMMARY: summary } })).clean, "true");
+  assert.equal(readFileSync(summary, "utf8"), "");
 });
 
 test("scan job: a credential in the issue outcome blocks every upload", async (t) => {
