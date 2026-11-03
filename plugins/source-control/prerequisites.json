@@ -32,7 +32,14 @@
       "detect": {
         "any": [
           "jq"
-        ]
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "jq-([0-9.]+)",
+          "min": "1.6"
+        }
       },
       "degrade": "Without jq, the source-control hooks skip their work, except worktree-remove-gate.sh, which refuses, so a worktree Claude Code removes stays on disk.",
       "install": {

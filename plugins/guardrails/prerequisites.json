@@ -31,7 +31,14 @@
       "detect": {
         "any": [
           "jq"
-        ]
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "jq-([0-9.]+)",
+          "min": "1.6"
+        }
       },
       "degrade": "Without jq, guardrails denies Bash and PowerShell calls, and file writes on Windows; it skips its other file checks.",
       "install": {
