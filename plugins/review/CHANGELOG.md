@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.0.1] - 2026-11-03
+
+### Changed
+
+- The `code-reviewer` and `security-reviewer` descriptions name the `Findings path:` line, so a caller dispatching them outside a review skill gets a file pointer and a one-paragraph summary instead of the full report.
+
 ## [5.0.0] - 2026-11-03
 
 ### Removed

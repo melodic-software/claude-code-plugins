@@ -1,5 +1,18 @@
 # Changelog for the PR pipeline convention
 
+## [8.44.3] - 2026-11-03
+
+### Changed
+
+- The issue lane closes a `report-delivered` stop on any issue the run committed nothing for, whatever its work class or with none, and retries when the run committed to a branch or resumed one, whose earlier commits are still unmerged. Before, only a `work-class: read-only` issue closed (owner decision Q85, [#9668](https://github.com/melodic-software/claude-code-plugins/issues/9668)). Such a close still counts for nothing as a trusted close for a dependent.
+
+### Fixed
+
+- The `lefthook` refusal on the `ci-context` and `review-threads` rows now covers every file lefthook
+  reads its config or hook scripts from, not only the root `lefthook.yml`, so fix-ci and
+  address-feedback cannot change a hook through `lefthook-local.yaml`, `.config/lefthook.toml` or
+  `.lefthook/`.
+
 ## [8.44.2] - 2026-11-03
 
 ### Fixed
