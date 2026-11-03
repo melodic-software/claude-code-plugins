@@ -325,6 +325,23 @@ not in the repository, so this record cannot name them; Kyle holds that plan.
 
 ## User gate
 
-Pending. Kyle approves by class and names exceptions by row number; the decision is recorded here
-as an `Approved classes:` line and an `Exceptions:` line, and each approved class or row is filed as
-its own slice. Until then nothing changes.
+The owner approved option 1 on 2026-10-13, recorded on the issue on 2026-11-02
+([decision](https://github.com/melodic-software/claude-code-plugins/issues/7005#issuecomment-6570157077)):
+`probe-first` rows 21, 28 and 139 and `may-proceed` rows 16, 37, 42, 49 and 161. Row 163 keeps its
+confirm, and every other class keeps its gate.
+
+Approved classes: probe-first; may-proceed
+Exceptions: 163 (keep-confirm)
+
+Each approved row is its own slice, which re-locates its gate on current main:
+
+| row | proposal | slice |
+|---|---|---|
+| row 16 | may-proceed | #12588 |
+| row 21 | probe-first | #12589 |
+| row 28 | probe-first | #12590 |
+| row 37 | may-proceed | #12591 |
+| row 42 | may-proceed | #12592 |
+| row 49 | may-proceed | #12593 |
+| row 139 | probe-first | #12594 |
+| row 161 | may-proceed | #12595 |
