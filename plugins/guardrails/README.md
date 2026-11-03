@@ -1480,6 +1480,10 @@ guards behave exactly as before.
 
 ## Requirements
 
+- **shfmt v3.14.1 or later**, which the guards read every Bash and PowerShell command
+  through. Without it, or with an older build, the guards deny every Bash and PowerShell call
+  they read, naming the cause. In a cloud session (`CLAUDE_CODE_REMOTE=true`) a SessionStart
+  step installs the pinned, hash-checked build into `~/.local/bin`.
 - **bash 5.0+** and **jq**, the guards' runtime. Without **jq**, the guards that
   block irreversible operations deny every Bash and PowerShell call, with one
   line naming jq per call, and the other guards skip their work after one

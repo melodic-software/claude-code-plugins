@@ -4582,7 +4582,7 @@ hook::bash_parse_segments_uncached() {
 # bytes, so spans are sliced under LC_ALL=C.
 # shellcheck disable=SC2016  # jq program, not a shell expansion
 HOOK_BPS_JQ='
-def q: @sh | gsub("\n"; "'$'\\n''") | gsub("\r"; "'$'\\r''");
+def q: @sh | gsub("\n"; "\u0027$\u0027\\n\u0027\u0027") | gsub("\r"; "\u0027$\u0027\\r\u0027\u0027");
 def span: ["S", "\(.Pos.Offset):\(.End.Offset)"];
 def lit_text: gsub("\\\\\n"; "") | gsub("(?s)\\\\(?<c>.)"; "\(.c)");
 def dq_text: gsub("\\\\\n"; "") | gsub("\\\\(?<c>[\"\\\\$`])"; "\(.c)");
@@ -4916,10 +4916,11 @@ hook::_bps_tree_decode() {
 # hook::bash_parse_segments_shfmt <command> <callback> [soft]: every simple
 # command in the tree reaches <callback>, the extglob-off reading and each
 # extglob pattern's commands too. With no parse it refuses the call (exit 2),
-# or with [soft] returns 1. An extglob pattern's text is parsed soft: a pattern
-# that is no command list runs nothing. A whole-command second reading (the
-# extglob-off one, the array `#` one) is not: bash runs every command before
-# the line its syntax error is on, so a reading that does not parse refuses.
+# or with [soft] returns 1. An extglob pattern's text is parsed soft unless it
+# holds a substitution: a pattern that is no command list runs nothing, but its
+# substitutions run. A whole-command second reading (the extglob-off one, the
+# array `#` one), a backtick's unescaped text and a joined here-doc body are not
+# soft: bash runs every command before its syntax error, so they refuse.
 # shellcheck disable=SC2034  # HOOK_SEG_* are read by the callback's caller
 hook::bash_parse_segments_shfmt() {
   local __hu_bcmd=$1 __hu_bcb=$2 __hu_bsoft=${3:-0} __hu_bout=""
@@ -4956,11 +4957,23 @@ hook::bash_parse_segments_shfmt() {
   HOOK_SEG_REDIR_TARGET=()
   HOOK_SEG_REDIR_QUOTED=()
   HOOK_SEG_REDIR_OPAQUE=()
-  # The array `#` reading replaces a tree that took the rest of its line for a
-  # comment, so it is a reading of the whole command like the extglob-off one.
+  # Each extglob pattern's text, for the commands its substitutions run (shfmt
+  # keeps a pattern as one literal). A pattern with no substitution that is no
+  # command list runs nothing, so it is parsed soft. One holding `$(`, a
+  # backtick, `<(` or `>(` refuses when it does not parse, as the command would.
   for __hu_x in ${__hu_pt[@]+"${__hu_pt[@]}"}; do
-    [[ -n "$__hu_x" ]] && hook::bash_parse_segments_shfmt "$__hu_x" "$__hu_bcb" 1
+    [[ -n "$__hu_x" ]] || continue
+    # shellcheck disable=SC2016  # literal substitution openers, not expansions
+    case "$__hu_x" in
+    *'$('* | *'`'* | *'<('* | *'>('*)
+      hook::bash_parse_segments_shfmt "$__hu_x" "$__hu_bcb" "$__hu_bsoft" || return 1
+      ;;
+    *) hook::bash_parse_segments_shfmt "$__hu_x" "$__hu_bcb" 1 ;;
+    esac
   done
+  # The extglob-off reading and the array `#` reading (which replaces a tree
+  # that took the rest of its line for a comment) are readings of the whole
+  # command, and refuse when they do not parse.
   for __hu_x in ${__hu_off:+"$__hu_off"} ${__hu_sp:+"$__hu_sp"}; do
     hook::bash_parse_segments_shfmt "$__hu_x" "$__hu_bcb" "$__hu_bsoft" || return 1
   done

@@ -15,6 +15,10 @@
 # checksums file; the hash is sha256sum of the linux_amd64 asset.
 set -uo pipefail
 
+# A local session has nothing to install, so the hook leaves before any library
+# loads. Sourced (cloud-shfmt.test.sh calls the installer directly), it goes on.
+[[ "${BASH_SOURCE[0]}" != "$0" || "${CLAUDE_CODE_REMOTE:-}" == true ]] || exit 0
+
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
 # shellcheck source=abort-boundary.sh

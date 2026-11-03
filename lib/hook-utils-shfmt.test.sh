@@ -128,6 +128,17 @@ words_are() {
   words_are 'multibyte text stays whole' 'x "héllo ✓" 日本語' 'x|héllo ✓|日本語|0 2 0'
   words_are 'a span after multibyte text keeps its place' 'é $(y) "$z"' 'é|$(y)|$z|0 0 2'
 }
+# jq's output holds no raw LF or CR: a word's newline comes back spelled as an
+# ANSI-C `$'\n'`, so a jq that writes LF as CRLF (a native Windows build) cannot
+# put a CR into a word.
+jq_list=""
+hook::_bps_shfmt_to jq_list $'x $\'a\\nb\\rc\' "d\ne"'
+if [[ -n "$jq_list" && "$jq_list" != *$'\n'* && "$jq_list" != *$'\r'* ]]; then
+  ok "the parse list carries no raw newline or carriage return"
+else
+  fail "the parse list carries a raw newline or carriage return: $(printf '%q' "$jq_list")"
+fi
+words_are 'a CR and LF in words decode as written' $'x $\'a\\nb\\rc\' "d\ne"' $'x|a\nb\rc|d\ne|0 2 2'
 
 # --- the redirection half of a segment --------------------------------------
 redirs_seen=()
@@ -285,7 +296,10 @@ reason_is 'the refusal names a failed cloud install' \
 # A shfmt in ~/.local/bin is used when PATH lacks it: the cloud install's target.
 lbhome="$_T_TMP/lbhome"
 mkdir -p "$lbhome/.local/bin"
-ln -s "$(type -P shfmt)" "$lbhome/.local/bin/shfmt"
+# A wrapper rather than a link: a version manager's shim reads its config from
+# the HOME this row replaces, so the real HOME goes with it.
+printf '#!/bin/sh\nHOME=%q exec %q "$@"\n' "$HOME" "$(type -P shfmt)" >"$lbhome/.local/bin/shfmt"
+chmod +x "$lbhome/.local/bin/shfmt"
 # shellcheck disable=SC2016  # the child shell expands these
 if out=$(HOME=$lbhome "$BASH_BIN" -c 'source "$1/lib/hook-utils.sh"; cb() { printf "%s\n" "$*"; }; PATH=$2; hook::bash_parse_segments_shfmt "git status" cb' -- "$_T_ROOT" "$(stub_dir lb-no-shfmt jq)" 2>&1) &&
   [[ "$out" == 'git status' ]]; then
@@ -342,6 +356,11 @@ hit_print() { printf '%s\n' "$*"; }
   form handled 'echo @(`echo HIT >&2`)'
   form handled 'echo @(<(echo HIT >&2))'
   form refused 'f@()#; echo HIT >&2'
+  # A pattern bash expands runs its substitutions; shfmt keeps the pattern as
+  # one literal, so one that does not parse as a command must refuse.
+  form refused 'echo @($(echo HIT >&2)|)'
+  form refused 'echo +(`echo HIT >&2`|)'
+  form refused 'echo @(;$(echo HIT >&2))'
   # Nested: the extglob-off rewrite applies its edits in offset order.
   form handled $'cat <<E2; !(x)#\n$(cat <<E1; !(x)#\n$(echo HIT >&2\n)\nE1\n)\nE2'
   # The extglob-off reading runs a here-doc before its open quote's error.
