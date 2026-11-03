@@ -2576,6 +2576,8 @@ jobs:
             echo "the last sweep's post-merge report does not stand for this run; the post-merge check runs fresh"
             identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
             fresh=0
+            # Written now, so a check that times out or is cancelled still says it ran.
+            echo "fresh-started=true" >>"$GITHUB_OUTPUT"
             python3 "$scripts/babysit_postmerge.py" \
               --repo "$REPO" --agent-identity "$identity" --lane-merges-only \
               </dev/null >"$last/post-merge.json" || fresh=$?
@@ -2763,6 +2765,7 @@ jobs:
           STANDS: ${{ steps.keep-report.outputs.stands }}
           FRESH: ${{ steps.keep-report.outputs.fresh }}
           FRESH_REASON: ${{ steps.keep-report.outputs.fresh-reason }}
+          FRESH_STARTED: ${{ steps.keep-report.outputs.fresh-started }}
           CALLS: ${{ steps.budget-end.outputs.calls }}
         run: |
           if [ -z "$OUTCOME" ]; then
@@ -2772,6 +2775,8 @@ jobs:
               OUTCOME="skipped: the who step stopped it"
             elif [ "$SUPERSEDED" = true ]; then
               OUTCOME="skipped: a waiting run does this work"
+            elif [ -z "$FRESH" ] && [ "$FRESH_STARTED" = true ]; then
+              OUTCOME="skipped: the fresh post-merge check did not finish (timeout or cancel)"
             elif [ "$STANDS" = false ] && [ "$FRESH" = 75 ]; then
               OUTCOME="skipped: the fresh post-merge check stopped on a GitHub rate limit"
             elif [ "$STANDS" = false ] && [[ $FRESH =~ ^[05]$ ]]; then
@@ -2788,7 +2793,7 @@ jobs:
           # a fresh check's.
           report=none
           [ -z "$STANDS" ] || report=last
-          [ -z "$FRESH" ] || report=fresh
+          [ -z "$FRESH" ] && [ "$FRESH_STARTED" != true ] || report=fresh
           # The outcome last: its reason holds spaces.
           line="pr=$PR ${CALLS:-calls=unknown} report=$report outcome=$OUTCOME"
           echo "::notice title=pr-merge-wake::${line//[$'\r\n%']/ }"

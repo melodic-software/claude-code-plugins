@@ -677,7 +677,7 @@ test("a PR-scoped run whose report does not stand runs the post-merge check fres
     const run = keepReport(options);
     const fresh = String(options.fresh ?? 0);
     assert.equal(run.status, 0, why);
-    assert.equal(run.output, `stands=true\nfresh=${fresh}\nfresh-reason=\n`, why);
+    assert.equal(run.output, `fresh-started=true\nstands=true\nfresh=${fresh}\nfresh-reason=\n`, why);
     assert.equal(run.kept, true, why);
     assert.equal(run.json, '{"fresh":true}\n', `${why}: the room is the fresh report, not the last one`);
     assert.equal(run.codeFile, `${fresh}\n`, why);
@@ -706,7 +706,7 @@ test("a PR-scoped run whose fresh check or fresh settle refuses keeps no report"
     const run = keepReport(options);
     assert.equal(run.status, 0, why);
     assert.equal(run.kept, false, why);
-    assert.equal(run.output, `stands=false\nfresh=${options.fresh}\nfresh-reason=${reason}\n`, why);
+    assert.equal(run.output, `fresh-started=true\nstands=false\nfresh=${options.fresh}\nfresh-reason=${reason}\n`, why);
     assert.ok(run.calls.some((c) => FRESH_CHECK.test(c)), `${why}: the fresh check ran`);
     assert.equal(run.calls.some((c) => SETTLE(FRESH_SHA).test(c)), settled, why);
     assert.match(run.stdout, new RegExp(`::notice::the fresh post-merge check \\(exit ${options.fresh}\\) does not stand for this run`), why);
@@ -747,6 +747,11 @@ test("a PR-scoped run's outcome names the fresh check's refusal and which report
   assert.match(wakeOutcome({ ...base, FRESH: "5" }), /refused the fresh post-merge report \(no reason read\)$/);
   assert.match(wakeOutcome({ ...base, STANDS: "true", FRESH: "0", OUTCOME: "armed" }), /report=fresh outcome=armed$/);
   assert.match(wakeOutcome({ ...base, STANDS: "true", OUTCOME: "armed" }), /report=last outcome=armed$/);
+  // A fresh check that timed out or was cancelled writes no stands or fresh output.
+  assert.match(
+    wakeOutcome({ KILL: "true", WHO: "true", FRESH_STARTED: "true" }),
+    /report=fresh outcome=skipped: the fresh post-merge check did not finish \(timeout or cancel\)$/,
+  );
 });
 
 // With no standing report a wake decides nothing: the arm step, which would
