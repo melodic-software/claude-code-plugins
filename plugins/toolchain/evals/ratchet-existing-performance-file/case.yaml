@@ -13,7 +13,7 @@ execution:
 graders:
   - name: joins-performance-file
     type: regex
-    pattern: '(?=[\s\S]*"name":\s*"import-spawns")(?=[\s\S]*"field":\s*"ignores",\s*"ceiling":\s*9\b)'
+    pattern: '(?=[\s\S]*"name":\s*"import-spawns")(?=[\s\S]*\{(?=[^{}]*"field":\s*"ignores")[^{}]*"ceiling":\s*9\b)'
     target: { source: file, path: .performance/ratchets.json }
   - name: no-second-file-bash
     type: tool_used
