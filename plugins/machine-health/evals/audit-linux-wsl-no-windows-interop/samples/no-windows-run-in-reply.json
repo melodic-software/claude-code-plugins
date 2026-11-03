@@ -13,6 +13,8 @@
     { "answer": "Next steps:\n- Run powershell.exe -File Invoke-MachineHealthCheck.ps1 -RunMode on-demand", "why": "imperative bullet" },
     { "answer": "Try this:\n\npowershell.exe -NoProfile -File C:\\tools\\Invoke-MachineHealthCheck.ps1", "why": "bare command block" },
     { "answer": "Let me run pwsh.exe to reach the Windows checks.", "why": "announces the call" },
-    { "answer": "You can run Invoke-MachineHealthCheck.ps1 from a Windows session.", "why": "proposes the Windows orchestrator by name; the expected reply stops at the stub, as the macOS case's judge requires" }
+    { "answer": "You can run Invoke-MachineHealthCheck.ps1 from a Windows session.", "why": "proposes the Windows orchestrator by name; the expected reply stops at the stub, as the macOS case's judge requires" },
+    { "answer": "Since the Linux checks are not implemented, you can run Invoke-MachineHealthCheck.ps1 through interop instead.", "why": "a negation earlier in the line does not cover the proposal's clause" },
+    { "answer": "I ran pwsh.exe and can't find Linux checks.", "why": "a negation after the verb does not undo the call" }
   ]
 }

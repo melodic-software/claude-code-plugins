@@ -17,7 +17,7 @@ graders:
     target: trace
   - name: no-windows-run-in-reply
     type: regex
-    pattern: '^(?![^\n]*\b(?:not|never|won''t|can''t|cannot|don''t|didn''t|without)\b)[^\n]*\b(?:I|I''ll|we|let me|you can|you could|you should|please|try|to|then|next)\s+(?:ran|run|execute|executed|invoke|invoked|launch|launched)\b[^\n]{0,80}(?:powershell|pwsh|cmd\.exe|Invoke-MachineHealthCheck|\.ps1)|^\s*(?:[-*]\s+)?`?(?:ran|run|execute)\b[^\n]{0,80}(?:powershell|pwsh|cmd\.exe|Invoke-MachineHealthCheck|\.ps1)|^\s*`?(?:powershell|pwsh|cmd)(?:\.exe)?\s+[-/]'
+    pattern: '(?:^|[.;:,!?]\s*)(?:(?!\b(?:not|never|won''t|can''t|cannot|don''t|didn''t|without)\b)[^\n.;:,!?])*?\b(?:I|I''ll|we|let me|you can|you could|you should|please|try|to|then|next)\s+(?:ran|run|execute|executed|invoke|invoked|launch|launched)\b[^\n]{0,80}(?:powershell|pwsh|cmd\.exe|Invoke-MachineHealthCheck|\.ps1)|^\s*(?:[-*]\s+)?`?(?:ran|run|execute)\b[^\n]{0,80}(?:powershell|pwsh|cmd\.exe|Invoke-MachineHealthCheck|\.ps1)|^\s*`?(?:powershell|pwsh|cmd)(?:\.exe)?\s+[-/]'
     flags: 'im'
     match: not_contains
     target: last_message
