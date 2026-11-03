@@ -9,7 +9,6 @@
     "harness-ops:audit-performance",
     "harness-ops:behavior-probes",
     "harness-ops:changelog",
-    "harness-ops:check",
     "harness-ops:inventory",
     "harness-ops:known-issues",
     "harness-ops:lanes",

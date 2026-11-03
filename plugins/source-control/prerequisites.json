@@ -15,8 +15,7 @@
       "degrade": "Without node, the source-control hooks cannot launch, so they do nothing.",
       "install": {
         "docs": "https://nodejs.org/en/download"
-      },
-      "check": "/source-control:check"
+      }
     },
     {
       "id": "jq",
@@ -38,8 +37,7 @@
       "degrade": "Without jq, the source-control hooks skip their work, except worktree-remove-gate.sh, which refuses, so a worktree Claude Code removes stays on disk.",
       "install": {
         "docs": "https://jqlang.org/download/"
-      },
-      "check": "/source-control:check"
+      }
     },
     {
       "id": "claude",
@@ -94,8 +92,7 @@
       "degrade": "Without npm, worktree creation still succeeds but skips npm ci for a package-lock.json and warns; run npm ci in the new worktree yourself.",
       "install": {
         "docs": "https://docs.npmjs.com/downloading-and-installing-node-js-and-npm"
-      },
-      "check": "/source-control:check"
+      }
     }
   ]
 }
