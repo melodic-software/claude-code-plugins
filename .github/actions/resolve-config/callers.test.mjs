@@ -8392,10 +8392,17 @@ test("pr-unblock.yml: resolve-feedback-threads is its own base-only script job a
   // Only the trigger gate's heads cross from other jobs; no read-runner output.
   const crossed = [...JSON.stringify(job.with).matchAll(/needs\.([\w-]+)\.outputs\.([\w-]+)/g)].map((m) => `${m[1]}.${m[2]}`);
   assert.deepEqual(crossed.sort(), ["address-feedback-select.head-sha", "apply-feedback-patch.pushed-commit"]);
-  const ctx = (result, skip) => ({ "needs.publish-feedback.result": result, "needs.publish-feedback.outputs.skip-reason": skip });
-  assert.equal(evaluate(job.if.replace("!cancelled() && ", ""), ctx("success", "")), true);
-  assert.equal(evaluate(job.if.replace("!cancelled() && ", ""), ctx("success", "kill-switch")), false);
-  assert.equal(evaluate(job.if.replace("!cancelled() && ", ""), ctx("failure", "")), false);
+  // It runs on an acted round and on the reply script's own stops, which may
+  // still have answered other threads; never on a kill-switch or gate skip.
+  const runs = (result, skip) =>
+    evaluate(job.if.replace("!cancelled() && ", ""), { "needs.publish-feedback.result": result, "needs.publish-feedback.outputs.skip-reason": skip });
+  for (const skip of ["", "lane-stopped", "awaiting-human", "finding-stands", "no-model-turn"]) {
+    assert.equal(runs("success", skip), true, `runs on skip ${JSON.stringify(skip)}`);
+    assert.equal(runs("failure", skip), false, `not on a failed publish-feedback, skip ${JSON.stringify(skip)}`);
+  }
+  for (const skip of ["kill-switch", "superseded-sha", "not-applicable", "pass-only", "disabled-by-config"]) {
+    assert.equal(runs("success", skip), false, `not on skip ${skip}`);
+  }
 
   // The leaf: a script, mutate-branch, checkout base; publish-feedback keeps
   // publish-artifact and the head checkout.

@@ -2156,9 +2156,18 @@ jobs:
   # publish-feedback keeps publish-artifact. It escalates nothing.
   resolve-feedback-threads:
     needs: [address-feedback-select, apply-feedback-patch, publish-feedback]
-    # Not on a publish-feedback skip: a kill-switch stop ends it green with
-    # no token, and nothing may run after it.
-    if: ${{ !cancelled() && needs.publish-feedback.result == 'success' && needs.publish-feedback.outputs.skip-reason == '' }}
+    # On an acted round, and on the reply script's own stops, after which
+    # other threads may still hold its answers: an escalation (lane-stopped,
+    # awaiting-human), finding-stands or no-model-turn. Never on any other
+    # skip: a kill-switch stop ends publish-feedback green with no token, and
+    # nothing may run after it.
+    if: >-
+      ${{ !cancelled() && needs.publish-feedback.result == 'success'
+      && (needs.publish-feedback.outputs.skip-reason == ''
+      || needs.publish-feedback.outputs.skip-reason == 'lane-stopped'
+      || needs.publish-feedback.outputs.skip-reason == 'awaiting-human'
+      || needs.publish-feedback.outputs.skip-reason == 'finding-stands'
+      || needs.publish-feedback.outputs.skip-reason == 'no-model-turn') }}
     permissions:
       contents: read
       pull-requests: read

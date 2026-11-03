@@ -22,8 +22,9 @@
 //     outdated and no lanes App comment on it left it open (an INCORRECT,
 //     UNCERTAIN or VALID-defer reply, an escalation, or a finding that stood).
 //
-// Each thread is re-read just before its resolve and left alone unless it is
-// still unresolved with the comments it was judged on. Only a PR whose author
+// Each thread is re-read just before its resolve and left alone unless it
+// still holds the comments it was judged on and judgeThread, run again on
+// their bodies and edits as they are then, still resolves it. Only a PR whose author
 // is a person on the base's trusted-actors list is served; any other skips
 // not-applicable. A failed resolve is logged, the rest are tried, and the job
 // then fails so a re-run tries again.
@@ -124,7 +125,8 @@ export async function resolveThreads({ api, pr, appId, reviewerId, reviewerIds =
   const failed = [];
   for (const thread of threads) {
     const rows = (thread.comments?.nodes ?? []).map((node) => byId.get(node.databaseId));
-    const verdict = judgeThread({ thread, rows, review: reviewsById.get(rows[0]?.pull_request_review_id), security, reviewerId, reviewerIds, appId });
+    const judge = (t, r) => judgeThread({ thread: t, rows: r, review: reviewsById.get(rows[0]?.pull_request_review_id), security, reviewerId, reviewerIds, appId });
+    const verdict = judge(thread, rows);
     if (!RESOLVES.includes(verdict)) {
       if (verdict !== "resolved") {
         log(`${thread.id}: left open (${verdict})`);
@@ -132,9 +134,16 @@ export async function resolveThreads({ api, pr, appId, reviewerId, reviewerIds =
       continue;
     }
     try {
+      // Judged again on the re-read bodies and edits: a comment edited since
+      // the first read (say, rated CRITICAL) leaves the thread open.
       const now = await api.readThread(thread.id);
-      if (now.isResolved !== false || now.pr !== pr || now.commentCount !== rows.length || !sameIds(now.commentIds, rows.map((row) => row.id))) {
-        log(`${thread.id}: left open; it changed since it was read`);
+      const nodes = now.nodes ?? [];
+      const fresh =
+        now.pr === pr && sameIds(now.commentIds, rows.map((row) => row.id)) && nodes.every((node) => typeof node.body === "string")
+          ? judge({ ...thread, isResolved: now.isResolved, isOutdated: now.isOutdated, comments: { totalCount: now.commentCount, nodes } }, rows.map((row, i) => ({ ...row, body: nodes[i].body })))
+          : "changed";
+      if (!RESOLVES.includes(fresh)) {
+        log(`${thread.id}: left open; it changed since it was read (${fresh})`);
         continue;
       }
       if ((await api.resolveThread(thread.id)) !== true) {

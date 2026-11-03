@@ -96,7 +96,8 @@ test("a thread the lane left open or a pr-verify note stays open even when outda
 });
 
 // A fake API holding one PR's threads; resolveThread marks a thread resolved.
-function fakeApi({ author = { id: OWNER, type: "User" }, made = [], changed = new Set(), failing = new Set() } = {}) {
+// `edits` maps a thread id to the [body, editor] its comments hold at the re-read.
+function fakeApi({ author = { id: OWNER, type: "User" }, made = [], changed = new Set(), edits = {}, failing = new Set() } = {}) {
   const calls = [];
   const threads = made.map(({ thread }) => thread);
   const rows = made.flatMap((m) => m.rows);
@@ -109,9 +110,13 @@ function fakeApi({ author = { id: OWNER, type: "User" }, made = [], changed = ne
     listIssueComments: async () => [],
     readThread: async (id) => {
       const thread = threads.find((t) => t.id === id);
-      const ids = thread.comments.nodes.map((node) => node.databaseId);
+      const nodes = thread.comments.nodes.map((node, i) => {
+        const [body, editor] = edits[id]?.[i] ?? [rows.find((row) => row.id === node.databaseId).body];
+        return editor ? { ...node, body, lastEditedAt: "2026-11-02T00:00:00Z", editor: { databaseId: editor } } : { ...node, body };
+      });
+      const ids = nodes.map((node) => node.databaseId);
       const commentIds = changed.has(id) ? [...ids, 99999] : ids;
-      return { isResolved: thread.isResolved, pr: 12, commentCount: commentIds.length, commentIds };
+      return { isResolved: thread.isResolved, isOutdated: thread.isOutdated, pr: 12, commentCount: commentIds.length, commentIds, nodes };
     },
     resolveThread: async (id) => {
       calls.push(id);
@@ -158,4 +163,16 @@ test("a thread that changed since it was read is left open; a failed resolve fai
   });
   await assert.rejects(run(failing), /could not resolve PRRT_f/);
   assert.deepEqual(failing.calls, ["PRRT_f", "PRRT_g"]);
+});
+
+test("a comment edited between the reads is judged again: rated CRITICAL or edited by a person, the thread stays open", async () => {
+  const made = () => [make([[CLAUDE, REVIEW], [APP, VALID]], { id: "PRRT_e" }), make([[CLAUDE, REVIEW], [APP, VALID]], { id: "PRRT_kept" })];
+  for (const edit of [[CRITICAL_REVIEW, CLAUDE], [REVIEW, OWNER]]) {
+    const api = fakeApi({ made: made(), edits: { PRRT_e: [edit] } });
+    assert.deepEqual(await run(api), { skipReason: "", resolved: ["PRRT_kept"] }, JSON.stringify(edit));
+    assert.deepEqual(api.calls, ["PRRT_kept"]);
+  }
+  // The bot's own edit that keeps the finding below CRITICAL still resolves.
+  const own = fakeApi({ made: made(), edits: { PRRT_e: [["This drops the error, as noted.", CLAUDE]] } });
+  assert.deepEqual((await run(own)).resolved, ["PRRT_e", "PRRT_kept"]);
 });

@@ -1283,7 +1283,11 @@ export async function currentThreads({ api, pr, reviewerId, reviewerIds = [], ap
 const THREAD_QUERY = `query($id: ID!) {
   node(id: $id) {
     ... on PullRequestReviewThread {
-      isResolved pullRequest { number } comments(first: 100) { totalCount nodes { databaseId } }
+      isResolved isOutdated pullRequest { number }
+      comments(first: 100) {
+        totalCount
+        nodes { databaseId body lastEditedAt editor { ... on User { databaseId } ... on Bot { databaseId } } }
+      }
     }
   }
 }`;
@@ -1537,6 +1541,10 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
         pr: node?.pullRequest?.number,
         commentCount: node?.comments?.totalCount,
         commentIds: (node?.comments?.nodes ?? []).map((comment) => comment.databaseId),
+        // As listThreads' comment nodes, with each body: resolve-threads.mjs
+        // judges the thread again on them.
+        isOutdated: node?.isOutdated,
+        nodes: node?.comments?.nodes ?? [],
       };
     },
     // From git/ref, which GET /pulls can lag behind after a push.
