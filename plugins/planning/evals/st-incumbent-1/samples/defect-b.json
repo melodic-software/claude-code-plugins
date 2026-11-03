@@ -65,6 +65,10 @@
     {
       "answer": "- `FileJobStore` works with the pinned 2.8.1 without an upgrade.\n",
       "why": "dismissal"
+    },
+    {
+      "answer": "The plan says FileJobStore works with the pinned 2.8.1 without an upgrade.\n",
+      "why": "quotes the plan with no rebuttal"
     }
   ]
 }

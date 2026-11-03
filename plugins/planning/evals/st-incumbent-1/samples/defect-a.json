@@ -65,6 +65,10 @@
     {
       "answer": "- `tickwheel` handles DST via `utc_offset`, but the 2.8.1 pin lacks FileJobStore.\n",
       "why": "dismissal, then a finding about something else"
+    },
+    {
+      "answer": "The plan says tickwheel handles DST through utc_offset, which is correct.\n",
+      "why": "quotes the plan and endorses it"
     }
   ]
 }
