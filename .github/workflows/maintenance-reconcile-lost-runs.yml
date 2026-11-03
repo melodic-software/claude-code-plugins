@@ -257,6 +257,8 @@ jobs:
         id: scan-upload-4
         if: >-
           ${{ !cancelled() && steps.plan.outcome == 'success' }}
+        # A hit withholds only the carry: the next pass reads every run.
+        continue-on-error: true
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/reconcile-settled/settled.json

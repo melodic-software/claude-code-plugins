@@ -96,6 +96,8 @@ jobs:
         id: scan-upload
         if: >-
           ${{ !cancelled() && steps.kill.outputs.proceed == 'true' }}
+        # A hit withholds only the carry: the next run reads every run's jobs.
+        continue-on-error: true
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/monitor-jobs/jobs.json
