@@ -25,10 +25,12 @@ inside cloud or remote-session containers, the producer the "Documented residual
 names as the path to proactive mode there; and re-verify the `account` field's source under "Snapshot
 file shape" below, and the
 consumer read in the floor's "Account switch" bullet, if `.oauthAccount.emailAddress` moves or is
-renamed in `~/.claude.json`. That key is **internal CLI state**, not a documented surface: nothing
-upstream promises it, so the writer treats a missing or unrecognized value as "cannot attribute"
-and this contract expects the field to be absent whenever it does, and a reader that cannot read it
-keeps its latch.
+renamed in `~/.claude.json`. That key is internal CLI state, read from the file as observed, and
+the writer treats a missing or unrecognized value as "cannot attribute": this contract expects the
+field to be absent whenever it does, and a reader that cannot read it keeps its latch. Recheck
+when [Settings](https://code.claude.com/docs/en/settings) or
+[Authentication](https://code.claude.com/docs/en/authentication) documents the account fields of
+`~/.claude.json`.
 
 ## Operable floor (consumers inline these values verbatim)
 

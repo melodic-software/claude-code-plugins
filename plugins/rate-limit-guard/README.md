@@ -114,19 +114,20 @@ notice rows, the toast and the suggestion there are untested.
 - **Recheck trigger**: the `AbovePrompt` row changes the apps it lists, or a Desktop run of this
   plugin is made.
 
-A `--bg` session reports its first prompt as typed, so in operator mode a `--bg` lane gets no line
-from that turn; its line reaches Claude at the lane's next turn no person started. A lane that
-wants the lines at once may start its session with its own options through `--settings`, which can
-set any key user settings can, including the plugin's `pluginConfigs` entry:
+In operator mode, a `--bg` lane gets no line from its first turn; that line reaches Claude at the
+lane's next turn no person started. A lane that wants the lines at once supplies its own
+options when it starts its session, for example through `--settings` with the plugin's
+`pluginConfigs` entry:
 `{"pluginConfigs": {"rate-limit-guard@<marketplace>": {"options":
 {"rate_limit_report_mode": "automatic"}}}}` (a `--plugin-dir` copy is keyed `<name>@inline`).
 
-- **Pointer**: [settings: change a setting for one session](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session),
+- **Pointer**: for which keys `--settings` can set, read
+  [settings: change a setting for one session](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session),
   the [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) entry, and
   the `pluginConfigs` row of
   [mods reference: settings and environment variables](https://code.claude.com/docs/en/plugins/mods/reference#settings-and-environment-variables).
-- **As of**: 2026-10-07, Claude Code 2.1.292.
-- **Recheck trigger**: the settings guide stops letting `--settings` set user-scope keys, or the
+- **As of**: 2026-11-03.
+- **Recheck trigger**: that section changes which keys `--settings` can set, or the
   `pluginConfigs` scope changes.
 
 ### The /rate-limit-guard command, band row and status tool
@@ -159,8 +160,13 @@ is the one it held at the last API response (a startup quota check counts); it n
 replaces a file that has windows.
 
 Process cost: an event that writes nothing starts no process; each write starts one `node`
-process. Mods can start host processes in the CLI only; where they cannot, the module writes
-nothing and logs that once to the debug log.
+process. Where the module cannot start that process, it writes nothing and logs that once to the
+debug log.
+
+- **Pointer**: for where a mod's hooks run, read
+  [mods overview: where mods run](https://code.claude.com/docs/en/plugins/mods/overview#where-mods-run).
+- **As of**: 2026-11-03.
+- **Recheck trigger**: that table adds or drops a place a mod's hooks run.
 
 ### Where mods are off
 
@@ -239,9 +245,13 @@ The tests retired with the statusline tee, and what holds their property now:
 /plugin install rate-limit-guard@melodic-software
 ```
 
-The module and the StopFailure hook are active once the plugin loads (the next session, or
-`/reload-plugins` in an open one); nothing needs wiring.
-`/rate-limit-guard:setup check` verifies the result.
+The module and the StopFailure hook need no wiring. `/rate-limit-guard:setup check` verifies the
+result.
+
+- **Pointer**: for when an installed plugin loads into a session, read
+  [plugin commands: /reload-plugins](https://code.claude.com/docs/en/plugins/cli-reference#reload-plugins).
+- **As of**: 2026-11-03.
+- **Recheck trigger**: that section changes which plugin changes it applies to a running session.
 
 ## Requirements
 
@@ -323,11 +333,18 @@ start.
 - **Recheck trigger**: that doc comment stops saying an options change reloads the plugin.
 
 Set it with `/plugin configure rate-limit-guard@<marketplace>`, or headless via `claude plugin install
-rate-limit-guard@<marketplace> -s <scope> --config rate_limit_guard_enabled=false`, against an
-already-installed plugin that prints `already installed` and still writes the value. Never
-uninstall to reconfigure: that drops the whole stored `pluginConfigs` entry and resets every
-option to its manifest default. The verified-version record lives in the
+rate-limit-guard@<marketplace> -s <scope> --config rate_limit_guard_enabled=false`, run against
+the installed plugin. Never uninstall to reconfigure. The convention below records what that
+command prints and writes for an installed plugin; its verified-version record lives in the
 [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md).
+
+- **Pointer**: for what `--config` does, read
+  [plugin commands: plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install);
+  for what an uninstall removes, read
+  [what an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+- **As of**: 2026-11-03.
+- **Recheck trigger**: either section changes what `--config` writes or what an uninstall
+  deletes.
 
 The file path and the 95% pause threshold an opted-in lane applies are deliberately **not** configurable: they are contract
 constants that cross-plugin consumers inline from the
