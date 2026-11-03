@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Regression test for the create-path required-sections gate (reference/create.md
-# §2.4.2.2). Runs the bash block exactly as create.md prints it over each body
+# Regression test for the create-path required-sections gate (reference/create-gate.md
+# §2.4.2.2). Runs the bash block exactly as create-gate.md prints it over each body
 # and asserts it returns the verdict the pinned ci-workflows pr-contract
 # analyzer returned for that body. Those verdicts were recorded by running the
 # analyzer itself over these bodies; they are the expected values here, not
@@ -12,14 +12,14 @@ export LC_ALL=C
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-CREATE_MD="$SKILL_DIR/reference/create.md"
+CREATE_MD="$SKILL_DIR/reference/create-gate.md"
 
 PASS=0
 FAIL=0
 
 # The first ```bash block after the §2.4.2.2 heading, with <skill-dir> resolved.
 GATE=$(awk '
-  /^#### 2\.4\.2\.2 / { in_sec = 1; next }
+  /^#+ 2\.4\.2\.2 / { in_sec = 1; next }
   in_sec && /^```bash$/ { in_block = 1; next }
   in_block && /^```$/ { exit }
   in_block { print }
@@ -36,7 +36,7 @@ trap 'rm -f "$body_file"' EXIT
 skill_verdict() {
   printf '%s' "$1" >"$body_file"
   shift
-  # shellcheck disable=SC2034  # read by the evaluated create.md block
+  # shellcheck disable=SC2034  # read by the evaluated create-gate.md block
   (
     BODY_FILE="$body_file"
     REQUIRED_SECTIONS=("$@")
@@ -56,7 +56,7 @@ check() {
     echo "PASS: $name ($want)"
     PASS=$((PASS + 1))
   else
-    echo "FAIL: $name: want $want, create.md gate $skill"
+    echo "FAIL: $name: want $want, create-gate.md gate $skill"
     FAIL=$((FAIL + 1))
   fi
 }
@@ -87,7 +87,7 @@ check_configured() {
     echo "PASS: $name ($want)"
     PASS=$((PASS + 1))
   else
-    echo "FAIL: $name: want $want, create.md gate $got"
+    echo "FAIL: $name: want $want, create-gate.md gate $got"
     FAIL=$((FAIL + 1))
   fi
 }

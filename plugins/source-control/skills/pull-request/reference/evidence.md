@@ -34,7 +34,7 @@ scans it with the rest of the rendered body.
 1. **Head, body and verdict.** Read the PR's number, URL, head commit and body
    (`gh pr view <pr> --json number,url,headRefOid,body`). The acceptance criteria are the list
    items under the body's `## Acceptance criteria` heading, the section
-   [create.md](create.md) §2.4.1 writes; a body with no such heading, or none under it, has none.
+   [create-push-and-body.md](create-push-and-body.md) §2.4.1 writes; a body with no such heading, or none under it, has none.
    Then run
    `bash "<skill-dir>/scripts/confirm-verdict.sh" show --head <head>`. Go on only when it prints
    `confirm: CONFIRMED for head <head>`. Any other line, a `NEEDS WORK` verdict included, posts

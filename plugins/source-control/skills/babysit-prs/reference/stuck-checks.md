@@ -42,7 +42,7 @@ calls for different operator action on a capacity-constrained pool: a running jo
 own time, a queued job behind a busy pool is fleet capacity, and a queued job with no online runner
 for its label is the unmatched-label case this class already names. Never wait on it with a
 blocking checks watch ([GitHub](../../../reference/providers/github/README.md#checks-and-ci-logs)); a long wait is a REST poll per the pull-request
-[monitor reference](../../pull-request/reference/monitor.md) "Waiting on a pending check".
+[monitor reference](../../pull-request/reference/monitor-ci-loop.md) "Waiting on a pending check".
 
 The age threshold is `--stuck-check-age-seconds` (default 30 minutes), so normal in-flight CI and
 freshly-started non-required checks are never reported. `orphaned_status` has no backing run, thus

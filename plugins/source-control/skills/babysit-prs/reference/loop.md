@@ -84,7 +84,7 @@ not model memory, not prior-iteration state, not comment counts (why:
 2. **CI check:** one-off read: the distinct buckets of the PR's checks
    ([GitHub](../../../reference/providers/github/babysit-prs/loop.md#per-pr-rescan-reads)); any
    loop, or more than one worker, reads the head SHA's REST check-runs instead, per
-   [pull-request monitor.md](../../pull-request/reference/monitor.md) "Polling CI from more than
+   [pull-request monitor-ci-loop.md](../../pull-request/reference/monitor-ci-loop.md) "Polling CI from more than
    one worker". A `pending` entry is reported as queued or running (with the queued job's
    `runs-on` labels) per that file's "Waiting on a pending check", never waited on with a
    blocking checks watch
@@ -147,16 +147,16 @@ Before monitoring work on each PR, arm event delivery, in order:
    CLOSED, when it leaves discovery or stops being processed while still open (held,
    superseded, handed off, or dropped by the zero-PR fast path), and unsubscribe every PR on the
    record when the loop ends without scheduling another wake (the call, the decision, pointer
-   and recheck trigger are in [pull-request monitor.md](../../pull-request/reference/monitor.md)
+   and recheck trigger are in [pull-request monitor-cloud-poll.md](../../pull-request/reference/monitor-cloud-poll.md)
    §3.0.0). Skip remaining steps
 2. **Push-channel gate:** when your environment ships a GitHub-events push channel (an MCP
    server delivering webhook events into the session), verify it is healthy and arm its PR
    filter for `<N>` (health checks + arming per
-   [pull-request monitor.md](../../pull-request/reference/monitor.md) §3.0.05)
+   [pull-request monitor-push-channel.md](../../pull-request/reference/monitor-push-channel.md) §3.0.05)
 3. **Monitor-tool fallback:** channel absent/unhealthy → arm a Monitor watch, re-armed at each
    deadline (60s REST poll, never a blocking checks watch
    ([GitHub](../../../reference/providers/github/babysit-prs/loop.md#per-pr-rescan-reads)); arming pattern per
-   [pull-request monitor.md](../../pull-request/reference/monitor.md) §3.0.1)
+   [pull-request monitor-auto-watch.md](../../pull-request/reference/monitor-auto-watch.md) §3.0.1)
 4. Proceed to the §5.1.3 checklist
 
 A push channel arms for ONE PR at a time. Re-arm for each new PR in the loop.
@@ -349,7 +349,7 @@ to re-evaluate fixes. After pushing, check each bot's trigger mode per
   own trigger convention from the consuming repo's docs and report instead of inventing one
 
 Research-gate non-trivial fixes (multi-source consensus) per
-[pull-request monitor.md](../../pull-request/reference/monitor.md) §3.2. Max 3 CI fix
+[pull-request monitor-ci-failures.md](../../pull-request/reference/monitor-ci-failures.md) §3.2. Max 3 CI fix
 iterations per PR per babysit pass. Inline-vs-subagent choice for CI log fetching per the same
 file's "Inline vs subagent dispatch decision".
 
@@ -358,7 +358,7 @@ file's "Inline vs subagent dispatch decision".
 Classify but DO NOT auto-fix. Reply with investigation findings per step D. Note: D4.5
 reactions proceed autonomously for human reviewer comments (no approval gate, since babysit runs
 without a user present). This differs from the single-PR monitor flow
-([pull-request monitor.md](../../pull-request/reference/monitor.md) §3.3.1 step 4), which
+([pull-request monitor-comments.md](../../pull-request/reference/monitor-comments.md) §3.3.1 step 4), which
 pauses for approval in interactive sessions. Report to the user in the babysit iteration output.
 Human review items are surfaced, not silently skipped.
 

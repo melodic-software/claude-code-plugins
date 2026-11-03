@@ -1,0 +1,7 @@
+# 2.6 Report and arm event delivery
+
+Part of [Phase 2: Create](create.md), which lists every section's file; a bare § number names a section listed there.
+
+Report the PR URL, `<pr_number>`, the expected CI workflows, and the open state and the level that supplied it ([§2.4.3](create-open-pr.md)), for example `open state: ready (default)` or `open state: ready (repository (docs/conventions/source-control.yaml at main))`. For a `ready` state, report Phase 2.5's outcome: flipped, or left a draft with the gate that stopped it. For a draft, say that `/source-control:pull-request ready` is what flips it. When [§2.4.1](create-push-and-body.md) found several plans and carried no acceptance criteria, name the candidates.
+
+End Phase 2 there, except in a standalone `create` whose session will keep acting on the PR (waiting on CI, answering review comments): when Phase 2.5 ran, its watch handoff ([watch-handoff.md](watch-handoff.md)) decides who watches; otherwise run Steps 1-3 of [monitor.md](monitor.md)'s Monitor entry checklist for `<pr_number>` next and handle each event it delivers through Phase 3 ([monitor.md](monitor.md)), never with a foreground poll. Step 1 keeps a cloud session on [§3.0.0](monitor-cloud-poll.md) polling, and a later `monitor` reuses the Monitor watch this session armed ([§3.0.1](monitor-auto-watch.md) step 2). Inside `full`, Phase 3 entry arms delivery instead ([full-lifecycle.md](full-lifecycle.md)).

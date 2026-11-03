@@ -80,7 +80,7 @@ value and its unset fallback.
   and nothing else: it pushes the checkout's `HEAD:refs/heads/<headRefName>`. Attended, with
   `sync_stale_base` on, it may first add one base-merge commit whose first parent is that asserted
   `HEAD`, or exit 4 on a conflict with nothing pushed, which stops the push like any refusal
-  ([create.md](../../pull-request/reference/create.md) §2.4.1). Inside a lane (a
+  ([create-push-and-body.md](../../pull-request/reference/create-push-and-body.md) §2.4.1). Inside a lane (a
   `[bot]` login) it hands the push to `lane-push.sh --pr <N>` as the target's
   `merge.agent-identity` (the loop-lane convention's "Lane write identity"), which reads the PR's
   head repository and branch from the forge and pushes to `https://github.com/<owner>/<repo>.git`,

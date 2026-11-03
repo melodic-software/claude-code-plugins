@@ -1,6 +1,6 @@
 # PR Merge Readiness Checklist
 
-Single source of truth for merge readiness. Both monitor.md (Phase 3.4) and merge.md (Phase 4.1) reference this file. **Every item must be satisfied before suggesting merge. No exceptions, regardless of PR type or `full` mode.**
+Single source of truth for merge readiness. Both [monitor-report.md](monitor-report.md) (Phase 3.4) and merge.md (Phase 4.1) reference this file. **Every item must be satisfied before suggesting merge. No exceptions, regardless of PR type or `full` mode.**
 
 ## Expected PR actors
 
@@ -10,7 +10,7 @@ Monitor must discover and track every PR actor. Actors fall into three categorie
 
 | Category | How they report | How to discover | Timing |
 |----------|----------------|-----------------|--------|
-| **Check-run actors** | Status/conclusion fields on the PR's checks list | Poll with the [monitor.md](monitor.md) §3.0.1 REST read until all reach terminal state (the checks list is a one-off read only; [GitHub](../../../reference/providers/github/pull-request/readiness.md#discover-actors)) | Deterministic: GitHub triggers them on push |
+| **Check-run actors** | Status/conclusion fields on the PR's checks list | Poll with the [monitor-auto-watch.md](monitor-auto-watch.md) §3.0.1 REST read until all reach terminal state (the checks list is a one-off read only; [GitHub](../../../reference/providers/github/pull-request/readiness.md#discover-actors)) | Deterministic: GitHub triggers them on push |
 | **Check-run + comment actors** | Both a check run AND a PR comment | Poll checks AND comments | Check run arrives first, comment follows |
 | **Comment-only actors** | PR comments only, no check run | Poll the PR's conversation comments, paginated ([GitHub](../../../reference/providers/github/pull-request/readiness.md#discover-actors)) | Non-deterministic: arrives at an unpredictable time |
 
@@ -105,7 +105,7 @@ Read all three comment surfaces, paginated, printing each item's author and the 
 
 - [ ] Every substantive comment from every reviewer (bot or human) has been:
   - Read and understood
-  - Classified per monitor.md 3.3 (VALID fix now / VALID defer / INCORRECT / UNCERTAIN)
+  - Classified per [monitor-comments.md](monitor-comments.md) §3.3 (VALID fix now / VALID defer / INCORRECT / UNCERTAIN)
   - Reacted to (thumbs up/down for bots, user approval for humans)
   - Replied to with evidence
 - [ ] No unprocessed comments exist

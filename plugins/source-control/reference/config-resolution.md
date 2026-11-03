@@ -196,7 +196,7 @@ reads the file itself, through a script where the key names one below.
   `ready` or `draft`. Create always opens a draft; with `ready` it then runs
   `/source-control:pull-request ready`, which merges the base, runs the reviews and the verify
   gate, and flips it, while `draft` leaves that flip for later. The state meanings are in
-  [create.md](../skills/pull-request/reference/create.md#243-create-pr) §2.4.3. Resolution, lowest first, where a later level wins:
+  [create-open-pr.md](../skills/pull-request/reference/create-open-pr.md#243-create-pr) §2.4.3. Resolution, lowest first, where a later level wins:
   1. the default, `ready` (a consumer opts into `draft`);
   2. the `pr_open_state` `userConfig` value (the per-user level);
   3. `pr_open_state` in `docs/conventions/source-control.yaml` (the repository level);
@@ -254,7 +254,7 @@ reads the file itself, through a script where the key names one below.
 
 A repository can record how its team triages recurring review-bot findings, so
 `/source-control:pull-request` (the `monitor` and `comments` phases,
-[monitor.md](../skills/pull-request/reference/monitor.md) §3.3.1) and `/source-control:babysit-prs`
+[monitor-comments.md](../skills/pull-request/reference/monitor-comments.md) §3.3.1) and `/source-control:babysit-prs`
 ([feedback.md](../skills/babysit-prs/reference/feedback.md)) dispose of the same finding the same
 way. The rubric is optional team-owned prose, not a config key: no `userConfig` option, no entry in
 `docs/conventions/source-control.yaml`, no H2 in `.claude/source-control.md`. Without it, both

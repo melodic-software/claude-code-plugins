@@ -7,7 +7,7 @@
 # visually.
 #
 # The agent uses this when classifying CI failures (see
-# reference/monitor.md §3.2 of the pull-request skill).
+# reference/monitor-ci-failures.md §3.2 of the pull-request skill).
 #
 # Usage:
 #   fetch-annotations.sh <pr-number>           # all check-runs on PR head SHA

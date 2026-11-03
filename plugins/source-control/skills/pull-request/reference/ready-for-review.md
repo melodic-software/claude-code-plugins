@@ -267,7 +267,7 @@ When 2.5.3 committed anything, push it all in one push, then wait for the push's
 before flipping: that run is created seconds later with a payload that still says draft, and
 through the per-PR concurrency group it cancels a ready run that started first, leaving only a
 draft run whose lanes are skipped and `ci-status` red. Push through
-`push-branch.sh`, as [create.md](create.md) does: it pushes to the remote `resolve-remote.sh
+`push-branch.sh`, as [create-push-and-body.md](create-push-and-body.md) does: it pushes to the remote `resolve-remote.sh
 --push` resolves, so a fork or triangular checkout never pushes to the wrong remote. `--pr` pushes
 the pull request's head branch even when the session runs in another worktree, and exits non-zero
 when that branch has no local ref or a push URL of its push remote is not the PR's head repository
@@ -277,7 +277,7 @@ on github.com (an SSH host alias or an enterprise host refuses). Inside a lane
 the session does not act as it, or when `--pr` names a fork head and no `--dir <checkout>` names
 the checkout to push (loop-lane convention, "Lane write identity"). For a fork head in a lane, add
 `--dir` with the PR's checkout. With `sync_stale_base` on, a base that moved on overlapping paths
-since 2.5.2 is merged in before the push (see [create.md](create.md) §2.4.1, exit 4 on a
+since 2.5.2 is merged in before the push (see [create-push-and-body.md](create-push-and-body.md) §2.4.1, exit 4 on a
 conflict), and its stderr names the new HEAD. That merge commit is not the head the verify gate
 recorded, so the head wait below can time out and the flip refuses, leaving a draft; run `ready`
 again.
