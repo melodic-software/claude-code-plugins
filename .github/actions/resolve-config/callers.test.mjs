@@ -3757,6 +3757,42 @@ test("pr-run-activity-read.yml: after the collector, no checkout's post step fin
   assert.equal(runStep(remove, state.temp, {}).status, 1, "an unset workspace removes nothing");
 });
 
+test("pr-run-activity-write.yml: after the skill, no checkout's post step finds a .git/config to run git in", async (t) => {
+  const steps = workflow("pr-run-activity-write.yml").jobs.run.steps;
+  const remove = steps.find((s) => s.name === "Remove the checkouts' .git directories");
+  const at = (predicate) => steps.findIndex(predicate);
+  assert.equal(at((s) => s === remove), at((s) => s.id === "act-result") + 1, "right after the turn-cap check, the skill's own next step");
+  // Pinned, as the revoke step is: the skill could have changed PATH or BASH_ENV.
+  assert.equal(remove.run, undefined);
+  assert.match(remove.uses, /^actions\/github-script@[0-9a-f]{40}$/);
+  // A failed skill still runs it; a script activity, which needs its checkout, never does.
+  assert.equal(remove.if, steps.find((s) => s.id === "act-result").if);
+  assert.equal(evaluate(remove.if, { "steps.act-skill.outcome": "success" }), true);
+  assert.equal(evaluate(remove.if, { "steps.act-skill.outcome": "failure" }), true);
+  assert.equal(evaluate(remove.if, { "steps.act-skill.outcome": "skipped" }), false);
+  // No step a skill run reaches after it runs git or checks out.
+  const gitAfter = steps.slice(at((s) => s === remove) + 1).filter((s) => /\bgit\b/.test(String(s.run ?? "")) || String(s.uses ?? "").startsWith("actions/checkout@"));
+  assert.deepEqual(gitAfter.map((s) => s.name), []);
+  const { createRequire } = await import("node:module");
+  const run = async (env) => {
+    let failed = null;
+    const core = { setFailed: (message) => (failed = message) };
+    await new AsyncFunction("require", "core", "process", remove.with.script)(createRequire(import.meta.url), core, { env });
+    return failed;
+  };
+  const state = plantedCheckout(t);
+  state.plant();
+  mkdirSync(join(state.work, ".base", ".git"), { recursive: true });
+  writeFileSync(join(state.work, ".base", ".git", "config"), "[core]\n\tfsmonitor = /bin/false\n");
+  assert.notEqual(await run({ WORKSPACE: "" }), null, "an empty workspace fails");
+  assert.equal(existsSync(join(state.work, ".git", "config")), true, "and removes nothing");
+  assert.equal(await run({ WORKSPACE: state.work }), null);
+  assert.equal(existsSync(join(state.work, ".git", "config")), false);
+  assert.equal(existsSync(join(state.work, ".base", ".git", "config")), false);
+  assert.equal(readFileSync(join(state.work, "tracked.txt"), "utf8"), "unchanged\n", "the work tree stays");
+  assert.equal(await run({ WORKSPACE: state.work }), null, "nothing to remove is no failure");
+});
+
 // --- the model job's payloads to the scan job, sealed ---
 
 // name=value lines from a GITHUB_OUTPUT file; the carry and seal steps write no heredoc.
