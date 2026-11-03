@@ -108,9 +108,10 @@ Scope follows from whether the mistake is a one-off or a pattern. A one-off belo
 neither section 1 exception, stays a `note` row (`/corrections:codify note`), not a proposal; a
 one-off that either exception let through goes on to a proposal like a recurring mistake; a
 recurring mistake gets the checking rung section 2 picks when it meets the guardrail criterion; and
-a mistake that holds for every repository becomes a team standard. Recording the lesson is not the end: a run past the count ends in a proposed
-check, a placed rule or a filed work item, because a lesson that is only recorded is not acted on.
-Codify still only proposes; it never builds a rung (see Boundary).
+a mistake that holds for every repository becomes a team standard. Recording the lesson is not the
+end: a run past the count ends in a proposed check, a placed rule or a filed work item, because a
+lesson that is only recorded is not acted on. Codify still only proposes; it never builds a rung
+(see Boundary).
 
 ## 4. Propose the check and prove it
 
