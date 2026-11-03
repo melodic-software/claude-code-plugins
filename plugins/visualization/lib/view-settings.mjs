@@ -198,8 +198,8 @@ function retiredNotices(legacy, { plugin, root, userHome, dataDir }) {
 
 // ------------------------------------------------------------ resolution
 
-/** True when the resolution came from a choice the publish gate takes as explicit: never the plugin default. */
-export const gateExplicit = ({ decidedBy }) => ["argument", "userConfig", "personal override"].includes(decidedBy);
+/** True when the reader chose a publishing medium (the argument, or a trusted scope), which the publish gate takes as explicit: never the plugin default. */
+export const gateExplicit = ({ preferred, decidedBy }) => Boolean(MEDIUMS[preferred]?.publishes) && ["argument", "userConfig", "personal override"].includes(decidedBy);
 
 /**
  * @param {{lane: string, argument?: string|null, userConfig?: string|null, projectRoot?: string|null, teamRef?: string|null}} request

@@ -348,7 +348,7 @@ describe("cascade layers resolve through the CLI", () => {
     assert.equal(result.config.max_files.value, 2);
   });
   test("medium resolves through the shared resolver: the plugin option, then a personal override's local value", () => {
-    assert.deepEqual(at(run(facts, ["--option", "file"]).medium), { value: "file", source: "userConfig", explicit: true });
+    assert.deepEqual(at(run(facts, ["--option", "file"]).medium), { value: "file", source: "userConfig", explicit: false });
     const personal = join(repo, "docs/conventions/rendered-views.local.yaml");
     writeFileSync(personal, "medium: terminal\n");
     const result = run(facts, ["--option", "file"]).medium;
