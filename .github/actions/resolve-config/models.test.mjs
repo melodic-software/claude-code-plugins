@@ -837,6 +837,7 @@ test("a route naming a script activity or nothing known is undefined-route", () 
 
 test("the upkeep and release intake model jobs resolve resolve-issue's profile", () => {
   const models = resolveRoute(LIVE, { route: "resolve-issue", configPath: CONFIG_PATH });
+  assert.equal(models.profile, "code-fix");
   assert.equal(typeof models.model, "string");
   assert.ok(models.model.length > 0);
 });
