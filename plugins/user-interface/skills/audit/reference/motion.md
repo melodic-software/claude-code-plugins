@@ -80,8 +80,9 @@ layout property ("Swap down a tier").
   from deleting every transition.
 
   Each Delete and Reduce names the removal hazards below it was checked against, and the cleanup
-  it leaves. With `--fix`, an edit only subtracts: it never adds motion or retunes a curve on an
-  animation that stays. Removing a dependency is proposed, never done.
+  it leaves. With `--fix`, a Delete removes the animation, a Reduce replaces it with its smaller
+  version and sets only the role and curve that version takes, and a Keep is not edited. No verdict
+  adds motion to anything that had none. Removing a dependency is proposed, never done.
 
 ### Removal hazards
 

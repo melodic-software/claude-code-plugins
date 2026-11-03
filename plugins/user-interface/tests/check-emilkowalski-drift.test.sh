@@ -32,7 +32,10 @@ assert_not_contains() {
 source "$SCRIPT"
 
 # The upstream tree at the pin, from docs/upstream/emilkowalski-skills.md.
-PIN_TREE="57b46f1fd11dc62351ea548104a88aa3f659c11b LICENSE
+PIN_TREE="a0652a605e6b418261a2b4fb1ad82576be0c3b53 .gitattributes
+e43b0f988953ae3a84b00331d0ccf5f7d51cb3cf .gitignore
+e69de29bb2d1d6434b8b29ae775ad8c2e48c5391 .pl
+57b46f1fd11dc62351ea548104a88aa3f659c11b LICENSE
 eb13e61d196401244b3c2061f322943c42313078 README.md
 15f73d24a3b0e8a44d96d16d996719565b3ab7d5 performance-cheatsheet.md
 a5c803280b82f72dd11ed2136caaf0ea8c139a5c ui-cheatsheet.md
