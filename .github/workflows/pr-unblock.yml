@@ -3527,6 +3527,7 @@ jobs:
       - apply-feedback-patch
       - publish-feedback
       - review-dependency-select
+      - apply-dependency-patch
       - apply-dependency-verdict
       - fix-ci-context
       - apply-patch
