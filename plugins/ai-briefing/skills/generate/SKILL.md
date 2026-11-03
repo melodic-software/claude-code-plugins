@@ -29,7 +29,11 @@ CLAUDE_PLUGIN_DATA="${CLAUDE_PLUGIN_DATA}" node "${CLAUDE_PLUGIN_ROOT}/lib/view-
 
 It prints one JSON line, then the report line naming the medium and what decided it, then one
 line per notice. Print the report line and the notices in the report as they stand (step 9),
-next to the format's source, which alone says what the briefing was emitted as. Do
+next to the format's source, which alone says what the briefing was emitted as. One exception:
+the notice for a retired `~/.claude/rendered-views.md` ends "set it in the ai-briefing plugin's
+medium option instead", and this plugin has no such option. Print that notice with
+`docs/conventions/rendered-views.local.yaml` (the personal override) in place of "the
+ai-briefing plugin's medium option", and leave every other notice as it stands. Do
 not read or weigh the rendered-views convention files yourself. When `node` is missing, say so in
 one line and carry on.
 
