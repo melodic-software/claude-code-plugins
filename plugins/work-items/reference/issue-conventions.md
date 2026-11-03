@@ -50,7 +50,7 @@ Every close runs these steps first, so closing an item never frees an item that 
 work still to come:
 
 1. **List the open items it blocks** (provider mechanic; GitHub: the adapter's "Close item"
-   section). None: close.
+   section). None: close. A failed or partial read is not none: do not close.
 2. **Name the carrier** of the closing item's work. Delivered (a `completed` close, or already
    implemented): no carrier, close with the edges as they are. Duplicate: the surviving item or
    items that hold the work each dependent waits on. Superseded, or scope moved or split into

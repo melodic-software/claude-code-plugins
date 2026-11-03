@@ -250,9 +250,13 @@ REST, which runs in a cloud session too and keeps the cross-repo dependents the 
 projection drops (see "Gotchas"):
 
 ```bash
+set -o pipefail
 gh api --paginate "repos/<owner>/<repo>/issues/<N>/dependencies/blocking" \
   --jq '.[] | select(.state == "open") | [.number, .html_url] | @tsv' | tr -d '\r'
 ```
+
+A non-zero exit means the list may be empty or partial, not that `<N>` blocks nothing: stop the
+close and report it.
 
 After the seam's `link-blocks` adds a dependent's edge to its carrier, remove its edge to `<N>`,
 naming the dependent in its own repository (taken from its `html_url`):
@@ -261,8 +265,10 @@ naming the dependent in its own repository (taken from its `html_url`):
 gh issue edit <dependent> --repo <dependent-owner>/<dependent-repo> --remove-blocked-by <N-url>
 ```
 
-`link-blocks` exits 3 in a cloud session ("Sandboxed sessions" under "View item"), so an item
-with open dependents is not closed there; report it for a session that can write the edges.
+`link-blocks` exits 3 in a cloud session ("Sandboxed sessions" under "View item"), so a close
+whose dependents need a new carrier is not made there; report it for a session that can write the
+edges. A close that keeps its edges (delivered, or dropped with no carrier) needs no edge write
+and goes ahead.
 
 - **Pointer**: the endpoint at
   [issue dependencies § List dependencies an issue is blocking](https://docs.github.com/en/rest/issues/issue-dependencies#list-dependencies-an-issue-is-blocking);
