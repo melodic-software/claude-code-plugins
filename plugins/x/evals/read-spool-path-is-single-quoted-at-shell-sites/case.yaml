@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: 'read-spool-path-is-single-quoted-at-shell-sites'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Single-quotes the substituted path at the shell sites rather than double-quoting it'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'The $user segment is never expanded — the emitted path matches the resolved directory exactly'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Uses the same escaped form for both shell sites: the -o target and the delete'
+    focus: 'trace'

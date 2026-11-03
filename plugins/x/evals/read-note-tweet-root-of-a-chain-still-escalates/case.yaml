@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: 'read-note-tweet-root-of-a-chain-still-escalates'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Does not treat isNoteTweet: true as proof the post has no replies'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Escalates on the explicit thread request and continuation marker'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Uses the gate-captured id for the threadreaderapp.com lookup'
+    focus: 'trace'
