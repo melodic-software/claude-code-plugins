@@ -111,7 +111,7 @@ import {
   trustedHumansFrom,
 } from "./address-feedback.mjs";
 import { DISPUTED, LEFT_OPEN, parseVerdicts, settleDisputes } from "./adjudicate-feedback.mjs";
-import { inThreadScope, THREAD_ID, threadsNamed } from "./thread-scope.mjs";
+import { inThreadScope, NOTE_ID, THREAD_ID, threadsNamed } from "./thread-scope.mjs";
 import { stopSkip } from "./escalation-routes.mjs";
 
 // bytes: replies.jsonl's cap, the read runner's carry, seal and scan cap too;
@@ -133,6 +133,10 @@ const BAD_CHARS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f​-‏‪-‮⁠-⁩
 // (as of 2026-10-21; recheck when GitHub changes a token format or its recommended regex).
 const FORBIDDEN = /<!--|-->|gh[opsur]_[A-Za-z0-9]{20}|ghs_[0-9]+_|github_pat_/;
 const DISPOSITIONS = ["VALID", "INCORRECT", "UNCERTAIN", "VALID-defer"];
+// A pr-verify note from an earlier FAIL's verdict artifact (run.json's
+// verify_notes) is fixed, or already addressed by the diff.
+export const ALREADY_ADDRESSED = "already-addressed";
+const NOTE_DISPOSITIONS = ["VALID", ALREADY_ADDRESSED];
 const KEYS = ["disposition", "evidence", "fix_sha", "note", "thread"];
 const LABELS = {
   VALID: "VALID, fixed",
@@ -188,6 +192,16 @@ export function parseRun(text) {
   );
   check(run.superseded_head === undefined || (run.stale_notes !== undefined && SHA.test(String(run.superseded_head))), "run.json holds a malformed superseded_head");
   check(
+    run.verify_notes === undefined ||
+      (Array.isArray(run.verify_notes) &&
+        run.verify_notes.length > 0 &&
+        run.threads.length === 0 &&
+        run.stale_notes === undefined &&
+        new Set(run.verify_notes.map((note) => note?.id)).size === run.verify_notes.length &&
+        run.verify_notes.every((note) => NOTE_ID.test(String(note?.id)) && SHA.test(String(note.head)) && typeof note.path === "string" && note.path !== "")),
+    "run.json holds a malformed verify_notes list",
+  );
+  check(
     run.reviewed_heads === undefined || (Array.isArray(run.reviewed_heads) && run.reviewed_heads.every((sha) => SHA.test(String(sha)))),
     "run.json holds a malformed reviewed_heads list",
   );
@@ -211,6 +225,7 @@ export function parseRun(text) {
 export function parseReplies(text, run, fileExists) {
   check(Buffer.byteLength(text) <= LIMITS.bytes, "the replies are over the size limit");
   const kept = new Map(run.threads.map((thread) => [thread.id, thread]));
+  const notes = new Set((run.verify_notes ?? []).map((note) => note.id));
   const seen = new Set();
   const replies = [];
   for (const line of text.split("\n").filter((row) => row !== "")) {
@@ -223,17 +238,21 @@ export function parseReplies(text, run, fileExists) {
     check(reply !== null && typeof reply === "object" && !Array.isArray(reply), "a reply is not an object");
     check(Object.keys(reply).sort().join() === KEYS.join(), "a reply's fields are not the template's");
     const { thread, disposition, evidence, fix_sha: fixSha, note } = reply;
-    check(typeof thread === "string" && kept.has(thread), "a reply names a thread the runner did not keep");
+    check(typeof thread === "string" && (kept.has(thread) || notes.has(thread)), "a reply names a thread the runner did not keep");
     check(!seen.has(thread), "two replies name one thread");
     seen.add(thread);
-    check(DISPOSITIONS.includes(disposition), "a reply's disposition is not one of the four");
+    if (notes.has(thread)) {
+      check(NOTE_DISPOSITIONS.includes(disposition), "a pr-verify note's reply is not VALID or already-addressed");
+    } else {
+      check(DISPOSITIONS.includes(disposition), "a reply's disposition is not one of the four");
+    }
     check(
       Array.isArray(evidence) &&
         evidence.length <= LIMITS.evidence &&
         evidence.every((ev) => typeof ev === "string" && PATH_LINE.test(ev) && !DOT_SEGMENT.test(ev)),
       "a reply's evidence is not a list of path:line",
     );
-    check(!["VALID", "INCORRECT"].includes(disposition) || evidence.length > 0, "a VALID or INCORRECT reply cites no evidence");
+    check(!["VALID", "INCORRECT", ALREADY_ADDRESSED].includes(disposition) || evidence.length > 0, "a VALID, INCORRECT or already-addressed reply cites no evidence");
     check(
       evidence.every((ev) => fileExists(ev.slice(0, ev.lastIndexOf(":")))),
       "a reply's evidence names a file not in the checkout",
@@ -608,6 +627,40 @@ export async function publish(args) {
   return result;
 }
 
+// A round on the notes of an earlier FAIL's verdict artifact (run.json's
+// verify_notes, address-feedback.mjs select): no thread, so nothing is posted
+// or resolved. Every note needs a disposition (else feedback-incomplete). A
+// VALID note's fix must be the one push of this round (fixesLanded, each note
+// as a thread on its path, no earlier fix): then the round ends as a pushed
+// fix does; else feedback-not-landed. With no VALID note every one is
+// already-addressed: an unmoved head escalates feedback-already-addressed,
+// for a session, never a silent success; a moved one, a push no note named,
+// feedback-not-landed.
+async function settleNotes({ api, pr, run, headSha, replies, appId, log }) {
+  if (replies.length !== run.verify_notes.length) {
+    const disposed = new Set(replies.map((reply) => reply.thread));
+    const undisposed = run.verify_notes.filter((note) => !disposed.has(note.id)).map((note) => note.id);
+    log(`no reply is recorded: ${replies.length} of ${run.verify_notes.length} pr-verify notes have a disposition; none for ${undisposed.join(", ")}`);
+    return { escalationReason: "feedback-incomplete", posted: [] };
+  }
+  if (!replies.some((reply) => reply.disposition === "VALID")) {
+    if (run.head_sha !== headSha) {
+      log("every pr-verify note is reported already addressed, yet the PR head moved since the select job read it");
+      return { escalationReason: "feedback-not-landed", posted: [] };
+    }
+    log(`every one of the ${replies.length} pr-verify notes is reported already addressed by the diff, and nothing was pushed`);
+    return { escalationReason: "feedback-already-addressed", posted: [] };
+  }
+  const threads = run.verify_notes.map(({ id, path }) => ({ id, path, comment_ids: [] }));
+  const landed = await fixesLanded({ api, pr, run: { ...run, threads }, headSha, replies, appId, judgedAt: () => Number.NaN, patchWritten: true });
+  if (landed === null || landed.size === 0) {
+    log("no fix of a pr-verify note reached the PR branch as this round's one fix commit naming it, or the branch changed another path");
+    return { escalationReason: "feedback-not-landed", posted: [] };
+  }
+  log(`pushed ${[...new Set(landed.values())].join(", ")}, fixing ${[...landed.keys()].join(", ")}`);
+  return { escalationReason: "", posted: [] };
+}
+
 async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", scanRefused = "", repliesExpected = false, reviewerId, reviewerIds = [], trustedHumans, readArtifact, readAdjudication = () => null, fileExists, log }) {
   let escalationReason = "";
   // fixesLanded judged the range up to headSha; a push after it is unjudged.
@@ -653,6 +706,9 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
     // Every kept thread needs its disposition: one left out would stay open
     // with no reply, and the head's check run stops another dispatch. The
     // round marker names each one left out, for the escalation.
+    if (run.verify_notes) {
+      return settleNotes({ api, pr, run, headSha, replies, appId, log });
+    }
     if (replies.length !== run.threads.length) {
       const disposed = new Set(replies.map((reply) => reply.thread));
       const undisposed = run.threads.filter((thread) => !disposed.has(thread.id)).map((thread) => ({ id: thread.id, comment: thread.comment_ids[0] }));

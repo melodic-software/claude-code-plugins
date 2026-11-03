@@ -5,7 +5,7 @@
       "why": "the question on its own line names yaml_out"
     },
     {
-      "answer": "- yaml_out.py: never tracked by git; do you want me to look into it before stage 2?",
+      "answer": "- yaml_out.py: never tracked by git; do you want me to look into it before stage 3?",
       "why": "question inline with the finding"
     },
     {
@@ -19,7 +19,7 @@
       "why": "empty"
     },
     {
-      "answer": "yaml_out.py is missing and git has no record of it.\nReady for stage 2, Research?",
+      "answer": "yaml_out.py is missing and git has no record of it.\nReady for stage 3, Research?",
       "why": "the question on the next line does not name yaml_out"
     },
     {
