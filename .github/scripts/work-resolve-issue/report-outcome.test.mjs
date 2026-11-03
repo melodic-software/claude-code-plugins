@@ -4198,6 +4198,17 @@ test("route close: report-delivered closes a class-less or structural issue with
   }
 });
 
+// The earlier run's commits are unmerged on the branch this run resumed, so a
+// report that committed nothing of its own closes nothing.
+test("route close: report-delivered retries on a resumed branch when the run committed nothing, keeping that branch for the next run", () => {
+  for (const issueLabels of [["agent-ready"], ["agent-ready", "work-class: structural"]]) {
+    const plan = stoppedPlan("report-delivered: the report is below", { issueLabels, branch: "", resumed: "work/7-earlier" });
+    assert.equal(plan.action, "retry", issueLabels.join());
+    assert.match(plan.comment, /The run committed to a branch, or resumed one, so it retries instead of closing\./, plan.comment);
+    assert.equal(parseOutcomeMarker(plan.comment).onResumed, true, plan.comment);
+  }
+});
+
 // main against a fake API for the routes whose effect needs a read first.
 // `trusted` adds the trusted-actor list, whose humans' pull requests a wait accepts.
 const stopRun = async ({ reason, summary = "", routes, trusted = false }) => {

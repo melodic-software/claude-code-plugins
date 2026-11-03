@@ -1328,10 +1328,10 @@ export function decide({
     });
   }
   if (outcome.exit !== "done") {
-    // A delivered report closes only an issue the run committed nothing for;
-    // a run that committed to a branch retries.
-    const retry = stop === "report-delivered" && branch;
-    const why = "The run committed to a branch, so it retries instead of closing.";
+    // A delivered report closes only an issue with no branch: one this run
+    // committed to, or a resumed one whose earlier commits are still unmerged.
+    const retry = stop === "report-delivered" && (branch || resumed);
+    const why = "The run committed to a branch, or resumed one, so it retries instead of closing.";
     return routeStop(stop, { outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed, unmarked }, retry ? { route: "retry", why } : {});
   }
   // The outcome file is model output, so its own report never clears this.
