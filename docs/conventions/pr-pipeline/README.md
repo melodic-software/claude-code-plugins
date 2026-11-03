@@ -91,8 +91,9 @@ at `status: needs-decision`, removing that label the same way. It dispatches
 `intake-triage.yml` once only when the issue's author is one intake admits on open (a listed human
 or the lanes App); any other issue waits in `needs-triage` for a person, so an outside author
 cannot start a model run with each reply. A dispatch skips the born-triaged check. Removing the status label is the
-claim, so a second answer dispatches nothing. A blocker stops blocking once a listed human closes
-it, for any reason (owner decision Q95, `blockerDone` in `.github/scripts/intake-triage/admit.mjs`):
+claim, so a second answer dispatches nothing. A blocker stops blocking once it is a pull request
+merged in this repository, or an issue closed, for any reason, by a listed human or, in this
+repository only, a merge (owner decision Q95, `blockerDone` in `.github/scripts/intake-triage/admit.mjs`):
 the lanes follow that rule, not the work-items tracker's `blocked_by_count`, which still counts a
 won't-do close. When a blocker of an issue admission parked at
 `status: confirmed` closes after it parked, `work-unblock` removes that label with the lanes App's
