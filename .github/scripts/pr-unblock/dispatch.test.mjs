@@ -66,7 +66,9 @@ function pr(number, overrides = {}) {
 // included; any other PR gets 9000 plus its number. `workflowRuns` is the
 // pr-unblock.yml run listing. `stops` maps a head SHA to its
 // pr-unblock / apply-conflict-patch check runs, read into calls.stops.
+// `baseTip` is the base branch tip readBaseTip returns, an Error to throw.
 function fakeApi({
+  baseTip = { oid: "b".repeat(40), committedAt: 0 },
   stops = new Map(),
   pages = [[]],
   requeries = [],
@@ -81,7 +83,7 @@ function fakeApi({
   labelEvents = new Map(),
   reviewComments = new Map(),
 } = {}) {
-  const calls = { list: [], get: [], checks: [], stops: [], dispatch: [], runs: [], timeline: [], reviewComments: [], reviews: [] };
+  const calls = { list: [], get: [], checks: [], stops: [], dispatch: [], runs: [], timeline: [], reviewComments: [], reviews: [], tips: [] };
   let round = 0;
   return {
     calls,
@@ -93,6 +95,13 @@ function fakeApi({
     },
     async readDocsFixHistory() {
       return { rateLimit: { cost: 1, remaining: 4999 }, pullRequest: { commits: { nodes: [] } } };
+    },
+    async readBaseTip(base) {
+      calls.tips.push(base);
+      if (baseTip instanceof Error) {
+        throw baseTip;
+      }
+      return baseTip;
     },
     async listOpenPulls({ base, after }) {
       calls.list.push({ base, after });
@@ -1339,13 +1348,13 @@ test("main carries the record in DISPATCH_RECORD and writes it only when it chan
     DISPATCH_RECORD: path,
   };
   // A recorded head no open PR carries any more is dropped.
-  writeFileSync(path, JSON.stringify({ version: 4, handled: { [CHECK_NAME]: ["f".repeat(40)] }, dispatched: {} }));
+  writeFileSync(path, JSON.stringify({ version: 5, handled: { [CHECK_NAME]: ["f".repeat(40)] }, bases: { ["f".repeat(40)]: "b".repeat(40) }, dispatched: {} }));
   const options = () => ({ api: fakeApi({ pages: [[pr(1)]], checked: new Set([pr(1).headRefOid]) }), sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] });
   try {
     writeFileSync(output, "");
     assert.equal(await main(env, options()), 0);
     assert.equal(readFileSync(output, "utf8"), "record-changed=true\n");
-    assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), { version: 4, handled: { [CHECK_NAME]: [pr(1).headRefOid] }, dispatched: {}, docsRuns: {} });
+    assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), { version: 5, handled: { [CHECK_NAME]: [pr(1).headRefOid] }, bases: {}, dispatched: {}, docsRuns: {} });
     writeFileSync(output, "");
     assert.equal(await main(env, options()), 0);
     assert.equal(readFileSync(output, "utf8"), "");
@@ -1590,4 +1599,113 @@ test("sync-shared-copies: a failed select job's failure is retried until limit-s
   const next = copyApi({ timelines });
   assert.deepEqual(await copyDispatch(next, [node], { record }), { dispatched: [], failed: 0 });
   assert.deepEqual(next.calls.checkReads, [], "recorded at the cap: nothing read again");
+});
+
+// A select job's own stop (pr-unblock.yml resolve-conflicts-not-run) judged
+// the base it merged: once main moves, the same conflicting head is tried
+// again, and an unchanged head and base stay skipped.
+const OLD_TIP = "c".repeat(40);
+const NEW_TIP = "d".repeat(40);
+const tipAt = (oid, time) => ({ oid, committedAt: Date.parse(at(time)) });
+
+test("a select job's stop is retried once the base tip was committed after it started", async () => {
+  const head = pr(1).headRefOid;
+  const checked = () => new Map([[head, [laneStopRun("10:00")]]]);
+  const moved = harness({ pages: [[pr(1)]], checked: checked(), baseTip: tipAt(NEW_TIP, "10:30") });
+  await moved.run();
+  assert.deepEqual(dispatchedNumbers(moved.api), ["1"]);
+
+  const record = emptyRecord();
+  const same = harness({ pages: [[pr(1)]], checked: checked(), baseTip: tipAt(OLD_TIP, "09:30") }, { record });
+  await same.run();
+  assert.deepEqual(dispatchedNumbers(same.api), []);
+  assert.ok(record.handled.get(CHECK_NAME).has(head));
+  assert.equal(record.bases.get(head), OLD_TIP, "kept with the tip it was judged against");
+});
+
+test("a head recorded on a select job's stop is skipped under the same tip and read again under a new one", async () => {
+  const head = pr(1).headRefOid;
+  const record = emptyRecord();
+  markHandled(record, CHECK_NAME, head);
+  record.bases.set(head, OLD_TIP);
+  const carried = () => parseRecord(serializeRecord(record));
+  const state = (baseTip) => ({ pages: [[pr(1)]], checked: new Map([[head, [laneStopRun("10:00")]]]), baseTip });
+
+  const same = harness(state(tipAt(OLD_TIP, "09:30")), { record: carried() });
+  await same.run();
+  assert.deepEqual([dispatchedNumbers(same.api), same.api.calls.checks], [[], []]);
+  assert.ok(same.lines.includes(`skip #1: head ${head} already has a ${CHECK_NAME} check run (recorded)`));
+
+  const moved = harness(state(tipAt(NEW_TIP, "10:30")), { record: carried() });
+  await moved.run();
+  assert.deepEqual(moved.api.calls.checks.map((call) => call.sha), [head]);
+  assert.deepEqual(dispatchedNumbers(moved.api), ["1"]);
+  assert.deepEqual(moved.api.calls.tips, ["main"], "the tip is read once a run");
+});
+
+test("a base move releases only a select job's stop: a finished run and a slot skip still handle the head", async () => {
+  const done = pr(1);
+  const slot = pr(2);
+  const slotSkip = { status: "completed", conclusion: "neutral", output: { title: "Skipped: not-applicable" }, started_at: at("10:00") };
+  const record = emptyRecord();
+  const { api, run } = harness(
+    {
+      pages: [[done, slot]],
+      checked: new Map([
+        [done.headRefOid, [modelRun("09:00"), laneStopRun("10:00")]],
+        [slot.headRefOid, [slotSkip]],
+      ]),
+      baseTip: tipAt(NEW_TIP, "10:30"),
+    },
+    { record },
+  );
+  await run();
+  assert.deepEqual(dispatchedNumbers(api), []);
+  assert.deepEqual([...record.handled.get(CHECK_NAME)].sort(), [done.headRefOid, slot.headRefOid]);
+  assert.deepEqual([...record.bases.keys()], [], "handled whatever the base: no tip kept");
+});
+
+test("heads retried on a moved base go after heads never tried", async () => {
+  const record = emptyRecord();
+  markHandled(record, CHECK_NAME, pr(1).headRefOid);
+  record.bases.set(pr(1).headRefOid, OLD_TIP);
+  const { api, lines, run } = harness(
+    { pages: [[pr(1), pr(2)]], checked: new Map([[pr(1).headRefOid, [laneStopRun("10:00")]]]), baseTip: tipAt(NEW_TIP, "10:30") },
+    { record, maxDispatch: 1 },
+  );
+  await run();
+  assert.deepEqual(dispatchedNumbers(api), ["2"]);
+  assert.ok(lines.includes("defer #1: 1 dispatches this run; left for a later run"));
+});
+
+test("an unreadable base tip leaves a head recorded on a select job's stop skipped", async () => {
+  const head = pr(1).headRefOid;
+  const record = emptyRecord();
+  markHandled(record, CHECK_NAME, head);
+  record.bases.set(head, OLD_TIP);
+  const { api, lines, run } = harness({ pages: [[pr(1)]], baseTip: new Error("GraphQL: boom") }, { record });
+  await run();
+  assert.deepEqual([dispatchedNumbers(api), api.calls.checks], [[], []]);
+  assert.ok(lines.some((line) => line.startsWith("::warning::could not read the main tip: GraphQL: boom")));
+});
+
+test("readBaseTip returns the base ref's commit and its committed time, and refuses a target that is not one", async () => {
+  const responses = [
+    { data: { repository: { ref: { target: { oid: NEW_TIP, committedDate: "2026-11-02T22:30:00Z" } } } } },
+    { data: { repository: { ref: null } } },
+  ];
+  const bodies = [];
+  const api = createGitHubApi({
+    token: "t0ken",
+    repository: "octo/repo",
+    apiUrl: "https://api.example",
+    graphqlUrl: "https://api.example/graphql",
+    fetch: async (url, init) => {
+      bodies.push(JSON.parse(init.body));
+      return { ok: true, status: 200, json: async () => responses.shift() };
+    },
+  });
+  assert.deepEqual(await api.readBaseTip("main"), { oid: NEW_TIP, committedAt: Date.parse("2026-11-02T22:30:00Z") });
+  assert.deepEqual(bodies[0].variables, { owner: "octo", name: "repo", base: "main" });
+  await assert.rejects(api.readBaseTip("main"), /the main tip is not a commit/);
 });
