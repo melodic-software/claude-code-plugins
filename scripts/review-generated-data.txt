@@ -1,0 +1,5 @@
+# Generated data files the review lanes count as read without reading them,
+# read at the merge base (ci-workflows pr-review-cli.yml `generated-data`).
+# One repo-relative path per line. Each is built by a script and checked by its
+# own loader, and gitleaks still scans it.
+plugins/source-control/skills/babysit-prs/scripts/verify-legacy-fails.json
