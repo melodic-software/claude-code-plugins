@@ -787,10 +787,12 @@ path this plugin's skills render for `${CLAUDE_PLUGIN_ROOT}`:
       "Bash(\"<plugin root>/scripts/check-coverage-complete.sh\" *)",
       "Bash(\"<plugin root>/scripts/check-source-applicability.py\" *)",
       "Bash(\"<plugin root>/scripts/check-restatement-labels.py\" *)",
+      "Bash(\"<plugin root>/scripts/check-author-kind.py\" *)",
       "Bash(<plugin root>/scripts/check-dispatch-artifact.sh *)",
       "Bash(<plugin root>/scripts/check-coverage-complete.sh *)",
       "Bash(<plugin root>/scripts/check-source-applicability.py *)",
       "Bash(<plugin root>/scripts/check-restatement-labels.py *)",
+      "Bash(<plugin root>/scripts/check-author-kind.py *)",
       "Bash(python3 \"<plugin root>/scripts/check-claim-eligibility.py\" *)",
       "Bash(python3 <plugin root>/scripts/check-claim-eligibility.py *)"
     ]
