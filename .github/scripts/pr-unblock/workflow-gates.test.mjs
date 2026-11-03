@@ -750,6 +750,44 @@ test("pr-unblock.yml: apply-conflict-patch runs on a clean merge or a conflicted
   assert.equal(runs("conflicted", "true", "skipped", "", "garbage"), false);
 });
 
+// A reply or verdict job can stop after its activity's push job moved the
+// head; a failing status on the head before the push leaves the PR's head
+// with none, so ci-status passes and pr-merge arms over the stop.
+test("pr-unblock.yml: report-stop-status posts on the commit the activity's push job pushed, else its select head", () => {
+  const step = stepBlock(UNBLOCK, "report-stop-status", "Post the stop status");
+  const at = step.indexOf("          HEAD_SHA: >-");
+  assert.notEqual(at, -1, "the step folds HEAD_SHA");
+  const end = step.findIndex((line, i) => i > at && !line.startsWith("            "));
+  const expression = step
+    .slice(at + 1, end)
+    .map((line) => line.trim())
+    .join(" ");
+  const activities = [
+    ["apply-conflict-patch", "resolve-conflicts-select"],
+    ["apply-feedback-patch", "address-feedback-select"],
+    ["apply-dependency-patch", "review-dependency-select"],
+    [null, "fix-ci-context"],
+    [null, "sync-shared-copies-select"],
+  ];
+  const block = jobBlock(UNBLOCK, "report-stop-status");
+  const needs = block.slice(block.indexOf("    needs:") + 1, block.findIndex((line) => /^ {4}if: /.test(line))).map((line) => line.replace(/^ {6}- /, ""));
+  const blank = {};
+  for (const [push, select] of activities) {
+    blank[`needs.${select}.outputs.head-sha`] = "";
+    if (push) {
+      blank[`needs.${push}.outputs.pushed-commit`] = "";
+      assert.ok(needs.includes(push), `report-stop-status needs ${push}`);
+    }
+  }
+  for (const [push, select] of activities) {
+    const selected = { ...blank, [`needs.${select}.outputs.head-sha`]: "before" };
+    assert.equal(evaluate(expression, selected), "before", `${select} with no push`);
+    if (push) {
+      assert.equal(evaluate(expression, { ...selected, [`needs.${push}.outputs.pushed-commit`]: "pushed" }), "pushed", `${push} over ${select}`);
+    }
+  }
+});
+
 test("pr-unblock.yml: the resolve-conflicts model calls run only when the select job found a conflicted merge", () => {
   const { gate, needs } = jobGate(UNBLOCK, "resolve-conflicts");
   assert.deepEqual(needs, ["resolve-conflicts-select"]);
