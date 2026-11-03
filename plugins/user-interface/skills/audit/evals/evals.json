@@ -137,6 +137,22 @@
       "difficulty": "hard",
       "why_hard": "Asked to audit, the model's pull is to review anything it can; with no matching row the skill must stop and ask",
       "source": "the skill's Pick lanes step, no-match rule, written for this suite"
+    },
+    {
+      "id": 10,
+      "name": "removal-keeps-what-earns-its-place",
+      "prompt": "This app feels over-animated. What motion should we remove? Don't change anything yet.",
+      "expected_output": "The skill runs the motion lane's removal sub-mode: each animation gets a Delete, Reduce or Keep verdict with the rule that decided it, each Delete and Reduce names the removal hazards it was checked against, and the report lists what was kept and why.",
+      "files": [],
+      "expectations": [
+        "Each verdict names the rule that decided it",
+        "A Keep list names at least one animation with the purpose that saved it",
+        "A Delete or Reduce names a removal hazard, such as a hidden start state or code that waits for the animation",
+        "No file is edited"
+      ],
+      "difficulty": "hard",
+      "why_hard": "Asked what to remove, the model's pull is to list every animation and stop at the list; the sub-mode requires the verdict's reason, the hazards and a defended Keep list",
+      "source": "skills/audit/reference/motion.md removal, written for this suite"
     }
   ]
 }

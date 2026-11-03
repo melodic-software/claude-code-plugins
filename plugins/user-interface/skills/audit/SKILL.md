@@ -1,6 +1,6 @@
 ---
-description: "Review interface code in any stack, read-only, one concern lane at a time: the working diff (default), the whole tree, or every lane before a launch, with severity and evidence for each finding. The motion lane also finds where animation would help or must not go, and why one drops frames. --fix applies one finding at a time after a yes. Use when: 'review the UI in my changes', 'review the animations', 'audit our motion', 'where should we animate', 'why is this animation janky', 'audit the interface before we ship'."
-argument-hint: "[diff|tree|launch] [<concern>] [opportunities|performance] [--fix] [<target>]"
+description: "Review interface code in any stack, read-only, one concern lane at a time: the working diff (default), the whole tree, or every lane before a launch, with severity and evidence for each finding. The motion lane also finds where animation would help or must not go, which animations to remove, and why one drops frames. --fix applies one finding at a time after a yes. Use when: 'review the UI in my changes', 'review the animations', 'audit our motion', 'where should we animate', 'too much animation', 'this app feels slow, what motion can go', 'why is this animation janky', 'audit the interface before we ship'."
+argument-hint: "[diff|tree|launch] [<concern>] [opportunities|performance|removal] [--fix] [<target>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -16,16 +16,17 @@ It does one thing: judge interface code against a high craft bar and report what
 how much it hurts. It doesn't build features, fix unrelated bugs, or review backend logic. `launch`
 judges against a ship bar instead, under its own procedure.
 
-**Arguments.** `[diff|tree|launch] [<concern>] [opportunities|performance] [--fix] [<target>]`.
+**Arguments.** `[diff|tree|launch] [<concern>] [opportunities|performance|removal] [--fix] [<target>]`.
 
 - `diff` (the default): the working diff against the default branch (or `<target>`).
 - `tree`: the whole repository, or everything under `<target>`.
 - `launch`: every lane in the concern table's `audit.order`, one pass each, over the tree, then a
   leftovers pass, under the procedure in [reference/launch-scope.md](reference/launch-scope.md).
 - `<concern>`: a concern `id` from the table; that lane alone.
-- `opportunities`, `performance`: sub-modes of the `motion` lane, defined in its procedure; either
-  one picks that lane. Each takes the scope argument like any lane: `opportunities` defaults to
-  `diff`, and `performance` to the animation the request or `<target>` names.
+- `opportunities`, `performance`, `removal`: sub-modes of the `motion` lane, defined in its
+  procedure; each one picks that lane. Each takes the scope argument like any lane: `opportunities`
+  defaults to `diff`, `removal` to `tree`, and `performance` to the animation the request or
+  `<target>` names.
 - `--fix`: after the report, apply findings one at a time (below). Without it, edit nothing.
 
 A token equal to a concern `id` in the table is the `<concern>`; any other token that is not a
@@ -110,7 +111,7 @@ fixes.
    When its `audit.procedure` is not null, read that file and follow it; it may add a pre-pass,
    values and sub-modes of its own. The `motion` lane's procedure is
    [reference/motion.md](reference/motion.md): its CSS pre-pass, role durations, severity placement
-   and the `opportunities` and `performance` sub-modes, read whenever that lane runs. A captured or
+   and the `opportunities`, `performance` and `removal` sub-modes, read whenever that lane runs. A captured or
    pasted animation export is read under [reference/frame-capture.md](reference/frame-capture.md).
    Judge everything in scope that the lane covers against the rules in those files.
 6. **Report**, below, one section per lane. `launch` runs its leftovers pass and vetting first and
