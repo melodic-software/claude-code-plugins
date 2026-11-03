@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { branchOf, findExisting, openPulls, parseAreas, promptText, sortSweeps, staysInArea, slotsLeft, sweepRecord, validatePlan } from "./batch.mjs";
+import { branchOf, findExisting, openPulls, parseAreas, promptText, pushStep, sortSweeps, staysInArea, slotsLeft, sweepRecord, validatePlan } from "./batch.mjs";
 
 const BASE = "a".repeat(40);
 const HEAD = "b".repeat(40);
@@ -96,6 +96,20 @@ test("slotsLeft is limit minus open, and none while throttled or over the limit"
   assert.equal(slotsLeft({ open: 2, limit: 3, throttled: false }), 1);
   assert.equal(slotsLeft({ open: 3, limit: 3, throttled: true }), 0);
   assert.equal(slotsLeft({ open: 5, limit: 3, throttled: false }), 0);
+});
+
+test("a re-run's reused branch uses a slot, so the run stays within the cap", () => {
+  let slots = 2;
+  const actions = [{ exists: true, head: HEAD }, { exists: false }, { exists: false }].map((existing) => {
+    const step = pushStep(existing, slots);
+    slots = step.slots;
+    return step.action;
+  });
+  assert.deepEqual(actions, ["reuse", "push", "past-cap"]);
+});
+
+test("a branch that already has its pull request uses no slot", () => {
+  assert.deepEqual(pushStep({ exists: true }, 1), { action: "done", slots: 1 });
 });
 
 const OTHER = "e".repeat(40);

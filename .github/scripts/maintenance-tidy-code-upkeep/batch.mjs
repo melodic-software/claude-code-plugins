@@ -162,6 +162,14 @@ export const sweepRecord = (slugs, committedAt) => JSON.stringify({ at: Number(c
 // so its area stays due for the next run.
 export const slotsLeft = ({ open, limit, throttled }) => (throttled ? 0 : Math.max(0, limit - open));
 
+// What push does with one sweep. A branch handed to publish uses a slot like a new push: it has no
+// pull request yet, so the open count missed it.
+export function pushStep(existing, slots) {
+  if (existing.head) return { action: "reuse", slots: slots - 1 };
+  if (existing.exists) return { action: "done", slots };
+  return slots > 0 ? { action: "push", slots: slots - 1 } : { action: "past-cap", slots };
+}
+
 const pullsOf = (repository, branch) => `/repos/${repository}/pulls?state=all&head=${repository.split("/")[0]}:${encodeURIComponent(branch)}`;
 
 // A branch push's re-run finds. At the planned tree it is this batch's, and publish opens what it
@@ -236,16 +244,14 @@ async function push(env) {
     const { area } = areas.find((row) => row.slug === sweep.slug);
     if (!staysInArea(raw, area) || changesHoldPath(raw)) throw new Error(`sweeps[${i}] leaves its area or changes a hold path; the scan job should have dropped it`);
     const existing = await findExisting(api, repository, { branch: sweep.branch, tree: synthetic[i].tree, i });
-    if (existing.exists) {
-      if (existing.head) heads[sweep.branch] = existing.head;
-      console.log(`sweeps[${i}]'s branch already exists; not pushed`);
+    const step = pushStep(existing, slots);
+    slots = step.slots;
+    if (step.action === "reuse") heads[sweep.branch] = existing.head;
+    if (step.action === "past-cap") console.log(`sweeps[${i}] is past the cap; not pushed, and its area stays due`);
+    if (step.action !== "push") {
+      if (existing.exists) console.log(`sweeps[${i}]'s branch already exists; not pushed`);
       continue;
     }
-    if (slots <= 0) {
-      console.log(`sweeps[${i}] is past the cap; not pushed, and its area stays due`);
-      continue;
-    }
-    slots--;
     const head = await commitNetTree(readNetChanges(repo, baseSha, commit), {
       message: sweep.pr.title,
       baseSha,
