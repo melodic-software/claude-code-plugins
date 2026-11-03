@@ -121,6 +121,7 @@ import { isDecisionComment, selectTrustedIssueComments } from "../../actions/sel
 import { PROTECTED_REFUSALS } from "../apply-patch/protected-paths.mjs";
 import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
 import { ADMIT_MARKER, refusalText, sayWhy as writeWhy } from "../lib/admission-comment.mjs";
+import { stopLine, subIssueLeftOpen } from "../lib/done-evidence.mjs";
 
 export { ADMIT_MARKER, refusalText };
 import { closingPulls } from "../work-resolve-issue/report-outcome.mjs";
@@ -150,6 +151,12 @@ export const UNRECORDED = "no lanes App verdict comment shows whether an earlier
 // The wait reason a Size Large issue gets until refine.mjs splits it into
 // sub-issues (owner Q93).
 export const SIZE_SPLIT_PENDING = "Size large: the split into sub-issues at intake is pending (owner Q93)";
+// The same wait for an issue at any Size whose run's patch was over the scan
+// job's cap (patchCapStopped): the cap is a fact about the patch, not a size
+// guess, so re-triage's Size, or a listed human's, does not decide it.
+export const PATCH_SPLIT_PENDING = "its last run's patch was over the scan job's size cap (scan-refused-patch): the split into sub-issues at intake is pending (owner Q93)";
+// Every wait reason refine.mjs splits on.
+export const SPLIT_PENDING = new Set([SIZE_SPLIT_PENDING, PATCH_SPLIT_PENDING]);
 // The refusal a Size Large issue gets once it has sub-issues and every one is
 // closed but the issue is still open: label-unblocked's closeSplitParent
 // closes a split parent whose sub-issues are done, so one it left open has
@@ -1174,6 +1181,28 @@ export function addedByTrusted(events, label, humans, appId) {
   return humans.has(actor?.id) || (appId !== undefined && actor?.id === appId);
 }
 
+// The stop report-outcome routes to intake when the scan job refused a run's
+// patch for its size (stop-routes.json).
+export const PATCH_CAP_STOP = "scan-refused-patch";
+// report-outcome's intake marker line (stopPlan).
+const INTAKE_OUTCOME = /^<!-- work-resolve-issue outcome=intake(?: [a-z]+=\S+)* -->$/;
+
+// Whether the lanes App's report-outcome comment routed a PATCH_CAP_STOP to
+// intake after a listed human (`humans`, ids) last added agent-ready, the
+// reset report-outcome counts its retries from: the App's own adds do not
+// reset it, so its re-triage after that stop keeps it. `comments` and
+// `events` are the issue's REST comments and events. Pure.
+export function patchCapStopped(comments, events, humans, appId) {
+  const reset = Math.max(
+    Number.NEGATIVE_INFINITY,
+    ...(events ?? []).filter((event) => event?.event === "labeled" && event.label?.name === AGENT_READY && humans.has(event.actor?.id)).map((event) => Date.parse(event.created_at)).filter(Number.isFinite),
+  );
+  return (comments ?? []).some((comment) => {
+    const [marker, stop] = String(comment?.body ?? "").split(/\r?\n/);
+    return isAppId(comment?.user?.id, appId) && INTAKE_OUTCOME.test(marker) && String(stop ?? "").startsWith(stopLine(PATCH_CAP_STOP)) && Date.parse(comment.created_at) > reset;
+  });
+}
+
 // A deferred issue's labels that refuse its re-admission whatever the rules
 // say: a person's hold.
 const DEFERRAL_HOLDS = ["do-not-merge", "needs-human"];
@@ -1310,8 +1339,9 @@ export function admissionSettled(labels, events, isMark) {
 // (owner Q9), so the blocker still waits, but its report may answer what the
 // issue waited for. Until a verdict written after that close judges the issue
 // against it, the wait carries `retriage` and admit() sends the issue back to
-// intake; once one has, the issue's own criteria decide.
-export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, reported = new Map(), pulls = [], subIssues = [], doneBy = [], events, spec, schedule, humans, appId, repository, webHosts, public: isPublic = false, pushRefusals = issuePushRefusals(), workflows = workflowFiles(), charges = chargePattern(), chargeEdits = [] }) {
+// intake; once one has, the issue's own criteria decide. `comments`
+// (admissionFacts) carry report-outcome's patch-cap stop (patchCapStopped).
+export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, reported = new Map(), pulls = [], subIssues = [], finished = false, doneBy = [], events, comments = [], spec, schedule, humans, appId, repository, webHosts, public: isPublic = false, pushRefusals = issuePushRefusals(), workflows = workflowFiles(), charges = chargePattern(), chargeEdits = [] }) {
   const labels = names(issue.labels);
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
@@ -1365,17 +1395,23 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   // at status: ready (a wait with no pull request), never needs-decision.
   const parked = [];
   const openSubs = subIssues.filter((item) => item?.state !== "closed");
-  if (verdict.dimensions?.size === "large" && !rules.sizes.includes("large")) {
+  // An issue whose run's patch was over the scan job's cap splits as Size
+  // Large does, at whatever admitted Size it was triaged (patchCapStopped).
+  const size = verdict.dimensions?.size;
+  const overCap = rules.sizes.includes(size) && patchCapStopped(comments, events, humans, appId);
+  if ((size === "large" || overCap) && !rules.sizes.includes("large")) {
     // An issue with sub-issues is split already (by intake or by hand): while
     // one is open it waits on them below, and once all are closed it is
-    // refused, so it never parks as split pending every sweep.
+    // refused, so it never parks as split pending every sweep. A finished
+    // parent (`finished`, finishedParent) is neither: the lane's one run
+    // checks its own done-when and builds nothing, so Size does not bound it.
     if (!((issue.sub_issues_summary?.total ?? 0) > 0)) {
-      parked.push(SIZE_SPLIT_PENDING);
-    } else if (openSubs.length === 0) {
+      parked.push(size === "large" ? SIZE_SPLIT_PENDING : PATCH_SPLIT_PENDING);
+    } else if (openSubs.length === 0 && !finished) {
       refuse.push(SIZE_SPLIT_DONE);
     }
-  } else if (!rules.sizes.includes(verdict.dimensions?.size)) {
-    refuse.push(`Size ${verdict.dimensions?.size} is not one of ${rules.sizes.join(", ")}`);
+  } else if (!rules.sizes.includes(size)) {
+    refuse.push(`Size ${size} is not one of ${rules.sizes.join(", ")}`);
   }
   if (!rules.uncertainty.includes(verdict.dimensions?.uncertainty)) {
     refuse.push(`Uncertainty ${verdict.dimensions?.uncertainty} is not one of ${rules.uncertainty.join(", ")}`);
@@ -1491,8 +1527,9 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   }
   // A merged Refs pull request since the newest decision or refinement may
   // have done the work, so an agent checks it before a lane run repeats it;
-  // like any refusal no person must answer, it parks at status: confirmed.
-  if (doneBy.length > 0) {
+  // like any refusal no person must answer, it parks at status: confirmed. A
+  // finished parent's run is that check (verified-done).
+  if (doneBy.length > 0 && !finished) {
     refuse.push(doneReason(doneBy));
   }
   const wait = [];
@@ -2235,10 +2272,9 @@ export async function splitLeftOpen({ github, repository, issue, comments, child
   if (children.length === 0 || !(await isSplitParent({ github, repository, issue, comments, children, isApp, humans }))) {
     return "it is not a split parent";
   }
-  for (const child of children) {
-    if (child?.state !== "closed" || child.state_reason !== "completed" || !(await trusted(child.number))) {
-      return `sub-issue #${child?.number} is not closed as completed by a listed human or a merge`;
-    }
+  const childLeft = await subIssueLeftOpen(children, trusted, repository);
+  if (childLeft) {
+    return childLeft;
   }
   const taskList = baseTaskList();
   const record = filedRecord(comments, isApp);
@@ -2270,6 +2306,21 @@ export async function splitParentClosed({ github, repository, issue, isApp, huma
   const base = `/repos/${repository}/issues/${issue.number}`;
   const children = await paginate(github, `${base}/sub_issues`);
   return (await splitLeftOpen({ github, repository, issue, comments: await paginate(github, `${base}/comments`), children, isApp, humans, trusted })) === null;
+}
+
+// The numbers of the sub-issues of `issue` (as read, here) when it has any and
+// every one is closed as completed by a close `trusted(number)` accepts
+// (subIssueLeftOpen, the split parent's child rule), else null: a finished
+// parent, which the issue lane takes at any Size for one run that checks its
+// own done-when and closes it verified-done (#12456, class A). One sub-issue closed not_planned (class B, Q93) or open keeps it out.
+// The summary only skips the listing for an issue with no sub-issue; each
+// child's own state_reason decides. A failed read throws.
+export async function finishedParent({ github, repository, issue, trusted }) {
+  if (!((issue?.sub_issues_summary?.total ?? 0) > 0)) {
+    return null;
+  }
+  const children = await paginate(github, `/repos/${repository}/issues/${issue.number}/sub_issues`);
+  return children.length > 0 && (await subIssueLeftOpen(children, trusted, repository)) === null ? children.map((child) => Number(child.number)) : null;
 }
 
 // admissionFacts' `isTrusted` for admit(): issue `number` here was closed by
@@ -2356,9 +2407,11 @@ export async function admissionFacts({ github, repository, number, issue, rules,
   // A failed read throws, like the reads above, so no verdict rests on a
   // visibility it did not read (docs/outage-posture-audit.md, element 4).
   const isPublic = (await github("GET", `/repos/${repository}`))?.visibility === "public";
+  const subIssues = await openSubIssues(github, base, issue);
   return {
     issue,
-    // Read for the admission comment's own earlier copy (sayWhy).
+    // Read for the admission comment's own earlier copy (sayWhy) and decide's
+    // patch-cap stop (patchCapStopped).
     comments: await paginate(github, `${base}/comments`),
     spec,
     schedule: readSchedule(),
@@ -2367,7 +2420,8 @@ export async function admissionFacts({ github, repository, number, issue, rules,
     trustedCloses,
     reported,
     pulls: await openPullsFor(github, repository, number),
-    subIssues: await openSubIssues(github, base, issue),
+    subIssues,
+    finished: subIssues.length === 0 && (await finishedParent({ github, repository, issue, trusted })) !== null,
     doneBy: await (doneBy ?? mergedRefsReader({ github, repository, humans, appId }))(Number(number)),
     events: await paginate(github, `${base}/events`),
     public: isPublic,

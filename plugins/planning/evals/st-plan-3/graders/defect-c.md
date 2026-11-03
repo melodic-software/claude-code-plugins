@@ -1,0 +1,6 @@
+---
+type: regex
+pattern: '^(?:(?=[^\n]*\b(?:but|however|only\s+if|unless|although|though)\b)|(?![^\n]*(?:\bNo plan gaps found\b|\b(?:is|are|looks?|seems?)\s+(?:perfectly\s+|entirely\s+|fully\s+|also\s+)?(?:fine|ok|okay|good|sound|correct|right|accurate|safe)\b|\bno\s+(?:\w+\s+)?(?:issue|problem|concern|finding|gap|defect|risk)s?\b|\bnot\s+a\s+(?:\w+\s+)?(?:issue|problem|concern|defect|gap|risk)\b|\bnothing\s+to\s+(?:flag|fix|report)\b)))(?![^\n]*(?:\bonly\s+one\s+(?:instance|replica|process)\b|\b(?:not|never|cannot|(?:is|are|was|were|do|does|did|has|have|had|ca|could|wo|would|should|must)n.?t)\s+(?:run\w*|deploy\w*|scal\w*)\s+(?:\w+\s+){0,2}(?:replicas?|multiple|instances?)\b))(?=[^\n]*(?:\brunRenewalSweep\b|\bsetInterval\b|\bsweep\w*|\brenewOne\b|\bscheduler\b|\bcharg\w*|\brenewals?\b))[^\n]*(?:\breplicas?\b|\b(?:each|every|all|multiple|several|many|three|3|more\s+than\s+one)\s+(?:\w+\s+){0,2}(?:instances?|containers?|processes|process|copies|nodes|pods)\b|\bcompose\.yaml\b|\bscaled?\s+(?:out|to)\b|\bmulti-?instance\b|\bper[- ](?:instance|process|container)\b)'
+flags: mi
+target: last_message
+---

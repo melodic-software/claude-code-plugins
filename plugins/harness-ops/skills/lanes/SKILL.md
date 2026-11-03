@@ -106,8 +106,8 @@ the marketplace-qualified directory Claude Code actually resolves. `$ARGUMENTS`
 comes after `--data-dir`, so an explicit `--data-dir` the caller passes in
 `$ARGUMENTS` still wins (last flag wins in `lane-launcher.sh`'s parser).
 
-This is the dated record for the export claim; the two restatements below and in
-`context/refresh.md` point here. The page says of `${CLAUDE_PLUGIN_ROOT}`,
+This is the dated record for the export claim; the two restatements below point
+here, and `context/refresh.md` points at the docs section directly. The page says of `${CLAUDE_PLUGIN_ROOT}`,
 `${CLAUDE_PLUGIN_DATA}` and `${CLAUDE_PROJECT_DIR}` that "All three are exported
 as environment variables to hook processes and to MCP and LSP server
 subprocesses", and its component table gives skill and agent content inline

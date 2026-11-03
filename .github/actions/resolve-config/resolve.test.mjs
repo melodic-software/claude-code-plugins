@@ -347,6 +347,8 @@ const LIMITS = {
   "admission-factor": 0.8,
   // The release-point floor the owner chose (2026-10-21 interview).
   "admission-min-per-hour": 1,
+  // work-unblock's stranded re-fire backoff starts at 3 hours for every cause.
+  "stranded-backoff-hours": { "no-run": 3, "no-report": 3, "failed-again": 3, "failed-mint": 3, "kill-switch": 3 },
   // Passed through as set; rate-guard.mjs fills it from the schema's defaults.
   api: {},
 };
@@ -371,6 +373,19 @@ test("limits: api passes through as set, and an unknown pool or field, or a shar
   for (const bad of [{ search: {} }, { graphql: { floor: 0.1 } }, { graphql: { breaker: 1.5 } }, { "github-token": { "per-hour": 10 } }]) {
     const rejected = edited((doc) => {
       doc.limits = { api: bad };
+    });
+    assertRejected(() => run(rejected), "invalid-config");
+  }
+});
+
+test("limits: stranded-backoff-hours overrides a cause's hours and keeps the rest; an unknown cause or hours past 24 is rejected", () => {
+  const config = edited((doc) => {
+    doc.limits = { "stranded-backoff-hours": { "no-run": 1 } };
+  });
+  assert.deepEqual(run(config).limits["stranded-backoff-hours"], { ...LIMITS["stranded-backoff-hours"], "no-run": 1 });
+  for (const bad of [{ "no-runs": 1 }, { "no-run": 0 }, { "no-run": 25 }, { "no-run": 1.5 }]) {
+    const rejected = edited((doc) => {
+      doc.limits = { "stranded-backoff-hours": bad };
     });
     assertRejected(() => run(rejected), "invalid-config");
   }
@@ -1824,6 +1839,7 @@ test("patch rules: the shipped registry passes, with a row for each prepare mode
     "default",
     "dependency-review",
     "docs",
+    "install-script-pin",
     "issue",
     "merge-base",
     "review-threads",

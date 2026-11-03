@@ -115,8 +115,9 @@ Token and secrets: the job token needs `contents: read` (to read the policy file
 always-granted `metadata: read` (the permission endpoint); declare `permissions: contents: read`
 and nothing else. The routine token is exposed only to the step that fires, after step 2 passes.
 Labels need the triage role or higher, and triage maps to `read`, so a triage user's label does
-not kick. The drain applies the same bar at admission: it reads who last applied the role and
-`work-class:` labels and refuses the item unless each labeler holds `write` or higher (the
+not kick. The drain applies the same bar at admission: it reads who last applied the
+autonomous-eligible role label, never a `work-class:` label, and refuses the item unless that
+labeler holds `write` or higher (the
 `work-items` plugin's `/work-items:work-loop`, "Admission gate").
 A label an App applies through its installation token is recorded under the App's `<app>[bot]`
 login, which never reads back a `write` permission, so the drain refuses the item. A triage lane

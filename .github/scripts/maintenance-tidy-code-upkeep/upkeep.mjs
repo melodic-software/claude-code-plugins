@@ -6,19 +6,22 @@
 //   gate [--root <dir>]
 //     Prints the batch as JSON: whether it may run and which areas to sweep,
 //     with `/code-tidying:tidy <glob>` opening one PR per area on the
-//     chore/tidy-adhoc-<slug>-YYYY-MM-DD branch that skill names. Exit 1 when
-//     a read fails: nothing is planned on a count it could not read.
+//     chore/tidy-adhoc-<slug>-YYYY-MM-DD branch that skill names, and the
+//     spec issue each pull request links. Exit 1 when a read fails, or when
+//     upkeep_spec_issue is not set: nothing is planned on a count it could
+//     not read, nor for a pull request with no spec.
 //
 // The gate derives churn from git log, so a push run GitHub lost drops no area
 // (dependabot-fragments.yml records that those happen).
 import { execFileSync } from "node:child_process";
-import { appendFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TIDY_SCRIPTS = join(HERE, "../../../plugins/code-tidying/skills/tidy/scripts");
+const API_BUDGET = join(HERE, "../../actions/log-api-budget/api-budget.bash");
 const DAY_MS = 86_400_000;
 const WINDOW_DAYS = { daily: 1, weekly: 7, monthly: 30 };
 const PULL_LIST_LIMIT = 1000;
@@ -175,6 +178,15 @@ function run(root, file, args, env = {}) {
   });
 }
 
+// Every gh call, so the job's api-budget notice counts it: under api-budget.bash's
+// gh wrapper for the token API_BUDGET_TOKEN names, else gh itself (no token, as
+// in a local run, or no wrapper file). stdout and a failure's throw are gh's.
+export function gh(root, args, env = {}) {
+  const token = env.API_BUDGET_TOKEN ?? process.env.API_BUDGET_TOKEN;
+  if (!token || !existsSync(API_BUDGET)) return run(root, "gh", args, env);
+  return run(root, "bash", ["-c", '. "$1" && api_budget_wrap_gh "$2" && shift 2 && gh "$@"', "gh", API_BUDGET, token, ...args], env);
+}
+
 function setting(root, key) {
   const [value, source] = run(root, "bash", [join(TIDY_SCRIPTS, "upkeep-setting.sh"), key]).trimEnd().split("\t");
   return { value, source };
@@ -183,7 +195,7 @@ function setting(root, key) {
 function downloadRecord(root, artifact) {
   const dir = mkdtempSync(join(tmpdir(), "upkeep-record-"));
   try {
-    run(root, "gh", ["run", "download", String(artifact.workflow_run.id), "--name", SWEEP_ARTIFACT, "--dir", dir]);
+    gh(root, ["run", "download", String(artifact.workflow_run.id), "--name", SWEEP_ARTIFACT, "--dir", dir]);
     return readFileSync(join(dir, "sweeps.json"), "utf8");
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -191,21 +203,24 @@ function downloadRecord(root, artifact) {
 }
 
 function gate(root, now) {
+  // Every pull request links this issue as its spec; without one, pr-verify fails them all.
+  const specIssue = setting(root, "upkeep_spec_issue");
+  if (!specIssue.value) throw new Error(`upkeep_spec_issue is not set (${specIssue.source}); every upkeep pull request links it as its spec, so the batch opens none`);
   const cadence = setting(root, "upkeep_cadence");
   const backstop = setting(root, "upkeep_backstop");
   const count = parseCount(run(root, "bash", [join(TIDY_SCRIPTS, "open-pr-count.sh")]));
   // The sweeps, by branch prefix: listing all pull requests reaches about 3 days per 1000 here.
   // A full list holds the newest; lookbackStart reads commits back to its oldest, and every one of
   // those is after the last sweep of an area the list has lost, so that area is judged correctly.
-  const sweeps = JSON.parse(run(root, "gh", ["pr", "list", "--state", "all", "--limit", String(PULL_LIST_LIMIT), "--search", "head:chore/tidy-adhoc-", "--json", "headRefName,createdAt,state,mergeCommit"]));
-  const openPulls = JSON.parse(run(root, "gh", ["pr", "list", "--state", "open", "--limit", String(PULL_LIST_LIMIT), "--json", "headRefName,createdAt,state"]));
-  const records = JSON.parse(run(root, "gh", ["api", `repos/{owner}/{repo}/actions/artifacts?name=${SWEEP_ARTIFACT}&per_page=100`])).artifacts ?? [];
+  const sweeps = JSON.parse(gh(root, ["pr", "list", "--state", "all", "--limit", String(PULL_LIST_LIMIT), "--search", "head:chore/tidy-adhoc-", "--json", "headRefName,createdAt,state,mergeCommit"]));
+  const openPulls = JSON.parse(gh(root, ["pr", "list", "--state", "open", "--limit", String(PULL_LIST_LIMIT), "--json", "headRefName,createdAt,state"]));
+  const records = JSON.parse(gh(root, ["api", `repos/{owner}/{repo}/actions/artifacts?name=${SWEEP_ARTIFACT}&per_page=100`])).artifacts ?? [];
   const cleanSweeps = readCleanSweeps(records, (artifact) => downloadRecord(root, artifact));
   const since = new Date(lookbackStart(sweeps, now)).toISOString();
   const commits = parseLog(run(root, "git", ["log", `--since=${since}`, "--no-renames", "--name-only", "--format=%x00%H %ct"]));
   const paths = run(root, "git", ["ls-files"]).split("\n").filter(Boolean);
   const result = plan({ paths, commits, pulls: [...sweeps, ...openPulls], cleanSweeps, cadence: cadence.value, backstop: backstop.value, ...count, now });
-  return { ...result, settings: { upkeep_cadence: cadence, upkeep_backstop: backstop, upkeep_max_open: count.limit }, open: count.open };
+  return { ...result, settings: { upkeep_cadence: cadence, upkeep_backstop: backstop, upkeep_max_open: count.limit, upkeep_spec_issue: specIssue }, open: count.open };
 }
 
 function detect(root, before, after) {
@@ -245,7 +260,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       console.log(JSON.stringify(result, null, 2));
       if (process.env.GITHUB_OUTPUT) {
         const date = new Date(now).toISOString().slice(0, 10);
-        appendFileSync(process.env.GITHUB_OUTPUT, `proceed=${result.proceed}\nareas=${JSON.stringify(result.areas)}\ndate=${date}\n`);
+        appendFileSync(process.env.GITHUB_OUTPUT, `proceed=${result.proceed}\nareas=${JSON.stringify(result.areas)}\ndate=${date}\nspec-issue=${result.settings.upkeep_spec_issue.value}\n`);
       }
     } catch (error) {
       console.error(`upkeep gate: ${error.message.split("\n")[0]}`);

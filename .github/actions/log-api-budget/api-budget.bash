@@ -27,12 +27,12 @@
 #
 # The rate guard, rate-guard.mjs's shell port: once a response shows a pool
 # exhausted, no gh call goes to that pool before its reset for the rest of the
-# job; each refusal returns 1 with an error naming the reset, and so does a
-# call GitHub refused. A call GitHub answered with a 2xx keeps its answer and
-# gh's status, so no caller resends a write GitHub accepted, unless its stop
+# job; each refusal returns 1 with an error naming the reset (a notice when
+# the caller holds, API_BUDGET_HOLD=1), and so does a call GitHub refused. A
+# call GitHub answered with a 2xx keeps its answer and gh's status, so no caller resends a write GitHub accepted, unless its stop
 # cannot be recorded, which ends the step first (below). Its stops are
-# lines `<pool> <reset epoch>` in $RUNNER_TEMP/api-budget/stop; a stop whose time is a guess (no header gave
-# it) goes in $RUNNER_TEMP/api-budget/guessed too. Readers take only lines
+# lines `<pool> <reset epoch>` in $RUNNER_TEMP/api-budget/stop; a stop whose time is a guess (no header of
+# the refused response gave it) goes in $RUNNER_TEMP/api-budget/guessed too. Readers take only lines
 # shaped `^([a-z_]+|\*) [0-9]{1,12}$` and ended by a newline, as
 # rate-guard.mjs does, so a fragment a short write left spoils only the line
 # it runs into. A missing stop file holds no stop; one that exists but cannot
@@ -60,6 +60,10 @@
 #                               the epoch second <pool> is stopped until, if
 #                               it is
 #   api_budget_guessed <epoch>  whether a stop until <epoch> is a guess
+#   api_budget_known_reset <pool> <route>
+#                               the reset of <pool>'s one open window in the
+#                               token's earlier readings of <route>, if there
+#                               is one
 #   api_budget_observe <file> <pool> <what>
 #                               reads gh api -i output and stops its pool when
 #                               it is exhausted, returning 1 unless the
@@ -179,19 +183,40 @@ api_budget_wrap_gh() {
 
 # A call whose headers the wrapper cannot read: a failure whose text names a
 # rate limit, or a 429, stops every pool, for the documented minute on a
-# secondary limit and otherwise for an hour, past any primary reset
+# secondary limit; a primary limit holds to its pool's reset when the token's
+# earlier readings show one window open (api_budget_known_reset), and
+# otherwise, like a bare 429, for an hour, past any primary reset
 # (rate-guard.mjs's SIGNALS).
 api_budget_pass() {
-  local err rc=0 seconds=3600
+  local err rc=0 at source=fallback
   err=$(mktemp 2>/dev/null) || { command gh "$@"; return; }
   api_budget_traced - "$@" 2>"$err" || rc=$?
   cat "$err" >&2
   if ((rc != 0)) && grep -qiE 'rate limit|RATE_LIMITED|abuse detection|\(HTTP 429\)' "$err"; then
-    ! grep -qiE 'secondary rate limit|abuse detection' "$err" || seconds=60
-    api_budget_stop '*' $(($(date +%s) + seconds)) fallback "gh $*" || :
+    if grep -qiE 'secondary rate limit|abuse detection' "$err"; then
+      at=$(($(date +%s) + 60))
+    elif grep -qiE 'rate limit|RATE_LIMITED' "$err" && at=$(api_budget_known_reset "$(api_budget_pool "$@")" "$(api_budget_route "$@")"); then
+      source="x-ratelimit-reset of an earlier reading"
+    else
+      at=$(($(date +%s) + 3600))
+    fi
+    api_budget_stop '*' "$at" "$source" "gh $*" || :
   fi
   rm -f "$err"
   return "$rc"
+}
+
+# api_budget_known_reset <pool> <route>: the reset of <pool>'s window from the
+# readings of <route> the gh wrapper's token already holds, when they show
+# exactly one window still open; two or more (one token can read several
+# counters) or none return 1. A reading of another route may come from another
+# core counter than the refused call's, so it is not read. No call is sent to
+# learn it.
+api_budget_known_reset() {
+  local file=${RUNNER_TEMP:-}/api-budget/${API_BUDGET_GH_TOKEN:-}
+  [[ -n ${RUNNER_TEMP:-} && ${API_BUDGET_GH_TOKEN:-} =~ ^[a-z][a-z0-9-]{0,39}$ && -f $file ]] || return 1
+  awk -v pool="$1" -v route="${2:-}" -v now="$(date +%s)" '$1 ~ /^[0-9][0-9][0-9]$/ && $6 == pool && $7 == route && $5 ~ /^[0-9]+$/ && length($5) <= 12 && $5 + 0 > now + 0 && !($5 in seen) { seen[$5]; n++; at = $5 }
+    END { if (n != 1) exit 1; print at }' "$file"
 }
 
 # api_budget_traced <out|-> <gh args>: gh with GH_DEBUG=1, stdout to <out>
@@ -370,6 +395,10 @@ api_budget_guessed() {
 
 api_budget_label() { [[ $1 == '*' || $1 == any ]] && echo API || echo "$1 API"; }
 api_budget_when() { jq -rn --argjson t "$1" '$t | todate'; }
+# A rate limit's annotation: a notice when the caller holds (API_BUDGET_HOLD=1,
+# outage posture element 2), else an error. The call returns 1 either way, so
+# a gate that does not hold still fails on it.
+api_budget_level() { [[ ${API_BUDGET_HOLD:-} == 1 ]] && echo notice || echo error; }
 
 api_budget_refuse() {
   local until
@@ -379,16 +408,16 @@ api_budget_refuse() {
   fi
   until=$(api_budget_stop_until "$1")
   [[ -z $until ]] && return 0
-  echo "::error::'$2' was not sent: GitHub's $(api_budget_label "$1") rate limit holds until $(api_budget_when "$until")" >&2
+  echo "::$(api_budget_level)::'$2' was not sent: GitHub's $(api_budget_label "$1") rate limit holds until $(api_budget_when "$until")" >&2
   return 1
 }
 
 api_budget_stop() {
   local dir=${RUNNER_TEMP:-/tmp}/api-budget lines
-  lines=("::error::'$4' hit GitHub's $(api_budget_label "$1") rate limit: no call to it before $(api_budget_when "$2") ($3); ${5:-the call returns 1}")
+  lines=("::$(api_budget_level)::'$4' hit GitHub's $(api_budget_label "$1") rate limit: no call to it before $(api_budget_when "$2") ($3); ${5:-the call returns 1}")
   # One printf per line: the line and its newline go in one write.
   if mkdir -p "$dir" 2>/dev/null && { printf '%s %s\n' "$1" "$2" >>"$dir/stop"; } 2>/dev/null &&
-    { [[ $3 != fallback ]] || { printf '%s %s\n' "$1" "$2" >>"$dir/guessed"; } 2>/dev/null; }; then
+    { [[ $3 == retry-after || $3 == x-ratelimit-reset ]] || { printf '%s %s\n' "$1" "$2" >>"$dir/guessed"; } 2>/dev/null; }; then
     printf '%s\n' "${lines[@]}" >&2
     return 1
   fi

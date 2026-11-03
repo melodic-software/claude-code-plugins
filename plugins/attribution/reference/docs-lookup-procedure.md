@@ -20,6 +20,7 @@ directory and what you write into the cache stay what this procedure sets.
 
 ```bash
 out="$(mktemp -d)"
+printf '%s\n' "$out"
 bash "<scripts>/fetch-docs.sh" --cache --profile <profile> --out "$out" <slug-or-url>
 ```
 
@@ -38,6 +39,10 @@ bash "<scripts>/fetch-docs.sh" --cache --profile <profile> --out "$out" <slug-or
 - A record with `quarantined: true` has its summaries and notes withheld; read the page itself.
 - `cache_key` null (the record's `cache_error` says why) means nothing was cached: work from the
   page file with `map --file` and `slice --file` below, and skip summaries and notes.
+- `$out` is yours to remove: when the lookup ends, at whatever step it stops, run
+  `rm -rf <out>` with the literal path step 1 printed (a later Bash call does not keep `$out`).
+  The cache keeps the page, so nothing a later step reads by `<ref>` is lost. If the permission
+  rules refuse the removal, say so and go on.
 
 ## 2. Read the page or its map
 

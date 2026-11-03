@@ -197,11 +197,11 @@ resolved it.
 
 - **Pointer**: when resolving the live style and what it changes, fetch [output styles: how output styles work](https://code.claude.com/docs/en/output-styles#how-output-styles-work) and [create a custom output style](https://code.claude.com/docs/en/output-styles#create-a-custom-output-style) live. **As of**: 2026-10-11. **Recheck trigger**: either section changes what `keep-coding-instructions` keeps or how `force-for-plugin` interacts with `outputStyle`.
 
-**Shadowed definitions fall out of this inventory, not out of a catalog.** Skills, subagents, and MCP
-servers override *by name*: where two share a name across scopes, exactly one is live. That is name
-comparison across a fixed precedence order, deterministic, model-free and derived tier, reported at
-`info` in its own section naming the live definition and the shadowed one. It is not a conflict
-finding and is never merged into one.
+**Shadowed definitions fall out of this inventory, not out of a catalog.** Where skills, subagents
+or MCP servers share a name across scopes, the pass compares names across the precedence order
+read live, deterministic, model-free and derived tier, and reports at `info` in its own section
+naming the live definition and the shadowed one, never as a conflict finding or merged into one.
+When deciding which same-named definition is live, fetch [skills: resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name), [subagents: choose the subagent scope](https://code.claude.com/docs/en/sub-agents#choose-the-subagent-scope) and [MCP: scope hierarchy and precedence](https://code.claude.com/docs/en/mcp#scope-hierarchy-and-precedence) live (as of 2026-11-03; recheck when any of the three changes how a name collision resolves or its scope order).
 
 ## Phase 2: Derive the exclusion set
 
@@ -285,9 +285,10 @@ overrun costs the lanes still running rather than the whole pass.
 
 ## Phase 4: The `/doctor` handoff
 
-`/doctor` owns the `CLAUDE.md` trim-and-migrate half, for which this pass builds no replacement,
-and `/doctor prompt-audit` is the instruction-file audit this pass hands off rather than runs.
-**Both are operator-run, so neither is dispatched.** Their records (version floors, write posture),
+This pass builds no replacement for `/doctor` and hands the instruction-file audit to `/doctor
+prompt-audit` rather than running it; for what each owns, fetch [memory: audit your instruction files](https://code.claude.com/docs/en/memory#audit-your-instruction-files)
+live (as of 2026-11-03; recheck when that section changes what either covers). **Both are
+operator-run, so neither is dispatched.** Their records (version floors, write posture),
 what the presence check verifies versus probes, and the absence classification are in
 [reference/doctor-handoff.md](reference/doctor-handoff.md).
 When `/doctor` is absent, name it as the missing capability and state what goes unchecked.

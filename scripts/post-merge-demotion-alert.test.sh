@@ -300,6 +300,19 @@ green_run() {
 # 4141 attempt 1), RUNS (the baseline listing), ANNOTATIONS_<id>, GREEN (the
 # last green full run listing; default one at OTHER), COMPARE (commits from
 # the green SHA to the failing one; default SHA alone).
+# lift_tool <work-dir>: a stub babysit_lift.py in main's checkout that logs its
+# arguments to stub/lift and prints LIFT_OUT, exiting LIFT_RC (default 0).
+lift_tool() {
+  local tool="$1/.base/plugins/source-control/skills/babysit-prs/scripts/babysit_lift.py"
+  mkdir -p "${tool%/*}"
+  cat >"$tool" <<PY
+import sys
+open("$TMP_ROOT/stub/lift", "a").write(" ".join(sys.argv[1:]) + "\n")
+if ${LIFT_RC:-0} == 0:
+    print("""${LIFT_OUT:-}""")
+sys.exit(${LIFT_RC:-0})
+PY
+}
 # run_step <workflow> <event> <conclusion> <branch> <head-repo> <sha> <issues-json> [comments-json]
 run_step() {
   rm -rf "$TMP_ROOT/stub" "$TMP_ROOT/work"
@@ -334,6 +347,9 @@ if """${JUDGE_ERROR:-}""":
 print(json.dumps(verdict))
 sys.exit($JUDGE)
 PY
+  fi
+  if [[ -n "${LIFT_TOOL:-}" ]]; then
+    lift_tool "$TMP_ROOT/work"
   fi
   printf '%s\n' "$7" >"$TMP_ROOT/stub/issues.json"
   printf '%s\n' "${8:-[]}" >"$TMP_ROOT/stub/comments.json"
@@ -898,7 +914,8 @@ reverts() {
       "$body" == *"- Reverted pull request: https://github.com/o/r/pull/$n"$'\n'* &&
       "$body" == *"- Revert commit: \`$commit\`"$'\n'* && "$body" == *"- Main at the push: \`$HEAD_SHA\`"* &&
       "$body" == *"- Canary run: $RUN_URL/attempts/1"* &&
-      "$body" == *"A person closes it directly"* && "$body" != *"git revert"* && "$body" != *"Failing run"* ]] &&
+      "$body" == *"It lifts once the reverted lines are back on main, or once a pull request that references this record merges into main"* &&
+      "$body" != *"git revert"* && "$body" != *"Failing run"* ]] &&
     grep -qx 'labels\[\]=needs-human' <<<"$fields" &&
     ! grep -qE 'rerun-failed-jobs|/compare/|status=success' <<<"$LOG" &&
     grep -q "p$n: pullRequest(number: $n)" "$TMP_ROOT/stub/graphql.$(grep -nx 'GET graphql' <<<"$LOG" | cut -d: -f1)"; then
@@ -2068,6 +2085,100 @@ refused "a run a person dispatched, which raises its own workflow_run event, is 
 refused "an answer for another run id is refused" workflow_dispatch 4242 41898282 'github-actions[bot]' \
   "$(attempt_run '.id = 4243')"
 
+# --- Lift blocks ------------------------------------------------------------
+# A canary or revert record carries the lift block main's babysit_lift.py
+# prints for the pushed or revert commits, so a lane can check its lift
+# (babysit_merge_policy.py `_lift`); with no block a canary record says only a
+# person's close clears it.
+BLOCK='<!-- lift-content v1 {"paths":{"f.py":{"e3b0c44298fc":1}}} -->'
+push_repo "$REVERTS"
+LIFT_TOOL=1 LIFT_OUT="$BLOCK" GRAPHQL="$LANE" run_push
+body="$(post_fields 2>/dev/null)"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$body" == *$'\n'"$BLOCK" ]] &&
+  [[ "$(cat "$TMP_ROOT/stub/lift")" == "revert-block --repo-dir .base $HEAD_SHA" ]]; then
+  ok "a revert record carries the lift block of the lines its revert commit deleted"
+else
+  fail "revert block: rc=$RC lift='$(cat "$TMP_ROOT/stub/lift" 2>/dev/null)' body='$body' out='$OUT'"
+fi
+LIFT_TOOL=1 LIFT_RC=1 GRAPHQL="$LANE" run_push
+body="$(post_fields 2>/dev/null)"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$body" != *"lift-content"* && "$body" == *"signal=revert -->"* ]]; then
+  ok "a revert record with no block to write is still filed, without one"
+else
+  fail "revert without block: rc=$RC body='$body' out='$OUT'"
+fi
+
+push_repo 'feat: a change (#1260)' 'fix: another change (#1261)'
+canary_fail() {
+  BASE_GIT="$PUSH_REPO" RUNS="$(baseline_run 4100 success "$PREV")" PIPELINE="$PIPE" GRAPHQL="$LANE" ATTEMPT=1 \
+    run_step "$CANARY" push failure main o/r "$HEAD_SHA" "${1:-[]}" "${2:-[]}"
+}
+LIFT_TOOL=1 LIFT_OUT="$BLOCK" canary_fail
+body="$(post_fields 2>/dev/null)"
+pushed="$(git -C "$PUSH_REPO" rev-list --first-parent "$PREV..$HEAD_SHA" | paste -sd ' ')"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$body" == *"signal=canary -->"* && "$body" == *$'\n'"$BLOCK"$'\n'* &&
+  "$(tr -s ' \n' ' ' <<<"$body")" == *"It lifts once the content whose deletion filed it is on main again"* ]] &&
+  grep -qx 'labels\[\]=needs-human' <<<"$body" &&
+  [[ "$(cat "$TMP_ROOT/stub/lift")" == "canary-block --repo-dir .base $pushed" ]]; then
+  ok "a canary record carries the lift block of the pushed commits and says how it lifts"
+else
+  fail "canary block: rc=$RC lift='$(cat "$TMP_ROOT/stub/lift" 2>/dev/null)' pushed='$pushed' body='$body' out='$OUT'"
+fi
+LIFT_TOOL=1 LIFT_RC=1 canary_fail
+body="$(post_fields 2>/dev/null)"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$body" != *"lift-content"* &&
+  "$(tr -s ' \n' ' ' <<<"$body")" == *"Only a person's direct close"*"could not be recorded"* ]]; then
+  ok "a canary record whose deleted content could not be recorded stays human-close"
+else
+  fail "canary without block: rc=$RC body='$body' out='$OUT'"
+fi
+# A push range cut to the newest 20 commits, or guessed because the previous
+# canary push run's head did not read, may leave out the deleting commit: no
+# block, so the record stays human-close rather than lifting on a block that
+# understates the deletion.
+mapfile -t many < <(for i in $(seq 21); do echo "feat: change $i (#$((1300 + i)))"; done)
+push_repo "${many[@]}"
+LIFT_TOOL=1 LIFT_OUT="$BLOCK" canary_fail
+body="$(post_fields 2>/dev/null)"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && ! -e "$TMP_ROOT/stub/lift" && "$body" != *"lift-content"* &&
+  "$(tr -s ' \n' ' ' <<<"$body")" == *"Only a person's direct close"* ]]; then
+  ok "a canary push of more than 20 commits gets no lift block and stays human-close"
+else
+  fail "canary cut range: rc=$RC lift='$(cat "$TMP_ROOT/stub/lift" 2>/dev/null)' body='$body' out='$OUT'"
+fi
+push_repo 'feat: a change (#1260)' 'fix: another change (#1261)'
+FAIL_PREV_READ=1 LIFT_TOOL=1 LIFT_OUT="$BLOCK" canary_fail
+body="$(post_fields 2>/dev/null)"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && ! -e "$TMP_ROOT/stub/lift" && "$body" != *"lift-content"* ]]; then
+  ok "a canary push whose previous run's head did not read gets no lift block"
+else
+  fail "canary guessed range: rc=$RC lift='$(cat "$TMP_ROOT/stub/lift" 2>/dev/null)' body='$body' out='$OUT'"
+fi
+
+# A canary record babysit_postmerge.py filed first gets the block as a
+# comment, once.
+CANARY_MARKER="<!-- babysit-merge-demotion sha=$HEAD_SHA signal=canary -->"
+LIFT_TOOL=1 LIFT_OUT="$BLOCK" canary_fail "[$(issue 41 "$CANARY_MARKER"$'\n\nbody')]"
+first="$(grep -n '^POST repos/o/r/issues/41/comments$' <<<"$LOG" | head -1 | cut -d: -f1)"
+if [[ "$RC" -eq 0 && -n "$first" ]] && grep -qxF "body=$BLOCK" "$TMP_ROOT/stub/post.$first" &&
+  [[ "$(grep -c '^POST repos/o/r/issues/41/comments$' <<<"$LOG")" -eq 2 ]]; then
+  ok "a canary record filed without a block gets it as a comment beside the sighting"
+else
+  fail "canary block comment: rc=$RC log='$LOG' out='$OUT'"
+fi
+LIFT_TOOL=1 LIFT_OUT="$BLOCK" canary_fail "[$(issue 41 "$CANARY_MARKER"$'\n\nbody\n'"$BLOCK")]"
+if [[ "$RC" -eq 0 && ! -e "$TMP_ROOT/stub/lift" && "$(grep -c '^POST repos/o/r/issues/41/comments$' <<<"$LOG")" -eq 1 ]]; then
+  ok "a canary record whose body carries a block gets no other and runs no scan"
+else
+  fail "canary with block: rc=$RC log='$LOG' out='$OUT'"
+fi
+LIFT_TOOL=1 LIFT_OUT="$BLOCK" canary_fail "[$(issue 41 "$CANARY_MARKER"$'\n\nbody')]" "[$(comment github-actions[bot] "$BLOCK")]"
+if [[ "$RC" -eq 0 && "$(grep -c '^POST repos/o/r/issues/41/comments$' <<<"$LOG")" -eq 1 ]]; then
+  ok "a canary record whose filer comment carries a block gets no second one"
+else
+  fail "canary with block comment: rc=$RC log='$LOG' out='$OUT'"
+fi
+
 # --- The close-cleared job ----------------------------------------------------
 # Each completed scheduled full run closes each open, never-edited schedule or
 # dispatch record either filer opened that a later green full run on main
@@ -2337,5 +2448,31 @@ for marker in "<!-- post-merge-failure sha=$OTHER signal=canary -->" "<!-- babys
     fail "close on '$marker': rc=$RC log='$LOG'"
   fi
 done
+# With main's babysit_lift.py checked out, the step first runs its close of
+# the lifted canary, revert and read-back records, with the identity it read;
+# an unreadable identity is passed empty, and a failing close still lets the
+# red-main records close.
+lift_tool "$TMP_ROOT/work"
+PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- post-merge-failure sha=$OTHER signal=schedule -->")]"
+if [[ "$RC" -eq 0 && "$(closed)" == 7 ]] &&
+  [[ "$(cat "$TMP_ROOT/stub/lift")" == "close --repo o/r --identity melodic-automation-lanes[bot]" ]]; then
+  ok "close-cleared runs main's babysit_lift.py close with the identity"
+else
+  fail "lift close: rc=$RC lift='$(cat "$TMP_ROOT/stub/lift" 2>/dev/null)' out='$OUT'"
+fi
+run_close "[$(rec 7 $BEFORE "<!-- post-merge-failure sha=$OTHER signal=schedule -->")]"
+if [[ "$RC" -eq 0 && "$(cat "$TMP_ROOT/stub/lift")" == "close --repo o/r --identity " ]]; then
+  ok "close-cleared passes no identity it could not read"
+else
+  fail "lift close without identity: rc=$RC lift='$(cat "$TMP_ROOT/stub/lift" 2>/dev/null)' out='$OUT'"
+fi
+LIFT_RC=1 lift_tool "$TMP_ROOT/work"
+PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- post-merge-failure sha=$OTHER signal=schedule -->")]"
+if [[ "$RC" -eq 0 && "$(closed)" == 7 && "$OUT" == *"::warning::the lifted records could not be closed"* ]]; then
+  ok "a failing lift close warns and the red-main records still close"
+else
+  fail "failing lift close: rc=$RC out='$OUT'"
+fi
+rm -rf "$TMP_ROOT/work/.base"
 
 test_harness::report

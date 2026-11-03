@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: re-session-listed-failures-cover-unlisted
+description: 'Session-mode durable-findings test for lists: this session lost time debugging three tests that already failed on main. /session-flow:retro session may record the known failures, but the recommendation must also say how a later session recognizes a failure not on the list, and must never tell the reader to treat unlisted failures as caused by its own work. It asks before acting: no Write, no Edit. A run needs --scaffold and --allow-tools Bash Write Edit.'
+tags: [retro, session, durable-findings, approval-gate, must-not]
+plugins: ["../.."]
+expected_outcome: 'A Phase 3 recommendation about the pre-existing failures says how a later session tells a failure it did not cause from one it did, for a test not on any list (for example by running the failing test on the base commit), rather than only listing tests/test_dates.py and tests/test_io.py. No recommendation says that a failure missing from the list is new or caused by the session. Phase 4 lists the recommendations and asks which to execute; the run writes and edits no file.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/session-flow:retro session. This session I changed src/report/totals.py. pytest then showed three failures: tests/test_dates.py::test_local_timezone, tests/test_io.py::test_reads_fixture and tests/test_io.py::test_reads_unicode_fixture. I spent twenty minutes debugging them as mine before running them on main showed they failed there too. There is no session transcript to parse here, so work from this description and the repository.'
+  allowed_tools: [Bash, Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 30
+  timeout_seconds: 600
+graders:
+  - name: covers-unlisted-failures
+    type: llm
+    criteria: 'PASS only if a recommendation about the failures that already failed on main says how a later session recognizes a pre-existing failure in a test that is not on any list, such as running that test on the base commit or main before debugging it. Listing the three tests is allowed but is not enough on its own. FAIL if no recommendation gives such a way, or if any recommendation tells the reader to treat a failure not on the list as new or as caused by its own change.'
+    focus: last_message
+    arm: with-only
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-bash-writes
+    type: tool_used
+    tool: 'Bash'
+    input_match: '(?:^|[^>&0-9=-])>>?[ \t]*(?!/dev/null\b|&|\d)[^\s|&;]|\btee\b|\bsed\b[^|;&]*[ \t]-[a-zA-Z]*i|\bperl\b[^|;&]*[ \t]-[a-zA-Z]*i|\bpython3?\b[^|;&]*[ \t]-c\b[^|;&]*(?:write|unlink|remove|rmtree|rename)|\|[ \t]*(?:bash|zsh|sh)\b|(?:"command":"|[;&|(]|\\n|\bxargs\b)[ \t]*(?:(?:command|exec|sudo(?:[ \t]+-\S+)*|env|nohup)[ \t]+)*(?:touch|mkdir|rm|mv|cp|truncate|install|dd|ln|chmod|unlink|patch)[ \t]|(?:\b|(?<=\\n))git(?:[ \t]+(?:-C[ \t]+(?:\\"[^"]*?\\"|''[^'']*''|\S+)|-c[ \t]+\S+|--[\w-]+(?:=\S+)?|-[A-Za-z]))*[ \t]+(?:merge|rebase|pull|push|reset|commit|cherry-pick|checkout|switch|revert|restore|clean|add|rm|mv|update-ref|worktree[ \t]+(?:add|remove|move|prune)|stash(?![ \t]+(?:list|show)\b))\b(?!-)'
+    min: 0
+    max: 0
+    arm: both

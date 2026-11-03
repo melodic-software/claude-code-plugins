@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "- Why says Holdfast is called from one module, but `src/checkout/complete.ts` also imports it for `extend`.\n",
+      "why": "bullet naming the file"
+    },
+    {
+      "answer": "| 1 | CRITICAL | Plan | `completeCheckout` still calls Holdfast's `extend`; Phase 3's removal breaks the build | Add it to Phase 1 |\n",
+      "why": "table row with function"
+    },
+    {
+      "answer": "- `extendLock` in complete.ts is a second call site the draft missed.\n",
+      "why": "second call site"
+    },
+    {
+      "answer": "| 2 | IMPORTANT | Plan | src/checkout is not covered by Phase 1, and Holdfast's extend lives there | Migrate it |\n",
+      "why": "not covered"
+    },
+    {
+      "answer": "- complete.ts contradicts the one-module claim.\n",
+      "why": "contradicts"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "- `complete.ts` does not call Holdfast directly, so the one-module claim holds.\n",
+      "why": "negated"
+    },
+    {
+      "answer": "- completeCheckout is fine as it is.\n",
+      "why": "dismissed"
+    },
+    {
+      "answer": "- `src/checkout/complete.ts` has a five-minute payment window.\n",
+      "why": "named, no nature"
+    },
+    {
+      "answer": "- Phase 3 has no rollback step for the lockfile refresh.\n",
+      "why": "another finding"
+    },
+    {
+      "answer": "- The holds module also uses `ioredis`.\n",
+      "why": "nature without the file"
+    }
+  ]
+}

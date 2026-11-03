@@ -35,6 +35,10 @@ facts, this skill turns both into a design. When the PROBLEM is still rough and 
 chosen, diverge first via `/planning:brainstorm` (cheapest→most-ambitious candidates, user
 reacts), then design the direction that resonated.
 
+**Level this skill decides: interfaces and contracts**, the types, boundaries and module shapes
+other code depends on; behavior is the interview's Brief, and files and symbols are
+`/planning:plan`'s.
+
 Depth scales to the work:
 
 - Single-file fix → early-exit: write `design-resolution.md` with `outcome: early-exit`, tier `C`,

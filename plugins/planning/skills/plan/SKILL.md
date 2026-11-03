@@ -29,6 +29,8 @@ Arguments: `$ARGUMENTS`
 
 Every implementation starts with a clear design, evidence, a test strategy, and user sign-off before any code is written. This is **not** Claude Code's built-in plan mode (what that mode does: [Analyze before you edit with plan mode](https://code.claude.com/docs/en/permission-modes#analyze-before-you-edit-with-plan-mode), as of 2026-11-03; recheck when that section changes what plan mode lets Claude do); this skill is a separate *planning discipline* that can run inside it. It consumes exploration, research, and `/planning:design` (types, contracts, module boundaries, package topology) and produces a plan the user approves before execution. A 2-minute plan prevents a 20-minute rework cycle. Match planning depth to blast radius: a one-file fix gets a brief plan; a cross-cutting architecture change gets a full plan with stress-testing and research-iterate loops.
 
+**Level this skill decides: files and symbols**, which files change and which functions, types and tests each phase touches; behavior is the interview's Brief, and interfaces and contracts are `/planning:design`'s.
+
 **Skip the plan when one sentence covers the change.** First try to write the whole diff as one sentence. The test passes when no design question is open and that sentence describes every edit. How this skill was reached decides what happens next:
 
 - **Invoked proactively** (nobody asked for a plan): say the change fits one sentence, give the sentence, and skip the plan. No checklist, no plan-reviewer, no PLAN.md draft.
@@ -36,7 +38,7 @@ Every implementation starts with a clear design, evidence, a test strategy, and 
 
 ## Emit checklist
 
-For multi-step planning (almost always steps 1-5), copy `templates/checklist.md` to `<memory_dir>/<topic-slug>/plan-checklist.md` (default `.work/`) and tick each `- [ ]` as its step completes. Step 3 (fresh-context plan stress-test) and Step 5 (present for approval) are non-negotiable ticks. Stress-test before presenting, always.
+For multi-step planning (almost always steps 1-5), copy `templates/checklist.md` to `<memory_dir>/<topic-slug>/plan-checklist.md` (default `.work/`) and tick each `- [ ]` as its step completes. Step 3 (fresh-context plan stress-test) and Step 5 (present for approval) are non-negotiable ticks, except that `plan_stress_test`'s `devils-advocate` value moves Step 3's tick to Step 4. Stress-test before presenting, always.
 
 **Skip when:** the one-sentence skip (Purpose) applied, so no plan is written. On a mid-flight `review` replan, append a dated scope-change note and revise the PLAN phases instead; do not spawn a second checklist file.
 
@@ -61,7 +63,7 @@ These hold after a compaction re-attach. Later steps say how to carry them out.
 
 **Verification.** Claim: after auto-compaction Claude Code re-attaches each skill's most recent invocation keeping its first 5,000 tokens, within a shared 25,000-token budget. Basis: https://code.claude.com/docs/en/skills (auto-compaction paragraph); `tests/reattach-slice.test.sh` stands in for the 5,000 tokens with the first 20,000 bytes. As-of: 2026-09-29. Recheck when that paragraph changes either figure, or when the page stops describing a per-skill re-attach.
 
-- **Reviewer.** Before assessing blast radius, dispatch a fresh-context plan-reviewer sub-agent for any plan you present. The producing thread does not self-attack the plan inline. A change skipped under the one-sentence rule (Purpose) has no plan to review.
+- **Reviewer.** Before assessing blast radius, dispatch a fresh-context plan-reviewer sub-agent for any plan you present, unless `plan_stress_test` (Step 3) sets `devils-advocate` for the draft's mode. The producing thread does not self-attack the plan inline. A change skipped under the one-sentence rule (Purpose) has no plan to review.
 - **Hard-to-reverse decisions escalate EARLY** regardless of confidence. Below-bar judgment calls go to an interview round before the plan locks.
 - **Agent teams.** Route a phase to an agent team only when the parallel-safe workers must message each other and agent teams are enabled; otherwise use sub-agent workers or sequential. Disjoint file ownership between teammates is mandatory; for why, see [agent teams: avoid file conflicts](https://code.claude.com/docs/en/agent-teams#avoid-file-conflicts) (as of 2026-11-01; recheck when that section changes how teammates share files).
 
@@ -99,7 +101,7 @@ The plan is a proposal, not a commitment. The user approves, modifies, or reject
 
 1. The structured plan (Step 2, updated by Steps 3-4 if applicable)
 2. Blast-radius assessment (Step 3b)
-3. Stress-test summary (Step 4, if run), or "Skipped: blast radius LOW, no triggers matched"
+3. Stress-test summary (Step 4, if run), or "Skipped: blast radius LOW, no triggers matched", or "Skipped: `plan_stress_test` is `reviewer`"
 4. **Execution shape** (Step 4.5): the four-dimension table, parallelism shape AND per-phase routing table, with each `multi-shape` phase's attempt constraints and selection rule. Skipped for single-phase plans
 5. **Displaced answers and new external effects** ("Plan changes after the Brief"). One row per change: `Q<N>` or `none`, what the user said, what the plan now proposes, the new external effect, and the source (`reviewer fix`, `research update`, or `stress-test finding`). Omit the block when empty. The approval request names every row as needing its own reply
 6. **Decisions made (gate-passed)** (Step 4.6). TABLE per [context/tag-decisions.md](context/tag-decisions.md) "Presentation contract": `Decision | What it changes in the plan | Basis (evidence) | Source`, one row per gate-passed `[EXEC-SHAPE]` / `[FALLBACK]` tag and per deferred Brief question the plan resolved (Source `deferred Q<N>`), written for a cold reader (no session shorthand). Below-bar decisions never appear here. An empty section ("no unilateral decisions. Every PLAN item traces to brief") is valid
@@ -222,6 +224,8 @@ For the removal step, invoke `/code-tidying:audit-dead-code` through the Skill t
 
 ### Step 3: Plan Stress-Test
 
+**Which stress-tests run (`plan_stress_test`).** Name the draft's mode (`plan`, `proposal` or `incumbent`), then resolve that mode's value per [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md) "Convention-home keys", which defines the modes and values (no `userConfig` layer; the default is `auto`). Report one line, e.g. `plan_stress_test.incumbent: both (docs/conventions/planning.yaml)`. `auto`, `reviewer` and `both` run this step; `devils-advocate` skips it and goes to Step 3b.
+
 Apply the reviewer rule under Planning Process before blast radius or presentation. The producing main thread MUST NOT self-attack the plan inline: the model that just wrote the plan rubber-stamps it. Where the plan is high-stakes and correlated blind spots are the risk, prefer a cross-vendor advisor **when one is enabled and set up** (e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs), with the fresh-context plan-reviewer sub-agent as the stated fallback, never a route to a command that may not resolve (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository).
 
 1. Gather the plan draft + design artifacts (or `design-resolution.md`) + the Brief
@@ -244,14 +248,14 @@ Stress-test needed: [Yes — invoking /planning:devils-advocate / No — plan-re
 Reason: <1-2 sentences>
 ```
 
-If LOW and no triggers match: skip Step 4 (Formal Stress-Test) only. Continue at Step 4.5, then Steps 4.6-4.7 before presenting. If MEDIUM or higher, or any trigger matches: proceed to Step 4, then Steps 4.5-4.7.
+Under `plan_stress_test`'s `auto`: if LOW and no triggers match, skip Step 4 (Formal Stress-Test) only and continue at Step 4.5, then Steps 4.6-4.7 before presenting; if MEDIUM or higher, or any trigger matches, proceed to Step 4, then Steps 4.5-4.7. Under `reviewer`, skip Step 4 and answer `No` on the `Stress-test needed` line, whatever the assessment says. Under `devils-advocate` or `both`, proceed to Step 4 and answer `Yes`, whatever the assessment says. Name the setting as the reason when it overrides the assessment.
 
 ### Step 4: Formal Stress-Test and Research-Iterate (conditional)
 
-Runs only when the blast-radius assessment triggers it; the deeper, formal version of Step 3.
+Runs only when Step 3b sends the plan here; the deeper, formal version of Step 3.
 
 1. **Surface the cost.** Tell the user a formal `/planning:devils-advocate` run is starting in fresh context (another serial sub-agent, typically higher turn budget than Step 3) before dispatching.
-2. **Dispatch `/planning:devils-advocate` via the Skill tool to a fresh-context sub-agent**. Keep the brief short: findings table, not a narrative. Hand it the plan (plus the Brief, the interview ledger `<memory_dir>/<topic-slug>/interview-checklist.md` when one exists, and any design artifacts), not your rationale for it. The producing main thread MUST NOT run the stress-test inline, for the same reason as Step 3. Verify its findings against the actual code/files before acting on them; sub-agent findings are synthesis, not ground truth
+2. **Dispatch `/planning:devils-advocate` via the Skill tool to a fresh-context sub-agent**. Under `plan_stress_test`'s `devils-advocate` or `both`, an `incumbent` draft runs the skill's `incumbent` mode, with `incumbent <the tool or approach it decides on>` as its arguments; every other run is plan-review mode. Keep the brief short: findings table, not a narrative. Hand it the plan (plus the Brief, the interview ledger `<memory_dir>/<topic-slug>/interview-checklist.md` when one exists, and any design artifacts), not your rationale for it. The producing main thread MUST NOT run the stress-test inline, for the same reason as Step 3. Verify its findings against the actual code/files before acting on them; sub-agent findings are synthesis, not ground truth
 
    **Audit judgment (untested):** at MEDIUM or higher blast radius, Step 3 and Step 4 may dispatch against the same plan draft in one message when Step 4's criteria read off the draft rather than Step 3's findings. Document when used; default remains serial.
 
@@ -367,7 +371,7 @@ Write the plan even for small changes; only the one-sentence skip (Purpose) writ
 
 ## What This Skill Does NOT Do
 
-- **Does not replace `/planning:devils-advocate`**. It decides when to invoke it, based on blast radius
+- **Does not replace `/planning:devils-advocate`**. It decides when to invoke it, based on blast radius and `plan_stress_test`
 - **Does not replace research**. It uses research findings as input and may trigger more research in Step 4
 - **Does not replace built-in plan mode**, a permission mode; the two complement each other
 - **Does not write code**. Execution is a separate stage

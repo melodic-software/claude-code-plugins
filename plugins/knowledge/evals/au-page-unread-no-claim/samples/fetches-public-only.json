@@ -5,7 +5,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh\" --profile generic --public-only --out \"$(mktemp -d)\" https://agent-notes.example/posts/retry-loops",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh\" --profile generic --public-only --out \"${CLAUDE_PLUGIN_DATA}/absorb-upstream/retry-loops\" https://agent-notes.example/posts/retry-loops",
             "description": "run"
           }
         }

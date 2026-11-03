@@ -57,6 +57,34 @@ lib/managed-scope.sh -> plugins/*/lib/managed-scope.sh
 # lib/state-key.sh.
 lib/state-key.sh
 
+# No dedicated check: accepted. The prerequisite plugins grade one case shape, so
+# they commit the same small samples. Canonical copy: the file under plugins/toolchain/evals/.
+evals/ck-notice-reads-checker/samples/no-edit.json
+
+# No dedicated check. Canonical copy: plugins/toolchain/evals/.
+evals/ck-notice-reads-checker/samples/no-write.json
+
+# No dedicated check. Canonical copy: plugins/toolchain/evals/.
+evals/ck-notice-reads-checker/samples/no-install.json
+
+# No dedicated check. Canonical copy: plugins/toolchain/evals/.
+evals/ck-notice-reads-checker/samples/ran-checker.json
+
+# No dedicated check. Canonical copy: plugins/toolchain/evals/.
+evals/ck-notice-reads-checker/scaffold.sh
+
+# No dedicated check: accepted, as above. Canonical copy: plugins/speech/evals/.
+evals/ck-notice-runs-own-report/samples/no-edit.json
+
+# No dedicated check. Canonical copy: plugins/speech/evals/.
+evals/ck-notice-runs-own-report/samples/no-write.json
+
+# No dedicated check. Canonical copy: plugins/speech/evals/.
+evals/ck-notice-runs-own-report/samples/no-install.json
+
+# No dedicated check. Canonical copy: plugins/speech/evals/.
+evals/ck-notice-runs-own-report/scaffold.sh
+
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/state-key.sh -> plugins/*/lib/state-key.sh
@@ -258,10 +286,6 @@ tsconfig.json
 # Canonical copy: the file under plugins/multi-agent/evals/; copy it into the
 # other plugins to fix a drift failure, or remove the line when one plugin's
 # grader legitimately diverges.
-evals/ck-notice-runs-bundled-checker/samples/no-install.json
-
-# No dedicated check: accepted, for the reason on the entry above.
-# Canonical copy: the file under plugins/multi-agent/evals/.
 evals/ck-notice-runs-bundled-checker/samples/ran-checker.json
 
 # No dedicated check: accepted, for the reason on the entries above.
@@ -275,6 +299,12 @@ evals/ck-notice-runs-bundled-checker/samples/no-write.json
 # No dedicated check: accepted, for the reason on the entries above.
 # Canonical copy: the file under plugins/discovery/evals/.
 evals/ck-notice-alone-installs-nothing/samples/ran-checker.json
+
+# No dedicated check: accepted. The seven formatter plugins' copies of this case
+# build no-install from one matchers.json, rendered by check-matchers into each
+# case.yaml; this script's own --check is the gate. Canonical copy: the file
+# under plugins/bash-format/evals/.
+evals/ck-notice-runs-bundled-checker/matchers.json
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/html-escape.mjs. The review and education plugins carry the adopting
@@ -471,6 +501,16 @@ reference/docs-lookup-procedure.md
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/docs-lookup-procedure.md -> plugins/*/reference/docs-lookup-procedure.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/rendered-view.md, the rendered-view procedure every view lane follows,
+# carried by planning, architecture, discovery and debugging (debugging's copy
+# sits under skills/debug/reference/).
+reference/rendered-view.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/rendered-view.md -> plugins/*/reference/rendered-view.md plugins/debugging/skills/debug/reference/rendered-view.md
 
 # No dedicated check: a one-line `@AGENTS.md` CLAUDE.md shim beside an `audit`
 # skill's contributor AGENTS.md, carried by every plugin whose audit skill

@@ -3,6 +3,12 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.1] - 2026-11-03
+
+### Fixed
+
+- A plain-language request to run the apply step no longer runs `install.mjs`: `setup` tells the model to reply with `/actionlint:setup apply install-git-hooks` for the user to type.
+
 ## [1.0.0] - 2026-11-03
 
 ### Removed

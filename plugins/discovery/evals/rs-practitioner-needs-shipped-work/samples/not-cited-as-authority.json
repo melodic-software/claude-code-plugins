@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "It cannot be cited as a recognized authority: followers are not proof of work.",
+      "why": "meets the outcome"
+    },
+    {
+      "answer": "No, it is not an authority. Label it unproven.",
+      "why": "meets the outcome"
+    },
+    {
+      "answer": "The thread should not be treated as authoritative.",
+      "why": "meets the outcome"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, 180k followers makes it a recognized authority.",
+      "why": "misses the outcome"
+    },
+    {
+      "answer": "Cite it as Tier 2.",
+      "why": "misses the outcome"
+    },
+    {
+      "answer": "",
+      "why": "misses the outcome"
+    }
+  ]
+}

@@ -290,11 +290,39 @@ describe("an umbrella issue", () => {
     assert.deepEqual((await run([], { subject: { summary: summary(2, 1), subs: notPlanned } })).outputs, RUN);
   });
 
-  test("costs no call past the issue read when the summary shows none open", async () => {
-    for (const subject of [{ summary: summary(0, 0) }, { summary: summary(4, 4) }]) {
-      const { calls, outputs } = await run([], { subject });
-      assert.deepEqual(outputs, RUN, JSON.stringify(subject));
-      assert.ok(!calls.some((call) => call.includes("/sub_issues")), JSON.stringify(subject));
+  test("costs no call past the issue read when the summary shows no sub-issue", async () => {
+    const { calls, outputs } = await run([], { subject: { summary: summary(0, 0) } });
+    assert.deepEqual(outputs, RUN);
+    assert.ok(!calls.some((call) => call.includes("/sub_issues")));
+  });
+
+  // A finished parent (admit.mjs finishedParent) runs once to verify its own
+  // done-when: Size Large does not skip it (split-child), and report-outcome
+  // gets its trusted sub-issues (verify-close).
+  // The parent (#42, no blocker) and its sub-issues, each read by number.
+  const parent = (children) => (path) => {
+    if (path === "/repos/o/r/issues/42") {
+      return { number: 42, state: "open", user: HUMAN, labels: [], sub_issues_summary: summary(children.length, children.length) };
+    }
+    if (path.includes("/sub_issues")) {
+      return children;
+    }
+    if (path === "/graphql") {
+      return GRAPHQL;
+    }
+    const child = children.find((item) => path === `/repos/o/r/issues/${item.number}`);
+    return child ?? [];
+  };
+
+  test("whose every sub-issue a listed human closed as completed runs as a finished parent", async () => {
+    const { outputs } = await run(parent([issue(9691, "closed"), issue(9692, "closed")]));
+    assert.deepEqual(outputs, { ...RUN, "split-child": "true", "verify-close": "9691,9692" });
+  });
+
+  test("with a sub-issue closed not planned, or closed by a stranger, is no finished parent", async () => {
+    for (const second of [issue(9692, "closed", { reason: "not_planned" }), issue(9692, "closed", { closer: STRANGER })]) {
+      const { outputs, lines } = await run(parent([issue(9691, "closed"), second]));
+      assert.deepEqual(outputs, RUN, JSON.stringify(lines));
     }
   });
 
@@ -372,4 +400,50 @@ test("a blocker the lanes App closed report-delivered runs once agent-ready post
 test("a blocker someone other than the lanes App closed blocks even with an older App report-delivered comment", async () => {
   const comments = [reportClose(APP, "2026-10-28T00:00:00Z")];
   assert.deepEqual((await run(reportWorld({ comments, readyAt: "2026-10-29T00:00:00Z", closer: STRANGER }))).outputs, SKIP);
+});
+
+// The read runner's in-slot re-check (RECHECK=true): a blocker added while
+// the run waited for its slot stops it as admission's blocker gate does, on
+// one blocked_by read; a list of closed blockers takes the full check.
+describe("the in-slot re-check", () => {
+  const RECHECK = { ...ENV, RECHECK: "true" };
+  const RECHECK_RUN = { proceed: "true", untrusted: "false" };
+
+  test("no blocker proceeds on the one blocked_by read", async () => {
+    const { code, calls, outputs } = await run([], { env: RECHECK });
+    assert.equal(code, 0);
+    assert.deepEqual(outputs, RECHECK_RUN);
+    assert.deepEqual(calls, ["GET /repos/o/r/issues/42/dependencies/blocked_by?per_page=100&page=1"]);
+  });
+
+  test("an open blocker added since admission stops the run as admission does, on the one read, with the same notice", async () => {
+    const admitted = await run([issue(7, "open")]);
+    const { code, calls, lines, outputs } = await run([issue(7, "open"), issue(8, "closed")], { env: RECHECK });
+    assert.equal(code, 0);
+    assert.deepEqual(outputs, SKIP);
+    assert.deepEqual(outputs, admitted.outputs);
+    assert.deepEqual(calls, ["GET /repos/o/r/issues/42/dependencies/blocked_by?per_page=100&page=1"]);
+    const notice = lines.find((line) => line.startsWith("::notice"));
+    assert.match(notice, /^::notice title=blocked::/);
+    assert.match(notice, /#7/);
+  });
+
+  test("closed blockers alone take the full check, which judges who closed them", async () => {
+    assert.deepEqual((await run([issue(8, "closed")], { env: RECHECK })).outputs, RUN);
+    const stranger = await run([issue(7, "closed", { closer: STRANGER })], { env: RECHECK });
+    assert.deepEqual(stranger.outputs, SKIP);
+    assert.ok(stranger.calls.includes("GET /repos/o/r/issues/42"), "the full check reads the issue");
+  });
+
+  test("a blocked_by read that fails stops the run with a warning, not for good", async () => {
+    const { code, lines, outputs } = await run(
+      (path) => {
+        throw new Error(`502 ${path}`);
+      },
+      { env: RECHECK },
+    );
+    assert.equal(code, 0);
+    assert.deepEqual(outputs, SKIP);
+    assert.ok(lines.some((line) => line.startsWith("::warning title=admission unread::")));
+  });
 });

@@ -86,6 +86,13 @@ enabled-gate.
 
 ## `apply install-git-hooks [scope=local|shared]`
 
+**Run this section only when the user typed `/actionlint:setup apply install-git-hooks` as a
+command; that typed command is the only go-ahead this flow takes, `plan` included.** The user's
+answers to this section's own questions continue a run it started. On any other request,
+including a plain-language "run the apply step" or "register the hook" and a hook notice, never
+run `install.mjs` `plan`, `copy`, `decline` or `config-hook`, and reply that the user should type
+`/actionlint:setup apply install-git-hooks` themselves.
+
 Registers the plugin's git-hook entries (`git-hooks/entries.json`) with the repository's hook
 manager. The installer script only detects, renders and writes files the plugin owns; every step
 that needs judgment comes back to you as a `decisions[]` item, which you reason about and apply

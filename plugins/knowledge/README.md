@@ -16,7 +16,6 @@ person's or company's published web corpus into concept-organized, author-attrib
 | `docpage-digest` | `/knowledge:docpage-digest` | Ingests a single online documentation page (docs-site URL) into a verified knowledge slice. Unaltered original, SOURCES.md inventory, per-section model-matched digests, dual verification (one cross-vendor verifier), and an interview-ready handoff artifact. Publisher profiles (fetch channel, applicability filter, doc queue) are separable context files; first profile: Anthropic docs. |
 | `map-corpus` | `/knowledge:map-corpus` | Maps a multi-resource documentation corpus into a verified, classified, triaged slice before any digesting: bounded discovery, a user-approved link map classifying every discovered URL, deterministic node manifests over immutable snapshots, and a per-node relevance inventory whose evidence a script gate verifies, handing an approved queue to N runs of `/knowledge:docpage-digest`. |
 | `video-digest` | `/knowledge:video-digest` | Watches a single public video from YouTube or X (Twitter), transcript + visual frames, harvests reference links, drives external research, and synthesizes a prioritized repo-applicability menu. Actions: `watch`, `queue`, `transcript`, `resume`. |
-| `check` | `/knowledge:check` | Read-only check that the external tools the plugin declares (node, python, yt-dlp, ffmpeg, ImageMagick and the rest) resolve. Run it when a digest skill stops on a missing tool, or before `video-digest`, `course-digest`, `docpage-digest` or `map-corpus`. Installs nothing. |
 | `setup` | `/knowledge:setup` | `check` (default) verifies `library_dir` against the repository's artifact convention, reports `absorb-upstream`'s record directory, and probes the extraction prerequisites read-only; `apply` routes personal option changes through Claude Code's plugin configuration prompt; `apply install-deps` provisions the video pipelines' node dependencies and Chromium. |
 
 ## What distill produces
@@ -79,10 +78,13 @@ the rest of the knowledge stack.
 
 ## Requirements
 
-- A PDF or EPUB you have the right to read. PDF works natively with Claude
-  Code's Read tool; EPUB requires unzipping and text extraction first. A web
-  corpus needs public https pages or an export you supply.
-- **`gh` signed in** for `distill`'s visibility check on a GitHub remote.
+- A PDF or EPUB you have the right to read. EPUB requires unzipping and text
+  extraction first. For what the Read tool needs to read a PDF, see
+  [Tools reference: Read tool behavior](https://code.claude.com/docs/en/tools-reference#read-tool-behavior)
+  (as of 2026-11-03; recheck when that section changes how Read handles a PDF).
+  A web corpus needs public https pages or an export you supply.
+- **`gh` signed in** for `distill`'s visibility check on a GitHub remote, and
+  for `absorb-upstream` to read a repository URL through the GitHub API.
 - **Node.js on `PATH`**: `absorb-upstream`, `course-digest`, `distill`,
   `docpage-digest`, `map-corpus` and `video-digest` resolve their session root,
   and `distill` its progress key, with `scripts/work-root.mjs`.
@@ -118,8 +120,10 @@ defaults keep every pipeline working):
 needs no configuration to run; `library_dir` is the shared setting the
 plugin's ingestion pipelines read to find where artifacts land. The `video-digest` acquisition
 options above tune yt-dlp authentication and throttling; **course-platform
-credentials are intentionally not** `userConfig`. They stay in shell env vars
-because a `sensitive` option persists as plaintext on Windows today.
+credentials are intentionally not** `userConfig`. They stay in shell env vars.
+For where Claude Code stores a `sensitive` option, see
+[Plugin manifest reference: Where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored)
+(as of 2026-11-03; recheck when that section changes where sensitive values go).
 
 ### Option details
 

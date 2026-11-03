@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "- AC1 is not met: tickwheel's `utc_offset` is a fixed value, so sends drift when daylight saving time starts.\n",
+      "why": "bullet naming the option"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | `config/clinics.yaml` stores a literal offset per clinic; after a DST switch the 09:00 send fires an hour late | Use a zone-aware trigger |\n",
+      "why": "table row naming the file"
+    },
+    {
+      "answer": "- Tickwheel has no zone database, so clinics leave 09:00 local at each clock change and AC1 fails half the year.\n",
+      "why": "clock change phrasing"
+    },
+    {
+      "answer": "| 2 | CRITICAL | Plan | `utc_offset` -06:00 only holds in winter: in summer time Maple Street sends one hour off | Replace the trigger |\n",
+      "why": "summer time phrasing"
+    },
+    {
+      "answer": "- The draft treats the offset as fine, but it is wrong for a clinic that observes DST.\n",
+      "why": "quotes the draft, then contradicts it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "- Tickwheel's utc_offset handles DST across the year.\n",
+      "why": "dismissed: claims it handles DST"
+    },
+    {
+      "answer": "- The per-clinic offset is fine across DST.\n",
+      "why": "dismissed"
+    },
+    {
+      "answer": "- AC1 has no daylight saving problem: the offset is per clinic.\n",
+      "why": "negated"
+    },
+    {
+      "answer": "- Phase 3 has no test for a refused gateway request.\n",
+      "why": "another finding"
+    },
+    {
+      "answer": "- AC1 is untraceable to a test.\n",
+      "why": "AC1 named, nature absent"
+    }
+  ]
+}

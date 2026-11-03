@@ -89,9 +89,9 @@ organization policy, say so plainly and stop; there is no workaround to offer.
 
 ## Step 4: Delivery, especially off the desktop
 
-The upstream skill writes a single HTML file and opens it with `open <file>.html`,
-which assumes a local desktop browser. Feature-detect the delivery path instead of
-assuming it:
+How the upstream skill writes and opens its HTML file is that skill's to define.
+Feature-detect the delivery path instead of assuming its opening step reaches the
+user:
 
 1. A desktop session with a local browser: let the upstream flow open the file.
 2. A session that can publish an Artifact: offer to publish the generated HTML so the
@@ -102,6 +102,13 @@ assuming it:
 4. None of the above: report the file's absolute path and say how to open it.
 
 Degrade visibly at every tier; never name a delivery surface as guaranteed.
+
+- **Pointer**: when deciding whether the upstream flow can open the file in this
+  session, fetch [the playground skill § How to use this skill](https://github.com/anthropics/claude-plugins-official/blob/main/plugins/playground/skills/playground/SKILL.md#how-to-use-this-skill)
+  live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section is removed or retitled, or the skill moves out of
+  `plugins/playground/`.
 
 ## Recipes (field-tested)
 

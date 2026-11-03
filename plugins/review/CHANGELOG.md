@@ -3,6 +3,26 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.1.1] - 2026-11-03
+
+### Changed
+
+- Shared `view-registry.mjs` synced where this plugin carries it ([#12667](https://github.com/melodic-software/claude-code-plugins/issues/12667)): it registers the view lanes the per-plugin resolver migrations will use; no other change to this plugin.
+
+### Fixed
+
+- `/review:fanout` in run-everything mode omits `args.roles` when the reviewed change set touches a `multi-agent.yaml` file, the multi-agent team layer, so the change under review cannot choose the models that review it. It checked only the old team files, `docs/conventions/multi-agent.md` and `.claude/multi-agent.yaml`, which the multi-agent resolver no longer reads ([#9737](https://github.com/melodic-software/claude-code-plugins/issues/9737)).
+
+## [6.1.0] - 2026-11-03
+
+### Added
+
+- `fanout_diversity` takes a third value, `codex`. Under it, `/review:fanout run-everything` runs the `lens` roster and uses the Codex reviewer, through `skills/fanout/scripts/codex-review.sh`, as the model-diversity panel in place of `model` mode's same-vendor model tiers. The surfaces it runs are the ones `lens` runs; it adds a `panel:` line, `panel: codex ran`, or `panel: codex skipped (<reason>)` when Codex is not installed, enabled or logged in, and the lens sweep still runs. The default stays `lens`. Set `codex` through the plugin option or `docs/conventions/review.yaml` (#12504).
+
+### Fixed
+
+- The shared `lib/publish-gate.mjs` copy's leak scan (`scanLeak`) now also decodes base64 and base64url runs, up to two layers and including runs of non-ASCII UTF-8 text, and blocks a GitHub token or Anthropic key inside one. Nothing in this plugin calls `scanLeak`, and its publish gate behaves as before (#8295).
+
 ## [6.0.1] - 2026-11-03
 
 ### Added

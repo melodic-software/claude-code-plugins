@@ -17,7 +17,8 @@
 // request's own FAILs. A read that fails, times out or answers for another
 // head, and any other refusal, is not the cap: the round runs as before,
 // with a warning naming it, unless the caller expects that refusal (a FAIL
-// at the head of a round sent for that FAIL). Each read's stderr, the
+// at the head of a round sent for that FAIL) or it is `verify:earlier-fail`,
+// whose FAILed heads the answer names for the round. Each read's stderr, the
 // reader's `babysit-listing-miss` lines first, is logged on one line.
 //
 // The reader counts every FAIL in the repository, so each read needs a run
@@ -51,6 +52,11 @@ export const SIBLING_UNREADABLE = "a FAIL run of a pull request for the same iss
 export const DEADLINE_UNREADABLE = "the artifact listing does not fit in the caller's limit";
 // babysit_verify_evidence.py FAIL: a counted FAIL at the head.
 export const FAIL = "verify:fail";
+// babysit_verify_evidence.py EARLIER_FAIL: a counted FAIL at another head of
+// the pull request that the head's passes do not clear. The report's
+// `earlierFails` names those heads, and an address-feedback round works their
+// notes from the verdict artifacts (address-feedback.mjs select).
+export const EARLIER_FAIL = "verify:earlier-fail";
 // babysit_verify_evidence.py LISTING_MISS_PREFIX: the stderr line of a
 // listing read that missed GitHub's live artifact count.
 export const LISTING_MISS_PREFIX = "babysit-listing-miss";
@@ -195,10 +201,17 @@ export function verifyCapReader(env, options) {
 // head the gate's `_superseded` gave way.
 export const SUPERSEDED_AT_HEAD = "supersededAtHead";
 
-// verifyCapReader's read, answering { cap, supersededAtHead }: `cap` as above,
-// and `supersededAtHead` true only when the read at the head says so, so a
-// failed read, an answer for another head or a reader without the field is
-// not superseded.
+// babysit_verify_evidence.py Evidence.report's field: the heads of the pull
+// request's counted FAILs other than the head.
+export const EARLIER_FAILS = "earlierFails";
+
+// verifyCapReader's read, answering { cap, supersededAtHead, earlierFailHeads }:
+// `cap` as above, `supersededAtHead` true only when the read at the head says
+// so, so a failed read, an answer for another head or a reader without the
+// field is not superseded, and `earlierFailHeads` the FAILed heads behind a
+// `verify:earlier-fail` refusal (every one a commit id other than the head),
+// else empty. `readFailed` is true when the read failed, timed out, did not
+// parse or answered for another head.
 export function verifyReader(env, { spawn = spawnAsync, log = (line) => console.log(line), carry = fetchCarry } = {}) {
   let carried = null;
   let deadlineMissed = false;
@@ -232,9 +245,19 @@ export function verifyReader(env, { spawn = spawnAsync, log = (line) => console.
       }
     } catch (error) {
       log(`::warning::#${number}: the verifier reader did not read its FAIL cap (${oneLine(error.message)}); the round runs under its own caps`);
-      return { cap: null, supersededAtHead: false };
+      // readFailed: no answer at all, which is not "no earlier FAIL".
+      return { cap: null, supersededAtHead: false, earlierFailHeads: [], readFailed: true };
     }
-    const answer = (cap) => ({ cap, supersededAtHead: report[SUPERSEDED_AT_HEAD] === true });
+    const answer = (cap) => ({ cap, supersededAtHead: report[SUPERSEDED_AT_HEAD] === true, earlierFailHeads: [] });
+    if (report.refusal === EARLIER_FAIL) {
+      const heads = Array.isArray(report[EARLIER_FAILS]) ? report[EARLIER_FAILS] : [];
+      const earlierFailHeads = [...new Set(heads)].filter((sha) => SHA.test(String(sha)) && sha !== head);
+      if (earlierFailHeads.length === 0 || earlierFailHeads.length !== heads.length) {
+        log(`::warning::#${number}: the verifier reader refused ${EARLIER_FAIL} but its ${EARLIER_FAILS} (${oneLine(JSON.stringify(report[EARLIER_FAILS] ?? null))}) are not the FAILed heads; no round is sent for their notes`);
+        return answer(null);
+      }
+      return { ...answer(null), earlierFailHeads };
+    }
     if (report.refusal === UNREADABLE && report.detail === SIBLING_UNREADABLE) {
       return answer(`${UNREADABLE}: ${SIBLING_UNREADABLE}`);
     }

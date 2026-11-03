@@ -37,14 +37,13 @@ walk that takes minutes IS the cost the product's retention sweep pays on that t
 
 ## Boundary, the bundled `doctor` skill
 
-One native Claude Code surface inspects two of this skill's four suspects, and the two get
-conflated whenever a session feels slow:
+One native Claude Code surface overlaps this skill's suspects, and the two get conflated
+whenever a session feels slow:
 
-- **`doctor` (bundled skill, alias `/checkup`)**: health-checks the installation and offers to
-  fix what it finds, and its
-  checks include slow hooks and a newer version on the release channel. It reports first and asks
-  before changing anything; `claude doctor` in the terminal prints read-only diagnostics without a
-  session.
+- **`doctor` (bundled skill)**: an in-session setup checkup that can offer fixes, which this skill
+  never does. What it checks, its aliases, and its terminal variant are read live from
+  [commands: all commands](https://code.claude.com/docs/en/commands#all-commands) (as of
+  2026-11-03; recheck when the `/doctor` row changes what it checks or how it is invoked).
 - **This skill (marketplace plugin).** A timed, read-only capture taken while it is slow: engine
   phase timings, spawn baselines, per-hook buckets, and the census, with remediation routed out.
 
@@ -152,12 +151,14 @@ how long a clean boot lasts on that basis. `supported: false` names why the cens
 run; it is never silently absent.
 
 **Suspect 1. Accumulated install-tree state.** Evidence: `tree_census.walk_seconds` and
-`total_files` (the sweep pays roughly this walk daily; minutes here means minutes of background
-I/O after the first launch of the day), `settings-unparsable-pauses-sweep` (the sweep has been
-OFF, and `/status` warns. Nothing was cleaned for as long as that error existed), `history.mb` and
-`home_root_state` sizes (unmanaged, grow forever). `last-cleanup-stale` is weaker evidence than it
-looks: the sweep defers while sessions are active, so a stale sentinel on a busy machine has a
-benign explanation. Report both readings.
+`total_files` (the walk the retention sweep pays over the same tree), `settings-unparsable-pauses-sweep`
+(treat it as nothing cleaned for as long as that error existed), `history.mb` and
+`home_root_state` sizes (outside the sweep). `last-cleanup-stale` is weaker evidence than it
+looks: a stale sentinel can have a benign explanation. Report both readings. How often the sweep
+runs, what pauses it, and when it skips are read live from
+[claude directory: cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically)
+(as of 2026-11-03; recheck when that section changes the sweep's schedule or its pause and skip
+cases).
 
 **Suspect 2. Version regression.** Evidence: `cli.version` against the bundled
 [reference/known-performance-issues.md](reference/known-performance-issues.md). Several 2.1.2xx
@@ -211,9 +212,10 @@ spawns. Read `fan_out` in this order:
    firing. Each projection row carries a `floor` (rows known to fire) and a `ceiling` (the
    floor plus `fire_always_unclassified`); quote the pair, never the ceiling alone, as the
    count one edit spawns. The floor counts an edit inside each handler's project anchor; an edit
-   outside an anchor can fire fewer, so say which (the `HOOK_ANCHOR_NOTE` in the notes). **Never present hook cost as a sum**: hooks on one event run in parallel, so the
-   wall-clock cost is roughly the slowest hook plus contention, and adding them up can overstate
-   the total several times over. To find which hook is the wall on `Stop`, point the operator at
+   outside an anchor can fire fewer, so say which (the `HOOK_ANCHOR_NOTE` in the notes). **Never present hook cost as a sum**. How hooks on one event are
+   scheduled is read live from
+   [hooks: hook handler fields](https://code.claude.com/docs/en/hooks#hook-handler-fields)
+   (as of 2026-11-03; recheck when that section changes whether an event's hooks run together). To find which hook is the wall on `Stop`, point the operator at
    the `stop_hook_summary` durations named under "Never time a hook by running it" in Gotchas;
    a per-turn bucket counts the costliest hook as one row among many. We treat shell form as
    always wrapped in a shell and exec form, with `args` present, as spawned with none; which
@@ -241,10 +243,12 @@ spawns. Read `fan_out` in this order:
    a hook whose own `shell` field is `"powershell"`, or a Windows host with no Git Bash
    installed, has PowerShell wrap that row and no `bash.exe` resolved for it, and a project or
    local `.claude/settings.json` `env` that outranks the install root is not read here.
-4. **`fan_out.config_liveness`** before attributing any cost to configuration. Claude Code reads
-   plugin enablement at startup, so `sessions_predating_settings` greater than zero means the
-   file on disk does not describe what is running: a plugin toggled off an hour ago can still
-   have every one of its hooks live. Reporting the disk state as the running state is how a
+4. **`fan_out.config_liveness`** before attributing any cost to configuration.
+   `sessions_predating_settings` greater than zero means the file on disk may not describe what
+   is running. Which settings edits reach a running session is read live from
+   [settings: when edits take effect](https://code.claude.com/docs/en/settings#when-edits-take-effect)
+   and [plugin loading: check which stage a plugin reached](https://code.claude.com/docs/en/plugins/loading#check-which-stage-a-plugin-reached)
+   (as of 2026-11-03; recheck when either section changes when plugin enablement is applied). Reporting the disk state as the running state is how a
    confident and wrong diagnosis gets written. The advisory says restart is required; that
    restart is the operator's, not this skill's.
 5. **`fan_out.concurrency_ceilings`**. Spawn depth multiplies against the per-session concurrency

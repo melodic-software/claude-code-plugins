@@ -4,12 +4,10 @@ The skills of `plugins/code-metrics`. Each one is driven with `<plugin-dir>` set
 
 ## Parts
 
-- `audit-complexity`: Per-function complexity beside a cited reference, no verdict.
+- `audit`: Lines, complexity and typed-code numbers beside cited references, no verdict. Actions `size`, `complexity` and `type-debt`.
 - `audit-coverage`: Coverage and CRAP read from build artifacts, no verdict.
 - `audit-duplication`: Clone groups minus the replication the repo declares, no verdict.
-- `audit-size`: Lines per file beside a cited reference, no verdict.
 - `audit-suppressions`: Suppressions with their rule ids and reasons, no verdict.
-- `audit-type-debt`: Typed-code percentage per file and per lane, with no standard behind it.
 - `principles`: What each code measure can and cannot tell you.
 - `setup`: Verify or configure the code-metrics plugin for this repository. No plain-words entry.
 

@@ -5,7 +5,7 @@
   "ranking_note": "Authored from the before descriptions at commit 871a753a97, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the self-scrutiny sibling, the size-audit and toolchain-check skills, the measurement skill and the wizard generator.",
   "competitors": [
     "discipline:scrutinize-dont-coast",
-    "code-metrics:audit-size",
+    "code-metrics:audit",
     "toolchain:check",
     "verification:measure",
     "wizard:generate"

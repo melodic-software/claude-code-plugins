@@ -5,6 +5,34 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.1] - 2026-11-03
+
+### Fixed
+
+- `scripts/context-zone.sh` now follows a lowered auto-compact window. When the snapshot carries `bands.auto_compact_window`, the resolver scales its percentage edges by that window over `context_window_size`, as the module does, so it reports the same zone the module publishes. Without the field, the edges stay as set. The mod's TypeScript resolver reads the same field when no window is passed to it, and the shared fixture covers a lowered and a default window. The reader contract and README no longer say the shell resolver measures against the full window (#12854).
+
+## [3.0.0] - 2026-11-03
+
+### Changed
+
+- Breaking: under a lowered auto-compact window, `zones.json` percentages and
+  `thresholds[].at_percent` now read as percentages of that window, not of the model's window. The
+  module reads the window the engine settled on (`CLAUDE_CODE_AUTO_COMPACT_WINDOW`,
+  `autoCompactWindow`, or a per-model value) and, when it is smaller than the model's window,
+  scales the percentage edges, the `thresholds` and the approach margin to it, so the zone no
+  longer reads smart when auto-compact fires. The snapshot and the status tool publish the scaled
+  edges with `bands.auto_compact_window`. Token bands are unchanged. If you pulled `zones.json`
+  under a lowered window by hand, undo it: the module now scales it again.
+
+## [2.0.1] - 2026-11-03
+
+### Changed
+
+- The README and the reader contract no longer restate Claude Code behavior for suggestion
+  withdrawal, mod refusals, prompt-cache state, status-line wiring, the install scope default,
+  compaction hooks or `${CLAUDE_PLUGIN_DATA}` resolution; each passage keeps the plugin's own
+  decision and points at the live docs section with an as-of date and a recheck trigger.
+
 ## [2.0.0] - 2026-11-03
 
 ### Removed

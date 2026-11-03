@@ -1,5 +1,24 @@
 # Changelog: discovery plugin
 
+## [1.3.1] - 2026-11-03
+
+### Changed
+
+- move the research skill's practitioner test out of its hub
+
+  The /discovery:research SKILL.md body drops from 45,165 to 43,646
+  bytes (frontmatter stripped). The proof-of-shipped-work test and the
+  untrusted-profile paragraph move verbatim to
+  skills/research/reference/practitioner-test.md, which the hub points at
+  before a person is weighed as a recognized author. Two eval cases cover
+  the moved text.
+
+## [1.3.0] - 2026-11-03
+
+### Added
+
+- `/discovery:trace-intent` sources record `author_kind: owner-quote | agent-relay`, who wrote the words rather than whose login posted them, and `check-author-kind.py` rejects a `Direct` claim with no `owner-quote` source. The intent tracer runs it before hand-back and the parent re-runs it in the acceptance gate. `/discovery:setup check` prints its two allow rules, so paste the twelve rules it prints (#12517).
+
 ## [1.2.2] - 2026-11-03
 
 ### Changed

@@ -5,7 +5,7 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  workflow-stage: contract
+  workflow-stage: interview
   summary: Turn an informal bug description into a structured 5-field report, read-only
 ---
 
@@ -144,8 +144,12 @@ this order, and always tell the user the final path:
 1. `${user_config.output_dir}`, when the consumer configured `output_dir`.
 2. Otherwise `${CLAUDE_PLUGIN_DATA}/bug-reports/<project-slug>/`, where `<project-slug>` is the
    kebab-cased basename of the project root (`${CLAUDE_PROJECT_DIR}`, or the git toplevel when
-   unset). The plugin data directory is per-plugin, not per-project: without the slug, Step 2's
-   duplicate scan would match another repository's report on the same symbol.
+   unset). The slug keeps each project's reports apart, so Step 2's duplicate scan never matches
+   another repository's report on the same symbol. When checking what the data directory is keyed
+   by, fetch
+   [plugins manifest reference § Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
+   live (as of 2026-11-03; recheck trigger: that section changes what `${CLAUDE_PLUGIN_DATA}` is
+   keyed by).
 3. If neither resolves, `${CLAUDE_PROJECT_DIR}/.bug-reports/`, stating clearly where the file landed.
 
 Filename: an ISO basic UTC timestamp with no colons (Windows-safe), then a kebab-case slug of the
@@ -166,7 +170,9 @@ Recommend the next step; do not invoke it yourself:
   filing non-interactively, never interpolate the reporter's title into the command string: write it
   to a file, then `gh issue create --type Bug --title "$(cat <title-file>)" --body-file <report>`,
   so backticks or `$( )` in the reporter's text cannot execute. On a repo without native Issue
-  Types, drop `--type Bug` and add a `type: bug` label when the repo defines one. If neither path
+  Types, drop `--type Bug` and add a `type: bug` label when the repo defines one. When checking
+  what `--type` takes, fetch [gh issue create: Options](https://cli.github.com/manual/gh_issue_create#options)
+  live (as of 2026-11-03; recheck trigger: that section renames or drops `--type`). If neither path
   applies and a work-item tracker MCP tool is available, use it.
 - **A fix is next.** Diagnose first when the root cause is unknown (`/debugging:debug` when
   installed); when the report names the cause, go to the fix (`/implementation:implement` when

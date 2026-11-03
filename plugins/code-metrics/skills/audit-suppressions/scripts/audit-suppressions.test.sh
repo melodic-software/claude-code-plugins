@@ -28,8 +28,8 @@ assert_eq() {
 }
 assert_contains() {
   case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "expected to contain: [$3], actual: [$2]" ;;
+    *"$3"*) pass "$1" ;;
+    *) fail "$1" "expected to contain: [$3], actual: [$2]" ;;
   esac
 }
 
@@ -115,8 +115,8 @@ assert_contains "--help states both exit codes and their meaning" "$(bash "$SCRI
 # name one; both IMPORTANT, Confidence high).
 assert_not_contains() {
   case "$2" in
-  *"$3"*) fail "$1" "expected NOT to contain: [$3], actual: [$2]" ;;
-  *) pass "$1" ;;
+    *"$3"*) fail "$1" "expected NOT to contain: [$3], actual: [$2]" ;;
+    *) pass "$1" ;;
   esac
 }
 F="$TMP/frepo"
@@ -262,6 +262,7 @@ printf '%s\n' '#pragma warning disable CS0168' 'class K {}' >"$S/l.cs"
 printf '%s\n' '[SuppressMessage("Usage", "CA2200")]' 'class M {}' >"$S/m.cs"
 printf '%s\n' 'A long line. <!-- markdownlint-disable-line MD013 -->' >"$S/n.md"
 printf '%s\n' 'package o' 'func f() { g() //nolint' '}' >"$S/o.go"
+printf '%s\n' '/* istanbul ignore next */' >"$S/p.js"
 gs add -A
 gs commit -q -m slots
 out="$(cd "$S" && bash "$SCRIPT" --findings --all </dev/null)"
@@ -282,6 +283,9 @@ act="$(field "$SFILE" o.go:2 7)"
 assert_contains "nolint with no rule id: rule id and a trailing comment asked for" "$act" \
   'name the rule id it silences in the directive and write the reason in a comment after the directive on the same line'
 assert_not_contains "nolint: no Justification argument offered" "$act" 'Justification'
+act="$(field "$SFILE" p.js:1 7)"
+assert_contains "coverage exclusion: the reason is text after the directive" "$act" 'write the reason as text after the directive on the same line'
+assert_not_contains "coverage exclusion: no rule id asked for" "$act" 'rule id'
 
 gf checkout -q --detach
 err="$(cd "$F" && bash "$SCRIPT" --findings 2>&1 >/dev/null)"

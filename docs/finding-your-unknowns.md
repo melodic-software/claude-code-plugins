@@ -86,27 +86,28 @@ this order when you run several:
 2. **Brainstorm / prototype**, `/planning:brainstorm` for direction candidates;
    `/prototype:explore-directions` or `/prototype:pressure-test` when the unknown is
    visual or interactive.
-3. **PRD** (conditional), `/planning:prd`: only when the change is user-facing,
-   business-driven, and needs alignment on the problem, the users, and the success metrics.
-4. **Interview**, `/planning:interview`: convert known unknowns into decisions on the
-   record. When an interview outgrows one session because the effort is too big to hold at
+3. **Interview**, `/planning:interview`: convert known unknowns into decisions on the
+   record. It calls a **PRD**, `/planning:prd`, only when a question shows the change is
+   user-facing, business-driven, and needs alignment on the problem, the users, and the success
+   metrics. When an interview outgrows one session because the effort is too big to hold at
    once and still too foggy to phrase as decisions, escalate to **wayfind**,
    `/planning:wayfind`, which charts a decision map from the interview's ledger and hands
    back once the fog clears. Wayfind is never the first pass.
-5. **Reference port**, `/discipline:point-dont-copy` when the work leans on an external
+4. **Reference port**, `/discipline:point-dont-copy` when the work leans on an external
    reference whose semantics must survive the port.
-6. **Design**, `/planning:design` then `/planning:design-handoff`: settle module layout,
+5. **Design**, `/planning:design` then `/planning:design-handoff`: settle module layout,
    contracts, and variation verdicts when the work adds types, contracts, modules, or a
    topology or data-model change; the handoff writes them into PLAN.md's `## Design`, which is
    how they reach the implementer. Work with no design question records a one-line early exit.
-7. **Plan**, `/planning:plan`: lock the approach with the unknowns now known.
-8. **Decompose** (conditional), `/work-items:decompose`: only when the plan holds more than one
+6. **Plan**, `/planning:plan`: lock the approach with the unknowns now known.
+7. **Decompose** (conditional), `/work-items:decompose`: only when the plan holds more than one
    independently shippable ticket; each ticket quotes its part of the design.
 
 Notes: the sequencing is chat-portable. Every pass works as plain conversation, and the
-artifact form is optional. Running later passes in a fresh session with the earlier
-artifacts carried forward matches this repo's existing session-flow doctrine (the corpus
-independently corroborates it; see `session-flow` plugin).
+artifact form is optional. The passes a person answers (interview through plan) run in one
+session, and `/session-flow:workflow` suggests a handoff between them only when context-guard
+reports zone `dumb`; execution of a finished plan moves to a fresh session with the artifacts
+carried forward.
 
 ## Prompt-pattern catalog
 
@@ -250,6 +251,18 @@ they graduate into a skill body only on observed, repeated stumble evidence:
   re-check that nothing in it is actually a judgment call. The corpus's failure case is
   a design decision hidden in a collapsed section.
 
+Two more from Addy Osmani's "Critical thinking when agents do the work"
+(`https://x.com/addyosmani/status/2117512471930167377`, 2026-11-03), both BEHAVIORAL
+under ADR 0025:
+
+- **Prediction-first** (delegation, BEHAVIORAL): before handing a non-trivial task to an
+  agent, write the answer you expect, then compare it with what comes back. Eval candidate:
+  [#12938](https://github.com/melodic-software/claude-code-plugins/issues/12938).
+- **Weekly no-agent practice** (skill upkeep, BEHAVIORAL): do one real task a week without
+  an agent; once a month, note what you have stopped doing and decide which of it you accept
+  losing. Eval candidate:
+  [#12938](https://github.com/melodic-software/claude-code-plugins/issues/12938).
+
 ## Sources and citation shape
 
 Citations in this doc use: URL, ISO retrieval date, and `sha256:<hex64>` over the raw
@@ -262,7 +275,10 @@ sources, each read at its link.
   Anthropic blog, published 2026-07-06. No docs page covers it:
   (correlate with `https://claude.com/blog/a-field-guide-to-claude-fable-finding-your-unknowns`)
   (retrieved 2026-09-01,
-  `sha256:ac8229699555d38eb0dfe6c80dd2e85353f30471a7abff0894d342b5107aad26`)
+  `sha256:ac8229699555d38eb0dfe6c80dd2e85353f30471a7abff0894d342b5107aad26`).
+  The page moved: `https://claude.com/resources/articles/a-field-guide-to-claude-fable-finding-your-unknowns`
+  (retrieved 2026-11-03,
+  `sha256:39be1a13baea2a27ca81a62751d6c4b942b4ea2b3d19e8953bddac4dbd280918`)
 - **S2**: "Using Claude Code: The Unreasonable Effectiveness of HTML", X article by the
   same author. `https://x.com/trq212/status/2052809885763747935` (retrieved 2026-09-01,
   `sha256:07dc71b1a7fabe264b9a80ee003edbcd1e74013895372a8ffe13ee4bb178e63c`). Canonical web

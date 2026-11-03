@@ -20,6 +20,7 @@ import json
 import os
 import re
 import secrets
+import subprocess
 import sys
 import tempfile
 import time
@@ -27,8 +28,10 @@ from pathlib import Path, PureWindowsPath
 from urllib.parse import quote
 
 from question_shape import restates, withheld
+from yaml_subset import parse as parse_yaml
 from session_bridge import (
     MAX_STREAMS,  # noqa: F401  # the stream limits, read through this module by its tests
+    NO_WINDOW,
     PING_SECONDS,  # noqa: F401
     READING_WINDOW,
     Conflict,
@@ -113,9 +116,18 @@ QUIET_SECONDS = 10.0  # default settleQuiet: a found event waits this long for m
 BURST_SECONDS = 30.0  # default settleBurst: never holding it longer than this in all
 NAME = "interview"  # names the session files and the token header (session_bridge)
 SESSION_JSON = session_files(NAME)[0]
-REPO_SETTINGS = Path(".claude") / "interview-surface.json"
+# The ADR 0075 file layers: the interview_page mapping of planning's team and personal files in
+# the convention home, which the planning copy of resolve-convention-home.sh binds.
+SECTION = "interview_page"
+TEAM_FILE, PERSONAL_FILE = "planning.yaml", "planning.local.yaml"
+DEFAULT_HOME = "docs/conventions"
+HOME_SCRIPT = HERE.parent / "lib" / "resolve-convention-home.sh"
+# Retired: never read for values, only named in a one-time notice (Settings.retired_notices).
+RETIRED_FILE = Path(".claude") / "interview-surface.json"
+RETIRED_SEEN = ".retired-notices.json"
 
-# Settings, lowest layer first: plugin default, repo file, user file, the data dir's settings.json.
+# Settings, lowest layer first: plugin default, team file, personal file, user file, the data
+# dir's settings.json. No userConfig option carries these keys, so that layer is empty.
 DEFAULT_SETTINGS = {
     "port": 0,
     "openBrowser": True,
@@ -156,7 +168,7 @@ SETTING_RULES = {
     "requireDepends": ("bool",),
     "orderThreshold": ("int", 0, 1000),
 }
-REPO_KEYS = set(DEFAULT_SETTINGS) - {"displayName"}
+TEAM_KEYS = set(DEFAULT_SETTINGS) - {"displayName"}  # a name is one person's, never the team's
 USER_ONLY = {"browserCommand"}  # read by ensure-running, never sent to the page
 
 
@@ -217,16 +229,97 @@ def repo_root(data_dir):
     return None
 
 
+def run_quiet(cmd):
+    """(exit code, stdout, stderr) of a short command with no window; None when it cannot run."""
+    try:
+        p = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            stdin=subprocess.DEVNULL,
+            creationflags=NO_WINDOW,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return p.returncode, p.stdout.strip(), p.stderr.strip()
+
+
+def convention_home(repo):
+    """(root, home, why): the git toplevel of repo and the convention home there, per ADR 0075.
+
+    The home is what resolve-convention-home.sh prints; with no pointer bound, or a declined one,
+    the default docs/conventions. home is None, so no file layer applies, outside a git work tree,
+    at a root that is $HOME or above it, or when the pointer FAILs (why then names the cause).
+    """
+    top = run_quiet(["git", "-C", str(repo), "rev-parse", "--show-toplevel"]) if repo else None
+    if not top or top[0] != 0 or not top[1]:
+        return None, None, None
+    root = Path(top[1])
+    got = run_quiet(["bash", str(HOME_SCRIPT), "--root", str(root)])
+    if got is None:
+        return root, None, f"team and personal files skipped: {HOME_SCRIPT.name} did not run"
+    code, out, err = got
+    if code == 0 and out:
+        return root, root / out, None
+    if code in (1, 4):
+        home = root / DEFAULT_HOME
+        if home.resolve() != root.resolve() / DEFAULT_HOME:
+            return root, None, f"team and personal files skipped: {DEFAULT_HOME} is reached through a symlink"
+        return root, home, None
+    if code == 5:
+        return root, None, None
+    why = err.splitlines()[-1] if err else f"exit {code}"
+    return root, None, f"team and personal files skipped: {why}"
+
+
+def yaml_section(path, label, note):
+    """The interview_page mapping of a planning YAML file; {} when absent, noted when unusable."""
+    if path is None:
+        return {}
+    shown = f"{label} file {path}"
+    try:
+        if path.is_symlink():
+            note(f"{shown} ignored: a symlink; a repository layer reads only regular files")
+            return {}
+        doc = parse_yaml(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except (OSError, ValueError, RecursionError) as e:
+        note(f"{shown} ignored: {e}")
+        return {}
+    if doc is None:
+        return {}
+    if not isinstance(doc, dict):
+        note(f"{shown} ignored: the top level must be a mapping")
+        return {}
+    section = doc.get(SECTION)
+    if section is None:
+        return {}
+    if not isinstance(section, dict):
+        note(f"{shown}: {SECTION} ignored (not a mapping)")
+        return {}
+    return section
+
+
 class Settings:
     """Resolves each key through the layers and names the layer its value came from.
 
     Problems (an unreadable file, an unknown or restricted key, an invalid value) are noted on
-    stderr once each; the key then keeps the value of the layer below.
+    stderr once each. An invalid team or personal value drops that layer and the key resolves its
+    default, never the team value (ADR 0075's invalid-value rule); an invalid user or session
+    value leaves the layer below in place.
     """
 
     def __init__(self, repo):
-        self.repo_file = Path(repo) / REPO_SETTINGS if repo else None
         self._noted = set()
+        self.retired_file = Path(repo) / RETIRED_FILE if repo else None
+        root, home, why = convention_home(repo)
+        if why:
+            self.note(why)
+        self.home_shown = home.relative_to(root).as_posix() if home else DEFAULT_HOME
+        self.team_file = home / TEAM_FILE if home else None
+        self.personal_file = home / PERSONAL_FILE if home else None
 
     def note(self, msg):
         if msg not in self._noted:
@@ -249,12 +342,14 @@ class Settings:
         return data
 
     def resolve(self, data_dir, user_file=None):
-        """({key: {value, layer}}, theme token map: theme.json over user over repo tokens)."""
+        """({key: {value, layer}}, theme token map: theme.json over user, personal, team tokens)."""
         out = {k: {"value": v, "layer": "default"} for k, v in DEFAULT_SETTINGS.items()}
-        repo = self.read(self.repo_file, "repo settings")
+        team = yaml_section(self.team_file, "team", self.note)
+        personal = yaml_section(self.personal_file, "personal", self.note)
         user = self.read(user_file, "user settings")
         layers = (
-            ("repo", repo, REPO_KEYS | {"themeTokens"}),
+            ("team", team, TEAM_KEYS | {"themeTokens"}),
+            ("personal", personal, set(DEFAULT_SETTINGS) | {"themeTokens"}),
             ("user", user, set(DEFAULT_SETTINGS) | USER_ONLY | {"themeTokens"}),
             (
                 "session",
@@ -276,7 +371,11 @@ class Settings:
                     continue
                 err = setting_error(k, v)
                 if err:
-                    self.note(f"{layer} layer: {err}; the layer below applies")
+                    if layer in ("team", "personal"):
+                        self.note(f"{layer} layer: {err}; the default applies")
+                        out[k] = {"value": DEFAULT_SETTINGS[k], "layer": "default"}
+                    else:
+                        self.note(f"{layer} layer: {err}; the layer below applies")
                     continue
                 out[k] = {"value": v, "layer": layer}
         if out["settleQuiet"]["value"] > out["settleBurst"]["value"]:
@@ -286,7 +385,7 @@ class Settings:
             for k in ("settleQuiet", "settleBurst"):
                 out[k] = {"value": DEFAULT_SETTINGS[k], "layer": "default"}
         tokens = []
-        for layer, data in (("repo", repo), ("user", user)):
+        for layer, data in (("team", team), ("personal", personal), ("user", user)):
             if "themeTokens" not in data:
                 continue
             got = token_map(data["themeTokens"])
@@ -308,6 +407,55 @@ class Settings:
             if merged:
                 theme = {**theme, mode: merged}
         return out, theme
+
+    def retired_destination(self, key):
+        team = f"{self.home_shown}/{TEAM_FILE}"
+        if key in TEAM_KEYS or key == "themeTokens":
+            return f"{SECTION}.{key} in {team}"
+        if key == "displayName":
+            return f"{SECTION}.{key} in {self.home_shown}/{PERSONAL_FILE}"
+        if key in USER_ONLY:
+            return "a --user-settings file"
+        if key == "surface":
+            return "the planning plugin's surface option"
+        return "nowhere: not a setting"
+
+    def retired_notices(self, data_dir):
+        """Notes that the retired repo file is not read and where each of its keys goes now; once
+        per data dir while the file's bytes are unchanged. Its values never apply."""
+        path = self.retired_file
+        try:
+            # Only a regular file: a symlink could point the notice at any file the user can read.
+            regular = path is not None and not path.is_symlink() and path.is_file()
+            raw = path.read_bytes() if regular else None
+        except OSError:
+            raw = None
+        if raw is None:
+            return
+        shown = RETIRED_FILE.as_posix()
+        record = Path(data_dir) / RETIRED_SEEN
+        digest = hashlib.sha256(raw).hexdigest()
+        try:
+            seen = json.loads(record.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            seen = {}
+        seen = seen if isinstance(seen, dict) else {}
+        if seen.get(shown) == digest:
+            return
+        try:
+            data = json.loads(raw.decode("utf-8"))
+        except ValueError:
+            data = None
+        self.note(f"{shown} is no longer read, and none of its values apply; move each one:")
+        if not isinstance(data, dict):
+            self.note(f"  it is not a JSON object; its keys go to {SECTION} in {self.home_shown}/{TEAM_FILE}")
+            data = {}
+        for k in data:
+            self.note(f"  {k} goes to {self.retired_destination(k)}")
+        try:
+            record.write_text(json.dumps({**seen, shown: digest}) + "\n", encoding="utf-8")
+        except OSError:
+            pass  # an unwritable record shows the notice again next time, the safe direction
 
 
 def question_states(doc, r):
@@ -1188,7 +1336,8 @@ class Hub(LoopbackWatcher):
             mtime(self.settings),
             mtime(self.watch_seq),
             mtime(self.dir / SESSION_JSON),
-            mtime(self.layers.repo_file) if self.layers.repo_file else 0,
+            mtime(self.layers.team_file) if self.layers.team_file else 0,
+            mtime(self.layers.personal_file) if self.layers.personal_file else 0,
             mtime(Path(user)) if user else 0,
             listener["state"],
             # The header reads Live only while a watcher waits, and a wait inside the listen

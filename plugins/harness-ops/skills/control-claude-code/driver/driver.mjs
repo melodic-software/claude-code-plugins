@@ -107,13 +107,14 @@ export const UNSET_VARS = [
 
 // The CI credential variables an --unattended run may keep, each with the apiKeySource Ready then
 // accepts. Print mode always uses ANTHROPIC_API_KEY when it is set (env-vars Variables table, above).
-// UNVERIFIED: that CLAUDE_CODE_OAUTH_TOKEN, a claude.ai subscription token, reports "none" as the
-// signed-in login does; until the owner's #11386 spike leg records it, a token that reports any
-// other source is refused. The CLAUDE_CODE_SUBPROCESS_ENV_SCRUB row and "What the subprocess
-// environment scrub removes" (same page) remove a kept credential from the environment hooks, Bash
-// and MCP servers inherit; whether plugin code can still read it elsewhere is #8651's S7 probe.
-// As of: 2026-11-02. Recheck trigger: the spike records the token's apiKeySource, or the scrub's
-// table changes which variables it removes.
+// CLAUDE_CODE_OAUTH_TOKEN, a claude.ai subscription token, reports "none" as the signed-in login
+// does, measured on Claude Code 2.1.316:
+// https://github.com/melodic-software/claude-code-plugins/issues/11386#issuecomment-6586913534
+// A token that reports any other source is refused. The CLAUDE_CODE_SUBPROCESS_ENV_SCRUB row and
+// "What the subprocess environment scrub removes" (same page) remove a kept credential from the
+// environment hooks, Bash and MCP servers inherit; whether plugin code can still read it elsewhere
+// is #8651's S7 probe. As of: 2026-11-02. Recheck trigger: Ready refuses a token's apiKeySource, or
+// the scrub's table changes which variables it removes.
 const NO_KEY = 'none';
 const CI_KEY_SOURCES = { ANTHROPIC_API_KEY: 'ANTHROPIC_API_KEY', CLAUDE_CODE_OAUTH_TOKEN: NO_KEY };
 const CI_NAMES = Object.keys(CI_KEY_SOURCES);

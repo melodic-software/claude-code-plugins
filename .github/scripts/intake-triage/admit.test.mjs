@@ -8,7 +8,7 @@ import { join } from "node:path";
 
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, DEFERRED_AHEAD_READS, PAID_EVAL, bodyUnpushablePaths, deferredAhead, refineDue, PATCH_ROW, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeEditsOf, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, isSplitParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, revisionWraps, splitParentClosed, titleWraps, unrunnableCriteria, unrunnableRulesOf, issueUnrunnableRules, untrustedHold, workCharges } from "./admit.mjs";
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, DEFERRED_AHEAD_READS, PAID_EVAL, bodyUnpushablePaths, deferredAhead, refineDue, PATCH_ROW, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeEditsOf, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, finishedParent, isSplitParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, revisionWraps, splitParentClosed, titleWraps, unrunnableCriteria, unrunnableRulesOf, issueUnrunnableRules, untrustedHold, workCharges } from "./admit.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 import { VERDICT_MARKER } from "./apply-verdict.mjs";
 import { TARGETS } from "../apply-patch/apply-patch.mjs";
@@ -432,6 +432,43 @@ describe("decide", () => {
   test("Size Large parks the issue for the intake split instead of refusing it", () => {
     const result = decide(facts({ verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } } }));
     assert.deepEqual(result, { verdict: "wait", reasons: ["Size large: the split into sub-issues at intake is pending (owner Q93)"], pulls: [] });
+  });
+
+  // A run's patch over the scan job's cap (scan-refused-patch) splits the
+  // issue whatever Size re-triage or a listed human set (patchCapStopped).
+  describe("a scan-refused-patch stop", () => {
+    const PATCH_PENDING = "its last run's patch was over the scan job's size cap (scan-refused-patch): the split into sub-issues at intake is pending (owner Q93)";
+    const stopComment = (at, id = APP) => ({
+      user: { id },
+      created_at: at,
+      body: "<!-- work-resolve-issue outcome=intake run=555 -->\nThe work-resolve-issue lane stopped on this issue (`scan-refused-patch`): the scan job refused the run's patch for its size.\nIt removed `agent-ready` and `status: ready`.",
+    });
+    const labeled = (name, at, id) => ({ event: "labeled", label: { name }, actor: { id }, created_at: at });
+    const sized = (size, overrides) => facts({ verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, size } }, ...overrides });
+
+    test("parks the issue for the intake split at Size Small and Medium, a listed human's Size included", () => {
+      const events = [labeled(AGENT_READY, "2026-10-21T09:00:00Z", HUMAN), labeled(READY, "2026-10-21T11:00:00Z", APP)];
+      for (const size of ["small", "medium"]) {
+        const result = decide(sized(size, { comments: [stopComment("2026-10-21T10:00:00Z")], events }));
+        assert.deepEqual(result, { verdict: "wait", reasons: [PATCH_PENDING], pulls: [] }, size);
+        assert.equal(sizeSplitPending([{ user: { id: APP }, body: `${ADMIT_MARKER}\nNot admitted to the issue lane yet: ${result.reasons.join("; ")}.` }], APP), true, size);
+      }
+    });
+
+    test("is ignored once a listed human adds agent-ready after it, and when anyone but the lanes App wrote it", () => {
+      const later = [labeled(AGENT_READY, "2026-10-21T12:00:00Z", HUMAN)];
+      assert.deepEqual(decide(sized("medium", { comments: [stopComment("2026-10-21T10:00:00Z")], events: later })), { verdict: "admit", reasons: [] });
+      assert.deepEqual(decide(sized("medium", { comments: [stopComment("2026-10-21T10:00:00Z", HUMAN)] })), { verdict: "admit", reasons: [] });
+      // The App's own agent-ready add (admission's) does not reset it.
+      const own = [labeled(AGENT_READY, "2026-10-21T12:00:00Z", APP)];
+      assert.equal(decide(sized("medium", { comments: [stopComment("2026-10-21T10:00:00Z")], events: own })).verdict, "wait");
+    });
+
+    test("leaves an unset Size refused, and an issue whose rules take Size large, as a split child's do, unsplit", () => {
+      const comments = [stopComment("2026-10-21T10:00:00Z")];
+      assert.deepEqual(decide(sized("unset", { comments })).unsetOnly, ["size"]);
+      assert.deepEqual(decide(sized("medium", { comments, rules: { ...RULES, sizes: [...RULES.sizes, "large"] } })), { verdict: "admit", reasons: [] });
+    });
   });
 
   test("Size Large beside a real refusal reason still refuses, and names both", () => {
@@ -2859,6 +2896,42 @@ describe("size split sub-issues", () => {
     assert.deepEqual(decide(facts({ issue: split, verdict: large })), { verdict: "refuse", reasons: [SIZE_SPLIT_DONE] });
     const unsplit = issueOf({ sub_issues_summary: { total: 0, completed: 0, percent_completed: 0 } });
     assert.deepEqual(decide(facts({ issue: unsplit, verdict: large })), { verdict: "wait", reasons: [SIZE_SPLIT_PENDING], pulls: [] });
+  });
+
+  // A finished parent (finishedParent: every sub-issue closed as completed by
+  // a trusted close) gets one verified-done run at any Size (#12456, class A);
+  // that run is the done-check a merged Refs pull request would park it for.
+  test("a finished parent at Size Large is admitted for its verify run; one with an open sub-issue still waits", () => {
+    const large = { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } };
+    const split = issueOf({ sub_issues_summary: { total: 2, completed: 2, percent_completed: 100 } });
+    assert.deepEqual(decide(facts({ issue: split, verdict: large, finished: true })), { verdict: "admit", reasons: [] });
+    assert.deepEqual(decide(facts({ issue: split, verdict: large, finished: true, doneBy: [77] })), { verdict: "admit", reasons: [] });
+    assert.equal(decide(facts({ issue: split, verdict: large, doneBy: [77] })).verdict, "refuse");
+    assert.deepEqual(decide(facts({ issue: split, verdict: large, subIssues: [{ number: 8, state: "open" }] })), { verdict: "wait", reasons: ["sub-issue #8 is open"], pulls: [] });
+  });
+
+  test("finishedParent names the sub-issues only when each is closed as completed by a trusted close", async () => {
+    const child = (number, extra = {}) => ({ number, state: "closed", state_reason: "completed", repository_url: "https://api.github.com/repos/o/r", ...extra });
+    const run = async (children, trusted = async () => true, summary = { total: children.length, completed: children.length }) => {
+      const calls = [];
+      const github = async (method, path) => {
+        calls.push(path);
+        return path.includes("/sub_issues") ? children : null;
+      };
+      return { found: await finishedParent({ github, repository: "o/r", issue: { number: 5, sub_issues_summary: summary }, trusted }), calls };
+    };
+    assert.deepEqual((await run([child(8), child(9)])).found, [8, 9]);
+    assert.equal((await run([child(8), child(9, { state_reason: "not_planned" })])).found, null, "class B: a not_planned sub-issue");
+    assert.equal((await run([child(8), child(9, { state: "open", state_reason: null })])).found, null, "an open sub-issue");
+    assert.equal((await run([child(8), child(9)], async (number) => number !== 9)).found, null, "an untrusted close");
+    // `trusted` reads a number in this repository, so a sub-issue elsewhere
+    // with the same number never borrows that close.
+    const elsewhere = await run([child(8), child(9, { repository_url: "https://api.github.com/repos/o/other" })]);
+    assert.equal(elsewhere.found, null, "a sub-issue in another repository");
+    assert.equal((await run([child(8), child(9, { repository_url: undefined })])).found, null, "a sub-issue with no repository_url");
+    const none = await run([], undefined, { total: 0, completed: 0 });
+    assert.equal(none.found, null);
+    assert.deepEqual(none.calls, [], "no sub-issue costs no read");
   });
 
   test("a parent waiting on an open sub-issue keeps its open pull requests, so admission-deferred stays", () => {

@@ -129,8 +129,10 @@ substitutes for it, unless the bullet names its own fallback.
 - **Coverage and test effectiveness**: Inozemtseva and Holmes, ICSE 2014; Gopinath, Jensen and
   Groce, ICSE 2014; Kochhar, Thung and Lo, SANER 2015; Jia and Harman, IEEE TSE 2011; Petrovic and
   Ivankovic, ICSE-SEIP 2018; Petrovic, Ivankovic, Fraser and Just, IEEE TSE 2022.
-- **ISO/IEC 5055:2021** (the ISO publication of OMG ASCQM v1.0; OMG's current release is v1.1) and
-  **ISO/IEC 25023:2016**, cited by clause and version, never by page number.
+- **ISO/IEC 5055:2021** (the ISO publication of OMG ASCQM v1.0) and **ISO/IEC 25023:2016**, cited
+  by clause and version, never by page number. Pointer: when a later OMG ASCQM release matters,
+  fetch [ASCQM: Formal Versions](https://www.omg.org/spec/ASCQM/#spec-versions-formal) live. As of:
+  2026-11-03. Recheck trigger: that list adds a release.
 
 Per-source annotation, including what each does not claim and the confidence behind it, is in
 [literature.md](reference/literature.md).
@@ -154,8 +156,8 @@ the Bash tool starts receiving the plugin variables.
 
 ## Next
 
-- The number in question still has to be measured: `/code-metrics:audit-complexity`, or the
-  `audit-*` skill for that measure.
+- The number in question still has to be measured: `/code-metrics:audit complexity`, or the
+  `audit` action or `audit-*` skill for that measure.
 - The bundled reference values are not the ones your codebase can defend: `/code-metrics:setup`.
 
 ## Gotchas

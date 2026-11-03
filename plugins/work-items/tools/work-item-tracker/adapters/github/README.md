@@ -59,8 +59,8 @@ PREFIX="$(gh repo view --json owner,name -q '"github:\(.owner.login)/\(.name)"' 
 ID="${PREFIX}#<N>"
 ```
 
-`gh repo view --json` is GraphQL-backed, so it 403s in a sandboxed session for the reason given
-under "View item" below. The REST form produces the same string:
+In a sandboxed session use the REST form, which produces the same string (the pointer under
+"View item" below says which requests those sessions refuse):
 
 ```bash
 PREFIX="$(gh api "repos/{owner}/{repo}" --jq '"github:" + .full_name' | tr -d '\r')"
@@ -82,9 +82,10 @@ gh issue list \
 ```
 
 Forward `--assignee` for the `list --assignee` flag and the audit's assigned-only view (use
-`--assignee "@me"` for the current user). `--limit` is mandatory when more than 30 rows are
-needed (`gh` truncates at 30 silently; max page size 100, so for larger sets, page with `--search`
-date ranges).
+`--assignee "@me"` for the current user). Always pass `--limit` sized to the rows needed; the
+default cap is read at [gh issue list § Options](https://cli.github.com/manual/gh_issue_list#options)
+(as of 2026-11-03; recheck when that section changes the `--limit` default). Past what one
+`--limit` returns, page with `--search` date ranges.
 
 **`list-items` in a cloud session.** `gh issue list --json blockedBy` is GraphQL, so with
 `CLAUDE_CODE_REMOTE=true` the `list-items` verb reads the
@@ -106,24 +107,19 @@ gh issue list --search "<query>" --state open   --json number,title,state,labels
 gh issue list --search "<query>" --state closed --json number,title,state,labels,closedAt   --limit 10 | tr -d '\r'
 ```
 
-Search-qualifier reference:
+A typical query: `label:type:chore label:recurring no:assignee sort:created-asc`. The qualifiers
+are read live at GitHub's searching issues and pull requests page, one section each:
+[§ Search by label](https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests#search-by-label),
+[§ Search by assignee](https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests#search-by-assignee),
+[§ Search by missing metadata](https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests#search-by-missing-metadata),
+[§ Search by the title, body, or comments](https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests#search-by-the-title-body-or-comments)
+and
+[§ Search by when an issue or pull request was created or last updated](https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests#search-by-when-an-issue-or-pull-request-was-created-or-last-updated)
+(as of 2026-11-03; recheck when one of those sections renames a qualifier). That page leaves
+`sort:` to GitHub's sorting search results page, linked from its "Further reading".
 
-| Qualifier | Example | Meaning |
-|-----------|---------|---------|
-| `label:name` | `label:type:chore` | Has label |
-| `-label:name` | `-label:stale` | Excludes label |
-| `no:assignee` | `no:assignee` | Unassigned |
-| `assignee:login` | `assignee:@me` | Assigned to user |
-| `sort:field-dir` | `sort:created-asc` | Sort (created, updated, comments) |
-| `created:>date` | `created:>2026-01-01` | Created after date |
-| `updated:>date` | `updated:>2026-03-01` | Updated after date |
-| `"exact phrase"` | `"fix authentication"` | Body/title text search |
-
-Multiple qualifiers AND-combine: `label:type:chore label:recurring no:assignee sort:created-asc`.
-
-**REST form (cloud sessions).** `gh issue list --search` is GraphQL, which cloud
-sessions refuse (see "View item" below). We observed REST `search/issues` refused in cloud sessions
-too (the "View item" pointer does not cover search), so it is not the fallback. List the
+**REST form (cloud sessions).** A cloud session searches with neither `gh issue list --search` nor
+REST `search/issues`. List the
 repo's issues over REST and filter client-side: `<terms>` are the query words, all of which must
 appear in the title, case-insensitively. Pull requests come back from the issues endpoint and are
 dropped.
@@ -166,12 +162,12 @@ gh issue view <N> --json assignees,labels \
   --jq '{assignees: [.assignees[].login], labels: [.labels[].name]}' | tr -d '\r'
 ```
 
-**Sandboxed sessions: read the item over REST.** `gh issue view --json` routes through GitHub's
-GraphQL API, so in a cloud session (Claude Code on the web and remote execution) read the item with
-the REST recipe below. It is the same reason the lease protocol's assignee ops use REST under "Edit
-labels / assignees" below, and the note every other "sandboxed session" remark in this plugin
-cites. A 403 there is not an auth problem, so take it as a signal to switch APIs rather than to
-re-authenticate.
+**Sandboxed sessions: read the item over REST.** In a cloud session (Claude Code on the web and
+remote execution) read the item with the REST recipe below, not `gh issue view --json`, whose API
+the GitHub proxy pointer below covers. The lease protocol's assignee ops use REST under "Edit
+labels / assignees" below for the same reason, and
+every other "sandboxed session" remark in this plugin cites this note. Take a 403 there as a signal
+to switch APIs rather than to re-authenticate.
 
 The adapter makes that switch itself: with `CLAUDE_CODE_REMOTE=true` (set in cloud sessions) it
 takes the REST read and create paths whatever the `gh` version, and a native read or create that
@@ -183,15 +179,13 @@ there with an "unavailable in this Claude Code cloud session" message.
 
 - **Pointer**: when a `gh` call returns 403 in a cloud session, fetch the GraphQL restrictions in
   [cloud environments § GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy)
-  live. **As of**: 2026-10-11. **Recheck trigger**: that section's GraphQL bullet changes, or a
+  live. **As of**: 2026-11-03. **Recheck trigger**: that section's GraphQL bullet changes, or a
   release note names the GitHub proxy.
 
-The REST issues endpoint carries
-the same fields under the same names. Use the object-array form when substituting
-the general `gh issue view --json number,title,body,labels,assignees,comments`
-shape (`.labels[].name` / `.assignees[].login` keep working). REST `comments` is
-an integer count, not the comment list `--json comments` returns; take comments
-from the paginated "List item comments" recipe.
+The REST recipe below substitutes for the general
+`gh issue view --json number,title,body,labels,assignees,comments` shape (`.labels[].name` /
+`.assignees[].login` keep working) except for comments: take those from the paginated "List item
+comments" recipe.
 
 ```bash
 gh api "repos/{owner}/{repo}/issues/<N>" \
@@ -207,17 +201,14 @@ gh api "repos/{owner}/{repo}/issues/<N>" \
   | tr -d '\r'
 ```
 
-`gh api` has no `--repo` flag: `{owner}` and `{repo}` expand from the repository of the current
-directory, or from `GH_REPO`. Run it from the target clone, or prefix `GH_REPO=<owner>/<repo>`.
-
-`comments` is the one projected field that does not carry over. REST returns it as an integer
-count, not the list `--json comments` gives. Take comments from "List item comments" below, which
-is already REST and paginates for the reason documented there.
+Run `gh api` from the target clone, or prefix `GH_REPO=<owner>/<repo>`; where its `{owner}` and
+`{repo}` placeholders come from is read in the description at the top of
+[gh api](https://cli.github.com/manual/gh_api) (as of 2026-11-03; recheck when that description
+changes where the placeholders resolve from).
 
 **What this substitute does not cover.** The list, search, and aggregate projections below run on
-`gh issue list --json`, which posts to `/graphql` like the reads above and carries no REST form
-here. Under this restriction they are unavailable, as are the seam verbs named at the end of
-"Edit labels / assignees".
+`gh issue list --json` and carry no REST form here, so a cloud session does not use them, nor the
+seam verbs named at the end of "Edit labels / assignees".
 
 ## List item comments
 
@@ -228,9 +219,12 @@ gh api --paginate "repos/{owner}/{repo}/issues/<N>/comments?per_page=100" \
   | jq -s '[.[][] | {id, user: .user.login, created_at, body}] | sort_by(.id)' | tr -d '\r'
 ```
 
-`--paginate` is required. The endpoint returns 30 per page oldest-first and reports nothing
-when it truncates, so an unpaginated read silently drops the newest comments, and this repo
-already has long-running telemetry items past that count.
+`--paginate` is required: an unpaginated read stops at the first page, and this repo already has
+long-running telemetry items past one page. Page size and how a response signals further pages
+are read at
+[using pagination in the REST API § About pagination](https://docs.github.com/en/rest/using-the-rest-api/using-pagination-in-the-rest-api#about-pagination)
+(as of 2026-11-03; recheck when that section changes the default page size or how further pages
+are signaled).
 
 The reduction is slurped rather than passed to `--jq` because `gh` applies `--jq` to each page
 separately: `sort_by` there emits one separately-sorted array per page, never one sorted list.
@@ -244,8 +238,43 @@ Close an item (WRITE, see the identity note above):
 gh issue close <N> --repo <owner>/<repo> --comment "<closing note>" --reason completed
 ```
 
-The `done` action closes with `--reason completed` (or `not planned` for `--not-planned`), the
-values GitHub's issue-close accepts. `--reason "not planned"` needs the quoted space.
+The `done` action closes with `--reason completed`, and with `--reason "not planned"` for
+`--not-planned`. The accepted reasons are read at
+[gh issue close § Options](https://cli.github.com/manual/gh_issue_close#options)
+(as of 2026-11-03; recheck when that section changes the `--reason` values).
+
+**Re-point dependents first.** The steps and their order are in
+[`reference/issue-conventions.md`](../../../../reference/issue-conventions.md) "Dependents on
+close"; the GitHub reads and writes they name are these. List the open items `<N>` blocks over
+REST, which runs in a cloud session too and keeps the cross-repo dependents the `--json blocking`
+projection drops (see "Gotchas"):
+
+```bash
+set -o pipefail
+gh api --paginate "repos/<owner>/<repo>/issues/<N>/dependencies/blocking" \
+  --jq '.[] | select(.state == "open") | [.number, .html_url] | @tsv' | tr -d '\r'
+```
+
+A non-zero exit means the list may be empty or partial, not that `<N>` blocks nothing: stop the
+close and report it.
+
+After the seam's `link-blocks` adds a dependent's edge to its carrier, remove its edge to `<N>`,
+naming the dependent in its own repository (taken from its `html_url`):
+
+```bash
+gh issue edit <dependent> --repo <dependent-owner>/<dependent-repo> --remove-blocked-by <N-url>
+```
+
+`link-blocks` exits 3 in a cloud session ("Sandboxed sessions" under "View item"), so a close
+whose dependents need a new carrier is not made there; report it for a session that can write the
+edges. A close that keeps its edges (delivered, or dropped with no carrier) needs no edge write
+and goes ahead.
+
+- **Pointer**: the endpoint at
+  [issue dependencies § List dependencies an issue is blocking](https://docs.github.com/en/rest/issues/issue-dependencies#list-dependencies-an-issue-is-blocking);
+  the flag at [gh issue edit § Options](https://cli.github.com/manual/gh_issue_edit#options).
+  **As of**: 2026-11-03. **Recheck trigger**: that section changes the path or the response's
+  `state` or `html_url`, or a gh release renames `--remove-blocked-by`.
 
 **Duplicate close with native `--duplicate-of`.** GitHub closes a duplicate natively: this sets close
 reason `duplicate` and a structured, API-queryable `duplicateOf` relationship, strictly better than
@@ -274,12 +303,14 @@ gh issue close <N> --repo <owner>/<repo> --comment "Duplicate of <M>" --reason "
 
 ## Edit labels / assignees
 
-Edit labels / assignees (WRITE, see the identity note above). Edits use
-`--add-label`/`--remove-label` and `--add-assignee`/`--remove-assignee` (NOT `--label`, which
-is `gh issue create` only):
+Edit labels / assignees (WRITE, see the identity note above). This adapter edits labels and
+assignees through `gh issue edit`; its flags are read at
+[gh issue edit § Options](https://cli.github.com/manual/gh_issue_edit#options) (as of 2026-11-03;
+recheck when that section renames the label or assignee flags):
 
 ```bash
 gh issue edit <N> --repo <owner>/<repo> --add-label "<name>" --remove-label "<name>"
+gh issue edit <N> --repo <owner>/<repo> --remove-assignee "@me"   # clear this session's own assignment
 ```
 
 **Carve-out: claim assignment stays on the session identity.** The assignee MUST be the session
@@ -293,12 +324,14 @@ above). They use `gh api` against `…/issues/<n>/assignees` instead, through th
 `wit_read_assignees` / `wit_add_assignee` / `wit_remove_assignee` / `wit_try_remove_assignee`
 helpers in `common.sh`. Those helpers take the same `read`/`write` writer argument as
 `wit_run_gh`, so the carve-out above is preserved: `claim` passes `read` (bare `gh`) and resolves
-`@me` to the login explicitly, because REST takes a literal login rather than the `@me` alias.
+`@me` to the login explicitly rather than passing the alias.
 
-Note the two APIs differ on an unassignable user: `gh issue edit --add-assignee` failed loudly,
-while REST `POST …/assignees` returns 201 and silently drops the login. `claim` therefore
-re-reads the assignees and fails `4` (auth) when its own assignment did not land, rather than
-reporting a held lease on an item the frontier still sees as unassigned.
+`claim` then re-reads the assignees and fails `4` (auth) when its own assignment did not land,
+rather than reporting a held lease on an item the frontier still sees as unassigned. What the
+endpoint does with a login it cannot assign is read at
+[assignees § Add assignees to an issue](https://docs.github.com/en/rest/issues/assignees#add-assignees-to-an-issue)
+(as of 2026-11-03; recheck when that section changes its response for a login it does not
+assign).
 
 Of the verbs beyond the lease protocol, `get-item`, `list-items` and `list-frontier` switch to
 REST under that restriction ("View item", "List items"). `list-sub-items`, `add-sub-item` and
@@ -318,8 +351,9 @@ gh issue edit <N> --repo <owner>/<repo> --body-file <path>
 
 ## List labels
 
-For `/work-items:track labels` and the label checks in `add` (bare read). `gh label list`
-returns 30 labels unless `--limit` says otherwise:
+For `/work-items:track labels` and the label checks in `add` (bare read). Always pass `--limit`;
+the default cap is read at [gh label list § Options](https://cli.github.com/manual/gh_label_list#options)
+(as of 2026-11-03; recheck when that section changes the `--limit` default):
 
 ```bash
 gh label list --repo <owner>/<repo> --limit 1000 --json name --jq '.[].name' | tr -d '\r'
@@ -351,9 +385,10 @@ printf '%s\n\n%s\n' "Closes #<N>" "$(cat /tmp/pr-body.md)" \
 
 The prepended line is `change-link <id> --repo <PR's owner>/<repo>`'s `closes` text (CONTRACT.md "Change links").
 
-Match GitHub's issue-closing keyword set (`close`/`closes`/`closed`/`fix`/`fixes`/`fixed`/
-`resolve`/`resolves`/`resolved`) followed by `#<num>`; the opt-out markers `Refs #<num>` /
-`No related issue:` leave the body untouched.
+Match GitHub's issue-closing keyword set followed by `#<num>`, read live at
+[linking a pull request to an issue § Linking a pull request to an issue using a keyword](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue#linking-a-pull-request-to-an-issue-using-a-keyword)
+(as of 2026-11-03; recheck when that section changes the keyword list); the opt-out markers
+`Refs #<num>` / `No related issue:` leave the body untouched.
 
 ## Open linked PRs
 
@@ -361,11 +396,12 @@ For `/work-items:work` selection, report whether item `<N>` already has an open 
 for closure, so a candidate whose work is in flight is dropped from the pickable frontier rather
 than re-picked. With the draft-aware reduction below, the same check serves `/work-items:work-loop`'s
 drain-exit evaluation. The authoritative signal is **GitHub's own computed close-linkage**, not a text
-match over the PR body: the GraphQL `Issue.closedByPullRequestsReferences` connection returns
-exactly the PRs GitHub links as closing this issue, the same linkage GitHub renders in the
-issue sidebar and acts on for merge-time auto-close. Keep only the `OPEN`-state nodes whose
-**head branch lives in the item's own repository**: a `MERGED` PR that closed the issue already
-dropped it from the open frontier, a `CLOSED` (unmerged) PR is not in flight, and a PR from a fork
+match over the PR body, read from the GraphQL `Issue.closedByPullRequestsReferences` connection.
+What that linkage covers is read at
+[linking a pull request to an issue § About linked issues and pull requests](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue#about-linked-issues-and-pull-requests)
+(as of 2026-11-03; recheck when that section changes which pull requests link to an issue).
+Keep only the `OPEN`-state nodes whose **head branch lives in the item's own repository**: a
+`MERGED` PR that closed the issue already dropped it from the open frontier, a `CLOSED` (unmerged) PR is not in flight, and a PR from a fork
 (or from another repository whose body says `Closes owner/repo#<N>`) is an outsider's proposal,
 not our work in flight. Counting it would let anyone park an item for the whole stale-in-flight
 window by opening a PR. A fork that was deleted has a `null` head repository and is dropped too.
@@ -426,10 +462,12 @@ cycle), never read the absent boolean as "no open PR". `-F n=<N>` passes the num
 `Int` (typed); `-f` passes the owner/repo strings; the `tr -d '\r'` on the captured output follows
 the Windows/Git Bash rule under "Gotchas" (each page's boolean can otherwise arrive as `true\r`,
 which `grep -qx true` would then fail to match).
-The `select(.state=="OPEN")` filter is **necessary, not redundant with `includeClosedPrs:false`**:
-that argument suppresses only `CLOSED` (unmerged) PRs, so a `MERGED` PR still appears in the
-connection and must be dropped here. Otherwise an issue whose only closing PR merged to a
-non-default base (or that was reopened after a merge) would be wrongly reported as in-flight.
+The `select(.state=="OPEN")` filter stays beside `includeClosedPrs:false`: the query output is
+filtered to `OPEN` here rather than trusting the argument, so an issue whose only closing PR merged
+(or that was reopened after a merge) is never reported in flight. What the argument filters is read
+at the [`Issue` object reference](https://docs.github.com/en/graphql/reference/issues#issue)'s
+`closedByPullRequestsReferences` field (as of 2026-11-03; recheck when that field's arguments
+change).
 `first:100` requests the connection's maximum page (GitHub GraphQL caps `first`/`last` at 100).
 Because the connection retains `MERGED` nodes, this bound counts every PR the issue has *ever*
 linked as closing, not only the open ones, so a long merge/reopen history can push the
@@ -445,21 +483,22 @@ lets the exit status be checked: in a bare pipeline `gh`'s non-zero exit is mask
 mid-pagination failure would reduce to a spurious `false`. Why GitHub's computed
 linkage instead of a body regex over `gh pr list --search`:
 
-- **Fenced code blocks and HTML comments are inert for free.** GitHub does not link a closing
-  keyword that appears only inside a fenced code block or an HTML comment, so an example snippet
-  such as a fenced `Closes #<N>` never surfaces here and never spuriously excludes the still-open
-  issue. There is no fence-tracking heuristic to maintain. The retired approach hand-rolled a
+- **No fence-tracking heuristic to maintain.** Whether text in a PR body forms a link is
+  GitHub's call, so an example snippet such as a fenced `Closes #<N>` is judged by GitHub, not by
+  a local parser. The retired approach hand-rolled a
   `jq` `gsub` that recognized only exactly-three backticks or tildes and silently missed
   four-or-more-backtick and indented fences. This closes the fence-blindness the prior regex
   carried.
 - **No word-boundary or number-boundary guards.** `#463` cannot collide with `#4630` / `#1463`
   and a keyword cannot match inside a longer word, because the reference is GitHub's parsed issue
   linkage, not a regex over raw text.
-- **Base-branch correctness (behavior change).** GitHub forms the close-link only for a PR that
-  targets the repository's default branch. A closing keyword on any other base branch is ignored
-  and creates no linkage. This mechanic therefore does not exclude an issue whose only `Closes
-  #<N>` lives on a non-default-base PR, whereas the retired raw-body regex counted it. That issue
-  now stays pickable, matching GitHub's real merge-time auto-close semantics.
+- **Base-branch correctness (behavior change).** The retired raw-body regex counted a
+  `Closes #<N>` on a PR against any base branch. This mechanic counts only what GitHub links, so
+  an issue whose only closing keyword sits on a PR GitHub does not link now stays pickable,
+  matching GitHub's merge-time auto-close. Which base branches link, and which text in a body is
+  ignored, are read at
+  [§ Linking a pull request to an issue using a keyword](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue#linking-a-pull-request-to-an-issue-using-a-keyword)
+  (as of 2026-11-03; recheck when that section changes which base branch a keyword links on).
 - **Opt-out is intrinsic.** An intentional `Refs #<num>` (reference without closing) never enters
   the closing linkage, so it correctly does not exclude its issue. That is the same opt-out the
   `pr-issue-linkage` gate honors, now with no keyword allow/deny list to keep in sync.
@@ -512,12 +551,12 @@ caller, the same as a non-zero exit. The endpoint and its role mapping are cited
 
 ## Linked changes
 
-For `/work-items:track changes`: the PRs GitHub links as closing item `<N>`, in any state, from the
-same `closedByPullRequestsReferences` connection as "Open linked PRs" above, so the same rules
+For `/work-items:track changes`: the PRs linked as closing item `<N>`, read from the same
+`closedByPullRequestsReferences` connection as "Open linked PRs" above, so the same rules
 apply: `--paginate`, `-F` for the typed `Int`, the output captured and its exit status checked
 before any reduction, and `tr -d '\r'`. A failed query is not an empty result. Unlike the in-flight
-check it keeps PRs from any head repository and asks for closed ones (`includeClosedPrs:true`),
-because a caller deriving what shipped wants every `MERGED` node; the caller filters by `state`.
+check it keeps PRs from any head repository and sets `includeClosedPrs:true`, because a caller
+deriving what shipped wants every state; the caller filters by `state`.
 `<owner>`/`<repo>` are the item's own repository (bare read):
 
 ```bash
@@ -616,22 +655,21 @@ reported, or a `gh` release changes the `run watch` or `pr checks --watch` inter
 
 ## Gotchas
 
-Per-operation gotchas live with their sections above (the `--limit` truncation under "List
-items", the `--add-label`-vs-`--label` rule under "Edit labels / assignees"). Cross-cutting:
+Per-operation gotchas live with their sections above (the `--limit` rule under "List items").
+Cross-cutting:
 
 - **Windows `\r`.** Git Bash adds `\r` to `gh` output through `jq`/`--jq`; end every parsing
   pipeline with `| tr -d '\r'`.
-- **`--json subIssues` nodes carry no `repository`.** Each node is projected down to `id`,
-  `number`, `title`, `url`, `state`. gh's own GraphQL query does ask for
-  `repository{nameWithOwner}`, but its export path drops the object again, and `parent`,
-  `blockedBy` and `blocking` project the same way (no `stateReason` either, so `get-item` and
-  `list-items` read closed blockers' close reasons with one `gh api graphql` `nodes(ids:)`
-  query). So filtering sub-issues on
-  `.repository.nameWithOwner` matches nothing and reads as "no children" (#3825). Derive
-  owner/repo from the node's `url` instead (`<host>/<owner>/<repo>/issues/<n>`), or request
-  `repository { nameWithOwner }` through `gh api graphql`, which does return it. Verified
-  against gh 2.97.0; the projection is unchanged from 2.94.0, the sub-issue floor, through
-  2.98.0. A node the adapter can attribute to neither field is dropped and named on stderr, so
+- **Never filter `--json subIssues` nodes on `.repository`.** Derive owner/repo from the node's
+  `url` (`<host>/<owner>/<repo>/issues/<n>`), or request `repository { nameWithOwner }` through
+  `gh api graphql`; a filter on `.repository.nameWithOwner` reads as "no children". `parent`,
+  `blockedBy` and `blocking` nodes get the same treatment, and `get-item` and `list-items` read
+  closed blockers' close reasons with one `gh api graphql` `nodes(ids:)` query. Which fields
+  `--json` exports is read at
+  [gh issue view § JSON Fields](https://cli.github.com/manual/gh_issue_view#json-fields)
+  (as of 2026-11-03; recheck when a gh release changes the sub-issue, parent or dependency
+  projection).
+  A node the adapter can attribute to neither field is dropped and named on stderr, so
   a further narrowing of the projection surfaces as a message instead of as another silently
   empty list. A node attributed to a *different* repo is dropped silently: that one is the
   documented cross-repo truncation, not a fault.
@@ -657,5 +695,7 @@ items", the `--add-label`-vs-`--label` rule under "Edit labels / assignees"). Cr
   `-Encoding utf8` prepends a BOM and `utf8NoBOM` does not exist (PowerShell 6+ has both). Without
   `-Raw` you get a line array, not the one string that write takes.
 - **Rate limits**: see [API budget](#api-budget).
-- **Issue Forms auto-labeling** fires only on web-form creation, not `gh issue create`, so apply
-  labels explicitly when creating programmatically.
+- **Apply labels explicitly when creating an item programmatically**, never relying on an issue
+  form's `labels` key. Which creation paths apply that key is read at
+  [syntax for issue forms § Top-level syntax](https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/syntax-for-issue-forms#top-level-syntax)
+  (as of 2026-11-03; recheck when that section changes when the `labels` key applies).

@@ -2142,6 +2142,91 @@ test("a GraphQL query answered 502 with retry-after is not sent again, and the n
   assert.equal(gh.sent.length, 1);
 });
 
+// A rate latch on a fake clock that each sleep moves on.
+function latchClock({ hold = false } = {}) {
+  const clock = { now: 0 };
+  const slept = [];
+  let failed = 0;
+  const latch = createRateLimitLatch({
+    now: () => clock.now,
+    log: () => {},
+    fail: () => {
+      failed += 1;
+    },
+    limits: () => ({}),
+    stopFile: null,
+    hold,
+  });
+  const sleep = async (ms) => {
+    slept.push(ms);
+    clock.now += ms;
+  };
+  return { slept, latch, failed: () => failed, options: { latch, sleep, now: () => clock.now } };
+}
+const secondaryLimit = (seconds) => ({ status: 403, headers: { "retry-after": String(seconds) }, body: '{"message":"You have exceeded a secondary rate limit."}' });
+
+// Outage posture element 1: the rate latch waits out a reset within the 60 s
+// budget (the reset plus a second) instead of refusing. The read the limit
+// refused goes once more; a mutation does not, but the next call waits; a
+// reset past the budget is refused without a request.
+test("createGitHub waits on the rate latch for a reset within the budget, and refuses one past it", async () => {
+  const gh = flaky([secondaryLimit(30), { status: 200, body: '[{"number":7}]' }, secondaryLimit(20), { status: 200, body: "[]" }, secondaryLimit(120)]);
+  const { slept, failed, options } = latchClock();
+  const github = createGitHub({ ...gh.options, ...options, random: () => 0 });
+  assert.deepEqual(await github("GET", PULLS_PATH), [{ number: 7 }]);
+  assert.deepEqual(slept, [31_000]);
+  assert.equal(failed(), 0, "a read that rode the limit out fails nothing");
+  await assert.rejects(github("POST", "/graphql", { query: "mutation { a }" }), (error) => error instanceof GitHubError && error.status === 403);
+  assert.equal(failed(), 1, "a refused mutation, never resent, fails the step");
+  assert.deepEqual(await github("GET", PULLS_PATH), []);
+  assert.deepEqual(slept, [31_000, 21_000]);
+  assert.deepEqual(gh.sent, [`GET ${PULLS_PATH}`, `GET ${PULLS_PATH}`, "POST /graphql", `GET ${PULLS_PATH}`]);
+  // 50 s waited: a 120 s reset is not, and the read's own answer stands.
+  await assert.rejects(github("GET", PULLS_PATH), (error) => error instanceof GitHubError && error.status === 403);
+  await assert.rejects(github("GET", PULLS_PATH), RateLimitStop);
+  assert.equal(gh.sent.length, 5);
+  assert.equal(failed(), 3);
+});
+
+// The same ride-out end to end on the process-wide latch: a read answered
+// retry-after 1 waits 2 s, is sent again and answered, and the process exits
+// with main's code, with no error annotation.
+test("a read that rides out a short rate limit leaves the process green", () => {
+  const script = `
+    import { createGitHub } from "./.github/actions/check-trusted-trigger/check-trusted-trigger.mjs";
+    const answers = [
+      new Response('{"message":"You have exceeded a secondary rate limit."}', { status: 403, headers: { "retry-after": "1" } }),
+      new Response('[{"number":7}]', { status: 200 }),
+    ];
+    const github = createGitHub({ token: "t", fetchImpl: async () => answers.shift() });
+    console.log("read=" + JSON.stringify(await github("GET", "/repos/o/r/pulls")));
+    process.exitCode = 0;
+  `;
+  const root = path.join(HERE, "../../..");
+  const run = spawnSync(process.execPath, ["--input-type=module", "-e", script], { cwd: root, encoding: "utf8", env: { ...process.env, RESOLVED_CONFIG: "", RUNNER_TEMP: "", API_BUDGET_HOLD: "" } });
+  assert.match(run.stdout, /read=\[\{"number":7\}\]/);
+  assert.doesNotMatch(run.stdout, /::error::/);
+  assert.equal(run.status, 0);
+});
+
+// Safety: a hold never turns a refusal into a pass. A trust read the holding
+// latch refuses still stops the lane; the same gate over an answered read
+// proceeds, so the stop is the refusal's.
+test("a trust check whose read a holding rate latch refuses stops the lane, never proceeds", async () => {
+  const pull = readFileSync(path.join(FIXTURES, "api-pull-42.json"), "utf8");
+  const limited = () => new Response('{"message":"API rate limit exceeded for installation ID 1."}', { status: 403, headers: { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "0", "x-ratelimit-reset": "3600", "x-ratelimit-resource": "core" } });
+  const run = (answerPull) => {
+    const { options } = latchClock({ hold: true });
+    const fetchImpl = async (url) => (url.endsWith("/pulls/42") ? answerPull() : new Response(JSON.stringify(HEAD_REF_AT), { status: 200 }));
+    const github = createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl, log: () => {}, ...options });
+    return gate({ eventName: "workflow_dispatch", event: fixture("event-workflow-dispatch.json"), github, prNumber: "42" });
+  };
+  assert.deepEqual(await run(() => new Response(pull, { status: 200 })), PROCEED);
+  const held = await run(limited);
+  assert.equal(held.proceed, "false");
+  assert.equal(held["head-sha"], "");
+});
+
 test("createGitHub counts the time a failed attempt took against the 60 s budget", async () => {
   let clock = 0;
   const sent = [];
@@ -2167,6 +2252,51 @@ test("createGitHub counts the time a failed attempt took against the 60 s budget
   // 28 + 2 + 28 + 4 s is 62 s: the second attempt's 4 s wait is not taken.
   assert.equal(sent.length, 2);
   assert.deepEqual(slept, [2000]);
+});
+
+const limitedResponse = (seconds) => {
+  const { status, headers, body } = secondaryLimit(seconds);
+  return new Response(body, { status, headers });
+};
+
+test("createGitHub waits out the rate latch before an attempt's timeout starts, so the resent read goes out live", async () => {
+  const clock = { now: 0 };
+  const latch = createRateLimitLatch({ now: () => clock.now, log: () => {}, fail: () => {}, limits: () => ({}), stopFile: null });
+  // Each sleep moves the latch's clock on and takes 80 ms of real time, past
+  // the 30 ms attempt timeout.
+  const sleep = async (ms) => {
+    clock.now += ms;
+    await new Promise((resolve) => setTimeout(resolve, 80));
+  };
+  const answers = [limitedResponse(1), new Response('[{"number":7}]', { status: 200 })];
+  const aborted = [];
+  const fetchImpl = async (_url, init) => {
+    aborted.push(init.signal.aborted);
+    init.signal.throwIfAborted();
+    return answers.shift();
+  };
+  const github = createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl, latch, sleep, now: () => clock.now, attemptTimeoutMs: 30, random: () => 0, log: () => {} });
+  assert.deepEqual(await github("GET", PULLS_PATH), [{ number: 7 }]);
+  assert.deepEqual(aborted, [false, false], "the resent read goes out once, on a live signal");
+});
+
+test("createGitHub keeps the rate latch's wait out of the 60 s server-retry budget", async () => {
+  const clock = { now: 0 };
+  const latch = createRateLimitLatch({ now: () => clock.now, log: () => {}, fail: () => {}, limits: () => ({}), stopFile: null });
+  const slept = [];
+  const sleep = async (ms) => {
+    slept.push(ms);
+    clock.now += ms;
+  };
+  // A 55 s limit, then a 500 that takes 5 s, then the answer: 5 s of failed
+  // attempts fits the budget, while 56 s of latch wait plus them would not.
+  const answers = [() => limitedResponse(55), () => ((clock.now += 5000), new Response("{}", { status: 500 })), () => new Response('[{"number":7}]', { status: 200 })];
+  let sent = 0;
+  const fetchImpl = async () => answers[sent++]();
+  const github = createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl, latch, sleep, now: () => clock.now, random: () => 0, log: () => {} });
+  assert.deepEqual(await github("GET", PULLS_PATH), [{ number: 7 }]);
+  assert.equal(sent, 3);
+  assert.deepEqual(slept, [56_000, 0]);
 });
 
 const FAKE_TOKEN = "fake-secret-marker-9c41";
@@ -3118,6 +3248,28 @@ test("isTrustedClose: the lanes App's already-done close counts for nothing once
   assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ comments: forged })), "o/r", APP_CLOSED, humans, isLanesApp), false, "a close comment the App did not write");
   const reopened = [closeComment("already-done", "already-done: ＃5 shipped it"), closeComment("report-delivered", "report-delivered: ＃5 shipped it")];
   assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ comments: reopened })), "o/r", APP_CLOSED, humans, isLanesApp), false, "the last close is a report");
+});
+
+// #12456 class A: the App's verified-done close of a finished parent counts
+// when every sub-issue, read fresh, is closed as completed by a close this
+// function trusts (here a listed human's); a not_planned or untrusted one, or
+// no sub-issue, leaves it untrusted.
+test("isTrustedClose: the lanes App's verified-done close counts only while every sub-issue's close holds", async () => {
+  const OWNER_ID = 101;
+  const humans = new Set([OWNER_ID]);
+  const child = (number, extra = {}) => ({ number, state: "closed", state_reason: "completed", closed_by: { id: OWNER_ID }, repository_url: "https://api.github.com/repos/o/r", ...extra });
+  const verified = (children) =>
+    routeClient({
+      ...appCloseRoutes({ comments: [closeComment("verified-done", "verified-done: each done-when item checks out")] }),
+      "GET /repos/o/r/issues/77/sub_issues?per_page=100&page=1": children,
+      ...Object.fromEntries(children.map((item) => [`GET /repos/o/r/issues/${item.number}`, item])),
+    });
+  assert.equal(await isTrustedClose(verified([child(80), child(81)]), "o/r", APP_CLOSED, humans, isLanesApp), true);
+  assert.equal(await isTrustedClose(verified([child(80), child(81, { state_reason: "not_planned" })]), "o/r", APP_CLOSED, humans, isLanesApp), false, "a not_planned sub-issue");
+  assert.equal(await isTrustedClose(verified([child(80), child(81, { closed_by: STRANGER })]), "o/r", APP_CLOSED, humans, isLanesApp), false, "an untrusted close");
+  assert.equal(await isTrustedClose(verified([]), "o/r", APP_CLOSED, humans, isLanesApp), false, "no sub-issue");
+  // A same-numbered issue here, closed by a listed human, never vouches for a sub-issue elsewhere.
+  assert.equal(await isTrustedClose(verified([child(80), child(81, { repository_url: "https://api.github.com/repos/o/other" })]), "o/r", APP_CLOSED, humans, isLanesApp), false, "a sub-issue in another repository");
 });
 
 test("isTrustedClose: the lanes App's report-delivered close counts for nothing", async () => {

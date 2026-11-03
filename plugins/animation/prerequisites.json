@@ -18,8 +18,7 @@
         "brew": "node",
         "winget": "OpenJS.NodeJS.LTS",
         "apt": "nodejs"
-      },
-      "check": "/animation:check-prerequisites"
+      }
     },
     {
       "id": "python3",
@@ -47,8 +46,7 @@
         "brew": "python",
         "winget": "Python.Python.3.12",
         "apt": "python3"
-      },
-      "check": "/animation:check-prerequisites"
+      }
     },
     {
       "id": "jq",
@@ -68,8 +66,7 @@
         "brew": "jq",
         "winget": "jqlang.jq",
         "apt": "jq"
-      },
-      "check": "/animation:check-prerequisites"
+      }
     },
     {
       "id": "ffmpeg",
@@ -91,8 +88,7 @@
         "brew": "ffmpeg",
         "winget": "Gyan.FFmpeg",
         "apt": "ffmpeg"
-      },
-      "check": "/animation:check-prerequisites"
+      }
     },
     {
       "id": "ffprobe",
@@ -114,8 +110,7 @@
         "brew": "ffmpeg",
         "winget": "Gyan.FFmpeg",
         "apt": "ffmpeg"
-      },
-      "check": "/animation:check-prerequisites"
+      }
     },
     {
       "id": "libx264",
@@ -142,8 +137,7 @@
         "brew": "ffmpeg",
         "winget": "Gyan.FFmpeg",
         "apt": "ffmpeg"
-      },
-      "check": "/animation:check-prerequisites"
+      }
     }
   ]
 }

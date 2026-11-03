@@ -126,7 +126,10 @@ describes; the fields are additive, and a reader ignores keys it does not know.
 - `bands`: the edges in force after `zones.json`: `smart_max_used_percentage` and
   `acceptable_max_used_percentage` always; `smart_max_tokens` and `acceptable_max_tokens` for
   the session's window class, `null` when the token shape is not computable (see "Version
-  floor").
+  floor"); and `auto_compact_window` only when the auto-compact window is smaller than
+  `context_window_size`, in which case the percentage edges are already scaled to it (see "The
+  module follows the effective window" below). A reader running its own lookup scales its
+  percentage edges by `auto_compact_window / context_window_size` to reach the same `zone`.
 - They are written whenever the snapshot is, whatever the `model_notices` option says.
 
 - `captured_at`: ISO-8601 UTC write time; always present. Drives the staleness rule. A write
@@ -465,7 +468,7 @@ precedence.
 
 | Surface | Kind | What this plugin relies on | Pointer |
 |---|---|---|---|
-| `autoCompactWindow` | settings key (top level or per model) | A token count that moves the trigger for the model it applies to. Unset, the default is the docs' default-thresholds table (pointer above); set where we cannot see it, we assume no number (below). Normalize it into the percentage shape before comparing (below). | [settings-reference: `autoCompactWindow`](https://code.claude.com/docs/en/settings-reference#autocompactwindow); [settings-reference: `modelSettings`](https://code.claude.com/docs/en/settings-reference#modelsettings); [model-config: Set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window) |
+| `autoCompactWindow` | settings key (top level or per model) | A token count that moves the trigger for the model it applies to. Unset, the default is the docs' default-thresholds table (pointer above). Set, the module reads the window the engine settled on and, when it is smaller than the model's window, publishes it as `bands.auto_compact_window`, which the shell resolver reads too (below). Normalize it into the percentage shape before comparing (below). | [settings-reference: `autoCompactWindow`](https://code.claude.com/docs/en/settings-reference#autocompactwindow); [settings-reference: `modelSettings`](https://code.claude.com/docs/en/settings-reference#modelsettings); [model-config: Set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window) |
 | `autoCompactWindow` | subagent frontmatter | A subagent can carry its own window. The snapshot cannot see that window, and the surface is not probed, so we never assume a subagent shares the session's trigger. | [sub-agents: Set the auto-compact window for one subagent](https://code.claude.com/docs/en/sub-agents#set-the-auto-compact-window-for-one-subagent) |
 | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | environment variable | Read as the effective window whenever it is set, ahead of the setting, the command, and the flag. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
 | `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | environment variable | Read as able only to move the trigger earlier, never later. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
@@ -483,19 +486,33 @@ nothing.
 - **Recheck trigger**: a release note or one of those sections changes a surface's units, range,
   precedence, or the set of surfaces itself.
 
-The reader never resolves the window itself. It reads the snapshot's context fields and never a
-configured window, so it cannot tell which value is in effect: a window saved for one model or a
-top-level one. We treat a window we cannot see exactly like an unset one: no number is
-assumed, the bands stay below whatever the trigger resolves to, and `zones.json` is the operator's
-correction path when one model's window fires earlier than the bands allow.
+**The module follows the effective window.** It never reads a configured window or resolves
+precedence itself: it reads the window the engine settled on, the `rawMaxTokens` of
+`$.session.usage({ breakdown })` (the `/context` breakdown), whose `autocompactSource` says
+which surface set it (`env`, `settings`, the model's default, and the rest). When that window is
+smaller than `context_window_size`, it scales the percentage edges, the `thresholds` and the
+approach margin by their ratio, so `zones.json` percentages are of the auto-compact window, and it
+publishes the scaled edges with `bands.auto_compact_window`. Token bands are not scaled. Without a
+breakdown, or with a window at or above the model's, the edges stay as set. A probe on Claude Code
+2.1.317 (2026-11-03, one `claude -p` turn on a 1000000-token model) read `rawMaxTokens` 400000 with
+source `env` under `CLAUDE_CODE_AUTO_COMPACT_WINDOW=400000`, 300000 with source `settings` under a
+top-level `autoCompactWindow`, and 250000 under a per-model `modelSettings` value, where a
+`$.settings.read` of the top-level key returned nothing.
+
+The shell resolver (`scripts/context-zone.sh`) and its copies read `bands.auto_compact_window`
+from the snapshot and scale the percentage edges from `zones.json` by the same ratio, so under a
+lowered window they reach the module's `zone`. Absent, or not a number above 0 and below
+`context_window_size`, the edges stay as set. The shared fixture holds both a lowered and a
+default window.
 
 - **Pointer**: when a decision depends on where the window is stored or which value wins for the
   active model, fetch
   <https://code.claude.com/docs/en/settings-reference#modelsettings> and
-  <https://code.claude.com/docs/en/model-config#set-the-auto-compact-window> live.
-- **As of**: 2026-10-10
+  <https://code.claude.com/docs/en/model-config#set-the-auto-compact-window> live; for the
+  breakdown's fields, the per-build mod types (`SessionContextBreakdown`).
+- **As of**: 2026-11-03
 - **Recheck trigger**: the `modelSettings` section changes its keys or precedence, `/autocompact`
-  changes where it saves, or the reader starts reading a configured window.
+  changes where it saves, or a build's `SessionContextBreakdown` drops or renames `rawMaxTokens`.
 
 A dated observation, not the order of record (the pointers above hold that, and no decision here
 depends on it): on Claude Code 2.1.296, in a throwaway config directory, `/autocompact` saved the
@@ -533,14 +550,19 @@ changes what the percentage is measured against.
 machine, the `dumb` band should be reached first. A zone reading exists so the session arrives at a
 boundary decision while that decision is still being made deliberately, through the operator menu
 above. If auto-compact fires first, the harness has already made a lossy choice
-on the session's behalf and the boundary was reached too late. Auto-compact offers no steering
-hook, so a firing is best read diagnostically: **it means the boundary was missed**, not that the
-window was managed. Lowering the window moves the trigger, so the bands in `zones.json` must move
-with it, normalized into the percentage shape. A 400000-token window on a 1M-class model puts the
-trigger at **40% of the full window**, which is *inside* the shipped percentage `smart` band
-(≤ 50), so the percentage shape still reads smart when auto-compact fires, and the token shape,
-which decides the zone there, reads `acceptable`: neither shipped shape reaches `dumb` first. Keeping the percentage bands below that trigger means pulling them under 40, not
-comparing 400000 against the token bands' occupancy edges, which measure a different quantity.
+on the session's behalf and the boundary was reached too late. We read a firing diagnostically:
+**it means the boundary was missed**, not that the window was managed. Lowering the window moves the trigger, and the module moves the percentage
+bands with it. A 400000-token window on a 1M-class model puts the trigger at **40% of the full
+window**; with the shipped bands the module's edges become 20 and 30 points of the full window
+(50 and 75 of 400000), so the percentage shape reaches `dumb` before auto-compact fires. Without
+that scaling the percentage shape would still read smart at the trigger, inside the shipped
+`smart` band (≤ 50). The window is never compared against the token bands' occupancy edges, which
+measure a different quantity. The shell resolver scales the same way from the published
+`bands.auto_compact_window`; pulling `zones.json` under the trigger by hand would now scale twice,
+in the module and in the shell resolver.
+Pointer: for what a hook can do before an automatic compaction, see
+<https://code.claude.com/docs/en/hooks#precompact>. As of: 2026-11-03. Recheck trigger: that section
+changes what a hook on the `auto` trigger can do.
 
 That diagnostic reading is adopted; the prescription that usually travels with it is not. **Leave
 auto-compact enabled.** Disabling it is a defensible operator choice on an attended machine, but it
@@ -748,8 +770,10 @@ writer side: whether the module runs in the session. A session with the module l
   refresh races).
 - **Fixed paths, deliberately outside `${CLAUDE_PLUGIN_DATA}`.** The contract directory
   `~/.claude/context-guard/` is a documented cross-plugin artifact location: sibling-plugin
-  sessions read it by the documented path. `${CLAUDE_PLUGIN_DATA}` resolves per-plugin-identity
-  and would hide that directory from every consumer.
+  sessions read it by the documented path, the same for every consumer whatever plugin it belongs
+  to. Pointer: for where `${CLAUDE_PLUGIN_DATA}` resolves, see
+  <https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables>. As of:
+  2026-11-03. Recheck trigger: that table changes what `${CLAUDE_PLUGIN_DATA}` resolves to.
 - **No shipped Monitor config.** Consumers that want write-triggered re-evaluation arm their own
   session Monitor on their snapshot path. The plugin ships no `experimental.monitors` entry.
   Monitors is an experimental Claude Code component, and this plugin takes no dependency on one

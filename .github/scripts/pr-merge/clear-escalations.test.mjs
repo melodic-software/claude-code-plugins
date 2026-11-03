@@ -314,7 +314,7 @@ test("a label for a reason now routed to a failing status: fix-ci comes off on a
   assert.ok(others.includes("feedback-untaken-threads") && others.includes("unexpected-path-staged"));
   assert.deepEqual(
     others.filter((reason) => escalationActivity(reason) === "review-dependency"),
-    ["dependency-round-cap", "dependency-invalid", "dependency-fix-not-landed", "dependency-config-unreadable", "dependency-files-truncated", "dependency-control-uncited", "dependency-workflow-unpinned"],
+    ["dependency-round-cap", "dependency-invalid", "dependency-fix-not-landed", "dependency-pin-invalid", "dependency-pin-not-applied", "dependency-pin-protected-path", "dependency-config-unreadable", "dependency-files-truncated", "dependency-control-uncited", "dependency-workflow-unpinned"],
     "only dependency-security-close, dependency-escalate and dependency-fix-refused hold for a person",
   );
   for (const reason of others) {

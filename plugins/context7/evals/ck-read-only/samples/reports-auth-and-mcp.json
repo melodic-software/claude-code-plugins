@@ -1,0 +1,1 @@
+{"pass": [{"answer": "ctx7 is missing. CONTEXT7_API_KEY is not set. The MCP server is in my tool list.", "why": "both"}], "fail": [{"answer": "ctx7 is missing.", "why": "neither"}, {"answer": "The MCP server is in my tool list.", "why": "no auth state"}]}

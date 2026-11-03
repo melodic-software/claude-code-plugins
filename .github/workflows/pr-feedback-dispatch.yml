@@ -66,7 +66,7 @@ name: pr-feedback-dispatch
 # skipped at its review completion has no other trigger, so the job decides
 # that head again, through its newest completed review run, with every gate as
 # before (feedback-dispatch.mjs main). The run's head SHA is the PR's, so it
-# waits in that head's concurrency group and reads its dispatch record.
+# waits in that head's concurrency group.
 #
 # A completed pr-review-comment-relay.yml run, which a person's new review
 # comment on a lane branch starts, starts the dispatch job too, so a listed
@@ -85,11 +85,7 @@ name: pr-feedback-dispatch
 # ci-status hold. An approval has no event of its own here: a review event
 # would run the PR's copy of this file.
 #
-# Every completed review run at a head starts this file, so a run leaves a
-# record for the next one at that head in the Actions cache
-# (dispatch-record.mjs): a head already handled for good is skipped before
-# any read, and one whose dispatched run is still going after one. The
-# token's rate-limit readings, from the script's own responses, are logged
+# The token's rate-limit readings, from the script's own responses, are logged
 # at the end of the job (.github/actions/log-api-budget).
 
 on:
@@ -390,20 +386,6 @@ jobs:
         if: steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
         run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
 
-      # The newest record an earlier run at this head saved, if any. The key
-      # names the event's head SHA, which reaches no shell; the script checks
-      # every entry it reads (dispatch-record.mjs). A sweep keeps no record.
-      - name: Restore the dispatch record for this head
-        if: >-
-          steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
-          && github.event.workflow_run.path != '.github/workflows/pr-unblock-dispatch.yml'
-        continue-on-error: true
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ runner.temp }}/pr-feedback-dispatch-record.json
-          key: pr-feedback-dispatch-record-${{ needs.post-verify-notes.outputs.head-sha || needs.post-verify-notes.outputs.pass-head-sha || github.event.workflow_run.head_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: pr-feedback-dispatch-record-${{ needs.post-verify-notes.outputs.head-sha || needs.post-verify-notes.outputs.pass-head-sha || github.event.workflow_run.head_sha }}-
-
       # The gate's verifier reader (babysit_verify_evidence.py), which the
       # dispatch reads for a pull request whose pr-verify FAILs are at the cap
       # (verify-cap.mjs): the repository's pinned interpreter and PyYAML entry.
@@ -458,14 +440,6 @@ jobs:
           REVIEWER_IDS=$(yq '."review-threads"."reviewer-ids" // [] | .[]' .base/docs/conventions/pr-pipeline.yaml)
           export REVIEWER_IDS
           node .base/.github/scripts/pr-unblock/feedback-dispatch.mjs
-
-      - name: Save the dispatch record for this head
-        if: always() && steps.dispatch.outputs.record-changed == 'true'
-        continue-on-error: true
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ runner.temp }}/pr-feedback-dispatch-record.json
-          key: pr-feedback-dispatch-record-${{ needs.post-verify-notes.outputs.head-sha || needs.post-verify-notes.outputs.pass-head-sha || github.event.workflow_run.head_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       # The record of the run this run dispatched and the review run that
       # started it: an artifact only steps of this run can upload, read by the
@@ -524,14 +498,23 @@ jobs:
   # other lane's newest run has not finished, so a re-run before then can
   # only be red, and that lane's own completion starts this job again. Each
   # run of this job starts after its own lane completed, so the later lane's
-  # run finds the earlier lane finished; the per-head concurrency group keeps
-  # the two from re-running ci-status at once, and a last read of the run's
+  # run finds the earlier lane finished. The earlier lane's run can run after
+  # both finished too (it waits in the per-head queue), so it leaves the
+  # re-run to the later lane's run after that one read: only the lane that
+  # finished last acts, and a ci-status re-run inside the 60 s margin below
+  # is not re-run again. The per-head concurrency group keeps the two from
+  # running at once, and a last read of the run's
   # attempt comes just before the re-run. A head with no run of the
   # other lane (one lane only) re-runs on this lane alone. A head the PR has
   # moved past, or a closed PR, is left alone. A ci-status job not started
-  # yet, or one that started more than 60 s after both lanes finished (the
-  # margin covers a lagging read), reads them anyway, so it is left alone
-  # too; one that
+  # yet, or one that began reading the reviews more than 60 s after both
+  # lanes finished (the margin covers a lagging read), reads them anyway, so
+  # it is left alone too. So is one that passed, having begun that read at or
+  # after both lanes finished: it counted both finished reviews, so a re-run
+  # can only pass again, and still starts pr-verify on the head again. The
+  # read's start is ci-status's `Require both review lanes on this head`
+  # step's, else the job's, which is earlier: the jobs API can list a job's
+  # steps empty. One that
   # started earlier and is still in progress waits for its run, polled every
   # 60 s for at most 10 minutes, then is re-run. No model, and no checkout
   # but the trusted-actors list and the api-budget library: the token can
@@ -702,7 +685,7 @@ jobs:
           # completion exists only while the other lane is running), and
           # maintenance-reconcile-lost-runs re-runs one red only on a pending
           # or missing review, at attempt 1, after its PENDING_BACKOFF_MINUTES.
-          # Should both re-run it, the started_at check below ends this job on
+          # Should both re-run it, the read_at check below ends this job on
           # an attempt that started after the lanes finished. What overlap
           # remains is two POSTs inside check-then-act gaps, which GitHub would refuse while the first re-run is going
           # (UNVERIFIED) rather than start a third attempt. Should both land,
@@ -779,6 +762,17 @@ jobs:
                 exit 0
               fi
               other_at=$(jq -r '.updated_at // ""' <<<"$lane")
+              # Only the lane that finished last re-runs ci-status (ties: the
+              # higher run id), once per head. The other lane's run defers to it
+              # when that run starts this job (the job's `if`: not skipped) and
+              # records its re-run (attempt 1).
+              if [[ $LANE_PATH != "$approved" ]] &&
+                jq -e --arg own "$LANE_DONE_AT" --arg own_id "$REVIEW_RUN_ID" 'try (.conclusion != "skipped" and .run_attempt == 1
+                  and ((.updated_at | fromdateiso8601) as $t | ($own | fromdateiso8601) as $o
+                    | $t > $o or ($t == $o and .id > ($own_id | tonumber)))) catch false' <<<"$lane" >/dev/null; then
+                echo "$other finished on $HEAD_SHA after this lane; its completion re-runs ci-status."
+                exit 0
+              fi
               if [[ $other_at > $done_at ]]; then
                 done_at=$other_at
               fi
@@ -803,12 +797,22 @@ jobs:
               ;;
             esac
           fi
-          started_at=$(jq -r '.started_at // ""' <<<"${job:-null}")
-          if [ "$(jq -r --arg s "$started_at" --arg d "$done_at" \
-            'try (($s | fromdateiso8601) > ($d | fromdateiso8601) + 60) catch false' <<<null)" = true ]; then
-            echo "ci-status of run $id started at $started_at, after both lanes finished ($done_at); it read them."
+          # When ci-status began reading the reviews: its review-lanes step's
+          # start, else the job's. Read late, or passed on a read after both
+          # lanes finished, it is left alone (see the job comment).
+          read_at=$(jq -r 'first(((.steps // [])[] | select(.name == "Require both review lanes on this head") | .started_at | strings),
+            (.started_at | strings)) // ""' <<<"${job:-null}")
+          case $(jq -r --arg s "$read_at" --arg d "$done_at" 'try (($s | fromdateiso8601) as $r | ($d | fromdateiso8601) as $t
+            | if $r > $t + 60 then "late" elif .conclusion == "success" and $r >= $t then "passed" else "" end) catch ""' <<<"${job:-null}") in
+          late)
+            echo "ci-status of run $id began reading the reviews at $read_at, after both lanes finished ($done_at); it read them."
             exit 0
-          fi
+            ;;
+          passed)
+            echo "ci-status of run $id passed, reading the reviews from $read_at, after both lanes finished ($done_at); a re-run can only pass again."
+            exit 0
+            ;;
+          esac
           while [ "$(jq -r .status <<<"$run")" != completed ]; do
             if [ "$waited" -ge "$POLL_LIMIT_SECONDS" ]; then
               echo "::error::run $id on $HEAD_SHA has not finished after ${waited}s; re-run its ci-status job once it does."

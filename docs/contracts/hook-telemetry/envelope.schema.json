@@ -49,7 +49,7 @@
     "prompt_id": {
       "type": "string",
       "pattern": "^[A-Za-z0-9._-]+$",
-      "description": "Optional since 1.1. The payload's prompt_id (Claude Code v2.1.196+), which matches the prompt.id attribute on the session's real OpenTelemetry events: the documented join between a local envelope and the same turn's OTel stream."
+      "description": "Optional since 1.1. The payload's prompt_id: this contract's key for joining a local envelope to the same turn's OpenTelemetry events. README.md, Correlation keys, points at the upstream sections."
     },
     "tool_use_id": {
       "type": "string",

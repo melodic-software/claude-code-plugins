@@ -2,10 +2,8 @@
   "skill": "context7:lookup",
   "plugin": "context7",
   "skill_dir": "plugins/context7/skills/lookup",
-  "ranking_note": "Authored blind from the before descriptions at commit 1e8ff6f8bb, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitor is the sibling model-invoked context7:check skill; context7:setup is user-invoked only and not a competitor.",
-  "competitors": [
-    "context7:check"
-  ],
+  "ranking_note": "Authored blind from the before descriptions at commit 1e8ff6f8bb, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. No competitor: context7:setup is user-invoked only.",
+  "competitors": [],
   "queries": [
     {
       "id": "pos-train-01",

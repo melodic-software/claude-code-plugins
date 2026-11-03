@@ -439,6 +439,7 @@ jobs:
       attempt: ${{ github.run_attempt }}
       lease: ${{ steps.lease.outputs.lease }}
       lease-comment-id: ${{ steps.lease.outputs.lease-comment-id }}
+      blocked: ${{ steps.recheck-blockers.outcome == 'success' && steps.recheck-blockers.outputs.proceed != 'true' }}
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -535,6 +536,33 @@ jobs:
           }
           echo "lease=held" >>"$GITHUB_OUTPUT"
           echo "lease-comment-id=$id" >>"$GITHUB_OUTPUT"
+
+      # Issue mode, once the run holds its slot and its lease: the caller's
+      # admit job checked the issue's blockers before the slot wait, which
+      # can last an hour, so a blocker added since is read here, by the same
+      # check-blockers.mjs in its RECHECK mode (one blocked_by read unless
+      # only closed blockers are listed). An open blocker, or a read that
+      # fails, stops the run as admit's does: no model turn, no outcome
+      # marker, agent-ready kept, and work-unblock's sweep re-fires the issue
+      # once no blocker is open, matching the stop step below by name. The
+      # report job ends the lease. The first call alone checks: a later leg
+      # runs only after this one handed off.
+      - name: Re-check the issue's blockers in the slot
+        id: recheck-blockers
+        if: inputs.issue-number != '' && inputs.fallback == '' && steps.lease.outputs.lease == 'held'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ inputs.issue-number }}
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          RECHECK: "true"
+        run: node .base/.github/scripts/work-resolve-issue/check-blockers.mjs
+
+      # work-unblock's sweep matches this step's name, run, in the job listing
+      # (label-unblocked.mjs didNoWork `blocked`).
+      - name: Stop on an open blocker
+        if: steps.recheck-blockers.outcome == 'success' && steps.recheck-blockers.outputs.proceed != 'true'
+        run: echo "an open blocker, or blockers that cannot be read, stop the run before any model turn"
 
       - name: Log the API budget at the end
         if: always()
@@ -1019,8 +1047,9 @@ jobs:
       # names the issue's stopped runs' branches with no pull request in any
       # state, past the branch it picked (prune-branches), for
       # work-resolve-issue.yml's prune job to delete. A run that backed off
-      # on another session's lease skips this check, so it names no branch
-      # for the caller's report-outcome to open a PR from.
+      # on another session's lease, or that an open blocker stopped, skips
+      # this check, so it names no branch for the caller's report-outcome to
+      # open a PR from.
       - name: Check for an earlier run's work on the issue
         id: issue-prior
         if: >-
@@ -1028,6 +1057,7 @@ jobs:
           && steps.config.outputs.kind == 'skill'
           && steps.workflow-current.outputs.stale != 'true'
           && needs.broker-check.outputs.lease != 'already-leased'
+          && needs.broker-check.outputs.blocked != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ inputs.issue-number }}
@@ -1044,8 +1074,9 @@ jobs:
           echo "::warning::already-leased: another session holds a live lease on #$ISSUE_NUMBER; the run stops before any model turn"
 
       # Whether the activity runs: it applies, and in issue mode neither stale
-      # workflow files, an earlier run's work nor another session's lease stops it. Every step below
-      # that touches the activity keys on this.
+      # workflow files, an earlier run's work, another session's lease nor an
+      # open blocker (broker-check's in-slot re-check) stops it. Every step
+      # below that touches the activity keys on this.
       - name: Decide whether the activity runs
         id: go
         if: steps.config.outputs.applies == 'true'
@@ -1053,8 +1084,9 @@ jobs:
           PRIOR: ${{ steps.issue-prior.outputs.proceed }}
           STALE: ${{ steps.workflow-current.outputs.stale }}
           LEASE: ${{ needs.broker-check.outputs.lease }}
+          BLOCKED: ${{ needs.broker-check.outputs.blocked }}
         run: |
-          if [ "$PRIOR" = false ] || [ "$STALE" = true ] || [ "$LEASE" = already-leased ]; then
+          if [ "$PRIOR" = false ] || [ "$STALE" = true ] || [ "$LEASE" = already-leased ] || [ "$BLOCKED" = true ]; then
             echo "run=false" >>"$GITHUB_OUTPUT"
           else
             echo "run=true" >>"$GITHUB_OUTPUT"
@@ -2698,14 +2730,24 @@ jobs:
         continue-on-error: true
         timeout-minutes: 2
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          CALLS_FILE: ${{ runner.temp }}/scan-stage-calls
         with:
           retries: 2
           retry-exempt-status-codes: 400,401,403,404,422,429
           script: |
             const fs = require('fs');
             const path = require('path');
+            // Each request's count, written before it is sent, for the job-end notice.
+            let calls = 0;
+            const sent = () => {
+              try {
+                fs.writeFileSync(process.env.CALLS_FILE, `${++calls}\n`);
+              } catch {}
+            };
             const branch = context.payload.repository?.default_branch;
             if (typeof branch !== 'string' || branch === '') throw new Error('no default branch');
+            sent();
             const tip = (await github.rest.repos.getBranch({ ...context.repo, branch })).data?.commit?.sha;
             if (typeof tip !== 'string' || !/^[0-9a-f]{40}$/.test(tip)) throw new Error('no default branch tip');
             const dest = path.join(process.env.RUNNER_TEMP, 'scan-gate');
@@ -2716,6 +2758,7 @@ jobs:
               ['.github/actions/scan-upload/scan-upload.mjs', ['../../../lib/publish-gate.mjs']],
             ];
             for (const [file, allowed] of files) {
+              sent();
               const { data } = await github.rest.repos.getContent({ ...context.repo, path: file, ref: tip });
               const source = Buffer.from(data.content, 'base64').toString('utf8');
               const specifiers = [...source.matchAll(/\bfrom\s*['"]([^'"]+)['"]|^\s*import\s*['"]([^'"]+)['"]|\bimport\s*\(\s*['"]?([^'")]*)/gm)].map((match) => match[1] ?? match[2] ?? match[3]);
@@ -2779,6 +2822,7 @@ jobs:
           # The caller's input, never a run job output: a merge-base patch is
           # read as text only.
           TEXT_PATCH: ${{ inputs.merge-conflict-tree != '' }}
+          CALLS_FILE: ${{ runner.temp }}/scan-leak-calls
         with:
           retries: 2
           # The action's default list, plus the rate limit it leaves out.
@@ -2790,7 +2834,14 @@ jobs:
             const crypto = require('crypto');
             const { pathToFileURL } = require('url');
             const { execFileSync } = require('child_process');
-            const { HEAD_SHA, REPLY_DIR, PATCH_FILE, GITHUB_WORKSPACE, TEXT_PATCH } = process.env;
+            const { HEAD_SHA, REPLY_DIR, PATCH_FILE, GITHUB_WORKSPACE, TEXT_PATCH, CALLS_FILE } = process.env;
+            // Each request's count, written before it is sent, for the job-end notice.
+            let calls = 0;
+            const sent = () => {
+              try {
+                fs.writeFileSync(CALLS_FILE, `${++calls}\n`);
+              } catch {}
+            };
             // A regular file's bytes, a link's target text; anything else holds none.
             const read = (file) => {
               let stat;
@@ -2814,8 +2865,10 @@ jobs:
               // sudo on that runner could have forged.
               const branch = context.payload.repository?.default_branch;
               if (typeof branch !== 'string' || branch === '') throw new Error('no default branch');
+              sent();
               const tip = (await github.rest.repos.getBranch({ ...context.repo, branch })).data?.commit?.sha;
               if (typeof tip !== 'string' || !/^[0-9a-f]{40}$/.test(tip)) throw new Error('no default branch tip');
+              sent();
               const { data } = await github.rest.repos.getContent({ ...context.repo, path: 'lib/publish-gate.mjs', ref: tip });
               const source = Buffer.from(data.content, 'base64').toString('utf8');
               const specifiers = [...source.matchAll(/\bfrom\s*['"]([^'"]+)['"]|^\s*import\s*['"]([^'"]+)['"]|\bimport\s*\(\s*['"]?([^'")]*)/gm)].map((match) => match[1] ?? match[2] ?? match[3]);
@@ -3140,20 +3193,22 @@ jobs:
       # The hub's api-calls notice, in log-api-budget's shape, written here
       # since this job holds the scan-carrier key and loads no other action
       # from a checkout. Its only job-token calls are the two github-script
-      # steps' branch and content reads, which no counter sees, so the count
-      # is 0 and api-uncounted names them.
+      # steps' branch and content reads, each counted into its step's file
+      # before it is sent; a 5xx retry inside github-script is not, so the
+      # count is a floor.
       - name: Log the API calls at the end
         if: always()
         continue-on-error: true
-        env:
-          STAGED: ${{ steps.stage-scanner.outcome }}
-          SCANNED: ${{ steps.leak-scan.outcome }}
         run: |
-          echo "::notice title=api-calls::github-token=0 not-modified=0 graphql=0"
-          outside=()
-          [[ $STAGED == skipped || -z $STAGED ]] || outside+=(stage-scanner:branches/contents)
-          [[ $SCANNED == skipped || -z $SCANNED ]] || outside+=(leak-scan:branches/contents)
-          ((${#outside[@]} == 0)) || echo "::notice title=api-uncounted::github-token ${outside[*]}"
+          # No file: that step sent nothing, so 0 for it.
+          calls=0
+          for file in scan-stage-calls scan-leak-calls; do
+            n=0
+            [[ -f $RUNNER_TEMP/$file ]] && n=$(<"$RUNNER_TEMP/$file")
+            [[ $n =~ ^[0-9]{1,6}$ ]] || n=0
+            calls=$((calls + 10#$n))
+          done
+          echo "::notice title=api-calls::github-token=$calls not-modified=0 graphql=0"
 
   # The scan job's refusal, as an artifact a job that succeeds uploads. A
   # failed scan fails the caller's job for this whole workflow, and no

@@ -1,0 +1,65 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugins/corrections/scripts/group-findings.mjs\" --rows --since 2026-10-01T00:00:00Z"
+          }
+        }
+      ],
+      "why": "the grouped read group.md prescribes"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/plugins/corrections/tools/findings-buffer/buffer.sh\" read"
+          }
+        }
+      ],
+      "why": "reads the buffer"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/plugins/corrections/tools/findings-buffer/buffer.sh\" append < .work/codify/notes/row.jsonl"
+          }
+        }
+      ],
+      "why": "appends through the quoted path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /plugins/corrections/tools/findings-buffer/buffer.sh append < row.jsonl"
+          }
+        }
+      ],
+      "why": "appends through an unquoted path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/plugins/corrections/scripts/prove-check.sh\" --check 'true' --old a91c3d2"
+          }
+        }
+      ],
+      "why": "runs a proof"
+    }
+  ]
+}

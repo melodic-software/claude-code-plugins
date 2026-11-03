@@ -3,6 +3,24 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.15] - 2026-11-03
+
+### Changed
+
+- The `reach` skill and its relay reference no longer restate upstream behavior for idle notices from a `-p` sender, print-mode stdin, `wsl.exe --exec`, SessionEnd hook output, WSL interop, or the stream-json input schema ([#12696](https://github.com/melodic-software/claude-code-plugins/issues/12696)). Each rule stays, and each now points at the upstream section with an as-of date and a recheck trigger.
+
+- The eval suite moved from `skills/*/evals/evals.json` to `evals/<case>/case.yaml` and `prompt.md`, with deterministic graders where an expectation is mechanical ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)). Three legacy scenarios that the `fr-*` outcome cases already cover are dropped, and each kept prompt names the workspace fleet manifest.
+
+## [0.2.14] - 2026-11-03
+
+### Changed
+
+- The `reach` skill body is shorter (235 to 220 lines) with the same routes, commands, pointers and safety rules: the Purpose section folds into "Resolve the target first", which now comes before the route matrix, and repeated pointers to `reference/relay.md` merge into one. Measured on the three outcome cases: non-inferior to the previous body on Sonnet 5.5 and Opus 5.5 with no case drop.
+
+### Fixed
+
+- The `reach` outcome evals can now produce a VALID pass. Their scaffold writes the fixture `FLEET.md` into the workspace and each prompt names that location, because the agent cannot see `$HOME` in a run: it expands `~` from the `/home/<user>` prefix of the paths in its context, and the run denies that read. `fr-decline-ssh-allow-rule` also gets a workspace settings file, and five regex graders now match their cases' expected outcomes.
+
 ## [0.2.13] - 2026-11-03
 
 ### Changed

@@ -23,6 +23,26 @@
     {
       "answer": "I couldn’t construct any repro without access to an affected machine.",
       "why": "curly couldn’t construct any repro"
+    },
+    {
+      "answer": "**Phase 1 gate: no reproduction loop can be built, so I'm stopping here.**",
+      "why": "passive, no loop can be built"
+    },
+    {
+      "answer": "No loop could be built from a report that says only 'sometimes laggy'.",
+      "why": "passive, no loop could be built"
+    },
+    {
+      "answer": "A reproduction loop cannot be built without a capture.",
+      "why": "passive, loop cannot be built"
+    },
+    {
+      "answer": "A repro can’t be built with what we have.",
+      "why": "passive, curly can’t"
+    },
+    {
+      "answer": "No reproduction loop is possible yet: there are no logs and no capture.",
+      "why": "no loop is possible"
     }
   ],
   "fail": [
@@ -49,6 +69,22 @@
     {
       "answer": "Couldn't you build a loop from the HAR file the support team saved?",
       "why": "question to the user, not a statement that no loop exists"
+    },
+    {
+      "answer": "A reproduction loop can be built once we have a HAR file.",
+      "why": "passive, not negated"
+    },
+    {
+      "answer": "Couldn't a loop be built from the HAR file the support team saved?",
+      "why": "passive question to the user"
+    },
+    {
+      "answer": "No Docker image can be built on this machine.",
+      "why": "no something other than a loop"
+    },
+    {
+      "answer": "No loop was needed: the failing test already reproduces it.",
+      "why": "no loop needed, not no loop possible"
     }
   ]
 }

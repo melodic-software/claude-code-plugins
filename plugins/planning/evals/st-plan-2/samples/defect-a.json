@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "- Phase 3's sanity check cannot detect an overdraw: it moves 5 from a bin holding 20.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- Phase 3's guard is sound, but its sanity check would pass with the guard deleted.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- Phase 3's sanity check doesn't exercise an overdraw.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "- The Phase 3 check is a happy-path transfer, so a missing overdraw guard would still pass.\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | Phase 3 sanity check never exercises the refusal; `transfer A-01 A-02 5` is within the balance | Fix before building |\n",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | AC3's sanity check does not test an overdraw and would pass with `ErrOverdraw` deleted | Fix before building |\n",
+      "why": "paraphrase"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "- Phase 3's sanity check is fine for the overdraw case.\n",
+      "why": "named and dismissed"
+    },
+    {
+      "answer": "- Phase 3's sanity check does catch an overdraw.\n",
+      "why": "negated mention"
+    },
+    {
+      "answer": "- Phase 2's check has no case for a bin not in the config.\n",
+      "why": "a finding about something else"
+    },
+    {
+      "answer": "- Phase 3 does not test the exit code mapping in its unit tests.\n",
+      "why": "the phase with no check named and another gap"
+    }
+  ]
+}

@@ -3,6 +3,41 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.2.2] - 2026-11-03
+
+### Changed
+
+- Shared `view-registry.mjs` synced where this plugin carries it ([#12667](https://github.com/melodic-software/claude-code-plugins/issues/12667)): it registers the view lanes the per-plugin resolver migrations will use; no other change to this plugin.
+
+## [8.2.1] - 2026-11-03
+
+### Fixed
+
+- The lane telemetry body gate's leak scan (`scanLeak` in the shared `lib/publish-gate.mjs` copy) now also decodes base64 and base64url runs, up to two layers and including runs of non-ASCII UTF-8 text, and refuses a body with a GitHub token or Anthropic key inside one (#8295).
+
+## [8.2.0] - 2026-11-03
+
+### Added
+
+- **The parser reader bounds a computed key it cannot list.** Under `--reader=parser`, in a module with an import or export or a program whose first statement is `"use strict"`, a computed read whose key can spell neither `require` nor `constructor` no longer counts as a load the parser cannot name or a read that reaches `Function`. A computed write there counts only for the trusted names its key can spell, unless it can spell `__proto__`. A `+` makes a number or a string that starts with its left side and ends with its right side, so `e[n+1]` spells neither. A template starts and ends with its own text. A parameter holds what each call passes when it is never written and its function is bound to one name, never exported, only ever called directly, and out of reach of `arguments` and block hoisting. Code that may run sloppy, including the code a `Function` call folds to, is bounded only by known values, since `f.caller` can call a function with any argument. A computed read or destructured key that may spell `eval`, `Function`, a vm runner, `__defineGetter__` or `__defineSetter__` counts wherever it stands, inert or not, and a literal destructured `eval` or `Function` key now counts as its member read does. An unknown key (a `for in` key, or any key in sloppy code) may spell all of them, so a discarded or tested `o[k]` such as `for(k in o)if(o[k])`, which used to be exempt, is now a `function-constructor` hit, and the next host run's count of those hits can rise for that reason. When the parser refuses a callback held in a parameter whose function is used other than by a call, the reason now reads `the parameter's function is used other than by a call`, so it no longer matches the refusal for a returning function.
+
+## [8.1.5] - 2026-11-03
+
+### Changed
+
+- 24 passages in the `audit-install-state`, `audit-performance`, `audit-skill-visibility`,
+  `behavior-probes`, `lanes`, `observability` and `plugins` skills no longer restate Claude Code,
+  ccusage, Defender or jq behavior. Each keeps the skill's own rule and points at the docs section
+  that owns the fact, with an as-of date and a recheck trigger. Where no docs page owns the fact,
+  the passage points at this plugin's own dated binary reading, or keeps only the rule and names
+  the missing page.
+
+## [8.1.4] - 2026-11-03
+
+### Changed
+
+- The prerequisites skill's ranking probe no longer lists a deleted skill as a competitor.
+
 ## [8.1.3] - 2026-11-03
 
 ### Added

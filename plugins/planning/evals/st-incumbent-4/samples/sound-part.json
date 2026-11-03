@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "- The 4 KB limit is correct to dismiss: the largest field is 254 characters.\n",
+      "why": "praises the element"
+    },
+    {
+      "answer": "- No value will exceed 4 KB; the model caps the fields.\n",
+      "why": "negated attack"
+    },
+    {
+      "answer": "- `Sealbox.rekey` has been available since 5.0.0, so Why is wrong about rotation.\n",
+      "why": "other finding"
+    },
+    {
+      "answer": "- None of the customer fields exceed the 4 KB value limit; the largest is 254 characters.\n",
+      "why": "negation four words before the attack"
+    },
+    {
+      "answer": "- The 4 KB value limit is fine, but `Sealbox.rekey` exists since 5.0.0, so Why is wrong about rotation.\n",
+      "why": "wrong belongs to another clause"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- Vaultline's 4 KB limit is too small for sealed fields.\n",
+      "why": "bullet attack"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | Customer values may exceed the 4 KB value limit | Check first |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- Sealed fields can overflow Vaultline's size limit.\n",
+      "why": "overflow"
+    },
+    {
+      "answer": "- A 4 KB cap will truncate long values.\n",
+      "why": "truncate"
+    },
+    {
+      "answer": "| 2 | SUGGESTION | Plan | The value size claim is unverified | Measure |\n",
+      "why": "unverified"
+    }
+  ]
+}

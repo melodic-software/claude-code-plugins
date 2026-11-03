@@ -748,7 +748,7 @@ class GuardLaunchMonitorTests(unittest.TestCase):
             "disk-hygiene: destructive_guard.py failed to run or exited non-zero "
             "2 times this session, so those calls may have run unchecked. "
             "Latest: exitCode: 2, durationMs: 200, stderr: second failure "
-            "/disk-hygiene:check diagnoses."
+            + monitor._CHECKER_HINT
         )
         self.write_transcript([_filler_line(300)] + failures)
         self.assertEqual(expected, self.run_monitor(session_id="cold"))

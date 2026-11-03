@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "- The assumption is false: `createInvoice` in src/invoice.ts is not idempotent; it does a plain INSERT and emails every time.\n",
+      "why": "bullet"
+    },
+    {
+      "answer": "| 1 | CRITICAL | Assumption | createInvoice has no ON CONFLICT and 001_init has no unique constraint on (tenant_id, period) | Add both |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- A retried job produces a duplicate invoice because invoice.ts inserts unconditionally, and the draft claims an upsert that does not exist.\n",
+      "why": "duplicate invoice"
+    },
+    {
+      "answer": "| 2 | HIGH | Assumption | `invoices_tenant_period` is not unique, so calling createInvoice again means a second invoice | Add a unique index |\n",
+      "why": "not unique"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "createInvoice is not idempotent, but that is fine here.\n",
+      "why": "named and dismissed"
+    },
+    {
+      "answer": "Retrying createInvoice does not duplicate invoices.\n",
+      "why": "negated mention"
+    },
+    {
+      "answer": "- `createInvoice` should have better error handling.\n",
+      "why": "anchor with a generic warning"
+    },
+    {
+      "answer": "- The migration should add an index on invoice_jobs.status.\n",
+      "why": "a finding about something else"
+    }
+  ]
+}

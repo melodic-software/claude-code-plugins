@@ -79,7 +79,9 @@ The discipline covers two record kinds, one shape:
 ## Required parts
 
 A conforming record stores no upstream text, quoted or paraphrased, not even one line (the one
-named exception is [old-patterns mapping tables](#old-patterns-mapping-tables)). It carries:
+named exception is [old-patterns mapping tables](#old-patterns-mapping-tables)). What a
+`docs/upstream/` row may describe in our own words is in
+[what a row may describe](#what-a-row-may-describe). It carries:
 
 ```markdown
 <our decision, in our words>
@@ -372,9 +374,10 @@ inline addition here.
 ## Pinned git upstreams
 
 A `docs/upstream/` page that records what this repository took from, or rejected in, a git
-repository pins the commit it read. The forms below apply to those pages only. A page that records
-a docs site keeps its own forms; `docs/upstream/claude-code.md` keeps its `changelog through`
-marker, which the harness-ops changelog skill reads.
+repository pins the commit it read. The forms below apply to those pages only, except that
+[what a row may describe](#what-a-row-may-describe) also binds a record of one web page. A page
+that records a docs site keeps its own forms; `docs/upstream/claude-code.md` keeps its
+`changelog through` marker, which the harness-ops changelog skill reads.
 
 - **Pin marker**: the page's line
   ``**Last audited upstream state:** `<owner>/<repo>@<40-hex sha>` under `<scope>/` ``, followed
@@ -396,10 +399,29 @@ marker, which the harness-ops changelog skill reads.
   added under the scope: re-audit the affected rows.
 
 The [required parts](#required-parts) still bind: a row may name a topic and link to it, and holds
-no upstream text, quoted or paraphrased. Two parts take a git-specific shape. The 40-hex pin stands
-in for the as-of date: the commit fixes exactly what was read, and the page's git history records
-when. And git blob SHAs are a content hash the host already serves, so the
-[content-hashing deferral](#drift-signal-content-hashing-deferred) does not apply to git upstreams.
+no upstream text, quoted or paraphrased; [what a row may describe](#what-a-row-may-describe) says
+where our own description of a unit ends and a paraphrase begins. Two parts take a git-specific
+shape. The 40-hex pin stands in for the as-of date: the commit fixes exactly what was read, and the
+page's git history records when. And git blob SHAs are a content hash the host already serves, so
+the [content-hashing deferral](#drift-signal-content-hashing-deferred) does not apply to git
+upstreams.
+
+### What a row may describe
+
+A row may describe a unit's mechanism and the problem behind it, in our own words, written from
+what we read at the pin. Like a probe's observation under [required parts](#required-parts), that
+description is ours, not upstream text. It never rewords an upstream sentence:
+
+- **The five-word test.** Before the record is written, compare each cell with the upstream file
+  its row links and, for a **Stated** cell, with the place its label links. A run of five or more
+  words shared with that text, other than a name, fails the cell; the cell is written again from
+  the mechanism or the problem, never from the upstream's wording.
+- **A Stated cell.** A problem cell labeled **Stated** links to where the upstream gives that
+  problem: the file and line at the pin, or the post or issue that says it. With no such place, the
+  label is **Inference**.
+
+A record of one web page holds its rows to the same rules, against the page as read on its as-of
+date.
 
 ### The drift check
 
@@ -532,7 +554,7 @@ on touch.
 | [ecosystem-commands](../ecosystem-commands/README.md) task-runner deferral | "Revisit triggers" | Named triggers only: an undated in-repo deferral with no upstream pointer. |
 | `/ai-slop:audit`, the tell catalog it loads, §Upstream-drift record | new with 1.5.0 | Conforming record: a revision-pinned pointer to the Wikipedia source page (`oldid`), as-of date, and a recurring recheck trigger: each `ai-slop` release and each fleet audit, chosen over per-revision after measuring the page at 50+ edits/week. |
 | `/docs-hygiene:write-for-humans`, the source records it loads | new with docs-hygiene 0.18.0 | Conforming records: one pointer record per external writing standard the skill falls back to, each carrying the pointer, as-of date, and an observable recheck trigger: a publication event for an edition-pinned standard, a page-content divergence for a continuously edited one. The record names which. |
-| `docs/upstream/` pages pinned to a git commit (`cursor-pstack.md`, `mattpocock-skills.md`, `trailofbits-skills.md`, `tlaplus-agentskills.md`) | new with 3.0.0 | Conforming records in the [pinned git upstream](#pinned-git-upstreams) form: every row link resolves at the page pin (`scripts/check-upstream-drift.sh --links`), and the monthly drift issues name any row whose upstream changed since that pin. |
+| `docs/upstream/` pages pinned to a git commit (`addyosmani-agent-skills.md`, `cursor-pstack.md`, `mattpocock-skills.md`, `trailofbits-skills.md`, `tlaplus-agentskills.md`) | new with 3.0.0 | Conforming records in the [pinned git upstream](#pinned-git-upstreams) form: every row link resolves at the page pin (`scripts/check-upstream-drift.sh --links`), and the monthly drift issues name any row whose upstream changed since that pin. |
 
 Elsewhere the name binds on touch: living surfaces still saying "revisit trigger", "re-trigger",
 "re-derivation trigger", or "what would reopen it" (several plugin reference docs already use the

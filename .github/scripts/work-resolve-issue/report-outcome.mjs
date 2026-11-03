@@ -35,7 +35,8 @@
 //   admission parks a refusal no person answers; close closes the issue as
 //   completed (an already-done
 //   stop only once its cited commit or pull request is on the default
-//   branch and its commit message closes the issue, doneEvidence, else it
+//   branch and its commit message closes the issue, doneEvidence, and a
+//   verified-done stop only once VERIFY_CLOSE's sub-issues hold, else each
 //   retries); fail removes agent-ready and adds no label. A
 //   route other than hold carries no escalation marker.
 //
@@ -151,6 +152,14 @@
 //                       issue's author (work-resolve-issue.yml report-skip),
 //                       or workflow-stale when a resolve-issue call stopped on
 //                       stale workflow files (resolve-issue-stale), else empty
+//   VERIFY_CLOSE        the admit job's verify-close output: a finished
+//                       parent's sub-issue numbers, comma-joined, each closed
+//                       as completed by a trusted close (check-blockers.mjs),
+//                       else empty. A verified-done stop closes only when the
+//                       issue's sub-issues, read fresh, are all closed as
+//                       completed and each is one of these (parentDone), and
+//                       the run neither committed nor resumed a branch; else
+//                       it retries
 //   GITHUB_WORKFLOW_SHA workflow-stale: the commit the run's workflow files
 //                       come from
 //   REUSE_SUMMARY_DIR   on a reuse, holds the summary pass's reuse-summary.json
@@ -177,7 +186,7 @@ import { pathToFileURL } from "node:url";
 import { LIMIT_DEFAULTS, clampReset, readLimits } from "./limits.mjs";
 import { networkError, retryFetch } from "./retry-fetch.mjs";
 import { refusalText, sayWhy } from "../lib/admission-comment.mjs";
-import { doneEvidence, RUN_WORDS, stopLine } from "../lib/done-evidence.mjs";
+import { doneEvidence, parentDone, RUN_WORDS, stopLine } from "../lib/done-evidence.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
 import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
 import { ATTENDED_LABEL, causeName, HOST_RUN_LABEL, leadingCode, runCode, securityWord, STOP_ROUTES, stopReasonCode, stopRetries, stopRoute, stopWhy } from "./stop-routes.mjs";
@@ -664,7 +673,28 @@ const ROUTE_LABEL = { "host-run": HOST_RUN_LABEL, attended: ATTENDED_LABEL, park
 const KEPT = new Set(["retry", "wait"]);
 // The routes whose stops are counted against a cap: past it, retry-spent's.
 const COUNTED = new Set([...KEPT, "intake"]);
-const ADMISSION_LABELS = ["agent-ready", "status: ready", "admission-deferred"];
+// The queue labels: admission's, which stripQueueLabels removes from a closed
+// issue and from one its lane PR handed back to triage.
+export const ADMISSION_LABELS = ["agent-ready", "status: ready", "admission-deferred"];
+// Agent-ready last: work-unblock's sweep lists open agent-ready issues, so a
+// failed write leaves the issue for it. A caller that closes the issue itself
+// strips first, so the issue is still open when a write fails.
+const QUEUE_LABELS = [...ADMISSION_LABELS.filter((name) => name !== "agent-ready"), "agent-ready"];
+
+// Removes the queue labels `had` holds from the issue at `base`, and returns
+// their names. A 404 is a label already gone, so it counts as removed.
+export async function stripQueueLabels(github, base, had) {
+  const present = new Set(had.map((name) => String(typeof name === "string" ? name : name?.name).toLowerCase()));
+  const removed = QUEUE_LABELS.filter((name) => present.has(name));
+  for (const name of removed) {
+    await github("DELETE", `${base}/labels/${encodeURIComponent(name)}`).catch((error) => {
+      if (error?.status !== 404) {
+        throw error;
+      }
+    });
+  }
+  return removed;
+}
 const ROUTE_REMOVES = { intake: ADMISSION_LABELS, park: ADMISSION_LABELS };
 const ROUTE_TEXT = {
   "host-run": `It added \`${HOST_RUN_LABEL}\` and removed \`agent-ready\`: an agent run on a host builds it, and it waits on no decision from a person.`,
@@ -1455,9 +1485,10 @@ export function decide({
     });
   }
   if (outcome.exit !== "done") {
-    // A delivered report closes only an issue with no branch: one this run
-    // committed to, or a resumed one whose earlier commits are still unmerged.
-    const retry = stop === "report-delivered" && (branch || resumed);
+    // A delivered report or a verified-done check closes only an issue with no
+    // branch: one this run committed to, or a resumed one whose earlier
+    // commits are still unmerged.
+    const retry = (stop === "report-delivered" || stop === "verified-done") && (branch || resumed);
     const why = "The run committed to a branch, or resumed one, so it retries instead of closing.";
     return routeStop(stop, { outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed, unmarked }, retry ? { route: "retry", why } : {});
   }
@@ -1876,7 +1907,7 @@ function api({ fetch: rawFetch, apiUrl, token, sleep }) {
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     if (!response.ok) {
-      throw new Error(`${method} ${path} answered ${response.status}`);
+      throw Object.assign(new Error(`${method} ${path} answered ${response.status}`), { status: response.status });
     }
     return response.status === 204 ? null : response.json();
   };
@@ -2117,8 +2148,8 @@ const openPull = (github, repo, pr, { bot, humans }) =>
 // carry over: intake triage re-judged it before admitting the issue again. A
 // retry or wait under the cap posts its comment once per run (a rerun of this
 // report finds its own marker) and keeps agent-ready. A close comments,
-// removes agent-ready, then closes the issue as completed.
-async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane = {} }) {
+// removes the queue labels, then closes the issue as completed.
+async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane = {}, verifyClose = "" }) {
   const waited = plan.action === "wait" ? await openPull(github, repo, plan.pr, { bot, humans }) : "";
   if (plan.action === "wait" && waited !== "open") {
     const why = !plan.pr
@@ -2131,6 +2162,15 @@ async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane
   if (plan.action === "close" && plan.stop === "already-done" && !(await doneEvidence(github, repo, plan.stopArgs.outcome?.reason, plan.issueNumber))) {
     const why =
       "Its reason cites no pull request merged into the default branch, or commit on it, made after the issue opened whose commit message closes this issue, so it retries instead of closing.";
+    plan = routeStop(plan.stop, plan.stopArgs, { limits, route: "retry", why });
+  }
+  // A verified-done close: the run checked the issue's own done-when, and its
+  // sub-issues, read fresh, are each closed as completed and among the
+  // admit job's trusted closes (VERIFY_CLOSE).
+  const trustedSubs = new Set(String(verifyClose).split(",").filter((number) => /^[1-9][0-9]{0,9}$/.test(number)).map(Number));
+  if (plan.action === "close" && plan.stop === "verified-done" && !(await parentDone(github, repo, plan.issueNumber, async (number) => trustedSubs.has(Number(number))))) {
+    const why =
+      "Not every sub-issue of this issue is closed as completed by a listed human or a merge, as the run's admission read them, so it retries instead of closing.";
     plan = routeStop(plan.stop, plan.stopArgs, { limits, route: "retry", why });
   }
   let history = null;
@@ -2178,10 +2218,19 @@ async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane
     const base = `${repo}/issues/${plan.issueNumber}`;
     await sayWhy(github, repo.slice("/repos/".length), base, (await read()).comments, refusalText(plan.admission), bot);
   }
-  await applyHandBack(github, repo, plan);
+  // A close leaves its labels to stripQueueLabels below, which throws on a
+  // failed removal where applyHandBack only logs it.
+  await applyHandBack(github, repo, plan.action === "close" ? { ...plan, removeLabels: [] } : plan);
   if (plan.action === "close") {
-    await github("PATCH", `${repo}/issues/${plan.issueNumber}`, { state: "closed", state_reason: "completed" }, { safeToResend: true });
-    console.log(`report-outcome: closed issue #${plan.issueNumber} (${plan.stop})`);
+    const base = `${repo}/issues/${plan.issueNumber}`;
+    // The App's close starts no work-unblock close run, so the queue labels
+    // come off here, before the close: a failed removal leaves the issue open.
+    // A label DELETE is idempotent (a 404 counts as removed), so it is resent
+    // after a 5xx; only a removal that keeps failing leaves the issue open.
+    const resend = (method, path) => github(method, path, undefined, { safeToResend: true });
+    const removed = await stripQueueLabels(resend, base, (await github("GET", base))?.labels ?? []);
+    await github("PATCH", base, { state: "closed", state_reason: "completed" }, { safeToResend: true });
+    console.log(`report-outcome: closed issue #${plan.issueNumber} (${plan.stop}); removed ${removed.length} queue label(s)`);
   }
 }
 
@@ -2530,7 +2579,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         });
       }
     }
-    await finishStop(github, repo, plan, { bot, humans: listedHumans(), runId, limits, lane });
+    await finishStop(github, repo, plan, { bot, humans: listedHumans(), runId, limits, lane, verifyClose: env.VERIFY_CLOSE ?? "" });
     return 0;
   } catch (error) {
     console.log(`::error title=report-outcome::${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);

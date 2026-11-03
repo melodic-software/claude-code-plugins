@@ -18,11 +18,13 @@ The deterministic spine is
 skill/command/agent frontmatter `allowed-tools` and the `permissions.allow` arrays of
 `.claude/settings.json`, `.claude/settings.local.json`, and the user-global settings file, plus any
 plugin `settings.json`, and emits one finding per fragile grant. The user-global file resolves as
-`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json`. That scope is where Claude Code's own "Always
-allow" path writes, so it accumulates exactly the broad rules auto mode drops, and a project-only
-scan could not see any of them. A user-global finding names the resolved absolute path, because
-reporting `~/.claude/settings.json` would name the wrong file whenever `CLAUDE_CONFIG_DIR` has moved
-the config root. Frontmatter files under a `vendor/` path segment are skipped: they are
+`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json`. The scan covers user scope because a
+project-only scan would miss every grant kept there, and a user-global finding names the resolved
+absolute path rather than `~/.claude/settings.json`. When deciding where prompt approvals are saved
+and where the user settings file lives, fetch
+[settings: find or create your settings files](https://code.claude.com/docs/en/settings#find-or-create-your-settings-files)
+live (as of 2026-11-03; recheck when that section changes the user file's location or what writes
+to it). Frontmatter files under a `vendor/` path segment are skipped: they are
 vendored upstream references, not loadable skills/agents/commands, so their `allowed-tools` never take
 effect and a finding on them would be a false positive. Findings are advisory in the default report
 mode and under `--count`, which always exit 0 however many findings they print. They are gating under
@@ -91,24 +93,21 @@ matters.
 
 ## P1: Interpreter-wildcard / blanket allow rule [warning]
 
-**What**: An `allowed-tools` or `permissions.allow` entry matching an action class Claude Code drops on
-entering auto mode. The classes:
+**What**: An `allowed-tools` or `permissions.allow` entry in a class auto mode drops on entry, or a
+wider form of one. The detector flags blanket Bash and PowerShell rules, wildcarded interpreters,
+package-manager runner subcommands, bare package-manager wildcards (deliberately wider than the
+dropped package-manager class: same anti-pattern, same fix), script-glob commands, and `Agent`
+allow rules.
 
-- blanket `Bash(*)` / `PowerShell(*)` / bare `Bash` / bare `PowerShell`
-- a wildcarded interpreter (`Bash(python*)`, `Bash(node *)`, `Bash(bash <path>*)`, `Bash(sh -c*)`)
-- a package-manager grant, meaning a runner subcommand (`Bash(npx *)`, `Bash(uvx *)`, `Bash(pipx run *)`,
-  `Bash(pnpm dlx *)`, …) or a bare package-manager wildcard (`Bash(npm:*)`, `Bash(npm *)`,
-  `Bash(pnpm:*)`, `Bash(yarn:*)`), which grants arbitrary execution via `npm exec` / lifecycle scripts.
-  **This bare form reaches past the documented "package-manager run commands" category** (broader, not
-  narrower; same authoring anti-pattern and fix)
-- a script-glob command (`Bash(*.py:*)`)
-- an `Agent` allow rule (bare `Agent` or scoped `Agent(...)`, both dropped categorically, with no narrow
-  carry-over form)
+- **Pointer**: when deciding which allow rules auto mode drops, fetch
+  [permission modes: how auto mode evaluates actions](https://code.claude.com/docs/en/permission-modes#how-auto-mode-evaluates-actions)
+  live for the current list.
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section adds, removes or narrows a dropped class.
 
-`Monitor` allow rules are a further documented drop class, recorded with its version in
-`audit-permission-state`'s auto-mode entry diff. This detector does not scan for it, and that division of
-labor is deliberate: `audit-permission-state` owns the Monitor class. Do not report a clean P1 result
-as evidence that a repo's Monitor grants are sound.
+This detector does not scan `Monitor` allow rules, and that division of labor is deliberate:
+`audit-permission-state` owns the Monitor class in its auto-mode entry diff. Do not report a clean
+P1 result as evidence that a repo's Monitor grants are sound.
 
 **How to check**: run the detector. Each P1 alternative requires a wildcard, so an exact narrow rule
 (`Bash(npm test)`, `Bash(npm run build)`, `Bash(cargo build)`, `Bash(babysit_merge.sh:*)`) is not
@@ -163,7 +162,7 @@ blanket form is false for the file tools. Match the mechanism to the rule class:
 
 | Rule class | What actually happens |
 | --- | --- |
-| `Bash(...)` | A glob over the literal command string ([permissions](https://code.claude.com/docs/en/permissions#bash)), with the two documented exceptions below. |
+| `Bash(...)` | Read how it matches from [permissions: Bash](https://code.claude.com/docs/en/permissions#bash) live (as of 2026-11-03; recheck when that section changes how a Bash rule matches), and the two exceptions below. |
 | `Read(...)` / `Edit(...)` | gitignore pattern syntax, which **does** resolve anchors: `~/path` from the home directory, `//path` from the filesystem root, `/path` from the settings source ([permissions](https://code.claude.com/docs/en/permissions#read-and-edit)). The page's own example: `Read(~/Documents/*.pdf)` matches `<home>/Documents/*.pdf`. |
 
 The two exceptions on Bash rules:
@@ -193,7 +192,10 @@ bare-name command on PATH, or for `Read`/`Edit` rules the `~/` home anchor.
 ### P2b: Tilde-user path in a `Bash(...)` rule [error]
 
 **What**: A `Bash(...)` allow rule whose payload begins a path with `~username/` (not the portable
-`~/` home anchor). Bash rules match literally and do not expand tilde-user forms.
+`~/` home anchor). We treat such a payload as naming one account, whatever the shell would expand.
+When deciding how a Bash rule reads a tilde, fetch
+[permissions: Bash](https://code.claude.com/docs/en/permissions#bash) live (as of 2026-11-03;
+recheck when that section changes how a Bash rule matches a path).
 
 **How to check**: run the detector. `Read(~/notes.md)` and other `~/` anchors are not flagged. A URL
 user-directory segment such as `Bash(curl https://example.com/~alice/index.html)` is not flagged.
@@ -251,9 +253,11 @@ declares a `permissions` block.
 
 **How to check**: run the detector; it reports the offending plugin `settings.json`.
 
-**Why**: a plugin `settings.json` supports only the `agent` and `subagentStatusLine` keys, so a
-self-granted permission rule is inert; the operative rule must be added by the operator to
-`~/.claude/settings.json`. See convention anti-pattern 3.
+**Why**: we treat a self-granted permission rule as inert, so the operative rule must be added by
+the operator to user settings. See convention anti-pattern 3. When deciding which keys a plugin
+`settings.json` honors, fetch
+[plugin manifest reference: settings](https://code.claude.com/docs/en/plugins/manifest-reference#settings) live (as
+of 2026-11-03; recheck when that section adds `permissions` to the keys it honors).
 
 **Recommend**: remove the inert block; document an operator-setup note for the bare-name rule instead.
 

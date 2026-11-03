@@ -3,6 +3,54 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.1] - 2026-11-03
+
+### Changed
+
+- The synced `lib/view-registry.mjs` registers the other view lanes ([#12667](https://github.com/melodic-software/claude-code-plugins/issues/12667)); planning's lane is unchanged.
+
+## [2.0.0] - 2026-11-03
+
+### Changed
+
+- the interview page reads its settings from planning's convention files
+
+  The page server reads the `interview_page` mapping of `<home>/planning.yaml`
+  (team) and `<home>/planning.local.yaml` (personal), under the convention home
+  the repository binds, and the Settings tab names `team` or `personal` as the
+  layer. The keys keep the names the Settings tab shows.
+
+### Removed
+
+- `.claude/interview-surface.json` is no longer read
+
+  When it exists, `ensure-running` prints one notice per data dir naming each
+  of its keys and where it goes now; none of its values apply.
+
+### Security
+
+- the page server refuses a default convention home reached through a symlink, notes and drops an oversized or deeply nested planning YAML file, and its retired-file notice names keys, never their values
+
+## [1.3.0] - 2026-11-03
+
+### Changed
+
+- `interview`, `design`, `plan`: each states the level it decides: behavior for the interview, interfaces and contracts for design, files and symbols for plan (#12663).
+- `interview`, `wayfind`, `audit-answers`, `questionnaire`: `workflow-stage` is now `interview`, matching the workflow's renamed stage 1 (#12663).
+- `prd`, `wayfind`, README: the stated order is interview first, calling a PRD when product intent is unsettled; `prd` hands off to the interview in the same session instead of after clearing context (#12663).
+- `planning` tests: `decision-levels.test.sh` fails when any of the three stage skills loses or duplicates its level line.
+
+## [1.2.0] - 2026-11-03
+
+### Added
+
+- `interview`: optional plugin offers. `offers/offerable.json` lists the plugins the interview may offer (html-plan, an optional planner), and `offers/offer-source.mjs` checks each one: its marketplace must still list it under that name, and the newest commit on its source path sets the offer (under 3 months a plain offer, 3 to 6 months an offer with the date, older none). Each lookup is cached 24 hours in plugin data, a failed one too; any failure means no offer, and an unattended run looks nothing up (#12660).
+- `interview`: with `surface` unset, the one surface line also names an installed optional planner (never required) and carries any offer. On a yes the interview installs the plugin at user scope and points to `/reload-plugins` (#12660).
+
+### Changed
+
+- `interview`: the page lane's clauses in the gate sections (the Brief cross-check's `--surface` flag and its Gates twin, where the confirmation gate is shown, the facts-field citation, the full recap, the procedure-check exception's tick rows) and the exit codes section move to `context/lane-page.md`; `SKILL.md` names no surface value in those sections (#12660).
+
 ## [1.1.0] - 2026-11-03
 
 ### Added

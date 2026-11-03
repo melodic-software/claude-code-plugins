@@ -1,14 +1,34 @@
 {
   "pass": [
     {
-      "answer": "Checking git log for the exporter first: last week's commit changed column mapping. Ranked: 1) If the new column mapping returns null for unmapped fields, then mapping every field in the test fixture removes the crash. 2) If the footer config is null, setting it removes the crash. 3) If the locale formatter returns null for empty dates, a date-free report passes.",
-      "why": "three ranked, predictions, grounded in a commit"
+      "answer": "## Ranked hypotheses\n\nThe latest exporter commit changed column mapping, so it ranks first.\n\n| Rank | Cause | Refuted if | Supported if |\n|---|---|---|---|\n| 1 | The new mapping returns null for an unmapped field | Mapping every fixture field leaves the crash | Mapping every fixture field removes the crash |\n| 2 | The footer config is null | Setting a footer leaves the crash | Setting a footer removes the crash |\n| 3 | The date formatter returns null for an empty date | A report with no dates still crashes | A report with no dates passes |",
+      "why": "three ranked, predictions in table columns, grounded in a commit"
+    },
+    {
+      "answer": "## Ranked hypotheses\n\n| Rank | Cause | Ruled out if | Verdict from the source |\n|---|---|---|---|\n| 1 | The mapping lookup returns null for a field with no label | Adding the label leaves the crash | Confirmed: the lookup falls back to null, and the latest exporter commit added it |\n| 2 | The date formatter's null reaches a string method | The crash is on the header line | Ruled out: the known-issues note accepts that null and it only reaches a join |\n| 3 | The footer has no text | The test passes a footer with text | Ruled out: the test passes text, as the footer ADR requires |",
+      "why": "one row confirmed from source, every row keeps its prediction, grounded in a commit, an ADR and a known-issues note"
+    },
+    {
+      "answer": "Before ranking I will check the exporter's git log and the known-issues note. Ranked for now:\n\n1. If the new column mapping returns null for an unmapped field, mapping every fixture field removes the crash.\n2. If the footer config is null, setting it removes the crash.\n3. If the date formatter returns null for an empty date, a report with no dates passes.",
+      "why": "three ranked, predictions, says it will check named repository sources"
     }
   ],
   "fail": [
     {
       "answer": "It's the column mapping. Add a null check in `mapColumn` and rerun the test.",
       "why": "one hypothesis, straight to a fix"
+    },
+    {
+      "answer": "I will check the repository before ranking these. Ranked for now:\n\n1. If the column mapping returns null, mapping every fixture field removes the crash.\n2. If the footer config is null, setting it removes the crash.\n3. If the date formatter returns null, a report with no dates passes.",
+      "why": "the promise to check names no repository source"
+    },
+    {
+      "answer": "The cause is the latest exporter commit's column mapping.\n\n| Rank | Cause | Verdict |\n|---|---|---|\n| 1 | The mapping returns null | Supported |\n| 2 | The date formatter returns null, per the known-issues note | Refuted |\n| 3 | The footer has no text, per the footer ADR | Refuted |",
+      "why": "ranked and grounded, but bare verdicts state no prediction"
+    },
+    {
+      "answer": "I added a null check to the column mapping and reran the test, and it passes. The latest exporter commit changed that code. Two other causes I considered: if the footer config is null, setting it removes the crash; if the date formatter returns null, a report with no dates passes.",
+      "why": "tested and fixed one cause before listing the set"
     }
   ]
 }

