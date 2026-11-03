@@ -1798,7 +1798,7 @@ rdt_name_set() {
     [[ "$b" == declare || "$b" == typeset || "$b" == local ]] && [[ "$seg" =~ $re ]] && return 1
     read -ra words <<<"$seg"
     for w in ${words[@]+"${words[@]}"}; do
-      [[ "$w" == [\<\>]* || "$w" == [0-9][\<\>]* ]] && continue
+      [[ "$w" == ['<>']* || "$w" == [0-9]['<>']* ]] && continue
       [[ "${w%%=*}" == *[\$\`\{]* ]] && return 1
     done
   done
