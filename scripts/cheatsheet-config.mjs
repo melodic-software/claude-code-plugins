@@ -10,10 +10,10 @@
 // session-flow stage rename fails the sheet's own gate). The three
 // non-workflow groups are owned here.
 export const STAGES = [
-  { slug: "explore", heading: "1. Explore", workflow: true },
-  { slug: "research", heading: "2. Research", workflow: true },
-  { slug: "prd", heading: "3. PRD", workflow: true },
-  { slug: "contract", heading: "4. Contract", workflow: true },
+  { slug: "interview", heading: "1. Interview", workflow: true },
+  { slug: "explore", heading: "2. Explore", workflow: true },
+  { slug: "research", heading: "3. Research", workflow: true },
+  { slug: "prd", heading: "4. PRD", workflow: true },
   { slug: "design", heading: "5. Design", workflow: true },
   { slug: "plan", heading: "6. Plan", workflow: true },
   { slug: "decompose", heading: "7. Decompose", workflow: true },

@@ -75,7 +75,11 @@ one line per check, detail lines indented under it:
                       CLAUDE_PLUGIN_DATA), which the sandbox denies to any
                       skill that persists state, is always a warning and is
                       set aside before the rules here judge the run's other
-                      denials, so it never counts toward a FAIL; so is a Read,
+                      denials, so it never counts toward a FAIL (a compound
+                      Bash call qualifies when one command names only paths
+                      there and each other one is an echo with no redirect or
+                      command substitution, or names only paths an allowed
+                      Bash call of the run also named); so is a Read,
                       Grep or Glob aimed only under the session's own
                       <sandbox>/config/projects/*/*/tool-results/, where Claude
                       Code persists a large tool result the session already
@@ -336,6 +340,8 @@ GLOBBING = re.compile(r"[*?\[\]{}~]")
 EXPANDING = re.compile(r"[*?\[\]{}~$]")
 # Command substitution, outside single quotes.
 SUBSTITUTION = re.compile(r"\$\(|`")
+# A plugin-data compound's command that names no path (own_data_compound).
+ECHO = "echo"
 
 # The suite's skill-fired convention and the no-trigger control markers.
 SKILL_TOOL = "Skill"
@@ -1725,11 +1731,13 @@ def own_data_compound(run, denial, data):
     denied whatever the case does, and every rooted path its other commands name
     was also named by a Bash call of the same run that was not denied, so none of
     them caused the denial; a BARE_WORD argument in another command, not a
-    redirect's file, is an argument, not a path. Any other part bash_paths cannot
-    place (a relative path with a slash, a command with no rooted argument such as
-    make) never qualifies, except a BASH_READERS command after a pipe with no file
-    operand, which reads only the pipe. A command that does not parse, or a word
-    UNRESOLVED matches outside a file-less redirect, never qualifies."""
+    redirect's file, is an argument, not a path. An echo command with no < or >
+    in any word names nothing and is passed over, whatever its arguments hold,
+    unless the command holds a $( or backtick anywhere. Any other part bash_paths cannot place (a
+    relative path with a slash, a command with no rooted argument such as make)
+    never qualifies, except a BASH_READERS command after a pipe with no file
+    operand, which reads only the pipe. A command that does not parse, or a
+    word UNRESOLVED matches outside a file-less redirect, never qualifies."""
     if not data or denial[2] != BASH_TOOL:
         return False
     try:
@@ -1739,19 +1747,29 @@ def own_data_compound(run, denial, data):
     words = shell_words(command) if isinstance(command, str) else None
     if not words:
         return False
-    parts, target = {}, False
+    groups = {}
     for text, lead, simple in words:
-        if not REDIRECT.fullmatch(text) and any(
-            UNRESOLVED.search(v) for v in SHELL_SPLIT.split(text) if v
-        ):
-            return False
-        every, kept = parts.setdefault(simple, ([], []))
-        every.append(text)
-        if lead or target or not BARE_WORD.match(text):
-            kept.append(text)
-        target = REDIRECT.fullmatch(text) is not None
-    if len(parts) < 2:
+        groups.setdefault(simple, []).append((text, lead))
+    if len(groups) < 2:
         return False
+    substitutes = SUBSTITUTION.search(command) is not None
+    parts = {}
+    for key, items in groups.items():
+        texts = [text for text, _ in items]
+        verb = texts[0] if key is not None and items[0][1] else None
+        if verb == ECHO and not substitutes and not any(c in t for t in texts for c in "<>"):
+            continue
+        every, kept, target = [], [], False
+        for text, lead in items:
+            if not REDIRECT.fullmatch(text) and any(
+                UNRESOLVED.search(v) for v in SHELL_SPLIT.split(text) if v
+            ):
+                return False
+            every.append(text)
+            if lead or target or not BARE_WORD.match(text):
+                kept.append(text)
+            target = REDIRECT.fullmatch(text) is not None
+        parts[key] = (every, kept)
     paths = {key: bash_paths(shlex.join(every)) for key, (every, _) in parts.items()}
     own = {
         key for key, p in paths.items() if None not in p and all(under(x, data) for x in p)

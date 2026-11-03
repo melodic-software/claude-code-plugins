@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.1.1] - 2026-11-03
+
+### Changed
+
+- `/testing:write`'s .NET gotcha no longer lists Microsoft Testing Platform banner switches, exit codes, verbosity values or path arguments, several of which the vendor page has since changed; it warns that the runner's options differ and points at the `dotnet test` with MTP Options section, with an as-of date and a recheck trigger.
+
 ## [3.1.0] - 2026-11-03
 
 ### Changed

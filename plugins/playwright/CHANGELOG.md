@@ -3,6 +3,12 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.1] - 2026-11-03
+
+### Changed
+
+- `demo-video` no longer restates Chromium's screencast frame size or what `gh pr comment --attach` requires; it points at `Page.startScreencast` and the `gh pr comment` options instead.
+
 ## [1.0.0] - 2026-11-03
 
 ### Removed

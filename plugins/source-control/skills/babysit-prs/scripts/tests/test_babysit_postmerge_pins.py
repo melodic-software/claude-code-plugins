@@ -207,5 +207,52 @@ class Reader(unittest.TestCase):
             self.assertIsNone(reader(self.merge(1)))
 
 
+class PinShape(unittest.TestCase):
+    """The pin's first line, old shape `<!-- babysit-merge-pin sha=S -->` and
+    new shape `<!-- babysit-merge-pin sha=S rung=C2|C3 -->` (issue #12748):
+    both read back the SHA."""
+
+    def thread(self, first_line: str) -> list[dict[str, Any]]:
+        return [
+            {"author": APP, "body": f"{first_line}\nenqueued", "lastEditedAt": None}
+        ]
+
+    def test_the_new_pin_names_the_rung_on_its_first_line(self) -> None:
+        self.assertEqual(
+            pm.pin_comment(sha(1), "C3").split("\n", 1)[0],
+            f"<!-- babysit-merge-pin sha={sha(1)} rung=C3 -->",
+        )
+        self.assertEqual(
+            pm.pin_comment(sha(1)).split("\n", 1)[0],
+            f"<!-- babysit-merge-pin sha={sha(1)} -->",
+        )
+
+    def test_old_and_new_pins_read_back_their_sha(self) -> None:
+        for line in (
+            f"<!-- babysit-merge-pin sha={sha(2)} -->",
+            f"<!-- babysit-merge-pin sha={sha(2)} rung=C2 -->",
+            f"<!-- babysit-merge-pin sha={sha(2)} rung=C3 -->",
+        ):
+            with self.subTest(line=line):
+                api = Threads({2: self.thread(line)})
+                self.assertEqual(self.read_one(api), sha(2))
+
+    def test_a_pin_naming_an_unknown_rung_is_no_pin(self) -> None:
+        for line in (
+            f"<!-- babysit-merge-pin sha={sha(2)} rung=C4 -->",
+            f"<!-- babysit-merge-pin sha={sha(2)} rung= -->",
+        ):
+            with self.subTest(line=line):
+                self.assertIsNone(self.read_one(Threads({2: self.thread(line)})))
+
+    def test_a_pin_with_no_rung_rejects_an_unknown_rung(self) -> None:
+        with self.assertRaises(ValueError):
+            pm.pin_comment(sha(1), "C4")
+
+    def read_one(self, api: Threads) -> str | None:
+        with mock.patch.object(pm, "gh_capture", api):
+            return pm.read_pin(REPO, 2, IDENTITY)
+
+
 if __name__ == "__main__":
     unittest.main()

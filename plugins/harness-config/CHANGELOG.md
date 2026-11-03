@@ -5,6 +5,20 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [3.0.1] - 2026-11-03
+
+### Changed
+
+- Skill and reference bodies in `audit-automation-gaps`, `audit-instructions`, `audit-pass`,
+  `audit-permission-grants` and `audit-permission-state` no longer restate upstream Claude Code
+  behavior (async hooks, `if` rules, `CLAUDE_CONFIG_DIR`, AGENTS.md displacement, auto-memory
+  precedence, name shadowing, `/doctor`, listing drops, permission rule matching and precedence,
+  auto-mode drop classes, plugin settings keys, `disableAutoMode`, the server-managed cache, local
+  settings location, and `$defaults`). Each now keeps our decision and points at the exact docs
+  section with an as-of date and a recheck trigger.
+
+- **audit, audit-permission-state, audit-prompting-postures, draft-auto-mode-rules, unhobble:** passages that restated Claude Code behavior (where the local settings file lives, cloud-session settings, instruction-file modes, `Read` deny and sandbox coverage, classifier blocks, hook precedence and timeouts, the skill-listing budget, bundled-skill and deep-link settings, `/auto-mode-setup`, `claude auto-mode reset`, plugin component types and `AGENTS.md` loading) now keep only this plugin's decision and point at the live docs section, with an as-of date and a recheck trigger.
+
 ## [3.0.0] - 2026-11-03
 
 ### Removed
