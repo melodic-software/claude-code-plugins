@@ -82,7 +82,8 @@ the rest of the knowledge stack.
 - A PDF or EPUB you have the right to read. PDF works natively with Claude
   Code's Read tool; EPUB requires unzipping and text extraction first. A web
   corpus needs public https pages or an export you supply.
-- **`gh` signed in** for `distill`'s visibility check on a GitHub remote.
+- **`gh` signed in** for `distill`'s visibility check on a GitHub remote, and
+  for `absorb-upstream` to read a repository URL through the GitHub API.
 - **Node.js on `PATH`**: `absorb-upstream`, `course-digest`, `distill`,
   `docpage-digest`, `map-corpus` and `video-digest` resolve their session root,
   and `distill` its progress key, with `scripts/work-root.mjs`.
