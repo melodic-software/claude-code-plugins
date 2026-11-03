@@ -502,6 +502,16 @@ reference/docs-lookup-procedure.md
 # duplication audit: the root canonical and the copies.
 lib/docs-lookup-procedure.md -> plugins/*/reference/docs-lookup-procedure.md
 
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/rendered-view.md, the rendered-view procedure every view lane follows,
+# carried by planning, architecture, discovery and debugging (debugging's copy
+# sits under skills/debug/reference/).
+reference/rendered-view.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/rendered-view.md -> plugins/*/reference/rendered-view.md plugins/debugging/skills/debug/reference/rendered-view.md
+
 # No dedicated check: a one-line `@AGENTS.md` CLAUDE.md shim beside an `audit`
 # skill's contributor AGENTS.md, carried by every plugin whose audit skill
 # keeps one (Claude Code reads CLAUDE.md, not AGENTS.md, so the shim is what

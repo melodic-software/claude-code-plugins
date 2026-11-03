@@ -5,6 +5,12 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.10] - 2026-11-03
+
+### Fixed
+
+- The context gate's copy of `scripts/context-zone.sh` now follows a lowered auto-compact window. When context-guard's snapshot carries `bands.auto_compact_window`, the resolver scales its percentage edges by that window over `context_window_size`, so the gate reads the same zone context-guard publishes (#12854).
+
 ## [0.18.9] - 2026-11-03
 
 ### Changed
