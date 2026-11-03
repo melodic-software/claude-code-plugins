@@ -38,7 +38,8 @@ Shared code shows up in many rows. `createGitHub` and `budgetedFetch`
 (`.github/scripts/pr-unblock/request-budget.mjs:33`) use the retry at
 `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs:145`, which sends a read up to 4
 times, after waits of 2, 4 and 8 s with equal jitter. The rate guard refuses a call during a
-rate-limit stop instead of waiting it out (`.github/actions/log-api-budget/rate-guard.mjs:447`). The listing helper `.github/scripts/pr-merge/retry-call.bash:39` meets
+rate-limit stop instead of waiting it out (`.github/actions/log-api-budget/rate-guard.mjs:447`).
+Part 2 changed both (see Remaining). The listing helper `.github/scripts/pr-merge/retry-call.bash:39` meets
 element 1, but only pr-merge uses it.
 
 ## work-resolve-issue
@@ -302,10 +303,27 @@ A fourth part 2 change fixed these gaps, each with a test:
   only on a `5xx`, or in some places a rate limit, and any other failure ended the run red. A
   failed dispatch still does (`dispatch.mjs`, `fix-ci-dispatch.mjs`, `fix-docs-dispatch.mjs` and
   `dependency-dispatch.mjs` under `.github/scripts/pr-unblock/`). Two things are unchanged. A rate
-  limit still ends the run red, because the shared rate guard fails the step (the `rate-guard.mjs`
-  row below). And `fix-ci` still dispatches under its caps when it cannot read its required run or
+  limit past the guard's wait budget still ends the run red, because the shared rate guard fails
+  the step unless the workflow sets `API_BUDGET_HOLD=1` (the shared rows below). And `fix-ci` still dispatches under its caps when it cannot read its required run or
   the head's check runs for a reason other than a `5xx` or a rate limit, or when the verifier
   reader fails.
+
+A fifth part 2 change fixed the shared rate guard's gaps, each with a test:
+
+- **shared, element 1.** The rate latch waits out a stop whose reset fits a 60 s budget per latch
+  (`SERVER_RETRY_BUDGET_MS`, the resets summed), plus a second so the call lands after the reset,
+  and then sends the call instead of refusing it. `createGitHub` sends a read a rate limit refused
+  once more after that wait, inside its 3 attempts; a write is never resent. A reset past the
+  budget is still refused without a request (`.github/actions/log-api-budget/rate-guard.mjs`,
+  `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs`).
+- **shared, element 2.** A step that sets `API_BUDGET_HOLD=1` holds on a rate limit past the
+  budget: the Node guard logs a `::notice::`, no `::error::`, and leaves the exit to the caller,
+  and the gh wrapper prints a notice (`.github/actions/log-api-budget/api-budget.bash`). The call
+  is still refused, so a gate that does not hold fails closed: the trusted-trigger check still
+  answers `proceed=false`, and `ci-status` sets no hold. Holding is opt-in because a caller that
+  reads a refusal as "nothing found" would otherwise pass it: `check-wip-cap.mjs`, for one, starts
+  the lane when its listing fails and it has no last state. A stop the job's stop file cannot take
+  still fails the step. Each lane holds only once its workflow sets the variable.
 
 The other script rows below are still open. Part 2 also found two rows that are not script-only
 fixes. Holding work-unblock's sweep green on a failed listing (element 2) would let the next sweep
@@ -316,9 +334,7 @@ since it has no cron.
 
 | Lane | Element | Kind | File to change |
 |---|---|---|---|
-| shared | 1 | script | `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs` (wait on the rate latch; part 2 fixed the attempt count and jitter) |
-| shared | 1, 2 | script | `.github/actions/log-api-budget/rate-guard.mjs` (wait out a short reset; hold instead of failing) |
-| shared | 2 | script | `.github/actions/log-api-budget/api-budget.bash` (a notice instead of `::error::` when the caller holds) |
+| shared | 2 | workflow | each lane workflow whose step should hold sets `API_BUDGET_HOLD=1`; part 2 fixed `rate-guard.mjs`'s wait and hold, `check-trusted-trigger.mjs`'s wait on the latch, and `api-budget.bash`'s notice |
 | work-resolve-issue | 2, 4 | script | `.github/scripts/work-resolve-issue/report-outcome.mjs` (`--find-prior` red on a failed read, a failed labeler read holds the PR), `stop-routes.json`; part 2 fixed `retry-fetch.mjs`'s rate-limit wait and the PR create sent again |
 | work-resolve-issue | 2, 3, 5 | workflow | `.github/workflows/work-resolve-issue.yml` (WIP check fails open, cached pause, status gate) |
 | intake-triage | 2 | script | `.github/scripts/intake-triage/apply-verdict.mjs` (holding green needs a re-trigger, since the lane has no cron); part 2 fixed `admit.mjs`'s visibility read |
