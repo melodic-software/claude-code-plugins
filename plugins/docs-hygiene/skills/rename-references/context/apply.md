@@ -47,13 +47,16 @@ Classify per [triage.md](triage.md) into Certain / Chain-context / Ambiguous / E
 
 Present bucket counts via the report template from [triage.md](triage.md) "Reporting bucket counts." Then gate the proceed/abort decision via `AskUserQuestion`.
 
-Per-bucket confirmation flow:
+Per-bucket flow:
 
 **Certain bucket:**
 
-- Show count + 1-2 example matches
-- `AskUserQuestion`: "Auto-apply N matches?" with options "auto-apply", "review one-by-one"
-- Default: auto-apply (these forms have empirically near-zero false-positive rate)
+- Mark every match accepted for Phase 5 without asking (these forms have empirically near-zero false-positive rate)
+- Report the count and 1-2 example matches with the bucket counts, before the proceed/abort gate,
+  and say how to review the bucket one by one instead: answer "review Certain one by one" in the
+  reply to the gate or to any later Phase 4 prompt. The Certain matches are then presented per
+  match with 3 lines of context and the options "rename this", "skip this", "skip remaining
+  Certain"
 
 **Chain-context bucket:**
 
@@ -68,7 +71,7 @@ Per-bucket confirmation flow:
 - ALWAYS one-by-one, because batched confirmation defeats the safety purpose
 
 **Record every decline as a confirmed skip, keyed by `(file, line, start, end)`.** "skip bucket",
-"skip this" and "skip remaining ambiguous" each produce skip records for the matches they cover.
+"skip this", "skip remaining ambiguous" and "skip remaining Certain" each produce skip records for the matches they cover.
 Phase 6 subtracts those spans from the actionable count. Without the record the same declined
 match re-enters Outcome B on every re-sweep and the loop cannot terminate. See Phase 6.
 
@@ -76,7 +79,7 @@ If user picks "abort" at any prompt, halt and report partial state (no matches e
 
 ### Phase 5: Apply
 
-For each accepted match (from Phase 4 user confirmations):
+For each accepted match (every Certain match not moved to one-by-one review, plus the matches accepted at the Phase 4 prompts):
 
 - Use Edit tool with exact old/new substitution
 - For matches where the form requires partial replacement (e.g., chain prose `→ confirm →` becomes `→ verify →`), construct precise old_string and new_string

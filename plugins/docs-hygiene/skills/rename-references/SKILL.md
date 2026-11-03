@@ -126,8 +126,8 @@ Multi-word old/new is fine. Separator is the only delimiter. Quote characters (`
    - **Certain**. Slash-token, path, frontmatter glob (high precision, auto-apply candidate)
    - **Chain-context**. Preceded/followed by other known skill names; numbered table rows; chain prose with multiple skill tokens
    - **Ambiguous**. Bare-token matches where token is in English-verb blocklist (`confirm`/`test`/`review`/`fix`/`clean`/`build`/`lint`/`verify`/`plan`/etc.)
-4. **Confirm**. Present buckets via `AskUserQuestion`:
-   - Certain → "auto-apply N matches?". Yes/no
+4. **Confirm**. Present bucket counts and gate proceed/abort via `AskUserQuestion`; then per bucket:
+   - Certain → no question: auto-applied, reported with count, 1-2 examples and how to review one-by-one instead
    - Chain-context → "review N matches one-by-one?". Yes/skip-bucket/auto-apply-all
    - Ambiguous → per-match yes/no with surrounding context
 5. **Apply**, Edit each accepted match. Idempotent, running twice is safe.
