@@ -602,6 +602,28 @@ test("the App's admission after a pushback and a trusted status: ready is its ow
   assert.equal(after.issue, null);
 });
 
+// Ledger L7: report-outcome's redispatch (report-outcome.mjs redispatch) moves
+// `status: ready` between its agent-ready removal and re-add, so the fresh
+// run anchors at the re-add and reads a decision posted after the first
+// admission. A bare restart would anchor at the first label and leave it out.
+test("report-outcome's redispatch is a fresh admission whose run reads a decision posted after the first one", async () => {
+  const decision = [comment(15, OWNER, "**Decision recorded.** → option 1")];
+  const app = { sender: String(LANES_BOT.id) };
+  const redispatched = [
+    labeled(OWNER, 10),
+    unlabeled(LANES_BOT, 20),
+    unlabeled(LANES_BOT, 20, "status: ready"),
+    labeled(LANES_BOT, 20, "status: ready"),
+    labeled(LANES_BOT, 20),
+  ];
+  const fresh = await run(fakeGitHub({ comments: decision, events: redispatched }), app);
+  assert.equal(fresh.code, 0);
+  assert.deepEqual(summary(fresh.issue), [["kyle-sexton", "human", true]]);
+  const restarted = await run(fakeGitHub({ comments: decision, events: [labeled(OWNER, 10), unlabeled(LANES_BOT, 20), labeled(LANES_BOT, 20)] }), app);
+  assert.equal(restarted.code, 0);
+  assert.deepEqual(restarted.issue.comments, []);
+});
+
 test("an unlisted account's status: ready never turns the App's restart into an admission", async () => {
   const restart = [labeled(OWNER, 10), unlabeled(LANES_BOT, 20), labeled(STRANGER, 20, "status: ready"), labeled(LANES_BOT, 20)];
   const { code, issue } = await run(fakeGitHub({ comments: [], issueEdits: { lastEditedAt: "2026-10-15T00:00:00Z" }, events: restart }), {
