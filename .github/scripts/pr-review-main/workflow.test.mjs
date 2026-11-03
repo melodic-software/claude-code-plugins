@@ -126,11 +126,14 @@ test("the model's jobs can only read, and the one writer runs no model", () => {
     assert.ok(review.length > 0, job);
     for (const [line, , level] of review) assert.equal(level, "read", `${job}: ${line}`);
   }
-  // The routes between legs hold no grant, no secret and no model.
+  // The routes between legs hold no grant, no secret and no model; the one
+  // action is review-handoffs' credit-stop marker upload, on the runtime token.
   for (const job of ["review-handoffs", "subscription-handoffs"]) {
     const route = jobText(job);
     assert.match(route, /^ {4}permissions: \{\}$/m, job);
-    assert.doesNotMatch(route, /run-claude-cli|secrets\.|actions\/checkout@|uses:/, job);
+    assert.doesNotMatch(route, /run-claude-cli|secrets\.|actions\/checkout@/, job);
+    const uses = route.match(/uses: .*/g) ?? [];
+    assert.deepEqual(uses.map((line) => line.replace(/@.*/, "")), job === "review-handoffs" ? ["uses: actions/upload-artifact"] : [], job);
   }
   // The trigger job reads with the key leg's grants and checks: read, for the
   // record job's check runs its judged-head read takes; it holds no secret
@@ -852,7 +855,8 @@ test("the prompt names the per-concern review rules the criteria step copies", (
 });
 
 test("the verdict uploads once, after it is written, under the writer's name", () => {
-  assert.equal(text.match(/uses: actions\/upload-artifact@/g).length, LEGS.length);
+  // Each leg's verdict, plus review-handoffs' credit-stop marker.
+  assert.equal(text.match(/uses: actions\/upload-artifact@/g).length, LEGS.length + 1);
   for (const job of LEGS) {
     const uploads = STEPS[job].filter((s) => /uses: actions\/upload-artifact@/.test(s.block));
     assert.equal(uploads.length, 1, job);
@@ -1058,8 +1062,7 @@ test("the credit gate skips the key leg only on skip-key true, and a gate failur
   assert.ok(!runs({ result: "failure", outputs: {} }, { ...triggered, result: "failure" }));
   assert.ok(!runs({ result: "success", outputs: {} }, triggered, { cancelled: true }));
   // The gate runs on every run of this attempt's trigger job, a head with no
-  // lane source or one already judged included, so each completed run the
-  // gate reads next (only the newest few) carries the record forward.
+  // lane source or one already judged included.
   const probeRuns = (trigger) => admits(jobGate(PROBE), { github: upstreamRun, needs: { trigger } });
   for (const outputs of [{}, { proceed: "" }, { review: "false" }, { judged: "true" }]) {
     assert.ok(probeRuns({ ...triggered, outputs: { ...triggered.outputs, ...outputs } }), JSON.stringify(outputs));
@@ -1068,19 +1071,19 @@ test("the credit gate skips the key leg only on skip-key true, and a gate failur
   assert.ok(!admits(jobGate(PROBE), { github: { ...upstreamRun, ref: "refs/heads/x" }, needs: { trigger: triggered } }));
 });
 
-test("the credit gate holds no secret, checks nothing out and reads only this workflow's runs", () => {
+test("the credit gate holds no secret, checks nothing out and reads only the marker artifacts", () => {
   const job = jobText(PROBE);
   assert.equal(needsOf(PROBE), "trigger");
-  assert.match(job, /^ {4}permissions:\n {6}actions: read #.*\n {4}outputs:\n {6}skip-key: \$\{\{ steps\.gate\.outputs\.skip-key \}\}\n/m);
+  assert.match(job, /^ {4}permissions:\n {6}actions: read #.*\n {4}outputs:\n {6}skip-key: \$\{\{ steps\.gate\.outputs\.skip-key \}\}\n {6}marker: \$\{\{ steps\.gate\.outputs\.marker \}\}\n/m);
   assert.doesNotMatch(job, /secrets\.|actions\/checkout|run-claude-cli|\.\/\.base/);
   const gate = step("Read the key's credit history", PROBE);
   assert.match(gate, /^ {8}id: gate$/m);
   assert.match(gate, /^ {8}continue-on-error: true$/m);
-  assert.match(gate, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/check-key-credit@[0-9a-f]{40} # \S/m);
-  // The gate reads its record in `<key-job>` and `<key-job>-credit` by display
-  // name: review-handoffs and this job, neither renamed.
+  // The marker gate (ci-workflows#973); an older pin reads run history for a
+  // record step this workflow no longer writes, so it would never skip.
+  assert.match(gate, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/check-key-credit@bc62beb95a989641f30552a932a132ebb8ecd801 # \S/m);
+  // The marker's name carries key-job: review-handoffs, the job that uploads it.
   assert.equal(input(gate, "key-job"), "review-handoffs");
-  for (const id of [PROBE, "review-handoffs"]) assert.doesNotMatch(jobText(id), /^ {4}name:/m, id);
   assert.equal(input(gate, "window-hours"), "${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}");
   // Each skipped key leg leaves its lane record, so leg counts compare.
   for (const [lane, sw] of [["claude-review", "CLAUDE_REVIEW_DISABLED"], ["claude-security-review", "CLAUDE_SECURITY_REVIEW_DISABLED"]]) {
@@ -1094,20 +1097,29 @@ test("the credit gate holds no secret, checks nothing out and reads only this wo
   }
 });
 
-// check-key-credit RECORD_PATTERN: /^Record the key's credit stop in run (\d{1,20})$/.
-const RECORD_PATTERN = /^Record the key's credit stop in run (\d{1,20})$/u;
-test("the record steps carry the pattern the gate reads, the key's only after a key leg's credit stop", () => {
-  const carried = "Record the key's credit stop in run ${{ steps.gate.outputs.origin-run }}";
-  const own = "Record the key's credit stop in run ${{ github.run_id }}";
-  assert.match(carried.replace("${{ steps.gate.outputs.origin-run }}", "12345"), RECORD_PATTERN);
-  assert.match(own.replace("${{ github.run_id }}", "12345"), RECORD_PATTERN);
-  assert.match(step(carried, PROBE), /^ {8}if: steps\.gate\.outputs\.skip-key == 'true'$/m);
+// check-key-credit gate.cjs lists only artifacts named by its `marker` output,
+// so review-handoffs must upload that artifact after a key leg's credit stop.
+test("review-handoffs uploads the gate's marker only after a key leg's credit stop", () => {
+  assert.match(needsOf("review-handoffs"), new RegExp(`\\b${PROBE}\\b`));
+  const write = step("Write the key's credit-stop marker", "review-handoffs");
+  assert.match(write, /^ {8}id: credit-marker$/m);
   // The key leg's own handoff reason, never the route's: a lane the gate handed
   // on must not restart the window, or the key would never be tried again.
-  const record = step(own, "review-handoffs");
-  assert.match(record, /^ {8}if: \$\{\{ !cancelled\(\) && \(needs\.review\.outputs\.claude-review == 'credit-stop' \|\| needs\.review\.outputs\.claude-security-review == 'credit-stop'\) \}\}$/m);
-  assert.match(record, /^ {8}continue-on-error: true$/m);
-  for (const job of LEGS) assert.equal(index(own, job), -1, job);
+  assert.match(write, /^ {8}if: \$\{\{ !cancelled\(\) && needs\.review-handoffs-credit\.outputs\.marker != '' && \(needs\.review\.outputs\.claude-review == 'credit-stop' \|\| needs\.review\.outputs\.claude-security-review == 'credit-stop'\) \}\}$/m);
+  assert.match(write, /^ {8}continue-on-error: true$/m);
+  assert.match(write, /echo "\$GITHUB_RUN_ID" >"\$RUNNER_TEMP\/key-credit-stop\/run-id"/);
+  const upload = step("Upload the key's credit-stop marker", "review-handoffs");
+  assert.ok(index("Upload the key's credit-stop marker", "review-handoffs") > index("Write the key's credit-stop marker", "review-handoffs"));
+  assert.match(upload, /^ {8}if: \$\{\{ !cancelled\(\) && steps\.credit-marker\.outcome == 'success' \}\}$/m);
+  assert.match(upload, /^ {8}continue-on-error: true$/m);
+  assert.match(upload, /^ {8}uses: actions\/upload-artifact@[0-9a-f]{40} # \S/m);
+  assert.equal(input(upload, "name"), "${{ needs.review-handoffs-credit.outputs.marker }}");
+  assert.equal(input(upload, "path"), "${{ runner.temp }}/key-credit-stop/run-id");
+  assert.equal(input(upload, "if-no-files-found"), "error");
+  assert.equal(input(upload, "retention-days"), "1");
+  // The run-history record steps the old gate read are gone everywhere.
+  assert.doesNotMatch(text, /Record the key's credit stop/);
+  for (const job of LEGS) assert.equal(index("Upload the key's credit-stop marker", job), -1, job);
 });
 
 test("with the key leg skipped by the credit gate, every enabled lane goes to the subscription leg as a credit stop", () => {

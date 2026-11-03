@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.1.4] - 2026-11-03
+
+### Changed
+
+- The prerequisites skill's ranking probe no longer lists a deleted skill as a competitor.
+
 ## [8.1.3] - 2026-11-03
 
 ### Added

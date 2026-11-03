@@ -15,8 +15,39 @@
       "degrade": "Without node, the disk-hygiene hooks cannot launch, so they do nothing.",
       "install": {
         "docs": "https://nodejs.org/en/download"
+      }
+    },
+    {
+      "id": "python3",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "hook:run-python-hook.sh",
+        "skill:audit",
+        "skill:clean"
+      ],
+      "detect": {
+        "any": [
+          "python3",
+          "python",
+          "py"
+        ],
+        "reject_store_alias": true,
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "Python ([0-9.]+)",
+          "min": "3.11"
+        }
       },
-      "check": "/disk-hygiene:check"
+      "degrade": "Without Python 3.11 or newer, the guard denies hygiene.py calls, /disk-hygiene:clean cannot run, and /disk-hygiene:audit cannot scan. This check judges only the first of python3, python and py on PATH. The guard tries each in that order (py as py -3) and uses the first that passes its own probe, so when a later one is 3.11 or newer the guard still runs.",
+      "install": {
+        "docs": "https://www.python.org/downloads/",
+        "brew": "python",
+        "winget": "Python.Python.3.13",
+        "apt": "python3"
+      }
     }
   ]
 }

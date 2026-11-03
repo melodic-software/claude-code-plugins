@@ -30,10 +30,11 @@ import process from "node:process";
 // "wait for at least one minute" when neither header gives the time. GraphQL
 // answers its primary limit with a 200 whose errors carry this type. Any 429
 // counts, whatever its headers and message. "abuse detection" is the older
-// wording of a secondary limit. A secondary limit with no time waits the
-// minute; any other limit with no time, or with a reset already past, could
-// hold to its window's end, so it stops for primaryFallbackSeconds, past any
-// primary reset (a primary window is one hour).
+// wording of a secondary limit. A secondary limit with no time, or a limit
+// whose header time is already past, waits the minute; any other limit with
+// no time could hold to its window's end, so it stops for
+// primaryFallbackSeconds, past any primary reset (a primary window is one
+// hour).
 export const SIGNALS = Object.freeze({
   statuses: Object.freeze([403, 429]),
   message: /rate limit|abuse detection/i,
