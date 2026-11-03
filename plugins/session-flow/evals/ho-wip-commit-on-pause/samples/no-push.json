@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "git commit -m \"chore(wip): exponential retry delay\""}},
+        {"tool": "Bash", "input": {"command": "git rev-parse HEAD"}}
+      ],
+      "why": "commits locally and stops"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "git push -u origin feat/retry-backoff"}}
+      ],
+      "why": "pushes the pause commit"
+    }
+  ]
+}

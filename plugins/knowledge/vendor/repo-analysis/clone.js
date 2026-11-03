@@ -2,8 +2,7 @@
  * Shallow clone of a repository URL: hardened for an untrusted repository by
  * default, or run in the user's own git environment when the caller asks.
  *
- * Node builtins only, so a skill can run `clone-cli.js` straight from the plugin
- * without installing anything.
+ * Node builtins only.
  */
 
 import { spawn, spawnSync } from "node:child_process";

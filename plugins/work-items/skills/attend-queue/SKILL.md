@@ -160,11 +160,12 @@ worker lane off the flipped item. Once the row's answer is written
 
 - **When the human blocker is removed:** perform the single-edit role-label flip **while this
   session still holds the claim**, then clear `@me` from assignees via the bound adapter's assignee
-  edit (`--remove-assignee "@me"` for GitHub. See the adapter README "Edit labels / assignees"),
-  then end the lease with `"$TRACKER" release "<id>" --lease-comment-id <n>`. Never clear the
-  assignee before the flip: a released row still reads as `[escalated]` in another
-  attended session's view until the label lands. A brief frontier delay after the flip is
-  acceptable.
+  edit (for GitHub, the adapter README "Edit labels / assignees"; the flag is read live at
+  [gh issue edit § Options](https://cli.github.com/manual/gh_issue_edit#options),
+  as of 2026-11-03; recheck when that section renames the assignee flags), then end the lease with
+  `"$TRACKER" release "<id>" --lease-comment-id <n>`. Never clear the assignee before the flip: a
+  released row still reads as `[escalated]` in another attended session's view until the label
+  lands. A brief frontier delay after the flip is acceptable.
 - **When disposition leaves the item human-gated** (decline, an answered
   escalation on a human-floor work class that was not reclassified): clear `@me` via the
   same adapter assignee edit once disposition comments are written, still while holding the claim

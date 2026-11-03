@@ -9,7 +9,7 @@ import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import * as publisher from "./publish-promotion-evidence.mjs";
 import { collect, PublishError, publish } from "./publish-promotion-evidence.mjs";
-import { actorOf, CANARY, demotionIssue, FULL, GATE, github, issueComment, issueItem, LANE, later, MECHANICAL, MISSED, page1, pinComment, pr, REC, REPO, SCOPED, shaOf, wfRun } from "./fixtures/publish-promotion-evidence/github-fake.mjs";
+import { actorOf, CANARY, demotionIssue, FULL, GATE, github, issueComment, issueItem, LANE, later, MISSED, page1, pinComment, pr, REC, REPO, shaOf, wfRun } from "./fixtures/publish-promotion-evidence/github-fake.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SINCE = "2026-08-01T00:00:00Z";
@@ -18,12 +18,9 @@ const THROUGH = "2026-10-05T00:00:00Z";
 const base = mkdtempSync(join(tmpdir(), "publish-promotion-evidence-"));
 after(() => rmSync(base, { recursive: true, force: true }));
 
-// REC.pullGraph: a recorded pull whose one closing reference, number 6007, is labeled `work-class: scoped`.
-const ISSUE_6007 = REC.pullGraph.data.repository.pullRequest.closingIssuesReferences.nodes;
 const queued = (at, enqueuer, actor = enqueuer) => ({ __typename: "AddedToMergeQueueEvent", createdAt: at, actor: actorOf(actor), enqueuer: actorOf(enqueuer) });
-// The shape of a real ConnectedEvent on a PR timeline (cli/cli #14616): `subject` is the issue.
-const LINK = REC.connectedEventFromCliCli14616;
-const link = (type, issue, at) => ({ ...LINK, __typename: type, createdAt: at, subject: { ...LINK.subject, number: issue } });
+// Every promotable cell: what a merge with no rung has its contrary events counted against.
+const ALL = ["C2-auto-merge", "C3-ai-review-blocking", "C3-auto-merge"];
 
 const labelEvent = (event, name, at, login = "kyle-sexton", type = "User") => ({ ...REC.issueEvent, event, label: { name }, actor: { login, type }, created_at: at });
 
@@ -46,7 +43,7 @@ const verifiedEach = (pulls, minutes = 60) => ({
 test("a red full run on a later SHA containing two merges yields gate-failure for each", () => {
   const tip = shaOf(0xa001);
   const result = run({
-    pulls: [pr(1301, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] }), pr(1302, "2026-09-02T00:00:00Z", { labels: [SCOPED] })],
+    pulls: [pr(1301, "2026-09-01T00:00:00Z", { rung: "C2" }), pr(1302, "2026-09-02T00:00:00Z", { rung: "C3" })],
     history: [shaOf(1301), shaOf(1302), tip],
     workflowRuns: { [FULL]: [wfRun(1, "schedule", tip, "2026-09-03T00:00:00Z", { conclusion: "failure" })] },
   });
@@ -64,7 +61,7 @@ test("a red run on a commit off the branch is not charged, as in _Context.on_bra
   // A run on a tag named main reports head_branch main; its commit descends from the merge but
   // is not on refs/heads/main.
   const off = shaOf(0xa0ff);
-  const pulls = () => [pr(1601, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })];
+  const pulls = () => [pr(1601, "2026-09-01T00:00:00Z", { rung: "C2" })];
   const red = (offBranch) =>
     run({
       pulls: pulls(),
@@ -83,7 +80,7 @@ test("a red run on a commit off the branch is not charged, as in _Context.on_bra
 test("a red run on a commit on top of the tip (compare behind) is not charged", () => {
   // A tag named main one commit past refs/heads/main: compare <run>...<tip> answers behind.
   const top = shaOf(0xa0fe);
-  const pulls = () => [pr(1602, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })];
+  const pulls = () => [pr(1602, "2026-09-01T00:00:00Z", { rung: "C2" })];
   const result = run({
     pulls: pulls(),
     onTop: [top],
@@ -96,7 +93,7 @@ test("a red run on a commit on top of the tip (compare behind) is not charged", 
 });
 
 test("an unreadable branch tip or run ancestry refuses the publish", () => {
-  const pulls = () => [pr(1603, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })];
+  const pulls = () => [pr(1603, "2026-09-01T00:00:00Z", { rung: "C2" })];
   assert.throws(() => run({ pulls: pulls(), tip: null }), (error) => error instanceof PublishError && /has no tip commit/.test(error.message));
   const odd = shaOf(0xa0fd);
   const unknown = {
@@ -110,7 +107,7 @@ test("an unreadable branch tip or run ancestry refuses the publish", () => {
 test("a run created before the merge is not its evidence", () => {
   // Run 3 on #1303's own SHA predates #1303's merge, so it is evidence for #1309 only.
   const result = run({
-    pulls: [pr(1309, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] }), pr(1303, "2026-09-02T00:00:00Z", { labels: [SCOPED] })],
+    pulls: [pr(1309, "2026-09-01T00:00:00Z", { rung: "C2" }), pr(1303, "2026-09-02T00:00:00Z", { rung: "C3" })],
     workflowRuns: { [FULL]: [wfRun(3, "schedule", shaOf(1303), "2026-09-01T12:00:00Z", { conclusion: "failure" })] },
   });
   assert.deepEqual(result.events, gateEvents("2026-09-01T12:08:00Z", "C2-auto-merge"));
@@ -119,16 +116,16 @@ test("a run created before the merge is not its evidence", () => {
 test("a post-merge run behind the merge is not its evidence; a diverged one refuses the publish", () => {
   const other = shaOf(0xa002);
   const red = { [FULL]: [wfRun(2, "schedule", other, "2026-09-03T00:00:00Z", { conclusion: "failure" })] };
-  const behind = run({ pulls: [pr(1310, "2026-09-02T00:00:00Z", { labels: [MECHANICAL] })], history: [other, shaOf(1310)], workflowRuns: red });
+  const behind = run({ pulls: [pr(1310, "2026-09-02T00:00:00Z", { rung: "C2" })], history: [other, shaOf(1310)], workflowRuns: red });
   assert.deepEqual(behind.events, []);
-  const diverged = { pulls: [pr(1310, "2026-09-02T00:00:00Z", { labels: [MECHANICAL] })], history: [shaOf(1310), other], diverged: [other] };
+  const diverged = { pulls: [pr(1310, "2026-09-02T00:00:00Z", { rung: "C2" })], history: [shaOf(1310), other], diverged: [other] };
   assert.throws(() => run({ ...diverged, workflowRuns: red }), (error) => error instanceof PublishError && /diverged/.test(error.message));
 });
 
 test("a merge that is an ancestor of a same-time merge listed before it is still covered by a later run", () => {
   const tip = shaOf(0xa007);
   const result = run({
-    pulls: [pr(1401, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] }), pr(1402, "2026-09-01T00:00:00Z", { labels: [SCOPED] })],
+    pulls: [pr(1401, "2026-09-01T00:00:00Z", { rung: "C2" }), pr(1402, "2026-09-01T00:00:00Z", { rung: "C3" })],
     history: [shaOf(1402), shaOf(1401), tip],
     workflowRuns: { [FULL]: [wfRun(11, "schedule", tip, "2026-09-02T00:00:00Z", { conclusion: "failure" })] },
   });
@@ -137,7 +134,7 @@ test("a merge that is an ancestor of a same-time merge listed before it is still
 
 test("a post-merge run created after --through still counts", () => {
   const result = run({
-    pulls: [pr(1403, "2026-10-04T00:00:00Z", { labels: [MECHANICAL] })],
+    pulls: [pr(1403, "2026-10-04T00:00:00Z", { rung: "C2" })],
     workflowRuns: { [CANARY]: [wfRun(12, "push", shaOf(1403), "2026-10-06T00:00:00Z", { conclusion: "failure" })] },
   });
   assert.deepEqual(result.events, gateEvents("2026-10-06T00:08:00Z", "C2-auto-merge"));
@@ -149,7 +146,7 @@ const FAILED = { passed: 0, failed: 1, unsettled: 0, total: 1 };
 const UNSETTLED = { passed: 0, failed: 0, unsettled: 1, total: 1 };
 
 test("a merge passes the gate only with a lane dispatch within 6 hours and a green canary; no timely dispatch is a gate failure", () => {
-  const pulls = () => [pr(1404, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })];
+  const pulls = () => [pr(1404, "2026-09-01T00:00:00Z", { rung: "C2" })];
   const noDispatch = gateEvents("2026-09-01T06:00:00Z", "C2-auto-merge");
   const bare = run({ pulls: pulls(), noDefaultDispatch: true });
   assert.deepEqual([gateOf(bare), bare.events], [FAILED, noDispatch]);
@@ -164,39 +161,61 @@ test("a merge passes the gate only with a lane dispatch within 6 hours and a gre
 });
 
 test("a lane-enqueued merge passes only when its unedited lane pin names headRefOid; otherwise a gate failure", () => {
-  const pulls = () => [pr(1501, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })];
+  const pulls = () => [pr(1501, "2026-09-01T00:00:00Z")];
   const head = shaOf(1501 + 0x100000);
   const withComments = (list) => run({ pulls: pulls(), workflowRuns: verifiedEach(pulls()), comments: { 1501: list } });
-  assert.deepEqual(gateOf(withComments([pinComment(head)])), PASSED);
+  assert.deepEqual(gateOf(withComments([pinComment(head, "C2")])), PASSED);
   const filler = Array.from({ length: 120 }, () => REC.commentsPage.data.repository.pullRequest.comments.nodes[0]);
-  assert.deepEqual(gateOf(withComments([...filler, pinComment(head)])), PASSED);
-  const noPin = gateEvents("2026-09-01T06:00:00Z", "C2-auto-merge");
-  for (const list of [[], [{ ...pinComment(head), lastEditedAt: "2026-09-01T00:30:00Z" }], [{ ...pinComment(head), author: actorOf("kyle-sexton") }]]) {
+  assert.deepEqual(gateOf(withComments([...filler, pinComment(head, "C2")])), PASSED);
+  // With no pin at its head the merge has no rung, so its gate failure counts against every cell.
+  const noPin = gateEvents("2026-09-01T06:00:00Z", ...ALL);
+  for (const list of [[], [{ ...pinComment(head, "C2"), lastEditedAt: "2026-09-01T00:30:00Z" }], [{ ...pinComment(head, "C2"), author: actorOf("kyle-sexton") }]]) {
     const result = withComments(list);
-    assert.deepEqual([gateOf(result), result.events], [FAILED, noPin]);
+    assert.deepEqual([gateOf(result).total, result.events], [0, noPin]);
   }
-  const mismatch = withComments([pinComment(shaOf(0xbad))]);
-  assert.deepEqual([gateOf(mismatch), mismatch.events], [FAILED, gateEvents("2026-09-01T00:00:00Z", "C2-auto-merge")]);
-  // Before the deadline a missing pin is pending, as in check().
-  const fresh = [pr(1502, "2026-10-04T22:00:00Z", { labels: [MECHANICAL] })];
+  const mismatch = withComments([pinComment(shaOf(0xbad), "C2")]);
+  assert.deepEqual([gateOf(mismatch).total, mismatch.events], [0, gateEvents("2026-09-01T00:00:00Z", ...ALL)]);
+  // Before the deadline a missing pin is pending, as in check(): no event, and no credit yet.
+  const fresh = [pr(1502, "2026-10-04T22:00:00Z")];
   const pending = run({ pulls: fresh, workflowRuns: verifiedEach(fresh, 30), comments: { 1502: [] } });
-  assert.deepEqual([gateOf(pending), pending.events], [UNSETTLED, []]);
-  // A merge another bot enqueued is autonomous but not the lane's: it has no pin to read back.
-  const bot = [pr(1503, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], merger: "kyle-sexton", timeline: [queued("2026-08-31T23:00:00Z", null, "some-app[bot]")] })];
-  assert.deepEqual(gateOf(run({ pulls: bot, workflowRuns: verifiedEach(bot), comments: { 1503: [] } })), PASSED);
+  assert.deepEqual([gateOf(pending).total, pending.events], [0, []]);
+  // A merge another bot enqueued is autonomous but not the lane's: it has no pin, so no rung.
+  const bot = [pr(1503, "2026-09-01T00:00:00Z", { merger: "kyle-sexton", timeline: [queued("2026-08-31T23:00:00Z", null, "some-app[bot]")] })];
+  const byBot = run({ pulls: bot, workflowRuns: verifiedEach(bot), comments: { 1503: [] } });
+  assert.deepEqual([gateOf(byBot).total, byBot.events, byBot.noRungAutonomous], [0, [], [{ number: 1503, reason: "not enqueued by a lane identity: no pin" }]]);
+});
+
+test("a merge counts toward the cells of the rung its pin names, whatever its work-class labels", () => {
+  // A class-less, a structural and a mechanical item, each at c2-mechanical (pin C2)
+  // and at c3-autonomous or full-autonomy (both pin C3), count by the rung alone.
+  const labelSets = [[], ["work-class: structural"], ["work-class: mechanical"]];
+  const pulls = ["C2", "C3"].flatMap((rung, r) => labelSets.map((labels, i) => pr(1520 + 10 * r + i, `2026-09-0${1 + i}T00:00:00Z`, { rung, labels })));
+  const result = run({ pulls, workflowRuns: verifiedEach(pulls) });
+  assert.equal(termOf(result, "C2-auto-merge", "autonomous C2 completions").value, 3);
+  assert.equal(termOf(result, "C3-auto-merge", "autonomous C3 completions").value, 3);
+  assert.deepEqual(result.noRungAutonomous, []);
+});
+
+test("a pin naming no rung, the old shape, leaves the merge without credit and its contrary events on every cell", () => {
+  const failing = { ...REC.checkRun, conclusion: "failure", completed_at: "2026-09-01T00:10:00Z" };
+  const result = run({ pulls: [pr(1530, "2026-09-01T00:00:00Z", { labels: ["work-class: mechanical"] })], checkRuns: { 1530: [failing] } });
+  assert.deepEqual(result.noRungAutonomous, [{ number: 1530, reason: "the pin names no rung" }]);
+  assert.deepEqual(result.events, ALL.map((cell) => ({ cell, event: "gate-failure", at: "2026-09-01T00:10:00Z" })));
+  assert.equal(termOf(result, "C2-auto-merge", "autonomous C2 completions").value, 0);
 });
 
 test("a lane identity's native auto-merge owes no pin, as in native_auto_merge", () => {
   const armed = (kind, at, login = LANE) => ({ nodes: [{ __typename: kind, createdAt: at, actor: actorOf(login) }] });
   const enqueue = [queued("2026-08-31T23:50:00Z", LANE)];
-  const pulls = (autoMerge, extra = {}, timeline = enqueue) => [pr(1505, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], timeline, patch: { autoMerge, ...extra } })];
+  const pulls = (autoMerge, extra = {}, timeline = enqueue) => [pr(1505, "2026-09-01T00:00:00Z", { timeline, patch: { autoMerge, ...extra } })];
+  // A native merge owes no pin; with none it has no rung either: no credit, and contrary events on every cell.
   const judge = (autoMerge, extra, lanes = [LANE], timeline = enqueue) => {
     const result = run({ pulls: pulls(autoMerge, extra, timeline), workflowRuns: verifiedEach(pulls(autoMerge, extra, timeline)), comments: { 1505: [] } }, { laneLogins: lanes });
-    return [gateOf(result), result.events];
+    return result.events;
   };
-  const noPin = [FAILED, gateEvents("2026-09-01T06:00:00Z", "C2-auto-merge")];
-  assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:40:00Z")), [PASSED, []]);
-  assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:50:00Z")), [PASSED, []]);
+  const noPin = gateEvents("2026-09-01T06:00:00Z", ...ALL);
+  assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:40:00Z")), []);
+  assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:50:00Z")), []);
   // The gate's disarm, an arm after the enqueue, a person's arm, or no events: the pin stays owed.
   assert.deepEqual(judge(armed("AutoMergeDisabledEvent", "2026-08-31T23:40:00Z")), noPin);
   assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:55:00Z")), noPin);
@@ -219,14 +238,41 @@ test("a lane identity's native auto-merge owes no pin, as in native_auto_merge",
   assert.deepEqual(red.gateFailures.map((g) => [g.number, g.check]), [[1505, `${FULL} schedule`]]);
 });
 
+test("a native auto-merge credits the rung its lane's unedited pin at the merged head names", () => {
+  const head = shaOf(1506 + 0x100000);
+  const armed = { nodes: [{ __typename: "AutoMergeEnabledEvent", createdAt: "2026-08-31T23:40:00Z", actor: actorOf(LANE) }] };
+  const pulls = [pr(1506, "2026-09-01T00:00:00Z", { timeline: [queued("2026-08-31T23:50:00Z", LANE)], patch: { autoMerge: armed } })];
+  const judge = (list) => run({ pulls, workflowRuns: verifiedEach(pulls), comments: { 1506: list } });
+  for (const rung of ["C2", "C3"]) {
+    const result = judge([pinComment(head, rung)]);
+    assert.equal(termOf(result, `${rung}-auto-merge`, `autonomous ${rung} completions`).value, 1, rung);
+    assert.deepEqual(result.noRungAutonomous, [], rung);
+  }
+  // No pin, an old-shape pin, an edited pin, a pin at another head or by another author: no rung.
+  const noRung = [
+    [[], "no unedited lane pin"],
+    [[pinComment(head)], "the pin names no rung"],
+    [[{ ...pinComment(head, "C2"), lastEditedAt: "2026-09-01T00:30:00Z" }], "no unedited lane pin"],
+    [[pinComment(shaOf(0xbad), "C2")], "the pin names another head"],
+    [[{ ...pinComment(head, "C2"), author: actorOf("kyle-sexton") }], "no unedited lane pin"],
+  ];
+  for (const [list, reason] of noRung) {
+    const result = judge(list);
+    assert.deepEqual(result.noRungAutonomous, [{ number: 1506, reason }], reason);
+    assert.equal(termOf(result, "C2-auto-merge", "autonomous C2 completions").value, 0, reason);
+    // A native merge owes no pin, so a missing one is no gate failure.
+    assert.deepEqual(result.events, [], reason);
+  }
+});
+
 test("a pin past the 30th comment page is no pin, as in read_pin", () => {
-  const pulls = () => [pr(1504, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })];
+  const pulls = () => [pr(1504, "2026-09-01T00:00:00Z")];
   const filler = (count) => Array.from({ length: count }, () => REC.commentsPage.data.repository.pullRequest.comments.nodes[0]);
   const withComments = (list) => run({ pulls: pulls(), workflowRuns: verifiedEach(pulls()), comments: { 1504: list } });
   const head = shaOf(1504 + 0x100000);
-  assert.deepEqual(gateOf(withComments([...filler(2999), pinComment(head)])), PASSED);
-  const beyond = withComments([...filler(3000), pinComment(head)]);
-  assert.deepEqual([gateOf(beyond), beyond.events], [FAILED, gateEvents("2026-09-01T06:00:00Z", "C2-auto-merge")]);
+  assert.deepEqual(gateOf(withComments([...filler(2999), pinComment(head, "C2")])), PASSED);
+  const beyond = withComments([...filler(3000), pinComment(head, "C2")]);
+  assert.deepEqual([gateOf(beyond).total, beyond.events], [0, gateEvents("2026-09-01T06:00:00Z", ...ALL)]);
 });
 
 test("a revert number that is not a GraphQL Int is listed without a lookup", () => {
@@ -270,35 +316,23 @@ test("gh failures: a missing PR is an answer, a missing commit is unresolvable, 
   fails({ ...REC.repoNotFound, errors: REC.pullNotFound.errors });
 });
 
-test("an incomplete page on a lane PR leaves it unclassed, not a refused publish", () => {
-  const paged = (patch) => run({ pulls: [pr(1409, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], linked: ISSUE_6007, patch })] });
-  const reason = "a linked-issue, label or timeline page is unreadable or incomplete: class unknown";
-  for (const patch of [{ closingIssuesReferences: page1(ISSUE_6007, true) }, { timelineItems: page1([], true) }, { labels: page1([{ name: MECHANICAL }], true) }]) {
-    assert.deepEqual(paged(patch).unclassedAutonomous, [{ number: 1409, reason }]);
-  }
-  const issueLabelsPaged = [{ ...ISSUE_6007[0], labels: { ...ISSUE_6007[0].labels, pageInfo: { hasNextPage: true } } }];
-  const noLabels = [{ number: 6007 }];
-  for (const nodes of [issueLabelsPaged, noLabels]) {
-    assert.deepEqual(paged({ closingIssuesReferences: page1(nodes) }).unclassedAutonomous, [{ number: 1409, reason }]);
+test("an incomplete timeline page on a lane PR leaves it without a rung, not a refused publish", () => {
+  const paged = (patch) => run({ pulls: [pr(1409, "2026-09-01T00:00:00Z", { rung: "C2", patch })] });
+  const reason = "the timeline page is unreadable or incomplete: rung unknown";
+  for (const timelineItems of [page1([], true), { pageInfo: { hasNextPage: false } }]) {
+    assert.deepEqual(paged({ timelineItems }).noRungAutonomous, [{ number: 1409, reason }]);
   }
 });
 
 test("an unparsable date refuses the publish", () => {
   const result = () =>
-    run({ pulls: [pr(1410, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })], workflowRuns: { [CANARY]: [wfRun(13, "push", shaOf(1410), "not-a-date", { updated: "not-a-date" })] } });
+    run({ pulls: [pr(1410, "2026-09-01T00:00:00Z", { rung: "C2" })], workflowRuns: { [CANARY]: [wfRun(13, "push", shaOf(1410), "not-a-date", { updated: "not-a-date" })] } });
   assert.throws(result, (error) => error instanceof PublishError && /date/.test(error.message));
 });
 
 test("a PR merged into a branch other than the default is not read", () => {
-  const result = run({ pulls: [pr(1405, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], base: "release" })] });
+  const result = run({ pulls: [pr(1405, "2026-09-01T00:00:00Z", { rung: "C2", base: "release" })] });
   assert.equal(termOf(result, "C2-auto-merge", "autonomous C2 completions").value, 0);
-});
-
-test("a link event after the merge in an unrecognized shape leaves the class unknown", () => {
-  const odd = { ...link("DisconnectedEvent", 6007, "2026-09-02T00:00:00Z"), subject: { __typename: "PullRequest", number: 5 } };
-  const result = run({ pulls: [pr(1406, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], timeline: [odd] })] });
-  assert.equal(termOf(result, "C2-auto-merge", "autonomous C2 completions").value, 0);
-  assert.deepEqual(result.unclassedAutonomous, [{ number: 1406, reason: "a link event after the merge has an unrecognized shape: links unknown" }]);
 });
 
 test("a revert naming a PR that is not merged or does not exist is listed, not fatal", () => {
@@ -311,7 +345,7 @@ test("a red full run is a flake only when a lane identity's re-run passed", () =
   const rerun = (id, triggering) => wfRun(id, "schedule", tip, "2026-09-02T00:00:00Z", { attempt: 2, triggering, updated: "2026-09-02T01:00:00Z" });
   const firstAttempt = (id) => ({ 1: wfRun(id, "schedule", tip, "2026-09-02T00:00:00Z", { conclusion: "failure" }) });
   const result = run({
-    pulls: [pr(1304, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })],
+    pulls: [pr(1304, "2026-09-01T00:00:00Z", { rung: "C2" })],
     history: [shaOf(1304), tip],
     workflowRuns: { [FULL]: [rerun(4, LANE), rerun(5, "kyle-sexton")] },
     attempts: { 4: firstAttempt(4), 5: firstAttempt(5) },
@@ -322,7 +356,7 @@ test("a red full run is a flake only when a lane identity's re-run passed", () =
 test("a red run after a merge was verified by a green lane dispatch and canary is not that merge's", () => {
   const [s1, s2] = [shaOf(0xa004), shaOf(0xa005)];
   const result = run({
-    pulls: [pr(1305, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] }), pr(1306, "2026-09-01T12:00:00Z", { labels: [SCOPED] })],
+    pulls: [pr(1305, "2026-09-01T00:00:00Z", { rung: "C2" }), pr(1306, "2026-09-01T12:00:00Z", { rung: "C3" })],
     history: [shaOf(1305), s1, shaOf(1306), s2],
     workflowRuns: {
       [FULL]: [wfRun(6, "workflow_dispatch", s1, "2026-09-01T01:00:00Z", { actor: LANE }), wfRun(7, "schedule", s2, "2026-09-02T00:00:00Z", { conclusion: "failure" })],
@@ -334,7 +368,7 @@ test("a red run after a merge was verified by a green lane dispatch and canary i
 
 test("a red canary run on a SHA containing the merge yields gate-failure", () => {
   const result = run({
-    pulls: [pr(1307, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })],
+    pulls: [pr(1307, "2026-09-01T00:00:00Z", { rung: "C2" })],
     workflowRuns: { [CANARY]: [wfRun(9, "push", shaOf(1307), "2026-09-01T00:01:00Z", { conclusion: "failure" })] },
   });
   assert.deepEqual(result.events, gateEvents("2026-09-01T00:09:00Z", "C2-auto-merge"));
@@ -344,14 +378,14 @@ test("a red full run awaiting its re-run is unsettled for 6 hours, then a failur
   const tip = shaOf(0xa006);
   const red = (id, updated) => wfRun(id, "schedule", tip, later(updated, -8), { conclusion: "failure", updated });
   const recent = run({
-    pulls: [pr(1308, "2026-10-04T00:00:00Z", { labels: [MECHANICAL] })],
+    pulls: [pr(1308, "2026-10-04T00:00:00Z", { rung: "C2" })],
     history: [shaOf(1308), tip],
     workflowRuns: { [FULL]: [red(10, "2026-10-04T23:00:00Z")] },
   });
   assert.deepEqual(recent.events, []);
   assert.equal(termOf(recent, "C2-auto-merge", "deterministic-gate pass").detail.unsettled, 1);
   const stale = run({
-    pulls: [pr(1308, "2026-10-04T00:00:00Z", { labels: [MECHANICAL] })],
+    pulls: [pr(1308, "2026-10-04T00:00:00Z", { rung: "C2" })],
     history: [shaOf(1308), tip],
     workflowRuns: { [FULL]: [red(10, "2026-10-04T17:00:00Z")] },
   });
@@ -360,7 +394,7 @@ test("a red full run awaiting its re-run is unsettled for 6 hours, then a failur
 
 test("only the named gate checks and status contexts are gate evidence", () => {
   const other = (name, conclusion) => ({ ...REC.checkRun, name, conclusion, completed_at: "2026-09-01T00:10:00Z" });
-  const pulls = [pr(1201, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })];
+  const pulls = [pr(1201, "2026-09-01T00:00:00Z", { rung: "C2" })];
   const result = run({
     pulls,
     checkRuns: { 1201: [REC.checkRun, other("dispatch", "failure"), other("resolve-conflicts / run", "cancelled")] },
@@ -381,10 +415,10 @@ test("no gate check named is refused rather than read as an empty gate", () => {
 test("merges outside --since..--through appear in no list, count and event", () => {
   const failing = (at) => [{ ...REC.checkRun, conclusion: "failure", completed_at: at }];
   const result = run({
-    pulls: [pr(1202, "2026-07-31T00:00:00Z"), pr(1203, "2026-07-31T00:00:00Z", { labels: [MECHANICAL] }), pr(1204, "2026-10-06T00:00:00Z", { labels: [SCOPED] })],
+    pulls: [pr(1202, "2026-07-31T00:00:00Z"), pr(1203, "2026-07-31T00:00:00Z", { rung: "C2" }), pr(1204, "2026-10-06T00:00:00Z", { rung: "C3" })],
     checkRuns: { 1202: failing("2026-08-02T00:00:00Z"), 1203: failing("2026-08-02T00:00:00Z"), 1204: failing("2026-10-06T00:10:00Z") },
   });
-  assert.deepEqual([result.events, result.unclassedAutonomous], [[], []]);
+  assert.deepEqual([result.events, result.noRungAutonomous], [[], []]);
   assert.equal(termOf(result, "C2-auto-merge", "autonomous C2 completions").value, 0);
   assert.equal(termOf(result, "C3-auto-merge", "autonomous C3 completions").value, 0);
 });
@@ -392,7 +426,7 @@ test("merges outside --since..--through appear in no list, count and event", () 
 test("a revert-button PR of an autonomous C2 merge yields reverted-merge at the revert's merge time", () => {
   const result = run({
     pulls: [
-      pr(101, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] }),
+      pr(101, "2026-09-01T00:00:00Z", { rung: "C2" }),
       pr(102, "2026-09-02T00:00:00Z", { title: 'Revert "chore: bump"', body: `Reverts ${REPO}#101`, merger: "kyle-sexton" }),
     ],
   });
@@ -403,7 +437,7 @@ test("a revert-button PR of an autonomous C2 merge yields reverted-merge at the 
 test("a git-revert commit pushed straight to the default branch yields reverted-merge for C3 auto-merge", () => {
   // No PR merged the revert commit, and its git author can be forged, so it counts.
   const result = run({
-    pulls: [pr(201, "2026-09-01T00:00:00Z", { labels: [SCOPED] })],
+    pulls: [pr(201, "2026-09-01T00:00:00Z", { rung: "C3" })],
     history: [shaOf(201), shaOf(999)],
     commits: [{ ...REC.commit, sha: shaOf(999), commit: { message: `Revert "x"\n\nThis reverts commit ${shaOf(201)}.`, committer: { date: "2026-09-03T00:00:00Z" } } }],
   });
@@ -412,7 +446,7 @@ test("a git-revert commit pushed straight to the default branch yields reverted-
 
 test("a revert commit whose REST-named PR GraphQL cannot resolve counts as a direct push, not a crash", () => {
   const fixture = {
-    pulls: [pr(201, "2026-09-01T00:00:00Z", { labels: [SCOPED] })],
+    pulls: [pr(201, "2026-09-01T00:00:00Z", { rung: "C3" })],
     history: [shaOf(201), shaOf(999)],
     commits: [{ ...REC.commit, sha: shaOf(999), commit: { message: `Revert "x"\n\nThis reverts commit ${shaOf(201)}.`, committer: { date: "2026-09-03T00:00:00Z" } } }],
   };
@@ -426,9 +460,9 @@ test("a revert commit whose REST-named PR GraphQL cannot resolve counts as a dir
 test("a revert PR counts whoever merged or enqueued it, a lane or another bot included", () => {
   const result = run({
     pulls: [
-      pr(1701, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] }),
+      pr(1701, "2026-09-01T00:00:00Z", { rung: "C2" }),
       pr(1702, "2026-09-02T00:00:00Z", { title: 'Revert "x"', body: `Reverts ${REPO}#1701` }),
-      pr(1703, "2026-09-01T00:00:00Z", { labels: [SCOPED] }),
+      pr(1703, "2026-09-01T00:00:00Z", { rung: "C3" }),
       pr(1704, "2026-09-02T00:00:00Z", { body: `Reverts ${REPO}#1703`, merger: "kyle-sexton", timeline: [queued("2026-09-01T23:00:00Z", null, "some-app[bot]")] }),
     ],
   });
@@ -441,7 +475,7 @@ test("a revert PR counts whoever merged or enqueued it, a lane or another bot in
 
 test("a lane-merged revert PR and its squash commit count once", () => {
   const result = run({
-    pulls: [pr(1705, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] }), pr(1706, "2026-09-02T00:00:00Z", { body: `Reverts ${REPO}#1705` })],
+    pulls: [pr(1705, "2026-09-01T00:00:00Z", { rung: "C2" }), pr(1706, "2026-09-02T00:00:00Z", { body: `Reverts ${REPO}#1705` })],
     commits: [{ ...REC.commit, sha: shaOf(1706), commit: { message: `Revert "x" (#1706)\n\nReverts ${REPO}#1705`, committer: { date: "2026-09-02T00:00:00Z" } } }],
   });
   assert.deepEqual(result.events.filter((e) => e.event === "reverted-merge"), [{ cell: "C2-auto-merge", event: "reverted-merge", at: "2026-09-02T00:00:00Z" }]);
@@ -451,7 +485,7 @@ test("a lane-merged revert PR and its squash commit count once", () => {
 test("a revert of a human merge, and a revert written only in prose, emit no event; prose is listed unresolved", () => {
   const result = run({
     pulls: [
-      pr(301, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], merger: "kyle-sexton" }),
+      pr(301, "2026-09-01T00:00:00Z", { rung: "C2", merger: "kyle-sexton" }),
       pr(302, "2026-09-02T00:00:00Z", { body: `Reverts ${REPO}#301` }),
       pr(303, "2026-09-03T00:00:00Z", { title: "revert(x): drop the K3 check", body: "Reverts the bullet #301 added." }),
     ],
@@ -462,7 +496,7 @@ test("a revert of a human merge, and a revert written only in prose, emit no eve
 
 test("a failing check run on an autonomous merge commit yields gate-failure at its completion", () => {
   const failing = { ...REC.checkRun, conclusion: "failure", completed_at: "2026-09-01T00:10:00Z" };
-  const result = run({ pulls: [pr(401, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })], checkRuns: { 401: [REC.checkRun, failing] } });
+  const result = run({ pulls: [pr(401, "2026-09-01T00:00:00Z", { rung: "C2" })], checkRuns: { 401: [REC.checkRun, failing] } });
   assert.deepEqual(result.events, [{ cell: "C2-auto-merge", event: "gate-failure", at: "2026-09-01T00:10:00Z" }]);
   assert.deepEqual(termOf(result, "C2-auto-merge", "deterministic-gate pass").detail, { passed: 0, failed: 1, unsettled: 0, total: 1 });
 });
@@ -471,9 +505,9 @@ test("a missed-blocking label a human applied to a C3 PR yields verification-div
   const labeled = (login, type, at) => ({ ...REC.issueEvent, event: "labeled", label: { name: MISSED }, actor: { login, type }, created_at: at });
   const result = run({
     pulls: [
-      pr(501, "2026-09-01T00:00:00Z", { labels: [SCOPED, MISSED], merger: "kyle-sexton" }),
-      pr(502, "2026-09-01T00:00:00Z", { labels: [SCOPED, MISSED] }),
-      pr(503, "2026-09-01T00:00:00Z", { labels: [SCOPED, MISSED], merger: "kyle-sexton" }),
+      pr(501, "2026-09-01T00:00:00Z", { rung: "C3", labels: [MISSED], merger: "kyle-sexton" }),
+      pr(502, "2026-09-01T00:00:00Z", { rung: "C3", labels: [MISSED] }),
+      pr(503, "2026-09-01T00:00:00Z", { rung: "C3", labels: [MISSED], merger: "kyle-sexton" }),
     ],
     issueEvents: {
       501: [labeled("kyle-sexton", "User", "2026-09-04T00:00:00Z")],
@@ -485,7 +519,7 @@ test("a missed-blocking label a human applied to a C3 PR yields verification-div
 });
 
 test("20 autonomous C2 merges over 14+ days pass the C2 term and 19 fail it", () => {
-  const merges = (count) => Array.from({ length: count }, (_, i) => pr(600 + i, `2026-09-${String(i + 1).padStart(2, "0")}T00:00:00Z`, { labels: [MECHANICAL] }));
+  const merges = (count) => Array.from({ length: count }, (_, i) => pr(600 + i, `2026-09-${String(i + 1).padStart(2, "0")}T00:00:00Z`, { rung: "C2" }));
   const pulls = merges(20);
   const twenty = run({ pulls, workflowRuns: verifiedEach(pulls) });
   assert.equal(termOf(twenty, "C2-auto-merge", "autonomous C2 completions").pass, true);
@@ -495,23 +529,29 @@ test("20 autonomous C2 merges over 14+ days pass the C2 term and 19 fail it", ()
   assert.equal(nineteen.cells["C2-auto-merge"].pass, false);
 });
 
-test("a class carried only by the linked issue counts, and the higher of issue and PR class wins", () => {
-  const result = run({
-    pulls: [pr(801, "2026-09-01T00:00:00Z", { linked: ISSUE_6007 }), pr(802, "2026-09-02T00:00:00Z", { labels: [MECHANICAL], linked: ISSUE_6007 })],
-  });
-  assert.equal(termOf(result, "C3-auto-merge", "autonomous C3 completions").value, 2);
-  assert.equal(termOf(result, "C2-auto-merge", "autonomous C2 completions").value, 0);
-});
-
 test("advisory reviews are counted from the named AI reviewers and reported unmeasured without one", () => {
-  const fixture = { pulls: [pr(701, "2026-09-01T00:00:00Z", { labels: [SCOPED], merger: "kyle-sexton" })], reviews: { 701: [REC.review] } };
+  const fixture = { pulls: [pr(701, "2026-09-01T00:00:00Z", { rung: "C3" })], reviews: { 701: [REC.review] } };
   assert.equal(termOf(run(fixture, { aiReviewers: [REC.review.user.login] }), "C3-ai-review-blocking", "advisory AI reviews on C3").value, 1);
   assert.equal(termOf(run(fixture), "C3-ai-review-blocking", "advisory AI reviews on C3").value, null);
+  // Positive evidence comes from autonomous rung-C3 merges only: a human, C2 or no-rung merge's review does not count.
+  const reviewed = (number) => [number, [REC.review]];
+  const mixed = {
+    pulls: [
+      pr(701, "2026-09-01T00:00:00Z", { rung: "C3" }),
+      pr(702, "2026-09-02T00:00:00Z", { merger: "kyle-sexton" }),
+      pr(703, "2026-09-03T00:00:00Z", { rung: "C2" }),
+      pr(704, "2026-09-04T00:00:00Z"),
+    ],
+    reviews: Object.fromEntries([701, 702, 703, 704].map(reviewed)),
+  };
+  const cell = run(mixed, { aiReviewers: [REC.review.user.login] }).cells["C3-ai-review-blocking"];
+  assert.equal(cell.terms.find((t) => t.term === "advisory AI reviews on C3").value, 1);
+  assert.deepEqual(cell.window, { from: "2026-09-01T00:00:00.000Z", to: "2026-09-01T00:00:00.000Z", days: 0 });
 });
 
 test("a failed check run that was re-run green still yields gate-failure (filter=all)", () => {
   const failed = { ...REC.checkRun, conclusion: "failure", completed_at: "2026-09-01T00:10:00Z", superseded: true };
-  const result = run({ pulls: [pr(901, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })], checkRuns: { 901: [failed, REC.checkRun] } });
+  const result = run({ pulls: [pr(901, "2026-09-01T00:00:00Z", { rung: "C2" })], checkRuns: { 901: [failed, REC.checkRun] } });
   assert.deepEqual(result.events, [{ cell: "C2-auto-merge", event: "gate-failure", at: "2026-09-01T00:10:00Z" }]);
   assert.equal(termOf(result, "C2-auto-merge", "deterministic-gate pass").pass, false);
 });
@@ -522,7 +562,7 @@ test("a failure or error commit status, even one later superseded by success, yi
     { ...REC.status, state: "error", created_at: "2026-09-01T00:20:00Z" },
     { ...REC.status, context: "other", state: "failure", created_at: "2026-09-01T00:15:00Z" },
   ];
-  const result = run({ pulls: [pr(902, "2026-09-01T00:00:00Z", { labels: [SCOPED] })], statuses: { 902: statuses } }, { gateChecks: [...GATE, "other"] });
+  const result = run({ pulls: [pr(902, "2026-09-01T00:00:00Z", { rung: "C3" })], statuses: { 902: statuses } }, { gateChecks: [...GATE, "other"] });
   assert.deepEqual(result.events, [
     { cell: "C3-auto-merge", event: "gate-failure", at: "2026-09-01T00:15:00Z" },
     { cell: "C3-auto-merge", event: "gate-failure", at: "2026-09-01T00:20:00Z" },
@@ -531,30 +571,28 @@ test("a failure or error commit status, even one later superseded by success, yi
 
 test("a gate failure that completes after --through is still emitted", () => {
   const failing = { ...REC.checkRun, conclusion: "failure", completed_at: "2026-10-06T00:00:00Z" };
-  const result = run({ pulls: [pr(903, "2026-10-04T23:00:00Z", { labels: [MECHANICAL] })], checkRuns: { 903: [failing] } });
+  const result = run({ pulls: [pr(903, "2026-10-04T23:00:00Z", { rung: "C2" })], checkRuns: { 903: [failing] } });
   assert.deepEqual(result.events, [{ cell: "C2-auto-merge", event: "gate-failure", at: "2026-10-06T00:00:00Z" }]);
 });
 
 test("a missed-blocking label a human applied and someone later removed still counts", () => {
   const result = run({
-    pulls: [pr(904, "2026-09-01T00:00:00Z", { labels: [SCOPED], merger: "kyle-sexton" })],
+    pulls: [pr(904, "2026-09-01T00:00:00Z", { rung: "C3", merger: "kyle-sexton" })],
     issueEvents: { 904: [labelEvent("labeled", MISSED, "2026-09-04T00:00:00Z"), labelEvent("unlabeled", MISSED, "2026-09-05T00:00:00Z", LANE, "Bot")] },
   });
   assert.deepEqual(result.events, [{ cell: "C3-ai-review-blocking", event: "verification-divergence", at: "2026-09-04T00:00:00Z" }]);
+  // A human merge's confirmed miss still counts against the AI-review cell, and fails the term.
+  const missed = termOf(result, "C3-ai-review-blocking", "human-confirmed missed-blocking findings");
+  assert.equal(missed.value, 1);
+  assert.equal(missed.pass, false);
 });
 
-test("the class is read as of the merge: post-merge relabeling neither adds nor drops a merge", () => {
+test("work-class labels, before or after the merge, move no merge between cells", () => {
   const result = run({
-    pulls: [
-      pr(905, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] }),
-      pr(906, "2026-09-01T00:00:00Z"),
-      pr(907, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], linked: ISSUE_6007 }),
-    ],
+    pulls: [pr(905, "2026-09-01T00:00:00Z", { rung: "C2" }), pr(906, "2026-09-01T00:00:00Z", { rung: "C2", labels: ["work-class: scoped"] })],
     issueEvents: {
-      905: [labelEvent("labeled", MECHANICAL, "2026-09-02T00:00:00Z")],
-      906: [labelEvent("labeled", MECHANICAL, "2026-08-31T00:00:00Z"), labelEvent("unlabeled", MECHANICAL, "2026-09-02T00:00:00Z", LANE, "Bot")],
-      // The linked 6007 is labeled scoped now, but gained that label after 907 merged.
-      6007: [labelEvent("labeled", SCOPED, "2026-09-03T00:00:00Z")],
+      905: [labelEvent("labeled", "work-class: scoped", "2026-09-02T00:00:00Z")],
+      906: [labelEvent("labeled", "work-class: scoped", "2026-08-31T00:00:00Z")],
     },
   });
   assert.equal(termOf(result, "C2-auto-merge", "autonomous C2 completions").value, 2);
@@ -562,7 +600,7 @@ test("the class is read as of the merge: post-merge relabeling neither adds nor 
 });
 
 test("20 merges inside one day fail the 14-day window, which ends at the last counted merge", () => {
-  const sameDay = Array.from({ length: 20 }, (_, i) => pr(1000 + i, later("2026-09-01T00:00:00Z", i), { labels: [MECHANICAL] }));
+  const sameDay = Array.from({ length: 20 }, (_, i) => pr(1000 + i, later("2026-09-01T00:00:00Z", i), { rung: "C2" }));
   const result = run({ pulls: sameDay });
   assert.equal(termOf(result, "C2-auto-merge", "window days").pass, false);
   assert.equal(result.cells["C2-auto-merge"].window.to, "2026-09-01T00:19:00.000Z");
@@ -573,30 +611,20 @@ test("--through is clamped to now", () => {
   assert.ok(Date.parse(result.through) <= Date.now());
 });
 
-test("an issue unlinked after the merge still classes the merge; one linked after it does not", () => {
-  const result = run({
-    pulls: [
-      pr(1101, "2026-09-01T00:00:00Z", { timeline: [link("ConnectedEvent", 6007, "2026-08-31T00:00:00Z"), link("DisconnectedEvent", 6007, "2026-09-02T00:00:00Z")] }),
-      pr(1102, "2026-09-01T00:00:00Z", { linked: ISSUE_6007, timeline: [link("ConnectedEvent", 6007, "2026-09-02T00:00:00Z")] }),
-    ],
-    issues: { 6007: REC.issue },
-  });
-  assert.equal(termOf(result, "C3-auto-merge", "autonomous C3 completions").value, 1);
-  assert.deepEqual(result.unclassedAutonomous, [{ number: 1102, reason: "no work-class label at merge" }]);
-});
-
-test("an autonomous merge whose links cannot be rebuilt is unclassed, and its contrary events hit every cell", () => {
+test("a lane pin at another head names no rung for the merge, and its contrary events hit every cell", () => {
   const failing = { ...REC.checkRun, conclusion: "failure", completed_at: "2026-09-01T00:10:00Z" };
   const result = run({
-    pulls: [pr(1103, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], lastEditedAt: "2026-09-02T00:00:00Z" })],
+    pulls: [pr(1103, "2026-09-01T00:00:00Z")],
     checkRuns: { 1103: [failing] },
+    comments: { 1103: [pinComment(shaOf(0xbad), "C2")] },
   });
-  assert.deepEqual(result.unclassedAutonomous, [{ number: 1103, reason: "PR body edited after the merge: closing-keyword links unknown" }]);
-  assert.deepEqual(result.events, ["C2-auto-merge", "C3-ai-review-blocking", "C3-auto-merge"].map((cell) => ({ cell, event: "gate-failure", at: "2026-09-01T00:10:00Z" })));
+  assert.deepEqual(result.noRungAutonomous, [{ number: 1103, reason: "the pin names another head" }]);
+  // The pin read-back fails at the merge, and the check run ten minutes later.
+  assert.deepEqual(result.events, [...gateEvents("2026-09-01T00:00:00Z", ...ALL), ...gateEvents("2026-09-01T00:10:00Z", ...ALL)]);
   assert.equal(termOf(result, "C2-auto-merge", "autonomous C2 completions").value, 0);
 });
 
-test("a revert of an unclassed autonomous merge yields reverted-merge against every cell", () => {
+test("a revert of an autonomous merge with no rung yields reverted-merge against every cell", () => {
   const result = run({
     pulls: [pr(1104, "2026-09-01T00:00:00Z"), pr(1105, "2026-09-02T00:00:00Z", { body: `Reverts ${REPO}#1104`, merger: "kyle-sexton" })],
   });
@@ -604,29 +632,32 @@ test("a revert of an unclassed autonomous merge yields reverted-merge against ev
 });
 
 test("a User owning the bare slug of an App lane is human, not the lane", () => {
-  const result = run({ pulls: [pr(1110, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], merger: "lane-bot", timeline: [queued("2026-08-31T23:00:00Z", "lane-bot")] })] });
+  const result = run({ pulls: [pr(1110, "2026-09-01T00:00:00Z", { rung: "C2", merger: "lane-bot", timeline: [queued("2026-08-31T23:00:00Z", "lane-bot")] })] });
   assert.equal(termOf(result, "C2-auto-merge", "autonomous C2 completions").value, 0);
 });
 
 test("lane logins match case-insensitively", () => {
-  const result = run({ pulls: [pr(1106, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], merger: "Lane-User", timeline: [queued("2026-08-31T23:00:00Z", "Lane-User")] })] }, { laneLogins: ["lane-user"] });
+  const pin = { ...pinComment(shaOf(1106 + 0x100000), "C2"), author: actorOf("Lane-User") };
+  const result = run({ pulls: [pr(1106, "2026-09-01T00:00:00Z", { merger: "Lane-User", timeline: [queued("2026-08-31T23:00:00Z", "Lane-User")] })], comments: { 1106: [pin] } }, { laneLogins: ["lane-user"] });
   assert.equal(termOf(result, "C2-auto-merge", "autonomous C2 completions").value, 1);
 });
 
 test("a merge a bot or nobody enqueued is autonomous even under a human merged_by; a human enqueue is not", () => {
+  // Autonomous, the bot-enqueued merge is listed with no rung (it has no lane pin); the human ones are not.
   const result = run({
     pulls: [
-      pr(1107, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], merger: "kyle-sexton", timeline: [queued("2026-08-31T23:00:00Z", null, "some-app[bot]")] }),
-      pr(1108, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], merger: "kyle-sexton", timeline: [queued("2026-08-31T23:00:00Z", "kyle-sexton")] }),
-      pr(1109, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], merger: "kyle-sexton" }),
+      pr(1107, "2026-09-01T00:00:00Z", { rung: "C2", merger: "kyle-sexton", timeline: [queued("2026-08-31T23:00:00Z", null, "some-app[bot]")] }),
+      pr(1108, "2026-09-01T00:00:00Z", { rung: "C2", merger: "kyle-sexton", timeline: [queued("2026-08-31T23:00:00Z", "kyle-sexton")] }),
+      pr(1109, "2026-09-01T00:00:00Z", { rung: "C2", merger: "kyle-sexton" }),
     ],
   });
-  assert.equal(termOf(result, "C2-auto-merge", "autonomous C2 completions").value, 1);
+  assert.deepEqual(result.noRungAutonomous, [{ number: 1107, reason: "not enqueued by a lane identity: no pin" }]);
+  assert.equal(termOf(result, "C2-auto-merge", "autonomous C2 completions").value, 0);
 });
 
 test("a cancelled gate run counts as a failure unless a later run of the same check succeeded", () => {
   const cancelled = (name, at) => ({ ...REC.checkRun, name, conclusion: "cancelled", completed_at: at });
-  const pulls = [pr(1110, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] }), pr(1111, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })];
+  const pulls = [pr(1110, "2026-09-01T00:00:00Z", { rung: "C2" }), pr(1111, "2026-09-01T00:00:00Z", { rung: "C2" })];
   const result = run({
     pulls,
     checkRuns: {
@@ -644,7 +675,7 @@ const revertedAt = (...dates) => dates.map((at) => ({ cell: "C2-auto-merge", eve
 const stamped = (events) => events.map((event) => ({ ...event, discovered: "2026-09-03T00:00:00Z" }));
 const revertOf909 = (withCommit) => ({
   pulls: [
-    pr(909, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] }),
+    pr(909, "2026-09-01T00:00:00Z", { rung: "C2" }),
     pr(910, "2026-09-02T00:00:00Z", { title: 'Revert "x"', body: `Reverts ${REPO}#909`, merger: "kyle-sexton" }),
   ],
   commits: withCommit ? [{ ...REC.commit, sha: shaOf(910), commit: { message: `Revert "x" (#910)\n\nReverts ${REPO}#909`, committer: { date: "2026-09-01T23:55:00Z" } } }] : [],
@@ -667,9 +698,9 @@ test("a later publish that finds an earlier revert of a published reverted merge
 });
 
 test("a PR updated while the listing pages is not skipped", () => {
-  // 101 unclassed merges plus one C3 merge that sorts last by update time until it is updated.
+  // 101 merges with no rung plus one C3 merge that sorts last by update time until it is updated.
   const pulls = Array.from({ length: 101 }, (_, i) => pr(2000 + i, later("2026-09-10T00:00:00Z", i)));
-  pulls.push(pr(3000, "2026-09-05T00:00:00Z", { labels: [SCOPED] }));
+  pulls.push(pr(3000, "2026-09-05T00:00:00Z", { rung: "C3" }));
   const result = run({ pulls, bumpOnPage2: 3000 });
   assert.equal(termOf(result, "C3-auto-merge", "autonomous C3 completions").value, 1);
 });
@@ -768,7 +799,6 @@ test("the CLI exits 2 on missing required arguments", () => {
 // Deletion. run_number starts at 1 per workflow, rises with each new run and a re-run keeps it
 // (GitHub's contexts reference, github.run_number), so a missing number between two runs created
 // inside the window is a deleted run. The fake numbers runs that way and drops `deletedRuns`.
-const ALL = ["C2-auto-merge", "C3-ai-review-blocking", "C3-auto-merge"];
 const schedules = (ids, day = 2) => ids.map((id, n) => wfRun(id, "schedule", shaOf(0xb000 + id), `2026-09-${String(day + n).padStart(2, "0")}T00:00:00Z`));
 const refusesWith = (reason) => (error) => error instanceof PublishError && error.failClosedReason?.startsWith(reason) && error.message.startsWith(`refusing to publish: ${reason}`);
 
@@ -873,7 +903,7 @@ test("an issue number missing inside the window refuses with issue-deleted on 41
 // Re-earn after a demotion: the C2 predicate (work-classes.md "Suggested default predicates") is
 // >= 20 autonomous C2 completions over >= 14 days, all gates passed, none reverted, counted only
 // over merges after the latest contrary event, here the demotion record filed 2026-08-10.
-const c2Merges = (count, day0) => Array.from({ length: count }, (_, i) => pr(900 + day0 + i, `2026-09-${String(day0 + i).padStart(2, "0")}T00:00:00Z`, { labels: [MECHANICAL] }));
+const c2Merges = (count, day0) => Array.from({ length: count }, (_, i) => pr(900 + day0 + i, `2026-09-${String(day0 + i).padStart(2, "0")}T00:00:00Z`, { rung: "C2" }));
 const DEMOTED = "2026-08-10T00:00:00Z";
 const reearnRun = (pulls) => run({ pulls, workflowRuns: verifiedEach(pulls), demotionIssues: [demotionIssue(7301, DEMOTED)] });
 
@@ -887,7 +917,7 @@ test("a cell whose predicate passes again over the merges after its demotion get
 });
 
 test("merges before the demotion do not count toward a re-earn", () => {
-  const before = Array.from({ length: 5 }, (_, i) => pr(950 + i, `2026-08-0${i + 2}T00:00:00Z`, { labels: [MECHANICAL] }));
+  const before = Array.from({ length: 5 }, (_, i) => pr(950 + i, `2026-08-0${i + 2}T00:00:00Z`, { rung: "C2" }));
   const pulls = [...before, ...c2Merges(19, 1)];
   assert.equal(run({ pulls, workflowRuns: verifiedEach(pulls), demotionIssues: [demotionIssue(7301, DEMOTED)] }).events.some((e) => e.event === "re-earned"), false);
   assert.equal(reearnRun(c2Merges(19, 1)).events.some((e) => e.event === "re-earned"), false);
@@ -917,7 +947,7 @@ const generatedOf = (out) => JSON.parse(readFileSync(join(out, "evidence.meta.js
 
 test("a contrary event found after a re-earn, dated before its since, restarts the window at the run that found it", () => {
   const out = mkdtempSync(join(base, "out-"));
-  const early = pr(960, "2026-08-05T00:00:00Z", { labels: [MECHANICAL] });
+  const early = pr(960, "2026-08-05T00:00:00Z", { rung: "C2" });
   const first = c2Merges(20, 1);
   // The run that publishes the demotion: its events are discovered then.
   const r1 = runAt("2026-08-10T00:04:30.500Z", [early]);
@@ -940,7 +970,7 @@ test("a contrary event found after a re-earn, dated before its since, restarts t
   // The old re-earn is kept, and its since now precedes the revert's discovery: the checker voids it.
   assert.deepEqual(fileOf(out).filter((e) => e.event === "re-earned"), [reearn]);
   // Twenty merges after 2026-09-22 re-earn C2 again from there.
-  const second = Array.from({ length: 20 }, (_, i) => pr(1001 + i, new Date(Date.UTC(2026, 8, 23 + i)).toISOString().replace(".000Z", "Z"), { labels: [MECHANICAL] }));
+  const second = Array.from({ length: 20 }, (_, i) => pr(1001 + i, new Date(Date.UTC(2026, 8, 23 + i)).toISOString().replace(".000Z", "Z"), { rung: "C2" }));
   const all = [early, ...first, ...second];
   const r4 = runAt("2026-10-20T00:00:00Z", all, { ...revert, history: all.map((p) => p.graph.mergeCommit.oid).concat(shaOf(999)) }, fileOf(out), generatedOf(out));
   assert.deepEqual(r4.events.filter((e) => e.event === "re-earned"), [{ cell: "C2-auto-merge", event: "re-earned", at: "2026-10-12T00:00:00Z", since: "2026-09-22T00:00:00Z" }]);

@@ -25,7 +25,10 @@
 // counts as that parent's text (admit.mjs splitChildBody) and a listed human
 // wrote, and last edited before the label if ever, that body: the split
 // copies only its task-list lines. `scope` lists, for such a part split by
-// target, the targets its Scope line names (admit.mjs splitScope). On any failure no file is left, so
+// target, the targets its Scope line names (admit.mjs splitScope).
+// `verify_close` lists, for a finished parent (admit.mjs finishedParent), its
+// sub-issues, each closed as completed by a trusted close: the run checks the
+// issue's own done-when and stops verified-done or verify-unmet. On any failure no file is left, so
 // the skill never reads a partial issue.
 //
 // The label admitted the issue as it stood at the label event readAdmittedAt
@@ -71,7 +74,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
-import { authorAdmitted, carriesSplit, humanWritten, loadRules, parentOf, personChecks, REFINE_MARKER, refinementSpec, removalStands, SPLIT_CHILD_MARKER, splitChildBody, splitParentOf, splitScope, specOf, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
+import { authorAdmitted, carriesSplit, closedByTrusted, finishedParent, humanWritten, loadRules, parentOf, personChecks, REFINE_MARKER, refinementSpec, removalStands, SPLIT_CHILD_MARKER, splitChildBody, splitParentOf, splitScope, specOf, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
 import { RESUMABLE } from "./report-outcome.mjs";
 
 // Comments other than decisions, newest kept, so a pile of them cannot crowd
@@ -295,6 +298,8 @@ export async function main({ env = process.env, github, log = console.log, write
       }
     }
     dropped["stale-split"] = 0;
+    // A finished parent's run verifies its own done-when and builds nothing.
+    const finished = await finishedParent({ github: client, repository, issue: data, trusted: closedByTrusted({ github: client, repository, humans, appId: lanesAppId }) });
 
     const comments = [];
     for (const { comment, lastEditedAt, lastEditorId } of kept) {
@@ -352,6 +357,7 @@ export async function main({ env = process.env, github, log = console.log, write
       ...(moved.length > 0 && { person_checks: moved.map((n) => taskItems(spec.body, taskList)[n - 1].text) }),
       ...(splitParent && { split_parent: splitParent }),
       ...(scope !== null && { scope }),
+      ...(finished !== null && { verify_close: { sub_issues: finished } }),
     };
     const resume = await readResume(client, env);
     if (resume) {
