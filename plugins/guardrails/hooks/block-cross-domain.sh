@@ -92,12 +92,19 @@
 # A domain's PATHS are its roots and, for each owner, the owner's directory
 # below each of this host's owner_roots, or below $HOME/src/github.com and
 # $HOME/worktrees/github.com when the map gives this host none. An owner root
-# holds one directory per owner, so a flat worktree root named
-# `<root>/<owner>-<repo>-<slug>` gives no path; a command naming a tree there
-# is not denied. A text NAMES a
-# path or marker when it holds it with no letter, digit, `.`, `_` or `-` right
-# before or after it: the root /x/work names neither /x/workshop nor
-# /y/x/work. `\` reads as `/` and a run of separators as one, so `C:\x`,
+# holds a directory per owner or, flat, `<owner>-<repo>-<slug>` trees, or both,
+# so an owner's directory also covers every name that starts with it and a `-`.
+# A text NAMES a path or marker when it holds it with no letter, digit, `.`, `_`
+# or `-` right before or after it, except that a `-` may follow an owner's
+# directory: the root /x/work names neither /x/workshop nor /x/work-a nor
+# /y/x/work, and /x/owners/acme names /x/owners/acme-repo and not
+# /x/owners/acmex-repo. The name alone cannot say where an owner ends, so of two
+# listed owners the longest one that fits holds it, in a command as for a cwd:
+# with `acme` and `acme-labs` listed, `acme-labs-x` is acme-labs's even when it
+# is acme's repository `labs-x` (the guard then under-denies), and an owner no
+# domain lists, such as `acme-labs` with only `acme` listed, reads as acme's
+# (it over-denies, a nested root's `acme-labs/` included).
+# `\` reads as `/` and a run of separators as one, so `C:\x`,
 # `C:\\x` and `C:/x` are one spelling. A path on a drive is also named in its
 # other drive forms (`C:/x`, `/c/x`, `/cygdrive/c/x`, `/mnt/c/x`, where a
 # Windows root `/c/x` and a `/cygdrive/c` or `/mnt/c` root on any host are on
@@ -195,6 +202,9 @@
 #     heredoc body, which the parse skips even when a shell runs it
 #     (`bash <<'EOF'`)
 #   - a path relative to the cwd (`../other`), and a symlink into a root
+#   - a tree in a flat owner root whose name does not start with its owner
+#     (`cc-plugins-1`), and a shared exception inside a flat tree, which grants
+#     nothing because the path is not below an owner's directory
 #   - on macOS, a cwd spelled in another case than its root, which reads as
 #     neutral
 #   - an identity position inside a `bash -c` or `sh -c` operand, a git alias,
@@ -298,7 +308,7 @@ esac
 
 # What the compiler below writes. A change to the jq program or to how the
 # records are read changes it, so a cache an older guard wrote is compiled again.
-BCD_FORMAT=6
+BCD_FORMAT=7
 BCD_CACHE="${BCD_MAP%.json}.cache"
 BCD_TAB=$'\t'
 BCD_CWD_DOMAIN=""
@@ -307,6 +317,7 @@ BCD_HOME_FOLD=""
 BCD_RECORDS=()
 BCD_ROOT=()
 BCD_ROOT_DOMAIN=()
+BCD_ROOT_KIND=()
 BCD_NEEDLE=()
 BCD_NEEDLE_DOMAIN=()
 BCD_NEEDLE_PATH=()
@@ -567,7 +578,8 @@ bcd::dir_to() {
 }
 
 # bcd::add_needle <domain> <folded text> <1 for a path, 2 for a shared
-# exception's path, 0 for a marker> [<the exception's from domains>]
+# exception's path, 3 for an owner's directory, 0 for a marker> [<the
+# exception's from domains>]
 bcd::add_needle() {
   [[ -n "$2" ]] || return 0
   BCD_NEEDLE+=("$2")
@@ -576,17 +588,19 @@ bcd::add_needle() {
   BCD_NEEDLE_FROM+=("${4-}")
 }
 
-# bcd::add_root <domain> <root or owner directory as spelled> [<from domains>]:
-# the path for the cwd and every spelling of it a command can name; with from
-# domains, a shared exception's path, which classifies no cwd.
+# bcd::add_root <domain> <root or owner directory as spelled> [<from domains>]
+# [<3 for an owner's directory>]: the path for the cwd and every spelling of it a
+# command can name; with from domains, a shared exception's path, which
+# classifies no cwd.
 bcd::add_root() {
-  local c n rest drive="" p kind=1
+  local c n rest drive="" p kind=${4:-1}
   bcd::norm_to c "$2"
   if [[ -n "${3-}" ]]; then
     kind=2
   else
     BCD_ROOT+=("$c")
     BCD_ROOT_DOMAIN+=("$1")
+    BCD_ROOT_KIND+=("$kind")
   fi
   bcd::fold_to n "$2"
   bcd::add_needle "$1" "$n" "$kind" "${3-}"
@@ -633,10 +647,17 @@ bcd::names() {
   for ((i = 0; i < ${#BCD_NEEDLE[@]}; i++)); do
     n=${BCD_NEEDLE[i]}
     [[ "$t" == *"$n"* ]] || continue
-    case "$t" in
-    "$n" | "$n"[!a-z0-9._-]* | *[!a-z0-9._-]"$n" | *[!a-z0-9._-]"$n"[!a-z0-9._-]*) ;;
-    *) continue ;;
-    esac
+    if ((BCD_NEEDLE_PATH[i] == 3)); then
+      case "$t" in
+      "$n" | "$n"[!a-z0-9._]* | *[!a-z0-9._-]"$n" | *[!a-z0-9._-]"$n"[!a-z0-9._]*) ;;
+      *) continue ;;
+      esac
+    else
+      case "$t" in
+      "$n" | "$n"[!a-z0-9._-]* | *[!a-z0-9._-]"$n" | *[!a-z0-9._-]"$n"[!a-z0-9._-]*) ;;
+      *) continue ;;
+      esac
+    fi
     if ((BCD_NEEDLE_PATH[i] == 2 && BCD_DOTDOT == 0)) && [[ -n "$BCD_CWD_DOMAIN" && " ${BCD_NEEDLE_FROM[i]} " == *" $BCD_CWD_DOMAIN "* ]]; then
       bcd::spend_open "$n" "${BCD_NEEDLE_DOMAIN[i]}"
       continue
@@ -1424,7 +1445,7 @@ bcd::classify_cwd() {
   bcd::norm_to cwd "$BCD_CWD_RAW"
   for ((i = 0; i < ${#BCD_ROOT[@]}; i++)); do
     r=${BCD_ROOT[i]}
-    if ((${#r} > best)) && [[ "$cwd" == "$r" || "$cwd" == "$r"/* ]]; then
+    if ((${#r} > best)) && [[ "$cwd" == "$r" || "$cwd" == "$r"/* || (${BCD_ROOT_KIND[i]} == 3 && "$cwd" == "$r"-*) ]]; then
       best=${#r}
       BCD_CWD_DOMAIN=${BCD_ROOT_DOMAIN[i]}
     fi
@@ -1442,7 +1463,8 @@ for BCD_REC in ${BCD_RECORDS[@]+"${BCD_RECORDS[@]}"}; do
   BCD_DOM=${BCD_REC%%"$BCD_TAB"*}
   BCD_VAL=${BCD_REC#*"$BCD_TAB"}
   case "$BCD_KIND" in
-  root | owner) bcd::add_root "$BCD_DOM" "$BCD_VAL" ;;
+  root) bcd::add_root "$BCD_DOM" "$BCD_VAL" ;;
+  owner) bcd::add_root "$BCD_DOM" "$BCD_VAL" "" 3 ;;
   shared) bcd::add_root "$BCD_DOM" "${BCD_VAL#*"$BCD_TAB"}" "${BCD_VAL%%"$BCD_TAB"*}" ;;
   legacy) BCD_GRANTS_NOTHING+=("shared_exceptions[$BCD_VAL] grants nothing: it is a plain path, the earlier shape") ;;
   outside) BCD_GRANTS_NOTHING+=("shared_exceptions[$BCD_VAL] grants nothing: its path is not a path of its to domain, '$BCD_DOM', on this host") ;;

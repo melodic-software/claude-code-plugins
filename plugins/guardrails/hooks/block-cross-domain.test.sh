@@ -887,6 +887,61 @@ write_map "$OTHER_OS_ROOTS" "$(MSYS_NO_PATHCONV=1 jq --arg other "$OTHER_KEY" --
 call "$OTHER_OS_ROOTS" "$A_ROOT/repo" 'ls ~/src/github.com/beta-org/repo'
 verdict "owner_roots for another host only: the default directories still apply" deny
 
+# --- A flat owner root: <root>/<owner>-<repo>-<slug> names the owner ---------
+# labs's owner starts with beta's owner and a `-`, so its flat names read as
+# both until the longer owner wins.
+FLATMAP="$TEST_TMPDIR/flat-map"
+FLAT="$TEST_TMPDIR/flat"
+mkdir -p "$FLAT/alpha-org-repo" "$FLAT/beta-org-repo" "$FLAT/beta-org-labs-x" "$FLAT/unrelated-x" "$FLAT/beta-orgx-repo"
+write_map "$FLATMAP" "$(MSYS_NO_PATHCONV=1 jq --arg os "$OS_KEY" --arg f "$FLAT/" --arg h "$HOME_DIR/wt" \
+  --arg q "$Q_HOST${Q_SEP}wt" '
+  .owner_roots = {($os): [$f, $h, $q]} | .domains.labs = {roots: {}, owners: ["beta-org-labs"]}' <<<"$MAP")"
+# flat <label> <cwd> <command> <deny|allow> [<the deny reason's domain list>]
+flat() {
+  call "$FLATMAP" "$2" "$3"
+  assert_exit "flat root, $1: exit 0" 0 "$GUARD_RC"
+  verdict "flat root, $1" "$4"
+  [[ -z "${5-}" ]] || assert_contains "flat root, $1: the reason names that domain alone" \
+    "$(jq -r '.hookSpecificOutput.permissionDecisionReason // empty' <<<"$GUARD_OUT")" "another domain ($5)"
+}
+flat "another owner's tree" "$A_ROOT/repo" "ls $FLAT/beta-org-repo-slug" deny "'beta'"
+flat "another owner's tree in a redirection" "$A_ROOT/repo" "echo x >$FLAT/beta-org-repo/notes" deny "'beta'"
+flat "another owner's tree in another case" "$A_ROOT/repo" "ls $FLAT/Beta-Org-Repo" deny "'beta'"
+flat "another owner's trees by a glob" "$A_ROOT/repo" "ls $FLAT/beta-org-*" deny "'beta'"
+flat "another owner's tree after ~" "$A_ROOT/repo" 'ls ~/wt/beta-org-repo' deny "'beta'"
+flat 'another owner'"'"'s tree after $HOME' "$A_ROOT/repo" 'cat "$HOME/wt/beta-org-repo/README.md"' deny "'beta'"
+flat "another owner's tree by a drive path" "$A_ROOT/repo" 'ls Q:/placeholder/wt/beta-org-repo' deny "'beta'"
+flat "another owner's tree by a WSL drive path" "$A_ROOT/repo" 'ls /mnt/q/placeholder/wt/beta-org-repo' deny "'beta'"
+flat "the cwd's own owner's tree" "$A_ROOT/repo" "ls $FLAT/alpha-org-repo" allow
+flat "an owner that only starts like another's" "$A_ROOT/repo" "ls $FLAT/beta-orgx-repo" allow
+assert_contains "flat root, an owner that only starts like another's: the prefilter misses" "$GUARD_ERR" "trace prefilter-miss"
+flat "an unrelated directory" "$A_ROOT/repo" "ls $FLAT/unrelated-x" allow
+assert_contains "flat root, an unrelated directory: the prefilter misses" "$GUARD_ERR" "trace prefilter-miss"
+flat "the root itself" "$A_ROOT/repo" "ls $FLAT" allow
+flat "a longer listed owner's tree is that owner's alone" "$A_ROOT/repo" "ls $FLAT/beta-org-labs-repo" deny "'labs'"
+flat "a longer listed owner's directory is that owner's alone" "$A_ROOT/repo" "ls $FLAT/beta-org-labs" deny "'labs'"
+flat "both a shorter and a longer owner's trees" "$A_ROOT/repo" "ls $FLAT/beta-org-labs-repo $FLAT/beta-org-repo" deny "'labs', 'beta'"
+
+# Where the cwd is decides, by the same rule.
+flat "a cwd in an owner's tree is in that owner's domain" "$FLAT/beta-org-repo" "ls $A_ROOT/repo" deny "'alpha'"
+flat "a cwd in an owner's tree, its own owner's other tree" "$FLAT/beta-org-repo" "ls $FLAT/beta-org-other" allow
+flat "a cwd in a longer owner's tree, its own other tree" "$FLAT/beta-org-labs-x" "ls $FLAT/beta-org-labs-y" allow
+flat "a cwd in a longer owner's tree, the shorter owner's" "$FLAT/beta-org-labs-x" "ls $FLAT/beta-org-repo" deny "'beta'"
+flat "a cwd in an unrelated directory is neutral" "$FLAT/unrelated-x" "ls $B_ROOT" allow
+flat "a cwd in an owner-like directory is neutral" "$FLAT/beta-orgx-repo" "ls $A_ROOT" allow
+
+# A root and a marker stay exact: only an owner's directory takes the `-`.
+flat "a domain root followed by a hyphen" "$A_ROOT/repo" "ls ${B_ROOT}-x" allow
+flat "a marker followed by a hyphen" "$A_ROOT/repo" 'echo beta-org-x' allow
+assert_contains "flat root, a marker followed by a hyphen: the prefilter misses" "$GUARD_ERR" "trace prefilter-miss"
+flat "a cwd in a domain root's hyphenated sibling is neutral" "${B_ROOT}-x" "ls $A_ROOT" allow
+
+# The stated failure direction: a root cannot say whether `<owner>-x` is a tree
+# of <owner> or an owner of its own, so an unlisted owner reads as the listed
+# one's, below a root that holds one directory per owner too.
+call "$ROOTED" "$A_ROOT/repo" 'ls ~/repos/github.com/beta-org-unlisted/repo'
+verdict "an unlisted owner that starts with a listed owner and a hyphen" deny
+
 # --- Under the dispatcher, and on the shipped row -----------------------------
 guard_invoke --via dispatched --cwd "$A_ROOT/repo" --command "ls $B_ROOT" -- \
   "CLAUDE_PLUGIN_DATA=$DATA" GUARDRAILS_CROSS_DOMAIN_TRACE=1 "HOME=$HOME_DIR"
