@@ -11,6 +11,7 @@ import contextlib
 import base64
 import datetime
 import io
+import itertools
 import json
 import os
 import re
@@ -577,10 +578,7 @@ class TestCodes(ShareCase):
         self.assertEqual(code, 1)
 
     def test_the_guest_port_is_chosen_when_the_session_is_created_and_kept(self):
-        free = socket.socket()
-        free.bind(("127.0.0.1", 0))
-        port = free.getsockname()[1]
-        free.close()
+        port = free_port()
         code, out, err = share(self.d, "ensure-running", "--guest-port", str(port))
         self.assertEqual(code, 0, err)
         self.assertEqual(out["localUrl"], f"http://127.0.0.1:{port}/")
@@ -658,12 +656,47 @@ class TestTunnelRestart(Running):
         self.assertIn("changedAt", snap["share"])
 
 
+PORT_FLOOR = 20000
+PORT_TURN = itertools.count(os.getpid())  # two pytest sessions on one host start at different ports
+
+
+def ephemeral_start():
+    """The lowest port the OS may pick for a bind to port 0 or a connect: Linux's ip_local_port_range, else 32768,
+    Linux's default and below Windows' 49152."""
+    try:
+        return int(Path("/proc/sys/net/ipv4/ip_local_port_range").read_text(encoding="utf-8").split()[0])
+    except (OSError, ValueError, IndexError):
+        return 32768
+
+
+def worker_ports():
+    """This xdist worker's share of the ports from PORT_FLOOR up to the ephemeral range; no other worker draws from it."""
+    count = int(os.environ.get("PYTEST_XDIST_WORKER_COUNT") or 1)
+    worker = re.fullmatch(r"gw(\d+)", os.environ.get("PYTEST_XDIST_WORKER", ""))
+    index = int(worker[1]) if worker else 0
+    if index >= count:  # a block past the last would reach into the ephemeral range
+        return range(0)
+    size = (ephemeral_start() - PORT_FLOOR) // count
+    return range(PORT_FLOOR + index * size, PORT_FLOOR + (index + 1) * size)
+
+
 def free_port():
-    s = socket.socket()
-    s.bind(("127.0.0.1", 0))
-    port = s.getsockname()[1]
-    s.close()
-    return port
+    """A free port for a test's server to bind later. A port the OS picked for a bind to port 0 can go to another xdist
+    worker's server between this probe's close and that bind, so the port comes from this worker's own block below the
+    ephemeral range, which the OS never hands out by itself. With no such block, or every port in it taken, it is a
+    port the OS picks, and the race is back."""
+    ports = worker_ports()
+    for _ in ports:
+        port = ports[next(PORT_TURN) % len(ports)]
+        with socket.socket() as s:
+            try:
+                s.bind(("127.0.0.1", port))
+            except OSError:
+                continue
+        return port
+    with socket.socket() as s:  # no free port below the ephemeral range: one the OS picks, which can still race
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
 
 
 class TestAdoptTunnel(ShareCase):

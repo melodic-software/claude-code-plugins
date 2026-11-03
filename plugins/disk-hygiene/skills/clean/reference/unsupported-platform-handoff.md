@@ -210,18 +210,23 @@ engine plan:
    removal permanent and is the container-wide operation step 3 forbids.
 
    **Path length is a different failure, not a silent downgrade but a hard stop.** Those three
-   caveats all describe a reversible operation quietly turning permanent. A path longer than the
-   classic Windows `MAX_PATH` (260 characters) cannot reach the Recycle Bin *at all*: the shell
-   APIs behind it reject the path, so the operation fails outright. Deep tool residue, nested
-   dependency or build trees, routinely exceeds it. The only remaining way to remove such a path
-   is a **permanent** delete through a `\\?\` long-path API, which no bin can undo.
+   caveats all describe a reversible operation quietly turning permanent. Treat a path the recycle
+   step rejects for its length as one that cannot be recycled at all; deep tool residue, nested
+   dependency or build trees, is where such paths turn up. Removing it then takes a **permanent**
+   delete through a `\\?\`-prefixed path, which no bin can undo.
+   - **Pointer**: when checking the shell file-operation limits behind a recycle, fetch
+     [SHFILEOPSTRUCTW: Remarks](https://learn.microsoft.com/en-us/windows/win32/api/shellapi/ns-shellapi-shfileopstructw#remarks)
+     live.
+   - **As of**: 2026-11-03.
+   - **Recheck trigger**: that section changes what it says about path length or long-path
+     prefixes.
 
    That fallback is its own irreversible action and does **not** inherit the approval given for a
    reversible removal. Stop, tell the operator this exact path cannot be recycled and why, and
    re-ask through the [confirmation gate](../SKILL.md#confirmation-gate) for permanent deletion of that exact
    path, named as irreversible, an approval that said "recycle these" never authorized it. If the
-   operator declines, skip and report the path; shortening or moving the tree to get under the
-   limit is a relocation, out of scope (§3) and the operator's own action. Record such removals as
+   operator declines, skip and report the path; shortening or moving the tree so the recycle
+   step accepts it is a relocation, out of scope (§3) and the operator's own action. Record such removals as
    permanent in the §6 summary, distinct from the reversible ones.
 3. Container-wide deletion commands (`Clear-RecycleBin`, emptying the Trash, or any "delete
    everything in this container" spelling) are forbidden in the manual lane, they execute

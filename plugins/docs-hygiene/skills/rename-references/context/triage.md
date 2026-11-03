@@ -28,7 +28,7 @@ Match patterns where the rename intent is unambiguous regardless of surrounding 
   Form 15 where the token is not a common noun. The demoted alternatives land in Bucket 2 or
   Bucket 3 below; `patterns.md` "Phase 0" carries the per-alternative table
 
-**User flow:** present count and 1-2 example matches via `AskUserQuestion`. Two options: "auto-apply N matches" or "review one-by-one." Default: auto-apply.
+**User flow:** no per-bucket question: once the proceed gate passes, auto-apply the bucket (in preview mode, list it in the planned edits). The bucket-count report below gives the count, 1-2 example matches, and how to review the bucket one by one instead: answer the proceed prompt with "review Certain one-by-one", and each Certain match then goes through the Ambiguous bucket's per-match format, before the Chain-context flow, with its third option scoped to this bucket ("skip remaining Certain").
 
 **Why default-apply:** these forms have near-zero false-positive rate empirically, so treating them as ambiguous burdens the user without value.
 
@@ -160,7 +160,13 @@ Sweep results across <N> tracked files:
 | Ambiguous       | <Z>   | Per-match confirm    |
 | Excluded        | <W>   | Skipped (plan-docs/historical/memory) |
 
+Certain examples: <1-2 matches as file:line: text>
+Certain matches apply without a question. To review them one by one
+instead, answer "review Certain one-by-one".
+
 Proceed?
 ```
+
+Print the two Certain lines only when the Certain count is above 0.
 
 Use `AskUserQuestion` to gate the proceed/abort decision.
