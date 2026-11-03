@@ -9,7 +9,18 @@
 set -euo pipefail
 
 here="$(dirname "${BASH_SOURCE[0]}")"
-python3 -m pip install --user --break-system-packages --require-hashes --only-binary=:all: \
-  --no-deps --no-cache-dir --disable-pip-version-check --no-warn-script-location --quiet \
-  -r "$here/comment-tooling.requirements.txt"
-python3 -c 'import pygments, tree_sitter, tree_sitter_bash, tree_sitter_python'
+# --user installs into the invoking interpreter's own user site, so install for each interpreter
+# the agent may resolve: the scaffold's python3 and /usr/bin/python3, which the sandbox falls back
+# to when the operator's interpreter is hidden. Two of the same minor version share one site.
+seen=""
+for py in python3 /usr/bin/python3; do
+  command -v "$py" >/dev/null 2>&1 || continue
+  ver="$("$py" -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
+  [[ " $seen " == *" $ver "* ]] && continue
+  seen="$seen $ver"
+  "$py" -m pip install --user --break-system-packages --require-hashes --only-binary=:all: \
+    --no-deps --no-cache-dir --disable-pip-version-check --no-warn-script-location --quiet \
+    -r "$here/comment-tooling.requirements.txt"
+  "$py" -c 'import pygments, tree_sitter, tree_sitter_bash, tree_sitter_python'
+done
+[[ -n "$seen" ]]
