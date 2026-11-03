@@ -216,7 +216,8 @@ putv sec.py \
   's = "gitleaks:allow"' \
   'h = "x"  # nosec B105 gitleaks:allow' \
   'p = "x"  # noqa: S105 gitleaks:allow' \
-  'q = f(z)  # nosec: B602 the argv is a fixed literal'
+  'q = f(z)  # nosec: B602 the argv is a fixed literal' \
+  'password = "x"  # nosec B105 fixture credential gitleaks:allow'
 putv sec.sh \
   'run "$cmd" # nosemgrep' \
   'echo "# nosemgrep: example.rule-id"'
@@ -242,6 +243,8 @@ sec.py:8 gitleaks - no
 sec.py:9 gitleaks - no
 sec.py:9 noqa S105 no
 sec.py:10 bandit B602 yes
+sec.py:11 bandit B105 yes
+sec.py:11 gitleaks - yes
 sec.sh:1 semgrep - no" "$out"
 
 # ---- --exclude ------------------------------------------------------------------

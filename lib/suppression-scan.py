@@ -549,7 +549,8 @@ def _comment_records(lineno: int, kind: str, segments: list[Segment]) -> list[Re
         text = segment.text
         # A marker found anywhere in a comment (Gitleaks) is a record of its own;
         # its text is taken out before the comment's first marker is read, so it
-        # is never that marker's reason.
+        # is never that marker's reason. Reason text the comment states for the
+        # first marker also justifies the marker found anywhere in it.
         anywhere = [m for m in COMMENT_MARKERS if kind in m.kinds and m.token]
         found_anywhere = [m for m in anywhere if m.token.search(text)]
         scrubbed = text
@@ -568,6 +569,7 @@ def _comment_records(lineno: int, kind: str, segments: list[Segment]) -> list[Re
             if reason:
                 trailing.append(reason)
             continue
+        shared = None  # the reason text the comment states for its first marker
         if marker is not None:
             matched = marker.pattern.match(scrubbed)
             rest = scrubbed[matched.end() :]
@@ -577,11 +579,12 @@ def _comment_records(lineno: int, kind: str, segments: list[Segment]) -> list[Re
                 if found:
                     rules = _split_rules(found.group("r"))
                     rest = rest[found.end() :]
+            shared = _reason(rest)
             records.append(
-                Record(lineno, marker.tool, rules, marker.names_rules, _reason(rest))
+                Record(lineno, marker.tool, rules, marker.names_rules, shared)
             )
         for m in found_anywhere:
-            reason = None
+            reason = shared
             if marker is None:
                 hit = m.token.search(text)
                 reason = _reason(text[hit.end() :]) or _reason(text[: hit.start()])
