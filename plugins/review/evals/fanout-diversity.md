@@ -195,5 +195,5 @@ A fixture with `defects:` gets one recall grader per defect, `recall-<n>.md`, so
 one defect and misses the other shows which. Each names its defect as `plants <count> defects.
 This grader checks defect <n>, at <location>: <summary>. What now fails: <failure>.`, drops the
 no-defect sentence, and ends its FAIL paragraph with `A finding about another planted defect does
-not count.` Its `false-positive.md` lists every defect, joined with `; and `, and reads `A finding
+not count.` Its `false-positive.md` lists every defect, joined by "; and ", and reads `A finding
 about a planted defect never counts.`
