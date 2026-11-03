@@ -174,6 +174,14 @@ a trusted human's `workflow_dispatch`:
   dispatcher logs a notice naming the class and the reset time.
 - It dispatches `pr-unblock.yml` on `refs/heads/main` for at most 3 PRs per run, lowest number
   first, passing `pr-number` and `dispatcher-run-id`.
+- A read that fails holds, whatever GitHub answered. A listing it cannot read dispatches nothing,
+  and a PR whose holds or check runs it cannot read is skipped, each with a warning, and the next
+  tick reads them again. This holds for every dispatch the run sends, the ones below included,
+  with one exception kept from before: `fix-ci` still dispatches under its caps when it cannot
+  read its required run or the head's check runs for a reason other than a `5xx` or a rate limit,
+  or when the verifier reader fails. A failed read does not fail the run. A dispatch that failed
+  or named no run id, config the run cannot read, or a rate limit (the shared rate guard fails
+  the step) still does.
 - A hand run or a re-run must be started by a listed human (`check-trusted-trigger` with
   `require-pr: false` and `require-kind: human`). That mode handles no `schedule` event, so a
   re-run of a scheduled run fails; the next tick replaces it.
