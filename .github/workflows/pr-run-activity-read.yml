@@ -2745,7 +2745,8 @@ jobs:
       # patch that does not apply, or a scan that does not finish (the
       # timeout included), fails it with no rotation; every upload and
       # summary after it needs clean == 'true'. A pattern block writes only
-      # its redacted fingerprint to this step's summary. Those two faults find no
+      # the rule, the scanned file name or a fixed placeholder, and the line
+      # number to this step's summary, never any of the match. Those two faults find no
       # credential, so they set refused=fault, which retries, once the patch's
       # text was judged with no binary hunk's bytes unread, or when the run
       # left no patch; any other fault holds, and a timeout sets no output, so
@@ -2880,7 +2881,7 @@ jobs:
               // label only warns, on a plain line. Each source has a kind,
               // which names no model-chosen text.
               // A block keeps its fingerprint (hitFingerprint: rule, file,
-              // line, the match's first characters masked) for the summary;
+              // line, none of the match) for the summary;
               // a gate without it, or a throw in it, keeps none.
               const warned = new Set();
               const files = new Map([[reply, 'reply.txt'], [turns, 'act-turns.json'], [patch, 'patch.diff'], [replies, 'replies.jsonl'], [verdict, 'dependency-verdict.json'], [outcome, 'work-outcome.json'], [lane, 'lane.json']]);
@@ -2947,7 +2948,7 @@ jobs:
                   fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### leak-scan blocked the outputs\n\n${hit.fingerprint}\n`);
                 } catch {}
               }
-              core.setFailed(`leak-scan: ${hit.label}; nothing is uploaded or summarized${hit.credential ? '\nrotate this credential' : ''}`);
+              core.setFailed(`leak-scan: ${hit.label}; nothing is uploaded, and the job summary gets only the rule, the scanned file name or a fixed placeholder, and the line, never any of the match${hit.credential ? '\nrotate this credential' : ''}`);
             }
 
       # After the scan: model text and run fields, as data, from the scan's

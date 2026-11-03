@@ -8,7 +8,8 @@
 // unreadable path is a fault, which withholds it too. Nothing it prints to
 // the log carries a matched value or a file name. On a pattern block it
 // writes the hit's fingerprint (lib/publish-gate.mjs hitFingerprint: rule,
-// path, line, the match's first characters masked) to GITHUB_STEP_SUMMARY.
+// file name or a fixed placeholder, line; none of the match) to
+// GITHUB_STEP_SUMMARY.
 //
 //   SCAN_PATHS=<the upload's path input> scan-upload.mjs
 // Writes clean=true to GITHUB_OUTPUT only when every file was judged clean.
