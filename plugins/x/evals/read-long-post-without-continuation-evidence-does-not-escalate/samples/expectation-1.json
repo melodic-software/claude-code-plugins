@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Returns the long single post from step 1 alone. No continuation evidence exists — no thread request, no mid-thought ending, no numbered markers — so length by itself is not a reason to escalate.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

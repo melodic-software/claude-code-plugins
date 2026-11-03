@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Single-quotes the path in the curl -o target and in the delete command, but passes the raw unquoted path to the Read tool, so Read opens the same file curl wrote. Quote characters never become part of the filename.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

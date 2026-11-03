@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: 'read-chain-fragment-escalates-to-thread-reader'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Reuses the numeric id from the X URL as the thread id'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Treats a final URL ending in /error as a miss even though the status code is 200'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'States that step 2 produced the assembled chain rather than presenting it as one fetch'
+    focus: 'trace'
