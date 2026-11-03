@@ -35,10 +35,12 @@ Each lane's table has one row per element, with one of three verdicts:
    state is unknown, and other lanes stay off minute 0.
 
 Shared code shows up in many rows. `createGitHub` and `budgetedFetch`
-(`.github/scripts/pr-unblock/request-budget.mjs:33`) use the retry at
-`.github/actions/check-trusted-trigger/check-trusted-trigger.mjs:145`, which sends a read up to 4
-times, after waits of 2, 4 and 8 s with equal jitter. The rate guard refuses a call during a
-rate-limit stop instead of waiting it out (`.github/actions/log-api-budget/rate-guard.mjs:447`).
+(`.github/scripts/pr-unblock/request-budget.mjs:36`) use the retry at
+`.github/actions/check-trusted-trigger/check-trusted-trigger.mjs:201`, which sends a read up to 3
+times, after waits of up to 2 and 4 s with full jitter. The rate guard waits out a rate-limit stop
+that resets within 60 s (`.github/actions/log-api-budget/rate-guard.mjs:580`) and refuses a call
+past that (`.github/actions/log-api-budget/rate-guard.mjs:590`), with a notice instead of an error
+under `API_BUDGET_HOLD=1`.
 Part 2 changed both (see Remaining). The listing helper `.github/scripts/pr-merge/retry-call.bash:39` meets
 element 1, but only pr-merge uses it.
 
@@ -57,7 +59,7 @@ element 1, but only pr-merge uses it.
 
 | Element | Verdict | Evidence | Why |
 |---|---|---|---|
-| 1 | gap | `.github/scripts/intake-triage/apply-verdict.mjs:824`, `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs:145` | The shared client sends up to 4 attempts with equal jitter, and the rate guard stops without waiting. |
+| 1 | gap | `.github/scripts/intake-triage/apply-verdict.mjs:824`, `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs:201` | The shared client sends up to 3 attempts with full jitter, and the rate guard waits out a reset within 60 s, then refuses (a notice under the hold opt-in). |
 | 2 | gap | `.github/scripts/intake-triage/apply-verdict.mjs:882`, `.github/scripts/intake-triage/apply-verdict.mjs:890` | An admission or read error sets `exitCode = 1` instead of holding green with a notice. |
 | 3 | not applicable | `.github/workflows/intake-triage.yml:33` | The lane triggers only on `issues` and `workflow_dispatch`, with no cron and no stored breaker. |
 | 4 | gap | `.github/scripts/intake-triage/admit.mjs:2166` | A failed visibility read treats the repository as private, which tightens the cost checks without evidence. It does lift its own holds (`.github/workflows/intake-triage.yml:312`). |
@@ -68,7 +70,7 @@ element 1, but only pr-merge uses it.
 
 | Element | Verdict | Evidence | Why |
 |---|---|---|---|
-| 1 | gap | `.github/scripts/work-unblock/label-unblocked.mjs:2204`, `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs:145` | The shared client sends up to 4 attempts with equal jitter, and a rate limit fails the step without waiting for the reset. |
+| 1 | gap | `.github/scripts/work-unblock/label-unblocked.mjs:2204`, `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs:201` | The shared client sends up to 3 attempts with full jitter, and a rate limit within 60 s is waited out, while a longer one fails the step (a notice under the hold opt-in). |
 | 2 | gap | `.github/scripts/work-unblock/label-unblocked.mjs:2245`, `.github/scripts/work-unblock/label-unblocked.mjs:2255` | A failed listing increments `failed`, and the run exits 1. |
 | 3 | gap | `.github/workflows/work-unblock.yml:30`, `.github/scripts/work-unblock/label-unblocked.mjs:168` | A marker-issue sweep-kick re-arms the sweep after the rate-limit breaker clears, and breaker-trip records are stored for each issue. |
 | 4 | met | `.github/scripts/work-unblock/label-unblocked.mjs:194`, `.github/scripts/work-unblock/label-unblocked.mjs:82` | The lane lifts its own refs-hold `needs-human` once the PR merges or closes, and infrastructure re-fires never file `needs-human`. |
@@ -108,7 +110,7 @@ The lane runs from `.github/workflows/pr-review-hosted.yml`, a caller of the ext
 
 | Element | Verdict | Evidence | Why |
 |---|---|---|---|
-| 1 | gap | `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs:145`, `.github/workflows/pr-review-main.yml:307` | The shared client sends up to 4 attempts with equal jitter, and the file-list read is never retried. |
+| 1 | gap | `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs:201`, `.github/workflows/pr-review-main.yml:307` | The shared client sends up to 3 attempts with full jitter, and the file-list read is never retried. |
 | 2 | gap | `.github/workflows/pr-review-main.yml:307`, `.github/workflows/pr-review-main.yml:1139` | A failed read fails the step, and "no verdict" exits 1. |
 | 3 | gap | `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs:79`, `.github/workflows/pr-review-hosted.yml:183` | Recovery is a recorded one-time re-run by the reconciler, gated on the status page. That is a re-arm and a status-page trigger. |
 | 4 | gap | `.github/workflows/pr-review-main.yml:2874` | A later clean review never clears a CRITICAL check run. |
@@ -122,7 +124,7 @@ The lane runs from `.github/workflows/pr-review-security-hosted.yml` and the
 
 | Element | Verdict | Evidence | Why |
 |---|---|---|---|
-| 1 | gap | `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs:145`, `.github/workflows/pr-review-main.yml:307` | It shares pr-review's code, so it has the same gap. |
+| 1 | gap | `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs:201`, `.github/workflows/pr-review-main.yml:307` | It shares pr-review's code, so it has the same gap. |
 | 2 | gap | `.github/workflows/pr-review-main.yml:307`, `.github/workflows/pr-review-main.yml:1139` | A failed read or "no verdict" makes the run red. |
 | 3 | gap | `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs:79`, `.github/workflows/pr-review-security-hosted.yml:188` | Resume depends on the reconciler's status-gated re-run. |
 | 4 | gap | `.github/workflows/pr-review-main.yml:2874` | A later complete read never closes a filed CRITICAL count. |
@@ -133,7 +135,7 @@ The lane runs from `.github/workflows/pr-review-security-hosted.yml` and the
 
 | Element | Verdict | Evidence | Why |
 |---|---|---|---|
-| 1 | gap | `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs:145`, `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs:139` | The shared client sends up to 4 attempts with equal jitter, and the rate latch refuses without waiting. Writes go out once. |
+| 1 | gap | `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs:201`, `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs:215` | The shared client sends up to 3 attempts with full jitter, and the rate latch waits out a reset within 60 s, then refuses (a notice under the hold opt-in). Writes go out once. |
 | 2 | gap | `.github/scripts/pr-verify/resolve-pr.mjs:586`, `.github/scripts/pr-verify/resolve-pr.mjs:1062` | Completeness checks throw, but the throw sets `exitCode = 1`, so the run goes red. |
 | 3 | gap | `.github/workflows/pr-verify.yml:130`, `.github/workflows/maintenance-reconcile-lost-runs.yml:9` | A stopped run fails on purpose so the reconciler re-runs it once, from an attempt record. That is a re-arm. |
 | 4 | met | `.github/workflows/pr-verify.yml:51`, `.github/scripts/pr-verify/resolve-pr.mjs:46` | A FAIL needs a complete judgment, and a later pass supersedes it. |
@@ -183,7 +185,7 @@ The lane runs from `.github/workflows/pr-unblock.yml`, with the dispatchers
 
 | Element | Verdict | Evidence | Why |
 |---|---|---|---|
-| 1 | gap | `.github/scripts/pr-merge/retry-call.bash:39`, `.github/scripts/pr-merge/enable-auto-merge.mjs:357` | The listing's `retry_call` meets the element. The shared client still sends a read up to 4 times, `withRetry` stacks on top of it, and `.github/actions/request-lane-token/action.yml:287` can sleep up to 480 s. |
+| 1 | gap | `.github/scripts/pr-merge/retry-call.bash:39`, `.github/scripts/pr-merge/enable-auto-merge.mjs:357` | The listing's `retry_call` meets the element. The shared client still sends a read up to 3 times, `withRetry` stacks on top of it, and `.github/actions/request-lane-token/action.yml:287` can sleep up to 480 s. |
 | 2 | gap | `.github/workflows/pr-merge.yml:1187`, `.github/workflows/pr-merge.yml:1193` | A failed listing holds green. A listing at the limit and the rate-limit stops (`:290`, `:349`, `:899`, `:1399`, `:1705`) end red, and a failed cover read dispatches with no cap (`:351`). |
 | 3 | gap | `.github/workflows/pr-merge.yml:1075` | The lane's own hold waits for the next tick. But the hub's lane breaker sets the stored kill switch, which pr-merge stops on, and a person must clear it. |
 | 4 | gap | `.github/workflows/pr-merge.yml:1419`, `.github/workflows/pr-merge.yml:1413` | The lane files only on a judged failure and skips filing on a held listing. Only a person closes the demotion record (`plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py:3416`). |
@@ -343,6 +345,7 @@ since it has no cron.
 | work-unblock | 2, 3, 6 | script | `.github/scripts/work-unblock/label-unblocked.mjs` |
 | work-unblock | 3, 6 | workflow | `.github/workflows/work-unblock.yml` (sweep-kick, `queue: max`) |
 | pr-refine | 1, 2, 3, 4 | script | `.github/scripts/lib/handoff-evidence.sh`, `.github/scripts/pr-unblock/fix-docs-dispatch.mjs`, `.github/actions/report-check-run/decide.mjs` |
+| pr-refine | 1 | script | `.github/scripts/pr-unblock/request-budget.mjs` (`budgetedFetch` waits out a short rate limit and resends, but its client does not set `resendLimited`, so the guard still fails the step on the refusal it resends) |
 | pr-refine | 1, 2, 4, 5 | workflow | `.github/workflows/pr-refine.yml`, `pr-run-activity-read.yml`, `pr-unblock-dispatch.yml` |
 | pr-review, pr-review-security, pr-verify | 3, 5 | script | `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs` |
 | pr-review, pr-review-security | 4 | larger | `plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py` (outside `.github/`) |
