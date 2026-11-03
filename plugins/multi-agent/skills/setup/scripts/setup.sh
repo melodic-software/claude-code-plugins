@@ -85,12 +85,21 @@ check() {
 # One WARN row per retired team file the resolver no longer reads.
 retired_rows() {
   local md="$ROOT/docs/conventions/multi-agent.md" yaml="$ROOT/.claude/multi-agent.yaml"
-  local target seeds=0 manual
+  local target seeds=0 manual link
   target="$ROOT/$(convention_home)/multi-agent.yaml"
-  # apply seeds the new YAML from one retired file only, the one it picks.
+  # apply seeds the new YAML from one retired file only, the one it picks,
+  # and refuses a retired file it looks at when that file, or a directory
+  # above it, is a symlink (refuse_symlink); these rows apply the same test.
   [[ -f "$target" ]] || seeds=1
   manual="copy any key still wanted into $target, then delete it"
-  if [[ -f "$md" && ! -L "$md" ]] &&
+  if [[ -f "$md" ]] && link="$(symlink_in "$md")"; then
+    # Not read through the symlink. apply refuses it, block or no block,
+    # only while the new YAML is absent.
+    if ((seeds)); then
+      printf 'WARN team: apply --layer team refuses %s while %s is absent, since %s is a symlink; replace or delete the symlink\n' "$md" "$target" "$link"
+      seeds=0
+    fi
+  elif [[ -f "$md" ]] &&
     [[ "$(awk -v BLOCK=1 -f "$PARSER" "$md" 2>/dev/null)" == block$'\t'* ]]; then
     if ((seeds)); then
       printf 'WARN team: the config block in %s is no longer read; the first apply --layer team copies its keys into %s, then delete the block\n' "$md" "$target"
@@ -102,7 +111,9 @@ retired_rows() {
   if [[ -L "$yaml" ]]; then
     printf 'WARN team: %s is a symlink and no longer read; delete it\n' "$yaml"
   elif [[ -e "$yaml" ]]; then
-    if ((seeds)); then
+    if ((seeds)) && link="$(symlink_in "$yaml")"; then
+      printf 'WARN team: %s is no longer read, and apply --layer team refuses it while %s is absent, since %s is a symlink; %s\n' "$yaml" "$target" "$link" "$manual"
+    elif ((seeds)); then
       printf 'WARN team: %s is no longer read; the first apply --layer team copies its keys into %s, then delete it\n' "$yaml" "$target"
     else
       printf 'WARN team: %s is no longer read; %s\n' "$yaml" "$manual"
@@ -137,11 +148,23 @@ convention_home() {
 # outside the repository. Refuse <path> when it, or a directory above it
 # inside the repository, is a symlink.
 refuse_symlink() {
+  local link
+  link="$(symlink_in "$1")" && die "refusing $1: $link is a symlink"
+  return 0
+}
+
+# Print the first symlink among <path> and the directories above it inside
+# the repository; status 1 when there is none.
+symlink_in() {
   local p="$1"
   while [[ "$p" == "$ROOT"/* ]]; do
-    [[ -L "$p" ]] && die "refusing $1: $p is a symlink"
+    if [[ -L "$p" ]]; then
+      printf '%s' "$p"
+      return 0
+    fi
     p=$(dirname "$p")
   done
+  return 1
 }
 
 apply() {

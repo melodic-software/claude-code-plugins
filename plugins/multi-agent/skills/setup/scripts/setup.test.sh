@@ -169,6 +169,33 @@ ln -s "$T/mdlink/victim" "$T/mdlink/repo/docs/conventions/multi-agent.md"
 out="$(run mdlink apply --layer team roles.verifier.effort=high)"
 assert_eq "a symlinked docs seed is refused" 2 "$?"
 assert_lacks "the symlinked docs seed is not in the preview" "$out" 'effort: low'
+out="$(run mdlink check session=opus)"
+assert_contains "check names the symlinked docs file apply refuses" "$out" "WARN team: apply --layer team refuses $T/mdlink/repo/docs/conventions/multi-agent.md while $T/mdlink/repo/docs/conventions/multi-agent.yaml is absent, since $T/mdlink/repo/docs/conventions/multi-agent.md is a symlink; replace or delete the symlink"
+
+# A symlinked docs file beside a regular .claude file: apply refuses the docs
+# file, block or no block, so check must not promise a seed from the .claude file.
+fixture mdbeside
+mkdir -p "$T/mdbeside/repo/docs/conventions" "$T/mdbeside/repo/.claude"
+printf '# Prose only\n' >"$T/mdbeside/victim"
+ln -s "$T/mdbeside/victim" "$T/mdbeside/repo/docs/conventions/multi-agent.md"
+printf 'schema: 1\nroles:\n  worker:\n    effort: low\n' >"$T/mdbeside/repo/.claude/multi-agent.yaml"
+run mdbeside apply --layer team roles.verifier.effort=high >/dev/null
+assert_eq "a symlinked docs file beside a .claude file is refused" 2 "$?"
+out="$(run mdbeside check session=opus)"
+assert_contains "check names the symlinked docs file beside a .claude file" "$out" "WARN team: apply --layer team refuses $T/mdbeside/repo/docs/conventions/multi-agent.md while"
+assert_lacks "check promises no seed apply would refuse" "$out" 'the first apply --layer team copies'
+assert_contains "the .claude file gets the copy-by-hand row" "$out" "WARN team: $T/mdbeside/repo/.claude/multi-agent.yaml is no longer read; copy any key still wanted into $T/mdbeside/repo/docs/conventions/multi-agent.yaml, then delete it"
+
+# A regular .claude file in a symlinked .claude directory: apply refuses it.
+fixture claudedir
+mkdir -p "$T/claudedir/outside"
+printf 'schema: 1\nroles:\n  worker:\n    effort: low\n' >"$T/claudedir/outside/multi-agent.yaml"
+ln -s "$T/claudedir/outside" "$T/claudedir/repo/.claude"
+run claudedir apply --layer team roles.verifier.effort=high >/dev/null
+assert_eq "a .claude file in a symlinked directory is refused" 2 "$?"
+out="$(run claudedir check session=opus)"
+assert_contains "check names the symlinked .claude directory" "$out" "WARN team: $T/claudedir/repo/.claude/multi-agent.yaml is no longer read, and apply --layer team refuses it while $T/claudedir/repo/docs/conventions/multi-agent.yaml is absent, since $T/claudedir/repo/.claude is a symlink"
+assert_lacks "check promises no seed from a symlinked directory" "$out" 'the first apply --layer team copies'
 
 fixture user
 out="$(run user apply --layer user --write fanout.model=sonnet)"
