@@ -85,6 +85,14 @@
       "reason": "Read by its own run and the next run; 1 day is the minimum.",
       "scan": "upload"
     },
+    "pr-merge-post-merge-anchor": {
+      "retention-days": 7,
+      "readers": [
+        "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py read_anchor, in later pr-merge runs"
+      ],
+      "reason": "A run whose check writes no anchor (an idle tick, an unreadable check) leaves the last one standing; 7 days outlasts a long quiet spell without carrying stale floors for long.",
+      "scan": "upload"
+    },
     "pr-merge-gate-cursor": {
       "retention-days": 1,
       "readers": [

@@ -55,6 +55,8 @@ test("the re-dispatch for earlier lane merges waits on neither the listing nor t
       "Check earlier lane merges",
       "Scan the upload for credentials",
       "Keep the post-merge report for enable-auto-merge",
+      "Scan the upload for credentials",
+      "Keep the lane floor's anchor",
       "Read main's full-run cover",
       "Find lane merges no full run covers",
       "Start the full CI run on main",
@@ -75,6 +77,11 @@ test("the re-dispatch for earlier lane merges waits on neither the listing nor t
   // scanner included), as a failed upload of it does.
   assert.match(
     assertScanned("Keep the post-merge report for enable-auto-merge", "steps.post-merge.conclusion == 'success'", list),
+    /\n {8}continue-on-error: true\n/,
+  );
+  // The anchor is best-effort too: a missing one only keeps the policy floor.
+  assert.match(
+    assertScanned("Keep the lane floor's anchor", "steps.post-merge.conclusion == 'success'", list),
     /\n {8}continue-on-error: true\n/,
   );
   for (const [name, predicate] of [

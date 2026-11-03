@@ -6003,11 +6003,19 @@ def read_promotion(
 class PostMergeGate:
     """The post-merge check's answer, as `assess()` consumes it: a refusal
     (a failure or an unreadable verdict) or None, the verdict's report, and
-    the `verified` callable `in_flight` judges each auto-merge with."""
+    the `verified` callable `in_flight` judges each auto-merge with, and the
+    floor the check read from when it names one (the lane's anchored floor,
+    `babysit_postmerge.lane_floor`)."""
 
     refusal: str | None
     report: Mapping[str, Any]
     verified: Callable[[AutoMerge], bool] | None
+    floor: datetime | None = None
+
+    def floor_from(self, floor: datetime) -> datetime:
+        """The floor `in_flight` and a shared answer use with this gate: the
+        later of the policy `floor` and the check's own, never lower."""
+        return max(floor, self.floor) if self.floor else floor
 
 
 # How old a shared post-merge answer may be: the pr-merge job's timeout.
@@ -6052,6 +6060,9 @@ class SharedPostMerge:
     demotion: Demotion
     floor: datetime
     gate: PostMergeGate
+    # The policy floor (`merged_since_floor`) `floor` was anchored from, which
+    # `shared_refusal` compares; None when `floor` is the policy floor.
+    policy_floor: datetime | None = None
 
 
 def newest_config_commit(repo: str, sha: str) -> str:
@@ -6205,7 +6216,7 @@ def shared_refusal(
         # walks its own config history to the floor it would read.
         if newest_config_commit(
             repo, base_sha
-        ) != shared.config_sha and shared.floor != merged_since_floor(
+        ) != shared.config_sha and (shared.policy_floor or shared.floor) != merged_since_floor(
             repo, base_sha, shared.demotion, authority
         ):
             return "floor-differs"
@@ -6484,7 +6495,6 @@ def assess(
             floor = merged_since_floor(repo, history_sha, demotion, authority)
         except PolicyReadError as exc:
             return replace(stopped, reason=f"post-merge:floor-unreadable: {exc}")
-    details["mergedSince"] = floor.isoformat()
     gate = (
         reuse.gate
         if reuse
@@ -6492,6 +6502,10 @@ def assess(
         if post_merge is not None
         else PostMergeGate("unchecked", {}, None)
     )
+    policy_floor = None if reuse else floor
+    if not reuse:
+        floor = gate.floor_from(floor)
+    details["mergedSince"] = floor.isoformat()
     details["postMerge"] = dict(gate.report)
     if (
         share is not None
@@ -6515,6 +6529,7 @@ def assess(
                     demotion=demotion,
                     floor=floor,
                     gate=gate,
+                    policy_floor=policy_floor,
                 )
             )
     if gate.refusal:
@@ -6813,8 +6828,8 @@ def _recompute_shared(
         self_logins=self_logins,
         permission=permission_reader(repo),
     )
-    floor = merged_since_floor(repo, head, demotion, PR_MERGE)
-    gate = post_merge(floor, identity)
+    policy_floor = merged_since_floor(repo, head, demotion, PR_MERGE)
+    gate = post_merge(policy_floor, identity)
     if gate.report.get("readable") is not True:
         return None
     return SharedPostMerge(
@@ -6825,8 +6840,9 @@ def _recompute_shared(
         lane_merges_only=True,
         computed_at=computed_at,
         demotion=demotion,
-        floor=floor,
+        floor=gate.floor_from(policy_floor),
         gate=gate,
+        policy_floor=policy_floor,
     )
 
 
