@@ -54,7 +54,7 @@ import {
   waitedPull,
 } from "./report-outcome.mjs";
 import { closeStop, parentDone } from "../lib/done-evidence.mjs";
-import { finishedParent } from "../intake-triage/admit.mjs";
+import { finishedParent, patchCapStopped } from "../intake-triage/admit.mjs";
 import { LIMIT_DEFAULTS } from "./limits.mjs";
 import { STOP_ROUTES } from "./stop-routes.mjs";
 import { isPersonReason, parseReason } from "../lib/stop-reason.mjs";
@@ -1529,6 +1529,8 @@ test("main sends a run whose scan refused an oversize patch to intake for a spli
   assert.ok(comment.includes("too-large: the patch was over its 262144-byte cap"), comment);
   assert.doesNotMatch(comment, /no readable outcome file/);
   assert.equal(parseOutcomeMarker(comment).outcome, "intake");
+  // Admission reads this comment as the patch-cap stop that splits the issue.
+  assert.equal(patchCapStopped([{ user: { id: 9 }, created_at: "2026-10-21T10:00:00Z", body: comment }], [], new Set(), 9), true);
 });
 
 // A refusal means a model ran, so a lane.json that says it never started loses.

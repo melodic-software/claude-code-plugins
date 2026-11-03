@@ -291,7 +291,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, LANE_HOLDS, LANE_WORKFLOWS, parseOutcomeMarker, REFIRED, refireComment as refireRecord, refsHoldMarker, stripQueueLabels } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip, resolveStrandedBackoff, STRANDED_BACKOFF_MAX } from "../work-resolve-issue/limits.mjs";
-import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorAdmitted, attendedHold, blockersOf, CONFIRMED, confirmedOnly, decide, deferralLapsed, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, specOf, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorAdmitted, attendedHold, blockersOf, CONFIRMED, confirmedOnly, decide, deferralLapsed, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, SIZE_SPLIT_DONE, SPLIT_PENDING, specOf, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 import { subIssueLeftOpen } from "../lib/done-evidence.mjs";
 import { clearedPastReport, retriageNote, doneReason, judgedSince, mergedRefsReader, splitLeftOpen, splitParentClosed } from "../intake-triage/admit.mjs";
 import { budgetLatch } from "../../actions/log-api-budget/rate-guard.mjs";
@@ -2221,7 +2221,7 @@ async function refreshSplitWait({ github, repo, parent, comments, open, bot }) {
     .slice(`${ADMIT_MARKER}\n${WAIT_PREFIX}`.length)
     .replace(/\.$/, "")
     .split("; ");
-  if (!own || !reasons.every((reason) => reason === SIZE_SPLIT_PENDING || /^sub-issue #\d+ is open$/.test(reason))) {
+  if (!own || !reasons.every((reason) => SPLIT_PENDING.has(reason) || /^sub-issue #\d+ is open$/.test(reason))) {
     return false;
   }
   const children = await open();
