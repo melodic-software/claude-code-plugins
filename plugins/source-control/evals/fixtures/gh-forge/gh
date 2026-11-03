@@ -333,7 +333,8 @@ case "$cmd $sub" in
     emit "$doc"
     ;;
   "api "*)
-    # REST reads: the repository, an issue and its sub-issues, and a file at a ref. Any method but
+    # REST reads: the repository, the pull request (--rest-merged only), an issue and its
+    # sub-issues, and a file at a ref. Any method but
     # GET, and any other path, is refused.
     shift
     path="" method=GET
@@ -366,6 +367,12 @@ case "$cmd $sub" in
     case "$path" in
       repos/eval-fixture/app)
         emit "$(jq -n --arg base "$PR_BASE" '{name: "app", full_name: "eval-fixture/app", owner: {login: "eval-fixture"}, default_branch: $base, private: true, html_url: "https://github.com/eval-fixture/app"}')"
+        ;;
+      repos/eval-fixture/app/pulls/"$PR_NUMBER")
+        # Served only under install.sh --rest-merged, and then as merged.
+        [[ -f "$forge/rest-merged" ]] || refuse api "$path"
+        emit "$(jq -n --arg n "$PR_NUMBER" --arg sha "$(git --git-dir="$origin" rev-parse "refs/heads/$PR_HEAD")" \
+          '{number: ($n | tonumber), state: "closed", merged: true, head: {sha: $sha}}')"
         ;;
       repos/eval-fixture/app/issues/*/sub_issues)
         n="${path#repos/eval-fixture/app/issues/}"

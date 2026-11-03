@@ -4,6 +4,7 @@
 # scaffold.sh in the workspace, after the base and head branches exist:
 #   bash install.sh <number> <head-branch> <base-branch> <title> [--open] [--no-pr] [--failing-check <name>] [--thread <id>]...
 #     [--outdated-bot-thread <id>]... [--extra-pr <number> <head-branch> <title>]... [--dir <checkout>]
+#     [--rest-merged]
 # --dir installs into that checkout instead of the current directory. Each --extra-pr serves one more
 # open pull request from that head branch into the same base, with the first one's draft state and checks.
 # The pull request is a draft unless --open is given. --no-pr serves no pull request until `gh pr create`
@@ -14,6 +15,9 @@
 # one unresolved review thread with that id, from a person on the current diff, to what
 # `gh api graphql` serves; each --outdated-bot-thread adds one from a bot (author __typename Bot)
 # that GitHub marks outdated (isOutdated true). Threads are served in the order given.
+# --rest-merged serves the REST pull request read (`gh api repos/{owner}/{repo}/pulls/<number>`) as
+# merged, while `pr view` still reports it open, so a Monitor watch's poll script ends on its first
+# poll instead of holding the run open until its timeout. Without it that read is refused.
 #
 # origin's URL is https://github.com/eval-fixture/app.git, so push-branch.sh, which compares the
 # push remote's URL with the PR's head repository, accepts it as eval-fixture/app on github.com.
@@ -41,10 +45,11 @@ set -euo pipefail
 
 number="$1" head="$2" base="$3" title="$4"
 shift 4
-draft=true failing="" threads=() no_pr=0 dir=. extra_prs=() extra_heads=()
+draft=true failing="" threads=() no_pr=0 dir=. extra_prs=() extra_heads=() rest_merged=0
 while (($#)); do
   case "$1" in
     --open) draft=false ;;
+    --rest-merged) rest_merged=1 ;;
     --no-pr) no_pr=1 ;;
     --dir)
       dir="${2:?--dir needs a checkout directory}"
@@ -92,6 +97,7 @@ printf 'PR_NUMBER=%q\nPR_HEAD=%q\nPR_BASE=%q\nPR_TITLE=%q\n' "$number" "$head" "
 printf '%s\n' "${extra_prs[@]+"${extra_prs[@]}"}" | sed '/^$/d' >"$forge/extra-prs"
 echo "$draft" >"$forge/draft"
 ((no_pr)) || : >"$forge/created"
+if ((rest_merged)); then : >"$forge/rest-merged"; fi
 if [[ -n "$failing" ]]; then
   jq -n --arg name "$failing" --arg url "https://github.com/eval-fixture/app/actions/runs/1" \
     '[{name: $name, state: "FAILURE", bucket: "fail", workflow: "ci", link: $url}]' >"$forge/checks"
