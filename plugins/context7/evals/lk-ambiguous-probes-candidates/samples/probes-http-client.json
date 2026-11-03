@@ -1,0 +1,124 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "MSYS_NO_PATHCONV=1 ctx7 docs \"/lumen-http/lumen\" \"retry a failed request with exponential backoff\"",
+            "description": "Probe the first candidate"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "MSYS_NO_PATHCONV=1 ctx7 docs \"/lumenjs/lumen\" \"retry a failed request with exponential backoff\"",
+            "description": "Probe the second candidate"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 docs /lumen-http/lumen 'retry with exponential backoff'",
+            "description": "Probe the first candidate"
+          }
+        }
+      ],
+      "why": "probe order does not matter"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx -y ctx7@latest docs '/lumen-http/lumen' 'retry with exponential backoff'",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "npx form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "which ctx7 && ctx7 docs \"/lumen-http/lumen/v3.1.0\" \"retry with exponential backoff\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "version-specific ID after a shell separator"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "MSYS_NO_PATHCONV=1 ctx7 docs \"/lumenjs/lumen\" \"retry a failed request with exponential backoff\"",
+            "description": "Probe the second candidate only"
+          }
+        }
+      ],
+      "why": "only the other candidate probed"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 library Lumen \"retry a failed request with exponential backoff\"",
+            "description": "Resolve again"
+          }
+        }
+      ],
+      "why": "resolve step only, no probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo 'next: ctx7 docs /lumen-http/lumen'",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "ID only inside echoed text"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 --version",
+            "description": "ctx7 docs /lumen-http/lumen"
+          }
+        }
+      ],
+      "why": "ID only in the description"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 docs \"/lumen-http/lumen-extras\" \"retry with exponential backoff\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "a different library whose ID starts the same way"
+    },
+    {
+      "answer": [],
+      "why": "asked the user without running any probe"
+    }
+  ]
+}
