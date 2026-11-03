@@ -129,17 +129,17 @@ Shared clean-tree / no-scope shape: [`../../context/clean-tree-fallback.md`](../
 
 ## Repo-wide interview fallback (empty arg, clean tree, interactive)
 
-Instead of dead-ending, offer a repo-wide run, confirmation-gated at every step; declining at any step exits with the friendly no-op message. Bare `/docs-hygiene:compress audit` on a clean tree uses steps 1–2 only (free audit + report; no compression interview).
+Instead of dead-ending, offer a repo-wide run, confirmation-gated at the offer (step 1) and before the run (step 4); declining at either exits with the friendly no-op message. Bare `/docs-hygiene:compress audit` on a clean tree uses steps 1–2 only (free audit + report; no compression defaults or run confirmation).
 
 1. **Offer** (AskUserQuestion): run against all tracked eligible `.md` files? Decline → no-op exit.
 2. **Audit first** (free, mechanical scan, no subagents): run the audit action over every tracked eligible `.md`. Present INLINE only aggregate counts per class, a dispatch-cost estimate (2 subagent requests per compressed file), and a top-20 excerpt of COMPRESS rows selected deterministically: expected-yield band descending, then word count descending, then lexical path (band strings tie; the two tie-breaks keep the excerpt stable run-to-run). Write the full per-file table, lexically sorted per the "Summary output deterministic" hard rule, to `${CLAUDE_PLUGIN_DATA}/audit/<branch-or-scope>-audit.md` when that dir is writable, otherwise to a temp path echoed to the user, and point at it. Never render every row inline: on a large repo the full table can run to hundreds of KB and truncate the confirmation prompt it feeds. **Stop here when the invocation was the audit action** (report-only).
-3. **Interview with prescribed defaults** (AskUserQuestion, recommended option listed first), default (mutating) action only:
-   - **Scope**. Default: **top-10** COMPRESS-classified files, highest expected yield first (report-only / decline remains available); alternates: top-N (user picks N), all COMPRESS, include UNCERTAIN, stop after audit (report only). A misclassified cohort burns two dispatches per file before the circuit breaker stops it, so the default caps exposure at ten. See `context/fan-out-orchestration.md` circuit breaker.
-   - **Concurrency**. Default: 2 concurrent subagents per wave (rate-limit-conservative); alternates: 1 (sequential), 3-5 (`context/fan-out-orchestration.md` default).
-   - **Always-loaded files**. Default: excluded (SKIP per the 2-3% empirical baseline); including them requires the same explicit opt-in as `--force`.
-4. **Confirm and run**: batch default action over the confirmed set, waves per `context/fan-out-orchestration.md`. Every per-file hard rule, semantic-diff dispatch, revert pass, markdownlint, `<3% AND 0 semantic-loss → REVERT`, applies unchanged.
+3. **Take the prescribed defaults**, default (mutating) action only. Take each default below without asking and report all three in one line, each with its override, for example `Defaults: scope top-10 COMPRESS (override: top-N, all COMPRESS, include UNCERTAIN, or report only); concurrency 2 (override: 1 or 3-5); always-loaded files excluded (override: explicit opt-in)`. The user overrides any of them in the reply to step 4's confirmation.
+   - **Scope**. Default: **top-10** COMPRESS-classified files, the first ten COMPRESS rows in step 2's order; overrides: top-N (user picks N), all COMPRESS, include UNCERTAIN, stop after audit (report only). A misclassified cohort burns two dispatches per file before the circuit breaker stops it, so the default caps exposure at ten. See `context/fan-out-orchestration.md` circuit breaker.
+   - **Concurrency**. Default: 2 concurrent subagents per wave (rate-limit-conservative); overrides: 1 (sequential), 3-5 (`context/fan-out-orchestration.md` default).
+   - **Always-loaded files**. Default: excluded (SKIP per the 2-3% empirical baseline); they stay excluded unless the user opts in explicitly, the same opt-in as `--force`.
+4. **Confirm and run**: batch default action over the set step 3 reported, with any override the user gave, waves per `context/fan-out-orchestration.md`. Every per-file hard rule, semantic-diff dispatch, revert pass, markdownlint, `<3% AND 0 semantic-loss → REVERT`, applies unchanged.
 
-Non-interactive contexts never interview; they take the no-op branch. The fallback adds an entry path only. It changes no compression, verification, or revert semantics.
+Non-interactive contexts skip the offer and take the no-op branch. The fallback adds an entry path only. It changes no compression, verification, or revert semantics.
 
 ## Hard rules
 

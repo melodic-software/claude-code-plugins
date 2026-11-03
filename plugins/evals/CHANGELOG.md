@@ -1,5 +1,20 @@
 # Changelog: evals
 
+## [0.15.3] - 2026-11-03
+
+### Changed
+
+- plugin-eval, methodology and the README: passages that restated `claude plugin eval` behavior
+  (how a run is scored, the eval directory, run isolation, grader types and targets, mocks, JSON
+  result fields, the cost ceiling) and the extended-thinking `max_tokens` rule now keep only this
+  plugin's decision and point at the upstream section with an as-of date and a recheck trigger.
+
+## [0.15.2] - 2026-11-03
+
+### Fixed
+
+- `/evals:validate` now fails a grader or `prompt.md` whose frontmatter holds `---` on a line other than its two delimiter lines, and names that line. `claude plugin eval` cannot load such a file and runs nothing for its case; the validator used to pass it with exit 0 (#12202).
+
 ## [0.15.1] - 2026-11-03
 
 ### Fixed

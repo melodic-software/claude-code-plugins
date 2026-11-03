@@ -3,6 +3,18 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.50.7] - 2026-11-03
+
+### Changed
+
+- The `check` probe set drops `bash-format:check` from its competitors, because that skill is gone.
+
+## [0.50.6] - 2026-11-03
+
+### Changed
+
+- The `check` probe set drops `guardrails:check` from its competitors, because that skill is gone.
+
 ## [0.50.5] - 2026-11-02
 
 ### Changed

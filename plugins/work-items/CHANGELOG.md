@@ -3,6 +3,28 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [9.0.3] - 2026-11-03
+
+### Changed
+
+- carries the shared medium resolver (`lib/view-settings.mjs`,
+  `lib/view-registry.mjs`) and the libraries it imports
+
+  No skill of this plugin calls it yet; its view lanes move onto it in a
+  later change.
+
+## [9.0.2] - 2026-11-03
+
+### Changed
+
+- `/work-items:work` offers the `report-delivered` stop for any issue whose report is the whole result and needs no commit, not only a `work-class: read-only` one (owner decision Q85, [#9668](https://github.com/melodic-software/claude-code-plugins/issues/9668)). The capability-tier reference and triage's outcome context now say security-surface work routes to the frontier tier per the convention's tier rules, not by work class.
+
+## [9.0.1] - 2026-11-03
+
+### Fixed
+
+- The charge words now hold a paid tier with words between (`paid Cloudflare plan`, `paid key`), a named GitHub, Copilot, Cloudflare, Pulumi or Enterprise plan or tier (`GitHub Team plan`, `Cloudflare Pro`), a resource on another billing account (`AWS account`, `OpenAI API`, `Vertex AI`), and a stated keep period (`artifacts for 400 days`). Admission also holds a bare AWS, GCP, Google Cloud, OpenAI, OpenRouter or Bedrock in a clause with a charging verb (`Deploy the job to AWS`). Before, each one reached admission with no owner hold.
+
 ## [9.0.0] - 2026-11-03
 
 ### Changed

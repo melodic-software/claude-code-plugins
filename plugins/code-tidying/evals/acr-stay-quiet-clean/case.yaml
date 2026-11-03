@@ -6,7 +6,7 @@ expected_outcome: ratelimit.py has no residue findings; the report says 0 findin
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: /code-tidying:audit-comment-residue ratelimit.py
+  prompt: /code-tidying:remove-comments audit ratelimit.py
   allowed_tools: [Read, Glob, Grep, Skill, Bash]
   max_turns: 80
   timeout_seconds: 1200

@@ -3,6 +3,12 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.3] - 2026-11-03
+
+### Fixed
+
+- The bundled TypeScript ecosystem defaults and `/toolchain:check`'s TypeScript context run Biome as `npx @biomejs/biome`, not `npx biome`. The unscoped `biome` npm package is an unrelated tool, so in a project with `biome.json` and no local install `npx biome` ran it and exited 0 without checking or formatting anything. The TypeScript context also says a project that pins Biome may name its local binary, or a `biome` on PATH, in its consumer commands instead (#12573).
+
 ## [0.20.2] - 2026-11-02
 
 ### Changed

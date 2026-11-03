@@ -3,6 +3,61 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.1.2] - 2026-11-03
+
+### Changed
+
+- babysit-prs, pull-request, worktree and the worktree-root convention: passages that restated
+  upstream behavior (GitHub's `mergeStateStatus`, subagent resume, git hooks and config keys,
+  Bash working-directory carry-over, `/autofix-pr` and cloud-session limits, status line
+  `rate_limits`, `plugin uninstall` flags, ghq and jq output) now keep only this plugin's rule and
+  point at the upstream section with an as-of date and a recheck trigger.
+
+- carries the shared medium resolver (`lib/view-settings.mjs`,
+  `lib/view-registry.mjs`) and the libraries it imports
+
+  No skill of this plugin calls it yet; its view lanes move onto it in a
+  later change.
+
+### Fixed
+
+- state that only a head pushed while the PR is a draft reads `local`; a PR moved back to draft keeps its ready head's test-lane results
+
+## [6.1.1] - 2026-11-03
+
+### Changed
+
+- The `ready` reference now says a draft's first flip runs the suites up to the budget of `scripts/check-affected.sh --tests` and leaves the rest to CI.
+
+## [6.1.0] - 2026-11-03
+
+### Added
+
+- babysit-prs: the pr-merge lane's post-merge check now starts from a floor anchor that
+  pr-merge.yml's post-merge-dispatch job keeps as the `pr-merge-post-merge-anchor` artifact. The
+  anchor moves past merges the check judged final from their runs. An unverified merge holds it,
+  and so does a merge counted only by its settled marker. A missing or refused anchor falls back
+  to today's floor, so a long verified history no longer stops the lane with
+  `merged-history-truncated`.
+
+## [6.0.2] - 2026-11-03
+
+### Fixed
+
+- refuse publishing a contrary event with no discovered time
+
+## [6.0.1] - 2026-11-03
+
+### Changed
+
+- `babysit-prs`: the pr-verify verdict reader now runs in FAIL index mode. It reads a pull request's FAILs from the FAIL index plus the committed `verify-legacy-fails.json`, which lists the 550 FAILs uploaded before the index existed, instead of paging the whole artifact listing on every judgment.
+
+## [6.0.0] - 2026-11-03
+
+### Removed
+
+- The `check` skill is gone. To check this plugin's prerequisites, run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`, the command the hook notices already print.
+
 ## [5.6.5] - 2026-11-03
 
 ### Changed

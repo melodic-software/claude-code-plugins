@@ -174,6 +174,14 @@ a trusted human's `workflow_dispatch`:
   dispatcher logs a notice naming the class and the reset time.
 - It dispatches `pr-unblock.yml` on `refs/heads/main` for at most 3 PRs per run, lowest number
   first, passing `pr-number` and `dispatcher-run-id`.
+- A read that fails holds, whatever GitHub answered. A listing it cannot read dispatches nothing,
+  and a PR whose holds or check runs it cannot read is skipped, each with a warning, and the next
+  tick reads them again. This holds for every dispatch the run sends, the ones below included,
+  with one exception kept from before: `fix-ci` still dispatches under its caps when it cannot
+  read its required run or the head's check runs for a reason other than a `5xx` or a rate limit,
+  or when the verifier reader fails. A failed read does not fail the run. A dispatch that failed
+  or named no run id, config the run cannot read, or a rate limit (the shared rate guard fails
+  the step) still does.
 - A hand run or a re-run must be started by a listed human (`check-trusted-trigger` with
   `require-pr: false` and `require-kind: human`). That mode handles no `schedule` event, so a
   re-run of a scheduled run fails; the next tick replaces it.
@@ -883,9 +891,12 @@ and none has to. The `review-threads` row alone also refuses a new file at mode 
 change to that mode (`new-exec-bit`), so address-feedback can drop an executable bit but never
 add one; `ci-context` and `issue` keep setting script bits. The `ci-context` and `review-threads`
 rows also refuse, in any case and through any `..` segment, a `.gitattributes` file at any depth
-(`gitattributes`), a path whose first segment is `.husky` (`husky`) and `lefthook.yml` at the root
-(`lefthook`): each changes what git, or a hook it runs, does on the next checkout or commit, so
-fix-ci and address-feedback cannot change them. No other row names these three.
+(`gitattributes`), a path whose first segment is `.husky` (`husky`) and every file lefthook reads
+its config or hook scripts from (`lefthook`): at the root, `lefthook`, `.lefthook`, `lefthook-local`
+and `.lefthook-local` with `.yml`, `.yaml`, `.toml`, `.json` or `.jsonc`; under a root `.config/`,
+`lefthook` and `lefthook-local` with those extensions; and a path whose first segment is `.lefthook`
+or `.lefthook-local`. Each changes what git, or a hook it runs, does on the next checkout or commit,
+so fix-ci and address-feedback cannot change them. No other row names these three.
 The `ci-context`, `docs`, `default`, `issue` and `merge-base` rows cap a patch at 300 paths, and the
 `merge-base` row a merge commit at 300 new blobs.
 `checkPatchRules` in
@@ -943,6 +954,7 @@ each entry once.
 | Within one PR, across write lanes | One queue: a write job waits for the one ahead and never cancels it | job group `pr-pipeline-write-<n>`, `queue: max`, on every write caller job |
 | `pr-unblock-dispatch` | One run at a time; a push cancels the run going, and a tick or hand run waits behind it; any newer run replaces one still waiting | workflow group `pr-unblock-dispatch`, `cancel-in-progress: ${{ github.event_name == 'push' }}` |
 | `pr-feedback-dispatch` | One run per reviewed head at a time; a waiting one is replaced | workflow group `pr-feedback-dispatch-<head SHA>` |
+| `pr-merge` `enable-auto-merge`, across PRs | One run at a time, sweeps and verdict wakes alike, since the lane-room check is not re-read after arming; none is cancelled, and a waiting sweep, or a newer wake for the same PR, does a wake's work. At the measured peak of 31 `pr-verify` completions in 15 minutes, all of them wakes, the job's 44-minute ceiling queues about 91, under GitHub's cap of 100; a run past the cap leaves its PR to the next scheduled run | job group `pr-merge-enable-auto-merge`, `queue: max` |
 
 The write group sits on each caller job, behind an `if:` that leaves out the lanes App's own
 `pull_request` events, so a lane's push never queues a job in it.
@@ -1883,8 +1895,12 @@ edited after arming to drop its link or name another issue does not merge on tha
 or pass-notes verdict wakes it for that one pull request: `pr-verify.yml`'s `wake-pr-merge` job
 dispatches a PR-scoped `pr-merge.yml` run (`-f pr=<n>`, run name `pr-merge: arm #<n>`) that
 reads and arms only that pull request, its lane room from the last sweep's post-merge report,
-and skips the merge job, `post-merge-dispatch` and every other sweep job. Its `api-calls` totals
-and outcome land in one `pr-merge-wake` notice. The 30-minute schedule is the backstop that arms
+and skips the merge job, `post-merge-dispatch` and every other sweep job. That report stands only
+while `settle --idle-tick` keeps it; when it does not, the wake never reuses it but runs the
+post-merge check fresh on its own read-only token, and arms only when that check passes (exit 0
+or 5) and `settle --idle-tick` keeps the fresh report too, since the wake starts no full run or
+re-run. Its `api-calls` totals, which report the room came from (`report=last`, `fresh` or `none`) and
+the outcome land in one `pr-merge-wake` notice. The 30-minute schedule is the backstop that arms
 what a wake missed and disarms what the events missed; a listed human's unlabel wakes it too. A
 `Hold:` line added after arming fails `ci-status` on that edit, on the pull request and in the
 merge queue, and the next scheduled run disarms. The issue lane finishing does not wake it:
@@ -1949,9 +1965,9 @@ nothing. A pr-unblock run the switch stopped mid-run posts its check neutral `ki
 dispatcher counts as handling the head, so the next dispatcher run after the lift (the half-hourly
 `pr-unblock-dispatch.yml` tick, or a review completing at the head) dispatches it again, at most
 `limits.limit-stops-per-head` times per head, `SWEEP_HEAD_CAP` for `address-feedback`.
-`ci-status` enforces the same holds on every lanes App pull request, the two text holds and the
-hold paths, so one added after arming stops the merge without waiting for this job: its step
-`Fail a lanes App pull request its body or a member holds` runs
+`ci-status` enforces a member's veto comment and the hold paths on every lanes App pull request,
+so one added after arming stops the merge without waiting for this job: its step
+`Fail a lanes App pull request on kill switch, hold path, verifier or veto` runs
 `.github/scripts/pr-merge/merge-holds.mjs` as main has it, the module `enable-auto-merge.mjs` arms
 by, over the live body, discussion and changed files (renamed-from paths included) against main's
 `merge.diff-check.denied-paths` plus the path floor (`HOLD_PATH_FLOOR`, a constant of the module
@@ -3148,7 +3164,7 @@ Which GitHub identity each workflow in `.github/workflows/` writes as. GitHub's 
 | Identity | Workflows | Why |
 |---|---|---|
 | `GITHUB_TOKEN` (`github-actions[bot]`) | every workflow not named below, and the reads and check runs of those that are | Its writes start no workflow run, a dispatch aside, which the lane sweep's digest and the monitoring lane rely on so their own issues start no lane; it has its own per-repository API quota ([ADR 0085](../../adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md)) |
-| Lanes App `melodic-automation-lanes`, minted per job by the broker (`.github/actions/request-lane-token`) | `pr-merge.yml`, `pr-run-activity-write.yml` (which the write jobs of `pr-unblock`, `pr-refine` and `work-resolve-issue` call), `intake-triage.yml`, `work-unblock.yml`, `upstream-apply-changelog.yml` | Its pushes, labels and auto-merge arms must start the next lane's runs, which a `GITHUB_TOKEN` write does not; one App identity also lets the person tests tell a lane from a person ([lane write identity](../loop-lane/README.md#lane-write-identity)) |
+| Lanes App `melodic-automation-lanes`, minted per job by the broker (`.github/actions/request-lane-token`) | `pr-merge.yml`, `pr-run-activity-write.yml` (which the write jobs of `pr-unblock`, `pr-refine` and `work-resolve-issue` call), `intake-triage.yml`, `work-unblock.yml`, `upstream-apply-changelog.yml`, `maintenance-tidy-code-upkeep.yml` | Its pushes, labels and auto-merge arms must start the next lane's runs, which a `GITHUB_TOKEN` write does not; one App identity also lets the person tests tell a lane from a person ([lane write identity](../loop-lane/README.md#lane-write-identity)) |
 | Release App (`PLUGIN_RELEASE_APP_PRIVATE_KEY`, `actions/create-github-app-token`) | `release-publish-plugins.yml`, `dependabot-fragments.yml` | A pull request `GITHUB_TOKEN` opens or updates gets its `pull_request` runs only after approval, and these pull requests need theirs unattended |
 | Owner token | none | Only the owner's own sessions use it; the babysit scripts count its calls as the `owner-token` API pool |
 
@@ -3949,9 +3965,9 @@ list. The config reader reads the synced copy from the base SHA's
   rejects any value until a second repository adopts.
 - The post-merge failure remedy, revert or fail forward, is the per-repository `red-main.remedy`
   key ([Red main](#red-main)), not a choice by change type.
-- Holds converge on one label. `ci-status` enforces holds in seven places
-  ([Review-lane holds](#review-lane-holds)), and in a 2026-11-01 sample holds, not code, made 17 of 24 red
-  pull request runs and 10 of 12 red merge groups red
+- Holds converge on one label. On 2026-11-01 `ci-status` enforced holds in seven places
+  ([Review-lane holds](#review-lane-holds)), and in a sample that day holds, not code, made 17 of 24
+  red pull request runs and 10 of 12 red merge groups red
   ([#12284 audit](https://github.com/melodic-software/claude-code-plugins/issues/12284#issuecomment-6582114885)).
   The direction: a hold our own actors place is `do-not-merge`, read once per run; only the
   review lanes' critical-security and cost holds and the trust-path holds stay person-only. The

@@ -568,10 +568,14 @@ test("pr-merge takes a pr input, runs every 30 minutes and names a PR-scoped run
 
 // The last sweep's report stands for a PR-scoped run only under
 // post-merge-dispatch's idle-tick rule (babysit_verify_evidence.py settle
-// --idle-tick): a refusal, an unread exit code or a failed check removes it,
-// so lane-room reads the room unreadable and nothing arms.
+// --idle-tick). A report that does not stand is never reused: the step runs
+// the post-merge check fresh, as post-merge-dispatch does on a refused idle
+// tick, and keeps the fresh report only when the check passed (exit 0 or 5)
+// and settle --idle-tick keeps it too. Anything else removes it, so the arm
+// step is skipped and nothing arms.
 const KEEP_STEP = "Keep the last sweep's report only while nothing it read has moved";
-const keepReport = ({ code = "0", settle = 0, files = true } = {}) => {
+const FRESH_SHA = "f".repeat(40);
+const keepReport = ({ code = "0", settles = [0], fresh = 0, files = true, attempts = false } = {}) => {
   const arm = job("enable-auto-merge");
   const body = new RegExp(`- name: ${KEEP_STEP.replace(/[.']/g, "\\$&")}\\n([\\s\\S]*?)(?=\\n {6}- name: )`).exec(arm)?.[1];
   assert.ok(body, "a PR-scoped run settles the last sweep's report");
@@ -581,7 +585,24 @@ const keepReport = ({ code = "0", settle = 0, files = true } = {}) => {
   mkdirSync(bin);
   const args = join(dir, "args");
   writeFileSync(args, "");
-  writeFileSync(join(bin, "python3"), `#!/bin/sh\necho "$@" >>'${args}'\nexit ${settle}\n`, { mode: 0o755 });
+  // Each settle call takes the next exit code from `settles` and prints
+  // settle's JSON; the fresh check prints a marked report and exits `fresh`.
+  writeFileSync(join(dir, "settles"), settles.join("\n") + "\n");
+  writeFileSync(
+    join(bin, "python3"),
+    `#!/bin/bash
+echo "$@" >>'${args}'
+case "$1" in
+  *babysit_postmerge.py) echo '{"fresh":true}'; exit ${fresh} ;;
+esac
+next=$(head -n1 '${join(dir, "settles")}'); sed -i 1d '${join(dir, "settles")}'
+if [ "\${next:-1}" = 0 ]; then echo '{"reuse": true, "reason": null}'; else echo '{"reuse": false, "reason": "idle tick needs-dispatch"}'; fi
+exit "\${next:-1}"
+`,
+    { mode: 0o755 },
+  );
+  writeFileSync(join(bin, "yq"), "#!/bin/sh\necho lanes-bot\n", { mode: 0o755 });
+  writeFileSync(join(bin, "git"), `#!/bin/sh\necho ${FRESH_SHA}\n`, { mode: 0o755 });
   const report = join(dir, "post-merge");
   mkdirSync(report);
   if (files) {
@@ -589,30 +610,52 @@ const keepReport = ({ code = "0", settle = 0, files = true } = {}) => {
     writeFileSync(join(report, "post-merge-code"), `${code}\n`);
     writeFileSync(join(report, "post-merge-code-sha"), `${"c".repeat(40)}\n`);
   }
+  if (attempts) writeFileSync(join(report, "attempts.json"), '{"attempts":[]}');
   const output = join(dir, "output");
   writeFileSync(output, "");
+  const attemptsPath = join(dir, "post-merge-attempts.json");
   const run = spawnSync("bash", ["--noprofile", "--norc", "-c", script], {
-    env: { PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, REPO: "o/r", GITHUB_OUTPUT: output },
+    env: {
+      PATH: `${bin}:${process.env.PATH}`,
+      RUNNER_TEMP: dir,
+      REPO: "o/r",
+      GITHUB_OUTPUT: output,
+      BABYSIT_POSTMERGE_ATTEMPTS: attemptsPath,
+    },
     encoding: "utf8",
   });
+  const readKept = (name) => (existsSync(join(report, name)) ? readFileSync(join(report, name), "utf8") : null);
   return {
     body,
     status: run.status,
     kept: existsSync(report),
-    settled: readFileSync(args, "utf8").trim(),
+    calls: readFileSync(args, "utf8").trim().split("\n").filter(Boolean),
     stdout: run.stdout,
     output: readFileSync(output, "utf8"),
+    json: readKept("post-merge.json"),
+    codeFile: readKept("post-merge-code"),
+    shaFile: readKept("post-merge-code-sha"),
+    attempts: existsSync(attemptsPath) ? readFileSync(attemptsPath, "utf8") : null,
   };
 };
+const SETTLE = (sha) =>
+  new RegExp(
+    `^\\.base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence\\.py settle --idle-tick --repo o/r --postmerge-result \\S+/post-merge/post-merge\\.json --code-sha ${sha}$`,
+  );
+const FRESH_CHECK =
+  /^\.base\/plugins\/source-control\/skills\/babysit-prs\/scripts\/babysit_postmerge\.py --repo o\/r --agent-identity lanes-bot --lane-merges-only$/;
 
 test("a PR-scoped run keeps the last sweep's report only when settle --idle-tick keeps it", () => {
   const kept = keepReport();
   assert.equal(kept.status, 0);
   assert.equal(kept.kept, true);
-  assert.equal(kept.output, "stands=true\n");
+  assert.equal(kept.output, "stands=true\nfresh=\nfresh-reason=\n");
   assert.match(kept.body, /^ {8}id: keep-report\n/);
-  // The same call post-merge-dispatch makes for a reused report.
-  assert.match(kept.settled, /^\.base\/plugins\/source-control\/skills\/babysit-prs\/scripts\/babysit_verify_evidence\.py settle --idle-tick --repo o\/r --postmerge-result \S+\/post-merge\/post-merge\.json --code-sha c{40}$/);
+  // The same call post-merge-dispatch makes for a reused report, and no
+  // fresh check.
+  assert.equal(kept.calls.length, 1);
+  assert.match(kept.calls[0], SETTLE("c{40}"));
+  assert.equal(kept.json, "{}");
   assert.match(kept.body, /\n {8}if: steps\.lane-token\.outputs\.token != '' && github\.event_name == 'workflow_dispatch' && inputs\.pr\n/);
   assert.match(kept.body, /\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n/);
   const arm = job("enable-auto-merge");
@@ -620,20 +663,95 @@ test("a PR-scoped run keeps the last sweep's report only when settle --idle-tick
   assert.ok(arm.indexOf(`- name: ${KEEP_STEP}`) < arm.indexOf("- name: Arm and disarm auto-merge"));
 });
 
-test("a refused or unread settle leaves a PR-scoped run no report", () => {
-  for (const [why, options, asked] of [
-    ["settle refuses", { settle: 1 }, true],
-    ["the check could not judge", { code: "3" }, false],
-    ["the check failed", { code: "1" }, false],
-    ["no report", { files: false }, false],
+// (a) The report that does not stand is replaced, never reused: the fresh
+// check runs, then settle --idle-tick on the fresh report at this checkout's
+// commit, and only both passing lets the arm step run on it.
+test("a PR-scoped run whose report does not stand runs the post-merge check fresh and keeps it when both checks pass", () => {
+  for (const [why, options] of [
+    ["settle refuses the last report", { settles: [1, 0] }],
+    ["the last check could not judge", { code: "3", settles: [0] }],
+    ["the last check failed", { code: "1", settles: [0] }],
+    ["no last report", { files: false, settles: [0] }],
+    ["the fresh check finds a merge not yet verified", { settles: [1, 0], fresh: 5 }],
+  ]) {
+    const run = keepReport(options);
+    const fresh = String(options.fresh ?? 0);
+    assert.equal(run.status, 0, why);
+    assert.equal(run.output, `fresh-started=true\nstands=true\nfresh=${fresh}\nfresh-reason=\n`, why);
+    assert.equal(run.kept, true, why);
+    assert.equal(run.json, '{"fresh":true}\n', `${why}: the room is the fresh report, not the last one`);
+    assert.equal(run.codeFile, `${fresh}\n`, why);
+    assert.equal(run.shaFile, `${FRESH_SHA}\n`, why);
+    const check = run.calls.findIndex((c) => FRESH_CHECK.test(c));
+    assert.ok(check >= 0, `${why}: the fresh check ran`);
+    assert.match(run.calls[check + 1] ?? "", SETTLE(FRESH_SHA), `${why}: settle --idle-tick checked the fresh report`);
+    assert.equal(run.calls.length, check + 2, why);
+  }
+});
+
+test("the fresh check answers the last check's completed attempts with no read", () => {
+  const run = keepReport({ settles: [1, 0], attempts: true });
+  assert.equal(run.attempts, '{"attempts":[]}');
+  assert.match(run.body, /\n {10}BABYSIT_POSTMERGE_ATTEMPTS: \$\{\{ runner\.temp \}\}\/post-merge-attempts\.json\n/);
+});
+
+// (b) Any refusal on the fresh path leaves no report, so nothing arms.
+test("a PR-scoped run whose fresh check or fresh settle refuses keeps no report", () => {
+  for (const [why, options, settled, reason] of [
+    ["the fresh check finds a failed lane merge", { settles: [1], fresh: 1 }, false, ""],
+    ["the fresh check could not judge", { settles: [1], fresh: 3 }, false, ""],
+    ["the fresh check stopped on a rate limit", { settles: [1], fresh: 75 }, false, ""],
+    ["settle --idle-tick refuses the fresh report", { settles: [1, 1], fresh: 0 }, true, "idle tick needs-dispatch"],
   ]) {
     const run = keepReport(options);
     assert.equal(run.status, 0, why);
     assert.equal(run.kept, false, why);
-    assert.equal(run.settled !== "", asked, why);
-    assert.equal(run.output, "stands=false\n", why);
-    assert.match(run.stdout, /::notice::the last sweep's post-merge report does not stand for this run/, why);
+    assert.equal(run.output, `fresh-started=true\nstands=false\nfresh=${options.fresh}\nfresh-reason=${reason}\n`, why);
+    assert.ok(run.calls.some((c) => FRESH_CHECK.test(c)), `${why}: the fresh check ran`);
+    assert.equal(run.calls.some((c) => SETTLE(FRESH_SHA).test(c)), settled, why);
+    assert.match(run.stdout, new RegExp(`::notice::the fresh post-merge check \\(exit ${options.fresh}\\) does not stand for this run`), why);
   }
+});
+
+// The countable line's outcome when the arm step wrote none.
+const wakeOutcome = (env) => {
+  const arm = job("enable-auto-merge");
+  const body = /- name: Report the PR-scoped outcome\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)[1];
+  const script = /\n {8}run: \|\n([\s\S]*)$/.exec(body)[1].replace(/^ {10}/gm, "");
+  const run = spawnSync("bash", ["--noprofile", "--norc", "-c", script], {
+    env: { PATH: process.env.PATH, PR: "7", CALLS: "github-token=0 lanes-app=0", OUTCOME: "", ...env },
+    encoding: "utf8",
+  });
+  assert.equal(run.status, 0);
+  return run.stdout.trim();
+};
+
+// (c) The kill switch skips the who step, so its proceed is empty too: the
+// line names the kill switch, not the who step.
+test("a PR-scoped run the kill switch stopped reports the kill switch", () => {
+  assert.equal(
+    wakeOutcome({ KILL: "false" }),
+    "::notice title=pr-merge-wake::pr=7 github-token=0 lanes-app=0 report=none outcome=skipped: the lanes kill switch stopped it",
+  );
+  assert.match(wakeOutcome({ KILL: "true", WHO: "false" }), /report=none outcome=skipped: the who step stopped it$/);
+});
+
+test("a PR-scoped run's outcome names the fresh check's refusal and which report it read", () => {
+  const base = { KILL: "true", WHO: "true", STANDS: "false" };
+  assert.match(wakeOutcome({ ...base, FRESH: "1" }), /report=fresh outcome=skipped: the fresh post-merge check exited 1$/);
+  assert.match(wakeOutcome({ ...base, FRESH: "75" }), /report=fresh outcome=skipped: the fresh post-merge check stopped on a GitHub rate limit$/);
+  assert.match(
+    wakeOutcome({ ...base, FRESH: "0", FRESH_REASON: "idle tick needs-dispatch" }),
+    /report=fresh outcome=skipped: settle --idle-tick refused the fresh post-merge report \(idle tick needs-dispatch\)$/,
+  );
+  assert.match(wakeOutcome({ ...base, FRESH: "5" }), /refused the fresh post-merge report \(no reason read\)$/);
+  assert.match(wakeOutcome({ ...base, STANDS: "true", FRESH: "0", OUTCOME: "armed" }), /report=fresh outcome=armed$/);
+  assert.match(wakeOutcome({ ...base, STANDS: "true", OUTCOME: "armed" }), /report=last outcome=armed$/);
+  // A fresh check that timed out or was cancelled writes no stands or fresh output.
+  assert.match(
+    wakeOutcome({ KILL: "true", WHO: "true", FRESH_STARTED: "true" }),
+    /report=fresh outcome=skipped: the fresh post-merge check did not finish \(timeout or cancel\)$/,
+  );
 });
 
 // With no standing report a wake decides nothing: the arm step, which would
@@ -933,8 +1051,14 @@ test("enable-auto-merge reads the lane's room from this run's post-merge-dispatc
   const arm = job("enable-auto-merge");
   assert.match(arm, /^ {4}# [\s\S]*?\n {4}needs: \[post-merge-dispatch\]\n/);
   assert.match(/\n {4}if: >-\n([\s\S]*?)\n {4}[a-z-]+:/.exec(arm)[1], /^ {6}!cancelled\(\)\n/);
-  // No check of its own: the report comes from this run's job alone.
-  assert.doesNotMatch(arm, /python3 [^\n]*babysit_postmerge\.py/);
+  // No check of its own on a sweep: the report comes from this run's job
+  // alone. Only a PR-scoped run, which has no post-merge-dispatch job, runs
+  // the check, in the keep-report step that runs on such a run alone.
+  const checks = [...arm.matchAll(/python3 [^\n]*babysit_postmerge\.py/g)];
+  assert.equal(checks.length, 1);
+  const keepStep = /- name: Keep the last sweep's report only while nothing it read has moved\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm);
+  assert.ok(checks[0].index > keepStep.index && checks[0].index < keepStep.index + keepStep[0].length);
+  assert.match(keepStep[1], /^ {8}if: steps\.lane-token\.outputs\.token != '' && github\.event_name == 'workflow_dispatch' && inputs\.pr\n/m);
   const read = /- name: Read this run's post-merge report\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)?.[1];
   assert.ok(read, "a download of the report");
   assert.match(read, /uses: actions\/download-artifact@[0-9a-f]{40} /);
@@ -1386,7 +1510,7 @@ test("a dispatch that failed skips the record", () => {
 // there fails the job as a failed record upload does (the test above).
 test("every credential scan has a timeout of at most 2 minutes, and the upload it guards needs its clean output", () => {
   const bestEffort = {
-    "post-merge-dispatch": ["scan-upload"],
+    "post-merge-dispatch": ["scan-upload", "scan-upload-5"],
     merge: ["scan-upload-2", "scan-upload-3", "scan-upload-4", "scan-upload-5", "scan-upload-6", "scan-upload-7"],
     "enable-auto-merge": ["scan-upload", "scan-upload-2"],
     "dispatch-full-run": [],

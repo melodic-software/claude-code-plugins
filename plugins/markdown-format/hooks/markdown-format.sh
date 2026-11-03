@@ -43,7 +43,7 @@ IFS= read -r -d '' INPUT || :
 if [[ "${1:-}" == --end-of-turn ]]; then
   [[ "$INPUT" =~ \"stop_hook_active\"[[:space:]]*:[[:space:]]*true ]] && exit 0
   err="$("${BASH:-bash}" "$HOOK_DIR/../git-hooks/markdown-check.sh" --worktree 2>&1 >/dev/null)" && exit 0
-  # silent-skip-ok: the SessionStart probe already reports a missing markdownlint-cli2 (prerequisites.json) and /markdown-format:check does too; reporting it again at every turn end would not help.
+  # silent-skip-ok: the SessionStart probe already reports a missing markdownlint-cli2 (prerequisites.json) and the bundled checker does too; reporting it again at every turn end would not help.
   [[ "$err" == "FAIL: "*" missing. Install: "* ]] && exit 0
   if [[ "${CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_END_OF_TURN:-}" == true ]]; then
     printf '%s\n' "$err" >&2

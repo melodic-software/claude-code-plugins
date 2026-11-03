@@ -23,7 +23,7 @@ With `--risk-only`, or when asked for the risk map alone, follow [reference/risk
 Make a fresh directory under the OS temp directory (`mktemp -d`), never in the working tree; call it `<dir>`. It holds only this run's inputs, never the page, so remove it with `rm -rf -- <dir>` (the literal path) when the run ends at any step, after the reader is done with a connected view. Read the pull request's facts into it through `/source-control:pull-request view <n> [--repo <owner/repo>] --out <dir>/facts.json`, invoked via the Skill tool, so the file holds the forge's bytes rather than a copy of tool output. Without the `source-control` plugin, write the same fields there with the forge's own tooling, or report that the read is unavailable and stop; on that path the `url` is yours, not the forge's, so keep the page as a file and do not publish it. Then let the script decide:
 
 ```bash
-"${CLAUDE_SKILL_DIR}/scripts/digest-policy.mjs" [--event ready] [--blast-radius HIGH] [--policy offer] [--requested] < <dir>/facts.json
+"${CLAUDE_SKILL_DIR}/scripts/digest-policy.mjs" --option "${user_config.medium}" [--event ready] [--blast-radius HIGH] [--policy offer] [--requested] < <dir>/facts.json
 ```
 
 - `--requested` when the reader asked for the digest. That is the explicit tier, so the action is `build`.
@@ -31,7 +31,7 @@ Make a fresh directory under the OS temp directory (`mktemp -d`), never in the w
 - `--blast-radius` when a plan or `/review:quality-gate downstream` assessed one.
 - `--policy` only when the reader passed it.
 
-The output names the `action`, the `triggers` that fired, the `medium`, and the layer each value came from. Tell the reader which layer supplied `medium` (its `source`, or "shipped default" when that reads `default`). Report any `warnings` line. The keys, defaults, and layers are owned by the review-digest convention (`docs/conventions/review-digest.md` in the marketplace repository).
+The output names the `action`, the `triggers` that fired, the `medium`, and the layer each value came from. Print each line of `medium.report` as it stands: it names the medium and what decided it, then any notice. Report any `warnings` line. The keys, defaults, and layers are owned by the review-digest convention (`docs/conventions/review-digest.md` in the marketplace repository).
 
 - `skip`: stop without output.
 - `offer`: say in one sentence which triggers fired and offer the digest, naming where the page would go: "a private Artifact on claude.ai" when `medium` is `artifact`, "the shared page host" when it is `hosted`, else a local file or the terminal. Go on only when the reader accepts.
@@ -92,11 +92,11 @@ This skill never relies on a permission prompt to stop an Artifact publish: the 
 "${CLAUDE_SKILL_DIR}/scripts/digest-policy.mjs" --publish-gate --facts <dir>/facts.json [--explicit] < <dir>/pr.diff
 ```
 
-The gate takes no repository or visibility argument: it reads the repository and host from the pull request `url` in step 1's `facts.json` and looks up that repository's visibility itself, the way `publish-hosted.mjs` does; no visibility from the facts file or the model reaches it. A missing facts file, one with no pull request URL, a host this machine is not logged in to, or a failed lookup gates as `UNKNOWN`. Pass `--explicit` only when step 1's `medium.source` is not `default`, that is, a layer set `medium: artifact`. The gate prints the `medium` to use and why:
+The gate takes no repository or visibility argument: it reads the repository and host from the pull request `url` in step 1's `facts.json` and looks up that repository's visibility itself, the way `publish-hosted.mjs` does; no visibility from the facts file or the model reaches it. A missing facts file, one with no pull request URL, a host this machine is not logged in to, or a failed lookup gates as `UNKNOWN`. Pass `--explicit` only when step 1's `medium.explicit` is `true`, that is, the reader's own setting chose `artifact`, never the shipped default. The gate prints the `medium` to use and why:
 
 - `artifact`: say "publishing as a private Artifact on claude.ai" before publishing, then publish that file with the Artifact tool. Who can see a published Artifact is read at [artifacts: create an artifact](https://code.claude.com/docs/en/artifacts#create-an-artifact); as of 2026-10-11; recheck trigger: that section stops saying a published artifact stays private until shared, and then drop "private" from the line above. When the tool is unavailable or refused, give the path and say why.
-- `file`: the shipped default met a repository that is not `PUBLIC`, or a hunk shaped like a credential. Do not publish. Give the path, the gate's `reason`, and its `opt_in`: `medium: artifact` in `~/.claude/rendered-views.md` publishes such pages anyway.
-- `medium: file` from step 1: tell the reader the path. A reader who keeps digests on their machine sets `medium: file` in `~/.claude/rendered-views.md`.
+- `file`: the shipped default met a repository that is not `PUBLIC`, or a hunk shaped like a credential. Do not publish. Give the path, the gate's `reason`, and its `opt_in`: setting the review plugin's `medium` option to `artifact` publishes such pages anyway.
+- `medium: file` from step 1: tell the reader the path. A reader who keeps digests on their machine sets the review plugin's `medium` option to `file`.
 
 If the publish gate exits non-zero or its result is unclear, keep the page as a file and do not publish.
 
