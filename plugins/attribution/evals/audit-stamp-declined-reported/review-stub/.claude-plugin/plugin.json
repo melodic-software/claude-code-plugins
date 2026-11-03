@@ -1,0 +1,5 @@
+{
+  "name": "review",
+  "version": "0.0.0",
+  "description": "Eval-only stand-in for the review plugin: the fanout skill and the findings-file contract."
+}

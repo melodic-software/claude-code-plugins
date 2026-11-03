@@ -1,0 +1,44 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "code-tidying:remove-comments",
+            "args": "audit src/cache.ts"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "code-tidying:remove-comments",
+            "args": "audit audit src/cache.ts"
+          }
+        }
+      ],
+      "why": "leading audit token doubled"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "code-tidying:remove-comments",
+            "args": "src/cache.ts"
+          }
+        }
+      ],
+      "why": "runs the remove action, not audit"
+    }
+  ]
+}

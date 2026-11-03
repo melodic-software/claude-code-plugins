@@ -5,7 +5,7 @@
         {
           "tool": "Skill",
           "input": {
-            "skill": "actionlint:check"
+            "skill": "toolchain:lint"
           }
         }
       ]
