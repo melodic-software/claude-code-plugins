@@ -690,25 +690,26 @@ assert_output_has "the bad switch is named" "PLUGIN_TEST_SHARE_WARN_ONLY must be
 
 # --- PLUGIN_TEST_DEADLINE: the local gate ends at its budget ---------------------
 #
-# Six suites of 3 s each, 18 s in all, against a deadline 2 s away: the first
-# launches at once and ends past the deadline, so no other launches. The run
-# takes one suite's 3 s; the 12 s bound is the 2 s deadline, that suite, and 7 s
-# for a loaded host, well under the 18 s of a run that ignores the deadline.
+# Six suites of 6 s each, 36 s in all, against a deadline 5 s away, far enough
+# that a loaded host still launches the first: it ends past the deadline, so no
+# other launches. The run takes one suite's 6 s; the 20 s bound is the 5 s
+# deadline, that suite and 9 s for a loaded host, under the 36 s of a run that
+# ignores the deadline.
 deadline_root="$(make_root deadline)"
 for s in a b c d e f; do
-  write_suite "$deadline_root" "plugins/$s/$s.test.sh" 'sleep 3; echo "ok"'
+  write_suite "$deadline_root" "plugins/$s/$s.test.sh" 'sleep 6; echo "ok"'
 done
 left_file="$scratch/left.txt"
 start=$SECONDS
 printf -v now '%(%s)T' -1
-PLUGIN_TEST_DEADLINE=$((now + 2)) PLUGIN_TEST_LEFT_FILE="$left_file" PLUGIN_TEST_SECONDS_LIST="$no_seconds" \
+PLUGIN_TEST_DEADLINE=$((now + 5)) PLUGIN_TEST_LEFT_FILE="$left_file" PLUGIN_TEST_SECONDS_LIST="$no_seconds" \
   PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "a run past its deadline stops launching and does not fail" \
-  --root "$deadline_root" --budget 2
+  --root "$deadline_root" --budget 5
 elapsed=$((SECONDS - start))
-if ((elapsed <= 12)); then
+if ((elapsed <= 20)); then
   ok "the run ends within its deadline plus one suite (${elapsed}s)"
 else
-  fail "the run took ${elapsed}s against a 2 s deadline and 3 s suites; output: $RUN_OUTPUT"
+  fail "the run took ${elapsed}s against a 5 s deadline and 6 s suites; output: $RUN_OUTPUT"
 fi
 assert_output_has "the suite launched before the deadline ran" "PASS: plugins/a/a.test.sh"
 assert_output_lacks "a suite past the deadline did not run" "PASS: plugins/f/f.test.sh"
@@ -754,12 +755,12 @@ fi
 
 # A suite left never hides a suite that ran and failed.
 deadline_fail="$(make_root deadline-fail)"
-write_suite "$deadline_fail" plugins/a/a.test.sh 'sleep 3; echo "FAIL: broken" >&2; exit 1'
+write_suite "$deadline_fail" plugins/a/a.test.sh 'sleep 6; echo "FAIL: broken" >&2; exit 1'
 write_suite "$deadline_fail" plugins/b/b.test.sh 'echo "ok"'
 printf -v now '%(%s)T' -1
-PLUGIN_TEST_DEADLINE=$((now + 2)) PLUGIN_TEST_SECONDS_LIST="$no_seconds" \
+PLUGIN_TEST_DEADLINE=$((now + 5)) PLUGIN_TEST_SECONDS_LIST="$no_seconds" \
   PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 1 "a failed suite still fails a run that left others" \
-  --root "$deadline_fail" --budget 2
+  --root "$deadline_fail" --budget 5
 assert_output_has "the failed suite is named" "plugins/a/a.test.sh failed (exit 1)"
 assert_output_has "the suite left is named beside it" "LEFT TO CI: plugins/b/b.test.sh"
 
