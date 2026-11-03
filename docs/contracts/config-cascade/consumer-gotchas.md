@@ -44,7 +44,7 @@ model actually hit in that repository, never speculative advice.
 
 | Plugin | Consumer path | Status on `main` |
 |---|---|---|
-| `bugs` | `docs/conventions/bugs.md` `## Gotchas` (team; `.claude/bugs.md` while that file is absent, for one release) | wired: `/bugs:scan` and `/bugs:write` pre-compute `scripts/concat-gotchas.sh` |
+| `bugs` | `docs/conventions/bugs.md` `## Gotchas` (team) | wired: `/bugs:scan` and `/bugs:write` pre-compute `scripts/concat-gotchas.sh` |
 
 Plugins with an existing config surface (`source-control`, `codebase-health`) adopt the same shape
 in their owner docs when wired.

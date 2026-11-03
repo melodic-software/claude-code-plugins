@@ -3,6 +3,35 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.2.0] - 2026-11-03
+
+### Added
+
+- `update_other_paths` option and `--update-other-paths` flag for plugins sync, and a per-call duration in its journal
+
+### Changed
+
+- `/harness-ops:plugins sync` keeps the per-record divergence detail out of the digest it prints: `divergences.records` and the full per-path list go to `<run_dir>/divergences.<marketplace>.json`, named by `divergences.records_file`, and the digest carries `record_count`. `audit` still carries the records inline, since its scratch directory is removed on exit (#12542).
+- The report's `by project path:` list names only paths present on the machine. The paths that are not present get one count line, since the stale project records section counts them; the digest counts them in `divergences.blocked_paths` (#12542).
+
+- plugins sync no longer updates other present paths by default; the report counts the records it left and names the remedy
+
+## [6.1.0] - 2026-11-02
+
+### Added
+
+- `/harness-ops:plugins sync` records each `claude` call's wall time in the run journal (`# elapsed <seconds>s, exit <rc>`), and each digest block carries `cli: {calls, seconds}`, so a run's CLI time and the script's own time can be told apart.
+
+### Changed
+
+- Hook notices name the bundled checker command; `check` is optional (#12485).
+
+### Fixed
+
+- The shared hook library's Bash segment parser (`hook::bash_parse_segments`) now passes each substitution in an unquoted here-doc body (`$(...)`, a backtick pair, `${...}`, `$[...]`) to its callback as segments of their own, because bash runs them. A body under a quoted delimiter is still skipped as data.
+
+- `sync-run.sh` no longer starts one or more `jq` processes per plugin when it reads update results, builds the moved and downgraded rows, and counts monitors. On a 92-update bench with a stub CLI the first pass went from 113 s to 42 s, and an `--only-install` re-entry from 28 s to 4.4 s; the report is unchanged ([#12532](https://github.com/melodic-software/claude-code-plugins/issues/12532)).
+
 ## [6.0.0] - 2026-11-02
 
 ### Added

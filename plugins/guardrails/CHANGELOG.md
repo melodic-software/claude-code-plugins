@@ -3,6 +3,16 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.84.5] - 2026-11-02
+
+### Changed
+
+- Hook notices name the bundled checker command; `check` is optional (#12485).
+
+### Security
+
+- Every Bash guard now judges the commands that the substitutions in an unquoted here-doc body run. The shared segment parse skipped every here-doc body, whatever its quoting, so `cat <<EOF` with `$(git reset --hard)`, a backticked command, `${x:-$(...)}` or `$[$(...)]` in its body passed every guard that reads that parse. Each such substitution is now parsed into segments that every guard judges as it judges the same command at top level. A body under a quoted delimiter (`<<'EOF'`, `<<"EOF"`, `<<\EOF`) is still data, and `$(date)` or `$HOME` in an unquoted body is still allowed.
+
 ## [0.84.4] - 2026-11-02
 
 ### Fixed

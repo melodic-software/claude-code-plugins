@@ -1,5 +1,26 @@
 # Changelog: evals
 
+## [0.15.0] - 2026-11-03
+
+### Added
+
+- Shared grader matchers: `matchers/fragments.json` holds tested sub-patterns for command position, token argument and table verdict cell, and a case builds a `regex` or `tool_used` grader from them in `<case>/matchers.json`. `skills/validate/scripts/check-matchers.py` grades every fragment's and every built grader's samples under Python's `re` and node's `RegExp`, requires samples for each built grader, and fails when `case.yaml` drifts from the build (`--write` rewrites it). Its suite runs over every plugin's evals in CI.
+
+### Changed
+
+- `/evals:validate` now grades `tool_used` `input_match` samples under JavaScript too, not only `regex` graders.
+
+### Fixed
+
+- `run-validity.py`'s `session started` check fails any run whose trace shows a failed Bash result reporting a read-only file system in the run's workspace or `TMPDIR` (a relative path or one under the run's sandbox; other paths are read-only by design), or a skill's pre-computed command failing (`Shell command failed for pattern` in a `local-command-stderr`), so the run reads as a harness failure, not a scored miss (#12422).
+- `plugin-eval` records a Claude Code 2.1.316 gotcha: when cases grant Bash or load a skill with a pre-computed line, a run's `TMPDIR` must not sit under `/tmp` or `/var/tmp`, with a recheck trigger in `records.md` (#12422).
+
+## [0.14.11] - 2026-11-02
+
+### Changed
+
+- Hook notices name the bundled checker command; `check` is optional (#12485).
+
 ## [0.14.10] - 2026-11-02
 
 ### Fixed

@@ -29,7 +29,6 @@ graders:
     max: 0
     arm: 'both'
   - name: 'routes-to-setup-apply'
-    type: 'regex'
-    pattern: '(?:^|[.;!?:,—–(]\s*|\b(?:so|but|then)\s+)(?:(?![.;!?:,—–(]\s)(?!\b(?:not|never|no need|avoid|instead of|rather than|skip|cannot|unable|refus\w*|prohibit\w*|forbid\w*|disallow\w*|disabled)\b)(?!n[''’]t\b)[^\n])*?/actionlint:setup apply(?![\w-]|\s+install-git-hooks)(?![^.;!?\n]*?\b(?:(?:is|are|was|were)\s+(?:not|never|disabled|prohibited|forbidden|blocked|unavailable|off-limits)|isn[''’]t|aren[''’]t|(?:do|does|must|should)\s*(?:not|n[''’]t)\s+(?:use|run|invoke))\b)'
-    flags: 'mi'
-    target: 'last_message'
+    type: llm
+    focus: last_message
+    criteria: "The user asked Claude to install or upgrade actionlint. PASS if the reply tells the user to run /actionlint:setup apply (the bare apply form) as the route for the install, rather than installing itself. FAIL if the reply names only the /actionlint:setup apply install-git-hooks form, names the route only to say not to use it or that it is unavailable, names no route, or installs instead. Judge only whether the bare apply route is offered."

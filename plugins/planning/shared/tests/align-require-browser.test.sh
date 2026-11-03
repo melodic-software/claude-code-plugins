@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# align.test.sh passes a browser skip locally and fails it under CI=true. It runs here against a copy of
-# align.test.sh in a throwaway folder beside a stub align.js that prints each SKIP line the real align.js
+# align-run.sh passes a browser skip locally and fails it under CI=true. It runs here against a copy of
+# align-run.sh in a throwaway folder beside a stub align.js that prints each SKIP line the real align.js
 # can print, taken from align.js itself.
-# test-scope: plugins/planning/shared/tests/align.test.sh plugins/planning/shared/tests/align.js
+# test-scope: plugins/planning/shared/tests/align-run.sh plugins/planning/shared/tests/align.js
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 tmp=$(mktemp -d)
 trap 'rm -rf "${tmp:?}"' EXIT
-cp "$here/align.test.sh" "$tmp/"
+cp "$here/align-run.sh" "$tmp/"
 pass=0 failed=0
 check() { # <name> <expected exit> <actual exit>
   if [[ $2 == "$3" ]]; then
@@ -18,7 +18,7 @@ check() { # <name> <expected exit> <actual exit>
     echo "FAIL $1 (exit $3, wanted $2)"
   fi
 }
-run() { env -u CI "$@" "$BASH" "$tmp/align.test.sh" >/dev/null 2>&1; }
+run() { env -u CI "$@" "$BASH" "$tmp/align-run.sh" a >/dev/null 2>&1; }
 
 mapfile -t skips < <(grep -oE 'SKIP: [^"`$\\]*' "$here/align.js")
 ((${#skips[@]} > 0))

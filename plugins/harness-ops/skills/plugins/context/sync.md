@@ -86,9 +86,11 @@ moved plugins whose installed build declares a monitor (`updated_with_monitors[]
 `{id, scope, monitors}` each, read from the record's own cache directory in the post-sweep
 snapshot), `catalog_last_updated` (the marketplace's `lastUpdated` as Step 2's `pre.<mp>.json` read
 it, after Step 1's refresh, on the first pass and on an `--only-install` re-entry alike; a
+skipped refresh leaves the last refresh's stamp, and a
 background refresh can move the stamp again later in the run, so it dates the catalog as of
 Step 2, not every read), and `timings`: seconds to three decimals for
-`pre_refresh_read`, `marketplace_update`, `in_repo_update`, `user_sweep`, `pre_install_read` (the
+`pre_refresh_read`, `marketplace_update`, `in_repo_update`, `other_paths` (Step 3a and the mid
+read that selects its records), `user_sweep`, `pre_install_read` (the
 Steps 4 and 5 gate read, taken on every pass), `install_enable`, `cache_content_check`,
 `post_read`, `finalize` (version capture, the divergence and regression diffs, and the monitor
 count that build the block), `unattributed` (the rest of the block's time, between and around those
@@ -300,8 +302,9 @@ Then, for the rest of the run:
   snapshots, so both have the full chain. That interval is the signal that names the cause: in
   `sync` a regression across the `pre-refresh` to `pre` boundary is the Step 1 refresh pulling a
   source that moved backward, while one appearing later is the checkout changing under the run. In
-  `audit` no refresh runs, so a regression in that same first interval is the checkout changing
-  under the run as well, never this run's doing. The interval names when; the action names what it
+  `audit` no refresh runs, and in `sync` a skipped refresh (`refresh.skipped` set) pulls nothing,
+  so a regression in that same first interval is the checkout changing under the run as well,
+  never this run's doing. The interval names when; the action names what it
   means. This diff is REPORT-ONLY and its output never becomes an id list handed to the CLI, so
   the hand-written-`jq` prohibition that governs `--ids` does not apply to it.
 
@@ -439,6 +442,28 @@ recovery path. Basis: `gh api repos/anthropics/claude-code/issues/76129`. Verifi
 against Claude Code 2.1.263. Recheck when the issue reopens or closes as completed, or when a
 refresh against a non-empty marketplace directory succeeds here; route the recheck through
 `/harness-ops:known-issues check-all`.
+
+**A refresh that would land the same commit is skipped.** Step 1 skips the refresh of a `github`
+or `git` marketplace when `git ls-remote` shows the source's ref already at the clone's HEAD, so a
+sync that moves nothing does not pay for a refresh. What `marketplace update` moves such a source
+to is in the
+[plugin commands reference](https://code.claude.com/docs/en/plugins/cli-reference#plugin-marketplace-update),
+read 2026-11-02. Recheck when that section changes which commit a `github` or `git` source updates
+to, or when a refresh that lands the same commit is observed to change anything beyond the clone;
+either one makes the skip unsafe or unneeded. So before the call the script runs `git ls-remote
+origin` in the clone, asking for `refs/heads/<ref>` when the source pins a `ref` and for `HEAD`
+otherwise. It skips the call only
+when the source carries no key beyond `source`, `repo`, `url`, `ref` and `path`, `installLocation`
+is the clone's root, its `origin` is the recorded source, `git status` lists no modified or
+untracked file, a pinned ref is the checked-out branch, and the remote answers with the clone's
+HEAD. The
+journal and a `refresh skipped` row under the marketplace header say so, the digest's
+`refresh.skipped` holds `{head, ref}` with `refresh.rc` null, and `lastUpdated` keeps the last
+refresh's stamp. Every other case runs the refresh: another source kind, a pinned ref that is a tag
+or a different branch, an unreachable remote, or one that asks for a credential, since prompts are
+off and stdin is closed. The skip rests on the catalog files being the same at the same commit, and
+on a refresh that moves nothing doing no other work this skill depends on. To force one, run `claude
+plugin marketplace update <mp>` directly.
 
 The snapshot goes first because it is the only read taken while the catalog is still pre-refresh,
 which is what gives the Run journal's catalog regression check its first interval. It belongs to
@@ -627,10 +652,17 @@ this step only; an `--allow-downgrade` project/local rollback is not compared.
 
 ## Step 3a: Forward update in every other present path
 
-Step 2 covers the repo the run stands in. Right after the mid read, before the user-scope sweep,
-`sync-run.sh` takes the project/local records of every other path that is present, a user home and a
-linked worktree included, and runs `claude plugin update <id> -s <scope> --json` from that path
-(`-s project` and `-s local` have no path flag). It is forward-only, unlike Step 2: a record is
+Off by default, because it makes one serial CLI call per lagging record, which on a machine with
+many checkouts runs to tens of minutes. The calls stay serial, on the sandbox probe recorded in
+[#12525](https://github.com/melodic-software/claude-code-plugins/issues/12525), as of 2026-11-02 on
+Claude Code 2.1.316. Recheck when a release note names concurrent writes to `installed_plugins.json`.
+Off, the step makes no call and renders `Behind in other paths:` with the count and the remedy; those
+records are not counted for `converge`, and a user-home one leaves the `User-home project records` row.
+
+Step 2 covers the repo the run stands in. With `--update-other-paths`, right after the mid read and
+before the user-scope sweep, `sync-run.sh` takes the project/local records of every other path that is
+present, a user home and a linked worktree included, and runs `claude plugin update <id> -s <scope>
+--json` from that path (`-s project` and `-s local` have no path flag). It is forward-only, unlike Step 2: a record is
 called only when its version and the catalog's both parse and the record is below. A record with no
 readable catalog version, one at or above the catalog, and one in an absent path take no call;
 absent paths stay in the stale project records section.
@@ -646,8 +678,10 @@ After the post read, each called record is read back by id, scope and path. A re
 forward renders under `Updated in other paths:`. One left behind in a linked worktree or a user home
 renders under `Not moved in other paths:` with its label; the worktree keeps its divergence class and
 the home stays in the `User-home project records` row. Any other record left behind, a failed call,
-and a stopped path go under `Action needed`. Audit runs no call and lists `Would update in other
-paths:`. The digest field is `other_paths`; its shape is in `sync-run.sh`'s header.
+and a stopped path go under `Action needed`. With the flag, audit runs no call and lists `Would update
+in other paths:`. The digest field is `other_paths`; its shape is in `sync-run.sh`'s header.
+`Catalog moved during this run:` names a catalog that changed between the pre and post reads, since a
+long run can leave records on different versions. Each CLI call's duration is in the journal.
 
 ## Step 3: User-scope update sweep
 
@@ -957,25 +991,33 @@ written before the split carries none of the four counts and renders the count w
 `converge` remedy, as the paragraph above describes.
 
 **Name where the skew sits, one sub-line per project path.** A count alone tells the operator how
-much to converge but not where. The digest's `divergences.records[]` carries every diverging id as
-`{id, scope, version, projectPath}`, one entry per record that makes a counted row skewed: the
-project/local pins the class rule above judges, plus a user-scope record behind a project pin
-(`projectPath` null). A row whose versions differ only past the numeric triple has no such pin, so
-all of its scopes are listed rather than none. `divergences.by_path[]` groups the records that carry
-a `projectPath` as `{path, class, count, ids, more}`: `class` is the path's pin class under the rule
-above (`actionable`, `worktree` or `blocked`), `ids` holds the first three distinct ids in sorted
-order and `more` the number left. The actionable paths come first, then the linked worktrees, then
-the paths that are not present, each group with the most records first, so the first path listed
-is a place `converge` can run from. The render keeps the count lines and adds a `by project path:`
+much to converge but not where. Each record that makes a counted row skewed is
+`{id, scope, version, projectPath}`: the project/local pins the class rule above judges, plus a
+user-scope record behind a project pin (`projectPath` null). A row whose versions differ only past
+the numeric triple has no such pin, so all of its scopes are listed rather than none. The digest's
+`divergences.record_count` counts them. `sync` writes them as `records[]` to the run-directory file
+`divergences.records_file` names (`divergences.<marketplace>.json`, beside the full per-path list),
+not to the digest: on a large fleet they are nearly all of its bytes, and the run prints the digest
+into the session. `audit` keeps `records[]` in the digest and names no file, since its scratch directory
+is removed on exit; so does a `sync` whose file write fails. `divergences.by_path[]` groups the
+records whose `projectPath` is present as `{path, class, count, ids, more}`: `class` is the path's
+pin class under the rule above (`actionable` or `worktree`), `ids` holds the first three distinct
+ids in sorted order and `more` the number left. The actionable paths come first, then the linked
+worktrees, each group with the most records first, so the first path listed is a place `converge`
+can run from. The paths that are not present (`blocked`) are counted in
+`divergences.blocked_paths` as `{paths, records}` instead, because the stale project records
+section already counts each of them, and `sync` writes its full per-path list to the run directory. The render keeps the count lines and adds a `by project path:`
 line with one entry under it per path, `- <path>: <count> diverging record(s): <ids>, +<more> more`, with the
-`+<more> more` tail only when ids were left out, and `(linked worktree)` or `(not present)` after
-the path, one space from it, when `converge` cannot act on it there. Three ids per path is a judgment cap
-(`DIVERGENCE_PATH_IDS` in `sync-run.sh`); the number of paths is not capped, since each path is one
-place the operator acts: `converge` from an actionable path, a worktree removal, or a stale record to
-clear. `count` counts records and `more` counts distinct ids, so an id with both a project and a
-local record at one path is counted twice and named once. A digest written before these fields
-carries neither and renders the count line alone; one written before `class` renders every path
-without a suffix.
+`+<more> more` tail only when ids were left out, and `(linked worktree)` after the path, one space
+from it, when `converge` cannot act on it there. A last entry, `- <paths> path(s) not present:
+<records> diverging record(s), counted under Stale project records`, counts the absent ones. Three
+ids per path is a judgment cap (`DIVERGENCE_PATH_IDS` in `sync-run.sh`); the number of present
+paths is not capped, since each is one place the operator acts: `converge` from an actionable path
+or a worktree removal. `count` counts records and `more` counts distinct ids, so an id with both a
+project and a local record at one path is counted twice and named once. A digest written before
+these fields carries neither and renders the count line alone; one written before `class` renders
+every path without a suffix; one written before `blocked_paths` carries `records[]` inline and its
+absent paths in `by_path`, which the render folds into the count entry.
 
 **Say when `harness-ops` itself moved during the run.** Step 3 sweeps every user-scope candidate,
 which can include the plugin providing this skill, and a concurrent update can move it too; the

@@ -253,6 +253,13 @@ const credentialIn = (text) => {
 };
 const HUNK_HEADER = /^(?:\+\+\+|---) /;
 
+// JSON writes a line break or tab as \n, \r or \t, which leaves a letter where the break was, so a
+// \b-anchored credential right after one has no word boundary. normalize() keeps a backslash
+// before a letter (see its comment), so scanLeak reads a copy with these escapes decoded, for the
+// credential formats alone.
+const BREAK_ESCAPES = Object.freeze({ "\\": "\\", n: "\n", r: "\r", t: "\t" });
+const unescapeBreaks = (text) => text.replace(/\\([\\nrt])/g, (_, c) => BREAK_ESCAPES[c]);
+
 /** The UTF-16LE and split-line passes over `text`, a diff when `diff`: a credential label, or null. */
 export function deeperLeak(text, diff = false) {
   const plain = text.replace(/\0/g, "");
@@ -275,7 +282,9 @@ export function deeperLeak(text, diff = false) {
  * plain assignment alone, else `{}`. Never the match. Latin1 keeps every byte
  * for the byte patterns. A UTF-8 reading then gives NFKC and the invisible
  * strip real characters, for credential formats only, so a look-alike blocks
- * and non-ASCII text beside a plain assignment still only warns.
+ * and non-ASCII text beside a plain assignment still only warns. Last, that
+ * reading with JSON's \n, \r and \t escapes decoded, credential formats only,
+ * so a token after an escaped line break or tab blocks.
  */
 export function scanLeak(bytes, { diff = false } = {}) {
   const buffer = Buffer.from(bytes);
@@ -287,6 +296,9 @@ export function scanLeak(bytes, { diff = false } = {}) {
   const decoded = buffer.toString("utf8");
   const hidden = decoded !== text && firstHit(BLOCKING, decoded);
   if (hidden) return credential(hidden[0]);
+  const unbroken = unescapeBreaks(decoded);
+  const escaped = unbroken !== decoded && firstHit(BLOCKING, unbroken);
+  if (escaped) return credential(escaped[0]);
   return warn ? { warn: true } : {};
 }
 
