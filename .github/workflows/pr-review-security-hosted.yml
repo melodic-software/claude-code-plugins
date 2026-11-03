@@ -226,6 +226,7 @@ jobs:
     with:
       lane: security
       publish: comments
+      lane-transcript-public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
       # Empty unless resolve-model succeeded, so a failed job's partial output
       # never reaches the review.
       model-args: ${{ needs.resolve-model.result == 'success' && needs.resolve-model.outputs.claude-args || '' }}
