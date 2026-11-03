@@ -22,6 +22,7 @@
 #         "az_config_dir": "<dir>"
 #       }
 #     },
+#     "owner_roots": { "linux": ["<abs>"], "macos": ["<abs>"], "windows": ["<abs>"] },
 #     "identity_files": ["<path>"],
 #     "shared_exceptions": [{ "path": "<abs>", "from": ["<name>"], "to": "<name>" }],
 #     "messages": { "<key>": "<text>" }
@@ -89,7 +90,11 @@
 #      the call; from a neutral cwd nothing else is denied.
 #
 # A domain's PATHS are its roots and, for each owner, the owner's directory
-# below $HOME/src/github.com and $HOME/worktrees/github.com. A text NAMES a
+# below each of this host's owner_roots, or below $HOME/src/github.com and
+# $HOME/worktrees/github.com when the map gives this host none. An owner root
+# holds one directory per owner, so a flat worktree root named
+# `<root>/<owner>-<repo>-<slug>` gives no path; a command naming a tree there
+# is not denied. A text NAMES a
 # path or marker when it holds it with no letter, digit, `.`, `_` or `-` right
 # before or after it: the root /x/work names neither /x/workshop nor
 # /y/x/work. `\` reads as `/` and a run of separators as one, so `C:\x`,
@@ -293,7 +298,7 @@ esac
 
 # What the compiler below writes. A change to the jq program or to how the
 # records are read changes it, so a cache an older guard wrote is compiled again.
-BCD_FORMAT=5
+BCD_FORMAT=6
 BCD_CACHE="${BCD_MAP%.json}.cache"
 BCD_TAB=$'\t'
 BCD_CWD_DOMAIN=""
@@ -341,7 +346,7 @@ BCD_WRITE_DENY=()
 # `marker`, `gh` and `az` records, one `idfile` record per identity file with
 # an empty domain, a `legacy` or `outside` record for each shared exception that
 # grants nothing (its index as the value), then this host's `root` records, each
-# owner's two `owner` directories below HOME and each `shared` record (its
+# owner's `owner` directories and each `shared` record (its
 # domain `<to><TAB><from domains, space-separated>`), longest first
 # (`<kind><TAB><domain><TAB><value>`), or one `invalid<TAB><reason>` line for a
 # map it rejects. The whole map is validated before any record is written, so a
@@ -365,7 +370,7 @@ def absolute($os):
   if $os == "windows"
   then test("^[A-Za-z]:[\\\\/]+[^\\\\/]") or (test("^/[^/]") and (test("^/[A-Za-z][\\\\/]*$") | not))
   else test("^/[^/]") end;
-def domain($d; $os; $home):
+def domain($d; $os; $owner_roots):
   if ($d | test("\\A[A-Za-z0-9_.-]+\\z")) | not
   then fail("a domain name holds a character other than a letter, digit, dot, underscore or hyphen")
   else . end
@@ -382,9 +387,16 @@ def domain($d; $os; $home):
         else fail("domains.\($d).roots.\($o) holds a path that is not absolute below a filesystem root") end] as $roots
   | ($roots[] | {kind: "root", d: $d, v: .}), ($markers[] | {kind: "marker", d: $d, v: .}),
     ($gh[] | {kind: "gh", d: $d, v: .}), ($az[] | {kind: "az", d: $d, v: .}),
-    (if $home == "" then empty
-     else $owners[] | {kind: "owner", d: $d, v: "\($home)/src/github.com/\(.)"},
-       {kind: "owner", d: $d, v: "\($home)/worktrees/github.com/\(.)"} end);
+    ($owners[] as $o | $owner_roots[] | {kind: "owner", d: $d, v: "\(sub("[\\\\/]+$"; ""))/\($o)"});
+def owner_roots($os; $home):
+  [optional("owner_roots"; only("owner_roots"; ["linux", "macos", "windows"])
+      | to_entries[] | .key as $o | .value
+      | list("owner_roots.\($o)")
+      | if absolute($o) then select($o == $os)
+        else fail("owner_roots.\($o) holds a path that is not absolute below a filesystem root") end)] as $given
+  | if .owner_roots[$os]? != null then $given
+    elif $home == "" then []
+    else ["\($home)/src/github.com", "\($home)/worktrees/github.com"] end;
 def fold($os):
   gsub("[\\\\/]+"; "/") | sub("(?<=.)/$"; "")
   | if $os == "windows" then ascii_downcase | sub("^/(cygdrive/|mnt/)?(?<d>[a-z])(?=/|$)"; "\(.d):")
@@ -410,11 +422,12 @@ def shared($names; $paths; $os):
       else {kind: "outside", d: $to, v: "\($i)"} end
     end;
 def compile($os; $home):
-  only("the map"; ["domains", "identity_files", "shared_exceptions", "messages"])
+  only("the map"; ["domains", "owner_roots", "identity_files", "shared_exceptions", "messages"])
   | if has("domains") | not then fail("the map has no domains") else . end
   | [optional("identity_files"; list("identity_files"))] as $files
   | [optional("messages"; object("messages") | to_entries[] | .key as $k | .value | line("messages.\($k)"))] as $messages
-  | (.domains | object("domains") | [to_entries[] | .key as $d | .value | domain($d; $os; $home)]) as $records
+  | owner_roots($os; $home) as $owner_roots
+  | (.domains | object("domains") | [to_entries[] | .key as $d | .value | domain($d; $os; $owner_roots)]) as $records
   | ($records | map(select(.kind == "root" or .kind == "owner"))) as $paths
   | (.domains | keys) as $names
   | [optional("shared_exceptions"; shared($names; $paths; $os))] as $shared
