@@ -1394,20 +1394,24 @@ assert_present 'the verifier returns the claims it graded' \
   'agents/research-verifier.md' '^claims_graded: all '
 assert_present 'parent-contract skips rework under internal' \
   'reference/parent-contract.md' '^`evidence_use: internal`, which does not resume the researcher'
-assert_present 'dispatch.md verifies a claim-free synthesis on row 12 only' \
-  'skills/research/context/dispatch.md' '^\*\*A synthesis that adds no claims takes the verifier on row 12 only\.\*\*'
-assert_present 'dispatch.md runs no step-5 re-run on a claim-free root' \
-  'skills/research/context/dispatch.md' 'is not run on a claim-free root, in either$'
-assert_absent 'no file skips the verifier for a claim-free synthesis' \
-  'adds no claims needs no verifier'
+assert_present 'dispatch.md exempts a claim-free, ID-only synthesis from the verifier' \
+  'skills/research/context/dispatch.md' '^\*\*A slice-root synthesis that adds no claims and cites by ID needs no verifier\.\*\*'
+assert_present 'dispatch.md checks a claim-free root against its sub-slices by script' \
+  'skills/research/context/dispatch.md' '^"<plugin-root>/scripts/check-restatement-labels\.py" <slice root> --sub-slice <sub-slice>'
+assert_present 'dispatch.md records skipped (cost) on an exempt root' \
+  'skills/research/context/dispatch.md' 'On exit 0, write `verification: skipped \(cost\)` into the root index,$'
+assert_present 'the hub exempts a claim-free, ID-only synthesis from the verifier' \
+  'skills/research/SKILL.md' 'A slice-root synthesis that adds no claims and cites by ID needs no verifier'
+assert_absent 'no file sends a claim-free synthesis to the verifier on row 12 alone' \
+  'takes the verifier on row 12 only|for row 12 alone when it adds no claims'
 assert_present 'setup prints the eligibility checker allow rule' \
   'skills/setup/SKILL.md' 'Bash\(python3 "\$\{CLAUDE_PLUGIN_ROOT\}/scripts/check-claim-eligibility\.py" \*\)'
 assert_present 'parent-contract lists the eligibility checker allow rule' \
   'reference/parent-contract.md' 'check-claim-eligibility\.py'
 assert_present 'research evals cover internal-tier verification' \
   'skills/research/evals/evals.json' '"name": "internal-evidence-use-verifies-decision-claims-without-rework"'
-assert_present 'research evals cover the claim-free synthesis on row 12' \
-  'skills/research/evals/evals.json' '"name": "claim-free-synthesis-verifies-row-12-only"'
+assert_present 'research evals cover the claim-free synthesis exemption' \
+  'skills/research/evals/evals.json' '"name": "claim-free-synthesis-needs-no-verifier"'
 for script in check-claim-eligibility.py check-claim-eligibility.test.sh; do
   if [[ -f "$PLUGIN_ROOT/scripts/$script" ]]; then
     pass "$script ships"

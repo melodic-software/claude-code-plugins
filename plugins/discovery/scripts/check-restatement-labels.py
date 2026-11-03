@@ -21,6 +21,16 @@ Lines under a heading that names the fetch log are skipped, down to the next
 heading at the same or a higher level: the fetch log keys its rows by claim
 and restates nothing.
 
+--sub-slice <dir>, repeatable, is for a slice-root synthesis that cites its
+sub-slices' claims by ID. The claims declared in each named sub-slice's
+sidecars (again no recursion) join the root's own, so a root line that points
+at a sub-slice claim must carry that claim's label, and a root index line that
+names one must carry no sweep word. Only the root's RESEARCH.md and the root's
+own sidecars are read for lines; each sub-slice was graded on its own before
+synthesis. With --sub-slice the root needs no sidecar of its own, and each
+named sub-slice must hold at least one. An ID declared in two sub-slices, or
+in a sub-slice and the root, is ambiguous and ungradeable like any duplicate.
+
 Rule: skills/research/context/artifact-shape.md, "Restatements cite; they do
 not restate". The researcher runs this check before hand-back and fixes every
 line it reports; the research parent re-runs it in the acceptance gate.
@@ -30,14 +40,16 @@ Exit 0 = every line naming a labeled claim carries its label and no index
 Exit 1 = at least one violation (status=fail), each on stderr as
          <file>:<line>: <id> (<label>) appears without its label
          <file>:<line>: <id>[, <id>...] cited beside the sweep word "<word>"
-Exit 2 = ungradeable, FAIL CLOSED: missing slice dir, no RESEARCH.md, no
-         sidecar, a sidecar header the parser cannot read, an id: that is not
-         a claim ID, one ID declared twice in the slice, an unreadable or
-         non-UTF-8 file, a parser that cannot be loaded, or a usage error
-         (status=ungradeable)
+Exit 2 = ungradeable, FAIL CLOSED: missing slice or sub-slice dir, no
+         RESEARCH.md, no sidecar (at the root without --sub-slice, or in a
+         named sub-slice), a sidecar header the parser cannot read, an id:
+         that is not a claim ID, one ID declared twice across the files read,
+         an unreadable or non-UTF-8 file, a parser that cannot be loaded, or a
+         usage error (status=ungradeable)
 
 Usage:
   python3 check-restatement-labels.py <slice-dir>
+  python3 check-restatement-labels.py <slice-root> --sub-slice <dir> [--sub-slice <dir>]...
   python3 check-restatement-labels.py --help
 """
 
@@ -120,26 +132,42 @@ def body_start(lines: list[str]) -> int:
     return len(lines)
 
 
-def grade(csa, slice_dir: Path) -> tuple[int, str]:
+def sidecars_in(directory: Path) -> list[Path]:
+    """The RESEARCH-*.md sidecars directly in directory, sorted."""
+    # fnmatchcase, not glob: pathlib's glob is case-insensitive on Windows and
+    # would take the lowercase research-checklist.md ledger for a sidecar.
+    return sorted(
+        p
+        for p in directory.iterdir()
+        if fnmatch.fnmatchcase(p.name, "RESEARCH-*.md") and p.is_file()
+    )
+
+
+def grade(csa, slice_dir: Path, sub_slices: list[Path] | None = None) -> tuple[int, str]:
+    sub_slices = sub_slices or []
     if not slice_dir.is_dir():
         raise csa.Ungradeable(f"slice directory not found: {slice_dir}")
     index = slice_dir / "RESEARCH.md"
     if not index.is_file():
         raise csa.Ungradeable(f"no index: {index}")
-    # fnmatchcase, not glob: pathlib's glob is case-insensitive on Windows and
-    # would take the lowercase research-checklist.md ledger for a sidecar.
-    sidecars = sorted(
-        p
-        for p in slice_dir.iterdir()
-        if fnmatch.fnmatchcase(p.name, "RESEARCH-*.md") and p.is_file()
-    )
-    if not sidecars:
+    sidecars = sidecars_in(slice_dir)
+    if not sidecars and not sub_slices:
         raise csa.Ungradeable(f"no RESEARCH-*.md sidecar in {slice_dir}")
+    # A sub-slice's sidecars declare claims only: their lines were graded in
+    # the sub-slice's own run, so only the root's files are read for lines.
+    declaring = list(sidecars)
+    for sub in sub_slices:
+        if not sub.is_dir():
+            raise csa.Ungradeable(f"sub-slice directory not found: {sub}")
+        found = sidecars_in(sub)
+        if not found:
+            raise csa.Ungradeable(f"no RESEARCH-*.md sidecar in sub-slice {sub}")
+        declaring.extend(found)
 
     declared: dict[str, Path] = {}
     labeled: dict[str, str] = {}
     skip: dict[Path, range] = {}
-    for sidecar in sidecars:
+    for sidecar in declaring:
         header = csa.front_matter(sidecar, required=True)
         claims = csa.parse_claims(sidecar, header)
         skip[sidecar] = claims_block(csa, header)
@@ -216,12 +244,20 @@ def grade(csa, slice_dir: Path) -> tuple[int, str]:
 
 def main(argv: list[str]) -> int:
     slice_arg: str | None = None
+    sub_args: list[str] = []
     usage_error: str | None = None
-    for arg in argv[1:]:
+    args = iter(argv[1:])
+    for arg in args:
         if arg in ("--help", "-h"):
             print(USAGE, end="")
             return 0
-        if arg.startswith("-"):
+        if arg == "--sub-slice":
+            value = next(args, None)
+            if value is None or value.startswith("-"):
+                usage_error = "--sub-slice needs a directory"
+                break
+            sub_args.append(value)
+        elif arg.startswith("-"):
             usage_error = f"unknown argument: {arg}"
         elif slice_arg is not None:
             usage_error = f"expected exactly one slice directory, got a second: {arg}"
@@ -240,7 +276,7 @@ def main(argv: list[str]) -> int:
         print("status=ungradeable")
         return 2
     try:
-        code, summary = grade(csa, Path(slice_arg))
+        code, summary = grade(csa, Path(slice_arg), [Path(s) for s in sub_args])
     except csa.Ungradeable as exc:
         print(f"error: {exc}", file=sys.stderr)
         print("status=ungradeable")
