@@ -36,6 +36,9 @@
 # listed counts the mean of the listed suites of its runner, rounded and at
 # least 5 s. Wrong numbers cost leg balance, never coverage: every selected
 # suite runs on some leg whatever this file says.
+# The five block-root-delete-target*.test.sh rows split the unsplit suite's
+# 441 s main median (#12513) by each part's share of one local run, 471 s
+# unsplit against 118, 112, 94, 66 and 49 s for the parts.
 .claude/hooks/cloud-bootstrap-author.test.sh 1
 .claude/hooks/cloud-bootstrap-plugins.test.sh 4
 .claude/hooks/hook-telemetry-sink.test.sh 1
@@ -258,7 +261,11 @@ plugins/guardrails/hooks/block-dangerous-git.test.sh 20
 plugins/guardrails/hooks/block-exported-msys-pathconv.test.sh 1
 plugins/guardrails/hooks/block-no-verify.test.sh 13
 plugins/guardrails/hooks/block-noncanonical-commit.test.sh 9
-plugins/guardrails/hooks/block-root-delete-target.test.sh 441
+plugins/guardrails/hooks/block-root-delete-target-b.test.sh 105
+plugins/guardrails/hooks/block-root-delete-target-c.test.sh 88
+plugins/guardrails/hooks/block-root-delete-target-d.test.sh 62
+plugins/guardrails/hooks/block-root-delete-target-e.test.sh 46
+plugins/guardrails/hooks/block-root-delete-target.test.sh 110
 plugins/guardrails/hooks/block-unresolved-pr-merge.test.sh 28
 plugins/guardrails/hooks/block-windows-drive-tmp.test.sh 10
 plugins/guardrails/hooks/cli-flag-verify.test.sh 5
@@ -445,7 +452,12 @@ plugins/planning/scripts/check-open-questions.test.sh 25
 plugins/planning/scripts/check-plan-outcome.test.sh 1
 plugins/planning/scripts/eval-scaffold.test.sh 1
 plugins/planning/scripts/goal-condition-length.test.sh 1
-plugins/planning/shared/tests/align.test.sh 310
+# The three align-<part>.test.sh rows split the unsplit align suite's 310 s
+# main median (#12513) by each part's share of one local run, 223 s unsplit
+# against 94, 96 and 54 s for parts a, b and c.
+plugins/planning/shared/tests/align-a.test.sh 131
+plugins/planning/shared/tests/align-b.test.sh 133
+plugins/planning/shared/tests/align-c.test.sh 75
 plugins/planning/shared/tests/test_cfdns.py 8
 plugins/planning/shared/tests/test_load.py 10
 plugins/planning/shared/tests/test_owner_ops.py 1

@@ -539,10 +539,8 @@ MCP_OK=0
 # The record's keys are the finding-suppression convention's. The team layer is
 # the `suppressions` mapping of <home>/harness-config.yaml, read with the shared
 # YAML-subset parser; <home> is the convention home the repository binds, else
-# docs/conventions. The fenced block of .claude/audit-pass.md is read in its
-# place only while that file is absent, for one release; a team file that does
-# not parse drops the team layer and never falls back to the old file. Only the
-# team layer suppresses: a personal entry for an id the team layer does not
+# docs/conventions. A team file that does not parse drops the team layer. Only
+# the team layer suppresses: a personal entry for an id the team layer does not
 # carry is reported personal-only, not applied. An entry whose constituents do
 # not hash to its own key, or that lacks a required key, is reported malformed
 # and does not suppress. Every layer is listed with the file read and its state.
@@ -570,7 +568,6 @@ elif [[ $home_rc -eq 2 || $home_rc -eq 3 ]]; then
   note_layer home "AGENTS.md or CLAUDE.md" "convention-home pointer unusable (resolve-convention-home.sh exit $home_rc); docs/conventions read"
 fi
 TEAM_RECORD="$CONVENTION_HOME/harness-config.yaml"
-LEGACY_TEAM_RECORD=".claude/audit-pass.md"
 # exceptions.max_days as the team YAML sets it; empty when it does not.
 MAX_DAYS_SET=""
 
@@ -604,7 +601,7 @@ parse_suppressions_yaml() {
 
 parse_suppressions() {
   # parse_suppressions <file> -> TSV lines: id, check, claim, sites(surface US anchor RS ...), reason, date
-  # Reads the fenced block of the Markdown record (the old team location and the personal layers).
+  # Reads the fenced block of the Markdown record (the personal layers).
   awk '
     BEGIN { infence = 0; inblock = 0; id = ""; RS_SEP = "\x1e"; US_SEP = "\x1f" }
     function strip(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); if (s ~ /^".*"$/) { s = substr(s, 2, length(s) - 2) } else if (s ~ /^\x27.*\x27$/) { s = substr(s, 2, length(s) - 2) } return s }
@@ -677,7 +674,6 @@ load_markdown_layer() {
 }
 
 if [[ -f "$PROJECT_ROOT/$TEAM_RECORD" ]]; then
-  [[ -f "$PROJECT_ROOT/$LEGACY_TEAM_RECORD" ]] && note_layer team "$LEGACY_TEAM_RECORD" "ignored: $TEAM_RECORD is present"
   if team_records="$(LC_ALL=C awk -v STRICT=1 -f "$YAML_SUBSET" "$PROJECT_ROOT/$TEAM_RECORD" 2>/dev/null)"; then
     note_layer team "$TEAM_RECORD" read
     load_suppression_entries team "$TEAM_RECORD" < <(parse_suppressions_yaml <<<"$team_records")
@@ -688,8 +684,6 @@ if [[ -f "$PROJECT_ROOT/$TEAM_RECORD" ]]; then
     note_layer team "$TEAM_RECORD" "dropped: does not parse (${team_error:-no parser message})"
     MALFORMED+=("team:$TEAM_RECORD does not parse (${team_error:-no parser message}); no team entry applies")
   fi
-elif [[ -f "$PROJECT_ROOT/$LEGACY_TEAM_RECORD" ]]; then
-  load_markdown_layer team "$LEGACY_TEAM_RECORD" "$PROJECT_ROOT/$LEGACY_TEAM_RECORD" "read: $TEAM_RECORD is absent (compatibility read)"
 else
   note_layer team "$TEAM_RECORD" absent
 fi

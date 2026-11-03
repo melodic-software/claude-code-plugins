@@ -1638,11 +1638,14 @@ export function readLimit(dir) {
 
 // Why the run never started, from lane.json's class, or null: the runner set
 // issue-edited when write-issue refused because the issue's title or body
-// changed after the label, and issue-file when it wrote no issue file for
-// another reason. Either way no model ran.
+// changed after the label, issue-edited-trusted when only listed accounts
+// changed them, and issue-file when it wrote no issue file for another
+// reason. Either way no model ran.
 export const ISSUE_STOPS = {
   "issue-edited":
     "The run did not start: the issue's title or body changed after `agent-ready` was added, so the runner wrote no issue file for the skill and no model ran.",
+  "issue-edited-trusted":
+    "The run did not start: the issue's title or body changed after `agent-ready` was added, each change by a listed account, so the runner wrote no issue file for the skill and no model ran.",
   "issue-file":
     "The run did not start: the runner could not write the issue file for the skill, so no model ran. The run job's `Write the issue for the skill` step names the reason.",
 };

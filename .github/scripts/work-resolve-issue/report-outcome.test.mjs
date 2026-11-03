@@ -2318,7 +2318,8 @@ test("the turn-cap marker reads back with its run", () => {
 // ran, and the hand-back said only that no outcome file was read.
 test("lane.json's issue-file classes name why the run never started; any other class is none", () => {
   for (const [lane, expected] of [
-    [{ branch: "", class: "issue-edited" }, /the issue's title or body changed after `agent-ready` was added/],
+    [{ branch: "", class: "issue-edited" }, /the issue's title or body changed after `agent-ready` was added, so/],
+    [{ branch: "", class: "issue-edited-trusted" }, /changed after `agent-ready` was added, each change by a listed account/],
     [{ branch: "", class: "issue-file" }, /could not write the issue file/],
     [{ branch: "", class: "max-turns" }, null],
     [{ branch: "", class: "" }, null],
@@ -2347,6 +2348,28 @@ test("a run whose issue changed after agent-ready hands back naming that, not a 
   assert.deepEqual(plan.addLabels, ["needs-human"]);
   assert.match(plan.comment, /the issue's title or body changed after `agent-ready` was added/);
   assert.doesNotMatch(plan.comment, /no readable outcome file/);
+  assert.match(plan.comment, /<!-- stop-reason lane=work-resolve-issue reason=security -->/);
+});
+
+// The brief for this route: an edit by a listed human or one of our Apps goes
+// back through intake triage, with no needs-human and no person reason.
+test("a run whose issue only listed accounts changed after agent-ready goes back through intake, not to a person", () => {
+  const issueStop = withDir({ "lane.json": JSON.stringify({ branch: "", class: "issue-edited-trusted" }) }, (dir) => readIssueStop(dir));
+  const plan = decide({
+    outcome: readOutcome("/nonexistent/work-outcome.json"),
+    issueNumber: 77,
+    issueLabels: ["agent-ready", "status: ready"],
+    branch: "",
+    changedFiles: [],
+    issueStop,
+  });
+  assert.equal(plan.action, "intake");
+  assert.deepEqual(plan.addLabels, []);
+  assert.deepEqual(plan.removeLabels, ["agent-ready", "status: ready", "admission-deferred"]);
+  assert.match(plan.comment, /^<!-- work-resolve-issue outcome=intake -->/);
+  assert.match(plan.comment, /each change by a listed account/);
+  assert.match(plan.comment, /sends it back through intake triage, and it waits on no decision from a person/);
+  assert.doesNotMatch(plan.comment, /stop-reason|needs-human|Reason:/);
 });
 
 test("an issue-file record never replaces an outcome the run reported", () => {

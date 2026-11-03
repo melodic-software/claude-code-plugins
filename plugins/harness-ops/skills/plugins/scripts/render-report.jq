@@ -250,6 +250,8 @@ def block($d):
          "    predicted against the unrefreshed catalog (lastUpdated \(.catalog_last_updated // "unknown")), a lower bound on what sync would update"
        elif .refresh.rc != null and .refresh.rc != 0 then
          "  refresh failed (exit \(.refresh.rc)): \(.refresh | reported)"
+       elif .refresh.skipped != null then
+         "  refresh skipped: the clone is at \(.refresh.skipped.head | short_sha), where origin \(.refresh.skipped.ref) points"
        else empty end),
 
       # In-repo: a fixed row with three variants, picked by two digest fields.
@@ -284,6 +286,13 @@ def block($d):
        end),
 
       # The records of every other present path, updated from that path.
+      (if (($op.skipped.records // 0) > 0) then
+         "Behind in other paths: \($op.skipped.records) record(s) in \($op.skipped.paths) path(s), not updated",
+         "  remedy: /harness-ops:plugins sync --update-other-paths"
+       else empty end),
+      (if ($op.catalog_moved // 0) > 0 then
+         "Catalog moved during this run: \($op.catalog_moved) plugin(s), records updated before the move lag it"
+       else empty end),
       (if $audit then
          (if (($op.would_update // []) | length) > 0 then
             "Would update in other paths: \($op.would_update | length) record(s)",

@@ -1,5 +1,13 @@
 # Changelog for the PR pipeline convention
 
+## [8.40.1] - 2026-11-03
+
+### Fixed
+
+- The issue lane no longer hands an issue to a person with `reason=security` when its title or body changed after `agent-ready` and every change came from a listed human or one of our listed Apps. `write-issue` reads the account behind each body edit and title change after the label and refuses with `edited-trusted`, which routes the new `issue-edited-trusted` stop through intake: `agent-ready` and `status: ready` come off, so the triage sweep refines and admits the edited text again. A change by any other account, one whose account cannot be read, or one a truncated page may hide still holds as `issue-edited` with the `needs-human` security escalation.
+
+- The pr-unblock dispatcher (`pr-unblock-dispatch.yml`) dispatches resolve-conflicts again for a conflicting pull request whose head a select job stopped on (`Skipped: lane-stopped`, such as `unresolved-conflict`) once main has moved: that stop now counts only while the base tip was committed before it started, and the dispatch record keeps such a head with the base tip it was judged against, so a run reads it again only after main moves. A head with an unchanged base stays skipped, a finished run, a slot skip or the per-head cap still ends the head, and heads retried on a moved base go after heads never tried. The record moves to version 5, so the first run after this change reads every head once.
+
 ## [8.40.0] - 2026-11-02
 
 ### Changed

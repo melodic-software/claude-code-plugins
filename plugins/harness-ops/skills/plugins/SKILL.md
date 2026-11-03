@@ -1,6 +1,6 @@
 ---
 description: "Bring a machine's plugin fleet current on demand: marketplace refresh, update the plugins that actually load (including in-repo project/local-scope installs), install new catalog plugins per policy, detect scope divergence, and surface (never silently fix) drift, with a terse actionable report; refuses to downgrade by default. Actions: sync (default, mutating), converge (explicit scope consolidation); the read-only dry run is /harness-ops:plugins-audit. Use when: 'sync plugins', 'update my plugins', 'converge plugin scopes'."
-argument-hint: "[sync|converge] [<marketplace>|all] [--allow-downgrade]"
+argument-hint: "[sync|converge] [<marketplace>|all] [--allow-downgrade] [--update-other-paths]"
 user-invocable: true
 disable-model-invocation: true
 metadata:
@@ -9,7 +9,7 @@ metadata:
   cadence: weekly
 ---
 
-**Arguments.** `[sync|converge] [<marketplace>|all] [--allow-downgrade]`. Full form: [action] [<marketplace>|all] [--allow-downgrade]. Actions: sync (default; alias update), converge. The read-only `audit` is its own skill, `/harness-ops:plugins-audit`, which the model may start; this skill is user-only because `sync` can update committed plugin pins in every repository on disk
+**Arguments.** `[sync|converge] [<marketplace>|all] [--allow-downgrade] [--update-other-paths]`. Full form: [action] [<marketplace>|all] [--allow-downgrade] [--update-other-paths]. Actions: sync (default; alias update), converge. The read-only `audit` is its own skill, `/harness-ops:plugins-audit`, which the model may start; this skill is user-only because `sync` can update committed plugin pins in every repository on disk
 
 ## Variables
 
@@ -110,7 +110,7 @@ stay in [context/sync.md](context/sync.md); the script is bound to that file.
      [--marketplace <name> | --all] \
      --journal-root "${CLAUDE_PLUGIN_DATA}/plugins-sync/runs" \
      --install-new <policy> --source-pull <pull> [--quiet-auto-update <names>] \
-     [--allow-downgrade] --render
+     [--allow-downgrade] [--update-other-paths] --render
    ```
 
    `<pull>` is the word from the **Configured value** line under "userConfig:
@@ -268,7 +268,8 @@ it for a `directory` source (branch, upstream, ahead/behind as of the checkout's
 tracked files, or why freshness was not checked; the run fetches or pulls the checkout only on a
 `--pull-source` request, and then the row names the commits it fast-forwarded from and to); the fixed `In-repo:` row in its three variants (`skipped` naming
 the cwd when no project root resolved, `0` naming a root with no project/local installs, and the
-counted variant, forward moves only); `Updated in other paths:` and `Not moved in other paths:`
+counted variant, forward moves only); `Behind in other paths:` (the count Step 3a left alone while
+off, with its remedy); `Catalog moved during this run:`; `Updated in other paths:` and `Not moved in other paths:`
 (the records of every other present path that sync forward-updated from that path, and the
 linked-worktree or user-home ones the call left behind; `Would update in other paths:` under audit);
 `Updated:` (forward moves and pairs flagged
@@ -423,6 +424,17 @@ other than these two is treated as `ask` and named in the report.
 
 **Configured value: `${user_config.directory_source_pull}`**. The unset placeholder token here
 means the default, `ask`.
+
+## userConfig: `update_other_paths`
+
+Whether `sync` also updates the lagging project and local records of every other present path. A
+`boolean`, default `false`: off, the report counts them and names the remedy. Pass
+`--update-other-paths` when the **Configured value** line below reads `true`, or when the user gave
+that flag, which is position-independent like `--allow-downgrade`: remove it from `$ARGUMENTS` before
+parsing the action and target. [context/sync.md](context/sync.md) Step 3a says why it is off by default.
+
+**Configured value: `${user_config.update_other_paths}`**. The unset placeholder token here means the
+default, `false`.
 
 ## userConfig: `quiet_auto_update_marketplaces`
 

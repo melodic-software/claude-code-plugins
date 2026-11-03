@@ -12,10 +12,12 @@
 // already carries a pr-unblock check run that handles it (limit-stop.mjs: a
 // limit stop, a usage limit or a refused credential, stops counting once its
 // limit resets, and the skip names its class and reset; a failed run until
-// limit-stops-per-head failures stand on the head, and a skip while held
-// once the hold is gone), and dispatches pr-unblock.yml on main for at most
-// maxDispatch of them, lowest PR number first. Authors are left to the lane's
-// own config and gate. Logs carry PR numbers, SHAs and run ids only. The run ids
+// limit-stops-per-head failures stand on the head, a skip while held once
+// the hold is gone, and a select job's own lane-stopped skip once the base tip
+// was committed after it started, since the head then merges another base),
+// and dispatches pr-unblock.yml on main for at most maxDispatch of them,
+// lowest PR number first, heads retried on a moved base last. Authors are
+// left to the lane's own config and gate. Logs carry PR numbers, SHAs and run ids only. The run ids
 // it dispatched become the step output run-ids, which the workflow records.
 // The same run then starts review-dependency for review-tier Dependabot PRs
 // (dependency-dispatch.mjs), fix-ci for lanes App PRs and, with an
@@ -48,7 +50,7 @@ import { prHold, reviewReader } from "./gate-source.mjs";
 import { runTitle, shareWorkflowRuns } from "./feedback-dispatch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, humanGatedLabel, LIST_QUERY as CI_FIX_QUERY } from "./fix-ci-dispatch.mjs";
 import { DEFAULTS as DOCS_FIX_DEFAULTS, dispatchDocsFixes, HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY, LIST_QUERY as DOCS_FIX_QUERY } from "./fix-docs-dispatch.mjs";
-import { anyHandles, cappedAt, limitStop, pendingStop, permanentlyHandles, releasedBy, stopRelease } from "./limit-stop.mjs";
+import { anyHandles, cappedAt, laneStop, limitStop, pendingStop, permanentlyHandles, releasedBy, stopRelease } from "./limit-stop.mjs";
 import { budgetedFetch, serverFailure } from "./request-budget.mjs";
 import { verifyCapReader } from "./verify-cap.mjs";
 import { readConfig, readPolicy } from "./review-dependency.mjs";
@@ -141,10 +143,29 @@ export async function dispatchConflicting({
   appSenderId,
 }) {
   const nodes = listed ?? (await listAll(api, base));
+  // The base tip, read once a run and only when a head needs it.
+  let tipRead = null;
+  const readTip = () => (tipRead ??= api.readBaseTip(base));
+  // Heads recorded on a select job's stop under a base that is no longer the
+  // tip: read again, after the heads never tried.
+  const moved = new Set();
+  if (nodes.some((node) => record.bases.has(node.headRefOid))) {
+    try {
+      const { oid } = await readTip();
+      for (const node of nodes) {
+        const judged = record.bases.get(node.headRefOid);
+        if (judged !== undefined && judged !== oid) {
+          moved.add(node.headRefOid);
+        }
+      }
+    } catch (error) {
+      log(`::warning::could not read the ${base} tip: ${error.message}; heads recorded on a select job's stop stay skipped, a later run retries`);
+    }
+  }
   // A recorded head is skipped whatever its mergeable state, so it is neither
   // read nor re-queried.
   const recorded = (node) => {
-    if (!isHandled(record, checkName, node.headRefOid)) {
+    if (!isHandled(record, checkName, node.headRefOid) || moved.has(node.headRefOid)) {
       return false;
     }
     log(`skip #${node.number}: head ${node.headRefOid} already has a ${checkName} check run (recorded)`);
@@ -165,7 +186,7 @@ export async function dispatchConflicting({
     );
   }
 
-  candidates.sort((a, b) => a.number - b.number);
+  candidates.sort((a, b) => moved.has(a.headRefOid) - moved.has(b.headRefOid) || a.number - b.number);
   const dispatched = [];
   let failed = 0;
   // A dispatched run posts its check run only when it ends, so two main
@@ -229,6 +250,14 @@ export async function dispatchConflicting({
           log(`::warning::#${node.number}: head ${node.headRefOid}'s ${stopCheckName} stopped ${stops} time(s), the most one head gets; no ${activity} retry until a new push`);
         }
       }
+      // A select job's own stop (escalation-routes.mjs stopSkip) judged the
+      // base of its day: one that started before the tip was committed no
+      // longer counts. A merge-queue tip committed before it landed can hold
+      // such a stop one base longer.
+      if (existing.some(laneStop)) {
+        const { committedAt } = await readTip();
+        existing = existing.filter((run) => !(laneStop(run) && Date.parse(run.started_at ?? "") < committedAt));
+      }
       handled = anyHandles(existing, { now, ...options });
       // Handled only because a limit stop has not reset: the log names it.
       waiting = handled && !anyHandles(existing, { now: Infinity, ...options }) ? pendingStop(existing, { now, limits }) : null;
@@ -245,6 +274,13 @@ export async function dispatchConflicting({
           );
         }
         markHandled(record, checkName, node.headRefOid);
+        // Handled only by a select job's stop: kept with the tip it judged,
+        // so the next base move reads the head again.
+        if (permanentlyHandles(existing.filter((run) => !laneStop(run)), options)) {
+          record.bases.delete(node.headRefOid);
+        } else {
+          record.bases.set(node.headRefOid, (await readTip()).oid);
+        }
       }
     } catch (error) {
       if (serverFailure(error)) {
@@ -417,6 +453,12 @@ export async function dispatchSharedCopies({
 const PULL_FIELDS =
   "number isDraft isCrossRepository mergeable baseRefName headRefOid headRefName state title body author { login ... on Bot { databaseId } } labels(first: 100) { nodes { name } } changedFiles commits { totalCount }";
 
+const BASE_TIP_QUERY = `query($owner: String!, $name: String!, $base: String!) {
+  repository(owner: $owner, name: $name) {
+    ref(qualifiedName: $base) { target { oid ... on Commit { committedDate } } }
+  }
+}`;
+
 const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!, $after: String) {
   repository(owner: $owner, name: $name) {
     pullRequests(states: OPEN, baseRefName: $base, first: 100, after: $after) {
@@ -487,6 +529,15 @@ export function createGitHubApi({
     async listOpenPulls({ base, after }) {
       const data = await graphql(LIST_QUERY, { owner, name, base, after: after ?? null });
       return data.repository.pullRequests;
+    },
+    // The base branch tip and when it was committed.
+    async readBaseTip(base) {
+      const target = (await graphql(BASE_TIP_QUERY, { owner, name, base })).repository.ref?.target;
+      const committedAt = Date.parse(target?.committedDate ?? "");
+      if (!/^[0-9a-f]{40}$/.test(target?.oid ?? "") || !Number.isFinite(committedAt)) {
+        throw new Error(`the ${base} tip is not a commit`);
+      }
+      return { oid: target.oid, committedAt };
     },
     // fix-ci-dispatch.mjs's listing: one query per page, with its cost.
     async listCiFixCandidates({ base, after }) {

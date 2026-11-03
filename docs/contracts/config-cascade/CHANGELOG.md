@@ -11,6 +11,9 @@ adding an optional layer or relaxing a rule additively is a minor bump.
 
 No contract change.
 
+- **`bugs` and `harness-config` (`audit-pass`) drop their one-release team reads.** The Implementers
+  rows no longer name `.claude/bugs.md` or `.claude/audit-pass.md`: the team layer is the
+  `docs/conventions/` file alone.
 - **`source-control` commit-convention enforcement gains a fallback-only personal layer.** The
   Implementers row records that the enforcement resolver reads `subject_pattern` from a git-ignored
   `docs/conventions/source-control.local.yaml` only where the team tracks none, never merged with a

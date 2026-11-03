@@ -1,0 +1,662 @@
+{
+  "command_position": {
+    "summary": "The JSON-escaped Bash command string up to a position where a command starts: the start, after ; | & ( ` or an escaped newline, inside bash/sh/zsh -c, after if/then/do/!, VAR=value assignments, and wrappers such as sudo, env, npx, timeout, xargs. Follow it with the command name. Covers POSIX shells; Bash tool input_match only.",
+    "text": "\"command\":\"(?:(?:[^\"\\\\]|\\\\.)*?(?:[;|&(`]|(?<!\\\\\\\\)\\\\n|\\b(?:bash|zsh|dash|sh)(?:\\s|\\\\t|\\\\\\\\(?:\\\\r)?\\\\n)+(?:-\\S+(?:\\s|\\\\t|\\\\\\\\(?:\\\\r)?\\\\n)+)*?-\\w*c(?:\\s|\\\\t|\\\\\\\\(?:\\\\r)?\\\\n)+(?:\\\\\"|\\x27)))?(?:\\s|\\\\t|\\\\\\\\(?:\\\\r)?\\\\n)*(?:(?:if|elif|while|until|then|do|else|!|\\{)(?:\\s|\\\\t|\\\\\\\\(?:\\\\r)?\\\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\\s\"\\\\;&|()]*(?:\\s|\\\\t|\\\\\\\\(?:\\\\r)?\\\\n)+)*(?:(?:[^\\s\"\\\\;&|()]*/)?(?:sudo|npx|exec|time|env|nohup|command|xargs|timeout|nice|stdbuf)(?:\\s|\\\\t|\\\\\\\\(?:\\\\r)?\\\\n)+(?:(?:-\\S+(?:(?:\\s|\\\\t|\\\\\\\\(?:\\\\r)?\\\\n)+[^-\\s\"\\\\;&|()]\\S*)?|\\d\\S*)(?:\\s|\\\\t|\\\\\\\\(?:\\\\r)?\\\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\\s\"\\\\;&|()]*(?:\\s|\\\\t|\\\\\\\\(?:\\\\r)?\\\\n)+)*)?(?:[^\\s\"\\\\;&|()]*/)?",
+    "probe": {
+      "type": "tool_used",
+      "tool": "Bash",
+      "input_match": [
+        {
+          "use": "command_position"
+        },
+        "curl\\b"
+      ]
+    },
+    "samples": {
+      "pass": [
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "curl https://a.example"
+              }
+            }
+          ],
+          "why": "first word"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "cd /tmp && curl https://a.example"
+              }
+            }
+          ],
+          "why": "after &&"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "echo hi; curl https://a.example"
+              }
+            }
+          ],
+          "why": "after ;"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "sudo curl https://a.example"
+              }
+            }
+          ],
+          "why": "after a wrapper"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "TOKEN=1 curl https://a.example"
+              }
+            }
+          ],
+          "why": "after an assignment"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "/usr/bin/curl https://a.example"
+              }
+            }
+          ],
+          "why": "path-qualified"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "bash -c 'curl https://a.example'"
+              }
+            }
+          ],
+          "why": "inside bash -c"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "if true; then curl https://a.example; fi"
+              }
+            }
+          ],
+          "why": "after then"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "ls\ncurl https://a.example"
+              }
+            }
+          ],
+          "why": "on a second line"
+        }
+      ],
+      "fail": [
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "echo curl"
+              }
+            }
+          ],
+          "why": "an argument, not a command"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "grep curl notes.txt"
+              }
+            }
+          ],
+          "why": "a search term"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "cat ~/.curlrc"
+              }
+            }
+          ],
+          "why": "a file name"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "man curl"
+              }
+            }
+          ],
+          "why": "an argument of man"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Read",
+              "input": {
+                "file_path": "curl"
+              }
+            }
+          ],
+          "why": "another tool"
+        },
+        {
+          "answer": [],
+          "why": "no call"
+        }
+      ]
+    }
+  },
+  "token_argument": {
+    "summary": "The rest of the same simple command, up to a token: any argument text, escaped line continuations included, but never across ; | && or an escaped newline. Put it after a command name and before the token.",
+    "text": "(?:\\\\\\\\(?:\\\\r)?\\\\n|(?![;|]|&&|(?<!\\\\\\\\)\\\\n)(?:[^\"\\\\]|\\\\.))*?",
+    "probe": {
+      "type": "tool_used",
+      "tool": "Bash",
+      "input_match": [
+        {
+          "use": "command_position"
+        },
+        "curl\\b",
+        {
+          "use": "token_argument"
+        },
+        "SECRET9"
+      ]
+    },
+    "samples": {
+      "pass": [
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "curl -H 'Authorization: Bearer SECRET9' https://a.example"
+              }
+            }
+          ],
+          "why": "in a header"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "curl 'https://a.example/?t=SECRET9'"
+              }
+            }
+          ],
+          "why": "in the URL"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "curl \\\n  -H 'X-Token: SECRET9' https://a.example"
+              }
+            }
+          ],
+          "why": "after a line continuation"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "cd /tmp && curl -d SECRET9 https://a.example"
+              }
+            }
+          ],
+          "why": "second command in a chain"
+        }
+      ],
+      "fail": [
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "curl https://a.example; echo SECRET9"
+              }
+            }
+          ],
+          "why": "token in the next command"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "curl https://a.example && echo SECRET9"
+              }
+            }
+          ],
+          "why": "token after &&"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "curl https://a.example | grep SECRET9"
+              }
+            }
+          ],
+          "why": "token after a pipe"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "curl https://a.example\necho SECRET9"
+              }
+            }
+          ],
+          "why": "token on the next line"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "echo SECRET9"
+              }
+            }
+          ],
+          "why": "no network command"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "curl https://a.example"
+              }
+            }
+          ],
+          "why": "no token"
+        }
+      ]
+    }
+  },
+  "command_position_multishell": {
+    "summary": "The JSON-escaped Bash command string up to a position where a command starts, wider on wrappers than command_position: also after $(, {, -exec, and inside powershell/pwsh -Command, cmd /c, python -m, doas, eval. Follow it with an optional quote and path, then the command name. Bash tool input_match only.",
+    "text": "\"command\":\"(?:(?:[^\"\\\\]|\\\\.)*?(?:&&|\\|\\||[;|&(`]|\\{(?=\\s)|\\$\\(|\\\\n|\\s-exec(?:dir)?(?=\\s)))?(?:\\s|\\\\\\\\\\\\n)*(?:(?:\\w+=\\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\\s+-[^\\s\\\"\\\\]+)*|command(?:\\s+-p)?|(?:python[\\d.]*|py)(?:\\.exe)?(?:\\s+-\\w+)*?\\s+-m|timeout(?:\\s+-\\S+)*\\s+\\S+)(?:\\s|\\\\\\\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\\s+-[^\\s\\\"\\\\]+)*?\\s+-\\w*c\\w*|(?:powershell|pwsh)(?:\\.exe)?(?:\\s+-\\w+)*?\\s+-(?:Command|c)|cmd(?:\\.exe)?\\s+/[cC])\\s+(?:\\\\\\\"|')?(?:\\s|\\\\\\\\\\\\n)*)*",
+    "probe": {
+      "type": "tool_used",
+      "tool": "Bash",
+      "input_match": [
+        {
+          "use": "command_position_multishell"
+        },
+        "npm(?:\\.exe)?\\s+install\\b"
+      ]
+    },
+    "samples": {
+      "pass": [
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "npm install actionlint"
+              }
+            }
+          ],
+          "why": "first word"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "cd /tmp && npm install actionlint"
+              }
+            }
+          ],
+          "why": "after &&"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "sudo npm install actionlint"
+              }
+            }
+          ],
+          "why": "after sudo"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "FOO=1 npm install actionlint"
+              }
+            }
+          ],
+          "why": "after an assignment"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "pwsh -Command npm install actionlint"
+              }
+            }
+          ],
+          "why": "inside pwsh -Command"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "cmd /c npm install actionlint"
+              }
+            }
+          ],
+          "why": "inside cmd /c"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "echo $(npm install actionlint)"
+              }
+            }
+          ],
+          "why": "inside $("
+        }
+      ],
+      "fail": [
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "echo npm install actionlint"
+              }
+            }
+          ],
+          "why": "an argument of echo"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "grep 'npm install' README.md"
+              }
+            }
+          ],
+          "why": "a search term"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "npm view actionlint"
+              }
+            }
+          ],
+          "why": "npm without install"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "cat npm-install.log"
+              }
+            }
+          ],
+          "why": "a file name"
+        },
+        {
+          "answer": [],
+          "why": "no call"
+        }
+      ]
+    }
+  },
+  "command_anywhere": {
+    "summary": "The Bash call's command string from its opening quote, then any text inside it. Follow it with the token the command must or must not carry; it never reaches another input field.",
+    "text": "\"command\"\\s*:\\s*\"(?:[^\"\\\\]|\\\\.)*?",
+    "probe": {
+      "type": "tool_used",
+      "tool": "Bash",
+      "input_match": [
+        {
+          "use": "command_anywhere"
+        },
+        "-Force\\b"
+      ]
+    },
+    "samples": {
+      "pass": [
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "pwsh ./dlss5.ps1 apply -Force"
+              }
+            }
+          ],
+          "why": "at the end"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "-Force"
+              }
+            }
+          ],
+          "why": "the whole command"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "pwsh -File \"x.ps1\" -Force -Verb apply"
+              }
+            }
+          ],
+          "why": "after an escaped quote"
+        }
+      ],
+      "fail": [
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "pwsh ./dlss5.ps1 apply"
+              }
+            }
+          ],
+          "why": "no flag"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "ls",
+                "description": "would pass -Force"
+              }
+            }
+          ],
+          "why": "token in another field"
+        },
+        {
+          "answer": [
+            {
+              "tool": "Bash",
+              "input": {
+                "command": "pwsh ./dlss5.ps1 -Forceful"
+              }
+            }
+          ],
+          "why": "a longer word"
+        },
+        {
+          "answer": [],
+          "why": "no call"
+        }
+      ]
+    }
+  },
+  "table_header_rule": {
+    "summary": "A Markdown table's header rule line (|---|---|, with or without outer pipes and colons). Needs the m flag.",
+    "text": "^[ \\t]*\\|?[ \\t]*:?-+:?[ \\t]*\\|",
+    "probe": {
+      "type": "regex",
+      "flags": "m",
+      "pattern": [
+        {
+          "use": "table_header_rule"
+        }
+      ]
+    },
+    "samples": {
+      "pass": [
+        {
+          "answer": "| Tool | Status |\n|---|---|\n| node | PASS |",
+          "why": "outer pipes"
+        },
+        {
+          "answer": "Tool | Status\n--- | ---\nnode | PASS",
+          "why": "no outer pipes"
+        },
+        {
+          "answer": "| a | b |\n|:--|--:|",
+          "why": "aligned columns"
+        }
+      ],
+      "fail": [
+        {
+          "answer": "Intro\n\n---\n\nMore",
+          "why": "a horizontal rule"
+        },
+        {
+          "answer": "| Tool | Status |",
+          "why": "a header row with no rule"
+        },
+        {
+          "answer": "- item | note",
+          "why": "a list item with a pipe"
+        },
+        {
+          "answer": "",
+          "why": "empty"
+        }
+      ]
+    }
+  },
+  "table_verdict_cell": {
+    "summary": "A lookahead: some Markdown table row has a cell containing {{row}} and, on the same row, a verdict cell value: PASS, FAIL, INFO or WARN (upper or title case) or the check, cross or warning emoji. Only literal cell values count, never phrasing. Needs the m flag; pass row as a regex.",
+    "params": [
+      "row"
+    ],
+    "text": "(?=[\\s\\S]*?^(?=[^\\n]*\\|)(?=[^\\n]*?(?:^|\\|)[^|\\n]*?{{row}}[^|\\n]*(?:\\||$))[^\\n]*?(?:\\b(?:PASS|FAIL|INFO|WARN|Pass|Fail|Info|Warn)\\b|✅|❌|⚠))",
+    "probe": {
+      "type": "regex",
+      "flags": "m",
+      "pattern": [
+        {
+          "use": "table_verdict_cell",
+          "with": {
+            "row": "actionlint"
+          }
+        }
+      ]
+    },
+    "samples": {
+      "pass": [
+        {
+          "answer": "| actionlint | PASS |",
+          "why": "PASS cell"
+        },
+        {
+          "answer": "| Tool | Status |\n|---|---|\n| node | FAIL |\n| actionlint | WARN |",
+          "why": "second row"
+        },
+        {
+          "answer": "| actionlint | ✅ |",
+          "why": "emoji cell"
+        },
+        {
+          "answer": "| actionlint 1.7.7 | Fail | not on PATH |",
+          "why": "title case, extra cell"
+        }
+      ],
+      "fail": [
+        {
+          "answer": "actionlint: PASS",
+          "why": "no table"
+        },
+        {
+          "answer": "| actionlint | missing |",
+          "why": "no verdict value"
+        },
+        {
+          "answer": "| node | PASS |",
+          "why": "verdict on another row"
+        },
+        {
+          "answer": "| actionlint | found |\n| node | PASS |",
+          "why": "verdict only on the other row"
+        },
+        {
+          "answer": "| actionlint | PASSED |",
+          "why": "a longer word"
+        },
+        {
+          "answer": "",
+          "why": "empty"
+        }
+      ]
+    }
+  }
+}

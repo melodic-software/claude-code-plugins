@@ -3,6 +3,19 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.2.0] - 2026-11-03
+
+### Added
+
+- `update_other_paths` option and `--update-other-paths` flag for plugins sync, and a per-call duration in its journal
+
+### Changed
+
+- `/harness-ops:plugins sync` keeps the per-record divergence detail out of the digest it prints: `divergences.records` and the full per-path list go to `<run_dir>/divergences.<marketplace>.json`, named by `divergences.records_file`, and the digest carries `record_count`. `audit` still carries the records inline, since its scratch directory is removed on exit (#12542).
+- The report's `by project path:` list names only paths present on the machine. The paths that are not present get one count line, since the stale project records section counts them; the digest counts them in `divergences.blocked_paths` (#12542).
+
+- plugins sync no longer updates other present paths by default; the report counts the records it left and names the remedy
+
 ## [6.1.0] - 2026-11-02
 
 ### Added
