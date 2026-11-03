@@ -484,7 +484,7 @@ test("ci-status holds no other trusted path or manifest change, only a configure
   ]) {
     const passed = await ci([{ filename: path, status: "modified" }]);
     assert.equal(passed.code, 0, `${path}: ${passed.out}`);
-    assert.match(passed.out, /no body hold, no member veto and no hold path\./);
+    assert.match(passed.out, /no member veto and no hold path\./);
   }
   const held = await ci([{ filename: "docs/held.md", status: "modified" }], { denied: ["docs/held.md"] });
   assert.equal(held.code, 1);
@@ -515,7 +515,7 @@ test("ci-status holds a trusted-actor list widening until a trusted person appro
   assert.equal(changed.code, 1, changed.out);
   const removed = await ci(modified, { list: { [BASE]: listOf(KYLE, LANES), [HEAD]: listOf(KYLE) } });
   assert.equal(removed.code, 0, removed.out);
-  assert.match(removed.out, /no body hold, no member veto and no hold path\./);
+  assert.match(removed.out, /no member veto and no hold path\./);
   // A side that does not read, a repeated key, or a rename holds.
   assert.equal((await ci(modified, { list: { [BASE]: listOf(KYLE, LANES) } })).code, 1);
   assert.equal((await ci(modified, { list: { [BASE]: listOf(KYLE, LANES), [HEAD]: listOf(KYLE).replace('"version": 1', '"version": 1, "version": 1') } })).code, 1);
@@ -529,7 +529,7 @@ test("ci-status holds no body hold text, even a person's; a hold path or a membe
   const person = { __typename: "User" };
   const written = await ci(["docs/a.md"], { body, writers: { author: person, userContentEdits: { totalCount: 0, nodes: [] } } });
   assert.equal(written.code, 0, written.out);
-  assert.match(written.out, /^#99: no body hold, no member veto and no hold path\.$/m);
+  assert.match(written.out, /^#99: no member veto and no hold path\.$/m);
   const pathed = await ci(["docs/held.md"], { body, denied: ["docs/held.md"] });
   assert.equal(pathed.code, 1, pathed.out);
   assert.match(pathed.out, /it changes docs\/held\.md, a hold path/);
@@ -550,7 +550,7 @@ test("ci-status holds a cost path that an approval does not lift, and the owner'
   assert.match(approved.out, /a cost path/);
   const decided = await ci(["infra/main.tf"], { body: `Closes #40\n\n${LINK}` });
   assert.equal(decided.code, 0, decided.out);
-  assert.match(decided.out, /no body hold, no member veto and no hold path\./);
+  assert.match(decided.out, /no member veto and no hold path\./);
   assert.equal((await ci(["infra/main.tf"], { body: `Closes #40\n\n${LINK}`, options: { node: { lastEditedAt: "2026-10-22T13:00:00Z" } } })).code, 1);
 });
 
@@ -980,7 +980,7 @@ test("in the merge queue, a FAIL the reader counts holds a passed head", async (
   assert.doesNotMatch(out, /no pr-verify FAIL hold/);
   // A verifier hold is not a body hold: no untitled error line.
   assert.doesNotMatch(out, /^::error::/m);
-  assert.match(out, /^#99: no body hold, no member veto and no hold path\.$/m);
+  assert.match(out, /^#99: no member veto and no hold path\.$/m);
 });
 
 test("in the merge queue, the reader's verify:unreadable is a pr-verify hold beside a body hold", async () => {

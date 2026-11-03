@@ -6182,7 +6182,7 @@ jobs:
       # reader holds it (verify:spec-changed). A record or link that does not
       # read holds.
       # Pinned by scripts/ci-lanes-pr-hold.test.sh, which runs this body.
-      - name: Fail a lanes App pull request its body or a member holds
+      - name: Fail a lanes App pull request on kill switch, hold path, verifier or veto
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && github.event.pull_request.draft != true }}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -6550,8 +6550,11 @@ jobs:
             exit 1
           }
           # Exit 0 without the module's no-hold line ran no check: fail closed.
+          # The second line is the module's earlier wording: the module comes
+          # from main's tip, which a queued group that changes the wording has
+          # not reached yet.
           printf '%s\n' "$out"
-          grep -qxF "#$pr: no body hold, no member veto and no hold path." <<<"$out" || { echo "::error::merge-holds.mjs exited 0 without its verdict."; exit 1; }
+          grep -qxF -e "#$pr: no member veto and no hold path." -e "#$pr: no body hold, no member veto and no hold path." <<<"$out" || { echo "::error::merge-holds.mjs exited 0 without its verdict."; exit 1; }
           if [ "${#verdicts[@]}" -gt 0 ] && ! grep -qE "^#$pr: no verifier hold: " <<<"$out"; then
             echo "::error::merge-holds.mjs exited 0 without its verifier verdict."
             exit 1
