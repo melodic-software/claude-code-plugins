@@ -384,7 +384,7 @@ Read [`context/session-config.md`](context/session-config.md) at that boundary, 
 
 ## Routing by size and fog
 
-Read [`context/routing.md`](context/routing.md) at entry and at every round boundary. It owns why the entry gate is diff size and retry cost, the bigger-than-you-thought check that recommends `/planning:wayfind chart` on fog or `/session-flow:workflow` on context size alone, what the wayfind handoff carries, and the "this is small, ship it" exit with the gates it still runs.
+Read [`context/routing.md`](context/routing.md) at entry and at every round boundary. It owns why the entry gate is diff size and retry cost, the bigger-than-you-thought check that recommends `/planning:wayfind chart` on fog or `/session-flow:workflow` on context size alone and suggests wayfind once the register passes `wayfind_suggest_questions`, what the wayfind handoff carries, and the "this is small, ship it" exit with the gates it still runs.
 
 ## What this skill does NOT do
 
