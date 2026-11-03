@@ -3,7 +3,8 @@
 #
 #   setup.sh check [session=<alias>]
 #       The resolved map through the route wrapper (JSON on stdout, notes on
-#       stderr), then one row on the personal overlay's gitignore state.
+#       stderr), then one row on the personal overlay's gitignore state and a
+#       WARN row for each retired team file still present.
 #   setup.sh apply --layer user|team|local [--write] <key>=<value> ...
 #       Merges the pairs into that layer's existing keys. `<key>=` with no
 #       value removes the key. Without --write it prints the target path and a
@@ -15,8 +16,10 @@
 #   user   <home>/.claude/multi-agent.yaml
 #   team   <root>/<home>/multi-agent.yaml, <home> being the convention home the
 #          repository binds, else docs/conventions. While that file is absent,
-#          the keys of the legacy team file the resolver still reads for one
-#          release seed it; the legacy file is left as it is.
+#          the keys of a retired team file (the config block in
+#          docs/conventions/multi-agent.md, else .claude/multi-agent.yaml),
+#          which the resolver no longer reads, seed it; that file is left as
+#          it is, and check names it.
 #   local  <root>/.claude/multi-agent.local.yaml
 # team and local are refused unless lib/config-root.sh classifies <root> as repo.
 # A layer file is rewritten whole, so comments in it are not kept.
@@ -76,6 +79,46 @@ check() {
   else
     printf 'WARN overlay: .claude/multi-agent.local.yaml is not gitignored; the recommended line is .claude/**/*.local.*\n'
   fi
+  if [[ "$CLASS" == repo ]]; then retired_rows; fi
+}
+
+# One WARN row per retired team file the resolver no longer reads.
+retired_rows() {
+  local md="$ROOT/docs/conventions/multi-agent.md" yaml="$ROOT/.claude/multi-agent.yaml"
+  local target seeds=0 manual link
+  target="$ROOT/$(convention_home)/multi-agent.yaml"
+  # apply seeds the new YAML from one retired file only, the one it picks,
+  # and refuses a retired file it looks at when that file, or a directory
+  # above it, is a symlink (refuse_symlink); these rows apply the same test.
+  [[ -f "$target" ]] || seeds=1
+  manual="copy any key still wanted into $target, then delete it"
+  if [[ -f "$md" ]] && link="$(symlink_in "$md")"; then
+    # Not read through the symlink. apply refuses it, block or no block,
+    # only while the new YAML is absent.
+    if ((seeds)); then
+      printf 'WARN team: apply --layer team refuses %s while %s is absent, since %s is a symlink; replace or delete the symlink\n' "$md" "$target" "$link"
+      seeds=0
+    fi
+  elif [[ -f "$md" ]] &&
+    [[ "$(awk -v BLOCK=1 -f "$PARSER" "$md" 2>/dev/null)" == block$'\t'* ]]; then
+    if ((seeds)); then
+      printf 'WARN team: the config block in %s is no longer read; the first apply --layer team copies its keys into %s, then delete the block\n' "$md" "$target"
+      seeds=0
+    else
+      printf 'WARN team: the config block in %s is no longer read; %s\n' "$md" "$manual"
+    fi
+  fi
+  if [[ -L "$yaml" ]]; then
+    printf 'WARN team: %s is a symlink and no longer read; delete it\n' "$yaml"
+  elif [[ -e "$yaml" ]]; then
+    if ((seeds)) && link="$(symlink_in "$yaml")"; then
+      printf 'WARN team: %s is no longer read, and apply --layer team refuses it while %s is absent, since %s is a symlink; %s\n' "$yaml" "$target" "$link" "$manual"
+    elif ((seeds)); then
+      printf 'WARN team: %s is no longer read; the first apply --layer team copies its keys into %s, then delete it\n' "$yaml" "$target"
+    else
+      printf 'WARN team: %s is no longer read; %s\n' "$yaml" "$manual"
+    fi
+  fi
 }
 
 # Render sorted `dotted.key<TAB>value` records as the YAML subset.
@@ -105,11 +148,23 @@ convention_home() {
 # outside the repository. Refuse <path> when it, or a directory above it
 # inside the repository, is a symlink.
 refuse_symlink() {
+  local link
+  link="$(symlink_in "$1")" && die "refusing $1: $link is a symlink"
+  return 0
+}
+
+# Print the first symlink among <path> and the directories above it inside
+# the repository; status 1 when there is none.
+symlink_in() {
   local p="$1"
   while [[ "$p" == "$ROOT"/* ]]; do
-    [[ -L "$p" ]] && die "refusing $1: $p is a symlink"
+    if [[ -L "$p" ]]; then
+      printf '%s' "$p"
+      return 0
+    fi
     p=$(dirname "$p")
   done
+  return 1
 }
 
 apply() {
@@ -127,8 +182,8 @@ apply() {
       target="$ROOT/.claude/multi-agent.local.yaml"
     else
       target="$ROOT/$(convention_home)/multi-agent.yaml"
-      # Until the YAML exists, the legacy team file the resolver still reads
-      # seeds it, so the first write carries those keys over.
+      # Until the YAML exists, the retired team file seeds it, so the first
+      # write carries those keys over.
       if [[ ! -f "$target" ]]; then
         [[ -f "$legacy_md" ]] && refuse_symlink "$legacy_md"
         if [[ -f "$legacy_md" ]] &&

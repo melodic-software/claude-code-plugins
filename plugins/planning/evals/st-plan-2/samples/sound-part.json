@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "- No file lock is needed: `Server.handle` holds `s.mu` across each command.\n",
+      "why": "approves the mutex"
+    },
+    {
+      "answer": "- Phase 3's sanity check cannot detect an overdraw; try a transfer of 25.\n- A crash between `SaveBins` and `AppendJournal` stops `stockd` starting; append to the journal first.\n- `capacity_kg` is a weight; convert with `unit_kg`.\n",
+      "why": "a strong full report"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | Two `stockctl` processes are serialized by `s.mu` | Fix before building |\n",
+      "why": "table row approving"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- Two concurrent transfers race on `bins.json`.\n",
+      "why": "claims a race"
+    },
+    {
+      "answer": "- The plan needs a file lock on the data directory.\n",
+      "why": "wants a lock"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | A lock is required around transfers to stop lost updates | Fix before building |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- Concurrent `stockctl` calls can corrupt the store.\n",
+      "why": "corruption"
+    },
+    {
+      "answer": "- Should add a lock to `Server.transfer`.\n",
+      "why": "should add"
+    }
+  ]
+}

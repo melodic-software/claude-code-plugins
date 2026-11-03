@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "fable-5: flag\nopus-5: endorse\nopus-4-8: neither"
+    },
+    {
+      "answer": "- `fable-5`: flag\n- `opus-5`: endorse\n- `opus-4-8`: **neither**"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "fable-5: flag\nopus-5: endorse\nopus-4-8: endorse",
+      "why": "the inert set still names opus-4-8"
+    },
+    {
+      "answer": "fable-5: flag\nopus-5: endorse\nopus-4-8: flag",
+      "why": "fires the Fable-only instance on an Opus target"
+    },
+    {
+      "answer": "On opus-4-8 the catalog does neither flag nor endorse it.",
+      "why": "no answer line"
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "- `SCANHUB_BATCH_SIZE` in deploy/docker-compose.yml overrides the overlay: `ApplyEnv` runs after the files, so AC1 fails on every site.\n",
+      "why": "bullet"
+    },
+    {
+      "answer": "| 1 | CRITICAL | Operations | ApplyEnv beats the overlay, so a lead's edit to site.yaml has no effect | Remove the env values from compose |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- The env vars in the compose file take precedence over the overlay, so the assumption that values come only from YAML is wrong.\n",
+      "why": "precedence phrasing"
+    },
+    {
+      "answer": "| 2 | HIGH | Config | SCANHUB_FLUSH_SECONDS masks flush_seconds from the overlay | Drop it from compose |\n",
+      "why": "masks"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "SCANHUB_BATCH_SIZE overrides the overlay, which is fine as a deliberate escape hatch.\n",
+      "why": "named and dismissed"
+    },
+    {
+      "answer": "ApplyEnv does not override the overlay.\n",
+      "why": "negated mention"
+    },
+    {
+      "answer": "- ApplyEnv needs better logging.\n",
+      "why": "anchor with a generic warning"
+    },
+    {
+      "answer": "- The overlay file should be validated against a schema.\n",
+      "why": "a finding about something else"
+    },
+    {
+      "answer": "- AC1 fails until docker-compose.yml mounts the overlay.\n",
+      "why": "the mount, not the env layer"
+    }
+  ]
+}

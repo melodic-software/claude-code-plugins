@@ -3,6 +3,24 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.5] - 2026-11-03
+
+### Changed
+
+- Shared `view-registry.mjs` synced where this plugin carries it ([#12667](https://github.com/melodic-software/claude-code-plugins/issues/12667)): it registers the view lanes the per-plugin resolver migrations will use; no other change to this plugin.
+
+## [1.0.4] - 2026-11-03
+
+### Changed
+
+- The `visualize` skill no longer restates upstream behavior: how a saved option is substituted, where mermaid renders, what the terminal shows for a mermaid block, the count of stable mermaid families, and what the `ClaudeDesign` tool does ([#12696](https://github.com/melodic-software/claude-code-plugins/issues/12696)). Each decision stays, and where an upstream section covers the topic it now points there with an as-of date and a recheck trigger.
+
+## [1.0.3] - 2026-11-03
+
+### Fixed
+
+- The shared `lib/publish-gate.mjs` copy's leak scan (`scanLeak`) now also decodes base64 and base64url runs, up to two layers and including runs of non-ASCII UTF-8 text, and blocks a GitHub token or Anthropic key inside one. Nothing in this plugin calls `scanLeak`, and its publish gate behaves as before (#8295).
+
 ## [1.0.2] - 2026-11-03
 
 ### Changed

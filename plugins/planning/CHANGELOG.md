@@ -3,6 +3,34 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.1] - 2026-11-03
+
+### Changed
+
+- The synced `lib/view-registry.mjs` registers the other view lanes ([#12667](https://github.com/melodic-software/claude-code-plugins/issues/12667)); planning's lane is unchanged.
+
+## [2.0.0] - 2026-11-03
+
+### Changed
+
+- the interview page reads its settings from planning's convention files
+
+  The page server reads the `interview_page` mapping of `<home>/planning.yaml`
+  (team) and `<home>/planning.local.yaml` (personal), under the convention home
+  the repository binds, and the Settings tab names `team` or `personal` as the
+  layer. The keys keep the names the Settings tab shows.
+
+### Removed
+
+- `.claude/interview-surface.json` is no longer read
+
+  When it exists, `ensure-running` prints one notice per data dir naming each
+  of its keys and where it goes now; none of its values apply.
+
+### Security
+
+- the page server refuses a default convention home reached through a symlink, notes and drops an oversized or deeply nested planning YAML file, and its retired-file notice names keys, never their values
+
 ## [1.3.0] - 2026-11-03
 
 ### Changed

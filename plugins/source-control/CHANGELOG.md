@@ -3,6 +3,30 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.4.1] - 2026-11-03
+
+### Changed
+
+- Shared `view-registry.mjs` synced where this plugin carries it ([#12667](https://github.com/melodic-software/claude-code-plugins/issues/12667)): it registers the view lanes the per-plugin resolver migrations will use; no other change to this plugin.
+
+## [6.4.0] - 2026-11-03
+
+### Changed
+
+- babysit-prs: the Dependabot fix rule (`package_json_refusal`) admits a lanes App fix commit that
+  renames one `allowScripts` key `@anthropic-ai/claude-code@<old>` to
+  `@anthropic-ai/claude-code@<v>`, value kept, where `<v>` is the exact version the manifest
+  pins in the commit before the fix (Dependabot's) and still pins after it. A downgrade or any
+  other manifest move, a name-only or wildcard key, another package's pin, an added or dropped
+  key, or a range in the manifest still refuses, as in the pr-unblock lane's
+  `dependency-classify.mjs`.
+
+## [6.3.1] - 2026-11-03
+
+### Fixed
+
+- The lane telemetry body gate's leak scan (`scanLeak` in the shared `lib/publish-gate.mjs` copy) now also decodes base64 and base64url runs, up to two layers and including runs of non-ASCII UTF-8 text, and refuses a body with a GitHub token or Anthropic key inside one (#8295).
+
 ## [6.3.0] - 2026-11-03
 
 ### Changed

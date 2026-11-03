@@ -28,14 +28,14 @@
       "kind": "runtime",
       "need": "optional",
       "for": [
-        "skill:audit-type-debt"
+        "skill:audit"
       ],
       "detect": {
         "any": [
           "node"
         ]
       },
-      "degrade": "Without node, /code-metrics:audit-type-debt cannot tell whether `typescript` resolves and reports no TypeScript type coverage.",
+      "degrade": "Without node, /code-metrics:audit type-debt cannot tell whether `typescript` resolves and reports no TypeScript type coverage.",
       "install": {
         "docs": "https://nodejs.org/en/download",
         "brew": "node",
@@ -49,14 +49,14 @@
       "kind": "cli",
       "need": "optional",
       "for": [
-        "skill:audit-complexity"
+        "skill:audit"
       ],
       "detect": {
         "any": [
           "go"
         ]
       },
-      "degrade": "Without go, /code-metrics:audit-complexity cannot read the version stamped into a gocognit binary; Go cognitive complexity is reported without it.",
+      "degrade": "Without go, /code-metrics:audit complexity cannot read the version stamped into a gocognit binary; Go cognitive complexity is reported without it.",
       "install": {
         "docs": "https://go.dev/doc/install",
         "brew": "go",

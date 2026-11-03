@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # The code-metrics dispatcher: resolve the scope, detect lanes, walk the
 # collector ladder, and print one `code-metrics/v2` document (design T1, T3,
-# T5). Every audit skill's entry script (skills/<name>/scripts/<name>.sh) calls this; skill-specific options are the
-# skill's own and never reach here.
+# T5). Every audit entry script (skills/<skill>/scripts/<id>.sh) calls this; entry-specific options are the
+# entry script's own and never reach here.
 #
 #   dispatch.sh <skill> --measures <m1,m2,...> [--all] [--base <ref>]
 #               [--config <resolved.json>] [--ladder <file.tsv>]

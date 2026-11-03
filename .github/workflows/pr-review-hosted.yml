@@ -325,6 +325,7 @@ jobs:
         .github/scripts/pr-unblock/report-escalation.sh
         .github/scripts/pr-unblock/adjudicate-feedback.mjs
         .github/scripts/pr-unblock/publish-feedback.mjs
+        .github/scripts/pr-unblock/resolve-threads.mjs
         .github/scripts/pr-unblock/request-budget.mjs
         .github/scripts/pr-verify/resolve-pr.mjs
         .github/scripts/pr-verify/write-verdict.mjs
