@@ -4078,6 +4078,16 @@ test("a refused dequeue warns and leaves the label add standing", async () => {
   assert.ok(lines.includes(holdNotice("refused:dequeue-failed")));
 });
 
+test("a refused pull request whose label the lane puts back while queued is dequeued", async () => {
+  const laneComment = lanesSaid(laneNote(MISSING_REASON));
+  const posted = { ...lanesSaid(personNote(LANE_HOLD_NOTE), "2026-10-23T10:05:00Z"), databaseId: 78, createdAt: "2026-10-23T10:05:00Z" };
+  const { code, notes, writes, lines } = await run([laneHeld(1, { discussion: { comments: [laneComment, posted] }, queued: true })]);
+  assert.equal(code, 0);
+  assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } }]);
+  assert.deepEqual(writes, [{ mutation: "dequeue", id: "PR_1" }]);
+  assert.ok(lines.includes(holdNotice("dequeued")));
+});
+
 test("a refusal that adds no label reads no queue entry", async () => {
   const { calls } = await run([pull(1, { verdict: MISSING })]);
   assert.deepEqual(queueReads(calls), []);
