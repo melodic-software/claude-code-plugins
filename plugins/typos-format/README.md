@@ -42,10 +42,10 @@ same host.
 
 ## Requirements
 
-- **typos** on `PATH`, installed at the machine level (cargo, Homebrew, Conda, pacman or a
-  pre-built binary; [install typos](https://github.com/crate-ci/typos#install)). It is never
-  downloaded on the fly. The SessionStart probe reports a missing `typos` once per session from
-  `prerequisites.json`.
+- **typos** on `PATH`, installed at the machine level by the machine's owner
+  ([install typos](https://github.com/crate-ci/typos#install); as of 2026-11-03, recheck trigger:
+  typos moves or retitles its Install section). It is never downloaded on the fly. The
+  SessionStart probe reports a missing `typos` once per session from `prerequisites.json`.
 - **Bash** runs the check (3.2 or newer, so macOS's own bash works). On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows).
 - **Node.js** on `PATH` for the Claude Code rows, which launch through `node hooks/exec-bash.mjs`,

@@ -23,21 +23,26 @@ own and runs only when your repo has opted into Ruff.
     event, or changes the `tool_calls` fields.
 - **Opt-in on a Ruff config.** Ruff runs **only when a `.ruff.toml`,
   `ruff.toml`, or `pyproject.toml` with a `[tool.ruff]` section governs the
-  edited file**, found by walking up from the file to the repository root, the
-  same discovery Ruff itself uses (a `pyproject.toml` without `[tool.ruff]` is
-  ignored, exactly as Ruff ignores it). A repo without a Ruff config is left
-  untouched rather than rewritten to Ruff's built-in defaults, so the plugin
-  never imposes a style you did not choose. **Known limitation:** a
-  `pyproject.toml` that expresses this as a bare `[tool]` header with an inline
-  table (`[tool]` + `ruff = { ... }`) is not recognized, even though Ruff
-  itself honors that form. Such a repo is treated as un-configured and the
-  hook skips (fails safe: a missed opt-in, never a wrong edit).
+  edited file**, found by walking up from the file to the repository root. A
+  repo without a Ruff config is left untouched rather than rewritten to Ruff's
+  built-in defaults, so the plugin never imposes a style you did not choose.
+  **Known limitation:** a `pyproject.toml` that expresses this as a bare
+  `[tool]` header with an inline table (`[tool]` + `ruff = { ... }`) is not
+  recognized. Such a repo is treated as un-configured and the hook skips (fails
+  safe: a missed opt-in, never a wrong edit).
+  - **Pointer**: when comparing this walk with Ruff's own, fetch
+    [Config file discovery](https://docs.astral.sh/ruff/configuration/#config-file-discovery)
+    live. **As of**: 2026-11-03. **Recheck trigger**: that section changes which files or
+    tables Ruff reads as its config.
 - **Safe fixes only.** `ruff check --fix` never applies unsafe fixes, even when your config sets
   `unsafe-fixes = true`.
 - **Just-added imports are protected in the session.** The batch row passes `--unfixable F401`,
-  because an import often lands one edit before the code that uses it. This extends your config's
-  own `unfixable` list; it does not replace it. The pre-commit entry does not pass it, so an
-  unused import goes at commit.
+  because an import often lands one edit before the code that uses it. The pre-commit entry does
+  not pass it, so an unused import goes at commit.
+  - **Pointer**: when working out how the flag combines with your config's `unfixable` list, fetch
+    [settings: lint.unfixable](https://docs.astral.sh/ruff/settings/#lint_unfixable) live.
+    **As of**: 2026-11-03. **Recheck trigger**: that entry changes how a command-line value
+    combines with the configured list.
 - **Pre-existing drift is rewritten whole.** The batch payload carries no pre-edit bytes, so a
   file that already drifted from your config is formatted in full, as the pre-commit entry would.
 - **Respects your excludes.** Both pass `--force-exclude`, so a path your config excludes
