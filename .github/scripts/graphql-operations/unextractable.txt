@@ -9,6 +9,10 @@
 # its shorthand and query=@file sites, plus its request sites beyond the
 # operations extracted. The test fails when a file's count differs from its
 # row, a file has a count and no row, or an exclude matches no tracked file.
+#
+# Not scanned at all: Python sources (`*.py`), including the operations in
+# plugins/source-control/skills/babysit-prs/scripts/. They join adjacent string
+# literals and f-strings, which the extractor does not follow.
 
 exclude plugins/work-items/tools/work-item-tracker/seeds/linear/ Linear's GraphQL API
 exclude plugins/work-items/tools/work-item-tracker/conformance/bindings/linear.sh Linear's GraphQL API

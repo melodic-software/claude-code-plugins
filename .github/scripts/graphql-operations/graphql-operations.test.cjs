@@ -10,7 +10,9 @@
 // - every string literal that opens with `query`, `mutation` or
 //   `subscription` (after an optional `query=`) and then `(` or `{` (an
 //   operation name between them is allowed) parses and validates, over
-//   tracked JS, shell and workflow files (test files excluded);
+//   tracked JS, shell and workflow files (test files excluded). Python
+//   sources are not scanned: their operations join adjacent literals and
+//   f-strings, which `read` does not follow (unextractable.txt records it);
 // - in JS, a `+` chain continues the literal, and `${NAME}` or `+ NAME` takes
 //   the value of a same-file `const NAME =` built only from literals;
 // - any other interpolation (JS `${...}`, workflow `${{ }}`, shell `$NAME`,
