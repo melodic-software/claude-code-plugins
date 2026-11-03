@@ -137,6 +137,10 @@ case "$verb" in
       "$FLEET_STATE_MARKETPLACES_JSON" >"$FLEET_STATE_MARKETPLACES_JSON.next" &&
       mv "$FLEET_STATE_MARKETPLACES_JSON.next" "$FLEET_STATE_MARKETPLACES_JSON"
   fi
+  # A refresh that takes this many seconds after its writes, then moves that
+  # file's ctime alone.
+  [[ -z "${CLAUDE_STUB_REFRESH_PAUSE:-}" ]] || sleep "$CLAUDE_STUB_REFRESH_PAUSE"
+  [[ -z "${CLAUDE_STUB_REFRESH_CHMOD:-}" ]] || chmod u+x "$CLAUDE_STUB_REFRESH_CHMOD"
   echo "Successfully updated marketplace: $mp"
   ;;
 "plugin update")
@@ -3420,10 +3424,13 @@ assert_eq "refresh skip: and its exit status is recorded" "0" \
 
 # ============================================================================
 # Cases: snapshot reuse. A read whose inputs (every path fleet-state.sh read) keep
-# their mtime and size reuses the stored report; a changed or newly created input
-# makes the next read run fleet-state.sh again. A current fleet takes five reads
-# (pre-refresh, pre, mid, pre-install, post) and the stub refresh is the only CLI
-# call, so the stub's refresh knobs are the only thing that changes a file.
+# their mtime, ctime and size reuses the stored report; a changed or newly created
+# input makes the next read run fleet-state.sh again. A current fleet takes five
+# reads (pre-refresh, pre, mid, pre-install, post) and the stub refresh is the only
+# CLI call, so the stub's refresh knobs are the only thing that changes a file. A
+# report is stored only from a read after the first whose inputs are more than 2 s
+# old, so every run here pauses 3 s in the refresh, after its writes: the pre read
+# is the first that can be stored.
 # ============================================================================
 reuse_case() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -3450,19 +3457,23 @@ exec bash \"$SCRIPT_DIR/fleet-state.sh\" \"\$@\"
 # reuse_run <extra env...>: a sync run; sets out, run_dir and reads (the live
 # fleet-state.sh reads, projections left out).
 reuse_run() {
-  EXTRA_ENV=(SYNC_RUN_FLEET_STATE="$case_dir/stubs/fleet-state.sh" CLAUDE_PROJECT_DIR="$case_dir" CC_STUB_CLEAN=1 "$@")
+  EXTRA_ENV=(SYNC_RUN_FLEET_STATE="$case_dir/stubs/fleet-state.sh" CLAUDE_PROJECT_DIR="$case_dir" CC_STUB_CLEAN=1
+    CLAUDE_STUB_REFRESH_PAUSE=3 "$@")
   out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
   run_dir=$(jq -r '.run_dir' <<<"$out")
   reads=$(grep -vc -- '--from' "$case_dir/fs.log")
 }
+# What the journal says the pre read's report was: stored for reuse, or not stored.
+pre_stored() { grep '^# fleet-state read pre: ' "$run_dir/journal.log" | sed 's/.*, exit [0-9]*, //'; }
 
 reuse_case
 reuse_run
-assert_eq "reuse: an unchanged fleet runs fleet-state.sh once for five reads" "1" "$reads"
-assert_eq "reuse: the journal names each of the four reuses" "4" \
+assert_eq "reuse: an unchanged fleet runs fleet-state.sh twice for five reads" "2" "$reads"
+assert_eq "reuse: the journal names each of the three reuses" "3" \
   "$(grep -c '^# fleet-state reuse ' "$run_dir/journal.log")"
 assert_contains "reuse: the journal names the read the report came from" \
-  "$(cat "$run_dir/journal.log")" "# fleet-state reuse post: inputs unchanged since the pre-refresh read"
+  "$(cat "$run_dir/journal.log")" "# fleet-state reuse post: inputs unchanged since the pre read"
+assert_eq "reuse: the pre read of an unchanged fleet is stored" "stored for reuse" "$(pre_stored)"
 env FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
   FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
   FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" FLEET_STATE_CATALOG_DIR="$case_dir/catalog" \
@@ -3503,15 +3514,62 @@ reuse_case
 catalog_plugin "$case_dir" market1 beta 0.1.0
 write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
 find "$case_dir" -exec touch -d "@$(($(date +%s) - 60))" {} +
-EXTRA_ENV=(SYNC_RUN_FLEET_STATE="$case_dir/stubs/fleet-state.sh" CLAUDE_PROJECT_DIR="$case_dir" CC_STUB_CLEAN=1)
+EXTRA_ENV=(SYNC_RUN_FLEET_STATE="$case_dir/stubs/fleet-state.sh" CLAUDE_PROJECT_DIR="$case_dir" CC_STUB_CLEAN=1
+  CLAUDE_STUB_REFRESH_PAUSE=3)
 out=$(run_sync "$case_dir" --marketplace market1 --install-new ask --journal-root "$case_dir/journal")
 run_dir=$(jq -r '.run_dir' <<<"$out")
 assert_eq "reuse: the ask pass stopped before install" "true" \
   "$(jq -r '.marketplaces[0].stopped_before_install' <<<"$out")"
 : >"$case_dir/fs.log"
+journal_lines=$(wc -l <"$run_dir/journal.log")
 out=$(run_sync "$case_dir" --only-install "" --run-dir "$run_dir")
+assert_exit "reuse: the --only-install re-entry exits 0" 0 $?
 assert_eq "reuse: an --only-install re-entry that installs nothing runs no fleet-state.sh read" "0" \
   "$(grep -vc -- '--from' "$case_dir/fs.log")"
+assert_contains "reuse: the re-entry journals its gate read as a reuse of the first pass's pre read" \
+  "$(tail -n +$((journal_lines + 1)) "$run_dir/journal.log")" \
+  "# fleet-state reuse pre-install: inputs unchanged since the pre read"
+
+# Cases: an input that changes during a read. The fleet-state stub runs the real
+# read, then changes $1 on the run's second live read (pre), the first that can be
+# stored; the refresh moves user_settings.json's mtime, so pre is a live read.
+# mutate_stub <command>
+mutate_stub() {
+  write "$case_dir/stubs/fleet-state.sh" "#!/usr/bin/env bash
+printf '%s\n' \"\$*\" >>\"$case_dir/fs.log\"
+bash \"$SCRIPT_DIR/fleet-state.sh\" \"\$@\"
+rc=\$?
+if [[ \"\$*\" != *--from* && \"\$(grep -vc -- '--from' \"$case_dir/fs.log\")\" == 2 ]]; then
+  $1
+fi
+exit \$rc
+"
+  chmod +x "$case_dir/stubs/fleet-state.sh"
+}
+reuse_case
+write "$case_dir/.claude/settings.local.json" '{"enabledPlugins": {"alpha@market1": false}}'
+touch -d "@$(($(date +%s) - 60))" "$case_dir/.claude/settings.local.json"
+mutate_stub "rm '$case_dir/.claude/settings.local.json'"
+reuse_run CLAUDE_STUB_REFRESH_TOUCH="$case_dir/user_settings.json"
+assert_contains "reuse: a read during which an input is deleted is not stored" "$(pre_stored)" "not stored"
+assert_eq "reuse: and the post report no longer sees the deleted scope" "true" \
+  "$(jq -r '.enabled["alpha@market1"]' "$run_dir/post.market1.json")"
+
+reuse_case
+write "$case_dir/local.json" '{"enabledPlugins": {"alpha@market1": false}}'
+touch -d "@$(($(date +%s) - 60))" "$case_dir/local.json"
+mutate_stub "mv '$case_dir/local.json' '$case_dir/.claude/settings.local.json'"
+reuse_run CLAUDE_STUB_REFRESH_TOUCH="$case_dir/user_settings.json"
+assert_contains "reuse: a read during which an old-mtime input is moved into place is not stored" \
+  "$(pre_stored)" "not stored"
+assert_eq "reuse: and the post report sees the moved-in scope" "false" \
+  "$(jq -r '.enabled["alpha@market1"]' "$run_dir/post.market1.json")"
+
+# The chmod moves installed_plugins.json's ctime alone, just before the pre read.
+reuse_case
+reuse_run CLAUDE_STUB_REFRESH_TOUCH="$case_dir/user_settings.json" \
+  CLAUDE_STUB_REFRESH_CHMOD="$case_dir/installed_plugins.json"
+assert_contains "reuse: a read of an input whose ctime is under 2 s old is not stored" "$(pre_stored)" "not stored"
 
 # ============================================================================
 if ((FAILED > 0)); then

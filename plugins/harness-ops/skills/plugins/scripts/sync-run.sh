@@ -1774,41 +1774,64 @@ slurp_to() {
   printf -v "$1" '%s' "$__sl"
 }
 
-# `<mtime>|<size>|<path>` for each path listed in file $2 that exists, in list
-# order, from one `stat` that follows symlinks; an absent path or a dangling link
-# has no line. `stat` exits non-zero when any path is absent, so the BSD spelling
-# runs only on empty output. Empty when neither dialect answers or a line carries
-# no fractional mtime, which turns reuse off.
+# One line per path listed in file $2, in list order: `<mtime>|<ctime>|<size>|<path>`
+# from one `stat` that follows symlinks, or `absent|<path>` for a path that does not
+# exist (a dangling link included). `stat` exits non-zero when any path is absent,
+# so the BSD spelling runs only on empty output. Empty when an existing path has no
+# `stat` line (neither dialect answered, or it appeared mid-call) or a time carries
+# no fractional digits, which turns reuse off.
 fingerprint_to() {
-  local __fp_p __fp_out=""
-  local -a __fp_paths=()
+  local __fp_p __fp_l __fp_st="" __fp_out="" __fp_i=0
+  local -a __fp_paths=() __fp_lines=()
   while IFS= read -r __fp_p; do __fp_paths+=("$__fp_p"); done <"$2"
   if ((${#__fp_paths[@]} > 0)); then
     # portability-ok: GNU-first rung of a dual-dialect ladder; the BSD -f spelling follows on empty output
-    __fp_out=$(stat -L -c '%.9Y|%s|%n' -- "${__fp_paths[@]}" 2>/dev/null)
-    [[ -n "$__fp_out" ]] || __fp_out=$(stat -L -f '%Fm|%z|%N' -- "${__fp_paths[@]}" 2>/dev/null)
+    __fp_st=$(stat -L -c '%.9Y|%.9Z|%s|%n' -- "${__fp_paths[@]}" 2>/dev/null)
+    [[ -n "$__fp_st" ]] || __fp_st=$(stat -L -f '%Fm|%Fc|%z|%N' -- "${__fp_paths[@]}" 2>/dev/null)
   fi
-  while IFS= read -r __fp_p; do
-    [[ "${__fp_p%%|*}" =~ ^[0-9]+\.[0-9]+$ ]] || __fp_out=""
-  done <<<"$__fp_out"
+  [[ -z "$__fp_st" ]] || while IFS= read -r __fp_l; do __fp_lines+=("$__fp_l"); done <<<"$__fp_st"
+  for __fp_p in ${__fp_paths[@]+"${__fp_paths[@]}"}; do
+    __fp_l="${__fp_lines[__fp_i]:-}"
+    if [[ -n "$__fp_l" && "${__fp_l#*|*|*|}" == "$__fp_p" ]]; then
+      __fp_i=$((__fp_i + 1))
+    elif [[ -e "$__fp_p" ]]; then
+      __fp_i=-1
+      break
+    else
+      __fp_l="absent|$__fp_p"
+    fi
+    if [[ "$__fp_l" != absent\|* && ! "$__fp_l" =~ ^[0-9]+\.[0-9]+\|[0-9]+\.[0-9]+\| ]]; then
+      __fp_i=-1
+      break
+    fi
+    __fp_out+="${__fp_out:+$'\n'}$__fp_l"
+  done
+  ((__fp_i == ${#__fp_lines[@]})) || __fp_out=""
   printf -v "$1" '%s' "$__fp_out"
 }
 
-# Whether every mtime in fingerprint $1 is below $2, integer microseconds.
+# Whether every present input in fingerprint $1 has its mtime and ctime below $2,
+# integer microseconds.
 inputs_older_than() {
-  local line m
+  local line m c
   while IFS= read -r line; do
+    [[ "$line" != absent\|* ]] || continue
     stamp_us m "${line%%|*}"
-    ((m < $2)) || return 1
+    line="${line#*|}"
+    stamp_us c "${line%%|*}"
+    ((m < $2 && c < $2)) || return 1
   done <<<"$1"
 }
 
 # `fleet-state.sh --marketplace <mp>` into $2, or the stored report of an earlier
 # read when none of its inputs changed. fleet-state.sh lists every path it read
-# (FLEET_STATE_READ_LIST), and the report is reused while each keeps the mtime and
-# size it had at that read. A report is stored only when no input can have changed
-# during its read: the list and fingerprint taken before the read match the ones
-# after it, or every input is more than a second older than the read's start.
+# (FLEET_STATE_READ_LIST), and the report is reused while each keeps the mtime,
+# ctime and size it had at that read and each absent one stays absent. A report is
+# stored only when no input can have changed during its read: an earlier read's
+# list matches this one's, the fingerprint taken before the read matches the one
+# after it, and every present input's mtime and ctime are more than 2 s older than
+# the read's start, so a write within one timestamp tick of a fingerprint is not
+# missed. A run's first read has no earlier list, so it is never stored.
 # The cache sits in the run directory, keyed by the environment fleet-state.sh
 # reads, so an --only-install re-entry reuses the first pass's last report. Each
 # read and each reuse is journaled. Leaves stderr in .fs-err and returns the
@@ -1847,15 +1870,15 @@ fleet_snapshot() {
   ((rc != 0)) || [[ -z "$list_post" ]] || fingerprint_to fp_post "$c.next"
   printf '%s' "$key" >"$c.key"
   printf '%s' "$list_post" >"$c.list"
-  if [[ -n "$fp_post" ]] && { [[ "$list_post" == "$list_pre" && "$fp_post" == "$fp_pre" ]] ||
-    inputs_older_than "$fp_post" $((t_s - 1000000)); }; then
+  if [[ -n "$fp_post" && -n "$list_pre" && "$list_post" == "$list_pre" && "$fp_post" == "$fp_pre" ]] &&
+    inputs_older_than "$fp_post" $((t_s - 2000000)); then
     slurp_to text "$out"
     printf '%s' "$text" >"$c.json"
     printf '%s' "$fp_post" >"$c.fp"
     printf '%s' "$label" >"$c.from"
     echo "stored for reuse" >>"$JOURNAL_LOG"
   else
-    echo "not stored: a failed read, no fingerprint, or an input changed during or just before it" >>"$JOURNAL_LOG"
+    echo "not stored: a failed read, no fingerprint, no earlier read to compare, or an input changed during or within 2 s before it" >>"$JOURNAL_LOG"
   fi
   return "$rc"
 }
