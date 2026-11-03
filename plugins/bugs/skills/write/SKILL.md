@@ -5,7 +5,7 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  workflow-stage: contract
+  workflow-stage: interview
   summary: Turn an informal bug description into a structured 5-field report, read-only
 ---
 

@@ -703,6 +703,7 @@ jobs:
             feedback-untaken-threads | feedback-publish-failed) ;;
             feedback-unadjudicated | feedback-question-intent | feedback-question-design) ;;
             feedback-question-security | feedback-stood-open | feedback-verifier-open) ;;
+            feedback-already-addressed | feedback-verdict-unreadable) ;;
             dependency-round-cap | dependency-invalid | dependency-fix-not-landed) ;;
             dependency-security-close | dependency-escalate | dependency-config-unreadable) ;;
             dependency-files-truncated | dependency-control-uncited | dependency-workflow-unpinned) ;;

@@ -1284,6 +1284,13 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
             read(self.merge_only(superseded=False)).refusal, "verify:earlier-fail"
         )
 
+    def test_an_earlier_fail_refusal_names_the_failed_head(self) -> None:
+        # pr-unblock verify-cap.mjs hands these heads to address-feedback,
+        # which works their notes from the verdict artifacts.
+        evidence = read(self.merge_only(superseded=False))
+        self.assertEqual(evidence.refusal, "verify:earlier-fail")
+        self.assertEqual(evidence.report()["earlierFails"], [EARLIER])
+
     def test_a_merge_only_head_with_no_pass_at_the_failed_head_carries_it(
         self,
     ) -> None:
