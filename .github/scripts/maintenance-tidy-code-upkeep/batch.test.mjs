@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { branchOf, parseAreas, promptText, sortSweeps, staysInArea, toOpen, validatePlan } from "./batch.mjs";
+import { branchOf, parseAreas, promptText, sortSweeps, staysInArea, sweepRecord, toOpen, validatePlan } from "./batch.mjs";
 
 const BASE = "a".repeat(40);
 const HEAD = "b".repeat(40);
@@ -86,6 +86,10 @@ test("sortSweeps refuses a branch that changes a hold path", () => {
   const sweep = prSweep({ slug: "plugins-source-control" });
   const raw = rawLine("plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py");
   assert.deepEqual(sortSweeps([sweep], [held], { rawOf: () => raw, binary: () => false }), { kept: [], recorded: ["plugins-source-control"] });
+});
+
+test("the sweep record holds git's committer time as a number, and the slugs", () => {
+  assert.equal(sweepRecord(["scripts"], "1793000000"), '{"at":1793000000,"slugs":["scripts"]}');
 });
 
 test("toOpen opens only pushed branches, at most limit minus open", () => {

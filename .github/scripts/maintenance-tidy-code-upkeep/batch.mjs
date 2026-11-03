@@ -153,6 +153,9 @@ export function sortSweeps(sweeps, areas, { rawOf, binary }) {
   return { kept, recorded };
 }
 
+// The sweep record: the areas, and the committer time of the commit the model swept.
+export const sweepRecord = (slugs, committedAt) => JSON.stringify({ at: Number(committedAt), slugs });
+
 function scan(env) {
   const { IN, OUT, RECORD_DIR, DATE: date, BASE_SHA: baseSha, REPO_DIR: repo } = env;
   const areas = parseAreas(env.AREAS);
@@ -175,7 +178,7 @@ function scan(env) {
   const synthetic = kept.length ? syntheticBundle(repo, baseSha, kept.map((sweep) => sweep.head_sha), join(OUT, "branches.bundle")) : [];
   if (recorded.length) {
     mkdirSync(RECORD_DIR, { recursive: true });
-    writeFileSync(join(RECORD_DIR, "sweeps.json"), JSON.stringify({ slugs: recorded }));
+    writeFileSync(join(RECORD_DIR, "sweeps.json"), sweepRecord(recorded, git(repo, ["log", "-1", "--format=%ct", baseSha])));
   }
   output("branches", kept.length);
   output("synthetic", JSON.stringify(synthetic));

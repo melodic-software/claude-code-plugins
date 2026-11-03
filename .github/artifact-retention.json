@@ -455,9 +455,9 @@
     "tidy-code-upkeep-sweeps": {
       "retention-days": 90,
       "readers": [
-        ".github/scripts/maintenance-tidy-code-upkeep/upkeep.mjs gate treats each listed area as swept on the record's date"
+        ".github/scripts/maintenance-tidy-code-upkeep/upkeep.mjs gate treats each listed area as swept at the record's commit time"
       ],
-      "reason": "A clean sweep opens no pull request, so this is its only record. It must cover the gate's 90-day lookback for an area with no pull request sweep, which is more than twice the longest backstop. It holds only slugs of areas the gate chose, never model text, so it is not scanned.",
+      "reason": "A clean sweep opens no pull request, so this is its only record. It must cover the gate's 90-day lookback for an area with no pull request sweep, which is more than twice the longest backstop. It holds only a commit time and slugs of areas the gate chose, never model text, so it is not scanned.",
       "scan": "none"
     },
     "maintenance-tidy-code-upkeep-plan-*": {

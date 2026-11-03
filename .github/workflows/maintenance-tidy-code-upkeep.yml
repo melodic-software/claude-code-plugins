@@ -476,7 +476,7 @@ jobs:
         with:
           path: ${{ runner.temp }}/scan-in/publish.txt
 
-      # Holds only slugs of areas the gate chose. Its absence means a later run
+      # Holds only the base commit's time and slugs of areas the gate chose. Its absence means a later run
       # picks those areas again, so a failed upload costs a repeat sweep only.
       - name: Upload the sweep record
         if: steps.check.outputs.recorded != '0' && steps.check.outputs.recorded != ''

@@ -121,14 +121,18 @@ export function plan({ paths, commits, pulls, cleanSweeps = [], cadence, backsto
 }
 
 // The clean-sweep records: artifacts the scan job left, one per run. read(artifact)
-// gives its sweeps.json text. A slug outside the shape is dropped.
+// gives its sweeps.json text, whose `at` is the swept commit's committer time in unix
+// seconds: a commit after it was not swept, however early the artifact's creation
+// followed. A record with no valid `at` or a slug outside the shape is dropped, which
+// costs a repeat sweep.
 export function readCleanSweeps(artifacts, read) {
   const sweeps = [];
   for (const artifact of artifacts) {
     if (artifact.expired) continue;
-    const at = Date.parse(artifact.created_at);
-    for (const slug of JSON.parse(read(artifact)).slugs ?? []) {
-      if (/^[a-z0-9-]+$/.test(slug)) sweeps.push({ slug, at });
+    const record = JSON.parse(read(artifact));
+    if (!Number.isSafeInteger(record.at) || record.at <= 0) continue;
+    for (const slug of record.slugs ?? []) {
+      if (/^[a-z0-9-]+$/.test(slug)) sweeps.push({ slug, at: record.at * 1000 });
     }
   }
   return sweeps;
