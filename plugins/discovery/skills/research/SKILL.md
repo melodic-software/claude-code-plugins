@@ -63,9 +63,9 @@ Agent({
 })
 ```
 
-**Verification scales to the evidence use.** Under `Evidence use: internal`, the verifier grades rows 4, 7 and 12 only for the claims a stated decision cites, named on the `Claims:` line (row 14 in full; an absent or empty line grades every accepted claim), and no rework round runs. Under `publish` the line is omitted and the full loop runs. Detail: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` ("Scale it to the evidence use").
+**Verification scales to the evidence use.** Under `Evidence use: internal`, the verifier grades rows 4, 7 and 12 only for the claims a stated decision cites, named on the `Claims:` line, and no rework round runs. Under `publish` the line is omitted and the full loop runs. Detail: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` ("Scale it to the evidence use").
 
-Write its `verification_line` over `verification: pending`; a FAIL row returns to its phase (bounded: "Effort, source breadth"). **On the cost path** (you skip the verifier for cost) write `verification: skipped (cost)`; never leave `pending` after this boundary. Values: `${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md` ("The `verification:` values"). Brief, write-back, project fit: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` ("The orchestration boundary").
+Write its `verification_line` over `verification: pending`; a FAIL row returns to its phase (bounded: "Effort, source breadth"). **Skipping the verifier for cost**, write `verification: skipped (cost)`; never leave `pending` after this boundary. Values: `${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md` ("The `verification:` values"). Brief, write-back, project fit: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` ("The orchestration boundary").
 
 ## Outcome gate (run before presenting)
 
