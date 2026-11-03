@@ -105,7 +105,6 @@ export function buildOptions(input = {}) {
   if (rest.headers) {
     opts.headers = { ...DEFAULTS.headers, ...rest.headers };
   }
-  opts.timeoutMs = Math.max(250, opts.timeoutMs);
   opts.retries = rest.retries || DEFAULTS.retries;
   if (token) {
     opts.headers.Authorization = `Bearer ${token}`;
@@ -138,5 +137,4 @@ git add .
 git commit -q -m "feat: pass a signed-in user's token through buildOptions
 
 Account calls now hand buildOptions a token and get an Authorization
-header back, instead of each caller building the header itself. The
-timeout also gets a 250 ms floor so a typo cannot make every call fail."
+header back, instead of each caller building the header itself."
