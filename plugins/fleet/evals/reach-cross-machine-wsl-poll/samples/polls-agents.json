@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Poll with claude agents --json.",
+      "why": "names it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Wait for notify_when_idle.",
+      "why": "missing"
+    }
+  ]
+}
