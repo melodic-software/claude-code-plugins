@@ -183,7 +183,8 @@ label is read. A native auto-merge the pr-merge lane armed is credited by the pi
 any other. An autonomous merge with no rung (no unedited lane pin at its head, a pin of the older
 shape naming none, another bot's merge) is listed in `noRungAutonomous`: it earns no
 credit, and its contrary events count against every promotable cell. `C3-ai-review-blocking`
-counts every merge under rung C3 and every human merge. Its header comment states what counts as each event, including the
+takes positive evidence from rung-C3 merges only, and missed-blocking findings from rung-C3 and
+human merges. Its header comment states what counts as each event, including the
 judgment mappings and how to set `--lane-login` for merge-queue merges.
 
 - **Report mode** (no `--out`) prints the events array and the C3 promotion-evidence report to

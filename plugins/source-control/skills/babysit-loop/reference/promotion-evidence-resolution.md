@@ -22,9 +22,9 @@ No work class decides which PRs a rung admits: once its cells are effective-prom
 the partition does not withhold is eligible, an item with no class included. No rung admits C5
 and no cell covers it: it is the untrusted-provenance hold no rung lifts. The publisher credits
 each autonomous merge to the cells of the rung its lane pin names
-(`scripts/publish-promotion-evidence.mjs`), a native auto-merge the pr-merge lane armed included. `C3-ai-review-blocking` measures the AI review rather
-than merge authority, so its population is every merge under rung C3 plus every human merge;
-autonomous C2 and no-rung merges stay out of it.
+(`scripts/publish-promotion-evidence.mjs`), a native auto-merge the pr-merge lane armed included.
+`C3-ai-review-blocking` takes its positive evidence from rung-C3 merges only, and its
+missed-blocking findings from rung-C3 merges and human merges.
 
 ## Trusted seam (required)
 

@@ -533,7 +533,7 @@ test("advisory reviews are counted from the named AI reviewers and reported unme
   const fixture = { pulls: [pr(701, "2026-09-01T00:00:00Z", { rung: "C3" })], reviews: { 701: [REC.review] } };
   assert.equal(termOf(run(fixture, { aiReviewers: [REC.review.user.login] }), "C3-ai-review-blocking", "advisory AI reviews on C3").value, 1);
   assert.equal(termOf(run(fixture), "C3-ai-review-blocking", "advisory AI reviews on C3").value, null);
-  // The cell measures the AI review: a human merge counts, an autonomous C2 or no-rung merge does not.
+  // Positive evidence comes from autonomous rung-C3 merges only: a human, C2 or no-rung merge's review does not count.
   const reviewed = (number) => [number, [REC.review]];
   const mixed = {
     pulls: [
@@ -545,8 +545,8 @@ test("advisory reviews are counted from the named AI reviewers and reported unme
     reviews: Object.fromEntries([701, 702, 703, 704].map(reviewed)),
   };
   const cell = run(mixed, { aiReviewers: [REC.review.user.login] }).cells["C3-ai-review-blocking"];
-  assert.equal(cell.terms.find((t) => t.term === "advisory AI reviews on C3").value, 2);
-  assert.deepEqual(cell.window, { from: "2026-09-01T00:00:00.000Z", to: "2026-09-02T00:00:00.000Z", days: 1 });
+  assert.equal(cell.terms.find((t) => t.term === "advisory AI reviews on C3").value, 1);
+  assert.deepEqual(cell.window, { from: "2026-09-01T00:00:00.000Z", to: "2026-09-01T00:00:00.000Z", days: 0 });
 });
 
 test("a failed check run that was re-run green still yields gate-failure (filter=all)", () => {
@@ -581,8 +581,10 @@ test("a missed-blocking label a human applied and someone later removed still co
     issueEvents: { 904: [labelEvent("labeled", MISSED, "2026-09-04T00:00:00Z"), labelEvent("unlabeled", MISSED, "2026-09-05T00:00:00Z", LANE, "Bot")] },
   });
   assert.deepEqual(result.events, [{ cell: "C3-ai-review-blocking", event: "verification-divergence", at: "2026-09-04T00:00:00Z" }]);
-  // The human merge is in the AI-review cell's population, so its finding counts there too.
-  assert.equal(termOf(result, "C3-ai-review-blocking", "human-confirmed missed-blocking findings").value, 1);
+  // A human merge's confirmed miss still counts against the AI-review cell, and fails the term.
+  const missed = termOf(result, "C3-ai-review-blocking", "human-confirmed missed-blocking findings");
+  assert.equal(missed.value, 1);
+  assert.equal(missed.pass, false);
 });
 
 test("work-class labels, before or after the merge, move no merge between cells", () => {
