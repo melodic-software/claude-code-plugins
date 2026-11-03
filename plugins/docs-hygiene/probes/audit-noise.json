@@ -4,7 +4,7 @@
   "skill_dir": "plugins/docs-hygiene/skills/audit-noise",
   "ranking_note": "Authored from the before descriptions at commit 4803086565, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the code-comment residue audit, the compression, derivability and SSOT extraction siblings, the AI-slop audit, the skill QA check and the attribution audit.",
   "competitors": [
-    "code-tidying:remove-comments",
+    "code-tidying:audit-comment-residue",
     "docs-hygiene:compress",
     "ai-slop:audit",
     "docs-hygiene:audit-derivability",

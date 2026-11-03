@@ -8,7 +8,7 @@
     "writing:be-concise",
     "docs-hygiene:compress",
     "docs-hygiene:audit-noise",
-    "code-tidying:remove-comments",
+    "code-tidying:audit-comment-residue",
     "attribution:audit"
   ],
   "queries": [
