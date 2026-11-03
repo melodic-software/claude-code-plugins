@@ -222,7 +222,7 @@ The four-part records live in [reference/native-explore.md](reference/native-exp
 - **Fan-out without a numbered gap-list**. Dispatching subagents before writing gaps produces duplicate reads and missed areas. The gap-list is the coverage-discipline gate.
 - **Handing off with placeholder sections**. Every Output-format section needs specifics or an explicit numbered gap. "TBD" fails the outcome gate.
 - **Inferring from filenames or git log without Read**. Grep hits are discovery only; conclusion-driving claims need Read verification. When uncertain, Read the file.
-- **Investigating deleted files without asking**, when `git status` shows intentional deletes, ask before archaeology.
+- **Asking about a deleted file the git probe can settle**. Before archaeology on a referenced file that is not on disk, run the `git status` and `git log` probe in [reference/workflow.md](reference/workflow.md) dimension 2. A staged or committed delete is intentional: note it in the output and skip it. Investigate an unexplained one, and ask only when the probe does not settle which it is.
 
 ## What this skill does NOT do
 

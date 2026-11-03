@@ -38,7 +38,10 @@ Code has context only git reveals, who changed it, when, why, and what else chan
 - `git log --oneline --all --since="2 weeks ago"`. Recent repo-wide activity
 - `git diff HEAD~5 -- <path>`. What changed recently in the target area
 - `git blame <file>`, when specific lines were last touched and by whom
-- **Missing files**, when `git status` or history references files that don't exist on disk, they may be intentionally deleted, so do not open git archaeology on them unprompted. Inline, ask first. **Dispatched, you cannot ask**. Record the file as an `open_questions` entry for the parent to surface and move on; asking is not optional here, so proceeding anyway would silently violate the rule that protects a deliberate deletion
+- **Missing files**, when code, `git status` or history references a file that is not on disk, probe before any archaeology the scope did not ask for. Run `git --no-optional-locks status --porcelain -- <path>` and `git log --oneline -1 --diff-filter=D -- <path>`, each its own read-only call. A status line decides first; the deleting commit counts only when status prints nothing:
+  - **Intentional**: a staged removal (`D` in the first status column), or no status line and a commit that deleted the path. Skip the archaeology and list the file under Current state as intentionally deleted, with the status line or commit that showed it.
+  - **Unexplained**: deleted only in the working tree (`D` in the second status column). Investigate it like any other file in scope, reading the last version with `git show :<path>` when the first column is not blank, else `git show HEAD:<path>`.
+  - **Not settled**: neither probe names the path, or a probe fails. Inline, ask before any archaeology. **Dispatched, you cannot ask**: record the file as an `open_questions` entry for the parent to surface and move on, since running the archaeology anyway could rebuild a file someone deleted on purpose
 
 ### 3. Project structure
 
@@ -101,7 +104,7 @@ Multiple arguments combine: `/discovery:explore payments deps tests` explores th
 Present exploration findings as:
 
 1. **Summary**. 2-3 sentence overview of what was found
-2. **Current state**. Key facts about the explored area (structure, patterns, dependencies). When the explored module has a domain-vocabulary or glossary file, frame findings using the module's domain vocabulary
+2. **Current state**. Key facts about the explored area (structure, patterns, dependencies). When the explored module has a domain-vocabulary or glossary file, frame findings using the module's domain vocabulary. List each file skipped as intentionally deleted (dimension 2's probe), with the status line or commit that showed it
 3. **Existing patterns**. How similar concerns are handled elsewhere in the repo
 4. **Test coverage**. What's tested, what's not, what test patterns are used
 5. **Constraints**. Analyzers, conventions, layer rules, or CI gates that constrain the solution
