@@ -59,8 +59,8 @@ Run `scripts/prove-check.test.sh` to exercise it against a fixture repository.
 
 ## Configuration
 
-`note` writes findings-buffer rows, under `.work/buffer/` at the repository root by default,
-gitignored. No network.
+`note` writes findings-buffer rows, by default to `findings-buffer/` in the git common directory:
+one file per clone, shared by its worktrees, never committed. No network.
 
 The two `findings_buffer_adapter_*` options bind one repository's own findings-buffer adapter, in
 user scope, where a repository cannot write. `buffer.sh` reads them from your user settings and
