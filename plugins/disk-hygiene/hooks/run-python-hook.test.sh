@@ -11,6 +11,10 @@ if [[ -z "$FLOOR" ]]; then
   echo "FAIL: could not parse MIN_PYTHON from $ENGINE" >&2
   exit 1
 fi
+if ! grep -q "\"min\": \"$FLOOR\"" "$SCRIPT_DIR/../prerequisites.json"; then
+  echo "FAIL: prerequisites.json does not declare MIN_PYTHON $FLOOR" >&2
+  exit 1
+fi
 PYTHON_VERSION_PROBE="import sys; floor = tuple(int(part) for part in '$FLOOR'.split('.')); raise SystemExit(0 if sys.version_info >= floor else 1)"
 
 pass() { printf 'PASS: %s\n' "$1"; }
@@ -538,7 +542,7 @@ nopy_guard "$engine_payload" --marker-root "$NOPY_DIR/data" --launch-marker guar
   "$GUARD" --mode engine-gate
 assert_eq "engine-gate without python denies a command naming the engine" "2" "$NOPY_RC"
 assert_contains "the engine deny names the missing interpreter" "no usable Python 3" "$NOPY_ERR"
-assert_contains "the engine deny names the remedy" "/disk-hygiene:check" "$NOPY_ERR"
+assert_contains "the engine deny names the remedy" "lib/prerequisites.mjs' check" "$NOPY_ERR"
 assert_eq "the engine deny prints no allow-shaped stdout" "" "$NOPY_OUT"
 
 # shellcheck disable=SC2016  # a literal PowerShell variable, deliberately unexpanded
@@ -667,7 +671,7 @@ CONTEXT_OUT="$(
 )"
 assert_eq "the clean expansion is blocked without python" "block" \
   "$(jq -r '.decision // ""' <<<"$CONTEXT_OUT" 2>/dev/null)"
-assert_contains "the expansion block names the remedy" "/disk-hygiene:check" \
+assert_contains "the expansion block names the remedy" "lib/prerequisites.mjs' check" \
   "$(jq -r '.reason // ""' <<<"$CONTEXT_OUT" 2>/dev/null)"
 
 # --- happy path execs the target script when python is available ---
