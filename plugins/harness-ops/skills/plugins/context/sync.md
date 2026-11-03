@@ -141,8 +141,8 @@ again. `fleet-state.sh` lists every path it read, absent ones included, and `syn
 that read's report while each path keeps its mtime, ctime and size. A changed, created or removed
 path makes the read run again. A report is stored only from a read with an earlier read's list to
 compare against, whose list and fingerprint match before and after it, and whose present inputs
-all have an mtime and ctime more than 2 s before it started, so the first read in a run directory
-is never stored. The reuse holds within one invocation and into an `--only-install` re-entry run
+all have an mtime and ctime more than 2 s before it started (`SYNC_FLEET_STATE_STORE_MARGIN_S` overrides the 2 s with a whole
+number of seconds, up to 6 digits), so the first read in a run directory is never stored. The reuse holds within one invocation and into an `--only-install` re-entry run
 from the same directory and environment. `journal.log` records each read as
 `# fleet-state read <step>: elapsed <seconds>s, exit <rc>, ...` and each reuse as
 `# fleet-state reuse <step>: inputs unchanged since the <step> read`. The fingerprint does not

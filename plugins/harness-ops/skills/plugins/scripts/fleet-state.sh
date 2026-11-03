@@ -263,7 +263,7 @@
 # Set by sync-run.sh:
 #   FLEET_STATE_READ_LIST  — a file this run writes on exit: every path it read
 #                          or tested, one per line, absent ones included, so the
-#                          caller can fingerprint the inputs by mtime and size.
+#                          caller can fingerprint the inputs by mtime, ctime and size.
 #                          Not covered by it: the `git rev-parse` fallback above
 #                          and the `realpath` manifest containment verdict.
 
