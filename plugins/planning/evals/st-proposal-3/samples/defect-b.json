@@ -23,10 +23,6 @@
     {
       "answer": "- `createInvoice` has no guard against duplicate invoices: it does a plain insert.\n",
       "why": "no guard against"
-    },
-    {
-      "answer": "The draft says createInvoice is safe to retry; it isn't, because invoice.ts does a plain insert.\n",
-      "why": "quotes the draft, then rebuts it with a pronoun negation"
     }
   ],
   "fail": [
@@ -53,6 +49,14 @@
     {
       "answer": "- The migration should add an index on invoice_jobs.status.\n",
       "why": "a finding about something else"
+    },
+    {
+      "answer": "The draft says createInvoice is safe to retry; it isn't, because invoice.ts does a plain insert.\n",
+      "why": "known limit: a quoted claim rebutted without a contrast word followed by a target term is not credited"
+    },
+    {
+      "answer": "Section 3 reads well. Although the draft says createInvoice is safe to retry, invoice.ts does a plain insert.\n",
+      "why": "known limit: the concessive comes before the quoted claim, and the contrast re-check only looks after it"
     }
   ]
 }

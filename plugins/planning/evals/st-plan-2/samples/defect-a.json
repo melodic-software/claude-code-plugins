@@ -23,10 +23,6 @@
     {
       "answer": "| 1 | IMPORTANT | Plan | AC3's sanity check does not test an overdraw and would pass with `ErrOverdraw` deleted | Fix before building |\n",
       "why": "paraphrase"
-    },
-    {
-      "answer": "- The plan says the Phase 3 sanity check will exercise the overdraw refusal, but moving 5 from a bin of 20 never reaches it.\n",
-      "why": "quotes the claim, then attacks it"
     }
   ],
   "fail": [
@@ -53,6 +49,10 @@
     {
       "answer": "- Phase 3 does not test the exit code mapping in its unit tests.\n",
       "why": "the phase with no check named and another gap"
+    },
+    {
+      "answer": "- The plan says the Phase 3 sanity check will exercise the overdraw refusal, but moving 5 from a bin of 20 never reaches it.\n",
+      "why": "known limit: the quoted claim is rebutted, but no target term follows the contrast word, so the dismissal exclusion holds"
     }
   ]
 }

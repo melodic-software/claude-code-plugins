@@ -77,6 +77,14 @@
     {
       "answer": "The plan says tickwheel handles DST through utc_offset, and it never fails.\n",
       "why": "quotes the plan, then dismisses with never fails"
+    },
+    {
+      "answer": "The plan says tickwheel handles DST through utc_offset; that's not a problem.\n",
+      "why": "quotes the claim, then dismisses the problem"
+    },
+    {
+      "answer": "The plan says tickwheel handles DST through utc_offset, which it actually does.\n",
+      "why": "quotes the claim, then endorses it"
     }
   ]
 }

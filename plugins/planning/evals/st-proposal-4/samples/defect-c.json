@@ -53,6 +53,10 @@
     {
       "answer": "- No two compaction runs overlap: each finishes in under five minutes.\n",
       "why": "no-two negation"
+    },
+    {
+      "answer": "The draft says the cron compaction is safe with flock; that's not an issue because a second run exits when the lock is held.\n",
+      "why": "quotes the claim, then dismisses the issue"
     }
   ]
 }

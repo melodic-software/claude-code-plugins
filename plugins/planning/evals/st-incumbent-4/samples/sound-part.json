@@ -39,6 +39,10 @@
     {
       "answer": "- The 4 KB value limit is fine, but `Sealbox.rekey` exists since 5.0.0, so Why is wrong about rotation.\n",
       "why": "wrong belongs to another clause"
+    },
+    {
+      "answer": "- The draft says the 4 KB value limit is fine, but sealed notes can exceed it.\n",
+      "why": "known limit: the quoted claim is rebutted, but no target term follows the contrast word, so the dismissal exclusion holds; a real attack left unflagged"
     }
   ],
   "fail": [
@@ -65,10 +69,6 @@
     {
       "answer": "- Nothing checks that sealed notes stay under the 4 KB value limit, so a long note can exceed it.\n",
       "why": "nothing opens the attack"
-    },
-    {
-      "answer": "- The draft says the 4 KB value limit is fine, but sealed notes can exceed it.\n",
-      "why": "quotes the approval, then attacks it"
     }
   ]
 }

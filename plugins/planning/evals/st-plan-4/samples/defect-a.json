@@ -29,10 +29,6 @@
       "why": "quotes the claim, then attacks it"
     },
     {
-      "answer": "- Although Phase 2 says AC4 is covered, no step reads `SmsOptOut`.\n",
-      "why": "leading concessive"
-    },
-    {
       "answer": "- Phase 2 claims AC4 is covered, but no step filters on `SmsOptOut`.\n",
       "why": "quotes the claim, then refutes it"
     }
@@ -61,6 +57,10 @@
     {
       "answer": "- AC4 is handled by Phase 2's current filter on `SmsOptOut`.\n",
       "why": "word ending in nt, an affirmation"
+    },
+    {
+      "answer": "- Although Phase 2 says AC4 is covered, no step reads `SmsOptOut`.\n",
+      "why": "known limit: the concessive comes before the quoted claim, and the contrast re-check only looks after it"
     }
   ]
 }

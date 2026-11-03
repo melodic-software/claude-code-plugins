@@ -17,10 +17,6 @@
       "why": "only from"
     },
     {
-      "answer": "- The draft says the job store is correct for our release, but 2.8.1 lacks it.\n",
-      "why": "quotes, then contradicts"
-    },
-    {
       "answer": "- Without a version bump, the pinned 2.8.1 in `requirements.txt` lacks `FileJobStore`; it arrives in 3.0.\n",
       "why": "without a bump opens the attack"
     },
@@ -69,6 +65,10 @@
     {
       "answer": "The plan says FileJobStore works with the pinned 2.8.1 without an upgrade.\n",
       "why": "quotes the plan with no rebuttal"
+    },
+    {
+      "answer": "- The draft says the job store is correct for our release, but 2.8.1 lacks it.\n",
+      "why": "known limit: the quoted claim is rebutted, but no target term follows the contrast word, so the dismissal exclusion holds"
     }
   ]
 }
