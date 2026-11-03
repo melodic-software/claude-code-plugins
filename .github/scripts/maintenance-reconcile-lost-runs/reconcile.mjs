@@ -133,6 +133,15 @@
 // failed job's steps did not list in full. A carry that is missing or cannot be
 // read reads every run, as before.
 //
+// The same file carries each open PR's latest-attempt job reads (readJobs),
+// keyed on the run id and attempt, and used only while the head's live listing
+// shows that run completed at that attempt, head and updated_at: a new run or
+// attempt reads its jobs again. Only a whole, final listing whose every job's
+// steps listed in full is carried, so it carries no annotation, and a red head
+// re-reads nothing until it changes. Every decision still runs on each pass
+// against the jobs, now and the status pages, and act re-reads each run
+// before it writes.
+//
 // Nothing is read from GitHub while githubstatus.com shows Actions as anything
 // but operational, or the status cannot be read, so a re-run never adds load
 // mid-incident. At most MAX_IN_FLIGHT re-runs are in flight at once (PR CI
@@ -162,7 +171,7 @@
 //                        as its caller reads it: only `true`, in any case, stops, and unset
 //                        reads empty
 //   STATUS_URL           the status page's components endpoint (default githubstatus.com)
-//   SETTLED_PATH         plan reads the last pass's settled runs, then writes
+//   SETTLED_PATH         plan reads the last pass's settled runs and job reads, then writes
 //                        this pass's there for the upload; unset carries nothing
 //   GITHUB_RUN_ID, RUNNER_TEMP  this run, and where the last carry is downloaded
 //   GITHUB_OUTPUT        plan writes record-1 to record-3 there (empty when unused)
@@ -326,35 +335,61 @@ export const SETTLED_FILE = "settled.json";
 const WORKFLOW_PATH = ".github/workflows/maintenance-reconcile-lost-runs.yml";
 // Bump whenever the rules that settle a run change, so no pass skips a run
 // settled under the old rules.
-export const SETTLED_VERSION = 2;
+export const SETTLED_VERSION = 3;
 
 class RateLimited extends Error {}
 
-// The carried runs, id to hold reason ("" for an intake or verdict run), or
-// an error for any other shape.
+const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+const jobsKey = (id, attempt) => `${id}:${attempt}`;
+// A carried job read, {id, attempt, head, updated_at, jobs}.
+const carriedJobsEntry = (e) =>
+  Number.isSafeInteger(e?.id) &&
+  e.id > 0 &&
+  Number.isSafeInteger(e.attempt) &&
+  e.attempt > 0 &&
+  SHA.test(e.head ?? "") &&
+  typeof e.updated_at === "string" &&
+  Array.isArray(e.jobs) &&
+  e.jobs.every(isObject);
+
+// The carried runs, id to hold reason ("" for an intake or verdict run), and
+// the carried job reads by jobsKey, or an error for any other shape.
 export function parseSettled(text, repo) {
   const data = JSON.parse(text);
   if (
     data?.version !== SETTLED_VERSION ||
     data.repository !== repo ||
     !Array.isArray(data.runs) ||
-    !data.runs.every((r) => Number.isSafeInteger(r?.id) && r.id > 0 && typeof r.reason === "string")
+    !data.runs.every((r) => Number.isSafeInteger(r?.id) && r.id > 0 && typeof r.reason === "string") ||
+    !Array.isArray(data.jobs) ||
+    !data.jobs.every(carriedJobsEntry)
   ) {
     throw new Error("the settled runs file has an unexpected shape");
   }
-  return new Map(data.runs.map((r) => [r.id, r.reason]));
+  return { runs: new Map(data.runs.map((r) => [r.id, r.reason])), jobs: new Map(data.jobs.map((e) => [jobsKey(e.id, e.attempt), e])) };
 }
 
-// The newest trusted pass's settled runs, empty when no pass carries any.
+// The newest trusted pass's settled runs and job reads, empty when no pass carries any.
 async function readSettled({ repo, runId, call, download }) {
   const id = await newestTrustedRun({ repo, runId, actions: call, name: SETTLED_ARTIFACT, workflow: WORKFLOW_PATH });
-  return id === undefined ? new Map() : parseSettled(download(id), repo);
+  return id === undefined ? { runs: new Map(), jobs: new Map() } : parseSettled(download(id), repo);
 }
 
 // True when a job listing is whole and final: every job it counts is listed,
 // completed, with a conclusion. Only such a read is carried.
 const wholeListing = (listing) =>
   Array.isArray(listing?.jobs) && listing.jobs.length === listing.total_count && listing.jobs.every((job) => job?.status === "completed" && job.conclusion != null);
+
+// A job with only the fields the rules read (stepsKnown, infraCause and the
+// stop and contract checks), so a carried read decides as a live one does.
+const slimJob = (job) => ({
+  id: job.id,
+  name: job.name,
+  status: job.status,
+  conclusion: job.conclusion,
+  runner_id: job.runner_id,
+  steps: Array.isArray(job.steps) ? job.steps.map((s) => ({ name: s?.name, number: s?.number, status: s?.status, conclusion: s?.conclusion })) : job.steps,
+});
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
@@ -726,9 +761,11 @@ export async function prefilterSpec(call, repo, candidates) {
 // Reads every open PR's head and the recorded lanes' runs, and returns the
 // re-runs to make in order, with a record name on each lane re-run and each
 // recorded CI re-run.
-async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneApp, settled = new Map(), env = {} }) {
+async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneApp, settled = new Map(), carriedJobs = new Map(), env = {} }) {
   // The runs to carry to the next pass, {id, reason}: read and settled now, or carried and still listed.
   const settle = [];
+  // The job reads to carry to the next pass, by jobsKey: read whole now, or carried and still current.
+  const keepJobs = new Map();
   const sayHeld = (r, held) => {
     const why = held === NOT_STARTED ? "; a newer run judges the head, so it is not re-run" : "; not re-run";
     say(`lane run ${r.id} (${r.path}) ended ${r.conclusion} ${held}${why}`);
@@ -806,10 +843,28 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       const set = rerun.map((r) => ({ kind: "ci", pr: pull.number, id: r.id, path: r.path, conclusion: r.conclusion, head: pull.head.sha }));
       // A run's latest jobs, with the annotations of a failed job whose steps
       // did not list in full (infraCause reads them).
+      // A completed run's carried read is used while the listing shows the
+      // same attempt, head and updated_at; a whole, final read is carried.
       const readJobs = async (r) => {
+        const key = jobsKey(r.id, r.run_attempt);
+        const carried = r.status === "completed" ? carriedJobs.get(key) : undefined;
+        if (carried && carried.head === r.head_sha && carried.updated_at === r.updated_at) {
+          keepJobs.set(key, carried);
+          return carried.jobs;
+        }
         const listed = await call("GET", `/repos/${repo}/actions/runs/${r.id}/jobs?filter=latest&per_page=100`);
         if (!Array.isArray(listed?.jobs) || listed.total_count > 100) {
           throw new Error(`run ${r.id}'s job listing is not one complete page`);
+        }
+        if (
+          r.status === "completed" &&
+          Number.isSafeInteger(r.run_attempt) &&
+          SHA.test(r.head_sha ?? "") &&
+          typeof r.updated_at === "string" &&
+          wholeListing(listed) &&
+          listed.jobs.every((job) => stepsKnown(job) && (job.run_attempt === undefined || job.run_attempt === r.run_attempt))
+        ) {
+          keepJobs.set(key, { id: r.id, attempt: r.run_attempt, head: r.head_sha, updated_at: r.updated_at, jobs: listed.jobs.map(slimJob) });
         }
         return withAnnotations(call, repo, listed.jobs, (job) => job?.conclusion === "failure");
       };
@@ -1182,7 +1237,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     place(`#${set[0].pr}`, set);
   }
   items.push(...intake, ...verdicts);
-  return { items, failed, settle };
+  return { items, failed, settle, jobs: [...keepJobs.values()] };
 }
 
 // Re-runs each planned item still lost on a fresh read.
@@ -1379,7 +1434,7 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
           specFromBodyApps: specFromBodyApps(env.SPEC_FROM_BODY_APPS),
         });
     }
-    let settled = new Map();
+    let settled = { runs: new Map(), jobs: new Map() };
     if (env.SETTLED_PATH) {
       try {
         download ??= ghDownload({ repo, token: env.GH_TOKEN, dir: env.RUNNER_TEMP, name: SETTLED_ARTIFACT, file: SETTLED_FILE });
@@ -1391,14 +1446,14 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
         console.log(`::warning title=reconcile::no settled runs carried, so every run is read: ${escapeCommand(error?.message ?? error)}`);
       }
     }
-    const { settle, ...planned } = await plan({ repo, call, say, since, now, readStatus, judgeSpec, laneApp, settled, env });
+    const { settle, jobs, ...planned } = await plan({ repo, call, say, since, now, readStatus, judgeSpec, laneApp, settled: settled.runs, carriedJobs: settled.jobs, env });
     result = planned;
     if (result.items.some(recorded) && !env.RECORD_PATH) {
       throw new Error("RECORD_PATH is not set");
     }
     write();
     if (env.SETTLED_PATH) {
-      writeFileSync(env.SETTLED_PATH, JSON.stringify({ version: SETTLED_VERSION, repository: repo, runs: [...new Map(settle.map((r) => [r.id, r])).values()] }));
+      writeFileSync(env.SETTLED_PATH, JSON.stringify({ version: SETTLED_VERSION, repository: repo, runs: [...new Map(settle.map((r) => [r.id, r])).values()], jobs }));
     }
     if (lines.length === 0 && result.items.length === 0) {
       say(result.failed > 0 ? `${result.failed} listings failed; what was lost is unknown` : "nothing lost");

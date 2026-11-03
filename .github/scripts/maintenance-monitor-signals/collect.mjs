@@ -5,6 +5,7 @@
 import { parseOutcomeMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { escalationActivity, escalationRoute, STOP_RESOLVED } from "../pr-unblock/escalation-routes.mjs";
 import { parseBudget, POST_MERGE_UNREADABLE_SWEEPS, STALLED_HOURS, SWEEP_MAX_AGE_MINUTES } from "./signals.mjs";
+import { stepsKnown } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 
 export const LIMITS = {
   prMergeRuns: 12,
@@ -99,15 +100,68 @@ const RUN_ID = /^[0-9]+$/;
 const RUN_LOOKBACK_HOURS = 6;
 const iso = (date) => date.toISOString().replace(/\.\d{3}Z$/, "Z");
 
-export async function collect({ get, graphql, getStatus, readArtifact, repo, now, windowStart, agentIdentity, ownRate = null }) {
+// The artifact that carries completed runs' job reads from one run of this
+// lane to the next, and its file's version: bump it whenever the fields kept
+// or the rule for keeping them change.
+export const JOBS_ARTIFACT = "monitor-signals-jobs";
+export const JOBS_FILE = "jobs.json";
+export const JOBS_VERSION = 1;
+const jobsKey = (id, attempt) => `${id}:${attempt}`;
+const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+// A job with only the fields the sources read.
+const slimJob = (job) => ({
+  id: job.id,
+  name: job.name,
+  status: job.status,
+  conclusion: job.conclusion,
+  steps: Array.isArray(job.steps) ? job.steps.map((s) => ({ name: s?.name, number: s?.number, status: s?.status, conclusion: s?.conclusion })) : job.steps,
+});
+
+// The carried job reads by run id and attempt, or an error for any other shape.
+export function parseJobsCarry(text, repo) {
+  const data = JSON.parse(text);
+  const entry = (e) =>
+    Number.isSafeInteger(e?.id) && e.id > 0 && Number.isSafeInteger(e.attempt) && e.attempt > 0 && typeof e.updated_at === "string" && Array.isArray(e.jobs) && e.jobs.every(isObject);
+  if (data?.version !== JOBS_VERSION || data.repository !== repo || !Array.isArray(data.runs) || !data.runs.every(entry)) {
+    throw new Error("the carried job reads file has an unexpected shape");
+  }
+  return new Map(data.runs.map((e) => [jobsKey(e.id, e.attempt), e]));
+}
+
+export const jobsCarryFile = (repo, runs) => JSON.stringify({ version: JOBS_VERSION, repository: repo, runs });
+
+// `carriedJobs` is the last run's job reads (parseJobsCarry). A completed
+// run's carried read is used while its listing shows the same attempt and
+// updated_at, and a whole read of a completed run whose every job finished and
+// listed its steps in full is kept; data.jobsCarry holds what the next run
+// carries: this run's reads and hits, nothing else.
+export async function collect({ get, graphql, getStatus, readArtifact, repo, now, windowStart, agentIdentity, ownRate = null, carriedJobs = new Map() }) {
   const gaps = [];
   const jobsMemo = new Map();
   const annotationsMemo = new Map();
-  const jobsOf = async (runId) => {
-    if (!jobsMemo.has(runId)) {
-      jobsMemo.set(runId, (await get(`/repos/${repo}/actions/runs/${runId}/jobs?filter=latest&per_page=100`)).jobs ?? []);
+  const keptJobs = new Map();
+  const jobsOf = async (run) => {
+    if (!jobsMemo.has(run.id)) {
+      const key = jobsKey(run.id, run.run_attempt);
+      const final = run.status === "completed" && Number.isSafeInteger(run.run_attempt) && typeof run.updated_at === "string";
+      const carried = final ? carriedJobs.get(key) : undefined;
+      if (carried && carried.updated_at === run.updated_at) {
+        keptJobs.set(key, carried);
+        jobsMemo.set(run.id, carried.jobs);
+      } else {
+        const listing = await get(`/repos/${repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`);
+        const jobs = listing.jobs ?? [];
+        if (
+          final &&
+          jobs.length === listing.total_count &&
+          jobs.every((j) => j?.status === "completed" && j.conclusion != null && stepsKnown(j) && (j.run_attempt === undefined || j.run_attempt === run.run_attempt))
+        ) {
+          keptJobs.set(key, { id: run.id, attempt: run.run_attempt, updated_at: run.updated_at, jobs: jobs.map(slimJob) });
+        }
+        jobsMemo.set(run.id, jobs);
+      }
     }
-    return jobsMemo.get(runId);
+    return jobsMemo.get(run.id);
   };
   const annotationsOf = async (jobId) => {
     if (!annotationsMemo.has(jobId)) {
@@ -145,7 +199,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     const runs = await prMergeRuns();
     data.budgetReadings = [];
     for (const run of runs.filter((r) => r.status === "completed" && trustedPrMerge(r) && completedInWindow(r)).slice(0, LIMITS.prMergeRuns)) {
-      const merge = (await jobsOf(run.id)).find((j) => j.name === "merge");
+      const merge = (await jobsOf(run)).find((j) => j.name === "merge");
       if (!merge) continue;
       for (const a of await annotationsOf(merge.id)) {
         const reading = a.title === "api-budget" ? parseBudget(a.message) : null;
@@ -170,7 +224,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     for (const run of lanes.slice(0, LIMITS.laneRuns)) {
       if (read >= LIMITS.laneMintJobs) return;
       const alreadyRead = (job) => run.path === PR_MERGE_PATH && trustedPrMerge(run) && job.name === "merge";
-      const minted = (await jobsOf(run.id)).filter(
+      const minted = (await jobsOf(run)).filter(
         (j) => !alreadyRead(j) && (j.steps ?? []).some((s) => s.name === MINT_STEP && s.conclusion === "success"),
       );
       for (const job of minted) {
@@ -189,7 +243,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
       const runs = (await get(`/repos/${repo}/actions/runs?status=in_progress&per_page=100`)).workflow_runs;
       let inProgress = 0;
       for (const run of runs.slice(0, LIMITS.inProgressRuns)) {
-        inProgress += (await jobsOf(run.id)).filter((j) => j.status === "in_progress").length;
+        inProgress += (await jobsOf(run)).filter((j) => j.status === "in_progress").length;
       }
       data.jobsInUse = {
         inProgress,
@@ -217,7 +271,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     data.failedRuns = [];
     for (const run of [...kept.values()].slice(0, LIMITS.failedRuns)) {
       const annotations = [];
-      for (const job of failedJobs(await jobsOf(run.id)).slice(0, LIMITS.failedJobsPerRun)) {
+      for (const job of failedJobs(await jobsOf(run)).slice(0, LIMITS.failedJobsPerRun)) {
         for (const a of await annotationsOf(job.id)) annotations.push({ level: a.annotation_level, message: a.message });
       }
       data.failedRuns.push({ id: run.id, url: run.html_url, name: run.name, event: run.event, annotations });
@@ -238,7 +292,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     if (!run) return;
     const jobs = [];
     if (["failure", "timed_out"].includes(run.conclusion)) {
-      for (const job of failedJobs(await jobsOf(run.id)).slice(0, LIMITS.mainFailedJobs)) {
+      for (const job of failedJobs(await jobsOf(run)).slice(0, LIMITS.mainFailedJobs)) {
         const annotations = (await annotationsOf(job.id)).map((a) => ({ level: a.annotation_level, message: a.message }));
         jobs.push({ name: job.name, conclusion: job.conclusion, annotations });
       }
@@ -267,7 +321,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
       const detailed = data.mergeGroupFailures.length < LIMITS.mergeGroupRuns;
       const steps = [];
       if (detailed) {
-        for (const job of failedJobs(await jobsOf(run.id))) {
+        for (const job of failedJobs(await jobsOf(run))) {
           const failed = (job.steps ?? []).filter((s) => s.conclusion === "failure").map((s) => `${job.name} / ${s.name}`);
           steps.push(...(failed.length > 0 ? failed : [job.name]));
         }
@@ -514,7 +568,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
         await get(`/repos/${repo}/actions/workflows/${workflow}.yml/runs?event=schedule&status=completed&created=<=${iso(now)}&per_page=1`)
       ).workflow_runs;
       if (!run) continue;
-      const failed = run.conclusion === "failure" ? failedJobs(await jobsOf(run.id)).map((j) => j.name) : [];
+      const failed = run.conclusion === "failure" ? failedJobs(await jobsOf(run)).map((j) => j.name) : [];
       data.audits.push({
         workflow,
         run: { id: run.id, url: run.html_url, conclusion: run.conclusion, createdAt: run.created_at, failedJobs: failed },
@@ -536,6 +590,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     };
   });
 
+  data.jobsCarry = [...keptJobs.values()];
   return data;
 }
 

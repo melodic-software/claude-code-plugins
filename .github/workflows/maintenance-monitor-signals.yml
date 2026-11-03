@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
-      actions: read # list runs, jobs and artifacts, download pr-merge-summary and pr-merge-post-merge-report
+      actions: read # list runs, jobs and artifacts, download pr-merge-summary, pr-merge-post-merge-report and the last run's monitor-signals-jobs
       checks: read # read check-run annotations
       contents: read # check out main
       issues: write # file and update the lane's own issues
@@ -82,10 +82,34 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           CALL_BUDGET: "250"
           WINDOW_MINUTES: "65"
+          JOBS_CARRY_PATH: ${{ runner.temp }}/monitor-jobs/jobs.json
         run: |
+          mkdir -p "$RUNNER_TEMP/monitor-jobs"
           AGENT_IDENTITY=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
           export AGENT_IDENTITY
           node .base/.github/scripts/maintenance-monitor-signals/monitor.mjs
+
+      # Completed runs' job reads, which the next run reads instead of asking
+      # GitHub again (collect.mjs JOBS_ARTIFACT). A missing upload costs the
+      # next run a full read.
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          ${{ !cancelled() && steps.kill.outputs.proceed == 'true' }}
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/monitor-jobs/jobs.json
+
+      - name: Carry the job reads
+        if: >-
+          (!cancelled() && steps.kill.outputs.proceed == 'true') && steps.scan-upload.outputs.clean == 'true'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: monitor-signals-jobs
+          path: ${{ runner.temp }}/monitor-jobs/jobs.json
+          if-no-files-found: ignore
+          retention-days: 1
 
       - name: Log the API budget at the end
         if: always()

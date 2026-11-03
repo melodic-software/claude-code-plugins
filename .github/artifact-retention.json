@@ -358,6 +358,14 @@
       "reason": "Read by the next pass; 1 day is the minimum.",
       "scan": "upload"
     },
+    "monitor-signals-jobs": {
+      "retention-days": 1,
+      "readers": [
+        ".github/scripts/maintenance-monitor-signals/monitor.mjs readJobsCarry, from the newest trusted run"
+      ],
+      "reason": "Read by the next hourly run; 1 day is the minimum.",
+      "scan": "upload"
+    },
     "pr-feedback-dispatched-*": {
       "retention-days": 1,
       "readers": [
