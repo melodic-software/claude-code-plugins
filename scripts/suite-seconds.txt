@@ -452,7 +452,12 @@ plugins/planning/scripts/check-open-questions.test.sh 25
 plugins/planning/scripts/check-plan-outcome.test.sh 1
 plugins/planning/scripts/eval-scaffold.test.sh 1
 plugins/planning/scripts/goal-condition-length.test.sh 1
-plugins/planning/shared/tests/align.test.sh 310
+# The three align-<part>.test.sh rows split the unsplit align suite's 310 s
+# main median (#12513) by each part's share of one local run, 223 s unsplit
+# against 94, 96 and 54 s for parts a, b and c.
+plugins/planning/shared/tests/align-a.test.sh 131
+plugins/planning/shared/tests/align-b.test.sh 133
+plugins/planning/shared/tests/align-c.test.sh 75
 plugins/planning/shared/tests/test_cfdns.py 8
 plugins/planning/shared/tests/test_load.py 10
 plugins/planning/shared/tests/test_owner_ops.py 1

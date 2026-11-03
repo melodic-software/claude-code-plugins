@@ -61,7 +61,7 @@
 #   morning-brief.sh --stuck-days N           age in a queue label past which an open item is listed as stuck (default 7)
 #   morning-brief.sh --stuck-limit N          cap on the stuck items listed, oldest first (default 20)
 #   morning-brief.sh --data-dir DIR           base dir for the stranded bookmark (default $CLAUDE_PLUGIN_DATA
-#                                             when it names harness-ops, else ~/.claude/plugins/data/harness-ops);
+#                                             when it names work-items, else ~/.claude/plugins/data/work-items);
 #                                             absolute, with no .. segment or control character
 #   morning-brief.sh --rec-maxlen N           truncate RECOMMENDED previews (default 240; 0 = full)
 #   morning-brief.sh --pr-limit N             cap on per-PR reads: REST merge state, and base freshness of clean PRs (default 50)
@@ -94,11 +94,11 @@
 #   morning-brief.sh --allowed-collaborators A,B
 #                                             direct collaborators besides org admins (default: none)
 #   morning-brief.sh --workflow-read-limit N  cap on workflow files read for secret triggers (default 300)
-#   morning-brief.sh --config-home DIR        convention home holding harness-ops.yaml (default: the
+#   morning-brief.sh --config-home DIR        convention home holding work-items.yaml (default: the
 #                                             checkout's docs/conventions)
 #
 # Cost settings. Each cost flag above is also a key under `morning_brief:` in
-# <home>/harness-ops.yaml (team, tracked) and <home>/harness-ops.local.yaml
+# <home>/work-items.yaml (team, tracked) and <home>/work-items.local.yaml
 # (personal, gitignored): org, subscription, actions_included_minutes,
 # actions_included_storage_gb, usage_alert_percent, log_cap_alert_percent,
 # forecast_alert, required_budgets and allowed_collaborators (lists),
@@ -662,8 +662,8 @@ config_layer() {
 CONFIG_TEAM=""
 CONFIG_LOCAL=""
 if CONFIG_HOME="$(config_home)"; then
-  CONFIG_TEAM="$(config_layer "$CONFIG_HOME/harness-ops.yaml")"
-  CONFIG_LOCAL="$(config_layer "$CONFIG_HOME/harness-ops.local.yaml")"
+  CONFIG_TEAM="$(config_layer "$CONFIG_HOME/work-items.yaml")"
+  CONFIG_LOCAL="$(config_layer "$CONFIG_HOME/work-items.local.yaml")"
 fi
 COST_SETTING_LAYERS=()
 # config_value VAR KEY KIND DEFAULT: sets VAR to the value KEY resolves to. KIND
@@ -677,7 +677,7 @@ config_value() {
     return
   fi
   for layer in local team; do
-    if [[ "$layer" == local ]]; then value="$CONFIG_LOCAL" file="harness-ops.local.yaml"; else value="$CONFIG_TEAM" file="harness-ops.yaml"; fi
+    if [[ "$layer" == local ]]; then value="$CONFIG_LOCAL" file="work-items.local.yaml"; else value="$CONFIG_TEAM" file="work-items.yaml"; fi
     if [[ "$kind" == list ]]; then
       value="$(awk -F'\t' -v k="$key" '
         index($1, k ".") == 1 && substr($1, length(k) + 2) ~ /^[0-9]+$/ { printf "%s%s", (n++ ? "," : ""), $2 }
@@ -1813,10 +1813,10 @@ stranded_bookmark_path() {
   if [[ -z "$base" ]]; then
     seg="${seg%[/\\]}"
     seg="${seg##*[/\\]}"
-    if [[ "$seg" == harness-ops || "$seg" == harness-ops-* ]]; then
+    if [[ "$seg" == work-items || "$seg" == work-items-* ]]; then
       base="$CLAUDE_PLUGIN_DATA"
     else
-      base="${HOME:-}/.claude/plugins/data/harness-ops"
+      base="${HOME:-}/.claude/plugins/data/work-items"
     fi
   fi
   key="$(printf '%s' "$REPO" | tr '[:upper:]' '[:lower:]')"
@@ -3139,7 +3139,7 @@ print_cost() {
     line="${COST_SETTING_LAYERS[*]}"
     echo "  settings: ${line//[[:cntrl:]]/ }"
   else
-    echo "  settings: defaults (no harness-ops.yaml read)"
+    echo "  settings: defaults (no morning_brief key in work-items.yaml or work-items.local.yaml)"
   fi
   cost_github
   cost_azure
