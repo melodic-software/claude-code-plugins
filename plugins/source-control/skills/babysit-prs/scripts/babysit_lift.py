@@ -43,7 +43,8 @@ def canary_lines(repo_dir: str, commits: list[str]) -> list[tuple[str, bytes]]:
     attributes to a culprit in `commits`, scanned one at a time. Raises when a
     scan cannot run (exit 2) or the sink names a line it cannot parse."""
     lines: list[tuple[str, bytes]] = []
-    script = str(Path(repo_dir) / "scripts/check-silent-revert.sh")
+    # Absolute: the scan runs with `repo_dir` as its working directory.
+    script = str(Path(repo_dir).resolve() / "scripts/check-silent-revert.sh")
     with tempfile.TemporaryDirectory() as tmp:
         sink = Path(tmp) / "deleted"
         for commit in commits:
