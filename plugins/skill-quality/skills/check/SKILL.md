@@ -108,9 +108,11 @@ Parse `$ARGUMENTS`:
 
    To gate several trees in one run, pass each root: `check-skill.sh <root> [<root> ...]`.
 3. Report per skill:
-   - **PASS / FAIL** from the script's exit code (0 = pass, 1 = one or more `FAIL:` lines). In root
-     mode that exit code is the AGGREGATE over every skill, so the per-skill verdict is that
-     skill's own `CHECK-SKILL <name>: PASS` or `CHECK-SKILL <name>: FAIL` line instead.
+   - **PASS / FAIL / INCOMPLETE** from the script's exit code (0 = pass, 1 = one or more `FAIL:`
+     lines, 3 = no failure, but a deadline left script tests unrun, each named on a `SKIP` line; that
+     is not a pass). In root mode that exit code is the AGGREGATE over every skill, so the per-skill
+     verdict is that skill's own `CHECK-SKILL <name>: PASS`, `CHECK-SKILL <name>: FAIL` or
+     `CHECK-SKILL <name>: INCOMPLETE` line instead.
    - The `FAIL:` lines verbatim (each is an actionable defect). A description/verb-contract polarity
      mismatch is a FAIL that blocks; fix it by correcting the listing, or use `--fix` in the
      description as the compliant override.
@@ -120,8 +122,10 @@ Parse `$ARGUMENTS`:
      command carrying no `|| <fallback>`, same-context judgment language with no fresh-eyes
      declaration or a stale exemption directive). A dropped-trigger warning is a review item: confirm the description still names
      the intent each dropped phrase carried, or restore the phrase.
-4. For a multi-skill run, the script's own last line is the rollup `N passed, M failed`. Surface it
-   verbatim. The action is complete when every `FAIL:` line and that rollup are reported.
+4. For a multi-skill run, the script prints the rollup `N passed, M failed`, and when a deadline
+   left script tests, one more line after it counting those skills, which are in neither number.
+   Surface both verbatim. The action is complete when every `FAIL:` and `SKIP` line and the rollup
+   are reported.
 
 The `FAIL:` messages are self-describing. Do not re-derive their meaning; surface them and, when the
 user asks, fix the cited skill. A broken-internal-ref FAIL points at a `SKILL.md:<line>`. Hand-verify
