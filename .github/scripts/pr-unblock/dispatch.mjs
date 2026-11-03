@@ -29,8 +29,13 @@
 // (dispatchSharedCopies), and their run ids join the same record.
 // resolve-conflicts, review-dependency, fix-ci and fix-docs read the one
 // open-PR listing (LIST_QUERY, each page read once a run), and
-// resolve-conflicts and fix-ci the one pr-unblock.yml run listing; a
-// rate-limited run listing defers that pass, not fails it. A head whose check
+// resolve-conflicts and fix-ci the one pr-unblock.yml run listing. A read that
+// fails, whatever GitHub answered, holds what it was read for: a failed
+// listing defers its pass and a failed read for one PR skips that PR, each
+// with a warning, and the next run reads it again. fix-ci-dispatch.mjs keeps
+// the reads it dispatches past under its caps. The run fails only on a
+// dispatch that failed or named no run id, on config it cannot read, or on a
+// rate limit, which the rate guard's latch fails. A head whose check
 // runs handle it for good is kept in DISPATCH_RECORD (dispatch-record.mjs), which the workflow
 // carries to the next run through the Actions cache; the next run skips that
 // head's check-run read, and its UNKNOWN re-queries. A head recorded at the
@@ -52,7 +57,7 @@ import { runTitle, shareWorkflowRuns } from "./feedback-dispatch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, humanGatedLabel } from "./fix-ci-dispatch.mjs";
 import { DEFAULTS as DOCS_FIX_DEFAULTS, dispatchDocsFixes, HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY } from "./fix-docs-dispatch.mjs";
 import { anyHandles, cappedAt, laneStop, limitStop, pendingStop, permanentlyHandles, releasedBy, stopRelease } from "./limit-stop.mjs";
-import { budgetedFetch, serverFailure } from "./request-budget.mjs";
+import { budgetedFetch } from "./request-budget.mjs";
 import { verifyCapReader } from "./verify-cap.mjs";
 import { readConfig, readPolicy } from "./review-dependency.mjs";
 
@@ -177,7 +182,14 @@ export async function dispatchConflicting({
 
   for (let attempt = 1; pending.length > 0 && attempt <= unknownRetries; attempt += 1) {
     await sleep(unknownDelayMs);
-    const reread = await api.getPulls(pending);
+    let reread;
+    try {
+      reread = await api.getPulls(pending);
+    } catch (error) {
+      log(`::warning::could not re-query the mergeable state of #${pending.join(", #")}: ${error.message}; skipped, a later run retries`);
+      pending = [];
+      break;
+    }
     candidates.push(...reread.filter((node) => isCandidate(node, base) && !recorded(node)));
     pending = reread.filter((node) => isPending(node, base) && !recorded(node)).map((node) => node.number);
   }
@@ -198,12 +210,8 @@ export async function dispatchConflicting({
     try {
       active = (await api.listWorkflowRuns(workflow)).filter((run) => run.status !== "completed");
     } catch (error) {
-      if (error.rateLimited) {
-        log(`::warning::${workflow} run listing is rate limited (${error.message}); no ${activity} dispatched, a later run retries`);
-        return { dispatched, failed };
-      }
-      log(`::error::could not list ${workflow} runs: ${error.message}`);
-      return { dispatched, failed: failed + 1 };
+      log(`::warning::${workflow} run listing ${error.rateLimited ? "is rate limited" : "could not be read"} (${error.message}); no ${activity} dispatched, a later run retries`);
+      return { dispatched, failed };
     }
   }
   // Every dispatch call counts against the cap: one that failed or returned no
@@ -284,14 +292,7 @@ export async function dispatchConflicting({
         }
       }
     } catch (error) {
-      if (serverFailure(error)) {
-        log(`::warning::#${node.number}: could not read its holds or check runs for ${node.headRefOid}: ${error.message}; skipped, a later run retries`);
-        continue;
-      }
-      failed += 1;
-      log(
-        `::error::#${node.number}: could not read its holds or check runs for ${node.headRefOid}: ${error.message}`,
-      );
+      log(`::warning::#${node.number}: could not read its holds or check runs for ${node.headRefOid}: ${error.message}; skipped, a later run retries`);
       continue;
     }
     if (waiting) {
@@ -419,12 +420,7 @@ export async function dispatchSharedCopies({
         continue;
       }
     } catch (error) {
-      if (serverFailure(error) || error.rateLimited) {
-        log(`::warning::#${node.number}: could not read its refusal, check runs or runs for ${node.headRefOid}: ${error.message}; skipped, a later run retries`);
-        continue;
-      }
-      failed += 1;
-      log(`::error::#${node.number}: could not read its refusal, check runs or runs for ${node.headRefOid}: ${error.message}`);
+      log(`::warning::#${node.number}: could not read its refusal, check runs or runs for ${node.headRefOid}: ${error.message}; skipped, a later run retries`);
       continue;
     }
     sent += 1;
@@ -843,7 +839,15 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
   const limits = await loadLimits(env);
   const adoption = await loadAdoption(env);
   const ownedBranches = await loadOwnedBranches(env);
-  const listed = await listAll(client, DEFAULTS.base);
+  // Every dispatcher reads this listing's pages, so one that cannot be read
+  // holds the whole run: nothing dispatched, nothing recorded.
+  let listed;
+  try {
+    listed = await listAll(client, DEFAULTS.base);
+  } catch (error) {
+    log(`::warning::the open pull request listing could not be read (${error.message}); nothing dispatched, a later run retries`);
+    return 0;
+  }
   const { record, text } = readRecord(env.DISPATCH_RECORD);
   pruneRecord(record, new Set(listed.map((node) => node.headRefOid)));
   // The human-gated label another lane's escalation may leave on for
