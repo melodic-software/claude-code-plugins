@@ -74,15 +74,19 @@ on:
 
   # A label came off. This run's completion starts pr-feedback-dispatch.yml,
   # the only thing that decides again a lanes App head the human gate skipped
-  # once needs-human comes off, so `unlabeled` stays. No other PR event starts
-  # a run; the schedule picks up each change. Adding a label can only add a
-  # hold. A person's ready or rename restarts their PR's idle clock, so the
-  # gate would refuse it. An event run never arms a lane PR, and `ci-status`
-  # runs on a body edit and fails on a hold. pull_request_target runs this
-  # file as it is on main, not the PR's copy, so a PR cannot change what this
-  # lane does; the job below never checks out the PR's code.
+  # once needs-human comes off, so `unlabeled` stays. A label went on: adding
+  # one can only add a hold, so only a hold label starts work, and only the
+  # enable-auto-merge job's, which takes that one PR out of the merge queue
+  # (or disarms it) so its merge group does not run only for `ci-status` to
+  # fail it; any other label's run skips every job. No other PR event starts
+  # a run; the schedule picks up each change. A person's ready or rename
+  # restarts their PR's idle clock, so the gate would refuse it. An event run
+  # never arms a lane PR, and `ci-status` runs on a body edit and fails on a
+  # hold. pull_request_target runs this file as it is on main, not the PR's
+  # copy, so a PR cannot change what this lane does; the job below never
+  # checks out the PR's code.
   pull_request_target: # zizmor: ignore[dangerous-triggers]
-    types: [unlabeled]
+    types: [labeled, unlabeled]
 
   # A person can start a run by hand (Actions tab, "Run workflow") to retry a
   # PR that looks stuck. Only a run on main does anything.
@@ -836,12 +840,14 @@ jobs:
     # a fork PR or sent by a bot are skipped before the job joins the
     # concurrency group, so an outsider editing a fork PR over and over cannot
     # keep pushing real runs out of the queue, and a bot's event does not wait
-    # in it only to stop at the who step (a bot is never a listed human).
+    # in it only to stop at the who step (a bot is never a listed human). A
+    # label added is the enable-auto-merge job's alone: it only adds a hold.
     if: >-
       !cancelled()
       && github.ref == 'refs/heads/main' && github.event_name != 'push'
       && (github.event_name != 'pull_request_target'
       || (github.event.pull_request.head.repo.full_name == github.repository
+      && github.event.action != 'labeled'
       && github.event.sender.type != 'Bot'))
     # One run at a time, and a running one is never cancelled: a cancelled run
     # could stop between the gate's check and its merge-queue write. Extra runs
@@ -2184,18 +2190,27 @@ jobs:
     # kind it arms, and only when a person sent the event (a bot is never a
     # listed human at the who step): any other event's job is skipped before
     # it joins the group, so its check reads skipped, never pending behind the
-    # queue.
+    # queue. A label added wakes it for any author's pull request, but only a
+    # hold label: enable-auto-merge.mjs HOLD_LABELS and the tracker's
+    # human-gated label (workflow.test.mjs checks the list against both).
+    # GitHub's contains() compares strings in any case, as holdLabel does.
     if: >-
       !cancelled()
       && github.ref == 'refs/heads/main' && github.event_name != 'push'
       && (github.event_name != 'pull_request_target'
       || (github.event.pull_request.head.repo.full_name == github.repository
-      && format('{0}', github.event.pull_request.user.id) == vars.AUTOMATION_LANES_APP_SENDER_ID
+      && ((github.event.action == 'labeled'
+      && contains(fromJSON('["do-not-merge","pr-verify-failed","security: outside-actor","needs-human"]'), github.event.label.name))
+      || (github.event.action != 'labeled'
+      && format('{0}', github.event.pull_request.user.id) == vars.AUTOMATION_LANES_APP_SENDER_ID))
       && github.event.sender.type != 'Bot'))
     # A pending run is never replaced: a cancelled run leaves a CANCELLED
-    # check on the pull request that woke it.
+    # check on the pull request that woke it. A labeled run takes a group of
+    # its own, so a dequeue does not wait behind a scheduled run's verdict
+    # reads (up to its 18-minute arm step) while the merge group it would
+    # spare runs; it writes only that one pull request's queue entry and arm.
     concurrency:
-      group: pr-merge-enable-auto-merge
+      group: ${{ github.event.action == 'labeled' && 'pr-merge-hold-dequeue' || 'pr-merge-enable-auto-merge' }}
       queue: max
     runs-on: ubuntu-24.04
     # Above the sum of its steps' timeouts (35, workflow.test.mjs checks it),
@@ -2285,11 +2300,12 @@ jobs:
       # scheduled or hand-started run arms, every run disarms on a hold), this
       # run ends green here with a notice before it takes the lane token or
       # reads anything else, so a backlog costs one pass and no run is
-      # cancelled. Any error leaves superseded unset and the job runs.
+      # cancelled. Any error leaves superseded unset and the job runs. A
+      # labeled run's dequeue is work no other run does, so it never skips.
       # Rules: .github/scripts/pr-merge/superseded.mjs.
       - name: Check for a newer run that does this work
         id: superseded
-        if: steps.who.outputs.proceed == 'true'
+        if: steps.who.outputs.proceed == 'true' && github.event.action != 'labeled'
         continue-on-error: true
         timeout-minutes: 2
         env:
@@ -2447,6 +2463,8 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           # Empty on the schedule and a hand-started run.
           EVENT_PR: ${{ github.event.pull_request.number }}
+          EVENT_ACTION: ${{ github.event.action }}
+          EVENT_LABEL: ${{ github.event.label.name }}
           BABYSIT_VERIFY_GH_TOKEN: ${{ github.token }}
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
           BABYSIT_VERIFY_LISTING_CARRY: ${{ runner.temp }}/verify-listing-carry.json

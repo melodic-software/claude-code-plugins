@@ -1227,6 +1227,8 @@ const TREE_QUERY = `query($owner: String!, $name: String!, $expression: String!)
 const QUEUE_ENTRY_QUERY = `query($owner: String!, $name: String!, $pr: Int!) {
   repository(owner: $owner, name: $name) { pullRequest(number: $pr) { id mergeQueueEntry { id } } }
 }`;
+// Takes a pull request, by node id, out of the merge queue.
+export const DEQUEUE_MUTATION = "mutation($id: ID!) { dequeuePullRequest(input: { id: $id }) { clientMutationId } }";
 const RESOLVE_MUTATION = `mutation($id: ID!) {
   resolveReviewThread(input: { threadId: $id }) { thread { isResolved } }
 }`;
@@ -1445,7 +1447,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       return { id: pull.id, queued: pull.mergeQueueEntry !== null };
     },
     async dequeuePull(id) {
-      await graphql("mutation($id: ID!) { dequeuePullRequest(input: { id: $id }) { clientMutationId } }", { id });
+      await graphql(DEQUEUE_MUTATION, { id });
     },
     async createIssueComment(pr, body) {
       await request(`${repo}/issues/${pr}/comments`, "POST", { body });
