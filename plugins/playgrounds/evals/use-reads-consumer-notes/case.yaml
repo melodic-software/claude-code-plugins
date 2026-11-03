@@ -1,5 +1,6 @@
 schema_version: "1.1"
 name: use-reads-consumer-notes
+plugins: ["../..", "playground-stub"]
 graders:
   - name: reads-consumer-notes
     type: tool_used
