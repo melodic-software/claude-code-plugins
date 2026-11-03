@@ -2178,6 +2178,12 @@ function sinkHits(entry, names, depth, loaders = new Set()) {
     const name = keyName(key, computed);
     return name === null ? spells(key, "constructor") : name === "constructor";
   };
+  // Whether the property key `key` may spell a member whose read counts
+  // wherever it stands, inert or not: `eval`, `Function`, a vm runner, or
+  // `__defineGetter__`/`__defineSetter__`.
+  const maySpellAnywhereSink = (key, computed) =>
+    keyName(key, computed) === null &&
+    ["eval", "Function", ...VM_RUNNERS, "__defineGetter__", "__defineSetter__"].some((name) => spells(key, name));
   // Whether the `constructor` read as `node` is only discarded, tested,
   // compared by identity, the right of `instanceof`, or followed by a
   // `name` read or a plain `prototype` write: none of these calls it or
@@ -2318,10 +2324,17 @@ function sinkHits(entry, names, depth, loaders = new Set()) {
     // A function's `constructor` is the Function constructor, so is any
     // object's `constructor.constructor`, and neither needs the name
     // `Function` (`(()=>1).constructor("code")()`). A compound write
-    // (`x.constructor+=s`) reads and coerces it first.
+    // (`x.constructor+=s`) reads and coerces it first. An inert read
+    // clears a key only when it can spell none of the members the next
+    // check counts wherever they are read: that check leaves every key that
+    // may spell `constructor` to this one, so a key that may spell both
+    // (`e[k];` with `k` unknown) must not slip past the two.
     const overwritten = isTarget(parents, node) && !(holder?.type === "AssignmentExpression" && holder.operator !== "=");
     const constructorRead =
-      (node.type === "MemberExpression" && !overwritten && maySpellConstructor(node.property, node.computed) && !constructorInert(node)) ||
+      (node.type === "MemberExpression" &&
+        !overwritten &&
+        maySpellConstructor(node.property, node.computed) &&
+        (!constructorInert(node) || maySpellAnywhereSink(node.property, node.computed))) ||
       (node.type === "Property" && holder?.type === "ObjectPattern" && maySpellConstructor(node.key, node.computed));
     if (constructorRead) hit("function-constructor", null, node);
     // A computed key known not to spell `constructor` may still spell
