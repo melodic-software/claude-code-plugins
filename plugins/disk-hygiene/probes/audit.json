@@ -2,10 +2,9 @@
   "skill": "disk-hygiene:audit",
   "plugin": "disk-hygiene",
   "skill_dir": "plugins/disk-hygiene/skills/audit",
-  "ranking_note": "Authored from the before descriptions at commit 0ad858ec054897c381bfed3e652d4236535a69a3, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are disk-hygiene:clean (user-facing audit and removal, read-only by default), disk-hygiene:check (prerequisite check), repo-hygiene:clean (one repository's caches, build output and git metadata), harness-ops:audit-install-state (~/.claude inventory) and machine-health:audit (workstation health report). Boundary: on main, audit's triggers are delegation-phrased (an orchestrator or subagent scan, a report-only snapshot) while clean's triggers include 'audit this directory' and other plain user requests to find junk, so a plain user request such as 'audit my Downloads folder for junk' is labeled a clean positive and an audit negative; audit positives are delegated or report-only scans. Product-own prune commands (docker, npm) and OS-managed roots are excluded by both descriptions.",
+  "ranking_note": "Authored from the before descriptions at commit 0ad858ec054897c381bfed3e652d4236535a69a3, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are disk-hygiene:clean (user-facing audit and removal, read-only by default), repo-hygiene:clean (one repository's caches, build output and git metadata), harness-ops:audit-install-state (~/.claude inventory) and machine-health:audit (workstation health report). Boundary: on main, audit's triggers are delegation-phrased (an orchestrator or subagent scan, a report-only snapshot) while clean's triggers include 'audit this directory' and other plain user requests to find junk, so a plain user request such as 'audit my Downloads folder for junk' is labeled a clean positive and an audit negative; audit positives are delegated or report-only scans. Product-own prune commands (docker, npm) and OS-managed roots are excluded by both descriptions.",
   "competitors": [
     "disk-hygiene:clean",
-    "disk-hygiene:check",
     "repo-hygiene:clean",
     "harness-ops:audit-install-state",
     "machine-health:audit"

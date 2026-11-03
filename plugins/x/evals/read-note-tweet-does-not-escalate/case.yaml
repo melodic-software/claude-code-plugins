@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: 'read-note-tweet-does-not-escalate'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Does not treat length as evidence of a chain'
+    focus: 'trace'
+  - name: 'no-thread-reader-fetch'
+    type: 'tool_used'
+    tool: 'WebFetch'
+    input_match: 'threadreaderapp\.com'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-thread-reader-curl'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'threadreaderapp\.com'
+    min: 0
+    max: 0
+    arm: 'both'

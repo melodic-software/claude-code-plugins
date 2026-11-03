@@ -6,6 +6,14 @@
     {
       "answer": "I can't reach anything from here: ~/.config/fleet/FLEET.md is not on this machine, so I have no aliases to compose a hop with. From your description, though, the Windows lane is simply logged out, and the cure is a person physically at that machine typing /login.",
       "why": "unusual wording"
+    },
+    {
+      "answer": "Someone has to sign in again at the laptop's console.",
+      "why": "sign in again, without the literal /login"
+    },
+    {
+      "answer": "The lane is signed out; log in again over RDP or at the keyboard.",
+      "why": "log in again over RDP"
     }
   ],
   "fail": [
@@ -15,6 +23,18 @@
     {
       "answer": "Run `/login` from your desktop session and then retry the hop.",
       "why": "written to fail: /login but not at the target's console"
+    },
+    {
+      "answer": "Run /login from a console on your desktop.",
+      "why": "written to fail: 'a console' on another machine is not the laptop's console"
+    },
+    {
+      "answer": "Run /login over ssh -t; it works without being physically there.",
+      "why": "written to fail: 'without being physically there'"
+    },
+    {
+      "answer": "You can do this without being at the laptop: ssh -t in and run /login.",
+      "why": "written to fail: 'without being at the laptop'"
     }
   ]
 }

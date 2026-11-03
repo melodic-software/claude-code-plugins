@@ -9,6 +9,10 @@
 
 // A review thread's GraphQL node id, as the select job keeps it.
 export const THREAD_ID = /^PRRT_[A-Za-z0-9_-]{1,100}$/;
+// A pr-verify note the select job read from an earlier FAIL's verdict artifact
+// (address-feedback.mjs, verify_notes): a work item with a path and no review
+// thread, which the Lane-Thread trailer names like a thread.
+export const NOTE_ID = /^VNOTE_[1-9][0-9]{0,2}$/;
 const THREAD_TRAILER = "Lane-Thread: ";
 
 // The trailer lines naming `ids`, one per thread.

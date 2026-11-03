@@ -5,6 +5,15 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.24.6] - 2026-11-03
+
+### Changed
+
+- `setup` and `sweep-all` no longer restate when Claude Code prompts for plugin options, which
+  settings files it ignores, or when it renders them. They keep the rule to treat an empty or
+  literal-placeholder value as unset and the fresh-session rerun, and point at the plugin manifest
+  reference sections, with an as-of date and a recheck trigger.
+
 ## [0.24.5] - 2026-11-03
 
 ### Changed

@@ -2,7 +2,7 @@
 
 Install, configure, command reference, flags, env vars, and Windows-specific gotchas.
 
-> Verified 2026-10-11 against `ctx7` 0.6.0 (live `--help` output); first verified 2026-07-18
+> Verified 2026-11-03 against `ctx7` 0.9.0 (live `--help` output); first verified 2026-07-18
 > against 0.5.5 and [Context7's CLI docs](https://context7.com/docs/clients/cli).
 > The CLI moves fast. Re-check against a current install before acting on a row.
 
@@ -33,6 +33,7 @@ Set it wherever your project manages local environment variables (shell profile,
 |---|---|
 | `ctx7 library <name> [query]` | Resolve library name to a Context7 library ID (the query argument is optional, but pass one: it drives ranking) |
 | `ctx7 docs <libraryId> <query>` | Fetch documentation for a resolved library |
+| `ctx7 search <query>` | An option, not the default (record below) |
 | `ctx7 setup [flags]` | Configure Context7 for an IDE (this plugin does NOT use it, see below) |
 | `ctx7 login` / `logout` / `whoami` | OAuth flow (this plugin does NOT use it, since the env var is enough) |
 | `ctx7 remove` / `uninstall` | Remove a `setup`-installed agent configuration (this plugin does NOT use it) |
@@ -43,19 +44,21 @@ Set it wherever your project manages local environment variables (shell profile,
 - **Pointer**: for whether the CLI has either, run `ctx7 --help` and `ctx7 skills` on the installed
   CLI and fetch [upstash/context7#3425](https://github.com/upstash/context7/pull/3425) live.
 - **As of**: 2026-11-03
-- **Recheck trigger**: `ctx7 --help` lists `skills` or `generate`, or the `update` action reports an
-  npm `latest` newer than 0.8.2.
+- **Recheck trigger**: `ctx7 --help` lists `skills` or `generate`.
 
-**This plugin does not use `ctx7 search`, because the installed CLI does not have it.** The upstream
-`context7-cli` skill lists the command, so `vendor/cli/SKILL.md` names it. On `ctx7` 0.8.2,
-`ctx7 --help` does not list it and `ctx7 search "react hooks"` exits 1 with a too-many-arguments
-error. Lookups stay `ctx7 library`, then `ctx7 docs`.
+**Lookups default to `ctx7 library`, then `ctx7 docs`; `ctx7 search` is an option.** The
+selection, ambiguity-probe and version-specific-ID steps in [lookup.md](lookup.md) are built on
+the two-step path, so it stays the default. Choose `search` for a question that spans several
+libraries or names none, and only when the installed CLI's `ctx7 --help` lists it; otherwise use
+the two steps.
 
-- **Pointer**: when deciding whether `search` can be used, run those two probes on the installed
-  CLI and fetch [upstash/context7#3396](https://github.com/upstash/context7/pull/3396) live.
-- **As of**: 2026-11-02
-- **Recheck trigger**: `ctx7 --help` lists `search`, or the `update` action reports an npm `latest`
-  newer than 0.8.2.
+- **Pointer**: when deciding whether `search` exists, what it does, which flags it takes and how
+  its calls count, run `ctx7 --help` and `ctx7 search --help` on the installed CLI, and read
+  [Search API or Context API?](https://context7.com/docs/search-api#search-api-or-context-api) and
+  [Search API: Pricing](https://context7.com/docs/search-api#pricing) live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: `ctx7 search --help` adds or drops a flag, the Context7 MCP server gains a
+  one-step search tool, or either docs section changes.
 
 ## Flags
 
@@ -117,6 +120,8 @@ MSYS_NO_PATHCONV=1 ctx7 docs /facebook/react "useEffect cleanup"
 - No-op on macOS/Linux, so it is safe to always include
 - Double-slash workaround (`//facebook/react`) does **not** work. ctx7 rejects it as malformed
 - `ctx7 library` is unaffected (its first argument doesn't start with `/`)
+- `ctx7 search --library /org/project` passes an argument starting with `/` too, so prefix it the
+  same way; this follows from the same rewrite and has not been tested on Windows
 
 This is a Git Bash quirk, not a `ctx7` bug. Any CLI taking `/org/project`-style IDs hits the same thing on Windows.
 

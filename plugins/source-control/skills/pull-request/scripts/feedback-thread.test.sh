@@ -375,5 +375,45 @@ assert_eq "refused calls make no API call" 0 "$(wc -l <"$STUB/calls")"
 run frobnicate >/dev/null 2>&1
 assert_exit "an unknown subcommand exits 2" 2 "$?"
 
+# An earlier-FAIL round: no thread, the FAIL's notes from its verdict artifact.
+# notes lists them; a note takes VALID or already-addressed with evidence, its
+# path is in scope like a thread's, and a thread takes no already-addressed.
+setup
+assert_eq "notes prints [] in a thread round" "[]" "$(run notes | jq -c .)"
+cat >"$STUB/threads.json" <<EOF
+{"version":1,"repository":"o/r","pr":42,"head_sha":"$HEAD","threads":[],
+ "verify_notes":[{"id":"VNOTE_1","head":"$OLD","path":"src/a.js","body":"note one"},{"id":"VNOTE_2","head":"$OLD","path":"docs/b.md","body":"note two"}]}
+EOF
+assert_eq "notes prints the FAIL's notes" '["VNOTE_1","VNOTE_2"]' "$(run notes | jq -c 'map(.id)')"
+assert_eq "list prints no thread" "[]" "$(run list | jq -c .)"
+run check-paths src/a.js docs/b.md >/dev/null 2>&1
+assert_exit "a note's path is in scope" 0 "$?"
+run check-paths src/other.js >/dev/null 2>&1
+assert_exit "a path no note names is out of scope" 1 "$?"
+disposition '{"disposition":"already-addressed","evidence":["docs/b.md:1"],"note":"The diff already fixes it."}'
+run record VNOTE_2 "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_exit "an already-addressed note with evidence is recorded" 0 "$?"
+echo 'guarded' >"$STUB/ws/src/a.js"
+disposition '{"disposition":"VALID","evidence":["src/a.js:1"],"note":"Fixed."}'
+run record VNOTE_1 "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_exit "a VALID note with its fix in scope is recorded" 0 "$?"
+assert_eq "both notes are recorded, keyed by note id" '["VNOTE_2","VNOTE_1"]' "$(jq -sc 'map(.thread)' "$STUB/replies.jsonl")"
+for bad in \
+  '{"disposition":"already-addressed","evidence":[],"note":"x"}' \
+  '{"disposition":"INCORRECT","evidence":["src/a.js:1"],"note":"x"}' \
+  '{"disposition":"UNCERTAIN","note":"x"}'; do
+  rm -f "$STUB/replies.jsonl"
+  disposition "$bad"
+  run record VNOTE_2 "$STUB/scratch/d.json" >/dev/null 2>&1
+  assert_exit "a note refuses $bad" 1 "$?"
+done
+run record VNOTE_9 "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_exit "a note the round does not hold is refused" 1 "$?"
+setup
+disposition '{"disposition":"already-addressed","evidence":["src/a.js:3"],"note":"x"}'
+run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_exit "a thread refuses already-addressed" 1 "$?"
+assert_eq "the refused records append nothing" 0 "$(recorded)"
+
 [[ $FAILED -eq 0 ]] || exit 1
 exit 0

@@ -27,8 +27,7 @@
         "brew": "node",
         "winget": "OpenJS.NodeJS.LTS",
         "apt": "nodejs"
-      },
-      "check": "/knowledge:check"
+      }
     },
     {
       "id": "python",
@@ -57,8 +56,7 @@
         "brew": "python",
         "winget": "Python.Python.3.13",
         "apt": "python3"
-      },
-      "check": "/knowledge:check"
+      }
     },
     {
       "id": "curl",
@@ -78,8 +76,7 @@
         "brew": "curl",
         "winget": "cURL.cURL",
         "apt": "curl"
-      },
-      "check": "/knowledge:check"
+      }
     },
     {
       "id": "jq",
@@ -99,8 +96,7 @@
         "brew": "jq",
         "winget": "jqlang.jq",
         "apt": "jq"
-      },
-      "check": "/knowledge:check"
+      }
     },
     {
       "id": "npm",
@@ -122,8 +118,7 @@
         "brew": "node",
         "winget": "OpenJS.NodeJS.LTS",
         "apt": "npm"
-      },
-      "check": "/knowledge:check"
+      }
     },
     {
       "id": "npx",
@@ -145,8 +140,7 @@
         "brew": "node",
         "winget": "OpenJS.NodeJS.LTS",
         "apt": "npm"
-      },
-      "check": "/knowledge:check"
+      }
     },
     {
       "id": "ffmpeg",
@@ -175,8 +169,7 @@
         "winget": "Gyan.FFmpeg",
         "apt": "ffmpeg",
         "conda": "conda-forge ffmpeg (when the distro package is below 7.1; prefer a release build, since a nightly reports no version)"
-      },
-      "check": "/knowledge:check"
+      }
     },
     {
       "id": "ffprobe",
@@ -197,8 +190,7 @@
         "brew": "ffmpeg",
         "winget": "Gyan.FFmpeg",
         "apt": "ffmpeg"
-      },
-      "check": "/knowledge:check"
+      }
     },
     {
       "id": "magick",
@@ -226,8 +218,7 @@
         "brew": "imagemagick",
         "winget": "ImageMagick.ImageMagick",
         "conda": "conda-forge imagemagick (ImageMagick 7, for distros whose package is still ImageMagick 6)"
-      },
-      "check": "/knowledge:check"
+      }
     },
     {
       "id": "yt-dlp",
@@ -254,29 +245,28 @@
         "brew": "yt-dlp",
         "winget": "yt-dlp.yt-dlp",
         "pip": "yt-dlp[default,curl-cffi]"
-      },
-      "check": "/knowledge:check"
+      }
     },
     {
       "id": "gh",
       "kind": "cli",
       "need": "optional",
       "for": [
-        "skill:course-digest"
+        "skill:course-digest",
+        "skill:absorb-upstream"
       ],
       "detect": {
         "any": [
           "gh"
         ]
       },
-      "degrade": "Without gh, /knowledge:course-digest cannot analyze a course's code repository; the rest of the digest is unchanged.",
+      "degrade": "Without gh, /knowledge:course-digest cannot analyze a course's code repository; the rest of the digest is unchanged. /knowledge:absorb-upstream cannot read a repository URL and stops with the local-checkout instruction.",
       "install": {
         "docs": "https://cli.github.com/",
         "brew": "gh",
         "winget": "GitHub.cli",
         "apt": "gh"
-      },
-      "check": "/knowledge:check"
+      }
     }
   ]
 }

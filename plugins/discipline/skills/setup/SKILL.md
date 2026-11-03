@@ -19,9 +19,12 @@ Report discipline's effective configuration and write its one repository file. T
 plugin's personal options are native `userConfig`: three `sweep-all` batch-overlay
 options (`batch_exclude` / `batch_promote` / `batch_demote`), the verification-depth
 default of `do-your-research`'s fan-out tier (`research_deep_verification`) and
-`lever_scope`. Claude Code prompts for them when the plugin is enabled, stores
-non-sensitive options in user settings, and ignores `pluginConfigs` entries in project
-and local settings on current releases (>= 2.1.207).
+`lever_scope`. They are personal options, held in user settings, and this skill
+reads only their rendered values (`check` step 1). How Claude Code collects and
+stores them, and which settings files it reads them from, are read live
+from [plugin manifest reference: where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored)
+(as of 2026-11-03; recheck when that section changes where options are stored or which
+files they are read from).
 
 The plugin owns one tracked consumer file, `docs/conventions/discipline.yaml`, the
 repository layer of `lever_scope` (keys, values and layers:
@@ -40,11 +43,12 @@ Official contract: <https://code.claude.com/docs/en/plugins/manifest-reference#u
    above (the three `batch_*` overlay options, `research_deep_verification` and
    `lever_scope`). Do not inspect or edit `settings.json`, `settings.local.json`,
    managed settings, or `pluginConfigs` directly.
-2. **Empty or unexpanded is unset.** An option the user never configured does not
-   reliably render empty, the literal `${user_config.…}` token can survive (a
-   zero-config or headless install). Treat BOTH an empty value AND a surviving
-   literal placeholder as unset (the key's own default applies); never read the
-   literal token as a value.
+2. **Empty or unexpanded is unset.** Treat BOTH an empty value AND a surviving
+   literal `${user_config.…}` placeholder as unset (the key's own default applies);
+   never read the literal token as a value. Substitution is documented at
+   [plugin manifest reference: reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value),
+   which as of 2026-11-03 does not say what an unset option renders; recheck when
+   that section states it.
 3. For each set batch option, split on commas and report the parsed corrector names,
    and the net effect: `batch_exclude` drops those correctors from the batch,
    `batch_promote` runs those situational correctors every session, `batch_demote`
@@ -117,9 +121,12 @@ Official contract: <https://code.claude.com/docs/en/plugins/manifest-reference#u
    rejects a bad value with exit 1 and saves nothing, but stores an empty string as `""`; the
    `--config` rerun prints a warning for a rejected value yet exits 0, so read its output. Claude
    Code owns persistence. Do not hand-edit any `pluginConfigs` key.
-9. Tell the user to rerun `check` after reconfiguration **in a fresh session**: the rendered
-   `${user_config.*}` values are injected when this skill loads, so a same-session rerun still reports
-   the OLD values. Report the OBSERVED effective values from that fresh run, never an unobserved change.
+9. Tell the user to rerun `check` after reconfiguration **in a fresh session**, and report the
+   OBSERVED effective values from that fresh run, never an unobserved change. Substitution of the
+   rendered `${user_config.*}` values is documented at
+   [plugin manifest reference: reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value),
+   which as of 2026-11-03 does not say when skill content is re-rendered; recheck when that
+   section states it.
 
 ## `apply` (writes `docs/conventions/discipline.yaml` only)
 

@@ -4,6 +4,13 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.27.9] - 2026-11-03
+
+### Changed
+
+- The prompt-caching reference no longer describes what the bundled `claude-api` skill's `cost-optimize` subcommand does; it points at the skills docs section instead.
+- `repo-sweep`'s `next` step no longer quotes the line the Skill tool prints; it points at the skill's own loaded-path gotcha.
+
 ## [0.27.8] - 2026-11-03
 
 ### Changed

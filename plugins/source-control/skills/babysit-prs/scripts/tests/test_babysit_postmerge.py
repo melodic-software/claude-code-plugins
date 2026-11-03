@@ -21,12 +21,14 @@ import contextlib
 import dataclasses
 import io
 import json
+import os
 import pathlib
 import re
 import subprocess
 import sys
 import tempfile
 import unittest
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import parse_qsl
@@ -200,6 +202,8 @@ class FakeGh:
 
     def __init__(self) -> None:
         self.calls: list[list[str]] = []
+        # The GH_TOKEN override each call sent, by call; None for none.
+        self.tokens: list[str | None] = []
         self.merged: list[dict[str, Any]] = [merged_pr()]
         self.runs: dict[tuple[str, str], list[dict[str, Any]]] = {}
         self.attempts: dict[tuple[int, int], dict[str, Any]] = {}
@@ -281,8 +285,10 @@ class FakeGh:
         *,
         timeout_seconds: float | None = None,
         binary: bool = False,
+        env_overrides: Mapping[str, str] | None = None,
     ) -> subprocess.CompletedProcess[Any]:
         self.calls.append(list(args))
+        self.tokens.append((env_overrides or {}).get("GH_TOKEN"))
         joined = " ".join(args)
         for key in self.fail_reads:
             if key in joined:
@@ -4690,7 +4696,12 @@ def anchor_run(run_id: int, **overrides: Any) -> dict[str, Any]:
 
 
 def merge_state(
-    number: int, merged_at: datetime, *, settleable: bool = True, settled: bool = False
+    number: int,
+    merged_at: datetime,
+    *,
+    settleable: bool = True,
+    settled: bool = False,
+    final_by_runs: bool = False,
 ) -> pm.MergeState:
     merge = pm.AutoMerge(number, MERGE_SHA, HEAD_SHA, merged_at.isoformat())
     return pm.MergeState(
@@ -4700,6 +4711,7 @@ def merge_state(
         dispatch_covered=True,
         settled=settled,
         settleable=settleable,
+        final_by_runs=final_by_runs,
     )
 
 
@@ -4748,6 +4760,27 @@ class LaneFloorAnchor(CheckCase):
         pm._anchor_cache.clear()
         later = ANCHOR_AT + timedelta(hours=1)
         self.assertEqual(pm.lane_floor(REPO, IDENTITY, later)[0], later)
+
+    def test_the_actions_reads_use_the_job_token_when_one_is_set(self) -> None:
+        # pr-merge's gate steps run under the lane token, which holds no
+        # Actions permission, and pass the job token beside it.
+        self.publish(passed=[7002])
+        for token in ("job-tok", None):
+            with self.subTest(token=token):
+                self.gh.calls.clear()
+                self.gh.tokens.clear()
+                env = {pm.policy.ACTIONS_TOKEN_ENV: token} if token else {}
+                with mock.patch.dict("os.environ", env, clear=False):
+                    if not token:
+                        os.environ.pop(pm.policy.ACTIONS_TOKEN_ENV, None)
+                    self.assertIsNotNone(self.read())
+                sent = {
+                    " ".join(c): t
+                    for c, t in zip(self.gh.calls, self.gh.tokens, strict=True)
+                    if "/actions/" in " ".join(c)
+                }
+                self.assertEqual(len(sent), 3)
+                self.assertEqual(set(sent.values()), {token})
 
     def test_each_refused_sender_or_key_leaves_the_policy_floor(self) -> None:
         refusals: dict[str, tuple[dict[str, Any], dict[str, Any], dict[str, Any]]] = {
@@ -4843,6 +4876,30 @@ class LaneFloorAnchor(CheckCase):
         self.assertEqual(data["anchor"], later.isoformat())
         self.assertEqual(data["laneMergesOnly"], True)
         self.assertEqual((data["repo"], data["branch"]), (REPO, "main"))
+
+    def test_only_the_anchor_writing_check_judges_settled_merges_again(self) -> None:
+        settled = pm.AutoMerge(7002, MERGE_SHA, HEAD_SHA, ANCHOR_AT.isoformat())
+        for env, rejudged in (({}, False), ({pm.ANCHOR_ENV: "anchor.json"}, True)):
+            with (
+                self.subTest(env=bool(env)),
+                mock.patch.dict(pm.os.environ, env),
+                contextlib.redirect_stdout(io.StringIO()),
+                mock.patch.object(pm, "_default_is_human", return_value=human),
+                mock.patch.object(pm, "default_floor", return_value=(SINCE, {})),
+                mock.patch.object(pm, "lane_floor", return_value=(SINCE, None)),
+                mock.patch.object(pm, "advance_anchor", return_value=None),
+                mock.patch.object(
+                    pm, "check", return_value=lane_verdict()
+                ) as check,
+            ):
+                pm.main(
+                    ["--repo", REPO, "--agent-identity", IDENTITY, "--lane-merges-only"]
+                )
+                rejudge = check.call_args.kwargs["rejudge"]
+                self.assertEqual(rejudge is not None, rejudged)
+                if rejudge:
+                    # With no anchor yet, every settled merge is judged again.
+                    self.assertTrue(rejudge(settled))
 
     def test_a_shared_answer_keeps_the_policy_floor_it_was_anchored_from(
         self,
@@ -4983,6 +5040,32 @@ class AnchorAdvance(unittest.TestCase):
         self.assertIsNone(pm.advance_anchor(verdict, None))
         previous = pm.Anchor(self.at(5))
         self.assertEqual(pm.advance_anchor(verdict, previous).at, self.at(5))
+        # The marker never passes a merge, even one whose state reads
+        # settleable: only its runs, judged again, do.
+        marked = lane_verdict(
+            merge_state(1, self.at(10), settled=True), merge_state(2, self.at(20))
+        )
+        self.assertIsNone(pm.advance_anchor(marked, None))
+
+    def test_a_settled_merge_final_from_its_runs_seeds_it(self) -> None:
+        # #7336: every lane merge since the floor was settled before any run
+        # judged it, so with no anchor only their runs can start one.
+        final = {"settleable": False, "settled": True, "final_by_runs": True}
+        verdict = lane_verdict(
+            merge_state(1, self.at(10), **final), merge_state(2, self.at(20), **final)
+        )
+        self.assertEqual(pm.advance_anchor(verdict, None), pm.Anchor(self.at(20)))
+
+    def test_a_settled_merge_its_runs_do_not_show_final_holds_it(self) -> None:
+        final = {"settleable": False, "settled": True, "final_by_runs": True}
+        verdict = lane_verdict(
+            merge_state(1, self.at(10), **final),
+            merge_state(2, self.at(20), settleable=False, settled=True),
+            merge_state(3, self.at(30)),
+        )
+        self.assertEqual(
+            pm.advance_anchor(verdict, None), pm.Anchor(self.at(10), frozenset({3}))
+        )
 
     def test_the_merge_at_the_anchor_is_read_again_without_holding_it(self) -> None:
         previous = pm.Anchor(self.at(10))

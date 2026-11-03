@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Closes #123\n\n## Summary\nCustomers saw stale prices for up to fifteen minutes.",
+      "why": "Closes line first and unchanged"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Summary\nCustomers saw stale prices.\n\nCloses #123",
+      "why": "Closes line moved below a heading"
+    }
+  ]
+}

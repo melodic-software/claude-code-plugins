@@ -72,7 +72,7 @@ import { pathToFileURL } from "node:url";
 import { BODY_HOLD, LANES_APP_LOGIN } from "../pr-merge/merge-holds.mjs";
 import { fixRefusal, parseConfig } from "../pr-unblock/dependency-classify.mjs";
 import { stopSkip } from "../pr-unblock/escalation-routes.mjs";
-import { THREAD_ID, threadTrailerLines } from "../pr-unblock/thread-scope.mjs";
+import { NOTE_ID, THREAD_ID, threadTrailerLines } from "../pr-unblock/thread-scope.mjs";
 import { PREDICATES } from "./predicates.mjs";
 import { PROTECTED_REFUSALS, segments } from "./protected-paths.mjs";
 import { retryFetch } from "./retry-fetch.mjs";
@@ -1191,13 +1191,19 @@ function need(env, keys) {
 
 // The kept threads of a threads.json: each a path and, when a fix request
 // named files, its named_paths; the files the PR already changes, its
-// pr_paths; and the thread ids of the select job's shape, in its order.
+// pr_paths; and the thread ids of the select job's shape, in its order. A
+// pr-verify note of an earlier FAIL (verify_notes) counts as a thread on its
+// path, by its note id.
 export function keptThreadsFrom(file) {
   if (!file) {
     return undefined;
   }
-  const { threads, pr_paths: prPaths = [] } = JSON.parse(readFileSync(file, "utf8")) ?? {};
+  const { threads: kept, verify_notes: notes = [], pr_paths: prPaths = [] } = JSON.parse(readFileSync(file, "utf8")) ?? {};
   const plain = (value) => typeof value === "string" && value !== "";
+  if (!Array.isArray(notes) || !notes.every((note) => NOTE_ID.test(String(note?.id)) && plain(note.path))) {
+    throw new Error("KEPT_THREADS_FILE holds a malformed verify_notes list");
+  }
+  const threads = Array.isArray(kept) ? [...kept, ...notes.map(({ id, path }) => ({ id, path }))] : kept;
   if (
     !Array.isArray(threads) ||
     !Array.isArray(prPaths) ||
@@ -1213,7 +1219,7 @@ export function keptThreadsFrom(file) {
     paths: new Set(threads.map((thread) => thread.path)),
     threads: threads.map(({ path, named_paths }) => ({ path, named_paths })),
     prPaths: new Set(prPaths),
-    ids: threads.map((thread) => thread.id).filter((id) => typeof id === "string" && THREAD_ID.test(id)),
+    ids: threads.map((thread) => thread.id).filter((id) => typeof id === "string" && (THREAD_ID.test(id) || NOTE_ID.test(id))),
   };
 }
 
