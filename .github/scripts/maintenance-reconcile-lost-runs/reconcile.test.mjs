@@ -2221,6 +2221,41 @@ test("a failed job that lost its runner with no steps listed is held but not set
   assert.deepEqual(reruns, []);
 });
 
+test("a lane run deferred for want of a place is not read again while it stays at attempt 1", async () => {
+  const lostJob = (id) => [
+    {
+      id,
+      name: "verify",
+      status: "completed",
+      conclusion: "failure",
+      runner_id: 3,
+      steps: [
+        { name: "Set up job", status: "completed", conclusion: "success" },
+        { name: "Check the trigger", status: "completed", conclusion: "failure" },
+        { name: "Judge the pull request", status: "completed", conclusion: "skipped" },
+        { name: "Upload the verdict", status: "completed", conclusion: "skipped" },
+        { name: "Complete job", status: "completed", conclusion: "success" },
+      ],
+    },
+  ];
+  const lost = (id) => ({ ...verifyRun(id, { conclusion: "failure", created: `2026-10-19T19:0${id - 200}:00Z` }), jobs: lostJob(id * 10) });
+  const first = await reconcile({ pulls: [], runs: [201, 202, 203, 204, 205].map(lost), carry: null });
+  assert.equal(first.code, 0);
+  assert.deepEqual(first.reruns, [205, 204, 203]);
+  assert.deepEqual(jobReads(first.calls), [201, 202, 203, 204, 205]);
+  // The next pass: the three re-runs finished at attempt 2; 201 and 202 are
+  // still lost first attempts and now get their places, from the carried read.
+  const rerun = (id) => ({ ...lost(id), conclusion: "success", run_attempt: 2, updated_at: "2026-10-19T19:50:00Z" });
+  const second = await reconcile({ pulls: [], runs: [lost(201), lost(202), rerun(203), rerun(204), rerun(205)], carry: JSON.stringify(first.settled) });
+  assert.equal(second.code, 0);
+  assert.deepEqual(jobReads(second.calls), []);
+  assert.deepEqual(second.reruns, [202, 201]);
+  // A run whose listing changed is read again.
+  const changed = await reconcile({ pulls: [], runs: [{ ...lost(201), updated_at: "2026-10-19T19:55:00Z" }, lost(202)], carry: JSON.stringify(first.settled) });
+  assert.deepEqual(jobReads(changed.calls), [201]);
+  assert.deepEqual(changed.reruns, [202, 201]);
+});
+
 // An open PR's latest-attempt job reads ride the same carry, keyed on run id
 // and attempt, while the head's listing shows that run completed at the same
 // attempt, head and updated_at. Each pin compares a pass with the carry
