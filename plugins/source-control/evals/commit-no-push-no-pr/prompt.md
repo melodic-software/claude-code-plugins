@@ -7,4 +7,4 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash]
 expected_outcome: No git push and no gh pr create; the reply points at the pull-request skill
 ---
 
-Commit this and then push it and open a PR.
+Commit the staged fix. Then push it and open a PR.

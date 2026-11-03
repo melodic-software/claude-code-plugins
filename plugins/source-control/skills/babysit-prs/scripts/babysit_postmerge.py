@@ -49,6 +49,8 @@ babysit-merge-settled sha=<merge commit> -->` comment on its pull request. A
 later check counts a merge carrying that marker, unedited and by the
 identity, verified without reading its runs or the pr-merge-dispatched
 artifact, so a settled merge no longer depends on that artifact's retention.
+Only the lane's floor anchor reads a settled merge's runs again, and only to
+pass it (`advance_anchor`); that read never changes the verdict.
 
 Exit codes: 0 no failure and every auto-merge verified, 1 a failure, 2 usage
 or a refused identity (not a dedicated App login, or `--remediate` under
@@ -68,7 +70,7 @@ import sys
 import tempfile
 import zipfile
 from collections.abc import Callable, Collection, Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -98,8 +100,9 @@ CANARY_WORKFLOW = "post-merge-detect-silent-revert.yml"
 # The pr-merge lane dispatches the full run with its own GITHUB_TOKEN (the
 # lanes App holds no actions: write) and records the dispatched run's id in an
 # artifact named with this prefix; `_Context.lane_dispatched` reads it. The
-# artifact expires (pr-merge.yml's retention-days), but a settled merge is not
-# judged on its runs again, so only a merge not yet settled reads it.
+# artifact expires (pr-merge.yml's retention-days), but the verdict never
+# judges a settled merge on its runs again, so only a merge not yet settled
+# depends on it.
 LANE_DISPATCH_WORKFLOW = ".github/workflows/pr-merge.yml"
 LANE_DISPATCH_ARTIFACT = "pr-merge-dispatched-"
 LANE_DISPATCH_ACTOR = "github-actions[bot]"
@@ -354,6 +357,9 @@ class MergeState:
     # Judged verified with no red full run or running canary in its window
     # and no empty record listing behind it: a marker may settle it.
     settleable: bool = False
+    # A settled merge the lane's anchor needed, judged again from its runs
+    # and found settleable (`check`'s `rejudge`); the verdict ignores it.
+    final_by_runs: bool = False
 
 
 @dataclass(frozen=True)
@@ -513,9 +519,14 @@ def _time(value: Any) -> datetime:
     return parsed
 
 
-def _call(args: list[str], label: str, error: type[RuntimeError]) -> Any:
+def _call(
+    args: list[str],
+    label: str,
+    error: type[RuntimeError],
+    env: Mapping[str, str] | None = None,
+) -> Any:
     try:
-        proc = gh_capture(args)
+        proc = gh_capture(args, env_overrides=env) if env else gh_capture(args)
     except (RuntimeError, ValueError, OSError) as exc:
         raise error(f"{label}: {exc}") from exc
     if proc.returncode != 0:
@@ -526,8 +537,8 @@ def _call(args: list[str], label: str, error: type[RuntimeError]) -> Any:
         raise error(f"{label}: {exc}") from exc
 
 
-def _read(args: list[str], label: str) -> Any:
-    return _call(args, label, PostMergeReadError)
+def _read(args: list[str], label: str, env: Mapping[str, str] | None = None) -> Any:
+    return _call(args, label, PostMergeReadError, env)
 
 
 def _write(args: list[str], label: str) -> Any:
@@ -2720,6 +2731,87 @@ def _lane_reruns(
     return []
 
 
+def _listed_runs(
+    ctx: _Context, floor: datetime, now: datetime
+) -> tuple[list[tuple[str, Run]], list[Run]]:
+    """The full runs (by signal) and canary runs on the branch since `floor`,
+    oldest first; the full runs are held for `_Context.superseded`."""
+    owner, name, branch = ctx.owner, ctx.name, ctx.branch
+    full_runs = [
+        (SIGNAL_SCHEDULE, r)
+        for r in _runs(owner, name, FULL_RUN_WORKFLOW, "schedule", branch, floor, now)
+    ] + [
+        (SIGNAL_DISPATCH, r)
+        for r in _runs(
+            owner, name, FULL_RUN_WORKFLOW, "workflow_dispatch", branch, floor, now
+        )
+    ]
+    # A listing filtered by branch name also returns runs on a tag named
+    # like the branch, whose red would be charged to the merge. A run the
+    # concurrency group replaced before it started is no signal.
+    full_runs = sorted(
+        (
+            item
+            for item in full_runs
+            if ctx.on_branch(item[1]) and not ctx.replaced(item[1])
+        ),
+        key=lambda item: item[1].created_at,
+    )
+    ctx.held_full_runs.update((r.id, (signal, r)) for signal, r in full_runs)
+    canary_runs = sorted(
+        (
+            r
+            for r in _runs(owner, name, CANARY_WORKFLOW, "push", branch, floor, now)
+            if ctx.on_branch(r)
+        ),
+        key=lambda r: r.created_at,
+    )
+    return full_runs, canary_runs
+
+
+def _final_by_runs(
+    ctx: _Context,
+    merges: list[AutoMerge],
+    *,
+    pins: Mapping[int, str | None],
+    pin_required: Collection[int],
+    now: datetime,
+) -> frozenset[int]:
+    """The settled `merges` (oldest first) whose runs judge them settleable,
+    as `_judge` would an unsettled one, up to the first that is not. It runs
+    after the verdict's own judging, under
+    the check's read caps, on its own listing and tally: a failed read, a hold
+    or a failure leaves a merge out, and the verdict is unchanged."""
+    final: set[int] = set()
+    saved = dict(ctx.quarantines), ctx.excuses_expire_at
+    try:
+        full_runs, canary_runs = _listed_runs(
+            ctx, min(_time(m.merged_at) for m in merges), now
+        )
+        for merge in merges:
+            state = None
+            with contextlib.suppress(PostMergeReadError, policy.PolicyReadError):
+                state = _judge(
+                    merge,
+                    ctx,
+                    full_runs=full_runs,
+                    canary_runs=canary_runs,
+                    pinned=pins.get(merge.number),
+                    pin_required=merge.number in pin_required,
+                    now=now,
+                    tally=_Tally(),
+                )
+            if state is None or not state.settleable:
+                # The anchor stops at this merge, so later ones are not read.
+                break
+            final.add(merge.number)
+    except (PostMergeReadError, policy.PolicyReadError, ValueError) as exc:
+        print(f"settled merges not judged from their runs: {exc}", file=sys.stderr)
+    finally:
+        ctx.quarantines, ctx.excuses_expire_at = saved
+    return frozenset(final)
+
+
 def check(
     repo: str,
     *,
@@ -2732,6 +2824,7 @@ def check(
     lane_merges_only: bool = False,
     quarantine_days: int | None = None,
     settled: Callable[[AutoMerge], bool] | None = None,
+    rejudge: Callable[[AutoMerge], bool] | None = None,
 ) -> PostMergeVerdict:
     """Judge every auto-merge into `branch` since `merged_since`; with no
     `branch`, the repository's default branch, read once from the repos API.
@@ -2745,7 +2838,9 @@ def check(
     whose pin or settled marker is read (`PinReader`). `settled` says whether
     the identity's settled marker stands for one of the identity's merges
     (`PinReader.settled`); such a merge is verified with none of its runs
-    read. Any read failure makes the verdict unreadable, which is never ok."""
+    read. `rejudge` names the settled merges whose runs are read anyway, for
+    `MergeState.final_by_runs` alone (`_final_by_runs`, `anchor_needs`).
+    Any read failure makes the verdict unreadable, which is never ok."""
     if not agent_identity:
         return PostMergeVerdict(False, "agent-identity-unconfigured")
     if merged_since is None:
@@ -2817,12 +2912,25 @@ def check(
         )
         tally = _Tally()
         judged = [m for m in merges if m.number not in done]
+        targets = [m for m in merges if m.number in done and rejudge and rejudge(m)]
+
+        def rejudged(states: tuple[MergeState, ...]) -> tuple[MergeState, ...]:
+            if not targets:
+                return states
+            final = _final_by_runs(
+                ctx, targets, pins=pins, pin_required=pinned_merges, now=now
+            )
+            return tuple(
+                replace(s, final_by_runs=True) if s.merge.number in final else s
+                for s in states
+            )
+
         if not judged:
             if lane_merges_only:
                 warnings += _lane_reruns(ctx, now, tally, list_schedule=bool(done))
             return PostMergeVerdict(
                 True,
-                merges=tuple(_settled_state(m) for m in merges),
+                merges=rejudged(tuple(_settled_state(m) for m in merges)),
                 reruns=tuple(tally.reruns.values()),
                 warnings=tuple(warnings),
                 branch=branch,
@@ -2835,43 +2943,7 @@ def check(
             if any(m.merged_at for m in judged)
             else merged_since
         )
-        full_runs = [
-            (SIGNAL_SCHEDULE, r)
-            for r in _runs(
-                owner, name, FULL_RUN_WORKFLOW, "schedule", branch, floor, now
-            )
-        ] + [
-            (SIGNAL_DISPATCH, r)
-            for r in _runs(
-                owner,
-                name,
-                FULL_RUN_WORKFLOW,
-                "workflow_dispatch",
-                branch,
-                floor,
-                now,
-            )
-        ]
-        # A listing filtered by branch name also returns runs on a tag named
-        # like the branch, whose red would be charged to the merge. A run the
-        # concurrency group replaced before it started is no signal.
-        full_runs = sorted(
-            (
-                item
-                for item in full_runs
-                if ctx.on_branch(item[1]) and not ctx.replaced(item[1])
-            ),
-            key=lambda item: item[1].created_at,
-        )
-        ctx.held_full_runs.update((r.id, (signal, r)) for signal, r in full_runs)
-        canary_runs = sorted(
-            (
-                r
-                for r in _runs(owner, name, CANARY_WORKFLOW, "push", branch, floor, now)
-                if ctx.on_branch(r)
-            ),
-            key=lambda r: r.created_at,
-        )
+        full_runs, canary_runs = _listed_runs(ctx, floor, now)
         states = tuple(
             _settled_state(merge)
             if merge.number in done
@@ -2889,6 +2961,7 @@ def check(
         )
         if lane_merges_only:
             warnings += _lane_reruns(ctx, now, tally)
+        states = rejudged(states)
     except (PostMergeReadError, policy.PolicyReadError) as exc:
         held = exc if isinstance(exc, UnlistedRecordHold) else None
         return PostMergeVerdict(
@@ -3177,8 +3250,12 @@ def disarm_identity_pulls(
 
 # The pinned-head record: an identity-authored comment the wrapper posts on the
 # pull request immediately before it enqueues, so the read-back has a source no
-# host stores.
-PIN_RE = re.compile(r"^<!-- babysit-merge-pin sha=([0-9a-f]{40}) -->$")
+# host stores. It names the effective rung the gate enqueued under, which the
+# promotion-evidence publisher credits; an older pin names none.
+PIN_RUNGS = ("C2", "C3")
+PIN_RE = re.compile(
+    r"^<!-- babysit-merge-pin sha=([0-9a-f]{40})(?: rung=(C2|C3))? -->$"
+)
 PIN_QUERY = (
     "query PostMergePin($o:String!,$r:String!,$n:Int!,$c:String){repository(owner:$o,name:$r){"
     "pullRequest(number:$n){reviews(last:1){nodes{author{__typename login} submittedAt}} "
@@ -3197,9 +3274,12 @@ PIN_COMMENTS = (
 )
 
 
-def pin_comment(sha: str) -> str:
+def pin_comment(sha: str, rung: str | None = None) -> str:
+    if rung is not None and rung not in PIN_RUNGS:
+        raise ValueError(f"pin rung {rung!r} is not one of {PIN_RUNGS}")
+    named = f" rung={rung}" if rung else ""
     return (
-        f"<!-- babysit-merge-pin sha={sha} -->\n"
+        f"<!-- babysit-merge-pin sha={sha}{named} -->\n"
         f"The unattended merge path enqueued this pull request at head `{sha}`."
     )
 
@@ -4013,8 +4093,13 @@ def read_anchor(
     branch (default: the default branch) and identity, read once per process.
     At most ANCHOR_LISTING_PAGES listing pages and ANCHOR_READ_LIMIT REST
     reads; a read past them, a failed read, a refused or expired artifact and
-    a key mismatch are all None, so the caller keeps the policy floor."""
+    a key mismatch are all None, so the caller keeps the policy floor.
+    The Actions reads (listing, run record, download) use
+    `policy.ACTIONS_TOKEN_ENV`'s token when set: in pr-merge's gate steps
+    GH_TOKEN is the lane token, which holds no Actions permission."""
     now = now or datetime.now(UTC)
+    token = os.environ.get(policy.ACTIONS_TOKEN_ENV)
+    actions_env = {"GH_TOKEN": token} if token else None
     reads = 0
     try:
         owner, name = _split_repo(repo)
@@ -4042,6 +4127,7 @@ def read_anchor(
                         f"&per_page=100&page={page}",
                     ],
                     "anchor artifacts",
+                    actions_env,
                 )
             )
             items = list(map(json_object, json_array(listing.get("artifacts"))))
@@ -4060,7 +4146,11 @@ def read_anchor(
                     return None
                 reads += 1
                 record = json_object(
-                    _read(["api", f"repos/{repo}/actions/runs/{run_id}"], f"run {run_id}")
+                    _read(
+                        ["api", f"repos/{repo}/actions/runs/{run_id}"],
+                        f"run {run_id}",
+                        actions_env,
+                    )
                 )
                 if not ctx._lane_sender(record, ANCHOR_EVENTS):
                     continue
@@ -4068,6 +4158,7 @@ def read_anchor(
                 proc = gh_capture(
                     ["api", f"repos/{repo}/actions/artifacts/{item['id']}/zip"],
                     binary=True,
+                    env_overrides=actions_env,
                 )
                 if proc.returncode == 0:
                     anchor = _anchor_from(
@@ -4097,9 +4188,12 @@ def advance_anchor(verdict: PostMergeVerdict, previous: Anchor | None) -> Anchor
 
     A merge passes when it merged at or before the previous anchor (it was
     passed then), when this check judged it final from its runs
-    (`MergeState.settleable`), or when the previous anchor carried it as
-    such. A merge counted verified only by its settled marker does not pass:
-    that marker is a comment the identity writes. The anchor moves to the
+    (`MergeState.settleable`, or for a settled merge
+    `MergeState.final_by_runs`), or when the previous anchor carried it as
+    such. A settled marker alone never passes a merge: that marker is a
+    comment the identity writes. A settled merge whose runs could not be read
+    within the check's caps, or do not show it final, holds the anchor. The
+    anchor moves to the
     newest `mergedAt` at which every merge from the floor on passed; a tie
     moves it only when every merge at that second passed, so the at-or-before
     rule never covers an unpassed one. It carries the passed merges after
@@ -4117,7 +4211,7 @@ def advance_anchor(verdict: PostMergeVerdict, previous: Anchor | None) -> Anchor
         when = _time(state.merge.merged_at)
         passed = (
             (at is not None and when <= at)
-            or (state.settleable and not state.settled)
+            or (state.final_by_runs if state.settled else state.settleable)
             or state.merge.number in carried
         )
         seconds.setdefault(when, []).append(passed)
@@ -4134,6 +4228,25 @@ def advance_anchor(verdict: PostMergeVerdict, previous: Anchor | None) -> Anchor
         new,
         frozenset(n for when, ns in numbers.items() if when > new for n in ns),
     )
+
+
+def anchor_needs(anchor: Anchor | None) -> Callable[[AutoMerge], bool]:
+    """`check`'s `rejudge` for the lane check from `anchor`: a settled merge
+    passes it only from its runs when merged after it and not carried; with
+    no anchor, every settled merge. A merge with an unreadable time is
+    judged, so it holds the anchor as `advance_anchor` would."""
+
+    def needs(merge: AutoMerge) -> bool:
+        if anchor is None:
+            return True
+        if merge.number in anchor.passed:
+            return False
+        try:
+            return _time(merge.merged_at) > anchor.at
+        except PostMergeReadError:
+            return True
+
+    return needs
 
 
 def write_anchor(
@@ -4842,10 +4955,9 @@ def anchor_covered(
     repo: str, identity: str, report: Mapping[str, Any]
 ) -> list[Any]:
     """The report's `settle` entries the current anchor already passed: merged
-    at or before it, or carried in its `passed`. A settled merge counts only
-    by its marker, which never moves the anchor (`advance_anchor`), so a
-    marker on a merge the anchor has not passed would hold it for good; such
-    a merge is settled once a later anchor passes it. No anchor settles none."""
+    at or before it, or carried in its `passed`. A marker never moves the
+    anchor by itself (`advance_anchor`), so a merge is marked only once an
+    anchor has passed it from its runs. No anchor settles none."""
     anchor = read_anchor(repo, identity)
     if anchor is None:
         return []
@@ -5057,6 +5169,7 @@ def main(argv: list[str] | None = None) -> int:
         anchored = args.lane_merges_only and args.branch is None
         if anchored:
             since, anchor = lane_floor(args.repo, args.agent_identity, since)
+    out = os.environ.get(ANCHOR_ENV)
     verdict = check(
         args.repo,
         agent_identity=args.agent_identity,
@@ -5066,12 +5179,13 @@ def main(argv: list[str] | None = None) -> int:
         pinned_sha=(reader := pin_reader(args.repo, args.agent_identity)),
         lane_merges_only=args.lane_merges_only,
         settled=reader.settled,
+        # Only the check that writes the anchor reads settled merges' runs.
+        rejudge=anchor_needs(anchor) if anchored and out else None,
     )
     report = verdict.report()
     report["since"] = since.isoformat()
     if shared is not None:
         report["shared"] = shared
-    out = os.environ.get(ANCHOR_ENV)
     if anchored and out and verdict.branch:
         advanced = advance_anchor(verdict, anchor)
         if advanced is not None:

@@ -19,8 +19,7 @@
         "brew": "node",
         "winget": "OpenJS.NodeJS.LTS",
         "apt": "nodejs"
-      },
-      "check": "/instruction-placement:check-prerequisites"
+      }
     },
     {
       "id": "jq",
@@ -40,8 +39,7 @@
         "brew": "jq",
         "winget": "jqlang.jq",
         "apt": "jq"
-      },
-      "check": "/instruction-placement:check-prerequisites"
+      }
     },
     {
       "id": "curl",
@@ -61,8 +59,7 @@
         "brew": "curl",
         "winget": "cURL.cURL",
         "apt": "curl"
-      },
-      "check": "/instruction-placement:check-prerequisites"
+      }
     },
     {
       "id": "python3",
@@ -84,8 +81,7 @@
         "brew": "python",
         "winget": "Python.Python.3.12",
         "apt": "python3"
-      },
-      "check": "/instruction-placement:check-prerequisites"
+      }
     }
   ]
 }

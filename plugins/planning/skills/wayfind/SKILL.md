@@ -5,7 +5,7 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  workflow-stage: contract
+  workflow-stage: interview
   summary: Chart a too-big, foggy effort as a decision map worked one decision at a time
 ---
 
@@ -288,8 +288,8 @@ owns the trigger's meaning (too-big + fog, both, not either alone).
 | Feasibility / UX unknown | `/prototype:pressure-test`, `/prototype:explore-directions` | `prototype`-typed items route here |
 | External-evidence item | `/discovery:research` | `research`-typed items route here |
 
-Pre-implementation order (blindspot → brainstorm/prototype → PRD → interview, escalating here when
-it outgrows one session → reference port → design → plan → decompose): the workflow section of
+Pre-implementation order (blindspot → brainstorm/prototype → interview, calling a PRD when product
+intent is unsettled and escalating here when it outgrows one session → reference port → design → plan → decompose): the workflow section of
 `docs/finding-your-unknowns.md` in the marketplace repository.
 
 ## What this skill does NOT do

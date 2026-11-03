@@ -4,7 +4,10 @@ PreToolUse / PostToolUse / lifecycle hook scripts.
 
 ## Read first
 
-- `hooks/hooks.json`: which events, which `matcher` (tool-name regex), which scripts, timeouts.
+- `hooks/hooks.json`: which events, which `matcher`, which scripts, timeouts. When reading what a
+  matcher matches, fetch [Matcher patterns](https://code.claude.com/docs/en/hooks#matcher-patterns)
+  live. As of 2026-11-03. Recheck trigger: that section changes what a matcher filters on or how it
+  is parsed.
 - The script itself + any shared utility script it sources.
 - The plugin's `userConfig` for kill switches / allow-lists that gate the hook.
 

@@ -131,10 +131,31 @@ export const zoneOfWindow = (w: Json, cliVersion: unknown, bands: Bands): Zone |
   return pz && tz ? worse(pz, tz) : (pz ?? tz)
 }
 
-export const resolveZone = (args: { sid: string; snapshot: string | null; zones: string | null; nowSec: number }): { word: Word; notices: string[] } => {
+// A percentage of the auto-compact window as a percentage of the model's window, which
+// used_percentage counts against. Unchanged unless the compaction window is the smaller one.
+export const ofWindow = (percent: number, window: number, compactWindow: number | undefined) =>
+  compactWindow !== undefined && window > 0 && compactWindow > 0 && compactWindow < window ? (percent * compactWindow) / window : percent
+
+// The mod's own addition: percentage edges that follow a lowered auto-compact window. The shell
+// resolver cannot see that window, so resolveZone applies it only when a caller passes it.
+export const followWindow = (bands: Bands, window: number, compactWindow: number | undefined): Bands => ({
+  ...bands,
+  smart: ofWindow(bands.smart, window, compactWindow),
+  acceptable: ofWindow(bands.acceptable, window, compactWindow),
+})
+
+export const resolveZone = (args: {
+  sid: string
+  snapshot: string | null
+  zones: string | null
+  nowSec: number
+  follow?: (bands: Bands) => Bands
+}): { word: Word; notices: string[] } => {
   const unknown = (notices: string[] = []) => ({ word: 'unknown' as const, notices })
   if (!/^[A-Za-z0-9_-]+$/.test(args.sid) || args.snapshot === null) return unknown()
-  const { bands, notices } = readBands(args.zones)
+  const read = readBands(args.zones)
+  const { notices } = read
+  const bands = args.follow ? args.follow(read.bands) : read.bands
   const parsed = parse(args.snapshot)
   if (!parsed.ok || !isObject(parsed.value)) return unknown(notices)
   const s = parsed.value

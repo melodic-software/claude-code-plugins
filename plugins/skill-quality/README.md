@@ -15,7 +15,6 @@ the reviewer to confirm the description still names that intent, or to restore t
 | Skill | What it does |
 |---|---|
 | `/skill-quality:check` | Runs the contract gate (`check`), reports the shared listing budget (`listing-budget`), schema-validates and quality-lints evals (`validate-evals`), or scores description auto-invocation probes (`measure-invocation`). |
-| `/skill-quality:check-prerequisites` | Read-only report of whether the tools the plugin declares in `prerequisites.json` resolve. Installs nothing. |
 | `/skill-quality:setup` | Check-only: resolves and verifies the skills directory and prints the guidance for routing a non-default `skills_root` change through Claude Code. |
 
 ## Install
@@ -134,8 +133,8 @@ the reviewer to confirm the description still names that intent, or to restore t
   operative-chain phrasing warns. Absence is an INFO note, because most skills are terminal,
   except on a stage-bearing skill: a `metadata.workflow-stage` of `explore`, `research`, `plan`,
   `implement`, `test`, `review`, `verify`, `pr`, or `retro` with no `## Next` and no `Handoff`,
-  `Routing`, `Integration`, or `Skill chaining` heading warns. `contract` is not in that list,
-  because those skills route through the slice they write.
+  `Routing`, `Integration`, or `Skill chaining` heading warns. `interview`, `prd` and `design` are not
+  in that list, because those skills route through the artifacts they write.
 - Registered metadata keys (advisory). Each `metadata:` key must appear in
   `scripts/metadata-registry.txt`, one `<key><TAB><consumer>` line naming what reads it; a key
   missing from the registry warns. `/playbooks:skill-authoring` (`## Metadata`) owns the rule.

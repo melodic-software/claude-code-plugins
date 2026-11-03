@@ -60,48 +60,12 @@
           "number": 7063,
           "headRefOid": "b6888664c45a19abc91c9cd819770406a6e7616d",
           "mergedAt": "2026-10-13T01:47:44Z",
-          "lastEditedAt": "2026-10-13T01:38:02Z",
           "mergeCommit": {
             "oid": "6fa4f210dd0eb904a9ca1504344d8b66294ee6f5"
           },
           "mergedBy": {
             "__typename": "User",
             "login": "kyle-sexton"
-          },
-          "labels": {
-            "pageInfo": {
-              "hasNextPage": false
-            },
-            "nodes": []
-          },
-          "closingIssuesReferences": {
-            "pageInfo": {
-              "hasNextPage": false
-            },
-            "nodes": [
-              {
-                "number": 6007,
-                "labels": {
-                  "pageInfo": {
-                    "hasNextPage": false
-                  },
-                  "nodes": [
-                    {
-                      "name": "priority: medium"
-                    },
-                    {
-                      "name": "status: ready"
-                    },
-                    {
-                      "name": "needs-human"
-                    },
-                    {
-                      "name": "work-class: scoped"
-                    }
-                  ]
-                }
-              }
-            ]
           },
           "timelineItems": {
             "pageInfo": {
@@ -127,20 +91,6 @@
     }
   },
   "issue": {
-    "labels": [
-      {
-        "name": "priority: medium"
-      },
-      {
-        "name": "status: ready"
-      },
-      {
-        "name": "needs-human"
-      },
-      {
-        "name": "work-class: scoped"
-      }
-    ],
     "number": 6007
   },
   "repo": {
@@ -168,18 +118,6 @@
           }
         }
       }
-    }
-  },
-  "connectedEventFromCliCli14616": {
-    "__typename": "ConnectedEvent",
-    "createdAt": "2026-10-07T08:24:54Z",
-    "source": {
-      "__typename": "PullRequest",
-      "number": 14616
-    },
-    "subject": {
-      "__typename": "Issue",
-      "number": 14614
     }
   },
   "commitNotFound": {

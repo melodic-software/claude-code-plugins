@@ -7,12 +7,13 @@ and `/session-flow:retro` analysis.
 
 ## Stages
 
-- [ ] 1. Explore: relevant code, tests, and history read → findings noted
-- [ ] 2. Research: the claims the work depends on verified against current authoritative sources
-- [ ] 3. PRD (conditional): problem, users, success metrics written (SKIP unless the change is
+- [ ] 1. Interview: goal, constraints, acceptance criteria locked in the Brief (SKIP when intent
+  is already crisp from the user's request)
+- [ ] 2. Explore (conditional): the code each open question turns on read → findings noted
+- [ ] 3. Research (conditional): the claims the work depends on verified against current
+  authoritative sources
+- [ ] 4. PRD (conditional): problem, users, success metrics written (SKIP unless the change is
   user-facing, business-driven, and needs alignment)
-- [ ] 4. Contract: goal, constraints, acceptance criteria locked (SKIP when intent is already
-  crisp from the user's request)
 - [ ] 5. Design: design gate passed and the plan's design section written, or a one-line early
   exit recorded with its reason
 - [ ] 6. Plan: plan written with phases + verification criteria, user-approved (stress-tested
@@ -34,10 +35,10 @@ and `/session-flow:retro` analysis.
 
 ## Skip criteria
 
-A stage may be SKIPPED with explicit justification recorded next to its box. Typical skips: stage 4
-when intent is already crisp; stages 3 and 7 when their triggers do not hold; stage 9 for doc-only
-changes with no behavior delta. Never skip stages 1, 2, 5, 6, 10, or 11 for code changes; stage 5
-on work with no design question is its recorded early exit, not a skip.
+A stage may be SKIPPED with explicit justification recorded next to its box. Typical skips: stage 1
+when intent is already crisp; stages 2, 3, 4 and 7 when their triggers do not hold; stage 9 for
+doc-only changes with no behavior delta. Never skip stages 5, 6, 10, or 11 for code changes; stage
+5 on work with no design question is its recorded early exit, not a skip.
 
 ## How to use
 

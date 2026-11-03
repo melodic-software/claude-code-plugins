@@ -896,9 +896,10 @@ stopped the first attempt (class `upstream-degraded`): the caller's `kill-switch
 its lane's `an upstream outage stops this review (` (or `security review (`) error and the first
 attempt has no lane job. The gate never starts that rerun; the lost-run reconciler reruns the
 run's failed jobs once GitHub Actions is operational and the upstream gate would let it run. A first
-attempt the evidence classifies as `NO_OUTCOME` (`babysit_review_evidence.py`) binds a second
-attempt only when the lane posted nothing on the head, by the lost-run rule below. The gate never
-starts that rerun: a defect in the lane fails every run until its fix ships.
+attempt the evidence classifies as `NO_OUTCOME` or `TIMEOUT` (`babysit_review_evidence.py`)
+binds a second attempt only when the lane posted nothing on the head, by the lost-run rule below.
+The gate never starts that rerun: a defect in the lane, or a spent credential, fails every run
+until it is fixed.
 
 The gate also reruns, at once and under the same head, job and attempt rules, an AI review check
 whose run an outage lost: its job and the run's first attempt concluded `cancelled` or `timed_out`
@@ -1192,7 +1193,9 @@ armed auto-merge is disarmed and refused instead, only while the merge queue has
 for failed checks fewer than `merge.max-queue-ejections` times (default 2) since it last changed
 (a refused head gets one `<!-- babysit-merge-queue-ejections -->` comment linking the failing
 `merge_group` runs), and after a
-`<!-- babysit-merge-pin sha=<S> -->` comment records the pin for the post-merge read-back. When the
+`<!-- babysit-merge-pin sha=<S> rung=<C2|C3> -->` comment records the pin for the post-merge
+read-back and the effective rung for the promotion-evidence publisher (the read-back also accepts
+the older shape with no `rung=`). When the
 identity's earlier queue entries and its unverified merges already reach `merge.max-in-flight`
 (default 1), the new entry dequeues itself. The enqueue returns before
 the queue lands the pull request, so a later run with

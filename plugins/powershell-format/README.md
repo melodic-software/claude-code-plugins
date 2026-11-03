@@ -28,11 +28,15 @@ and runs only when your repo has opted into a `PSScriptAnalyzerSettings.psd1`.
   once per turn. Off by default.
 - **Opt-in on a settings file.** PSScriptAnalyzer runs **only on a file a
   `PSScriptAnalyzerSettings.psd1` governs**, found by walking up from the file to the
-  repository root and stopping at the closest one. Unlike some formatters,
-  PSScriptAnalyzer does not auto-discover its settings, so the entry passes the file
-  through. A repo without a settings file is left untouched rather than formatted and
-  linted with PSScriptAnalyzer's built-in defaults. A settings file that declares
-  `CustomRulePath` is additionally gated on explicit approval. See [Trust model](#trust-model).
+  repository root and stopping at the closest one, and the entry passes that file to the
+  analyzer explicitly. A repo without a settings file is left untouched rather than
+  formatted and linted with PSScriptAnalyzer's built-in defaults. A settings file that
+  declares `CustomRulePath` is additionally gated on explicit approval. See
+  [Trust model](#trust-model).
+  **Pointer**: when deciding how PSScriptAnalyzer finds settings on its own, fetch
+  [Settings Support in ScriptAnalyzer](https://learn.microsoft.com/powershell/utility-modules/psscriptanalyzer/using-scriptanalyzer#settings-support-in-scriptanalyzer)
+  live. **As of**: 2026-11-03. **Recheck trigger**: that section changes how a settings file
+  is found or passed.
 - **Installed copies are skipped.** A file under `.githooks/` is never rewritten.
 - **Missing tools.** A missing `pwsh` or PSScriptAnalyzer module fails an agent's commit with
   the install command and a one-line skip key (`git -c checks.skipmissing=pwsh commit ...`,
@@ -42,10 +46,9 @@ and runs only when your repo has opted into a `PSScriptAnalyzerSettings.psd1`.
 ## Trust model
 
 The opt-in `PSScriptAnalyzerSettings.psd1` is **executed-adjacent configuration**,
-not inert data. A settings file may declare a
-[`CustomRulePath`](https://learn.microsoft.com/powershell/utility-modules/psscriptanalyzer/using-scriptanalyzer#custom-rules)
-pointing at PowerShell rule modules, and PSScriptAnalyzer **loads and runs** those
-modules' exported functions during analysis. The entry therefore never runs the
+not inert data. A settings file may declare a `CustomRulePath` naming PowerShell rule
+modules, and this plugin treats every module it names as code the analyzer may run.
+The entry therefore never runs the
 analyzer under such a settings file without an explicit approval: it skips the
 run and prints a trust-gate notice. A person's notice names the settings file and the approval marker to
 create; an agent commit's notice says the run was skipped and that approval is
@@ -68,6 +71,11 @@ hashable content leaves the state unverifiable with no approval route.
 When no approval store can be found the gate fails closed and the
 run stays skipped. A settings file without
 `CustomRulePath` is declarative rule configuration and runs immediately.
+
+- **Pointer**: when deciding what a declared `CustomRulePath` loads, fetch
+  [Using PSScriptAnalyzer: Custom rules](https://learn.microsoft.com/powershell/utility-modules/psscriptanalyzer/using-scriptanalyzer#custom-rules)
+  live. **As of**: 2026-11-03. **Recheck trigger**: that section changes how custom rule
+  modules are loaded.
 
 ## Requirements
 

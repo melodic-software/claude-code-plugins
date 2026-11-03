@@ -89,12 +89,16 @@ sweep. The bare word `unattended` is not this flag: stop and name `--unattended`
    carrying the same decision instead.
 4. **Local hygiene.** Prune only what is provably safe: branches whose work is
    fully merged, worktrees with no uncommitted or stashed state and no
-   irreplaceable ignored files, background work that has genuinely finished. A
-   plain `git status` hides ignored files, but `git worktree remove` deletes
-   them, so before removing a worktree, inspect its ignored content
-   explicitly (`git status --ignored`) and preserve or surface anything not
+   irreplaceable ignored files, background work that has genuinely finished.
+   Before removing a worktree, inspect its ignored content explicitly
+   (`git status --ignored`) and preserve or surface anything not
    reproducible: a local `.env`, credentials, generated handoff data, or files
-   a bootstrap copied in. Anything still holding unmerged commits, dirty state,
+   a bootstrap copied in. When checking what plain `git status` lists and
+   what `git worktree remove` refuses or deletes, read
+   [git-status `--ignored`](https://git-scm.com/docs/git-status#Documentation/git-status.txt---ignoredmode)
+   and [git-worktree `remove`](https://git-scm.com/docs/git-worktree#Documentation/git-worktree.txt-remove)
+   live (as of 2026-11-03; recheck when either entry changes how ignored
+   files are listed or removed). Anything still holding unmerged commits, dirty state,
    irreplaceable ignored files, or a running job is NOT pruned. It becomes a
    named item in the verdict.
 5. **Free-and-clear verdict.** Lead the report with one of two honest

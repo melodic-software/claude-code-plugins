@@ -1,5 +1,6 @@
 schema_version: "1.1"
 name: use-routes-natural-explorer
+plugins: ["../..", "playground-stub"]
 graders:
   - name: routes-use
     type: tool_used

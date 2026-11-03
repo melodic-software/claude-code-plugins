@@ -77,8 +77,11 @@ So Phase 1 takes the sources it can hold:
 **What is genuinely lost is named in `skipped`, never absorbed.** Three losses, each stated as what
 the run could not observe rather than left to read as coverage:
 
-- **Per-skill listing-budget drops.** They come from a decay-weighted usage score no reachable source
-  exposes, so the pass cannot say which skill descriptions were dropped from the listing.
+- **Per-skill listing-budget drops.** No source this pass reads records them, so the pass cannot say
+  which skill descriptions were dropped from the listing. When deciding how drops are chosen, fetch
+  [skills: skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)
+  live (as of 2026-11-03; recheck when that section changes how drops are chosen or names a way to
+  see them).
 - **Custom-agent registration liveness**, which degrades from observed to **configured-not-observed**:
   the inventory can say an agent is defined and cannot say the session registered it.
 - **The clean-room comparison.** Relocating `CLAUDE_CONFIG_DIR` and diffing a bare session is what

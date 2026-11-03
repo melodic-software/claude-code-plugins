@@ -4,6 +4,20 @@ Detail behind the `## Boundary` section in [SKILL.md](../SKILL.md). Each row is 
 record: the claim, the basis it rests on, the date it was checked, and the event that makes it
 worth checking again.
 
+## The three surfaces
+
+- **`commit` (bundled skill)**: a generic commit workflow; it gathers git context and applies
+  Claude Code's own message style, staging rules, and attribution. The model and the person can
+  both invoke it.
+- **`/commit-push-pr` (built-in command)**: commits, pushes, and opens a PR in one prompt-driven
+  step. The model and the person can both invoke it.
+- **This skill (marketplace plugin).** Resolves the repository's subject convention through the
+  ladder in SKILL.md (layered `source-control.md` config, the project's own convention, the
+  Conventional Commits default), resolves `trailer_policy`, stages surgically against the four
+  preconditions, and reruns the format, exec-bit, and subject pre-check steps on every commit.
+
+## Verification record
+
 | Claim | Basis | As of | Recheck when |
 |---|---|---|---|
 | `commit` is a bundled skill that creates a git commit through Claude Code's own generic commit workflow, taking optional guidance as its argument | The `/harness-ops:inventory` extraction of the installed 2.1.284 binary, 2026-09-29 | 2026-09-29 | A release renames or removes the skill, or changes its description |
