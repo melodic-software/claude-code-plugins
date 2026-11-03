@@ -6,7 +6,7 @@
 - [Discipline liveness: why a token at all](#discipline-liveness-why-a-token-at-all)
 - [The acceptance gate: why it grades the slice path, not the payload](#the-acceptance-gate-why-it-grades-the-slice-path-not-the-payload)
 - [The coverage ledger is graded separately, and its freshness is not bound](#the-coverage-ledger-is-graded-separately-and-its-freshness-is-not-bound)
-- [The restatement check is advisory](#the-restatement-check-is-advisory)
+- [The restatement and eligibility checks](#the-restatement-and-eligibility-checks)
 - [Recovery ladder](#recovery-ladder)
 - [Truncation](#truncation)
 - [What dispatch does and does not buy](#what-dispatch-does-and-does-not-buy)
@@ -89,18 +89,27 @@ against a run that produced none):
    and a serve-time header's exclusion are in
    [`artifact-shape.md`](artifact-shape.md), "Dating an undated living doc".
 
-   **Brief it on restatements.** Row 12 reaches every place the artifact restates an accepted
-   claim: the Summary, the Settled list and the rest of the handoff, catalog and table cells, and
-   sidecar abstracts. When the restatement check ("The restatement check is advisory" below)
-   exits 1, add one prompt line per line it reported, copied from its stderr:
+   **Scale it to the evidence use.** Under `Evidence use: internal`, the verifier grades rows 4, 7
+   and 12 only for the claims a stated decision cites: the claim IDs the decision this research
+   feeds (the envelope's `Reason:`) rests on. Name them on one prompt line:
 
    ```text
-   Restatements: <file>:<line>: <id> (<label>) appears without its label
+   Claims: <id>[, <id>…]
    ```
 
-   The verifier reads each named line and grades it under row 12, or under row 7 when the line
-   names a `MEDIUM` or `LOW` claim. The check is advisory, so a reported line is a lead the
-   verifier confirms, not a FAIL the parent records.
+   Row 14 is still graded in full. An absent or empty `Claims:` line grades every accepted claim.
+   No rework round runs under `internal`: a FAIL row is recorded as a Gap or Conflicts entry,
+   lowering `accepted:` to match (criterion 14), or left as the named `verification: fail rows`
+   value, and the result is presented with that caveat, the same bound `Budget: low` takes. Record
+   the graded IDs in the index's outcome-gate result, so a later reader knows which claims a
+   `pass` covers. Under `publish` the verifier grades every accepted claim and the full loop runs:
+   one rework round and one re-verify ("Effort, source breadth" in `SKILL.md`).
+
+   **Brief it on restatements.** Row 12 reaches every place the artifact restates an accepted
+   claim: the Summary, the Settled list and the rest of the handoff, catalog and table cells, and
+   sidecar abstracts. The restatement check ("The restatement and eligibility checks" below)
+   exits 0 before the verifier is dispatched, so the verifier grades meaning, not labels: whether a
+   pointer cites the right claim for what the line says.
 
    **Hand it full copies of the pages its fetch cut short.** The verifier has no `Bash`, by design,
    so it cannot run the docs lookup itself. When its `problems:` names a `truncated primary: <url>`,
@@ -194,7 +203,7 @@ agent definition, the same class as a missing `topic_as_received`.
 
 ## The acceptance gate: why it grades the slice path, not the payload
 
-`SKILL.md` carries the gate's three steps. This is why each is shaped the way it is.
+`SKILL.md` carries the gate's steps. This is why each is shaped the way it is.
 
 The failure it catches is a dispatched agent returning `status: complete` with a mid-stream narration
 line as its whole payload: no `preload_token`, no summary, no artifact path. Nothing in that shape is
@@ -243,6 +252,34 @@ accepted nothing records `accepted: 0` and opens its Summary with
 `Inconclusive: no claim accepted.` Any failure sends the synthesis back for rewriting, not the
 sub-slice for re-dispatch.
 
+**A slice-root synthesis that adds no claims and cites by ID needs no verifier.** When the
+slice-root index writes no claim of its own (no `RESEARCH-*.md` sidecar at the root, or only
+`claims: []`) and cites each sub-slice claim by its `id:` with that claim's label, every claim it
+carries already has its sub-slice's verdict, so rows 4, 7 and 14 have nothing of the root's own to
+grade. Its pointers are the one thing left: a Settled line that drops a `HIGH (single source)`
+label, or widens a claim with a sweep word, is the drift row 12 exists to catch. A script covers
+them. Run the restatement check on the root with one `--sub-slice` per sub-slice:
+
+```bash
+"<plugin-root>/scripts/check-restatement-labels.py" <slice root> --sub-slice <sub-slice> [--sub-slice <sub-slice>]...
+```
+
+It takes each sub-slice's declared IDs and labels, reads only the root's own index and sidecars
+for lines, and fails a root pointer that drops its claim's label or carries a sweep word. Without
+`--sub-slice` it would find no ID to look for at a `claims: []` root and pass without reading a
+pointer, and it exits 2 at a root with no sidecar, so the flag is not optional here. Cite its exit
+status as acceptance-gate step 5 for the root; the eligibility check has no claim of the root's to
+read and is not run there. On exit 0, write `verification: skipped (cost)` into the root index,
+dispatch no verifier, and say in its outcome-gate result that the root adds no claims and that the
+restatement check over its sub-slices passed. An exit 2 because two sub-slices declare one ID
+means the root's pointers are ambiguous: that root takes the verifier on every verifier-owned row,
+and the brief says the restatement check could not grade its pointers to sub-slice claims.
+Any other non-zero exit sends the synthesis back for rewriting, like any failure above. A root that
+adds one claim, a cross-topic conclusion included, takes the verifier on every verifier-owned row
+too, and takes the same `--sub-slice` run as its step 5 (the plain run when its sub-slices share
+an ID), so its own claims and its pointers to sub-slice claims are both checked before the
+verifier is dispatched.
+
 ## The coverage ledger is graded separately, and its freshness is not bound
 
 Outcome-gate criterion 11 already makes the *run* cite `check-coverage-complete.sh`'s exit status
@@ -278,37 +315,36 @@ narrowly but really: Phase 0 rewrites the ledger before any query, so the window
 whose new run recorded the corpus as unbounded (and therefore wrote no ledger) while the previous
 run's marked one is still sitting there. Hence the ladder's first move on a discard.
 
-## The restatement check is advisory
+## The restatement and eligibility checks
 
-Once every gate step in `SKILL.md` has exited 0, and before the verifier is dispatched, run the
-restatement check on the directory of the `index=` path the artifact gate printed, as one plain
-command:
+Two scripts check, at write time, the format and calibration rules a verifier would otherwise
+fail by hand: label and sweep-word drift in restatements (row 12), single-source flag eligibility
+(row 4), and the tier mix behind `HIGH` (row 7). Each runs on the directory of the index, as one
+plain command:
 
 ```bash
 "<plugin-root>/scripts/check-restatement-labels.py" <that index's directory>
+python3 "<plugin-root>/scripts/check-claim-eligibility.py" <that index's directory>
 ```
 
-It reads each sidecar's `claims:` header for every claim at `HIGH (single source)`, `MEDIUM` or
-`LOW` that carries an `id:`, and reports each line of the index and the sidecars, outside those
-headers and the fetch log, that names one of those IDs without the claim's label. The rule it checks
-is [`artifact-shape.md`](artifact-shape.md), "Restatements cite; they do not restate". Read its exit
-status:
+The rules they check are in [`artifact-shape.md`](artifact-shape.md): "Restatements cite; they do
+not restate", and the `claim_kind:` and `source_owner:` paragraph under the sidecar header. Both
+read exit status the same way: **0** pass; **1** a violation, one stderr line per line or claim
+at fault; **2** ungradeable (a header the parser cannot read, an `id:` outside the claim-ID grammar,
+one ID declared twice, or a usage error). Both 1 and 2 are FAILs.
 
-- **0**: every line that names a labeled claim carries the label. Its summary line also counts the
-  IDs it found, and `ids=0` means the run wrote no `id:` fields, so there was nothing to check.
-- **1**: each stderr line, `<file>:<line>: <id> (<label>) appears without its label`, is a
-  restatement that dropped its label. Brief the verifier on each one (step 2 of "The orchestration
-  boundary"); on the cost path, with no verifier, record the lines in the outcome-gate result.
-- **2**: the check could not grade the slice: a header it cannot parse, an `id:` outside the
-  claim-ID grammar, one ID declared twice, or a usage error. Record that in the outcome-gate result.
+**They fail closed at the researcher.** The researcher runs both before hand-back, fixes each
+reported line or claim (shrinking a restatement to a pointer, lowering a confidence, or splitting a
+content claim from a behavior claim), and re-runs until both exit 0. A label or a flag fixed there
+never reaches a verifier.
 
-**No exit halts the workflow, and none is a gate FAIL.** The rule's mechanism is inferred from one
-fan-out's verifier rounds, not proven, so the check stays advisory until it runs clean on real
-research slices; then it joins the gate as a fifth step. Until then the verifier, not the script,
-decides whether a reported line fails row 12. Like the applicability checker it ships as Python
-only: where `python3` does not resolve, run it as `python`. An invocation that is denied, declined
-or cannot find an interpreter is recorded in the outcome-gate result as not run, and the run
-continues.
+**The parent re-runs them as acceptance-gate step 5**, after the source-applicability check and
+before the verifier is dispatched, for the same reason it re-runs the ledger and applicability
+scripts: the payload's word is the run's self-grade. Cite each exit status. A non-zero exit, or an
+invocation that is denied, declined or cannot find an interpreter, halts like any gate step and
+takes the recovery ladder below: resume the researcher with the reported lines. Like the
+applicability checker they ship as Python only: where `python3` does not resolve, run them with
+`python`.
 
 ## Recovery ladder
 

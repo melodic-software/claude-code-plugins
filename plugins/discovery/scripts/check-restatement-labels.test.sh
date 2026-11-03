@@ -171,6 +171,28 @@ run 1 "a fetch-log heading inside a code fence does not open a skip" --err 'RESE
 
 See M1.')"
 
+# --- sweep words ------------------------------------------------------------
+# An index line that cites a claim ID carries no sweep word: "every", "all",
+# "none" or "only" there widens the claim it points at.
+
+run 1 "a sweep word beside a cited ID fails" --err 'RESEARCH.md:6: M1 cited beside the sweep word "every"' \
+  "$(mkslice sweep "$FLAGGED" 'M1 (HIGH (single source)) holds for every version.')"
+expect_out "sweep summary line" 'status=fail violations=1 ids=1 labeled=1 mentions=1'
+run 0 "an ID pointer with its label passes" \
+  "$(mkslice pointer "$FLAGGED" 'Settled: M1 (HIGH (single source)).')"
+run 1 "a plain HIGH claim's line is checked for sweep words too" --err 'K9 cited beside the sweep word "All"' \
+  "$(mkslice sweep-plain "$PLAIN" 'All hooks follow K9.')"
+run 1 "one line citing two IDs is one violation" --err 'CI-02, K9 cited beside the sweep word "only"' \
+  "$(mkslice sweep-two "$MEDIUM
+$PLAIN" 'K9 and CI-02 (MEDIUM) are the only answers.')"
+expect_out "two IDs on one sweep line count once" 'status=fail violations=1 ids=2 labeled=1 mentions=1'
+run 0 "a word that only contains a sweep word passes" \
+  "$(mkslice overall "$PLAIN" 'Overall, K9 is settled; nonetheless it is small.')"
+run 0 "a sweep word with no cited ID passes" \
+  "$(mkslice no-cite "$PLAIN" 'None of this is settled.')"
+run 0 "a sidecar body line may carry a sweep word" \
+  "$(mkslice sweep-sidecar "$PLAIN" 'Index.' 'K9: every hook reads JSON on stdin.')"
+
 # --- ungradeable ------------------------------------------------------------
 
 run 2 "missing slice" "$WORK/does-not-exist"
@@ -201,6 +223,56 @@ nested="$(mkslice nested "$FLAGGED" 'Index.')"
 mkdir -p "$nested/sub"
 printf -- '---\nabstract: a\n---\nM1 here.\n' >"$nested/sub/RESEARCH.md"
 run 0 "sub-slices are not recursed into" "$nested"
+
+# --- a claim-free slice root, checked against its sub-slices ----------------
+# A synthesis that adds no claims cites each sub-slice claim by ID. Without
+# --sub-slice no script sees those pointers; with it, the sub-slices' declared
+# IDs and labels grade the root's index lines.
+
+# mkroot <name> <index body> [claims-free]: a slice root with no sidecar, or
+# with one holding only claims: [] when a third argument is given.
+mkroot() {
+  local d="$WORK/$1"
+  mkdir -p "$d"
+  printf -- '---\nabstract: a\n---\n# Index\n\n%s\n' "$2" >"$d/RESEARCH.md"
+  if [[ -n "${3:-}" ]]; then
+    printf -- '---\ntopic: t\nsection: s\nabstract: a\nclaims: []\nproduced_by: p\n---\n# Body\n' \
+      >"$d/RESEARCH-s.md"
+  fi
+  printf '%s' "$d"
+}
+
+# The sub-slice's own index drops M1's label; only the root's lines are read.
+sub_a="$(mkslice sub-a "$FLAGGED" 'M1 unlabeled in the sub-slice.')"
+sub_b="$(mkslice sub-b "$MEDIUM" 'Index.')"
+run 0 "a claim-free root citing sub-slice claims with their labels passes" \
+  "$(mkroot root-ok 'Settled: M1 (HIGH (single source)); gap: CI-02 (MEDIUM).')" \
+  --sub-slice "$sub_a" --sub-slice "$sub_b"
+expect_out "the sub-slices' claims are counted" 'status=pass ids=2 labeled=2 mentions=2'
+run 1 "a root pointer that drops a sub-slice claim's label fails" \
+  --err 'RESEARCH.md:6: M1 (HIGH (single source)) appears without its label' \
+  "$(mkroot root-bare 'Settled: M1.')" --sub-slice "$sub_a"
+run 1 "a sweep word on a root pointer fails" --err 'M1 cited beside the sweep word "every"' \
+  "$(mkroot root-sweep 'Settled: M1 (HIGH (single source)) for every version.')" --sub-slice "$sub_a"
+claims_free="$(mkroot root-empty 'Settled: M1.' claims-free)"
+run 1 "a root holding claims: [] is checked against its sub-slices" \
+  --err 'RESEARCH.md:6: M1 (HIGH (single source)) appears without its label' \
+  "$claims_free" --sub-slice "$sub_a"
+run 0 "without --sub-slice a claims: [] root finds no ID to look for" "$claims_free"
+expect_out "the unchecked root reports ids=0" 'status=pass ids=0 labeled=0 mentions=0'
+run 2 "one ID declared in two sub-slices is ambiguous" --err 'id M1 is already declared' \
+  "$(mkroot root-dup 'Settled.')" --sub-slice "$sub_a" \
+  --sub-slice "$(mkslice sub-dup "$(claim M1 MEDIUM)" 'Index.')"
+empty_sub="$WORK/sub-empty"
+mkdir -p "$empty_sub"
+run 2 "a sub-slice with no sidecar" --err 'no RESEARCH-*.md sidecar in sub-slice' \
+  "$(mkroot root-nosub 'Settled.')" --sub-slice "$empty_sub"
+run 2 "a missing sub-slice" --err 'sub-slice directory not found' \
+  "$(mkroot root-missing 'Settled.')" --sub-slice "$WORK/no-such-sub"
+run 2 "--sub-slice with no directory" --err '--sub-slice needs a directory' \
+  "$(mkroot root-noarg 'Settled.')" --sub-slice
+run 2 "a root with no sidecar still needs --sub-slice" --err 'no RESEARCH-*.md sidecar' \
+  "$(mkroot root-alone 'Settled: M1.')"
 
 total=$((passes + fails))
 if [[ "$fails" -eq 0 ]]; then
