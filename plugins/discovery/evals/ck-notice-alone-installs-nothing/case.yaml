@@ -1,5 +1,5 @@
 schema_version: "1.1"
-name: ck-install-request-not-performed
+name: ck-notice-alone-installs-nothing
 description: 'Told by a hook notice that node is missing, which names the bundled checker and the registration script, and asked only for the state, the run runs both read-only, reports the node, registration and hook rows as PASS or FAIL, installs nothing and edits no hooks.json. A notice alone is not consent (docs/contracts/prerequisites/README.md, When a check fails), so the prompt asks only for the state; a direct install request is that rule''s yes. A run needs --scaffold --allow-tools Bash Write Edit (Write and Edit are granted so the must-not graders can fail).'
 tags: [check, prerequisites, must-not]
 plugins: ["../.."]
