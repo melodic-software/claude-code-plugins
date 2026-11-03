@@ -524,8 +524,12 @@ jobs:
   # other lane's newest run has not finished, so a re-run before then can
   # only be red, and that lane's own completion starts this job again. Each
   # run of this job starts after its own lane completed, so the later lane's
-  # run finds the earlier lane finished; the per-head concurrency group keeps
-  # the two from re-running ci-status at once, and a last read of the run's
+  # run finds the earlier lane finished. The earlier lane's run can run after
+  # both finished too (it waits in the per-head queue), so it leaves the
+  # re-run to the later lane's run after that one read: only the lane that
+  # finished last acts, and a ci-status re-run inside the 60 s margin below
+  # is not re-run again. The per-head concurrency group keeps the two from
+  # running at once, and a last read of the run's
   # attempt comes just before the re-run. A head with no run of the
   # other lane (one lane only) re-runs on this lane alone. A head the PR has
   # moved past, or a closed PR, is left alone. A ci-status job not started
@@ -779,6 +783,17 @@ jobs:
                 exit 0
               fi
               other_at=$(jq -r '.updated_at // ""' <<<"$lane")
+              # Only the lane that finished last re-runs ci-status (ties: the
+              # higher run id), once per head. The other lane's run defers to it
+              # when that run starts this job (the job's `if`: not skipped) and
+              # records its re-run (attempt 1).
+              if [[ $LANE_PATH != "$approved" ]] &&
+                jq -e --arg own "$LANE_DONE_AT" --arg own_id "$REVIEW_RUN_ID" 'try (.conclusion != "skipped" and .run_attempt == 1
+                  and ((.updated_at | fromdateiso8601) as $t | ($own | fromdateiso8601) as $o
+                    | $t > $o or ($t == $o and .id > ($own_id | tonumber)))) catch false' <<<"$lane" >/dev/null; then
+                echo "$other finished on $HEAD_SHA after this lane; its completion re-runs ci-status."
+                exit 0
+              fi
               if [[ $other_at > $done_at ]]; then
                 done_at=$other_at
               fi
