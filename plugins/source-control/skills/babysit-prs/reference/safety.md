@@ -896,9 +896,10 @@ stopped the first attempt (class `upstream-degraded`): the caller's `kill-switch
 its lane's `an upstream outage stops this review (` (or `security review (`) error and the first
 attempt has no lane job. The gate never starts that rerun; the lost-run reconciler reruns the
 run's failed jobs once GitHub Actions is operational and the upstream gate would let it run. A first
-attempt the evidence classifies as `NO_OUTCOME` (`babysit_review_evidence.py`) binds a second
-attempt only when the lane posted nothing on the head, by the lost-run rule below. The gate never
-starts that rerun: a defect in the lane fails every run until its fix ships.
+attempt the evidence classifies as `NO_OUTCOME` or `TIMEOUT` (`babysit_review_evidence.py`)
+binds a second attempt only when the lane posted nothing on the head, by the lost-run rule below.
+The gate never starts that rerun: a defect in the lane, or a spent credential, fails every run
+until it is fixed.
 
 The gate also reruns, at once and under the same head, job and attempt rules, an AI review check
 whose run an outage lost: its job and the run's first attempt concluded `cancelled` or `timed_out`

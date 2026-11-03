@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "1. **Severity**: P1\n**Location**: `src/routes/dashboard.js:10`\n**Risk**: The cache key holds only the range, so another account's invoices are served from cache to whoever asks next (CWE-524).\n**Fix**: put req.user.accountId in the key.",
+      "why": "finding at the key line naming another account"
+    },
+    {
+      "answer": "Risk: the cached body is shared across every signed-in account for 60 seconds.\nLocation: src/routes/dashboard.js lines 10-18",
+      "why": "class words before a line-range location"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No findings.",
+      "why": "no finding"
+    },
+    {
+      "answer": "1. **Severity**: P3\n**Location**: `src/cache.js:3`\n**Risk**: the Redis connection is not TLS, so another tenant on the network could read it.",
+      "why": "a different file and defect"
+    },
+    {
+      "answer": "**Location**: `src/routes/dashboard.js:10`\n**Risk**: the range parameter is not validated against a list.",
+      "why": "right line, no cross-account harm named"
+    }
+  ]
+}
