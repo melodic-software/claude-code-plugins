@@ -1,12 +1,12 @@
 schema_version: "1.1"
 name: real-silent-revert-design-strip
 description: strip on the check-silent-revert.sh design block deletes every comment, rewrites no code, and stages the narrative
-tags: [calibration, strip, real]
+tags: [calibration, none, real]
 expected_outcome: All 34 comment lines are deleted; die() is unchanged; the removed design history and threshold warning are staged in the report.
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: /code-tidying:dissolve-comments strip silent-revert-design.sh
+  prompt: /code-tidying:remove-comments none silent-revert-design.sh
   allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
   max_turns: 80
   timeout_seconds: 1200

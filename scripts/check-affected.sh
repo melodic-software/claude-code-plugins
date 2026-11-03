@@ -10,12 +10,15 @@
 #                                             else one less than the core count,
 #                                             at most 8 and at most one per 2 GiB
 #                                             of free memory)
-#   scripts/check-affected.sh --budget S      time the selected shell suites against
-#                                             an S-second budget (default:
-#                                             $CHECK_AFFECTED_BUDGET, else 120); a
-#                                             suite over its share is a warning,
-#                                             not a failure
-#                                             (scripts/run-plugin-tests.sh BUDGET)
+#   scripts/check-affected.sh --budget S      with --tests, end the run S seconds
+#                                             after it starts (default:
+#                                             $CHECK_AFFECTED_BUDGET, else 120): no
+#                                             suite starts after that, those that
+#                                             run finish, and tests is a SKIP
+#                                             naming each suite left to CI; a suite
+#                                             over its share is a warning, not a
+#                                             failure (scripts/run-plugin-tests.sh
+#                                             BUDGET, DEADLINE)
 #   scripts/check-affected.sh --base <ref>    diff against <ref> (default: origin/main)
 #   scripts/check-affected.sh --no-fetch      skip refreshing <ref> before the
 #                                             run resolves it to a commit
@@ -65,14 +68,17 @@
 #   - changed-skills:      scripts/check-changed-skills.sh <base>, when a skill
 #                          file changed; without --tests it sets
 #                          CHECK_SKILL_SKIP_SCRIPT_TESTS=1, so the skills'
-#                          scripts/*.test.sh are left to the test tier
+#                          scripts/*.test.sh are left to the test tier; with
+#                          --tests the budget ends them, and one left makes
+#                          changed-skills a SKIP naming it
 #   - tests (--tests):     scripts/affected-tests.sh --run --jobs <N>
 #                          --budget <S> --base <base>, after
 #                          scripts/setup-env.sh --node installs any missing or
 #                          stale locked npm packages, then the selected Node
 #                          suites of scripts/outside-node-packages.txt through
 #                          scripts/run-outside-node-suites.sh --paths; any
-#                          other selected suite left unrun makes tests a SKIP
+#                          other selected suite left unrun, or left past the
+#                          budget, makes tests a SKIP
 #
 # validate-plugins, changed-skills and tests are the slow checks; they run last,
 # and only when every other check passed. When one of those failed they are
@@ -261,6 +267,8 @@ if ((uncommitted)); then
   CHECK_AFFECTED_SNAPSHOT_OF="$own" CHECK_DATA_ROOT="$snap/tree" bash "$tools/scripts/check-affected.sh" "${args[@]}" || rc=$?
   exit "$rc"
 fi
+printf -v deadline '%(%s)T' -1
+deadline=$((deadline + budget))
 base="${base:-origin/main}"
 snapshot=0
 [[ -z "${CHECK_AFFECTED_SNAPSHOT_OF-}" || "$CHECK_AFFECTED_SNAPSHOT_OF" != "$tools" ]] || snapshot=1
@@ -280,7 +288,7 @@ fi
 gates_file="$tools/scripts/check-affected-gates.txt"
 declare -a passed=() skipped=() failed=()
 out="$(mktemp)" || exit 2
-trap 'rm -rf "$out" "$out.failures" "$out.patterns" "$out.not-run" "$out.node" "$out.md"' EXIT
+trap 'rm -rf "$out" "$out.failures" "$out.patterns" "$out.not-run" "$out.left" "$out.node" "$out.md"' EXIT
 
 skip() { skipped+=("$1 ($2)"); }
 
@@ -692,8 +700,9 @@ elif ((!skill_touched)); then
 elif ((foreign)); then
   skip changed-skills "runs the checked tree's own skill-quality code"
 elif ((run_tests)); then
+  # A skill's script tests are suites too, so the budget's deadline ends them.
   run_check changed-skills "scripts/check-changed-skills.sh $base" \
-    "$tools/scripts/check-changed-skills.sh" "$base"
+    env PLUGIN_TEST_DEADLINE="$deadline" "$tools/scripts/check-changed-skills.sh" "$base"
 else
   # The lint tier leaves each skill's scripts/*.test.sh to --tests and CI's test lanes.
   run_check changed-skills "CHECK_SKILL_SKIP_SCRIPT_TESTS=1 scripts/check-changed-skills.sh $base" \
@@ -732,14 +741,28 @@ elif ((run_tests)); then
   # a <stem>.test.sh ran through that wrapper (affected-tests' rule R9), and a
   # path under scripts/outside-node-exclusions.txt is no suite. Any other is
   # left to its own CI lane, so tests is a SKIP counting it, never a pass:
-  # exit 2, whose last line run_check puts in the skip.
+  # exit 2, whose last line run_check puts in the skip. A suite the budget left is
+  # the same SKIP, and also gets its own SKIP line, so the report names it.
   affected() {
-    local rc=0 s pkg ex t n=0 missing=
-    local -a pkgs=() exclusions=() node=() unrun=()
+    local rc=0 node_rc=0 s pkg ex t n=0 missing='' now
+    local -a pkgs=() exclusions=() node=() unrun=() left=()
+    local -A pkg_suites=()
+    leave() {
+      left+=("$1")
+      echo "SKIP $1 (past the ${budget}s budget, left to CI)"
+    }
     # Suites run only when the data tree is this tree, so CHECK_DATA_ROOT adds nothing here, and a suite
     # that inherits it points its checkers at the real tree instead of its fixtures.
     # A suite that passes on a loaded host but runs past its share is a warning here.
-    env -u CHECK_DATA_ROOT PLUGIN_TEST_SHARE_WARN_ONLY=1 "$tools/scripts/affected-tests.sh" --run --jobs "$jobs" --budget "$budget" --base "$base" --write-not-run "$out.not-run" || rc=$?
+    env -u CHECK_DATA_ROOT PLUGIN_TEST_SHARE_WARN_ONLY=1 PLUGIN_TEST_DEADLINE="$deadline" PLUGIN_TEST_LEFT_FILE="$out.left" \
+      "$tools/scripts/affected-tests.sh" --run --jobs "$jobs" --budget "$budget" --base "$base" --write-not-run "$out.not-run" || rc=$?
+    if [[ -s "$out.left" ]]; then
+      while IFS= read -r s; do leave "$s"; done <"$out.left"
+    fi
+    if ((rc == 0 && ${#left[@]})); then
+      echo "${#left[@]} selected suite(s) left to CI, past the ${budget}s budget"
+      return 2
+    fi
     ((rc == 3)) || return "$rc"
     # shellcheck source=lib/read-list.sh
     . "$tools/scripts/lib/read-list.sh" &&
@@ -754,6 +777,7 @@ elif ((run_tests)); then
       for pkg in ${pkgs[@]+"${pkgs[@]}"}; do
         if [[ "$s" == "$pkg"/* ]]; then
           node+=("$s")
+          pkg_suites[$pkg]+="$s"$'\n'
           continue 2
         fi
       done
@@ -774,15 +798,31 @@ elif ((run_tests)); then
     fi
     if [[ -n "$missing" ]]; then
       unrun+=("${node[@]}")
-    elif ((${#node[@]})); then
-      printf '%s\n' "${node[@]}" >"$out.node" || return 2
-      bash "$tools/scripts/run-outside-node-suites.sh" --paths "$out.node" || return
+    else
+      # One package at a time, so the budget can end the run between two.
+      for pkg in ${pkgs[@]+"${pkgs[@]}"}; do
+        [[ -n "${pkg_suites[$pkg]-}" ]] || continue
+        printf -v now '%(%s)T' -1
+        if ((now >= deadline)); then
+          while IFS= read -r s; do leave "$s"; done <<<"${pkg_suites[$pkg]%$'\n'}"
+          continue
+        fi
+        printf '%s' "${pkg_suites[$pkg]}" >"$out.node" || return 2
+        # A failure outranks a package that could not run, so one never hides the other.
+        rc=0
+        bash "$tools/scripts/run-outside-node-suites.sh" --paths "$out.node" || rc=$?
+        ((rc == 0 || node_rc == 1)) || node_rc=$rc
+      done
     fi
+    local summary=''
+    ((${#left[@]} == 0)) || summary="${#left[@]} selected suite(s) left to CI, past the ${budget}s budget"
     if ((${#unrun[@]})); then
       printf 'not run here: %s\n' "${unrun[@]}"
-      echo "${#unrun[@]} selected suite(s) not run here, left to their own CI lanes${missing:+ ($missing not installed)}"
-      return 2
+      summary+="${summary:+; }${#unrun[@]} selected suite(s) not run here, left to their own CI lanes${missing:+ ($missing not installed)}"
     fi
+    [[ -z "$summary" ]] || echo "$summary"
+    ((node_rc == 0)) || return "$node_rc"
+    [[ -z "$summary" ]] || return 2
   }
   if ((npm_failed)); then
     skip tests "npm dependencies did not install"
