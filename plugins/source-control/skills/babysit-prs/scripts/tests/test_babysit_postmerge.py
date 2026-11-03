@@ -247,6 +247,8 @@ class FakeGh:
         # `artifacts` answers: a listing that changes between reads.
         self.artifact_pages: dict[str, list[list[dict[str, Any]]]] = {}
         self.run_records: dict[int, dict[str, Any]] = {}
+        # Artifact zips by artifact id, as the download serves them.
+        self.zips: dict[int, bytes] = {}
         # Jobs by (run id, attempt); unset, an attempt failed one test job.
         self.jobs: dict[tuple[int, int], list[dict[str, Any]]] = {}
         # Check-run annotations by job id, or the HTTP status the read fails with.
@@ -274,13 +276,22 @@ class FakeGh:
         return any("mutation" in a for a in args)
 
     def __call__(
-        self, args: list[str], *, timeout_seconds: float | None = None
-    ) -> subprocess.CompletedProcess[str]:
+        self,
+        args: list[str],
+        *,
+        timeout_seconds: float | None = None,
+        binary: bool = False,
+    ) -> subprocess.CompletedProcess[Any]:
         self.calls.append(list(args))
         joined = " ".join(args)
         for key in self.fail_reads:
             if key in joined:
                 return completed(returncode=1, stderr="gh: Server Error (HTTP 502)")
+        if binary and joined.endswith("/zip"):
+            artifact = int(joined.rsplit("/", 2)[1])
+            if artifact not in self.zips:
+                return completed(returncode=1, stderr="gh: Not Found (HTTP 404)")
+            return subprocess.CompletedProcess(["gh"], 0, self.zips[artifact], b"")
         if args[:2] == ["api", "graphql"]:
             return self._graphql(joined)
         if args[:2] == ["auth", "status"]:
@@ -496,6 +507,8 @@ class FakeGh:
 
 class CheckCase(unittest.TestCase):
     def setUp(self) -> None:
+        pm._anchor_cache.clear()
+        self.addCleanup(pm._anchor_cache.clear)
         self.gh = FakeGh()
         for module in (pm, pm.policy):
             patcher = mock.patch.object(module, "gh_capture", self.gh)
@@ -4636,6 +4649,385 @@ class SeveralInFlight(CheckCase):
         # any open record holds the gate for all of them.
         self.assertEqual(report["telemetry"], {"demotion_events": 1})
         self.assertEqual(report["errors"], [])
+
+
+ANCHOR_AT = datetime(2026, 10, 12, 9, 0, tzinfo=UTC)
+ANCHOR_NOW = datetime(2026, 10, 12, 11, 0, tzinfo=UTC)
+
+
+def anchor_zip(**overrides: Any) -> bytes:
+    """An anchor artifact's zip as post-merge-dispatch uploads it."""
+    data: dict[str, Any] = {
+        "version": 1,
+        "repo": REPO,
+        "branch": "main",
+        "identity": IDENTITY,
+        "laneMergesOnly": True,
+        "anchor": ANCHOR_AT.isoformat(),
+        "passed": [],
+    }
+    data.update(overrides)
+    raw = io.BytesIO()
+    with pm.zipfile.ZipFile(raw, "w") as archive:
+        archive.writestr(pm.ANCHOR_FILE, json.dumps(data))
+    return raw.getvalue()
+
+
+def anchor_run(run_id: int, **overrides: Any) -> dict[str, Any]:
+    """A run of main's own pr-merge.yml post-merge-dispatch job."""
+    record: dict[str, Any] = {
+        "id": run_id,
+        "path": pm.LANE_DISPATCH_WORKFLOW,
+        "event": "schedule",
+        "status": "completed",
+        "head_branch": "main",
+        "head_sha": TIP_SHA,
+        "repository": {"full_name": REPO},
+        "head_repository": {"full_name": REPO},
+    }
+    record.update(overrides)
+    return record
+
+
+def merge_state(
+    number: int, merged_at: datetime, *, settleable: bool = True, settled: bool = False
+) -> pm.MergeState:
+    merge = pm.AutoMerge(number, MERGE_SHA, HEAD_SHA, merged_at.isoformat())
+    return pm.MergeState(
+        merge,
+        settleable or settled,
+        (),
+        dispatch_covered=True,
+        settled=settled,
+        settleable=settleable,
+    )
+
+
+def lane_verdict(*states: pm.MergeState) -> pm.PostMergeVerdict:
+    return pm.PostMergeVerdict(True, merges=states, branch="main")
+
+
+class LaneFloorAnchor(CheckCase):
+    """#7336: the lane check's floor moves past merges a trusted run judged
+    final, read back from an artifact only main's post-merge-dispatch uploads."""
+
+    def publish(
+        self,
+        artifact_id: int = 501,
+        run_id: int = 9001,
+        *,
+        artifact: dict[str, Any] | None = None,
+        **zipped: Any,
+    ) -> None:
+        item = {
+            "id": artifact_id,
+            "name": pm.ANCHOR_ARTIFACT,
+            "expired": False,
+            # Unexpired at the wall clock too: lane_floor reads at now.
+            "expires_at": "2099-01-01T00:00:00Z",
+            "workflow_run": {"id": run_id},
+        }
+        item.update(artifact or {})
+        self.gh.artifacts.setdefault(pm.ANCHOR_ARTIFACT, []).append(item)
+        self.gh.run_records.setdefault(run_id, anchor_run(run_id))
+        self.gh.zips[artifact_id] = anchor_zip(**zipped)
+
+    def read(self) -> pm.Anchor | None:
+        pm._anchor_cache.clear()
+        return pm.read_anchor(REPO, IDENTITY, now=ANCHOR_NOW)
+
+    def anchor_reads(self) -> list[list[str]]:
+        return [c for c in self.gh.calls if not any("graphql" == a for a in c)]
+
+    def test_an_anchor_from_post_merge_dispatch_moves_the_lane_floor(self) -> None:
+        self.publish(passed=[7002])
+        self.assertEqual(self.read(), pm.Anchor(ANCHOR_AT, frozenset({7002})))
+        pm._anchor_cache.clear()
+        floor, _ = pm.lane_floor(REPO, IDENTITY, SINCE)
+        self.assertEqual(floor, ANCHOR_AT)
+        pm._anchor_cache.clear()
+        later = ANCHOR_AT + timedelta(hours=1)
+        self.assertEqual(pm.lane_floor(REPO, IDENTITY, later)[0], later)
+
+    def test_each_refused_sender_or_key_leaves_the_policy_floor(self) -> None:
+        refusals: dict[str, tuple[dict[str, Any], dict[str, Any], dict[str, Any]]] = {
+            "another workflow": ({"path": ".github/workflows/other.yml"}, {}, {}),
+            "pull_request": ({"event": "pull_request"}, {}, {}),
+            "pull_request_target": ({"event": "pull_request_target"}, {}, {}),
+            "push": ({"event": "push"}, {}, {}),
+            "another branch": ({"head_branch": "feature"}, {}, {}),
+            "a fork": ({"head_repository": {"full_name": "fork/example-repo"}}, {}, {}),
+            "a head not on main": ({"head_sha": FORK_SHA}, {}, {}),
+            "another identity": ({}, {}, {"identity": "other[bot]"}),
+            "a full check's key": ({}, {}, {"laneMergesOnly": False}),
+            "another repository": ({}, {}, {"repo": "example-org/other"}),
+            "another branch key": ({}, {}, {"branch": "trunk"}),
+            "expired": ({}, {"expired": True}, {}),
+            "past its expiry": ({}, {"expires_at": "2026-10-12T10:00:00Z"}, {}),
+            "no anchor time": ({}, {}, {"anchor": "soon"}),
+        }
+        for name, (run_fields, artifact, zipped) in refusals.items():
+            with self.subTest(name):
+                self.gh = FakeGh()
+                for module in (pm, pm.policy):
+                    patcher = mock.patch.object(module, "gh_capture", self.gh)
+                    patcher.start()
+                    self.addCleanup(patcher.stop)
+                self.gh.run_records[9001] = anchor_run(9001, **run_fields)
+                self.publish(artifact=artifact, **zipped)
+                self.assertIsNone(self.read())
+                pm._anchor_cache.clear()
+                self.assertEqual(pm.lane_floor(REPO, IDENTITY, SINCE), (SINCE, None))
+
+    def test_a_missing_or_unreadable_artifact_leaves_the_policy_floor(self) -> None:
+        self.assertIsNone(self.read())
+        self.publish()
+        self.gh.zips[501] = b"not a zip"
+        self.assertIsNone(self.read())
+        self.gh.fail_reads.add("/actions/artifacts?")
+        self.assertIsNone(self.read())
+
+    def test_the_read_stops_at_its_request_cap(self) -> None:
+        # Ten newer artifacts another workflow uploaded under the same name.
+        for i in range(10):
+            self.publish(600 + i, 9100 + i)
+            self.gh.run_records[9100 + i] = anchor_run(9100 + i, path="x.yml")
+        self.publish(501, 9001)
+        self.assertIsNone(self.read())
+        self.assertLessEqual(len(self.anchor_reads()), pm.ANCHOR_READ_LIMIT)
+        self.assertFalse(any(c[-1].endswith("/zip") for c in self.gh.calls))
+
+    def test_a_full_check_and_an_explicit_since_never_read_the_anchor(self) -> None:
+        self.publish()
+        verdict = lane_verdict()
+        for argv, floor in (
+            ([], SINCE),
+            (["--since", SINCE.isoformat()], SINCE),
+            (["--lane-merges-only", "--since", SINCE.isoformat()], SINCE),
+            (["--lane-merges-only"], ANCHOR_AT),
+        ):
+            with self.subTest(argv=argv):
+                pm._anchor_cache.clear()
+                self.gh.calls.clear()
+                out = io.StringIO()
+                with (
+                    contextlib.redirect_stdout(out),
+                    mock.patch.object(pm, "_default_is_human", return_value=human),
+                    mock.patch.object(pm, "default_floor", return_value=(SINCE, {})),
+                    mock.patch.object(pm, "check", return_value=verdict) as check,
+                ):
+                    pm.main(["--repo", REPO, "--agent-identity", IDENTITY, *argv])
+                self.assertEqual(check.call_args.kwargs["merged_since"], floor)
+                read = any(pm.ANCHOR_ARTIFACT in " ".join(c) for c in self.gh.calls)
+                self.assertEqual(read, floor == ANCHOR_AT)
+
+    def test_the_lane_check_writes_the_advanced_anchor(self) -> None:
+        later = ANCHOR_AT + timedelta(minutes=30)
+        verdict = lane_verdict(merge_state(7002, later))
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / "anchor.json"
+            for env, written in (({}, False), ({pm.ANCHOR_ENV: str(path)}, True)):
+                with (
+                    self.subTest(env=bool(env)),
+                    mock.patch.dict(pm.os.environ, env),
+                    contextlib.redirect_stdout(io.StringIO()),
+                    mock.patch.object(pm, "_default_is_human", return_value=human),
+                    mock.patch.object(pm, "default_floor", return_value=(SINCE, {})),
+                    mock.patch.object(pm, "check", return_value=verdict),
+                ):
+                    pm.main(
+                        ["--repo", REPO, "--agent-identity", IDENTITY, "--lane-merges-only"]
+                    )
+                    self.assertEqual(path.exists(), written)
+            data = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(data["anchor"], later.isoformat())
+        self.assertEqual(data["laneMergesOnly"], True)
+        self.assertEqual((data["repo"], data["branch"]), (REPO, "main"))
+
+    def test_a_shared_answer_keeps_the_policy_floor_it_was_anchored_from(
+        self,
+    ) -> None:
+        # Reuse binds to the policy floor (`shared_refusal`, `_unreadable_at`),
+        # never to the anchored `since`.
+        gate = pm.gate_from_report({"readable": False, "reason": "unreadable: x"})
+        shared = pm.policy.SharedPostMerge(
+            main_sha=TIP_SHA,
+            config_sha=HEAD_SHA,
+            identity=IDENTITY,
+            self_logins=frozenset(),
+            lane_merges_only=True,
+            computed_at=datetime.now(UTC),
+            demotion=pm.policy.Demotion(False, None, (), None, None),
+            floor=ANCHOR_AT,
+            gate=gate,
+            policy_floor=SINCE,
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            path = str(pathlib.Path(tmp) / "post-merge.json")
+            self.assertTrue(pm.write_shared(path, shared))
+            data = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
+            data["readable"] = True
+            pathlib.Path(path).write_text(json.dumps(data), encoding="utf-8")
+            read = pm.read_shared(path)
+            assert read is not None
+            self.assertEqual((read.floor, read.policy_floor), (ANCHOR_AT, SINCE))
+            data["readable"] = False
+            pathlib.Path(path).write_text(json.dumps(data), encoding="utf-8")
+            for floor, found in ((SINCE, True), (ANCHOR_AT, False)):
+                known = pm._unreadable_at(path, TIP_SHA, floor, IDENTITY, True)
+                self.assertEqual(known is not None, found, floor)
+
+    def test_a_gate_uses_the_anchored_floor(self) -> None:
+        self.publish()
+        with mock.patch.object(pm, "_default_is_human", return_value=human):
+            gate = pm.gate_reader(REPO, (), lane_merges_only=True)(SINCE, IDENTITY)
+            self.assertEqual(gate.floor, ANCHOR_AT)
+            self.assertEqual(gate.floor_from(SINCE), ANCHOR_AT)
+            full = pm.gate_reader(REPO, (), lane_merges_only=False)(SINCE, IDENTITY)
+        self.assertEqual(full.floor, SINCE)
+
+    def test_a_long_verified_history_before_the_old_floor_stays_readable(self) -> None:
+        # More than MERGED_PAGE_LIMIT pages updated after the old floor, all
+        # before the anchor: from the old floor the read stops unreadable,
+        # from the anchor it ends at the first PR updated before it.
+        self.all_green()
+        recent = identity_merge()
+        older = merged_pr(
+            number=6001,
+            mergedAt="2026-10-11T09:00:00Z",
+            updatedAt="2026-10-12T08:00:00Z",
+        )
+        endless = {"pageInfo": {"hasNextPage": True, "endCursor": "c"}, "nodes": [older]}
+        first = {"pageInfo": {"hasNextPage": True, "endCursor": "c"}, "nodes": [recent, older]}
+        old_floor = datetime(2026, 10, 1, tzinfo=UTC)
+        for since, pages, readable in (
+            (old_floor, [first] + [endless] * pm.MERGED_PAGE_LIMIT, False),
+            (ANCHOR_AT, [first, first], True),
+        ):
+            with self.subTest(since=since):
+                self.gh.merged_pages = list(pages)
+                verdict = pm.check(
+                    REPO,
+                    agent_identity=IDENTITY,
+                    is_human=human,
+                    merged_since=since,
+                    now=ANCHOR_NOW,
+                    pinned_sha=lambda merge: HEAD_SHA,
+                    lane_merges_only=True,
+                )
+                self.assertEqual(verdict.readable, readable, verdict.reason)
+                if not readable:
+                    self.assertIn("longer than the read limit", verdict.reason or "")
+
+
+class AnchorUpload(unittest.TestCase):
+    """Only pr-merge.yml's post-merge-dispatch job uploads the anchor, kept
+    seven days, and that job gains no check or status write, no lane App
+    token and no model step."""
+
+    WORKFLOWS = pathlib.Path(__file__).resolve().parents[6] / ".github" / "workflows"
+
+    def jobs(self, text: str) -> dict[str, str]:
+        body = text.split("\njobs:\n", 1)[1]
+        parts = re.split(r"(?m)^  ([A-Za-z0-9_-]+):\n", body)
+        return dict(zip(parts[1::2], parts[2::2], strict=True))
+
+    def test_only_post_merge_dispatch_uploads_it(self) -> None:
+        uploaders = []
+        for path in sorted(self.WORKFLOWS.glob("*.y*ml")):
+            text = path.read_text(encoding="utf-8")
+            if pm.ANCHOR_ARTIFACT not in text:
+                continue
+            for job, body in self.jobs(text).items():
+                if f"name: {pm.ANCHOR_ARTIFACT}" in body:
+                    uploaders.append((path.name, job, body))
+        self.assertEqual([(p, j) for p, j, _ in uploaders], [("pr-merge.yml", "post-merge-dispatch")])
+        body = uploaders[0][2]
+        upload = body.split(f"name: {pm.ANCHOR_ARTIFACT}", 1)[1]
+        self.assertIn("retention-days: 7\n", upload.split("- name:", 1)[0])
+        self.assertIn(pm.ANCHOR_ENV, body)
+        for forbidden in ("checks: write", "statuses: write", "create-github-app-token", "claude"):
+            self.assertNotIn(forbidden, body)
+
+
+class AnchorAdvance(unittest.TestCase):
+    """`advance_anchor`: the floor moves only over merges that passed."""
+
+    def at(self, minutes: int) -> datetime:
+        return ANCHOR_AT + timedelta(minutes=minutes)
+
+    def test_it_advances_over_merges_final_from_their_runs(self) -> None:
+        verdict = lane_verdict(merge_state(1, self.at(10)), merge_state(2, self.at(20)))
+        self.assertEqual(pm.advance_anchor(verdict, None), pm.Anchor(self.at(20)))
+
+    def test_an_unverified_merge_holds_it_before_a_newer_verified_one(self) -> None:
+        verdict = lane_verdict(
+            merge_state(1, self.at(10)),
+            merge_state(2, self.at(20), settleable=False),
+            merge_state(3, self.at(30)),
+        )
+        anchor = pm.advance_anchor(verdict, None)
+        self.assertEqual(anchor, pm.Anchor(self.at(10), frozenset({3})))
+        self.assertLess(anchor.at, self.at(20))
+        held = pm.Anchor(self.at(5))
+        first = lane_verdict(
+            merge_state(2, self.at(20), settleable=False), merge_state(3, self.at(30))
+        )
+        self.assertEqual(pm.advance_anchor(first, held).at, self.at(5))
+
+    def test_a_settled_marker_alone_holds_it(self) -> None:
+        verdict = lane_verdict(
+            merge_state(1, self.at(10), settleable=False, settled=True),
+            merge_state(2, self.at(20)),
+        )
+        self.assertIsNone(pm.advance_anchor(verdict, None))
+        previous = pm.Anchor(self.at(5))
+        self.assertEqual(pm.advance_anchor(verdict, previous).at, self.at(5))
+
+    def test_the_merge_at_the_anchor_is_read_again_without_holding_it(self) -> None:
+        previous = pm.Anchor(self.at(10))
+        # Settled since, so judged by its marker alone: at the anchor it passed.
+        verdict = lane_verdict(
+            merge_state(1, self.at(10), settleable=False, settled=True),
+            merge_state(2, self.at(20)),
+        )
+        self.assertEqual(pm.advance_anchor(verdict, previous), pm.Anchor(self.at(20)))
+
+    def test_a_tie_moves_it_only_when_every_merge_at_that_second_passed(self) -> None:
+        verdict = lane_verdict(
+            merge_state(1, self.at(10)),
+            merge_state(2, self.at(20)),
+            merge_state(3, self.at(20), settleable=False),
+        )
+        self.assertEqual(pm.advance_anchor(verdict, None).at, self.at(10))
+
+    def test_a_merge_settled_after_it_passed_does_not_hold_it(self) -> None:
+        # Run 1: #1 unverified, #2 final; the merge job then settles #2.
+        run1 = lane_verdict(
+            merge_state(1, self.at(10), settleable=False), merge_state(2, self.at(20))
+        )
+        first = pm.advance_anchor(run1, pm.Anchor(self.at(5)))
+        self.assertEqual(first, pm.Anchor(self.at(5), frozenset({2})))
+        # Run 2: #1 final, #2 settled by marker: carried, so it passes.
+        run2 = lane_verdict(
+            merge_state(1, self.at(10)),
+            merge_state(2, self.at(20), settleable=False, settled=True),
+        )
+        self.assertEqual(pm.advance_anchor(run2, first), pm.Anchor(self.at(20)))
+
+    def test_an_unreadable_or_failed_check_keeps_the_previous_anchor(self) -> None:
+        previous = pm.Anchor(self.at(5))
+        merge = merge_state(1, self.at(10))
+        for verdict in (
+            pm.PostMergeVerdict(False, "unreadable: x"),
+            pm.PostMergeVerdict(
+                True,
+                merges=(merge,),
+                failures=(pm.Failure("canary", merge.merge, None, "red"),),
+            ),
+        ):
+            with self.subTest(verdict.reason):
+                self.assertIs(pm.advance_anchor(verdict, previous), previous)
 
 
 if __name__ == "__main__":

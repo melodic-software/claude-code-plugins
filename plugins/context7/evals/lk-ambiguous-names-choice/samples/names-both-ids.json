@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": "I used `/lumen-http/lumen`, the HTTP client, because its docs cover retries. I rejected `/lumenjs/lumen`: its docs cover caching and errors, not retries.\n\nSet `retry: { limit: 3, backoff: \"exponential\", delayMs: 200 }` on the client."
+    },
+    {
+      "answer": "Chosen: /lumen-http/lumen. Runner-up rejected: /lumenjs/lumen (no retry option in its docs). Configure retry on the client with backoff \"exponential\"."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Set `retry: { limit: 3, backoff: \"exponential\", delayMs: 200 }` on the client.",
+      "why": "names neither ID"
+    },
+    {
+      "answer": "Using `/lumen-http/lumen`: set `retry: { limit: 3, backoff: \"exponential\" }` on the client.",
+      "why": "names the choice but not the rejected runner-up"
+    },
+    {
+      "answer": "Which library do you mean: /lumen-http/lumen or /lumenjs/lumen-cache?",
+      "why": "second ID is a different library"
+    },
+    {
+      "answer": "Chosen: /lumen-http/lumen. Not used: /lumenjs/lumen.js-cache.",
+      "why": "dotted suffix makes it a different ID"
+    }
+  ]
+}

@@ -25,7 +25,9 @@ name: pr-review-main
 # lanes' order (pr-review-hosted.yml's secrets): the review job on the API
 # key; review-subscription on the role's subscription token for a lane whose
 # key leg handed off (run-claude-cli's handoff: a credit stop, a 401 or 402)
-# or whose key is empty; review-fallback on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN
+# or whose key is empty, and for every lane while review-handoffs-credit
+# finds the key's credit stop recent, which skips the review job;
+# review-fallback on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN
 # for a lane the subscription leg handed off (a limit stop, a credit stop, a
 # 401 or 402, or an empty token, with the fallback token set). Each leg is
 # its own job on a new VM holding one credential, and repeats every step from
@@ -106,6 +108,7 @@ jobs:
       head-sha: ${{ steps.gate.outputs.head-sha }}
       base-sha: ${{ steps.gate.outputs.base-sha }}
       judged: ${{ steps.judged.outputs.judged }}
+      main-sha: ${{ steps.main.outputs.main-sha }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -113,6 +116,12 @@ jobs:
           ref: refs/heads/main
           path: .base
           persist-credentials: false
+
+      # The main commit a lane's later leg checks out when the credit gate
+      # skipped its key leg, which would have recorded its own.
+      - name: Record the main commit
+        id: main
+        run: echo "main-sha=$(git -C .base rev-parse --verify HEAD)" >>"$GITHUB_OUTPUT"
 
       - name: Set up Node
         uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
@@ -325,13 +334,99 @@ jobs:
         with:
           tokens: github-token
 
-  # No leg starts when the trigger job of this attempt found no lane source
-  # or a head both lanes already reviewed: the leg would review nothing. A
-  # leg re-run alone in a later attempt starts and gates itself.
-  review:
+  # Whether the reviews role's key, which both lanes' key legs share, is still
+  # out of credit: a key-leg credit stop in this workflow inside the window
+  # (vars.KEY_CREDIT_WINDOW_HOURS, 1 hour unset) skips the review job, and
+  # review-handoffs hands both lanes to review-subscription as credit-stop
+  # (ci-workflows check-key-credit, gate.cjs). The key's record is in
+  # review-handoffs, the job that routes a key leg's credit stop, so the
+  # gate reads that job and this one, `review-handoffs-credit`. Its own
+  # record carries the origin run forward in its name, so the window counts
+  # from the credit stop, not the last skip, and a topped-up or rotated key
+  # is tried once it ends. It runs on every run of this attempt's trigger
+  # job, lane source or not, so each run the gate reads carries the record;
+  # only a run whose trigger job starts the key legs reports them skipped or
+  # hands them on. It holds no secret, checks nothing out and reads only this
+  # workflow's runs. Every failure runs the key: the review job's `if` starts
+  # with !cancelled().
+  review-handoffs-credit:
     needs: trigger
     if: >-
       github.ref == 'refs/heads/main'
+      && github.event.workflow_run.event == 'pull_request'
+      && github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+      && needs.trigger.outputs.run-attempt == github.run_attempt
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    cache-mode: none
+    permissions:
+      actions: read # this workflow's runs and their jobs
+    outputs:
+      skip-key: ${{ steps.gate.outputs.skip-key }}
+    steps:
+      - name: Read the key's credit history
+        id: gate
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: melodic-software/ci-workflows/.github/actions/check-key-credit@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        with:
+          key-job: review-handoffs
+          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}
+
+      # Read by the next runs' gate; its name is the record (check-key-credit
+      # RECORD_PATTERN).
+      - name: Record the key's credit stop in run ${{ steps.gate.outputs.origin-run }}
+        if: steps.gate.outputs.skip-key == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        run: echo "carried to the next run's check-key-credit read"
+
+      # Each skipped key leg's lane record: outcome skip, class credit-stop,
+      # handed off, so leg counts before and after the gate compare.
+      - name: Report the skipped claude-review key leg
+        if: steps.gate.outputs.skip-key == 'true' && needs.trigger.outputs.proceed == 'true' && needs.trigger.outputs.review == 'true' && needs.trigger.outputs.judged != 'true' && vars.CLAUDE_REVIEW_DISABLED != 'true'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: skipped
+          lane: pr-review-main
+          lane-id: pr-review-main-claude-review
+          credential: REVIEWS_CLAUDE_API_KEY
+          known-failure-class: credit-stop
+          handoff: "true"
+
+      - name: Report the skipped claude-security-review key leg
+        if: steps.gate.outputs.skip-key == 'true' && needs.trigger.outputs.proceed == 'true' && needs.trigger.outputs.review == 'true' && needs.trigger.outputs.judged != 'true' && vars.CLAUDE_SECURITY_REVIEW_DISABLED != 'true'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: skipped
+          lane: pr-review-main
+          lane-id: pr-review-main-claude-security-review
+          credential: REVIEWS_CLAUDE_API_KEY
+          known-failure-class: credit-stop
+          handoff: "true"
+
+      - name: Log the API budget
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/report-api-budget@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        with:
+          tokens: github-token
+
+  # No leg starts when the trigger job of this attempt found no lane source
+  # or a head both lanes already reviewed: the leg would review nothing. A
+  # leg re-run alone in a later attempt starts and gates itself. With the
+  # key out of credit, review-handoffs-credit skips this job.
+  review:
+    needs: [trigger, review-handoffs-credit]
+    if: >-
+      needs.review-handoffs-credit.outputs.skip-key != 'true'
+      && !cancelled()
+      && needs.trigger.result == 'success'
+      && github.ref == 'refs/heads/main'
       && github.event.workflow_run.event == 'pull_request'
       && github.event.workflow_run.conclusion == 'success'
       && github.event.workflow_run.head_repository.full_name == github.repository
@@ -1140,13 +1235,18 @@ jobs:
 
   # The lanes the key leg handed on, as review-subscription's matrix: fixed
   # lane rows, each reason checked against the closed set the key leg hands
-  # on with. It holds no secret, runs no model and checks nothing out.
+  # on with. With the review job skipped by review-handoffs-credit, every
+  # enabled lane is handed on as credit-stop, at the trigger job's main
+  # commit. It holds no secret, runs no model and checks nothing out.
   review-handoffs:
-    needs: review
+    needs: [trigger, review-handoffs-credit, review]
     if: >-
       !cancelled()
       && github.ref == 'refs/heads/main'
-      && (needs.review.outputs.claude-review != '' || needs.review.outputs.claude-security-review != '')
+      && (needs.review.outputs.claude-review != '' || needs.review.outputs.claude-security-review != ''
+      || needs.review.result == 'skipped' && needs.review-handoffs-credit.outputs.skip-key == 'true'
+      && needs.trigger.outputs.run-attempt == github.run_attempt && needs.trigger.outputs.proceed == 'true'
+      && needs.trigger.outputs.review == 'true' && needs.trigger.outputs.judged != 'true')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}
@@ -1156,10 +1256,10 @@ jobs:
       - name: Route the handed-off lanes
         id: route
         env:
-          CODE: ${{ needs.review.outputs.claude-review }}
-          SECURITY: ${{ needs.review.outputs.claude-security-review }}
-          CODE_BASE: ${{ needs.review.outputs.claude-review-base-sha }}
-          SECURITY_BASE: ${{ needs.review.outputs.claude-security-review-base-sha }}
+          CODE: ${{ needs.review.outputs.claude-review || needs.review.result == 'skipped' && needs.review-handoffs-credit.outputs.skip-key == 'true' && vars.CLAUDE_REVIEW_DISABLED != 'true' && 'credit-stop' || '' }}
+          SECURITY: ${{ needs.review.outputs.claude-security-review || needs.review.result == 'skipped' && needs.review-handoffs-credit.outputs.skip-key == 'true' && vars.CLAUDE_SECURITY_REVIEW_DISABLED != 'true' && 'credit-stop' || '' }}
+          CODE_BASE: ${{ needs.review.outputs.claude-review-base-sha || needs.trigger.outputs.main-sha }}
+          SECURITY_BASE: ${{ needs.review.outputs.claude-security-review-base-sha || needs.trigger.outputs.main-sha }}
           REASONS: credit-stop auth no-key
         run: |
           matrix=$(jq -cn --arg code "$CODE" --arg security "$SECURITY" --arg code_base "$CODE_BASE" --arg security_base "$SECURITY_BASE" --arg reasons "$REASONS" '
@@ -1171,6 +1271,16 @@ jobs:
             | if all(.[]; .base | test("\\A[0-9a-f]{40}\\z")) then {include: .} else error("a handed-on lane has no main commit to check out") end')
           echo "matrix=$matrix" >>"$GITHUB_OUTPUT"
           echo "handed on: $(jq -r '[.include[].lane] | join(", ")' <<<"$matrix")"
+
+      # Read by the next runs' review-handoffs-credit gate: a step named for
+      # this run that succeeds only when a key leg that ran handed on with a
+      # credit stop, never on a lane the gate itself handed on. Its name is
+      # the record; keep it equal to check-key-credit's RECORD_PATTERN.
+      - name: Record the key's credit stop in run ${{ github.run_id }}
+        if: ${{ !cancelled() && (needs.review.outputs.claude-review == 'credit-stop' || needs.review.outputs.claude-security-review == 'credit-stop') }}
+        continue-on-error: true
+        timeout-minutes: 1
+        run: echo "the key ended in a credit stop"
 
   # The subscription leg, one per lane the key leg handed on, on a new VM:
   # the key leg's processes, files and environment do not reach it. Its steps
@@ -2810,8 +2920,9 @@ jobs:
   # write-verdict.mjs checked, from this run's own artifacts.
   record:
     needs: [review, review-subscription, review-fallback]
-    # A skipped key leg reviewed nothing, so no later leg ran: nothing to record.
-    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.review.result != 'skipped' }}
+    # A key leg skipped by its own gate reviewed nothing, so no later leg ran:
+    # nothing to record. One the credit gate skipped handed every lane on.
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && (needs.review.result != 'skipped' || needs.review-subscription.result != 'skipped') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

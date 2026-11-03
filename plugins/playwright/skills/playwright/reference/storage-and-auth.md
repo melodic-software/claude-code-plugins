@@ -48,6 +48,7 @@ playwright-cli cookie-set session_id abc123
 playwright-cli cookie-set session_id abc123 --domain=example.com --path=/ --httpOnly --secure --sameSite=Lax
 playwright-cli cookie-set remember_me tok --expires=1735689600   # Unix ts
 playwright-cli cookie-delete session_id
+playwright-cli cookie-delete session_id --domain=example.com --path=/   # only this one; same-named cookies elsewhere stay
 playwright-cli cookie-clear
 ```
 
@@ -151,10 +152,13 @@ What the file means:
 - It lives outside every repository, in an owner-only directory (mode 700, file mode 600; an owner-only ACL on Windows). It is never committed, copied, or read into an agent's context.
 - To revoke it, delete the file and sign that session out on the site (GitHub: Settings, Sessions).
 
-- **Pointer**: the default directory follows `$XDG_STATE_HOME` from the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/latest/); what a state file holds and why it is sensitive is in [Playwright authentication](https://playwright.dev/docs/auth). **As of**: 2026-10-09. **Recheck trigger**: the frontmatter `upstream-version` moves, or the spec changes `XDG_STATE_HOME`.
+- **Pointer**: the default directory follows `$XDG_STATE_HOME` from the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir/latest/); what a state file holds and why it is sensitive is in [Playwright authentication](https://playwright.dev/docs/auth). **As of**: 2026-11-03. **Recheck trigger**: the frontmatter `upstream-version` moves, or the spec changes `XDG_STATE_HOME`.
 
 ## Security invariants
 
 - Default sessions are in-memory, which is safer for sensitive operations. Use `--persistent` only when auth carry-through across browser restarts required
 - `state-save` files contain raw tokens. Treat as secrets: gitignore, delete after tests, don't share between developers. The [shared login state](#shared-login-state) is the one kept file, and it lives outside every repository
 - Prefer env-var-driven test credentials over hard-coded values in skill examples
+- When a flow's URLs carry tokens, list those parameter names under `redactUrlParams` in `.playwright/cli.config.json`, so command responses do not put the values into context
+
+- **Pointer**: the `redactUrlParams` setting, the [v0.1.23 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.23). Probe: under 0.1.23 a listed parameter printed as `<redacted>` and an unlisted one printed unchanged. **As of**: 2026-11-03. **Recheck trigger**: the frontmatter `upstream-version` moves.
