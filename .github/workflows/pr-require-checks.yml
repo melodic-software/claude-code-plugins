@@ -4894,12 +4894,11 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
           token: ${{ github.token }}
-          # Carried over verbatim from `pr-issue-linkage.yml`, the caller this
-          # step replaces: dependabot PR bodies cannot carry the closing keyword
-          # and the four contract sections, so its login is exempt from the
-          # linkage check and its pull requests stay mergeable. An exact-login
-          # match, never a `*[bot]` pattern.
-          exempt-authors: 'dependabot[bot]'
+          # Dependabot and the release App write generated bodies with no
+          # closing keyword or contract sections, so their logins skip the
+          # linkage check and their pull requests draw no advisory label or
+          # comment. Exact-login matches, never a `*[bot]` pattern.
+          exempt-authors: 'dependabot[bot],melodic-plugin-release[bot]'
       # A RESOLVE-CONFIG DEPENDENCY CHANGE NAMES ITS BROKER DEPLOY PULL REQUEST.
       # The lanes token broker in melodic-software/azure-iac loads resolve-config's
       # modules from main's tip, but imports ajv and yaml from its own deployed

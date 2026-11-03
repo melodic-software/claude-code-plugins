@@ -14,8 +14,8 @@ file carries, and they are set explicitly.
 The `pr_body_required_sections` values below are the sections this repo's pull-request contract
 actually asks for, each non-empty, alongside a native closing keyword. The contract runs in the
 `ci-status` job of `.github/workflows/pr-require-checks.yml`, in the `check-contract` composite step pinned to
-`melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract`, which exempts `dependabot[bot]` from
-the linkage check and no other author. The linkage half is advisory: a body that misses a closing
+`melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract`, whose `exempt-authors` input, set in that
+step, exempts `dependabot[bot]` and `melodic-plugin-release[bot]` from the linkage check and no other author. The linkage half is advisory: a body that misses a closing
 keyword or a required section gets a warning, an upserted comment and the `needs-issue-linkage`
 label, and `ci-status` still passes on that account. The composite is the authority; this key
 restates it so `/source-control:pull-request` drafts a body that conforms. Read the composite at the
