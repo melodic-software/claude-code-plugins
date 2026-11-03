@@ -201,7 +201,7 @@ the same fail-open posture this contract mandates everywhere else, and this file
 `unknown` an acceptable outcome. "It would produce a confident wrong zone" is not what a
 shape-validating reader does.
 
-The decision stands on the failure a shape check cannot catch: **silent semantic drift.** The
+The decision stands on **silent semantic drift**, the failure a shape check cannot catch. The
 disclaimer covers meaning as well as structure. `input_tokens` can keep its name, its type and its
 plausible magnitude while ceasing to denote full-context occupancy: a per-turn delta after a
 restructuring, a post-summarization figure, a count excluding some newly separate block. Every
