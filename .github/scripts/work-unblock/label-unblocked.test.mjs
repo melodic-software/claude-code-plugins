@@ -2274,6 +2274,52 @@ const staleRunJob = (stop) => ({
 });
 const STOPPED_STALE = [ADMITTED, pickSlot, BROKER_ALLOWED, staleRunJob("success"), { name: "report-outcome", conclusion: "skipped", steps: [] }];
 
+// A blocker added while the run waited for its slot: broker-check's in-slot
+// re-check stops it green at `Stop on an open blocker`, after the lease, with
+// no model turn and no marker. The sweep routes it as admit's blocker gate:
+// it waits while a blocker is open and re-fires once none is, past any bound.
+const recheckStopped = (stop, leg = "resolve-issue") => [
+  ADMITTED,
+  pickSlot,
+  {
+    ...BROKER_ALLOWED,
+    name: `${leg} / broker-check`,
+    steps: [
+      ...BROKER_ALLOWED.steps,
+      { name: "Claim the issue with a lane lease", conclusion: "success" },
+      { name: "Re-check the issue's blockers in the slot", conclusion: "success" },
+      { name: "Stop on an open blocker", conclusion: stop },
+    ],
+  },
+  { name: `${leg} / run`, conclusion: "success", steps: [{ name: "Decide whether the activity runs", conclusion: "success" }] },
+  { name: "report-outcome", conclusion: "skipped", steps: [] },
+];
+
+test("a run the in-slot re-check stopped waits, with no write, while a blocker is open", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: recheckStopped("success"), conclusion: "success", blockedBy: { 30: [issue(31)] } });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), []);
+});
+
+test("a run the in-slot re-check stopped is re-fired once no blocker is open, past the per-version bound, with no needs-human, as admit's gate is", async () => {
+  for (const pumps of [{}, earlierPumps(3)]) {
+    const closed = { blockedBy: { 30: [issue(31, { state: "closed" })] }, ...pumps };
+    const rechecked = stalledRun({ jobs: recheckStopped("success"), conclusion: "success", ...closed });
+    assert.equal(await sweep({ github: rechecked.github, actions: rechecked.actions }), 0);
+    const admitted = stalledRun({ jobs: BLOCKER_SKIPPED, conclusion: "success", ...closed });
+    assert.equal(await sweep({ github: admitted.github, actions: admitted.actions }), 0);
+    assert.deepEqual(writes(rechecked.calls), writes(admitted.calls));
+    assert.deepEqual(writes(rechecked.calls), refired(30));
+    assert.ok(!writes(rechecked.calls).some((call) => call.includes("needs-human")));
+  }
+});
+
+test("an in-slot re-check that let the run on is no blocker stop", async () => {
+  const pumped = stalledRun({ jobs: recheckStopped("skipped"), conclusion: "success", blockedBy: { 30: [issue(31, { state: "closed" })] }, ...earlierPumps(3) });
+  assert.equal(await sweep({ github: pumped.github, actions: pumped.actions }), 0);
+  assert.deepEqual(writes(pumped.calls), []);
+});
+
 test("a run that stopped green on stale workflow files is re-fired, once per version of the lane workflow files", async () => {
   const fresh = stalledRun({ jobs: STOPPED_STALE, conclusion: "success" });
   assert.equal(await sweep({ github: fresh.github, actions: fresh.actions }), 0);
@@ -2953,6 +2999,8 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
   const checkSteps = steps(read["broker-check"]);
   assert.ok(checkSteps.indexOf("Claim the issue with a lane lease") > checkSteps.indexOf("Ask the broker whether the lane may run"));
   assert.match(read["broker-check"], /^ {6}- name: Claim the issue with a lane lease\n {8}id: lease\n {8}if: inputs\.issue-number != '' && steps\.broker\.outcome == 'success' && steps\.broker\.outputs\.allowed == 'true'\n/m);
+  // The in-slot blocker stop runs after the lease, so a green check with it is no check stop.
+  assert.ok(checkSteps.indexOf("Stop on an open blocker") > checkSteps.indexOf("Claim the issue with a lane lease"));
   assert.ok(read.run !== undefined);
   assert.ok(steps(read.run).includes("Stop on stale workflow files"));
   for (const id of ["broker-check", "run"]) {

@@ -6,6 +6,8 @@
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# In this repository's CI, the job's api-budget notice counts the gh call below.
+[[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../../../../../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
 IFS=$'\t' read -r THROTTLE_LIMIT LIMIT_SOURCE < <(bash "$SCRIPT_DIR/upkeep-setting.sh" upkeep_max_open)
 # Open PRs are listed without a search and filtered by head branch here: a
 # degraded search can answer a false empty with no signal gh passes on. A

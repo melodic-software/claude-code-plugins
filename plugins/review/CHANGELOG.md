@@ -3,6 +3,24 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.1.2] - 2026-11-03
+
+### Changed
+
+- The size-crossing step in `quality-gate` code mode and `fanout` default mode now runs
+  `/code-metrics:audit size`, since code-metrics replaced `audit-size` with the `audit` router.
+  It still runs only when the code-metrics audit skill is installed.
+
+## [6.1.1] - 2026-11-03
+
+### Changed
+
+- Shared `view-registry.mjs` synced where this plugin carries it ([#12667](https://github.com/melodic-software/claude-code-plugins/issues/12667)): it registers the view lanes the per-plugin resolver migrations will use; no other change to this plugin.
+
+### Fixed
+
+- `/review:fanout` in run-everything mode omits `args.roles` when the reviewed change set touches a `multi-agent.yaml` file, the multi-agent team layer, so the change under review cannot choose the models that review it. It checked only the old team files, `docs/conventions/multi-agent.md` and `.claude/multi-agent.yaml`, which the multi-agent resolver no longer reads ([#9737](https://github.com/melodic-software/claude-code-plugins/issues/9737)).
+
 ## [6.1.0] - 2026-11-03
 
 ### Added

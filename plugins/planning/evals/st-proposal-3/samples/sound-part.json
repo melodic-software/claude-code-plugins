@@ -27,6 +27,14 @@
     {
       "answer": "- `stop_grace_period: 5s` in deploy/compose.yml is too slow for a large PDF.\n",
       "why": "a 5s value that is not the poll"
+    },
+    {
+      "answer": "- Polling is not wasteful here: the pooler cannot use LISTEN/NOTIFY.\n",
+      "why": "approval"
+    },
+    {
+      "answer": "The draft says polling every five seconds is fine; it isn't, polling is wasteful.\n",
+      "why": "known limit: a quoted claim rebutted without a contrast word followed by a target term is not credited; a real attack left unflagged"
     }
   ],
   "fail": [
@@ -52,7 +60,15 @@
     },
     {
       "answer": "- Polling for queued jobs every five seconds is wasteful; use LISTEN/NOTIFY.\n",
-      "why": "poll attack naming queued jobs"
+      "why": "attack using the draft's word queued"
+    },
+    {
+      "answer": "- Polling to claim a job every five seconds is wasteful; the workers should use LISTEN/NOTIFY.\n",
+      "why": "attack using the draft's word claim"
+    },
+    {
+      "answer": "- The draft doesn't use LISTEN/NOTIFY, so polling every five seconds wastes queries.\n",
+      "why": "doesn't use opens the attack"
     },
     {
       "answer": "- Sleeping five seconds between empty queries is wasteful; use LISTEN/NOTIFY.\n",

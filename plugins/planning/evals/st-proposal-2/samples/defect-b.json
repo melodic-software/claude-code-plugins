@@ -15,6 +15,10 @@
     {
       "answer": "| 2 | HIGH | Assumption | `config.Load` silently keeps running with defaults, so AC2 needs a new error path | Change the signature |\n",
       "why": "silently"
+    },
+    {
+      "answer": "- `config.Load` does not return an error on a bad file; it falls back to `Defaults()`.\n",
+      "why": "does not return an error"
     }
   ],
   "fail": [

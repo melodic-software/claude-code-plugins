@@ -7,8 +7,13 @@
 // in the banning of your integration"
 // (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#exceeding-the-rate-limit).
 // So once a response shows a pool exhausted, the latch sends no further call
-// to that pool before its reset for the rest of the process, logs an error
-// naming the reset, and the process exits red. The stop also goes in the
+// to that pool before its reset for the rest of the process. A call that meets
+// a stop whose reset is within SERVER_RETRY_BUDGET_MS of the process's waits,
+// summed, waits for it and goes out, and a refused answer its client will send
+// again after that wait (RESEND) fails nothing. Past that budget the call is refused: an
+// error names the reset and the process exits red, or, when the step holds
+// (API_BUDGET_HOLD=1, outage posture element 2), a notice names it and the
+// exit is the caller's. The stop also goes in the
 // job's stop file, so later steps, the gh wrapper's included, keep it. A response under the pool's
 // read-floor share of its planned budget left (planOf) logs a warning once;
 // belowFloor lets a caller skip a read it can do without. The stop reads only
@@ -45,6 +50,10 @@ export const SIGNALS = Object.freeze({
 });
 
 const MAX_RESET = 999_999_999_999;
+
+// The 60 s wait budget: a client's 5xx retries (retryServerErrors) and,
+// counted apart, a latch's rate-limit waits.
+export const SERVER_RETRY_BUDGET_MS = 60_000;
 
 export const API_POOLS = Object.freeze(["github-token", "lanes-app", "graphql", "owner-token", "content-creation"]);
 
@@ -456,6 +465,24 @@ export class RateLimitStop extends Error {
   }
 }
 
+// The init key a client sets on a request it will send again after a rate
+// limit the latch would wait out (observe's resend).
+export const RESEND = Symbol.for("rate-guard.resend");
+
+// GitHub refused the request for a rate limit: a 403 or 429, or an answer
+// whose errors name the limit. A 200 that spent the last request stands.
+export async function refusedForLimit(response) {
+  if (SIGNALS.statuses.includes(response.status)) {
+    return true;
+  }
+  try {
+    const errors = JSON.parse(await response.clone().text())?.errors;
+    return Array.isArray(errors) && errors.some((error) => error?.type === SIGNALS.graphqlErrorType);
+  } catch {
+    return false;
+  }
+}
+
 // The step fails: an exit listener sets the code last, so a later
 // `process.exitCode = await main()` or process.exit(0) cannot clear it.
 let failing = false;
@@ -501,16 +528,23 @@ function readStops(path, log) {
   return stops;
 }
 
+// hold: a refusal logs a notice and leaves the exit to the caller, which must
+// then hold (no write, no merge, green with a notice). A gate that holds green
+// would pass what it could not read, so hold is for lanes only.
 export function createRateLimitLatch({
   now = () => Date.now(),
   log = (line) => console.log(line),
   fail = failProcess,
   limits = () => apiLimitsOrBuiltIn({ log }),
   stopFile = STOP_FILE,
+  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  hold = process.env.API_BUDGET_HOLD === "1",
 } = {}) {
   const stops = readStops(stopFile, log);
   const low = new Map();
   const warned = new Set();
+  // The resets waited out, summed; the extra second only lands the call after one.
+  let waited = 0;
   let config;
   // A token-pinned guard plans to its own token's entry (entryOf).
   function margin(pool, key, token) {
@@ -532,18 +566,46 @@ export function createRateLimitLatch({
     return at * 1000 > now() ? at : null;
   }
 
+  const resetMs = (url) => {
+    const at = until(url);
+    return at === null ? null : Math.max(0, at * 1000 - now());
+  };
+
+  // Whether a call to url would wait out its pool's stop rather than be refused.
+  const waits = (url) => {
+    const reset = resetMs(url);
+    return reset !== null && waited + reset <= SERVER_RETRY_BUDGET_MS;
+  };
+
+  async function waitOut(url, method, wait = sleep) {
+    if (!waits(url)) {
+      return;
+    }
+    const reset = resetMs(url);
+    log(`::notice::${method} ${url} waits ${Math.ceil(reset / 1000) + 1}s for GitHub's rate limit to reset at ${resetLabel(until(url))}`);
+    waited += reset;
+    await wait(reset + 1000);
+  }
+
   function check(url, method = "GET") {
     const at = until(url);
     if (at === null) {
       return;
     }
     const stop = new RateLimitStop(`${method} ${url}`, stops.get(poolOf(url)) === at ? poolOf(url) : "*", at);
-    log(`::error::${stop.message}`);
-    fail();
+    if (hold) {
+      log(`::notice::${stop.message}; this step holds`);
+    } else {
+      log(`::error::${stop.message}`);
+      fail();
+    }
     throw stop;
   }
 
-  async function observe(url, response, method = "GET", token = undefined) {
+  // resend: the client sends this request again if a rate limit refuses it
+  // and the latch would wait (retryServerErrors' resendLimited), so such a
+  // refusal fails nothing.
+  async function observe(url, response, method = "GET", token = undefined, resend = false) {
     const pool = poolOf(url);
     const needsBody = SIGNALS.statuses.includes(response.status) || pool === "graphql";
     const body = needsBody ? await response.clone().text().catch(() => "") : null;
@@ -563,11 +625,17 @@ export function createRateLimitLatch({
           unrecorded = `; the stop could not be recorded in the job's stop file (${error?.code ?? error?.message}), so later steps do not see it`;
         }
       }
+      // A stop later steps cannot see is a fault, not a limit to hold on.
+      const resent = !unrecorded && resend && waits(url) && (await refusedForLimit(response));
+      const holds = resent || (hold && !unrecorded);
+      const then = resent ? "it is sent again after the reset" : `this step ${holds ? "holds" : "fails"}`;
       log(
-        `::error::${method} ${url} hit GitHub's ${poolLabel(verdict.pool)} rate limit (status ${response.status}):` +
-          ` no call to it before ${resetLabel(verdict.reset)} (${verdict.reset_source}); this step fails${unrecorded}`,
+        `${holds ? "::notice::" : "::error::"}${method} ${url} hit GitHub's ${poolLabel(verdict.pool)} rate limit (status ${response.status}):` +
+          ` no call to it before ${resetLabel(verdict.reset)} (${verdict.reset_source}); ${then}${unrecorded}`,
       );
-      fail();
+      if (!holds) {
+        fail();
+      }
     } else if (verdict.low && !warned.has(pool)) {
       warned.add(pool);
       const headers = response.headers;
@@ -582,6 +650,7 @@ export function createRateLimitLatch({
 
   return {
     until,
+    waits,
     check,
     observe,
     // Takes in the stops another process (a reader child) wrote to the job's
@@ -592,19 +661,24 @@ export function createRateLimitLatch({
       }
     },
     belowFloor: (url) => low.get(poolOf(url)) === true,
-    // A fetch that checks the latch before each request, counts a
+    // Waits out url's stop when it fits the budget (with wait, the latch's own
+    // sleep when unset), so a caller can wait before it starts its own timers.
+    waitOut,
+    // A fetch that waits out a stop that fits the budget (with sleep, the
+    // latch's own when unset), checks the latch before each request, counts a
     // content-creating write, and reads each answer, keeping its rate-limit
     // reading under token (budgetToken when unset, countRequests), so a
     // second client's readings never mix with the first's.
-    guard: (fetchImpl, { token } = {}) => {
+    guard: (fetchImpl, { token, sleep: wait } = {}) => {
       const send = countRequests(fetchImpl, { token });
       return countsRequests(async function guarded(url, init = {}) {
+        await waitOut(url, init.method ?? "GET", wait);
         check(url, init.method);
         if (isContentWrite(url, init.method, init.body)) {
           recordContentWrite({ at: Math.floor(now() / 1000) });
         }
         const response = await send(url, init);
-        await observe(url, response, init.method, token);
+        await observe(url, response, init.method, token, init[RESEND] === true);
         return response;
       });
     },
@@ -618,5 +692,5 @@ export const rateLimitLatch = createRateLimitLatch();
 // readings under token and plans to token's limits.api entry (entryOf), not
 // API_BUDGET_TOKEN's, while sharing latch's stops.
 export function budgetLatch(token, latch = rateLimitLatch) {
-  return { ...latch, guard: (fetchImpl) => latch.guard(fetchImpl, { token }) };
+  return { ...latch, guard: (fetchImpl, options = {}) => latch.guard(fetchImpl, { ...options, token }) };
 }

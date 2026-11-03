@@ -35,6 +35,10 @@
     {
       "answer": "- A typo in an overlay key is lost silently when decoding into Config.\n",
       "why": "unknown keys, a different finding"
+    },
+    {
+      "answer": "- No field is lost when decoding onto the populated struct; `Config` is flat.\n",
+      "why": "no negation"
     }
   ],
   "fail": [
@@ -57,6 +61,14 @@
     {
       "answer": "- Decoding onto the populated struct is the wrong layering; it should use Viper for the overlay.\n",
       "why": "wrong"
+    },
+    {
+      "answer": "- Decoding the overlay onto the populated struct loses nested keys; this layering is fragile, so `config.Load` should do a real merge.\n",
+      "why": "attack naming the draft's Load"
+    },
+    {
+      "answer": "- The SIGHUP reload decodes onto the populated struct and loses the base values for keys the overlay omits.\n",
+      "why": "attack naming the draft's SIGHUP"
     }
   ]
 }

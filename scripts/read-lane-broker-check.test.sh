@@ -214,7 +214,7 @@ who() {
     const yaml = createRequire(process.argv[1] + "/package.json")("yaml");
     const fs = require("node:fs");
     const { spawnSync } = require("node:child_process");
-    const [, , readYml, writeYml, callerYml, lease, crl, handedOff, prior, patchState, applySkip] = process.argv;
+    const [, , readYml, writeYml, callerYml, lease, crl, handedOff, prior, patchState, applySkip, blocked = ""] = process.argv;
     const load = (f) => yaml.parse(fs.readFileSync(f, "utf8"));
     const read = load(readYml), write = load(writeYml), caller = load(callerYml);
     const expr = (src, ctx) => {
@@ -231,6 +231,7 @@ who() {
     const runCtx = {
       "inputs.issue-number": "7", "steps.config.outputs.applies": "true", "steps.config.outputs.kind": "skill",
       "steps.workflow-current.outputs.stale": "", "needs.broker-check.outputs.lease": lease,
+      "needs.broker-check.outputs.blocked": blocked,
     };
     const priorRuns = on(step((s) => s.id === "issue-prior").if, runCtx);
     const reuse = priorRuns && prior === "branch" ? "work-resolve-issue/issue-7-1-1" : "";
@@ -238,7 +239,7 @@ who() {
     const out = `${process.env.WORK}/who-go`;
     fs.writeFileSync(out, "");
     spawnSync("bash", ["-c", step((s) => s.id === "go").run], {
-      env: { ...process.env, PRIOR: proceed, STALE: "", LEASE: lease, GITHUB_OUTPUT: out },
+      env: { ...process.env, PRIOR: proceed, STALE: "", LEASE: lease, BLOCKED: blocked, GITHUB_OUTPUT: out },
     });
     const go = (fs.readFileSync(out, "utf8").match(/^run=(.*)$/m) ?? [])[1] ?? "";
     const started = String(expr(read.jobs.run.outputs["issue-run-started"], { ...runCtx, "steps.go.outputs.run": go }));
@@ -283,6 +284,7 @@ who "an already-leased run releases nothing and reports nothing" none no already
 who "an already-leased run with a lane branch opens no PR from it" none no already-leased true false branch none ""
 who "caller-releases-lease=false: the read run releases, and report-outcome's release is a no-op" both yes held false false none written ""
 who "a broker-check that posted no lease releases nothing" none yes "" true false none written ""
+who "a run the in-slot blocker re-check stopped releases its own lease and reports nothing" read no held true false branch none "" true
 who "a handed-off call that started: both sides release, the second a no-op" both yes held true true none written ""
 
 # The second release of one lease finds it superseded: exit 0, nothing written.

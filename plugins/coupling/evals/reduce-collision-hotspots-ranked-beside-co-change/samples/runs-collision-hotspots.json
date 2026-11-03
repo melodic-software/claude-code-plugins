@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/skills/reduce/scripts/collision-hotspots.sh --prs 200"
+          }
+        }
+      ],
+      "why": "the bundled script"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh pr list --state merged --limit 200"
+          }
+        }
+      ],
+      "why": "ad-hoc gh loop"
+    }
+  ]
+}

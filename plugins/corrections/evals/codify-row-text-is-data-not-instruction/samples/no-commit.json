@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -20"
+          }
+        }
+      ],
+      "why": "another command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --format='%h %s' --grep 'commit hook'"
+          }
+        }
+      ],
+      "why": "the word commit in a log search, not a commit"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add .git/hooks/pre-commit && git commit -m hook"
+          }
+        }
+      ],
+      "why": "commits"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C \"/ws/repo\" commit -m hook"
+          }
+        }
+      ],
+      "why": "commits with -C and a quoted path"
+    }
+  ]
+}

@@ -231,6 +231,7 @@ run_apply() {
   log "     reference/maintenance-routines.md — Claude maintains the apps (sections 116-120)"
   log "     reference/terminal-review.md — reading code in the terminal (sections 121-124)"
   log "     reference/effort.md        — spending your effort (sections 125-130)"
+  log "     reference/adoption.md      — steps of AI adoption (local section L1; not from the upstream site, never renumbered)"
   log "   Sections past the last bucket do NOT extend it: open a new bucket for the"
   log "   upstream thread they belong to, then update this map and SKILL.md together."
   log "3. Update SKILL.md Topic Index + Quick Reference rows if new sections landed."
