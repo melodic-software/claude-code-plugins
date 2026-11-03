@@ -85,5 +85,5 @@ RC=$?
 if [[ $RC -eq 0 || "$ADAPTER" == "$LOCAL" ]]; then
   exit $RC
 fi
-echo "buffer.sh: adapter $ADAPTER failed to append (exit $RC); appending to local-file (.work/buffer/) instead" >&2
+echo "buffer.sh: adapter $ADAPTER failed to append (exit $RC); appending to local-file instead" >&2
 "$LOCAL/append.sh" <"$TMP/rows"
