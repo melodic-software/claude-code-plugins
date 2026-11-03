@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
 import contextlib
 import json
 import ntpath
@@ -35,7 +36,15 @@ import sys
 import tempfile
 import time
 import urllib.request
-from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
+from collections import Counter
+from collections.abc import (
+    Callable,
+    Collection,
+    Iterable,
+    Iterator,
+    Mapping,
+    Sequence,
+)
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from functools import partial
@@ -1684,12 +1693,14 @@ DEMOTION_RECORD = (
 # `read_demotion`: records per query, as `babysit_postmerge.read_pins` batches pins.
 DEMOTION_BATCH = 20
 # A record of a red full run on main, the one kind a later green clears
-# (`_recovered_at`); canary and read-back records stay human-close.
+# (`_recovered_at`). Canary, revert and read-back records lift on their own
+# evidence (`_lift`).
 RED_MAIN_RECORD = re.compile(
     r"<!-- babysit-merge-demotion sha=([0-9a-f]{40}) signal=(?:schedule|dispatch) -->"
 )
-# The holds a red-main record's later green lifts: how it was closed, never
-# what its edit history or a failed read says.
+# The holds a red-main record's later green, or a revert or read-back
+# record's lift, clears: how it was closed, never what its edit history or a
+# failed read says.
 RECOVERABLE_HOLDS = ("open", "closed-by-non-human", "closed-by-reference")
 # Green full runs on main of one event created in one span after a record, a
 # page at a time: each span is read whole, so its earliest run stays put as
@@ -1705,6 +1716,60 @@ GREEN_PAGES = 5
 GREEN_SPAN = timedelta(days=7)
 # Spans read before giving up (holding the record), about a year.
 GREEN_SPANS = 53
+# A canary, revert or read-back record, which `_lift` lifts. A canary record
+# may be a post-merge-failure one, which holds nothing but is closed the same
+# way (babysit_lift.py close).
+LIFTABLE_RECORD = re.compile(
+    r"<!-- (babysit-merge-demotion|post-merge-failure) sha=([0-9a-f]{40}) "
+    r"signal=(canary|revert|read-back) -->"
+)
+# The content a canary or revert record's lift checks on main: per path, the
+# hash and count of each line the merge deleted (`lift_block`), on one line of
+# the record's body, or of an unedited comment by a filer on a canary record
+# filed without it. `{"paths": {}}` records that the merge deleted nothing.
+LIFT_BLOCK = re.compile(r"^<!-- lift-content v1 (\{.*\}) -->$")
+LIFT_HASH = re.compile(r"^[0-9a-f]{12}$")
+# The longest block a record carries; a larger deletion is recorded as none.
+LIFT_BLOCK_LIMIT = 40000
+# Green canary push runs at one commit on main.
+CANARY_RUNS = (
+    "repos/{}/{}/actions/workflows/post-merge-detect-silent-revert.yml/runs"
+    "?head_sha={}&event=push&status=success&per_page=100"
+)
+# The pull request a read-back record names, as `babysit_postmerge._issue_body`
+# writes it.
+RECORD_PULL = re.compile(r"^- Pull request: (?:https://\S+/pull/|#)([1-9][0-9]*)$")
+PIN_LINE = re.compile(r"^<!-- babysit-merge-pin sha=([0-9a-f]{40}) -->$")
+# A pull request's merge and the agent identity's pin read-back over its first
+# 100 comments; a longer thread proves no read-back.
+LIFT_PULL = (
+    "number merged mergedAt baseRefName headRefOid mergeCommit{oid} "
+    "repository{nameWithOwner} comments(first:100){pageInfo{hasNextPage} "
+    "nodes{author{__typename login} body createdAt lastEditedAt}}"
+)
+
+
+def _lift_query(with_pull: bool) -> str:
+    """The pull requests that reference a record (its first 100
+    cross-references) and its first 100 comments, and with `with_pull` the
+    pull request `$p` too."""
+    references = (
+        "issue(number:$n){timelineItems(itemTypes:[CROSS_REFERENCED_EVENT],first:100){"
+        "pageInfo{hasNextPage} nodes{... on CrossReferencedEvent{referencedAt "
+        "actor{__typename login} source{"
+        "__typename ... on PullRequest{" + LIFT_PULL + "}}}}} "
+        "comments(first:100){pageInfo{hasNextPage} "
+        "nodes{author{__typename login} body lastEditedAt}}}"
+    )
+    pull = " pullRequest(number:$p){" + LIFT_PULL + "}" if with_pull else ""
+    return (
+        "query PolicyRecordLift($o:String!,$r:String!,$n:Int!"
+        + (",$p:Int!" if with_pull else "")
+        + "){repository(owner:$o,name:$r){"
+        + references
+        + pull
+        + "}}"
+    )
 
 
 @dataclass(frozen=True)
@@ -1918,13 +1983,18 @@ class _GreenMain:
     def on_main(self, sha: str) -> bool:
         """Whether `sha` is on main's history, read by heads/main: a ref named
         main, a tag included, can sit anywhere."""
+        tip = self.main_tip()
+        return sha == tip or self.ahead(sha, tip)
+
+    def main_tip(self) -> str:
+        """main's tip, read once by heads/main."""
         if self.tip is None:
             answer = self._read(f"repos/{self.owner}/{self.name}/git/ref/heads/main")
             tip = str(json_object(json_object(answer).get("object")).get("sha") or "")
             if not SHA_RE.fullmatch(tip):
                 raise PolicyReadError("main's tip names no commit")
             self.tip = tip
-        return sha == self.tip or self.ahead(sha, self.tip)
+        return self.tip
 
 
 def _recovered_at(
@@ -1953,6 +2023,308 @@ def _recovered_at(
     return None
 
 
+def _read_back_holds(pull: dict[str, Any], identity: str | None) -> bool:
+    """Whether a merged pull request's read-back holds: the agent identity's
+    newest pin comment, among its first 100 comments, is unedited, was
+    posted no later than the merge, and names the head that merged."""
+    comments = json_object(pull.get("comments"))
+    if (
+        not identity
+        or json_object(comments.get("pageInfo")).get("hasNextPage") is not False
+    ):
+        return False
+    pins = [
+        c
+        for c in map(json_object, json_array(comments.get("nodes")))
+        # The judge's author test (`babysit_postmerge._identity_marks`): a
+        # User who owns the bare slug is never the App.
+        if actor_key(c.get("author")) == str(identity).strip().casefold()
+        and PIN_LINE.match(str(c.get("body") or "").split("\n", 1)[0].rstrip())
+    ]
+    if not pins or not pull.get("merged"):
+        return False
+    pin = pins[-1]
+    sha = PIN_LINE.match(str(pin.get("body")).split("\n", 1)[0].rstrip())[1]
+    return (
+        not pin.get("lastEditedAt")
+        and _time(pin.get("createdAt")) <= _time(pull.get("mergedAt"))
+        and sha == pull.get("headRefOid")
+    )
+
+
+def line_hash(line: bytes) -> str:
+    """A deleted line's hash in a lift block: its bytes, without the newline."""
+    return hashlib.sha256(line).hexdigest()[:12]
+
+
+def lift_block(lines: Iterable[tuple[str, bytes]]) -> str | None:
+    """The lift block for `(path, line)` deletions, or None when a path is
+    empty or holds a control character, or the block passes
+    `LIFT_BLOCK_LIMIT`. No line at all is the block of a merge that deleted
+    nothing."""
+    paths: dict[str, Counter[str]] = {}
+    for path, line in lines:
+        if not path or any(ord(ch) < 32 for ch in path):
+            return None
+        paths.setdefault(path, Counter())[line_hash(line)] += 1
+    text = json.dumps(
+        {"paths": {p: dict(sorted(c.items())) for p, c in sorted(paths.items())}},
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).replace(">", "\\u003e")
+    block = f"<!-- lift-content v1 {text} -->"
+    return block if len(block) <= LIFT_BLOCK_LIMIT else None
+
+
+def read_lift_block(text: Any) -> dict[str, dict[str, int]] | None:
+    """The paths of the first well-formed lift block line in `text`, or None."""
+    for line in str(text or "").split("\n"):
+        match = LIFT_BLOCK.match(line.rstrip("\r"))
+        if not match:
+            continue
+        try:
+            paths = json.loads(match[1]).get("paths")
+        except (ValueError, AttributeError):
+            return None
+        if not is_json_object(paths) or not all(
+            isinstance(p, str)
+            and p
+            and is_json_object(c)
+            and all(
+                LIFT_HASH.fullmatch(h) and type(n) is int and n > 0
+                for h, n in c.items()
+            )
+            for p, c in paths.items()
+        ):
+            return None
+        return paths
+    return None
+
+
+def _line_counts(text: str | None) -> Counter[str]:
+    """The hash count of each line of `text`, as git counts lines: a final
+    newline ends the last line and adds no empty one. None counts nothing."""
+    lines = (text or "").split("\n")
+    if lines[-1] == "":
+        lines.pop()
+    return Counter(line_hash(line.encode("utf-8", "surrogateescape")) for line in lines)
+
+
+def _content_present(
+    owner: str, name: str, paths: dict[str, dict[str, int]], ref: str, base: str
+) -> bool:
+    """Whether every deleted line a lift block counts is back in its path's
+    file at `ref`, as often as it was deleted, over and above the copies the
+    file held at `base`, the record's own SHA (the state just after the
+    deletion): a copy the deletion left behind, such as a moved line or a
+    common one, is no restore. A file missing at `ref` is not present, one
+    missing at `base` held nothing; a failed read raises."""
+    for path, wanted in paths.items():
+        text = _raw_at(owner, name, path, ref)
+        if text is None:
+            return False
+        have = _line_counts(text)
+        left = _line_counts(_raw_at(owner, name, path, base))
+        if any(have[h] < left[h] + n for h, n in wanted.items()):
+            return False
+    return True
+
+
+def _canary_green_at(owner: str, name: str, sha: str) -> bool:
+    """Whether a canary push run on main at `sha` passed."""
+    status, answer = _get(CANARY_RUNS.format(owner, name, sha))
+    if status != 200:
+        raise PolicyReadError(f"canary runs at {sha}: {status}")
+    return any(
+        run.get("conclusion") == "success"
+        and run.get("event") == "push"
+        and run.get("head_sha") == sha
+        and run.get("head_branch") == "main"
+        and str(json_object(run.get("head_repository")).get("full_name") or "").casefold()
+        == f"{owner}/{name}".casefold()
+        for run in map(json_object, json_array(json_object(answer).get("workflow_runs")))
+    )
+
+
+def _filer_bodies(comments: dict[str, Any], identity: str | None) -> list[str]:
+    """The bodies of a filer's (`github-actions[bot]` or the agent identity)
+    unedited comments among the record's first 100, oldest first; none when
+    it has more."""
+    if json_object(comments.get("pageInfo")).get("hasNextPage") is not False:
+        return []
+    filers = {DEMOTION_FILER, str(identity or "").strip().casefold()} - {""}
+    return [
+        str(comment.get("body") or "")
+        for comment in map(json_object, json_array(comments.get("nodes")))
+        if actor_key(comment.get("author")) in filers
+        and not comment.get("lastEditedAt")
+    ]
+
+
+# The commit `babysit_lift.py close` found the content back at, on the first
+# line of its close comment, so a later edit on main does not re-demote a
+# record the lane closed: a commit's tree never changes.
+LIFT_EVIDENCE = re.compile(r"^<!-- lift-evidence sha=([0-9a-f]{40}) -->$")
+
+
+def lift_evidence(sha: str) -> str:
+    return f"<!-- lift-evidence sha={sha} -->"
+
+
+@dataclass(frozen=True)
+class Lift:
+    """A record's lift: its clear time, what proved it, and for content found
+    back on main the commit it was found at."""
+
+    at: datetime
+    why: str
+    evidence: str | None = None
+
+
+def _lift(
+    issue: dict[str, Any],
+    human: Callable[[Any], bool],
+    green: _GreenMain,
+    identity: str | None,
+) -> Lift | None:
+    """How a canary, revert or read-back record lifted, or None.
+
+    (1) The record's own condition holds again on main: a canary or revert
+    record whose lift block names deleted content, once every counted line is
+    in its path's file at main's tip (`_content_present`), or at the commit a
+    filer's unedited `lift-evidence` comment names when that commit is on
+    main at or after the record's SHA, so a later edit does not re-demote a
+    record the lane closed; a read-back record,
+    once the pull request its body names, merged at the record's SHA, reads
+    back (`_read_back_holds`). The record's creation is the clear time.
+    (2) A pull request that references the record merges into main after it
+    was filed, in this repository, at a merge commit on main's history, the
+    reference made no later than the merge by a person with write access or
+    the agent identity, and
+    the record's own condition holds at that merge commit: a canary record's
+    content is in the tree there, or, for a canary record whose block says
+    nothing was deleted, a canary push run passed there; that pull request
+    reads back, for a read-back record; and nothing more for a revert record,
+    whose referencing merge confirms the revert. The earliest such merge is
+    the clear time.
+
+    None for any other record, one a non-human edited (its SHA, pull request
+    and block come from its body), a canary record with no lift block in its
+    body or a filer's unedited comment, or no such evidence; a failed read, or
+    more than 100 references, raises."""
+    body = str(issue.get("body") or "").lstrip()
+    marker = LIFTABLE_RECORD.fullmatch(body.split("\n", 1)[0].rstrip())
+    if marker is None or _edits_refusal(issue, human):
+        return None
+    sha, signal = marker[2], marker[3]
+    owner, name = green.owner, green.name
+    number = None
+    if signal == "read-back":
+        number = next(
+            (
+                int(m[1])
+                for line in body.split("\n")
+                if (m := RECORD_PULL.match(line.rstrip()))
+            ),
+            None,
+        )
+    data = json_object(
+        _graphql(
+            _lift_query(number is not None),
+            f"issue #{issue.get('number')} references",
+            o=owner,
+            r=name,
+            n=issue.get("number"),
+            p=number,
+        ).get("repository")
+    )
+    created = _time(issue.get("createdAt"))
+    record = json_object(data.get("issue"))
+    notes = _filer_bodies(json_object(record.get("comments")), identity)
+    block = None
+    if signal != "read-back":
+        block = read_lift_block(body)
+        if block is None and signal == "canary":
+            block = next(
+                (p for n in notes if (p := read_lift_block(n)) is not None), None
+            )
+        if block is None and signal == "canary":
+            return None
+    own = json_object(data.get("pullRequest"))
+    if (
+        number is not None
+        and own.get("number") == number
+        and json_object(own.get("mergeCommit")).get("oid") == sha
+        and _read_back_holds(own, identity)
+    ):
+        return Lift(created, f"pull request #{number} reads back")
+    if block:
+        # The commit a lane's close found the content at, when it is on main
+        # at or after the record's SHA; else main's tip.
+        pinned = next(
+            (
+                m[1]
+                for n in notes
+                if (m := LIFT_EVIDENCE.match(n.split("\n", 1)[0].rstrip()))
+            ),
+            None,
+        )
+        ref = green.main_tip()
+        if pinned and green.on_main(pinned) and (pinned == sha or green.ahead(sha, pinned)):
+            ref = pinned
+        if _content_present(owner, name, block, ref, sha):
+            return Lift(created, f"the deleted content is on main at {ref}", ref)
+    timeline = json_object(record.get("timelineItems"))
+    if json_object(timeline.get("pageInfo")).get("hasNextPage") is not False:
+        raise PolicyReadError(f"issue #{issue.get('number')}: more than 100 references")
+    merges = []
+    for node in map(json_object, json_array(timeline.get("nodes"))):
+        pull = json_object(node.get("source"))
+        oid = str(json_object(pull.get("mergeCommit")).get("oid") or "")
+        if (
+            pull.get("__typename") != "PullRequest"
+            or not pull.get("merged")
+            or pull.get("baseRefName") != "main"
+            or str(json_object(pull.get("repository")).get("nameWithOwner") or "").casefold()
+            != f"{owner}/{name}".casefold()
+            or not SHA_RE.fullmatch(oid)
+            or _time(pull.get("mergedAt")) <= created
+            # Made before the merge by a write-access person or the agent
+            # identity: anyone can mention the record in a comment on a
+            # pull request, merged or not, and that makes a reference too.
+            or _time(node.get("referencedAt")) > _time(pull.get("mergedAt"))
+            or not (
+                human(node.get("actor"))
+                or (identity and actor_key(node.get("actor")) == identity.strip().casefold())
+            )
+            or (signal == "read-back" and not _read_back_holds(pull, identity))
+        ):
+            continue
+        merges.append((_time(pull.get("mergedAt")), oid, pull.get("number")))
+    for merged_at, oid, pr in sorted(merges):
+        if not green.on_main(oid):
+            continue
+        if signal == "canary" and not (
+            _content_present(owner, name, block, oid, sha)
+            if block
+            else _canary_green_at(owner, name, oid)
+        ):
+            continue
+        return Lift(merged_at, f"pull request #{pr} merged at {oid}")
+    return None
+
+
+def _lifted_at(
+    issue: dict[str, Any],
+    human: Callable[[Any], bool],
+    green: _GreenMain,
+    identity: str | None,
+) -> datetime | None:
+    """`_lift`'s clear time, or None."""
+    lift = _lift(issue, human, green, identity)
+    return lift.at if lift else None
+
+
 def read_demotion(
     repo: str,
     *,
@@ -1968,7 +2340,8 @@ def read_demotion(
     marker or the label hides none. A record holds the rung off unless its
     latest `ClosedEvent` has no `closer` and a human actor, and no non-human
     ever edited it, or, for a red-main record however it stands, main went
-    green past it (`_recovered_at`), whose time clears it. The first holding
+    green past it (`_recovered_at`), or, for a canary, revert or read-back
+    record, its lift evidence holds (`_lift`), whose time clears it. The first holding
     record names the reason and ends `records`; the rest are still read, so
     the hold carries the newest clear before that record's creation (the
     post-merge floor in force when the hold began). Any read failure holds it
@@ -2036,6 +2409,8 @@ def read_demotion(
             if hold in RECOVERABLE_HOLDS:
                 try:
                     recovered = _recovered_at(issue, human, green, clock)
+                    if recovered is None:
+                        recovered = _lifted_at(issue, human, green, agent_identity)
                 except PolicyReadError:
                     recovered = None
             if hold and recovered is None:

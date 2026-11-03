@@ -1126,7 +1126,7 @@ the rules that only tighten in
   `.claude/source-control.md`, the value in `docs/conventions/source-control.yaml`, `off` when it
   sets none; while the legacy file exists, the lower of the two files, a legacy file without the key
   means `off` and a YAML without it leaves the legacy value; either file the wrapper cannot read or
-  trust means `off`), the cap variable, and `off` while any demotion issue is open.
+  trust means `off`), the cap variable, and `off` while any demotion issue holds.
 - **Cap variable.** `CLAUDE_LANES_MERGE_RUNG_CAP` (`off`, `merge` or `merge-reviewed`, or the
   aliases `C2` and `C3`) is a repository variable
   only a human sets, and it can only lower the rung. The wrapper never writes it, and the identity
@@ -1142,7 +1142,8 @@ the rules that only tighten in
   a revert command). `post-merge-demotion-alert.yml` files a red-main record (signal `schedule` or
   `dispatch`) with no label, since it clears itself (below), unless a failing check got no fix
   issue (over the cap or outside the charset), which labels it `needs-human`; it labels a canary or revert record
-  `needs-human`, since only a person's close clears one. `babysit_postmerge.py --remediate` labels
+  `needs-human`, since a green main clears neither; each keeps the label until it lifts (below).
+  `babysit_postmerge.py --remediate` labels
   every record it files `needs-human`: the lanes App's issue starts intake triage on its own, and
   that label keeps admission off it. On each completed scheduled full run on main, the
   alert's `close-cleared` job closes as completed each open schedule or dispatch record, demotion
@@ -1161,8 +1162,42 @@ the rules that only tighten in
   commit ahead of the record's SHA and on main's history. The earliest such run's creation is the
   clear time, read a week at a time from the record, oldest first, up to about a year and stopping
   at the first week that clears it, so newer runs never move it and a record cleared long ago reads
-  one week. Canary,
-  revert and read-back records stay human-close. A push to main files a `revert` record when one
+  one week. A canary, revert or read-back record that no non-human edited lifts, open or not, on
+  its own evidence (`babysit_merge_policy.py` `_lift`), in either of two ways. (1) Its own
+  condition holds on main again: for a canary or revert record, every line its lift block counts is
+  in that path's file at main's tip, as often as it was deleted, over and above the copies the file
+  held at the record's own SHA, so a moved or common line the deletion left behind is no restore
+  and a final newline is no blank line (once the lane closed it, at the
+  commit its close comment's `<!-- lift-evidence sha=<S> -->` line names, so a later edit on main
+  does not re-demote a closed record); for a read-back record, the pull
+  request it names reads back after all (the agent identity's newest pin comment among its first
+  100 comments is unedited, was posted no later than the merge and names the head that merged).
+  The record's creation is the clear time. (2) A pull request that references the record merges
+  into `main` of this repository after it was filed, at a merge commit on main's history; the
+  reference was made no later than the merge by a person with write access or the agent identity
+  (anyone can mention the record in a comment on a pull request, merged or not, which also makes a
+  reference); and the
+  record's own condition holds at that merge commit: a canary record's counted lines are in the tree
+  there, or, when its block says the merge deleted nothing (the canary failed on its self-test,
+  replay or restoration step), a canary push run passed there; the pull request reads back, for a
+  read-back record, which can happen only when a pin exists for that merge (while the record holds
+  the rung is off and the wrapper pins nothing); a revert record needs nothing more, since the
+  referencing merge confirms the revert. The earliest such merge is the clear time. A failed read,
+  more than 100 references or more than 100 comments lifts nothing. The lift block is one line,
+  `<!-- lift-content v1 {"paths": {...}} -->`, holding per path the first 12 hex digits of each
+  deleted line's SHA-256 and how often it was deleted (`babysit_lift.py`). The alert writes it into
+  a revert record from the lines its revert commits deleted, and into a canary record from the
+  lines `scripts/check-silent-revert.sh` attributes to a culprit in the pushed commits (its
+  `DELETED_SINK`); for a canary record `babysit_postmerge.py --remediate` filed first, the alert
+  posts the block as a comment, which counts when github-actions[bot] or the agent identity wrote
+  it and nobody edited it. The one exception is a canary record with no block, because the pushed
+  commits are not in main's checkout or were not all read (more than 20 since the previous canary
+  push run's head, or that head unreadable or off the push's history), the scan could not run, or the block passed 40,000
+  characters: no lane can tell what was deleted, so only a person's close clears it. On each completed scheduled full run on main, `close-cleared` runs
+  `babysit_lift.py close` from main's checkout, which comments on, removes the human-gated label
+  from and closes as completed each open canary, revert or read-back record either filer opened
+  that has lifted by that same rule; post-merge-failure canary records lift and close the same
+  way. A push to main files a `revert` record when one
   of its commits names a pull request it reverts and the lanes App enqueued that pull request or
   its enqueuer cannot be read; a revert of one a person enqueued files nothing. A commit names it
   on a line of its squash message: `Reverts` (optionally after a `-` or `*` bullet) followed by `#N`
