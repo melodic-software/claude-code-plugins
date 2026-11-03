@@ -254,8 +254,12 @@ const laneAuthored = (user, laneIdentity) =>
 const ownerAuthored = (user, ids) => (user?.type === "User" || user?.type === "Bot") && ids.includes(user.id);
 
 // pr-require-checks.yml's ci-status step that runs merge-holds.mjs on a lanes
-// App pull request, and the step after it that aggregates the lanes.
-export const HOLD_STEP = "Fail a lanes App pull request its body or a member holds";
+// App pull request, and the step after it that aggregates the lanes. A run
+// reports its own commit's step names, on a re-run too, so a held head whose
+// newest run predates the current name still reports OLD_HOLD_STEP.
+export const HOLD_STEP = "Fail a lanes App pull request on kill switch, hold path, verifier or veto";
+const OLD_HOLD_STEP = "Fail a lanes App pull request its body or a member holds";
+const HOLD_STEPS = [HOLD_STEP, OLD_HOLD_STEP];
 export const AGGREGATE_STEP = "Aggregate lane results";
 // The ci-status step that runs ci-workflows' check-contract (title,
 // `do-not-merge` label, issue linkage), and the one error line its run.sh
@@ -317,7 +321,7 @@ async function heldShape(read) {
     const names = failed.map((step) => step?.name);
     if (
       failed.length === 0 ||
-      failed.some((step) => step.conclusion !== "failure" || ![HOLD_STEP, CONTRACT_STEP].includes(step.name)) ||
+      failed.some((step) => step.conclusion !== "failure" || ![...HOLD_STEPS, CONTRACT_STEP].includes(step.name)) ||
       new Set(names).size !== names.length ||
       !steps.some((step) => step?.name === AGGREGATE_STEP && step.conclusion === "success")
     ) {
@@ -338,7 +342,7 @@ async function heldOnly(readLog, { ciId, names }, number) {
     return (
       errors.length - reasons.length === names.length &&
       person.length + label.length === reasons.length &&
-      (person.length > 0) === names.includes(HOLD_STEP) &&
+      (person.length > 0) === names.some((name) => HOLD_STEPS.includes(name)) &&
       label.length === (names.includes(CONTRACT_STEP) ? 1 : 0)
     );
   } catch {
