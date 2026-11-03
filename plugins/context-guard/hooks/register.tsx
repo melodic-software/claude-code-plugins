@@ -21,7 +21,9 @@ const ACTION_TEXT: Record<Action, string> = {
 
 type Action = (typeof ACTIONS)[number]
 type Rule = { action: Action; text?: string }
-type Threshold = Rule & { at: number }
+// at: the edge in force, scaled to the auto-compact window; at_percent: the zones.json value, which
+// stays fixed when the window changes and so keys the once-per-cycle bookkeeping.
+type Threshold = Rule & { at: number; at_percent: number }
 // notices: the band shapes readBands found malformed, each falling back to the shipped bands.
 type Settings = { bands: Bands; notices: string[]; margin: number; actions: Partial<Record<Zone, Rule>>; thresholds: Threshold[] }
 type Config = {
@@ -180,7 +182,7 @@ export const parseSettings = (zones: string | null): Settings => {
     .map(t => {
       const rule = asRule(t)
       const at = (t as Record<string, unknown>)?.at_percent
-      return rule && typeof at === 'number' && at > 0 && at <= 100 ? { ...rule, at } : undefined
+      return rule && typeof at === 'number' && at > 0 && at <= 100 ? { ...rule, at, at_percent: at } : undefined
     })
     .filter((t): t is Threshold => t !== undefined)
     .sort((a, b) => a.at - b.at)
@@ -232,7 +234,7 @@ export const recordReading = (s: Session, reading: Reading, settings: Settings) 
     s.restate = false
     s.armed = Math.max(s.armed, RANK[zone])
     s.last = zone
-    for (const t of settings.thresholds) if (percent !== undefined && percent >= t.at) s.fired.add(t.at)
+    for (const t of settings.thresholds) if (percent !== undefined && percent >= t.at) s.fired.add(t.at_percent)
     return
   }
   if (RANK[zone] > s.armed) {
@@ -246,8 +248,8 @@ export const recordReading = (s: Session, reading: Reading, settings: Settings) 
   s.last = zone
   if (percent !== undefined) {
     for (const t of settings.thresholds) {
-      if (!s.fired.has(t.at) && percent >= t.at) {
-        s.fired.add(t.at)
+      if (!s.fired.has(t.at_percent) && percent >= t.at) {
+        s.fired.add(t.at_percent)
         s.pending.push({ kind: 'threshold', zone, degraded: reading.degraded, rule: t })
       }
     }
@@ -268,9 +270,9 @@ export const recordReading = (s: Session, reading: Reading, settings: Settings) 
     { key: 'acceptable', toward: 'acceptable', near: s.armed < 1 && near(smart, tok?.smart) },
     { key: 'dumb', toward: 'dumb', near: s.armed < 2 && near(acceptable, tok?.acceptable) },
     ...settings.thresholds.map(t => ({
-      key: `t${t.at}`,
+      key: `t${t.at_percent}`,
       toward: 'an operator threshold',
-      near: percent !== undefined && !s.fired.has(t.at) && percent >= t.at - settings.margin,
+      near: percent !== undefined && !s.fired.has(t.at_percent) && percent >= t.at - settings.margin,
     })),
   ]
   for (const b of boundaries) {

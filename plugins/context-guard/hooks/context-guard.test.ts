@@ -504,6 +504,17 @@ test('compaction window: a zones.json threshold follows it too', async ($, on) =
   expect(await walk($, w, [10, 31])).toEqual([[], [crossing('acceptable'), passed]])
 })
 
+// The threshold fired at 30 points (60 of 100000); the window then grows to the model's, which
+// moves the edge to 60 points. 61% is past it, still acceptable, still the same cycle.
+test('compaction window: a threshold that fired stays fired when the window changes mid-cycle', async ($, on) => {
+  const { w } = world(on, { compactWindow: 100_000 })
+  zonesFile(w, { thresholds: [{ at_percent: 60, action: 'handoff' }] })
+  const passed = `context-guard: acceptable zone (2 of 3), past an operator threshold. context-guard (operator setting for a threshold): handoff.`
+  expect(await walk($, w, [10, 31])).toEqual([[], [crossing('acceptable'), passed]])
+  w.compactWindow = 200_000
+  expect(await walk($, w, [61])).toEqual([[]])
+})
+
 // 400000 of 1000000: the edges at 20 and 30 points (50 and 75 of 400000), the margin at 2.
 test('compaction window: the status tool publishes the edges in force and the window they follow', async ($, on) => {
   world(on, { window: 1_000_000, compactWindow: 400_000, percent: 9 })
