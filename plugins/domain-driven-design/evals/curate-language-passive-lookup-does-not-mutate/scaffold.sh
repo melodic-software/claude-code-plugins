@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
-# The glossary files the prompt names, under docs/language/.
+# A claims table glossary at docs/language/custom-terms.md, the file the prompt names.
 set -euo pipefail
-dir="$(dirname "${BASH_SOURCE[0]}")/../fixtures"
 mkdir -p docs/language
-cp "$dir/custom-terms.md" docs/language/custom-terms.md
+cat >docs/language/custom-terms.md <<'MD'
+# Claims language
+
+| Preferred term | Meaning | Rejected names |
+|---|---|---|
+| Policyholder | The party that owns the insurance contract. | account owner |
+MD
