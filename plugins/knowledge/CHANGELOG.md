@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [1.0.0] - 2026-11-03
+
+### Removed
+
+- The `check` skill is gone. To check this plugin's prerequisites, run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`.
+
 ## [0.32.2] - 2026-11-02
 
 ### Changed
