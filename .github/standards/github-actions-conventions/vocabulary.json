@@ -109,17 +109,17 @@
         "status": "in-use",
         "purpose": "Check every Markdown link with the network on."
       },
-      {
-        "name": "code-tidying-upkeep",
-        "status": "reserved",
-        "purpose": "Detect churn per merge and open code-tidying pull requests as a daily batch."
-      },
       { "name": "file-upstream-drift-issues", "status": "in-use" },
       { "name": "reconcile-pr-creation-policy", "status": "in-use" },
       { "name": "repin-account-rotation", "status": "in-use" },
       { "name": "repin-ci-workflows", "status": "in-use" },
       { "name": "scan-secrets", "status": "in-use" },
       { "name": "sync-standards", "status": "in-use" },
+      {
+        "name": "tidy-code-upkeep",
+        "status": "reserved",
+        "purpose": "Detect churn per merge and open code-tidying pull requests as a daily batch."
+      },
       { "name": "verify-governance", "status": "in-use" }
     ],
     "upstream": [

@@ -29,7 +29,7 @@ const OPEN_PR_COUNT = join(HERE, "../../../plugins/code-tidying/skills/tidy/scri
 const SHA = /^[0-9a-f]{40}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const TITLE = /^[a-z]+(\([^)\r\n]+\))?!?: [^\r\n]+$/;
-const SCHEMA = "code-tidying-upkeep-plan/1";
+const SCHEMA = "tidy-code-upkeep-plan/1";
 export const PLAN_PATH = ".work/upkeep-plan.json";
 
 export const branchOf = (slug, date) => `chore/tidy-adhoc-${slug}-${date}`;

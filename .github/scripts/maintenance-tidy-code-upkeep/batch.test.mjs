@@ -18,7 +18,7 @@ const prSweep = (over = {}) => ({
   pr: { title: "refactor(bugs): name the lane reader", body: "No related issue: code-tidying upkeep sweep." },
   ...over,
 });
-const planText = (sweeps, over = {}) => JSON.stringify({ schema: "code-tidying-upkeep-plan/1", base_sha: BASE, sweeps, ...over });
+const planText = (sweeps, over = {}) => JSON.stringify({ schema: "tidy-code-upkeep-plan/1", base_sha: BASE, sweeps, ...over });
 const rawLine = (path, mode = "100644") => `:${mode} ${mode} ${"0".repeat(40)} ${"1".repeat(40)} M\t${path}`;
 
 test("the branch is the shape tidy's ad hoc scope names", () => {

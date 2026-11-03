@@ -4554,7 +4554,7 @@ test("scan job: every run job output set after head code must be in its closed s
   }
 });
 
-const CARRIER_HOLDERS = ["upstream-apply-changelog.yml", "maintenance-code-tidying-upkeep.yml"];
+const CARRIER_HOLDERS = ["upstream-apply-changelog.yml", "maintenance-tidy-code-upkeep.yml"];
 
 test("pr-run-activity-read.yml: the scan-carrier key is passed by name by each read-runner caller, read by the scan job's decode step alone, and its environment is on that job alone", () => {
   const files = workflowFiles();
@@ -7647,8 +7647,8 @@ test("every kill-switch-ok caller runs no token step and no dependent job on a k
     "work-resolve-issue.yml:report-skip -> pr-run-activity-write.yml",
     "upstream-apply-changelog.yml:push-branches",
     "upstream-apply-changelog.yml:publish",
-    "maintenance-code-tidying-upkeep.yml:push-branches",
-    "maintenance-code-tidying-upkeep.yml:publish",
+    "maintenance-tidy-code-upkeep.yml:push-branches",
+    "maintenance-tidy-code-upkeep.yml:publish",
   ].sort());
 });
 
@@ -7817,7 +7817,7 @@ test("every job that runs or reads untrusted head content has a read-only Action
     "pr-review-main.yml": ["review", "review-subscription", "review-fallback"],
     "pr-verify.yml": ["check-intent", "check-intent-subscription", "check-intent-fallback"],
     "upstream-apply-changelog.yml": ["model", "scan", "push-branches", "publish"],
-    "maintenance-code-tidying-upkeep.yml": ["model", "scan", "push-branches", "publish"],
+    "maintenance-tidy-code-upkeep.yml": ["model", "scan", "push-branches", "publish"],
   };
   for (const [file, names] of Object.entries(readOnly)) {
     const { jobs } = workflow(file);

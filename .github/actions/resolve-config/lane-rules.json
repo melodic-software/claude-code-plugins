@@ -80,7 +80,7 @@
     "forbidden-effects": ["mutate-tracker", "merge"],
     "never": "Merges, or writes to main or a branch outside changelog/<plugin>/v<release>"
   },
-  "maintenance-code-tidying-upkeep": {
+  "maintenance-tidy-code-upkeep": {
     "stage": "maintenance",
     "forbidden-effects": ["mutate-tracker", "merge"],
     "never": "Merges, or writes to main or a branch outside chore/tidy-adhoc-<slug>-<date>"

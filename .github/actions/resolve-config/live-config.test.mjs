@@ -664,7 +664,7 @@ test("live config: upstream-apply-changelog pushes with contents write only and 
 });
 
 test("live config: the code-tidying upkeep lane pushes with contents write only and publishes without it", () => {
-  const grant = (activity) => resolveGrant(FILES, { lane: "maintenance-code-tidying-upkeep", activity, configPath: CONFIG_PATH });
+  const grant = (activity) => resolveGrant(FILES, { lane: "maintenance-tidy-code-upkeep", activity, configPath: CONFIG_PATH });
   assert.deepEqual(grant("apply-upkeep-branches"), {
     effect: "mutate-branch",
     grant: { contents: "write", "pull-requests": "read", issues: "read" },

@@ -23,7 +23,7 @@ const DAY_MS = 86_400_000;
 const WINDOW_DAYS = { daily: 1, weekly: 7, monthly: 30 };
 const PULL_LIST_LIMIT = 1000;
 const NEVER_SWEPT_DAYS = 90;
-export const SWEEP_ARTIFACT = "code-tidying-upkeep-sweeps";
+export const SWEEP_ARTIFACT = "tidy-code-upkeep-sweeps";
 const SAFE_AREA = /^[A-Za-z0-9_][A-Za-z0-9._-]*(\/[A-Za-z0-9._-]+)?$/;
 const ADHOC_BRANCH = /^chore\/tidy-adhoc-(.+)-\d{4}-\d{2}-\d{2}$/;
 

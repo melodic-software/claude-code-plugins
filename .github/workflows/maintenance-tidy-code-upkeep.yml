@@ -1,4 +1,4 @@
-name: maintenance-code-tidying-upkeep
+name: maintenance-tidy-code-upkeep
 
 # Code-tidying upkeep. Two things, by event:
 #
@@ -9,7 +9,7 @@ name: maintenance-code-tidying-upkeep
 # On the daily schedule, and a listed human's dispatch, the batch:
 #   gate (no model, no secret) reads the settings, the open tidy pull requests
 #     and the sweep records, and picks at most upkeep_max_open minus open areas
-#     (.github/scripts/maintenance-code-tidying-upkeep/upkeep.mjs); it enforces
+#     (.github/scripts/maintenance-tidy-code-upkeep/upkeep.mjs); it enforces
 #     a cadence or backstop cron cannot.
 #   model runs `/code-tidying:tidy <glob> in-place=commit` per area on a local
 #     chore/tidy-adhoc-<slug>-<date> branch, on the automations role's
@@ -18,7 +18,7 @@ name: maintenance-code-tidying-upkeep
 #   scan (the key's third holder: main only, no model, no id-token, no write
 #     token) opens it, checks each branch stays in its area and off the hold
 #     paths, and scans what will be published. It records each area that needed
-#     no pull request as a code-tidying-upkeep-sweeps artifact, so a clean area
+#     no pull request as a tidy-code-upkeep-sweeps artifact, so a clean area
 #     is not picked again until it changes: the job needs no write token for that.
 #   push-branches (mutate-branch: contents write) recreates each branch as one
 #     lanes App commit, and publish (publish-artifact) opens one pull request per
@@ -41,7 +41,7 @@ permissions: {}
 
 # One batch at a time; a detect run never waits behind one.
 concurrency:
-  group: maintenance-code-tidying-upkeep-${{ github.event_name == 'push' && github.sha || 'batch' }}
+  group: maintenance-tidy-code-upkeep-${{ github.event_name == 'push' && github.sha || 'batch' }}
   cancel-in-progress: false
 
 defaults:
@@ -63,7 +63,7 @@ jobs:
           filter: blob:none
           sparse-checkout: |
             /.github/actions/setup-pinned-node/
-            /.github/scripts/maintenance-code-tidying-upkeep/
+            /.github/scripts/maintenance-tidy-code-upkeep/
             /.node-version
           sparse-checkout-cone-mode: false
 
@@ -79,7 +79,7 @@ jobs:
           AFTER: ${{ github.event.after }}
         run: |
           [[ $BEFORE =~ ^[0-9a-f]{40}$ ]] && git fetch --quiet --no-tags --depth=1 --filter=blob:none origin "$BEFORE" || true
-          node .github/scripts/maintenance-code-tidying-upkeep/upkeep.mjs detect --before "$BEFORE" --after "$AFTER"
+          node .github/scripts/maintenance-tidy-code-upkeep/upkeep.mjs detect --before "$BEFORE" --after "$AFTER"
 
   gate:
     if: github.ref == 'refs/heads/main' && github.event_name != 'push'
@@ -144,7 +144,7 @@ jobs:
         working-directory: .base
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node .github/scripts/maintenance-code-tidying-upkeep/upkeep.mjs gate --root "$PWD"
+        run: node .github/scripts/maintenance-tidy-code-upkeep/upkeep.mjs gate --root "$PWD"
 
       - name: Log the API budget at the end
         if: always()
@@ -229,7 +229,7 @@ jobs:
           cp -R .base/plugins/code-tidying "$STAGE/plugins/"
           printf '{"mcpServers":{}}\n' >"$STAGE/plugins/code-tidying/.mcp.json"
           [ -z "$(find "$STAGE" -type l -print -quit)" ] || { echo "::error::a staged plugin holds a symbolic link"; exit 1; }
-          node .base/.github/scripts/maintenance-code-tidying-upkeep/batch.mjs prompt
+          node .base/.github/scripts/maintenance-tidy-code-upkeep/batch.mjs prompt
 
       - name: Apply the Claude managed settings
         if: steps.models.outcome == 'success'
@@ -259,8 +259,8 @@ jobs:
           MODEL: ${{ steps.models.outputs.model }}
         run: |
           [ -n "$MODEL" ] || { echo "::error::the resolve-issue route's model is default, which run-claude-cli cannot pass"; exit 1; }
-          git config user.name "maintenance-code-tidying-upkeep"
-          git config user.email "maintenance-code-tidying-upkeep@users.noreply.github.com"
+          git config user.name "maintenance-tidy-code-upkeep"
+          git config user.email "maintenance-tidy-code-upkeep@users.noreply.github.com"
           printf '.lane/\n' >>.git/info/exclude
           # Head instruction, settings and server files stay out of the session;
           # skip-worktree keeps their removal out of every commit.
@@ -282,7 +282,7 @@ jobs:
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
-          lane: maintenance-code-tidying-upkeep
+          lane: maintenance-tidy-code-upkeep
           role: automations
           prompt-file: ${{ runner.temp }}/upkeep-prompt.md
           preamble: You run unattended as the code-tidying upkeep CI lane, and no one can answer a question.
@@ -456,7 +456,7 @@ jobs:
           DATE: ${{ needs.gate.outputs.date }}
           BASE_SHA: ${{ needs.gate.outputs.base-sha }}
           REPO_DIR: ${{ github.workspace }}/.base
-        run: node .base/.github/scripts/maintenance-code-tidying-upkeep/batch.mjs scan
+        run: node .base/.github/scripts/maintenance-tidy-code-upkeep/batch.mjs scan
 
       - name: Scan the plan for credentials
         id: scan-plan
@@ -482,7 +482,7 @@ jobs:
         if: steps.check.outputs.recorded != '0' && steps.check.outputs.recorded != ''
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: code-tidying-upkeep-sweeps
+          name: tidy-code-upkeep-sweeps
           path: ${{ runner.temp }}/scan-record/sweeps.json
           retention-days: 90
           overwrite: true
@@ -508,7 +508,7 @@ jobs:
         if: steps.hash.outcome == 'success' && steps.check.outputs.branches != '0'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: maintenance-code-tidying-upkeep-plan-${{ github.run_attempt }}
+          name: maintenance-tidy-code-upkeep-plan-${{ github.run_attempt }}
           path: ${{ runner.temp }}/scan-out/
           retention-days: 1
           if-no-files-found: error
@@ -566,7 +566,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
-          lane: maintenance-code-tidying-upkeep
+          lane: maintenance-tidy-code-upkeep
           activity: apply-upkeep-branches
           base-path: .base
           output-path: ${{ runner.temp }}/resolved-config.json
@@ -609,7 +609,7 @@ jobs:
         with:
           broker-url: ${{ vars.LANES_BROKER_URL }}
           audience: ${{ vars.LANES_BROKER_AUDIENCE }}
-          lane: maintenance-code-tidying-upkeep
+          lane: maintenance-tidy-code-upkeep
           activity: apply-upkeep-branches
           effect: ${{ steps.config.outputs.effect }}
           contents: ${{ steps.config.outputs.contents }}
@@ -630,7 +630,7 @@ jobs:
           BUNDLE_FILE: ${{ runner.temp }}/plan/branches.bundle
           SYNTHETIC: ${{ needs.scan.outputs.synthetic }}
           REPO_DIR: ${{ github.workspace }}/.base
-        run: node .base/.github/scripts/maintenance-code-tidying-upkeep/batch.mjs push
+        run: node .base/.github/scripts/maintenance-tidy-code-upkeep/batch.mjs push
 
       - name: Revoke the lane token
         if: always() && steps.lane-token.outputs.token != ''
@@ -694,7 +694,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
-          lane: maintenance-code-tidying-upkeep
+          lane: maintenance-tidy-code-upkeep
           activity: publish-upkeep-prs
           base-path: .base
           output-path: ${{ runner.temp }}/resolved-config.json
@@ -730,7 +730,7 @@ jobs:
         with:
           broker-url: ${{ vars.LANES_BROKER_URL }}
           audience: ${{ vars.LANES_BROKER_AUDIENCE }}
-          lane: maintenance-code-tidying-upkeep
+          lane: maintenance-tidy-code-upkeep
           activity: publish-upkeep-prs
           effect: ${{ steps.config.outputs.effect }}
           contents: ${{ steps.config.outputs.contents }}
@@ -749,7 +749,7 @@ jobs:
           PLAN_FILE: ${{ runner.temp }}/plan/plan.json
           HEADS: ${{ needs.push-branches.outputs.heads }}
           REPO_DIR: ${{ github.workspace }}/.base
-        run: node .base/.github/scripts/maintenance-code-tidying-upkeep/batch.mjs publish
+        run: node .base/.github/scripts/maintenance-tidy-code-upkeep/batch.mjs publish
 
       - name: Revoke the lane token
         if: always() && steps.lane-token.outputs.token != ''
