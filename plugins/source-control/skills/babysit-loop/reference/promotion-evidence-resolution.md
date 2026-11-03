@@ -11,16 +11,28 @@ when evidence is unavailable, untrusted, partial, or forgeable
 
 ## Promotable cells and rung mapping
 
-| Effective merge rung | Work classes the rung admits | Promotable cell(s) that must be effective-promoted |
-|---|---|---|
-| `c2-mechanical` | C2 mechanical only | `C2-auto-merge` |
-| `c3-autonomous` | C2, C3 and C4 | `C2-auto-merge`, `C3-auto-merge` (and `C3-ai-review-blocking` as a prerequisite of `C3-auto-merge`) |
-| `full-autonomy` | C1 through C4 (every class but C5) | same as `c3-autonomous` |
-| `human-only` | none | none. Promotion resolution is skipped (eligible set empty) |
+| Effective merge rung | Promotable cell(s) that must be effective-promoted |
+|---|---|
+| `c2-mechanical` | `C2-auto-merge` |
+| `c3-autonomous` | `C2-auto-merge`, `C3-auto-merge` and `C3-ai-review-blocking` (a prerequisite of `C3-auto-merge`) |
+| `full-autonomy` | same as `c3-autonomous` |
+| `human-only` | none. Promotion resolution is skipped (eligible set empty) |
 
-C4 takes the `C3-auto-merge` cell, so its blocking AI review (`C3-ai-review-blocking`) is the gate;
-it needs no human review or merge once that cell is effective-promoted. No rung admits C5 and no
-cell covers it: it is the untrusted-provenance hold no rung lifts.
+This is the merge gate's `RUNG_CELLS` map. No rung reads a work class: a merge-capable rung whose
+cells are effective-promoted admits every PR the other step-3 rules admit, an item with no
+`work-class:` label included. No cell covers C5: it is the untrusted-provenance hold no rung
+lifts.
+
+The publisher (`scripts/publish-promotion-evidence.mjs`) attributes each autonomous merge to the
+cells of the rung it merged under, read as `merge.rung` in `docs/conventions/pr-pipeline.yaml` at
+the merge commit's first parent; a human merge counts only toward `C3-ai-review-blocking`, whose
+review is advisory while a person merges. A merge whose rung does not read as a merge-capable rung
+is listed in `unattributedAutonomous`: its contrary events go against every cell and it counts
+toward no positive term. Residual: the rung cap, `babysit_loop_merge` and a demotion can hold the
+effective rung below `merge.rung`, and GitHub records none of them per merge, so such a merge
+counts at `merge.rung`. An events file published while merges were attributed by work class can
+hold events this attribution no longer derives; publishing over it refuses (`drop N previously
+published event(s)`), and starting a new events file is the operator's call.
 
 ## Trusted seam (required)
 
@@ -44,7 +56,7 @@ cycle; it runs the operator-supplied checker on the three evidence surfaces
 reports each promotable cell's bound and effective state as the checker printed them, which is
 how a cell resolves effective-promoted or demoted. With no compliant bootstrap, a step 0 problem,
 any fail-closed reason, or a helper failure, **every promotable cell resolves
-effective-unpromoted** and autonomous merge stays off for C2-C4 classes regardless of tracked rung.
+effective-unpromoted** and autonomous merge stays off regardless of tracked rung.
 Operators keep `--merge human-only` on launch lines; lifting it is the owner's call.
 The resolver passes `--credential-roots` to the checker when the operator sets
 `promotion_evidence_credential_roots`; unset, a binding whose L2 proof rests on a filesystem
@@ -113,26 +125,26 @@ plans have the audit-log API.
 
 ## Fail-closed rules
 
-Resolve once per cycle immediately before the work-class rung comparison, after the effective merge
+Resolve once per cycle immediately before the rung partition, after the effective merge
 rung is known and before any PR enters the merge-eligible set.
 
 | Condition | Effective state | Partition effect |
 |---|---|---|
-| Trusted seam unavailable (no bootstrap, read error, timeout) | every cell → unpromoted | no C2-C4 PR is merge-eligible on promotion grounds |
+| Trusted seam unavailable (no bootstrap, read error, timeout) | every cell → unpromoted | no PR is merge-eligible on promotion grounds |
 | Evidence untrusted, partial, or forgeable | every cell → unpromoted | same |
-| Contrary event in epoch for a cell | that cell → unpromoted | classes requiring that cell excluded on the **next** cycle without config change |
-| Prerequisite cell unpromoted | dependent cell → unpromoted | e.g. C3 excluded when `C2-auto-merge` demoted |
-| Cell bound unpromoted with clean evidence | unpromoted | class excluded |
-| Cell bound promoted, no contrary in-epoch evidence | promoted | class may proceed to work-class + other withholdings |
+| Contrary event in epoch for a cell | that cell → unpromoted | every rung needing that cell merges nothing from the **next** cycle, without config change |
+| Prerequisite cell unpromoted | dependent cell → unpromoted | e.g. the C3 rungs merge nothing when `C2-auto-merge` is demoted |
+| Cell bound unpromoted with clean evidence | unpromoted | rungs needing it merge nothing |
+| Cell bound promoted, no contrary in-epoch evidence | promoted | a PR may proceed to the other withholdings |
 
 Report the resolution source, each cell's bound→effective pair, and any fail-closed reason in the
 cycle-start config report. Never treat a demotion as a standing rung lower; it is telemetry-driven
-exclusion for the affected class only.
+exclusion for the rungs needing the affected cell only.
 
 ## Partition interaction
 
 Promotion resolution is a **gate on top of** the existing rung partition, not a substitute for it.
-A PR still requires a close-linked work item, label-enforced class, C5 hold and diff-class check, do-not-merge veto,
+A PR still requires a close-linked work item, the C5 hold and diff check, do-not-merge veto,
 human blocking feedback withholdings, and every other step-3 rule. Effective-unpromoted
-`C2-auto-merge` makes a C2-mechanical PR ineligible exactly as if the rung were too low; it routes
+`C2-auto-merge` makes every PR ineligible exactly as if the rung were too low; it routes
 to the `safe` per-PR pass, never a merge-capable invocation.

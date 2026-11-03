@@ -5,6 +5,17 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [16.0.0] - 2026-11-03
+
+Major: the autonomy ladder's merge authority stops reading a work class (§1).
+
+- **No rung reads a work class (§1).** The babysit loop's partition decides eligibility by the
+  effective rung and the cells that rung needs, by the merge gate's rung-to-cell map, the way the
+  unattended merge gate already does. An item with no `work-class:` label, or a structural one,
+  partitions like any other. The promotion-evidence publisher counts each autonomous merge toward
+  the cells of the rung it merged under. C5 (untrusted provenance) stays the one class hold
+  (#12748).
+
 ## [15.0.0] - 2026-11-01
 
 Major: §4 gains a loop-layer invariant, and a change to a loop-layer invariant is a major bump (see

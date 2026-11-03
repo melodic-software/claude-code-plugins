@@ -3915,7 +3915,9 @@ class Assess(unittest.TestCase):
 
     def test_the_rung_names_the_promotion_cells_it_needs(self) -> None:
         # Q21 option b: rung C2 needs C2-auto-merge; rung C3 needs every C3
-        # cell. The pull request's class does not change the answer.
+        # cell. The pull request's class does not change the answer: a
+        # class-less item (None) and a structural one (C4) get the same one at
+        # each rung.
         only_c2 = policy.Promotion(
             {
                 "C2-auto-merge": "promoted",
@@ -3935,7 +3937,7 @@ class Assess(unittest.TestCase):
             ("C3", PROMOTED, None),
             ("C3", only_c2, "promotion-unqualified:C3"),
         ):
-            for work_class in (None, "C2", "C5"):
+            for work_class in (None, "C2", "C4", "C5"):
                 with (
                     self.subTest(rung=rung, work_class=work_class, reason=reason),
                     self.all_clear(work_class),

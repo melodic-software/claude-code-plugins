@@ -827,8 +827,8 @@ A single-PR merge-capable invocation dispatched by `source-control:babysit-loop`
 at **any** merge-capable tier, worker and autopilot alike, carries the lane's **partitioned head
 SHA** as its merge authorization, supplied in the invocation brief: the merge gate's
 `--expected-head` is that partitioned head, never a fresher head this invocation picked itself. The
-lane's partition class-checked exactly that head's diff (work class C2-C4 within the rung, clear of the C5 hold),
-and this skill's merge gate does not class-check, so a worker push that moves the head off the pin
+lane's partition checked exactly that head (clear of the C5 hold, its diff readable), so a worker
+push that moves the head off the pin
 is not a cue to re-pin. It is the end of this invocation's merge authority. The pinned gate's
 head-match refusal enforces the boundary deterministically; the invocation reports the new head and
 stops, and the lane reruns its partition on the post-push diff before any merge-capable

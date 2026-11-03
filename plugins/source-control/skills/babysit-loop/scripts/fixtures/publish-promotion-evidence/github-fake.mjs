@@ -1,5 +1,6 @@
 // A recorded GitHub for the publisher's `gh` seam, shared by the publisher and resolver tests.
 import assert from "node:assert/strict";
+import { Buffer } from "node:buffer";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,8 +14,8 @@ import { ghFailure } from "../../publish-promotion-evidence.mjs";
 export const REC = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "recorded.json"), "utf8"));
 export const REPO = "melodic-software/claude-code-plugins";
 export const LANE = "lane-bot[bot]";
-export const MECHANICAL = "work-class: mechanical";
-export const SCOPED = "work-class: scoped";
+// The `merge.rung` value that needs every cell; a PR's default is `merge`, which needs C2-auto-merge.
+export const REVIEWED = "merge-reviewed";
 export const MISSED = "ai-review: missed-blocking";
 // The recorded check run and status name the post-merge gate in every case.
 export const GATE = [REC.checkRun.name, REC.status.context];
@@ -22,19 +23,24 @@ export const FULL = "pr-require-checks.yml";
 export const CANARY = "post-merge-detect-silent-revert.yml";
 
 export const shaOf = (number) => number.toString(16).padStart(40, "0");
+// A merge commit's first parent, where its pipeline file is read.
+export const parentOf = (number) => shaOf(number + 0x200000);
 export const later = (at, minutes) => new Date(Date.parse(at) + minutes * 60_000).toISOString().replace(".000Z", "Z");
 
 // GraphQL spells an App as `__typename: Bot` with the bare slug; REST adds `[bot]`.
 export const actorOf = (login) => (login === null ? null : login.endsWith("[bot]") ? { __typename: "Bot", login: login.slice(0, -5) } : { __typename: "User", login });
 export const page1 = (nodes, hasNextPage = false) => ({ pageInfo: { hasNextPage }, nodes });
 
+// `rung`: `merge.rung` in the pipeline file at the merge's first parent, null for no file there;
+// `pipeline`: that file's whole text instead.
 export function pr(
   number,
   mergedAt,
-  { labels = [], merger = LANE, title = REC.pullListItem.title, body = REC.pullListItem.body, linked = [], timeline = [], lastEditedAt = null, patch = {}, base = "main", head = shaOf(number + 0x100000) } = {},
+  { labels = [], merger = LANE, title = REC.pullListItem.title, body = REC.pullListItem.body, linked = [], timeline = [], lastEditedAt = null, patch = {}, base = "main", head = shaOf(number + 0x100000), rung = "merge", pipeline } = {},
 ) {
   const names = labels.map((name) => ({ name }));
   return {
+    pipeline: pipeline ?? (rung === null ? null : `merge:\n  rung: ${rung}\n  authority: local-babysit\n`),
     graph: {
       ...REC.pullGraph.data.repository.pullRequest,
       number,
@@ -211,6 +217,18 @@ export function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}
       return pulls.filter((p) => p.graph.mergeCommit.oid === m[1]).map((p) => ({ number: p.graph.number, merged_at: p.graph.mergedAt, merge_commit_sha: m[1] }));
     }
     if ((m = /^commits\/([0-9a-f]{40})\/statuses\?/.exec(rest))) return page(statuses[parseInt(m[1], 16)] ?? [], rest);
+    if ((m = /^commits\/([0-9a-f]{40})$/.exec(rest))) {
+      const merge = pulls.find((p) => p.graph.mergeCommit.oid === m[1]);
+      if (!merge) return ghFailure(path, undefined, REC.commitNotFound.stdout, REC.commitNotFound.stderr);
+      return { sha: m[1], parents: [{ sha: parentOf(merge.graph.number) }] };
+    }
+    if ((m = /^contents\/docs\/conventions\/pr-pipeline\.yaml\?ref=([0-9a-f]{40})$/.exec(rest))) {
+      // No file at that ref: the recorded 404's shape.
+      const merge = pulls.find((p) => parentOf(p.graph.number) === m[1]);
+      assert.ok(merge, `a pipeline read at an unrecorded ref: ${rest}`);
+      if (merge.pipeline === null) return ghFailure(path, undefined, REC.issueNotFound.stdout, REC.issueNotFound.stderr);
+      return { type: "file", encoding: "base64", content: Buffer.from(merge.pipeline, "utf8").toString("base64") };
+    }
     if ((m = /^issues\/(\d+)\/events\?/.exec(rest))) return page(issueEvents[m[1]] ?? [], rest);
     if ((m = /^issues\/(\d+)\/comments\?/.exec(rest))) return page(demotionIssues.find((i) => i.number === Number(m[1]))?.comments ?? [], rest);
     if ((m = /^actions\/workflows\/([\w.-]+)\/runs\?event=(\w+)&branch=main&created=%3E%3D[^&]+&/.exec(rest))) {

@@ -8,7 +8,7 @@ and the bounds it cannot cross; this file owns how it runs.
 
 ## The dispatch
 
-Before a merge-eligible (C1-C4) PR is escalated for a **machine-escalated** `needs-human` item, an
+Before a merge-eligible PR is escalated for a **machine-escalated** `needs-human` item, an
 open machine-authored finding, or a contradictory/unresolved **bot** review thread, and only when
 this invocation's own argument line typed both the literal `autopilot` tier argument and
 `--merge c3-this-run` (the widening pair): dispatch a fresh subagent at the **frontier tier**, §3's
@@ -74,15 +74,15 @@ The invoked mechanic's own contract already owns each, and this exception does n
   **merge-only and never rebases**, because rebasing a PR branch needs the force-push babysit-prs forbids
   cross-tier. This dispatch never resolves a conflict itself and never rebases.
 - **C5 PRs.** Already excluded at the rung partition (`SKILL.md` Cycle shape, step 3), including
-  the provenance-derived C5 override, and they escalate normally. A C4 PR is in the eligible set at
-  the C3 rung the widening reaches, so it draws this dispatch like a C3 PR.
+  the provenance-derived C5 override, and they escalate normally. No other class is read, so a
+  structural PR in the eligible set draws this dispatch like any other.
 
 ## After the dispatch
 
-If the dispatch resolves the blocker, **re-snapshot the PR and rerun step 3's provenance, diff-class and
+If the dispatch resolves the blocker, **re-snapshot the PR and rerun step 3's provenance, diff and
 rung partition before** its normal `autopilot`-tier invocation and gate. The first partition read
-the cycle-start diff, and a resolution that pushed code can have changed what the diff shows or
-made its class unreadable, which the downstream merge gate does not class-check. A PR
+the cycle-start diff, and a resolution that pushed code can have changed its provenance or made
+the diff unreadable. A PR
 that leaves the eligible set on that second partition escalates instead of merging. The normal
 worker's own final push obeys the same head-pinning rule (`SKILL.md` Cycle shape, step 3, "The
 verdict authorizes a head SHA, not the PR"). If the dispatch cannot resolve the blocker, including

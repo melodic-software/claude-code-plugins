@@ -51,8 +51,9 @@ Filled instance for the repository in use as of 2026-07-25.
   `work-class: structural`, `work-class: untrusted-provenance`.
 - Stamped `agent-ready` items: **every open one carries a class label**, and
   the population is overwhelmingly `scoped`, with `mechanical` and
-  `structural` in low single digits. At `c2-mechanical` only the `mechanical`
-  handful is merge-eligible; at `c3-autonomous`, nearly all of them.
+  `structural` in low single digits. No rung reads the class: at a
+  merge-capable rung whose cells are effective-promoted, every one is
+  merge-eligible apart from `untrusted-provenance`.
 
   **No absolute count is recorded here, deliberately.** Over one day of
   authoring this document the open count read 50, 44, 40, 38, 28, then 25.
@@ -101,30 +102,29 @@ overnight without me":
   path #1388 prescribed: amend the guardrail contract first, then flip the
   tracked config. Never the reverse.
 
-`full-autonomy` as a rung **adds nothing over `c3-autonomous`**. C4
-`structural` and C5 `untrusted-provenance`, meaning refactors, migrations,
-contract changes, and fork PRs, are excluded unconditionally: no rung, no
-tracked config, and no invocation argument reaches them, per the autonomy
-matrix's own "never promotes" cells. The rung name promises a category the
-floor withholds, so `full-autonomy` is never the answer here. It buys zero
-additional eligibility over c3 while reading as though it buys the riskiest kind.
+`full-autonomy` as a rung **adds nothing over `c3-autonomous`**: both need
+the same promotion cells (`RUNG_CELLS` in the merge gate), and neither reads a
+work class. C5 `untrusted-provenance`, meaning fork PRs and untrusted
+authors, is excluded unconditionally: no rung, no tracked config, and no
+invocation argument reaches it. The rung name reads as though it buys a
+riskier category; it buys none, so `full-autonomy` is never the answer here.
 
 The governing policy is `plugins/autonomy/reference/guardrails.md`'s matrix,
-which sets C3 merge policy to auto-merge ELIGIBLE after per-class promotion
-trigger, with the C3 auto-merge evidence predicate in the promotion table of
-`plugins/autonomy/reference/guardrails/work-classes.md`. Predicate thresholds
+with the auto-merge evidence predicates in the promotion table of
+`plugins/autonomy/reference/guardrails/work-classes.md`, read here by rung:
+a PR merges only when the effective rung's cells are effective-promoted.
+Predicate thresholds
 are suggested defaults the org may bind lower; ratifying the rung flips ahead
 of the suggested evidence is an operator choice the contract records.
 Demotion, whether from a post-merge gate failure, a human revert, or
 verification divergence, remains the contract's automatic fail-closed discipline (its
 enforcement wiring into the lane's merge partition is tracked in #1695),
-and C4 `structural` / C5 `untrusted-provenance` never promote.
+and C5 `untrusted-provenance` never promotes.
 
-Neither rung bypasses classification: an item with **no `work-class:` label**
-is ineligible at every rung including `full-autonomy`. The label is the merge
-partition's only class source. A `Work-class: C<n>` body trailer records the
-class for the operator and proposes it, but never partitions, so a trailered
-item still needs its label before it is eligible.
+No rung reads a `work-class:` label, apart from the untrusted-provenance hold:
+an item with none partitions like any other, at every rung. A
+`Work-class: C<n>` body trailer records the class for the operator and
+proposes it; it never partitions either.
 
 ---
 
@@ -239,8 +239,8 @@ machines; neither on the attended box.
 > the class used for admission." Never apply or change a `work-class:`
 > label, **and never write a `Work-class: C<n>` trailer into an item body.**
 > Your standing authorization to triage and classify does not reach these:
-> the merge partition reads the class from the label, so writing one is you
-> manufacturing merge eligibility for a PR you authored, and the trailer is
+> the merge gate's untrusted-provenance hold reads the label, so changing one
+> is you deciding merge eligibility for a PR you authored, and the trailer is
 > the operator's own record of the class they label from, so writing that
 > fabricates their evidence one step back. That is the single thing this lane
 > must never do. It is a self-certifying producer, and it is why the
@@ -271,10 +271,10 @@ machines; neither on the attended box.
 > `${CLAUDE_PLUGIN_ROOT}`-relative paths return from no link pattern. When
 > you cannot prove a path inert, classify to the higher class.
 >
-> **A missing label IS a missing class.** The merge partition reads the
-> recorded class from the `work-class:` label only: a `Work-class: C<n>`
-> body trailer is operator context and a proposal, never an eligibility
-> input, because the item's own author can write it. Report an item as
+> **A missing label holds nothing.** The merge partition reads no class,
+> apart from the `work-class: untrusted-provenance` hold, so an item with no
+> label partitions like any other. A `Work-class: C<n>` body trailer is
+> operator context and a proposal, never an eligibility input. Report an item as
 > unstamped whenever the label is absent, naming any body trailer you found,
 > so the operator can label from it instead of re-deciding. List genuinely
 > unclassified items in your cycle report.
@@ -315,8 +315,8 @@ the partition and the evidence predicate is met.
 > **Standing authorization.** Autonomous lane. Advance PRs, fix
 > branch-owned CI and review failures, resolve outdated bot threads, and
 > merge within whatever rung the repository's tracked config resolves. The
-> goal is to merge more classes autonomously as each class's promotion
-> evidence accrues; today the lane merges only within the rung it
+> goal is to merge more autonomously as each rung's promotion evidence
+> accrues; today the lane merges only within the rung it
 > resolves at run time, and here that is human-only, because every copy-block
 > passes `--merge human-only`. You never claim backlog items and never
 > author work-item PRs. That is the worker lane's authority.
@@ -381,16 +381,15 @@ the partition and the evidence predicate is met.
 >
 > **Work classes are not yours to set, in either surface.** Never apply or
 > change a `work-class:` label, **and never write a `Work-class: C<n>`
-> trailer into an item body**, to make a PR merge-eligible. You read the
-> partition class from the label alone, so writing one is you authoring the
-> input to your own merge decision, and the trailer is the operator's record
-> of the class they label from, so writing that fabricates their evidence
-> instead. A PR whose close-linked item carries no `work-class:` label is not
-> eligible at any rung, including full-autonomy, however its body is stamped.
-> That is the correct outcome, not an obstacle: report it, naming any body
-> trailer you found so the operator can label from it, and move on.
-> Manufacturing your own merge eligibility is the one thing this lane must
-> never do.
+> trailer into an item body**, to make a PR merge-eligible. The partition's
+> untrusted-provenance hold reads the label, so changing one is you authoring
+> the input to your own merge decision, and the trailer is the operator's
+> record of the class they label from, so writing that fabricates their
+> evidence instead. No other class is read: a PR whose close-linked item
+> carries no `work-class:` label partitions like any other, at every rung.
+> Report an unlabeled item, naming any body trailer you found so the operator
+> can label from it, and move on. Manufacturing your own merge eligibility is
+> the one thing this lane must never do.
 >
 > **Contention.** A worker lane authoring PRs here is expected and is not
 > contention. Apply the skill's own per-PR foreign-activity suppression:

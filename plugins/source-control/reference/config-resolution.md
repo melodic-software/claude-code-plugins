@@ -531,7 +531,7 @@ the two, and every rule below is fail-closed:
 - **The dependency-manager hold wins on intersection.** This key affects *classification* only; the
   babysit-prs cross-tier hold-merge invariant (built-in dependabot/renovate plus
   `babysit_extra_dependency_manager_logins`) affects *merge execution* and is never weakened by it.
-  A login on both lists partitions on its item's recorded work class and is still never merged
+  A login on both lists partitions like any other PR and is still never merged
   autonomously; it lands on the merge-ready report. The two keys are never unified: they answer
   different questions (who is attested to have written this code vs. does this author ship
   third-party dependency payloads).

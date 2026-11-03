@@ -75,7 +75,7 @@ layer only; every other source may only select a *lower* (safer) rung, per the c
 ("Merge-rung raises are seam-only"). The convention's one named paired-argument exception:
 an invocation whose own argument line types **both** the literal `autopilot` tier keyword **and**
 the dedicated raise argument `--merge c3-this-run` widens *this single invocation's* merge
-dimension to the C3 rung (C2 through C4), bounded by the C5 hold. Either token alone is merge-inert;
+dimension to the C3 rung, bounded by the C5 hold. Either token alone is merge-inert;
 the pair persists nothing, substitutes for no recorded standing raise, is never inherited from any
 config key or tier default, and is never composed by a model on the caller's behalf. The
 config-resolution reference cited above owns the full token mechanics: why the raise has its own
@@ -116,16 +116,15 @@ Each has a per-dimension override key on the layered seam; the config reference 
 table, defaults, and precedence, including the merge dimension's policy-floor exception.
 
 **Dimension 6 ships safe: with no tracked adoption, every merge is human.** A repository gets the
-convention's baseline rung (human merge for everything except gate-proven C2-mechanical PRs) by
-*adopting* the lane in its team-tracked config. While neither the target repo's
+convention's baseline rung (`c2-mechanical`) by *adopting* the lane in its team-tracked config. While neither the target repo's
 tracked `docs/conventions/source-control.yaml` nor its `.claude/source-control.md` carries a loop-lane key, the merge dimension resolves to `human-only`; a merge-capable tier from the invocation or any other source never substitutes
-for that recorded adoption, and the lane merges nothing and reports why. With tracked adoption,
-the C2-mechanical exception is a work-class test irrespective of author: a PR qualifies only when
-its work item classifies C2 mechanical; bot authorship alone never qualifies. Higher rungs
+for that recorded adoption, and the lane merges nothing and reports why. No rung reads a work
+class: eligibility is the effective rung and its promotion cells, whoever authored the PR and
+whatever its item's label, apart from the untrusted-provenance hold. Higher rungs
 (`c3-autonomous`, `full-autonomy`) are further tracked-seam flips, recorded and human-ratified, per
 the convention's autonomy ladder. The rung composes with the tier, never overrides it: a merge
 happens only when the resolved babysit-prs tier is merge-capable AND its deterministic gate proves
-the PR ready AND the PR's work item sits within the rung. The cycle's deterministic pre-partition
+the PR ready AND the effective rung is merge-capable with its cells effective-promoted. The cycle's deterministic pre-partition
 (Cycle shape, step 3) enforces the rung: merge-capable invocations only ever receive rung-eligible
 PR refs, never by standing instructions the invoked skill is trusted to honor.
 
@@ -180,17 +179,19 @@ Every cycle runs the post-merge check (`babysit-postmerge.sh`, cycle-shape step 
 **Unattended merges.** Where the target's `pr-pipeline.yaml` sets `merge.authority: local-babysit` and a `merge.agent-identity`, the only merge route is the gate's `--unattended --merge --expected-head <pin>` under that identity (never `--auto`); its code enforces the post-merge check, the promotion gate below (keyed by the effective rung, never a work class) and the rest, and its only class-named check is the untrusted-provenance hold ([babysit-prs safety](../babysit-prs/reference/safety.md#unattended-merge-path)). The options below go in managed settings the lane user cannot write; a user settings file sits under a directory the lane user owns, so it serves only an attended lane ([deployment requirements](reference/promotion-evidence-bootstrap.md#deployment-requirements-by-host)); `--merge human-only` still keeps every merge off. **Every lane write runs under `merge.agent-identity`:** where the target names one, launch the lane with the identity's installation token as its only GitHub credential. Cycle-shape's identity gate, first in every cycle, reads the config from the target's default branch and runs the merge gate's identity and credential rules and `lane-push.sh --check` before any write; a refusal or an unreadable config stops the lane, writing nothing. Every lane push then goes through `lane-push.sh`, which builds the https URL itself and pushes only as the identity; the lane never runs a bare `git push`. The contract and its residuals are the convention's ("Lane write identity", §1).
 
 **Promotion-evidence gate (trusted seam, fail-closed).** This condition stays here, not in that
-file, because it decides whether anything merges. A PR is merge-eligible when its
-item's class sits within the effective rung **and** its promotable cell is **effective-promoted**:
-C2 at `c2-mechanical`, C2-C4 at `c3-autonomous`, C1-C4 at `full-autonomy` (C4 on the `C3-auto-merge` cell); no rung admits C5. Before
-any work-class comparison, resolve each cell through the trusted seam. Unqualified evidence
+file, because it decides whether anything merges. A PR is merge-eligible when the effective rung
+is merge-capable **and** every cell that rung needs is **effective-promoted**, by the merge gate's
+rung-to-cell map: `c2-mechanical` needs `C2-auto-merge`; `c3-autonomous` and `full-autonomy` need
+`C2-auto-merge`, `C3-auto-merge` and `C3-ai-review-blocking`. No work class is read; the
+untrusted-provenance hold is the one class test, and no rung lifts it. Before the partition,
+resolve each cell through the trusted seam. Unqualified evidence
 fail-closes to effective-unpromoted, so operators keep `--merge human-only` on launch lines;
 lifting that is the owner's call after Phase 3 of the plan. Report each bound-to-effective pair,
 the resolution source, and any fail-closed reason at cycle start. The operator-supplied surfaces
 the seam needs are in [reference/promotion-evidence-bootstrap.md](reference/promotion-evidence-bootstrap.md); a
 report-only lane-start preflight names each missing one. With a compliant bootstrap, cycle-shape
 step 3 runs the resolution helper and the seam returns a qualified read; otherwise every cell stays
-effective-unpromoted. On the unattended route this gate is code: the merge gate runs `scripts/resolve-promotion-evidence.mjs`, which reads the options from managed or user settings (never this block, argv or the environment), refuses any value or settings file the lane user can write (so a user settings file, always lane-owned, never passes on this route), restarts the window at the newest demotion record (`--window-start`), and reports `unattended.promoted`: the effective rung's cells (C2 needs `C2-auto-merge`, C3 every C3 cell), not the pull request's class. The three-arm resolver, what counts as
+effective-unpromoted. On the unattended route this gate is code: the merge gate runs `scripts/resolve-promotion-evidence.mjs`, which reads the options from managed or user settings (never this block, argv or the environment), refuses any value or settings file the lane user can write (so a user settings file, always lane-owned, never passes on this route), restarts the window at the newest demotion record (`--window-start`), and reports `unattended.promoted`: the effective rung's cells (C2 needs `C2-auto-merge`, C3 every cell), not the pull request's class. The three-arm resolver, what counts as
 qualified evidence, and the forgeable surfaces it refuses are in
 [reference/promotion-evidence-resolution.md](reference/promotion-evidence-resolution.md); read it
 before resolving the first cell of a run.
@@ -267,7 +268,7 @@ through this contract does not exempt it. Round count and thread count are never
 
 **Pre-escalation resolution attempt, explicit-`autopilot` only.** When, and only when, this
 invocation's own argument line typed both the literal `autopilot` tier argument and
-`--merge c3-this-run` (the widening pair above), a merge-eligible (C1-C4) PR blocked on a
+`--merge c3-this-run` (the widening pair above), a merge-eligible PR blocked on a
 **machine-escalated** `needs-human` item, an open machine-authored finding, or a
 contradictory/unresolved **bot** review thread draws one fresh, context-independent
 **frontier-tier** subagent dispatch, run under the PR's worker lease, before it escalates. A floored dimension
@@ -472,8 +473,8 @@ token in them would reach the Bash tool unsubstituted, with no such variable to 
   command; the rung binds by scoping: a merge-capable invocation only ever receives the
   rung-eligible PR refs the pre-partition computed. A rung can never make the safe tier merge, and
   no rung ever bypasses the deterministic gate.
-- **Unlinked or unclassified PRs never auto-merge.** Rung eligibility requires a close-linked work
-  item with a recorded classification; missing either fails closed to the non-merge pass.
+- **Unlinked PRs never auto-merge; unclassified ones can.** An unlinked PR fails closed to the
+  non-merge pass; an item with no `work-class:` label partitions like any other.
 - **A tier keyword is never a merge raise, the raise is its own token, and the pair lasts the
   invocation that typed it.** `autopilot` alone widens dimensions 1–5 and 7 only; the typed pair
   `autopilot` + `--merge c3-this-run` widens dimension 6 to the C3 rung, per the convention's one named
@@ -485,10 +486,10 @@ token in them would reach the Bash tool unsubstituted, with no such variable to 
 - **C5 never merges autonomously through this loop.** Not at `full-autonomy`, the `autopilot` exception,
   or any rung name, current or future. It is the one class hold, a floor from the autonomy matrix's
   promotion contract, not a `babysit_loop_merge` value: step 3's rung partition derives it from the PR,
-  and the merge gate's one class check enforces it (`trust_refusal`). C4 partitions like C3.
+  and the merge gate's one class check enforces it (`trust_refusal`).
 - **Dependency-manager PRs stay held even at the C2 rung.** babysit-prs's cross-tier dependency
   hold-merge invariant survives this loop: it never autonomously merges a Dependabot/Renovate-class
-  PR, whatever its work class. It lands on the merge-ready report instead; the C2-mechanical rung is a work-class ceiling, not a route around an owner invariant. A repository whose pr-merge lane has its Dependabot class on merges those PRs there, not here.
+  PR. It lands on the merge-ready report instead; no rung is a route around an owner invariant. A repository whose pr-merge lane has its Dependabot class on merges those PRs there, not here.
 - **The grace window is an overlay, not a substitute.** Excluding recently-active PRs at cycle
   level does not relax babysit-prs's expected-head pins or HEAD assertions inside the cycle; both disciplines hold at once.
 - **Drain counts issues, not just PRs.** 0 open PRs alone never exits a drain: the worker lane
