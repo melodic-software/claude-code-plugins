@@ -41,7 +41,7 @@ A slow hook costs something different on each event, and that decides what the g
 | `PostToolUse` | No, the tool already ran | Turn latency on every matching edit, plus whatever it sends the model; nothing is prevented |
 | `PostToolBatch` | See the exit-code record below | Turn latency once per batch of parallel tool calls: the in-session formatter slot |
 | `PermissionRequest` | Not via exit code 2 | Denial goes through the `decision` object; an `exit 2` gate here is inert |
-| Any command hook with `async: true` | No, structurally | Nothing; it runs in the background |
+| Any hook with `async: true` | Never judged as a gate: see the async record below | Not judged on turn latency |
 
 Three consequences for a verdict. A `PostToolUse` candidate cannot block, so never reject it for
 blocking; judge it on turn latency against the resolved budget. A report-only
@@ -52,8 +52,8 @@ lines, `pre-push` when its measured run is over the commit budget but within 60 
 that, and flag an existing per-edit one with that placement (house rule:
 [check-placement](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/README.md#the-rubric)).
 A formatter takes the `PostToolBatch` slot only while its median per fire stays at or under 1 s,
-and also runs at `pre-commit`. And an "async gate" is a contradiction: `async: true` is valid only
-on `type: "command"` hooks, and an async hook cannot return a decision at all.
+and also runs at `pre-commit`. And an "async gate" is a contradiction: the verdict says so and
+cites the async record below rather than judging it as a gate.
 
 A git hook's cost is the author's wait at commit or push, paid once per commit rather than per
 edit. Judge it against the consuming repository's own commit or push budget where it documents
@@ -65,19 +65,22 @@ When a hook is too slow for the resolved budget, propose these documented adjust
 order of how much they save:
 
 - **Narrow the `matcher`** so the hook does not fire on tool calls it cannot act on.
-- **Add an `if` rule** so a non-matching call returns before the process spawn.
-- **Set `async: true`** where the hook does not need to block, accepting that it can no longer
-  return a decision and that its output arrives on the next turn.
+- **Add an `if` rule** so the hook skips calls it cannot act on; the `if` record below points at
+  what the rule saves.
+- **Set `async: true`** where the hook does not need to block, after reading what it gives up in
+  the async record below.
 - **Set an explicit `timeout`**, since the default is far longer than any interactive budget on most
   events.
 
 ## Upstream-fact records
 
 Each record below states our decision and points at the section that holds the specific, per the
-upstream-drift convention. Re-fetch the pointer before acting on either; a date is not authority.
+upstream-drift convention. Re-fetch the pointer before acting on any of them; a date is not authority.
 
 | Decision | Pointer | As of | Recheck trigger |
 |---|---|---|---|
 | A hook with no explicit `timeout` is judged against the per-type and per-event defaults read live, never a number kept here | When judging a hook's timeout, fetch [hooks: common fields](https://code.claude.com/docs/en/hooks#common-fields) live | 2026-10-11 | That section changes a default, or adds a per-event or per-type exception |
+| An async hook is never accepted as a gate, and an `async: true` lever is proposed only where the hook need not block | When judging an async hook or proposing one, fetch [hooks: run hooks in the background](https://code.claude.com/docs/en/hooks#run-hooks-in-the-background) live | 2026-11-03 | That section changes which hook types can run async, or what an async hook can return |
+| An `if` rule is proposed as a lever, with its saving read live | When proposing an `if` rule, fetch [hooks: common fields](https://code.claude.com/docs/en/hooks#common-fields) live | 2026-11-03 | That section changes the `if` field's scope or when it is evaluated |
 | A `PostToolUse` hook is never treated as a gate, and no report-only check is placed on it per edit | When judging whether a hook can block, fetch the event's row of [hooks: exit code 2 behavior per event](https://code.claude.com/docs/en/hooks#exit-code-2-behavior-per-event) live | 2026-10-11 | That event's row changes its `Can block?` cell |
 | No official page states a hook latency budget or compares a check in CI against the same check in a hook | Absence checked by reading each page end to end for a performance, latency or placement section: [hooks](https://code.claude.com/docs/en/hooks), [hooks guide](https://code.claude.com/docs/en/hooks-guide), [best practices](https://code.claude.com/docs/en/best-practices), [features overview](https://code.claude.com/docs/en/features-overview). The nearest statements are event-scoped ("SessionStart runs on every session, so keep these hooks fast") and the `SessionEnd` 1.5-second budget, neither of which is a fleet-wide ceiling | 2026-09-12 | A re-fetch of any of the four finds a performance or placement section added |

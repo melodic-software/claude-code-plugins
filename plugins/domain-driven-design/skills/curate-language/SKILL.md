@@ -90,7 +90,8 @@ Apply the target file's format and the contract in `context/glossary-contract.md
 - one canonical term for one concept in one context
 - a tight 1–2 sentence definition of what the concept **is**
 - rejected synonyms recorded using the file's convention, with a plain `Avoid:` line as the readable
-  fallback
+  fallback; a name the resolution rules out ("never the X") is a rejected synonym, recorded there
+  rather than folded into the definition
 - project-specific domain concepts only
 - no implementation details, requirements, scratch notes, or speculative terms
 

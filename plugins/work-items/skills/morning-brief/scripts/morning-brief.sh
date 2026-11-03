@@ -214,6 +214,7 @@ LANE_WORKFLOWS_ARG=""
 DEFAULT_LANE_WORKFLOWS=(
   "intake-triage.yml"
   "pr-review-hosted.yml"
+  "pr-review-main.yml"
   "pr-review-security-hosted.yml"
   "pr-verify.yml"
   "pr-refine.yml"

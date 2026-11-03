@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Closes #123\n\n## Summary\nStale prices for up to fifteen minutes.\n\n## Fix\nPRICE_CACHE_TTL_SECONDS 3600 to 900.\n\n## Verification\npytest tests/pricing/test_cache.py\n\n## Related\n#118, #131",
+      "why": "four exact headings, each with content"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Closes #123\n\n## Summary\nStale prices.\n\n## Fix\nTTL 900.\n\n## Verification\n\n## Related\n#118",
+      "why": "Verification heading is empty"
+    },
+    {
+      "answer": "Closes #123\n\n## Summary\nStale prices.\n\n## Changes\nTTL 900.\n\n## Testing\npytest\n\n## Related\n#118",
+      "why": "headings renamed"
+    }
+  ]
+}

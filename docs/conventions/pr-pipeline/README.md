@@ -307,6 +307,16 @@ PR head is the passing one, as the lanes App, with no reply and no round marker,
 App PRs; other address-feedback rounds also go to adopted owner PRs
 ([Owner pull requests](#owner-pull-requests)). Resolving a thread
 takes more than the `post-verify-notes` token holds, so that job never resolves one.
+When the gate's reader refuses a lanes App PR's head `verify:earlier-fail` (a FAIL at another head
+of the same change), its report's `earlierFails` names the FAILed heads, and the dispatcher sends a
+model round with them in `verify-earlier-fail-heads`, even with no unresolved thread. When no
+thread is left to work, `address-feedback-select` (with `actions: read`) reads those FAILs' notes
+from their verdict artifacts (`earlier-fail-notes.mjs`: the head's FAIL index, a run the gate
+counts, `verify-notes.mjs` `readVerdict` and `noteComments`) into `threads.json`'s
+`verify_notes`; a read that fails stops `feedback-verdict-unreadable`. The model fixes each note
+or reports it `already-addressed`; `publish-feedback` posts nothing for them. A push fixing a
+named note ends as any fix round; no push with every note already addressed stops
+`feedback-already-addressed` for a session builder.
 In `pr-unblock.yml`, `address-feedback-select` (a base job with no model and a read-only token)
 keeps the threads, `address-feedback` (the model job, `read`, on the read runner with a
 subscription fallback) answers them and hands on a patch and its replies,
@@ -3099,8 +3109,10 @@ priority or work-class label. The `needs-triage` floor label is not a triage lab
 whether or not intake runs, so an issue whose intake run failed is still selected; one the sweep
 already filed a hand-off issue for, found by one search of those issues, is skipped unread. Issues from
 `github-actions[bot]`, the lane sweep's own included, are left out. For each it re-dispatches `intake-triage.yml`, at most 5 a pass, and records the runs in
-one comment on the issue; after 2 dispatches leave it untriaged it labels the original
-`needs-triage`, then files one `needs-triage` issue naming the runs. It holds the job's own `GITHUB_TOKEN`
+one comment on the issue; after 2 runs that reached intake leave it untriaged it labels the original
+`needs-triage` and rewrites that comment to name the runs. A run whose `intake-triage` job the kill
+switch or another gate skipped, or that was cancelled before it, does not count, read from the run's
+jobs; 6 dispatches hand the issue off whatever reached intake. It holds the job's own `GITHUB_TOKEN`
 (`actions: write`, `contents: read`, `issues: write`), never a lanes App token, and stops at 120
 REST calls.
 
@@ -3382,6 +3394,7 @@ with its default.
 | `wip-cap` | 60 | The issue lane's WIP cap when the lane merge rate cannot be read ([WIP cap](#wip-cap)); at most 500. |
 | `turn-cap-restarts` | 0 | Restarts after a run reaches its turn cap, since a listed human last added `agent-ready`, before report-outcome stops the issue on the `turn-cap-spent` route; at most 5, and 0 never restarts. |
 | `stop-retries` | 2 | Restarts after a stop the issue lane's `stop-routes.json` routes to `retry` (or fewer, a row's own `retries`), and, counted apart, restarts after a `wait`, each since a listed human last added `agent-ready`, before report-outcome stops the issue on the `retry-spent` route; at most 5, and 0 never retries. |
+| `stranded-backoff-hours` | 3 each | Per cause, the base hours of work-unblock's re-fire backoff for a stranded `agent-ready` issue: the wait is these hours doubled once per re-fire already made on the same lane workflow files (per trip past `limit-stops-per-issue` for `kill-switch`), up to 24. Causes: `no-run` (no work-resolve-issue run started) and `no-report` (a run ended green with no report and no pull request), where it is also the wait before the first re-fire; `failed-again` (a re-fired run failed or was cancelled again), at least twice these hours; `failed-mint` (no lane token), backed off only past `limit-stops-per-issue` re-fires, so at least these hours doubled that many times; and `kill-switch` (a kill-switch refusal, past `limit-stops-per-issue` trips). Each 1 to 24. |
 | `fix-ci-per-run` | 2 | fix-ci dispatches one pr-unblock-dispatch run sends; at most 20. |
 | `fix-ci-restarts` | 1 | Further fix-ci dispatches on one PR head after its first fix-ci run failed; 0 to 5. |
 | `fix-docs-per-run` | 2 | fix-docs dispatches one pr-unblock-dispatch run sends; at most 20. |

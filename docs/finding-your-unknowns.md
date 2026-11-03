@@ -86,27 +86,28 @@ this order when you run several:
 2. **Brainstorm / prototype**, `/planning:brainstorm` for direction candidates;
    `/prototype:explore-directions` or `/prototype:pressure-test` when the unknown is
    visual or interactive.
-3. **PRD** (conditional), `/planning:prd`: only when the change is user-facing,
-   business-driven, and needs alignment on the problem, the users, and the success metrics.
-4. **Interview**, `/planning:interview`: convert known unknowns into decisions on the
-   record. When an interview outgrows one session because the effort is too big to hold at
+3. **Interview**, `/planning:interview`: convert known unknowns into decisions on the
+   record. It calls a **PRD**, `/planning:prd`, only when a question shows the change is
+   user-facing, business-driven, and needs alignment on the problem, the users, and the success
+   metrics. When an interview outgrows one session because the effort is too big to hold at
    once and still too foggy to phrase as decisions, escalate to **wayfind**,
    `/planning:wayfind`, which charts a decision map from the interview's ledger and hands
    back once the fog clears. Wayfind is never the first pass.
-5. **Reference port**, `/discipline:point-dont-copy` when the work leans on an external
+4. **Reference port**, `/discipline:point-dont-copy` when the work leans on an external
    reference whose semantics must survive the port.
-6. **Design**, `/planning:design` then `/planning:design-handoff`: settle module layout,
+5. **Design**, `/planning:design` then `/planning:design-handoff`: settle module layout,
    contracts, and variation verdicts when the work adds types, contracts, modules, or a
    topology or data-model change; the handoff writes them into PLAN.md's `## Design`, which is
    how they reach the implementer. Work with no design question records a one-line early exit.
-7. **Plan**, `/planning:plan`: lock the approach with the unknowns now known.
-8. **Decompose** (conditional), `/work-items:decompose`: only when the plan holds more than one
+6. **Plan**, `/planning:plan`: lock the approach with the unknowns now known.
+7. **Decompose** (conditional), `/work-items:decompose`: only when the plan holds more than one
    independently shippable ticket; each ticket quotes its part of the design.
 
 Notes: the sequencing is chat-portable. Every pass works as plain conversation, and the
-artifact form is optional. Running later passes in a fresh session with the earlier
-artifacts carried forward matches this repo's existing session-flow doctrine (the corpus
-independently corroborates it; see `session-flow` plugin).
+artifact form is optional. The passes a person answers (interview through plan) run in one
+session, and `/session-flow:workflow` suggests a handoff between them only when context-guard
+reports zone `dumb`; execution of a finished plan moves to a fresh session with the artifacts
+carried forward.
 
 ## Prompt-pattern catalog
 

@@ -60,14 +60,17 @@ Each row is our decision; what the upstream section says about it is read live a
   record the last row relays changes its pointer or its heading moves.
 
 Where the engine's behavior rests on empirical observation rather than documentation (headless
-`/context`, the skill-listing subtraction below), the record says so in `caveats`. The engine
+`/context`, the skill-listing signature below), the record says so in `caveats`. The engine
 reports the observation and never silently assumes it durable.
 
 ## Comparability rules (enforced, not advisory)
 
-1. **Skill-listing signature.** The prefix `System tools` bucket has listed skill-frontmatter
-   tokens subtracted from it, so its value is only meaningful relative to a run with an identical
-   skill listing. Every snapshot carries `skillListing.signature`, a hash of the sorted
+1. **Skill-listing signature.** The prefix `System tools` value is treated as meaningful only
+   relative to a run with an identical skill listing, because the engine observes it moving with
+   the listing. That is an observation, not documentation: the `/context` row in
+   [commands § All commands](https://code.claude.com/docs/en/commands#all-commands) does not
+   itemize the bucket (as of 2026-11-03; recheck when that row documents what `System tools`
+   counts). Every snapshot carries `skillListing.signature`, a hash of the sorted
    (name, source) listing. On a mismatch, `compare`/`attribute` mark `systemToolsComparable: false`
    and put the reason in `comparability.reasons`. The deferred bucket is a separate pool
    and listing or Skills-token drift does not poison it: per-bucket additivity applies this gate

@@ -169,8 +169,9 @@ match it across files.
 ## Report mode
 
 `report` runs steps 1 to 5 as written, skips step 6, and reports in step 7 with every treatment as
-a proposal. It is the mode pull-request prep runs over a change's added lines
-(`report --added-since <base> <files>`), and these rules keep that run safe to start unattended:
+a proposal. It is the mode pull-request prep runs over a change's added lines when unattended without
+pre-approval (`report --pipeline --added-since <base>`), and these rules keep that run safe to
+start unattended:
 
 - **It never asks.** `report` takes any widened rung without asking, keeps the posture or token in
   effect there because it edits nothing, and names the rung and its file count. It never calls

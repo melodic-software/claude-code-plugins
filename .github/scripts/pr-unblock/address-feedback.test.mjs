@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { ciSnapshot, claimsSecurity, coveringLanes, createGitHubApi, currentThreads, main, maxRoundsFrom, needsPerson, planLanes, runRecord, scanRefusal, select, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
+import { ciSnapshot, claimsSecurity, coveringLanes, createGitHubApi, currentThreads, earlierFailHeadsFrom, main, maxRoundsFrom, needsPerson, planLanes, runRecord, scanRefusal, select, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 import { failingChecks } from "./gate-source.mjs";
 import { escalationRoute, ROUTES } from "./escalation-routes.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -2063,6 +2063,120 @@ test("a queued stop still clears once no thread is unresolved, and a person's ho
   assert.deepEqual([resolved.decision, resolved.skipReason, resolved.resolved], ["skip", "stop-resolved", true]);
   const held = await run(fakeApi({ ...answered, ...queued, labels: ["needs-session", "needs-human"] }));
   assert.deepEqual([held.decision, held.skipReason], ["skip", "awaiting-human"]);
+});
+
+// #12809: the merge gate refuses the head verify:earlier-fail and every
+// fail-note thread of the FAILed head is resolved. The select job used to end
+// stop-resolved, the round pushed nothing, and the head never moved. With the
+// dispatcher's FAILed heads it now reads their notes from the verdict
+// artifacts as the model's work items, and fails closed when it cannot.
+const NOTES = [
+  { id: "VNOTE_1", head: OLD_HEAD, path: "src/a.js", body: `${VERIFY_NOTE_MARKER}\nSummary and note, as data` },
+  { id: "VNOTE_2", head: OLD_HEAD, path: "src/b.js", body: `${VERIFY_NOTE_MARKER}\nanother note` },
+];
+const resolvedNote = thread("PRRT_9", [100], { isResolved: true });
+const runEarlier = (api, extra = {}) =>
+  select({ api, pr: 42, headSha: HEAD, repository: "o/r", appId: APP, reviewerId: REVIEWER, trustedHumans: new Set([HUMAN]), earlierFailHeads: [OLD_HEAD], ...extra });
+
+test("an earlier-fail round with every fail-note thread resolved hands the FAIL's artifact notes to the model as work items", async () => {
+  const asked = [];
+  const readFailNotes = async (request) => {
+    asked.push(request);
+    return NOTES;
+  };
+  const result = await runEarlier(fakeApi({ threads: [resolvedNote], files: [{ filename: "src/a.js" }, { filename: "src/b.js" }] }), { readFailNotes });
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(asked, [{ heads: [OLD_HEAD], files: ["src/a.js", "src/b.js"] }]);
+  assert.deepEqual(result.file, { version: 1, repository: "o/r", pr: 42, head_sha: HEAD, pr_paths: ["src/a.js", "src/b.js"], threads: [], verify_notes: NOTES });
+  assert.deepEqual(result.threads, []);
+  assert.equal(result.resolved, undefined);
+  // run.json carries each note's id, head and path for the reply job, never its text.
+  assert.equal(
+    runRecord(result.file, result.reviewedHeads),
+    `{"version":1,"head_sha":"${HEAD}","pr_paths":["src/a.js","src/b.js"],"threads":[],"verify_notes":[{"id":"VNOTE_1","head":"${OLD_HEAD}","path":"src/a.js"},{"id":"VNOTE_2","head":"${OLD_HEAD}","path":"src/b.js"}],"reviewed_heads":["${HEAD}"]}\n`,
+  );
+  // Without the dispatcher's FAILed heads the same PR still ends stop-resolved.
+  const plain = await run(fakeApi({ threads: [resolvedNote] }));
+  assert.deepEqual([plain.decision, plain.skipReason], ["skip", "stop-resolved"]);
+});
+
+test("an earlier-fail round whose verdict artifact cannot be read fails closed, never success or stop-resolved", async () => {
+  for (const error of [new Error("GET artifact 9 zip returned 410"), new Error("the verdict file does not record the fail its name names")]) {
+    const lines = [];
+    const result = await runEarlier(fakeApi({ threads: [resolvedNote] }), {
+      readFailNotes: async () => {
+        throw error;
+      },
+      log: (line) => lines.push(line),
+    });
+    assert.deepEqual([result.decision, result.escalationReason, result.resolved], ["escalate", "feedback-verdict-unreadable", undefined]);
+    assert.equal(escalationRoute(result.escalationReason), "fail");
+    assert.match(lines.join("\n"), new RegExp(error.message));
+  }
+});
+
+test("an earlier-fail round keeps the thread rules first: kept threads, untaken threads, a hold, a workflow path and the round cap", async () => {
+  const readFailNotes = async () => NOTES;
+  // A kept thread is worked as before; its push moves the head too.
+  const kept = await runEarlier(fakeApi(), { readFailNotes });
+  assert.deepEqual([kept.decision, kept.file.verify_notes, kept.threads.map((t) => t.id)], ["proceed", undefined, ["PRRT_1"]]);
+  const untaken = await runEarlier(fakeApi({ reviewComments: [comment(100, CODEX)], reviews: [{ id: 10, user: { id: CODEX }, commit_id: HEAD }] }), { readFailNotes });
+  assert.equal(untaken.escalationReason, "feedback-untaken-threads");
+  const held = await runEarlier(fakeApi({ threads: [resolvedNote], labels: ["needs-human"] }), { readFailNotes });
+  assert.deepEqual([held.decision, held.skipReason], ["skip", "awaiting-human"]);
+  const workflow = await runEarlier(fakeApi({ threads: [resolvedNote], files: [{ filename: ".github/workflows/x.yml" }] }), { readFailNotes });
+  assert.equal(workflow.escalationReason, "feedback-protected-path");
+  const markers = [1, 2, 3].map((n) => ({ id: 10 + n, user: { id: APP }, body: `${ROUND}\nround ${n}` }));
+  const capped = await runEarlier(fakeApi({ threads: [resolvedNote], issueComments: markers }), { readFailNotes, maxRounds: 2 });
+  assert.deepEqual([capped.decision, capped.escalationReason], ["escalate", "feedback-verifier-open"]);
+});
+
+// The reply job's feedback-already-addressed stop is lane-stopped, which
+// releases the head for the dispatcher; with that stop queued for a session
+// builder on this head, the next round stands down before any read or model.
+test("an earlier-fail round whose already-addressed stop on this head is queued for a session stands down", async () => {
+  let reads = 0;
+  const readFailNotes = async () => {
+    reads += 1;
+    return NOTES;
+  };
+  const queued = { threads: [resolvedNote], labels: ["needs-session"], issueComments: [reviewedHead, laneStopped("feedback-already-addressed")] };
+  const result = await runEarlier(fakeApi(queued), { readFailNotes });
+  assert.deepEqual([result.decision, result.skipReason], ["skip", "awaiting-session"]);
+  assert.equal(reads, 0);
+  // A stop on an older head does not hold this one.
+  const older = await runEarlier(fakeApi({ ...queued, issueComments: [reviewedHead, laneStopped("feedback-already-addressed", { head: OLD_HEAD })] }), { readFailNotes });
+  assert.equal(older.decision, "proceed");
+});
+
+test("main select takes the FAILed heads only from a dispatcher's model round, as other heads' commit ids", async (t) => {
+  const dir = tempDir("address-feedback-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const env = (name, extra = {}) => ({
+    GITHUB_TOKEN: "t",
+    GITHUB_REPOSITORY: "o/r",
+    GITHUB_OUTPUT: join(dir, `${name}.out`),
+    PR_NUMBER: "42",
+    HEAD_SHA: HEAD,
+    APP_SENDER_ID: String(APP),
+    THREAD_FILE: join(dir, `${name}.json`),
+    RUN_FILE: join(dir, `${name}.run.json`),
+    TRUSTED_ACTORS: join(dir, "absent.json"),
+    DISPATCHER_RUN_ID: "5000",
+    VERIFY_EARLIER_FAIL_HEADS: OLD_HEAD,
+    ...extra,
+  });
+  for (const [name, extra] of [
+    ["human", { DISPATCHER_RUN_ID: "" }],
+    ["pass", { VERIFY_PASS_HEAD: HEAD }],
+    ["bad", { VERIFY_EARLIER_FAIL_HEADS: "main" }],
+    ["self", { VERIFY_EARLIER_FAIL_HEADS: HEAD }],
+    ["twice", { VERIFY_EARLIER_FAIL_HEADS: `${OLD_HEAD} ${OLD_HEAD}` }],
+  ]) {
+    await assert.rejects(main(["select"], env(name, extra), { api: fakeApi(), log: () => {} }), /VERIFY_EARLIER_FAIL_HEADS|earlier FAILed heads/, name);
+  }
+  assert.deepEqual(earlierFailHeadsFrom({ VERIFY_EARLIER_FAIL_HEADS: "" }), []);
+  assert.deepEqual(earlierFailHeadsFrom({ HEAD_SHA: HEAD, DISPATCHER_RUN_ID: "1", VERIFY_EARLIER_FAIL_HEADS: `${OLD_HEAD} ${"c".repeat(40)}` }), [OLD_HEAD, "c".repeat(40)]);
 });
 
 // pr-feedback-dispatch.yml sends verify-pass-head after a pr-verify pass at

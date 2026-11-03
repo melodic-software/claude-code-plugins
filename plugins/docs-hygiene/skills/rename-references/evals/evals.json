@@ -599,9 +599,23 @@
     },
     {
       "id": 49,
+      "name": "certain-bucket-auto-applies-without-a-per-bucket-question",
+      "prompt": "Apply the rename of the skill /verify to /verify-changes. The only hits are two slash-token references, `/verify` in README.md and `skills/verify/` in docs/guide.md.",
+      "expected_output": "Both hits are Certain (Form 1 and Form 3), so Phase 4 asks no Certain-specific question. The bucket-count report shows the Certain count, a `Certain examples:` line with 1-2 matches as file:line: text, and the line saying Certain matches apply without a question and can be reviewed one by one by answering \"review Certain one-by-one\"; those two lines appear because the Certain count is above 0. The only question is the proceed gate, and once it passes both edits are applied. Had the user answered \"review Certain one-by-one\", each Certain match would go through the Ambiguous per-match format with \"skip remaining Certain\" as its third option.",
+      "files": [],
+      "expectations": [
+        "No AskUserQuestion is asked for the Certain bucket itself; the proceed gate is the only question",
+        "The bucket-count report shows the Certain count, 1-2 Certain examples, and the \"review Certain one-by-one\" route",
+        "The Certain examples and one-by-one lines are printed only because the Certain count is above 0",
+        "Both Certain edits are applied after the proceed answer",
+        "The one-by-one route uses the per-match format with a \"skip remaining Certain\" option"
+      ]
+    },
+    {
+      "id": 50,
       "name": "certain-bucket-auto-applies-and-reports",
       "prompt": "Rename the skill /deploy-docs to /publish-docs. The sweep finds only slash-token and path references.",
-      "expected_output": "Every match is a Form 1 slash-token or Form 3 path, so all of them land in the Certain bucket. The skill reports the bucket counts with the Certain count and one or two example matches, says the user can answer \"review Certain one by one\" to review them per match instead, and gates only the proceed/abort decision. It asks no separate \"auto-apply N matches?\" question for the Certain bucket; on proceed, Phase 5 edits every Certain match.",
+      "expected_output": "Every match is a Form 1 slash-token or Form 3 path, so all of them land in the Certain bucket. The skill reports the bucket counts with the Certain count and one or two example matches, says the user can answer \"review Certain one-by-one\" to review them per match instead, and gates only the proceed/abort decision. It asks no separate \"auto-apply N matches?\" question for the Certain bucket; on proceed, Phase 5 edits every Certain match.",
       "files": [],
       "expectations": [
         "No `AskUserQuestion` asks whether to auto-apply the Certain bucket",

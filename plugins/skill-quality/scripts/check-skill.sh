@@ -154,7 +154,7 @@
 #      `](#` in-page anchor links WARNs (advisory heuristic)
 #  27. `## Next` successor section: absent is INFO (a terminal skill has
 #      none), except on a stage-bearing skill (metadata.workflow-stage explore
-#      through retro, not contract) with no Handoff/Routing/Integration/Skill
+#      through retro, not interview, prd or design) with no Handoff/Routing/Integration/Skill
 #      chaining heading either, where it is WARN (27b); present but after
 #      `## Gotchas`, last in the file, neither
 #      the one-invocation nor the two-to-four-outcome-bullet shape, or
@@ -2428,8 +2428,8 @@ done < <(
 # successor by construction. When it has no `## Next` and no older routing
 # heading either (Handoff, Routing, Integration, Skill chaining, each matched
 # as a prefix because the fleet titles them several ways), the absence is a
-# WARN. `contract` is left out of the stage list on purpose: interview, prd,
-# and design route through the artifacts they write, not through a
+# WARN. `interview`, `prd` and `design` are left out of the stage list on
+# purpose: they route through the artifacts they write, not through a
 # successor section. `anytime`, `operator`, and `session` are not stages.
 NEXT_STAGE_BEARING='^(explore|research|plan|implement|test|review|verify|pr|retro)$'
 NEXT_ROUTING_HEADING='^##[[:space:]]+(handoff|routing|integration|skill chaining)'

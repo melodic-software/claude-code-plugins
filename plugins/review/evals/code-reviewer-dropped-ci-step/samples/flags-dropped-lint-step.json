@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "**IMPORTANT**\n- `.github/workflows/ci.yml:16`: the `npm run lint` step is removed from the required check job with no reason, so the new unused `titleCase` import and `draft` variable pass CI. Restore the step and fix the lint errors.",
+      "why": "finding at the removed step's line"
+    },
+    {
+      "answer": "The lint step was dropped from the check job (.github/workflows/ci.yml, line 16).",
+      "why": "class words before a 'line N' location"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No findings.",
+      "why": "no finding"
+    },
+    {
+      "answer": "**Location**: `src/slug.js:7`\n**Issue**: `draft` is assigned and never used; remove it.",
+      "why": "the lint error, not the dropped step"
+    },
+    {
+      "answer": "`.github/workflows/ci.yml:9` removes `npm run lint` from the required job.",
+      "why": "right defect cited at the diff-file line number, not the source line"
+    },
+    {
+      "answer": "`.github/workflows/ci.yml:12` pins setup-node to a major tag; no step was removed that matters.",
+      "why": "a different line of the workflow"
+    }
+  ]
+}

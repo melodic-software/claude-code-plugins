@@ -2083,6 +2083,50 @@ class NoOutcomeRerunTests(Base):
         self.assertNotIn(ev.NO_OUTCOME, ev.GATE_RERUN_CLASSES)
 
 
+def timeout_first(lane: str = "claude-review") -> dict[str, Any]:
+    """Attempt 1 whose review leg timed out on a rejected credential, as the
+    status job of run 41626484307 attempt 1 recorded it."""
+    lines = [
+        dict(
+            OTHER_FAILURE,
+            title="",
+            message=f"{lane}: failure-class=timeout:"
+            " the review leg reached its time limit",
+        ),
+        dict(
+            OTHER_FAILURE,
+            annotation_level="warning",
+            title="run-claude-cli usage",
+            message="REVIEWS_CLAUDE_CODE_OAUTH_TOKEN is near a subscription usage"
+            " limit: window=seven_day status=rejected resets=2026-11-04T07:00:00Z",
+        ),
+    ]
+    return no_outcome(lane, lines)
+
+
+class TimeoutRerunTests(Base):
+    """Attempt 2 after an attempt 1 whose review leg timed out binds only when
+    that lane posted nothing on the head."""
+
+    def test_second_attempt_after_an_unposted_timeout_binds(self) -> None:
+        for lane in LANES:
+            with self.subTest(lane=lane):
+                item = run(lane, S, attempts=[timeout_first(lane), rerun_ok(lane)])
+                result = self.bind([item])
+                self.assertTrue(result[lane].bound)
+
+    def test_a_timeout_whose_lane_posted_does_not_bind(self) -> None:
+        mark = dict(marker("claude-review", S), created_at="2026-01-01T00:40:00Z")
+        item = run("claude-review", S, attempts=[timeout_first(), rerun_ok()])
+        result = self.bind([item], [*both_markers(), mark], [])
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_the_gate_does_not_rerun_a_timeout(self) -> None:
+        job = timeout_first()["jobs"][0]
+        self.assertEqual(ev.rerun_classes("claude-review", job), frozenset())
+        self.assertNotIn(ev.TIMEOUT, ev.GATE_RERUN_CLASSES)
+
+
 # The caller workflows' `Report the kill switch` notice
 # (pr-review-hosted.yml, pr-review-security-hosted.yml).
 KILL_NOTICE = {
