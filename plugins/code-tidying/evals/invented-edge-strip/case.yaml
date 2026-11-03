@@ -1,12 +1,12 @@
 schema_version: "1.1"
 name: invented-edge-strip
 description: strip on an invented src tree deletes a comment above a marker-listed identifier without renaming it, proposes a private docstring, and keeps a comment paired with a regression test
-tags: [calibration, strip, invented]
+tags: [calibration, none, invented]
 expected_outcome: The end-offset comment is deleted and gql_page_end is never renamed because scripts/restoration-markers.txt lists it; the _parse docstring is unchanged and reported as a proposal; the empty-input comment paired with tests/edge-paired.test.sh stays; code is unchanged.
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: /code-tidying:dissolve-comments strip src
+  prompt: /code-tidying:remove-comments none src
   allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
   max_turns: 80
   timeout_seconds: 1200

@@ -91,7 +91,7 @@ occurrence count: the next edit renumbers them and the item derives a different 
 **A line or comment target widens** (lane section 2): to the enclosing heading where the file has
 headings, to the file otherwise. State the widening in the report's **first line**: what was pointed
 at, what is judged instead, and that an id resting on a line number changes when an edit above moves
-it. For a comment, name `code-tidying:dissolve-comments` as the owner of comments in that line.
+it. For a comment, name `code-tidying:remove-comments` as the owner of comments in that line.
 
 **No target: the ladder in lane section 10. It never sweeps.** State which rung was used.
 
@@ -181,7 +181,7 @@ state what it would have owned, and record the fallback in `Routed-to`.
 |---|---|
 | The enforcement surface, whole | `overengineering:audit` |
 | Unreachable or dead code | `code-tidying:audit-dead-code` |
-| Comments, their content or residue | `code-tidying:dissolve-comments`, `code-tidying:audit-comment-residue` |
+| Comments, their content or residue | `code-tidying:remove-comments` |
 | A document derivable from its source, or noise within one | `docs-hygiene:audit-derivability`, `docs-hygiene:audit-noise` |
 | Instruction text and what it does to a model | `harness-config:audit-instructions`, `harness-config:unhobble` |
 | Duplication of a native harness surface | `harness-ops:audit-native-overlap` |
