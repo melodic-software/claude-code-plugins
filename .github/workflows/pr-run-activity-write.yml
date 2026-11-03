@@ -492,8 +492,10 @@ on:
           patch-credential, patch-not-applied or patch-protected-path; for apply-patch under
           patch-prepare merge-base, unresolved-conflict, workflow-staged,
           unexpected-path-staged, conflict-patch-invalid,
-          conflict-patch-not-applied or conflict-patch-protected-path; empty
-          otherwise.
+          conflict-patch-not-applied or conflict-patch-protected-path; for
+          apply-patch under patch-prepare install-script-pin,
+          dependency-pin-invalid, dependency-pin-not-applied or
+          dependency-pin-protected-path; empty otherwise.
           Set only by runner steps and the base's reply and verdict scripts.
         value: ${{ jobs.run.outputs.escalation-reason }}
       rung-up:
@@ -708,6 +710,7 @@ jobs:
             dependency-security-close | dependency-escalate | dependency-config-unreadable) ;;
             dependency-files-truncated | dependency-control-uncited | dependency-workflow-unpinned) ;;
             dependency-fix-refused) ;;
+            dependency-pin-invalid | dependency-pin-not-applied | dependency-pin-protected-path) ;;
             ci-fix-round-cap | ci-fix-empty | ci-fix-invalid | ci-fix-escalated) ;;
             ci-fix-protected-path | ci-fix-not-applied | ci-fix-weaken-retry | ci-fix-weaken-required) ;;
             conflict-patch-invalid | conflict-patch-not-applied | conflict-patch-protected-path) ;;
@@ -2182,6 +2185,15 @@ jobs:
               case $escalation in
                 unresolved-conflict | workflow-staged | unexpected-path-staged) ;;
                 conflict-patch-invalid | conflict-patch-not-applied | conflict-patch-protected-path) ;;
+                *) echo "::error::the escalation reason file holds no reason this script may give"; exit 1 ;;
+              esac
+              echo "escalation-reason=$escalation" >>"$GITHUB_OUTPUT"
+              exit 0
+            fi
+            # apply-patch under the install-script-pin row gives its own reasons alone.
+            if [ "$PREPARE:$PATCH_PREPARE" = apply-patch:install-script-pin ]; then
+              case $escalation in
+                dependency-pin-invalid | dependency-pin-not-applied | dependency-pin-protected-path) ;;
                 *) echo "::error::the escalation reason file holds no reason this script may give"; exit 1 ;;
               esac
               echo "escalation-reason=$escalation" >>"$GITHUB_OUTPUT"

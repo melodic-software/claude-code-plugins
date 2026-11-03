@@ -703,6 +703,19 @@ test("a merge verdict on a lanes App commit with a plain version bump in package
   assert.deepEqual(api.calls.activity, ["dependabot/npm_and_yarn/x-2.0.0"]);
 });
 
+// The install-script pin commit apply-dependency-pin pushes, with no fix round
+// before it: the merge verdict at its head is marked when only that pin moved.
+const CLI = "@anthropic-ai/claude-code";
+const pinPkg = (pin) => JSON.stringify({ name: "p", devDependencies: { [CLI]: "2.1.317" }, allowScripts: { [`${CLI}@${pin}`]: true } }, null, 2);
+test("a merge verdict on a lanes App install-script pin commit is marked for merge; any other pin is refused", async () => {
+  const texts = (pin) => ({ [`${HEAD}:package.json`]: pinPkg("2.1.316"), [`${FIX}:package.json`]: pinPkg(pin) });
+  const api = mergeWith([modified("package.json")], { texts: texts("2.1.317") });
+  assert.deepEqual(await go(api, mergeRun()), { escalationReason: "", skipReason: "" });
+  assert.match(api.calls.comments[0], /verdict=merge/);
+  await refused(mergeWith([modified("package.json")], { texts: texts("2.1.318") }), "a pin the manifest does not name");
+  await refused(mergeWith([modified("package.json")], { texts: texts("*") }), "a wildcard pin");
+});
+
 test("a merge verdict escalates when the branch's push history is unreadable, and never marks a merge", async () => {
   const files = [modified("package.json"), modified("package-lock.json")];
   await refused(fakeApi({ head: FIX, commits: [dependabotCommit(HEAD), appCommit(files)], details: { [FIX]: appCommit(files) }, activity: null }), "listActivity resolved null");

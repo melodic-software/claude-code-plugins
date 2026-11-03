@@ -762,6 +762,7 @@ test("pr-unblock.yml: report-stop-status posts on the commit the activity's push
     ["apply-conflict-patch", "resolve-conflicts-select"],
     ["apply-feedback-patch", "address-feedback-select"],
     ["apply-dependency-patch", "review-dependency-select"],
+    ["apply-dependency-pin", "review-dependency-select"],
     [null, "fix-ci-context"],
     [null, "sync-shared-copies-select"],
   ];
