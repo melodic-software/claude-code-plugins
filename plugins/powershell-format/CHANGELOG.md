@@ -3,6 +3,12 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.1] - 2026-11-03
+
+### Changed
+
+- The README no longer restates how PSScriptAnalyzer finds settings or loads `CustomRulePath` modules; it points at the Using PSScriptAnalyzer sections instead.
+
 ## [1.0.0] - 2026-11-03
 
 ### Removed

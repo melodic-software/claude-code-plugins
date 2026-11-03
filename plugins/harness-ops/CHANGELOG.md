@@ -3,6 +3,17 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.1.5] - 2026-11-03
+
+### Changed
+
+- 24 passages in the `audit-install-state`, `audit-performance`, `audit-skill-visibility`,
+  `behavior-probes`, `lanes`, `observability` and `plugins` skills no longer restate Claude Code,
+  ccusage, Defender or jq behavior. Each keeps the skill's own rule and points at the docs section
+  that owns the fact, with an as-of date and a recheck trigger. Where no docs page owns the fact,
+  the passage points at this plugin's own dated binary reading, or keeps only the rule and names
+  the missing page.
+
 ## [8.1.4] - 2026-11-03
 
 ### Changed
