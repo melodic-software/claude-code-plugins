@@ -15,8 +15,10 @@
 # identity markers, az directory or shared exceptions; the repeatable flags add
 # them by domain name, and a value left unsupplied is left out of the map. Each
 # --owner-root is a directory holding one directory per owner, such as
-# "$(ghq root)/github.com"; given, they become the map's owner_roots under the
-# profile's os key, in place of ~/src/github.com and ~/worktrees/github.com.
+# "$(ghq root)/github.com", or flat <owner>-<repo>-<slug> trees, such as
+# "$(git config worktreeroot.path)"; given, they become the map's owner_roots
+# under the profile's os key, in place of ~/src/github.com and
+# ~/worktrees/github.com.
 #
 # A --shared-exception opens PATH, a directory of domain TO, to sessions in the
 # FROM domains, one way: the map entry {path, from, to}. PATH must be TO's tree,

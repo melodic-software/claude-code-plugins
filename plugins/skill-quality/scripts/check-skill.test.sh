@@ -5091,6 +5091,108 @@ else
   fail "CHECK_SKILL_SKIP_SCRIPT_TESTS=1 should skip check 7: $out"
 fi
 
+# PLUGIN_TEST_DEADLINE ends check 7: no script test starts once it has passed.
+# make_script_tests <skill> <first-test-body> writes a.test.sh and b.test.sh;
+# each touches a marker named after itself before its body, so a case can tell
+# which ran.
+make_script_tests() {
+  local skill="$1" body="$2" name
+  make_skill "$skill" "${good_body//good-skill/$skill}"
+  mkdir -p "$SKILLS/$skill/scripts"
+  printf '#!/usr/bin/env bash\ntouch %q\n%s\n' "$TMP/$skill.a.ran" "$body" >"$SKILLS/$skill/scripts/a.test.sh"
+  printf '#!/usr/bin/env bash\ntouch %q\nexit 0\n' "$TMP/$skill.b.ran" >"$SKILLS/$skill/scripts/b.test.sh"
+  for name in a b; do
+    git -C "$TMP" add "$SKILLS/$skill/scripts/$name.test.sh"
+  done
+}
+b_skip_line() { printf 'SKIP .claude/skills/%s/scripts/b.test.sh (past the deadline, left to CI)' "$1"; }
+
+# No deadline: every script test runs and the skill passes, as CI runs it.
+make_script_tests deadline-none 'exit 0'
+rc=0
+out="$(run deadline-none 2>&1)" || rc=$?
+if [[ $rc -eq 0 && -f "$TMP/deadline-none.a.ran" && -f "$TMP/deadline-none.b.ran" ]] &&
+  grep -q 'CHECK-SKILL deadline-none: PASS' <<<"$out" && ! grep -q '^SKIP ' <<<"$out"; then
+  pass "with no deadline check 7 runs every script test"
+else
+  fail "with no deadline check 7 should run every script test (rc=$rc): $out"
+fi
+
+# A deadline already past: nothing starts, each test is named, and the exit and
+# the verdict line say the run was not a pass.
+make_script_tests deadline-past 'exit 0'
+rc=0
+out="$(PLUGIN_TEST_DEADLINE=1 run deadline-past 2>&1)" || rc=$?
+if [[ $rc -eq 3 && ! -e "$TMP/deadline-past.a.ran" && ! -e "$TMP/deadline-past.b.ran" ]] &&
+  grep -qxF 'SKIP .claude/skills/deadline-past/scripts/a.test.sh (past the deadline, left to CI)' <<<"$out" &&
+  grep -qxF "$(b_skip_line deadline-past)" <<<"$out" &&
+  grep -q 'CHECK-SKILL deadline-past: INCOMPLETE .* 2 script test(s) left to CI' <<<"$out" &&
+  ! grep -q 'CHECK-SKILL deadline-past: PASS' <<<"$out"; then
+  pass "past its deadline check 7 starts nothing, names each test and exits 3"
+else
+  fail "past its deadline check 7 should start nothing and exit 3 (rc=$rc): $out"
+fi
+
+# The first test starts inside a deadline 5 s away, far enough for a loaded host,
+# and runs 6 s past it, so the second does not start.
+make_script_tests deadline-mid 'sleep 6; exit 0'
+printf -v now '%(%s)T' -1
+rc=0
+out="$(PLUGIN_TEST_DEADLINE=$((now + 5)) run deadline-mid 2>&1)" || rc=$?
+if [[ $rc -eq 3 && -f "$TMP/deadline-mid.a.ran" && ! -e "$TMP/deadline-mid.b.ran" ]] &&
+  grep -qxF "$(b_skip_line deadline-mid)" <<<"$out" && grep -q 'script test passed: scripts/a.test.sh' <<<"$out"; then
+  pass "check 7 stops launching when the deadline passes between two script tests"
+else
+  fail "check 7 should stop launching at the deadline (rc=$rc): $out"
+fi
+
+# A test that ran and failed still fails; the one left is still named.
+make_script_tests deadline-fail 'sleep 6; exit 1'
+printf -v now '%(%s)T' -1
+rc=0
+out="$(PLUGIN_TEST_DEADLINE=$((now + 5)) run deadline-fail 2>&1)" || rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'script test failed: scripts/a.test.sh' <<<"$out" &&
+  grep -qxF "$(b_skip_line deadline-fail)" <<<"$out" && grep -q 'CHECK-SKILL deadline-fail: FAIL' <<<"$out"; then
+  pass "a script test that failed fails a run that left another"
+else
+  fail "a failed script test should fail the run past its deadline (rc=$rc): $out"
+fi
+
+# A script test may start a checker of its own, which must not inherit the deadline.
+make_script_tests deadline-inherit '[[ -z "${PLUGIN_TEST_DEADLINE+x}" ]]'
+printf -v now '%(%s)T' -1
+rc=0
+out="$(PLUGIN_TEST_DEADLINE=$((now + 600)) run deadline-inherit 2>&1)" || rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'script test passed: scripts/a.test.sh' <<<"$out" &&
+  grep -q 'CHECK-SKILL deadline-inherit: PASS' <<<"$out"; then
+  pass "a script test does not inherit the deadline, and a run inside it passes"
+else
+  fail "a script test should not inherit the deadline (rc=$rc): $out"
+fi
+
+rc=0
+out="$(PLUGIN_TEST_DEADLINE=soon run deadline-inherit 2>&1)" || rc=$?
+if [[ $rc -eq 2 ]] && grep -q "PLUGIN_TEST_DEADLINE must be epoch seconds (got 'soon')" <<<"$out"; then
+  pass "a deadline that is not epoch seconds is an environment error"
+else
+  fail "a bad deadline should exit 2 (rc=$rc): $out"
+fi
+
+# Root form: a skill that left tests is in neither tally, and the run says so.
+deadline_root="$TMP/deadline-root"
+mkdir -p "$deadline_root/root-skill/scripts"
+printf '%s' "${good_body//good-skill/root-skill}" >"$deadline_root/root-skill/SKILL.md"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$deadline_root/root-skill/scripts/a.test.sh"
+git -C "$TMP" add "$deadline_root/root-skill/scripts/a.test.sh"
+rc=0
+out="$(PLUGIN_TEST_DEADLINE=1 run_roots "$deadline_root" 2>&1)" || rc=$?
+if [[ $rc -eq 3 ]] && grep -qx '0 passed, 0 failed' <<<"$out" &&
+  grep -q '1 skill(s) left script tests to CI, counted in neither tally above' <<<"$out"; then
+  pass "root form reads a skill that left script tests as neither pass nor failure"
+else
+  fail "root form should exit 3 for a skill that left script tests (rc=$rc): $out"
+fi
+
 # Check 7 runs a skill's script tests only when the skill sits in the invoking
 # cwd's git work tree; anywhere else (another repo, no repo, or a cwd in no
 # repo) it skips them with a note. Root mode runs each child at its dispatched
