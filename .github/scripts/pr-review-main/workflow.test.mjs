@@ -855,8 +855,8 @@ test("the prompt names the per-concern review rules the criteria step copies", (
 });
 
 test("the verdict uploads once, after it is written, under the writer's name", () => {
-  // Each leg's verdict, plus review-handoffs' credit-stop marker.
-  assert.equal(text.match(/uses: actions\/upload-artifact@/g).length, LEGS.length + 1);
+  // Each leg's verdict, plus review-handoffs' credit-stop marker and the gate's probing marker.
+  assert.equal(text.match(/uses: actions\/upload-artifact@/g).length, LEGS.length + 2);
   for (const job of LEGS) {
     const uploads = STEPS[job].filter((s) => /uses: actions\/upload-artifact@/.test(s.block));
     assert.equal(uploads.length, 1, job);
@@ -1079,9 +1079,10 @@ test("the credit gate holds no secret, checks nothing out and reads only the mar
   const gate = step("Read the key's credit history", PROBE);
   assert.match(gate, /^ {8}id: gate$/m);
   assert.match(gate, /^ {8}continue-on-error: true$/m);
-  // The marker gate (ci-workflows#973); an older pin reads run history for a
-  // record step this workflow no longer writes, so it would never skip.
-  assert.match(gate, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/check-key-credit@bc62beb95a989641f30552a932a132ebb8ecd801 # \S/m);
+  // The marker gate (ci-workflows#973) with the probing marker (#980); a pin
+  // before #973 reads run history for a record step this workflow no longer
+  // writes, so it would never skip.
+  assert.match(gate, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/check-key-credit@09cf6f2ecd22f7188e62552dea9af48adbd23bb1 # \S/m);
   // The marker's name carries key-job: review-handoffs, the job that uploads it.
   assert.equal(input(gate, "key-job"), "review-handoffs");
   assert.equal(input(gate, "window-hours"), "${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}");
@@ -1095,6 +1096,45 @@ test("the credit gate holds no secret, checks nothing out and reads only the mar
     assert.equal(input(report, "known-failure-class"), "credit-stop");
     assert.equal(input(report, "handoff"), '"true"');
   }
+});
+
+// ci-workflows#980 (09cf6f2): past a credit stop's window, the gate names this
+// run the probe in its `probing-marker` output, and later gates skip while that
+// artifact is fresh. pr-review-cli.yml's gate job at that SHA writes, scans and
+// uploads it right after the read; this gate job does the same, scanning with
+// ci-workflows' scan-upload since it checks nothing out.
+test("the credit gate writes, scans and uploads the probing marker right after the gate", () => {
+  // gate.cjs probeName at 09cf6f2: `key-credit-probing-${workflow file}-${key-job}`.
+  const probe = "key-credit-probing-pr-review-main.yml-review-handoffs";
+  const names = ["Write the key's probing marker", "Scan the key's probing marker for credentials", "Upload the key's probing marker"];
+  const [write, scan, upload] = names.map((name) => step(name, PROBE));
+  assert.match(write, /^ {8}id: probe-marker$/m);
+  const writeIf = /^ {8}if: (.*)$/m.exec(write)[1];
+  assert.equal(writeIf, `always() && steps.gate.outputs.probing-marker == '${probe}'`);
+  // Written when the gate names this probe, and not when it names none or a renamed one.
+  const writes = (output) => admits(writeIf.replace(/^always\(\) && /, ""), { steps: { gate: { outputs: { "probing-marker": output } } } });
+  assert.ok(writes(probe));
+  for (const output of ["", "key-credit-probing-pr-review-main.yml-other"]) assert.ok(!writes(output), output);
+  assert.match(write, /echo "\$GITHUB_RUN_ID" >"\$RUNNER_TEMP\/key-credit-probing\/run-id"/);
+  assert.match(scan, /^ {8}id: probe-marker-scan$/m);
+  assert.match(scan, /^ {8}if: always\(\) && steps\.probe-marker\.outcome == 'success'$/m);
+  assert.match(scan, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/scan-upload@[0-9a-f]{40} # \S/m);
+  assert.match(upload, /^ {8}if: \(always\(\) && steps\.probe-marker\.outcome == 'success'\) && steps\.probe-marker-scan\.outputs\.clean == 'true'$/m);
+  assert.match(upload, /^ {8}uses: actions\/upload-artifact@[0-9a-f]{40} # \S/m);
+  assert.equal(input(upload, "name"), probe);
+  assert.equal(input(upload, "path"), "${{ runner.temp }}/key-credit-probing/run-id");
+  assert.equal(input(scan, "path"), input(upload, "path"));
+  assert.equal(input(upload, "retention-days"), "1");
+  assert.equal(input(upload, "if-no-files-found"), "error");
+  for (const block of [write, scan, upload]) assert.match(block, /^ {8}continue-on-error: true$/m);
+  // Right after the gate, before the skipped-leg reports.
+  assert.equal(index(names[0], PROBE), index("Read the key's credit history", PROBE) + 1);
+  assert.equal(index(names[1], PROBE), index(names[0], PROBE) + 1);
+  assert.equal(index(names[2], PROBE), index(names[1], PROBE) + 1);
+  assert.ok(index(names[2], PROBE) < index("Report the skipped claude-review key leg", PROBE));
+  // The upload adds no job permission: the runner's token sends it.
+  assert.match(jobText(PROBE), /^ {4}permissions:\n {6}actions: read #.*\n {4}outputs:/m);
+  for (const job of [...LEGS, "review-handoffs"]) for (const name of names) assert.equal(index(name, job), -1, `${job} ${name}`);
 });
 
 // check-key-credit gate.cjs lists only artifacts named by its `marker` output,

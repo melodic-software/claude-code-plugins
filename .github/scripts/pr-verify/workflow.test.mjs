@@ -79,6 +79,7 @@ const KEY_SKIP = " && steps.credit.outputs.skip-key != 'true'";
 const CREDIT_STEPS = ["Read the key's credit history", "Report the skipped key leg"];
 // The key's credit-stop marker, which only the key job writes and uploads.
 const MARKER_STEPS = ["Write the key's credit-stop marker", "Scan the key's credit-stop marker for credentials", "Upload the key's credit-stop marker"];
+const PROBE_STEPS = ["Write the key's probing marker", "Scan the key's probing marker for credentials", "Upload the key's probing marker"];
 const ifOf = (job, base) => `${base}${job === KEY ? KEY_SKIP : ""}`;
 const KEY_CLASS = "${{ steps.judge.outputs.lane-class }}";
 const REPORT_IF = "steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'";
@@ -180,12 +181,12 @@ test("a FAIL index never replaces or keeps a name its run already holds", () => 
   assert.equal((ACTION.match(/if: \$\{\{ steps\.slots\.outputs\.n\d+ != '' \}\}/g) ?? []).length, 13);
 });
 
-test("the verdict is each job's only artifact upload but the key job's credit-stop marker, and follows the written verdict", () => {
+test("the verdict is each job's only artifact upload but the key job's probing and credit-stop markers, and follows the written verdict", () => {
   for (const job of JOBS) {
     const uploads = STEPS[job].filter((s) => /uses: actions\/upload-artifact@/.test(s.block));
     assert.deepEqual(
       uploads.map((s) => s.name),
-      job === KEY ? ["Upload the verdict", "Upload the key's credit-stop marker"] : ["Upload the verdict"],
+      job === KEY ? ["Upload the key's probing marker", "Upload the verdict", "Upload the key's credit-stop marker"] : ["Upload the verdict"],
       job,
     );
     assert.ok(index("Judge the pull request", job) >= 0 && index("Write the verdict", job) > index("Judge the pull request", job), job);
@@ -212,12 +213,12 @@ test("the verdict is each job's only artifact upload but the key job's credit-st
     assert.equal(input(failIndex, "retention-days"), "${{ steps.verdict.outputs.retention-days }}", job);
     assert.equal(input(failIndex, "github-token"), "${{ github.token }}", job);
     assert.match(
-      uploads[0].block,
+      step("Upload the verdict", job),
       new RegExp(`^ {8}if: >-\\n {10}\\(!cancelled\\(\\) && ${indexed}\\) && steps\\.scan-upload\\.outputs\\.clean == 'true'$`, "m"),
       job,
     );
     // The verdict step names the retention (write-verdict.mjs retentionDays).
-    assert.equal(input(uploads[0].block, "retention-days"), "${{ steps.verdict.outputs.retention-days }}", job);
+    assert.equal(input(step("Upload the verdict", job), "retention-days"), "${{ steps.verdict.outputs.retention-days }}", job);
     // A pass's retention follows this job's resolver (resolve-pr.mjs relinkedSince).
     assert.match(step("Write the verdict", job), /^ {10}RELINK_SINCE_HEAD: \$\{\{ steps\.pr\.outputs\.relink-since-head \}\}$/m, job);
     // Only a job with the index step may write a FAIL (write-verdict.mjs FAIL_INDEX).
@@ -367,15 +368,16 @@ test("a key the credit gate skipped runs no pre-judge setup, no judge and no ver
 // ci-workflows#973 (bc62beb): the gate reads one exact-name artifact, its
 // `marker` output, instead of record steps in run history, so nothing
 // carries a record forward and the key job uploads that name after a
-// credit-stop handoff (pr-review-cli.yml's key job at that SHA does the same).
+// credit-stop handoff (pr-review-cli.yml's key job does the same).
+// ci-workflows#980 (09cf6f2) adds the probing marker the next test covers.
 test("the key job uploads the gate's marker only after a credit-stop handoff, and nothing carries a record", () => {
-  assert.match(step("Read the key's credit history"), / {8}uses: [^\n]*\/check-key-credit@bc62beb95a989641f30552a932a132ebb8ecd801 /);
+  assert.match(step("Read the key's credit history"), / {8}uses: [^\n]*\/check-key-credit@09cf6f2ecd22f7188e62552dea9af48adbd23bb1 /);
   assert.doesNotMatch(text, /Record the key's credit stop|origin-run/);
   const [write, scan, upload] = MARKER_STEPS;
   const writeStep = step(write);
   assert.match(writeStep, /^ {8}id: credit-marker$/m);
   const condition = /^ {8}if: (.*)$/m.exec(writeStep)[1];
-  // gate.cjs markerName at bc62beb: `key-credit-stop-${workflow file}-${key-job}`.
+  // gate.cjs markerName at 09cf6f2: `key-credit-stop-${workflow file}-${key-job}`.
   // The upload writes it out so its retention row claims it; the write runs only
   // while the gate's `marker` output equals it, so a contract change uploads none.
   const keyJob = /^ {10}key-job: (\S+)$/m.exec(step("Read the key's credit history"))[1];
@@ -411,6 +413,41 @@ test("the key job uploads the gate's marker only after a credit-stop handoff, an
   assert.equal(input(report, "credential"), CREDENTIAL[KEY][1]);
   assert.equal(input(report, "known-failure-class"), "credit-stop");
   assert.equal(input(report, "handoff"), '"true"');
+});
+
+// ci-workflows#980 (09cf6f2): past a credit stop's window, the gate names this
+// run the probe in its `probing-marker` output, and later gates skip while that
+// artifact is fresh. pr-review-cli.yml's gate job at that SHA writes, scans and
+// uploads it right after the read; this key job does the same.
+test("the key job writes, scans and uploads the gate's probing marker right after the gate", () => {
+  // gate.cjs probeName at 09cf6f2: `key-credit-probing-${workflow file}-${key-job}`.
+  const probe = "key-credit-probing-pr-verify.yml-check-intent";
+  const [write, scan, upload] = PROBE_STEPS;
+  const writeStep = step(write);
+  assert.match(writeStep, /^ {8}id: probe-marker$/m);
+  // Written only while the output equals the name the upload writes out.
+  assert.equal(/^ {8}if: (.*)$/m.exec(writeStep)[1], `always() && steps.credit.outputs.probing-marker == '${probe}'`);
+  assert.match(writeStep, /echo "\$GITHUB_RUN_ID" >"\$RUNNER_TEMP\/key-credit-probing\/run-id"/);
+  const scanStep = step(scan);
+  assert.match(scanStep, /^ {8}id: probe-marker-scan$/m);
+  assert.match(scanStep, /^ {8}if: always\(\) && steps\.probe-marker\.outcome == 'success'$/m);
+  assert.match(scanStep, /^ {8}uses: \.\/\.base\/\.github\/actions\/scan-upload /m);
+  const uploadStep = step(upload);
+  assert.match(uploadStep, /^ {8}if: \(always\(\) && steps\.probe-marker\.outcome == 'success'\) && steps\.probe-marker-scan\.outputs\.clean == 'true'$/m);
+  assert.match(uploadStep, /^ {8}uses: actions\/upload-artifact@[0-9a-f]{40} # \S/m);
+  assert.equal(input(uploadStep, "name"), probe);
+  assert.equal(input(uploadStep, "path"), "${{ runner.temp }}/key-credit-probing/run-id");
+  assert.equal(input(scanStep, "path"), input(uploadStep, "path"));
+  assert.equal(input(uploadStep, "retention-days"), "1");
+  assert.equal(input(uploadStep, "if-no-files-found"), "error");
+  for (const name of PROBE_STEPS) assert.match(step(name), /^ {8}continue-on-error: true$/m, name);
+  // Right after the gate, before the skipped-leg report and any judge step.
+  assert.equal(index(write), index("Read the key's credit history") + 1);
+  assert.equal(index(scan), index(write) + 1);
+  assert.equal(index(upload), index(scan) + 1);
+  assert.ok(index(upload) < index("Report the skipped key leg"));
+  // Only the key job probes: the other legs never pass the key.
+  for (const job of [SUB, FB]) for (const name of PROBE_STEPS) assert.equal(index(name, job), -1, `${job} ${name}`);
 });
 
 // The trigger's branch filter matches the branch the pr-require-checks run ran
@@ -618,6 +655,8 @@ test("the subscription job repeats the key job's steps but for the credential", 
           s.name !== "Hand the reads on" &&
           // The key's credit-stop marker: only a key leg's credit stop says the key is out.
           !MARKER_STEPS.includes(s.name) &&
+          // The key's probing marker: only the key leg probes the key.
+          !PROBE_STEPS.includes(s.name) &&
           // The credit gate: only the key leg can be out of credit.
           !CREDIT_STEPS.includes(s.name),
       )
