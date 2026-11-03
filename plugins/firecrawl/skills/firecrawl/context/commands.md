@@ -5,6 +5,7 @@ Per-command flag detail for the `/firecrawl:firecrawl` skill. SKILL.md carries t
 ## Contents
 
 - [scrape](#scrape-single-url--content)
+- [batch-scrape](#batch-scrape-many-known-urls-as-one-job)
 - [search](#search-query--ranked-urls--optional-scrape)
 - [crawl](#crawl-follow-links-from-a-seed-url)
 - [map](#map-fast-url-discovery-no-content)
@@ -25,6 +26,22 @@ firecrawl scrape <url> --format <markdown|html|rawHtml|screenshot|json|summary> 
 ```
 
 Default `--format markdown`. Use `--format json` for structured output (title, metadata, links, content in one file). Use `--format screenshot` for PNG to `-o path.png`. Combine multiple formats with comma-separated values. Output becomes JSON containing each format.
+
+## batch-scrape: many known URLs as one job
+
+```bash
+# Block until complete (URLs from a file, one per line):
+firecrawl batch-scrape --urls-file <file> --format <formats> --wait -o <path>
+
+# Or start the job and get a job-id back (non-blocking):
+firecrawl batch-scrape <url1> <url2> -o <path>
+
+# Read the results so far, or cancel:
+firecrawl batch-scrape <job-id> -o <path>
+firecrawl batch-scrape <job-id> --cancel
+```
+
+Use when the URLs are already known; `crawl` finds them by following links. Results come back as JSON, so `-o` writes one JSON file. Skip `--webhook`: like a `monitor` notification, it reports through a side channel instead of the spill file. `firecrawl batch-scrape --help` lists the extraction and concurrency flags.
 
 ## search: query → ranked URLs (+ optional scrape)
 
@@ -48,10 +65,10 @@ firecrawl crawl <url> --limit <N> --max-depth <D> -o <path>
 firecrawl crawl <url> --limit <N> --max-depth <D> --wait -o <path>
 
 # Poll an existing job:
-firecrawl crawl <job-id> --status
+firecrawl crawl <job-id> --status -o <path>
 ```
 
-`-o <path>` writes a **single JSON file** with all page results inside, not a directory of per-page files. Bulk and expensive; set `--limit` to cap total pages and `--max-depth` to stop runaway crawls. Prefer `map` first to estimate scope. Use `--wait` for simple scripts; for long crawls capture the job-id and poll with `--status`.
+`-o <path>` writes a **single JSON file** with all page results inside, not a directory of per-page files. Bulk and expensive; set `--limit` to cap total pages and `--max-depth` to stop runaway crawls. Prefer `map` first to estimate scope. Use `--wait` for simple scripts; for long crawls capture the job-id and poll with `--status`, which reads the pages too, or block on it with `firecrawl crawl <job-id> --wait`. Treat a non-zero exit from `--wait` as a crawl that did not finish, per `firecrawl crawl --help` (as of 2026-11-03, CLI 1.26.24; recheck when `/firecrawl:update` reports a CLI release).
 
 ## map: fast URL discovery, no content
 
@@ -139,7 +156,7 @@ firecrawl research related-papers <seedId>... --intent "<what you want>" -o <pat
 firecrawl research read-paper <paperId> --question "<question>" -o <path>
 ```
 
-A scientific paper index (mostly biomedical, plus arXiv) with citation expansion. For GitHub issue, PR, and README history use `developer`: the research GitHub endpoint behind `research search-github` is deprecated with a shutdown date ([Firecrawl SDK README](https://github.com/firecrawl/firecrawl/blob/main/apps/python-sdk/README.md), as of 2026-10-12; recheck when `/firecrawl:update` reports a CLI release). Use `research` instead of scraping PubMed, bioRxiv, or Google Scholar. Paper ids take `pmid:`, `pmcid:`, `doi:`, or `arxiv:` forms. `firecrawl research <sub> --help` lists each subcommand's filters.
+A scientific paper index (mostly biomedical, plus arXiv) with citation expansion. For GitHub issue, PR, and README history use `developer`: the research GitHub endpoint behind `research search-github` is deprecated with a shutdown date ([Firecrawl SDK README](https://github.com/firecrawl/firecrawl/blob/main/apps/python-sdk/README.md), as of 2026-11-03; recheck when `/firecrawl:update` reports a CLI release). Use `research` instead of scraping PubMed, bioRxiv, or Google Scholar. Paper ids take `pmid:`, `pmcid:`, `doi:`, or `arxiv:` forms. `firecrawl research <sub> --help` lists each subcommand's filters.
 
 ## doctor: diagnose a failed job
 
@@ -156,7 +173,7 @@ When a Firecrawl job fails or returns unexpected output, run `doctor` with its j
 firecrawl search-feedback <searchId> --rating <good|bad|partial> [...]
 ```
 
-`<searchId>` is returned by `firecrawl search ... --json` in the response payload. **Refunds 1 credit on first submission** when the search was unsatisfactory. Optional `--valuable-sources`, `--missing-content`, `--query-suggestions` train future ranking. Worth doing whenever a `search` call returned junk. It recovers credit AND improves the API.
+`<searchId>` is returned by `firecrawl search ... --json` in the response payload. **Refunds 1 credit on first submission** when the search was unsatisfactory. Optional `--valuable-results` (useful results the search returned, as `source:position`), `--valuable-sources` (useful URLs it did not return), `--missing-content`, `--query-suggestions` train future ranking. Worth doing whenever a `search` call returned junk. It recovers credit AND improves the API.
 
 ## credit-usage: check remaining quota
 
