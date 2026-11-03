@@ -26,8 +26,8 @@ script written in the session.
    architecture, discovery and debugging are registered but read the cascade themselves until their own
    change migrates them.
    - **Resolver lanes** (`planning`). The lane's build command runs the resolver, the publish gate and
-     delivery in one call: follow its section in place of steps 3 to 5. Do not read the rendered-views
-     convention files yourself.
+     delivery in one call: follow its section in place of steps 3 and 5, and step 4's rule for a missing
+     `node` or a non-zero exit still applies. Do not read the rendered-views convention files yourself.
    - **Other lanes.** Read the `rendered-views` cascade surface: `~/.claude/rendered-views.md`, then
      `<repo root>/.claude/rendered-views.md`, then `<repo root>/.claude/rendered-views.local.md`, whichever
      exist. The last layer that states `medium:` wins (`auto`, `terminal`, `file`, `artifact`). A team layer
