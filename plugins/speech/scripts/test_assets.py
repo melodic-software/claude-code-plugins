@@ -127,7 +127,7 @@ class Check(unittest.TestCase):
     def entry(self, **kw):
         return {'id': 'espeak-ng', 'kind': 'cli', 'need': 'required', 'for': ['skill:narrate'],
                 'detect': {'any': ['espeak-ng']}, 'degrade': 'Narration stops.',
-                'install': {'apt': 'espeak-ng', 'winget': 'eSpeak-NG.eSpeak-NG'}, 'check': '/speech:check', **kw}
+                'install': {'apt': 'espeak-ng', 'winget': 'eSpeak-NG.eSpeak-NG'}, **kw}
 
     def test_a_missing_tool_fails_with_its_degrade_line_and_install_hints(self):
         rows = check.declared_rows(self.prerequisites([self.entry()]), which=lambda name: None)

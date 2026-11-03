@@ -3,6 +3,18 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.0] - 2026-11-03
+
+### Removed
+
+- The `check` skill is gone. To check this plugin's prerequisites, run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`. `/playwright:setup check` also reports the browser and the artifact directory.
+
+## [0.16.5] - 2026-11-03
+
+### Fixed
+
+The update helper's `--apply` diff preview no longer shows `vendor/LICENSE` as wholly deleted. The upstream skill directory ships no LICENSE, so that hunk filled the 200-line preview and real changes never showed.
+
 ## [0.16.4] - 2026-11-03
 
 ### Changed

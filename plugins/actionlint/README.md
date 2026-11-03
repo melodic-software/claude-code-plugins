@@ -54,8 +54,8 @@ marketplace repository.
 - **actionlint** on `PATH`. The linter itself. Absent: see the commit behavior above. See the
   [actionlint install guide](https://github.com/rhysd/actionlint/blob/main/docs/install.md).
   A SessionStart probe reports a missing `actionlint` once per session, from
-  `prerequisites.json`, and a drifted git-hook entry. `/actionlint:check` reports whether the
-  binary resolves and installs nothing.
+  `prerequisites.json`, and a drifted git-hook entry. `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"` reports whether
+  the binary resolves and installs nothing.
 
 ### Hook budget accounting
 

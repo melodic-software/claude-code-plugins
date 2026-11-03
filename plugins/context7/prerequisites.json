@@ -16,8 +16,7 @@
       "degrade": "Without ctx7, /context7:lookup falls back to the Context7 MCP server when one is configured and otherwise cannot look anything up.",
       "install": {
         "npm": "npm install -g ctx7@latest"
-      },
-      "check": "/context7:check"
+      }
     },
     {
       "id": "node",
@@ -34,8 +33,37 @@
       "degrade": "Without node, the ctx7 CLI (an npm package) cannot run and the bundled prerequisites checker only reports that node is missing; the Context7 MCP server still answers when it is configured.",
       "install": {
         "docs": "https://nodejs.org/en/download"
+      }
+    },
+    {
+      "id": "context7-api-key",
+      "kind": "env",
+      "need": "optional",
+      "for": [
+        "skill:lookup"
+      ],
+      "detect": {
+        "name": "CONTEXT7_API_KEY"
       },
-      "check": "/context7:check"
+      "degrade": "Without CONTEXT7_API_KEY, lookups run anonymously at lower rate limits. The key stays in your environment: the plugin never stores, prints or logs it.",
+      "install": {
+        "docs": "https://context7.com/docs"
+      }
+    },
+    {
+      "id": "context7-mcp",
+      "kind": "mcp",
+      "need": "optional",
+      "for": [
+        "skill:lookup"
+      ],
+      "detect": {
+        "server": "context7"
+      },
+      "degrade": "Without the Context7 MCP server, /context7:lookup uses the ctx7 CLI. The CLI alone is sufficient.",
+      "install": {
+        "docs": "https://context7.com/docs"
+      }
     }
   ]
 }

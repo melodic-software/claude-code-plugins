@@ -32,6 +32,12 @@ assert_contains() {
   *) fail "$1" "contains: $3" "$2" ;;
   esac
 }
+assert_not_contains() {
+  case "$2" in
+  *"$3"*) fail "$1" "absent: $3" "$2" ;;
+  *) pass "$1" ;;
+  esac
+}
 
 # --- 1. --help contract --------------------------------------------------------
 
@@ -104,6 +110,21 @@ written=$(cat "$UPSTREAM_MD")
 assert_contains "record has SHA" "$written" "Upstream SHA256: deadbeef"
 assert_contains "record has version" "$written" "CLI version at sync: 2.0.0"
 assert_contains "record has rollback target" "$written" "rollback target): 1.18.0"
+
+# Rewriting the committed record with its own values reproduces it byte for
+# byte, so a re-run with nothing changed leaves no diff.
+COMMITTED_UP="$SCRIPT_DIR/../upstream.md"
+UPSTREAM_MD="$COMMITTED_UP"
+committed_args=("$(recorded_upstream_sha)" "$(recorded_cli_version)"
+  "$(recorded_field 'Previous CLI version (rollback target)')" "$(recorded_field 'Last sync')")
+UPSTREAM_MD="$TEST_TMPDIR/upstream-rerun.md"
+rewrite_upstream_md "${committed_args[@]}"
+if cmp -s "$COMMITTED_UP" "$UPSTREAM_MD"; then
+  pass "re-run on the committed record leaves no diff"
+else
+  fail "re-run on the committed record leaves no diff" "identical to upstream.md" \
+    "$(diff "$COMMITTED_UP" "$UPSTREAM_MD")"
+fi
 
 # --- 6. sha256 helper matches a direct call ------------------------------------------
 
@@ -200,6 +221,236 @@ assert_eq "trailing space trimmed from recorded SHA" "abc123def456" "$(recorded_
 out=$(run_check 2>&1)
 assert_exit "trailing space on recorded SHA: exit 0" 0 "$?"
 UPSTREAM_MD="$FIXTURE_UP"
+
+# --- 9. --apply end to end, with firecrawl, npm, curl and uname stubbed ---------------
+# A copy of the script runs in a fixture skill directory, so nothing can reach the
+# real upstream.md. npm's layout in the stubs is its documented one: global
+# executables go in {prefix}/bin on Unix and directly in {prefix} on Windows
+# (https://docs.npmjs.com/cli/v11/configuring-npm/folders#executables).
+
+APPLY="$TEST_TMPDIR/apply"
+APPLY_SCRIPT="$APPLY/skill/scripts/update.sh"
+APPLY_RECORD="$APPLY/skill/upstream.md"
+APPLY_PRIOR_RECORD="prior upstream.md content"
+mkdir -p "$APPLY/skill/scripts" "$APPLY/tools"
+cp "$SCRIPT" "$APPLY_SCRIPT"
+: >"$APPLY/skill/SKILL.md"
+
+cat >"$APPLY/tools/npm" <<'EOF'
+#!/usr/bin/env bash
+case "$1" in
+prefix)
+  [[ "$STUB_NPM_PREFIX" != "FAIL" ]] || exit 1
+  printf '%s\n' "$STUB_NPM_PREFIX"
+  ;;
+install)
+  printf '%s\n' "$*" >>"$STUB_NPM_LOG"
+  printf '%s\n' "$STUB_VERSION_AFTER_INSTALL" >"$STUB_VERSION_FILE"
+  ;;
+esac
+EOF
+cat >"$APPLY/tools/curl" <<'EOF'
+#!/usr/bin/env bash
+out=""
+while (($#)); do
+  [[ "$1" == "-o" ]] && out="$2"
+  shift
+done
+if [[ -n "$out" ]]; then
+  [[ -z "${STUB_UPSTREAM_DOWN:-}" ]] || exit 22
+  printf 'upstream skill\n' >"$out"
+else
+  printf '{"version":"%s"}\n' "$STUB_LATEST"
+fi
+EOF
+cat >"$APPLY/tools/uname" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$STUB_UNAME"
+EOF
+cat >"$APPLY/tools/cygpath" <<'EOF'
+#!/usr/bin/env bash
+[[ "$1" == "-u" && "$2" == 'C:\fixture\npm' ]] || exit 1
+printf '%s\n' "$STUB_CYGPATH_RESULT"
+EOF
+chmod +x "$APPLY/tools/npm" "$APPLY/tools/curl" "$APPLY/tools/uname" "$APPLY/tools/cygpath"
+
+# Install a firecrawl stub in <dir> that reports the version in $STUB_VERSION_FILE.
+place_firecrawl() {
+  mkdir -p "$1"
+  cat >"$1/firecrawl" <<'EOF'
+#!/usr/bin/env bash
+[[ "${1:-}" == "--version" ]] && cat "$STUB_VERSION_FILE"
+exit 0
+EOF
+  chmod +x "$1/firecrawl"
+}
+
+# Fresh world for one case: no firecrawl anywhere, and a prior upstream.md.
+reset_apply() {
+  rm -rf "$APPLY/prefix" "$APPLY/launcher"
+  mkdir -p "$APPLY/prefix/bin" "$APPLY/launcher"
+  : >"$APPLY/npm.log"
+  printf '%s\n' "$APPLY_PRIOR_RECORD" >"$APPLY_RECORD"
+  printf '%s\n' "$1" >"$APPLY/version"
+}
+
+# run_stubbed <mode> <npm global bin> <version after install> [uname] [npm prefix output]
+run_stubbed() {
+  apply_out=$(
+    PATH="$APPLY/tools:$APPLY/launcher:$2:$PATH" \
+      STUB_NPM_PREFIX="${5:-$APPLY/prefix}" \
+      STUB_NPM_LOG="$APPLY/npm.log" \
+      STUB_VERSION_FILE="$APPLY/version" \
+      STUB_VERSION_AFTER_INSTALL="$3" \
+      STUB_LATEST="2.0.0" \
+      STUB_UNAME="${4:-Linux}" \
+      STUB_CYGPATH_RESULT="$APPLY/prefix" \
+      bash "$APPLY_SCRIPT" "$1" 2>&1
+  )
+  apply_exit=$?
+}
+run_stubbed_apply() { run_stubbed --apply "$@"; }
+
+# Refused or failed: exit 2, the prior record intact.
+assert_apply_wrote_nothing() {
+  assert_exit "$1: exit 2" 2 "$apply_exit"
+  assert_eq "$1: upstream.md untouched" "$APPLY_PRIOR_RECORD" "$(cat "$APPLY_RECORD")"
+}
+assert_no_install() {
+  assert_eq "$1: npm install never ran" "" "$(cat "$APPLY/npm.log")"
+}
+
+# npm owns the command and the install takes effect: the paired success case.
+reset_apply "1.0.0"
+place_firecrawl "$APPLY/prefix/bin"
+run_stubbed_apply "$APPLY/prefix/bin" "2.0.0"
+assert_exit "npm-owned: exit 0" 0 "$apply_exit"
+assert_eq "npm-owned: install ran once" "install -g firecrawl-cli@latest" "$(cat "$APPLY/npm.log")"
+assert_contains "npm-owned: records the new version" "$(cat "$APPLY_RECORD")" "CLI version at sync: 2.0.0"
+assert_contains "npm-owned: records the rollback target" "$(cat "$APPLY_RECORD")" "rollback target): 1.0.0"
+
+# A launcher ahead of npm's bin owns the command, behind the new version.
+reset_apply "1.0.0"
+place_firecrawl "$APPLY/launcher"
+run_stubbed_apply "$APPLY/prefix/bin" "2.0.0"
+assert_apply_wrote_nothing "launcher behind latest"
+assert_no_install "launcher behind latest"
+assert_contains "launcher behind latest: names the launcher as owner" "$apply_out" "$APPLY/launcher/firecrawl"
+
+# The same launcher already at the new version would record itself as the rollback target.
+reset_apply "2.0.0"
+place_firecrawl "$APPLY/launcher"
+run_stubbed_apply "$APPLY/prefix/bin" "2.0.0"
+assert_apply_wrote_nothing "launcher at latest"
+assert_no_install "launcher at latest"
+
+# On Unix a command directly in the prefix is outside npm's bin.
+reset_apply "1.0.0"
+place_firecrawl "$APPLY/prefix"
+run_stubbed_apply "$APPLY/prefix" "2.0.0"
+assert_apply_wrote_nothing "Unix, command in the prefix itself"
+assert_no_install "Unix, command in the prefix itself"
+
+# npm's global prefix cannot be read, so ownership is unknown.
+reset_apply "1.0.0"
+place_firecrawl "$APPLY/prefix/bin"
+run_stubbed_apply "$APPLY/prefix/bin" "2.0.0" "Linux" "FAIL"
+assert_apply_wrote_nothing "npm prefix unreadable"
+assert_no_install "npm prefix unreadable"
+assert_contains "npm prefix unreadable: says so" "$apply_out" "npm prefix -g"
+
+# The install succeeds and the command still reads the old version.
+reset_apply "1.0.0"
+place_firecrawl "$APPLY/prefix/bin"
+run_stubbed_apply "$APPLY/prefix/bin" "1.0.0"
+assert_apply_wrote_nothing "version unchanged after install"
+assert_contains "version unchanged after install: names the version it read" "$apply_out" "reports 1.0.0"
+assert_contains "version unchanged after install: names the expected version" "$apply_out" "2.0.0"
+
+# Git Bash: the prefix prints as a CRLF-terminated Windows path and is the bin itself.
+WINDOWS_PREFIX=$'C:\\fixture\\npm\r'
+reset_apply "1.0.0"
+place_firecrawl "$APPLY/prefix"
+run_stubbed_apply "$APPLY/prefix" "2.0.0" "MINGW64_NT-10.0-26100" "$WINDOWS_PREFIX"
+assert_exit "Windows, command in the prefix: exit 0" 0 "$apply_exit"
+assert_contains "Windows, command in the prefix: records the new version" "$(cat "$APPLY_RECORD")" "CLI version at sync: 2.0.0"
+
+reset_apply "1.0.0"
+place_firecrawl "$APPLY/launcher"
+run_stubbed_apply "$APPLY/prefix" "2.0.0" "MINGW64_NT-10.0-26100" "$WINDOWS_PREFIX"
+assert_apply_wrote_nothing "Windows, launcher elsewhere"
+assert_no_install "Windows, launcher elsewhere"
+
+# No command at all is a fresh install, not a foreign owner.
+PATH="$APPLY/no-such-dir" require_npm_owned_command
+assert_exit "no firecrawl on PATH: not refused" 0 "$?"
+
+# --- 10. The upstream SHA is recorded only after Gate 2 -------------------------------
+# --apply leaves it alone, so a declined or abandoned Gate 2 keeps showing as drift;
+# --record-upstream writes it with no install.
+
+SYNCED_RECORD="- Last sync: 2026-05-22
+- Upstream SHA256: oldsha
+- CLI version at sync: 1.0.0
+- Previous CLI version (rollback target): 0.9.0"
+reset_apply "1.0.0"
+printf '%s\n' "$SYNCED_RECORD" >"$APPLY_RECORD"
+place_firecrawl "$APPLY/prefix/bin"
+
+run_stubbed_apply "$APPLY/prefix/bin" "2.0.0"
+assert_exit "apply: exit 0" 0 "$apply_exit"
+record=$(cat "$APPLY_RECORD")
+assert_contains "apply: keeps the recorded SHA" "$record" "Upstream SHA256: oldsha"
+assert_contains "apply: keeps the sync date" "$record" "Last sync: 2026-05-22"
+assert_contains "apply: records the CLI version" "$record" "CLI version at sync: 2.0.0"
+assert_contains "apply: records the rollback target" "$record" "rollback target): 1.0.0"
+
+run_stubbed --check "$APPLY/prefix/bin" "2.0.0"
+assert_exit "check after apply: drift, exit 1" 1 "$apply_exit"
+assert_contains "check after apply: reports the upstream change" "$apply_out" "upstream content changed"
+
+: >"$APPLY/npm.log"
+run_stubbed --record-upstream "$APPLY/prefix/bin" "9.9.9"
+assert_exit "record-upstream: exit 0" 0 "$apply_exit"
+assert_no_install "record-upstream"
+record=$(cat "$APPLY_RECORD")
+assert_not_contains "record-upstream: replaces the SHA" "$record" "oldsha"
+assert_not_contains "record-upstream: refreshes the sync date" "$record" "2026-05-22"
+assert_contains "record-upstream: keeps the CLI version" "$record" "CLI version at sync: 2.0.0"
+assert_contains "record-upstream: keeps the rollback target" "$record" "rollback target): 1.0.0"
+
+run_stubbed --check "$APPLY/prefix/bin" "2.0.0"
+assert_exit "check after record-upstream: in sync, exit 0" 0 "$apply_exit"
+assert_contains "check after record-upstream: reports unchanged" "$apply_out" "upstream unchanged"
+
+# Gate 1 declined behind a launcher: nothing refuses, and the CLI line reads what runs.
+reset_apply "1.5.0"
+printf '%s\n' "$SYNCED_RECORD" >"$APPLY_RECORD"
+place_firecrawl "$APPLY/launcher"
+run_stubbed --record-upstream "$APPLY/prefix/bin" "9.9.9"
+assert_exit "record-upstream behind a launcher: exit 0" 0 "$apply_exit"
+assert_no_install "record-upstream behind a launcher"
+record=$(cat "$APPLY_RECORD")
+assert_contains "record-upstream behind a launcher: CLI line reads the running version" "$record" "CLI version at sync: 1.5.0"
+assert_contains "record-upstream behind a launcher: keeps the rollback target" "$record" "rollback target): 0.9.0"
+
+# Upstream unreachable: the prior record stands.
+reset_apply "1.0.0"
+printf '%s\n' "$SYNCED_RECORD" >"$APPLY_RECORD"
+place_firecrawl "$APPLY/prefix/bin"
+STUB_UPSTREAM_DOWN=1 run_stubbed --record-upstream "$APPLY/prefix/bin" "9.9.9"
+assert_exit "record-upstream, upstream down: exit 2" 2 "$apply_exit"
+assert_eq "record-upstream, upstream down: record untouched" "$SYNCED_RECORD" "$(cat "$APPLY_RECORD")"
+
+# A first apply has no SHA to keep, and --check must still read it as never synced.
+reset_apply "1.0.0"
+rm -f "$APPLY_RECORD"
+place_firecrawl "$APPLY/prefix/bin"
+run_stubbed_apply "$APPLY/prefix/bin" "2.0.0"
+assert_exit "first apply: exit 0" 0 "$apply_exit"
+run_stubbed --check "$APPLY/prefix/bin" "2.0.0"
+assert_exit "check after first apply: drift, exit 1" 1 "$apply_exit"
+assert_contains "check after first apply: last sync reads never" "$apply_out" "last sync:  never"
 
 # --- Final report ---------------------------------------------------------------------
 

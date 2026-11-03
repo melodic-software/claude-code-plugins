@@ -358,6 +358,17 @@
         ".github/workflows/maintenance-reconcile-lost-runs.yml#reconcile"
       ]
     },
+    "key-credit-stop-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-review-main.yml review-handoffs-credit, through ci-workflows check-key-credit gate.cjs, in later runs inside vars.KEY_CREDIT_WINDOW_HOURS"
+      ],
+      "reason": "The gate counts a marker only inside its window, 1 hour unset, so 1 day covers it; a window over 24 hours ends at expiry. It holds only the run id the workflow writes, never model text, so it is not scanned.",
+      "scan": "none",
+      "uploads": [
+        ".github/workflows/pr-review-main.yml#review-handoffs"
+      ]
+    },
     "reconcile-settled-runs": {
       "retention-days": 1,
       "readers": [

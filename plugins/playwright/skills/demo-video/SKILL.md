@@ -25,7 +25,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/pydeps.py" run --data-dir "${CLAUDE_PLUGIN_
 
 When the packages are missing the launcher exits 2 and prints one install line; show it to the
 user and run it after their yes. It needs Python 3.12+, `ffmpeg` and `ffprobe` on PATH, and
-`node` with `playwright-cli` (or `playwright-core`) for recording; `/playwright:check` covers the
+`node` with `playwright-cli` (or `playwright-core`) for recording; `node "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs" check "${CLAUDE_PLUGIN_ROOT}"` covers the
 last two.
 
 ## Settings

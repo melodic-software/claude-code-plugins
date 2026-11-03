@@ -3,6 +3,15 @@
 All notable changes to the `domain-driven-design` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.14] - 2026-11-03
+
+### Changed
+
+- the shared config-cascade library gains `readLayers`
+
+  It returns each layer's own accepted values, unmerged, for the shared
+  medium resolver. `resolve()`, which this plugin calls, is unchanged.
+
 ## [0.4.13] - 2026-11-02
 
 ### Changed

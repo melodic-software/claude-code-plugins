@@ -3,6 +3,12 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.4] - 2026-11-03
+
+### Changed
+
+- The return contract (`/implementation:report`) caps a dispatched agent's whole final message at 4,096 bytes; detail that does not fit goes in the agent's artifact.
+
 ## [0.34.3] - 2026-11-02
 
 ### Changed

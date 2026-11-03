@@ -57,6 +57,34 @@ lib/managed-scope.sh -> plugins/*/lib/managed-scope.sh
 # lib/state-key.sh.
 lib/state-key.sh
 
+# No dedicated check: accepted. The prerequisite plugins grade one case shape, so
+# they commit the same small samples. Canonical copy: the file under plugins/toolchain/evals/.
+evals/ck-notice-reads-checker/samples/no-edit.json
+
+# No dedicated check. Canonical copy: plugins/toolchain/evals/.
+evals/ck-notice-reads-checker/samples/no-write.json
+
+# No dedicated check. Canonical copy: plugins/toolchain/evals/.
+evals/ck-notice-reads-checker/samples/no-install.json
+
+# No dedicated check. Canonical copy: plugins/toolchain/evals/.
+evals/ck-notice-reads-checker/samples/ran-checker.json
+
+# No dedicated check. Canonical copy: plugins/toolchain/evals/.
+evals/ck-notice-reads-checker/scaffold.sh
+
+# No dedicated check: accepted, as above. Canonical copy: plugins/speech/evals/.
+evals/ck-notice-runs-own-report/samples/no-edit.json
+
+# No dedicated check. Canonical copy: plugins/speech/evals/.
+evals/ck-notice-runs-own-report/samples/no-write.json
+
+# No dedicated check. Canonical copy: plugins/speech/evals/.
+evals/ck-notice-runs-own-report/samples/no-install.json
+
+# No dedicated check. Canonical copy: plugins/speech/evals/.
+evals/ck-notice-runs-own-report/scaffold.sh
+
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/state-key.sh -> plugins/*/lib/state-key.sh
@@ -210,7 +238,27 @@ scripts/lib/config-cascade.mjs
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
-lib/config-cascade.mjs -> plugins/*/scripts/lib/config-cascade.mjs
+lib/config-cascade.mjs -> plugins/*/scripts/lib/config-cascade.mjs plugins/*/lib/config-cascade.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/config-cascade.mjs, carried beside the medium resolver.
+lib/config-cascade.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/view-settings.mjs, the medium resolver every view lane calls.
+lib/view-settings.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/view-settings.mjs -> plugins/*/lib/view-settings.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/view-registry.mjs, the medium registry and fallback chain.
+lib/view-registry.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/view-registry.mjs -> plugins/*/lib/view-registry.mjs
 
 # No dedicated check: the resolver's contract test, which travels with it.
 # Canonical copy: plugins/context-guard/scripts/context-zone.test.sh; copy it

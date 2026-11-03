@@ -1,5 +1,26 @@
 # Changelog: discovery plugin
 
+## [1.3.0] - 2026-11-03
+
+### Added
+
+- `/discovery:trace-intent` sources record `author_kind: owner-quote | agent-relay`, who wrote the words rather than whose login posted them, and `check-author-kind.py` rejects a `Direct` claim with no `owner-quote` source. The intent tracer runs it before hand-back and the parent re-runs it in the acceptance gate. `/discovery:setup check` prints its two allow rules, so paste the twelve rules it prints (#12517).
+
+## [1.2.2] - 2026-11-03
+
+### Changed
+
+- `discovery:researcher` and `discovery:intent-tracer` no longer restate Claude Code's own behavior for skill preloading, inherited tools, MCP allowlists, the turn limit and resume. Each keeps its own rule (confirm the skill body is present, omit the `tools:` allowlist, write to disk first) and links the subagents docs section that owns the behavior, with an as-of date and a recheck trigger.
+- `/discovery:research`, `/discovery:trace-intent` and `/discovery:explore`: the topic-substitution, pre-compute, bundled `deep-research`, instruction-file loading, turn-limit, `llms.txt` and sitemap passages link the upstream section instead of restating it. The contract test no longer requires trace-intent's dispatch notes to repeat the partial-output wording.
+
+## [1.2.1] - 2026-11-03
+
+### Changed
+
+- `/discovery:research`: the sentence saying the Effort row caps discipline 8 now sits in the Disciplines intro, ahead of the numbered list, instead of opening "Effort, source breadth". It now ends at about byte 15,200, well inside the first 20,000 bytes that compaction re-attaches. The paragraph on grading each sub-slice of an N-topic fan-out moved under "The deep tier", and acceptance gate step 2 points to it there.
+
+- The return contract (`/discovery:report`) caps a dispatched agent's whole final message at 4,096 bytes; detail that does not fit goes in the agent's artifact.
+
 ## [1.2.0] - 2026-11-03
 
 ### Changed

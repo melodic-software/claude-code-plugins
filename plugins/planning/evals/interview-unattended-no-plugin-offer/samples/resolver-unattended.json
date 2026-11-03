@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "node \"/plugins/planning/surfaces/registry.mjs\" resolve --surface '${user_config.surface}' --data-dir \"/plugin-data/planning\" --unattended"}}
+      ],
+      "why": "the unattended run tells the resolver, so it looks nothing up and offers nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "node \"/plugins/planning/surfaces/registry.mjs\" resolve --surface '${user_config.surface}' --data-dir \"/plugin-data/planning\""}}
+      ],
+      "why": "the resolver runs without --unattended, so it may look up and offer a plugin nobody can accept"
+    }
+  ]
+}

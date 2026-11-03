@@ -60,11 +60,9 @@ invocation:
 - Current branch, `git branch --show-current`
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
-block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git. The dated record for that composition claim is the
-[gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation".
+separate body Bash calls rather than pre-compute lines. How the harness runs a skill's injected
+commands: [How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run),
+as of 2026-11-03; recheck when that section changes how injected commands run.
 
 ## Variables
 
@@ -87,7 +85,7 @@ For any batch run (Phases 1-8), copy `templates/checklist.md` into your project'
 
 Supported formats: `24h`, `48h`, `72h`, `7d`, `2d`, `1w`. Default: `48h`.
 
-**Normalize before use:** git's `--since` approxidate parser requires `24 hours`, not `24h`. Convert before passing to `git log`:
+**Normalize before use:** convert to long units before passing the window to `git log --since` (the option's entry is under [Commit Limiting](https://git-scm.com/docs/git-log#_commit_limiting), as of 2026-11-03; recheck when that entry documents the short `h`, `d` and `w` forms):
 
 - `<N>h` → `<N> hours` (e.g., `48h` → `48 hours`)
 - `<N>d` → `<N> days` (e.g., `7d` → `7 days`)

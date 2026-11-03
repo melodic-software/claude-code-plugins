@@ -171,7 +171,7 @@ git -C "$REPO" config diff.external "$EXT"
 printf '@@ -1 +1,BASH_VERSINFO[$(touch %s)] @@\n' "$MARK" >"$REPO/evil.txt"
 commit_all "$REPO" crafted
 
-DETECT="$SCRIPT_DIR/../skills/audit-comment-residue/scripts/detect.sh"
+DETECT="$SCRIPT_DIR/../skills/remove-comments/scripts/detect.sh"
 for compat in default 51; do
   for runner in added-lines detect; do
     rm -f "$MARK"
