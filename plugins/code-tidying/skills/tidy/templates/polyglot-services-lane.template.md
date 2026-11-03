@@ -31,7 +31,7 @@ Beyond the global HARD/SOFT lists:
 
 ```bash
 # One block per ecosystem in scope:
-<ecosystem-a-build-lint-test>        # e.g. npx biome check && npm test
+<ecosystem-a-build-lint-test>        # e.g. npx @biomejs/biome check && npm test
 <ecosystem-b-build-lint-test>        # e.g. ruff check . && pytest
 ```
 
