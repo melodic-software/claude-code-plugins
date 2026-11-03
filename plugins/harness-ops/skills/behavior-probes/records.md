@@ -472,3 +472,29 @@ date in both UTC and New York. That part stays with #7679.
 | Case | Expected | Observed | Verdict |
 |---|---|---|---|
 | `cloud-routine/state-read-back-next-run` | ran, `result=pass` | hand run: `read-back nonce=267acddb-…, result=pass` | pass (hand run; the case has not run live) |
+
+## Basis for record 20
+
+A live run of the `env-scrub` area's two cases, `probe.py run --live --case ... --case ... --retries 1
+--max-runs 4 --max-cost-usd 2`, with the launch above plus `--permission-mode dontAsk` and the
+checker as the one allowed command. Linux (WSL2), Claude Code **2.1.317**, 2026-11-02: 2 runs, no
+retry needed. The cases are verdict-only, so the run kept no stream. A search of its output
+directory for the planted value's fixed prefix found nothing. The recheck trigger and expiry above
+apply.
+
+## 20. The subprocess env scrub keeps a planted credential out of a Bash child's reach
+
+**Claim.** With `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, a Bash child finds a random fake value planted
+in the `claude` process's environment neither in its own environment nor in any `/proc/<pid>/environ`
+it can read. With the variable unset, the same checker finds the value, so the scrub made the
+difference. This covers the one variable the cases plant. What else the scrub removes or keeps is the
+[docs section](https://code.claude.com/docs/en/env-vars#what-the-subprocess-environment-scrub-removes)'s
+to state.
+
+**Recheck trigger.** A release note naming the subprocess env scrub, its PID namespace or the
+variables it removes.
+
+| Case | Expected | Observed | Verdict |
+|---|---|---|---|
+| `env-scrub/planted-credential-not-readable` | refused, `planted-value-not-readable` | refused, with that marker | pass |
+| `env-scrub/planted-credential-readable-without-scrub` | ran, `planted-value-readable` | ran, with that marker | pass |

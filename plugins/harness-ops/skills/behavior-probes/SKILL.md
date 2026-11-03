@@ -87,13 +87,25 @@ The case is `explicit`, so a live run that does not name it with `--case` skips 
 child environment drops `GH_TOKEN` and the keyring's session variables. The comments also record the date and zone
 each run sees, for the date-zone question tracked in #7679 (record 19).
 
+The `env-scrub` area checks that `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` keeps a planted credential away
+from a Bash child. The runner plants a fresh fake value (its `plant_env`) in the child `claude`'s
+environment. A checker the scaffold copies in compares hashes of its own environment and of every
+`/proc/<pid>/environ` it can read with the value's hash, and prints only a fixed marker. Under
+`dontAsk` that checker is the one command allowed. The cases are verdict-only, and the two differ
+only in the scrub variable. `plant_env` holds one variable the scrub removes; what it removes and
+keeps is the docs section's to state, so no case lists it. **Pointer**: before changing the planted
+variable, or reading what a `pass` covers, fetch
+<https://code.claude.com/docs/en/env-vars#what-the-subprocess-environment-scrub-removes> live.
+**As of**: 2026-11-02. **Recheck trigger**: that section changes what it removes, or a release note
+names the scrub.
+
 ## Reading a result
 
 | Verdict | Meaning | Do |
 |---|---|---|
 | `pass` | The target call's outcome matched `expect.json` | Refresh the case's row in records.md with the date and version |
 | `fail` | It did not | Platform behavior moved. Update the record and every convention that cites it |
-| `inconclusive` | The model never attempted the call or made fewer than the case's `count`, a `prints` case's command printed nothing, the CLI did not start, or a case's control did not pass or did not run | Rerun with `--retries 1`; never read it as pass or fail |
+| `inconclusive` | The model never attempted the call or made fewer than the case's `count`, a `prints` case's command printed nothing, a tool result was not of the case's `result_match`, the CLI did not start, or a case's control did not pass or did not run | Rerun with `--retries 1`; never read it as pass or fail |
 | `error` | The scaffold or case is broken | Fix the case; a fixture failure says nothing about the platform |
 | `skipped` | Platform, a missing tool, or a ceiling | Report it |
 
@@ -108,7 +120,8 @@ and `PROBE_MODEL` (the model the case runs), as environment variables and runs i
 
 `expect.json` fields: `claim`; `tags` (terms a changelog item would use for the surface, read by
 `recheck`); `target` (`tool`, `input_match` regex over the call's JSON input, `example` input for the
-dry run, optional `in_subagent`, `select` of `first|any|all`, `count`); `outcome` (`allow`, `deny`,
+dry run, optional `in_subagent`, `select` of `first|any|all`, `count`, `result_match`, a regex the
+tool result must match to be judged at all, else `inconclusive`); `outcome` (`allow`, `deny`,
 `ran` or `refused`: `allow` accepts `ran` or `refused`, `refused` is an error result with no
 permission denial); optional `reason_type` (the denial's `decision_reason_type`) and `match` (a
 case-insensitive substring of the denial reason or tool result); optional `permission_mode`, `cwd`,
@@ -118,7 +131,10 @@ temp directory: a live run skips it unless `--case` names it); optional `allowed
 `disallowed_tools` (lists of permission rules, no rule holding a comma, `${PROBE_WORKDIR}`
 substituted) or `tool_rules` (a JSON file in `cases/lib/` holding both lists, for cases that share
 them; a list the case sets itself wins); optional `verdict_only` (`true` on a case whose failure would
-return a secret: the run saves no stream and no tool output); optional `cli_args` (flag-value
+return a secret: the run saves no stream and no tool output); optional `plant_env` (a variable to
+give the child `claude` a fresh random fake value each run, on a verdict-only case: the value
+starts `probe-fake-`, so a leak can be searched for, and only its sha256 reaches the temp directory, as
+`.probe-plant-sha256`); optional `cli_args` (flag-value
 pairs, each flag and value of a shape the runner's `CLI_FLAGS` allows). Outcome `prints` judges what
 a slash command in `prompt.md` prints instead of a tool call: its `target` holds `text_match`, a
 regex over the first non-blank printed line, `example`, the text the dry run prints, and optional
