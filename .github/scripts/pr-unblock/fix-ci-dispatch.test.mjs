@@ -594,8 +594,8 @@ test("a cancelled check with no time-limit note leaves the head skipped; an unre
   assert.deepEqual(skipped.result.dispatched, []);
   assert.ok(skipped.lines.includes("skip fix-ci #9828: tested run 40118648493 attempt 2 ended cancelled and no check failed for fix-ci to fix"), skipped.lines.join("\n"));
   const unreadable = await run(stranded(9828, Object.assign(new Error("HTTP 502"), { status: 502 })));
-  assert.deepEqual(unreadable.result, { dispatched: [], failed: 1 });
-  assert.ok(unreadable.lines.some((line) => line.startsWith("::error::#9828: could not read its cancelled checks' annotations")), unreadable.lines.join("\n"));
+  assert.deepEqual(unreadable.result, { dispatched: [], failed: 0 });
+  assert.ok(unreadable.lines.some((line) => line.startsWith("::warning::#9828: could not read its cancelled checks' annotations: HTTP 502; skipped")), unreadable.lines.join("\n"));
 });
 
 // A cancelled tested run's failed job that a later contract-only run skipped:
@@ -651,7 +651,7 @@ test("a head whose fix-ci runs include a run that is not retryable is not capped
   assert.deepEqual([1, 2, 3].map((number) => isHandled(record, "pr-unblock / fix-ci", head(number))), [true, false, false]);
 });
 
-test("a head whose fix-ci runs cannot be read is not dispatched: a rate limit or a 5xx waits, any other error fails", async () => {
+test("a head whose fix-ci runs cannot be read is not dispatched: a rate limit, a 5xx or any other error waits", async () => {
   const head = (number) => String(number).padStart(40, "a");
   const limited = Object.assign(new Error("GET check-runs returned 403"), { rateLimited: true });
   const outage = Object.assign(new Error("GET check-runs returned 502"), { status: 502 });
@@ -659,9 +659,9 @@ test("a head whose fix-ci runs cannot be read is not dispatched: a rate limit or
     { pages: [[pr(1), pr(2), pr(3)]], history: new Map([[head(1), limited], [head(2), new Error("GET check-runs returned 404")], [head(3), outage]]) },
     { maxDispatch: 5 },
   );
-  assert.deepEqual(result, { dispatched: [], failed: 1 });
+  assert.deepEqual(result, { dispatched: [], failed: 0 });
   assert.ok(lines.includes("::warning::#1: its pr-unblock / fix-ci run read is rate limited (GET check-runs returned 403); no fix-ci dispatched, a later run retries"), lines.join("\n"));
-  assert.ok(lines.includes("::error::#2: could not read its pr-unblock / fix-ci runs (GET check-runs returned 404); left for a later run"), lines.join("\n"));
+  assert.ok(lines.includes("::warning::#2: could not read its pr-unblock / fix-ci runs: GET check-runs returned 404; skipped, a later run retries"), lines.join("\n"));
   assert.ok(lines.includes("::warning::#3: could not read its pr-unblock / fix-ci runs: GET check-runs returned 502; skipped, a later run retries"), lines.join("\n"));
 });
 
@@ -739,13 +739,15 @@ test("an awaiting-human skip left while the PR was held does not hold it once th
   assert.deepEqual(result.dispatched.map((d) => d.number), [1], "three held skips reach the cap of three");
 });
 
-test("a hold that cannot be read counts as a failed dispatch", async () => {
+test("a hold that cannot be read, whatever GitHub answered, skips that PR with a warning and fails nothing", async () => {
   const api = fakeApi({ pages: [[pr(1, humanGated)]] });
   api.listTimeline = async () => {
     throw Object.assign(new Error("GET timeline returned 404"), { status: 404 });
   };
-  const result = await dispatchCiFixes({ api, runId: "1", log: () => {}, appSenderId: APP, maxDispatch: 2, restarts: 1, gateLabel: "needs-human", now: NOW });
-  assert.deepEqual(result, { dispatched: [], failed: 1 });
+  const lines = [];
+  const result = await dispatchCiFixes({ api, runId: "1", log: (line) => lines.push(line), appSenderId: APP, maxDispatch: 2, restarts: 1, gateLabel: "needs-human", now: NOW });
+  assert.deepEqual(result, { dispatched: [], failed: 0 });
+  assert.ok(lines.some((line) => line.startsWith("::warning::#1:") && line.includes("404")), lines.join("\n"));
 });
 
 test("a hold read GitHub still answers 5xx after its retries skips that PR with a warning and fails nothing", async () => {
@@ -813,14 +815,14 @@ test("a fix-ci run for the PR that is not done yet holds the dispatch", async ()
   assert.equal(api.calls.runs, 1);
 });
 
-test("a rate-limited run listing defers with a warning; any other listing error fails", async () => {
+test("a run listing that cannot be read, rate-limited or not, defers with a warning and fails nothing", async () => {
   const limited = Object.assign(new Error("GET runs returned 403"), { rateLimited: true });
   const deferred = await run({ pages: [[pr(5)]], workflowRuns: limited });
   assert.deepEqual(deferred.result, { dispatched: [], failed: 0 });
   assert.ok(deferred.lines.some((line) => line.startsWith("::warning::") && line.includes("rate limited")));
   const broken = await run({ pages: [[pr(5)]], workflowRuns: new Error("GET runs returned 404") });
-  assert.deepEqual(broken.result, { dispatched: [], failed: 1 });
-  assert.ok(broken.lines.some((line) => line.startsWith("::error::") && line.includes("404")));
+  assert.deepEqual(broken.result, { dispatched: [], failed: 0 });
+  assert.ok(broken.lines.some((line) => line.startsWith("::warning::") && line.includes("could not be read") && line.includes("404")));
 });
 
 test("no candidate reads no workflow runs", async () => {

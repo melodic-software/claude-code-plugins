@@ -3,6 +3,13 @@
 All notable changes to the `wizard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.7] - 2026-11-03
+
+### Fixed
+
+- `/wizard:generate` library: on a re-run, `_existing` offers no default for a hand-written double-quoted `.env` value holding a backslash, `$`, `"` or a backtick, so pressing Enter cannot store the raw escapes as the value; the prompt asks again.
+- `/wizard:generate` library: `open_url` tells the person to open the address themselves when no browser opener exists. The warning was printed into a redirect and never shown.
+
 ## [0.7.6] - 2026-11-02
 
 ### Changed
