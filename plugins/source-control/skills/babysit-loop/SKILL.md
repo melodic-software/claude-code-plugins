@@ -473,9 +473,8 @@ token in them would reach the Bash tool unsubstituted, with no such variable to 
   command; the rung binds by scoping: a merge-capable invocation only ever receives the
   rung-eligible PR refs the pre-partition computed. A rung can never make the safe tier merge, and
   no rung ever bypasses the deterministic gate.
-- **Unlinked PRs never auto-merge; unclassified ones may.** Rung eligibility requires a
-  close-linked work item, and a missing or unreadable link fails closed to the non-merge pass. The
-  item's `work-class:` label is not read, so an item with none partitions like any other.
+- **Unlinked PRs never auto-merge; unclassified ones may.** A missing or unreadable close-linked
+  item fails closed to the non-merge pass; its `work-class:` label is never read.
 - **A tier keyword is never a merge raise, the raise is its own token, and the pair lasts the
   invocation that typed it.** `autopilot` alone widens dimensions 1–5 and 7 only; the typed pair
   `autopilot` + `--merge c3-this-run` widens dimension 6 to the C3 rung, per the convention's one named
