@@ -3,6 +3,12 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.1] - 2026-11-03
+
+### Changed
+
+- `check`: the `## Next` stage-bearing rule's comments, README entry and quiet-case test name `interview`, the session-flow workflow's renamed stage 1, where they named `contract`; which stages warn is unchanged (#12663).
+
 ## [1.0.0] - 2026-11-03
 
 ### Removed
