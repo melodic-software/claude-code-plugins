@@ -1380,7 +1380,7 @@ export function unblockHold(stops) {
   if (!Array.isArray(stops)) {
     return "its head's pr-unblock statuses could not be read";
   }
-  return stops.length === 0 ? null : `a pr-unblock lane stopped its head (${stops.map(({ context, state }) => `${context} is ${state}`).join(", ")}), which ci-status fails in the merge queue`;
+  return stops.length === 0 ? null : `a pr-unblock lane stopped its head (${stops.map(({ context, state }) => `${context} is ${state}`).join(", ")}), which clears when the lane runs again`;
 }
 
 // What to do with one listed pull request: { action: arm | disarm | none, reason }.
@@ -1422,8 +1422,8 @@ export function decide(pull, { bot, humanGated, holdPaths = null, pathHolds = tr
   if (detail.filesCapped === true) {
     return { action: armed ? "disarm" : "none", reason: FILES_CAPPED_REASON, clears: "person" };
   }
-  // ci-status's merge-queue run fails a head a pr-unblock lane stopped, so it
-  // is never queued; a status list that did not read holds it too.
+  // A head a pr-unblock lane stopped is never queued: only this job reads the
+  // stop. A status list that did not read holds it too.
   const stopped = unblockHold(detail.unblockStops);
   // Review rounds the lane stopped as not converging at this head close below,
   // after the path, cost and discussion holds, as the verify cap does.

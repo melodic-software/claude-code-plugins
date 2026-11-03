@@ -26,14 +26,20 @@ Read for the `Passed on retry` and `Run signals to echo` rules in `SKILL.md` §2
 
 ```bash
 # Use the project's configured linter — biome.json → Biome; eslint config → ESLint
-cd "$PROJECT_DIR" && npx biome check .
+cd "$PROJECT_DIR" && npx @biomejs/biome check .
 
 # Format-only (/toolchain:lint --fix)
-cd "$PROJECT_DIR" && npx biome format --write <files>
+cd "$PROJECT_DIR" && npx @biomejs/biome format --write <files>
 
 # Code-fix (lint autofixes — /toolchain:lint --code-fix only)
-cd "$PROJECT_DIR" && npx biome check --write <files>
+cd "$PROJECT_DIR" && npx @biomejs/biome check --write <files>
 ```
+
+Run Biome through `npx` by its scoped package name `@biomejs/biome`, never the bare `biome` name: #12573 is the observed failure of the bare name. When the project pins Biome, its consumer `check-cmd`, `fix-cmd` and `code-fix-cmd` may instead name the local binary (`node_modules/.bin/biome`), or a `biome` binary on PATH when there is no local one, in place of `npx`.
+
+- **Pointer**: when deciding how `npx` resolves a package name given without a version, fetch <https://docs.npmjs.com/cli/v11/commands/npx#description> live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: npm changes how `npx` resolves a name without a version, or the unscoped `biome` npm package changes owner.
 
 ## Gotchas
 
