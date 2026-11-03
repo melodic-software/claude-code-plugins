@@ -111,7 +111,17 @@ Limits: any local process that can reach the port can read the token from `GET /
 
 ## Settings layers
 
-Nearest wins, per key, and each Settings row names its layer: this browser's localStorage (the Settings tab), the data dir's `settings.json`, a user file passed as `ensure-running --user-settings`, the repository's `.claude/interview-surface.json` (found through `CLAUDE_PROJECT_DIR`, else the nearest ancestor holding `.git`), then defaults.
+Nearest wins, per key, and each Settings row names its layer: this browser's localStorage (the Settings tab), the data dir's `settings.json`, a user file passed as `ensure-running --user-settings`, then the repository's `personal` and `team` layers, then defaults. The repository layers are the `interview_surface` mapping of `<home>/planning.local.yaml` and `<home>/planning.yaml`, resolved by the shared config cascade ([ADR 0075](../../../docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md)) through `repo_settings.mjs`. `<home>` is the convention home the repository binds, default `docs/conventions`. The repository is `CLAUDE_PROJECT_DIR`, else the nearest ancestor holding `.git`, and its git toplevel anchors the read. The keys have no `userConfig` option. An invalid team value falls to the default, and an invalid personal value leaves the team value standing. Reading these files needs `node` on PATH; without it the layers are skipped with a note. The retired `.claude/interview-surface.json` is never read: `ensure-running` prints a notice naming it, once per data dir while its bytes stay the same.
+
+```yaml
+# docs/conventions/planning.yaml
+interview_surface:
+  undoSeconds: 10
+  frontierLock: hard
+  themeTokens:
+    light:
+      "--bg": "#fafafa"
+```
 
 | Key | Default | Bounds |
 |---|---|---|
@@ -123,7 +133,7 @@ Nearest wins, per key, and each Settings row names its layer: this browser's loc
 | `theme` | `auto` | `auto`, `light`, `dark` |
 | `density` | `compact` | `compact`, `comfortable` |
 | `minText` | `14` | 10 to 32 |
-| `displayName` | `You` | user file or session only |
+| `displayName` | `You` | user file or session only, never a repository key |
 | `waitTimeout` | `90` | 5 to 110 seconds; curl allows 10 more |
 | `staleDepth` | `direct` | `direct` |
 | `leaseTimeout` | `600` | 5 to 3600 seconds a silent watcher keeps its lease; read on every poll |
@@ -134,7 +144,7 @@ Nearest wins, per key, and each Settings row names its layer: this browser's loc
 | `requireDepends` | `false` | `true` turns `add` and `add-round`'s warnings on a question with no `dependsOn`, or one naming a question open in its own round, into refusals |
 | `orderThreshold` | `25` | 0 to 1000 open questions; above it the header's Answering order panel lists the open questions with prerequisites first (topological by `dependsOn`), then the most transitive dependents, then the lower id. Advisory: it changes no state and no `frontierLock` check |
 
-The repo and user files also take `themeTokens` (`{"light": {...}, "dark": {...}}`). `browserCommand` (a program or argv list that receives the URL) is read only from a user file passed as `--user-settings` on that same `ensure-running` call. The user file a running server recorded keeps supplying every other setting, but never the opener, so `--open` alone uses the default browser. An invalid value falls through to the layer below with a note printed by `ensure-running`. Theme tokens layer per token: the data dir's `theme.json`, then the user file's `themeTokens`, then the repo's `themeTokens`, then the built-in set.
+The repository layers and the user file also take `themeTokens` (`{"light": {...}, "dark": {...}}`; between the two repository layers a mode's map is replaced whole). `browserCommand` (a program or argv list that receives the URL) is read only from a user file passed as `--user-settings` on that same `ensure-running` call. The user file a running server recorded keeps supplying every other setting, but never the opener, so `--open` alone uses the default browser. An invalid value falls through to the layer below with a note printed by `ensure-running`. Theme tokens layer per token: the data dir's `theme.json`, then the user file's `themeTokens`, then the repository's `themeTokens`, then the built-in set.
 
 ## Differences from the shared page
 

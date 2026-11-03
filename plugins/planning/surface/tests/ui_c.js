@@ -388,8 +388,8 @@ async page => {
     await page.click('[data-reset="shortcuts"]'); await page.waitForTimeout(150);
     const src = await page.$$eval(".setrow", els => Object.fromEntries(els.map(e => [e.dataset.key, e.querySelector(".src").textContent.replace(/\s*Reset$/, "")])));
     const val = async k => page.$eval('.setrow[data-key="' + k + '"]', e => { const c = e.querySelector("select, input"); return c ? c.value : e.querySelector(".val").textContent; });
-    ok("AC33: repo beats default (undoSeconds 7 from repo)", src.undoSeconds === "From repo" && await val("undoSeconds") === "7", src.undoSeconds);
-    ok("AC33: user beats repo (minText 18 from user)", src.minText === "From user" && await val("minText") === "18", src.minText);
+    ok("AC33: team beats default (undoSeconds 7 from team)", src.undoSeconds === "From team" && await val("undoSeconds") === "7", src.undoSeconds);
+    ok("AC33: user beats team (minText 18 from user)", src.minText === "From user" && await val("minText") === "18", src.minText);
     ok("AC33: session layer (theme light)", src.theme === "From session" && await val("theme") === "light", src.theme);
     ok("AC33: default layer (shortcuts)", src.shortcuts === "From default", src.shortcuts);
     ok("AC33: read-only rows for displayName, waitTimeout, staleDepth", src.displayName === "From user" && await val("displayName") === "Dana" && src.waitTimeout === "From default" && await val("waitTimeout") === "90" && src.staleDepth === "From default" && await val("staleDepth") === "direct", JSON.stringify(src));
@@ -398,7 +398,7 @@ async page => {
     await page.fill('[data-set="undoSeconds"]', "9"); await page.dispatchEvent('[data-set="undoSeconds"]', "change"); await page.waitForTimeout(150);
     ok("AC33: a browser override shows this browser with Reset", /^From this browser/.test(await page.textContent('.setrow[data-key="undoSeconds"] .src')) && !!(await page.$('[data-reset="undoSeconds"]')));
     await page.click('[data-reset="undoSeconds"]'); await page.waitForTimeout(150);
-    ok("Reset returns to the repo layer", /^From repo/.test(await page.textContent('.setrow[data-key="undoSeconds"] .src')));
+    ok("Reset returns to the team layer", /^From team/.test(await page.textContent('.setrow[data-key="undoSeconds"] .src')));
     await page.click("#flyClose");
 
     // AC32: visuals by format; svg and html only inside a sandboxed iframe

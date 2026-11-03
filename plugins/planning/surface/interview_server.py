@@ -20,6 +20,8 @@ import json
 import os
 import re
 import secrets
+import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -29,6 +31,7 @@ from urllib.parse import quote
 from question_shape import restates, withheld
 from session_bridge import (
     MAX_STREAMS,  # noqa: F401  # the stream limits, read through this module by its tests
+    NO_WINDOW,
     PING_SECONDS,  # noqa: F401
     READING_WINDOW,
     Conflict,
@@ -113,9 +116,16 @@ QUIET_SECONDS = 10.0  # default settleQuiet: a found event waits this long for m
 BURST_SECONDS = 30.0  # default settleBurst: never holding it longer than this in all
 NAME = "interview"  # names the session files and the token header (session_bridge)
 SESSION_JSON = session_files(NAME)[0]
-REPO_SETTINGS = Path(".claude") / "interview-surface.json"
+# The retired repository file: a notice names it, and it is never read for values.
+RETIRED_SETTINGS = ".claude/interview-surface.json"
+# The team and personal layers: the interview_surface keys of <home>/planning.yaml and
+# <home>/planning.local.yaml, resolved by the shared cascade (docs/adr/0075).
+REPO_SETTINGS_CLI = HERE / "repo_settings.mjs"
+REPO_KEY = "interview_surface"
+SETTINGS_NOTICES = ".settings-notices.json"  # in the data dir: the retired files already noticed
 
-# Settings, lowest layer first: plugin default, repo file, user file, the data dir's settings.json.
+# Settings, lowest layer first: plugin default, team file, personal file, user file, the data
+# dir's settings.json.
 DEFAULT_SETTINGS = {
     "port": 0,
     "openBrowser": True,
@@ -224,14 +234,92 @@ class Settings:
     stderr once each; the key then keeps the value of the layer below.
     """
 
-    def __init__(self, repo):
-        self.repo_file = Path(repo) / REPO_SETTINGS if repo else None
+    def __init__(self, repo, notices=None):
+        self.repo = Path(repo) if repo else None
+        self.notices = Path(notices) if notices else None
         self._noted = set()
+        self._repo = None  # (watched() stamps, values, layers) of the last repo_settings.mjs run
+        self._watch = ()
 
     def note(self, msg):
         if msg not in self._noted:
             self._noted.add(msg)
             print(f"settings: {msg}", file=sys.stderr, flush=True)
+
+    def watched(self):
+        """(mtime_ns, size) of each file the last repository read depends on; 0 when unreadable."""
+
+        def stamp(p):
+            try:
+                st = Path(p).stat()
+            except OSError:
+                return 0
+            return st.st_mtime_ns, st.st_size
+
+        return tuple(stamp(p) for p in self._watch)
+
+    def retired_notice(self):
+        """Note the retired repository file once per data dir while its bytes are unchanged."""
+        if not self.repo or not self.notices:
+            return
+        try:
+            digest = hashlib.sha256((self.repo / RETIRED_SETTINGS).read_bytes()).hexdigest()
+        except OSError:
+            return
+        try:
+            seen = json.loads(self.notices.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            seen = {}
+        seen = seen if isinstance(seen, dict) else {}
+        if seen.get(RETIRED_SETTINGS) == digest:
+            return
+        self.note(
+            f"{RETIRED_SETTINGS} is no longer read; move its keys under {REPO_KEY}: in the "
+            "convention home's planning.yaml, or planning.local.yaml for yourself"
+        )
+        seen[RETIRED_SETTINGS] = digest
+        try:
+            self.notices.write_text(json.dumps(seen) + "\n", encoding="utf-8")
+        except OSError:
+            pass  # unwritable: the notice shows again next time
+
+    def repo_layers(self):
+        """({key: value}, {key: "team" | "personal"}) from repo_settings.mjs, rerun when a watched file changes."""
+        if not self.repo:
+            return {}, {}
+        if self._repo and self._repo[0] == self.watched():
+            return self._repo[1], self._repo[2]
+        node = shutil.which("node")
+        if not node:
+            self.note("node is not on PATH, so planning.yaml is not read")
+            return {}, {}
+        started = time.time_ns()
+        try:
+            run = subprocess.run(
+                [node, str(REPO_SETTINGS_CLI), "--root", str(self.repo)],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=30,
+                stdin=subprocess.DEVNULL,
+                creationflags=NO_WINDOW,
+            )
+            got = json.loads(run.stdout)
+            values, layers = got["values"], got["layers"]
+            notes, watch = got["notes"], got["watch"]
+        except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as e:
+            self.note(f"planning.yaml not read: {e}")
+            # Cached until a watched file changes, so a poll does not wait on a failing run again.
+            self._repo = (self.watched(), {}, {})
+            return {}, {}
+        for msg in notes:
+            self.note(str(msg))
+        self._watch = tuple(str(p) for p in watch)
+        stamps = self.watched()
+        # A file written while node ran may not be in this result: leave the stamp stale to read again.
+        fresh = all(not s or s[0] < started for s in stamps)
+        self._repo = (stamps if fresh else None, values, layers)
+        return values, layers
 
     def read(self, path, label):
         if not path:
@@ -249,12 +337,20 @@ class Settings:
         return data
 
     def resolve(self, data_dir, user_file=None):
-        """({key: {value, layer}}, theme token map: theme.json over user over repo tokens)."""
+        """({key: {value, layer}}, theme token map: theme.json over user over team tokens)."""
         out = {k: {"value": v, "layer": "default"} for k, v in DEFAULT_SETTINGS.items()}
-        repo = self.read(self.repo_file, "repo settings")
+        self.retired_notice()
+        repo, repo_from = self.repo_layers()
+        for k, v in repo.items():
+            if k not in REPO_KEYS:
+                continue
+            err = setting_error(k, v)
+            if err:
+                self.note(f"{repo_from.get(k, 'team')} layer: {err}; the layer below applies")
+                continue
+            out[k] = {"value": v, "layer": repo_from.get(k, "team")}
         user = self.read(user_file, "user settings")
         layers = (
-            ("repo", repo, REPO_KEYS | {"themeTokens"}),
             ("user", user, set(DEFAULT_SETTINGS) | USER_ONLY | {"themeTokens"}),
             (
                 "session",
@@ -286,7 +382,7 @@ class Settings:
             for k in ("settleQuiet", "settleBurst"):
                 out[k] = {"value": DEFAULT_SETTINGS[k], "layer": "default"}
         tokens = []
-        for layer, data in (("repo", repo), ("user", user)):
+        for layer, data in (("team", repo), ("user", user)):
             if "themeTokens" not in data:
                 continue
             got = token_map(data["themeTokens"])
@@ -1188,7 +1284,7 @@ class Hub(LoopbackWatcher):
             mtime(self.settings),
             mtime(self.watch_seq),
             mtime(self.dir / SESSION_JSON),
-            mtime(self.layers.repo_file) if self.layers.repo_file else 0,
+            self.layers.watched(),
             mtime(Path(user)) if user else 0,
             listener["state"],
             # The header reads Live only while a watcher waits, and a wait inside the listen

@@ -114,6 +114,39 @@
         }
       }
     },
+    "interview_surface": {
+      "description": "Settings for the /planning:interview 1:1 page (surface/README.md \"Settings layers\"). Read from <home>/planning.yaml and <home>/planning.local.yaml; the user file and the data dir's settings.json sit above them, and displayName is not a repository key.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "port": { "type": "integer", "minimum": 0, "maximum": 65535 },
+        "openBrowser": { "type": "boolean" },
+        "shortcuts": { "type": "boolean" },
+        "undoSeconds": { "type": "integer", "minimum": 0, "maximum": 60 },
+        "checkpoint": { "type": "integer", "minimum": 0, "maximum": 500 },
+        "theme": { "enum": ["auto", "light", "dark"] },
+        "density": { "enum": ["compact", "comfortable"] },
+        "minText": { "type": "integer", "minimum": 10, "maximum": 32 },
+        "waitTimeout": { "type": "integer", "minimum": 5, "maximum": 110 },
+        "staleDepth": { "enum": ["direct"] },
+        "leaseTimeout": { "type": "integer", "minimum": 5, "maximum": 3600 },
+        "settleQuiet": { "type": "number", "minimum": 0.5, "maximum": 60 },
+        "settleBurst": { "type": "number", "minimum": 1, "maximum": 120 },
+        "readingWindow": { "type": "integer", "minimum": 5, "maximum": 600 },
+        "frontierLock": { "enum": ["confirm", "hard", "off"] },
+        "requireDepends": { "type": "boolean" },
+        "orderThreshold": { "type": "integer", "minimum": 0, "maximum": 1000 },
+        "themeTokens": {
+          "description": "CSS token overrides per color mode, each a map of token name to value.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "light": { "type": "object", "additionalProperties": { "type": "string" } },
+            "dark": { "type": "object", "additionalProperties": { "type": "string" } }
+          }
+        }
+      }
+    },
     "shared_session": {
       "description": "Starting settings for a /planning:interview shared session. Read once, when a session's state is first created; the owner changes a running session from its Host view.",
       "type": "object",

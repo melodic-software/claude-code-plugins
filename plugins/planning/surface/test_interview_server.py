@@ -27,6 +27,11 @@ import unittest
 import unittest.mock
 from pathlib import Path
 
+# An inherited GIT_DIR (or GIT_WORK_TREE / GIT_CONFIG) would point the fixtures' `git init` at
+# the caller's repository (scripts/check-fixture-git-isolation.sh).
+for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
+    os.environ.pop(_leaked_git_var, None)
+
 HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
@@ -3217,17 +3222,49 @@ def settings_env(**extra):
     return env
 
 
+NEEDS_NODE = unittest.skipUnless(
+    shutil.which("node"), "node reads planning.yaml (repo_settings.mjs)"
+)
+
+
+def git_repo(path):
+    """A git working tree at path, so the team and personal layers apply."""
+    path.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init", "-q", str(path)], check=True, timeout=TIMEOUT)
+    return path
+
+
+def yaml_block(data, indent=0):
+    """Block YAML for nested dicts of scalars, every key and string quoted."""
+    lines = []
+    for k, v in data.items():
+        key = " " * indent + json.dumps(k) + ":"
+        if isinstance(v, dict):
+            lines += [key, *yaml_block(v, indent + 2)]
+        else:
+            lines.append(f"{key} {json.dumps(v)}")
+    return lines
+
+
+def planning_yaml(repo, surface, local=False):
+    """<repo>/docs/conventions/planning(.local).yaml holding interview_surface: surface."""
+    home = repo / "docs" / "conventions"
+    home.mkdir(parents=True, exist_ok=True)
+    path = home / ("planning.local.yaml" if local else "planning.yaml")
+    text = "\n".join(yaml_block({"interview_surface": surface})) + "\n"
+    path.write_text(text, encoding="utf-8")
+
+
+@NEEDS_NODE
 class TestSettingsLayers(ServerCase):
-    """AC33 server side: default, repo, user and session layers, each value with its layer."""
+    """AC33 server side: default, team, personal, user and session layers, each value with its layer."""
 
     env = settings_env()
     fast_settle = False
 
     @classmethod
     def prepare(cls):
-        cls.repo = cls.tmp / "repo"
-        (cls.repo / ".claude").mkdir(parents=True)
-        (cls.repo / ".git").write_text("gitdir: elsewhere\n", encoding="utf-8")
+        cls.repo = git_repo(cls.tmp / "repo")
         cls.dir = cls.repo / ".work" / "topic" / "interview-surface"
         cls.dir.mkdir(parents=True)
         (cls.dir / "theme.json").write_text(
@@ -3266,22 +3303,20 @@ class TestSettingsLayers(ServerCase):
         self.assertEqual({v["layer"] for v in s.values()}, {"default"})
         self.assertRegex(self.env_file(), r"(?m)^WAIT_TIMEOUT=90$")
 
-    def test_2_repo_layer_beats_default_and_is_restricted(self):
-        (self.repo / ".claude" / "interview-surface.json").write_text(
-            json.dumps(
-                {
-                    "undoSeconds": 20,
-                    "checkpoint": 9999,
-                    "minText": True,
-                    "displayName": "Repo Person",
-                    "unknownKey": 1,
-                    "themeTokens": {"light": {"--bg": "#111111", "--fg": "#222222"}},
-                }
-            ),
-            encoding="utf-8",
+    def test_2_team_layer_beats_default_and_is_restricted(self):
+        planning_yaml(
+            self.repo,
+            {
+                "undoSeconds": 20,
+                "checkpoint": 9999,
+                "minText": True,
+                "displayName": "Repo Person",
+                "unknownKey": 1,
+                "themeTokens": {"light": {"--bg": "#111111", "--fg": "#222222"}},
+            },
         )
         s = self.settings()
-        self.assertEqual(s["undoSeconds"], {"value": 20, "layer": "repo"})
+        self.assertEqual(s["undoSeconds"], {"value": 20, "layer": "team"})
         self.assertEqual(s["checkpoint"], {"value": 0, "layer": "default"})
         self.assertEqual(s["minText"], {"value": 14, "layer": "default"})
         self.assertEqual(s["displayName"], {"value": "You", "layer": "default"})
@@ -3289,7 +3324,7 @@ class TestSettingsLayers(ServerCase):
         theme = self.state()["theme"]
         self.assertEqual(theme["light"], {"--bg": "#333333", "--fg": "#222222"})
 
-    def test_3_user_layer_beats_repo(self):
+    def test_3_user_layer_beats_team(self):
         user = self.tmp / "user-settings.json"
         user.write_text(
             json.dumps({"undoSeconds": 30, "displayName": "Tester", "waitTimeout": 40}),
@@ -3314,20 +3349,14 @@ class TestSettingsLayers(ServerCase):
         self.assertEqual(s["undoSeconds"], {"value": 45, "layer": "session"})
         self.assertEqual(s["waitTimeout"], {"value": 40, "layer": "user"})
 
-    def test_5_user_theme_tokens_beat_repo_per_token(self):
-        (self.repo / ".claude" / "interview-surface.json").write_text(
-            json.dumps(
-                {
-                    "themeTokens": {
-                        "light": {
-                            "--bg": "#111111",
-                            "--fg": "#222222",
-                            "--repo": "#666666",
-                        }
-                    }
+    def test_5_user_theme_tokens_beat_team_per_token(self):
+        planning_yaml(
+            self.repo,
+            {
+                "themeTokens": {
+                    "light": {"--bg": "#111111", "--fg": "#222222", "--repo": "#666666"}
                 }
-            ),
-            encoding="utf-8",
+            },
         )
         user = self.tmp / "user-theme.json"
         user.write_text(
@@ -3349,6 +3378,13 @@ class TestSettingsLayers(ServerCase):
             theme["light"], {"--bg": "#333333", "--fg": "#444444", "--repo": "#666666"}
         )
         self.assertEqual(theme["dark"], {"--fg": "#555555"})
+
+    def test_6_personal_layer_beats_team_and_an_invalid_one_keeps_team(self):
+        planning_yaml(self.repo, {"minText": 16, "orderThreshold": 40})
+        planning_yaml(self.repo, {"minText": 18, "orderThreshold": 5000}, local=True)
+        s = self.settings()
+        self.assertEqual(s["minText"], {"value": 18, "layer": "personal"})
+        self.assertEqual(s["orderThreshold"], {"value": 40, "layer": "team"})
 
 
 class TestSettingsResolver(unittest.TestCase):
@@ -3375,12 +3411,10 @@ class TestSettingsResolver(unittest.TestCase):
             self.assertTrue(same_dir(self.server.repo_root(data), repo))
             self.assertIsNone(self.server.repo_root(self.tmp / "other"))
 
-    def test_invalid_and_unknown_repo_keys_are_noted_once(self):
-        repo = self.tmp / "r"
-        (repo / ".claude").mkdir(parents=True)
-        (repo / ".claude" / "interview-surface.json").write_text(
-            json.dumps({"undoSeconds": 61, "bogus": 1}), encoding="utf-8"
-        )
+    @NEEDS_NODE
+    def test_invalid_and_unknown_team_keys_are_noted_once(self):
+        repo = git_repo(self.tmp / "r")
+        planning_yaml(repo, {"undoSeconds": 61, "bogus": 1})
         notes = io.StringIO()
         with contextlib.redirect_stderr(notes):
             layers = self.server.Settings(repo)
@@ -3390,6 +3424,27 @@ class TestSettingsResolver(unittest.TestCase):
         self.assertEqual(first["undoSeconds"]["layer"], "default")
         self.assertEqual(text.count("undoSeconds"), 1, text)
         self.assertEqual(text.count("bogus"), 1, text)
+
+    def test_retired_repo_file_is_not_read_and_noticed_once_per_data_dir(self):
+        repo = self.tmp / "old"
+        (repo / ".claude").mkdir(parents=True)
+        retired = repo / ".claude" / "interview-surface.json"
+        retired.write_text(json.dumps({"undoSeconds": 20}), encoding="utf-8")
+        data = self.tmp / "data"
+        data.mkdir()
+        state = data / self.server.SETTINGS_NOTICES
+        notice = ".claude/interview-surface.json is no longer read"
+        notes = io.StringIO()
+        with contextlib.redirect_stderr(notes):
+            first, _ = self.server.Settings(repo, state).resolve(data)
+            self.server.Settings(repo, state).resolve(data)
+        self.assertEqual(first["undoSeconds"], {"value": 5, "layer": "default"})
+        self.assertEqual(notes.getvalue().count(notice), 1, notes.getvalue())
+        retired.write_text(json.dumps({"undoSeconds": 30}), encoding="utf-8")
+        again = io.StringIO()
+        with contextlib.redirect_stderr(again):
+            self.server.Settings(repo, state).resolve(data)
+        self.assertEqual(again.getvalue().count(notice), 1, again.getvalue())
 
 
 class TestEmojiMarkers(ServerCase):
@@ -3640,9 +3695,8 @@ class TestEnsureRunningSettings(unittest.TestCase):
         return prog
 
     def repo_settings(self, data):
-        (self.repo / ".claude" / "interview-surface.json").write_text(
-            json.dumps(data), encoding="utf-8"
-        )
+        git_repo(self.repo)
+        planning_yaml(self.repo, data)
 
     def ensure(self, *extra):
         p = subprocess.run(
@@ -3668,6 +3722,7 @@ class TestEnsureRunningSettings(unittest.TestCase):
             time.sleep(0.05)
         return self.marker.read_text(encoding="utf-8") if self.marker.exists() else None
 
+    @NEEDS_NODE
     def test_repo_port_is_used_on_a_fresh_start(self):
         port = free_port()
         self.repo_settings({"port": port})
@@ -3675,6 +3730,7 @@ class TestEnsureRunningSettings(unittest.TestCase):
         self.assertEqual(session(self.dir)["port"], port)
         self.assertEqual(url, f"http://127.0.0.1:{port}/")
 
+    @NEEDS_NODE
     def test_repo_open_browser_false_wins_over_open(self):
         self.repo_settings({"openBrowser": False})
         self.ensure("--open", "--user-settings", str(self.user))

@@ -185,13 +185,17 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
   }
 
   group_c() {
-    # ui_c runs against a third server seeded with settings in every layer: the repo file through
-    # CLAUDE_PROJECT_DIR (inherited by the detached server), the user file, and the data dir's
-    # settings.json. It runs in three phases; the shell writes as Claude between them.
+    # ui_c runs against a third server seeded with settings in every layer: the team file
+    # docs/conventions/planning.yaml in a git repository found through CLAUDE_PROJECT_DIR
+    # (inherited by the detached server), the user file, and the data dir's settings.json. It
+    # runs in three phases; the shell writes as Claude between them.
     repo="$tmp/repo"
-    mkdir -p "$c" "$repo/.claude"
+    mkdir -p "$c" "$repo/docs/conventions"
+    # An inherited GIT_DIR would point the fixture's init, and the server's git reads, elsewhere.
+    unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+    git init -q "$repo"
     cp tests/fixtures/ui_c/questions.json tests/fixtures/ui_c/responses.json tests/fixtures/ui_c/settings.json "$c/"
-    cp tests/fixtures/ui_c/repo-settings.json "$repo/.claude/interview-surface.json"
+    cp tests/fixtures/ui_c/planning.yaml "$repo/docs/conventions/planning.yaml"
     # File visuals: vi's PNG is the 1x1 image vp carries inline, vs's SVG carries a text marker,
     # and vx names a file that is never written.
     mkdir -p "$c/images" "$c/diagrams"

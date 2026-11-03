@@ -156,6 +156,17 @@ toward not suggesting: 10 of the 17 and none of the 9 pass it. None of the 26 in
 interview's session, so the count shows a span of sessions, not that wayfind would have helped.
 Recheck when interviews that reached wayfind can be counted.
 
+## Interview page keys
+
+The `interview_surface` mapping sets the 1:1 interview page's settings (`port`, `openBrowser`,
+`undoSeconds`, `frontierLock`, `themeTokens` and the rest). It resolves through the same four
+layers and home as the convention-home keys above, with no `userConfig` option. The page server
+reads it through `surface/repo_settings.mjs`, which calls the shared cascade module. The page's
+user file, its data dir's `settings.json` and the browser sit above it. The keys and their bounds
+are in [`surface/README.md`](../surface/README.md#settings-layers) "Settings layers".
+`displayName` is not a repository key. `.claude/interview-surface.json` is no longer read: when it
+exists, `ensure-running` prints a notice naming it.
+
 ## Probe topics
 
 A team lists the subjects every interview should probe, such as accessibility, data retention or
