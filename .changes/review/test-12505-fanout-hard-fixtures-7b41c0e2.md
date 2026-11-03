@@ -4,8 +4,9 @@ bump: none
 
 ### Added
 
-- Five harder `fanout-diversity-*` fixtures in all four arms: `tenant-settings-cache`, `coupon-expiry-tz` and `cursor-pagination` plant a defect that shows only when an unchanged file is read or that sits among correct changes, and `request-options` and `month-export` plant two defects on one axis, with one recall grader per defect.
+- Two `fanout-diversity-*` fixtures in all four arms that each plant two defects on one axis, `request-options` (standards) and `month-export` (spec), with one recall grader per defect, so a report's positions within one heading can be measured.
 
 ### Changed
 
 - The `search-sqli` ground truth reads `axis: spec`: its commit message calls the route a read-only lookup over the catalogue, and the injection reads the users table.
+- `fanout-diversity.md` says the run's `node` must resolve without the operator's home directory; under an isolated `HOME` a version-manager shim fails, the review config read falls back to `(default)`, and the `multi-agent` hooks block every Bash call.

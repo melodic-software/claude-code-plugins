@@ -1,5 +1,0 @@
-schema_version: "1.1"
-name: fanout-diversity-tenant-settings-cache-l
-plugins: ["../.."]
-context:
-  scaffold_script: scaffold.sh

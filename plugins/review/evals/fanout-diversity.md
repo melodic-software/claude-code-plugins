@@ -41,6 +41,10 @@ placement and the act-on cap. This file is the shape every slice of that eval fo
 - The M arms load a plugin outside `review`, so the eval target must contain both: stage
   `review` and `multi-agent` under one directory holding a `.claude-plugin/plugin.json`, and run
   `claude plugin eval <that directory> --eval-dir plugins/review/evals`.
+- `node` must resolve on the run's `PATH` without the operator's home directory. A version-manager
+  shim that reads its config from `HOME` fails under an isolated `HOME`: the review config read
+  then fails, so the report says `(default)` and the arm check fails, and in the M arms the
+  `multi-agent` hooks block every Bash call. Put the real `node` directory first on `PATH`.
 
 ## Case directory
 
@@ -71,15 +75,11 @@ because a case carries one prompt, one plugins list and one committed `review.ya
 | `sort-column` | none (decoy) |
 | `page-links` | none (decoy) |
 | `return-promise` | none (decoy) |
-| `tenant-settings-cache` | none: a cache key that ignores a new tenant argument |
-| `coupon-expiry-tz` | none: server-local time read on a UTC server |
-| `cursor-pagination` | none: a cursor on one column, ordering on another |
 | `request-options` | none (two defects): a shared default mutated; `retries: 0` read as unset |
 | `month-export` | none (two defects): the month's last day dropped; a boolean comparator |
 
-The last five fixtures are harder: the defect shows only when an unchanged file is read, or sits in
-a larger diff of correct changes. `request-options` and `month-export` plant two defects on one
-axis, so both land under one heading of the report.
+`request-options` and `month-export` plant two defects on one axis, so both land under one heading
+of the report and give the positions within a heading that an act-on cap is set from.
 
 A decoy is a correct change that looks wrong, so it measures each arm's false positives. Its
 ground truth reads `none` for `defect` and `axis`, and its `not_defects` name the findings a

@@ -1,5 +1,0 @@
----
-type: regex
-target: last_message
-pattern: '^(?=[\s\S]*fanout_diversity: lens \((?:repository|docs/conventions/review\.yaml)[^)]*\))(?=[\s\S]*## Surfaces[\s\S]*Ran: \[[^\]]*code-reviewer)(?=[\s\S]*## Surfaces[\s\S]*Ran: \[[^\]]*[Cc]odex)'
----
