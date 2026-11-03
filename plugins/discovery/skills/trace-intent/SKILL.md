@@ -206,6 +206,7 @@ Check these against the written output, not against recollection:
 - Every category appears in *Sources consulted*, including the ones that found nothing.
 - Every skip carries one of the two permitted reasons.
 - Hedged claims are hedged in the output, not flattened into confident prose.
+- `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check-author-kind.py" <the slice>` exits 0.
 
 ## Spoke paths
 
