@@ -694,9 +694,10 @@ test("pr-unblock.yml: report-stop-status runs when report-escalation does, or af
     "apply-patch",
     "sync-shared-copies-select",
     "apply-shared-copies",
+    "apply-dependency-pin",
   ];
   const HEADS = ["resolve-conflicts-select", "address-feedback-select", "review-dependency-select", "fix-ci-context", "sync-shared-copies-select"];
-  const EMITTERS = ["apply-conflict-patch", "publish-feedback", "apply-dependency-verdict", "apply-patch", "apply-shared-copies"];
+  const EMITTERS = ["apply-conflict-patch", "publish-feedback", "apply-dependency-verdict", "apply-patch", "apply-shared-copies", "apply-dependency-pin"];
   const RESOLVERS = ["address-feedback-select", "fix-ci-context"];
   // The push job of each activity that pushes, before its select job's head.
   const PUSHERS = { "resolve-conflicts-select": "apply-conflict-patch", "address-feedback-select": "apply-feedback-patch", "review-dependency-select": "apply-dependency-patch" };
@@ -707,7 +708,7 @@ test("pr-unblock.yml: report-stop-status runs when report-escalation does, or af
     ...Object.fromEntries(EMITTERS.map((id) => [`needs.${id}.result`, id === landed ? "success" : "skipped"])),
     ...Object.fromEntries([...EMITTERS, "apply-patch-rung-up"].map((id) => [`needs.${id}.outputs.skip-reason`, id === landed ? skip : ""])),
     ...Object.fromEntries(HEADS.map((id) => [`needs.${id}.outputs.head-sha`, id === headFrom ? sha : ""])),
-    ...Object.fromEntries(Object.values(PUSHERS).map((id) => [`needs.${id}.outputs.pushed-commit`, id === pushed ? pushedSha : ""])),
+    ...Object.fromEntries([...Object.values(PUSHERS), "apply-dependency-pin"].map((id) => [`needs.${id}.outputs.pushed-commit`, id === pushed ? pushedSha : ""])),
     "needs.apply-patch.outputs.rung-up": rungUp,
     "needs.apply-patch-rung-up.result": rungUpResult,
     "needs.apply-patch-rung-up.outputs.escalation-reason": rungUpReason,
@@ -782,13 +783,18 @@ test("pr-unblock.yml: report-stop-status runs when report-escalation does, or af
   // The head is the commit the activity's push job pushed, else its select
   // job's, never a model call's; the reason is the one report-escalation reads.
   const post = job.steps.find((step) => step.name === "Post the stop status");
-  const heads = HEADS.flatMap((id) => (PUSHERS[id] ? [`needs.${PUSHERS[id]}.outputs.pushed-commit`, `needs.${id}.outputs.head-sha`] : [`needs.${id}.outputs.head-sha`]));
+  // review-dependency has a second push job: the install-script pin, with no model turn.
+  const PIN = { "review-dependency-select": "apply-dependency-pin" };
+  const heads = HEADS.flatMap((id) => [...[PUSHERS[id], PIN[id]].filter(Boolean).map((push) => `needs.${push}.outputs.pushed-commit`), `needs.${id}.outputs.head-sha`]);
   assert.equal(post.env.HEAD_SHA.trim(), `\${{ ${heads.join(" || ")} }}`);
   const pushedSha = "d".repeat(40);
   for (const headFrom of HEADS) {
     assert.equal(evaluate(post.env.HEAD_SHA, context({ headFrom })), head, `${headFrom}'s head with no push`);
     if (PUSHERS[headFrom]) {
       assert.equal(evaluate(post.env.HEAD_SHA, context({ headFrom, pushed: PUSHERS[headFrom], pushedSha })), pushedSha, `${PUSHERS[headFrom]}'s pushed commit over ${headFrom}'s head`);
+    }
+    if (PIN[headFrom]) {
+      assert.equal(evaluate(post.env.HEAD_SHA, context({ headFrom, pushed: PIN[headFrom], pushedSha })), pushedSha, `${PIN[headFrom]}'s pushed commit over ${headFrom}'s head`);
     }
   }
   // report-escalation's reason, except that a rung-up retry whose patch
@@ -879,7 +885,7 @@ test("pr-unblock.yml: address-feedback and publish-feedback are reported neutral
 // fix-ci's one retry one model rung up runs inside the same pr-unblock run,
 // so whatever it ends in reaches report-escalation: only a clean apply of
 // the retry's patch leaves the PR unlabeled.
-const ESCALATING = ["resolve-conflicts-select", "apply-conflict-patch", "conflict-scan-refusal", "address-feedback-select", "publish-feedback", "review-dependency-select", "apply-dependency-verdict", "fix-ci-context", "apply-patch", "sync-shared-copies-select", "apply-shared-copies"];
+const ESCALATING = ["resolve-conflicts-select", "apply-conflict-patch", "conflict-scan-refusal", "address-feedback-select", "publish-feedback", "review-dependency-select", "apply-dependency-verdict", "fix-ci-context", "apply-patch", "sync-shared-copies-select", "apply-shared-copies", "apply-dependency-pin"];
 const rungUpContext = ({ rungUp = "true", result = "success", escalation = "", skip = "" } = {}) => ({
   ...Object.fromEntries(ESCALATING.map((job) => [`needs.${job}.outputs.escalation-reason`, ""])),
   "needs.apply-patch.outputs.rung-up": rungUp,

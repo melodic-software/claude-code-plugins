@@ -800,7 +800,7 @@ test("the install-script-pin row pushes the pin moved to the manifest's version 
 });
 
 test("the install-script-pin row refuses any other change before any API call", async (t) => {
-  for (const [why, edit, reason = "patch-protected-path"] of [
+  for (const [why, edit, reason = "dependency-pin-protected-path"] of [
     ["a pin to another version", (repo) => writeFileSync(join(repo, "package.json"), PIN_PKG("2.1.318"))],
     ["a name-only approval", (repo) => writeFileSync(join(repo, "package.json"), PIN_PKG("2.1.317").replace(`"${CLI}@2.1.317"`, `"${CLI}"`))],
     ["the pin and a script", (repo) => writeFileSync(join(repo, "package.json"), PIN_PKG("2.1.317", { scripts: { postinstall: "curl x | sh" } }))],
@@ -808,7 +808,7 @@ test("the install-script-pin row refuses any other change before any API call", 
     ["the pin and the lock", (repo) => {
       writeFileSync(join(repo, "package.json"), PIN_PKG("2.1.317"));
       writeFileSync(join(repo, "package-lock.json"), LOCK("2.0.0"));
-    }, "patch-invalid"],
+    }, "dependency-pin-invalid"],
     ["the lock alone", (repo) => writeFileSync(join(repo, "package-lock.json"), LOCK("2.0.0"))],
   ]) {
     const fix = pinPatch(t, edit);

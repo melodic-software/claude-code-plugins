@@ -2643,7 +2643,9 @@ jobs:
   # pin moved to the exact version the manifest pins, skips a head that moved
   # since the select job read it, and pushes one commit with [dependabot
   # skip] without force. No round marker is posted and no round counted: the
-  # new head goes through review-dependency like any other.
+  # new head goes through review-dependency like any other. A refused push
+  # stops as dependency-pin-invalid, -not-applied or -protected-path, which
+  # report-escalation and report-stop-status hand to the session queue.
   apply-dependency-pin:
     needs: review-dependency-select
     if: ${{ !cancelled() && needs.review-dependency-select.outputs.pin-state == 'written' }}
@@ -3490,6 +3492,7 @@ jobs:
       - publish-feedback
       - review-dependency-select
       - apply-dependency-patch
+      - apply-dependency-pin
       - apply-dependency-verdict
       - fix-ci-context
       - apply-patch
@@ -3509,6 +3512,7 @@ jobs:
       || needs.publish-feedback.result == 'failure'
       || needs.review-dependency-select.outputs.escalation-reason != ''
       || needs.apply-dependency-verdict.outputs.escalation-reason != ''
+      || needs.apply-dependency-pin.outputs.escalation-reason != ''
       || needs.fix-ci-context.outputs.escalation-reason != ''
       || needs.apply-patch.outputs.escalation-reason != ''
       || needs.sync-shared-copies-select.outputs.escalation-reason != ''
@@ -3520,6 +3524,7 @@ jobs:
       || needs.apply-conflict-patch.result == 'success' && needs.apply-conflict-patch.outputs.skip-reason == ''
       || needs.publish-feedback.result == 'success' && needs.publish-feedback.outputs.skip-reason == ''
       || needs.apply-dependency-verdict.result == 'success' && needs.apply-dependency-verdict.outputs.skip-reason == ''
+      || needs.apply-dependency-pin.result == 'success' && needs.apply-dependency-pin.outputs.skip-reason == ''
       || needs.apply-patch.result == 'success' && needs.apply-patch.outputs.skip-reason == ''
       || needs.apply-patch-rung-up.result == 'success' && needs.apply-patch-rung-up.outputs.skip-reason == ''
       || needs.apply-shared-copies.result == 'success' && needs.apply-shared-copies.outputs.skip-reason == ''
@@ -3554,7 +3559,8 @@ jobs:
           HEAD_SHA: >-
             ${{ needs.apply-conflict-patch.outputs.pushed-commit || needs.resolve-conflicts-select.outputs.head-sha
             || needs.apply-feedback-patch.outputs.pushed-commit || needs.address-feedback-select.outputs.head-sha
-            || needs.apply-dependency-patch.outputs.pushed-commit || needs.review-dependency-select.outputs.head-sha
+            || needs.apply-dependency-patch.outputs.pushed-commit || needs.apply-dependency-pin.outputs.pushed-commit
+            || needs.review-dependency-select.outputs.head-sha
             || needs.fix-ci-context.outputs.head-sha || needs.sync-shared-copies-select.outputs.head-sha }}
           ESCALATION_REASON: >-
             ${{ needs.resolve-conflicts-select.outputs.escalation-reason
@@ -3565,6 +3571,7 @@ jobs:
             || needs.publish-feedback.result == 'failure' && 'feedback-publish-failed'
             || needs.review-dependency-select.outputs.escalation-reason
             || needs.apply-dependency-verdict.outputs.escalation-reason
+            || needs.apply-dependency-pin.outputs.escalation-reason
             || needs.fix-ci-context.outputs.escalation-reason
             || needs.apply-patch.outputs.escalation-reason
             || needs.apply-patch-rung-up.outputs.escalation-reason
@@ -3595,6 +3602,7 @@ jobs:
       - publish-feedback
       - review-dependency-select
       - apply-dependency-patch
+      - apply-dependency-pin
       - apply-dependency-verdict
       - fix-ci-context
       - apply-patch
@@ -3623,6 +3631,7 @@ jobs:
       || needs.publish-feedback.result == 'failure'
       || needs.review-dependency-select.outputs.escalation-reason != ''
       || needs.apply-dependency-verdict.outputs.escalation-reason != ''
+      || needs.apply-dependency-pin.outputs.escalation-reason != ''
       || needs.fix-ci-context.outputs.escalation-reason != ''
       || needs.apply-patch.outputs.escalation-reason != ''
       || needs.sync-shared-copies-select.outputs.escalation-reason != ''
@@ -3655,6 +3664,7 @@ jobs:
         || needs.publish-feedback.result == 'failure' && 'feedback-publish-failed'
         || needs.review-dependency-select.outputs.escalation-reason
         || needs.apply-dependency-verdict.outputs.escalation-reason
+        || needs.apply-dependency-pin.outputs.escalation-reason
         || needs.fix-ci-context.outputs.escalation-reason
         || needs.apply-patch.outputs.escalation-reason
         || needs.apply-patch-rung-up.outputs.escalation-reason

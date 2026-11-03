@@ -43,7 +43,7 @@
     "reads-report": null,
     "skip-moved-head": true,
     "empty-at-push": "invalid",
-    "escalations": ["patch-invalid", "patch-not-applied", "patch-protected-path"]
+    "escalations": ["dependency-pin-invalid", "dependency-pin-not-applied", "dependency-pin-protected-path"]
   },
   "merge-base": {
     "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "lane-grants", "symlink", "gitlink", "rename-into-refused"],
