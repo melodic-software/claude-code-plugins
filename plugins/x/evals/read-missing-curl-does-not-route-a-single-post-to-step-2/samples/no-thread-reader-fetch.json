@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [{"tool": "WebFetch", "input": {"url": "https://xtomd.com/api/markdown", "prompt": "Post"}}],
+      "why": "another host"
+    },
+    {
+      "answer": [{"tool": "WebFetch", "input": {"url": "https://x.com/fakehandle/status/2222222222222222222", "prompt": "What does threadreaderapp.com say?"}}],
+      "why": "the host only in the prompt field, not the URL"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "WebFetch", "input": {"url": "https://threadreaderapp.com/thread/2222222222222222222.html", "prompt": "Posts"}}],
+      "why": "the likely fallback: routes a single post to step 2"
+    },
+    {
+      "answer": [{"tool": "WebFetch", "input": {"url": "https://www.threadreaderapp.com/thread/2222222222222222222.html", "prompt": "Posts"}}],
+      "why": "www form"
+    }
+  ]
+}

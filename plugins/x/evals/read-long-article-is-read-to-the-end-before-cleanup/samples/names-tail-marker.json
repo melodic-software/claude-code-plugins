@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "The closing section names Ottervale as the pilot town for the new on-demand service.",
+      "why": "prose"
+    },
+    {
+      "answer": "**Pilot town:** `Ottervale`",
+      "why": "bold label and code span"
+    },
+    {
+      "answer": "| Item | Value |\n|---|---|\n| Pilot town | OTTERVALE |",
+      "why": "table, uppercase"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The article reviews the rural bus network route by route; from what I read, boardings held steady on every route.",
+      "why": "the likely answer from the first slice only"
+    },
+    {
+      "answer": "I read up to Route 20 and the pilot town is not named there, so this is a partial result.",
+      "why": "stops early and says so, but never reaches the end"
+    },
+    {
+      "answer": "The pilot town is Otterbury.",
+      "why": "near miss, invented town"
+    }
+  ]
+}
