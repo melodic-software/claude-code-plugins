@@ -211,7 +211,7 @@ import { pathToFileURL } from "node:url";
 
 import { createGitHub, errorLabel, GitHubError, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { humanGatedLabelFrom, quote } from "../pr-unblock/address-feedback.mjs";
+import { DEQUEUE_MUTATION, humanGatedLabelFrom, leaveQueueOnHold, QUEUE_ENTRY_QUERY, quote } from "../pr-unblock/address-feedback.mjs";
 import {
   lines as bodyLines,
   foreignMarker,
@@ -1844,6 +1844,21 @@ export async function main({ env = process.env, github, actions, verify, room, c
     // would be all anyone saw.
     // Writes note sent or tried, for skip-unchanged.
     let sent = 0;
+    // A human-gated label this run added holds the pull request: a queued one
+    // leaves the queue (leaveQueueOnHold), which warns and never fails the note.
+    const leaveQueue = (pull, label) =>
+      leaveQueueOnHold({
+        pr: pull.number,
+        label,
+        readQueueEntry: async (pr) => {
+          const read = (await github("POST", "/graphql", { query: QUEUE_ENTRY_QUERY, variables: { owner: repo[1], name: repo[2], pr } }))?.data?.repository?.pullRequest;
+          if (typeof read?.id !== "string") {
+            throw new Error("the pull request did not read");
+          }
+          return { id: read.id, queued: read.mergeQueueEntry != null };
+        },
+        dequeuePull: (id) => github("POST", "/graphql", { query: DEQUEUE_MUTATION, variables: { id } }),
+      });
     const note = async (pull, detail, refusal) => {
       if (!reads || stopped !== null || refusal.clears === undefined) {
         return;
@@ -1902,6 +1917,7 @@ export async function main({ env = process.env, github, actions, verify, room, c
             return;
           }
           await github("POST", `${base}/${pull.number}/labels`, { labels: [writes.label] });
+          await leaveQueue(pull, writes.label);
           console.log(`enable-auto-merge: #${pull.number} labeled ${writes.label} again: its refusal comment stands and no person removed the label`);
           return;
         }
@@ -1910,6 +1926,7 @@ export async function main({ env = process.env, github, actions, verify, room, c
           : github("PATCH", `${base}/comments/${writes.commentId}`, { body: writes.body }));
         if (writes.label) {
           await github("POST", `${base}/${pull.number}/labels`, { labels: [writes.label] });
+          await leaveQueue(pull, writes.label);
         }
         console.log(`enable-auto-merge: #${pull.number} refusal noted on the pull request${writes.label ? `, labeled ${writes.label}` : ""}`);
       } catch (error) {
