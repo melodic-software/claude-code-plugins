@@ -2250,6 +2250,21 @@ test("a lane run deferred for want of a place is not read again while it stays a
   assert.equal(second.code, 0);
   assert.deepEqual(jobReads(second.calls), []);
   assert.deepEqual(second.reruns, [202, 201]);
+  // A run deferred twice: the three re-runs are still in flight on the next
+  // pass, so 201 and 202 stay deferred, are not read, and keep their carried
+  // entries, so the pass after that reads nothing either.
+  const running = (id) => ({ ...lost(id), status: "in_progress", conclusion: null, run_attempt: 2, updated_at: "2026-10-19T19:50:00Z" });
+  const held = await reconcile({ pulls: [], runs: [lost(201), lost(202), running(203), running(204), running(205)], carry: JSON.stringify(first.settled) });
+  assert.equal(held.code, 0);
+  assert.deepEqual(jobReads(held.calls), []);
+  assert.deepEqual(held.reruns, []);
+  assert.deepEqual(
+    held.settled.jobs.filter((e) => e.attempt === 1).map((e) => e.id).sort(),
+    [201, 202],
+    "a run deferred again keeps its carried read",
+  );
+  const third = await reconcile({ pulls: [], runs: [lost(201), lost(202), running(203), running(204), running(205)], carry: JSON.stringify(held.settled) });
+  assert.deepEqual(jobReads(third.calls), []);
   // A run whose listing changed is read again.
   const changed = await reconcile({ pulls: [], runs: [{ ...lost(201), updated_at: "2026-10-19T19:55:00Z" }, lost(202)], carry: JSON.stringify(first.settled) });
   assert.deepEqual(jobReads(changed.calls), [201]);
