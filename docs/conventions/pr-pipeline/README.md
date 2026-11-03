@@ -367,8 +367,10 @@ serves an adopted owner PR, posting its replies as the lanes App:
   judge (`adjudicable`: no person-decided security finding), and that is answered (the lane's
   VALID reply or a `finding-answered` adjudication is its last comment) or outdated with no lane
   reply that left it open (`resolve-threads.mjs`). It reads the threads from GitHub, never from
-  another job, and escalates nothing. A CRITICAL finding and any thread a person wrote or joined
-  stay open for the person.
+  another job, judges each again on its re-read comments just before resolving, and escalates
+  nothing. It runs after an acted round and after the reply script's own stops (an escalation,
+  `finding-stands`, `no-model-turn`), never after a kill-switch or gate skip. A CRITICAL finding
+  and any thread a person wrote or joined stay open for the person.
 - No pass-only round goes to an owner PR: a person-opened PR gets no fail-note threads
   (`verify-notes.mjs`).
 

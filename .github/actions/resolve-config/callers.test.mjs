@@ -7705,8 +7705,9 @@ test("every caller of a reusable holding model legs passes the transcript key", 
 // request-lane-token's kill-switch-ok ends a kill-switch refusal green with no
 // token, so nothing after it may run on success() alone: every later step is
 // gated, a step that reads the token runs only when it is set, and a job that
-// needs the stopped job's success and reads none of its outputs also needs its
-// skip output empty (an output only a token step sets already stops it). A
+// needs the stopped job's success and reads none of its outputs also tests its
+// skip output for empty (an output only a token step sets already stops it);
+// it may also admit named skip reasons, never kill-switch. A
 // reusable workflow's caller job stands for its job, so the same holds for
 // the caller's dependents, through the skip output the workflow exposes.
 test("every kill-switch-ok caller runs no token step and no dependent job on a kill-switch stop", () => {
@@ -7719,6 +7720,7 @@ test("every kill-switch-ok caller runs no token step and no dependent job on a k
       if (cond.replaceAll(`needs.${id}.outputs.${skip} `, "").includes(`needs.${id}.outputs.`)) continue;
       assert.ok(skip, `${name}:${id} exposes the token step's skip-reason for ${otherId}`);
       assert.ok(cond.includes(`needs.${id}.outputs.${skip} == ''`), `${name}:${otherId} skips on ${id}'s ${skip}`);
+      assert.ok(!cond.includes(`needs.${id}.outputs.${skip} == 'kill-switch'`), `${name}:${otherId} never runs on ${id}'s kill-switch`);
     }
   };
   const names = readdirSync(new URL("../../workflows/", import.meta.url)).filter((f) => /\.ya?ml$/.test(f));
