@@ -28,7 +28,8 @@ Read when running the update action. The update model, preservation invariants, 
                    it on exit, so every intermediate file lives there.
 2. Compare         version delta, upstream SHA vs upstream.md record
 3. Report          one-pane summary — nothing mutated yet
-4. [Gate 1]        prompt to proceed with npm install
+4. [Gate 1]        prompt to proceed with npm install; when something else owns the
+                   firecrawl command, update.sh refuses: update that owner's pin instead
 5. Execute npm     npm install -g firecrawl-cli@latest
                    firecrawl --status           → verify post-install
                    firecrawl --help → run dir     → new command surface

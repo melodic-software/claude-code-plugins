@@ -201,6 +201,165 @@ out=$(run_check 2>&1)
 assert_exit "trailing space on recorded SHA: exit 0" 0 "$?"
 UPSTREAM_MD="$FIXTURE_UP"
 
+# --- 9. --apply end to end, with firecrawl, npm, curl and uname stubbed ---------------
+# A copy of the script runs in a fixture skill directory, so nothing can reach the
+# real upstream.md. npm's layout in the stubs is its documented one: global
+# executables go in {prefix}/bin on Unix and directly in {prefix} on Windows
+# (https://docs.npmjs.com/cli/v11/configuring-npm/folders#executables).
+
+APPLY="$TEST_TMPDIR/apply"
+APPLY_SCRIPT="$APPLY/skill/scripts/update.sh"
+APPLY_RECORD="$APPLY/skill/upstream.md"
+APPLY_PRIOR_RECORD="prior upstream.md content"
+mkdir -p "$APPLY/skill/scripts" "$APPLY/tools"
+cp "$SCRIPT" "$APPLY_SCRIPT"
+: >"$APPLY/skill/SKILL.md"
+
+cat >"$APPLY/tools/npm" <<'EOF'
+#!/usr/bin/env bash
+case "$1" in
+prefix)
+  [[ "$STUB_NPM_PREFIX" != "FAIL" ]] || exit 1
+  printf '%s\n' "$STUB_NPM_PREFIX"
+  ;;
+install)
+  printf '%s\n' "$*" >>"$STUB_NPM_LOG"
+  printf '%s\n' "$STUB_VERSION_AFTER_INSTALL" >"$STUB_VERSION_FILE"
+  ;;
+esac
+EOF
+cat >"$APPLY/tools/curl" <<'EOF'
+#!/usr/bin/env bash
+out=""
+while (($#)); do
+  [[ "$1" == "-o" ]] && out="$2"
+  shift
+done
+if [[ -n "$out" ]]; then
+  printf 'upstream skill\n' >"$out"
+else
+  printf '{"version":"%s"}\n' "$STUB_LATEST"
+fi
+EOF
+cat >"$APPLY/tools/uname" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$STUB_UNAME"
+EOF
+cat >"$APPLY/tools/cygpath" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$STUB_CYGPATH_RESULT"
+EOF
+chmod +x "$APPLY/tools/npm" "$APPLY/tools/curl" "$APPLY/tools/uname" "$APPLY/tools/cygpath"
+
+# Install a firecrawl stub in <dir> that reports the version in $STUB_VERSION_FILE.
+place_firecrawl() {
+  mkdir -p "$1"
+  cat >"$1/firecrawl" <<'EOF'
+#!/usr/bin/env bash
+[[ "${1:-}" == "--version" ]] && cat "$STUB_VERSION_FILE"
+exit 0
+EOF
+  chmod +x "$1/firecrawl"
+}
+
+# Fresh world for one case: no firecrawl anywhere, and a prior upstream.md.
+reset_apply() {
+  rm -rf "$APPLY/prefix" "$APPLY/launcher"
+  mkdir -p "$APPLY/prefix/bin" "$APPLY/launcher"
+  : >"$APPLY/npm.log"
+  printf '%s\n' "$APPLY_PRIOR_RECORD" >"$APPLY_RECORD"
+  printf '%s\n' "$1" >"$APPLY/version"
+}
+
+# run_stubbed_apply <npm global bin> <version after install> [uname] [npm prefix output]
+run_stubbed_apply() {
+  apply_out=$(
+    PATH="$APPLY/tools:$APPLY/launcher:$1:$PATH" \
+      STUB_NPM_PREFIX="${4:-$APPLY/prefix}" \
+      STUB_NPM_LOG="$APPLY/npm.log" \
+      STUB_VERSION_FILE="$APPLY/version" \
+      STUB_VERSION_AFTER_INSTALL="$2" \
+      STUB_LATEST="2.0.0" \
+      STUB_UNAME="${3:-Linux}" \
+      STUB_CYGPATH_RESULT="$APPLY/prefix" \
+      bash "$APPLY_SCRIPT" --apply 2>&1
+  )
+  apply_exit=$?
+}
+
+# Refused or failed: exit 2, the prior record intact.
+assert_apply_wrote_nothing() {
+  assert_exit "$1: exit 2" 2 "$apply_exit"
+  assert_eq "$1: upstream.md untouched" "$APPLY_PRIOR_RECORD" "$(cat "$APPLY_RECORD")"
+}
+assert_no_install() {
+  assert_eq "$1: npm install never ran" "" "$(cat "$APPLY/npm.log")"
+}
+
+# npm owns the command and the install takes effect: the paired success case.
+reset_apply "1.0.0"
+place_firecrawl "$APPLY/prefix/bin"
+run_stubbed_apply "$APPLY/prefix/bin" "2.0.0"
+assert_exit "npm-owned: exit 0" 0 "$apply_exit"
+assert_eq "npm-owned: install ran once" "install -g firecrawl-cli@latest" "$(cat "$APPLY/npm.log")"
+assert_contains "npm-owned: records the new version" "$(cat "$APPLY_RECORD")" "CLI version at sync: 2.0.0"
+assert_contains "npm-owned: records the rollback target" "$(cat "$APPLY_RECORD")" "rollback target): 1.0.0"
+
+# A launcher ahead of npm's bin owns the command, behind the new version.
+reset_apply "1.0.0"
+place_firecrawl "$APPLY/launcher"
+run_stubbed_apply "$APPLY/prefix/bin" "2.0.0"
+assert_apply_wrote_nothing "launcher behind latest"
+assert_no_install "launcher behind latest"
+assert_contains "launcher behind latest: names the launcher as owner" "$apply_out" "$APPLY/launcher/firecrawl"
+
+# The same launcher already at the new version would record itself as the rollback target.
+reset_apply "2.0.0"
+place_firecrawl "$APPLY/launcher"
+run_stubbed_apply "$APPLY/prefix/bin" "2.0.0"
+assert_apply_wrote_nothing "launcher at latest"
+assert_no_install "launcher at latest"
+
+# On Unix a command directly in the prefix is outside npm's bin.
+reset_apply "1.0.0"
+place_firecrawl "$APPLY/prefix"
+run_stubbed_apply "$APPLY/prefix" "2.0.0"
+assert_apply_wrote_nothing "Unix, command in the prefix itself"
+assert_no_install "Unix, command in the prefix itself"
+
+# npm's global prefix cannot be read, so ownership is unknown.
+reset_apply "1.0.0"
+place_firecrawl "$APPLY/prefix/bin"
+run_stubbed_apply "$APPLY/prefix/bin" "2.0.0" "Linux" "FAIL"
+assert_apply_wrote_nothing "npm prefix unreadable"
+assert_no_install "npm prefix unreadable"
+assert_contains "npm prefix unreadable: says so" "$apply_out" "npm prefix -g"
+
+# The install succeeds and the command still reads the old version.
+reset_apply "1.0.0"
+place_firecrawl "$APPLY/prefix/bin"
+run_stubbed_apply "$APPLY/prefix/bin" "1.0.0"
+assert_apply_wrote_nothing "version unchanged after install"
+assert_contains "version unchanged after install: names both versions" "$apply_out" "1.0.0"
+assert_contains "version unchanged after install: names the expected version" "$apply_out" "2.0.0"
+
+# Git Bash: the prefix prints as a CRLF-terminated Windows path and is the bin itself.
+reset_apply "1.0.0"
+place_firecrawl "$APPLY/prefix"
+run_stubbed_apply "$APPLY/prefix" "2.0.0" "MINGW64_NT-10.0-26100" $'C:\\stub\\npm\r'
+assert_exit "Windows, command in the prefix: exit 0" 0 "$apply_exit"
+assert_contains "Windows, command in the prefix: records the new version" "$(cat "$APPLY_RECORD")" "CLI version at sync: 2.0.0"
+
+reset_apply "1.0.0"
+place_firecrawl "$APPLY/launcher"
+run_stubbed_apply "$APPLY/prefix" "2.0.0" "MINGW64_NT-10.0-26100" $'C:\\stub\\npm\r'
+assert_apply_wrote_nothing "Windows, launcher elsewhere"
+assert_no_install "Windows, launcher elsewhere"
+
+# No command at all is a fresh install, not a foreign owner.
+PATH="$APPLY/no-such-dir" require_npm_owned_command
+assert_exit "no firecrawl on PATH: not refused" 0 "$?"
+
 # --- Final report ---------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then

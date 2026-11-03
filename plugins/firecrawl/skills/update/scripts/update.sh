@@ -16,7 +16,9 @@
 # Exit codes (the shared drift-check contract):
 #   0  no drift OR apply completed successfully
 #   1  drift detected in --check mode (no mutations)
-#   2  unverifiable: prerequisite missing (curl/jq/npm), network failure, or usage
+#   2  unverifiable: prerequisite missing (curl/jq/npm), network failure, or usage;
+#      or --apply refused or unconfirmed: npm's global bin does not hold the
+#      firecrawl command, or the command does not read npm latest after install
 #
 # A firecrawl CLI that is not installed is reported but is not drift; an
 # installed CLI behind npm latest is. Drift outranks unverifiable: a run that
@@ -185,15 +187,48 @@ run_check() {
   return 1
 }
 
+# The directory npm links global commands into: <prefix>/bin, or on Windows the
+# prefix itself, printed as a Windows path that Git Bash's `command -v` never
+# matches until converted.
+npm_global_bin() {
+  local prefix
+  prefix=$(npm prefix -g 2>/dev/null | tr -d '\r')
+  [[ -n "$prefix" ]] || return 1
+  case "$(uname -s)" in
+  MINGW* | MSYS* | CYGWIN*) cygpath -u "$prefix" ;;
+  *) printf '%s/bin' "$prefix" ;;
+  esac
+}
+
+physical_dir() { (cd "$1" 2>/dev/null && pwd -P); }
+
+# Installing changes what `firecrawl` runs only when npm's global bin holds the
+# command, so refuse when something else does. No command at all is a fresh install.
+require_npm_owned_command() {
+  local cmd bin
+  cmd=$(command -v firecrawl) || return 0
+  bin=$(npm_global_bin) || {
+    err "cannot read npm's global prefix (npm prefix -g) to tell who owns $cmd; nothing written"
+    return 2
+  }
+  if [[ "$(physical_dir "$(dirname "$cmd")")" != "$(physical_dir "$bin")" ]]; then
+    err "firecrawl resolves to $cmd, outside npm's global bin ($bin), so npm install -g would not change what it runs"
+    err "nothing installed or written: update the pin in the owner of $cmd instead"
+    return 2
+  fi
+}
+
 run_apply() {
-  local current upstream_sha previous_ver
+  local current latest upstream_sha previous_ver
+
+  require_npm_owned_command || return 2
 
   previous_ver=$(current_cli_version)
   # Registry preflight — fail before npm install mutates the global CLI.
-  latest_cli_version >/dev/null || {
+  if ! latest=$(latest_cli_version) || [[ -z "$latest" ]]; then
     err "failed to reach npm registry"
     return 2
-  }
+  fi
 
   section "npm install -g ${NPM_PKG}@latest"
   if ! npm install -g "${NPM_PKG}@latest"; then
@@ -208,6 +243,10 @@ run_apply() {
     return 2
   fi
   log "installed: $current (was: ${previous_ver:-none})"
+  if [[ "$current" != "$latest" ]]; then
+    err "firecrawl reports $current after install, expected $latest; upstream.md not written"
+    return 2
+  fi
   firecrawl --status 2>&1 | head -10 || true
 
   section "Upstream sync"
@@ -264,6 +303,9 @@ facing: run in a working-tree checkout of the plugin, not an installed copy.
            Exit 0 if in sync, 1 if drift detected, 2 on prerequisite/network error.
 
   --apply  Run npm install -g firecrawl-cli@latest and refresh upstream.md.
+           Exit 2, writing nothing, when something other than npm's global bin
+           owns the firecrawl command, or the command does not read npm latest
+           after the install.
            Does NOT rewrite SKILL.md — that's Claude's integration step, governed
            by SKILL.md Preservation rules.
 
