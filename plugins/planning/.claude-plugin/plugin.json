@@ -5,7 +5,7 @@
     "surface": {
       "type": "string",
       "title": "Interview question surface",
-      "description": "Where /planning:interview asks its rounds: terminal (default, inline) or page (a local 127.0.0.1 page the session watches). Unset: the surface key in the repository's .claude/interview-surface.json, else terminal, and the interview names the other available surfaces in one line.",
+      "description": "Where /planning:interview asks its rounds: terminal (default, inline) or page (a local 127.0.0.1 page the session watches). Unset: terminal, and the interview names the other available surfaces in one line.",
       "default": "terminal",
       "options": [
         "terminal",

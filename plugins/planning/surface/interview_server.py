@@ -157,8 +157,6 @@ SETTING_RULES = {
     "orderThreshold": ("int", 0, 1000),
 }
 REPO_KEYS = set(DEFAULT_SETTINGS) - {"displayName"}
-# Read by surfaces/registry.mjs; the repo layer skips them without a note.
-REGISTRY_KEYS = {"surface"}
 USER_ONLY = {"browserCommand"}  # read by ensure-running, never sent to the page
 
 
@@ -256,7 +254,7 @@ class Settings:
         repo = self.read(self.repo_file, "repo settings")
         user = self.read(user_file, "user settings")
         layers = (
-            ("repo", repo, REPO_KEYS | REGISTRY_KEYS | {"themeTokens"}),
+            ("repo", repo, REPO_KEYS | {"themeTokens"}),
             ("user", user, set(DEFAULT_SETTINGS) | USER_ONLY | {"themeTokens"}),
             (
                 "session",

@@ -3391,19 +3391,6 @@ class TestSettingsResolver(unittest.TestCase):
         self.assertEqual(text.count("undoSeconds"), 1, text)
         self.assertEqual(text.count("bogus"), 1, text)
 
-    def test_repo_surface_key_is_left_to_the_registry_without_a_note(self):
-        repo = self.tmp / "r"
-        (repo / ".claude").mkdir(parents=True)
-        (repo / ".claude" / "interview-surface.json").write_text(
-            json.dumps({"surface": "page", "bogus": 1}), encoding="utf-8"
-        )
-        notes = io.StringIO()
-        with contextlib.redirect_stderr(notes):
-            got, _ = self.server.Settings(repo).resolve(self.tmp)
-        self.assertNotIn("surface", got)
-        self.assertNotIn("surface", notes.getvalue())
-        self.assertIn("bogus", notes.getvalue())
-
 
 class TestEmojiMarkers(ServerCase):
     """meta.emojiMarkers from ensure-running, written once through the locked path."""

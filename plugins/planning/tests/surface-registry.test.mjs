@@ -47,7 +47,7 @@ test('AC13 through the CLI: one JSON line whose offer line is a single line', ()
     writeFileSync(join(bin, name), '#!/bin/sh\n')
     chmodSync(join(bin, name), 0o755)
   }
-  const out = execFileSync(process.execPath, [REGISTRY, 'resolve', '--surface', UNSET, '--project-root', root], {
+  const out = execFileSync(process.execPath, [REGISTRY, 'resolve', '--surface', UNSET], {
     env: { PATH: bin, HOME: join(root, 'home') },
     encoding: 'utf8',
   })
@@ -88,12 +88,12 @@ test('an empty or unknown value is unset; an unknown one is named in a notice', 
   assert.match(bogus.notices[0], /hologram/)
 })
 
-test('order: argument, then userConfig, then the repo file, then the default', async () => {
+test('order: argument, then userConfig, then the default; a repository file never picks the surface', async () => {
   const { root, env } = emptyProject()
   mkdirSync(join(root, '.claude'))
   writeFileSync(join(root, '.claude', 'interview-surface.json'), JSON.stringify({ surface: 'page', port: 0 }))
-  const repo = await resolveSurface({ userConfig: { surface: UNSET }, env, context: ALL })
-  assert.deepEqual([repo.surface, repo.decidedBy, repo.line], ['page', 'repo', null])
+  const unset = await resolveSurface({ userConfig: { surface: UNSET }, env, context: ALL })
+  assert.deepEqual([unset.surface, unset.decidedBy], ['terminal', 'default'])
   const user = await resolveSurface({ userConfig: { surface: 'terminal' }, env, context: ALL })
   assert.deepEqual([user.surface, user.decidedBy], ['terminal', 'userConfig'])
   const arg = await resolveSurface({ argument: 'share', userConfig: { surface: 'terminal' }, env, context: ALL })

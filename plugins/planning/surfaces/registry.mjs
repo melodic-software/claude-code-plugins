@@ -12,19 +12,18 @@
 //                                        spoke's own command starts any process
 //
 // Order: an argument (a surface the user asks for in the session), then planning's `surface`
-// userConfig, then a `surface` key in the repository's .claude/interview-surface.json, then the
-// plugin.json default. Nothing about rendered-view mediums is read: medium never moves the surface.
+// userConfig, then the plugin.json default. Nothing about rendered-view mediums is read: medium
+// never moves the surface.
 //
-// CLI: node registry.mjs resolve [--surface <userConfig value>] [--argument <word>] [--project-root <dir>]
+// CLI: node registry.mjs resolve [--surface <userConfig value>] [--argument <word>]
 //      prints the resolution as one JSON line; `list` prints the entries.
-import { accessSync, constants, existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs'
-import { delimiter, dirname, join, resolve } from 'node:path'
+import { accessSync, constants, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs'
+import { delimiter, dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
 export const PLUGIN_ROOT = join(here, '..')
 export const ENTRIES_DIR = join(here, 'entries')
-export const REPO_FILE = join('.claude', 'interview-surface.json')
 
 const isUnset = v =>
   v === undefined || v === null || String(v).trim() === '' || /^\$\{user_config\.\w+\}$/.test(String(v).trim())
@@ -65,28 +64,6 @@ export function probeContext(env = process.env) {
   return { has: name => onPath(name, env), env }
 }
 
-function projectRoot(given, env) {
-  if (given) return given
-  if (env.CLAUDE_PROJECT_DIR) return env.CLAUDE_PROJECT_DIR
-  for (let p = resolve(process.cwd()); ; p = dirname(p)) {
-    if (existsSync(join(p, '.git'))) return p
-    if (dirname(p) === p) return null
-  }
-}
-
-function repoSurface(root, notices) {
-  if (!root) return undefined
-  const file = join(root, REPO_FILE)
-  if (!existsSync(file)) return undefined
-  try {
-    const data = JSON.parse(readFileSync(file, 'utf8'))
-    return data && typeof data === 'object' && !Array.isArray(data) ? data.surface : undefined
-  } catch (e) {
-    notices.push(`${REPO_FILE} ignored: ${e.message}`)
-    return undefined
-  }
-}
-
 export async function resolveSurface(request = {}) {
   const env = request.env ?? process.env
   const entries = request.entries ?? (await loadEntries())
@@ -97,7 +74,6 @@ export async function resolveSurface(request = {}) {
   const sources = [
     ['argument', request.argument],
     ['userConfig', request.userConfig?.surface],
-    ['repo', repoSurface(projectRoot(request.projectRoot, env), notices)],
   ]
   let entry
   let decidedBy = 'default'
@@ -137,7 +113,7 @@ async function main(argv) {
   const [cmd, ...rest] = argv
   const opts = {}
   for (let i = 0; i < rest.length; i += 2) {
-    const key = { '--surface': 'surface', '--argument': 'argument', '--project-root': 'projectRoot' }[rest[i]]
+    const key = { '--surface': 'surface', '--argument': 'argument' }[rest[i]]
     if (!key || rest[i + 1] === undefined) throw new Error(`unknown or incomplete option ${rest[i]}`)
     opts[key] = rest[i + 1]
   }
@@ -146,11 +122,10 @@ async function main(argv) {
     console.log(JSON.stringify(entries.map(e => ({ id: e.id, reportName: e.reportName, aliases: e.aliases ?? [] }))))
     return
   }
-  if (cmd !== 'resolve') throw new Error('usage: registry.mjs resolve|list [--surface v] [--argument w] [--project-root d]')
+  if (cmd !== 'resolve') throw new Error('usage: registry.mjs resolve|list [--surface v] [--argument w]')
   const out = await resolveSurface({
     argument: opts.argument,
     userConfig: { surface: opts.surface },
-    projectRoot: opts.projectRoot,
   })
   console.log(JSON.stringify(out))
 }

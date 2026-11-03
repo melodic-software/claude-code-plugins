@@ -111,7 +111,7 @@ Limits: any local process that can reach the port can read the token from `GET /
 
 ## Settings layers
 
-Nearest wins, per key, and each Settings row names its layer: this browser's localStorage (the Settings tab), the data dir's `settings.json`, a user file passed as `ensure-running --user-settings`, the repository's `.claude/interview-surface.json` (found through `CLAUDE_PROJECT_DIR`, else the nearest ancestor holding `.git`), then defaults. That file's `surface` key is not a page setting: the surface registry (`surfaces/registry.mjs`) reads it after planning's `surface` user config, and the server skips it without a note.
+Nearest wins, per key, and each Settings row names its layer: this browser's localStorage (the Settings tab), the data dir's `settings.json`, a user file passed as `ensure-running --user-settings`, the repository's `.claude/interview-surface.json` (found through `CLAUDE_PROJECT_DIR`, else the nearest ancestor holding `.git`), then defaults.
 
 | Key | Default | Bounds |
 |---|---|---|
