@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Returns the full note tweet from step 1 alone, without escalating to Thread Reader App merely because the post is long.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "curl -q -sS --proto '=https' -X POST https://xtomd.com/api/markdown -d '{\"url\":\"https://x.com/jack/status/20\"}'"
+          }
+        }
+      ],
+      "why": "rebuilt URL"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "curl -q -sS --proto '=https' -X POST https://xtomd.com/api/markdown -d '{\"url\":\"https://twitter.com/jack/status/20?s=20&t=AbCdEfGhIjKlMnOp\"}'"
+          }
+        }
+      ],
+      "why": "token carried"
+    }
+  ]
+}

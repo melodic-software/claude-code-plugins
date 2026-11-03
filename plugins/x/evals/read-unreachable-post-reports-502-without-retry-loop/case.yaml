@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: 'read-unreachable-post-reports-502-without-retry-loop'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Names the status code and its documented meaning'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Does not retry the same request repeatedly'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Does not fabricate post content'
+    focus: 'trace'
