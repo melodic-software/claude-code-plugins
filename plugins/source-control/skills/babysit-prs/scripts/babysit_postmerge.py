@@ -3250,8 +3250,12 @@ def disarm_identity_pulls(
 
 # The pinned-head record: an identity-authored comment the wrapper posts on the
 # pull request immediately before it enqueues, so the read-back has a source no
-# host stores.
-PIN_RE = re.compile(r"^<!-- babysit-merge-pin sha=([0-9a-f]{40}) -->$")
+# host stores. It names the effective rung the gate enqueued under, which the
+# promotion-evidence publisher credits; an older pin names none.
+PIN_RUNGS = ("C2", "C3")
+PIN_RE = re.compile(
+    r"^<!-- babysit-merge-pin sha=([0-9a-f]{40})(?: rung=(C2|C3))? -->$"
+)
 PIN_QUERY = (
     "query PostMergePin($o:String!,$r:String!,$n:Int!,$c:String){repository(owner:$o,name:$r){"
     "pullRequest(number:$n){reviews(last:1){nodes{author{__typename login} submittedAt}} "
@@ -3270,9 +3274,12 @@ PIN_COMMENTS = (
 )
 
 
-def pin_comment(sha: str) -> str:
+def pin_comment(sha: str, rung: str | None = None) -> str:
+    if rung is not None and rung not in PIN_RUNGS:
+        raise ValueError(f"pin rung {rung!r} is not one of {PIN_RUNGS}")
+    named = f" rung={rung}" if rung else ""
     return (
-        f"<!-- babysit-merge-pin sha={sha} -->\n"
+        f"<!-- babysit-merge-pin sha={sha}{named} -->\n"
         f"The unattended merge path enqueued this pull request at head `{sha}`."
     )
 

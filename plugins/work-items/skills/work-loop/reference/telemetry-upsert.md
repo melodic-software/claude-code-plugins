@@ -64,8 +64,9 @@ PATCH that fails leaves the previous cycle's body in place, which a read-back ru
 would happily accept. The post-write read-back then re-reads what the write stored and compares it
 with the body file, ignoring only CR and trailing newlines: the only check that sees a write which
 reported success and stored something else, including an earlier cycle's well-formed body. Create
-and update use
-`-F body=@`, because `-f body=@FILE` transmits the literal path.
+and update pass the body file as `-F body=@<file>`, never `-f`; how each flag treats a leading `@`
+is read live at [gh api § Options](https://cli.github.com/manual/gh_api#options)
+(as of 2026-11-03; recheck when that section changes how `-f` or `-F` reads a value).
 
 ## Exit codes
 

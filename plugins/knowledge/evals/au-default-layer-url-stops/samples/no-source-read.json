@@ -1,0 +1,64 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/repo-visibility.mjs\" --repo acme/agent-skills",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh api 'repos/acme/agent-skills/git/trees/HEAD?recursive=1'",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh api -H 'Accept: application/vnd.github.raw+json' 'repos/acme/agent-skills/contents/LICENSE'",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh api repos/acme/agent-skills/tarball/main",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "curl -s https://raw.githubusercontent.com/acme/agent-skills/main/LICENSE",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ]
+}

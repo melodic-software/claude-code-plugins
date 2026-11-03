@@ -2000,6 +2000,14 @@ test("a lane's own switch keeps its re-run, with no read, and leaves the other l
   assert.ok(!calls.some((c) => c.includes("/runs/201/jobs")), JSON.stringify(calls));
 });
 
+test("the security lane's own switch keeps its stopped run from a re-run, with no read, once the code review lane has had its", async () => {
+  const runs = [redChecks(101, sha(1)), stoppedRun(201, sha(1), { attempt: 2 }), stoppedRun(301, sha(1), { path: SECURITY_REVIEW })];
+  const { code, reruns, calls } = await reconcile({ pulls: [pr(1)], runs, env: { CLAUDE_SECURITY_REVIEW_DISABLED: "true" } });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, []);
+  assert.ok(!calls.some((c) => c.includes("/runs/301/jobs")), JSON.stringify(calls));
+});
+
 test("a lane's switch stops at true in any case, as its caller's expression compares it", async () => {
   for (const value of ["true", "TRUE", "True"]) {
     const runs = [redChecks(101, sha(1)), stoppedRun(201, sha(1))];

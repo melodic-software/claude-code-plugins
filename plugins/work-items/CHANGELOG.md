@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [9.1.0] - 2026-11-03
+
+### Added
+
+- `/work-items:work` in the issue lane has a verify-and-close mode for a parent whose sub-issues are all closed as completed. When `issue.json` carries `verify_close`, the run builds nothing and checks each of the parent's own done-when items, citing the evidence for each. It then stops `verified-done`, which closes the parent, or `verify-unmet`, which names the unmet items and parks the parent.
+
 ## [9.0.5] - 2026-11-03
 
 ### Changed

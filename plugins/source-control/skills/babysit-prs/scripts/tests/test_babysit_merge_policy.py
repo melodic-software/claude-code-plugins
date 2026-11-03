@@ -4259,6 +4259,83 @@ class Assess(unittest.TestCase):
         self.assertEqual(result.reason, "promotion-unqualified:resolver-failed")
         self.assertIs(result.enabled, True)
 
+    def linked_issue(self, gh: Any, labels: list[str]) -> None:
+        issue = {
+            "number": ISSUE,
+            "lastEditedAt": None,
+            "author": user(OPERATOR),
+            "repository": {"nameWithOwner": REPO},
+            "labels": {
+                "totalCount": len(labels),
+                "nodes": [{"name": name} for name in labels],
+            },
+        }
+        # A person applied each label (REST timeline `labeled` events).
+        gh.rest[f"repos/{REPO}/issues/{ISSUE}/timeline?per_page=100"] = [
+            {
+                "event": "labeled",
+                "label": {"name": name},
+                "actor": {"login": OPERATOR, "type": "User"},
+                "created_at": "2026-10-11T09:00:00Z",
+            }
+            for name in labels
+        ]
+        gh.rest[f"repos/{REPO}/collaborators/{OPERATOR}/permission"] = {
+            "permission": "admin"
+        }
+        gh.rest[f"repos/{REPO}/issues/{ISSUE}/comments?per_page=100"] = [
+            lease_comment(IDENTITY, "2026-10-12T11:00:00Z")
+        ]
+        gh.graphql["PolicyEligibility"] = {
+            "repository": {
+                "pullRequest": {
+                    "number": 1,
+                    "createdAt": PR_CREATED,
+                    "lastEditedAt": None,
+                    "isCrossRepository": False,
+                    "baseRefName": "trunk",
+                    "author": bot("agent-lanes"),
+                    "headRepositoryOwner": {"login": "owner"},
+                    "labels": {"totalCount": 0, "nodes": []},
+                    "closingIssuesReferences": {"totalCount": 1, "nodes": [issue]},
+                }
+            }
+        }
+
+    def test_each_rung_admits_a_class_less_or_structural_item_and_holds_untrusted(
+        self,
+    ) -> None:
+        # Once the rung's cells are promoted, an item with no
+        # work-class label and a structural one pass the real `eligibility()`
+        # at both rungs (C2 is c2-mechanical; C3 is c3-autonomous and
+        # full-autonomy); the untrusted-provenance hold still refuses.
+        for rung in ("C2", "C3"):
+            for labels, reason in (
+                ([], None),
+                (["work-class: structural"], None),
+                (
+                    ["work-class: untrusted-provenance"],
+                    "ineligible:untrusted-provenance",
+                ),
+            ):
+                with self.subTest(rung=rung, labels=labels):
+                    gh = self.readable()
+                    self.linked_issue(gh, labels)
+                    with (
+                        self.at_rung(rung),
+                        mock.patch.object(
+                            policy,
+                            "in_flight",
+                            return_value=policy.InFlight(True, None),
+                        ),
+                    ):
+                        result = self.assess(
+                            post_merge=lambda floor, who: gate(),
+                            promotion=lambda s: PROMOTED,
+                        )
+                    self.assertEqual(result.reason, reason)
+                    self.assertIs(result.promoted, True)
+
     def test_the_real_eligibility_holds_an_untrusted_provenance_issue(self) -> None:
         # The trust hold through `eligibility()` itself, not a stubbed answer.
         gh = self.readable()
