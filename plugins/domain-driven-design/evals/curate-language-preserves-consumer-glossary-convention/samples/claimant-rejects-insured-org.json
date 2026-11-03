@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| Preferred term | Meaning | Rejected names |\n|---|---|---|\n| Claimant | The person requesting coverage. | insured organization |\n",
+      "why": "row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "| Preferred term | Meaning | Rejected names |\n|---|---|---|\n| Claimant | The person requesting coverage, not the insured organization. | |\n",
+      "why": "rejection in the meaning column"
+    }
+  ]
+}

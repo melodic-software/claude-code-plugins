@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: 'curate-language-no-spec-or-generic-term-pollution'
+graders:
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Identifies Retry as generic programming vocabulary unless the project gives it a distinct domain meaning'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Identifies Polly, Redis, HTTP count, and backoff as implementation/specification detail rather than glossary content'
+    focus: 'trace'
+  - name: 'expectation-4'
+    type: 'llm'
+    criteria: 'Asks for or explains the missing project-domain meaning needed for admission'
+    focus: 'trace'
+  - name: 'no-md-write'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"[^"]*\.md"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-md-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: '"file_path":"[^"]*\.md"'
+    min: 0
+    max: 0
+    arm: 'both'

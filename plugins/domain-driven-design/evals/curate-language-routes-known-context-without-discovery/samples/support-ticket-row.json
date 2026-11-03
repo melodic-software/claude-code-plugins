@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| Term | Definition | Avoid |\n|---|---|---|\n| Case | x | ticket |\n| Ticket | A customer's request for help. | |\n",
+      "why": "new row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "| Term | Definition | Avoid |\n|---|---|---|\n| Case | x | ticket |\n",
+      "why": "not recorded"
+    }
+  ]
+}

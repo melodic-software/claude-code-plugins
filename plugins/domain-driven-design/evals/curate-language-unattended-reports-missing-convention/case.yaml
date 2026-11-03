@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: 'curate-language-unattended-reports-missing-convention'
+graders:
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Reports the missing glossary convention'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Names GLOSSARY.md (or the resolved glossary_file name) only as a proposal awaiting confirmation'
+    focus: 'trace'
+  - name: 'expectation-4'
+    type: 'llm'
+    criteria: 'Does not ask a question it says no one can answer, and does not treat the lack of an answer as consent'
+    focus: 'trace'
+  - name: 'no-md-write'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"[^"]*\.md"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-md-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: '"file_path":"[^"]*\.md"'
+    min: 0
+    max: 0
+    arm: 'both'

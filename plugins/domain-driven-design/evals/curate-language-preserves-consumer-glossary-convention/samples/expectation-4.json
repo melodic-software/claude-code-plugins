@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Updates the existing custom-terms.md table in its established row/column shape, defining Claimant tightly and recording 'insured organization' in its Rejected names column. It does not create or prescribe a GLOSSARY.md file.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Writes nothing. Reports that the repository has no glossary convention and that creation is deferred, naming GLOSSARY.md as the unconfirmed proposal and the Shipment entry it would hold.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "# Claims language\n\n| Preferred term | Meaning | Rejected names |\n|---|---|---|\n| Claimant | The person requesting coverage. | insured organization |\n",
+      "why": "kept"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "# Claims language\n\n**Claimant**: the person requesting coverage.\n",
+      "why": "prose shape"
+    }
+  ]
+}
