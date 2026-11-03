@@ -28,6 +28,7 @@ import { generate as generateCarrierKey } from "../open-lane-output/keygen.mjs";
 import { decide } from "../report-check-run/decide.mjs";
 import { main as reportCheckRun } from "../report-check-run/report-check-run.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { main as resolveConfig } from "./resolve-config.mjs";
 
 // The leak-scan step reads the real os.tmpdir(); every scratch dir it makes lands inside this one.
 process.env.TMPDIR = tempDir("callers-tmp-");
@@ -266,6 +267,51 @@ test("intake-triage.yml: intake runs only with claude-args resolved from triage-
   assert.equal(killRuns("workflow_dispatch", ""), true);
   assert.equal(killRuns("workflow_dispatch", "", "refs/heads/feature"), false);
   assert.equal(killSwitch.outputs.proceed, "${{ steps.kill.outputs.proceed }}");
+});
+
+// Each resolve-config step of upstream-apply-changelog.yml, run through the
+// action's own entry point over this tree on the lane's two events, with no
+// network: a mode or route the resolver refuses fails here, not on a release.
+test("upstream-apply-changelog.yml: every resolve-config step resolves on schedule and dispatch, and the model step yields a model", async () => {
+  const root = fileURLToPath(new URL("../../../", import.meta.url));
+  const dir = tempDir("upstream-resolve-");
+  const eventPath = join(dir, "event.json");
+  writeFileSync(eventPath, "{}");
+  const steps = Object.values(workflow("upstream-apply-changelog.yml").jobs).flatMap((job) =>
+    (job.steps ?? []).filter((step) => step.uses?.startsWith(RESOLVE)),
+  );
+  assert.ok(steps.some((step) => step.id === "models"));
+  const github = async (method, path) => {
+    throw new Error(`unexpected API call ${method} ${path}`);
+  };
+  for (const step of steps) {
+    for (const eventName of ["schedule", "workflow_dispatch"]) {
+      const env = {
+        OUTPUT_PATH: join(dir, "resolved.json"),
+        GITHUB_OUTPUT: join(dir, `out-${step.id}-${eventName}`),
+        EVENT_NAME: eventName,
+        EVENT_PATH: eventPath,
+      };
+      for (const [key, value] of Object.entries(step.with)) {
+        if (key === "base-path") env.BASE_PATH = root;
+        else if (key !== "output-path") {
+          assert.doesNotMatch(String(value), /\$\{\{/, `${step.id} ${key} is an expression this test cannot evaluate`);
+          env[key.toUpperCase().replaceAll("-", "_")] = String(value);
+        }
+      }
+      writeFileSync(env.GITHUB_OUTPUT, "");
+      assert.equal(await resolveConfig({ env, github }), 0, `${step.id} on ${eventName}`);
+      const outputs = Object.fromEntries(
+        [...readFileSync(env.GITHUB_OUTPUT, "utf8").matchAll(/^([\w-]+)<<(\S+)\n([\s\S]*?)\n\2$/gm)].map((m) => [m[1], m[3]]),
+      );
+      assert.equal(outputs.applies, "true", `${step.id} on ${eventName}`);
+      if (step.id === "models") {
+        assert.match(outputs.model, /^(haiku|sonnet|opus)$/);
+        assert.match(outputs["max-turns"], /^[1-9][0-9]*$/);
+        assert.match(outputs.effort, /^(|low|medium|high|xhigh|max)$/);
+      }
+    }
+  }
 });
 
 test("intake-triage.yml: the kill switch stops the born-triaged check and the floor label", () => {
