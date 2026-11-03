@@ -161,9 +161,9 @@ expect_cancelled "no cancelled lane makes no API call" \
 if [[ -s "$GH_CALLS" ]]; then fail "gh was called with no cancelled lane"; else ok "gh is not called with no cancelled lane"; fi
 
 # Every lane ci-status needs ends in Lane finished, so the rule above can pass it.
-for lane in $(awk '/^  ci-status:$/ { on = 1; next } on && /^    needs:$/ { n = 1; next } n && /^      - / { print $2; next } n { exit }' "$WORKFLOW"); do
+while read -r lane; do
   last="$(awk -v job="  $lane:" '$0 == job { on = 1; next } on && /^  [a-z]/ { exit } on && /^      - name: / { sub(/^      - name: /, ""); name = $0 } END { print name }' "$WORKFLOW")"
   if [[ "$last" == "Lane finished" ]]; then ok "$lane ends in Lane finished"; else fail "$lane ends in '$last'"; fi
-done
+done < <(awk '/^  ci-status:$/ { on = 1; next } on && /^    needs:$/ { n = 1; next } n && /^      - / { print $2; next } n { exit }' "$WORKFLOW")
 
 test_harness::report
