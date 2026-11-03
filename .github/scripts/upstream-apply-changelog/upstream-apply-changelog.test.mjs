@@ -1,23 +1,27 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
 
 import {
   alreadyProcessed,
   branchFor,
+  changesHoldPath,
   checkRawLog,
   commitNetTree,
   fetchSynthetic,
   fileReleaseHandoffs,
   handoffMarker,
+  holdPathBranch,
+  loadHoldPaths,
   marksDone,
   netRawDiff,
   newestRelease,
   publishText,
   readNetChanges,
+  readHoldPaths,
   readPlan,
   readSynthetic,
   refuseBinary,
@@ -26,6 +30,7 @@ import {
   releasesFromStatus,
   renderItems,
   startedInWindow,
+  stoppedPlanText,
   SYNTHETIC_MESSAGE,
   syntheticBundle,
   validatePlan,
@@ -204,6 +209,84 @@ test("a commit outside its plugin, or writing a link or submodule, is refused", 
   assert.throws(() => checkRawLog(":100644 100644 1 2 M\t.github/workflows/x.yml", "hooks-kit"), /outside/);
   assert.throws(() => checkRawLog(":000000 120000 0 2 A\tplugins/hooks-kit/link", "hooks-kit"), /mode other than a regular file/);
   assert.throws(() => checkRawLog(":000000 160000 0 2 A\tplugins/hooks-kit/sub", "hooks-kit"), /mode other than a regular file/);
+});
+
+const SECURITY_SKILL = "plugins/review/skills/security-review/SKILL.md";
+const RISK_SCORER = "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py";
+
+test("the hold paths come from the security review's generated hold-paths block, and a missing or empty block throws", () => {
+  const globs = loadHoldPaths();
+  assert.ok(globs.includes("plugins/review/skills/security-review/**"));
+  assert.ok(globs.includes(RISK_SCORER));
+  assert.throws(() => readHoldPaths("jobs: {}\n"), /hold-paths block was not found/);
+  assert.throws(() => readHoldPaths("  # BEGIN hold-floor hold-paths: x\n  hold-paths: |\n  # END hold-floor hold-paths\n"), /lists no path/);
+});
+
+test("a diff touching the security review skill or the risk scorer changes a hold path; an ordinary plugin path does not", () => {
+  const raw = (path) => `:100644 100644 1 2 M\t${path}`;
+  assert.equal(changesHoldPath(raw(SECURITY_SKILL)), true);
+  assert.equal(changesHoldPath(raw(RISK_SCORER)), true);
+  assert.equal(changesHoldPath(raw("plugins/Review/Skills/Security-Review/skill.md")), true);
+  // Either side of a rename counts.
+  assert.equal(changesHoldPath(`:100644 100644 1 2 R100\t${SECURITY_SKILL}\tplugins/review/skills/x.md`), true);
+  assert.equal(changesHoldPath(raw("plugins/discovery/skills/explore/SKILL.md")), false);
+  assert.equal(changesHoldPath(raw("plugins/review/skills/code-review/SKILL.md")), false);
+});
+
+test("the scan stops a release whose planned branch changes a hold path, naming no path, and passes an ordinary one", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "uac-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const env = { PATH: process.env.PATH, HOME: dir, GIT_CONFIG_NOSYSTEM: "1", GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" };
+  const git = (...args) => execFileSync("git", ["-C", dir, ...args], { env, encoding: "utf8" }).trim();
+  const commitFile = (path, from) => {
+    git("checkout", "-q", "--detach", from);
+    mkdirSync(join(dir, dirname(path)), { recursive: true });
+    writeFileSync(join(dir, path), "edit");
+    git("add", ".");
+    git("commit", "-qm", path);
+    return git("rev-parse", "HEAD");
+  };
+  git("init", "-q", "-b", "main");
+  writeFileSync(join(dir, "keep.md"), "k");
+  git("add", ".");
+  git("commit", "-qm", "base");
+  const base = git("rev-parse", "HEAD");
+  const branch = (plugin, head) => ({ plugin, head_sha: head });
+  const ordinary = commitFile("plugins/discovery/skills/explore/SKILL.md", base);
+  assert.equal(holdPathBranch(dir, base, [branch("discovery", ordinary)]), -1);
+  const skill = commitFile(SECURITY_SKILL, base);
+  const risk = commitFile(RISK_SCORER, base);
+  assert.equal(holdPathBranch(dir, base, [branch("discovery", ordinary), branch("review", skill)]), 1);
+  assert.equal(holdPathBranch(dir, base, [branch("source-control", risk)]), 0);
+  // A branch outside its plugin still throws before any hold path is read.
+  assert.throws(() => holdPathBranch(dir, base, [branch("discovery", skill)]), (e) => /branches\[0\] raw line 1 changes a path outside/.test(e.message) && !e.message.includes("security-review"));
+
+  // The scan subcommand rewrites the scan job's inputs to the stopped plan.
+  const scanIn = join(dir, ".scan-in");
+  mkdirSync(scanIn);
+  const planned = plan({ base_sha: base });
+  planned.branches[0] = { plugin: "review", branch: "changelog/review/v2.1.300", base_sha: base, head_sha: skill, pr: { title: "chore(review): x", body: "b" } };
+  writeFileSync(join(scanIn, "plan.json"), JSON.stringify(planned));
+  writeFileSync(join(scanIn, "heads.txt"), `${skill}\n`);
+  const out = execFileSync(process.execPath, [new URL("./upstream-apply-changelog.mjs", import.meta.url).pathname, "scan"], {
+    env: { PATH: process.env.PATH, IN: scanIn, RELEASE: "2.1.300", BASE_SHA: base, REPO_DIR: dir },
+    encoding: "utf8",
+  });
+  assert.match(out, /::warning::branches\[0\] changes a hold path/);
+  assert.equal(out.includes("security-review"), false);
+  const rewritten = readPlan(readFileSync(join(scanIn, "plan.json"), "utf8"), { release: "2.1.300", baseSha: base });
+  assert.deepEqual([rewritten.stop_reason, rewritten.branches.length], ["hold-path", 0]);
+  assert.equal(readFileSync(join(scanIn, "heads.txt"), "utf8"), "");
+  assert.ok(readFileSync(join(scanIn, "publish.txt"), "utf8").includes("stop_reason `hold-path`"));
+
+  // The stopped plan keeps its handoffs, publishes no branch and marks done.
+  const stopped = readPlan(stoppedPlanText(JSON.stringify(plan())), ctx);
+  assert.deepEqual([stopped.status, stopped.stop_reason, stopped.branches], ["stopped", "hold-path", []]);
+  assert.equal(stopped.handoffs.length, 1);
+  assert.equal(marksDone(stopped.stop_reason), true);
+  const issue = releaseIssue("2.1.300", stopped.handoffs, stopped.stop_reason);
+  assert.ok(issue.body.includes("stop_reason `hold-path`): a planned branch changed a hold path"));
+  assert.ok(publishText(stopped, "2.1.300").includes(issue.body));
 });
 
 test("only the done marker skips a release, so a run after a failed publish finishes the work", () => {

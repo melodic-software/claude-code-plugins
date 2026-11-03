@@ -36,7 +36,9 @@ A row goes on a branch only when every condition holds:
    disagreement is a `docs-lag` handoff.
 3. The local verifier re-checked it against the current tree.
 4. Its edits stay inside one owner plugin: `plugins/<plugin>/` and that plugin's changelog entry or
-   fragment location (here `.changes/<plugin>/`).
+   fragment location (here `.changes/<plugin>/`), and touch no hold path (the `hold-paths` list in
+   `.github/workflows/pr-review-security-hosted.yml`). The workflow's scan job stops the release
+   with `stop_reason` `hold-path` when a branch changes one.
 5. It is not security-relevant: the item is not a security fix (the rubric's "never skip" class),
    and the owner surface does not enforce permissions, guard tool calls, or handle tokens or secrets.
 
@@ -125,10 +127,10 @@ always false: the marker moves in the ledger pull request once every row is in a
 ```
 
 `status` is `stopped` (no rows were derived; `stop_reason` is `cap-exceeded` or
-`range-not-computed`) or `planned` (rows were derived; `branches` and `handoffs` may each be empty).
+`range-not-computed`; the scan job alone sets `hold-path`) or `planned` (rows were derived; `branches` and `handoffs` may each be empty).
 Handoff bodies carry item ids and the required sentence, never changelog text, matching the ledger
 rule in [decisions.md](decisions.md). The workflow groups a release's handoffs into one issue, a
-checklist item per handoff. A `cap-exceeded` plan is the same on every run for its release, so the
+checklist item per handoff. A `cap-exceeded` or `hold-path` plan is the same on every run for its release, so the
 workflow files its issue even with no handoffs, opens the issue with a line naming the
 `stop_reason`, and marks the release done once that issue holds every handoff key; a filing that
 fails leaves the release for the next run. A `range-not-computed` plan can pass on a later run (the

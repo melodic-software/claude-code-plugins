@@ -3,19 +3,23 @@
 // No model runs here. Subcommands:
 //   gate     picks the release, skips one already processed, applies the
 //            per-day cap (read-only GITHUB_TOKEN with actions: read)
+//   scan     checks each planned head's net diff in the scan job and stops
+//            the release on a hold path (no write token)
 //   push     checks each planned branch and recreates it through the Git Data
 //            API as one lanes App commit on the base (mutate-branch token)
 //   publish  opens one PR per pushed branch and files the release's handoffs
 //            as one issue (publish-artifact token)
 // The plan and each branch's tree come from the model job, so every field is
 // data: names are held to fixed shapes and each branch's net diff to its
-// plugin's paths. The bundle holds the scan job's synthetic commits only.
+// plugin's paths, none of them a hold path. The bundle holds the scan job's
+// synthetic commits only.
 import { execFileSync } from "node:child_process";
-import { appendFileSync, existsSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
+import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createGitHubApi } from "../apply-patch/apply-patch.mjs";
-import { LANES_APP_LOGIN } from "../pr-merge/merge-holds.mjs";
+import { LANES_APP_LOGIN, matchesHoldPath } from "../pr-merge/merge-holds.mjs";
 
 export const RELEASE = /^(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,5})$/;
 const PLUGIN = /^[a-z0-9][a-z0-9-]{0,63}$/;
@@ -34,16 +38,20 @@ export const releaseMarker = (release) => `<!-- upstream-apply-changelog release
 const ISSUE_BODY_MAX = 65536; // GitHub's issue body limit
 const TRUNCATED = "Handoff bodies are truncated proportionally to fit GitHub's 65536-character issue body limit.";
 const KIND = /^[a-z][a-z-]{0,39}$/;
-// ci-mode.md: the two reasons a plan stops before deriving any row.
-const STOP_REASONS = new Set(["cap-exceeded", "range-not-computed"]);
+// ci-mode.md: the two reasons a plan stops before deriving any row, and
+// hold-path, which the scan job sets when a planned branch changes one.
+const STOP_REASONS = new Set(["cap-exceeded", "range-not-computed", "hold-path"]);
 // range-not-computed can pass on a later run (the changelog fetch failed, or
 // the page lags the tag), so it files nothing and leaves the release undone;
-// cap-exceeded is the same on every run, so its issue is filed and the
-// release marked done.
+// cap-exceeded and hold-path come from the release's fixed changelog text, so
+// its issue is filed and the release marked done.
 export const marksDone = (stop) => stop !== "range-not-computed";
 
+const STOP_WHY = {
+  "hold-path": "a planned branch changed a hold path, so no branch was opened",
+};
 const stopLine = (release, stop) =>
-  `The plan for Claude Code v${release} stopped (stop_reason \`${stop}\`): no changelog row was derived and no branch was opened. ` +
+  `The plan for Claude Code v${release} stopped (stop_reason \`${stop}\`): ${STOP_WHY[stop] ?? "no changelog row was derived and no branch was opened"}. ` +
   "The release is marked done once this issue holds its handoffs, so later runs do not take it again.";
 const releaseTitle = (release, n) => `Claude Code v${release} changelog: ${n} handoff${n === 1 ? "" : "s"}`;
 const keysIn = (body) => [...body.matchAll(/<!-- upstream-apply-changelog key=(\S+) -->/g)].map((m) => m[1]);
@@ -153,8 +161,10 @@ function output(name, value) {
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `${name}=${value}\n`);
 }
 
+const guardedFetch = rateLimitLatch.guard(globalThis.fetch);
+
 async function api(path, { method = "GET", body, allow404 = false } = {}) {
-  const res = await fetch(`${process.env.GITHUB_API_URL || "https://api.github.com"}${path}`, {
+  const res = await guardedFetch(`${process.env.GITHUB_API_URL || "https://api.github.com"}${path}`, {
     method,
     headers: {
       authorization: `Bearer ${process.env.GH_TOKEN}`,
@@ -233,7 +243,7 @@ export function validatePlan(plan, { release, baseSha }) {
   // (ci-mode.md: cap exceeded carries a docs-conformance one) are still
   // filed, under an issue line naming its stop_reason.
   const stopped = status === "stopped";
-  const stop_reason = !stopped ? null : STOP_REASONS.has(plan.stop_reason) ? plan.stop_reason : fail("stop_reason is neither cap-exceeded nor range-not-computed");
+  const stop_reason = !stopped ? null : STOP_REASONS.has(plan.stop_reason) ? plan.stop_reason : fail("stop_reason is not cap-exceeded, range-not-computed or hold-path");
   const branches = stopped ? [] : Array.isArray(plan.branches) ? plan.branches : fail("branches is not a list");
   const handoffs = Array.isArray(plan.handoffs) ? plan.handoffs : fail("handoffs is not a list");
   const seen = new Set();
@@ -287,6 +297,44 @@ export function checkRawLog(raw, plugin, index = 0) {
       }
     });
 }
+
+// The security review lane's hold-paths, which scripts/sync-hold-floor.py
+// writes from the hold floor (HOLD_PATH_CLASSES in merge-holds.mjs), the
+// trusted-actor list and the security review's own files. Read from the
+// checkout this module runs from, never the model's tree; unreadable or empty
+// throws, so nothing is published unchecked.
+export const HOLD_PATHS_FILE = new URL("../../workflows/pr-review-security-hosted.yml", import.meta.url);
+export function readHoldPaths(text) {
+  const lines = text.split("\n");
+  const at = (word) => lines.findIndex((l) => l.trimStart().startsWith(`# ${word} hold-floor hold-paths`));
+  const [begin, end] = [at("BEGIN"), at("END")];
+  if (begin < 0 || end < begin || lines[begin + 1]?.trim() !== "hold-paths: |") throw new Error("the hold-paths block was not found");
+  const globs = lines.slice(begin + 2, end).map((l) => l.trim()).filter(Boolean);
+  if (!globs.length) throw new Error("the hold-paths block lists no path");
+  return globs;
+}
+let holdPaths;
+export const loadHoldPaths = () => (holdPaths ??= readHoldPaths(readFileSync(HOLD_PATHS_FILE, "utf8")));
+
+// Whether a raw diff changes a hold path, either side of a rename.
+export const changesHoldPath = (raw, globs = loadHoldPaths()) =>
+  raw
+    .split("\n")
+    .filter((l) => l.startsWith(":"))
+    .some((line) => line.split("\t").slice(1).some((p) => globs.some((g) => matchesHoldPath(p, g))));
+
+// The first planned branch whose net diff changes a hold path, or -1, after
+// checking each one stays in its plugin. Each head must be in repoDir.
+export function holdPathBranch(repoDir, baseSha, branches, globs = loadHoldPaths()) {
+  return branches.findIndex((b, i) => {
+    const raw = netRawDiff(repoDir, baseSha, b.head_sha);
+    checkRawLog(raw, b.plugin, i);
+    return changesHoldPath(raw, globs);
+  });
+}
+
+// The plan text stopped on hold-path: no branch, the handoffs kept.
+export const stoppedPlanText = (text) => JSON.stringify({ ...JSON.parse(text), status: "stopped", stop_reason: "hold-path", branches: [] });
 
 const git = (repo, args, extra = {}) => execFileSync("git", ["-C", repo, ...args], { encoding: "utf8", ...extra }).trim();
 const MAX_BLOB = 64 * 1024 * 1024;
@@ -438,7 +486,9 @@ async function push(env) {
   for (const [i, b] of plan.branches.entries()) {
     const local = `refs/upstream-apply-changelog/${b.plugin}`;
     const commit = fetchSynthetic(repoDir, BUNDLE_FILE, baseSha, synthetic[i], local, i);
-    checkRawLog(netRawDiff(repoDir, baseSha, commit), b.plugin, i);
+    const raw = netRawDiff(repoDir, baseSha, commit);
+    checkRawLog(raw, b.plugin, i);
+    if (changesHoldPath(raw)) throw new Error(`branches[${i}] changes a hold path; the scan job should have stopped the release`);
     refuseBinary(git(repoDir, ["diff", "--numstat", "--no-renames", baseSha, commit]), i);
     const headTree = synthetic[i].tree;
     const existing = await api(`/repos/${repo}/git/ref/heads/${b.branch}`, { allow404: true });
@@ -470,6 +520,26 @@ async function push(env) {
   }
   output("heads", JSON.stringify(heads));
   console.log(`${Object.keys(heads).length} of ${plan.branches.length} branches are at their planned tree`);
+}
+
+// The scan job's path check, after it fetched each planned head into REPO_DIR.
+// A branch outside its plugin throws; one changing a hold path rewrites the
+// plan in IN to stopped (hold-path) with no branch, and empties heads.txt and
+// rewrites publish.txt to match, so the scans read what push and publish get.
+async function scan(env) {
+  const { IN, RELEASE: release, BASE_SHA: baseSha, REPO_DIR: repoDir } = env;
+  const text = readFileSync(`${IN}/plan.json`, "utf8");
+  const plan = readPlan(text, { release, baseSha });
+  const held = holdPathBranch(repoDir, baseSha, plan.branches);
+  if (held < 0) {
+    console.log(`${plan.branches.length} branches stay in their plugins and change no hold path`);
+    return;
+  }
+  const stopped = stoppedPlanText(text);
+  writeFileSync(`${IN}/plan.json`, stopped);
+  writeFileSync(`${IN}/heads.txt`, "");
+  writeFileSync(`${IN}/publish.txt`, publishText(readPlan(stopped, { release, baseSha }), release));
+  console.log(`::warning::branches[${held}] changes a hold path; Claude Code v${release} stops with stop_reason hold-path and no branch is opened`);
 }
 
 async function publish(env) {
@@ -506,10 +576,10 @@ async function publish(env) {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  const commands = { gate, push, publish };
+  const commands = { gate, scan, push, publish };
   const run = commands[process.argv[2]];
   if (!run) {
-    console.error("usage: upstream-apply-changelog.mjs gate|push|publish");
+    console.error("usage: upstream-apply-changelog.mjs gate|scan|push|publish");
     process.exit(2);
   }
   run(process.env).catch((error) => {
