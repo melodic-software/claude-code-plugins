@@ -3,6 +3,12 @@
 All notable changes to the `dometrain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.12] - 2026-11-03
+
+### Changed
+
+- The `grounding` description says a plain how-to or design question on a covered topic qualifies without naming Dometrain, so the skill fires on such questions on Sonnet 5.5 (#12142).
+
 ## [0.8.11] - 2026-11-02
 
 ### Changed

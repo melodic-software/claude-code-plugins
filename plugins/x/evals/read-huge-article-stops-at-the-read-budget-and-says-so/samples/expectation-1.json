@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Reads successive bounded slices up to a cumulative read budget rather than to EOF unconditionally, stops when the budget is reached, deletes the spool, and reports the result as partial with a statement of where it stops.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

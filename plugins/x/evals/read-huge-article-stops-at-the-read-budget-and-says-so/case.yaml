@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: 'read-huge-article-stops-at-the-read-budget-and-says-so'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Bounds the total bytes read into context, not merely each individual slice'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Reports the result as partial rather than presenting the read portion as the whole article'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Still deletes the spool after stopping early'
+    focus: 'trace'
