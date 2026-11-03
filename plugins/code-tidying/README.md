@@ -9,7 +9,7 @@ Seven skills, one capability:
 
 - **`/code-tidying:dissolve-comments`**. Enforces self-describing, expressive
   code over a diff or target (a clean tree widens to the branch diff, then to
-  the whole repository with confirmation, ranked by exposure and comment
+  the whole repository in safe mode, ranked by exposure and comment
   payload): deletes zero-information comments, dissolves code-expressible
   comments into names and structure via behavior-preserving refactoring (then
   deletes them), and keeps only terse, load-bearing comments code cannot

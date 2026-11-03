@@ -10,7 +10,6 @@
     "harness-ops:audit-skill-visibility",
     "harness-ops:behavior-probes",
     "harness-ops:changelog",
-    "harness-ops:check",
     "harness-ops:known-issues",
     "harness-ops:lanes",
     "harness-ops:machine-profile",

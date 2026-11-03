@@ -144,11 +144,11 @@ Supply `subject_pattern=` to write it non-interactively, and
 `layer=user|team|local` to pick which layer receives it (default: the tracked
 team file). Re-runnable to reconfigure.
 
-### `/source-control:check`
+### Prerequisite check
 
-Read-only and model-invocable. Reports whether `jq` resolves for the plugin's
-hooks, with the install route from `prerequisites.json` when it does not. It
-never installs.
+`node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"` reports whether
+`jq` resolves for the plugin's hooks, with the install route from `prerequisites.json` when it
+does not. It never installs.
 
 ### `/source-control:resolve-conflicts`
 
