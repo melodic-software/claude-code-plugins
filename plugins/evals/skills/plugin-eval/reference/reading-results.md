@@ -62,7 +62,8 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   the same run (with no expansion left unresolved), and a `Read`, `Grep` or `Glob` aimed only under the
   session's own `<sandbox>/config/projects/*/*/tool-results/`, where it reads back output it already
   received. A Bash pipeline of `cat`, `head`, `wc`, `grep` and `sed -n` that reads only there is set
-  aside the same way. Any other Bash call (a
+  aside the same way, including one opened by a single `NAME=<literal path>;` or newline that the
+  pipeline reads as `$NAME`. Any other Bash call (a
   redirect, another command or operator, an unquoted glob, brace or `$`, or a path outside that
   directory), a write, or any other
   path in the config directory (`settings.json` included) keeps the rules below. The third applies

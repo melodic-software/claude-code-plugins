@@ -1477,6 +1477,10 @@ class RunValidityTest(unittest.TestCase):
             "grep -ci autonomy " + saved,
             "grep -n -B 3 -A40 'a | b' %s | head -60" % saved,
             "grep -nE \"^[a-z]+.*{2}$\" " + saved,
+            # The path in a leading same-command variable.
+            "F=%s; grep -n x $F" % saved,
+            "F=%s\ngrep -n x \"$F\"" % saved,
+            "F='%s'; sed -n 1,5p ${F} | grep x" % saved,
         ):
             proc = self.denied_in_sandbox([("Bash", {"command": command})])
             self.assertDenials(proc, "WARN")
@@ -1526,6 +1530,17 @@ class RunValidityTest(unittest.TestCase):
             "sed -n /a/p /etc/host? " + saved,
             "grep $'\\'' ;touch x; \\' " + saved,
             "grep a\\ b " + saved,
+            # A leading variable that is not one fixed path under tool-results.
+            "F=/etc/hosts; cat $F",
+            "F=%s; F=/etc/hosts; cat $F" % saved,
+            "F=%s; unset F; cat $F" % saved,
+            "F=$HOME/a.txt; cat $F",
+            "F=%s; G=%s; cat $F $G" % (saved, saved),
+            "F=%s; cat $F $G" % saved,
+            "F=%s; cat $F > $F.bak" % saved,
+            "F=%s; rm $F" % saved,
+            "F=%s; cat $F; rm $F" % saved,
+            "F=%s && cat $F; rm $F" % saved,
             # A recursive grep with no operand reads the working directory.
             "cat %s | grep -r secret" % saved,
             # No path at all.

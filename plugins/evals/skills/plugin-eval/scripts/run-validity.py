@@ -295,6 +295,10 @@ EXPANSION = re.compile(r"\$(?:(%s)|\{(%s)\})" % (SHELL_NAME, SHELL_NAME))
 # would expand; or a bare name, which a later read "$X" or declare "$X=..."
 # would write through, so $X stays unresolved.
 UNRECORDED_VALUE = re.compile(r"\A\Z|[\s$`*?\[{<>]|\A~|:~|\A%s\Z" % SHELL_NAME)
+# One opening assignment of a plain word, quoted or not, ended by ; or a newline.
+LEADING_VARIABLE = re.compile(
+    r"""\s*(%s)=(['"]?)([^\s;'"|&()\\]+)\2[ \t]*(?:;|\n)\s*""" % SHELL_NAME
+)
 # A command holding one of these can set or split a variable in a way not traced.
 NO_RESOLVE = ("`", "<<", "IFS")
 # Names the shell sets, ignores assignments to or holds readonly, so an earlier
@@ -1366,12 +1370,32 @@ def bash_paths(command):
     return paths + (None,) if unresolved or not paths else paths
 
 
+def inline_leading_variable(command):
+    """command with one opening NAME=<literal word>; or newline removed and its
+    $NAME and ${NAME} replaced by the word. Unchanged when it opens otherwise, or
+    the word is one UNRECORDED_VALUE rejects. A second assignment or unset left
+    behind is a second command, which bash_read_paths refuses."""
+    match = LEADING_VARIABLE.match(command)
+    if not match:
+        return command
+    name, value = match.group(1), match.group(3)
+    if UNRECORDED_VALUE.search(value):
+        return command
+    return EXPANSION.sub(
+        lambda found: value if name in found.groups() else found.group(0),
+        command[match.end() :],
+    )
+
+
 def bash_read_paths(command):
     """The path operands of a Bash command that only reads: a pipeline of
     BASH_READERS commands, each with only its listed flags, sed with -n and a
-    SED_PRINT script. None for any other command, a redirect or other operator,
-    command substitution, an UNQUOTED_EXPANSION character outside quotes, a path
+    SED_PRINT script, opened by at most one variable inline_leading_variable
+    resolves. None for any other command, a redirect or other operator, command
+    substitution, an UNQUOTED_EXPANSION character outside quotes, a path
     UNRESOLVED matches, or no path at all."""
+    if isinstance(command, str):
+        command = inline_leading_variable(command)
     if (
         not isinstance(command, str)
         or BASH_EXEC.search(command)
