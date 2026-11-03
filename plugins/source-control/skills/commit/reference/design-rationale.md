@@ -13,27 +13,26 @@ set. `security` is **not** a Conventional Commits type in any of them, never add
 
 ## A mod can change the injected commit guidance
 
-Behind "Which authority wins", source 3. A mod can rewrite or blank that guidance before you see
-it: its `attribution.text` hook receives the commit trailer (`kind: commit`) and the PR footer
-(`kind: pr`) as the engine composed them and returns the text the model reads instead. So absent
-or unusual injected guidance says nothing about the project's wishes; sources 1 and 2 still decide.
-(Claim: the event and its kinds. Basis:
-[mods reference](https://code.claude.com/docs/en/plugins/mods/reference)
-"Prompts and what Claude reads", `attribution.text` row, fetched 2026-10-01, and the
-`AttributionTextKind` type in the built-in `plugin-authoring` skill's `claude-code.d.ts` for
-Claude Code 2.1.287. As of: 2026-10-01. Recheck: the row or the type changes.)
+Behind "Which authority wins", source 3. A mod can change the commit attribution guidance before
+you read it, so absent or unusual injected guidance says nothing about the project's wishes;
+sources 1 and 2 still decide.
+
+- **Pointer**: the `attribution.text` row of the
+  [mods reference, "Prompts and what Claude reads"](https://code.claude.com/docs/en/plugins/mods/reference#prompts-and-what-claude-reads)
+- **As of**: 2026-11-03
+- **Recheck trigger**: that row changes or is removed
 
 ## Key spelling
 
-**Key spelling.** This skill emits `Co-authored-by`, the spelling GitHub's own documentation uses
-exclusively and the one GitHub itself writes when it appends co-author trailers to a squash-merge
-message. GitHub's attribution is not case-sensitive in practice (a commit carrying a
-`Co-Authored-By:` trailer resolves its co-author in the GraphQL `Commit.authors` connection just the
-same; the docs do not state case sensitivity either way), so this is a consistency choice, not a
-correctness one: branch commits and the forge-written squash merges agree. Git preserves a trailer
-key's case verbatim (`git interpret-trailers` does not normalize it, and no `trailer.*` config here
-changes that), so existing history keeps whatever spelling it was written with; this skill never
-rewrites it. A consumer who wants a different spelling expresses it as a `trailer_policy` template.
+This skill emits `Co-authored-by`, the spelling GitHub's co-author documentation uses, so branch
+commits and forge-written squash merges agree. It is a consistency choice. The skill never rewrites
+the spelling already in history. A consumer who wants a different spelling sets it as a
+`trailer_policy` template.
+
+- **Pointer**: GitHub's
+  [Creating co-authored commits on the command line](https://docs.github.com/en/pull-requests/committing-changes-to-your-project/creating-and-editing-commits/creating-a-commit-with-multiple-authors#creating-co-authored-commits-on-the-command-line)
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section changes the trailer key it shows
 
 ## Recorded deviations
 

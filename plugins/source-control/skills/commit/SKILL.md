@@ -192,8 +192,10 @@ convention instead of re-inferring one every commit.
    EOF
    ```
 
-   On exit 2 for a subject it cannot map, rerun with `--level major|minor|patch|none`. What it
-   writes, and the bump each type maps to, is in
+   On exit 2 for a subject it cannot map, rerun with `--level major|minor|patch|none`. A fragment
+   replaces the hand version bump and CHANGELOG entry. For a plugin the list does not name, the
+   script writes nothing, and the hand release record still applies. What it writes, and the bump
+   each type maps to, is in
    [reference/changelog-fragments.md](reference/changelog-fragments.md).
 8. Invoke `git commit -F -` via the Bash tool, heredoc-piped, adding `--trailer` per the trailer
    template below only when the resolved `trailer_policy` calls for one.
