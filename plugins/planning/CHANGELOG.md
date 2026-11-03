@@ -3,6 +3,34 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.1] - 2026-11-03
+
+### Changed
+
+- `reference/rendered-view.md` is now a synced copy of the one shared rendered-view procedure ([#12667](https://github.com/melodic-software/claude-code-plugins/issues/12667)); planning's steps, data shapes and session connection are unchanged.
+
+### Fixed
+
+- the stress-test eval graders no longer pass a draft-word exclusion, a negation that bridges verbs or misses none/nothing, or an exclusion phrase that opens a real attack; a quoted claim lifts a dismissal only when a contrast word (but, however, yet) follows it, and a dismissal is also lifted when a contrast word is followed by the defect's target term. Known limits: a claim rebutted without a contrast word is not credited, and an unrelated contrast clause can still lift it
+
+  All 48 graders in the `st-*` cases carry the tightened patterns, and 131 new
+  sample answers pin them, 80 of which the old patterns sorted wrong.
+
+## [2.1.0] - 2026-11-03
+
+### Added
+
+- `plan`: `plan_stress_test` sets, per mode of the draft (`plan`, `proposal`, `incumbent`), which stress-tests `/planning:plan` runs: `auto` (the default, current behavior), `reviewer`, `devils-advocate` or `both`. It resolves through the convention home; `reference/config.md` defines the modes and values (#12478).
+- `evals`: the `plan-stress-test` suite, 12 seeded drafts across the three modes with deterministic graders, and `fixtures/stress-arm/prepare-arm.sh`, which sets up a plugin copy for one arm or for the suite's negative control (#12478).
+
+### Fixed
+
+- **The docs lookup removes its output directory.** The reading procedure's step 1 makes the
+  `--out` directory with `mktemp -d`; it now tells the reader to remove that directory by its
+  literal path when the lookup ends. Each lookup used to leave one `tmp.*` directory, up to
+  1.2 MB, in the OS temp folder
+  ([#9571](https://github.com/melodic-software/claude-code-plugins/issues/9571)).
+
 ## [2.0.1] - 2026-11-03
 
 ### Changed

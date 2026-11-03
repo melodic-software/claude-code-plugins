@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: 'codify-person-note-appends-row-from-file'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'row-file-under-notes'
+    type: 'llm'
+    criteria: 'Output writes a row with producer corrections/codify-note and source_id 3f2a1bc to a file under .work/codify/notes/'
+    focus: 'trace'
+  - name: 'appends-from-file-and-reports'
+    type: 'llm'
+    criteria: 'Output runs buffer.sh append with that file, not with the observation text on the command line, and reports the result'
+    focus: 'trace'
+    arm: 'with-only'
+  - name: 'no-count-rung-or-check'
+    type: 'llm'
+    criteria: 'Output does not count occurrences, pick a rung, propose a check or edit code'
+    focus: 'trace'
+  - name: 'runs-buffer-append'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'buffer\.sh\S*\s+append\b'
+    arm: 'with-only'

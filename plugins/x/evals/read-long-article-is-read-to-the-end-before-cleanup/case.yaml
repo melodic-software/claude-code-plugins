@@ -1,15 +1,10 @@
 schema_version: "1.1"
 name: 'read-long-article-is-read-to-the-end-before-cleanup'
+context:
+  scaffold_script: scaffold.sh
 graders:
-  - name: 'expectation-1'
-    type: 'llm'
-    criteria: 'Does not delete the spool file after a single bounded slice'
-    focus: 'trace'
-  - name: 'expectation-2'
-    type: 'llm'
-    criteria: 'Never presents the first slice as the complete article'
-    focus: 'trace'
-  - name: 'expectation-3'
-    type: 'llm'
-    criteria: 'Reports partial results explicitly when the file is not read to its end'
-    focus: 'trace'
+  - name: 'names-tail-marker'
+    type: 'regex'
+    pattern: '\bottervale\b'
+    flags: 'i'
+    target: 'last_message'

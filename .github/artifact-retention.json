@@ -41,6 +41,14 @@
       "reason": "The marker only says the key hit a credit stop; the gate counts it for its window, an hour by default, so a day covers any window up to 24 hours and an expired marker runs the key, as before the gate.",
       "scan": "upload"
     },
+    "key-credit-probing-pr-verify.yml-check-intent": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-verify.yml check-intent's \"Read the key's credit history\" step runs ci-workflows check-key-credit, which, once the credit-stop marker is past its window, reads the newest probing marker of this exact name created after that stop and skips while it is inside probe-minutes (15 unset)"
+      ],
+      "reason": "The probe only says one run is trying the key after a credit stop's window; the gate counts it for probe-minutes, at most 1440, so a day covers it and an expired probe runs the key.",
+      "scan": "upload"
+    },
     "pr-review-main-*": {
       "retention-days": "max",
       "readers": [
@@ -384,6 +392,14 @@
       "uploads": [
         ".github/workflows/pr-review-main.yml#review-handoffs"
       ]
+    },
+    "key-credit-probing-pr-review-main.yml-review-handoffs": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-review-main.yml review-handoffs-credit, through ci-workflows check-key-credit gate.cjs, in later runs once the credit-stop marker is past vars.KEY_CREDIT_WINDOW_HOURS, inside probe-minutes (15 unset)"
+      ],
+      "reason": "The gate counts a probe only inside probe-minutes, at most 1440, so 1 day covers it. It holds only the run id the workflow writes, never model text. The gate job checks nothing out, so ci-workflows' scan-upload action at the gate's pin scans it; this table's checker recognizes only the local action, so the row says none.",
+      "scan": "none"
     },
     "reconcile-settled-runs": {
       "retention-days": 1,

@@ -43,6 +43,7 @@ LEDGER_CLI = "skills/babysit-prs/scripts/manage_feedback_ledger.py"
 PRUNE_CLI = "skills/babysit-prs/scripts/prune_babysit_worktrees.py"
 REFRESH_CLI = "skills/babysit-prs/scripts/refresh_pr_branch.py"
 POSTMERGE_CLI = "skills/babysit-prs/scripts/babysit_postmerge.py"
+LIFT_CLI = "skills/babysit-prs/scripts/babysit_lift.py"
 REVIEW_CLI = "skills/babysit-prs/scripts/request_review.py"
 SNAPSHOT_CLI = "skills/babysit-prs/scripts/pr_queue_snapshot.py"
 FINDINGS_CLI = "skills/babysit-prs/scripts/babysit_findings.py"
@@ -1460,6 +1461,36 @@ MECHANISMS: tuple[Mechanism, ...] = (
         entry_point=POSTMERGE_CLI,
         must_contain=("allow_abbrev=False",),
     ),
+    Mechanism(
+        id="lift.close-is-the-only-github-write",
+        claim=(
+            "babysit_lift.py writes to GitHub only in its `close` subcommand, which "
+            "comments on, removes the human-gated label from and closes each canary, "
+            "revert or read-back demotion record that has lifted by the merge gate's "
+            "rule (babysit_merge_policy.py `_lift`). `canary-block` and `revert-block` "
+            "read git and run the silent-revert canary in the named checkout, and "
+            "print a lift block; they make no GitHub call."
+        ),
+        entry_point=LIFT_CLI,
+        must_contain=(
+            'if args.action == "close":',
+            '"state=closed",',
+        ),
+    ),
+    Mechanism(
+        id="lift.parsers-refuse-abbreviation",
+        claim=(
+            "babysit_lift.py sets allow_abbrev=False on its top-level parser and on "
+            "each subcommand parser, so a rule written against an exact flag "
+            "spelling also covers every prefix of it."
+        ),
+        entry_point=LIFT_CLI,
+        must_contain=(
+            'argparse.ArgumentParser(prog="babysit_lift.py", allow_abbrev=False)',
+            "sub.add_parser(action, allow_abbrev=False)",
+            'sub.add_parser("close", allow_abbrev=False)',
+        ),
+    ),
 )
 
 
@@ -1589,6 +1620,24 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
             "postmerge.remediate-gates-every-write",
             "postmerge.file-quarantine-gates-its-writes",
             "postmerge.parser-refuses-abbreviation",
+        ),
+    ),
+    EntryPoint(
+        path=LIFT_CLI,
+        wrapper=None,
+        mutation=CONDITIONAL,
+        mutates_what=(
+            "comments on, removes the human-gated label from, and closes each open "
+            "canary, revert or read-back demotion record that has lifted"
+        ),
+        gate="the `close` subcommand (`canary-block` and `revert-block` write nothing)",
+        claim=(
+            "No GitHub write outside `close`; the block subcommands read the local "
+            "checkout and print one line."
+        ),
+        backed_by=(
+            "lift.close-is-the-only-github-write",
+            "lift.parsers-refuse-abbreviation",
         ),
     ),
     EntryPoint(

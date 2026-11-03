@@ -434,6 +434,43 @@ describe("decide", () => {
     assert.deepEqual(result, { verdict: "wait", reasons: ["Size large: the split into sub-issues at intake is pending (owner Q93)"], pulls: [] });
   });
 
+  // A run's patch over the scan job's cap (scan-refused-patch) splits the
+  // issue whatever Size re-triage or a listed human set (patchCapStopped).
+  describe("a scan-refused-patch stop", () => {
+    const PATCH_PENDING = "its last run's patch was over the scan job's size cap (scan-refused-patch): the split into sub-issues at intake is pending (owner Q93)";
+    const stopComment = (at, id = APP) => ({
+      user: { id },
+      created_at: at,
+      body: "<!-- work-resolve-issue outcome=intake run=555 -->\nThe work-resolve-issue lane stopped on this issue (`scan-refused-patch`): the scan job refused the run's patch for its size.\nIt removed `agent-ready` and `status: ready`.",
+    });
+    const labeled = (name, at, id) => ({ event: "labeled", label: { name }, actor: { id }, created_at: at });
+    const sized = (size, overrides) => facts({ verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, size } }, ...overrides });
+
+    test("parks the issue for the intake split at Size Small and Medium, a listed human's Size included", () => {
+      const events = [labeled(AGENT_READY, "2026-10-21T09:00:00Z", HUMAN), labeled(READY, "2026-10-21T11:00:00Z", APP)];
+      for (const size of ["small", "medium"]) {
+        const result = decide(sized(size, { comments: [stopComment("2026-10-21T10:00:00Z")], events }));
+        assert.deepEqual(result, { verdict: "wait", reasons: [PATCH_PENDING], pulls: [] }, size);
+        assert.equal(sizeSplitPending([{ user: { id: APP }, body: `${ADMIT_MARKER}\nNot admitted to the issue lane yet: ${result.reasons.join("; ")}.` }], APP), true, size);
+      }
+    });
+
+    test("is ignored once a listed human adds agent-ready after it, and when anyone but the lanes App wrote it", () => {
+      const later = [labeled(AGENT_READY, "2026-10-21T12:00:00Z", HUMAN)];
+      assert.deepEqual(decide(sized("medium", { comments: [stopComment("2026-10-21T10:00:00Z")], events: later })), { verdict: "admit", reasons: [] });
+      assert.deepEqual(decide(sized("medium", { comments: [stopComment("2026-10-21T10:00:00Z", HUMAN)] })), { verdict: "admit", reasons: [] });
+      // The App's own agent-ready add (admission's) does not reset it.
+      const own = [labeled(AGENT_READY, "2026-10-21T12:00:00Z", APP)];
+      assert.equal(decide(sized("medium", { comments: [stopComment("2026-10-21T10:00:00Z")], events: own })).verdict, "wait");
+    });
+
+    test("leaves an unset Size refused, and an issue whose rules take Size large, as a split child's do, unsplit", () => {
+      const comments = [stopComment("2026-10-21T10:00:00Z")];
+      assert.deepEqual(decide(sized("unset", { comments })).unsetOnly, ["size"]);
+      assert.deepEqual(decide(sized("medium", { comments, rules: { ...RULES, sizes: [...RULES.sizes, "large"] } })), { verdict: "admit", reasons: [] });
+    });
+  });
+
   test("Size Large beside a real refusal reason still refuses, and names both", () => {
     const result = decide(facts({ issue: issueOf({ user: { id: OUTSIDER } }), verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } } }));
     assert.equal(result.verdict, "refuse");

@@ -3368,10 +3368,16 @@ class Remediation(CheckCase):
         self.assertNotIn("git revert", body)
         # Any open record holds the rung off, and a red main reopens a closed one.
         self.assertIn("rung off while this record holds", body)
-        self.assertIn("Only a person's direct close", " ".join(body.split()))
+        # A read-back record lifts on a lane-checked read-back (#11022), so
+        # its body names that lift, not a person's close alone.
+        self.assertIn(
+            "It lifts once the pull request below reads back after all",
+            " ".join(body.split()),
+        )
+        self.assertNotIn("Only a person's direct close", " ".join(body.split()))
         self.assertNotIn("clears itself", body)
         self.assertIn("https://github.com/example-org/example-repo/pull/7001", body)
-        # A read-back record clears only on a person's close.
+        # Until it lifts it keeps the human-gated label.
         self.assertIn("labels[]=needs-human", create)
 
     def test_a_full_run_record_is_human_gated_with_job_names_only(self) -> None:

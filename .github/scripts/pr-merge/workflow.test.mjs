@@ -399,7 +399,7 @@ while [ $# -gt 0 ]; do if [ "$1" = --jq ]; then echo '[]' | jq -c "$2"; exit; fi
     assert.match(readFileSync(join(dir, "output"), "utf8"), /^run-id=4242$/m);
     assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4000 1000 9999999999 core repos/{repo}/actions/workflows/{x}/runs\n200 5000 4000 1000 9999999999 core repos/{repo}/actions/workflows/{x}/dispatches\n");
     const calls = spawnSync("bash", ["-c", ". .base/.github/actions/log-api-budget/api-budget.bash; api_budget_emit_calls github-token"], { cwd: dir, env, encoding: "utf8" });
-    assert.equal(calls.stdout, "::notice title=api-calls::github-token=2 not-modified=0 graphql=0\n");
+    assert.equal(calls.stdout, "::notice title=api-calls::github-token=2 not-modified=0 graphql=0 core-by-reset=9999999999:2 core-unread=0\n");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -1025,7 +1025,7 @@ for (const jobId of ["merge", "enable-auto-merge"]) {
         encoding: "utf8",
         env: { ...base, GITHUB_ACTION_PATH: fileURLToPath(new URL("../../actions/log-api-budget/", import.meta.url)), TOKENS: /\n {10}tokens: (.*)\n/.exec(log)[1] },
       });
-      assert.match(out.stdout, /^::notice title=api-calls::github-token=3 not-modified=0 graphql=0$/m);
+      assert.match(out.stdout, /^::notice title=api-calls::github-token=3 not-modified=0 graphql=0 core-by-reset=9999999999:3 core-unread=0$/m);
       assert.match(out.stdout, /^::notice title=api-calls::lanes-app=0 not-modified=0 graphql=0$/m);
     } finally {
       server.close();

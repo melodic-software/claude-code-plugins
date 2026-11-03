@@ -19,6 +19,10 @@
     {
       "answer": "| 1 | IMPORTANT | Plan | The client resolves with a declined result rather than an exception, contrary to the assumption | Fix before building |\n",
       "why": "paraphrase"
+    },
+    {
+      "answer": "- The plan assumes `charge` does not return on a decline, but `client.ts` returns a declined result instead of throwing `PaymentDeclined`.\n",
+      "why": "quotes the claim, then attacks it"
     }
   ],
   "fail": [

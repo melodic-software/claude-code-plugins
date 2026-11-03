@@ -39,6 +39,10 @@
     {
       "answer": "- The one-row-per-text assumption is wrong: `send_sms` can make three requests, so a SQLite row does not map to one text.\n",
       "why": "a correct retry defect that says SQLite and wrong"
+    },
+    {
+      "answer": "- A crash between the send and the insert texts the patient twice; SQLite itself is the right store.\n",
+      "why": "other finding"
     }
   ],
   "fail": [
@@ -69,6 +73,22 @@
     {
       "answer": "- SQLite is unsafe for AC1: a hand start that retries on SQLITE_BUSY can lose the lock; use a server database.\n",
       "why": "attack on the store that says AC1, start and retries"
+    },
+    {
+      "answer": "- SQLite is a poor fit for a ledger keyed on `appointment_id` and `window_name`; use Postgres.\n",
+      "why": "attack using the draft's words"
+    },
+    {
+      "answer": "- Replace SQLite: a send followed by an insert and commit on every reminder is too slow on a shared disk.\n",
+      "why": "attack using the draft's words"
+    },
+    {
+      "answer": "- The draft doesn't use a server database, and SQLite is a poor fit for the ledger.\n",
+      "why": "doesn't use opens the attack"
+    },
+    {
+      "answer": "- SQLite looks fine at first, but SQLite is the wrong store for this ledger; use Postgres.\n",
+      "why": "approval, then an attack on the same element"
     }
   ]
 }

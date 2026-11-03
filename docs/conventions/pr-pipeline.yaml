@@ -654,7 +654,8 @@ activities:
     gating: advisory
     # Reads the model's output, written while it read issue and web text.
     reads-untrusted: true
-    # A Size Large issue a listed human filed, which admission parks with
+    # A Size Large issue a listed human filed, or one whose run's patch was
+    # over the scan job's cap (scan-refused-patch), which admission parks with
     # "the split into sub-issues at intake is pending" (owner Q93), gets a
     # size split instead: the model returns only item numbers, `parts` over
     # the issue's trusted task-list lines (the listed human's, then those of
@@ -1454,6 +1455,8 @@ merge:
       - glob: ".github/actions/request-lane-token/**"
         class: trust
       - glob: ".github/actions/log-api-budget/rate-guard.mjs"
+        class: gate
+      - glob: ".github/actions/log-api-budget/api-budget.bash"
         class: gate
       - glob: ".github/actions/log-api-budget/rate-limits.json"
         class: gate

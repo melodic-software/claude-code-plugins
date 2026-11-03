@@ -4,6 +4,28 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [1.1.3] - 2026-11-03
+
+### Changed
+
+- Upstream facts restated in the README, `distill`, `docpage-digest` and `setup` are now
+  pointers to the docs section that owns them, each with an as-of date and a recheck trigger:
+  how the Read tool handles a PDF, where a `sensitive` option is stored, when Edit and Write need
+  a prior Read, and where `${user_config.*}` resolves. The local rules stay: Read a renamed file
+  at its new path before editing it, rerun `check` in a fresh session, and keep course-platform
+  credentials in shell env vars.
+- `docpage-digest` no longer names which systems lack `sha256sum`.
+
+## [1.1.2] - 2026-11-03
+
+### Fixed
+
+- **The docs lookup removes its output directory.** The reading procedure's step 1 makes the
+  `--out` directory with `mktemp -d`; it now tells the reader to remove that directory by its
+  literal path when the lookup ends. Each lookup used to leave one `tmp.*` directory, up to
+  1.2 MB, in the OS temp folder
+  ([#9571](https://github.com/melodic-software/claude-code-plugins/issues/9571)).
+
 ## [1.1.1] - 2026-11-03
 
 ### Changed

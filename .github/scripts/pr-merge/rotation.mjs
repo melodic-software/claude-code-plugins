@@ -29,7 +29,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import process from "node:process";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 
@@ -65,18 +65,29 @@ export function trustedRun(run, path = WORKFLOW_PATH) {
   );
 }
 
+const API_BUDGET_LIB = fileURLToPath(new URL("../../actions/log-api-budget/api-budget.bash", import.meta.url));
+
+// `gh <args>` with `token`, through api-budget.bash's gh wrapper: each request
+// it sends counts in the job-end api-calls notice under API_BUDGET_TOKEN, and
+// the rate guard refuses it while a stop holds. Plain gh when that file cannot
+// be read. The wrapper keeps the stderr it starts with as its error copy, so
+// only the source line's stderr is silenced.
+export function countedGh(args, { token, env = process.env } = {}) {
+  execFileSync("bash", ["-c", '. "$0" 2>/dev/null && api_budget_wrap_gh "${API_BUDGET_TOKEN:-}"; gh "$@"', API_BUDGET_LIB, ...args], {
+    env: { ...env, GH_TOKEN: token },
+    stdio: ["ignore", "ignore", "inherit"],
+  });
+}
+
 // `gh run download` of the artifact `name`'s file `file` from a run.
 // A run's artifact `name`, downloaded once per run id, as the text of `file`
 // (another file of the same artifact when the caller names one).
-export function ghDownload({ repo, token, dir, name = CURSOR_ARTIFACT, file = "cursor.json" }) {
+export function ghDownload({ repo, token, dir, name = CURSOR_ARTIFACT, file = "cursor.json", env }) {
   const targets = new Map();
   return (runId, other = file) => {
     if (!targets.has(String(runId))) {
       const target = mkdtempSync(join(dir, `${name}-`));
-      execFileSync("gh", ["run", "download", String(runId), "-R", repo, "-n", name, "-D", target], {
-        env: { ...process.env, GH_TOKEN: token },
-        stdio: ["ignore", "ignore", "inherit"],
-      });
+      countedGh(["run", "download", String(runId), "-R", repo, "-n", name, "-D", target], { token, env });
       targets.set(String(runId), target);
     }
     return readFileSync(join(targets.get(String(runId)), other), "utf8");

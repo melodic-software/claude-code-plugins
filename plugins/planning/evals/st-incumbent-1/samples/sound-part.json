@@ -19,6 +19,18 @@
     {
       "answer": "- AC1 fails: the utc_offset is fixed, so DST moves the send time.\n",
       "why": "other finding"
+    },
+    {
+      "answer": "- None of the batches of 200 exceed the Postrider limit; `BATCH_SIZE` matches the vendor doc.\n",
+      "why": "none-of negation"
+    },
+    {
+      "answer": "- Nothing about `BATCH_SIZE` of 200 is arbitrary: it is the Postrider request limit.\n",
+      "why": "nothing negation"
+    },
+    {
+      "answer": "- `BATCH_SIZE` of 200 is correct, but the pinned 2.8.1 lacks `FileJobStore`, so the plan is wrong.\n",
+      "why": "approval, then a finding about something else"
     }
   ],
   "fail": [
@@ -41,6 +53,14 @@
     {
       "answer": "| 2 | SUGGESTION | Plan | The 200-recipient batch claim is unverified | Check it |\n",
       "why": "unverified"
+    },
+    {
+      "answer": "- This is not a minor problem: `BATCH_SIZE` of 200 is too small for the gateway.\n",
+      "why": "emphatic not-a-minor-problem"
+    },
+    {
+      "answer": "- `BATCH_SIZE` of 200 has no basis in a measurement and is arbitrary.\n",
+      "why": "no opens the attack"
     }
   ]
 }

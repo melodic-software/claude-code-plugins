@@ -14,13 +14,14 @@
 // The gate derives churn from git log, so a push run GitHub lost drops no area
 // (dependabot-fragments.yml records that those happen).
 import { execFileSync } from "node:child_process";
-import { appendFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TIDY_SCRIPTS = join(HERE, "../../../plugins/code-tidying/skills/tidy/scripts");
+const API_BUDGET = join(HERE, "../../actions/log-api-budget/api-budget.bash");
 const DAY_MS = 86_400_000;
 const WINDOW_DAYS = { daily: 1, weekly: 7, monthly: 30 };
 const PULL_LIST_LIMIT = 1000;
@@ -177,6 +178,15 @@ function run(root, file, args, env = {}) {
   });
 }
 
+// Every gh call, so the job's api-budget notice counts it: under api-budget.bash's
+// gh wrapper for the token API_BUDGET_TOKEN names, else gh itself (no token, as
+// in a local run, or no wrapper file). stdout and a failure's throw are gh's.
+export function gh(root, args, env = {}) {
+  const token = env.API_BUDGET_TOKEN ?? process.env.API_BUDGET_TOKEN;
+  if (!token || !existsSync(API_BUDGET)) return run(root, "gh", args, env);
+  return run(root, "bash", ["-c", '. "$1" && api_budget_wrap_gh "$2" && shift 2 && gh "$@"', "gh", API_BUDGET, token, ...args], env);
+}
+
 function setting(root, key) {
   const [value, source] = run(root, "bash", [join(TIDY_SCRIPTS, "upkeep-setting.sh"), key]).trimEnd().split("\t");
   return { value, source };
@@ -185,7 +195,7 @@ function setting(root, key) {
 function downloadRecord(root, artifact) {
   const dir = mkdtempSync(join(tmpdir(), "upkeep-record-"));
   try {
-    run(root, "gh", ["run", "download", String(artifact.workflow_run.id), "--name", SWEEP_ARTIFACT, "--dir", dir]);
+    gh(root, ["run", "download", String(artifact.workflow_run.id), "--name", SWEEP_ARTIFACT, "--dir", dir]);
     return readFileSync(join(dir, "sweeps.json"), "utf8");
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -202,9 +212,9 @@ function gate(root, now) {
   // The sweeps, by branch prefix: listing all pull requests reaches about 3 days per 1000 here.
   // A full list holds the newest; lookbackStart reads commits back to its oldest, and every one of
   // those is after the last sweep of an area the list has lost, so that area is judged correctly.
-  const sweeps = JSON.parse(run(root, "gh", ["pr", "list", "--state", "all", "--limit", String(PULL_LIST_LIMIT), "--search", "head:chore/tidy-adhoc-", "--json", "headRefName,createdAt,state,mergeCommit"]));
-  const openPulls = JSON.parse(run(root, "gh", ["pr", "list", "--state", "open", "--limit", String(PULL_LIST_LIMIT), "--json", "headRefName,createdAt,state"]));
-  const records = JSON.parse(run(root, "gh", ["api", `repos/{owner}/{repo}/actions/artifacts?name=${SWEEP_ARTIFACT}&per_page=100`])).artifacts ?? [];
+  const sweeps = JSON.parse(gh(root, ["pr", "list", "--state", "all", "--limit", String(PULL_LIST_LIMIT), "--search", "head:chore/tidy-adhoc-", "--json", "headRefName,createdAt,state,mergeCommit"]));
+  const openPulls = JSON.parse(gh(root, ["pr", "list", "--state", "open", "--limit", String(PULL_LIST_LIMIT), "--json", "headRefName,createdAt,state"]));
+  const records = JSON.parse(gh(root, ["api", `repos/{owner}/{repo}/actions/artifacts?name=${SWEEP_ARTIFACT}&per_page=100`])).artifacts ?? [];
   const cleanSweeps = readCleanSweeps(records, (artifact) => downloadRecord(root, artifact));
   const since = new Date(lookbackStart(sweeps, now)).toISOString();
   const commits = parseLog(run(root, "git", ["log", `--since=${since}`, "--no-renames", "--name-only", "--format=%x00%H %ct"]));
