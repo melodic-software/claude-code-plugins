@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "Record file: docs/upstream/acme-agent-skills.md (not written: the clone failed)."
+      "answer": "Record file: docs/upstream/acme-agent-skills.md (not written: the source did not read public)."
     },
     {
       "answer": "The record would be `docs/upstream/acme-agent-skills.md`."

@@ -75,9 +75,9 @@ Two rules govern everything this skill says, per the plugin's
 One native surface also answers "what is using my tokens", and the two get conflated when a
 session feels crowded:
 
-- **`explain-usage` (bundled skill)**: after the fact, explains where the current session's tokens
-  went, with one simple chart in plain language. The model and the person can both invoke it where
-  it resolves.
+- **`explain-usage` (bundled skill)**: what it does, who can invoke it, and the fact that no
+  upstream page documents it are recorded in
+  [`reference/native-explain-usage.md`](reference/native-explain-usage.md).
 - **This skill (marketplace plugin).** Measures the fixed startup payload of a fresh headless
   session per item, including the built-in tool pools `/context` shows only as totals, and keeps a
   before/after ledger for every lever the operator toggles.
@@ -334,10 +334,9 @@ otherwise use the payload's share of the measured window.
 
 Each of these produces a confidently wrong number unless the engine's guard is honored:
 
-- **Removing skills makes `System tools` rise.** Listed skill-frontmatter tokens are subtracted
-  from that bucket, so a run that changes the skill listing shifts `System tools` with no tool
-  changing state; read naively, a safe-mode run looks as if safe mode loads deferred tools. The
-  signature check catches this; never hand-compare two snapshots the engine marked incomparable.
+- **`System tools` moves with the skill listing.** The signature check catches a run whose
+  listing differed (why: [`reference/engine.md`](reference/engine.md) "Comparability rules");
+  never hand-compare two snapshots the engine marked incomparable.
 - **Unredirected stdin prepends a warning line** to headless output, which breaks naive parsing.
   The engine redirects and strips; if you capture `/context` by hand for `parse-context`, redirect
   stdin or expect the leading line.

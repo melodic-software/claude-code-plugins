@@ -1,5 +1,5 @@
 schema_version: "1.1"
-name: au-no-scope-clone-stops
+name: au-no-scope-url-stops
 context:
   scaffold_script: scaffold.sh
 graders:
@@ -8,10 +8,17 @@ graders:
     pattern: '^(?![^\n]*\?[ \t*_]*$)[^\n]*?docs/upstream/acme-agent-skills\.md\b'
     flags: 'mi'
     target: last_message
-  - name: clone-outside-working-tree
+  - name: no-clone
     type: tool_used
     tool: Bash
-    input_match: '"command":"(?![ \t]*cd[ \t]|(?:[^"\\]|\\.)*?(?:[;&|(]|\\n)[ \t]*cd[ \t]|(?:[^"\\]|\\.)*?\bgit[ \t]+-C[ \t])(?:[^"\\]|\\.)*?(?:\bgit[ \t]+clone|clone-cli\.js(?:\\"|'')?)(?:[ \t]+-{1,2}[\w-]+(?:=[^ \t"\\]+|[ \t]+[0-9]+)?)*[ \t]+(?:\\"|'')?https?://[^ \t"\\'';&|]+(?:\\"|'')?(?:[ \t]*(?:"|;|&|\||\\n)|[ \t]+[0-9]*[<>]|[ \t]+(?!\\"[/$~]|''[/$~]|[/$~]|[0-9]*[<>])[^ \t;&|"])'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\bgit(?:[ \t]+-[cC][ \t]+[^ \t"\\]+|[ \t]+-{1,2}[\w-]+(?:=[^ \t"\\]+)?)*[ \t]+clone\b|\bgh[ \t]+repo[ \t]+clone\b|clone-cli\.js)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-source-read
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:repos/acme/agent-skills/(?:contents|git/(?:trees|blobs)|tarball|zipball|readme)\b|raw\.githubusercontent\.com/acme/agent-skills/)'
     min: 0
     max: 0
     arm: both
