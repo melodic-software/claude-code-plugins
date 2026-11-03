@@ -28,9 +28,9 @@ Cheap checks first, in this order: a repo-wide literal search for the bare name 
 strings), then the config surfaces, then the framework-registration patterns for the candidate's
 language. Stop at the first piece of real evidence.
 
-The optional `LSP` assist is one more source, never a substitute: `findReferences` with
-`includeDeclaration` hard-coded true means the dead threshold is `resultCount == 1`, and an import
-counts as a reference, so a re-export still reads alive.
+The optional `LSP` assist is one more source, never a substitute. What `findReferences` returns:
+[LSP tool behavior](https://code.claude.com/docs/en/tools-reference#lsp-tool-behavior),
+as of 2026-11-03; recheck when that section changes what `findReferences` returns.
 
 ## Verdict rules
 
@@ -66,7 +66,7 @@ parser recognized, and it is a bug report about the detector, not a finding abou
 
 The skill writes nothing. It emits ready-to-paste text and the human decides.
 
-**knip**, in `knip.json` (or the `knip` key in `package.json`):
+**knip**, an `ignore` entry for the project's knip config, emitted as JSON:
 
 ```json
 {
@@ -75,15 +75,18 @@ The skill writes nothing. It emits ready-to-paste text and the human decides.
 }
 ```
 
-Note that a `knip.config.ts` is a **code module** knip evaluates through jiti; the JSON form does
-not cross that boundary and is the safer paste when either will do.
+Where knip reads its config and what `ignore` takes:
+[ignore](https://knip.dev/reference/configuration#ignore), as of 2026-11-03; recheck when that
+section changes what an `ignore` entry takes.
 
-**vulture**, a whitelist file passed alongside the sources:
+**vulture**, a whitelist entry carrying the adjudication as its comment:
 
 ```python
-# whitelist.py: names vulture must treat as used.
 format_legacy_row  # adjudicated alive: dispatched by name from handlers.py
 ```
+
+How vulture reads a whitelist: [Whitelists](https://github.com/jendrikseipp/vulture#whitelists),
+as of 2026-11-03; recheck when that section changes how a whitelist is passed.
 
 **A committed vulture whitelist raises `F821` (undefined name) under a consumer's ruff config.**
 Say so whenever you emit one; the consumer either excludes the file in `ruff.toml` or keeps the

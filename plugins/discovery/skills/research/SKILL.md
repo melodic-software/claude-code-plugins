@@ -39,7 +39,7 @@ The disk fallback Reads this same file, so a matching token is file-identity, **
 
    Cite the **exit status**, 0 usable, 1 no usable artifact set, 2 ungradeable, not a reading of the directory: the context most motivated to call the dispatch finished would be the reader. Only the slice path and `--index-name` are required; the bare form is still a real gate, each optional check reporting `unchecked`, never a quiet pass. Append `--expect-sidecars <n>` when the payload reported a `sidecars:` count, and **drop any flag whose value the payload did not supply**. **The `index=` path in that output is authoritative** downstream: the verifier's `target` and the handoff pointer come from it, not from `artifact:`.
 
-   **Fanning out over N topics, grade each run against the sub-slice IT was assigned, before synthesizing the slice-root index.** The gate grades exactly the path it is given, so a slice-root invocation grades only the synthesis, never a dispatched run. The synthesis then goes to a fresh verifier for the verifier-owned rows before it is surfaced. A slice-root synthesis that adds no claims and cites by ID needs no verifier: run the restatement check with `--sub-slice` per sub-slice, check its `accepted:`, and if both pass write `verification: skipped (cost)`. Both: the dispatch contract's fan-out section.
+   On an N-topic fan-out, grade each sub-slice before the synthesis, then send the synthesis to a fresh verifier for the verifier-owned rows (the one exception, and the rest: "The deep tier" below).
 
 3. **The coverage claim is graded from the ledger, not from the payload.** `coverage: complete` mirrors outcome-gate criterion 11, which the run graded on **itself**. When a `research-checklist.md` sits beside the index step 2 named, run `"${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh"` (or the `.py` twin) on `<that index's directory>/research-checklist.md` and cite its exit status. 0 complete, 1 unmarked rows, 2 ungradeable, and **both non-zero values are FAILs**. No ledger on disk is correct **only** when the artifact records the corpus as unbounded; a bounded corpus with no ledger is a Phase 0 that never ran, whatever the payload says.
 
@@ -100,7 +100,7 @@ Non-topic tokens (`breadth=`, `deep`, `--unattended`), a dispatched run, and a r
 
 ## Disciplines
 
-Full recipes and rationale: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/discipline.md` (also the canonical source-tier table for this plugin).
+Full recipes and rationale: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/discipline.md` (also the canonical source-tier table for this plugin). The Effort row is the ceiling over discipline 8: "Effort, source breadth" below.
 
 1. **3 phases minimum**. Phase 1 (broad), Phase 2 (targeted, informed by Phase 1, includes falsification), Phase 3 (preferred-sources / tool-ecosystem fallback)
 2. **Queries scale to open questions: the floor is a starting point, not a target.** Phase 1 opens with ≥3 queries to seed the evidence base; Phase 2 and Phase 3 each run **one query per unresolved gap/conflict** surfaced by the prior phase's written analysis (≥3, no upper cap). A run that stops at the floor while numbered gaps remain has not finished the phase
@@ -120,8 +120,7 @@ Full recipes and rationale: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/disci
 
 ### Effort, source breadth
 
-The Effort row is the ceiling over discipline 8. Rationale and skipped-phase N/A: the discipline
-file's "Effort, source breadth".
+Rationale for the ceiling over discipline 8, and skipped-phase N/A: the discipline file's "Effort, source breadth".
 
 Caller effort for this run is `${CLAUDE_EFFORT}`. If that still begins with `${`, this body was read
 directly and the substitution never ran: run as `high`, every phase below. A value the table below
@@ -164,6 +163,8 @@ budget, and an ungradeable or missing artifact still takes the recovery ladder, 
 In the main conversation, take the deep tier when any of these holds, and read [context/deep-tier.md](context/deep-tier.md) before dispatching anything:
 
 - **Two or more separable topics** (they share no claims): one `discovery:researcher` per topic, each in its own sub-slice, never one engine over the combined blob.
+
+  **Fanning out over N topics, grade each run against the sub-slice IT was assigned, before synthesizing the slice-root index.** The artifact gate (acceptance gate step 2) grades exactly the path it is given, so a slice-root invocation grades only the synthesis, never a dispatched run. The synthesis then goes to a fresh verifier for the verifier-owned rows before it is surfaced. A slice-root synthesis that adds no claims and cites by ID needs no verifier: run the restatement check with `--sub-slice` per sub-slice, check its `accepted:`, and if both pass write `verification: skipped (cost)`. Both: the dispatch contract's fan-out section.
 - **One topic that needs adversarial verification**: contested, high-stakes, or broad enough (multi-vendor, comparison, migration) that independent skeptics should try to refute each claim. The `discovery:research-sweep` workflow runs it when the Workflow tool is observed in this session's toolset; otherwise one researcher does.
 - **A leading `deep` token** in the arguments: strip it from the topic, then route as above. A `breadth=` token with it wins, and the run takes the standard dispatch.
 

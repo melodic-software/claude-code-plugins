@@ -50,7 +50,7 @@ Markdown style, so nothing runs there. Carrying a config **is** the opt-in.
   `CLAUDE_PROJECT_DIR`); a scratch file outside any repository is left alone.
 - **Silence does not mean it ran.** The batch row prints nothing, and so do the policy
   skips: no markdownlint config, an unapproved code-capable config, a gitignored path. To tell the
-  cases apart, check the file or run `/markdown-format:check`.
+  cases apart, check the file or run `/markdown-format:setup check`.
 - **No per-edit findings.** Claude learns of a rewrite at its next edit of the file, which
   reports that the file changed on disk. Unfixable findings are reported at commit, as
   `<path>:<line>: <message>` on stderr with exit 1, only for lines the commit adds.
@@ -112,7 +112,7 @@ A missing `markdownlint-cli2` stays quiet here, since the `SessionStart` probe r
 
 - [Node.js](https://nodejs.org/) on `PATH`. Every hook row starts through
   `hooks/exec-bash.mjs`, so without `node` the hooks do not launch and nothing is
-  enforced. `/markdown-format:check` reports it.
+  enforced. `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"` reports it.
 - Bash 3.2 or later. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run this Bash hook; WSL is also supported.
