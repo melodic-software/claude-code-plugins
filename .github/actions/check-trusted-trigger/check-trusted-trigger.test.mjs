@@ -3127,7 +3127,7 @@ test("isTrustedClose: the lanes App's already-done close counts for nothing once
 test("isTrustedClose: the lanes App's verified-done close counts only while every sub-issue's close holds", async () => {
   const OWNER_ID = 101;
   const humans = new Set([OWNER_ID]);
-  const child = (number, extra = {}) => ({ number, state: "closed", state_reason: "completed", closed_by: { id: OWNER_ID }, ...extra });
+  const child = (number, extra = {}) => ({ number, state: "closed", state_reason: "completed", closed_by: { id: OWNER_ID }, repository_url: "https://api.github.com/repos/o/r", ...extra });
   const verified = (children) =>
     routeClient({
       ...appCloseRoutes({ comments: [closeComment("verified-done", "verified-done: each done-when item checks out")] }),
@@ -3138,6 +3138,8 @@ test("isTrustedClose: the lanes App's verified-done close counts only while ever
   assert.equal(await isTrustedClose(verified([child(80), child(81, { state_reason: "not_planned" })]), "o/r", APP_CLOSED, humans, isLanesApp), false, "a not_planned sub-issue");
   assert.equal(await isTrustedClose(verified([child(80), child(81, { closed_by: STRANGER })]), "o/r", APP_CLOSED, humans, isLanesApp), false, "an untrusted close");
   assert.equal(await isTrustedClose(verified([]), "o/r", APP_CLOSED, humans, isLanesApp), false, "no sub-issue");
+  // A same-numbered issue here, closed by a listed human, never vouches for a sub-issue elsewhere.
+  assert.equal(await isTrustedClose(verified([child(80), child(81, { repository_url: "https://api.github.com/repos/o/other" })]), "o/r", APP_CLOSED, humans, isLanesApp), false, "a sub-issue in another repository");
 });
 
 test("isTrustedClose: the lanes App's report-delivered close counts for nothing", async () => {

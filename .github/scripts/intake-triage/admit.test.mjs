@@ -2874,7 +2874,7 @@ describe("size split sub-issues", () => {
   });
 
   test("finishedParent names the sub-issues only when each is closed as completed by a trusted close", async () => {
-    const child = (number, extra = {}) => ({ number, state: "closed", state_reason: "completed", ...extra });
+    const child = (number, extra = {}) => ({ number, state: "closed", state_reason: "completed", repository_url: "https://api.github.com/repos/o/r", ...extra });
     const run = async (children, trusted = async () => true, summary = { total: children.length, completed: children.length }) => {
       const calls = [];
       const github = async (method, path) => {
@@ -2885,8 +2885,13 @@ describe("size split sub-issues", () => {
     };
     assert.deepEqual((await run([child(8), child(9)])).found, [8, 9]);
     assert.equal((await run([child(8), child(9, { state_reason: "not_planned" })])).found, null, "class B: a not_planned sub-issue");
-    assert.equal((await run([child(8), { number: 9, state: "open", state_reason: null }])).found, null, "an open sub-issue");
+    assert.equal((await run([child(8), child(9, { state: "open", state_reason: null })])).found, null, "an open sub-issue");
     assert.equal((await run([child(8), child(9)], async (number) => number !== 9)).found, null, "an untrusted close");
+    // `trusted` reads a number in this repository, so a sub-issue elsewhere
+    // with the same number never borrows that close.
+    const elsewhere = await run([child(8), child(9, { repository_url: "https://api.github.com/repos/o/other" })]);
+    assert.equal(elsewhere.found, null, "a sub-issue in another repository");
+    assert.equal((await run([child(8), child(9, { repository_url: undefined })])).found, null, "a sub-issue with no repository_url");
     const none = await run([], undefined, { total: 0, completed: 0 });
     assert.equal(none.found, null);
     assert.deepEqual(none.calls, [], "no sub-issue costs no read");

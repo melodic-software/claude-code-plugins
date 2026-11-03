@@ -2239,7 +2239,7 @@ export async function splitLeftOpen({ github, repository, issue, comments, child
   if (children.length === 0 || !(await isSplitParent({ github, repository, issue, comments, children, isApp, humans }))) {
     return "it is not a split parent";
   }
-  const childLeft = await subIssueLeftOpen(children, trusted);
+  const childLeft = await subIssueLeftOpen(children, trusted, repository);
   if (childLeft) {
     return childLeft;
   }
@@ -2287,7 +2287,7 @@ export async function finishedParent({ github, repository, issue, trusted }) {
     return null;
   }
   const children = await paginate(github, `/repos/${repository}/issues/${issue.number}/sub_issues`);
-  return children.length > 0 && (await subIssueLeftOpen(children, trusted)) === null ? children.map((child) => Number(child.number)) : null;
+  return children.length > 0 && (await subIssueLeftOpen(children, trusted, repository)) === null ? children.map((child) => Number(child.number)) : null;
 }
 
 // admissionFacts' `isTrusted` for admit(): issue `number` here was closed by

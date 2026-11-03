@@ -158,7 +158,8 @@
 //                       else empty. A verified-done stop closes only when the
 //                       issue's sub-issues, read fresh, are all closed as
 //                       completed and each is one of these (parentDone), and
-//                       the run committed nothing; else it retries
+//                       the run neither committed nor resumed a branch; else
+//                       it retries
 //   GITHUB_WORKFLOW_SHA workflow-stale: the commit the run's workflow files
 //                       come from
 //   REUSE_SUMMARY_DIR   on a reuse, holds the summary pass's reuse-summary.json
@@ -1463,9 +1464,10 @@ export function decide({
     });
   }
   if (outcome.exit !== "done") {
-    // A delivered report closes only an issue with no branch: one this run
-    // committed to, or a resumed one whose earlier commits are still unmerged.
-    const retry = stop === "report-delivered" && (branch || resumed);
+    // A delivered report or a verified-done check closes only an issue with no
+    // branch: one this run committed to, or a resumed one whose earlier
+    // commits are still unmerged.
+    const retry = (stop === "report-delivered" || stop === "verified-done") && (branch || resumed);
     const why = "The run committed to a branch, or resumed one, so it retries instead of closing.";
     return routeStop(stop, { outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed, unmarked }, retry ? { route: "retry", why } : {});
   }
@@ -2145,10 +2147,9 @@ async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane
   // sub-issues, read fresh, are each closed as completed and among the
   // admit job's trusted closes (VERIFY_CLOSE).
   const trustedSubs = new Set(String(verifyClose).split(",").filter((number) => /^[1-9][0-9]{0,9}$/.test(number)).map(Number));
-  if (plan.action === "close" && plan.stop === "verified-done" && (plan.stopArgs.branch || !(await parentDone(github, repo, plan.issueNumber, async (number) => trustedSubs.has(Number(number)))))) {
-    const why = plan.stopArgs.branch
-      ? "The run committed to a branch, and a verified-done run changes nothing, so it retries instead of closing."
-      : "Not every sub-issue of this issue is closed as completed by a listed human or a merge, as the run's admission read them, so it retries instead of closing.";
+  if (plan.action === "close" && plan.stop === "verified-done" && !(await parentDone(github, repo, plan.issueNumber, async (number) => trustedSubs.has(Number(number))))) {
+    const why =
+      "Not every sub-issue of this issue is closed as completed by a listed human or a merge, as the run's admission read them, so it retries instead of closing.";
     plan = routeStop(plan.stop, plan.stopArgs, { limits, route: "retry", why });
   }
   let history = null;

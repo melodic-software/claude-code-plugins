@@ -2140,7 +2140,7 @@ async function closeDoneParent({ github, repo, parent, humans, closes, bot, mirr
 // park rewrote the admission comment. Returns whether it wrote.
 async function reenterFinished({ github, repo, parent, comments, children, trusted, bot, mirror }) {
   const parkedDone = comments.some((comment) => comment.user?.login === bot && String(comment.body ?? "").startsWith(ADMIT_MARKER) && String(comment.body).includes(SIZE_SPLIT_DONE));
-  if (!parkedDone || !confirmedOnly(labelNames(parent).map((name) => name.toLowerCase())) || children.length === 0 || (await subIssueLeftOpen(children, trusted)) !== null) {
+  if (!parkedDone || !confirmedOnly(labelNames(parent).map((name) => name.toLowerCase())) || children.length === 0 || (await subIssueLeftOpen(children, trusted, repo)) !== null) {
     return false;
   }
   await github("DELETE", `/repos/${repo}/issues/${parent.number}/labels/${encodeURIComponent(CONFIRMED)}`);

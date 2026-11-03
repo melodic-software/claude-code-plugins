@@ -87,12 +87,18 @@ export async function doneEvidence(github, repo, reason, issueNumber) {
 // Why `children` (an issue's sub-issues as listed) do not all count as done,
 // or null when each is closed with state_reason `completed` by a close
 // `trusted(number)` accepts: an open sub-issue, or one closed not_planned, as
-// a duplicate or with no reason, does not count. The one child rule of a
-// split parent's close (admit.mjs splitLeftOpen) and of a verified-done close.
-// The listed states are checked first, so a sub-issue left open or closed
-// otherwise costs no close read.
-export async function subIssueLeftOpen(children, trusted) {
+// a duplicate or with no reason, does not count. Nor does one outside
+// `repository` (owner/name) or with no repository_url: `trusted` judges a
+// number in this repository only. The one child rule of a split parent's close
+// (admit.mjs splitLeftOpen) and of a verified-done close. The listed states
+// are checked first, so a sub-issue left open, closed otherwise or elsewhere
+// costs no close read.
+export async function subIssueLeftOpen(children, trusted, repository) {
   const left = (child) => `sub-issue #${child?.number} is not closed as completed by a listed human or a merge`;
+  const elsewhere = children.find((child) => !String(child?.repository_url ?? "").toLowerCase().endsWith(`/repos/${repository}`.toLowerCase()));
+  if (elsewhere !== undefined) {
+    return `sub-issue #${elsewhere?.number} is not in this repository`;
+  }
   const undone = children.find((child) => child?.state !== "closed" || child.state_reason !== "completed");
   if (undone !== undefined) {
     return left(undone);
@@ -108,7 +114,7 @@ export async function subIssueLeftOpen(children, trusted) {
 // Whether issue `issueNumber` has sub-issues and every one counts as done
 // (subIssueLeftOpen): a verified-done close's evidence, beside the run's check
 // of the issue's own done-when. A read that fails, or a listing past
-// EVENT_PAGES pages, proves nothing.
+// EVENT_PAGES pages, proves nothing. `repo` is the API path, `/repos/owner/name`.
 export async function parentDone(github, repo, issueNumber, trusted) {
   const children = [];
   for (let page = 1; page <= EVENT_PAGES; page += 1) {
@@ -118,7 +124,7 @@ export async function parentDone(github, repo, issueNumber, trusted) {
     }
     children.push(...listed);
     if (listed.length < 100) {
-      return children.length > 0 && (await subIssueLeftOpen(children, trusted).catch(() => "unread")) === null;
+      return children.length > 0 && (await subIssueLeftOpen(children, trusted, repo.replace(/^\/repos\//, "")).catch(() => "unread")) === null;
     }
   }
   return false;
