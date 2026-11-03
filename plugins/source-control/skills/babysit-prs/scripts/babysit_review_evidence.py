@@ -219,8 +219,14 @@ INSTALL_FAILURE_RE = re.compile(
 # re-run but does not start one (GATE_RERUN_CLASSES): a defect fails every run
 # until its fix ships, and a re-run before then would spend the one attempt.
 NO_OUTCOME = "no-outcome"
+# Or when the review leg reached its time limit (class `timeout`), as every
+# review did while its subscription credential was rejected at a usage limit
+# (run 41626484307). The same unposted proof applies: attempt 1 left no verdict
+# on the head, so attempt 2 is the only review.
+TIMEOUT = "timeout"
 NO_OUTCOME_RE = re.compile(
-    rf"(?P<lane>[\w-]+): failure-class={re.escape(NO_OUTCOME)}: "
+    rf"(?P<lane>[\w-]+): failure-class="
+    rf"(?:{re.escape(NO_OUTCOME)}|{re.escape(TIMEOUT)}): "
 )
 # Or when a kill switch stopped attempt 1 before the review started: the
 # caller's `kill-switch` job succeeded and its `Report the kill switch` step

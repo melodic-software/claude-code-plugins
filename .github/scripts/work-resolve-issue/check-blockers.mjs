@@ -39,14 +39,18 @@
 //                        outsider=true on the outside-author stop, and with
 //                        proceed=true split-child=true|false: whether the issue
 //                        is a trusted size-split sub-issue (admit.mjs
-//                        trustedSplitChild), resolve-config's split-child input
+//                        trustedSplitChild) or a finished parent (admit.mjs
+//                        finishedParent), resolve-config's split-child input,
+//                        so Size Large does not skip either; and verify-close,
+//                        a finished parent's sub-issue numbers, comma-joined
+//                        (else empty), report-outcome's VERIFY_CLOSE
 //   GITHUB_API_URL
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
-import { authorAdmitted, blockersOf, clearedPastReport, closedByTrusted, judgedSince, loadRules, openSubIssues, stillBlocking, trustedElsewhere, trustedSplitChild, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { authorAdmitted, blockersOf, clearedPastReport, closedByTrusted, finishedParent, judgedSince, loadRules, openSubIssues, stillBlocking, trustedElsewhere, trustedSplitChild, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -65,6 +69,7 @@ export async function main({ env = process.env, github, log = console.log, write
   let pending;
   let subs;
   let splitChild;
+  let finished = null;
   try {
     if (!REPO.test(repository) || !NUMBER.test(number) || !NUMBER.test(env.LANES_APP_ID ?? "")) {
       throw new Error("GITHUB_REPOSITORY, ISSUE_NUMBER or LANES_APP_ID is not set to a repository, issue number and App id");
@@ -90,6 +95,7 @@ export async function main({ env = process.env, github, log = console.log, write
       if (pending.length === 0 && subs.length === 0) {
         const taskList = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)))["task-list"];
         splitChild = await trustedSplitChild(client, repository, Number(number), humans, appId, taskList);
+        finished = await finishedParent({ github: client, repository, issue, trusted: closedByTrusted({ github: client, repository, humans, appId }) });
       }
     }
   } catch (error) {
@@ -117,7 +123,7 @@ export async function main({ env = process.env, github, log = console.log, write
     write({ proceed: "false", untrusted: "false" });
     return 0;
   }
-  write({ proceed: "true", untrusted: "false", "split-child": String(splitChild) });
+  write({ proceed: "true", untrusted: "false", "split-child": String(splitChild || finished !== null), ...(finished && { "verify-close": finished.join(",") }) });
   return 0;
 }
 

@@ -1,0 +1,13 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call: answers from the pasted results" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "machine-health:setup" } }], "why": "same-plugin sibling is not the audit" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "disk-hygiene:audit" } }], "why": "another plugin's audit leaf" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "machine-health:audit-extra" } }], "why": "prefix collision" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "harness-ops:audit-performance", "args": "then machine-health:audit" } }], "why": "target named only in args" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Skill", "input": { "skill": "machine-health:audit" } }], "why": "the audit fired on a host the user ruled out" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "machine-health:audit", "args": "on-demand --dry-run" } }], "why": "fired with args" }
+  ]
+}

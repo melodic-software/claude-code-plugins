@@ -35,7 +35,8 @@
 //   admission parks a refusal no person answers; close closes the issue as
 //   completed (an already-done
 //   stop only once its cited commit or pull request is on the default
-//   branch and its commit message closes the issue, doneEvidence, else it
+//   branch and its commit message closes the issue, doneEvidence, and a
+//   verified-done stop only once VERIFY_CLOSE's sub-issues hold, else each
 //   retries); fail removes agent-ready and adds no label. A
 //   route other than hold carries no escalation marker.
 //
@@ -151,6 +152,14 @@
 //                       issue's author (work-resolve-issue.yml report-skip),
 //                       or workflow-stale when a resolve-issue call stopped on
 //                       stale workflow files (resolve-issue-stale), else empty
+//   VERIFY_CLOSE        the admit job's verify-close output: a finished
+//                       parent's sub-issue numbers, comma-joined, each closed
+//                       as completed by a trusted close (check-blockers.mjs),
+//                       else empty. A verified-done stop closes only when the
+//                       issue's sub-issues, read fresh, are all closed as
+//                       completed and each is one of these (parentDone), and
+//                       the run neither committed nor resumed a branch; else
+//                       it retries
 //   GITHUB_WORKFLOW_SHA workflow-stale: the commit the run's workflow files
 //                       come from
 //   REUSE_SUMMARY_DIR   on a reuse, holds the summary pass's reuse-summary.json
@@ -177,7 +186,7 @@ import { pathToFileURL } from "node:url";
 import { LIMIT_DEFAULTS, clampReset, readLimits } from "./limits.mjs";
 import { networkError, retryFetch } from "./retry-fetch.mjs";
 import { refusalText, sayWhy } from "../lib/admission-comment.mjs";
-import { doneEvidence, RUN_WORDS, stopLine } from "../lib/done-evidence.mjs";
+import { doneEvidence, parentDone, RUN_WORDS, stopLine } from "../lib/done-evidence.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
 import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
 import { ATTENDED_LABEL, causeName, HOST_RUN_LABEL, leadingCode, runCode, securityWord, STOP_ROUTES, stopReasonCode, stopRetries, stopRoute, stopWhy } from "./stop-routes.mjs";
@@ -1476,9 +1485,10 @@ export function decide({
     });
   }
   if (outcome.exit !== "done") {
-    // A delivered report closes only an issue with no branch: one this run
-    // committed to, or a resumed one whose earlier commits are still unmerged.
-    const retry = stop === "report-delivered" && (branch || resumed);
+    // A delivered report or a verified-done check closes only an issue with no
+    // branch: one this run committed to, or a resumed one whose earlier
+    // commits are still unmerged.
+    const retry = (stop === "report-delivered" || stop === "verified-done") && (branch || resumed);
     const why = "The run committed to a branch, or resumed one, so it retries instead of closing.";
     return routeStop(stop, { outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed, unmarked }, retry ? { route: "retry", why } : {});
   }
@@ -2139,7 +2149,7 @@ const openPull = (github, repo, pr, { bot, humans }) =>
 // retry or wait under the cap posts its comment once per run (a rerun of this
 // report finds its own marker) and keeps agent-ready. A close comments,
 // removes the queue labels, then closes the issue as completed.
-async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane = {} }) {
+async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane = {}, verifyClose = "" }) {
   const waited = plan.action === "wait" ? await openPull(github, repo, plan.pr, { bot, humans }) : "";
   if (plan.action === "wait" && waited !== "open") {
     const why = !plan.pr
@@ -2152,6 +2162,15 @@ async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane
   if (plan.action === "close" && plan.stop === "already-done" && !(await doneEvidence(github, repo, plan.stopArgs.outcome?.reason, plan.issueNumber))) {
     const why =
       "Its reason cites no pull request merged into the default branch, or commit on it, made after the issue opened whose commit message closes this issue, so it retries instead of closing.";
+    plan = routeStop(plan.stop, plan.stopArgs, { limits, route: "retry", why });
+  }
+  // A verified-done close: the run checked the issue's own done-when, and its
+  // sub-issues, read fresh, are each closed as completed and among the
+  // admit job's trusted closes (VERIFY_CLOSE).
+  const trustedSubs = new Set(String(verifyClose).split(",").filter((number) => /^[1-9][0-9]{0,9}$/.test(number)).map(Number));
+  if (plan.action === "close" && plan.stop === "verified-done" && !(await parentDone(github, repo, plan.issueNumber, async (number) => trustedSubs.has(Number(number))))) {
+    const why =
+      "Not every sub-issue of this issue is closed as completed by a listed human or a merge, as the run's admission read them, so it retries instead of closing.";
     plan = routeStop(plan.stop, plan.stopArgs, { limits, route: "retry", why });
   }
   let history = null;
@@ -2557,7 +2576,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         });
       }
     }
-    await finishStop(github, repo, plan, { bot, humans: listedHumans(), runId, limits, lane });
+    await finishStop(github, repo, plan, { bot, humans: listedHumans(), runId, limits, lane, verifyClose: env.VERIFY_CLOSE ?? "" });
     return 0;
   } catch (error) {
     console.log(`::error title=report-outcome::${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);

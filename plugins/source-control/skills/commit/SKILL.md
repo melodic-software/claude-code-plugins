@@ -24,11 +24,8 @@ invocation:
 - Unstaged, `git status --short | head -20`
 - Recent commits, `git log --oneline -5`
 
-**The two pipes are the bound and belong in the command.** The Bash tool returns a command's
-complete output into context before there is anything to decide about, so a read-time cap ("read
-only the summary line") bounds nothing; `head` and `tail` truncate before the result exists. These
-are ordinary body Bash calls, not pre-compute, so the one-invocation composition that applies to the
-`## Pre-computed context` block does not apply here.
+Keep the `head` and `tail` pipes in the commands: they are the bound
+([reference/config-probes.md](reference/config-probes.md) says why).
 
 Before the layer probes, classify the config root with `bash "${CLAUDE_PLUGIN_ROOT}/lib/config-root.sh" classify`. For `home` or `non-repo`, report team and overlay as not applicable, skip the three probes, and read user-global only ([../../reference/config-resolution.md](../../reference/config-resolution.md), "The three layers").
 
@@ -52,9 +49,7 @@ the leading `:` is pathspec magic, and quoting keeps the shell from reinterpreti
 3. Personal overlay, existence.
    `git ls-files --cached --others -- ":/.claude/source-control.local.md"`
 
-Probes 2 and 3 deliberately omit `--exclude-standard`, so a gitignored file is still listed: the
-personal overlay is expected to be gitignored, and an untracked team file has to be *seen* before it
-can be reported as untracked.
+Probes 2 and 3 deliberately omit `--exclude-standard`, so a gitignored file is still listed.
 
 **Combine probes 1 and 2 in that order**. Trackedness first, existence consulted only when
 trackedness comes back nonzero. They are not independent readings:
@@ -65,18 +60,9 @@ trackedness comes back nonzero. They are not independent readings:
 | nonzero | non-empty output | `present but UNTRACKED`, deliberately **not** a config layer |
 | nonzero | empty output | `absent` |
 
-A single `--error-unmatch` call cannot separate the last two rows; it exits nonzero for both. That
-is the whole reason probe 2 exists.
-
-**A nonzero exit from probe 1 is a result, not a failure**. It answers the question, and probe 2
-resolves which answer it is. The unknown-value rule is narrower than that: only a probe that could
-not run at all (git unavailable, not a repository) yields an unknown value to carry on past. Never
-fold `present but UNTRACKED` into "unknown". They mean opposite things, and treating the untracked
-case as unknown is exactly what readmits a file the resolution rules exclude.
-
-Keep the git lines above out of `## Pre-computed context`: the harness composes that block into one
-shell invocation, and a worktree-isolated agent refuses a git-bearing compound command it cannot
-statically verify.
+**A nonzero exit from probe 1 is a result, not a failure**: only a probe that could not run at all
+(git unavailable, not a repository) yields an unknown value. Never fold `present but UNTRACKED` into
+"unknown". Keep the git lines above out of `## Pre-computed context`.
 
 **These are snapshots taken when they run, not substitutes for the checks.** The exec-bit
 line only sees what was already staged when the skill loaded; anything staged in step 2 below is
@@ -87,16 +73,8 @@ be git-tracked, so an untracked or gitignored file at that well-known path must 
 convention.
 
 **Every repo-scoped probe anchors at the repository root**, via the `:/` magic pathspec, never at
-the session's current directory. A session started in a subdirectory would otherwise look for
-`<cwd>/.claude/` and report both repo-scoped layers absent. Silently dropping the team convention
-and `trailer_policy`, and producing a commit with the wrong subject shape or attribution. Never
-substitute a resolved root path into a probe instead: a repository root containing `$(…)`, a
-backtick, or a double quote is *not* made safe by wrapping the substituted text in double quotes
-(the substitution still evaluates, or the quote terminates the argument), and `:/` never
-substitutes the root at all. This matches the root-resolution requirement
-[`${CLAUDE_PLUGIN_ROOT}/reference/config-resolution.md`](../../reference/config-resolution.md)
-already states for resolution itself; the probes must not disagree with it. `exec-bit-check.sh`
-anchors itself the same way.
+the session's current directory, and never with a resolved root path substituted in. The reasons
+for each probe's shape are in [reference/config-probes.md](reference/config-probes.md).
 
 ## Per-commit checklist
 
@@ -158,10 +136,9 @@ Compliant examples:
 - `docs: clarify rebase guidance`
 - `refactor(skills)!: rename /simplify to /code-review`
 
-The 11 types. `build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test`. Come from
-the Conventional Commits spec, the Angular convention, commitlint's `@commitlint/config-conventional`
-source, and `amannn/action-semantic-pull-request`'s default `types` list; all four agree on this exact
-set. `security` is **not** a Conventional Commits type in any of them, never add it.
+The 11 types. `build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test`.
+`security` is **not** a Conventional Commits type, never add it. The sources for the set are in
+[reference/design-rationale.md](reference/design-rationale.md).
 
 When the project enforces its convention with a commit-msg git hook, that hook is the authoritative
 gate regardless of which rung above resolved the pattern; this skill's pre-check exists to fast-fail
@@ -215,17 +192,11 @@ convention instead of re-inferring one every commit.
    EOF
    ```
 
-   For each listed plugin the staged change touches, it writes the fragment in place of the hand
-   version bump and CHANGELOG entry, through the repository's own `new-changelog-fragment.sh`.
-   The bump comes from the Conventional Commits type: `feat` minor; `fix` and `perf` patch;
-   `build`, `chore`, `ci`, `docs`, `refactor`, `style` and `test` none; `!` or a `BREAKING CHANGE`
-   footer major. The subject and body go under `### Added` (`feat`), `### Fixed` (`fix`) or
-   `### Changed` (anything else), and a `none` fragment gets one line saying why no release is
-   needed. A later commit on the branch with a releasing type adds its entry to the branch's fragment and raises the
-   bump only upward. On exit 2 for a subject it cannot map, rerun with
-   `--level major|minor|patch|none`. In a repository without the list, and for a plugin the list
-   does not name, it writes nothing, and the repository's own release record (a version bump plus
-   CHANGELOG entry) still applies.
+   On exit 2 for a subject it cannot map, rerun with `--level major|minor|patch|none`. A fragment
+   replaces the hand version bump and CHANGELOG entry. For a plugin the list does not name, the
+   script writes nothing, and the hand release record still applies. What it writes, and the bump
+   each type maps to, is in
+   [reference/changelog-fragments.md](reference/changelog-fragments.md).
 8. Invoke `git commit -F -` via the Bash tool, heredoc-piped, adding `--trailer` per the trailer
    template below only when the resolved `trailer_policy` calls for one.
 9. Surface the resulting commit SHA + subject to the user.
@@ -320,26 +291,14 @@ Four sources can specify a trailer. Resolve in this order:
    That injected guidance can carry a **hardcoded model name that does not match the running
    session**. Copying it verbatim writes a false provenance claim into durable git history, which is
    precisely the harm this template exists to avoid. Always fill `<model>` from actual session
-   knowledge. A mod can rewrite or blank that guidance before you see it: its `attribution.text`
-   hook receives the commit trailer (`kind: commit`) and the PR footer (`kind: pr`) as the engine
-   composed them and returns the text the model reads instead. So absent or unusual injected
-   guidance says nothing about the project's wishes; sources 1 and 2 still decide. (Claim: the
-   event and its kinds. Basis:
-   [mods reference](https://code.claude.com/docs/en/plugins/mods/reference)
-   "Prompts and what Claude reads", `attribution.text` row, fetched 2026-10-01, and the
-   `AttributionTextKind` type in the built-in `plugin-authoring` skill's `claude-code.d.ts` for
-   Claude Code 2.1.287. As of: 2026-10-01. Recheck: the row or the type changes.)
+   knowledge. Absent or unusual injected guidance says nothing about the project's wishes (a mod
+   can rewrite or blank it; [reference/design-rationale.md](reference/design-rationale.md));
+   sources 1 and 2 still decide.
 4. **This skill's default**, above.
 
-**Key spelling.** This skill emits `Co-authored-by`, the spelling GitHub's own documentation uses
-exclusively and the one GitHub itself writes when it appends co-author trailers to a squash-merge
-message. GitHub's attribution is not case-sensitive in practice (a commit carrying a
-`Co-Authored-By:` trailer resolves its co-author in the GraphQL `Commit.authors` connection just the
-same; the docs do not state case sensitivity either way), so this is a consistency choice, not a
-correctness one: branch commits and the forge-written squash merges agree. Git preserves a trailer
-key's case verbatim (`git interpret-trailers` does not normalize it, and no `trailer.*` config here
-changes that), so existing history keeps whatever spelling it was written with; this skill never
-rewrites it. A consumer who wants a different spelling expresses it as a `trailer_policy` template.
+**Key spelling.** This skill emits `Co-authored-by` and never rewrites the spelling existing history
+carries; a consumer who wants a different spelling expresses it as a `trailer_policy` template. Why
+that spelling: [reference/design-rationale.md](reference/design-rationale.md).
 
 ## Unrelated uncommitted changes
 
@@ -388,29 +347,16 @@ documented contract (e.g. `/source-control:pull-request create`) composes this o
 
 ## Recorded deviations
 
-- **Model invocation stays enabled** (`disable-model-invocation: false`, declared explicitly rather
-  than left to the default). The fleet archetype for a `/source-control:commit`-shaped skill is
-  `disable-model-invocation: true`. User-invoked only. This skill deliberately deviates because its
-  composition design requires the model to reach it: a workflow skill that composes the commit
-  mechanic cannot do so if the model may not load it. Compensating controls: surgical staging (never
-  `git add -A`), the subject pre-check before any git invocation, no hook bypass, and a
-  user-visible SHA + subject report after every commit.
+- **Model invocation stays enabled** (`disable-model-invocation: false`), so composing workflow
+  skills can reach this one. The archetype, the reason and the compensating controls are in
+  [reference/design-rationale.md](reference/design-rationale.md).
 
 ## Boundary, native Claude Code surfaces
 
 Claude Code bundles a skill of the same name whose description tells the model to use it whenever
 it is about to commit, so the two compete for every commit. A built-in command also commits as its
-first step.
-
-- **`commit` (bundled skill)**: a generic commit workflow; it gathers git context and applies
-  Claude Code's own message style, staging rules, and attribution. The model and the person can
-  both invoke it.
-- **`/commit-push-pr` (built-in command)**: commits, pushes, and opens a PR in one prompt-driven
-  step. The model and the person can both invoke it.
-- **This skill (marketplace plugin).** Resolves the repository's subject convention through the
-  ladder above (layered `source-control.md` config, the project's own convention, the Conventional
-  Commits default), resolves `trailer_policy`, stages surgically against the four preconditions,
-  and reruns the format, exec-bit, and subject pre-check steps on every commit.
+first step. What each of the three surfaces does is in
+[reference/native-commit.md](reference/native-commit.md).
 
 **Routing.** Prefer this skill whenever it resolves and the repository carries a commit
 convention, a `source-control.md` layer is present, or a workflow composes `/source-control:commit`.
@@ -456,6 +402,10 @@ to expand it from. Basis: the plugins reference,
 
 | File | Load when |
 |------|-----------|
+| [reference/config-probes.md](reference/config-probes.md) | A repository-context probe's shape is in question: the bounding pipes, the omitted `--exclude-standard`, what a nonzero probe exit means, or why probes anchor at `:/`. |
+| [reference/changelog-fragments.md](reference/changelog-fragments.md) | Running step 7 and checking what a fragment holds: the bump per type, the changelog section, a `none` fragment, a repository or plugin without the list. |
+| [reference/design-rationale.md](reference/design-rationale.md) | A rule's source is questioned: the 11-type set, a mod rewriting injected commit guidance, the `Co-authored-by` spelling, or the model-invocation deviation. |
+| [reference/native-commit.md](reference/native-commit.md) | Choosing between this skill, the bundled `commit` skill and `/commit-push-pr`, or rechecking their records. |
 | [reference/staging-preconditions.md](reference/staging-preconditions.md) | A step-2 precondition fired and the right action is not obvious, or judging whether a new condition belongs in the set. |
 | [reference/format-check.md](reference/format-check.md) | Running step 3, formatter discovery, path scoping, the two-stage filter, partial-staging preservation. |
 | [reference/exec-bit.md](reference/exec-bit.md) | Understanding or hand-running step 4, why both the worktree bit and the index, `core.filemode` caveats, manual fallback. |

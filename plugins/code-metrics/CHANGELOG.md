@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.3] - 2026-11-03
+
+### Changed
+
+- The `principles` skill no longer names OMG's current ASCQM release; it points at the ASCQM formal versions list instead.
+
 ## [0.8.2] - 2026-11-02
 
 ### Changed

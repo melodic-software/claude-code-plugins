@@ -48,11 +48,16 @@ records that a substitution was offered, and the permission re-evaluation happen
 a human has actually looked at.
 
 Use it when the hook genuinely knows the right call and the correction is worth the interruption. A
-hook that would rather not interrupt should deny and say what to do instead: a denial's reason
-reaches Claude as the blocking explanation, whether by the JSON field or by stderr on an `exit 2`,
-which route identically, so the agent can reissue the call itself. That is what makes "deny with
-instructions" a complete answer rather than a dead end, and it is why no hook here needs to rewrite
-a call to get the right one run.
+hook that would rather not interrupt should deny and say what to do instead, so the agent can
+reissue the call itself. That is what makes "deny with instructions" a complete answer rather than
+a dead end, and it is why no hook here needs to rewrite a call to get the right one run.
+
+- **Pointer**: when checking what Claude sees of a denial, by the JSON `deny` or by `exit 2`, fetch
+  [hooks § PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control)
+  live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section changes who sees a `deny` reason, or how `exit 2` compares with
+  a JSON `deny`.
 
 Auto mode makes the escape hatch a refusal. Claude Code refuses a tool call whose input a hook
 changed after the server-side classifier reviewed it, tells Claude to reissue the call as recorded,
@@ -81,10 +86,11 @@ fire in a lane denies with instructions and never returns `updatedInput`.
 ## Conformance
 
 Today every `PreToolUse` hook in this marketplace conforms, and none emits `updatedInput` at all:
-the guards deny (`exit 2` or a JSON `deny`, which route identically, since Claude sees the stderr
-message as the denial reason), and the two that ask emit `"ask"` with no rewrite. `block-noncanonical-commit`
-is the conforming instance of the motivating case: it can identify the canonical form and it denies
-with instructions rather than substituting it.
+the guards deny (`exit 2` or a JSON `deny`; the pointer under
+[The sanctioned escape hatch](#the-sanctioned-escape-hatch) covers what Claude sees of each), and
+the two that ask emit `"ask"` with no rewrite. `block-noncanonical-commit` is the conforming
+instance of the motivating case: it can identify the canonical form and it denies with
+instructions rather than substituting it.
 
 A hook that adds `updatedInput` must pair it with `"ask"` and say in its own header comment why the
 interruption is warranted.

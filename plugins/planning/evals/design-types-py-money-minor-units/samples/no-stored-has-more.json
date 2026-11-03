@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "class Page[T]:\n    items: tuple[T, ...]\n    next_cursor: Cursor | None  # None means this is the last page\n",
+      "why": "one field says both whether a next page exists and where it is"
+    },
+    {
+      "answer": "Existing `Page` holds `items: list[LineItem]`, `next_cursor: str | None` and `has_more: bool`;\nthat record can say `has_more=True` with no cursor. One variant per state removes both.\n",
+      "why": "prose quoting the old field, with variants replacing it: an observed reply"
+    },
+    {
+      "answer": "    @property\n    def has_more(self) -> bool:\n        return self.next_cursor is not None\n",
+      "why": "derived, not stored: an observed reply"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "class Page[T]:\n    items: list[T]\n    next_cursor: str | None\n    has_more: bool\n",
+      "why": "the flag and the cursor can disagree, so only a check keeps the page valid"
+    }
+  ]
+}

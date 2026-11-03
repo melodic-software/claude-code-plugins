@@ -3,6 +3,12 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.5] - 2026-11-03
+
+### Changed
+
+- The `go-faster` agentic-workflow catalog's heavy-skill-trivial-task row no longer restates how OpenTelemetry redacts skill names or which variable reveals them; it points at the monitoring page's cost counter and skill-activated event sections, with an as-of date and a recheck trigger.
+
 ## [0.14.4] - 2026-11-02
 
 ### Changed
