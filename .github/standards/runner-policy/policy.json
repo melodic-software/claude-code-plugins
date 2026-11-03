@@ -160,6 +160,7 @@
         "hold-label",
         "hold-paths",
         "generated-copies",
+        "generated-data",
         "lane-transcript-public-key"
       ],
       "allowedSecrets": {

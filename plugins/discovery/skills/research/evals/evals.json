@@ -641,7 +641,7 @@
     {
       "id": 45,
       "name": "verify-and-rework-stops-after-one-round-at-medium",
-      "prompt": "/discovery:research which Node.js release line is the current LTS [Budget: medium. The dispatched discovery:researcher returned a well-formed artifact and all gates exit 0. The sibling verifier fails row 7 on the first pass. The researcher is resumed once and reworks the claim. The verifier is dispatched again and fails row 7 on the same claim a second time, because the fixture keeps failing verification.]",
+      "prompt": "/discovery:research which Node.js release line is the current LTS [Budget: medium, Evidence use: publish. The dispatched discovery:researcher returned a well-formed artifact and all gates exit 0. The sibling verifier fails row 7 on the first pass. The researcher is resumed once and reworks the claim. The verifier is dispatched again and fails row 7 on the same claim a second time, because the fixture keeps failing verification.]",
       "files": [],
       "expected_output": "Allows exactly one rework round: the first FAIL returns row 7 to its phase and the researcher reworks it, then the verifier re-verifies. When row 7 still fails, the run does not rework a second time or run a third verifier pass. It records the claim as a Gap or Conflicts entry and lowers accepted: to match, or leaves the failing row as the named verification: fail rows value, and presents the result with that caveat.",
       "expectations": [
@@ -730,6 +730,36 @@
         "The post's Sources cell in the evidence table carries the label unproven",
         "The documentation page, not the post, is the source the claim rests on",
         "The post is not cited as a Tier 2 or Phase 3 fallback authority, and appears at most as a corroborator"
+      ]
+    },
+    {
+      "id": 52,
+      "name": "internal-evidence-use-verifies-decision-claims-without-rework",
+      "prompt": "Research which retry settings our internal deploy script should use for ExampleQueue, so I can pick one for the script. [The envelope carried Evidence use: internal and Budget: full. The dispatched discovery:researcher returns a well-formed payload with verification: pending, and all five gate steps exit 0, the restatement and claim-eligibility checks included. The index records evidence_use: internal and accepted: 6. The decision the research feeds, which retry policy the script uses, rests on claims R1 and R4. The verifier, briefed on R1 and R4, fails row 12 for R4: its Settled pointer leans on R4 past a recorded qualifier.]",
+      "files": [],
+      "expected_output": "Briefs the sibling verifier on rows 4, 7, 12 and 14 with a Claims: R1, R4 line, because under Evidence use: internal the verifier grades rows 4, 7 and 12 only for the claims the stated decision cites and grades row 14 in full. On the row 12 FAIL it runs no rework round: no SendMessage resume of the researcher. It records R4 as a Gap or Conflicts entry, lowering accepted: to match, or leaves verification: fail rows 12, and presents the result with that caveat. It records in the index's outcome-gate result that the verifier graded R1 and R4.",
+      "expectations": [
+        "The verifier dispatch carries a Claims: line naming R1 and R4, the claims the stated decision cites, and still names rows 4, 7, 12 and 14",
+        "The verifier is not asked to grade rows 4, 7 and 12 for the four claims no decision cites",
+        "No rework round runs on the FAIL: the researcher is not resumed, because the evidence use is internal",
+        "R4 is recorded as a Gap or Conflicts entry with accepted: lowered to match, or the index keeps verification: fail rows 12, and the result is presented with that caveat",
+        "The index's outcome-gate result records which claim IDs the verifier graded"
+      ]
+    },
+    {
+      "id": 53,
+      "name": "claim-free-synthesis-needs-no-verifier",
+      "prompt": "Research two separate things for our planning doc, for my own use: (1) how ExampleQueue orders messages, and (2) how ExampleCache evicts entries. [Both topic researchers returned, each topic's gate, verifier and project fit closed, and both topic indexes record verification: pass. The two topics' claim IDs do not overlap. The main session then writes the slice-root RESEARCH.md as a synthesis with no RESEARCH-*.md sidecar of its own: its Summary and Settled list cite only sub-slice claim IDs with their labels, such as Q2 and C3 (HIGH (single source)), and it adds no cross-topic conclusion. Q2 and C3 are the only claims it carries, both accepted in their sub-slices, and its frontmatter records accepted: 2. The restatement check run on the root with one --sub-slice per topic exits 0.]",
+      "files": [],
+      "expected_output": "Recognizes that the slice-root synthesis adds no claims of its own and cites every claim it carries by ID with its label, so each carried claim already has its sub-slice's verdict and neither row 4 nor row 7 has anything of the root's own to grade. It runs check-restatement-labels.py on the root with one --sub-slice per topic sub-slice, so the root's pointers are checked for their labels and for sweep words against the sub-slices' declared claims, and cites the exit status 0 as the root's acceptance-gate step 5. It grades row 14 on the root itself: the two distinct accepted sub-slice claims it carries match accepted: 2. It dispatches no discovery:research-verifier for the root, writes verification: skipped (cost) into the root index, and says in its outcome-gate result that the synthesis adds no claims and the restatement check over its sub-slices passed. Had the synthesis added a claim, such as a cross-topic conclusion, it would have gone to a fresh verifier on every verifier-owned row.",
+      "expectations": [
+        "The restatement check is run on the slice root with a --sub-slice argument for each topic sub-slice, and its exit status is cited",
+        "The root's accepted: count is checked against the accepted sub-slice claims it carries before the verifier is skipped",
+        "No discovery:research-verifier is dispatched for the claim-free slice-root synthesis",
+        "The root index records verification: skipped (cost), not pending",
+        "The root's outcome-gate result says the synthesis adds no claims",
+        "C3 keeps its HIGH (single source) label wherever the synthesis cites it",
+        "Output states that a synthesis adding a claim of its own would take the verifier"
       ]
     }
   ]
