@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.141.1] - 2026-11-03
+
+### Changed
+
+- `draft-goal-condition`: the rule that `/effort ultracode` needs a model with `xhigh` effort moves from `SKILL.md` to `reference/workflow-row.md`, with its pointer, as-of date and recheck trigger, so it still applies when the docs cannot be fetched (#12357).
+
 ## [0.141.0] - 2026-11-03
 
 ### Added
