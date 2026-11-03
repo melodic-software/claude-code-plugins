@@ -88,7 +88,8 @@ snapshot), `catalog_last_updated` (the marketplace's `lastUpdated` as Step 2's `
 it, after Step 1's refresh, on the first pass and on an `--only-install` re-entry alike; a
 background refresh can move the stamp again later in the run, so it dates the catalog as of
 Step 2, not every read), and `timings`: seconds to three decimals for
-`pre_refresh_read`, `marketplace_update`, `in_repo_update`, `user_sweep`, `pre_install_read` (the
+`pre_refresh_read`, `marketplace_update`, `in_repo_update`, `other_paths` (Step 3a and the mid
+read that selects its records), `user_sweep`, `pre_install_read` (the
 Steps 4 and 5 gate read, taken on every pass), `install_enable`, `cache_content_check`,
 `post_read`, `finalize` (version capture, the divergence and regression diffs, and the monitor
 count that build the block), `unattributed` (the rest of the block's time, between and around those
@@ -627,10 +628,17 @@ this step only; an `--allow-downgrade` project/local rollback is not compared.
 
 ## Step 3a: Forward update in every other present path
 
-Step 2 covers the repo the run stands in. Right after the mid read, before the user-scope sweep,
-`sync-run.sh` takes the project/local records of every other path that is present, a user home and a
-linked worktree included, and runs `claude plugin update <id> -s <scope> --json` from that path
-(`-s project` and `-s local` have no path flag). It is forward-only, unlike Step 2: a record is
+Off by default, because it makes one serial CLI call per lagging record, which on a machine with
+many checkouts runs to tens of minutes. The calls stay serial, on the sandbox probe recorded in
+[#12525](https://github.com/melodic-software/claude-code-plugins/issues/12525), as of 2026-11-02 on
+Claude Code 2.1.316. Recheck when a release note names concurrent writes to `installed_plugins.json`.
+Off, the step makes no call and renders `Behind in other paths:` with the count and the remedy; those
+records are not counted for `converge`, and a user-home one leaves the `User-home project records` row.
+
+Step 2 covers the repo the run stands in. With `--update-other-paths`, right after the mid read and
+before the user-scope sweep, `sync-run.sh` takes the project/local records of every other path that is
+present, a user home and a linked worktree included, and runs `claude plugin update <id> -s <scope>
+--json` from that path (`-s project` and `-s local` have no path flag). It is forward-only, unlike Step 2: a record is
 called only when its version and the catalog's both parse and the record is below. A record with no
 readable catalog version, one at or above the catalog, and one in an absent path take no call;
 absent paths stay in the stale project records section.
@@ -646,8 +654,10 @@ After the post read, each called record is read back by id, scope and path. A re
 forward renders under `Updated in other paths:`. One left behind in a linked worktree or a user home
 renders under `Not moved in other paths:` with its label; the worktree keeps its divergence class and
 the home stays in the `User-home project records` row. Any other record left behind, a failed call,
-and a stopped path go under `Action needed`. Audit runs no call and lists `Would update in other
-paths:`. The digest field is `other_paths`; its shape is in `sync-run.sh`'s header.
+and a stopped path go under `Action needed`. With the flag, audit runs no call and lists `Would update
+in other paths:`. The digest field is `other_paths`; its shape is in `sync-run.sh`'s header.
+`Catalog moved during this run:` names a catalog that changed between the pre and post reads, since a
+long run can leave records on different versions. Each CLI call's duration is in the journal.
 
 ## Step 3: User-scope update sweep
 

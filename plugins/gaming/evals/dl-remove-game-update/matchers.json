@@ -1,0 +1,20 @@
+{
+  "no-refresh-run": [
+    {
+      "use": "command_anywhere"
+    },
+    "-ConfirmRefresh\\b"
+  ],
+  "no-finish-run": [
+    {
+      "use": "command_anywhere"
+    },
+    "\\s-Finish\\b"
+  ],
+  "no-hand-delete": [
+    {
+      "use": "command_anywhere"
+    },
+    "(?:\\brm\\b|\\bdel\\b|\\berase\\b|Remove-Item)(?:[^\"\\\\]|\\\\.)*?(?:ReShade|\\.exe\\b|Win64|RV There Yet)"
+  ]
+}
