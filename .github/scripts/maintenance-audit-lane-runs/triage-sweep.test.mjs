@@ -488,6 +488,24 @@ test("a failing jobs read counts the run, as before: two runs hand the issue off
   assert.deepEqual(result.dispatched, []);
 });
 
+test("an older unmarked handed-off state is left as it is: no run or jobs read, no write", async () => {
+  const gh = fakeGitHub({
+    issues: [issue(1)],
+    comments: { 1: [{ id: 5, user: BOT, body: "<!-- claude-lane triage-sweep runs=11,22 filed=handed -->\nHanded off." }] },
+    runs: { 11: { status: "completed", conclusion: "success" }, 22: { status: "completed", conclusion: "success" } },
+    jobs: { 11: RAN, 22: RAN },
+  });
+  const reads = [];
+  const call = (method, path, body) => {
+    if (/\/actions\/runs\//.test(path)) reads.push(path);
+    return gh.call(method, path, body);
+  };
+  const result = await runSweep({ call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP) });
+  assert.deepEqual(reads, []);
+  assert.deepEqual(gh.writes, []);
+  assert.deepEqual([result.dispatched, result.handed], [[], []]);
+});
+
 test("after RUN_LIMIT dispatches that never reached intake the sweep hands the issue off and names why", async () => {
   const ids = [11, 22, 33, 44, 55, 66];
   const gh = fakeGitHub({
