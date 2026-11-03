@@ -19,8 +19,9 @@
 #
 # PLUGINS-ROOT GATE: the hook does nothing unless the file being written lives in
 # a repo with a `plugins/` directory containing at least one `.claude-plugin/`,
-# `.codex-plugin/` or `.cursor-plugin/` manifest — i.e. a marketplace repo. Outside one there is no local authority to
-# resolve a reference against, so the guard stays silent rather than guessing.
+# `.codex-plugin/` or `.cursor-plugin/` manifest — i.e. a marketplace repo.
+# Outside one there is no local authority to resolve a reference against, so
+# the guard stays silent rather than guessing.
 #
 # PLUGIN-SCOPE GATE: within a marketplace repo, a reference is only adjudicated
 # when its PLUGIN half resolves locally. `/some-other-marketplace:thing` is left

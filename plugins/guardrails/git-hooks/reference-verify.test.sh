@@ -3,9 +3,10 @@
 # an unknown CLI flag or an unresolved skill reference, on a line the pushed
 # commits add, blocks with "<path>:<line>: <message>", the line the text is on;
 # a cited path the repository deleted is printed the same way and passes; a file
-# whose verifier input cannot be built, or a tip that cannot be checked out,
-# blocks; a declined entry checks nothing, run directly or through the
-# lefthook-remote wrapper; the same text on an
+# whose verifier input cannot be built or whose verifier run fails, or a tip
+# that cannot be checked out ("<sha>: reference-verify: ..."), blocks; a
+# declined entry checks nothing, run directly or through the lefthook-remote
+# wrapper; the same text on an
 # unchanged line, in a file type the verifiers do not read, or in an eval
 # suite's samples/ folder (recorded model output), does not; a new
 # branch ranges from its merge-base with the remote's default branch, or from a
@@ -381,6 +382,18 @@ expect "a jq that fails while building a new file's input fails the push, naming
 expect "a jq that fails while building a changed file's input fails the push, naming the file" \
   "1|clean.sh:3: reference-verify: jq exited 2 while building the verifiers' input, so it was not checked; fix that failure, then push again." \
   "$(push_unchecked 'tool_name: "Edit"' refs/heads/main "$tip" "$pushed")"
+expect "a jq that fails while reading the verifiers' output fails the push, naming the file" \
+  "1|clean.sh:3: reference-verify: jq exited 2 while reading the verifiers' output, so it was not checked; fix that failure, then push again." \
+  "$(push_unchecked '-r .hookSpecificOutput.additionalContext' refs/heads/main "$tip" "$pushed")"
+# A verifier run that exits non-zero fails the push too: a plugin copy whose
+# dispatcher exits 3.
+cp -R "$PLUGIN" "$WORK/broken"
+printf 'exit 3\n' >"$WORK/broken/hooks/run-guards.sh"
+err="$(cd "$REPO" && printf 'refs/heads/main %s refs/heads/main %s\n' "$tip" "$pushed" |
+  bash "$WORK/broken/git-hooks/reference-verify.sh" origin "$WORK/r$n.git" 2>&1 >/dev/null)"
+expect "a verifier run that exits non-zero fails the push, naming the file" \
+  "1|clean.sh:3: reference-verify: run-guards.sh exited 3 while running the verifiers, so it was not checked; fix that failure, then push again." \
+  "$?|$(grep -m1 -F ': reference-verify: ' <<<"$err")"
 
 # A pushed tip it cannot check out is a finding that fails the push, not a
 # notice: its range went unchecked. The tip is pushed while main is checked out,

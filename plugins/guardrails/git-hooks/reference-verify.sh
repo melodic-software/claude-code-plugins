@@ -33,11 +33,13 @@
 # else a temporary detached worktree of the tip, removed afterwards.
 #
 # A finding prints as "<path>:<line>: <message>" on stderr, the line being the
-# first judged line holding the text the finding names (see report). A
-# cli-flag or skill-reference finding, a file it could not build the verifiers'
-# input for, or a tip it could not check out exits 1; a stale-path finding is
-# advisory, printed with exit 0. Missing jq follows the check-placement contract: checks.skipmissing, else
-# fail for an agent and a notice for a person.
+# first judged line holding the text the finding names (see report); a tip it
+# could not check out names no file and prints as "<sha>: reference-verify:
+# <message>". A cli-flag or skill-reference finding, a file whose verifier
+# input or verifier run failed, or a tip it could not check out exits 1; a
+# stale-path finding is advisory, printed with exit 0. Missing jq follows the
+# check-placement contract: checks.skipmissing, else fail for an agent and a
+# notice for a person.
 #
 # POSIX sh until check-lib.sh, sourced first, has it running under bash.
 # shellcheck shell=bash
@@ -304,7 +306,7 @@ advisory="$CHECKS_TMP/advisory"
 # check_range: every file the current range (or the worktree) changes.
 check_range() {
   local f ctx whole s _
-  local derived=$'\n' text="$CHECKS_TMP/text" payload="$CHECKS_TMP/payload"
+  local derived=$'\n' text="$CHECKS_TMP/text" payload="$CHECKS_TMP/payload" guards="$CHECKS_TMP/guards"
   changed_lines
   narrow_to_branch
   # A rename's or a copy's destination is missing from the base but is no new
@@ -349,12 +351,24 @@ check_range() {
     # `git -C <dir> rev-parse --show-toplevel` answers <dir>, so the verifiers
     # would take the file's own folder for the repository root. They find the
     # repository from the file, as an edit hook does.
-    ctx="$(
+    # The verifiers are advisory and exit 0, so any other status, or output
+    # jq cannot read, means the file went unchecked.
+    (
       unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY \
         GIT_CEILING_DIRECTORIES GIT_DISCOVERY_ACROSS_FILESYSTEM
-      CLAUDE_PLUGIN_ROOT="$root" checks_bash_run "$run_guards" cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh <"$payload" 2>/dev/null |
-        jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null
-    )"
+      CLAUDE_PLUGIN_ROOT="$root" checks_bash_run "$run_guards" cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh <"$payload" >"$guards" 2>/dev/null
+    )
+    s=$?
+    if ((s != 0)); then
+      finding "$f" "run-guards.sh exited $s while running the verifiers, so it was not checked; fix that failure, then push again."
+      continue
+    fi
+    ctx="$(jq -r '.hookSpecificOutput.additionalContext // empty' <"$guards" 2>/dev/null)"
+    s=$?
+    if ((s != 0)); then
+      finding "$f" "jq exited $s while reading the verifiers' output, so it was not checked; fix that failure, then push again."
+      continue
+    fi
     [[ -n "$ctx" ]] || continue
     report "$f" "$whole" <<<"$ctx" >>"$out"
   done < <(checks_files)
@@ -391,7 +405,8 @@ else
     # The verifiers read the tree around a file (cited paths, the plugins
     # tree, an edited file's other lines), so they run in a detached checkout
     # of the tip. An empty hooks path keeps post-checkout hooks from firing.
-    # A tip it cannot check out is a blocking finding: its range went unchecked.
+    # A tip it cannot check out is a blocking finding: its range went
+    # unchecked.
     if ! git -c core.hooksPath="$CHECKS_TMP/no-hooks" worktree add -q --detach "$tip_tree" "$TIP" >/dev/null 2>&1 ||
       ! cd "$tip_tree"; then
       printf '%s: reference-verify: could not check out this pushed tip, so its range was not checked; fix that failure (disk space, a lock under .git/worktrees), then push again.\n' \

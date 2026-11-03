@@ -200,6 +200,12 @@ expect "a listed file and directory are skipped, an unlisted file is still flagg
 $HINT" "$(check "$REPO")"
 git -C "$REPO" rm -q --cached unlisted.md
 expect "with only listed paths staged, the commit passes" "0|" "$(check "$REPO")"
+# The list exempts path findings only: a secret in a listed file still blocks.
+printf 'see %s\ntoken=%s\n' "$FAKE_LINUX" "$FAKE_GHP" >"$REPO/listed.md"
+git -C "$REPO" add listed.md
+expect "a secret in a listed file still blocks, its machine path still exempt" \
+  "1|listed.md:2: secret or credential pattern: GitHub PAT
+$HINT" "$(check "$REPO")"
 
 # A force-added ignored file is what the commit holds, and .env is the usual
 # secret carrier.
