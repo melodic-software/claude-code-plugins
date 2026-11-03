@@ -1,5 +1,5 @@
 import type { EngineInterface, PromptOrigin, Register, Timer } from 'claude-code'
-import { RANK, readBands, resolveZone, tokenShape, type Bands, type TokenShape, type Zone } from './zone.ts'
+import { followWindow, ofWindow, RANK, readBands, resolveZone, tokenShape, type Bands, type TokenShape, type Zone } from './zone.ts'
 
 const CONTRACT_DIR = 'context-guard'
 const PREFIX = 'context-guard: '
@@ -48,7 +48,13 @@ type Snapshot = {
   // The published zone: what this body resolves to and the edges in force, for readers such as a status line.
   zone?: Zone | 'unknown'
   evidence_degraded?: boolean
-  bands?: { smart_max_used_percentage: number; acceptable_max_used_percentage: number; smart_max_tokens: number | null; acceptable_max_tokens: number | null }
+  bands?: {
+    smart_max_used_percentage: number
+    acceptable_max_used_percentage: number
+    smart_max_tokens: number | null
+    acceptable_max_tokens: number | null
+    auto_compact_window?: number
+  }
 }
 type Reading = { zone: Zone | undefined; degraded: boolean; percent?: number; tokens?: number; window: number; token?: TokenShape }
 // shown: the person's channel has handled it: the batch's last crossing got the transcript line
@@ -180,6 +186,16 @@ export const parseSettings = (zones: string | null): Settings => {
     .sort((a, b) => a.at - b.at)
   return { bands, notices, margin: Number.isFinite(margin) && margin >= 0 && margin < 100 ? margin : 5, actions, thresholds }
 }
+
+// zones.json percentages are of the auto-compact window: under a lowered window the edges,
+// thresholds and approach margin all move toward it, in points of the model's window, which
+// used_percentage counts against. Token bands measure occupancy and stay as they are.
+export const followSettings = (s: Settings, window: number, compactWindow: number | undefined): Settings => ({
+  ...s,
+  bands: followWindow(s.bands, window, compactWindow),
+  margin: ofWindow(s.margin, window, compactWindow),
+  thresholds: s.thresholds.map(t => ({ ...t, at: ofWindow(t.at, window, compactWindow) })),
+})
 
 const newSession = (restate: Session['restate']): Session => ({
   armed: 0,
@@ -375,7 +391,7 @@ async function refresh($: EngineInterface, st: State) {
   const sid = await $.session.id()
   const s = sessionFor(st, sid)
   const home = await homeDir($)
-  const [usage, version, now, settings] = await Promise.all([
+  const [usage, version, now, loaded] = await Promise.all([
     $.session.usage({ breakdown: 'summary' }),
     $.session.version().catch(() => undefined),
     $.clock.now(),
@@ -383,6 +399,11 @@ async function refresh($: EngineInterface, st: State) {
   ])
   const c = usage.context
   const api = c.breakdown?.apiUsage ?? null
+  // The breakdown's window is the auto-compact window the engine settled on (env, settings,
+  // per-model or the model's own); absent, the model's window stands.
+  const compactWindow = c.breakdown?.rawMaxTokens
+  const follows = ofWindow(100, c.window, compactWindow) < 100
+  const settings = followSettings(loaded, c.window, compactWindow)
   const body: Snapshot = {
     captured_at: isoSeconds(now),
     session_id: sid,
@@ -403,7 +424,13 @@ async function refresh($: EngineInterface, st: State) {
         : null,
     },
   }
-  const { word } = resolveZone({ sid, snapshot: JSON.stringify(body), zones: st.zonesText, nowSec: Math.floor(now / 1000) })
+  const { word } = resolveZone({
+    sid,
+    snapshot: JSON.stringify(body),
+    zones: st.zonesText,
+    nowSec: Math.floor(now / 1000),
+    follow: bands => followWindow(bands, c.window, compactWindow),
+  })
   if (!s.compacted && home !== undefined && SESSION_ID.test(sid)) {
     s.compacted = await $.fs.exists(`${home}/.claude/${CONTRACT_DIR}/context/${sid}.compacted`).catch(() => false)
   }
@@ -416,6 +443,7 @@ async function refresh($: EngineInterface, st: State) {
     acceptable_max_used_percentage: settings.bands.acceptable,
     smart_max_tokens: token?.smart ?? null,
     acceptable_max_tokens: token?.acceptable ?? null,
+    ...(follows ? { auto_compact_window: compactWindow } : {}),
   }
   const reading: Reading = { zone, degraded: s.compacted, percent: c.percent, tokens: c.tokens, window: c.window, token }
   recordReading(s, reading, settings)
@@ -623,9 +651,11 @@ async function statusText($: EngineInterface, st: State, cfg: Config) {
   const bands = t
     ? `Bands (the worse decides): smart up to ${smart}% and ${t.smart} tokens, acceptable up to ${acceptable}% and ${t.acceptable} tokens`
     : `Bands: smart up to ${smart}%, acceptable up to ${acceptable}%`
+  const acw = body.bands?.auto_compact_window
+  const follows = acw === undefined ? '' : ` (percentages of the window, following a ${acw}-token auto-compact window)`
   return [
     `${verdict}, ${figures}`,
-    `${bands}; approach margin ${settings.margin} points`,
+    `${bands}; approach margin ${settings.margin} points${follows}`,
     `This session: band row ${st.bandShown ? 'on' : 'off'}, zone-change toast ${cfg.toast ? 'on' : 'off'}`,
     `Settings: ${zones}`,
   ].join('\n')
@@ -649,6 +679,7 @@ async function statusJson($: EngineInterface, st: State, cfg: Config) {
       acceptable_max_used_percentage: settings.bands.acceptable,
       smart_max_tokens: t?.smart ?? null,
       acceptable_max_tokens: t?.acceptable ?? null,
+      ...(body.bands?.auto_compact_window === undefined ? {} : { auto_compact_window: body.bands.auto_compact_window }),
     },
     approach_margin: settings.margin,
   })
