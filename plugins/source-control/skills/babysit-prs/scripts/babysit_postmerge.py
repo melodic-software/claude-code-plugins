@@ -60,11 +60,13 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import io
 import json
 import os
 import re
 import sys
 import tempfile
+import zipfile
 from collections.abc import Callable, Collection, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -3940,6 +3942,214 @@ def verdict_exit(verdict: PostMergeVerdict) -> int:
     return 0
 
 
+# The lane check's floor anchor. The policy floor moves only on a config
+# commit or a demotion clear, so at the lane's merge rate the merged walk
+# reaches MERGED_PAGE_LIMIT and every lane check reads unreadable. The anchor
+# moves the lane's floor past merges a trusted run judged final.
+# post-merge-dispatch's check writes it to the file ANCHOR_ENV names, and
+# that job alone uploads it as ANCHOR_ARTIFACT; the next lane check reads it
+# back over REST (`read_anchor`). It is rebuilt and re-checked on every run
+# from GitHub state only main's pr-merge.yml can produce: an unexpired
+# artifact whose uploading run passes `_Context._lane_sender` for that job's
+# events, with a matching key. No file, comment or label the lane identity
+# can write feeds it, and anything else is no anchor: the policy floor.
+ANCHOR_ARTIFACT = "pr-merge-post-merge-anchor"
+ANCHOR_FILE = "anchor.json"
+ANCHOR_ENV = "BABYSIT_POSTMERGE_ANCHOR"
+ANCHOR_VERSION = 1
+ANCHOR_EVENTS = LANE_RERUN_EVENTS
+ANCHOR_LISTING_PAGES = 2
+ANCHOR_READ_LIMIT = 8
+# The reads one `_lane_sender` can spend: the branch tip and two compares.
+_SENDER_READS = 3
+
+
+@dataclass(frozen=True)
+class Anchor:
+    """The floor a trusted run advanced the lane check to, and the merges
+    after it that run (or one before it) judged final from their runs."""
+
+    at: datetime
+    passed: frozenset[int] = frozenset()
+
+
+def _anchor_key(repo: str, branch: str, identity: str) -> dict[str, Any]:
+    return {
+        "version": ANCHOR_VERSION,
+        "repo": repo,
+        "branch": branch,
+        "identity": _login_key(identity),
+        "laneMergesOnly": True,
+    }
+
+
+def _positive_id(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _anchor_from(raw: bytes, key: Mapping[str, Any]) -> Anchor | None:
+    """The anchor in an artifact's zip, or None for any other shape or key."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+            data = json_object(json.loads(archive.read(ANCHOR_FILE).decode("utf-8")))
+        passed = json_array(data.get("passed"))
+        if any(data.get(k) != v for k, v in key.items()) or not all(
+            map(_positive_id, passed)
+        ):
+            return None
+        return Anchor(_time(data.get("anchor")), frozenset(passed))
+    except Exception:  # noqa: BLE001  (any unreadable artifact is no anchor)
+        return None
+
+
+_anchor_cache: dict[tuple[str, str, str], Anchor | None] = {}
+
+
+def read_anchor(
+    repo: str, identity: str, *, branch: str | None = None, now: datetime | None = None
+) -> Anchor | None:
+    """The newest unexpired ANCHOR_ARTIFACT whose uploading run passes
+    `_lane_sender` for post-merge-dispatch's events, keyed to this repository,
+    branch (default: the default branch) and identity, read once per process.
+    At most ANCHOR_LISTING_PAGES listing pages and ANCHOR_READ_LIMIT REST
+    reads; a read past them, a failed read, a refused or expired artifact and
+    a key mismatch are all None, so the caller keeps the policy floor."""
+    now = now or datetime.now(UTC)
+    reads = 0
+    try:
+        owner, name = _split_repo(repo)
+        if branch is None:
+            reads += 1
+            branch = _default_branch(owner, name)
+        cached = (repo, branch, _login_key(identity))
+        if cached in _anchor_cache:
+            return _anchor_cache[cached]
+        ctx = _Context(owner, name, _login_key(identity), branch=branch, now=now)
+
+        def used() -> int:
+            return reads + ctx.compare_reads + (ctx.branch_tip is not None)
+
+        anchor = None
+        for page in range(1, ANCHOR_LISTING_PAGES + 1):
+            if used() >= ANCHOR_READ_LIMIT:
+                return None
+            reads += 1
+            listing = json_object(
+                _read(
+                    [
+                        "api",
+                        f"repos/{repo}/actions/artifacts?name={ANCHOR_ARTIFACT}"
+                        f"&per_page=100&page={page}",
+                    ],
+                    "anchor artifacts",
+                )
+            )
+            items = list(map(json_object, json_array(listing.get("artifacts"))))
+            # Newest first by id: the listing follows created_at, which can skew.
+            for item in sorted(items, key=lambda a: -int(a.get("id") or 0)):
+                run_id = json_object(item.get("workflow_run")).get("id")
+                if not (
+                    item.get("name") == ANCHOR_ARTIFACT
+                    and item.get("expired") is False
+                    and _positive_id(item.get("id"))
+                    and _positive_id(run_id)
+                    and _time(item.get("expires_at")) > now
+                ):
+                    continue
+                if used() + 1 + _SENDER_READS + 1 > ANCHOR_READ_LIMIT:
+                    return None
+                reads += 1
+                record = json_object(
+                    _read(["api", f"repos/{repo}/actions/runs/{run_id}"], f"run {run_id}")
+                )
+                if not ctx._lane_sender(record, ANCHOR_EVENTS):
+                    continue
+                reads += 1
+                proc = gh_capture(
+                    ["api", f"repos/{repo}/actions/artifacts/{item['id']}/zip"],
+                    binary=True,
+                )
+                if proc.returncode == 0:
+                    anchor = _anchor_from(
+                        proc.stdout, _anchor_key(repo, branch, identity)
+                    )
+                _anchor_cache[cached] = anchor
+                return anchor
+            if len(items) < 100:
+                break
+        _anchor_cache[cached] = None
+    except (PostMergeReadError, RuntimeError, ValueError, OSError) as exc:
+        print(f"post-merge anchor not used: {exc}", file=sys.stderr)
+    return None
+
+
+def lane_floor(
+    repo: str, identity: str, floor: datetime, *, branch: str | None = None
+) -> tuple[datetime, Anchor | None]:
+    """The lane check's floor: the later of the policy `floor` and an accepted
+    anchor (`read_anchor`), and that anchor."""
+    anchor = read_anchor(repo, identity, branch=branch)
+    return (max(floor, anchor.at) if anchor else floor), anchor
+
+
+def advance_anchor(verdict: PostMergeVerdict, previous: Anchor | None) -> Anchor | None:
+    """The anchor after a lane check from the policy floor or `previous`.
+
+    A merge passes when it merged at or before the previous anchor (it was
+    passed then), when this check judged it final from its runs
+    (`MergeState.settleable`), or when the previous anchor carried it as
+    such. A merge counted verified only by its settled marker does not pass:
+    that marker is a comment the identity writes. The anchor moves to the
+    newest `mergedAt` at which every merge from the floor on passed; a tie
+    moves it only when every merge at that second passed, so the at-or-before
+    rule never covers an unpassed one. It carries the passed merges after
+    it, so a merge settled since does not hold it. An unreadable verdict, a
+    failure, or a merge with no time leaves `previous` as it was."""
+    if not verdict.readable or verdict.failures:
+        return previous
+    at = previous.at if previous else None
+    carried = previous.passed if previous else frozenset()
+    seconds: dict[datetime, list[bool]] = {}
+    numbers: dict[datetime, list[int]] = {}
+    for state in verdict.merges:
+        if not state.merge.merged_at:
+            return previous
+        when = _time(state.merge.merged_at)
+        passed = (
+            (at is not None and when <= at)
+            or (state.settleable and not state.settled)
+            or state.merge.number in carried
+        )
+        seconds.setdefault(when, []).append(passed)
+        if passed:
+            numbers.setdefault(when, []).append(state.merge.number)
+    new = at
+    for when in sorted(seconds):
+        if not all(seconds[when]):
+            break
+        new = when if new is None else max(new, when)
+    if new is None:
+        return None
+    return Anchor(
+        new,
+        frozenset(n for when, ns in numbers.items() if when > new for n in ns),
+    )
+
+
+def write_anchor(
+    path: str, anchor: Anchor, repo: str, branch: str, identity: str
+) -> bool:
+    """Write `anchor` for post-merge-dispatch to upload."""
+    return _replace_json(
+        path,
+        {
+            **_anchor_key(repo, branch, identity),
+            "anchor": anchor.at.astimezone(UTC).isoformat(),
+            "passed": sorted(anchor.passed),
+        },
+    )
+
+
 def default_floor(
     repo: str, identity: str, self_logins: Collection[str]
 ) -> tuple[datetime, dict[str, Any]]:
@@ -3984,8 +4194,15 @@ def gate_from_report(report: dict[str, Any]) -> policy.PostMergeGate:
         for m in map(json_object, json_array(report.get("autoMerges")))
         if ok and m.get("verified") is True
     )
+    try:
+        floor = policy._time(report["since"]) if report.get("since") else None
+    except policy.PolicyReadError:
+        floor = None
     return policy.PostMergeGate(
-        refusal, report, lambda merge: getattr(merge, "number", None) in verified
+        refusal,
+        report,
+        lambda merge: getattr(merge, "number", None) in verified,
+        floor,
     )
 
 
@@ -3993,9 +4210,12 @@ def gate_reader(
     repo: str, self_logins: Collection[str], *, lane_merges_only: bool
 ) -> Callable[[datetime, str], policy.PostMergeGate]:
     """The merge gate's `post_merge(floor, identity)`: this check from
-    `floor`, as `gate_from_report` reads it."""
+    `floor`, or for the lane from `lane_floor`, as `gate_from_report` reads
+    it; the gate's `floor` is the one the check used."""
 
     def post_merge(floor: datetime, identity: str) -> policy.PostMergeGate:
+        if lane_merges_only:
+            floor = lane_floor(repo, identity, floor)[0]
         verdict = check(
             repo,
             agent_identity=identity,
@@ -4005,7 +4225,7 @@ def gate_reader(
             lane_merges_only=lane_merges_only,
             settled=reader.settled,
         )
-        return gate_from_report(verdict.report())
+        return gate_from_report({**verdict.report(), "since": floor.isoformat()})
 
     return post_merge
 
@@ -4770,6 +4990,7 @@ def main(argv: list[str] | None = None) -> int:
     is_human = _default_is_human(args.repo, args.agent_identity, args.self_login)
     since = args.since
     shared: dict[str, Any] | None = None
+    anchored, anchor = False, None
     if since is None:
         computed_at = datetime.now(UTC)
         try:
@@ -4790,6 +5011,11 @@ def main(argv: list[str] | None = None) -> int:
             json.dump({"ok": False, "error": f"floor unreadable: {exc}"}, sys.stdout)
             sys.stdout.write("\n")
             return EXIT_UNREADABLE
+        # Only the lane's own check on the default branch reads the anchor;
+        # a full check, an explicit --since and --judge-run never do.
+        anchored = args.lane_merges_only and args.branch is None
+        if anchored:
+            since, anchor = lane_floor(args.repo, args.agent_identity, since)
     verdict = check(
         args.repo,
         agent_identity=args.agent_identity,
@@ -4804,6 +5030,12 @@ def main(argv: list[str] | None = None) -> int:
     report["since"] = since.isoformat()
     if shared is not None:
         report["shared"] = shared
+    out = os.environ.get(ANCHOR_ENV)
+    if anchored and out and verdict.branch:
+        advanced = advance_anchor(verdict, anchor)
+        if advanced is not None:
+            write_anchor(out, advanced, args.repo, verdict.branch, args.agent_identity)
+            report["anchor"] = advanced.at.isoformat()
     code = verdict_exit(verdict)
     branch = verdict.branch
     if verdict.readable and not branch:

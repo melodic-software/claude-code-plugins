@@ -6003,11 +6003,19 @@ def read_promotion(
 class PostMergeGate:
     """The post-merge check's answer, as `assess()` consumes it: a refusal
     (a failure or an unreadable verdict) or None, the verdict's report, and
-    the `verified` callable `in_flight` judges each auto-merge with."""
+    the `verified` callable `in_flight` judges each auto-merge with, and the
+    floor the check read from when it names one (the lane's anchored floor,
+    `babysit_postmerge.lane_floor`)."""
 
     refusal: str | None
     report: Mapping[str, Any]
     verified: Callable[[AutoMerge], bool] | None
+    floor: datetime | None = None
+
+    def floor_from(self, floor: datetime) -> datetime:
+        """The floor `in_flight` and a shared answer use with this gate: the
+        later of the policy `floor` and the check's own, never lower."""
+        return max(floor, self.floor) if self.floor else floor
 
 
 # How old a shared post-merge answer may be: the pr-merge job's timeout.
@@ -6484,7 +6492,6 @@ def assess(
             floor = merged_since_floor(repo, history_sha, demotion, authority)
         except PolicyReadError as exc:
             return replace(stopped, reason=f"post-merge:floor-unreadable: {exc}")
-    details["mergedSince"] = floor.isoformat()
     gate = (
         reuse.gate
         if reuse
@@ -6492,6 +6499,9 @@ def assess(
         if post_merge is not None
         else PostMergeGate("unchecked", {}, None)
     )
+    if not reuse:
+        floor = gate.floor_from(floor)
+    details["mergedSince"] = floor.isoformat()
     details["postMerge"] = dict(gate.report)
     if (
         share is not None
@@ -6815,6 +6825,7 @@ def _recompute_shared(
     )
     floor = merged_since_floor(repo, head, demotion, PR_MERGE)
     gate = post_merge(floor, identity)
+    floor = gate.floor_from(floor)
     if gate.report.get("readable") is not True:
         return None
     return SharedPostMerge(
