@@ -23,6 +23,10 @@
     {
       "answer": "- `createInvoice` has no guard against duplicate invoices: it does a plain insert.\n",
       "why": "no guard against"
+    },
+    {
+      "answer": "The draft says createInvoice is safe to retry; it isn't, because invoice.ts does a plain insert.\n",
+      "why": "quotes the draft, then rebuts it with a pronoun negation"
     }
   ],
   "fail": [

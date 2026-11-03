@@ -69,6 +69,10 @@
     {
       "answer": "- Sleeping five seconds between empty queries is wasteful; use LISTEN/NOTIFY.\n",
       "why": "five seconds, plural"
+    },
+    {
+      "answer": "The draft says polling every five seconds is fine; it isn't, polling is wasteful.\n",
+      "why": "quotes the draft, then rebuts it with a pronoun negation and attacks polling"
     }
   ]
 }
