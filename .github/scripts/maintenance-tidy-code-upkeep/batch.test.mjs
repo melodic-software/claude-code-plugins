@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { branchOf, findExisting, openPulls, parseAreas, promptText, pushStep, sortSweeps, staysInArea, slotsLeft, sweepRecord, validatePlan } from "./batch.mjs";
+import { refsIssue } from "../pr-merge/merge-holds.mjs";
+import { branchOf, findExisting, openPulls, parseAreas, prBody, promptText, pushStep, sortSweeps, staysInArea, slotsLeft, sweepRecord, validatePlan } from "./batch.mjs";
 
 const BASE = "a".repeat(40);
 const HEAD = "b".repeat(40);
@@ -15,7 +16,7 @@ const prSweep = (over = {}) => ({
   outcome: "pr",
   branch: "chore/tidy-adhoc-plugins-bugs-2026-11-03",
   head_sha: HEAD,
-  pr: { title: "refactor(bugs): name the lane reader", body: "No related issue: code-tidying upkeep sweep." },
+  pr: { title: "refactor(bugs): name the lane reader", body: "## Summary\n\nNamed the lane reader." },
   ...over,
 });
 const planText = (sweeps, over = {}) => JSON.stringify({ schema: "tidy-code-upkeep-plan/1", base_sha: BASE, sweeps, ...over });
@@ -29,6 +30,8 @@ test("the prompt names each area's branch and in-place arguments, and forbids pu
   const text = promptText({ areas, date: DATE, baseSha: BASE });
   assert.match(text, /branch `chore\/tidy-adhoc-scripts-2026-11-03`, arguments `scripts\/\*\* in-place=commit`/);
   assert.match(text, /Push nothing, open no pull request and file no issue/);
+  // The opt-out line is what left pr-verify with no spec (#12828).
+  assert.doesNotMatch(text, /No related issue/);
 });
 
 test("parseAreas refuses a glob that could break out of the prompt", () => {
@@ -144,6 +147,39 @@ test("openPulls opens only branches at their head with no pull request", async (
   };
   const sweeps = [a, { ...a, branch: "has-pr" }, { ...a, branch: "moved" }, { ...a, branch: "not-pushed" }];
   const heads = { [a.branch]: HEAD, "has-pr": HEAD, moved: HEAD };
-  assert.equal(await openPulls(read, "o/r", sweeps, heads), 1);
+  assert.equal(await openPulls(read, "o/r", sweeps, heads, "12894"), 1);
   assert.deepEqual(posted, [a.branch]);
+});
+
+// The spec issue the team config names (docs/conventions/code-tidying.yaml upkeep_spec_issue).
+const SPEC = "12894";
+const pullReader = (posted) => async (path, options = {}) => {
+  if (options.method === "POST") return posted.push(options.body.body);
+  return path.includes("/git/ref/") ? { object: { sha: HEAD } } : [];
+};
+
+test("each pull request's body opens with Refs: to the configured spec issue, the link pr-verify reads", async () => {
+  const posted = [];
+  await openPulls(pullReader(posted), "o/r", [prSweep()], { [prSweep().branch]: HEAD }, SPEC);
+  assert.equal(posted.length, 1);
+  assert.equal(posted[0].split("\n")[0], "Refs: #12894");
+  // refsIssue is the reader pr-verify (resolve-pr.mjs linkedIssues) and pr-merge share.
+  assert.equal(refsIssue(posted[0]), 12894);
+  assert.match(posted[0], /## Summary\n\nNamed the lane reader\.$/);
+});
+
+test("with no spec issue configured the batch opens no pull request and says why", async () => {
+  for (const missing of ["", undefined, "0", "#12894", "12894 "]) {
+    const posted = [];
+    await assert.rejects(openPulls(pullReader(posted), "o/r", [prSweep()], { [prSweep().branch]: HEAD }, missing), /upkeep_spec_issue/);
+    assert.deepEqual(posted, []);
+    assert.throws(() => prBody("## Summary", missing), /upkeep_spec_issue/);
+  }
+});
+
+test("a body that links another issue is refused: a second Refs line unlinks the spec, a closing keyword overrides it", () => {
+  assert.equal(prBody("## Summary\n\nRefs: #12894", SPEC).split("\n")[0], "Refs: #12894");
+  for (const body of ["Refs: #7585", "## Related\n\nRefs: #1, #2", "Closes #7585", "## Fix\n\nThis fixes #12.", "resolves melodic-software/other#3"]) {
+    assert.throws(() => prBody(body, SPEC), /another issue/, body);
+  }
 });

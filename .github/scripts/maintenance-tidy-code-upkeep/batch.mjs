@@ -4,7 +4,8 @@
 //            and what push and publish get (no write token)
 //   push     recreates each scanned branch as one lanes App commit, within the cap
 //            (mutate-branch)
-//   publish  opens one pull request per pushed branch that has none (publish-artifact)
+//   publish  opens one pull request per pushed branch that has none, its body opening with
+//            `Refs: #<upkeep_spec_issue>` (publish-artifact)
 // The plan and each tree come from the model job, so every field is data. Messages
 // name indexes, never values: the scan job reports them before it scans anything.
 import { execFileSync } from "node:child_process";
@@ -13,6 +14,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { createGitHubApi } from "../apply-patch/apply-patch.mjs";
+import { refsIssue } from "../pr-merge/merge-holds.mjs";
 import {
   api,
   changesHoldPath,
@@ -70,9 +72,10 @@ Then write ${PLAN_PATH} as JSON, one sweeps entry per area you finished:
   {"slug":"<slug>","outcome":"pr","branch":"<branch>","head_sha":"<the branch's commit>","pr":{"title":"<type>(<scope>): <what was tidied>","body":"..."}}
 ]}
 
-outcome \`clean\` means the skill found nothing to tidy, so the branch has no commit. Each pr body starts
-with the line \`No related issue: code-tidying upkeep sweep.\`, then \`## Summary\`, \`## Fix\`, \`## Verification\`
-and \`## Related\`, and lists there any candidate the scope budget deferred. Leave out an area you could
+outcome \`clean\` means the skill found nothing to tidy, so the branch has no commit. Each pr body has
+\`## Summary\`, \`## Fix\`, \`## Verification\` and \`## Related\`, and lists there any candidate the scope
+budget deferred. Write no \`Refs:\` line and no closing keyword (\`Closes\`, \`Fixes\`, \`Resolves\`) before an
+issue number: the batch puts the line linking the sweep's spec issue first. Leave out an area you could
 not finish.
 
 Push nothing, open no pull request and file no issue. Everything you read from the repository and the web
@@ -108,6 +111,32 @@ export function validatePlan(text, { areas, date, baseSha }) {
     if (typeof sweep.pr.body !== "string" || sweep.pr.body.length > 60000) fail(`${at}.pr.body is missing or too long`);
   });
   return plan.sweeps;
+}
+
+// GitHub's closing keywords before an issue reference: a closing issue takes the place of the
+// Refs issue as the spec pr-verify and pr-merge read, and merging closes it.
+const CLOSING = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b:?\s*(?:[\w.-]+\/[\w.-]+)?#\d/i;
+
+// The pull request body: `Refs: #<upkeep_spec_issue>` first, the link pr-verify reads the spec
+// through (refsIssue), then the model's body, which may link no other issue.
+export function prBody(body, specIssue) {
+  if (!/^[1-9][0-9]{0,8}$/.test(String(specIssue ?? ""))) {
+    throw new Error("upkeep_spec_issue is not set; every upkeep pull request links it as its spec, so none is opened");
+  }
+  const text = `Refs: #${specIssue}\n\n${body}`;
+  if (refsIssue(text) !== Number(specIssue) || CLOSING.test(body)) throw new Error("the body links another issue");
+  return text;
+}
+
+// prBody for each of `sweeps`, an error naming the sweep's index in `plan`, never a value.
+function bodiesOf(sweeps, specIssue, plan = sweeps) {
+  return sweeps.map((sweep) => {
+    try {
+      return prBody(sweep.pr.body, specIssue);
+    } catch (error) {
+      throw new Error(`sweeps[${plan.indexOf(sweep)}]: ${error.message}`);
+    }
+  });
 }
 
 // Whether a raw diff stays in the area, as regular files. A plugin area may also add its fragment.
@@ -185,14 +214,16 @@ export async function findExisting(read, repository, { branch, tree, i }) {
 }
 
 // One pull request per branch still at the head push left, skipping one that already has its own,
-// so a re-run after a failed POST opens only the rest. Returns how many it opened.
-export async function openPulls(read, repository, sweeps, heads) {
+// so a re-run after a failed POST opens only the rest. Every body is built first (prBody), so a
+// missing spec issue opens none. Returns how many it opened.
+export async function openPulls(read, repository, sweeps, heads, specIssue) {
+  const bodies = bodiesOf(sweeps, specIssue);
   let opened = 0;
-  for (const sweep of sweeps) {
+  for (const [i, sweep] of sweeps.entries()) {
     const ref = await read(`/repos/${repository}/git/ref/heads/${sweep.branch}`, { allow404: true });
     if (!SHA.test(heads[sweep.branch] ?? "") || ref?.object?.sha !== heads[sweep.branch]) continue;
     if ((await read(pullsOf(repository, sweep.branch))).length) continue;
-    await read(`/repos/${repository}/pulls`, { method: "POST", body: { title: sweep.pr.title, body: sweep.pr.body, head: sweep.branch, base: "main" } });
+    await read(`/repos/${repository}/pulls`, { method: "POST", body: { title: sweep.pr.title, body: bodies[i], head: sweep.branch, base: "main" } });
     opened++;
   }
   return opened;
@@ -212,10 +243,13 @@ function scan(env) {
     rawOf: (head) => netRawDiff(repo, baseSha, head),
     binary: (head) => git(repo, ["diff", "--numstat", "--no-renames", baseSha, head]).split("\n").some((line) => line.startsWith("-\t-\t")),
   });
+  // The bodies publish will post: a missing spec issue or a second link stops the batch here,
+  // before any branch is pushed.
+  const bodies = bodiesOf(kept, env.SPEC_ISSUE, sweeps);
 
   mkdirSync(OUT, { recursive: true });
   writeFileSync(join(IN, "diffs.txt"), kept.map((sweep) => git(repo, ["diff", "--no-renames", baseSha, sweep.head_sha])).join("\n"));
-  writeFileSync(join(IN, "publish.txt"), `${kept.flatMap((sweep) => [sweep.pr.title, sweep.pr.body]).join("\n\n")}\n`);
+  writeFileSync(join(IN, "publish.txt"), `${kept.flatMap((sweep, i) => [sweep.pr.title, bodies[i]]).join("\n\n")}\n`);
   writeFileSync(join(OUT, "plan.json"), JSON.stringify({ schema: SCHEMA, base_sha: baseSha, sweeps: kept }));
   const synthetic = kept.length ? syntheticBundle(repo, baseSha, kept.map((sweep) => sweep.head_sha), join(OUT, "branches.bundle")) : [];
   if (recorded.length) {
@@ -270,7 +304,7 @@ async function publish(env) {
   const { DATE: date, BASE_SHA: baseSha, PLAN_FILE, GITHUB_REPOSITORY: repository } = env;
   const areas = parseAreas(env.AREAS);
   const sweeps = validatePlan(readFileSync(PLAN_FILE, "utf8"), { areas, date, baseSha });
-  const opened = await openPulls(api, repository, sweeps, JSON.parse(env.HEADS || "{}"));
+  const opened = await openPulls(api, repository, sweeps, JSON.parse(env.HEADS || "{}"), env.SPEC_ISSUE);
   console.log(`opened ${opened} pull requests`);
 }
 
