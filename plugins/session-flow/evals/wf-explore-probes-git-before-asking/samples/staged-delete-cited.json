@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "- `src/exporters/csv_out.py`: intentionally deleted, staged for removal (`D  src/exporters/csv_out.py`). Skipped.",
+      "why": "cites the staged removal on the same line"
+    },
+    {
+      "answer": "| csv_out.py | removed with git rm, skipped |",
+      "why": "table row naming git rm"
+    },
+    {
+      "answer": "- csv_out.py: intentional removal, not investigated\n  status shows it staged: `D  src/exporters/csv_out.py`",
+      "why": "evidence on the following line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "- csv_out.py is missing from disk.",
+      "why": "no evidence"
+    },
+    {
+      "answer": "- json_out.py: staged for removal",
+      "why": "wrong file"
+    }
+  ]
+}
