@@ -3087,8 +3087,10 @@ priority or work-class label. The `needs-triage` floor label is not a triage lab
 whether or not intake runs, so an issue whose intake run failed is still selected; one the sweep
 already filed a hand-off issue for, found by one search of those issues, is skipped unread. Issues from
 `github-actions[bot]`, the lane sweep's own included, are left out. For each it re-dispatches `intake-triage.yml`, at most 5 a pass, and records the runs in
-one comment on the issue; after 2 dispatches leave it untriaged it labels the original
-`needs-triage`, then files one `needs-triage` issue naming the runs. It holds the job's own `GITHUB_TOKEN`
+one comment on the issue; after 2 runs that reached intake leave it untriaged it labels the original
+`needs-triage` and rewrites that comment to name the runs. A run whose `intake-triage` job the kill
+switch or another gate skipped, or that was cancelled before it, does not count, read from the run's
+jobs; 6 dispatches hand the issue off whatever reached intake. It holds the job's own `GITHUB_TOKEN`
 (`actions: write`, `contents: read`, `issues: write`), never a lanes App token, and stops at 120
 REST calls.
 
