@@ -7,7 +7,11 @@
     {"answer": "## 2. Will the `ultracode:` prefix work in `-p`?\n**No.** The keyword starts a workflow only when someone types the prompt. A `claude -p` prompt does **not** start one, so the cron job runs as one plain session.\n", "why": "heading names the keyword and -p; the next line holds the verdict"},
     {"answer": "## Will the `ultracode:` prefix work? No\n\nThe keyword only counts in a prompt a person types. A `claude -p` prompt from cron is a source where the keyword **does nothing**.\n", "why": "heading ends in No; the print-mode marker and does nothing come after it"},
     {"answer": "**Will `ultracode:` work in a nightly `-p` run?**\n\nNo. Only a typed prompt starts a workflow.\n", "why": "bold question; a bare No on a later line"},
-    {"answer": "## The `ultracode:` prefix under cron\n\nIt won't start a workflow, because nobody typed the prompt.\n", "why": "heading holds the keyword and cron; the verdict line holds neither"}
+    {"answer": "## The `ultracode:` prefix under cron\n\nIt won't start a workflow, because nobody typed the prompt.\n", "why": "heading holds the keyword and cron; the verdict line holds neither"},
+    {"answer": "The ultracode: prefix can't start a workflow from a -p prompt.\n", "why": "can't start"},
+    {"answer": "The ultracode keyword cannot start a workflow in a -p prompt.\n", "why": "cannot start"},
+    {"answer": "The ultracode keyword never works in a -p prompt.\n", "why": "never with a third-person verb"},
+    {"answer": "The `ultracode:` prefix never starts a workflow under cron.\n", "why": "never starts"}
   ],
   "fail": [
     {"answer": "Yes, start the -p prompt with `ultracode:` and it will run as a workflow.\n", "why": "recommends the dead form"},
@@ -30,6 +34,7 @@
     {"answer": "The `ultracode:` prefix is fine under `-p`. `/goal` doesn't work there.\n", "why": "the negation is about /goal"},
     {"answer": "I couldn't check the docs, but the `ultracode:` prefix may not work in `-p`.\n", "why": "may hedge"},
     {"answer": "The `ultracode` keyword might not be honored in a cron run.\n", "why": "might hedge"},
-    {"answer": "## Anything to switch on for the `ultracode:` workflow in `-p`? No, it runs as is.\n", "why": "workflow is not work: the No answers a different question"}
+    {"answer": "## Anything to switch on for the `ultracode:` workflow in `-p`? No, it runs as is.\n", "why": "workflow is not work: the No answers a different question"},
+    {"answer": "The `ultracode:` prefix not only works in `-p`, it also fans out.\n", "why": "not only works is a yes"}
   ]
 }
