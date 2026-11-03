@@ -3,15 +3,16 @@
 // page goes. Reads the pull request's facts as `/source-control:pull-request
 // view` prints them, on stdin; it uses files, additions, deletions, labels and
 // baseRefOid. Resolves
-// the review-digest cascade surface for the policy and thresholds and the
-// rendered-views surface for `medium`. Team files are read from the base commit,
+// the review-digest cascade surface for the policy and thresholds, and `medium`
+// through the shared medium resolver (lib/view-settings.mjs) with this plugin's
+// `medium` option (`--option`). Team files are read from the base commit,
 // never the working tree, so a checked-out pull request cannot configure its
 // own digest. The team file is docs/conventions/review-digest.yaml; the docs
 // block and the dot file are read only when it is absent. Prints one JSON object. Paths and labels from the pull request
 // are compared, never echoed.
 //
 //   digest-policy.mjs [--event ready|review] [--blast-radius LEVEL]
-//                     [--policy off|offer|always] [--requested] < facts.json
+//                     [--policy off|offer|always] [--requested] [--option <medium>] < facts.json
 //   digest-policy.mjs --publish-gate --facts <facts.json> [--explicit] < diff
 // Exit 0 decided, 2 usage or unreadable facts.
 
@@ -21,7 +22,9 @@ import { homedir } from "node:os";
 import { join, relative, resolve, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { lookupVisibility, prFromFacts } from "./repo-visibility.mjs";
-import { SECRET_PATTERNS, findRoot, findSecret, overlayApplies, publishGate as sharedGate } from "../../../lib/publish-gate.mjs";
+import { SECRET_PATTERNS, findSecret, publishGate as sharedGate } from "../../../lib/publish-gate.mjs";
+import { findRoot, gateExplicit, overlayApplies, resolveMedium as resolveViewMedium } from "../../../lib/view-settings.mjs";
+import { reportLines } from "../../../lib/view-registry.mjs";
 
 export const DEFAULTS = Object.freeze({
   digest_policy: "offer",
@@ -37,16 +40,14 @@ export const CONFIG_PATHS = Object.freeze([
   "docs/conventions/review-digest.md",
   ".claude/review-digest.json",
   ".claude/review-digest.local.json",
-  ".claude/rendered-views.md",
-  ".claude/rendered-views.local.md",
+  "docs/conventions/rendered-views.yaml",
+  "docs/conventions/rendered-views.local.yaml",
   ".gitmodules",
 ]);
 /** The team file, validated by plugins/review/schemas/review-digest.schema.json. The docs block and the dot file are read only when it is absent. */
 const TEAM_YAML = "docs/conventions/review-digest.yaml";
 const YAML_PARSER = fileURLToPath(new URL("../../../lib/yaml-subset.awk", import.meta.url));
-export const MEDIUM_DEFAULT = "artifact";
 const POLICIES = ["off", "offer", "always"];
-const MEDIUMS = ["terminal", "file", "artifact", "hosted"];
 const LEVELS = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
 
 const isCount = (v) => Number.isInteger(v) && v >= 0;
@@ -281,36 +282,19 @@ export function resolveDigestConfig(baseOid) {
   return { config, warnings };
 }
 
-/** The rendered-views `medium` key: the last layer stating a recognized value wins. */
-export function resolveMedium(warnings, baseOid) {
-  const paths = layerPaths(findRoot(), "rendered-views.md", [".claude/rendered-views.md"], ".claude/rendered-views.local.md");
-  // The digest config already warned about a missing base commit.
-  const base = paths.root ? baseReader(paths.root, baseOid, []) : null;
-  const fromDisk = (p) => (existsSync(p) ? readFileSync(p, "utf8") : null);
-  const layers = [
-    ["user-global", paths.user, fromDisk(paths.user)],
-    ...paths.team.map((p) => ["team", `${base.ref}:${p}`, base.read(p)]),
-  ];
-  if (paths.overlay && existsSync(paths.overlay) && overlayApplies(paths.root, paths.overlay, warnings)) {
-    layers.push(["overlay", paths.overlay, fromDisk(paths.overlay)]);
-  }
-  let medium = { value: MEDIUM_DEFAULT, source: "default" };
-  for (const [label, path, text] of layers) {
-    if (text === null) continue;
-    const match = /^[ \t]*medium:[ \t]*["']?([a-z]+)["']?[ \t]*$/m.exec(text);
-    if (!match || match[1] === "auto") continue;
-    if (match[1] === "hosted" && label === "team") {
-      // A pull request's base can carry a team file, so it never sends pages off to a shared host.
-      warnings.push(`${label} ${path}: medium hosted is honored only from the user-global layer or the overlay; layer ignored`);
-    } else if (match[1] === "hosted" && label === "overlay" && !overlayApplies(paths.root, path, [], { requireIgnored: true })) {
-      warnings.push(`${label} ${path}: medium hosted is honored from the overlay only once it is gitignored; layer ignored`);
-    } else if (MEDIUMS.includes(match[1])) {
-      medium = { value: match[1], source: `${label} ${path}` };
-    } else {
-      warnings.push(`${label} ${path}: medium ${match[1]} is not one of auto, ${MEDIUMS.join(", ")}; treated as auto`);
-    }
-  }
-  return medium;
+/**
+ * Where the digest goes, by the shared medium resolver: `option` is this plugin's `medium` option,
+ * and the team file is read from the base commit only, never the working tree. `explicit` is what
+ * the publish gate's `--explicit` takes: true only when the reader chose the medium, never for the
+ * plugin's own default.
+ */
+export function resolveMedium(option, baseOid) {
+  const teamRef = typeof baseOid === "string" && /^[0-9a-f]{40}$/.test(baseOid) ? baseOid : "";
+  const resolution = resolveViewMedium(
+    { lane: "review:explain-change", userConfig: option, projectRoot: findRoot(), teamRef },
+    { dataDir: process.env.CLAUDE_PLUGIN_DATA || null },
+  );
+  return { value: resolution.medium, source: resolution.decidedBy, explicit: gateExplicit(resolution), report: reportLines(resolution) };
 }
 
 // ------------------------------------------------------------ decision
@@ -468,12 +452,13 @@ function gateMain(argv) {
 }
 
 function parseArgs(argv) {
-  const opts = { policy: null, event: "review", blastRadius: "", requested: false };
+  const opts = { policy: null, event: "review", blastRadius: "", requested: false, option: null };
   for (let i = 0; i < argv.length; i += 1) {
     const [flag, next] = [argv[i], argv[i + 1]];
     if (flag === "--requested") opts.requested = true;
     else if (flag === "--policy" && POLICIES.includes(next)) [opts.policy, i] = [next, i + 1];
     else if (flag === "--event" && ["ready", "review"].includes(next)) [opts.event, i] = [next, i + 1];
+    else if (flag === "--option" && next !== undefined) [opts.option, i] = [next, i + 1];
     else if (flag === "--blast-radius" && LEVELS.includes(next?.toUpperCase())) [opts.blastRadius, i] = [next.toUpperCase(), i + 1];
     else return null;
   }
@@ -485,7 +470,7 @@ function main(argv) {
   const opts = parseArgs(argv);
   if (!opts) {
     process.stderr.write(
-      "usage: digest-policy.mjs [--event ready|review] [--blast-radius LOW|MEDIUM|HIGH|CRITICAL] [--policy off|offer|always] [--requested] < facts.json\n",
+      "usage: digest-policy.mjs [--event ready|review] [--blast-radius LOW|MEDIUM|HIGH|CRITICAL] [--policy off|offer|always] [--requested] [--option <medium>] < facts.json\n",
     );
     return 2;
   }
@@ -503,7 +488,7 @@ function main(argv) {
   const { config, warnings } = resolveDigestConfig(facts.baseRefOid);
   const policy = opts.policy ? { value: opts.policy, source: "argument" } : config.digest_policy;
   const result = decide(facts, { ...opts, policy: policy.value }, config);
-  const medium = resolveMedium(warnings, facts.baseRefOid);
+  const medium = resolveMedium(opts.option, facts.baseRefOid);
   process.stdout.write(
     `${JSON.stringify({ ...result, policy, event: opts.event, requested: opts.requested, medium, config, warnings }, null, 2)}\n`,
   );
