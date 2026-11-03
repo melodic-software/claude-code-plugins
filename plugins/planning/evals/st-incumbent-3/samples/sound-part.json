@@ -27,6 +27,14 @@
     {
       "answer": "- During the outage the retry backlog fills the buffer and new rows overwrite earlier ones.\n",
       "why": "defect-b overwrite worded around the buffer"
+    },
+    {
+      "answer": "- Phase 1's sizing is wrong: `WithBuffer(500000)` is stored in a uint16, so while retries fail the queue holds only 65,535 rows.\n",
+      "why": "a correct defect-b report that says retries and wrong"
+    },
+    {
+      "answer": "- `watchDatabase` in `main.go` exits after three failed checks while Tidewrite retries the flush, so the plan's outage handling is wrong: the restart wipes the in-memory queue.\n",
+      "why": "a correct defect-c report that says retries and wrong"
     }
   ],
   "fail": [
@@ -53,6 +61,14 @@
     {
       "answer": "- A retried flush overwrites rows that the first attempt already stored.\n",
       "why": "overwrite attack on the retry"
+    },
+    {
+      "answer": "- Phase 2 is wrong to call a retried batch harmless: Tidewrite can re-send a batch after a partial commit.\n",
+      "why": "wrong bound to the retry claim"
+    },
+    {
+      "answer": "- Retrying a failed flush is unsafe with `insertSample` as written.\n",
+      "why": "unsafe bound to the retry claim"
     }
   ]
 }
