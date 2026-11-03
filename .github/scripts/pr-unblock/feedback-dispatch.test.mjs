@@ -2577,6 +2577,12 @@ test("the unsent-head sweep leaves a head with a round, no unresolved thread, a 
       { others: { ".github/workflows/pr-review-security-hosted.yml": [upstreamRun({ id: 12, path: ".github/workflows/pr-review-security-hosted.yml", created_at: "2026-10-17T11:59:00Z", updated_at: "2026-10-17T12:15:00Z" })] } },
     ],
     ["a pr-merge run finished inside the grace", { others: { ".github/workflows/pr-merge.yml": [{ ...MERGE_RUN, conclusion: "success", updated_at: "2026-10-17T12:15:00Z" }] } }],
+    [
+      "a comment relay finished inside the grace",
+      { others: { ".github/workflows/pr-review-comment-relay.yml": [upstreamRun({ id: 14, path: ".github/workflows/pr-review-comment-relay.yml", event: "pull_request_review_comment", conclusion: "success", updated_at: "2026-10-17T12:15:00Z" })] } },
+    ],
+    // A pr-verify FAIL's notes, posted just before its dispatch in a group of its own.
+    ["a pr-verify note posted inside the grace", { threads: [{ ...LANE_FINDING, comments: { ...LANE_FINDING.comments, nodes: LANE_FINDING.comments.nodes.map((node) => ({ ...node, createdAt: "2026-10-17T12:15:00Z" })) } }] }],
     ["a run since its review", { workflowRuns: [{ id: 9, status: "completed", display_title: TITLE_42, created_at: "2026-10-17T12:05:00Z" }] }],
     ["do-not-merge", { openPulls: pull({ labels: [{ name: "do-not-merge" }] }) }],
   ]) {

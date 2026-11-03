@@ -935,22 +935,26 @@ async function sweepUnsent(context) {
   if ((await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId })).length > 0) {
     return null;
   }
-  if (!(await api.listReviewThreads(pull.number)).some((thread) => thread.isResolved === false)) {
+  const unresolved = (await api.listReviewThreads(pull.number)).filter((thread) => thread.isResolved === false);
+  if (unresolved.length === 0) {
     return null;
   }
   const upstream = await reviewRunAt({ api, head, repository, settings });
   if (upstream === null) {
     return null;
   }
-  // Each review run's and pr-merge run's completion at the head starts a
-  // dispatch in the head's concurrency group, not the sweep's, so the head
-  // waits out that job's timeout after the last of them. An unreadable time
-  // does not count.
+  // Each review, pr-merge and comment-relay run's completion at the head
+  // starts a dispatch in the head's concurrency group, not the sweep's, so the
+  // head waits out that job's timeout after the last of them. An unreadable
+  // time does not count. A pr-verify FAIL's dispatch runs in a verify-<id>
+  // group at main's head, so the notes it posts as unresolved threads just
+  // before it stand in for it: the newest comment on one counts too.
   const triggers = [];
-  for (const [path, event] of [...settings.reviewWorkflows.map((path) => [path, "pull_request"]), [MERGE_WORKFLOW, "pull_request_target"]]) {
+  for (const [path, event] of [...settings.reviewWorkflows.map((path) => [path, "pull_request"]), [MERGE_WORKFLOW, "pull_request_target"], [RELAY_WORKFLOW, RELAY_EVENT]]) {
     triggers.push(...(await api.listCompletedRuns(path, head, event)).filter((run) => run.head_sha === head && run.event === event));
   }
-  const last = Math.max(...[upstream, ...triggers].map((run) => Date.parse(run.updated_at ?? "")));
+  const commented = unresolved.flatMap((thread) => thread.comments?.nodes ?? []).map((comment) => Date.parse(comment.createdAt ?? "")).filter(Number.isFinite);
+  const last = Math.max(...[upstream, ...triggers].map((run) => Date.parse(run.updated_at ?? "")), ...commented);
   if (!(last <= (rest.now ?? Date.now()) - UNSENT_GRACE_MS)) {
     return null;
   }
