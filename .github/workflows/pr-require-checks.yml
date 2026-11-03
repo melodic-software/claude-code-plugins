@@ -6436,17 +6436,31 @@ jobs:
             # holds on it and on the missing pass, and a trusted approval of the
             # head lifts both. An allow with no listing has no pass to bind.
             listed=true
+            pass_names=("pr-verify-$pr-$head-pass" "pr-verify-$pr-$head-pass-$digest"
+              "pr-verify-$pr-$head-pass-notes" "pr-verify-$pr-$head-pass-notes-$digest")
             if [ ! -s "$BABYSIT_VERIFY_LISTING" ]; then
               if jq -e --arg head "$head" '.head == $head and (.refusal | type) == "string"' "$RUNNER_TEMP/evidence.json" >/dev/null 2>&1; then
                 listed=false
                 echo "::notice::the verdict reader refused #$pr before listing artifacts; merge-holds.mjs judges its refusal with no pass."
+              elif [ -f "$(dirname "$VERIFY_EVIDENCE_SCRIPT")/verify-legacy-fails.json" ]; then
+                # FAIL index mode: the reader reads by exact name and saves no
+                # listing, so the head's pass names are read the same way.
+                found=""
+                for name in "${pass_names[@]}"; do
+                  page=$(read_api "the $name artifacts" "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$name&per_page=100" --jq '.artifacts[]') || exit 1
+                  found+="$page"$'\n'
+                done
+                jq -sc '{artifacts: .}' <<<"$found" >"$BABYSIT_VERIFY_LISTING" || {
+                  echo "::error::the pass artifacts of #$pr do not parse."
+                  exit 1
+                }
+                echo "the verdict reader ran in FAIL index mode for #$pr; its pass artifacts were read by exact name."
               else
                 echo "::error::the verdict reader read no artifact listing for #$pr: $(tr -d '\r\n%' <"$RUNNER_TEMP/evidence.json")"
                 exit 1
               fi
             fi
-            [ "$listed" = false ] || for name in "pr-verify-$pr-$head-pass" "pr-verify-$pr-$head-pass-$digest" \
-              "pr-verify-$pr-$head-pass-notes" "pr-verify-$pr-$head-pass-notes-$digest"; do
+            [ "$listed" = false ] || for name in "${pass_names[@]}"; do
               verdict=${name#"pr-verify-$pr-$head-"}
               verdict=${verdict%"-$digest"}
               runs=$(jq -r --arg name "$name" '.artifacts[] | select(.name == $name and .expired == false) | "\(.workflow_run.id) \(.id)"' "$BABYSIT_VERIFY_LISTING") || {

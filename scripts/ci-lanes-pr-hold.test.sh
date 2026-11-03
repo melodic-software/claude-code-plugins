@@ -889,6 +889,17 @@ for refusal in verify:unreadable verify:too-old; do
 done
 STUB_NO_LISTING=1 STUB_EVIDENCE="$(jq -nc --arg head "$SHA" '{refusal: null, head: $head}')" \
   expect "in the merge queue, a reader that allows a head with no listing fails closed" 1 3 "::error::the verdict reader read no artifact listing for #7"
+# FAIL index mode (the legacy FAILs file beside the reader): the reader saves
+# no listing, so the head's pass names are read by exact name instead.
+: >"$TMP_ROOT/verify-legacy-fails.json"
+STUB_NO_LISTING=1 expect "in the merge queue in FAIL index mode, a pass at the head passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
+if [[ "$(lookups)" -ge 1 && "$(lookups)" -le 4 ]]; then
+  ok "in FAIL index mode the pass names are read by exact name ($(lookups) reads)"
+else
+  fail "in FAIL index mode the pass names took $(lookups) reads"
+fi
+STUB_NO_LISTING=1 STUB_ARTIFACTS='{}' expect "in the merge queue in FAIL index mode, no pass at the head holds" 1 3 "pr-verify"
+rm -f "$TMP_ROOT/verify-legacy-fails.json"
 # A cold reader (no carried run cache) runs only when GITHUB_TOKEN's core
 # pool has the cold read's cost for every entry the queue builds at once
 # (the merge_queue rule's max_entries_to_build, STUB_RULES, 1 by default)
