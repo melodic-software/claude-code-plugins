@@ -186,7 +186,7 @@ test("a lane-enqueued merge passes only when its unedited lane pin names headRef
 });
 
 test("a merge counts toward the cells of the rung its pin names, whatever its work-class labels", () => {
-  // Issue #12748: a class-less, a structural and a mechanical item, each at c2-mechanical (pin C2)
+  // A class-less, a structural and a mechanical item, each at c2-mechanical (pin C2)
   // and at c3-autonomous or full-autonomy (both pin C3), count by the rung alone.
   const labelSets = [[], ["work-class: structural"], ["work-class: mechanical"]];
   const pulls = ["C2", "C3"].flatMap((rung, r) => labelSets.map((labels, i) => pr(1520 + 10 * r + i, `2026-09-0${1 + i}T00:00:00Z`, { rung, labels })));

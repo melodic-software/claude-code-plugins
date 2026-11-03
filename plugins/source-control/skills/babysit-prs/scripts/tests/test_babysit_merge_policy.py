@@ -4006,7 +4006,7 @@ class Assess(unittest.TestCase):
     def test_each_rung_admits_a_class_less_or_structural_item_and_holds_untrusted(
         self,
     ) -> None:
-        # Issue #12748: once the rung's cells are promoted, an item with no
+        # Once the rung's cells are promoted, an item with no
         # work-class label and a structural one pass the real `eligibility()`
         # at both rungs (C2 is c2-mechanical; C3 is c3-autonomous and
         # full-autonomy); the untrusted-provenance hold still refuses.

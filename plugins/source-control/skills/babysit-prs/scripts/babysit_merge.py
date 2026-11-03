@@ -4942,7 +4942,7 @@ def unattended_enqueue(
             )
         inputs_read["updated"] = False
     # The effective rung the gate enqueued under, which the promotion-evidence
-    # publisher credits (issue #12748); no merge rung leaves the pin without one.
+    # publisher credits; no merge rung leaves the pin without one.
     rung = inputs.get("rung")
     pin_rung = rung if rung in postmerge.PIN_RUNGS else None
     proc = gh_capture(

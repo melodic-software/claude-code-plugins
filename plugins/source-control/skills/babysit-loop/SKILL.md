@@ -183,9 +183,8 @@ Every cycle runs the post-merge check (`babysit-postmerge.sh`, cycle-shape step 
 file, because it decides whether anything merges. A PR is merge-eligible when the
 effective rung is merge-capable **and** the cells that rung needs are **effective-promoted**:
 `C2-auto-merge` at `c2-mechanical`, every promotable cell at `c3-autonomous` and `full-autonomy`
-(the merge gate's `RUNG_CELLS`). No work-class label decides it, and an item with none is treated
-like any other; a C5 PR (untrusted provenance) is never eligible. Before
-the partition, resolve each cell through the trusted seam. Unqualified evidence
+(the merge gate's `RUNG_CELLS`). No work-class label decides it; a C5 PR (untrusted provenance) is
+never eligible. Before the partition, resolve each cell through the trusted seam. Unqualified evidence
 fail-closes to effective-unpromoted, so operators keep `--merge human-only` on launch lines;
 lifting that is the owner's call after Phase 3 of the plan. Report each bound-to-effective pair,
 the resolution source, and any fail-closed reason at cycle start. The operator-supplied surfaces

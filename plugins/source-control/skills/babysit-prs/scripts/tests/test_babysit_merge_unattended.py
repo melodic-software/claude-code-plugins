@@ -1478,7 +1478,7 @@ class LaneMode(Unattended):
         )
 
     def test_the_pin_names_the_rung_the_lane_enqueued_under(self) -> None:
-        # Issue #12748: the publisher credits a merge to its rung's cells, read
+        # The publisher credits a merge to its rung's cells, read
         # from the pin. merge.rung C2 under c2-mechanical is rung C2; merge.rung
         # C3 under c3-autonomous or full-autonomy is C3, and a C2 cap lowers it.
         for config_rung, loop, cap, expected in (
