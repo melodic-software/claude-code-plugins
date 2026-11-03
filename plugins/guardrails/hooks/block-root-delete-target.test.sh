@@ -883,6 +883,12 @@ expect_both 'unset suffixed: quote-joined parts of the value block' 2 "${RDT_CWD
 expect_both 'unset suffixed: a += append blocks' 2 "${RDT_CWD[@]}" --command "S=/; S+=' tmp'; rm -rf \$S/x"
 expect_both 'unset suffixed: a quoted blank in a for list blocks' 2 "${RDT_CWD[@]}" --command 'for v in "/ tmp"; do rm -rf $v/x; done'
 expect_both 'unset suffixed: a quoted expansion in a for list blocks' 2 "${RDT_CWD[@]}" --command 'for v in "$@"; do rm -rf $v/x; done'
+expect_both 'unset suffixed: $*/x with an unrelated = blocks' 2 "${RDT_CWD[@]}" --command 'set -- "/ tmp"; rm -rf $*/x --interactive=never'
+expect_both 'unset suffixed: a positional opener blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf $1/x'
+expect_both 'unset suffixed: a value from a positional blocks' 2 "${RDT_CWD[@]}" --command "bash -c 'S=\$1; rm -rf \$S/x' _ '/ tmp'"
+expect_both 'unset suffixed: an indirect value blocks' 2 "${RDT_CWD[@]}" --command 'S=${!R}; rm -rf $S/x'
+expect_both 'unset suffixed: a self-reference alone blocks' 2 "${RDT_CWD[@]}" --command 'S=$S/a; rm -rf $S/x'
+expect_both 'unset suffixed: a self-reference after a literal allowed' 0 "${RDT_CWD[@]}" --command 'S=/tmp; S=$S/a; echo "$(date)"; rm -rf $S/x'
 expect_both 'unset suffixed: bash -c from the PowerShell tool blocks' 2 --tool PowerShell --command "bash -c 'rm -rf \$S/x'"
 expect_both 'unset suffixed: a Remove-Item operand on the PowerShell tool stays allowed' 0 --tool PowerShell --command 'Remove-Item -Recurse $env:S/x'
 rdt_chain='A='

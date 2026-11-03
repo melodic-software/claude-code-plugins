@@ -1765,7 +1765,7 @@ RDT_NAME_SET_CALLS=0
 RDT_NAME_SET_MAX=256
 # shellcheck disable=SC2016,SC2329  # literal `$` patterns; called from rdt_led_by_unbound
 rdt_name_set() {
-  local n="$1" t="$COMMAND" v found=0 re ref
+  local n="$1" t="$COMMAND" v found=0 grounded=0 self_ref re ref
   local re_ref='\$\{?([A-Za-z_][A-Za-z0-9_]*)'
   RDT_NAME_SET_CALLS=$((RDT_NAME_SET_CALLS + 1))
   ((RDT_NAME_SET_CALLS > RDT_NAME_SET_MAX || $2 > 4)) && return 1
@@ -1781,13 +1781,22 @@ rdt_name_set() {
     [[ "$v" == *'$('* || "$v" == *'`'* || "$v" == *\\* ]] && return 1
     [[ "$v" == [\"\']* ]] && v="${v:1:${#v}-2}"
     [[ "$v" == *[[:space:]]* ]] && return 1
+    self_ref=0
     while [[ "$v" =~ $re_ref ]]; do
       ref="${BASH_REMATCH[1]}"
       v="${v/"${BASH_REMATCH[0]}"/}"
-      [[ "$ref" == "$n" ]] || rdt_name_set "$ref" $(($2 + 1)) || return 1
+      if [[ "$ref" == "$n" ]]; then
+        self_ref=1
+      else
+        rdt_name_set "$ref" $(($2 + 1)) || return 1
+      fi
     done
+    # A positional, special or indirect expansion holds a value from outside.
+    [[ "$v" == *\$* ]] && return 1
+    ((self_ref)) || grounded=1
   done
-  ((found)) && return 0
+  # `S=$S/a` alone only appends to the value S came in with.
+  ((found)) && return $((1 - grounded))
   re="(^|[[:space:];&|(\"'])for[[:space:]]+${n}[[:space:]]+in[[:space:]]+([^;"$'\n'"]*)"
   # An unquoted item splits before the loop binds it, so only a quote keeps a blank.
   [[ "$COMMAND" =~ $re ]] && [[ "${BASH_REMATCH[2]}" != *[\`\"\']* && "${BASH_REMATCH[2]}" != *'$('* ]]
@@ -1805,6 +1814,8 @@ rdt_led_by_unbound() {
   if [[ "$1" =~ $re_plain || "$1" =~ $re_brace ]]; then
     name="${BASH_REMATCH[1]}"
     [[ "$name" == "HOME" || "$name" == "TMPDIR" ]] && return 1
+    # A positional or special parameter is never one the command assigns.
+    [[ "$name" =~ ^[A-Za-z_] ]] || return 0
     rdt_name_set "$name" 0 && return 1
     return 0
   fi
