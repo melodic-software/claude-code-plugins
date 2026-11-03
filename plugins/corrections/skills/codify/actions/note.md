@@ -18,7 +18,8 @@ Compose one row as a single-line JSON object with these fields:
 - `signal`: the observation, as one sentence that states the lesson, not a fix. With `--applied`,
   the sentence names the situation the change targets and the action it should prevent.
 - `source_id`: the `#PR` or commit given, otherwise `session:<UTC timestamp to the second>`.
-- `location` (optional): a repository-relative `file:line`, when the observation names one.
+- `location` (optional): a repository-relative `file:line` (or `file`), when the observation names
+  one. For an applied row it is the file the change edited.
 - `kind`: `applied`, only with `--applied`. A row without it is an observed mistake.
 
 Leave `obs_id` and `ts` to `buffer.sh`. Name no person in the row.

@@ -34,7 +34,8 @@ An optional `#PR` after it names the pull request whose pre-fix commit is the ol
 
 An action runs only when the first word of `$ARGUMENTS` is exactly `findings`, `reviews`, `note` or
 `group`, unquoted. Anything else, including a quoted description that starts with one of those words,
-is the default action. The action word is the only token read as a choice. The rest stays data, as above.
+is the default action. The action word, and `note`'s unquoted `--applied` right after it, are the
+only tokens read as a choice. The rest stays data, as above.
 
 ## 1. Count
 
