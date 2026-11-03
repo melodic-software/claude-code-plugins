@@ -52,9 +52,11 @@ A positional mode token (Step 0) plus one flag:
 `--yes` applies ONLY to the tree-mutating `fix` action; it is inert for the report-only review modes, which mutate nothing to gate. Its role for `fix` is the explicit headless opt-in: in a non-interactive session, `fix` applies only under this flag, without it the fix action emits its classification plan and STOPs ([context/fix-pass-mode.md](context/fix-pass-mode.md) "Step 3: Plan + confirmation gate").
 
 **`fanout_diversity` (run-everything and its fallback only).** It sets how the leaf fan-out
-spreads: `lens` runs one reviewer agent per concern, and `model` sends one review prompt to each
-distinct fan-out model tier ([context/run-everything-mode.md](context/run-everything-mode.md)
-step 5). The default mode does not read it. Resolve it before step 5, lowest layer first: the
+spreads: `lens` runs one reviewer agent per concern, `model` sends one review prompt to each
+distinct fan-out model tier, and `codex` runs the `lens` roster with the Codex reviewer as the
+model-diversity panel in place of those tiers
+([context/run-everything-mode.md](context/run-everything-mode.md) steps 3 and 5). The default
+mode does not read it. Resolve it before step 5, lowest layer first: the
 default `lens`; the user option `${user_config.fanout_diversity}` (a literal, unexpanded
 placeholder means unset); the `PASS fanout_diversity:` line of
 `node "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs" --check`, run from the project
