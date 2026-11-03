@@ -50,7 +50,7 @@
           "shfmt"
         ]
       },
-      "degrade": "With HOOK_BASH_READER=shfmt set and shfmt missing, guardrails denies Bash and PowerShell calls. Without that setting shfmt is unused.",
+      "degrade": "With shfmt missing, guardrails denies Bash and PowerShell calls, naming the cause.",
       "install": {
         "docs": "https://github.com/mvdan/sh#shfmt"
       }

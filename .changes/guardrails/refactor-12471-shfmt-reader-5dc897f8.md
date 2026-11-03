@@ -2,13 +2,16 @@
 bump: patch
 ---
 
-### Added
+### Changed
 
-- The shared `hook-utils.sh` gains `hook::bash_parse_segments_shfmt`, a Bash command reader on
-  `shfmt --to-json` with the same callback and `HOOK_SEG_*` contract. `HOOK_BASH_READER=shfmt`
-  selects it; the default reader is unchanged. It refuses the call when shfmt or jq is missing,
+- The shared `hook-utils.sh` reads Bash commands from `shfmt --to-json` (`hook::bash_parse_segments`
+  keeps its callback and `HOOK_SEG_*` contract), and the hand-written segmenter is removed. It
+  refuses the call when shfmt or jq is missing,
   fails or runs past 5 seconds, and the refusal names which of those happened, quoting shfmt's
   syntax error. It uses a shfmt in `~/.local/bin` when PATH has none.
+
+### Added
+
 - In a cloud session (`CLAUDE_CODE_REMOTE=true`), a SessionStart step installs the pinned,
   hash-checked shfmt v3.14.1 into `~/.local/bin` when none resolves. It never blocks the session;
   when the install fails, the reader's refusal message gives the reason.

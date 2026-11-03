@@ -625,7 +625,7 @@ assert_contains "unauthenticated -> carries gh's reason" "$OUT" "Bad credentials
 assert_contains "unauthenticated -> user channel too" "$OUT" '"systemMessage"'
 NOGH="$TEST_TMPDIR/nogh"
 mkdir -p "$NOGH"
-for t in bash jq cat mktemp rm git dirname timeout; do
+for t in bash jq cat mktemp rm git dirname timeout shfmt sleep; do
   p=$(command -v "$t") && ln -sf "$p" "$NOGH/$t"
 done
 scenario unresolved none green green
@@ -1006,7 +1006,7 @@ assert_contains "budget -> fails open, saying so" "$OUT" "will run unchecked"
 if ((SECONDS < 8)); then ok "budget -> returned in ${SECONDS}s"; else bad "budget -> took ${SECONDS}s"; fi
 NOTIMEOUT="$TEST_TMPDIR/notimeout"
 mkdir -p "$NOTIMEOUT"
-for t in bash jq cat mktemp rm git dirname sleep kill; do
+for t in bash jq cat mktemp rm git dirname sleep kill shfmt; do
   p=$(command -v "$t") && ln -sf "$p" "$NOTIMEOUT/$t"
 done
 ln -sf "$BIN/gh" "$NOTIMEOUT/gh"

@@ -90,8 +90,12 @@ has_seg() {
   segs_are 'a quoted here-doc body runs nothing' $'cat <<\'E\'\n$(git reset --hard)\nE' 'cat'
   segs_are 'a comment after whitespace runs nothing' 'echo x #; git reset --hard' 'echo x'
   segs_are 'quoted text is one word' "echo 'git reset --hard'" 'echo git reset --hard'
-  segs_are 'source order: statements, then here-doc bodies after their line' \
-    $'cat <<E; b\n$(c)\nE\nd' 'cat' 'b' 'c' 'd'
+  segs_are 'source order: statements, then here-doc bodies after them' \
+    $'cat <<E; b\n$(c)\nE\nd' 'cat' 'b' 'd' 'c'
+  # A body's substitutions come after the top-level commands, so a pipe into a
+  # shell is read in order (destructive-guard reads the segment before).
+  segs_are 'a body substitution comes after the pipe the body feeds' \
+    $'cat <<EOF |\n$(date)\nrm -rf ~\nEOF\nbash' 'cat' 'bash' 'date'
   segs_are 'an assignment prefix is a word of its command' 'FOO=bar git status' 'FOO=bar git status'
   segs_are 'keywords are not words of a command' 'if a; then b; fi' 'a' 'b'
   segs_are 'a redirect with no command calls no callback' '> f'
@@ -377,7 +381,7 @@ unset CLAUDE_CODE_SESSION_ATTENDED
 guard_rc() { # <guard path> <command> -> its exit status under the shfmt reader
   local payload
   payload=$(jq -cn --arg c "$2" --arg d "$_T_ROOT" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d,session_id:"t",hook_event_name:"PreToolUse"}')
-  (cd "$_T_ROOT" && env HOOK_BASH_READER=shfmt "$BASH_BIN" "$1" <<<"$payload" >/dev/null 2>&1)
+  (cd "$_T_ROOT" && "$BASH_BIN" "$1" <<<"$payload" >/dev/null 2>&1)
 }
 guard_blocks() { # <desc> <guard path> <command>
   guard_rc "$2" "$3"
@@ -424,7 +428,7 @@ refuses_at() { # <desc> <hook> <tool> <refused command> <allowed command>
   local payload rc err
   for c in "$4" "$5"; do
     payload=$(jq -cn --arg t "$3" --arg c "$c" --arg d "$_T_ROOT" '{tool_name:$t,tool_input:{command:$c},cwd:$d,session_id:"t",hook_event_name:"PreToolUse"}')
-    err=$(cd "$_T_ROOT" && env HOOK_BASH_READER=shfmt "$BASH_BIN" "$2" "${@:6}" <<<"$payload" 2>&1 >/dev/null)
+    err=$(cd "$_T_ROOT" && "$BASH_BIN" "$2" "${@:6}" <<<"$payload" 2>&1 >/dev/null)
     rc=$?
     if [[ "$c" == "$4" ]]; then
       if ((rc == 2)) && [[ "$err" == *'got no parse'* ]]; then ok "$1: refused"; else fail "$1: exit $rc, [${err:0:300}]"; fi

@@ -76,7 +76,7 @@
           "shfmt"
         ]
       },
-      "degrade": "With HOOK_BASH_READER=shfmt set and shfmt missing, the destructive-command guard denies the commands it reads. Without that setting shfmt is unused.",
+      "degrade": "With shfmt missing, the destructive-command guard denies the commands it reads.",
       "install": {
         "docs": "https://github.com/mvdan/sh#shfmt",
         "brew": "shfmt",

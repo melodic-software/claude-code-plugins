@@ -1,7 +1,7 @@
 # Where shfmt's parse differs from bash's
 
-`hook::bash_parse_segments_shfmt` (`lib/hook-utils.sh`) reads a command from
-`shfmt -ln bash --to-json`. This page lists each form where that parse differs from what bash
+The guards' command reader, `hook::bash_parse_segments` (`lib/hook-utils.sh`), reads a command
+from `shfmt -ln bash --to-json`. This page lists each form where that parse differs from what bash
 does with the same text, as measured against bash 5 with extglob off and on, and shfmt v3.14.1.
 `lib/hook-utils-shfmt.test.sh` runs every row.
 

@@ -316,6 +316,12 @@ substitutions_to() {
   n=${#chars[@]}
   while ((i < n)); do
     ((hd && i >= hd_end)) && hd=0
+    # A body inside a substitution already scanned past (subst_end_to's span).
+    while ((!hd && b < nb)); do
+      rest="${bodies[b]#* }"
+      ((${rest%% *} <= i && ${bodies[b]%% *} < i)) || break
+      b=$((b + 1))
+    done
     if ((!hd && b < nb)); then
       start="${bodies[b]%% *}"
       if ((i >= start)); then
@@ -384,21 +390,22 @@ substitutions_to() {
 # subst_end_to <var> <from> : the index of the `)` that closes a $( whose text
 # starts at <from> in substitutions_to's cmd and chars (dynamic scope), or the
 # end of the text when none does. Quoted spans, escapes, comments and here-doc
-# bodies inside it hold no paren. Only a span holding `<<` pays for the parse
-# that finds the bodies.
+# bodies inside it hold no paren. The bodies are the whole command's, from
+# substitutions_to's `bodies` (the parser reports a substitution's here-docs
+# too), so only a span holding `<<` scans again with them.
 subst_end_to() {
   local -n _se_out="$1"
-  local from="$2" close tail e
+  local from="$2" close tail e s
   local -a hs=() he=()
   paren_close_to close "$from"
   hook::_c_locale byte_slice_to tail "$cmd" "$from" $((close - from))
   if [[ "$tail" == *'<<'* ]]; then
-    hook::_c_locale byte_slice_to tail "$cmd" "$from"
-    hook::bash_parse_segments "$tail" :
-    for e in ${HOOK_HEREDOC_BODIES[@]+"${HOOK_HEREDOC_BODIES[@]}"}; do
-      hs+=("$((from + ${e%% *}))")
+    for e in ${bodies[@]+"${bodies[@]}"}; do
+      s="${e%% *}"
+      ((s >= from)) || continue
       e="${e#* }"
-      he+=("$((from + ${e%% *}))")
+      hs+=("$s")
+      he+=("${e%% *}")
     done
     paren_close_to close "$from"
   fi
