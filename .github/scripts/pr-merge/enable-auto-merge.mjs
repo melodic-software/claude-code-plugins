@@ -901,7 +901,8 @@ function renderRefusal(fence, person, reason, head, label, since, partial, recor
 // already mergeable enqueues it at once with no auto-merge event, which the
 // read-back judges as an identity enqueue, so the head is pinned first.
 // The pin names the lane room's rung, C2 or C3, which the promotion-evidence
-// publisher credits; any other rung leaves it unnamed (babysit_merge.py).
+// publisher credits, also when the merge lands as a native auto-merge that
+// owes the read-back no pin; any other rung leaves it unnamed (babysit_merge.py).
 export const PIN_RE = /^<!-- babysit-merge-pin sha=([0-9a-f]{40})(?: rung=(C2|C3))? -->$/;
 export const pinBody = (sha, rung) =>
   `<!-- babysit-merge-pin sha=${sha}${rung === "C2" || rung === "C3" ? ` rung=${rung}` : ""} -->\nThe unattended merge path armed native auto-merge at head \`${sha}\`.`;

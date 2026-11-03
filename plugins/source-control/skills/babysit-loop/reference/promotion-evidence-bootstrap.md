@@ -179,8 +179,9 @@ reverts of those merges, the post-merge gate (the full and canary workflow runs 
 commit that contains the merge, the dispatch deadline and the pin read-back, read as
 `babysit-prs/scripts/babysit_postmerge.py` reads them, and the checks named by the required
 `--gate-check` on the merge commit), and the missed-blocking label a human applied. No work-class
-label is read. An autonomous merge with no rung (no lane pin at its head, a pin of the older shape
-naming none, a native auto-merge, another bot's merge) is listed in `noRungAutonomous`: it earns no
+label is read. A native auto-merge the pr-merge lane armed is credited by the pin it posted, like
+any other. An autonomous merge with no rung (no unedited lane pin at its head, a pin of the older
+shape naming none, another bot's merge) is listed in `noRungAutonomous`: it earns no
 credit, and its contrary events count against every promotable cell. `C3-ai-review-blocking`
 counts every merge under rung C3 and every human merge. Its header comment states what counts as each event, including the
 judgment mappings and how to set `--lane-login` for merge-queue merges.

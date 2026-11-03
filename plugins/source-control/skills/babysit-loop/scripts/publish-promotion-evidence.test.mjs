@@ -208,7 +208,7 @@ test("a lane identity's native auto-merge owes no pin, as in native_auto_merge",
   const armed = (kind, at, login = LANE) => ({ nodes: [{ __typename: kind, createdAt: at, actor: actorOf(login) }] });
   const enqueue = [queued("2026-08-31T23:50:00Z", LANE)];
   const pulls = (autoMerge, extra = {}, timeline = enqueue) => [pr(1505, "2026-09-01T00:00:00Z", { timeline, patch: { autoMerge, ...extra } })];
-  // A native merge posts no pin, so it has no rung either: no credit, and contrary events on every cell.
+  // A native merge owes no pin; with none it has no rung either: no credit, and contrary events on every cell.
   const judge = (autoMerge, extra, lanes = [LANE], timeline = enqueue) => {
     const result = run({ pulls: pulls(autoMerge, extra, timeline), workflowRuns: verifiedEach(pulls(autoMerge, extra, timeline)), comments: { 1505: [] } }, { laneLogins: lanes });
     return result.events;
@@ -236,6 +236,33 @@ test("a lane identity's native auto-merge owes no pin, as in native_auto_merge",
   const native = pulls(armed("AutoMergeEnabledEvent", "2026-08-31T23:40:00Z"));
   const red = run({ pulls: native, workflowRuns: { [FULL]: [wfRun(9, "schedule", shaOf(1505), "2026-09-01T02:00:00Z", { conclusion: "failure" })] }, comments: { 1505: [] } });
   assert.deepEqual(red.gateFailures.map((g) => [g.number, g.check]), [[1505, `${FULL} schedule`]]);
+});
+
+test("a native auto-merge credits the rung its lane's unedited pin at the merged head names", () => {
+  const head = shaOf(1506 + 0x100000);
+  const armed = { nodes: [{ __typename: "AutoMergeEnabledEvent", createdAt: "2026-08-31T23:40:00Z", actor: actorOf(LANE) }] };
+  const pulls = [pr(1506, "2026-09-01T00:00:00Z", { timeline: [queued("2026-08-31T23:50:00Z", LANE)], patch: { autoMerge: armed } })];
+  const judge = (list) => run({ pulls, workflowRuns: verifiedEach(pulls), comments: { 1506: list } });
+  for (const rung of ["C2", "C3"]) {
+    const result = judge([pinComment(head, rung)]);
+    assert.equal(termOf(result, `${rung}-auto-merge`, `autonomous ${rung} completions`).value, 1, rung);
+    assert.deepEqual(result.noRungAutonomous, [], rung);
+  }
+  // No pin, an old-shape pin, an edited pin, a pin at another head or by another author: no rung.
+  const noRung = [
+    [[], "no unedited lane pin"],
+    [[pinComment(head)], "the pin names no rung"],
+    [[{ ...pinComment(head, "C2"), lastEditedAt: "2026-09-01T00:30:00Z" }], "no unedited lane pin"],
+    [[pinComment(shaOf(0xbad), "C2")], "the pin names another head"],
+    [[{ ...pinComment(head, "C2"), author: actorOf("kyle-sexton") }], "no unedited lane pin"],
+  ];
+  for (const [list, reason] of noRung) {
+    const result = judge(list);
+    assert.deepEqual(result.noRungAutonomous, [{ number: 1506, reason }], reason);
+    assert.equal(termOf(result, "C2-auto-merge", "autonomous C2 completions").value, 0, reason);
+    // A native merge owes no pin, so a missing one is no gate failure.
+    assert.deepEqual(result.events, [], reason);
+  }
 });
 
 test("a pin past the 30th comment page is no pin, as in read_pin", () => {

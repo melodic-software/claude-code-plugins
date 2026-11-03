@@ -52,10 +52,12 @@
 //
 // What counts (judgment where the contract names no GitHub source):
 // - An autonomous merge's rung is the one its lane pin names (`rung=C2|C3`, babysit_postmerge.py
-//   pin_comment): the effective rung the gate enqueued it under. No work-class label is read.
-//   A merge counts toward its rung's cells: C2 merges toward the C2 terms, C3 merges toward the
-//   C3 terms. An autonomous merge with no rung (no lane pin at its head, a pin of the older shape
-//   naming none, a native auto-merge, another bot's merge, or an unreadable timeline page) is
+//   pin_comment, or enable-auto-merge.mjs pinBody for the pr-merge lane's native arm): the
+//   effective rung the gate enqueued or armed it under. No work-class label is read. A native
+//   auto-merge owes no pin but is credited by one the same way. A merge counts toward its rung's
+//   cells: C2 merges toward the C2 terms, C3 merges toward the C3 terms. An autonomous merge with
+//   no rung (no unedited lane pin at its head, a pin of the older shape naming none, another
+//   bot's merge, or an unreadable timeline page) is
 //   listed in noRungAutonomous, never counted toward a positive term, and each of its contrary
 //   events is emitted against every promotable cell. A human merge has no rung.
 // - C3-ai-review-blocking measures the AI review, not merge authority, so its advisory-review and
@@ -578,10 +580,10 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   };
 
   // The rung an autonomous merge ran under, from the lane pin at its head; a human merge has none.
-  const rungOf = (g, { autonomous, byIdentity, native }) => {
+  // A native auto-merge owes no pin, but the pr-merge lane posts one when it arms, read the same way.
+  const rungOf = (g, { autonomous, byIdentity }) => {
     if (!autonomous) return { rung: null, reason: null };
     if (!byIdentity) return { rung: null, reason: "not enqueued by a lane identity: no pin" };
-    if (native) return { rung: null, reason: "a native auto-merge posts no pin" };
     const pin = pinOf(g.number);
     if (pin === null) return { rung: null, reason: "no unedited lane pin" };
     if (pin.sha !== g.headRefOid) return { rung: null, reason: "the pin names another head" };
