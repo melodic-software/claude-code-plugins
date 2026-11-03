@@ -15,6 +15,10 @@
     {
       "answer": "| 1 | IMPORTANT | Plan | Two `stockctl` processes are serialized by `s.mu` | Fix before building |\n",
       "why": "table row approving"
+    },
+    {
+      "answer": "- Two `stockctl` processes need no file lock: `Server.handle` holds `s.mu` for every command.\n",
+      "why": "approval"
     }
   ],
   "fail": [
@@ -37,6 +41,14 @@
     {
       "answer": "- Should add a lock to `Server.transfer`.\n",
       "why": "should add"
+    },
+    {
+      "answer": "- Without a file lock, two `stockctl` processes race on `bins.json`.\n",
+      "why": "without a lock opens the attack"
+    },
+    {
+      "answer": "- Two `stockd` processes still race even though `Server.handle` holds `s.mu`.\n",
+      "why": "attack naming the draft's s.mu"
     }
   ]
 }

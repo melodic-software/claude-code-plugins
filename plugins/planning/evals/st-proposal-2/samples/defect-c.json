@@ -45,6 +45,10 @@
     {
       "answer": "- AC1 fails until docker-compose.yml mounts the overlay.\n",
       "why": "the mount, not the env layer"
+    },
+    {
+      "answer": "- Nothing in `docker-compose.yml` overrides the overlay's values.\n",
+      "why": "nothing negation"
     }
   ]
 }

@@ -19,6 +19,14 @@
     {
       "answer": "- log.Fatalf in main.go destroys the buffer the plan relies on.\n",
       "why": "destroys"
+    },
+    {
+      "answer": "- It is not clear the queue survives: `watchDatabase` in `main.go` calls `log.Fatalf` after three failed health checks, and the in-memory buffer is lost.\n",
+      "why": "not clear is not a negated loss"
+    },
+    {
+      "answer": "- `Restart=always` does not prevent losing the in-memory buffer: `watchDatabase` exits and the queue is wiped.\n",
+      "why": "does not prevent"
     }
   ],
   "fail": [

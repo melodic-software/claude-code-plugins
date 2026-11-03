@@ -37,6 +37,10 @@
     {
       "answer": "- The overdue notice is not sent by any phase.\n",
       "why": "not sent"
+    },
+    {
+      "answer": "- `flush_outbox` only runs every ten minutes, so Phase 3 should send the notice directly over SMTP.\n",
+      "why": "attack naming the draft's flush_outbox"
     }
   ]
 }

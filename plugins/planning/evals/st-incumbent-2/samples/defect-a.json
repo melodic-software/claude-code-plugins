@@ -19,6 +19,14 @@
     {
       "answer": "- Holds could use the built-in row claim in Emberstore instead of a new library.\n",
       "why": "built-in"
+    },
+    {
+      "answer": "- The draft says Emberstore was considered, but its row `CLAIM` with `HOLD_UNTIL` is never weighed against AC1.\n",
+      "why": "quotes the claim, then attacks it"
+    },
+    {
+      "answer": "- The plan does not cover Emberstore's `CLAIM`, which already meets AC1 without a new library.\n",
+      "why": "does not cover, said of the plan"
     }
   ],
   "fail": [
@@ -49,6 +57,10 @@
     {
       "answer": "- Consider a simpler rollout for Phase 2.\n",
       "why": "generic, nature word without the feature"
+    },
+    {
+      "answer": "- Emberstore's `CLAIM` cannot replace Holdfast: it has no TTL.\n",
+      "why": "dismissal"
     }
   ]
 }

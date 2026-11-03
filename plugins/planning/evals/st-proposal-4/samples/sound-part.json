@@ -23,6 +23,10 @@
     {
       "answer": "- The gzip segments should be per station rather than per hour.\n",
       "why": "the layout defect, phrased with the compression"
+    },
+    {
+      "answer": "- Hourly segments make `plot_station.py` open 24 files for one station's day; gzip NDJSON makes that wrong for AC2.\n",
+      "why": "other finding"
     }
   ],
   "fail": [
@@ -48,7 +52,15 @@
     },
     {
       "answer": "- gzip NDJSON segments are a poor choice for a five-year archive; use Parquet.\n",
-      "why": "format attack in the draft's own word segments"
+      "why": "attack using the draft's word segments"
+    },
+    {
+      "answer": "- Storing 24 hours of readings as gzip NDJSON is inefficient; Parquet would be a quarter of the size.\n",
+      "why": "attack using 24"
+    },
+    {
+      "answer": "- The draft says gzip NDJSON is fine, but it is the wrong format; use Parquet.\n",
+      "why": "quotes the approval, then attacks it"
     }
   ]
 }

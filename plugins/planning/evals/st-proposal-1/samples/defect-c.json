@@ -15,6 +15,10 @@
     {
       "answer": "| 2 | HIGH | Failure | Power loss in the gap between provider accept and ledger row re-sends the reminder | Record the attempt first |\n",
       "why": "table row with re-send"
+    },
+    {
+      "answer": "- The ledger does not prevent a duplicate text: a crash after `send_sms` and before the insert re-sends on the next run.\n",
+      "why": "does not prevent"
     }
   ],
   "fail": [

@@ -15,6 +15,14 @@
     {
       "answer": "| 2 | HIGH | Assumption | `invoices_tenant_period` is not unique, so calling createInvoice again means a second invoice | Add a unique index |\n",
       "why": "not unique"
+    },
+    {
+      "answer": "- This is not a minor issue: `createInvoice` in `src/invoice.ts` does a plain insert, so it is not idempotent.\n",
+      "why": "emphatic not-a-minor-issue"
+    },
+    {
+      "answer": "- `createInvoice` has no guard against duplicate invoices: it does a plain insert.\n",
+      "why": "no guard against"
     }
   ],
   "fail": [

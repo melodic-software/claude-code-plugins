@@ -19,6 +19,14 @@
     {
       "answer": "- The draft treats the offset as fine, but it is wrong for a clinic that observes DST.\n",
       "why": "quotes the draft, then contradicts it"
+    },
+    {
+      "answer": "- `tickwheel` does not correctly handle DST: `utc_offset` in `clinics.yaml` is a fixed number, so reminders go out an hour off in summer.\n",
+      "why": "negated verb with an adverb"
+    },
+    {
+      "answer": "- The draft says `tickwheel` handles DST, but `utc_offset` is a literal offset, so 09:00 drifts an hour twice a year.\n",
+      "why": "quotes the claim, then attacks it"
     }
   ],
   "fail": [
@@ -49,6 +57,14 @@
     {
       "answer": "- AC1 is untraceable to a test.\n",
       "why": "AC1 named, nature absent"
+    },
+    {
+      "answer": "- `tickwheel` correctly handles DST through `utc_offset`.\n",
+      "why": "dismissal with an adverb"
+    },
+    {
+      "answer": "- `tickwheel` handles DST via `utc_offset`, but the 2.8.1 pin lacks FileJobStore.\n",
+      "why": "dismissal, then a finding about something else"
     }
   ]
 }

@@ -22,7 +22,11 @@
     },
     {
       "answer": "- `ParseExact` does not convert local time to UTC, so `StartsAt` is hours off.\n",
-      "why": "negated conversion verb, not a negated local"
+      "why": "does not convert"
+    },
+    {
+      "answer": "- `AppointmentImporter` doesn't convert the local time before it sets `StartsAt`.\n",
+      "why": "doesn't convert"
     }
   ],
   "fail": [
@@ -45,6 +49,10 @@
     {
       "answer": "- `AppointmentImporter` deletes the file before saving succeeds elsewhere.\n",
       "why": "a finding about something else"
+    },
+    {
+      "answer": "- `StartsAt` is not local time; the importer already stores UTC.\n",
+      "why": "dismissal"
     }
   ]
 }

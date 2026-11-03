@@ -25,6 +25,18 @@
       "why": "paraphrase"
     },
     {
+      "answer": "- `Server.transfer` has no crash safety: it calls `SaveBins` before `AppendJournal`.\n",
+      "why": "no crash safety"
+    },
+    {
+      "answer": "- There is no crash recovery for `Server.transfer`: `SaveBins` runs before `AppendJournal`, the reverse of `adjust`.\n",
+      "why": "no crash recovery"
+    },
+    {
+      "answer": "- The plan claims a crash is handled, but `SaveBins` runs before `AppendJournal`, so `store.Open` refuses to start.\n",
+      "why": "quotes the claim, then attacks it"
+    },
+    {
       "answer": "- `Server.transfer` has no crash safety: it calls `SaveBins` before `AppendJournal`, the reverse of `adjust`.\n",
       "why": "no crash safety is the defect, not a dismissal"
     }
@@ -47,16 +59,24 @@
       "why": "negated mention"
     },
     {
-      "answer": "- `SaveBins` before `AppendJournal` has no crash risk.\n",
-      "why": "dismissal"
-    },
-    {
       "answer": "- `AppendJournal` should batch fsync calls for speed.\n",
       "why": "a finding about something else"
     },
     {
       "answer": "- Consider crash handling.\n",
       "why": "generic, no target"
+    },
+    {
+      "answer": "- There is no crash window: `SaveBins` writes `bins.json` through a temp file and rename.\n",
+      "why": "dismissal"
+    },
+    {
+      "answer": "- A crash is handled: `SaveBins` leaves bins.json whole, but the Phase 3 check never overdraws.\n",
+      "why": "dismissal, then a finding about something else"
+    },
+    {
+      "answer": "- `SaveBins` before `AppendJournal` has no crash risk.\n",
+      "why": "dismissal"
     }
   ]
 }
