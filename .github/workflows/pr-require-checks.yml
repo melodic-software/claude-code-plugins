@@ -6556,6 +6556,8 @@ jobs:
         run: |
           if jq -e 'any(.[]; .result == "cancelled")' <<<"$LANES" >/dev/null 2>&1; then
             jobs_file=$(mktemp)
+            [ ! -f "${RUNNER_TEMP:-}/gh-read.sh" ] || . "$RUNNER_TEMP/gh-read.sh"
+            ! declare -F api_budget_wrap_gh >/dev/null || api_budget_wrap_gh github-token
             gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs?per_page=100" --jq '.jobs[]' >"$jobs_file" || : >"$jobs_file"
             recovered=$(jq -r --slurpfile jobs "$jobs_file" '
               def finished:
