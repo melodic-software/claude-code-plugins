@@ -7,7 +7,7 @@ A local section: Boris Cherny's X thread "Steps of AI Adoption" (<https://x.com/
 The thread is about organizations, not single engineers: one engineer can get large gains while the team around them lags.
 
 - **Tokens alone do not move a team up a step**: at each step, find and break down the next set of bottlenecks and build the next set of guardrails.
-- **Guardrails that let the team trust the output**: Claude verifies its own work end to end; auto mode for permissions; automated code review and security review on by default; interfaces for managing several agents at once (Agent view in the CLI, the Desktop and mobile apps, Tag). Higher steps add `/loop`, `/batch`, dynamic workflows and worktree isolation for subagents.
+- **Guardrails that let the team trust the output**: the agent verifies its own work, permission prompts stop being the human's job, code review and security review run by default, and people manage several agents at once; higher steps add repetition and parallel, isolated subagents. Which Claude Code features serve each guardrail and step: read the thread and its linked table live (pointer: <https://x.com/bcherny/status/2077929379661844559>; as of 2026-11-03; recheck when the thread or its table is edited, or a Claude Code release renames a feature the table names).
 - **Measure return, not activity**: a usage dashboard shows activity. The better question is whether you would have spent engineering effort on the work anyway, and what those manual hours would have cost.
 - **The payoff is background maintenance**: when fixing and maintaining happen in the background, teams spend their time building.
 
