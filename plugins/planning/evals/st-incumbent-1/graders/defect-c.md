@@ -1,0 +1,6 @@
+---
+type: regex
+pattern: '^(?![^\n]*\bNo plan gaps found)(?![^\n]*\b(?:is|are|was|were|looks?|seems?|remains?)\s+(?!not\b|never\b)(?:(?:perfectly|entirely|totally|already|also|still|actually)\s+)?(?:fine|ok|okay|good|correct|accurate|sound|acceptable|safe|justified|reasonable)\b(?![^\n]*\b(?:but|however|yet)\b))(?![^\n]*\b(?:no|not\s+an?|n''t\s+an?)\s+(?:\w+\s+){0,2}(?:issue|problem|concern|risk|defect|gap|finding|blocker)s?\b)(?![^\n]*\b(?:nothing\s+wrong|no\s+need\s+to|need\s+not|can\s+be\s+ignored|no\s+action\s+needed|no\s+changes?\s+needed)\b)(?![^\n]*\b(?:won''t|will\s+not|cannot|can''t|not|never|no)\s+(?:\w+\s+)?(?:\bduplicat\w*|double[- ]?\w+|fire\s+twice|send\s+twice))(?=[^\n]*(?:\bworker-[01]\b|\bSHARD_INDEX\b|\bshard\w*|\b(?:two|both|2)\s+(?:\w+\s+)?(?:workers?|instances?|containers?|processes|wheels?)\b|\bsecond\s+(?:worker|instance|container|process|wheel)\b|\bmultiple\s+workers?\b))[^\n]*(?:\bduplicat\w*|\bdouble[- ]?(?:send|fire|sent|fired|fires|sends|sending|firing)\b|\btwice\b|\b(?:both|each)\s+(?:\w+\s+)?(?:fire|send|load|read)s?\b|\bone\s+(?:Wheel|process|worker)\b|\bsingle\s+(?:Wheel|process|worker)\b|\bcorrupt\w*|\bno\s+(?:file\s+)?lock\w*|\bcontention\b|\bshar(?:e|es|ed|ing)\s+(?:\w+\s+){0,2}(?:store|file|jobs\.db|volume)\b)'
+flags: mi
+target: last_message
+---

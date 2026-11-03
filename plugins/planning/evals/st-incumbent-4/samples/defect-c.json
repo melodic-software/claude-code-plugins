@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "- `customers:reseal` is not idempotent: on a re-run `Sealbox.open` raises `BadEnvelope` on rows that are already `vl1:`.\n",
+      "why": "bullet"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Plan | An interrupted Phase 2 cannot resume, since the rake task opens every row with Sealbox | Skip `vl1:` rows |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- A six-hour backfill that stops partway has no way to continue: its second run fails on converted rows.\n",
+      "why": "second run"
+    },
+    {
+      "answer": "| 2 | IMPORTANT | Plan | `reseal` raises on a restart because `Customer.find_each` starts over | Filter by prefix |\n",
+      "why": "raises"
+    },
+    {
+      "answer": "- Phase 2 is treated as a one-shot, but a crash halfway leaves converted rows that break a rerun with BadEnvelope.\n",
+      "why": "BadEnvelope"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "- `customers:reseal` is idempotent, so a re-run will not fail.\n",
+      "why": "dismissed"
+    },
+    {
+      "answer": "- Phase 2 can safely resume if interrupted, or it fails harmlessly.\n",
+      "why": "negated"
+    },
+    {
+      "answer": "- Phase 2 should consider interruption risk.\n",
+      "why": "generic migration warning"
+    },
+    {
+      "answer": "- Phase 3's rotation task has no schedule owner named.\n",
+      "why": "another finding"
+    },
+    {
+      "answer": "- `customers:reseal` takes six hours and fails to report progress.\n",
+      "why": "named, no re-run"
+    }
+  ]
+}
