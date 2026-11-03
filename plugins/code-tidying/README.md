@@ -118,8 +118,9 @@ personal variation is limited to lane names the team does not track: an uncommit
   (structure-only is the skills' contract, not a path limit), the work-tracking
   exclusions, and the self-update lane's protection of this plugin's own
   contract surface.
-- **Backlog throttle**: ≥3 open `chore/tidy-*` PRs stops the run instead of
-  piling on (bundled `open-pr-count.sh`, network access via your own `gh`
+- **Backlog throttle**: open `chore/tidy-*` PRs at the `upkeep_max_open` limit
+  (default 3, [reference/config.md](reference/config.md)) stop the run instead
+  of piling on (bundled `open-pr-count.sh`, network access via your own `gh`
   auth).
 - **No auto-merge.** Tidy PRs are always merged by a human.
 

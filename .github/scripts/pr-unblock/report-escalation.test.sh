@@ -51,6 +51,21 @@ printf '%s %s\n' "$method" "$endpoint" >>"$STUB/requests"
 # The api-budget wrapper asks for the headers (-i): a status line and one
 # rate-limit header lead the body.
 [[ " $* " != *" -i "* ]] || printf 'HTTP/2.0 201 Created\r\nx-ratelimit-remaining: 4999\r\n\r\n'
+# The merge-queue entry read and the dequeue (leave_queue): queued holds the
+# entry, fail_dequeue refuses the dequeue.
+if [[ $endpoint == graphql && " $* " == *mergeQueueEntry* ]]; then
+  echo queue-read >>"$STUB/queue"
+  entry=null
+  [[ -f $STUB/queued ]] && entry='{"id":"MQE_1"}'
+  printf '{"data":{"repository":{"pullRequest":{"id":"PR_42","mergeQueueEntry":%s}}}}\n' "$entry"
+  exit 0
+fi
+if [[ $endpoint == graphql && " $* " == *dequeuePullRequest* ]]; then
+  echo "dequeue $*" >>"$STUB/queue"
+  [[ -f $STUB/fail_dequeue ]] && { echo 'stub gh: dequeue failed' >&2; exit 1; }
+  echo '{"data":{"dequeuePullRequest":{"clientMutationId":null}}}'
+  exit 0
+fi
 case "$method $endpoint" in
 "GET repos/o/r/issues/42") cat "$STUB/issue.json" ;;
 "GET repos/o/r/issues/42/comments?per_page=100") cat "$STUB/comments.json" ;;
@@ -704,14 +719,53 @@ clear_case bogus '[]'
 check "clear: an activity the table does not route fails" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
 check "clear: an unknown activity makes no gh call" '' "$(cat "$STUB/calls")"
 
-# Never touches the branch: no git, no contents API, no write outside the PR's issue.
+# Never touches the branch: no git, no contents API, no write outside the PR's
+# issue, beside the hold route's GraphQL queue read.
 for reason in feedback-question-design protected-path-conflict workflow-staged; do
   setup '[]' "$(comment '<!-- pr-unblock:lane-stopped activity=fix-ci -->'$'\nold' 'melodic-automation-lanes[bot]' Bot 9)"
   run "$reason"
   check "$reason: never runs git" 0 "$(grep -c '^git' "$STUB/calls" || true)"
   check "$reason: never calls the contents API" 0 "$(grep -c 'contents/' "$STUB/calls" || true)"
   check "$reason: writes only the issue, its comments and labels" 0 \
-    "$(grep -vE '^(GET|POST) repos/o/r/issues/42(/comments(\?per_page=100)?|/labels)?$|^PATCH repos/o/r/issues/comments/9$' "$STUB/requests" | grep -c . || true)"
+    "$(grep -vE '^(GET|POST) repos/o/r/issues/42(/comments(\?per_page=100)?|/labels)?$|^PATCH repos/o/r/issues/comments/9$|^GET graphql$' "$STUB/requests" | grep -c . || true)"
 done
+
+# The hold route's human-gated label on a queued PR takes it out of the merge
+# queue: one queue read per label add, and the dequeue only when it is queued.
+# A refused dequeue warns and the escalation still posts. Expected values are
+# the work item's: queued dequeues, unqueued reads once and writes nothing more.
+NOTICE='::notice title=hold-label-dequeue::pr=42 label=needs-human outcome='
+setup '[]' '[]'
+: >"$STUB/queued"
+run feedback-question-design
+check "queued hold: exits 0" 0 "$RC"
+check "queued hold: one read, then the dequeue of its node id" $'queue-read\ndequeue api graphql -f query=mutation($id: ID!) { dequeuePullRequest(input: { id: $id }) { clientMutationId } } -f id=PR_42' "$(cat "$STUB/queue")"
+has "queued hold: names the dequeue" "${NOTICE}dequeued" "$STUB/out"
+check "queued hold: the label goes on before the queue read" "POST repos/o/r/issues/42/labels" "$(grep -B1 -m1 '^GET graphql$' "$STUB/requests" | head -1)"
+
+setup '[]' '[]'
+run feedback-question-design
+check "unqueued hold: exits 0" 0 "$RC"
+check "unqueued hold: one read and no dequeue" queue-read "$(cat "$STUB/queue")"
+has "unqueued hold: says it was not queued" "${NOTICE}not-queued" "$STUB/out"
+
+setup '[]' '[]'
+: >"$STUB/queued"
+: >"$STUB/fail_dequeue"
+run feedback-question-design
+check "refused dequeue: the escalation still exits 0" 0 "$RC"
+has "refused dequeue: warns" "::warning::#42: could not dequeue it" "$STUB/out"
+has "refused dequeue: names the refusal" "${NOTICE}refused:dequeue-failed" "$STUB/out"
+check "refused dequeue: the escalation comment still posts" 1 "$(grep -c '^POST repos/o/r/issues/42/comments$' "$STUB/requests" || true)"
+
+# The label already on (a later reason on the same head): no add, no read.
+setup '["needs-human"]' '[]'
+: >"$STUB/queued"
+run feedback-question-intent
+check "label already on: no queue read" '' "$(cat "$STUB/queue" 2>/dev/null)"
+# A fail route adds no human-gated label, so it reads no queue entry.
+setup '[]' '[]'
+run workflow-staged
+check "fail route: no queue read" '' "$(cat "$STUB/queue" 2>/dev/null)"
 
 exit "$FAILED"

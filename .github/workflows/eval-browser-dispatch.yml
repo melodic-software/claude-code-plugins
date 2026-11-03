@@ -533,7 +533,9 @@ jobs:
       # each JSON result instead. --keep-temp keeps each run's trace on the
       # runner, outside the uploaded results, for the summary's health lines.
       # A pull request run grants no tool, runs no scaffold, keeps env scrub on
-      # and uses each case's own run count.
+      # and uses each case's own run count. TMPDIR sits outside /tmp, which the
+      # run's own sandbox makes read-only to Bash, and within the short length
+      # the sandbox's sockets need (plugins/evals/skills/plugin-eval/reference/sandboxes.md).
       - name: Run the plugin eval
         if: steps.stage.outputs.go == 'true'
         env:
@@ -551,6 +553,8 @@ jobs:
           REAL_SERVERS: ${{ inputs.allow-real-servers }}
           OUT: ${{ runner.temp }}/eval-results
         run: |
+          export TMPDIR="$HOME/.ev"
+          mkdir -p "$TMPDIR"
           args=(
             --trust-plugin
             --no-publish

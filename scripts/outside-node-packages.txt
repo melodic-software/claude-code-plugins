@@ -25,6 +25,7 @@
 .github/scripts/lane-run-report
 .github/scripts/lib
 .github/scripts/maintenance-audit-lane-runs
+.github/scripts/maintenance-code-tidying-upkeep
 .github/scripts/maintenance-monitor-signals
 .github/scripts/maintenance-reconcile-lost-runs
 .github/scripts/post-merge-demotion-alert
