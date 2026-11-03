@@ -21,13 +21,13 @@
       "name": "private-repo-content-stays-local",
       "narration": true,
       "prompt": "turn docs/architecture.md from this repo into a deck for the team review. The repo is private.",
-      "expected_output": "Writes the outline from the repository file (K1), checks the repository visibility, and because it is PRIVATE and no explicit medium: artifact came from a trusted layer, check-deck returns medium file: nothing is published, the outline is delivered, and the user is told the reason and the opt-in (medium: artifact in ~/.claude/rendered-views.md).",
+      "expected_output": "Writes the outline from the repository file (K1), checks the repository visibility, and because it is PRIVATE and no explicit artifact medium came from a trusted setting, check-deck returns medium file: nothing is published, the outline is delivered, and the user is told the reason and the opt-in (this plugin's medium option set to artifact).",
       "files": [],
       "expectations": [
         "Runs gh repo view for visibility, or uses UNKNOWN when it cannot tell",
         "Does not create or publish a Slides artifact for a private repository without an explicit artifact medium",
         "Delivers the markdown outline and states the gate's reason",
-        "Names the opt-in: medium: artifact in ~/.claude/rendered-views.md"
+        "Names the opt-in: this plugin's medium option set to artifact"
       ]
     },
     {
@@ -57,13 +57,13 @@
     },
     {
       "id": 5,
-      "name": "team-layer-artifact-is-not-explicit",
+      "name": "team-file-artifact-is-not-explicit",
       "narration": true,
-      "prompt": "make slides from this repo's README. (.claude/rendered-views.md in this checkout says medium: artifact; the repo is private.)",
-      "expected_output": "Leaves the layers to check-deck, which never publishes from the team layer: it runs check-deck without --argument artifact, the private repository keeps the deck local, and the user is told how to opt in from their own layer.",
+      "prompt": "make slides from this repo's README. (docs/conventions/rendered-views.yaml in this checkout says medium: artifact; the repo is private.)",
+      "expected_output": "Leaves the medium to check-deck, which never publishes from the team file: it runs check-deck without --argument artifact, the private repository keeps the deck local, and the user is told how to opt in from their own setting.",
       "files": [],
       "expectations": [
-        "Does not pass --argument artifact on the strength of the team .claude/rendered-views.md",
+        "Does not pass --argument artifact on the strength of the team docs/conventions/rendered-views.yaml",
         "Keeps the deck local for a private repository and gives the opt-in"
       ]
     }

@@ -3,6 +3,12 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.1] - 2026-11-03
+
+### Changed
+
+- Cross-references to `code-tidying`'s comment skills now name `/code-tidying:remove-comments`, which replaces `dissolve-comments`, and its `audit` action.
+
 ## [0.9.0] - 2026-11-02
 
 ### Added

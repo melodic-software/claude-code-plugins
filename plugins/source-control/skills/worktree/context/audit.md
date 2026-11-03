@@ -104,9 +104,13 @@ esac
 
 Require the user to confirm each path individually before anything is run.
 
-**The remedy, emitted for the user to run, never inline.** Removing a record requires standing in
-the directory it names (`-s project` has no path flag, measured; `-s local` is unmeasured and treated the same), so the only route to a path that no longer
-exists is to recreate it, a deliberate act no audit performs:
+**The remedy, emitted for the user to run, never inline.** No audit recreates a path; the user
+runs the remedy on each confirmed path. The remedy must run from the recorded directory, as
+measured for project scope in [fixtures/README.md](../fixtures/README.md) under
+`project-scope-reap-probe.sh`; `-s local` is unmeasured and treated the same.
+For the uninstall command's scope flags and options, see
+[plugin uninstall](https://code.claude.com/docs/en/plugins/cli-reference#plugin-uninstall) (as of
+2026-11-03; recheck when that section adds a path or project option to the command). The remedy:
 
 ```bash
 # Only paths the user has individually confirmed are dead worktrees — not another

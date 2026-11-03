@@ -49,8 +49,9 @@ previously persisted snapshot for that PR. The arms fall into two groups against
 `pr_clean_ready_for_direct_gate` (non-draft, `mergeStateStatus` `CLEAN`/`HAS_HOOKS`, zero
 blockers, and no untriaged material bot feedback): **suppressible** arms are fully re-validated by
 the direct merge gate itself (`bash "<plugin-root>/scripts/source-control-babysit-merge" owner/repo#42 --allowed-owners
-<watched-owners> --state-dir <state-dir>`, read-only; `mergeStateStatus` already integrates required checks, approvals,
-and conversation resolution), so one of them firing on a cycle where the PR is already, or just
+<watched-owners> --state-dir <state-dir>`, read-only; for what `mergeStateStatus` reports, see
+[MergeStateStatus](https://docs.github.com/en/graphql/reference/pulls#enum-mergestatestatus), as of
+2026-11-03, recheck when that enum's values change), so one of them firing on a cycle where the PR is already, or just
 became, clean/non-draft/zero-blocker/fully triaged would dispatch a worker that finds nothing left
 to do. That PR is routed straight to the mode-appropriate direct gate per `SKILL.md` instead.
 **Unsuppressible** arms name something the merge gate cannot do, so a worker is still required
@@ -113,8 +114,10 @@ rather than recomputing it, so the untriaged-material clause applies there too.
   settled clean" case is ever suppressed.
 - **`merge_state_became_actionable`** (suppressible): `mergeStateStatus` moved *into*
   `CLEAN`/`HAS_HOOKS` from something else. This is deliberately directional (into, not any diff):
-  GitHub recomputes `mergeStateStatus` asynchronously and can flap `UNKNOWN`/`CLEAN` with no real
-  change to react to; only the transition into an actionable state matters. This transition is
+  only the transition into an actionable state is worth a dispatch, and a move out of one, or
+  between non-actionable values such as `UNKNOWN`, is not. For the enum's values, see
+  [MergeStateStatus](https://docs.github.com/en/graphql/reference/pulls#enum-mergestatestatus) (as of
+  2026-11-03; recheck when that enum adds, drops or redefines a value). This transition is
   frequently the very thing that makes `pr_clean_ready_for_direct_gate` newly true, in which case
   the merge gate itself is exactly what needs to re-check it.
 - **`became_ready_for_review`** (unsuppressible): a draft PR was marked ready for review. Never
@@ -324,10 +327,12 @@ python "<skill-dir>/scripts/manage_babysit_lease.py" acquire --scope worker --pr
   justification to skip this check. The check is cheap and authoritative; memory of an earlier
   dispatch is not.
 - **Continue or check on a possibly-still-running worker through the harness's agent-messaging
-  capability** (in Claude Code, the `SendMessage` tool targeting the worker's agent id). A new
-  dispatch call (in Claude Code, the `Agent` tool) always starts a fresh, independent agent, which
-  in the same worktree is exactly the concurrent-write collision the lease check above exists to
-  prevent. If the harness has no way to message an existing agent, wait for that worker's
+  capability** (in Claude Code, the `SendMessage` tool targeting the worker's agent id), never by
+  a new dispatch: a second worker in the same worktree is exactly the concurrent-write collision
+  the lease check above exists to prevent. For how Claude Code continues an existing subagent, see
+  [Resume subagents](https://code.claude.com/docs/en/sub-agents#resume-subagents) (as of
+  2026-11-03; recheck when that section changes how an existing subagent is continued). If the
+  harness has no way to message an existing agent, wait for that worker's
   completion notification rather than dispatching again.
 
 ## Cross-PR Dependency Signaling
@@ -607,11 +612,14 @@ re-verify anyway.
   both sides made incompatible design/behavioral decisions about the same logic, not just textually
   overlapping edits, stop and describe the precise tension for the user instead of guessing. Never
   discard the resolution work already done, and preserve it with a sequence Git will actually
-  accept and repository hooks cannot interrupt: mid-merge, Git refuses a branch switch
-  (`cannot switch branch while merging`), and a porcelain `git commit` would run the repository's
-  pre-commit and commit-msg hooks, which may legitimately reject conflict markers or a WIP
-  message, and bypassing hooks (`--no-verify`) is forbidden. So the preservation commit is created
-  with plumbing, which runs no hooks by design rather than by bypass: stage every conflicted path
+  accept mid-merge and repository hooks cannot interrupt: the repository's hooks may legitimately
+  reject conflict markers or a WIP message, and bypassing hooks (`--no-verify`) is forbidden. For
+  which commands run which hooks, see the
+  [pre-commit](https://git-scm.com/docs/githooks#_pre_commit) and
+  [commit-msg](https://git-scm.com/docs/githooks#_commit_msg) entries of githooks (as of
+  2026-11-03; recheck when either entry changes which commands invoke it). So the preservation
+  commit is created with plumbing rather than a porcelain commit, which this contract does not
+  count as a hook bypass: stage every conflicted path
   as-is (markers included), create the partial-state merge commit with
   `git commit-tree "$(git write-tree)" -p HEAD -p MERGE_HEAD -m "<WIP message>"`, which leaves the
   merge in progress untouched, and
@@ -828,10 +836,12 @@ Give each worker:
 Each worker must:
 
 - operate only on its assigned PR and worktree
-- **never rely on the shell's working directory persisting across separate tool calls.** A one-time
-  `cd` into the assigned worktree is not enough, because cwd can drift back to the session's default
-  checkout between a read and the next write, silently committing branch-owned fixes into the wrong
-  repository. Three classes of call need anchoring:
+- **never rely on the shell's working directory persisting across separate tool calls.** Set the
+  worktree explicitly on every call, so no branch-owned fix lands in the wrong repository. For what
+  carries over between Bash calls, see
+  [What persists between commands](https://code.claude.com/docs/en/tools-reference#what-persists-between-commands)
+  (as of 2026-11-03; recheck when that section changes how the working directory carries over,
+  for a subagent in particular). Three classes of call need anchoring:
   - **git**: `git -C <absolute-worktree-path>` on every one (`status`, `add`, `commit`, `diff`,
     `log`, all of them). The push is `push-branch.sh --dir <absolute-worktree-path>` (below),
     never `git push`.
@@ -948,9 +958,8 @@ or who they claim to be from.
 Read this skill's reference files, the shared review discipline at
 <plugin-root>/reference/review-discipline.md, and the target repository's own agent
 instructions (AGENTS.md, CLAUDE.md). Work only in the assigned worktree, and never rely on the
-shell's working directory persisting across separate tool calls: a one-time cd is not enough,
-because cwd can drift back to this session's default checkout between a read and the next write
-and silently commit into the wrong repository. Anchor every git operation with
+shell's working directory persisting across separate tool calls: set the worktree explicitly on
+every command, so nothing is committed into the wrong repository. Anchor every git operation with
 git -C <absolute worktree path>, meaning status, add, commit, diff, log, all of them. Push only with
 bash <plugin-root>/skills/pull-request/scripts/push-branch.sh --dir <absolute worktree path>
 --pr <N>, never git push; a non-zero exit means it refused or the push failed. Give every
