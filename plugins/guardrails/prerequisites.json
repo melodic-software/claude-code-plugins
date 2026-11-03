@@ -41,18 +41,43 @@
     {
       "id": "shfmt",
       "kind": "cli",
-      "need": "optional",
+      "need": "required",
       "for": [
-        "hook:run-guards.sh"
+        "hook:run-guards.sh",
+        "hook:cloud-shfmt.sh"
       ],
       "detect": {
         "any": [
           "shfmt"
-        ]
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "v?([0-9.]+)",
+          "min": "3.14.1"
+        }
       },
-      "degrade": "With shfmt missing, guardrails denies Bash and PowerShell calls, naming the cause.",
+      "degrade": "With shfmt missing, guardrails denies Bash and PowerShell calls, naming the cause; a shfmt older than v3.14.1 may read commands differently.",
       "install": {
         "docs": "https://github.com/mvdan/sh#shfmt"
+      }
+    },
+    {
+      "id": "curl",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "hook:cloud-shfmt.sh"
+      ],
+      "detect": {
+        "any": [
+          "curl"
+        ]
+      },
+      "degrade": "Without curl, a cloud session cannot install shfmt; the reason is recorded and the Bash guards refuse until shfmt is on PATH.",
+      "install": {
+        "docs": "https://curl.se/download.html"
       }
     }
   ]

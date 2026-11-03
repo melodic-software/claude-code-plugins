@@ -4,6 +4,8 @@
 # row states a form bash runs, bash itself is asked; the other expectations are
 # the contract documented at hook::bash_parse_segments_uncached.
 set -uo pipefail
+# The fixtures build repositories; an inherited GIT_DIR would point them at the caller's.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 _T_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$_T_DIR" == "${BASH_SOURCE[0]}" ]] && _T_DIR=.
@@ -177,6 +179,9 @@ hd_are 'a multibyte body is counted in bytes' $'cat <<\'E\'\né\nE\n' '10 15 1 1
 hd_are 'a closing parenthesis ends the delimiter' $'(cat <<\'E\')\nx\nE\necho done' '12 16 1 1 E'
 hd_are 'an opener inside double quotes is not one' $'echo "<<\'EOF\'"\nx\nEOF' ''
 hd_are 'an empty body' $'cat <<E\nE\nx' '8 10 0 1 E'
+# Offsets by hand: the body starts on the line after its own opener.
+hd_are 'an empty body whose opener is on line 2' $'echo hi\ncat <<\'E\'\nE' '18 19 1 1 E'
+hd_are 'an empty body after an earlier body' $'cat <<A\na\nA\necho y\ncat <<B\nB' '8 12 0 1 A|27 28 0 1 B'
 hd_are 'a backslash-quoted delimiter' $'cat <<\\E\nx\nE\n' '9 13 1 1 E'
 
 # --- the caller's locale is put back -----------------------------------------
@@ -379,6 +384,9 @@ hit_print() { printf '%s\n' "$*"; }
   # A backslash-newline bash joins before it reads an unquoted here-doc body.
   form handled $'cat <<E\n$\\\n(echo HIT >&2)\nE'
   form handled $'cat <<E\nit\'s $\\\n(echo HIT >&2) ok\'\nE'
+  # The joined body runs up to its error in bash, so a joined body that does not
+  # parse refuses rather than dropping the commands before the error.
+  form refused $'cat <<E\n$\\\n(echo HIT >&2) $\\\n(\nE'
 }
 # CR LF: bash's last word carries the CR, so the guard's word is the written one.
 segs_are 'doc form handled: a CR before a newline is dropped' $'git reset --hard\r\n' 'git reset --hard'

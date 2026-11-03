@@ -65,6 +65,7 @@ reads quotes and here-docs inside first.
 | Form | Bash | shfmt | Status |
 |---|---|---|---|
 | `$\` newline `(cmd)` in an unquoted body | the backslash-newline goes first, so `cmd` runs | body text | handled: the reader parses the joined body as well |
+| The same, with a later piece of the joined body that does not parse | the body runs up to its error, so `cmd` runs | body text | refused: the joined body refuses as the command would |
 | A here-doc opener, then a backtick substitution that spans lines, then an empty body | the body starts after the line the backticks end on | an empty body has no position, and the reader would place it on the line after the opener, inside the backticks | refused |
 
 ## Arithmetic

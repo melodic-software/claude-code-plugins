@@ -54,6 +54,8 @@
               "--fail-closed",
               "--require-verdict",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh",
+              "--lib",
+              "lib/powershell/ps-command.sh",
               "block-unresolved-pr-merge.sh"
             ],
             "timeout": 60,

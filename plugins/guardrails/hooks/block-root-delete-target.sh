@@ -5797,6 +5797,13 @@ rdt_parse() {
     ;;
   *) ;;
   esac
+  # A `{ …; }` group's commands all write into the pipe after it, which the
+  # segment order cannot show (`{ cat list; find build; } | xargs rm`).
+  local rdt_grp=$'(^|[;&|(\n])[[:space:]]*\\{[[:space:]]'
+  if [[ "$t" =~ $rdt_grp ]]; then
+    rdt_flat=0
+    rdt_feed_in=open
+  fi
   hook::bash_parse_segments "$1" rdt_segment
   ((${#rdt_hd_lang[@]} == 0)) || rdt_ix_heredocs "$1"
   return 0
@@ -5812,6 +5819,33 @@ rdt_parse() {
 # command's first heredoc opener.
 # shellcheck disable=SC2329  # invoked as the hook::bash_parse_segments callback
 rdt_segment() {
+  # The reader keeps a substitution inside its word (`eval $(…)`, `~/$(whoami)`,
+  # `bash <(…)`) and hands its commands over as segments of their own. This
+  # guard's rules read a word cut where the substitution starts: the text before
+  # it then `$`, the text before a backtick, and no word for a process
+  # substitution. A word every character of which was quoted stays whole.
+  local -a rdt_sw=() rdt_sq=()
+  local rdt_si rdt_sx rdt_sqv
+  for ((rdt_si = 1; rdt_si <= $#; rdt_si++)); do
+    rdt_sx=${!rdt_si}
+    rdt_sqv=${HOOK_SEG_WORD_QUOTED[rdt_si - 1]:-0}
+    if [[ "$rdt_sqv" != 2 ]]; then
+      # shellcheck disable=SC2016  # literal substitution openers, not expansions
+      case "$rdt_sx" in
+      '<('* | '>('*) continue ;;
+      *'$('*) rdt_sx="${rdt_sx%%'$('*}\$" ;;
+      *'`'*)
+        rdt_sx="${rdt_sx%%'`'*}"
+        [[ -n "$rdt_sx" ]] || continue
+        ;;
+      *) ;;
+      esac
+    fi
+    rdt_sw+=("$rdt_sx")
+    rdt_sq+=("$rdt_sqv")
+  done
+  HOOK_SEG_WORD_QUOTED=(${rdt_sq[@]+"${rdt_sq[@]}"})
+  set -- ${rdt_sw[@]+"${rdt_sw[@]}"}
   local rdt_seg_feed="$rdt_feed_in" j rdt_hd_at="$rdt_hd_n" rdt_dec_feed="$rdt_dec_prev" rdt_dec_out=0
   local rdt_text_feed="$rdt_text_prev" rdt_text_out=""
   if ((rdt_flat == 0)); then

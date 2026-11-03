@@ -97,7 +97,7 @@
     {
       "id": "shfmt",
       "kind": "cli",
-      "need": "optional",
+      "need": "required",
       "for": [
         "hook:pr-body-linkage-gate.sh",
         "hook:worktree-add-claim-gate.sh",
@@ -106,9 +106,16 @@
       "detect": {
         "any": [
           "shfmt"
-        ]
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "v?([0-9.]+)",
+          "min": "3.14.1"
+        }
       },
-      "degrade": "With shfmt missing, these gates deny the commands they read.",
+      "degrade": "With shfmt missing, these gates deny the commands they read; a shfmt older than v3.14.1 may read commands differently.",
       "install": {
         "docs": "https://github.com/mvdan/sh#shfmt"
       }

@@ -1034,6 +1034,13 @@ scenario unresolved none green green
 run_ps "PowerShell: gh pr merge" 'gh pr merge 42 --squash' 2
 scenario unresolved none green green
 run_ps "PowerShell: gh.exe pr merge after ;" 'Set-Location C:\repo; gh.exe pr merge 42' 2
+# The call operator `&` opens a PowerShell statement and no bash one: the merge
+# behind it is checked, not refused as a parse failure.
+scenario none none green green
+run_ps "PowerShell: & gh pr merge with -R, a clean PR (allowed)" '& gh pr merge 42 -R acme/widgets' 0
+scenario unresolved none green green
+run_ps "PowerShell: & gh pr merge with -R, an unresolved thread (blocked)" '& gh pr merge 42 -R acme/widgets' 2
+assert_contains "PowerShell: & gh pr merge -> names the thread, not a parse failure" "$ERR" "src/app.py:12"
 # Item 3 on PowerShell: a directory change with no -R is refused before any read.
 for c in 'Set-Location ..\other; gh pr merge 42 --squash' 'Push-Location other; gh pr merge 42' \
   'Pop-Location; gh pr merge 42' 'sl other; gh pr merge 42' 'set-location other; gh pr merge 42'; do

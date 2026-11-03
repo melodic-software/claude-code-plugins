@@ -15,6 +15,16 @@
 # checksums file; the hash is sha256sum of the linux_amd64 asset.
 set -uo pipefail
 
+_HOOK_SELF="${BASH_SOURCE[0]%/*}"
+[[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
+# shellcheck source=abort-boundary.sh
+source "$_HOOK_SELF/abort-boundary.sh"
+# Could-not-run posture: an install step never blocks a session, so any abort
+# is reported and the session goes on (open); 0 is the only chosen status.
+guard::abort_boundary cloud-shfmt SessionStart open 0
+# shellcheck source=hook-utils.sh
+source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
+
 CLOUD_SHFMT_PIN="v3.14.1"
 CLOUD_SHFMT_SHA="76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf"
 CLOUD_SHFMT_URL="https://github.com/mvdan/sh/releases/download/${CLOUD_SHFMT_PIN}/shfmt_${CLOUD_SHFMT_PIN}_linux_amd64"

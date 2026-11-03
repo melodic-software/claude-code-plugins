@@ -67,16 +67,23 @@
     {
       "id": "shfmt",
       "kind": "cli",
-      "need": "optional",
+      "need": "required",
       "for": [
         "hook:destructive-guard.sh"
       ],
       "detect": {
         "any": [
           "shfmt"
-        ]
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "v?([0-9.]+)",
+          "min": "3.14.1"
+        }
       },
-      "degrade": "With shfmt missing, the destructive-command guard denies the commands it reads.",
+      "degrade": "With shfmt missing, the destructive-command guard denies the commands it reads; a shfmt older than v3.14.1 may read commands differently.",
       "install": {
         "docs": "https://github.com/mvdan/sh#shfmt",
         "brew": "shfmt",

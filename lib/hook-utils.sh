@@ -4645,7 +4645,7 @@ def strip_q: [.Parts[]? |
    | sort_by([.k, .o]) | map(.t) | add // [])
   + ([$all[] | select(.Op == "<<" or .Op == "<<-")
      | {o: .OpPos.Offset,
-        t: ["H", (.Hdoc.Pos.Offset // -1),
+        t: ["H", (.Hdoc.Pos.Offset // -1), .OpPos.Offset,
             (if (.Word | has_quoted or has_esc) then 1 else 0 end),
             (if .Op == "<<-" then 1 else 0 end), (.Word | strip_q)]}]
      | sort_by(.o) | map(.t) | add // [])
@@ -4776,7 +4776,7 @@ hook::_bps_tree_word() {
 # runs them in its own locale. Dynamic scope.
 # shellcheck disable=SC2154,SC2034  # the __hu_b* names are hook::bash_parse_segments_shfmt's
 hook::_bps_tree_decode() {
-  local __hu_bi=0 __hu_bq __hu_bw __hu_bk __hu_bn=${#__hu_bt[@]} __hu_br __hu_bj __hu_bs __hu_bl __hu_bd __hu_be __hu_bc __hu_bp __hu_bstrip __hu_bquoted
+  local __hu_bi=0 __hu_bo __hu_bq __hu_bw __hu_bk __hu_bn=${#__hu_bt[@]} __hu_br __hu_bj __hu_bs __hu_bl __hu_bd __hu_be __hu_bc __hu_bp __hu_bstrip __hu_bquoted
   local __hu_bcn=${#__hu_bcmd}
   __hu_bp=0
   while ((__hu_bi < __hu_bn)); do
@@ -4806,16 +4806,17 @@ hook::_bps_tree_decode() {
       # A delimiter's own line ends the body. Scanned here rather than taken
       # from the tree because the tree stops at the delimiter's first bytes.
       __hu_bs=${__hu_bt[__hu_bi++]}
+      __hu_bo=${__hu_bt[__hu_bi++]}
       __hu_bquoted=${__hu_bt[__hu_bi++]}
       __hu_bstrip=${__hu_bt[__hu_bi++]}
       __hu_bd=${__hu_bt[__hu_bi++]}
       if ((__hu_bs < 0)); then
-        # An empty body has no node: it starts on the line after the opener.
-        __hu_bs=$__hu_bp
-        ((__hu_bs == 0)) && {
-          __hu_be=${__hu_bcmd%%$'\n'*}
-          __hu_bs=$((${#__hu_be} + 1))
-        }
+        # An empty body has no node: it starts on the line after its opener, or
+        # after the body before it when that opener shares the line.
+        __hu_be=${__hu_bcmd:__hu_bo}
+        __hu_be=${__hu_be%%$'\n'*}
+        __hu_bs=$((__hu_bo + ${#__hu_be} + 1))
+        ((__hu_bp > __hu_bs)) && __hu_bs=$__hu_bp
       fi
       __hu_be=$__hu_bs
       __hu_bc=0
@@ -4837,11 +4838,13 @@ hook::_bps_tree_decode() {
       __hu_hb+=("$__hu_bs $__hu_be $__hu_bquoted $__hu_bc $__hu_bd")
       # Bash joins a backslash-newline before it reads an unquoted body, so
       # `$\<newline>(cmd)` is a substitution that shfmt's body text does not hold.
+      # Bash runs that body up to its first error, so the joined reading refuses
+      # when it does not parse, as the command itself would.
       if ((!__hu_bquoted)); then
         __hu_bl=${__hu_bcmd:__hu_bs:__hu_be-__hu_bs}
         if [[ "$__hu_bl" == *$'\\\n'* ]]; then
           ((__hu_bstrip)) && __hu_bq='<<-' || __hu_bq='<<'
-          __hu_pt+=(": $__hu_bq$__hu_bd"$'\n'"${__hu_bl//$'\\\n'/}")
+          __hu_bt_more+=(": $__hu_bq$__hu_bd"$'\n'"${__hu_bl//$'\\\n'/}")
         fi
       fi
       ;;
@@ -4959,7 +4962,8 @@ hook::bash_parse_segments_shfmt() {
   for __hu_x in ${__hu_off:+"$__hu_off"} ${__hu_sp:+"$__hu_sp"}; do
     hook::bash_parse_segments_shfmt "$__hu_x" "$__hu_bcb" "$__hu_bsoft" || return 1
   done
-  # A backtick's own text is a command as written, so it refuses as the command does.
+  # A backtick's unescaped text and a joined here-doc body are commands bash runs,
+  # so each refuses as the command does.
   for __hu_x in ${__hu_bt_more[@]+"${__hu_bt_more[@]}"}; do
     hook::bash_parse_segments_shfmt "$__hu_x" "$__hu_bcb" "$__hu_bsoft" || return 1
   done
