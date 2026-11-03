@@ -17,9 +17,10 @@ on why outcome verification sits after the simplify pass.
 3. **Stage surgically.** `git add <path>` for specific files, never `git add -A` or `git add .`
    (risk of including secrets, build artifacts, or unrelated changes)
 4. **Simplify.** Pass over the changed code for reuse, clarity, and unnecessary complexity, then
-   run the comment pass (`/code-tidying:remove-comments --pipeline` when that plugin is enabled)
-   over the comments the change adds, in `report` mode when unattended unless the project
-   pre-approves comment edits there
+   run the comment pass (`/code-tidying:remove-comments --pipeline` when that plugin is enabled;
+   without that plugin, report `comment pass not run: code-tidying plugin not enabled`) over the
+   comments the change adds, in `report` mode when unattended unless the project pre-approves
+   comment edits there
 5. **Review the simplify diff.** Inspect what changed; approve or revert each edit individually
 6. **Re-test after simplify.** Cleanup edits can introduce issues; run the tests again
 7. **Verify outcome.** Confirm the result matches the original intent with evidence (see
