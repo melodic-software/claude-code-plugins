@@ -14,7 +14,8 @@ name: release-publish-plugins
 # required_signatures rule accepts it.
 #
 # A scheduled run, and a push of a fragment to main, run `merge`: it queues a
-# release pull request that is current and green, and builds one when none is
+# release pull request that is current, green and carries no hold label
+# (label-holds.mjs --queue), and builds one when none is
 # open. Current means main has changed no file the release changes (a fragment
 # it consumed, a CHANGELOG.md, a plugin.json) since its build base, the main
 # commit it was cut from; fragments main added since then ride the next
@@ -104,9 +105,9 @@ jobs:
       # release/plugins in between makes the call fail rather than queue an
       # unchecked head. A head already queued, or whose GitHub Actions
       # `ci-status` has not passed (ci-status.sh), is left for a later run, as
-      # is one a push run deferred.
+      # is one a push run deferred and one carrying a hold label (held).
       - name: Queue the checked head
-        if: steps.check.outputs.rebuild == 'false' && steps.check.outputs.deferred != 'true'
+        if: steps.check.outputs.rebuild == 'false' && steps.check.outputs.deferred != 'true' && steps.check.outputs.held != 'true'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           PR_ID: ${{ steps.check.outputs.id }}
