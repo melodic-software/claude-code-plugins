@@ -519,12 +519,8 @@ export async function dispatchCiFixes({
     runs = await api.listWorkflowRuns(workflow);
     active = runs.filter((run) => run.status !== "completed");
   } catch (error) {
-    if (error.rateLimited) {
-      log(`::warning::${workflow} run listing is rate limited (${error.message}); no fix-ci dispatched, a later run retries`);
-      return { dispatched, failed };
-    }
-    log(`::error::could not list ${workflow} runs: ${error.message}`);
-    return { dispatched, failed: 1 };
+    log(`::warning::${workflow} run listing ${error.rateLimited ? "is rate limited" : "could not be read"} (${error.message}); no fix-ci dispatched, a later run retries`);
+    return { dispatched, failed };
   }
   // Every dispatch call counts against the cap: one that failed or returned no
   // usable id may still have started a run.
@@ -555,12 +551,8 @@ export async function dispatchCiFixes({
       });
       laneGate = hold.held ? hold.why : "";
     } catch (error) {
-      if (serverFailure(error)) {
-        log(`::warning::#${node.number}: could not read where its ${gateLabel} label came from: ${error.message}; skipped, a later run retries`);
-        continue;
-      }
-      failed += 1;
-      log(`::error::#${node.number}: could not read where its ${gateLabel} label came from (${error.message}); left for a later run`);
+      // A read that fails, whatever GitHub answered, holds the PR for a later run.
+      log(`::warning::#${node.number}: could not read where its ${gateLabel} label came from: ${error.message}; skipped, a later run retries`);
       continue;
     }
     // The per-head cap is the loop's hard end, so a head whose runs cannot be
@@ -574,11 +566,8 @@ export async function dispatchCiFixes({
     } catch (error) {
       if (error.rateLimited) {
         log(`::warning::#${node.number}: its ${checkName} run read is rate limited (${error.message}); no fix-ci dispatched, a later run retries`);
-      } else if (serverFailure(error)) {
-        log(`::warning::#${node.number}: could not read its ${checkName} runs: ${error.message}; skipped, a later run retries`);
       } else {
-        failed += 1;
-        log(`::error::#${node.number}: could not read its ${checkName} runs (${error.message}); left for a later run`);
+        log(`::warning::#${node.number}: could not read its ${checkName} runs: ${error.message}; skipped, a later run retries`);
       }
       continue;
     }
@@ -635,8 +624,7 @@ export async function dispatchCiFixes({
           if (error.rateLimited) {
             log(`::warning::#${node.number}: its annotation read is rate limited (${error.message}); no fix-ci dispatched, a later run retries`);
           } else {
-            failed += 1;
-            log(`::error::#${node.number}: could not read its cancelled checks' annotations (${error.message}); left for a later run`);
+            log(`::warning::#${node.number}: could not read its cancelled checks' annotations: ${error.message}; skipped, a later run retries`);
           }
           continue;
         }
