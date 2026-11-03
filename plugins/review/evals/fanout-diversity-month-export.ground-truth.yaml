@@ -1,0 +1,14 @@
+fixture: month-export
+source_case: none
+defects:
+  - location: src/export.js:10
+    summary: "monthRange ends the range at 00:00 UTC on the month's last day, and the query keeps created_at <= that end"
+    failure: "every order placed on the last day of the month after midnight UTC is left out, so an order at 2026-10-31T18:42:07.000Z is in neither the October nor the November export"
+    axis: spec
+  - location: src/export.js:17
+    summary: "the sort comparator returns a boolean, never a negative number"
+    failure: "sort reads true as 1 and false as 0, so it never moves a later row ahead of an earlier one and rows stay in database order; imported orders, whose row order does not follow created_at, come out unsorted instead of oldest first"
+    axis: spec
+not_defects:
+  - "a cell with a comma or quote breaks the CSV (cell quotes it)"
+  - "orders from the first day of the month are left out (the range starts at 00:00 UTC on the first, inclusive)"
