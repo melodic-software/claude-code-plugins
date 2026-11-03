@@ -73,13 +73,14 @@ is reported and ignored. Lists replace whole. No key is policy-floor: each one o
 reader is offered a view.
 
 Where a built page goes is the `medium` key of the
-[rendered-views concern](../contracts/rendered-views/README.md#the-rendered-views-cascade-concern), not a key
-here. The skill's shipped default is `artifact`, so with no layer setting `medium` the page is
+[rendered-views concern](../contracts/rendered-views/README.md#the-rendered-views-settings), not a key
+here. The skill's shipped default is `artifact`, so with no setting deciding `medium` the page is
 published as a private Artifact on claude.ai, but only when the repository's visibility is
 `PUBLIC` and no hunk looks like a credential. Otherwise the page stays a local file and the reader
-is told the opt-in: `medium: artifact` in `~/.claude/rendered-views.md`, which publishes whatever
-the visibility. The session names claude.ai as the destination before it publishes. A reader who
-keeps digests on their machine sets `medium: file` in `~/.claude/rendered-views.md`.
+is told the opt-in: the review plugin's `medium` option set to `artifact`, which publishes whatever
+the visibility. A team `artifact` or `hosted` value is ignored with a notice: a team file never
+publishes. The session names claude.ai as the destination before it publishes. A reader who keeps
+digests on their machine sets the review plugin's `medium` option to `file`.
 
 The block below is this repository's old team location, kept until the cleanup slice under #5906
 removes it; the YAML file above wins while both exist. Both hold the shipped defaults, and a test holds

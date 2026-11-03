@@ -25,7 +25,7 @@ Moved to [this section](../../contracts/rendered-views/README.md#choosing-the-ru
 
 ## Reachability and preference
 
-Moved to [this section](../../contracts/rendered-views/README.md#reachability-and-preference).
+Moved to [this section](../../contracts/rendered-views/README.md#reachability-and-the-fallback-chain).
 
 ## Default ladder and its reconciliation
 
@@ -81,7 +81,7 @@ Moved to [this section](../../contracts/rendered-views/README.md#the-shared-chro
 
 ## The rendered-views cascade concern
 
-Moved to [this section](../../contracts/rendered-views/README.md#the-rendered-views-cascade-concern).
+Moved to [this section](../../contracts/rendered-views/README.md#the-rendered-views-settings).
 
 ## Template vendoring posture
 
