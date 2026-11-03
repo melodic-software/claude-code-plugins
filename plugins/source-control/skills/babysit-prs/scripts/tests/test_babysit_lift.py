@@ -11,6 +11,7 @@ seam.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import pathlib
@@ -172,6 +173,36 @@ class DeletedLines(unittest.TestCase):
             )
             self.assertEqual(lift.canary_lines(repo.dir, [clean]), [])
 
+    def test_the_canary_scans_from_a_relative_repo_dir(self) -> None:
+        # The alert passes `--repo-dir .base`, relative to its working
+        # directory.
+        repo = Fixture(self)
+        repo.commit("base", {"keep.txt": "k\n"})
+        repo.commit("feat: add (#5)", {"f.txt": "one\ntwo\nthree\nfour\n"})
+        silent = repo.commit("feat: other (#6)", {"f.txt": "one\n"})
+        self.with_canary(repo)
+        parent, base = os.path.split(repo.dir)
+        with (
+            mock.patch.dict(os.environ, {"SILENT_REVERT_THRESHOLD": "3"}),
+            contextlib.chdir(parent),
+        ):
+            self.assertEqual(
+                lift.canary_lines(base, [silent]),
+                [("f.txt", b"two"), ("f.txt", b"three"), ("f.txt", b"four")],
+            )
+
+    def test_a_deleted_line_holding_tabs_is_kept_whole(self) -> None:
+        repo = Fixture(self)
+        repo.commit("base", {"keep.txt": "k\n"})
+        repo.commit("feat: add (#5)", {"f.go": "func f() {\n\tone()\n\ta\tb\n\t\tc\n}\n"})
+        silent = repo.commit("feat: other (#6)", {"f.go": "func f() {\n}\n"})
+        self.with_canary(repo)
+        with mock.patch.dict(os.environ, {"SILENT_REVERT_THRESHOLD": "3"}):
+            self.assertEqual(
+                lift.canary_lines(repo.dir, [silent]),
+                [("f.go", b"\tone()"), ("f.go", b"\ta\tb"), ("f.go", b"\t\tc")],
+            )
+
     def test_a_scan_that_cannot_run_raises(self) -> None:
         repo = Fixture(self)
         repo.commit("base", {"keep.txt": "k\n"})
@@ -308,6 +339,27 @@ class CloseLifted(unittest.TestCase):
             comment.startswith(f"body=<!-- lift-evidence sha={FIX_MERGE} -->\n"), comment
         )
         self.assertIn("the deleted content is on main at", comment)
+
+    def test_a_failed_evidence_comment_leaves_the_record_open(self) -> None:
+        # The comment carries the lift evidence; without it the record must
+        # stay open and labeled for the next run to retry.
+        gh = Gh({9: REVERT}, [merged_pull()])
+
+        def comment_fails(args: list[str], **kw: Any) -> subprocess.CompletedProcess[str]:
+            if "POST" in args:
+                gh.writes.append(args)
+                return fail(502)
+            return gh(args, **kw)
+
+        with (
+            mock.patch.object(policy, "gh_capture", comment_fails),
+            mock.patch.object(lift.postmerge, "_role_label", lambda *_: "needs-human"),
+            mock.patch("sys.stdout"),
+        ):
+            self.assertEqual(lift.close_lifted(REPO, IDENTITY), 0)
+        self.assertEqual(
+            [(w[w.index("-X") + 1]) for w in gh.writes], ["POST"]
+        )
 
     def test_a_record_that_has_not_lifted_stays_open(self) -> None:
         gh = Gh({9: REVERT}, [])

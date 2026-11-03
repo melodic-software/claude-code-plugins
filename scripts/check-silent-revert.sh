@@ -919,7 +919,9 @@ scan_commit() {
     diff --name-only -z -M -l0 --diff-filter=MD "$parent" "$sha" "${scope[@]}"
   while IFS= read -r -d '' file; do
     attribute_file "$parent" "$sha" "$file" >"$file_attr"
-    awk -v f="$file" -F '\t' '{printf "%s\t%s\t%s\n", $1, f, $2}' \
+    # The whole line after the culprit's tab, tabs included: DELETED_SINK
+    # hands it to the lift check as the deleted line.
+    awk -v f="$file" '{ i = index($0, "\t"); printf "%s\t%s\t%s\n", substr($0, 1, i - 1), f, substr($0, i + 1) }' \
       "$file_attr" >>"$attributed"
   done <"$enum_list"
   rm -f "$file_attr" "$enum_list"
