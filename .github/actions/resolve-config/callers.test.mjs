@@ -3105,6 +3105,39 @@ function gateApi(gate, { tip = async () => ({ data: { commit: { sha: GATE_TIP } 
   };
 }
 
+// The scan job's job-end notice sums the counts its two github-script steps
+// write, each before its request, so a refused or failed request still counts.
+test("pr-run-activity-read.yml: the scan job's github-script steps count each request before sending it", async (t) => {
+  const root = tempDir("scan-calls-");
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const { createRequire } = await import("node:module");
+  const core = { setOutput: () => {}, setFailed: () => {}, warning: () => {}, info: () => {} };
+  const count = async (id, name, github, env = {}) => {
+    const step = scanSteps().find((s) => s.id === id);
+    assert.equal(step.env.CALLS_FILE, `\${{ runner.temp }}/${name}`, id);
+    const file = join(root, name);
+    rmSync(file, { force: true });
+    rmSync(join(root, "scan-gate"), { recursive: true, force: true });
+    await new AsyncFunction("require", "core", "github", "context", "process", step.with.script)(createRequire(import.meta.url), core, github, SCAN_CONTEXT, {
+      env: { ...env, CALLS_FILE: file },
+    }).catch(() => {});
+    return existsSync(file) ? readFileSync(file, "utf8") : null;
+  };
+  const refused = async () => {
+    throw new Error("refused");
+  };
+  const api = (getContent) => ({ rest: { repos: { getBranch: async () => ({ data: { commit: { sha: GATE_TIP } } }), getContent } } });
+  const served = async () => ({ data: { content: Buffer.from("export const x = 1;\n").toString("base64") } });
+  const stage = { RUNNER_TEMP: root };
+  assert.equal(await count("stage-scanner", "scan-stage-calls", api(served), stage), "3\n", "getBranch and two getContent");
+  assert.equal(await count("stage-scanner", "scan-stage-calls", api(refused), stage), "2\n", "a refused read still counts");
+  assert.equal(await count("stage-scanner", "scan-stage-calls", { rest: { repos: { getBranch: refused } } }, stage), "1\n");
+  const leak = { HEAD_SHA: "a".repeat(40) };
+  assert.equal(await count("leak-scan", "scan-leak-calls", api(refused), leak), "2\n", "getBranch and the gate's getContent");
+  assert.equal(await count("leak-scan", "scan-leak-calls", { rest: { repos: { getBranch: refused } } }, leak), "1\n");
+  assert.equal(await count("leak-scan", "scan-leak-calls", api(refused), {}), null, "no head: no request, no count");
+});
+
 // source, given the run's temp directory once the patch is collected, returns
 // the directory the scan reads the reply, run fields and patch from (the scan
 // job's opened payloads); by default the run's own.
