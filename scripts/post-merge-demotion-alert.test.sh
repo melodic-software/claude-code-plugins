@@ -898,7 +898,8 @@ reverts() {
       "$body" == *"- Reverted pull request: https://github.com/o/r/pull/$n"$'\n'* &&
       "$body" == *"- Revert commit: \`$commit\`"$'\n'* && "$body" == *"- Main at the push: \`$HEAD_SHA\`"* &&
       "$body" == *"- Canary run: $RUN_URL/attempts/1"* &&
-      "$body" == *"A person closes it directly"* && "$body" != *"git revert"* && "$body" != *"Failing run"* ]] &&
+      "$body" == *"It lifts once a pull request that references this record merges into main"* &&
+      "$body" != *"git revert"* && "$body" != *"Failing run"* ]] &&
     grep -qx 'labels\[\]=needs-human' <<<"$fields" &&
     ! grep -qE 'rerun-failed-jobs|/compare/|status=success' <<<"$LOG" &&
     grep -q "p$n: pullRequest(number: $n)" "$TMP_ROOT/stub/graphql.$(grep -nx 'GET graphql' <<<"$LOG" | cut -d: -f1)"; then

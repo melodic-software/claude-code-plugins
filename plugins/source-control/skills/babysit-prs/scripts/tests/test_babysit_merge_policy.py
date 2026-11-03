@@ -841,6 +841,20 @@ SCHEDULE_RUNS = green_runs("schedule")
 DISPATCH_RUNS = green_runs("workflow_dispatch")
 
 
+def lift_answer(
+    references: list[dict[str, Any]] = (), pull: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """`PolicyRecordLift`'s data: the pull requests that cross-reference the
+    record and, for a read-back record, the pull request it names."""
+    issue = {
+        "timelineItems": {
+            "pageInfo": {"hasNextPage": False},
+            "nodes": [{"source": p} for p in references],
+        }
+    }
+    return {"repository": {"issue": issue} | ({"pullRequest": pull} if pull else {})}
+
+
 def demotion_fake(case: unittest.TestCase, **issue: Any) -> GhFake:
     """One demotion record, #9, filed by the identity, with `issue` overrides."""
     record = {
@@ -882,6 +896,9 @@ def demotion_fake(case: unittest.TestCase, **issue: Any) -> GhFake:
     # Before the single read's name, which the batch query's name extends.
     gh.graphql["PolicyDemotionRecords"] = {"repository": {"i9": record}}
     gh.graphql["PolicyDemotionRecord"] = {"repository": {"issue": record}}
+    # No pull request references the record, so a revert or read-back record
+    # has no lift evidence.
+    gh.graphql["PolicyRecordLift"] = lift_answer()
     # No green full run since: an open red-main record keeps holding. Every
     # later span up to now lists none either.
     for listing in later_spans():
@@ -1204,8 +1221,8 @@ def green_run(**fields: Any) -> dict[str, Any]:
 
 class AutoClearOnGreen(unittest.TestCase):
     """An open `schedule` or `dispatch` record clears once a newer attempt-1
-    green full run on main sits at a later commit; any other record stays
-    human-close."""
+    green full run on main sits at a later commit; a green full run clears
+    no other record."""
 
     def fake(self, body: str = DEMOTION_BODY, runs: Any = None, **issue: Any) -> GhFake:
         issue = {"state": "OPEN", "timelineItems": {"nodes": []}} | issue
@@ -1318,7 +1335,7 @@ class AutoClearOnGreen(unittest.TestCase):
                 result = read_demotion()
                 self.assertEqual((result.active, result.reason), (True, "#9 open"))
 
-    def test_other_records_stay_human_close_and_read_no_runs(self) -> None:
+    def test_other_records_never_clear_on_green_and_read_no_runs(self) -> None:
         for name, body in (
             ("canary", DEMOTION_BODY.replace("dispatch", "canary")),
             ("read-back", DEMOTION_BODY.replace("dispatch", "read-back")),
@@ -1479,7 +1496,7 @@ class AutoClearOnGreen(unittest.TestCase):
 class RevertRecord(unittest.TestCase):
     """A `revert` record, which post-merge-demotion-alert.yml files when a
     push to main reverts a pull request the lanes App enqueued, holds the
-    rung off until a person closes it directly."""
+    rung off until a person closes it directly or it lifts (`RecordLift`)."""
 
     def test_open_holds_the_rung_off(self) -> None:
         demotion_fake(
@@ -1511,6 +1528,192 @@ class RevertRecord(unittest.TestCase):
                     timelineItems={"nodes": [close | {"createdAt": PR_CREATED}]},
                 )
                 self.assertTrue(read_demotion().active)
+
+
+READ_BACK_BODY = (
+    "<!-- babysit-merge-demotion sha=" + "b" * 40 + " signal=read-back -->\n\n"
+    "The post-merge check found a `read-back` failure after an unattended merge.\n\n"
+    "- Pull request: https://github.com/owner/repo/pull/5\n"
+    "- Merge commit: `" + "b" * 40 + "`"
+)
+CANARY_BODY = DEMOTION_BODY.replace("dispatch", "canary")
+FIX_MERGE = "e" * 40
+PULL_HEAD = "f" * 40
+
+
+def pin(sha: str = PULL_HEAD, **fields: Any) -> dict[str, Any]:
+    """The agent identity's unedited pin comment, posted before the merge."""
+    return {
+        "author": bot("agent-lanes"),
+        "body": f"<!-- babysit-merge-pin sha={sha} -->\nThe unattended merge path enqueued it.",
+        "createdAt": "2026-10-13T08:00:00Z",
+        "lastEditedAt": None,
+    } | fields
+
+
+def merged_pull(number: int = 7, comments: list[dict[str, Any]] = (), **fields: Any) -> dict[str, Any]:
+    """A pull request of this repository merged into main at `FIX_MERGE` after
+    the record (created 2026-10-12T10:00:00Z)."""
+    return {
+        "__typename": "PullRequest",
+        "number": number,
+        "merged": True,
+        "mergedAt": "2026-10-13T09:00:00Z",
+        "baseRefName": "main",
+        "headRefOid": PULL_HEAD,
+        "mergeCommit": {"oid": FIX_MERGE},
+        "repository": {"nameWithOwner": REPO},
+        "comments": {"pageInfo": {"hasNextPage": False}, "nodes": list(comments)},
+    } | fields
+
+
+class RecordLift(unittest.TestCase):
+    """A revert or read-back record lifts on its own evidence (#11022's
+    decision of 2026-11-02): (1) a read-back record's pull request reads back
+    after all (the identity's unedited pin, posted no later than the merge,
+    names the head that merged); (2) a pull request that references the
+    record merges into main after it, and for a read-back record that pull
+    request's own read-back holds. Until then it holds; a canary record never
+    lifts this way."""
+
+    def fake(self, body: str, lift: dict[str, Any], tip: str = FIX_MERGE) -> GhFake:
+        gh = demotion_fake(self, body=body, state="OPEN", timelineItems={"nodes": []})
+        gh.graphql["PolicyRecordLift"] = lift
+        gh.rest[f"repos/{REPO}/git/ref/heads/main"] = {"object": {"sha": tip}}
+        return gh
+
+    def lifted(self, result: Any, at: str) -> None:
+        self.assertFalse(result.active, result.reason)
+        self.assertEqual(result.cleared_at, policy.datetime.fromisoformat(at))
+
+    def test_a_merged_referencing_pull_request_lifts_a_revert_record(self) -> None:
+        self.fake(REVERT_BODY, lift_answer([merged_pull()]))
+        self.lifted(read_demotion(), "2026-10-13T09:00:00Z")
+
+    def test_a_revert_record_holds_without_a_qualifying_merge(self) -> None:
+        for name, pull in (
+            ("not merged", merged_pull(merged=False, mergedAt=None, mergeCommit=None)),
+            ("merged before the record", merged_pull(mergedAt="2026-10-12T09:00:00Z")),
+            ("into another branch", merged_pull(baseRefName="release")),
+            ("in another repository", merged_pull(repository={"nameWithOwner": "fork/repo"})),
+            ("an issue, not a pull request", {"__typename": "Issue", "number": 7}),
+        ):
+            with self.subTest(name):
+                self.fake(REVERT_BODY, lift_answer([pull]))
+                self.assertEqual(read_demotion().reason, "#9 open")
+        with self.subTest("no reference"):
+            self.fake(REVERT_BODY, lift_answer())
+            self.assertEqual(read_demotion().reason, "#9 open")
+
+    def test_a_merge_commit_off_mains_history_holds(self) -> None:
+        for status in ("behind", "diverged"):
+            with self.subTest(status):
+                gh = self.fake(REVERT_BODY, lift_answer([merged_pull()]), tip=MAIN_TIP)
+                gh.rest[f"repos/{REPO}/compare/{FIX_MERGE}...{MAIN_TIP}"] = {"status": status}
+                self.assertEqual(read_demotion().reason, "#9 open")
+        gh = self.fake(REVERT_BODY, lift_answer([merged_pull()]), tip=MAIN_TIP)
+        gh.rest[f"repos/{REPO}/compare/{FIX_MERGE}...{MAIN_TIP}"] = {"status": "ahead"}
+        self.lifted(read_demotion(), "2026-10-13T09:00:00Z")
+
+    def test_the_earliest_qualifying_merge_is_the_clear(self) -> None:
+        later = merged_pull(8, mergedAt="2026-10-14T09:00:00Z")
+        self.fake(REVERT_BODY, lift_answer([later, merged_pull()]))
+        self.lifted(read_demotion(), "2026-10-13T09:00:00Z")
+
+    def test_a_revert_record_closed_by_the_referencing_pull_request_lifts(self) -> None:
+        gh = self.fake(REVERT_BODY, lift_answer([merged_pull()]))
+        record = gh.graphql["PolicyDemotionRecords"]["repository"]["i9"]
+        record |= {
+            "state": "CLOSED",
+            "timelineItems": {
+                "nodes": [
+                    {
+                        "createdAt": "2026-10-13T09:00:00Z",
+                        "actor": bot("agent-lanes"),
+                        "closer": {"__typename": "PullRequest"},
+                    }
+                ]
+            },
+        }
+        self.lifted(read_demotion(), "2026-10-13T09:00:00Z")
+
+    def test_a_read_back_record_lifts_when_its_pull_request_reads_back(self) -> None:
+        own = merged_pull(5, [pin()], mergeCommit={"oid": "b" * 40})
+        self.fake(READ_BACK_BODY, lift_answer(pull=own))
+        self.lifted(read_demotion(), "2026-10-12T10:00:00Z")
+
+    def test_a_read_back_record_holds_while_its_pull_request_does_not_read_back(self) -> None:
+        for name, comments, fields in (
+            ("no pin", [], {}),
+            ("an edited pin", [pin(lastEditedAt="2026-10-13T08:30:00Z")], {}),
+            ("a pin posted after the merge", [pin(createdAt="2026-10-13T10:00:00Z")], {}),
+            ("a pin naming another head", [pin("9" * 40)], {}),
+            ("a newer pin naming another head", [pin(), pin("9" * 40)], {}),
+            ("someone else's pin", [pin(author=user(OPERATOR))], {}),
+            ("another merge commit", [pin()], {"mergeCommit": {"oid": "9" * 40}}),
+            ("more comments than read", [pin()], {"comments": {"pageInfo": {"hasNextPage": True}, "nodes": [pin()]}}),
+        ):
+            with self.subTest(name):
+                own = merged_pull(5, comments, mergeCommit={"oid": "b" * 40}) | fields
+                self.fake(READ_BACK_BODY, lift_answer(pull=own))
+                self.assertEqual(read_demotion().reason, "#9 open")
+
+    def test_a_read_back_record_lifts_on_a_referencing_merge_that_reads_back(self) -> None:
+        own = merged_pull(5, [], mergeCommit={"oid": "b" * 40})
+        self.fake(READ_BACK_BODY, lift_answer([merged_pull(comments=[pin()])], pull=own))
+        self.lifted(read_demotion(), "2026-10-13T09:00:00Z")
+
+    def test_a_read_back_record_holds_on_a_referencing_merge_without_a_read_back(self) -> None:
+        own = merged_pull(5, [], mergeCommit={"oid": "b" * 40})
+        self.fake(READ_BACK_BODY, lift_answer([merged_pull(comments=[pin("9" * 40)])], pull=own))
+        self.assertEqual(read_demotion().reason, "#9 open")
+
+    def test_a_record_a_non_human_edited_never_lifts(self) -> None:
+        edits = {
+            "totalCount": 2,
+            "nodes": [
+                {
+                    "editedAt": "2026-10-12T10:30:00Z",
+                    "deletedAt": None,
+                    "editor": bot("renovate"),
+                    "diff": REVERT_BODY,
+                },
+                {
+                    "editedAt": "2026-10-12T10:00:00Z",
+                    "deletedAt": None,
+                    "editor": bot("agent-lanes"),
+                    "diff": REVERT_BODY,
+                },
+            ],
+        }
+        gh = demotion_fake(
+            self,
+            body=REVERT_BODY,
+            state="OPEN",
+            timelineItems={"nodes": []},
+            lastEditedAt="2026-10-12T10:30:00Z",
+            userContentEdits=edits,
+        )
+        gh.graphql["PolicyRecordLift"] = lift_answer([merged_pull()])
+        self.assertEqual(read_demotion().reason, "#9 open")
+        self.assertFalse([c for c in gh.calls if any("PolicyRecordLift" in a for a in c)])
+
+    def test_a_canary_record_never_lifts_and_reads_no_references(self) -> None:
+        gh = self.fake(CANARY_BODY, lift_answer([merged_pull()]))
+        self.assertEqual(read_demotion().reason, "#9 open")
+        self.assertFalse([c for c in gh.calls if any("PolicyRecordLift" in a for a in c)])
+
+    def test_a_failed_or_truncated_read_holds(self) -> None:
+        truncated = lift_answer([merged_pull()])
+        truncated["repository"]["issue"]["timelineItems"]["pageInfo"]["hasNextPage"] = True
+        for name, lift in (("failed", 502), ("past 100 references", truncated)):
+            with self.subTest(name):
+                self.fake(REVERT_BODY, lift)
+                self.assertEqual(read_demotion().reason, "#9 open")
+        with self.subTest("main's tip"):
+            gh = self.fake(REVERT_BODY, lift_answer([merged_pull()]))
+            gh.rest[f"repos/{REPO}/git/ref/heads/main"] = 502
+            self.assertEqual(read_demotion().reason, "#9 open")
 
 
 class RecordsFake:

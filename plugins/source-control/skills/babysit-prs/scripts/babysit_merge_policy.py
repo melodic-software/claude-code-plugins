@@ -1684,12 +1684,14 @@ DEMOTION_RECORD = (
 # `read_demotion`: records per query, as `babysit_postmerge.read_pins` batches pins.
 DEMOTION_BATCH = 20
 # A record of a red full run on main, the one kind a later green clears
-# (`_recovered_at`); canary and read-back records stay human-close.
+# (`_recovered_at`). Revert and read-back records lift on their own evidence
+# (`_lifted_at`); a canary record stays human-close.
 RED_MAIN_RECORD = re.compile(
     r"<!-- babysit-merge-demotion sha=([0-9a-f]{40}) signal=(?:schedule|dispatch) -->"
 )
-# The holds a red-main record's later green lifts: how it was closed, never
-# what its edit history or a failed read says.
+# The holds a red-main record's later green, or a revert or read-back
+# record's lift, clears: how it was closed, never what its edit history or a
+# failed read says.
 RECOVERABLE_HOLDS = ("open", "closed-by-non-human", "closed-by-reference")
 # Green full runs on main of one event created in one span after a record, a
 # page at a time: each span is read whole, so its earliest run stays put as
@@ -1705,6 +1707,40 @@ GREEN_PAGES = 5
 GREEN_SPAN = timedelta(days=7)
 # Spans read before giving up (holding the record), about a year.
 GREEN_SPANS = 53
+# A revert or read-back record, which `_lifted_at` lifts.
+LIFTABLE_RECORD = re.compile(
+    r"<!-- babysit-merge-demotion sha=([0-9a-f]{40}) signal=(revert|read-back) -->"
+)
+# The pull request a read-back record names, as `babysit_postmerge._issue_body`
+# writes it.
+RECORD_PULL = re.compile(r"^- Pull request: (?:https://\S+/pull/|#)([1-9][0-9]*)$")
+PIN_LINE = re.compile(r"^<!-- babysit-merge-pin sha=([0-9a-f]{40}) -->$")
+# A pull request's merge and the agent identity's pin read-back over its first
+# 100 comments; a longer thread proves no read-back.
+LIFT_PULL = (
+    "number merged mergedAt baseRefName headRefOid mergeCommit{oid} "
+    "repository{nameWithOwner} comments(first:100){pageInfo{hasNextPage} "
+    "nodes{author{__typename login} body createdAt lastEditedAt}}"
+)
+
+
+def _lift_query(with_pull: bool) -> str:
+    """The pull requests that reference a record (its first 100
+    cross-references), and with `with_pull` the pull request `$p` too."""
+    references = (
+        "issue(number:$n){timelineItems(itemTypes:[CROSS_REFERENCED_EVENT],first:100){"
+        "pageInfo{hasNextPage} nodes{... on CrossReferencedEvent{source{"
+        "__typename ... on PullRequest{" + LIFT_PULL + "}}}}}}"
+    )
+    pull = " pullRequest(number:$p){" + LIFT_PULL + "}" if with_pull else ""
+    return (
+        "query PolicyRecordLift($o:String!,$r:String!,$n:Int!"
+        + (",$p:Int!" if with_pull else "")
+        + "){repository(owner:$o,name:$r){"
+        + references
+        + pull
+        + "}}"
+    )
 
 
 @dataclass(frozen=True)
@@ -1953,6 +1989,112 @@ def _recovered_at(
     return None
 
 
+def _read_back_holds(pull: dict[str, Any], identity: str | None) -> bool:
+    """Whether a merged pull request's read-back holds: the agent identity's
+    newest pin comment, among its first 100 comments, is unedited, was
+    posted no later than the merge, and names the head that merged."""
+    comments = json_object(pull.get("comments"))
+    if (
+        not identity
+        or json_object(comments.get("pageInfo")).get("hasNextPage") is not False
+    ):
+        return False
+    pins = [
+        c
+        for c in map(json_object, json_array(comments.get("nodes")))
+        if _login_key(json_object(c.get("author")).get("login")) == _login_key(identity)
+        and PIN_LINE.match(str(c.get("body") or "").split("\n", 1)[0].rstrip())
+    ]
+    if not pins or not pull.get("merged"):
+        return False
+    pin = pins[-1]
+    sha = PIN_LINE.match(str(pin.get("body")).split("\n", 1)[0].rstrip())[1]
+    return (
+        not pin.get("lastEditedAt")
+        and _time(pin.get("createdAt")) <= _time(pull.get("mergedAt"))
+        and sha == pull.get("headRefOid")
+    )
+
+
+def _lifted_at(
+    issue: dict[str, Any],
+    human: Callable[[Any], bool],
+    green: _GreenMain,
+    identity: str | None,
+) -> datetime | None:
+    """When a revert or read-back record lifted, or None.
+
+    (1) A read-back record lifts when the pull request its body names, merged
+    at the record's SHA, now reads back: its pin read-back holds
+    (`_read_back_holds`). The record's creation is the clear time.
+    (2) Either record lifts once a pull request that references it merges
+    into main after it was filed, in this repository, at a merge commit on
+    main's history, and, for a read-back record, that pull request's own pin
+    read-back holds. The earliest such merge is the clear time.
+
+    None for any other record, one a non-human edited (its SHA and pull
+    request come from its body), or no such evidence; a failed read, or more
+    than 100 references, raises."""
+    body = str(issue.get("body") or "").lstrip()
+    marker = LIFTABLE_RECORD.fullmatch(body.split("\n", 1)[0].rstrip())
+    if marker is None or _edits_refusal(issue, human):
+        return None
+    sha, signal = marker[1], marker[2]
+    owner, name = green.owner, green.name
+    number = None
+    if signal == "read-back":
+        number = next(
+            (
+                int(m[1])
+                for line in body.split("\n")
+                if (m := RECORD_PULL.match(line.rstrip()))
+            ),
+            None,
+        )
+    data = json_object(
+        _graphql(
+            _lift_query(number is not None),
+            f"issue #{issue.get('number')} references",
+            o=owner,
+            r=name,
+            n=issue.get("number"),
+            p=number,
+        ).get("repository")
+    )
+    created = _time(issue.get("createdAt"))
+    own = json_object(data.get("pullRequest"))
+    if (
+        number is not None
+        and own.get("number") == number
+        and json_object(own.get("mergeCommit")).get("oid") == sha
+        and _read_back_holds(own, identity)
+    ):
+        return created
+    timeline = json_object(json_object(data.get("issue")).get("timelineItems"))
+    if json_object(timeline.get("pageInfo")).get("hasNextPage") is not False:
+        raise PolicyReadError(f"issue #{issue.get('number')}: more than 100 references")
+    merges = []
+    for node in map(json_object, json_array(timeline.get("nodes"))):
+        pull = json_object(node.get("source"))
+        oid = str(json_object(pull.get("mergeCommit")).get("oid") or "")
+        if (
+            pull.get("__typename") != "PullRequest"
+            or not pull.get("merged")
+            or pull.get("baseRefName") != "main"
+            or str(json_object(pull.get("repository")).get("nameWithOwner") or "").casefold()
+            != f"{owner}/{name}".casefold()
+            or not SHA_RE.fullmatch(oid)
+            or _time(pull.get("mergedAt")) <= created
+            or (signal == "read-back" and not _read_back_holds(pull, identity))
+        ):
+            continue
+        merges.append((_time(pull.get("mergedAt")), oid))
+    for merged_at, oid in sorted(merges):
+        if green.on_main(oid):
+            return merged_at
+    return None
+
+
 def read_demotion(
     repo: str,
     *,
@@ -1968,7 +2110,8 @@ def read_demotion(
     marker or the label hides none. A record holds the rung off unless its
     latest `ClosedEvent` has no `closer` and a human actor, and no non-human
     ever edited it, or, for a red-main record however it stands, main went
-    green past it (`_recovered_at`), whose time clears it. The first holding
+    green past it (`_recovered_at`), or, for a revert or read-back record, its
+    lift evidence holds (`_lifted_at`), whose time clears it. The first holding
     record names the reason and ends `records`; the rest are still read, so
     the hold carries the newest clear before that record's creation (the
     post-merge floor in force when the hold began). Any read failure holds it
@@ -2036,6 +2179,8 @@ def read_demotion(
             if hold in RECOVERABLE_HOLDS:
                 try:
                     recovered = _recovered_at(issue, human, green, clock)
+                    if recovered is None:
+                        recovered = _lifted_at(issue, human, green, agent_identity)
                 except PolicyReadError:
                     recovered = None
             if hold and recovered is None:

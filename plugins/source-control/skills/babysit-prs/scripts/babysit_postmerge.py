@@ -3601,6 +3601,12 @@ def _issue_body(failure: Failure, also: Iterable[AutoMerge] = ()) -> str:
                 ]
                 if failure.signal in SELF_CLEARING_SIGNALS
                 else [
+                    "It lifts once the pull request below reads back after all, or once a pull",
+                    "request that references this record merges into main and reads back itself",
+                    "(babysit_merge_policy.py `_lifted_at`); a person's direct close also clears it.",
+                ]
+                if failure.signal == SIGNAL_READ_BACK
+                else [
                     "Only a person's direct close (not through a pull request's closing keyword)",
                     "clears it.",
                 ]

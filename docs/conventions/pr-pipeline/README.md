@@ -1113,7 +1113,8 @@ the rules that only tighten in
   a revert command). `post-merge-demotion-alert.yml` files a red-main record (signal `schedule` or
   `dispatch`) with no label, since it clears itself (below), unless a failing check got no fix
   issue (over the cap or outside the charset), which labels it `needs-human`; it labels a canary or revert record
-  `needs-human`, since only a person's close clears one. `babysit_postmerge.py --remediate` labels
+  `needs-human`, since a green main clears neither: a canary record clears only on a person's close,
+  and a revert record keeps the label until it lifts (below). `babysit_postmerge.py --remediate` labels
   every record it files `needs-human`: the lanes App's issue starts intake triage on its own, and
   that label keeps admission off it. On each completed scheduled full run on main, the
   alert's `close-cleared` job closes as completed each open schedule or dispatch record, demotion
@@ -1132,8 +1133,16 @@ the rules that only tighten in
   commit ahead of the record's SHA and on main's history. The earliest such run's creation is the
   clear time, read a week at a time from the record, oldest first, up to about a year and stopping
   at the first week that clears it, so newer runs never move it and a record cleared long ago reads
-  one week. Canary,
-  revert and read-back records stay human-close. A push to main files a `revert` record when one
+  one week. A revert or read-back record that no non-human edited lifts, open or not, on its own
+  evidence (`_lifted_at`): a pull request that references it merges into `main` of this repository
+  after it was filed, at a merge commit on main's history, and, for a read-back record, that pull
+  request reads back itself (the agent identity's newest pin comment among its first 100 comments
+  is unedited, was posted no later than the merge and names the head that merged). A read-back
+  record also lifts when the pull request it names reads back by that same test after all. The
+  earliest such merge, or for that second case the record's creation, is the clear time; a failed
+  read or more than 100 references lifts nothing. A canary record stays human-close: its body names
+  no paths, so no lane can check that the content whose deletion filed it is back on main. A push
+  to main files a `revert` record when one
   of its commits names a pull request it reverts and the lanes App enqueued that pull request or
   its enqueuer cannot be read; a revert of one a person enqueued files nothing. A commit names it
   on a line of its squash message: `Reverts` (optionally after a `-` or `*` bullet) followed by `#N`

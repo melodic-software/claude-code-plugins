@@ -42,8 +42,9 @@ name: post-merge-demotion-alert
 # file it once and never again after a person closes its record. A failed
 # canary still files its canary record too. A revert of a pull request someone
 # else enqueued files nothing; an unproven one demotes, a reverted commit whose
-# pull request cannot be read included. A revert record clears only when a
-# person closes it.
+# pull request cannot be read included. A revert record keeps needs-human and
+# holds until a pull request that references it merges into main
+# (babysit_merge_policy.py `_lifted_at`) or a person closes it.
 #
 # A red full run files only after one re-run of its failed jobs, which the
 # job waits up to 20 minutes for, fails again or does not finish, and only for checks that were not already failing on main's newest
@@ -878,12 +879,12 @@ jobs:
               -f title="Post-merge revert${names:+ of $names} at ${RUN_SHA:0:12}: unattended merging demoted" \
               -f body="<!-- babysit-merge-demotion sha=$RUN_SHA signal=revert -->
 
-          A push to main reverted a pull request the lanes App put in the merge queue, or one whose enqueuer or pull request could not be read. The unattended merge path stays at rung off while this record, or any other demotion record, is open. A person closes it directly (not through a pull request's closing keyword) to re-enable unattended merging.
+          A push to main reverted a pull request the lanes App put in the merge queue, or one whose enqueuer or pull request could not be read. The unattended merge path stays at rung off while this record, or any other demotion record, holds. It lifts once a pull request that references this record merges into main, re-landing the reverted change or confirming the revert (babysit_merge_policy.py \`_lifted_at\`); a person's direct close also clears it.
 
           $lines- Main at the push: \`$RUN_SHA\`
           - Canary run: $sighting
 
-          Find out why the pull request was reverted before closing this record." >/dev/null; then
+          Find out why the pull request was reverted, then reference this record from the pull request that re-lands it or confirms the revert." >/dev/null; then
               echo "::error::could not file the revert demotion issue for ${RUN_SHA:0:12}"
               trap 'echo "::error::the revert demotion issue was not filed"; exit 1' EXIT
             else
