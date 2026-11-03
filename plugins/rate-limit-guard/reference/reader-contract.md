@@ -25,10 +25,14 @@ inside cloud or remote-session containers, the producer the "Documented residual
 names as the path to proactive mode there; and re-verify the `account` field's source under "Snapshot
 file shape" below, and the
 consumer read in the floor's "Account switch" bullet, if `.oauthAccount.emailAddress` moves or is
-renamed in `~/.claude.json`. That key is **internal CLI state**, not a documented surface: nothing
-upstream promises it, so the writer treats a missing or unrecognized value as "cannot attribute"
-and this contract expects the field to be absent whenever it does, and a reader that cannot read it
-keeps its latch.
+renamed in `~/.claude.json`. That key is internal CLI state, observed in `~/.claude.json` on
+2026-11-03 with Claude Code 2.1.317 (`jq -e '.oauthAccount | has("emailAddress")'` prints `true`,
+without printing the address), and the writer treats a missing or unrecognized value as "cannot attribute": this
+contract expects the field to be absent whenever it does, and a reader that cannot read it keeps
+its latch. Recheck
+when [Settings](https://code.claude.com/docs/en/settings) or
+[Authentication](https://code.claude.com/docs/en/authentication) documents the account fields of
+`~/.claude.json`.
 
 ## Operable floor (consumers inline these values verbatim)
 
@@ -211,7 +215,7 @@ what fail-open forbids.
 
 **Documented residual (not closed here):** no producer is known to write the snapshot file where a cloud
 / remote consumer can read it today. Shipping or verifying one, whether fleet `cloud-environment` wiring, a synced
-snapshot, or a harness/API exposure, is the residual path to proactive mode in cloud. Until it lands, unknown → reactive-only is the complete honest
+snapshot, or a harness/API exposure, is the residual path to proactive mode in cloud. Until it lands, unknown → reactive-only is the whole
 contract. Do not open a tracking issue solely
 to restate this residual; the residual is this paragraph.
 

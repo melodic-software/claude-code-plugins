@@ -33,7 +33,7 @@ plugins/playbooks/skills/skill-authoring/reference/precompute-context.md 2 # jus
 plugins/playbooks/skills/skill-authoring/reference/skill-criteria.md 1 # justified: the rule tells skill authors how SKILL.md cites a bundled script, where the token substitutes; the literal text is the guidance
 plugins/repo-fleet-hygiene/skills/audit/reference/official-sources.md 1 # justified: the line names the token as a topic of the upstream plugins reference it cites; it runs nothing
 plugins/repo-fleet-hygiene/skills/audit/reference/security-review.md 1 # justified: the sentence names the token bundled assets are addressed through; it runs nothing
-plugins/repo-hygiene/skills/clean/reference/invocation-forms.md 5 # justified: the convention text names the tokens it pairs in a SKILL.md body and its allowed-tools rule, and the one a context file must not use; it runs nothing
+plugins/repo-hygiene/skills/clean/reference/invocation-forms.md 3 # justified: the convention text names the tokens it pairs in a SKILL.md body and its allowed-tools rule; it runs nothing
 plugins/source-control/skills/worktree/context/audit.md 1 # justified: the sentence tells the model not to emit the token in a command it presents; the literal text is the warning
 plugins/ai-slop/skills/audit/context/persist-findings.md 2 # pending: the steps run bundled scripts through ${CLAUDE_SKILL_DIR}; cite <skill-dir>/scripts/... instead
 plugins/ai-slop/skills/audit/context/rubric-fanout.md 1 # pending: the line names a bundled script through ${CLAUDE_SKILL_DIR}; cite <skill-dir>/scripts/... instead

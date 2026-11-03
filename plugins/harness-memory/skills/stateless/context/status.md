@@ -35,10 +35,12 @@ you cannot inspect it, don't assume it is empty.
 
 ## Step 3: Resolve the effective state
 
-- **Enabled state.** `CLAUDE_CODE_DISABLE_AUTO_MEMORY` overrides `autoMemoryEnabled` (docs):
-  if the env var is set anywhere (OS env or any `env` block), it is authoritative: `=1` →
-  **off**, `=0` → **on** even against `autoMemoryEnabled: false`. If the env var is unset,
-  apply settings precedence to `autoMemoryEnabled`, in the order
+- **Enabled state.** Check `CLAUDE_CODE_DISABLE_AUTO_MEMORY` first: if it is set anywhere (OS env
+  or any `env` block), report it as authoritative whatever `autoMemoryEnabled` says, with the value
+  it holds. For what the env var does, read
+  [Enable or disable auto memory](https://code.claude.com/docs/en/memory#enable-or-disable-auto-memory)
+  (as of 2026-11-03; recheck when that section changes what the env var or its values do). If
+  the env var is unset, apply settings precedence to `autoMemoryEnabled`, in the order
   [Settings precedence](https://code.claude.com/docs/en/settings#settings-precedence) lists; a
   `--settings` value the snapshot cannot see ranks among those levels, so say so when the session
   was started with one. With no scope setting it, the default applies: read
