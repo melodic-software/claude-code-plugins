@@ -27,8 +27,8 @@ const job = (id, name, conclusion, failedSteps = ["Run tests"]) => ({
 
 test("a value outside the schema's range falls back to the default", () => {
   assert.deepEqual(
-    resolveRedMain({ "dry-run": "no", "daily-cap": 11, "max-culprit-age-hours": 0, "confirm-wait-minutes": 46, remedy: "revert" }),
-    { "dry-run": true, "daily-cap": 3, "max-culprit-age-hours": 24, "confirm-wait-minutes": 40, remedy: "rollback" },
+    resolveRedMain({ "dry-run": "no", "daily-cap": 11, "max-culprit-age-hours": 0, "confirm-wait-minutes": 61, remedy: "revert" }),
+    { "dry-run": true, "daily-cap": 3, "max-culprit-age-hours": 24, "confirm-wait-minutes": 55, remedy: "rollback" },
   );
   assert.deepEqual(
     resolveRedMain({ "dry-run": false, "daily-cap": 0, "max-culprit-age-hours": 6, "confirm-wait-minutes": 0, remedy: "fail-forward" }),

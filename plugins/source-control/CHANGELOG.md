@@ -3,6 +3,32 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.6.5] - 2026-11-03
+
+### Changed
+
+- `babysit-prs`: `red-main.confirm-wait-minutes` now defaults to 55 and accepts up to 60, matching pr-merge's 30-minute schedule. The post-merge lane re-run lookback (confirm wait plus 50 minutes) is therefore 105 minutes by default.
+
+## [5.6.4] - 2026-11-03
+
+### Changed
+
+- babysit-prs: a push touching `plugins/harness-ops/skills/changelog/scripts/` now stops an
+  approval carrying, since the gated upstream-apply-changelog workflow runs a script there.
+
+## [5.6.3] - 2026-11-03
+
+### Changed
+
+- `babysit-prs`: the merge lane no longer treats `human-merge-hold` as a hold label; the lanes App
+  now marks a pull request a person merges with `do-not-merge`, which the lane already holds.
+
+## [5.6.2] - 2026-11-03
+
+### Fixed
+
+- The leak scan the babysit-loop telemetry body gate runs now also reads JSON-encoded text with its `\n`, `\r` and `\t` escapes decoded, so a credential at the start of a line or after a tab in a JSON body is withheld. Before, the escape's letter sat directly before the token and hid it from every pattern anchored on a word boundary (#12562).
+
 ## [5.6.1] - 2026-11-02
 
 ### Changed

@@ -157,6 +157,13 @@
           "default": 1,
           "description": "Further fix-ci dispatches on one PR head after its first fix-ci run ended in failure."
         },
+        "upstream-apply-changelog-per-day": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3,
+          "description": "upstream-apply-changelog runs that reach the model in any 24 hours."
+        },
         "fix-docs-per-run": {
           "type": "integer",
           "minimum": 1,
@@ -277,8 +284,8 @@
         "confirm-wait-minutes": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 45,
-          "default": 40,
+          "maximum": 60,
+          "default": 55,
           "description": "Minutes the report waits for the one re-run of a red full run to finish; a run with no finished re-run is not confirmed red."
         },
         "remedy": {

@@ -7,7 +7,8 @@
 // No model.
 //
 // Environment: GITHUB_TOKEN, REPOSITORY, AGENT_IDENTITY, CALL_BUDGET,
-// WINDOW_MINUTES, GITHUB_API_URL, GITHUB_SERVER_URL, GITHUB_RUN_ID,
+// WINDOW_MINUTES, GITHUB_API_URL, GITHUB_SERVER_URL, GITHUB_RUN_ID, RUNNER_TEMP,
+// JOBS_CARRY_PATH (read the last run's job reads and write this run's there),
 // GITHUB_STEP_SUMMARY. For a replay: NOW (an ISO time) and DRY_RUN=1, which
 // reads and plans but writes nothing.
 import { execFileSync } from "node:child_process";
@@ -18,10 +19,31 @@ import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
-import { collect, listFiled } from "./collect.mjs";
+import { collect, JOBS_ARTIFACT, JOBS_FILE, jobsCarryFile, listFiled, parseJobsCarry } from "./collect.mjs";
 import { planIssues, readMarker, renderBody, renderComment, renderSupersede, titleOf, unreadSignals } from "./issues.mjs";
 import { detect } from "./signals.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
+import { ghDownload, newestTrustedRun } from "../pr-merge/rotation.mjs";
+
+const WORKFLOW_PATH = ".github/workflows/maintenance-monitor-signals.yml";
+
+// The last run's completed job reads (collect.mjs parseJobsCarry), from the
+// newest scheduled or hand-started run of main's copy of this workflow that
+// holds the JOBS_ARTIFACT, this run aside: only a run's own steps upload its
+// artifacts. Empty, with a warning, when there is none or it cannot be read,
+// so every run's jobs are read as before. Off unless JOBS_CARRY_PATH is set.
+export async function readJobsCarry({ env, repo, actions, download }) {
+  if (!env.JOBS_CARRY_PATH) return new Map();
+  try {
+    const id = await newestTrustedRun({ repo, runId: String(env.GITHUB_RUN_ID), actions, name: JOBS_ARTIFACT, workflow: WORKFLOW_PATH });
+    if (id === undefined) return new Map();
+    download ??= ghDownload({ repo, token: env.GITHUB_TOKEN, dir: env.RUNNER_TEMP ?? tmpdir(), name: JOBS_ARTIFACT, file: JOBS_FILE });
+    return parseJobsCarry(download(id), repo);
+  } catch (error) {
+    console.log(`::warning::monitoring lane: no job reads carried, so every run's jobs are read: ${error?.message ?? error}`);
+    return new Map();
+  }
+}
 
 // Every GitHub call goes through the rate guard (rate-guard.mjs); the fetch
 // is read at call time, so a test's stub is guarded too.
@@ -151,8 +173,10 @@ async function main(env = process.env) {
   };
   // GET /rate_limit does not count against the limit.
   const ownRate = replay ? null : ((await get("/rate_limit").catch(() => null))?.resources?.core ?? null);
+  const carriedJobs = await readJobsCarry({ env, repo, actions: call });
 
   const data = await collect({
+    carriedJobs,
     get,
     graphql,
     getStatus,
@@ -163,6 +187,13 @@ async function main(env = process.env) {
     agentIdentity: env.AGENT_IDENTITY,
     ownRate: ownRate && { used: ownRate.used, limit: ownRate.limit, remaining: ownRate.remaining },
   });
+  if (env.JOBS_CARRY_PATH) {
+    try {
+      writeFileSync(env.JOBS_CARRY_PATH, jobsCarryFile(repo, data.jobsCarry));
+    } catch (error) {
+      console.log(`::warning::monitoring lane: the job reads were not carried: ${error.message}`);
+    }
+  }
   const findings = detect(data);
   const existing = (await listFiled({ get, repo })).filter((i) => readMarker(i.body));
   const plan = planIssues({ findings, existing, unread: unreadSignals(data.gaps) });

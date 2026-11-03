@@ -1488,7 +1488,9 @@ guards behave exactly as before.
   so on Claude Code 2.1.295 or later a row that cannot start, because `node` or bash is missing, or
   that times out, denies the call. An older client ignores the key, and such a row enforces nothing
   ([hook budget](../../docs/contracts/hook-budget/README.md#which-rows-set-onfailure-block)).
-  `/guardrails:check` reports a missing `node` or `jq`. With harness-ops enabled, its shell-form
+  `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"` reports a missing `node` or `jq`. With `jq` missing the guards deny
+  that Bash call too, and the denial names `jq`; `/guardrails:setup check` still reports it from its
+  load-time rows. With harness-ops enabled, its shell-form
   `SessionStart` row warns the user once per session that `node` is missing, whichever guards are
   on; without harness-ops nothing does
   ([prerequisites convention](../../docs/contracts/prerequisites/README.md#hook-notices)). Pointer: for how an exec-form `command`
@@ -1509,9 +1511,9 @@ guards behave exactly as before.
 /plugin install guardrails@melodic-software
 ```
 
-Then verify the runtime prerequisites and the active guards with
-`/guardrails:check`; `/guardrails:setup apply` resolves anything the
-check reports with guidance. `/guardrails:setup apply install-git-hooks` registers the
+Then verify the runtime prerequisites with
+`node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`, and the active guards with
+`/guardrails:setup check`; `/guardrails:setup apply` resolves anything those report with guidance. `/guardrails:setup apply install-git-hooks` registers the
 [git hooks](#git-hooks) (commit convention, secrets and paths, flags and references) for this
 clone or, with `scope=shared`, for every clone.
 

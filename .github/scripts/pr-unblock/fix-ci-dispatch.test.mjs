@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { createGitHubApi } from "./dispatch.mjs";
+import { createGitHubApi, LIST_QUERY } from "./dispatch.mjs";
 import { failingChecks } from "./gate-source.mjs";
 import { emptyRecord, isHandled } from "./dispatch-record.mjs";
 import { RERUN_DUE_MINUTES } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { DEFAULTS, dispatchCiFixes, humanGatedLabel, LIST_QUERY, skipReason, staleStop } from "./fix-ci-dispatch.mjs";
+import { DEFAULTS, dispatchCiFixes, humanGatedLabel, skipReason, staleStop } from "./fix-ci-dispatch.mjs";
 
 // The lanes App bot's user id and the GitHub Actions app id
 // (.github/standards/trusted-actors/trusted-actors.json; dispatch.mjs).

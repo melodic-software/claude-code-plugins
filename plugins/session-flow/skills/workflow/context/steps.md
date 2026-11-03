@@ -131,6 +131,8 @@ plan's design section it touches, so an agent that picks it up cold still builds
 - Trigger conditions: the plan holds more than one independently shippable ticket, or the work
   will be picked up across sessions or by more than one person or agent
 - Skip conditions: the plan is one ticket; implement it directly
+- A closed wayfind map whose destination is a set of build items enters here directly, past
+  design and plan: its resolved decisions stand in for them (owner decision Q531, #12477)
 - **Effort:** cutting the plan along its seams, where a thick slice stalls the agent that picks it
   up
 

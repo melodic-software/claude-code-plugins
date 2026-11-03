@@ -105,14 +105,14 @@ if [[ "$(printf '%s' "$out" | notice_shape bash-format)" == ok ]]; then
 else
   fail "sh node-notice: node absent gave $out"
 fi
-out="$(notice_sh "$s1" /guardrails:check)"
+out="$(notice_sh "$s1" /demo-plugin:check)"
 if [[ -z "$out" ]]; then
   pass "sh node-notice: a second plugin in the same session stays silent"
 else
   fail "sh node-notice: second plugin printed $out"
 fi
-out="$(notice_sh '{"session_id":"sess-2"}' /guardrails:check)"
-if [[ "$(printf '%s' "$out" | notice_shape guardrails)" == ok ]]; then
+out="$(notice_sh '{"session_id":"sess-2"}' /demo-plugin:check)"
+if [[ "$(printf '%s' "$out" | notice_shape demo-plugin)" == ok ]]; then
   pass "sh node-notice: a new session gets its own notice"
 else
   fail "sh node-notice: new session gave $out"
@@ -130,7 +130,7 @@ else
   fail "sh node-notice: kill switch false gave $out"
 fi
 a="$(notice_sh '{}' /bash-format:check)"
-b="$(notice_sh '{}' /guardrails:check)"
+b="$(notice_sh '{}' /demo-plugin:check)"
 if [[ -n "$a" && -n "$b" ]]; then
   pass "sh node-notice: with no session id every plugin still notifies"
 else
@@ -155,7 +155,7 @@ if [[ -n "${PWSH:-}" ]]; then
   else
     fail "pwsh node-notice: node absent gave $out"
   fi
-  out="$(notice_ps "$s1" /guardrails:check)"
+  out="$(notice_ps "$s1" /demo-plugin:check)"
   if [[ -z "$out" ]]; then
     pass "pwsh node-notice: a second plugin in the same session stays silent"
   else

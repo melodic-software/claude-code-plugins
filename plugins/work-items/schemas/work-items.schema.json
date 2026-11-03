@@ -2,9 +2,17 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/work-items/schemas/work-items.schema.json",
   "title": "work-items team config",
-  "description": "Schema for a repository's docs/conventions/work-items.yaml, the team layer of the work-items plugin's settings (ADR 0064). A key set here wins over the same key in the plugin's userConfig. Readers: /work-items:triage for the triage keys (the /work-items:work-loop admission gate reads the objection window's end from the marker comment triage posts; triage_outside_prs has no userConfig layer; triage_stale_reporter_info_days is read by the attention view), every lane that follows reference/ai-disclaimer.md for ai_disclaimer, /work-items:work for work_priority_order and bug_path, and /work-items:measure-delivery for delivery_deploy_signal. The tracker seam (tools/work-item-tracker/lib/binding.sh) reads tracker, and work-items.local.yaml beside this file may refine its overlayable keys.",
+  "description": "Schema for a repository's docs/conventions/work-items.yaml, the team layer of the work-items plugin's settings (ADR 0064). A key set here wins over the same key in the plugin's userConfig. Readers: /work-items:triage for the triage keys (the /work-items:work-loop admission gate reads the objection window's end from the marker comment triage posts; triage_outside_prs has no userConfig layer; triage_stale_reporter_info_days is read by the attention view), every lane that follows reference/ai-disclaimer.md for ai_disclaimer, /work-items:work for work_priority_order and bug_path, /work-items:measure-delivery for delivery_deploy_signal, and /work-items:morning-brief's scripts/morning-brief.sh for morning_brief (a flag beats work-items.local.yaml, which beats this file, which beats the default; contract: docs/contracts/config-cascade/README.md). The tracker seam (tools/work-item-tracker/lib/binding.sh) reads tracker, and work-items.local.yaml beside this file may refine its overlayable keys.",
   "type": "object",
   "additionalProperties": false,
+  "$defs": {
+    "name": { "type": "string", "minLength": 1, "pattern": "^[^\\u0000-\\u001f\\u007f]+$" },
+    "names": { "type": "array", "items": { "$ref": "#/$defs/name" } },
+    "amount": { "type": "number", "minimum": 0 },
+    "count": { "type": "integer", "minimum": 0 },
+    "percent": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "owner": { "type": "string", "pattern": "^[A-Za-z0-9]([A-Za-z0-9-]{0,37}[A-Za-z0-9])?$" }
+  },
   "properties": {
     "$schema": { "type": "string" },
     "triage_repro_count": {
@@ -60,6 +68,25 @@
       "enum": ["merge-to-default-branch"],
       "default": "merge-to-default-branch",
       "description": "What /work-items:measure-delivery counts as one deployment. merge-to-default-branch: each commit on the default branch's first-parent history is one deployment (a merge commit or a squash landing is one; a rebase landing is one per commit it lands), and one a later commit reverts is a failed deployment. Absent: merge-to-default-branch."
+    },
+    "morning_brief": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Settings of /work-items:morning-brief's Cost section.",
+      "properties": {
+        "org": { "$ref": "#/$defs/owner", "description": "GitHub org whose billing and repos the Cost section reads. Default: the repo's owner." },
+        "subscription": { "$ref": "#/$defs/name", "description": "Azure subscription the Cost section reads. Default: az's current one. Keep it out of a public repository's tracked file; set it in work-items.local.yaml." },
+        "actions_included_minutes": { "$ref": "#/$defs/amount", "description": "Actions minutes the org's plan includes each month. Unset: the minutes line is INFO with the amount used." },
+        "actions_included_storage_gb": { "$ref": "#/$defs/amount", "description": "Artifact storage the plan includes, in GB. Unset: the storage line is INFO with the amount used." },
+        "usage_alert_percent": { "$ref": "#/$defs/percent", "description": "Share of an included amount at which a usage line is an ALERT. Default 50." },
+        "log_cap_alert_percent": { "$ref": "#/$defs/percent", "description": "Share of a Log Analytics workspace's daily cap at which its peak day is an ALERT. Default 50." },
+        "forecast_alert": { "$ref": "#/$defs/amount", "description": "Budget forecast above which an Azure budget is an ALERT. Default: the budget's own amount." },
+        "required_budgets": { "$ref": "#/$defs/names", "description": "Azure budgets that must exist and not end within expiry_days." },
+        "anomaly_alert": { "$ref": "#/$defs/name", "description": "The Cost Management anomaly alert that must exist, be enabled and not end within expiry_days. Default: any anomaly alert." },
+        "expiry_days": { "$ref": "#/$defs/count", "description": "Days before a required budget or the anomaly alert ends at which it is an ALERT. Default 30." },
+        "allowed_collaborators": { "$ref": "#/$defs/names", "description": "Direct repo collaborators, besides org admins, who are not an ALERT." },
+        "workflow_read_limit": { "$ref": "#/$defs/count", "description": "Cap on workflow files read for secret triggers in one run. Default 300." }
+      }
     },
     "tracker": {
       "type": "object",

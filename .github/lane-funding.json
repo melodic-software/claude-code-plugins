@@ -28,7 +28,8 @@
         { "id": "resolve-issue", "workflow": "work-resolve-issue.yml", "launcher": "run-claude-cli", "triggers": ["issues"], "gate": "author", "currentSecrets": ["ISSUE_LANE_CLAUDE_API_KEY"] },
         { "id": "resolve-issue-subscription", "workflow": "work-resolve-issue.yml", "launcher": "run-claude-cli", "triggers": ["issues"], "gate": "author", "currentSecrets": ["ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "resolve-issue-handoff", "workflow": "work-resolve-issue.yml", "launcher": "run-claude-cli", "triggers": ["issues"], "gate": "author", "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "resolve-issue-fallback", "workflow": "work-resolve-issue.yml", "launcher": "run-claude-cli", "triggers": ["issues"], "gate": "author", "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] }
+        { "id": "resolve-issue-fallback", "workflow": "work-resolve-issue.yml", "launcher": "run-claude-cli", "triggers": ["issues"], "gate": "author", "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "model", "workflow": "upstream-apply-changelog.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["ISSUE_LANE_CLAUDE_API_KEY"] }
       ]
     },
     {

@@ -3,6 +3,40 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.0.1] - 2026-11-03
+
+### Changed
+
+- `changelog apply --ci` now says the calling workflow files a release's handoffs as one issue, with
+  one checklist item per handoff. A `cap-exceeded` plan's issue names its `stop_reason`, and the
+  release is marked done once that issue holds every handoff; a `range-not-computed` plan files
+  nothing and the next run takes the release again.
+- `changelog apply --ci` now says a branch row may touch no hold path (the security review's
+  `hold-paths` list); the workflow stops a release whose branch changes one with `stop_reason`
+  `hold-path`, files its issue, and marks it done.
+
+- The lanes skill now tells you to check a running lane through `mcp__context-guard__status` in its tool list, because `/context-guard:check` is gone.
+
+## [7.0.0] - 2026-11-03
+
+### Added
+
+- Retirement records `harness-ops-r002` and `harness-ops-r003`. When `harness-ops.yaml` or `harness-ops.local.yaml` in the convention home still holds a `morning_brief:` block, `/harness-ops:setup check` reports it as FAIL. `apply` then offers to move the block to `work-items.yaml` or `work-items.local.yaml`, and cleans the old file once you confirm the move.
+
+### Removed
+
+- `schemas/harness-ops.schema.json` is gone. The only keys it described, `morning_brief`, moved to the work-items plugin together with `/work-items:morning-brief`. The brief no longer reads `harness-ops.yaml` or `harness-ops.local.yaml`: move their `morning_brief:` block into `work-items.yaml` or `work-items.local.yaml` in the same convention home.
+
+## [6.2.1] - 2026-11-03
+
+### Changed
+
+- `/harness-ops:plugins sync` skips Step 1's `claude plugin marketplace update` for a `github` or `git` marketplace when `git ls-remote` shows the source's ref already at the clone's HEAD, since the CLI re-clones the marketplace on every refresh. The skip needs a clone at `installLocation` with no modified or untracked file, whose `origin` is the recorded source, and a pinned `ref` checked out as that branch; any other case, an unreachable remote included, runs the refresh. The digest records a skip as `refresh.skipped` (`{head, ref}`), and the report adds a `refresh skipped` row (#12544).
+
+### Fixed
+
+- The leak scan the lane telemetry body gate runs now also reads JSON-encoded text with its `\n`, `\r` and `\t` escapes decoded, so a credential at the start of a line or after a tab in a JSON body is withheld. Before, the escape's letter sat directly before the token and hid it from every pattern anchored on a word boundary (#12562).
+
 ## [6.2.0] - 2026-11-03
 
 ### Added

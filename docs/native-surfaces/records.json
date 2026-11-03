@@ -3346,24 +3346,6 @@
       },
       "component": {
         "plugin": "desktop-notification",
-        "skill": "check",
-        "kind": "skill"
-      },
-      "reason": "Name overlap only: desktop-notification:check is a read-only check that node and jq resolve for the desktop-notification hooks; the built-in ReadNotifications tool reads queued external notifications (webhooks, triggers). Different jobs, no routing.",
-      "as_of": "2.1.287",
-      "date": "2026-10-01",
-      "fingerprint": {
-        "native": "e782dd30b656e3a5d75d4859b5a42e64",
-        "component": "d9268c18bba640ca15777b1d186ee196"
-      }
-    },
-    {
-      "native": {
-        "name": "ReadNotifications",
-        "class": "builtin-tool"
-      },
-      "component": {
-        "plugin": "desktop-notification",
         "skill": "setup",
         "kind": "skill"
       },
@@ -4327,24 +4309,6 @@
       "fingerprint": {
         "native": "0128106e46d5fedcb45ba742470916bc",
         "component": "e05e47420038074de1e8f90071710308"
-      }
-    },
-    {
-      "native": {
-        "name": "desktop",
-        "class": "builtin-command"
-      },
-      "component": {
-        "plugin": "desktop-notification",
-        "skill": "check",
-        "kind": "skill"
-      },
-      "reason": "Name overlap only: desktop-notification:check is a read-only check that node and jq resolve for the desktop-notification hooks; the user-only /desktop command continues the current session in Claude Desktop. Different jobs, no routing.",
-      "as_of": "2.1.287",
-      "date": "2026-10-01",
-      "fingerprint": {
-        "native": "47f26aa289e2c8339a42d3523417d50f",
-        "component": "d9268c18bba640ca15777b1d186ee196"
       }
     },
     {

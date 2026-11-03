@@ -9,8 +9,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { emptyRecord, isHandled, markHandled, parseRecord, serializeRecord } from "./dispatch-record.mjs";
-import { createGitHubApi } from "./dispatch.mjs";
-import { dispatchDocsFixes, docsRunState, HISTORY_COMMITS, HISTORY_QUERY, LIST_QUERY } from "./fix-docs-dispatch.mjs";
+import { createGitHubApi, LIST_QUERY } from "./dispatch.mjs";
+import { dispatchDocsFixes, docsRunState, HISTORY_COMMITS, HISTORY_QUERY } from "./fix-docs-dispatch.mjs";
 
 const ACTIONS = 15368;
 const CHECK = "pr-refine / fix-docs";

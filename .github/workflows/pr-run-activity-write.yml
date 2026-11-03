@@ -683,6 +683,7 @@ jobs:
             "" | protected-path-conflict | workflow-staged | unexpected-path-staged | repeat-cap | unresolved-conflict) ;;
             feedback-protected-path | feedback-round-cap | feedback-not-converging | feedback-uncertain | feedback-not-landed | feedback-invalid) ;;
             feedback-partial | feedback-incomplete | feedback-disputed) ;;
+            feedback-round-cap-security | feedback-uncertain-security | feedback-disputed-security) ;;
             feedback-untaken-threads | feedback-publish-failed) ;;
             feedback-unadjudicated | feedback-question-intent | feedback-question-design) ;;
             feedback-question-security | feedback-stood-open | feedback-verifier-open) ;;
@@ -1738,6 +1739,33 @@ jobs:
                 `is_error=${JSON.stringify(result?.is_error ?? null)} num_turns=${JSON.stringify(turns ?? null)} max-turns=${cap ?? 'unset'}`,
             );
 
+      # Each actions/checkout post step runs git in its checkout's path
+      # whenever <path>/.git/config is there, as a node step that holds the
+      # job's runtime token. The skill can write the head checkout's .git, and
+      # the head checkout removed .base, so it could make one there too; with
+      # both gone, both post steps return before any git runs. No later step of
+      # a skill run needs git, and a script activity skips this step and keeps
+      # its checkout. A pinned action rather than a shell step, like the revoke
+      # step, since the skill could have changed PATH or BASH_ENV. A cancelled
+      # skill runs it too: the post steps still run after a timeout or a cancel.
+      - name: Remove the checkouts' .git directories
+        if: always() && steps.act-skill.outcome != 'skipped'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          WORKSPACE: ${{ github.workspace }}
+        with:
+          retries: 0
+          script: |
+            const { rmSync } = require('fs');
+            const { WORKSPACE } = process.env;
+            if (!WORKSPACE) {
+              core.setFailed('the workspace path is empty, so the checkouts keep their .git directories');
+              return;
+            }
+            for (const dir of ['.git', '.base/.git']) {
+              rmSync(`${WORKSPACE}/${dir}`, { recursive: true, force: true });
+            }
+
       # The reply is untrusted model text: it is read with jq and printed as
       # data, never interpolated into a command. The file path falls back to
       # the action's fixed location (base-action/src/execution-file.ts:6-13).
@@ -2152,6 +2180,7 @@ jobs:
             case "$FEEDBACK_REPLIES_DIR:$escalation" in
               ?*:feedback-uncertain | ?*:feedback-not-landed | ?*:feedback-invalid) ;;
               ?*:feedback-partial | ?*:feedback-incomplete | ?*:feedback-disputed) ;;
+              ?*:feedback-uncertain-security | ?*:feedback-disputed-security) ;;
               ?*:feedback-unadjudicated | ?*:feedback-question-intent | ?*:feedback-question-design) ;;
               ?*:feedback-question-security | ?*:feedback-stood-open | ?*:feedback-verifier-open) ;;
               :ci-fix-invalid | :ci-fix-protected-path | :ci-fix-not-applied | :patch-invalid | :patch-credential | :patch-protected-path | :patch-not-applied | :patch-empty)

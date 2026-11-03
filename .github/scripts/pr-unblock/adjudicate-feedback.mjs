@@ -136,6 +136,31 @@ export const adjudicable = (comments) => {
   return root.lane === "claude-review" || minorSecurity(comments);
 };
 
+// Whether a thread no adjudicator judges is a security finding a person
+// decides, like address-feedback.mjs securityThread at the round cap: a
+// security-review finding rated CRITICAL or unrated, the reviewer bot's own
+// finding claiming that (claimsSecurity), a listed bot's finding on a head the
+// security-review lane held or has not reviewed yet, a finding of a lane this
+// does not know, or a thread this round did not keep (fail safe). A
+// code-review lane finding, CRITICAL or not, is not: that lane leaves security
+// to the security-review lane.
+export const securityRoot = (comments) => {
+  const root = comments?.[0];
+  if (root?.author === undefined) {
+    return true;
+  }
+  if (root.author !== "reviewer") {
+    return false;
+  }
+  if (root.listed === true) {
+    return listedState(comments) !== "clear";
+  }
+  if (root.lane === undefined) {
+    return claimsSecurity(root.body);
+  }
+  return root.lane === "claude-security-review" ? securityNeedsPerson(root.body) : root.lane !== "claude-review";
+};
+
 // The security-review lane's first line on an inline comment for a manifest
 // `dependencies` flag (security-review SKILL.md, "Reporting").
 const DEPENDENCIES_FLAG = /^manifest dependencies: flag(,|$)/;
@@ -647,6 +672,8 @@ const ORDER = [
   "feedback-question-security",
   "feedback-question-intent",
   "feedback-question-design",
+  "feedback-disputed-security",
+  "feedback-uncertain-security",
   "feedback-disputed",
   "feedback-uncertain",
   "feedback-partial",
@@ -685,9 +712,9 @@ export const FINDING_STANDS_SKIP = "finding-stands";
 // - any other DISPUTED thread that is not adjudicable (a CRITICAL finding, a
 //   security-review finding rated at or above SECURITY_PERSON_SEVERITY or
 //   with no readable rating, one a person opened, or one the re-read no
-//   longer keeps) goes to a person:
+//   longer keeps) is not adjudicated, and any verdict for it is ignored:
 //   feedback-disputed when the reply is INCORRECT, else feedback-uncertain,
-//   and any verdict for it is ignored;
+//   each with `-security` (a person) when securityRoot holds, else a session;
 // - a DISPUTED thread with no verdict escalates feedback-unadjudicated;
 // - human: no reply, feedback-question-<intent|design|security>; a question
 //   only the owner answers stays the owner's, except a security question on
@@ -821,7 +848,10 @@ export async function settleDisputes({ api, pr, adjudicatedSha, headSha = adjudi
     }
     if (!adjudicable(comments)) {
       log(`${thread}: a CRITICAL finding, a security-review finding rated ${SECURITY_PERSON_SEVERITY} or above or unrated, or a person's own thread; it goes to a person, not to an adjudicator`);
-      raise(disposition === "INCORRECT" ? "feedback-disputed" : "feedback-uncertain");
+      // A person decides only a security finding (securityRoot) and a thread
+      // this round did not keep (fail safe); a code-review finding, CRITICAL
+      // or not, and a person's own thread go to a session.
+      raise(`${disposition === "INCORRECT" ? "feedback-disputed" : "feedback-uncertain"}${securityRoot(comments) ? "-security" : ""}`);
       continue;
     }
     const verdict = verdicts.get(thread);

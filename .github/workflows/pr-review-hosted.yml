@@ -221,6 +221,7 @@ jobs:
     with:
       lane: code
       publish: comments
+      lane-transcript-public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
       # Empty unless resolve-model succeeded, so a failed job's partial output
       # never reaches the review.
       model-args: ${{ needs.resolve-model.result == 'success' && needs.resolve-model.outputs.claude-args || '' }}
@@ -242,6 +243,8 @@ jobs:
       # Copies scripts/sync-shared-copies.sh generates, read at the merge base:
       # identical changes to copies of one source are read once, hooks included.
       generated-copies: scripts/shared-copies.txt
+      # Generated data files counted as read, read at the merge base.
+      generated-data: scripts/review-generated-data.txt
       # A hold adds this label and a `claude-lane-hold` marker comment; ci-status
       # fails while the label is on. The review holds only for a real-charge
       # cost or a CRITICAL security finding; hold-paths names the files the
@@ -377,6 +380,7 @@ jobs:
         .github/workflows/pr-unblock.yml
         .github/workflows/pr-verify.yml
         .github/workflows/release-publish-plugins.yml
+        .github/workflows/upstream-apply-changelog.yml
         .github/workflows/work-resolve-issue.yml
         .github/workflows/work-unblock.yml
         plugins/review/skills/security-review/**

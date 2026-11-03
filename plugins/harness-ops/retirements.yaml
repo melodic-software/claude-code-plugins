@@ -12,3 +12,23 @@ path: .claude/observability/hook-events.jsonl
 action: migrate
 successor: "the reference telemetry sink now writes under the hook log root (session_event_log_dir, default .observability/claude): an envelope carrying data.session_id goes to sessions/<session_id>.jsonl there and every other envelope to hook-events.jsonl there, and the observability skill reads both from that root. Append the old file's lines to <root>/hook-events.jsonl (the record shape is unchanged), confirm with the operator that /harness-ops:observability counts them at the new root, then clean. Rows older than the retention window may be dropped instead of carried"
 note: "hook-events.jsonl moved from .claude/observability to the hook log root; the skill-usage and OTEL stores stay where they were"
+---
+id: harness-ops-r002
+retired: 2026-11-02
+plugin_version: 7.0.0
+kind: file
+path: docs/conventions/harness-ops.yaml
+content_match: '^morning[_]brief:'
+action: migrate
+successor: "/work-items:morning-brief now reads its Cost settings from work-items.yaml in the same convention home. Move the top-level block this record's content_match finds, unchanged, to the top level of docs/conventions/work-items.yaml (create the file when it is absent; keep its other keys), confirm with the operator that the brief's settings: line names work-items.yaml, then clean"
+note: "the morning-brief Cost settings moved from harness-ops.yaml to work-items.yaml; nothing reads harness-ops.yaml"
+---
+id: harness-ops-r003
+retired: 2026-11-02
+plugin_version: 7.0.0
+kind: file
+path: docs/conventions/harness-ops.local.yaml
+content_match: '^morning[_]brief:'
+action: migrate
+successor: "/work-items:morning-brief now reads its personal Cost settings from work-items.local.yaml in the same convention home. Move the top-level block this record's content_match finds, unchanged, to the top level of docs/conventions/work-items.local.yaml (create the file when it is absent; keep its other keys), confirm with the operator that the brief's settings: line names work-items.local.yaml, then clean"
+note: "the personal morning-brief Cost settings moved from harness-ops.local.yaml to work-items.local.yaml; nothing reads harness-ops.local.yaml"

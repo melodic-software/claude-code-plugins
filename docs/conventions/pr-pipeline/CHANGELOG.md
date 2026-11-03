@@ -1,5 +1,50 @@
 # Changelog for the PR pipeline convention
 
+## [8.43.0] - 2026-11-03
+
+### Changed
+
+- A pass or pass-notes verdict now wakes pr-merge for that one pull request: `pr-verify.yml`'s new `wake-pr-merge` job, holding only `actions: write` and `pull-requests: read`, reads the pull request's author and, for a lanes App one only, dispatches a PR-scoped `pr-merge.yml` run (`-f pr=<n>`). That run reads and arms only that pull request, takes the lane's room from the last sweep's post-merge report, and skips the merge job, `post-merge-dispatch` and every other sweep job. `who.mjs` admits it as `github-actions[bot]`'s first attempt on main; no sweep reads its artifacts or counts it as a superseder. It logs one `pr-merge-wake` notice with its outcome and `api-calls` totals. pr-merge's schedule slows from every 15 minutes to every 30, as the backstop. `red-main.confirm-wait-minutes` rises from 40 to 55 to cover the slower re-run, with its cap at 60 and the report job's timeout at 75.
+
+## [8.42.0] - 2026-11-03
+
+### Added
+
+- The `upstream-apply-changelog` lane takes in one Claude Code release a run: a model job runs
+  `/harness-ops:changelog apply --ci` with the API key and a read-only token, a scan job checks
+  and credential-scans its sealed plan and branches, `push-branches` (`apply-changelog-branches`,
+  mutate-branch) recreates each branch as signed lanes App commits, and `publish`
+  (`publish-changelog-intake`, publish-artifact) opens one pull request per branch and files each
+  handoff once. The token broker mints for it keyed on a new `release` request field. It polls
+  every ten minutes, checks the ten newest unread releases, and starts at most
+  `limits.upstream-apply-changelog-per-day` (3) runs in any 24 hours.
+
+## [8.41.0] - 2026-11-03
+
+### Changed
+
+- report-outcome labels a lanes App pull request that a person merges `do-not-merge`, and the
+  `human-merge-hold` label is gone, with its ci-status step and the label readers in
+  `enable-auto-merge.mjs` and the merge queue's label steps.
+- ci-status no longer reads a lanes App pull request's body hold text; its lanes App step keeps a
+  member's veto comment, the hold paths, cost, trusted-actor list, kill switch and the merge
+  queue's pr-verify verdict read.
+- ci-status no longer fails on a `pr-unblock/*` stop status, and the merge queue's early hold check
+  no longer reads the head's statuses. `enable-auto-merge.mjs` still does not arm a stopped head.
+- The address-feedback round cap, uncertain and disputed stops put `needs-session` on the pull
+  request in place of `needs-human`; the open review thread still blocks the merge, and a session's
+  answer on the thread restarts the lane. A CRITICAL code-review finding goes to a session too.
+  When the finding is security (a CRITICAL or unrated security-review finding), the
+  new `feedback-round-cap-security`, `feedback-uncertain-security` and
+  `feedback-disputed-security` stops keep `needs-human`, as do the intent, design and security
+  question stops. The lost-runs reconciler no longer re-runs ci-status after a cleared stop.
+
+- The pr-unblock dispatcher (`pr-unblock-dispatch.yml`) lists open pull requests once a run instead of three times: resolve-conflicts, review-dependency, fix-ci and fix-docs read the same GraphQL listing page by page, each page sent once, which carries every field each of them read before. A run with 50 or fewer open pull requests makes one listing request where it made three. fix-ci and fix-docs now judge check rollups read at the start of the run, before resolve-conflicts waits on pull requests whose mergeable state is still unknown.
+
+### Fixed
+
+- `pr-run-activity-write.yml` removes the head checkout's and `.base`'s `.git` directories after a skill step, as `pr-run-activity-read.yml` does, so neither `actions/checkout` post step runs git under config the skill wrote while it holds the job's runtime token. A script activity skips the step and keeps its checkout.
+
 ## [8.40.1] - 2026-11-03
 
 ### Fixed

@@ -61,6 +61,7 @@ import {
   TRUST_REFUSALS,
   FILES_CAPPED_REASON,
   UNARMED_OUTPUT,
+  WAKE_OUTPUT,
   verifyClears,
   verifyHold,
   SKIP_STATE_PREFIX,
@@ -395,7 +396,9 @@ async function run(pulls, env = {}, options = {}, lane = ROOM) {
     // The `pr-merge/unarmed` statuses the run hands the status job.
     const line = readFileSync(output, "utf8").split("\n").find((text) => text.startsWith(`${UNARMED_OUTPUT}=`));
     const statuses = line === undefined ? [] : JSON.parse(line.slice(UNARMED_OUTPUT.length + 1));
-    return { code, writes: writes(), lines, verified, slept, calls, notes, pins, statuses, closed, asked: whole.asked };
+    // A PR-scoped run's outcome line (WAKE_OUTPUT), if any.
+    const outcome = readFileSync(output, "utf8").split("\n").find((text) => text.startsWith(`${WAKE_OUTPUT}=`))?.slice(WAKE_OUTPUT.length + 1);
+    return { code, writes: writes(), lines, verified, slept, calls, notes, pins, statuses, closed, asked: whole.asked, outcome };
   } finally {
     console.log = log;
   }
@@ -2164,12 +2167,12 @@ test("the lane's own hold line holds a lanes App body", async () => {
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_3", head: HEAD }]);
 });
 
-// report-outcome labels a held PR human-merge-hold, so a lanes App edit of
+// report-outcome labels a held PR do-not-merge, so a lanes App edit of
 // the body (the hold line deleted, or the Refs line rewritten to a closing
 // line) leaves it unarmed while the label is on.
-test("a human-merge-hold label holds a lanes App PR whose body lost its hold line or its Refs line", async () => {
+test("a do-not-merge label holds a lanes App PR whose body lost its hold line or its Refs line", async () => {
   const appOnly = { totalCount: 0, nodes: [] };
-  const held = labels("human-merge-hold");
+  const held = labels("do-not-merge");
   const { writes } = await run([
     // The hold line deleted from a Refs PR's body.
     pull(1, { body: "Refs: #5\n\n## Summary", labels: held, userContentEdits: appOnly }),
@@ -2178,8 +2181,8 @@ test("a human-merge-hold label holds a lanes App PR whose body lost its hold lin
     pull(3, { body: "Closes #5\n\n## Summary", userContentEdits: appOnly }),
   ]);
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_3", head: HEAD }]);
-  assert.equal(holdReason({ labels: held, body: "Closes #5" }, "needs-human"), "it carries human-merge-hold");
-  assert.equal(holdReason({ labels: labels("Human-Merge-Hold"), body: "Closes #5" }, "needs-human"), "it carries human-merge-hold");
+  assert.equal(holdReason({ labels: held, body: "Closes #5" }, "needs-human"), "it carries do-not-merge");
+  assert.equal(holdReason({ labels: labels("Human-Merge-Hold"), body: "Closes #5" }, "needs-human"), null);
 });
 
 // Owner decision Q-HOLDLINE: report-outcome's own hold line is a cause a
@@ -2258,6 +2261,57 @@ test("an event run handles only its own pull request", async () => {
     { mutation: "disarm", id: "PR_2" },
     { mutation: "disarm", id: "PR_3" },
   ]);
+});
+
+// pr-verify's wake (pr-merge.yml inputs.pr, EVENT_PR): a workflow_dispatch
+// that reads, and arms as the schedule would, its one pull request only.
+const WAKE = { EVENT_NAME: "workflow_dispatch", EVENT_PR: "2" };
+test("a PR-scoped dispatch reads and arms only its pull request, and hands on its outcome", async () => {
+  const { code, writes, verified, outcome, calls } = await run([pull(1), pull(2), pull(3)], WAKE);
+  assert.equal(code, 0);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_2", head: HEAD }]);
+  assert.deepEqual(verified, [2]);
+  assert.deepEqual(calls.filter(({ body }) => body?.query === DETAIL_QUERY).map(({ body }) => body.variables.number), [2]);
+  assert.equal(outcome, "armed");
+  // A hand-started sweep, with no pull request named, arms every one and hands on no outcome.
+  const sweep = await run([pull(1), pull(2)], { EVENT_NAME: "workflow_dispatch", EVENT_PR: "" });
+  assert.deepEqual(sweep.writes.map(({ id }) => id), ["PR_1", "PR_2"]);
+  assert.equal(sweep.outcome, undefined);
+});
+
+test("a PR-scoped dispatch counts every armed lanes App pull request toward merge.max-in-flight", async () => {
+  const full = { ...ROOM, cap: 1 };
+  const { writes, outcome } = await run([pull(1, { autoMergeRequest: {} }), pull(2)], WAKE, {}, full);
+  assert.deepEqual(writes, []);
+  assert.equal(outcome, "refused: merge.max-in-flight is 1 and 1 merges are in flight");
+});
+
+test("a PR-scoped dispatch names its refusal", async () => {
+  const { writes, outcome } = await run([pull(2, { verdict: MISSING })], WAKE);
+  assert.deepEqual(writes, []);
+  assert.equal(outcome, `refused: ${MISSING_REASON}`);
+});
+
+test("a PR-scoped dispatch for no lanes App pull request reads no room and arms nothing", async () => {
+  const unread = async () => assert.fail("the room is read");
+  for (const [pulls, env, expected] of [
+    [[pull(2, { author: { __typename: "User", login: "kyle-sexton" } })], WAKE, "skipped: not a lanes App pull request"],
+    [[pull(1)], WAKE, "skipped: not an open pull request into main"],
+    [[pull(2)], { ...WAKE, EVENT_PR: "2 " }, "skipped: its pr input is no pull request number"],
+  ]) {
+    const { github, writes, verify } = world(pulls);
+    const output = join(tempDir("enable-auto-merge-"), "output");
+    writeFileSync(output, "");
+    const log = console.log;
+    console.log = () => {};
+    try {
+      assert.equal(await main({ env: { ...ENV, GITHUB_OUTPUT: output, ...env }, github, verify, room: unread, now: () => Date.parse(NOW) }), 0, expected);
+    } finally {
+      console.log = log;
+    }
+    assert.deepEqual(writes(), [], expected);
+    assert.equal(readFileSync(output, "utf8"), `${WAKE_OUTPUT}=${expected}\n`);
+  }
 });
 
 // The start moves with the run number, so the pull requests past the
@@ -3537,9 +3591,8 @@ test("serve asks for a kept answer only for an unarmed pull request, and never o
   assert.deepEqual(spawned[0].slice(spawned[0].indexOf("--answers-out"), spawned[0].indexOf("--answers-out") + 6), ["--answers-out", "/tmp/out.json", "--answers-mode", "serve", "--answers-in", "/tmp/in.json"]);
 });
 
-// ci-status's merge-queue run fails a head whose newest pr-unblock/* status by
-// github-actions[bot] is failure or error (pr-require-checks.yml "Fail a head a
-// pr-unblock lane stopped"), so enable-auto-merge never queues one.
+// enable-auto-merge never queues a head whose newest pr-unblock/* status by
+// github-actions[bot] is failure or error; ci-status does not read the stop.
 const BOT = { login: "github-actions[bot]" };
 const unblock = (context, state, creator = BOT, description = "stopped") => ({ context, state, creator, description });
 
@@ -3568,7 +3621,7 @@ test("a head a pr-unblock lane stopped is not queued and is named in the summary
   const stopped = pull(1, { verdict: PASSED, statuses: [unblock("pr-unblock/fix-ci", "failure")] });
   const { writes, lines } = await run([stopped], { GITHUB_STEP_SUMMARY: summary });
   assert.deepEqual(writes, []);
-  const reason = "a pr-unblock lane stopped its head (pr-unblock/fix-ci is failure), which ci-status fails in the merge queue";
+  const reason = "a pr-unblock lane stopped its head (pr-unblock/fix-ci is failure), which clears when the lane runs again";
   assert.ok(lines.some((line) => String(line).includes(reason)), lines.join("\n"));
   assert.equal(readFileSync(summary, "utf8"), `enable-auto-merge: #1 not queued: ${reason}\n`);
 
@@ -3795,7 +3848,7 @@ test("with path holds off, a standing hold-path refusal comes off with no approv
 });
 
 // ci-status passes the base's merge.diff-check.path-holds as PATH_HOLDS.
-test("merge-holds.mjs holds no hold path from the command line with PATH_HOLDS false, and still holds a cost path or a body hold", () => {
+test("merge-holds.mjs holds no hold path from the command line with PATH_HOLDS false, and still holds a cost path but no body hold", () => {
   const dir = tempDir("merge-holds-");
   const head = "0123456789abcdef0123456789abcdef01234567";
   const cli = (files, pathHolds, body = "Closes #1") => {
@@ -3820,7 +3873,8 @@ test("merge-holds.mjs holds no hold path from the command line with PATH_HOLDS f
     assert.match(held.stdout, /it changes \.github\/scripts\/pr-merge\/clear-escalations\.mjs, a hold path/);
   }
   assert.equal(cli([["infra/main.tf"]], "false").status, 1);
-  assert.equal(cli([gate], "false", "Closes #1\n\nHold: wait for the owner").status, 1);
+  // The do-not-merge label is the veto; ci-status reads no body hold text.
+  assert.equal(cli([gate], "false", "Closes #1\n\nHold: wait for the owner").status, 0);
 });
 
 // The babysit gate's own path holds, recorded in a risk refusal before the

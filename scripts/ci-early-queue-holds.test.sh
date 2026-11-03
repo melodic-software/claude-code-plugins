@@ -114,15 +114,14 @@ expect() {
 }
 
 expect "an unheld pull request passes" 0 "$(pull)" "[$(status pr-unblock/fix-ci success)]" \
-  "#7: no hold label, pr-unblock stop or kill switch holds it before the lanes." "::error::"
-if grep -q "^api -i repos/o/r/pulls/7$" "$TMP_ROOT/log" && grep -q "^api repos/o/r/commits/$HEAD/statuses?per_page=100 --paginate --jq " "$TMP_ROOT/log" &&
-  ! grep -q "$GROUP_BASE/statuses" "$TMP_ROOT/log"; then
-  ok "it reads #7 and its head's statuses, every page, not the group's base"
+  "#7: no hold label or kill switch holds it before the lanes." "::error::"
+if grep -q "^api -i repos/o/r/pulls/7$" "$TMP_ROOT/log" && ! grep -q "/statuses" "$TMP_ROOT/log"; then
+  ok "it reads #7 and no statuses"
 else
   fail "unexpected reads: '$(cat "$TMP_ROOT/log")'"
 fi
-expect "the step ends with its api-calls notice: the pull and one statuses page" 0 "$(pull)" "[]" \
-  "::notice title=api-calls::github-token=2 not-modified=0"
+expect "the step ends with its api-calls notice: the pull" 0 "$(pull)" "[]" \
+  "::notice title=api-calls::github-token=1 not-modified=0"
 expect "do-not-merge fails before the lanes" 1 "$(pull '[{"name":"do-not-merge"}]')" "[]" \
   "::error::#7 carries the 'do-not-merge' label; the merge queue removes it. Remove the label and re-queue to merge. The lanes do not run"
 expect "needs-human fails before the lanes" 1 "$(pull '[{"name":"needs-human"}]')" "[]" "::error::#7 carries 'needs-human'"
@@ -132,27 +131,23 @@ echo '{"config":{"role_labels":{"human-gated":"hitl"}}}' >"$RULES/tracker.json"
 expect "the base tracker's human-gated label holds" 1 "$(pull '[{"name":"hitl"}]')" "[]" "::error::#7 carries 'hitl'"
 expect "with the tracker's own label, needs-human is not a hold" 0 "$(pull '[{"name":"needs-human"}]')" "[]"
 rm "$RULES/tracker.json"
-expect "a pr-unblock stop on the head fails before the lanes" 1 "$(pull)" "[$(status pr-unblock/fix-ci failure)]" \
-  "::error::'pr-unblock/fix-ci' is failure on $HEAD: The lane stopped."
-expect "a stop a newer success supersedes passes" 0 "$(pull)" "[$(status pr-unblock/fix-ci success),$(status pr-unblock/fix-ci failure)]"
-expect "another account's failure does not hold" 0 "$(pull)" "$(jq -c '.[0].creator = {login: "someone"}' <<<"[$(status pr-unblock/fix-ci failure)]")"
+expect "a pr-unblock stop on the head does not hold" 0 "$(pull)" "[$(status pr-unblock/fix-ci failure)]"
 DISABLED=true expect "the lanes App's pull request fails while the kill switch is on" 1 "$(pull '[]' '{"id":99,"type":"Bot"}')" "[]" \
   "::error::#7: the lanes kill switch is on"
 DISABLED=true expect "a person's pull request is not held by the kill switch" 0 "$(pull)" "[]"
 DISABLED=false expect "the lanes App's pull request passes with the switch off" 0 "$(pull '[]' '{"id":99,"type":"Bot"}')" "[]"
 DISABLED=true
-expect "every hold is named" 1 "$(pull '[{"name":"do-not-merge"}]' '{"id":99,"type":"Bot"}')" "[$(status pr-unblock/conflict error)]" \
-  "'pr-unblock/conflict' is error"
+expect "every hold is named, and a pr-unblock stop is none" 1 "$(pull '[{"name":"do-not-merge"}]' '{"id":99,"type":"Bot"}')" "[$(status pr-unblock/conflict error)]" \
+  "the lanes kill switch is on" "'pr-unblock/conflict' is error"
 n=$(grep -c "^::error::" <<<"$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_PULL="$(pull '[{"name":"do-not-merge"}]' '{"id":99,"type":"Bot"}')" \
 STUB_STATUSES="[$(status pr-unblock/conflict error)]" GITHUB_REPOSITORY=o/r GITHUB_REF="$REF" RULES="$RULES" RUNNER_TEMP="$TMP_ROOT" \
 LANES_APP_SENDER_ID=99 LANES_DISABLED=true LANES_REPO_DISABLED=false bash -e "$TMP_ROOT/body.sh" 2>&1)")
-if [[ "$n" -eq 3 ]]; then ok "three holds give three errors"; else fail "three holds gave $n errors"; fi
+if [[ "$n" -eq 2 ]]; then ok "two holds give two errors"; else fail "two holds gave $n errors"; fi
 unset DISABLED
 
 # What it cannot read it leaves to ci-status, and passes.
 STUB_FAIL=pulls expect "an unreadable pull request passes to ci-status" 0 "$(pull '[{"name":"do-not-merge"}]')" "[]" \
   "::warning::could not read #7; ci-status judges the holds."
-STUB_FAIL=statuses expect "an unreadable status list passes to ci-status" 0 "$(pull)" "[]" "::warning::could not read the statuses of $HEAD"
 expect "a pull request with no head passes to ci-status" 0 '{"number":7,"head":{},"labels":[{"name":"do-not-merge"}]}' "[]" \
   "::warning::the head of #7 is not a commit SHA"
 GROUP_REF=refs/heads/gh-readonly-queue/main/pr-7-abc expect "an unparsable ref passes to ci-status" 0 "$(pull)" "[]" \

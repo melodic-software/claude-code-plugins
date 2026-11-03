@@ -15,8 +15,7 @@
       "degrade": "Without node, the harness-ops hooks cannot launch, so they do nothing.",
       "install": {
         "docs": "https://nodejs.org/en/download"
-      },
-      "check": "/harness-ops:check"
+      }
     },
     {
       "id": "jq",
@@ -37,8 +36,7 @@
       "degrade": "Without jq, the harness-ops hooks skip their work.",
       "install": {
         "docs": "https://jqlang.org/download/"
-      },
-      "check": "/harness-ops:check"
+      }
     },
     {
       "id": "curl",

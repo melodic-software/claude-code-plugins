@@ -232,6 +232,30 @@ lib/context-zone.fixtures.mjs -> plugins/*/scripts/context-zone.fixtures.mjs
 # that adds a mod, or into the other copies to fix a drift failure.
 tsconfig.json
 
+# No dedicated check: accepted. The ck-notice-runs-bundled-checker eval case
+# gives context-guard, multi-agent and review the same two graders, so each
+# commits the same sample tool calls; this script's own --check is the gate.
+# Canonical copy: the file under plugins/multi-agent/evals/; copy it into the
+# other plugins to fix a drift failure, or remove the line when one plugin's
+# grader legitimately diverges.
+evals/ck-notice-runs-bundled-checker/samples/no-install.json
+
+# No dedicated check: accepted, for the reason on the entry above.
+# Canonical copy: the file under plugins/multi-agent/evals/.
+evals/ck-notice-runs-bundled-checker/samples/ran-checker.json
+
+# No dedicated check: accepted, for the reason on the entries above.
+# Canonical copy: the file under plugins/autonomy/evals/.
+evals/ck-notice-runs-bundled-checker/samples/no-edit.json
+
+# No dedicated check: accepted, for the reason on the entries above.
+# Canonical copy: the file under plugins/autonomy/evals/.
+evals/ck-notice-runs-bundled-checker/samples/no-write.json
+
+# No dedicated check: accepted, for the reason on the entries above.
+# Canonical copy: the file under plugins/discovery/evals/.
+evals/ck-notice-alone-installs-nothing/samples/ran-checker.json
+
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/html-escape.mjs. The review and education plugins carry the adopting
 # copies, generated with a header that names the canonical, so copies stay
