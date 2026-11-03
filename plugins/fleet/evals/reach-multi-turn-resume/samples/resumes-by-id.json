@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "claude -p --resume <id> \"follow up\"",
+      "why": "names it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "claude -p \"follow up\"",
+      "why": "missing"
+    }
+  ]
+}

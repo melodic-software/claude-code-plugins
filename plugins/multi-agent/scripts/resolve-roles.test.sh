@@ -43,7 +43,7 @@ assert_eq() {
 
 # A fixture: <case>/repo is a git repository, <case>/home an empty home beside it.
 fixture() {
-  mkdir -p "$T/$1/repo/.claude" "$T/$1/home/.claude"
+  mkdir -p "$T/$1/repo/.claude" "$T/$1/repo/docs/conventions" "$T/$1/home/.claude"
   git -C "$T/$1/repo" init -q
 }
 run() { # run <case> <args...>
@@ -79,15 +79,13 @@ out="$(run plain worker --session-model opus --workload code)"
 assert_contains "code workload: worker keeps inherit" "$out" '"single":{"model":"inherit","omit_model":true,"effort":"medium"'
 
 fixture mechoptout
-mkdir -p "$T/mechoptout/repo/docs/conventions"
-printf '```yaml config\nschema: 1\nroles:\n  worker:\n    workloads:\n      mechanical:\n        model: inherit\n```\n' >"$T/mechoptout/repo/docs/conventions/multi-agent.md"
+printf 'schema: 1\nroles:\n  worker:\n    workloads:\n      mechanical:\n        model: inherit\n' >"$T/mechoptout/repo/docs/conventions/multi-agent.yaml"
 out="$(run mechoptout worker --session-model opus --workload mechanical)"
-assert_contains "team block restores inherit for mechanical work" "$out" '"single":{"model":"inherit","omit_model":true,"effort":"medium","guarded":false},"fanout":{"model":"inherit","omit_model":true'
+assert_contains "team layer restores inherit for mechanical work" "$out" '"single":{"model":"inherit","omit_model":true,"effort":"medium","guarded":false},"fanout":{"model":"inherit","omit_model":true'
 
 # A consumer layer declares its own workload and sets per-role values for it.
 fixture declared
-mkdir -p "$T/declared/repo/docs/conventions"
-printf '```yaml config\nschema: 1\nworkloads:\n  deep: true\nroles:\n  worker:\n    workloads:\n      deep:\n        model: opus\n        effort: high\n```\n' >"$T/declared/repo/docs/conventions/multi-agent.md"
+printf 'schema: 1\nworkloads:\n  deep: true\nroles:\n  worker:\n    workloads:\n      deep:\n        model: opus\n        effort: high\n' >"$T/declared/repo/docs/conventions/multi-agent.yaml"
 out="$(run declared worker --session-model sonnet --workload deep)"
 assert_eq "declared workload resolves" 0 "$?"
 assert_contains "declared workload: worker takes its model and effort" "$out" '"single":{"model":"opus","omit_model":false,"effort":"high","guarded":false}'
@@ -96,32 +94,24 @@ assert_contains "declared workload named in the output" "$out" '"workload":"deep
 out="$(run declared worker --session-model opus --workload mechanical)"
 assert_contains "declaring a workload keeps the bundled ones" "$out" '"single":{"model":"sonnet"'
 
-# The team layer is docs/conventions/multi-agent.yaml; the old locations are
-# read only while it is absent.
+# The team layer is docs/conventions/multi-agent.yaml.
 fixture concern
-mkdir -p "$T/concern/repo/docs/conventions"
 printf 'schema: 1\nroles:\n  worker:\n    effort: high\n' >"$T/concern/repo/docs/conventions/multi-agent.yaml"
 out="$(run concern worker --session-model opus)"
 assert_contains "concern YAML: its value resolves from the team layer" "$out" '"single":{"model":"inherit","omit_model":true,"effort":"high","guarded":false}'
 assert_contains "concern YAML: the layer names the source of each value" "$out" '"source":{"model":"bundled","effort":"team"}'
 assert_contains "concern YAML: the team row names the YAML path" "$out" '"layer":"team","path":"'"$T/concern/repo/docs/conventions/multi-agent.yaml"'","state":"read"'
 
-# The YAML wins when the legacy block and the .claude file both exist.
-printf '```yaml config\nschema: 1\nroles:\n  worker:\n    effort: low\n```\n' >"$T/concern/repo/docs/conventions/multi-agent.md"
+# The retired team file .claude/multi-agent.yaml is not read, with the YAML or
+# without it.
 printf 'schema: 1\nroles:\n  worker:\n    effort: max\n' >"$T/concern/repo/.claude/multi-agent.yaml"
 out="$(run concern worker --session-model opus)"
-assert_contains "both exist: the YAML value wins" "$out" '"effort":"high","guarded":false}'
-assert_contains "both exist: the block is named as ignored" "$out" 'both exist; using the YAML file, ignoring the block'
-assert_contains "both exist: the .claude file is named as ignored" "$out" 'both exist; using the YAML file, ignoring the .claude file'
-
-# With the YAML absent the old locations are read, the docs block first.
+assert_contains "retired file beside the YAML: the YAML value wins" "$out" '"effort":"high","guarded":false}'
 rm "$T/concern/repo/docs/conventions/multi-agent.yaml"
 out="$(run concern worker --session-model opus)"
-assert_contains "YAML absent: the docs block is read" "$out" '"source":{"model":"bundled","effort":"team"}'
-assert_contains "YAML absent: the block's value resolves" "$out" '"effort":"low","guarded":false}'
-rm "$T/concern/repo/docs/conventions/multi-agent.md"
-out="$(run concern worker --session-model opus)"
-assert_contains "YAML and block absent: the .claude file is read" "$out" '"effort":"max","guarded":false}'
+assert_contains "YAML absent: the bundled value resolves" "$out" '"source":{"model":"bundled","effort":"bundled"}'
+assert_contains "YAML absent: the team row names the YAML as absent" "$out" '"layer":"team","path":"'"$T/concern/repo/docs/conventions/multi-agent.yaml"'","state":"absent"'
+assert_lacks "YAML absent: the retired file is not read" "$out" '"state":"read"'
 
 # A bound convention home moves the team YAML with it.
 fixture bound
@@ -141,7 +131,7 @@ assert_lacks "declared across layers: no undeclared note" "$out" 'undeclared'
 
 # An undeclared workload is reported and ignored, and cannot be resolved.
 fixture undeclared
-printf 'schema: 1\nroles:\n  worker:\n    workloads:\n      deep:\n        model: opus\n' >"$T/undeclared/repo/.claude/multi-agent.yaml"
+printf 'schema: 1\nroles:\n  worker:\n    workloads:\n      deep:\n        model: opus\n' >"$T/undeclared/repo/docs/conventions/multi-agent.yaml"
 out="$(run undeclared worker --session-model opus)"
 assert_contains "undeclared workload key reported" "$out" "team: roles.worker.workloads.deep.model ignored: undeclared workload 'deep'"
 run undeclared worker --session-model opus --workload deep >/dev/null
@@ -150,7 +140,7 @@ assert_contains "undeclared workload error lists the declared ones" "$(cat "$T/u
 
 # A declaration takes true or false; false withdraws one, a bundled one included.
 fixture badecl
-printf 'schema: 1\nworkloads:\n  deep: yes\n  mechanical: false\n' >"$T/badecl/repo/.claude/multi-agent.yaml"
+printf 'schema: 1\nworkloads:\n  deep: yes\n  mechanical: false\n' >"$T/badecl/repo/docs/conventions/multi-agent.yaml"
 out="$(run badecl worker --session-model opus)"
 assert_contains "declaration value outside true/false rejected" "$out" "workloads.deep rejected: 'yes'"
 assert_contains "withdrawn bundled workload: its bundled key is ignored" "$out" "bundled: roles.worker.workloads.mechanical.model ignored: undeclared workload 'mechanical'"
@@ -159,7 +149,7 @@ assert_eq "withdrawn workload exits 2" 2 "$?"
 
 # A declared name holds only letters, digits, `_` and `-`.
 fixture badname
-printf 'schema: 1\nworkloads:\n  "a b": true\n' >"$T/badname/repo/.claude/multi-agent.yaml"
+printf 'schema: 1\nworkloads:\n  "a b": true\n' >"$T/badname/repo/docs/conventions/multi-agent.yaml"
 out="$(run badname worker --session-model opus)"
 assert_eq "bad workload name still exits 0" 0 "$?"
 assert_contains "bad workload name rejected" "$out" "workloads.a b ignored: a workload name holds only letters, digits, _ and -, and does not start with -"
@@ -170,16 +160,16 @@ assert_contains "route.sh passes a declared workload" "$out" '"workload":"deep"'
 
 # Names that differ only in `-` against `_H_` stay distinct workloads.
 fixture collide
-printf 'schema: 1\nworkloads:\n  a-b: true\n  a_H_b: false\nroles:\n  worker:\n    workloads:\n      a-b:\n        model: opus\n' >"$T/collide/repo/.claude/multi-agent.yaml"
+printf 'schema: 1\nworkloads:\n  a-b: true\n  a_H_b: false\nroles:\n  worker:\n    workloads:\n      a-b:\n        model: opus\n' >"$T/collide/repo/docs/conventions/multi-agent.yaml"
 out="$(run collide worker --session-model sonnet --workload a-b)"
 assert_eq "a-b stays declared beside a withdrawn a_H_b" 0 "$?"
-printf 'schema: 1\nworkloads:\n  a-b: true\n  a_H_b: true\nroles:\n  worker:\n    workloads:\n      a-b:\n        model: opus\n      a_H_b:\n        model: sonnet\n' >"$T/collide/repo/.claude/multi-agent.yaml"
+printf 'schema: 1\nworkloads:\n  a-b: true\n  a_H_b: true\nroles:\n  worker:\n    workloads:\n      a-b:\n        model: opus\n      a_H_b:\n        model: sonnet\n' >"$T/collide/repo/docs/conventions/multi-agent.yaml"
 out="$(run collide worker --session-model opus --workload a-b)"
 assert_contains "a-b keeps its own model beside a_H_b" "$out" '"single":{"model":"opus"'
 
 # A name starting with `-` would parse as an option in route.sh, so it is refused.
 fixture dashname
-printf 'schema: 1\nworkloads:\n  "-deep": true\n' >"$T/dashname/repo/.claude/multi-agent.yaml"
+printf 'schema: 1\nworkloads:\n  "-deep": true\n' >"$T/dashname/repo/docs/conventions/multi-agent.yaml"
 out="$(run dashname worker --session-model opus)"
 assert_contains "leading-hyphen workload name rejected" "$out" "workloads.-deep ignored: a workload name holds only letters, digits, _ and -, and does not start with -"
 
@@ -194,7 +184,7 @@ run plain all --session-model best >/dev/null
 assert_eq "best is not a session model: exits 2" 2 "$?"
 
 fixture bestrole
-printf 'schema: 1\nroles:\n  worker:\n    model: best\n' >"$T/bestrole/repo/.claude/multi-agent.yaml"
+printf 'schema: 1\nroles:\n  worker:\n    model: best\n' >"$T/bestrole/repo/docs/conventions/multi-agent.yaml"
 out="$(run bestrole worker --session-model opus)"
 assert_lacks "best is not a role model: the layer's value is dropped" "$out" '"model":"best"'
 assert_contains "best is not a role model: the rejection is named" "$out" 'best'
@@ -207,47 +197,22 @@ out="$(run layered worker --session-model opus)"
 assert_contains "user-global effort and overlay model merge per key" "$out" '"single":{"model":"sonnet","omit_model":false,"effort":"high"'
 assert_contains "source names the layer per value" "$out" '"source":{"model":"overlay","effort":"user-global"}'
 
-# The docs convention block is the team layer and wins over .claude/multi-agent.yaml.
-fixture docs
-mkdir -p "$T/docs/repo/docs/conventions"
-printf '# multi-agent\n\n```yaml config\nschema: 1\nroles:\n  verifier:\n    effort: xhigh\n```\n' >"$T/docs/repo/docs/conventions/multi-agent.md"
-printf 'schema: 1\nroles:\n  verifier:\n    effort: low\n' >"$T/docs/repo/.claude/multi-agent.yaml"
-out="$(run docs verifier --session-model opus)"
-assert_contains "docs block supplies the team layer" "$out" '"effort":"xhigh"'
-assert_contains "both team files named in a note" "$out" "both exist; using the docs block"
-
-# Two config blocks in one docs file make an invalid team layer.
-fixture twoblocks
-mkdir -p "$T/twoblocks/repo/docs/conventions"
-printf '```yaml config\nschema: 1\n```\n\n```yaml config\nschema: 1\n```\n' >"$T/twoblocks/repo/docs/conventions/multi-agent.md"
-out="$(run twoblocks worker --session-model opus)"
-assert_contains "two blocks: team layer skipped with the line" "$out" 'multi-agent.md:5: a second ```yaml config block'
-
-# An example of the block inside a longer outer fence is not a block.
-fixture example
-mkdir -p "$T/example/repo/docs/conventions"
-printf '# x\n\n````markdown\n```yaml config\nschema: 1\nroles:\n  worker:\n    effort: max\n```\n````\n' >"$T/example/repo/docs/conventions/multi-agent.md"
-printf 'schema: 1\nroles:\n  worker:\n    effort: high\n' >"$T/example/repo/.claude/multi-agent.yaml"
-out="$(run example worker --session-model opus)"
-assert_contains "fenced example ignored: .claude file is the team layer" "$out" '"effort":"high"'
-assert_lacks "fenced example ignored: no both-exist note" "$out" "both exist"
-
 # Turning the guard off is the explicit opt-in to frontier fan-outs.
 fixture optout
-printf 'schema: 1\nfanout:\n  frontier_guard: false\n' >"$T/optout/repo/.claude/multi-agent.yaml"
+printf 'schema: 1\nfanout:\n  frontier_guard: false\n' >"$T/optout/repo/docs/conventions/multi-agent.yaml"
 out="$(run optout worker --session-model fable)"
 assert_contains "guard off: frontier fan-out inherits" "$out" '"fanout":{"model":"inherit","omit_model":true'
 
 # An explicit frontier alias is guarded too.
 fixture explicit
-printf 'schema: 1\nroles:\n  worker:\n    model: fable\n' >"$T/explicit/repo/.claude/multi-agent.yaml"
+printf 'schema: 1\nroles:\n  worker:\n    model: fable\n' >"$T/explicit/repo/docs/conventions/multi-agent.yaml"
 out="$(run explicit worker --session-model opus)"
 assert_contains "explicit fable worker: single keeps fable" "$out" '"single":{"model":"fable"'
 assert_contains "explicit fable worker: fan-out names opus" "$out" '"fanout":{"model":"opus","omit_model":false,"effort":"medium","guarded":true}'
 
 # A malformed layer is skipped and named; the others still apply.
 fixture malformed
-printf 'schema: 1\nroles:\n\tworker:\n' >"$T/malformed/repo/.claude/multi-agent.yaml"
+printf 'schema: 1\nroles:\n\tworker:\n' >"$T/malformed/repo/docs/conventions/multi-agent.yaml"
 printf 'schema: 1\nroles:\n  worker:\n    effort: low\n' >"$T/malformed/repo/.claude/multi-agent.local.yaml"
 out="$(run malformed worker --session-model opus)"
 assert_eq "malformed layer still exits 0" 0 "$?"
@@ -257,20 +222,20 @@ assert_contains "the overlay still applies" "$out" '"effort":"low"'
 
 # Wrong schema skips the layer.
 fixture schema
-printf 'schema: 2\nroles:\n  worker:\n    effort: low\n' >"$T/schema/repo/.claude/multi-agent.yaml"
+printf 'schema: 2\nroles:\n  worker:\n    effort: low\n' >"$T/schema/repo/docs/conventions/multi-agent.yaml"
 out="$(run schema worker --session-model opus)"
 assert_contains "schema 2 layer skipped" "$out" 'does not declare schema: 1'
 assert_contains "bundled effort kept" "$out" '"effort":"medium"'
 
 # Non-alias model ids and unknown values are rejected per key.
 fixture reject
-printf 'schema: 1\nroles:\n  worker:\n    model: claude-opus-5-5\n    effort: turbo\n  judge:\n    model: opus\n' >"$T/reject/repo/.claude/multi-agent.yaml"
+printf 'schema: 1\nroles:\n  worker:\n    model: claude-opus-5-5\n    effort: turbo\n  judge:\n    model: opus\n' >"$T/reject/repo/docs/conventions/multi-agent.yaml"
 out="$(run reject all --session-model opus)"
 assert_contains "full model id rejected" "$out" "roles.worker.model rejected: 'claude-opus-5-5'"
 assert_contains "unknown effort rejected" "$out" "roles.worker.effort rejected: 'turbo'"
 assert_contains "unknown role in a layer ignored" "$out" "unknown role 'judge'"
 fixture ctrl
-printf 'schema: 1\nroles:\n  worker:\n    effort: \033[31mred\n' >"$T/ctrl/repo/.claude/multi-agent.yaml"
+printf 'schema: 1\nroles:\n  worker:\n    effort: \033[31mred\n' >"$T/ctrl/repo/docs/conventions/multi-agent.yaml"
 out="$(run ctrl all --session-model opus)"
 assert_contains "control characters in a rejected value are replaced" "$out" "effort rejected: '?[31mred'"
 if ! command -v node >/dev/null 2>&1; then
@@ -284,7 +249,7 @@ assert_contains "rejected keys fall back to the layer below" "$out" '"worker":{"
 
 # The frontier list takes what the schema's pattern takes: no empty alias.
 fixture frontiercomma
-printf 'schema: 1\nfrontier: opus,\n' >"$T/frontiercomma/repo/.claude/multi-agent.yaml"
+printf 'schema: 1\nfrontier: opus,\n' >"$T/frontiercomma/repo/docs/conventions/multi-agent.yaml"
 out="$(run frontiercomma worker --session-model opus)"
 assert_contains "trailing comma in frontier rejected" "$out" "frontier rejected: 'opus,'"
 assert_contains "rejected frontier keeps the bundled list" "$out" '"session_frontier":false'
@@ -359,7 +324,7 @@ assert_contains "worker basis: judgment model, upstream effort" "$out" '"worker"
 out="$(run plain worker --session-model fable)"
 assert_contains "guarded fan-out: the guard's model is not labeled with the role's basis" "$out" '"basis":{"model":"judgment","fanout_model":"unrecorded","effort":"upstream"}'
 fixture guardconfig
-printf 'schema: 1\nroles:\n  worker:\n    model: fable\n' >"$T/guardconfig/repo/.claude/multi-agent.yaml"
+printf 'schema: 1\nroles:\n  worker:\n    model: fable\n' >"$T/guardconfig/repo/docs/conventions/multi-agent.yaml"
 out="$(run guardconfig worker --session-model opus)"
 assert_contains "guarded consumer model: single config, fan-out the bundled guard" "$out" '"basis":{"model":"config","fanout_model":"unrecorded","effort":"upstream"}'
 
@@ -370,7 +335,7 @@ assert_contains "pointers lists the workload value's basis" "$pointers" $'worker
 
 # A consumer value has basis config; a consumer layer cannot set a basis.
 fixture basisconfig
-printf 'schema: 1\nroles:\n  worker:\n    effort: high\n    basis_effort: upstream\n    basis_model: upstream\n' >"$T/basisconfig/repo/.claude/multi-agent.yaml"
+printf 'schema: 1\nroles:\n  worker:\n    effort: high\n    basis_effort: upstream\n    basis_model: upstream\n' >"$T/basisconfig/repo/docs/conventions/multi-agent.yaml"
 out="$(run basisconfig worker --session-model opus)"
 assert_contains "consumer effort: basis config" "$out" '"source":{"model":"bundled","effort":"team"},"basis":{"model":"judgment","fanout_model":"judgment","effort":"config"}'
 assert_contains "consumer basis key ignored" "$out" 'roles.worker.basis_model ignored: provenance keys are read from the bundled layer only'

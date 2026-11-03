@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'claude -p \"Report the free space on the D drive (/mnt/d) in GB, reply with just that number, then stop.\" < /dev/null'",
+      "why": "WSL hop with a one-shot turn"
+    },
+    {
+      "answer": "ssh.exe -n desk-wsl 'hostname && claude -p \"Report the free space on D and stop.\"'",
+      "why": "ssh -n and a hostname check before the turn"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-win '(Get-PSDrive D).Free / 1GB'",
+      "why": "port 22 script, no turn on the desktop's Claude"
+    },
+    {
+      "answer": "/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'df -h /mnt/d'",
+      "why": "WSL hop script, no turn"
+    },
+    {
+      "answer": "/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-win 'claude -p \"Report the free space on D\"'",
+      "why": "turn over the port 22 alias, which is not an agent lane"
+    },
+    {
+      "answer": "ssh -p 2222 evaluser@desk-01 'claude -p \"Report the free space on D\" < /dev/null'",
+      "why": "distro ssh with a guessed user and host"
+    }
+  ]
+}
