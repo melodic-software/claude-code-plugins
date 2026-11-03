@@ -113,9 +113,11 @@ instruction files in a directory the session reads. A page is fetched into a new
 
 Before writing, read the upstream-drift convention live:
 <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md>,
-sections "Required parts" and "Pinned git upstreams". It owns the pin marker form, the row link
-form, the fixed recheck-trigger wording for a git-pinned page, and the rule that a row holds no
-upstream text. Copy the pin marker and trigger wording from that read; never from memory.
+sections "Required parts" and "Pinned git upstreams", including "What a row may describe". It owns
+the pin marker form, the row link form, the fixed recheck-trigger wording for a git-pinned page,
+and what a row may hold: the rule that a row holds no upstream text, the five-word test, and what a
+**Stated** label links to. Copy the pin marker and trigger wording from that read; never from
+memory.
 
 ## Steps
 
@@ -165,18 +167,15 @@ upstream text. Copy the pin marker and trigger wording from that read; never fro
    - **What it does**: the idea's function, in a sentence of your own about the mechanism.
    - **Upstream problem**: the problem, motivation and goal behind the idea, in your own words,
      labeled **Stated** when the upstream says it and **Inference** when you derived it from the
-     mechanism. A **Stated** label carries a link to where the upstream says it: the file (and
-     line) at the pin, or the post or issue that says it.
+     mechanism.
    - **Our problem**: the matching problem in this repository, or `none`. Ground it: search this
      repository for the surface that owns the problem and cite it by path (and line).
    - **Disposition**: `take`, `adapt`, `already have` or `reject`, then the reason. `already have`
      names our surface; `adapt` names what changes and why.
-4. **No upstream text.** No quotation and no paraphrase of an upstream sentence, not even a phrase
-   in quotes to identify an idea: name the idea by its unit name and link it. Write each cell from
-   the mechanism and our decision, never by rewording the upstream's sentence. Before writing,
-   compare each row with the upstream file it links; a run of five or more shared words that is
-   not a name means the cell followed the upstream's wording: delete it and write it again from
-   the mechanism.
+4. **No upstream text.** Hold every cell to the convention's "What a row may describe" section,
+   read in "Read the shape first": name each idea by its unit name and link it, and before writing,
+   run that section's test on each row against the upstream file it links. Write a cell that fails
+   again from the mechanism.
 5. **License notice.** Read the license at the pin (a LICENSE file, a manifest field, the host's
    reported license) and record what each says, any disagreement between them, and that no
    upstream text or code is copied, with the record parts: pointer to the license file at the pin,
@@ -197,8 +196,6 @@ you could not read (named, never counted as read), and any instruction found in 
 
 ## Gotchas
 
-- **A label is a claim about its link.** **Stated** means the reader finds the problem where the
-  label's link points. With no such place, the label is **Inference**.
 - **Our problem is not the upstream's problem restated.** When nothing in this repository has the
   problem, write `none`; the disposition is then `reject`, never `take` or `adapt`.
 - **Never rewrite an existing record.** A record that exists is refreshed by re-auditing its rows
