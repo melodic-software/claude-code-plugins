@@ -127,13 +127,9 @@ audit ai-slop,attribution,harness-config,harness-memory,codebase-health,context-
 # of those failures is silent in Claude Code, so the gate is the only thing
 # that surfaces them, and the verb's contract fits exactly: no judgment layer,
 # no mutation, the exit code is the product. A topic qualifier would repeat the
-# namespace, which already supplies the object. biome-format, go-format and
-# markdown-format join on their own grounds: each reports whether the one
-# binary its format hook needs resolves on PATH, read-only, never installing,
-# and the answer is pass or fail. actionlint joins on the same grounds: it
-# reports whether the actionlint binary its hook needs resolves. The namespace
-# already names the tool, so a qualifier such as `check-binary` would add
-# nothing the reader lacks. context7 joins on the same grounds: it reports
+# namespace, which already supplies the object. The namespace already names
+# the tool, so a qualifier such as `check-binary` would add nothing the reader
+# lacks. context7 joins on its own grounds: it reports
 # whether the ctx7 CLI, its API-key auth
 # and the Context7 MCP server resolve, read-only, never installing. It is its
 # own skill because `setup` is manual-only and the check must be model-invocable.
@@ -146,7 +142,7 @@ audit ai-slop,attribution,harness-config,harness-memory,codebase-health,context-
 # ManimCE packages its hook installs, ffmpeg and ffprobe resolve, read-only.
 # knowledge joins on the same grounds: it reports whether the tools its digest
 # skills declare resolve, read-only.
-check actionlint,bash-format,biome-format,context7,disk-hygiene,explainer-video,go-format,instruction-placement,knowledge,markdown-format,playwright,powershell-format,ruff-format,skill-quality,speech,toolchain,typos-format
+check context7,disk-hygiene,explainer-video,instruction-placement,knowledge,playwright,skill-quality,speech,toolchain
 
 # The prerequisites check, for a plugin whose `check` already means something
 # else (docs/contracts/prerequisites/). instruction-placement gates rule

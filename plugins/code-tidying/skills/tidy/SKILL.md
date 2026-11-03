@@ -108,7 +108,7 @@ Run in order. Each phase has one job, and every phase runs whatever the tidying'
 1. Resolve the lane from `$ARGUMENTS` per the Action Router.
 2. Load the lane per **Lane resolution** and read the full file(s), merging both layers when the project lane declares `## Merge semantics`. The resolved lane owns scope globs, watch-for list, lane-specific exclusions, verification commands, Conventional Commits type, and preferred research sources.
 3. Resolve the HARD-path override channels per `reference/exclusions.md` section 4 (the `override` argument, `.claude/code-tidying/exclusion-overrides.md`, then `hard_exclusions`) and write down the lifted set with the channel that lifted each entry. Empty is the normal answer.
-4. Backlog throttle (skipped under `in-place`): if ≥3 open PRs match `chore/tidy-*` (pre-computed context above), STOP, surface a one-line note, and exit cleanly. It is a stop signal, not a warning: reviews are backed up, so do not queue one more.
+4. Backlog throttle (skipped under `in-place`): if the pre-computed context above reports `Throttle active: yes` (open `chore/tidy-*` PRs at the `upkeep_max_open` limit, [reference/config.md](../../reference/config.md)), STOP, surface a one-line note, and exit cleanly. It is a stop signal, not a warning: reviews are backed up, so do not queue one more.
 5. Find the anchor commit: the most recent merged `chore/tidy-<lane>-` PR for this lane (or `git log --grep` if none merged yet), the "what has drifted since the last sweep" baseline.
 
 ### Phase B. Branch
@@ -202,7 +202,7 @@ The comment is never optional when a PR was created, and "Tidyings applied" is n
 
 If `source-control` is not installed, apply the same invariants inline: resolve issue-linkage before writing a closing keyword (`Closes #N` only after confirming issue #N exists in this repo, e.g. `gh issue view N`; otherwise state `No related issue: <reason>`), assemble the body via a quoted heredoc (`<<'EOF'`) plus parameter-expansion concat rather than an unquoted `<<EOF` (which would execute any `$(...)` embedded in prompt-derived text), and refuse to call `gh pr create` until the assembled body contains a valid closing keyword or the opt-out marker. In this fallback path only, the Tidyings-applied / Deferred-items / Lifted-HARD-exclusions sections stay in the PR body itself.
 
-Then monitor checks (`gh pr checks <n> --watch`) until green. Address review-bot findings: verify each against the current code, fix the correct ones, rebut the incorrect ones with evidence. **Manual merge by a human**; this skill does NOT auto-merge.
+Then monitor checks (`gh pr checks <n> --watch`) until green. Address review-bot findings: verify each against the current code, fix the correct ones, rebut the incorrect ones with evidence. This skill never merges: the repository's merge lane, where it has one, or a person does.
 
 ## Global HARD/SOFT exclusions
 
@@ -234,7 +234,7 @@ Bundled surfaces are gated by settings, environment, plan, and host; this sectio
 
 /source-control:babysit-prs
 
-It carries the opened tidy PR through CI and review findings; the merge stays with a human.
+It carries the opened tidy PR through CI and review findings; the merge is the repository's merge lane's or a person's.
 
 ## Gotchas
 

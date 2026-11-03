@@ -77,7 +77,7 @@ states the widening**, naming what was pointed at and what is being judged inste
 id contract in `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`, section "Finding ids": an
 identity may never rest on a positional ordinal, because the next edit above it moves the line and
 the same item derives a different id. When the target was a comment, the widening line also names
-`code-tidying:dissolve-comments` as the owner of comments themselves.
+`code-tidying:remove-comments` as the owner of comments themselves.
 
 **Things that each configure their own subject are separate items, not repetitions of one.** Where a
 target describes a pattern that recurs, such as every bundle shipping its own setup component or
@@ -293,7 +293,7 @@ remedy.
 | The finding is about | Owner |
 |---|---|
 | Instruction text, its wording or its effect on a model | `harness-config:audit-instructions`, `harness-config:unhobble` |
-| Comments, their content or their residue | `code-tidying:dissolve-comments`, `code-tidying:audit-comment-residue` |
+| Comments, their content or their residue | `code-tidying:remove-comments` |
 | Unreachable or dead code | `code-tidying:audit-dead-code` |
 | A document derivable from its source, or noise inside a document | `docs-hygiene:audit-derivability`, `docs-hygiene:audit-noise` |
 | Duplication of what the harness ships natively | `harness-ops:audit-native-overlap` |

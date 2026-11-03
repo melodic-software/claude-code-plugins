@@ -3,6 +3,40 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.4] - 2026-11-03
+
+### Fixed
+
+- `block-cross-domain` now reads a flat worktree root listed in `owner_roots`. A name there that starts with an owner and a `-` (`<root>/<owner>-<repo>-<slug>`) is that owner's, in a command and for the session's directory, so a command naming another owner's flat worktree is denied. Of two listed owners the longest that fits holds the name, an owner no domain lists reads as the listed owner it starts with, another domain's root above the name is named as well, and a session's directory that a root or owner directory already holds stays with it, so the `-` only adds names and denies. A path now spends only the occurrences of its text that name it, so a longer name it merely starts stays for an outer root or a shorter owner to name. A tree whose name does not start with its owner stays outside the guard.
+
+## [1.0.3] - 2026-11-03
+
+### Fixed
+
+`block-root-delete-target` on the Bash tool now refuses a recursive delete whose operand, not fully quoted, opens with a name the command never sets and goes on past it (`rm -rf $S/x`, `${X}x`, `"$S"/x`), because a blank in the value splits it into a root operand. Narrowed to 0 false positives on a corpus replay: a name the same command assigns without a blank, escape, append or substitution, a `for` list with no quote or substitution, `$HOME`, `$TMPDIR` and `${S:?}` stay allowed. PowerShell operands are unchanged; a bash child of the PowerShell tool is judged like the Bash tool.
+
+## [1.0.2] - 2026-11-03
+
+### Fixed
+
+- let a map set where block-cross-domain finds owner directories
+
+## [1.0.1] - 2026-11-03
+
+### Fixed
+
+- deny a global git include.path write in block-cross-domain
+
+  An unconditional include can set the machine's git identity just as an
+  includeIf does, and the guard let `git config --global include.path`
+  through. It now treats the key and the include section as identity writes.
+
+## [1.0.0] - 2026-11-03
+
+### Removed
+
+- The `check` skill is gone. To check this plugin's prerequisites, run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`, the command the hook notices already print. With `jq` missing the guards deny that Bash call too, and the denial names `jq`; `/guardrails:setup check` still reports it from its load-time rows.
+
 ## [0.84.5] - 2026-11-02
 
 ### Changed

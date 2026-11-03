@@ -28,6 +28,7 @@ import { generate as generateCarrierKey } from "../open-lane-output/keygen.mjs";
 import { decide } from "../report-check-run/decide.mjs";
 import { main as reportCheckRun } from "../report-check-run/report-check-run.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { main as resolveConfig } from "./resolve-config.mjs";
 
 // The leak-scan step reads the real os.tmpdir(); every scratch dir it makes lands inside this one.
 process.env.TMPDIR = tempDir("callers-tmp-");
@@ -266,6 +267,51 @@ test("intake-triage.yml: intake runs only with claude-args resolved from triage-
   assert.equal(killRuns("workflow_dispatch", ""), true);
   assert.equal(killRuns("workflow_dispatch", "", "refs/heads/feature"), false);
   assert.equal(killSwitch.outputs.proceed, "${{ steps.kill.outputs.proceed }}");
+});
+
+// Each resolve-config step of upstream-apply-changelog.yml, run through the
+// action's own entry point over this tree on the lane's two events, with no
+// network: a mode or route the resolver refuses fails here, not on a release.
+test("upstream-apply-changelog.yml: every resolve-config step resolves on schedule and dispatch, and the model step yields a model", async () => {
+  const root = fileURLToPath(new URL("../../../", import.meta.url));
+  const dir = tempDir("upstream-resolve-");
+  const eventPath = join(dir, "event.json");
+  writeFileSync(eventPath, "{}");
+  const steps = Object.values(workflow("upstream-apply-changelog.yml").jobs).flatMap((job) =>
+    (job.steps ?? []).filter((step) => step.uses?.startsWith(RESOLVE)),
+  );
+  assert.ok(steps.some((step) => step.id === "models"));
+  const github = async (method, path) => {
+    throw new Error(`unexpected API call ${method} ${path}`);
+  };
+  for (const step of steps) {
+    for (const eventName of ["schedule", "workflow_dispatch"]) {
+      const env = {
+        OUTPUT_PATH: join(dir, "resolved.json"),
+        GITHUB_OUTPUT: join(dir, `out-${step.id}-${eventName}`),
+        EVENT_NAME: eventName,
+        EVENT_PATH: eventPath,
+      };
+      for (const [key, value] of Object.entries(step.with)) {
+        if (key === "base-path") env.BASE_PATH = root;
+        else if (key !== "output-path") {
+          assert.doesNotMatch(String(value), /\$\{\{/, `${step.id} ${key} is an expression this test cannot evaluate`);
+          env[key.toUpperCase().replaceAll("-", "_")] = String(value);
+        }
+      }
+      writeFileSync(env.GITHUB_OUTPUT, "");
+      assert.equal(await resolveConfig({ env, github }), 0, `${step.id} on ${eventName}`);
+      const outputs = Object.fromEntries(
+        [...readFileSync(env.GITHUB_OUTPUT, "utf8").matchAll(/^([\w-]+)<<(\S+)\n([\s\S]*?)\n\2$/gm)].map((m) => [m[1], m[3]]),
+      );
+      assert.equal(outputs.applies, "true", `${step.id} on ${eventName}`);
+      if (step.id === "models") {
+        assert.match(outputs.model, /^(haiku|sonnet|opus)$/);
+        assert.match(outputs["max-turns"], /^[1-9][0-9]*$/);
+        assert.match(outputs.effort, /^(|low|medium|high|xhigh|max)$/);
+      }
+    }
+  }
 });
 
 test("intake-triage.yml: the kill switch stops the born-triaged check and the floor label", () => {
@@ -4554,6 +4600,8 @@ test("scan job: every run job output set after head code must be in its closed s
   }
 });
 
+const CARRIER_HOLDERS = ["upstream-apply-changelog.yml", "maintenance-tidy-code-upkeep.yml"];
+
 test("pr-run-activity-read.yml: the scan-carrier key is passed by name by each read-runner caller, read by the scan job's decode step alone, and its environment is on that job alone", () => {
   const files = workflowFiles();
   const read = workflow("pr-run-activity-read.yml");
@@ -4568,7 +4616,7 @@ test("pr-run-activity-read.yml: the scan-carrier key is passed by name by each r
         assert.equal(job.secrets["scan-carrier-private-key"], CARRIER_PASS, `${file} ${id}`);
         const rest = { ...job, secrets: { ...job.secrets, "scan-carrier-private-key": undefined } };
         assert.doesNotMatch(JSON.stringify(rest), /SCAN_CARRIER_PRIVATE_KEY|scan-carrier-private-key/i, `${file} ${id}`);
-      } else if (file !== "pr-run-activity-read.yml" && !(file === "upstream-apply-changelog.yml" && id === "scan")) {
+      } else if (file !== "pr-run-activity-read.yml" && !(CARRIER_HOLDERS.includes(file) && id === "scan")) {
         assert.doesNotMatch(JSON.stringify(job), /SCAN_CARRIER_PRIVATE_KEY|scan-carrier-private-key/i, `${file} ${id}`);
       }
     }
@@ -4584,27 +4632,31 @@ test("pr-run-activity-read.yml: the scan-carrier key is passed by name by each r
   assert.equal(open.with["private-key"], CARRIER_SECRET);
   assert.equal(open.env, undefined);
   assert.equal(open.uses, "./.base/.github/actions/open-lane-output");
-  // The second holder (owner decision, 2026-11-02): upstream-apply-changelog.yml's scan job, one
-  // open step, only while it runs from main with no id-token, no write token and a read-only cache.
-  const intake = workflow("upstream-apply-changelog.yml").jobs;
-  for (const [id, job] of Object.entries(intake)) {
-    const steps = (job.steps ?? []).filter((step) => /scan-carrier-private-key|SCAN_CARRIER_PRIVATE_KEY/i.test(JSON.stringify(step)));
-    assert.deepEqual(steps.map((step) => step.id), id === "scan" ? ["open"] : [], `upstream-apply-changelog.yml ${id}`);
+  // The second holder (owner decision, 2026-11-02) and the third (2026-11-03, #12475): each scan
+  // job, one open step and no model, only while it runs from main with no id-token, no write token
+  // and a read-only cache.
+  for (const file of CARRIER_HOLDERS) {
+    const intake = workflow(file).jobs;
+    for (const [id, job] of Object.entries(intake)) {
+      const steps = (job.steps ?? []).filter((step) => /scan-carrier-private-key|SCAN_CARRIER_PRIVATE_KEY/i.test(JSON.stringify(step)));
+      assert.deepEqual(steps.map((step) => step.id), id === "scan" ? ["open"] : [], `${file} ${id}`);
+    }
+    const holder = intake.scan;
+    const intakeOpen = holder.steps.find((s) => s.id === "open");
+    assert.deepEqual(stepSecrets(intakeOpen), ["SCAN_CARRIER_PRIVATE_KEY"]);
+    assert.equal(intakeOpen.with["private-key"], "${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}");
+    assert.equal(intakeOpen.env, undefined);
+    assert.equal(intakeOpen.uses, "./.base/.github/actions/open-lane-output");
+    assert.deepEqual(holder.permissions, { contents: "read" });
+    assert.equal(holder["cache-mode"], "read");
+    assert.ok(!holder.steps.some((step) => String(step.uses ?? "").includes("/run-claude-cli@")), `${file} scan runs no model`);
+    // Main only: the scan job runs after the gate job, which runs only on refs/heads/main.
+    assert.ok([holder.needs].flat().includes("gate"));
+    assert.match(intake.gate.if ?? "", /github\.ref == 'refs\/heads\/main'/);
   }
-  const holder = intake.scan;
-  const intakeOpen = holder.steps.find((s) => s.id === "open");
-  assert.deepEqual(stepSecrets(intakeOpen), ["SCAN_CARRIER_PRIVATE_KEY"]);
-  assert.equal(intakeOpen.with["private-key"], "${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}");
-  assert.equal(intakeOpen.env, undefined);
-  assert.equal(intakeOpen.uses, "./.base/.github/actions/open-lane-output");
-  assert.deepEqual(holder.permissions, { contents: "read" });
-  assert.equal(holder["cache-mode"], "read");
-  // Main only: the scan job runs after the gate job, which runs only on refs/heads/main.
-  assert.ok([holder.needs].flat().includes("gate"));
-  assert.match(intake.gate.if ?? "", /github\.ref == 'refs\/heads\/main'/);
   for (const file of files) {
     for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
-      if ((file === "pr-run-activity-read.yml" || file === "upstream-apply-changelog.yml") && id === "scan") assert.equal(job.environment, "pr-pipeline-scan-carrier");
+      if ((file === "pr-run-activity-read.yml" || CARRIER_HOLDERS.includes(file)) && id === "scan") assert.equal(job.environment, "pr-pipeline-scan-carrier");
       else assert.doesNotMatch(JSON.stringify(job.environment ?? ""), /pr-pipeline-scan-carrier/, `${file} ${id}`);
     }
   }
@@ -6516,9 +6568,10 @@ test("pr-run-activity-read.yml: broker-allowed succeeds only on broker-check's a
   for (const [allowed, runs] of [["true", true], ["false", false], ["", false]]) {
     assert.equal(evaluate(marker.if, { "needs.broker-check.outputs.allowed": allowed }), runs, JSON.stringify(allowed));
   }
-  // broker-check's allowed is its broker step's outcome, a step that runs no
-  // head code and cannot continue on error.
-  assert.equal(jobs["broker-check"].outputs.allowed, "${{ steps.broker.outcome == 'success' }}");
+  // broker-check's allowed is its broker step's outcome and allow, a step
+  // that runs no head code and cannot continue on error; a kill-switch stop
+  // ends the step green with no allow.
+  assert.equal(jobs["broker-check"].outputs.allowed, "${{ steps.broker.outcome == 'success' && steps.broker.outputs.allowed == 'true' }}");
   const broker = jobs["broker-check"].steps.find((step) => step.id === "broker");
   assert.equal(broker.name, "Ask the broker whether the lane may run");
   assert.equal(broker["continue-on-error"], undefined);
@@ -7627,6 +7680,28 @@ test("every kill-switch-ok caller runs no token step and no dependent job on a k
     "pr-merge.yml:merge",
     "pr-refine.yml:apply-docs-patch -> pr-run-activity-write.yml",
     "pr-run-activity-write.yml:run",
+    "pr-run-activity-read.yml:broker-check",
+    "pr-refine.yml:fix-docs -> pr-run-activity-read.yml",
+    "pr-refine.yml:fix-docs-subscription -> pr-run-activity-read.yml",
+    "pr-refine.yml:fix-docs-fallback -> pr-run-activity-read.yml",
+    "pr-unblock.yml:resolve-conflicts -> pr-run-activity-read.yml",
+    "pr-unblock.yml:resolve-conflicts-subscription -> pr-run-activity-read.yml",
+    "pr-unblock.yml:resolve-conflicts-fallback -> pr-run-activity-read.yml",
+    "pr-unblock.yml:address-feedback -> pr-run-activity-read.yml",
+    "pr-unblock.yml:address-feedback-subscription -> pr-run-activity-read.yml",
+    "pr-unblock.yml:address-feedback-fallback -> pr-run-activity-read.yml",
+    "pr-unblock.yml:review-dependency -> pr-run-activity-read.yml",
+    "pr-unblock.yml:review-dependency-subscription -> pr-run-activity-read.yml",
+    "pr-unblock.yml:review-dependency-fallback -> pr-run-activity-read.yml",
+    "pr-unblock.yml:fix-ci -> pr-run-activity-read.yml",
+    "pr-unblock.yml:fix-ci-subscription -> pr-run-activity-read.yml",
+    "pr-unblock.yml:fix-ci-fallback -> pr-run-activity-read.yml",
+    "pr-unblock.yml:fix-ci-rung-up -> pr-run-activity-read.yml",
+    "pr-unblock.yml:fix-ci-rung-up-subscription -> pr-run-activity-read.yml",
+    "pr-unblock.yml:fix-ci-rung-up-fallback -> pr-run-activity-read.yml",
+    "work-resolve-issue.yml:resolve-issue -> pr-run-activity-read.yml",
+    "work-resolve-issue.yml:resolve-issue-subscription -> pr-run-activity-read.yml",
+    "work-resolve-issue.yml:resolve-issue-fallback -> pr-run-activity-read.yml",
     "pr-unblock.yml:apply-conflict-patch -> pr-run-activity-write.yml",
     "pr-unblock.yml:apply-dependency-patch -> pr-run-activity-write.yml",
     "pr-unblock.yml:apply-dependency-verdict -> pr-run-activity-write.yml",
@@ -7641,7 +7716,247 @@ test("every kill-switch-ok caller runs no token step and no dependent job on a k
     "work-resolve-issue.yml:report-skip -> pr-run-activity-write.yml",
     "upstream-apply-changelog.yml:push-branches",
     "upstream-apply-changelog.yml:publish",
+    "maintenance-tidy-code-upkeep.yml:push-branches",
+    "maintenance-tidy-code-upkeep.yml:publish",
   ].sort());
+});
+
+// Evaluates a workflow expression with every context reference read through
+// `lookup`, outside quoted literals; status functions read the run as not
+// cancelled. A job `if:` with no status function runs only when every need
+// succeeded (GitHub's implicit success()), which `needsOk` answers.
+function evaluateWith(expression, lookup, needsOk = true) {
+  let body = String(expression).trim().replace(/^\$\{\{([\s\S]*)\}\}$/, "$1");
+  const status = /\b(?:always|cancelled|success|failure)\(\)/.test(body);
+  body = body
+    .replace(/!\s*cancelled\(\)/g, "true")
+    .replace(/\balways\(\)/g, "true")
+    .replace(/\bsuccess\(\)/g, JSON.stringify(needsOk))
+    .replace(/\bfailure\(\)/g, JSON.stringify(!needsOk));
+  body = body
+    .split(/('(?:[^']|'')*')/)
+    .map((part, i) =>
+      i % 2 === 1
+        ? JSON.stringify(part.slice(1, -1).replaceAll("''", "'"))
+        : part.replace(/\b(?:needs|steps|inputs|github|vars|jobs|env|matrix|runner)\.[\w.-]*[\w-]/g, (ref) => JSON.stringify(lookup(ref))),
+    )
+    .join("");
+  const format = (template, ...args) => template.replace(/\{(\d+)\}/g, (_, n) => String(args[n]));
+  const contains = (haystack, needle) => String(haystack).toLowerCase().includes(String(needle).toLowerCase());
+  const startsWith = (text, prefix) => String(text).toLowerCase().startsWith(String(prefix).toLowerCase());
+  const value = Function("format", "contains", "startsWith", `return (${body});`)(format, contains, startsWith);
+  return status || needsOk ? value : false;
+}
+
+// Runs a workflow's jobs in `needs` order: `seed` fixes a job's result and
+// outputs; any other job that runs succeeds with the outputs `outputsOf`
+// gives it, and a skipped job has empty outputs. `context` answers every other
+// reference ('' when absent).
+function simulate(jobs, { seed = {}, context = {}, outputsOf = () => ({}) }) {
+  const state = {};
+  const lookup = (ref) => {
+    const job = /^needs\.([\w-]+)\.(result|outputs\.([\w-]+))$/.exec(ref);
+    if (job) {
+      const done = state[job[1]];
+      assert.ok(done, `${ref} names a job that has not run yet`);
+      return job[2] === "result" ? done.result : (done.outputs[job[3]] ?? "");
+    }
+    return Object.hasOwn(context, ref) ? context[ref] : "";
+  };
+  const order = [];
+  const visit = (id) => {
+    if (order.includes(id)) return;
+    for (const need of [jobs[id].needs ?? []].flat()) visit(need);
+    order.push(id);
+  };
+  Object.keys(jobs).forEach(visit);
+  for (const id of order) {
+    const job = jobs[id];
+    const needsOk = [job.needs ?? []].flat().every((need) => state[need].result === "success");
+    if (seed[id]) {
+      state[id] = seed[id];
+      continue;
+    }
+    const runs = job.if === undefined ? needsOk : Boolean(evaluateWith(job.if, lookup, needsOk));
+    state[id] = runs ? { result: "success", outputs: outputsOf(id, job) } : { result: "skipped", outputs: {} };
+  }
+  return { state, lookup };
+}
+
+const READ = "pr-run-activity-read.yml";
+const readContext = (issue) => ({
+  "inputs.issue-number": issue,
+  "inputs.caller-releases-lease": false,
+  "github.event_name": issue ? "issues" : "workflow_dispatch",
+  "github.event.sender.id": 1,
+  "github.repository": "melodic-software/claude-code-plugins",
+  "vars.AUTOMATION_LANES_APP_SENDER_ID": "2",
+});
+// broker-check's outputs as its own YAML renders them from its broker step.
+function brokerCheck(broker, issue) {
+  const job = workflow(READ).jobs["broker-check"];
+  const steps = { "steps.kill.outputs.proceed": broker.outcome === "skipped" ? "false" : "true", ...broker.steps };
+  const lookup = (ref) => (Object.hasOwn(steps, ref) ? steps[ref] : (readContext(issue)[ref] ?? ""));
+  const outputs = Object.fromEntries(Object.entries(job.outputs).map(([name, value]) => [name, String(evaluateWith(value, lookup))]));
+  const lease = job.steps.find((step) => step.id === "lease");
+  return { outputs, leaseRuns: Boolean(evaluateWith(lease.if, lookup)), lookup };
+}
+const STOP = { outcome: "success", steps: { "steps.broker.outcome": "success", "steps.broker.outputs.skip-reason": "kill-switch", "steps.broker.outputs.allowed": "" } };
+const ALLOW = { outcome: "success", steps: { "steps.broker.outcome": "success", "steps.broker.outputs.skip-reason": "", "steps.broker.outputs.allowed": "true" } };
+const LOCAL_STOP = { outcome: "skipped", steps: { "steps.broker.outcome": "skipped" } };
+function readRun(broker, issue) {
+  const check = brokerCheck(broker, issue);
+  const run = simulate(workflow(READ).jobs, {
+    seed: { "broker-check": { result: "success", outputs: { ...check.outputs, lease: check.leaseRuns ? "held" : "", "lease-comment-id": check.leaseRuns ? "9" : "" } } },
+    context: readContext(issue),
+  });
+  return { ...run, check };
+}
+// The read file's workflow_call outputs as the caller sees them.
+function readOutputs(state) {
+  const { outputs } = workflow(READ).on.workflow_call;
+  return Object.fromEntries(
+    Object.entries(outputs).map(([name, { value }]) => {
+      const [, job, key] = /^\$\{\{ jobs\.([\w-]+)\.outputs\.([\w-]+) \}\}$/.exec(value);
+      return [name, state[job].outputs[key] ?? ""];
+    }),
+  );
+}
+
+// A broker kill-switch refusal at broker-check (a switch turned on after the
+// run read its variables) ends green, and no job or step after it runs the
+// model, takes a write token, pushes, comments or labels: in the read file,
+// and in every caller job that consumes a read call. The allow and a local
+// kill-switch stop are the controls: they still run.
+test(`${READ}: a broker kill-switch stop runs no model, lease, comment or label, and posts the check neutral`, () => {
+  const { jobs } = workflow(READ);
+  const report = jobs.report;
+  for (const issue of ["", "7"]) {
+    const where = issue ? "issue mode" : "PR mode";
+    const { state, check, lookup } = readRun(STOP, issue);
+    assert.equal(check.outputs.allowed, "false", where);
+    assert.equal(check.outputs["skip-reason"], "kill-switch", where);
+    assert.equal(check.leaseRuns, false, `${where}: no lease is claimed`);
+    for (const id of ["broker-allowed", "run", "issue-fields", "scan", "scan-refusal", "summary"]) {
+      assert.equal(state[id].result, "skipped", `${where}: ${id}`);
+    }
+    assert.equal(state.report.result, issue ? "skipped" : "success", `${where}: report`);
+    assert.equal(readOutputs(state)["skip-reason"], "kill-switch", where);
+    if (issue) continue;
+    // PR mode: the report job posts no comment and adds no label; its check is neutral kill-switch.
+    const stepLookup = (ref) => lookup(ref);
+    const step = (name) => report.steps.find((s) => s.name === name);
+    for (const name of ["Post the lane run report comment", "Check the lane's commits are signed"]) {
+      assert.equal(Boolean(evaluateWith(step(name).if, stepLookup)), false, name);
+    }
+    const head = step("Choose the head the check is posted on");
+    const env = Object.fromEntries(Object.entries(head.env).map(([key, value]) => [key, String(evaluateWith(value, stepLookup))]));
+    const dir = mkdtempSync(join(process.env.TMPDIR, "head-"));
+    const output = join(dir, "output");
+    writeFileSync(output, "");
+    const ran = spawnSync("bash", ["-c", head.run], { env: { ...process.env, ...env, GITHUB_OUTPUT: output }, encoding: "utf8" });
+    assert.equal(ran.status, 0, ran.stderr);
+    const headOut = Object.fromEntries(readFileSync(output, "utf8").trim().split("\n").map((line) => line.split(/=(.*)/s).slice(0, 2)));
+    assert.equal(headOut["not-run-reason"], "kill-switch");
+    const posted = (ref) => (ref.startsWith("steps.head.outputs.") ? (headOut[ref.slice(19)] ?? "") : lookup(ref));
+    const post = step("Post the check run");
+    assert.equal(evaluateWith(post.with["run-result"], posted), "skipped");
+    assert.equal(evaluateWith(post.with["not-run-reason"], posted), "kill-switch");
+    const decision = decide(null, {
+      lane: "pr-unblock",
+      activity: "fix-ci",
+      runResult: evaluateWith(post.with["run-result"], posted),
+      notRunReason: evaluateWith(post.with["not-run-reason"], posted),
+      actOutcome: "",
+      signedCommits: null,
+      gateReason: evaluateWith(post.with["gate-reason"], posted),
+      headSha: "",
+      headShaFallback: "a".repeat(40),
+      prHeadSha: "",
+      gateSkipReasons: {},
+      skipReasons: JSON.parse(read("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json")).$defs["skip-reason"].enum,
+    });
+    assert.equal(decision.report.conclusion, "neutral");
+    assert.equal(decision.report.output.title, "Skipped: kill-switch");
+  }
+  // Controls: an allow runs the lane, claims the lease and posts the comment.
+  for (const issue of ["", "7"]) {
+    const { state, check, lookup } = readRun(ALLOW, issue);
+    assert.equal(check.outputs.allowed, "true");
+    assert.equal(check.outputs["skip-reason"], "");
+    assert.equal(check.leaseRuns, issue !== "", "an allow claims the lease in issue mode");
+    assert.equal(state.run.result, "success");
+    assert.equal(state["broker-allowed"].result, "success");
+    assert.equal(Boolean(evaluateWith(report.steps.find((s) => s.name === "Post the lane run report comment").if, lookup)), true);
+  }
+  // A local kill-switch stop still runs the run job, whose own kill step stops the lane neutral.
+  const local = readRun(LOCAL_STOP, "");
+  assert.equal(local.check.outputs.allowed, "false");
+  assert.equal(local.state.run.result, "success");
+});
+
+// The caller jobs with a write grant that still start on a read call's stop
+// are gated only on their own select job, never on the read call's outputs:
+// they started on the red broker-check before too. The two write-runner calls
+// mint with kill-switch-ok, so the switch still on stops them green at the
+// broker; fix-ci-unreported posts its check only on a call's broker allow.
+const GATED_ON_SELECT = {
+  "pr-unblock.yml": ["publish-feedback", "apply-dependency-verdict", "fix-ci-unreported"],
+};
+test(`every caller of ${READ} runs no model, write token, push, comment or label off a read call's kill-switch stop`, () => {
+  const { state } = readRun(STOP, "7");
+  const stopped = readOutputs(state);
+  const callers = [];
+  for (const name of workflowFiles()) {
+    const { jobs } = workflow(name);
+    const reads = Object.keys(jobs).filter((id) => String(jobs[id].uses ?? "").split(" ")[0] === `./.github/workflows/${READ}`);
+    if (reads.length === 0) continue;
+    callers.push(name);
+    // Jobs that need a read call, directly or through another job.
+    const downstream = new Set(reads);
+    for (let grew = true; grew; ) {
+      grew = false;
+      for (const [id, job] of Object.entries(jobs)) {
+        if (!downstream.has(id) && [job.needs ?? []].flat().some((need) => downstream.has(need))) downstream.add(id) && (grew = true);
+      }
+    }
+    // Every upstream job succeeds and its gates proceed; a downstream helper
+    // job (a handoff check) reports nothing, since no call ran.
+    const proceed = new Proxy({}, { get: (_, key) => (key === "proceed" ? "true" : key === "capped" ? "false" : "") });
+    const upstream = Object.keys(jobs).filter((id) => !downstream.has(id));
+    // The first leg of each read chain is the one the stop hits. A later leg
+    // that still starts (pr-unblock's subscription leg starts on its handoff
+    // job's read alone) asks the broker again, which reads the switch live:
+    // it stops the same way, and the read-file test above holds its jobs.
+    const first = reads.filter((id) => ![jobs[id].needs ?? []].flat().some((need) => reads.includes(need)));
+    const seed = Object.fromEntries([
+      ...upstream.map((id) => [id, { result: "success", outputs: proceed }]),
+      ...first.map((id) => [id, { result: "success", outputs: stopped }]),
+    ]);
+    const outputsOf = (id) => (reads.includes(id) ? stopped : {});
+    const run = simulate(jobs, { seed, context: { "github.event.label.name": "agent-ready", "inputs.issue-number": "" }, outputsOf });
+    const ran = [...downstream].filter((id) => !reads.includes(id) && run.state[id].result === "success");
+    const writes = ran.filter((id) => {
+      const job = jobs[id];
+      const uses = String(job.uses ?? "");
+      return uses.includes("/pr-run-activity-") || Object.values(job.permissions ?? {}).includes("write") || JSON.stringify(job.steps ?? []).includes("request-lane-token");
+    });
+    assert.deepEqual(writes.sort(), [...(GATED_ON_SELECT[name] ?? [])].sort(), `${name}: jobs that run on the stop`);
+    for (const id of GATED_ON_SELECT[name] ?? []) {
+      const job = jobs[id];
+      assert.doesNotMatch(String(job.if), new RegExp(`needs\\.(${reads.join("|")})\\.`), `${name}:${id} reads no read call`);
+      if (String(job.uses ?? "").includes("pr-run-activity-write.yml")) {
+        assert.notEqual(job.with.activity, "report-escalation", `${name}:${id} is no report-escalation call, which stays red`);
+        continue;
+      }
+      // A steps job writes only through steps that run on a call's broker allow, which the stop never gives.
+      assert.ok(!JSON.stringify(job.steps).includes("request-lane-token"), `${name}:${id} mints nothing`);
+      for (const step of job.steps.filter((s) => String(s.uses ?? "").includes("report-check-run"))) {
+        assert.match(String(step.if), /steps\.[\w-]+\.outputs\.allowed == 'true'/, `${name}:${id}: "${step.name}" posts only on an allow`);
+      }
+    }
+  }
+  assert.deepEqual(callers.sort(), ["pr-refine.yml", "pr-unblock.yml", "work-resolve-issue.yml"]);
 });
 
 // work-unblock re-fires an issue from its stopped mint step (label-unblocked.mjs
@@ -7809,6 +8124,7 @@ test("every job that runs or reads untrusted head content has a read-only Action
     "pr-review-main.yml": ["review", "review-subscription", "review-fallback"],
     "pr-verify.yml": ["check-intent", "check-intent-subscription", "check-intent-fallback"],
     "upstream-apply-changelog.yml": ["model", "scan", "push-branches", "publish"],
+    "maintenance-tidy-code-upkeep.yml": ["model", "scan", "push-branches", "publish"],
   };
   for (const [file, names] of Object.entries(readOnly)) {
     const { jobs } = workflow(file);

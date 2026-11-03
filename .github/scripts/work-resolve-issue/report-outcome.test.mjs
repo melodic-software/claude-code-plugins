@@ -411,7 +411,56 @@ test("the model's text is cut to the length caps after escaping", () => {
   });
   // 3000 for the summary, 20 items of 300 for the list, plus the fixed text.
   assert.ok(plan.body.length < 3000 + 20 * 305 + 1000, String(plan.body.length));
-  assert.ok(!/&l?t?$|&lt$/m.test(plan.body.split("## Fix")[0].trim()), "no half-cut entity");
+  assert.ok(!/&[a-z]*…$/m.test(plan.body), "no half-cut entity before the cut marker");
+  assert.ok(/&lt;…$/m.test(plan.body), plan.body);
+});
+
+const LONG_ITEM = `${"word ".repeat(70)}tail`;
+const itemLines = (body, heading) => section(body, heading).split("\n").filter((line) => line.startsWith("- "));
+
+test("a long item is cut at its last word inside the cap and marked", () => {
+  const body = bodyOf({ ...done, changes: [LONG_ITEM], verification: [LONG_ITEM], not_done: [LONG_ITEM] });
+  for (const heading of ["Fix", "Verification", "Not verified"]) {
+    const [line] = itemLines(body, heading);
+    assert.ok(/^- (word )+word…$/.test(line), `${heading}: ${line}`);
+    assert.ok(line.length - 2 <= 300, `${heading}: ${line.length}`);
+  }
+});
+
+test("a long summary is cut at a word and marked", () => {
+  const quote = section(bodyOf({ ...done, summary: `${"word ".repeat(700)}tail` }), "Summary");
+  assert.ok(/word…$/.test(quote.trim()), quote.slice(-40));
+  assert.ok(!quote.includes("tail"), quote.slice(-40));
+});
+
+test("an item that is one token past the cap is cut hard and marked", () => {
+  assert.deepEqual(itemLines(bodyOf({ ...done, changes: ["x".repeat(400)] }), "Fix"), [`- ${"x".repeat(299)}…`]);
+});
+
+test("a cut never splits a surrogate pair", () => {
+  for (const pad of [298, 299]) {
+    const [line] = itemLines(bodyOf({ ...done, changes: [`${"x".repeat(pad)}${"😀".repeat(20)}`] }), "Fix");
+    assert.equal(Buffer.from(line, "utf8").toString("utf8"), line, `pad ${pad}`);
+    assert.ok(line.endsWith("…"), line);
+  }
+});
+
+test("a cut that keeps only whitespace is empty, and leading whitespace does not drop the token after it", () => {
+  const quote = section(bodyOf({ ...done, summary: " ".repeat(3500) }), "Summary");
+  assert.ok(quote.endsWith("\n> (none)"), quote);
+  assert.deepEqual(itemLines(bodyOf({ ...done, changes: [`  ${"x".repeat(400)}`] }), "Fix"), [`- ${"x".repeat(297)}…`]);
+});
+
+test("a runner check name past the cap is cut at a word", () => {
+  const check = `${"step ".repeat(70)}tail`;
+  const [result] = readChecks(checksFile({ results: [{ check, exit: 0 }] }), { branch: BRANCH }).results;
+  assert.match(result.check, /^(step )+step…$/);
+  assert.ok(result.check.length <= 300, String(result.check.length));
+});
+
+test("an item within the cap is unchanged", () => {
+  const item = `${"a".repeat(296)} end`;
+  assert.deepEqual(itemLines(bodyOf({ ...done, changes: [item, "short ünïcode 😀 item"] }), "Fix"), [`- ${item}`, "- short ünïcode 😀 item"]);
 });
 
 // CommonMark decodes `&commat;` to `@` and `&num;` to `#`, and GitHub links a
@@ -4177,12 +4226,35 @@ test("route close: already-done and report-delivered close the issue as complete
   const report = stoppedPlan("report-delivered: the report is below", { issueLabels: ["agent-ready", "work-class: read-only"], branch: "" });
   assert.equal(closeStop(report.comment).stop, "report-delivered");
   assert.equal(closeStop(stoppedPlan("the tests failed").comment), null, "a retry comment is no close");
-  // A report closes only a read-only issue the run committed nothing for.
+  // A report closes only an issue the run committed nothing for.
   assert.equal(stoppedPlan("report-delivered: the report is below").action, "retry");
-  for (const opts of [{}, { issueLabels: ["agent-ready"], branch: "" }, { issueLabels: ["agent-ready", "work-class: read-only"], branch: "work/7" }]) {
+  for (const opts of [{}, { issueLabels: ["agent-ready", "work-class: read-only"], branch: "work/7" }]) {
     const retry = stoppedPlan("report-delivered: the report is below", opts);
     assert.equal(retry.action, "retry");
     assert.match(retry.comment, /so it retries instead of closing\./, retry.comment);
+  }
+});
+
+// Owner Q85: a stop routes by no work class, or by a missing one.
+test("route close: report-delivered closes a class-less or structural issue with no branch, and retries with one", () => {
+  for (const issueLabels of [["agent-ready"], ["agent-ready", "work-class: structural"]]) {
+    const closed = stoppedPlan("report-delivered: the report is below", { issueLabels, branch: "" });
+    assert.equal(closed.action, "close", issueLabels.join());
+    assert.equal(closeStop(closed.comment).stop, "report-delivered");
+    const retry = stoppedPlan("report-delivered: the report is below", { issueLabels, branch: "work/7" });
+    assert.equal(retry.action, "retry", issueLabels.join());
+    assert.match(retry.comment, /so it retries instead of closing\./, retry.comment);
+  }
+});
+
+// The earlier run's commits are unmerged on the branch this run resumed, so a
+// report that committed nothing of its own closes nothing.
+test("route close: report-delivered retries on a resumed branch when the run committed nothing, keeping that branch for the next run", () => {
+  for (const issueLabels of [["agent-ready"], ["agent-ready", "work-class: structural"]]) {
+    const plan = stoppedPlan("report-delivered: the report is below", { issueLabels, branch: "", resumed: "work/7-earlier" });
+    assert.equal(plan.action, "retry", issueLabels.join());
+    assert.match(plan.comment, /The run committed to a branch, or resumed one, so it retries instead of closing\./, plan.comment);
+    assert.equal(parseOutcomeMarker(plan.comment).onResumed, true, plan.comment);
   }
 });
 

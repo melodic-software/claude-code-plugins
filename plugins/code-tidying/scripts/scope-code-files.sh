@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scope-code-files.sh — resolve dissolve-comments' empty-argument scope ladder.
+# scope-code-files.sh — resolve remove-comments' empty-argument scope ladder.
 #
 # The ladder advances on ABSENCE of a rung, never on emptiness of one:
 #   uncommitted   the working tree has changes (any path); lists their code files

@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "Both candidates document retries with exponential backoff. Which library are you using: `/lumen-http/lumen` or `/lumenjs/lumen`?"
+    },
+    {
+      "answer": "Both /lumen-http/lumen and /lumenjs/lumen answer this. Did you mean the HTTP client or the React fetch wrapper?"
+    },
+    {
+      "answer": "The probe can't settle this: both docs cover it. Can you tell me which Lumen your project uses?"
+    },
+    {
+      "answer": "Here are both options.\n\n- `/lumen-http/lumen`: `retry: { limit: 3, backoff: \"exponential\" }`\n- `/lumenjs/lumen`: `retry: 3, retryDelay: \"exponential\"`\n\nWhich one of these is in your project?",
+      "why": "shows both answers, then asks"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I chose `/lumen-http/lumen` and rejected `/lumenjs/lumen`. Set `retry: { limit: 3, backoff: \"exponential\" }` on the client.",
+      "why": "picked arbitrarily on a tie"
+    },
+    {
+      "answer": "Chosen: /lumen-http/lumen. Rejected: /lumenjs/lumen. Want me to look up how to cap the total retry time?",
+      "why": "a follow-up offer is not a question about which library"
+    }
+  ]
+}

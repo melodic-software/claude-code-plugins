@@ -1,11 +1,11 @@
 {
   "name": "code-tidying",
-  "description": "Code tidying and comment hygiene. tidy hunts a rotated lane for Beck-style tidyings and ships one PR. batch-simplify sweeps a branch, time window, or repo. tidy-diff tidies a change's lines before commit. dissolve-comments deletes zero-information comments and moves the rest into names (safe, aggressive, strip). audit-comment-residue flags history, plan, conversational, and ticket residue. audit-dead-code finds dead code with knip, vulture, gopls, and grep. setup scaffolds tidy lanes.",
+  "description": "Code tidying and comment hygiene. tidy hunts a rotated lane for Beck-style tidyings and ships one PR. batch-simplify sweeps a branch, time window, or repo. tidy-diff tidies a change's lines before commit. remove-comments removes comments that do not earn their keep under a posture (none, necessary, explanatory). audit-comment-residue flags comment residue read-only. audit-dead-code finds dead code with knip, vulture, gopls, and grep. setup scaffolds tidy lanes.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "0.35.4",
+  "version": "0.38.0",
   "license": "MIT",
   "keywords": [
     "tidy",
@@ -26,7 +26,7 @@
     "hard_exclusions": {
       "type": "string",
       "title": "Hard path exclusions",
-      "description": "How tidy, dissolve-comments, and batch-simplify treat the GLOBAL HARD path list. enforce (default) drops a listed path before triage; advisory reports it per path and never blocks, so a run may edit lint config, agent config, CI workflows, and hook chains.",
+      "description": "How tidy, remove-comments, and batch-simplify treat the GLOBAL HARD path list. enforce (default) drops a listed path before triage; advisory reports it per path and never blocks, so a run may edit lint config, agent config, CI workflows, and hook chains.",
       "default": "enforce",
       "options": [
         "enforce",
@@ -36,19 +36,35 @@
     "comment_posture": {
       "type": "string",
       "title": "Comment posture",
-      "description": "How dissolve-comments treats a kept comment. strict (default) rewrites one over class_c_max_lines terser; balanced reports it instead; conservative applies class-A deletions only and proposes the rest; aggressive keeps only exempt surfaces, paired records, terse warnings, and outside constraints.",
-      "default": "strict",
+      "description": "Which comments remove-comments keeps. auto (default): explanatory, or necessary with --pipeline. none: only directives, license headers, TODO(#issue), paired records and public doc comments. necessary: also verified outside-constraint comments. explanatory: whatever passes the earn-its-keep test.",
+      "default": "auto",
       "options": [
-        "strict",
-        "balanced",
-        "conservative",
-        "aggressive"
+        "auto",
+        "none",
+        "necessary",
+        "explanatory"
       ]
+    },
+    "comment_edit_scope": {
+      "type": "string",
+      "title": "Comment edit scope",
+      "description": "Which comments remove-comments triages on the uncommitted and branch scope rungs. diff (default): only comments on the lines the change adds. files: every comment in each changed file. An explicit target and the repository rung are always whole files.",
+      "default": "diff",
+      "options": [
+        "diff",
+        "files"
+      ]
+    },
+    "encode_constraints_unattended": {
+      "type": "boolean",
+      "title": "Encode constraints unattended",
+      "description": "When true, an unattended remove-comments run may encode a constraint comment as a test, assertion or lint rule without asking, behind its tier's gate. When false (default), it offers the encoding in its report.",
+      "default": false
     },
     "class_c_max_lines": {
       "type": "number",
       "title": "Kept-comment length (lines)",
-      "description": "Lines a kept (class-C) comment may run before dissolve-comments rewrites it terser, staging any removed narrative for the commit message. A genuinely load-bearing multi-line contract may exceed it when the report says why.",
+      "description": "Lines a kept (class-C) comment may run before remove-comments rewrites it terser, staging any removed narrative for the commit message. A genuinely load-bearing multi-line contract may exceed it when the report says why.",
       "default": 2,
       "min": 1,
       "max": 40

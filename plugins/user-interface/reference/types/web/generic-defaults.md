@@ -148,6 +148,16 @@ line of `../web.md`, and when a fix may swap a typeface is the `typography` conc
 **Audit: Suggestion.** On a marketing or brand surface, Inter or another stock face at its heaviest
 weight with tight tracking, centered, where nothing in the project chose it.
 
+### The editorial serif is a default too
+
+The move away from Inter has its own stock answer: an elegant display serif such as Instrument Serif
+at negative tracking, with one italic word in the headline. Used because nobody chose otherwise, it
+reads as generated just as Inter does. Negative tracking on large type is sound in itself (the
+`typography` concern); the tell is the whole assembly, unchosen.
+
+**Audit: Suggestion.** On a marketing or brand surface, a stock display serif at tight tracking with
+an italic accent word, where nothing in the project chose it.
+
 ## 5. Layout
 
 ### The hero every model builds
@@ -178,6 +188,18 @@ centered headline, subhead, two buttons, a decorative orb), or a features grid o
 cells the features' content does not explain.
 
 ## 6. Decoration
+
+### Costume details
+
+Three more ways a page borrows the look of rigor without any: numbered section labels ("01 / About")
+on a page nobody reads in order, labels styled as code (a file path, a comment, a function call) on
+a page that isn't about code, and detailed diagrams that explain nothing the visitor needs. The more
+detailed the diagram, the more it signals that nobody decided what it should say. Keep a number when
+the order is real, code styling when the content is code, and a diagram when a visitor can answer a
+question from it.
+
+**Audit: Suggestion.** On a marketing or brand surface, section numbers with no real sequence,
+code-styled labels on non-code content, or a decorative diagram that answers no visitor question.
 
 ### Glassmorphism needs glass
 
@@ -293,6 +315,13 @@ than one locale; note it when it doesn't.
 **Audit: Important.** A date, number or price formatted by hand in an app that serves more than one
 locale.
 
+An old relative time ("340 days ago") makes the reader do arithmetic: switch to an absolute date
+after about a week. A count built by adding "s" reads "1 members" and is wrong in many languages:
+pluralize through `Intl.PluralRules`.
+
+**Audit: Suggestion.** A relative time still showing long after an absolute date would read better,
+or a plural built by string concatenation.
+
 ## 11. Looking designed by someone
 
 Stripping tells leaves a clean, mute screen. What separates designed from generated is evidence that
@@ -302,7 +331,8 @@ somebody made choices only this product would make:
   content's own colors. A palette with a reason survives the squint test; a tasteful-but-arbitrary
   one doesn't.
 - **One distinctive type decision.** A display face with a point of view, an unusual size contrast,
-  a deliberate pairing. One is enough; three is a costume party.
+  a deliberate pairing, tied to something in the product rather than the current stock choice. One
+  is enough; three is a costume party.
 - **Show the actual product.** A real screenshot, real data, a working embed. Abstract illustration
   is what models reach for because they've never seen your product. You have. Real data on a
   public page means seeded or demo data shaped like real use, never customer records, and an

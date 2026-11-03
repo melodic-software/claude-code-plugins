@@ -1,5 +1,5 @@
 ---
-description: "Clean up low-value tests in one folder, or plan a repo as per-project batches: reads /testing:audit findings, its judge pass's FLAG verdicts and the tests the user names as flaky, has a fresh-context classifier pick quarantine, rewrite, delete, merge or keep per test, rewrites by default, and deletes or merges only with a stated no-contract reason and the user's yes on each item. A mutation gate records the mutants the tests kill before any edit and replays them after, blocking the batch when a kill is lost. Nothing is committed until the user approves the batch. Use when: the user wants an existing suite of tautological, vacuous or low-value tests cleaned up ('clean up these tests', 'prune the useless tests in this folder', 'clean up the whole repo's tests', 'fix the tests audit flagged'), or audit findings need acting on rather than reporting. Needs the mutation-testing plugin set up, or --cannot-fail-only, which deletes only skeptic-cleared tests that cannot fail."
+description: "Clean up low-value tests in one folder, or plan a repo as per-project batches: reads /testing:audit findings, its judge pass's FLAG verdicts and the tests the user names as flaky, has a fresh-context classifier pick quarantine, rewrite, delete, merge or keep per test, rewrites by default, and deletes or merges only with a stated no-contract reason and the user's yes on each item. A mutation gate records the mutants the tests kill before any edit and replays them after, blocking the batch when a kill is lost. An attended run commits the batch once it is shown; an unattended one does not. Use when: the user wants an existing suite of tautological, vacuous or low-value tests cleaned up ('clean up these tests', 'prune the useless tests in this folder', 'clean up the whole repo's tests', 'fix the tests audit flagged'), or audit findings need acting on rather than reporting. Needs the mutation-testing plugin set up, or --cannot-fail-only, which deletes only skeptic-cleared tests that cannot fail."
 argument-hint: "<folder|repo root> [--max <n>] [--flaky <test> ...] [--cannot-fail-only]"
 user-invocable: true
 disable-model-invocation: false
@@ -69,8 +69,8 @@ run each through the single-folder steps below. The plan edits and runs no test.
    tests, a baseline included.
 4. **Run.** Run steps 0 to 7 on each chosen folder in turn, unchanged, with the invocation's
    `--max` and `--cannot-fail-only` and the `--flaky` tests under that folder: each batch has its
-   own `<work>`, diff and approval. The next batch starts only after the user approves and
-   commits this one, since step 0 refuses a dirty tree. Record each outcome in `plan.md`; a batch
+   own `<work>`, diff and per-item approvals. The next batch starts only after step 7 commits
+   this one, since step 0 refuses a dirty tree. Record each outcome in `plan.md`; a batch
    that stops records why, and the plan goes on only on the user's yes. Unattended, run only the first `pending` batch whose kind
    is not `unknown`.
 
@@ -251,10 +251,14 @@ threshold first) followed by `cleanup row <n>: <action>`, `Action` reading
 `pr-body.md` only, each with its expiry, owner and tracking issue, beside each expired quarantine
 and the user's choice for it (re-enabled, escalated, renewed to a date, or undecided).
 
-Show the batch and wait for the user's approval. Then commit the batch's files only (named paths,
-never `git add -A`) and delete `before.tsv` and `after.tsv`. Push and the pull request go
-through `/source-control:pull-request` when that plugin is enabled, otherwise leave them to the
-user. Unattended runs stop before the commit.
+Show the batch. While a yes-gated item is still unanswered, stop there and list it. Otherwise
+commit the batch's files only (named paths, never `git add -A`) without waiting for a
+batch-level approval: every yes-gated item in it already had the user's answer, and the commit
+is local. Report the commit's SHA and how to undo it (while it is the branch's latest commit,
+`git reset --soft HEAD~1` drops it and keeps its changes staged; later, `git revert <sha>`),
+then delete `before.tsv` and `after.tsv`. Push and open the pull request only when the user
+asks, through `/source-control:pull-request` when that plugin is enabled. Unattended runs stop
+before the commit.
 
 ## Cannot-fail-only mode
 
@@ -305,12 +309,12 @@ Step 7's report states that the batch ran in this mode, which step 0 check or st
 it, if any, and that no mutation gate ran; it has no K1, and no K0 beyond that step 3 result.
 Every deletion here is gate-blind by construction. It also states that nothing was built or
 linted: a helper the deleted test alone used can trip an unused-code check, so ask the user to
-build and lint the test project before approving the batch.
+build and lint the test project before pushing the batch.
 
 ## What this skill does NOT do
 
-- Commit without the user's approval of the batch, or delete, merge or revert any test without a
-  yes on that item.
+- Commit a batch before showing it, while a yes-gated item is unanswered, or in an unattended
+  run; push it unasked; or delete, merge or revert any test without a yes on that item.
 - Detect flaky tests, sweep quarantines outside the named folder, file a tracking issue, or bisect
   a lost kill.
 - Clean more than one folder in one batch (a repository plan runs each folder as its own batch),
