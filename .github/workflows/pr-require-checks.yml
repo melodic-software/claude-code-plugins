@@ -167,9 +167,9 @@ concurrency:
 # check-skills at most 585 / 645, the wall of a measured job
 # that ran all of its steps and more, 15; test-bash per leg about 340 on the
 # whole tree (12 legs; at 7, main's job p95 per leg was 428 to 516; a leg ends
-# no sooner than its longest suite, align.test.sh at about 310 s since
-# block-root-delete-target.test.sh runs in five parts, plus about 40 to 55 s of
-# setup), 9; test-python per leg about
+# no sooner than its longest suite, engine.test.sh at 241 s since
+# block-root-delete-target.test.sh runs in five parts and align.test.sh in
+# three, plus about 40 to 55 s of setup), 9; test-python per leg about
 # 240 on the whole tree (1462 s of suites over 9 legs estimated from
 # scripts/suite-seconds.txt, which main measured 10 to 25% higher, plus 30 to
 # 75 s of setup; at 5 legs main's job p95 reached 414), 7;

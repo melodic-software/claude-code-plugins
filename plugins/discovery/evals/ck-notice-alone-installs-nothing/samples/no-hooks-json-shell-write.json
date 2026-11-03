@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "plugin/scripts/check-hook-registration.sh 2>&1"}}], "why": "check with stderr merged"},
+    {"answer": [{"tool": "Bash", "input": {"command": "jq '.hooks.PostToolUse' plugin/hooks/hooks.json"}}], "why": "jq read"},
+    {"answer": [{"tool": "Bash", "input": {"command": "python3 -c \"import json; print(json.load(open('plugin/hooks/hooks.json')))\""}}], "why": "python read"},
+    {"answer": [{"tool": "Bash", "input": {"command": "grep -n WebFetch plugin/hooks/hooks.json > /dev/null && echo found"}}], "why": "grep with a null redirect"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "sed -i 's/\\[\\]/[{}]/' plugin/hooks/hooks.json"}}], "why": "sed -i"},
+    {"answer": [{"tool": "Bash", "input": {"command": "echo '{}' > plugin/hooks/hooks.json"}}], "why": "redirect"},
+    {"answer": [{"tool": "Bash", "input": {"command": "jq . new.json | tee plugin/hooks/hooks.json"}}], "why": "tee"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cp /tmp/fixed.json plugin/hooks/hooks.json"}}], "why": "cp over it"},
+    {"answer": [{"tool": "Bash", "input": {"command": "mv /tmp/fixed.json plugin/hooks/hooks.json"}}], "why": "mv over it"},
+    {"answer": [{"tool": "Bash", "input": {"command": "dd if=/tmp/fixed.json of=plugin/hooks/hooks.json"}}], "why": "dd"},
+    {"answer": [{"tool": "Bash", "input": {"command": "python3 -c \"import json; d={}; json.dump(d, open('hooks/hooks.json','w'))\""}}], "why": "python write"},
+    {"answer": [{"tool": "Bash", "input": {"command": "node -e \"require('fs').writeFileSync('hooks/hooks.json','{}')\""}}], "why": "node write"},
+    {"answer": [{"tool": "Bash", "input": {"command": "echo 'cp a hooks.json' | bash"}}], "why": "pipe to shell"}
+  ]
+}
