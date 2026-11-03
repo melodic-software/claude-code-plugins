@@ -147,23 +147,29 @@ Run `check`, then for each FAIL point at the resolution. This skill installs not
   where `values.json` holds `{"actionlint_enabled": "true"}` (every value a string, booleans
   included; keys left out keep their saved values). Headless fallback, before 2.1.285:
   `claude plugin install actionlint@<marketplace> -s <scope> --config actionlint_enabled=true`
-  (repeatable per key); against an already-installed plugin it prints `already installed`
-  **and still writes the value**. Do **not** uninstall to reconfigure: that drops this plugin's
+  (repeatable per key). Do **not** uninstall to reconfigure: that drops this plugin's
   entire stored `pluginConfigs` entry, resetting every option in the README's Options reference
-  to its manifest default. The value lands in user settings whichever route writes it.
-  `claude plugin configure` has no scope flag, so run it from the project the plugin is installed
-  in. For the rerun, `-s` defaults to `user`; pass the scope `claude plugin list` reports for this
-  plugin, and for a `project` or `local` scope run from that project's directory, so the rerun
-  matches the existing install record; from the home directory pass `user`. A rerun at another
-  scope adds an install record at that scope and enables the plugin there. Check each route's own failure signal:
-  `--values-stdin` rejects a bad value with exit 1 and saves nothing, but stores an empty string
-  as `""`; the `--config` rerun prints a warning for a rejected value yet exits 0, so read its
-  output. This skill never writes user settings or `pluginConfigs`.
-  Afterwards rerun `check` in a **fresh session**. The rendered
-  `${user_config.*}` is injected at skill load and each hook receives its
-  `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so a same-session
-  `check` still reports the OLD value; report the observed effective value, never an
-  unobserved change.
+  to its manifest default. Run either route from the project the plugin is installed in. For the
+  rerun, always pass `-s` with the scope `claude plugin list` reports for this plugin; from the
+  home directory pass `user`. Read each route's output, not only its exit code, to tell a saved
+  value from a rejected one.
+  - **Pointer**: for how each route resolves the install, its scope default, what it prints
+    against an installed plugin, and what it prints and exits with on a rejected value, fetch
+    [Plugin commands reference: plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+    and [plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+    live.
+  - **As of**: 2026-11-03
+  - **Recheck trigger**: either section changes how it finds an install, its scope default, or
+    its output or exit code on an installed plugin or a rejected value.
+
+  This skill never writes user settings or `pluginConfigs`. Afterwards rerun `check` in a
+  **fresh session** and report the observed effective value, never an unobserved change.
+  - **Pointer**: for when a saved value reaches skill content and hooks, fetch
+    [Plugin manifest reference: Reference a saved value](https://code.claude.com/docs/en/plugins-reference#reference-a-saved-value)
+    and [plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+    live.
+  - **As of**: 2026-11-03
+  - **Recheck trigger**: either section changes when a saved value takes effect.
 
 After pointing at a remediation, re-run the relevant `check` probe live via Bash (a pre-computed row
 predates the remediation, so never re-read it) and report its actual result. Never claim resolved on

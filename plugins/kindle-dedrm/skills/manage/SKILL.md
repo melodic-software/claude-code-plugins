@@ -172,7 +172,7 @@ The skill should NEVER offer to delete the user's Calibre Library. Those are the
 | techy-notes.com tutorial 404s or moves | Pivot to epubor.com tutorial (secondary); update `reference/sources.md` |
 | Kindle for PC ships a version > 2.9.1 not in `KFXARCHIVER_TOOL_MAP` | Wait for KFXArchiver update; document in `reference/troubleshooting.md` |
 | Calibre's KFX Input plugin renamed in catalog | Update plugin name reference in `reference/workflow.md` |
-| User reports a sync that left a 2.9.x cached installer past firewall re-enable | Tighten timing in `scripts/sync-prep.sh`. Possibly add an automatic `sync-finalize.sh` invocation when Kindle.exe quits |
+| User reports a sync that left a cached installer past firewall re-enable | Tighten timing in `scripts/sync-prep.sh`. Possibly add an automatic `sync-finalize.sh` invocation when Kindle.exe quits |
 
 ## Spoke paths
 
