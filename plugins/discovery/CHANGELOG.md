@@ -1,5 +1,13 @@
 # Changelog: discovery plugin
 
+## [1.2.1] - 2026-11-03
+
+### Changed
+
+- `/discovery:research`: the sentence saying the Effort row caps discipline 8 now sits in the Disciplines intro, ahead of the numbered list, instead of opening "Effort, source breadth". It now ends at about byte 15,200, well inside the first 20,000 bytes that compaction re-attaches. The paragraph on grading each sub-slice of an N-topic fan-out moved under "The deep tier", and acceptance gate step 2 points to it there.
+
+- The return contract (`/discovery:report`) caps a dispatched agent's whole final message at 4,096 bytes; detail that does not fit goes in the agent's artifact.
+
 ## [1.2.0] - 2026-11-03
 
 ### Changed

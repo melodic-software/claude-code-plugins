@@ -79,26 +79,34 @@ jq -e '
 ' results.json
 ```
 
-This parser is the two-arm comparability gate, layered on top of the CLI's own threshold check: the
-command already exits 1 on a below-threshold case, and the parser adds what the exit code cannot
-carry. Under `--ablation none` no case has a `delta` at all, so a one-arm lane gates on
-`aggregates.casesPassed == aggregates.casesTotal` and drops the last clause.
+This parser is the two-arm comparability gate, layered on top of the CLI's own threshold check,
+which sets the exit code; the parser adds what the exit code cannot carry. A one-arm lane
+(`--ablation none`) gates on `aggregates.casesPassed == aggregates.casesTotal` and drops the last
+clause.
 
 Three rules the parser encodes, each of which a naive reader gets wrong:
 
-- An **omitted** `delta` is not zero. A case whose arms were not comparable has no delta field at
-  all, and `jq`'s `//` operator would silently turn that into a passing zero.
-- A run with `skippedPaidGraders: true` is not a low score, it is an unscored run: its judge graders
-  were skipped and recorded as failures.
-- A non-null `error` is not a zero either. The run is graded on what it produced, which is exactly
-  why a rate limit reads as a regression.
+- A case with no `delta` is unscored, never a zero: the parser stops on it rather than let `jq`'s
+  `//` operator turn the absence into a passing zero.
+- A run with `skippedPaidGraders: true` is unscored, never a low score.
+- A run with a non-null `error` is one this parser treats as unscored, never a zero and never a
+  regression.
+
+The record behind those three rules:
+
+- **Pointer**: when deciding what an absent `delta`, `skippedPaidGraders` or a non-null `error`
+  means, fetch [JSON result](https://code.claude.com/docs/en/plugin-evals#json-result) live.
+  **As of**: 2026-11-03. **Recheck trigger**: that section changes when `delta` is omitted or what
+  either run field records.
 
 ## Keeping a trend honest
 
 - Exclude every `partial: true` document and every run carrying `skippedPaidGraders` or a non-null
   `error`.
-- Hold the ablation mode fixed across runs; mixing two-arm and `--ablation none` results breaks the
-  line silently, because nothing is excluded from scoring in the second mode.
+- Hold the ablation mode fixed across the runs of one trend, and never put two-arm and
+  `--ablation none` points on one line. For what each mode runs, see the `--ablation` row of
+  [Command options](https://code.claude.com/docs/en/plugin-evals#command-options) (as of
+  2026-11-03; recheck when that row changes what a mode runs or scores).
 - Record `claudeVersion` and `suite` (`ablation`, `threshold`, `concurrency`, `caseFilter`) with
   each point, so a step change has somewhere to be attributed.
 - Commit `mocks/.replay/` so agent mocks replay without a model call. It is the one lever that makes

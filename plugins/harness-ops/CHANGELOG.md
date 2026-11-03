@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.1.1] - 2026-11-03
+
+### Changed
+
+- The `prerequisites` skill's `## Next` section and its eval no longer name the formatter and linter `check` skills, because they are gone.
+
 ## [8.1.0] - 2026-11-03
 
 ### Added
