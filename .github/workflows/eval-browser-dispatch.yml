@@ -159,6 +159,7 @@ jobs:
       # The default branch tip; on a dispatch, the dispatched commit, which the
       # job if: holds to the default branch.
       - name: Check out the default branch
+        if: github.event_name != 'pull_request' || steps.tip.outputs.sha != ''
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event_name == 'pull_request' && steps.tip.outputs.sha || github.sha }}
