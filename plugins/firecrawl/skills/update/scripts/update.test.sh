@@ -344,15 +344,16 @@ assert_contains "version unchanged after install: names both versions" "$apply_o
 assert_contains "version unchanged after install: names the expected version" "$apply_out" "2.0.0"
 
 # Git Bash: the prefix prints as a CRLF-terminated Windows path and is the bin itself.
+WINDOWS_PREFIX=$'C:\\fixture\\npm\r'
 reset_apply "1.0.0"
 place_firecrawl "$APPLY/prefix"
-run_stubbed_apply "$APPLY/prefix" "2.0.0" "MINGW64_NT-10.0-26100" $'C:\\stub\\npm\r'
+run_stubbed_apply "$APPLY/prefix" "2.0.0" "MINGW64_NT-10.0-26100" "$WINDOWS_PREFIX"
 assert_exit "Windows, command in the prefix: exit 0" 0 "$apply_exit"
 assert_contains "Windows, command in the prefix: records the new version" "$(cat "$APPLY_RECORD")" "CLI version at sync: 2.0.0"
 
 reset_apply "1.0.0"
 place_firecrawl "$APPLY/launcher"
-run_stubbed_apply "$APPLY/prefix" "2.0.0" "MINGW64_NT-10.0-26100" $'C:\\stub\\npm\r'
+run_stubbed_apply "$APPLY/prefix" "2.0.0" "MINGW64_NT-10.0-26100" "$WINDOWS_PREFIX"
 assert_apply_wrote_nothing "Windows, launcher elsewhere"
 assert_no_install "Windows, launcher elsewhere"
 
