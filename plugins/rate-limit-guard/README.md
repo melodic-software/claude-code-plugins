@@ -167,8 +167,11 @@ nothing and logs that once to the debug log.
 Wherever mods are off for a session, whether the build is too old for mods or a setting, flag, policy or Claude Code itself turned them off, the
 module does not run: no lines, no band, no status tool, no module writes. The StopFailure hook
 still records, and readers fall back to reactive-only as the reader contract says.
-`/rate-limit-guard:check` and `/rate-limit-guard:setup check` report "mods off" in that case. A
-hook that throws passes its event through unchanged.
+`/rate-limit-guard:setup check` reports "mods off" in that case.
+`bash "<plugin root>/scripts/check-mod-load.sh"` reports it only for a build below the floor: a child
+process cannot see this session's flags or settings, so on a current build it prints PASS and tells
+the agent to look for the status tool in its own tool list. A hook that throws passes its event
+through unchanged.
 
 - **Pointer**: when deciding what turns mods off, fetch
   [mods overview: turn mods on or off](https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off)
@@ -270,8 +273,9 @@ The module and the StopFailure hook are active once the plugin loads (the next s
   page says the installed binary runs on Node.js, or the rate limit usage section changes which
   accounts or gateways the `rate_limits` object appears for.
 
-`/rate-limit-guard:check` reports whether `node` resolves and whether the module can load,
-read-only. It installs nothing.
+`node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"` reports whether `node`
+resolves, and `bash "<plugin root>/scripts/check-mod-load.sh"` whether the module can load. Both
+are read-only and install nothing.
 
 ## Configuration
 

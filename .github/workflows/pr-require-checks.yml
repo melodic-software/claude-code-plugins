@@ -143,14 +143,15 @@ concurrency:
 #
 # EVERY JOB'S WORK BUDGET IS ceil(max(1.5 x p95, 1.1 x max) / 60) MINUTES, at
 # least 3 and never above 16. Its work is the time from job start to the end of
-# its last step. Its timeout is that budget plus 3 minutes, but never less than
-# 6. The 3 minutes cover the runner's tail after the last step, which no step
-# can shorten: in merge group run 41462032858 `check-plugins` ended its last
-# step 62 s in, then waited 152 s on "Cleaning up orphan processes" with no
-# orphan left, and was cancelled at its old 3-minute timeout. Each merge-group
-# job's tail is recorded in the ci-status job summary. A job whose work
-# outgrows its budget is made faster or split, not given a bigger budget. A
-# job whose budget is above 3 keeps its timeout until its own tail is measured.
+# its last step. Its timeout is that budget plus 6 minutes. The 6 minutes cover
+# the runner's tail after the last step, which no step can shorten: over 113
+# merge-group runs after 2026-11-02 19:40Z, 2,220 successful jobs had a median
+# tail of 3 s and a longest of 211 s, while `select-tests` in run
+# 41529399052 ended its last step 20 s in, stopped logging at "Cleaning up orphan
+# processes", and was still waiting 340 s later at its 6-minute timeout. Each
+# merge-group job's tail is recorded in the ci-status job summary. A job whose
+# work outgrows its budget is made faster or split, not given a bigger budget.
+# ci-status waits on the lanes, so it keeps its own limit.
 # The p95 / max figures below were measured from the job's wall over 117 pull-request and 100 push
 # runs (2026-09-30 to 10-02), check 25 counted in full on every pull request
 # (the case a checker change and the scheduled run pay). Until a job has runs
@@ -167,9 +168,9 @@ concurrency:
 # check-skills at most 585 / 645, the wall of a measured job
 # that ran all of its steps and more, 15; test-bash per leg about 340 on the
 # whole tree (12 legs; at 7, main's job p95 per leg was 428 to 516; a leg ends
-# no sooner than its longest suite, align.test.sh at about 310 s since
-# block-root-delete-target.test.sh runs in five parts, plus about 40 to 55 s of
-# setup), 9; test-python per leg about
+# no sooner than its longest suite, engine.test.sh at 241 s since
+# block-root-delete-target.test.sh runs in five parts and align.test.sh in
+# three, plus about 40 to 55 s of setup), 9; test-python per leg about
 # 240 on the whole tree (1462 s of suites over 9 legs estimated from
 # scripts/suite-seconds.txt, which main measured 10 to 25% higher, plus 30 to
 # 75 s of setup; at 5 legs main's job p95 reached 414), 7;
@@ -177,7 +178,7 @@ concurrency:
 # of package chains measured on a warm npm cache), sized for a cold install, 5;
 # check-tests about 140 on the whole tree, measured, 4; ci-status 9 / 42, 3.
 # The four jobs with a 3-minute budget (mark-lanes, select-tests,
-# check-plugins, check-catalog) carry a 6-minute timeout.
+# check-plugins, check-catalog) carry a 9-minute timeout.
 #
 # CACHES ARE SAVED FROM MAIN ONLY. Each cache restores through
 # actions/cache/restore, and its save step runs only on refs/heads/main (the
@@ -268,7 +269,7 @@ jobs:
     # The contract-only gate, verbatim (see `select-tests`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 6
+    timeout-minutes: 9
     permissions:
       statuses: write
     steps:
@@ -880,7 +881,7 @@ jobs:
     # answered and `ci-status` carries that answer forward instead.
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 6
+    timeout-minutes: 9
     # The detect-changes action lists the pull request's files through the
     # API. Nothing else in this workflow needs that read, so it is granted here
     # and nowhere else. The queue-hold step reads the queued pull request and
@@ -1281,7 +1282,7 @@ jobs:
     # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 7
+    timeout-minutes: 13
     # checks: read lets the aggregator quote a composite gate's annotations.
     permissions:
       contents: read
@@ -1997,7 +1998,7 @@ jobs:
     # this lane's ordered skip.
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true && needs.select-tests.outputs.run_shell == 'true' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 9
+    timeout-minutes: 15
     # checks: read lets the aggregator quote a composite gate's annotations.
     permissions:
       contents: read
@@ -2273,7 +2274,7 @@ jobs:
     # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 6
+    timeout-minutes: 9
     # pull-requests: read lets "Resolve the queued pull request" read the
     # queued pull request in a merge group.
     permissions:
@@ -2806,7 +2807,7 @@ jobs:
     # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 6
+    timeout-minutes: 9
     permissions:
       contents: read
     steps:
@@ -2941,7 +2942,7 @@ jobs:
     # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 21
     # checks: read lets the aggregator quote a composite gate's annotations.
     permissions:
       contents: read
@@ -3332,7 +3333,7 @@ jobs:
     # this lane's ordered skip.
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true && needs.select-tests.outputs.run_bash == 'true' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 9
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -3630,7 +3631,7 @@ jobs:
     # this lane's ordered skip (see `test-bash`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true && needs.select-tests.outputs.run_python == 'true' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 7
+    timeout-minutes: 13
     strategy:
       fail-fast: false
       matrix:
@@ -3669,7 +3670,7 @@ jobs:
         with:
           path: ~/.cache/pip
           key: pip-${{ runner.os }}-${{ hashFiles('.python-version', '.github/requirements-ci.txt', 'plugins/animation/requirements.txt') }}
-      # A stalled Chromium download can take minutes of this job's 7-minute limit, so the
+      # A stalled Chromium download can take minutes of this job's limit, so the
       # browser is cached under the locked playwright version (the lockfile hash) and a hit
       # skips the download.
       - name: Restore the Playwright browser
@@ -3773,7 +3774,7 @@ jobs:
     # this lane's ordered skip (see `test-bash`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true && needs.select-tests.outputs.run_node == 'true' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 11
     env:
       PACKAGES: ${{ needs.select-tests.outputs.node_packages }}
     steps:
@@ -3957,7 +3958,7 @@ jobs:
     # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 16
     permissions:
       contents: read
       # Sync mode lists the pull request's commits to verify their identity.
@@ -3990,7 +3991,7 @@ jobs:
     # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 4
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -4811,6 +4812,9 @@ jobs:
       # work budget rule). Every needed job has completed when this runs, so one
       # read of the attempt's jobs measures them all. It is written to this
       # job's summary, kept with the run; a failed read warns and fails nothing.
+      # A job cancelled after every step succeeded ran out its timeout in the
+      # tail. Each one also gets a `cancelled-after-success` annotation, which the
+      # check-run annotations API returns, so the count can be compared over time.
       - name: Record each job's runner tail
         if: github.event_name == 'merge_group'
         env:
@@ -4819,15 +4823,22 @@ jobs:
             .jobs[] | select(.completed_at and .started_at and .name != "ci-status")
             | ([.steps[] | .completed_at // empty] | max) as $last
             | select($last)
-            | "| \(.name) | \(($last | fromdate) - (.started_at | fromdate)) | \((.completed_at | fromdate) - ($last | fromdate)) |"
+            | (.conclusion == "cancelled" and ([.steps[].conclusion] | all(. == "success" or . == "skipped"))) as $stuck
+            | "| \(.name) | \(($last | fromdate) - (.started_at | fromdate)) | \((.completed_at | fromdate) - ($last | fromdate)) | \(if $stuck then "cancelled-after-success" else .conclusion end) |"
         run: |
           . "$RUNNER_TEMP/gh-read.sh"
+          rows=$(gh_read "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs?per_page=100" --jq "$TAIL_ROWS") ||
+            echo "::warning::Could not read this attempt's jobs; no runner tails recorded." >&2
           {
-            echo '| job | work s | tail s |'
-            echo '|---|---|---|'
-            gh_read "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs?per_page=100" --jq "$TAIL_ROWS" ||
-              echo "::warning::Could not read this attempt's jobs; no runner tails recorded." >&2
+            echo '| job | work s | tail s | conclusion |'
+            echo '|---|---|---|---|'
+            printf '%s\n' "$rows"
           } >>"$GITHUB_STEP_SUMMARY"
+          while IFS='|' read -r _ job _ tail outcome _; do
+            if [[ ${outcome// /} == cancelled-after-success ]]; then
+              echo "::notice title=cancelled-after-success::job=${job// /} tail_s=${tail// /}"
+            fi
+          done <<<"$rows"
       - name: Check the pull-request contract
         uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
@@ -6675,7 +6686,7 @@ jobs:
           held_paths() {
             # The trust-gate paths, as bash patterns (`*` crosses `/`).
             # BEGIN hold-floor hold_patterns: generated by scripts/sync-hold-floor.py
-            hold_patterns=('.github/standards/trusted-actors/*' 'CODEOWNERS' '*/CODEOWNERS' 'docs/conventions/pr-pipeline.yaml' '.gitmodules' '*/.gitmodules' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_tracker_binding.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' '.claude/*' '*/.claude/*' 'docs/conventions/source-control.yaml' '.claude-lane/*' '*/.claude-lane/*' '.mcp.json' '*/.mcp.json' 'CLAUDE.md' '*/CLAUDE.md' 'CLAUDE.local.md' '*/CLAUDE.local.md' 'AGENTS.md' '*/AGENTS.md' 'REVIEW.md' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/check-kill-switch/*' '.github/actions/request-lane-token/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/last-report.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/retry-call.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/pr-merge/listing-carry.mjs' '.github/actions/report-check-run/posting-run.mjs' 'scripts/sync-hold-floor.py' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/escalation-routes.mjs' '.github/scripts/pr-unblock/escalation-routes.json' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/pr-unblock/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/work-resolve-issue/retry-fetch.mjs' '.github/scripts/pr-unblock/report-escalation.sh' '.github/scripts/pr-unblock/adjudicate-feedback.mjs' '.github/scripts/pr-unblock/publish-feedback.mjs' '.github/scripts/pr-unblock/request-budget.mjs' '.github/scripts/pr-verify/resolve-pr.mjs' '.github/scripts/pr-verify/write-verdict.mjs' '.github/scripts/intake-triage/admit.mjs' '.github/actions/select-trusted-text/select-trusted-text.mjs' 'lib/publish-gate.mjs' '.github/recurring-schedule.json' 'plugins/work-items/scripts/charge-words.json' '.github/scripts/pr-unblock/dependency-classify.mjs' '.github/scripts/apply-patch/apply-patch.mjs' '.github/scripts/apply-patch/predicates.mjs' '.github/scripts/apply-patch/protected-paths.mjs' '.github/scripts/apply-patch/retry-fetch.mjs' '.github/scripts/pr-unblock/fix-ci-context.mjs' '.github/scripts/pr-unblock/feedback-dispatch.mjs' '.github/scripts/pr-unblock/verify-notes.mjs' '.github/scripts/pr-unblock/limit-stop.mjs' '.github/scripts/lib/lane-outcome.mjs' '.github/scripts/pr-unblock/dispatch-record.mjs' '.github/scripts/pr-unblock/verify-cap.mjs' '.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs' '.github/scripts/work-resolve-issue/stop-routes.json' '.github/scripts/work-resolve-issue/stop-routes.mjs' '.github/scripts/work-resolve-issue/known-names.json' '.github/scripts/lib/stop-reason.mjs' '.github/scripts/lib/admission-comment.mjs' '.github/scripts/lib/done-evidence.mjs' '.github/scripts/pr-review-main/*' 'docs/conventions/instruction-exception-register/*' 'docs/conventions/untrusted-content/*' 'docs/standards/*' 'docs/review/*' '.github/workflows/dependabot-fragments.yml' '.github/workflows/eval-browser-dispatch.yml' '.github/workflows/intake-reenter.yml' '.github/workflows/intake-triage.yml' '.github/workflows/maintenance-audit-lane-runs.yml' '.github/workflows/maintenance-reconcile-lost-runs.yml' '.github/workflows/post-merge-demotion-alert.yml' '.github/workflows/post-merge-test-mutation.yml' '.github/workflows/pr-feedback-dispatch.yml' '.github/workflows/pr-merge.yml' '.github/workflows/pr-refine.yml' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-review-approved.yml' '.github/workflows/pr-review-comment-relay.yml' '.github/workflows/pr-review-hosted.yml' '.github/workflows/pr-review-main.yml' '.github/workflows/pr-review-security-hosted.yml' '.github/workflows/pr-run-activity-read.yml' '.github/workflows/pr-run-activity-write.yml' '.github/workflows/pr-unblock-dispatch.yml' '.github/workflows/pr-unblock.yml' '.github/workflows/pr-verify.yml' '.github/workflows/release-publish-plugins.yml' '.github/workflows/work-resolve-issue.yml' '.github/workflows/work-unblock.yml')
+            hold_patterns=('.github/standards/trusted-actors/*' 'CODEOWNERS' '*/CODEOWNERS' 'docs/conventions/pr-pipeline.yaml' '.gitmodules' '*/.gitmodules' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_tracker_binding.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' '.claude/*' '*/.claude/*' 'docs/conventions/source-control.yaml' '.claude-lane/*' '*/.claude-lane/*' '.mcp.json' '*/.mcp.json' 'CLAUDE.md' '*/CLAUDE.md' 'CLAUDE.local.md' '*/CLAUDE.local.md' 'AGENTS.md' '*/AGENTS.md' 'REVIEW.md' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/check-kill-switch/*' '.github/actions/request-lane-token/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/last-report.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/retry-call.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/pr-merge/listing-carry.mjs' '.github/actions/report-check-run/posting-run.mjs' 'scripts/sync-hold-floor.py' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/escalation-routes.mjs' '.github/scripts/pr-unblock/escalation-routes.json' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/pr-unblock/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/work-resolve-issue/retry-fetch.mjs' '.github/scripts/pr-unblock/report-escalation.sh' '.github/scripts/pr-unblock/adjudicate-feedback.mjs' '.github/scripts/pr-unblock/publish-feedback.mjs' '.github/scripts/pr-unblock/request-budget.mjs' '.github/scripts/pr-verify/resolve-pr.mjs' '.github/scripts/pr-verify/write-verdict.mjs' '.github/scripts/intake-triage/admit.mjs' '.github/actions/select-trusted-text/select-trusted-text.mjs' 'lib/publish-gate.mjs' '.github/recurring-schedule.json' 'plugins/work-items/scripts/charge-words.json' '.github/scripts/pr-unblock/dependency-classify.mjs' '.github/scripts/apply-patch/apply-patch.mjs' '.github/scripts/apply-patch/predicates.mjs' '.github/scripts/apply-patch/protected-paths.mjs' '.github/scripts/apply-patch/retry-fetch.mjs' '.github/scripts/pr-unblock/fix-ci-context.mjs' '.github/scripts/pr-unblock/feedback-dispatch.mjs' '.github/scripts/pr-unblock/verify-notes.mjs' '.github/scripts/pr-unblock/limit-stop.mjs' '.github/scripts/lib/lane-outcome.mjs' '.github/scripts/pr-unblock/dispatch-record.mjs' '.github/scripts/pr-unblock/verify-cap.mjs' '.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs' '.github/scripts/work-resolve-issue/stop-routes.json' '.github/scripts/work-resolve-issue/stop-routes.mjs' '.github/scripts/work-resolve-issue/known-names.json' '.github/scripts/lib/stop-reason.mjs' '.github/scripts/lib/admission-comment.mjs' '.github/scripts/lib/done-evidence.mjs' '.github/scripts/pr-review-main/*' 'docs/conventions/instruction-exception-register/*' 'docs/conventions/untrusted-content/*' 'docs/standards/*' 'docs/review/*' '.github/workflows/dependabot-fragments.yml' '.github/workflows/eval-browser-dispatch.yml' '.github/workflows/intake-reenter.yml' '.github/workflows/intake-triage.yml' '.github/workflows/maintenance-audit-lane-runs.yml' '.github/workflows/maintenance-reconcile-lost-runs.yml' '.github/workflows/post-merge-demotion-alert.yml' '.github/workflows/post-merge-test-mutation.yml' '.github/workflows/pr-feedback-dispatch.yml' '.github/workflows/pr-merge.yml' '.github/workflows/pr-refine.yml' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-review-approved.yml' '.github/workflows/pr-review-comment-relay.yml' '.github/workflows/pr-review-hosted.yml' '.github/workflows/pr-review-main.yml' '.github/workflows/pr-review-security-hosted.yml' '.github/workflows/pr-run-activity-read.yml' '.github/workflows/pr-run-activity-write.yml' '.github/workflows/pr-unblock-dispatch.yml' '.github/workflows/pr-unblock.yml' '.github/workflows/pr-verify.yml' '.github/workflows/release-publish-plugins.yml' '.github/workflows/upstream-apply-changelog.yml' '.github/workflows/work-resolve-issue.yml' '.github/workflows/work-unblock.yml')
             # merge.diff-check.path-holds is false: only Dependabot stays held.
             [ "$AUTHOR_ID" = 49699333 ] || hold_patterns=()
             # END hold-floor hold_patterns

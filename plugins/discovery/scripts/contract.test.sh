@@ -270,16 +270,14 @@ assert_absent_in 'setup has no step that writes the gate allow rules to user set
   'skills/setup/SKILL.md' 'Offer the gate allow rules'
 assert_absent 'no file says setup apply offers the gate allow rules' \
   'setup apply` (offers|writes) (the )?(gate|allow|permission)|setup apply.{0,40}allow rules'
-# Two grants are sanctioned: research's deep-tier launch of this plugin's own
-# workflow by name (never bare Workflow), and the check skill's read-only
-# check.sh, which takes no arguments. Neither grants a gate script.
+# One grant is sanctioned: research's deep-tier launch of this plugin's own
+# workflow by name (never bare Workflow). It grants no gate script.
 frontmatter_grants="$(surface | xargs grep -nEI '^allowed-tools:' 2>/dev/null |
-  grep -vE '/skills/research/SKILL\.md:[0-9]+:allowed-tools: \["Workflow\(discovery:research-sweep\)"\]$' |
-  grep -vE '/skills/check/SKILL\.md:[0-9]+:allowed-tools: \["Bash\(\$\{CLAUDE_SKILL_DIR\}/scripts/check\.sh:\*\)"\]$')"
+  grep -vE '/skills/research/SKILL\.md:[0-9]+:allowed-tools: \["Workflow\(discovery:research-sweep\)"\]$')"
 if [[ -z "$frontmatter_grants" ]]; then
-  pass 'no skill declares allowed-tools beyond the research-sweep launch and the check script (the un-run case is stated instead)'
+  pass 'no skill declares allowed-tools beyond the research-sweep launch (the un-run case is stated instead)'
 else
-  fail 'no skill declares allowed-tools beyond the research-sweep launch and the check script (the un-run case is stated instead)'
+  fail 'no skill declares allowed-tools beyond the research-sweep launch (the un-run case is stated instead)'
   printf '%s\n' "$frontmatter_grants" >&2
 fi
 assert_present 'research grants only the named research-sweep workflow' \

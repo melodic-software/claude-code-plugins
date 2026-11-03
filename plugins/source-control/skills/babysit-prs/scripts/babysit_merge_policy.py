@@ -682,8 +682,8 @@ MAX_QUARANTINE_DAYS = 30
 # `red-main.confirm-wait-minutes` when absent or not a whole number from 0 to
 # `MAX_CONFIRM_WAIT_MINUTES`, as `RED_MAIN_DEFAULTS` in
 # .github/scripts/post-merge-demotion-alert/red-main.mjs resolves it.
-CONFIRM_WAIT_MINUTES = 40
-MAX_CONFIRM_WAIT_MINUTES = 45
+CONFIRM_WAIT_MINUTES = 55
+MAX_CONFIRM_WAIT_MINUTES = 60
 # The default `merge.max-verify-fails`: three heads' FAILs is a pull request
 # the verifier keeps refusing, not one noisy verdict (owner decision
 # 2026-10-21).
@@ -3195,6 +3195,7 @@ CARRY_REFUSES: tuple[str, ...] = (
     "plugins/testing/evals/browser-probe/**",
     "plugins/work-items/scripts/**",
     "plugins/work-items/tools/work-item-tracker/**",
+    _skill_scripts("harness-ops:changelog"),
 )
 
 

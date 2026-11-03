@@ -1879,9 +1879,13 @@ the GitHub Actions bot posted. GitHub then merges the pull request through the m
 once `ci-status` passes, which in the queue also holds a pass that no longer binds the live link:
 the body must still close, or with no closing issue name by a plain `Refs:` line, the issue the
 pass judged, linked the same way, alone or beside others (`merge-holds.mjs` `linkHold`), so a body
-edited after arming to drop its link or name another issue does not merge on that pass. The
-15-minute schedule arms a pull request the issue lane opened, so it waits up to one scheduled
-interval, and arms or disarms what the events missed; a listed human's unlabel wakes it too. A
+edited after arming to drop its link or name another issue does not merge on that pass. A pass
+or pass-notes verdict wakes it for that one pull request: `pr-verify.yml`'s `wake-pr-merge` job
+dispatches a PR-scoped `pr-merge.yml` run (`-f pr=<n>`, run name `pr-merge: arm #<n>`) that
+reads and arms only that pull request, its lane room from the last sweep's post-merge report,
+and skips the merge job, `post-merge-dispatch` and every other sweep job. Its `api-calls` totals
+and outcome land in one `pr-merge-wake` notice. The 30-minute schedule is the backstop that arms
+what a wake missed and disarms what the events missed; a listed human's unlabel wakes it too. A
 `Hold:` line added after arming fails `ci-status` on that edit, on the pull request and in the
 merge queue, and the next scheduled run disarms. The issue lane finishing does not wake it:
 an event run never arms, and a pull request the lane just opened is not armed, so there is nothing
@@ -2202,12 +2206,13 @@ The class is `babysit_dependabot.py` beside the wrapper. Auto-merge armed with `
 entry such an arm makes never gets its `ci-status` run and never lands (#6717, #7512).
 
 `.github/workflows/pr-merge.yml` runs the lane's `merge-pr` activity with no model and no head
-checkout. A label coming off a PR, a manual dispatch and a schedule every 15 minutes each only
+checkout. A label coming off a PR, a manual dispatch and a schedule every 30 minutes each only
 wake it; it lists the candidates from the API and runs the gate on each under the lanes App token
 the broker mints for that file on `main`. A body or ready change on a PR, or a finished `ci-status`
 or review run, is picked up by the next scheduled run, not by a wake-up of its own: runs are
 serialized, and the triggers must start them more slowly than they finish to stay under GitHub's
-cap on queued runs.
+cap on queued runs. The one exception is a pass verdict, which wakes only the enable-auto-merge
+job for that pull request (the PR-scoped dispatch above); the merge job does not run on it.
 
 After the gate, a `gate-check` job of its own writes each candidate's verdict on its head as one
 `pr-merge / gate` check run with its `GITHUB_TOKEN`, from the gate's rows the merge job hands it as
@@ -3143,7 +3148,7 @@ Which GitHub identity each workflow in `.github/workflows/` writes as. GitHub's 
 | Identity | Workflows | Why |
 |---|---|---|
 | `GITHUB_TOKEN` (`github-actions[bot]`) | every workflow not named below, and the reads and check runs of those that are | Its writes start no workflow run, a dispatch aside, which the lane sweep's digest and the monitoring lane rely on so their own issues start no lane; it has its own per-repository API quota ([ADR 0085](../../adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md)) |
-| Lanes App `melodic-automation-lanes`, minted per job by the broker (`.github/actions/request-lane-token`) | `pr-merge.yml`, `pr-run-activity-write.yml` (which the write jobs of `pr-unblock`, `pr-refine` and `work-resolve-issue` call), `intake-triage.yml`, `work-unblock.yml` | Its pushes, labels and auto-merge arms must start the next lane's runs, which a `GITHUB_TOKEN` write does not; one App identity also lets the person tests tell a lane from a person ([lane write identity](../loop-lane/README.md#lane-write-identity)) |
+| Lanes App `melodic-automation-lanes`, minted per job by the broker (`.github/actions/request-lane-token`) | `pr-merge.yml`, `pr-run-activity-write.yml` (which the write jobs of `pr-unblock`, `pr-refine` and `work-resolve-issue` call), `intake-triage.yml`, `work-unblock.yml`, `upstream-apply-changelog.yml` | Its pushes, labels and auto-merge arms must start the next lane's runs, which a `GITHUB_TOKEN` write does not; one App identity also lets the person tests tell a lane from a person ([lane write identity](../loop-lane/README.md#lane-write-identity)) |
 | Release App (`PLUGIN_RELEASE_APP_PRIVATE_KEY`, `actions/create-github-app-token`) | `release-publish-plugins.yml`, `dependabot-fragments.yml` | A pull request `GITHUB_TOKEN` opens or updates gets its `pull_request` runs only after approval, and these pull requests need theirs unattended |
 | Owner token | none | Only the owner's own sessions use it; the babysit scripts count its calls as the `owner-token` API pool |
 
@@ -3709,7 +3714,7 @@ tests are in
 The full run pr-merge starts after each merge uses `GITHUB_TOKEN`, so its completion raises no
 `workflow_run` event. When that run ends red, pr-merge's `post-merge-dispatch` job sends its run id
 to the alert workflow through `workflow_dispatch` on its next scheduled run while the lane is
-live (kill switch and report-only off), up to 15 minutes later. A dispatch `pr-require-checks.yml`'s main-dispatch concurrency group replaced before it
+live (kill switch and report-only off), up to 30 minutes later. A dispatch `pr-require-checks.yml`'s main-dispatch concurrency group replaced before it
 started (cancelled, no job) is no signal: it is never sent, and neither the alert nor the
 post-merge check reads it as red. The alert accepts the id only from
 `github-actions[bot]` or a listed human (`trusted-actors.json` on `main`), never the lanes App,
@@ -3762,7 +3767,7 @@ and reports by run and attempt.
 | `dry-run` | `true` | Report only: the step summary and one comment per confirmed red on the log issue (first body line `<!-- red-main-revert-log -->`), each starting `<!-- red-main-report run=<id> attempt=<n> culprit=<sha or none> decision=<auto-revert, fix-forward or none> -->` (older reports name `fix-forward` as `human`). A run that posts no report, because its red is unconfirmed or the log already reports it, adds a note naming any unreported red full runs, starting `<!-- red-main-unreported-note run=<id> attempt=<n> -->`; a note counts as neither a report nor a cap decision, and none creates the log issue. Nothing is pushed, opened or merged. This version has no revert path, so `false` reports too. |
 | `daily-cap` | 3 | Auto-reverts decided in any 24 hours; 0 to 10, and 0 fixes every culprit forward. |
 | `max-culprit-age-hours` | 24 | Hours since the culprit merged past which it is fixed forward, not reverted; 1 to 168. |
-| `confirm-wait-minutes` | 40 | Minutes the job waits for the re-run to finish; 0 to 45. |
+| `confirm-wait-minutes` | 55 | Minutes the job waits for the re-run to finish; 0 to 60. |
 | `remedy` | `rollback` | `rollback` applies rules 3 and 4. `fail-forward` plans no revert: the report's decision is `fix-forward`, it names the remedy as the reason, and the fix issues repair `main`. |
 
 The job reads the leaf through the base checkout's resolve-config (`redMainFromBase`), so a config

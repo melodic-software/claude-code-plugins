@@ -650,6 +650,29 @@ activities:
     # sub-issue never splits again, and the issue's body is never edited.
     # Admission waits on an issue while a sub-issue is open.
     inputs: [issue]
+  apply-changelog-branches:
+    # Recreates each changelog/<plugin>/v<release> branch the
+    # upstream-apply-changelog model job's `/harness-ops:changelog apply --ci`
+    # committed, as lanes App commits through the Git Data API, after
+    # checking every commit changes only plugins/<plugin>/ and
+    # .changes/<plugin>/ as regular files and that the result holds the
+    # planned tree; skips a branch that exists. A script, no model. .github/workflows/upstream-apply-changelog.yml runs it.
+    script: .github/scripts/upstream-apply-changelog/upstream-apply-changelog.mjs
+    args: push
+    effect: mutate-branch
+    gating: advisory
+    # Reads the plan and the bundle the model wrote.
+    reads-untrusted: true
+  publish-changelog-intake:
+    # Opens one pull request per pushed branch at the head push left that
+    # has none, and files each plan handoff whose key no issue carries. A script,
+    # no model. .github/workflows/upstream-apply-changelog.yml runs it.
+    script: .github/scripts/upstream-apply-changelog/upstream-apply-changelog.mjs
+    args: publish
+    effect: publish-artifact
+    gating: advisory
+    # Posts the plan's titles and bodies, which the model wrote.
+    reads-untrusted: true
 
 lanes:
   # Started by the agent-ready label on an issue (.github/workflows/work-resolve-issue.yml).
@@ -738,6 +761,16 @@ lanes:
       - activity: apply-verdict
       - activity: apply-refinement
         needs: [apply-verdict]
+  # Started daily and by a listed human's dispatch naming one Claude Code
+  # release (.github/workflows/upstream-apply-changelog.yml). Push and pull request
+  # open are separate jobs: the broker refuses contents and pull-requests
+  # write in one mint.
+  upstream-apply-changelog:
+    stage: upstream
+    slots:
+      - activity: apply-changelog-branches
+      - activity: publish-changelog-intake
+        needs: [apply-changelog-branches]
 
 # The model, effort and turn budget of every model run (README.md, Models).
 # Aliases only, never full model IDs. A profile with no effort keeps its
@@ -972,6 +1005,13 @@ limits:
   # stranded issues wait for the next one; far above it, queued runs go stale
   # on a lane workflow change.
   restarts-per-run: 10
+  # upstream-apply-changelog runs that reach the model in any 24 hours (counted from
+  # its gate's start records, as red-main.daily-cap counts reverts). Each run
+  # takes one release, so 3 is the most anthropics/claude-code releases
+  # published in one UTC day or any 24 hours from 2026-05-02 to 2026-11-01
+  # (158 releases; GitHub releases API published_at, read 2026-11-02).
+  # Dispatches and retries count too; a release over the cap waits for the window.
+  upstream-apply-changelog-per-day: 3
   # GitHub API margins per pool (`api:` with github-token, lanes-app,
   # graphql, owner-token, content-creation). limit-cap sets each pool's planned
   # budget, the header's x-ratelimit-limit at most the cap (github-token:
@@ -1026,10 +1066,10 @@ red-main:
   # may build on it. 24 is judgment, as daily-cap.
   max-culprit-age-hours: 24
   # Minutes the job waits for the re-run of a full run pr-merge dispatched,
-  # which pr-merge's next scheduled run (every 15 minutes) starts and which
-  # raises no event of its own: 15 to start plus a full run's longest lane
+  # which pr-merge's next scheduled run (every 30 minutes) starts and which
+  # raises no event of its own: 30 to start plus a full run's longest lane
   # (16) plus queue time.
-  confirm-wait-minutes: 40
+  confirm-wait-minutes: 55
   # rollback: the revert rule above decides who reverts the culprit.
   # fail-forward: no revert is planned; the fix issues repair main (owner
   # decision W-51, 2026-10-21).
@@ -1514,6 +1554,8 @@ merge:
       - glob: ".github/workflows/pr-verify.yml"
         class: gate
       - glob: ".github/workflows/release-publish-plugins.yml"
+        class: gate
+      - glob: ".github/workflows/upstream-apply-changelog.yml"
         class: gate
       - glob: ".github/workflows/work-resolve-issue.yml"
         class: gate

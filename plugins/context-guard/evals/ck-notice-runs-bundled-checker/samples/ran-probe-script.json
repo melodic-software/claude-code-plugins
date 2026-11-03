@@ -1,0 +1,1 @@
+{"pass": [{"answer": [{"tool": "Bash", "input": {"command": "bash plugin/scripts/check-mod-load.sh"}}], "why": "as the notice says"}], "fail": [{"answer": [], "why": "no calls"}, {"answer": [{"tool": "Bash", "input": {"command": "cat plugin/scripts/check-mod-load.sh"}}], "why": "reads it"}]}

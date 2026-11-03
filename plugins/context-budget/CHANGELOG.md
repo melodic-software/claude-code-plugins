@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [0.15.3] - 2026-11-03
+
+### Changed
+
+- The probe sets drop `context-guard:check` from their competitors, because that skill is gone.
+
 ## [0.15.2] - 2026-11-02
 
 ### Changed

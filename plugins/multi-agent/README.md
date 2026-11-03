@@ -12,7 +12,6 @@ answer.
 | `/multi-agent:assess <task>` | Returns `workflow`, `subagent` or `single` with a one-line reason. Checks whether workflows are available in this session first; when they are not, `workflow` becomes `subagent`. Writes nothing. |
 | `/multi-agent:route <role\|all> [code\|research\|mechanical] [session=<alias>]` | Resolves the role map through the config cascade and prints it as fenced JSON: per role a `single` and a `fanout` variant, each with model, effort and the layer that supplied them, and each value's basis (upstream statement, judgment, or a config layer). `all` is the map a workflow reads from `args.roles`. |
 | `/multi-agent:audit-defaults [<role>\|fanout\|repo]` | Fetches each bundled default's pointer and reports which defaults have drifted, whose pointer does not state its value, or whose recheck trigger has fired, with evidence and a proposed diff. `repo` checks the repository's own model, effort, subagent and workflow statements against upstream instead. Runs the `multi-agent:drift-audit` workflow when workflows are available. Never edits a file. |
-| `/multi-agent:check` | Reports whether `node` resolves, whether `hooks/hooks.json` registers the fetch gate on `WebFetch`, and whether the gate denies a sample off-host drift-checker fetch. Read-only; installs nothing. |
 | `/multi-agent:setup [check\|apply]` | `check` prints the resolved map and whether the personal overlay is gitignored. `apply` previews a change to the user, team or local layer as a diff, writes it on your explicit yes, and shows the map before and after. Run by hand only. |
 
 ## How a workflow uses it
@@ -141,7 +140,10 @@ key. `/multi-agent:setup` writes any of the three. Keys, values and layering:
   executable. An older client ignores the key: the gates then fail open, holding the drift
   checker's fetches to first-party docs hosts only by the workflow's source filter and the agent's
   prompt, and leaving the `docs-fetcher`'s `Bash` to the session's permission rules.
-  `/multi-agent:check` reports whether `node` resolves and the gate is registered. Which rows set
+  `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"` reports whether `node` resolves;
+  `bash "<plugin root>/scripts/check-hook-registration.sh"` then reports whether `hooks/hooks.json`
+  registers the fetch gate on `WebFetch` and whether the gate denies a sample off-host
+  drift-checker fetch. Both are read-only. Which rows set
   the key and why: [hook budget](../../docs/contracts/hook-budget/README.md#which-rows-set-onfailure-block).
 - **curl and jq** for the drift-audit fetch stage (`scripts/docs-raw.sh`). Without them every page
   is recorded unread, and the checkers read their sources with WebFetch alone.

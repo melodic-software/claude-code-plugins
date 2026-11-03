@@ -17,6 +17,6 @@ graders:
     target: 'last_message'
   - name: 'no-unrelated-scripts'
     type: 'regex'
-    pattern: '\b(?:docs-cache|fetch-docs|docs-raw|list-targets|workflow-availability|check)\.sh\b|\.test\.sh\b'
+    pattern: '\b(?:docs-cache|fetch-docs|docs-raw|list-targets|workflow-availability|check-hook-registration)\.sh\b|\.test\.sh\b'
     match: 'not_contains'
     target: 'last_message'

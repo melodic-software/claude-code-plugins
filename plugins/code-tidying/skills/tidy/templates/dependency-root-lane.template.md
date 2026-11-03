@@ -36,7 +36,7 @@ Beyond the global HARD/SOFT lists:
 ```bash
 <build-command>          # e.g. dotnet build / npm run build / cargo build
 <test-command>           # e.g. dotnet test / npm test / cargo test
-<lint-command>           # e.g. dotnet format --verify-no-changes / npx biome check
+<lint-command>           # e.g. dotnet format --verify-no-changes / npx @biomejs/biome check
 ```
 
 ## Conventional Commits type

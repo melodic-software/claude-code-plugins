@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "plugin/scripts/check-hook-registration.sh"}}], "why": "direct exec"},
+    {"answer": [{"tool": "Bash", "input": {"command": "bash \"plugin/scripts/check-hook-registration.sh\""}}], "why": "through bash, quoted"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "command -v node"}}], "why": "own probe, not the script"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "plugin/scripts/check-hook-registration.sh"}}], "why": "read, not run"},
+    {"answer": [], "why": "no calls"}
+  ]
+}

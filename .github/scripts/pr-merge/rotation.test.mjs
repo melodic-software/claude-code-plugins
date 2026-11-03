@@ -117,6 +117,19 @@ test("a pull_request_target run's cursor is never read", async () => {
   assert.deepEqual(result.order, [10, 20, 30]);
 });
 
+// pr-merge.yml's run-name marks a PR-scoped dispatch, which reads one pull
+// request: no sweep reads its files, and it costs no artifact listing.
+test("a PR-scoped dispatch's files are never read, and a hand-started sweep's are", async () => {
+  const scoped = (id, title) => ({ ...wf(id, "workflow_dispatch"), display_title: title });
+  const result = await run({
+    pages: [[scoped(9, "pr-merge: arm #42"), scoped(8, "pr-merge: arm #not a number"), scoped(7, "pr-merge"), wf(6, "schedule")]],
+    cursors: { 9: '{"last": 30}', 8: '{"last": 30}', 7: '{"last": 20}', 6: '{"last": 10}' },
+  });
+  assert.deepEqual(result.downloads, [7]);
+  assert.ok(!result.calls.some((path) => /\/runs\/[89]\/artifacts/.test(path)));
+  assert.deepEqual(result.order, [30, 10, 20]);
+});
+
 test("the lookup pages through main's runs, then stops at its bounds", async () => {
   // A full first page of push runs, then the trusted run on page two.
   const found = await run({ pages: [filler(1000, 100), [wf(9, "schedule")]], cursors: { 9: '{"last": 10}' } });

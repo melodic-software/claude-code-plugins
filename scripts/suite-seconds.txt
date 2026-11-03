@@ -420,9 +420,9 @@ plugins/mcp-tools/skills/audit-posture/scripts/inventory.test.sh 9
 plugins/mcp-tools/skills/audit/scripts/discover.test.sh 1
 plugins/multi-agent/hooks/drift-checker-fetch-gate.test.sh 1
 plugins/multi-agent/scripts/allowed-tools-pairing.test.sh 1
+plugins/multi-agent/scripts/check-hook-registration.test.sh 1
 plugins/multi-agent/scripts/resolve-roles.test.sh 2
 plugins/multi-agent/skills/audit-defaults/scripts/list-scripts.test.sh 1
-plugins/multi-agent/skills/check/scripts/check.test.sh 1
 plugins/multi-agent/skills/setup/scripts/setup.test.sh 2
 plugins/multi-agent/tests/drift-audit.test.sh 1
 plugins/mutation-testing/scripts/compare-records.test.sh 1
