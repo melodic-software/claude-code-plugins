@@ -1650,6 +1650,7 @@ class RecordLift(unittest.TestCase):
             ("a pin naming another head", [pin("9" * 40)], {}),
             ("a newer pin naming another head", [pin(), pin("9" * 40)], {}),
             ("someone else's pin", [pin(author=user(OPERATOR))], {}),
+            ("a User owning the App's bare slug", [pin(author=user("agent-lanes"))], {}),
             ("another merge commit", [pin()], {"mergeCommit": {"oid": "9" * 40}}),
             ("more comments than read", [pin()], {"comments": {"pageInfo": {"hasNextPage": True}, "nodes": [pin()]}}),
         ):

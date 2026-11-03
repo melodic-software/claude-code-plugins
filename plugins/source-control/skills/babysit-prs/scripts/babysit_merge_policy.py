@@ -2002,7 +2002,9 @@ def _read_back_holds(pull: dict[str, Any], identity: str | None) -> bool:
     pins = [
         c
         for c in map(json_object, json_array(comments.get("nodes")))
-        if _login_key(json_object(c.get("author")).get("login")) == _login_key(identity)
+        # The judge's author test (`babysit_postmerge._identity_marks`): a
+        # User who owns the bare slug is never the App.
+        if actor_key(c.get("author")) == str(identity).strip().casefold()
         and PIN_LINE.match(str(c.get("body") or "").split("\n", 1)[0].rstrip())
     ]
     if not pins or not pull.get("merged"):

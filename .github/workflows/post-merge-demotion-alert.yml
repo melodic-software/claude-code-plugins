@@ -42,9 +42,11 @@ name: post-merge-demotion-alert
 # file it once and never again after a person closes its record. A failed
 # canary still files its canary record too. A revert of a pull request someone
 # else enqueued files nothing; an unproven one demotes, a reverted commit whose
-# pull request cannot be read included. A revert record keeps needs-human and
-# holds until a pull request that references it merges into main
-# (babysit_merge_policy.py `_lifted_at`) or a person closes it.
+# pull request cannot be read included. A revert record is labeled
+# needs-human, and the merge gate holds the rung off on it until a pull
+# request that references it merges into main (babysit_merge_policy.py
+# `_lifted_at`) or a person closes it; nothing removes the label or closes the
+# record on such a lift.
 #
 # A red full run files only after one re-run of its failed jobs, which the
 # job waits up to 20 minutes for, fails again or does not finish, and only for checks that were not already failing on main's newest

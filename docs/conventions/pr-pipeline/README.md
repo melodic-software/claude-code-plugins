@@ -1097,7 +1097,7 @@ the rules that only tighten in
   `.claude/source-control.md`, the value in `docs/conventions/source-control.yaml`, `off` when it
   sets none; while the legacy file exists, the lower of the two files, a legacy file without the key
   means `off` and a YAML without it leaves the legacy value; either file the wrapper cannot read or
-  trust means `off`), the cap variable, and `off` while any demotion issue is open.
+  trust means `off`), the cap variable, and `off` while any demotion issue holds.
 - **Cap variable.** `CLAUDE_LANES_MERGE_RUNG_CAP` (`off`, `merge` or `merge-reviewed`, or the
   aliases `C2` and `C3`) is a repository variable
   only a human sets, and it can only lower the rung. The wrapper never writes it, and the identity
@@ -1114,7 +1114,8 @@ the rules that only tighten in
   `dispatch`) with no label, since it clears itself (below), unless a failing check got no fix
   issue (over the cap or outside the charset), which labels it `needs-human`; it labels a canary or revert record
   `needs-human`, since a green main clears neither: a canary record clears only on a person's close,
-  and a revert record keeps the label until it lifts (below). `babysit_postmerge.py --remediate` labels
+  and the merge gate stops holding on a revert record once it lifts (below), though no job yet
+  removes its label or closes it then. `babysit_postmerge.py --remediate` labels
   every record it files `needs-human`: the lanes App's issue starts intake triage on its own, and
   that label keeps admission off it. On each completed scheduled full run on main, the
   alert's `close-cleared` job closes as completed each open schedule or dispatch record, demotion
