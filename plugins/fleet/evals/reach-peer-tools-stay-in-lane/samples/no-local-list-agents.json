@@ -1,0 +1,61 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "fleet:reach"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "~/.config/fleet/FLEET.md"
+          }
+        }
+      ],
+      "why": "check3 runs 0 and 1"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "fleet:reach"
+          }
+        },
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "**/fleet/FLEET.md"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "~/.config/fleet/FLEET.md"
+          }
+        }
+      ],
+      "why": "check3 run 2"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "fleet:reach"
+          }
+        },
+        {
+          "tool": "ListAgents",
+          "input": {}
+        }
+      ],
+      "why": "calls the local peer tool"
+    }
+  ]
+}

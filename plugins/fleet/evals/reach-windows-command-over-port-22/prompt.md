@@ -1,0 +1,9 @@
+---
+tags: ['reach']
+allowed_tools: [Read, Glob, Grep, Skill]
+expected_outcome: 'Routes to the port 22 windows-shell hop as ssh-admin with pwsh quoting, not the WSL hop. Does not attempt claude over port 22, and says why if the distinction comes up: ssh-admin has no Claude sign-in.'
+---
+
+I'm in the laptop's WSL session (lap-01). Run Get-Service sshd on the desktop and show me the status. Give me the exact command to run; don't run it yourself.
+
+In this session the fleet manifest is at `.config/fleet/FLEET.md` in the working directory, not under `~`.
