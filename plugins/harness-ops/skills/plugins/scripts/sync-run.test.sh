@@ -3428,9 +3428,9 @@ assert_eq "refresh skip: and its exit status is recorded" "0" \
 # input makes the next read run fleet-state.sh again. A current fleet takes five
 # reads (pre-refresh, pre, mid, pre-install, post) and the stub refresh is the only
 # CLI call, so the stub's refresh knobs are the only thing that changes a file. A
-# report is stored only from a read after the first whose inputs are more than 2 s
-# old, so every run here pauses 3 s in the refresh, after its writes: the pre read
-# is the first that can be stored.
+# report is stored only from a read after the first whose inputs predate it by the
+# store margin, so the pre read is the first that can be stored. Runs here set the
+# margin to 0, except the case that pins its 2 s default.
 # ============================================================================
 reuse_case() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -3458,7 +3458,7 @@ exec bash \"$SCRIPT_DIR/fleet-state.sh\" \"\$@\"
 # fleet-state.sh reads, projections left out).
 reuse_run() {
   EXTRA_ENV=(SYNC_RUN_FLEET_STATE="$case_dir/stubs/fleet-state.sh" CLAUDE_PROJECT_DIR="$case_dir" CC_STUB_CLEAN=1
-    CLAUDE_STUB_REFRESH_PAUSE=3 "$@")
+    SYNC_FLEET_STATE_STORE_MARGIN_S=0 "$@")
   out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
   run_dir=$(jq -r '.run_dir' <<<"$out")
   reads=$(grep -vc -- '--from' "$case_dir/fs.log")
@@ -3510,18 +3510,22 @@ assert_eq "reuse: and the read after it sees the target's new content" "false" \
 
 # An `ask` pass stops on the install gap; a re-entry that installs nothing reads
 # nothing new, so it reuses the first pass's last report.
-reuse_case
-catalog_plugin "$case_dir" market1 beta 0.1.0
-write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
-find "$case_dir" -exec touch -d "@$(($(date +%s) - 60))" {} +
-EXTRA_ENV=(SYNC_RUN_FLEET_STATE="$case_dir/stubs/fleet-state.sh" CLAUDE_PROJECT_DIR="$case_dir" CC_STUB_CLEAN=1
-  CLAUDE_STUB_REFRESH_PAUSE=3)
-out=$(run_sync "$case_dir" --marketplace market1 --install-new ask --journal-root "$case_dir/journal")
-run_dir=$(jq -r '.run_dir' <<<"$out")
+# ask_case: a fleet with an install gap, run through one `ask` pass.
+ask_case() {
+  reuse_case
+  catalog_plugin "$case_dir" market1 beta 0.1.0
+  write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
+  find "$case_dir" -exec touch -d "@$(($(date +%s) - 60))" {} +
+  EXTRA_ENV=(SYNC_RUN_FLEET_STATE="$case_dir/stubs/fleet-state.sh" CLAUDE_PROJECT_DIR="$case_dir" CC_STUB_CLEAN=1
+    SYNC_FLEET_STATE_STORE_MARGIN_S=0)
+  out=$(run_sync "$case_dir" --marketplace market1 --install-new ask --journal-root "$case_dir/journal")
+  run_dir=$(jq -r '.run_dir' <<<"$out")
+  : >"$case_dir/fs.log"
+  journal_lines=$(wc -l <"$run_dir/journal.log")
+}
+ask_case
 assert_eq "reuse: the ask pass stopped before install" "true" \
   "$(jq -r '.marketplaces[0].stopped_before_install' <<<"$out")"
-: >"$case_dir/fs.log"
-journal_lines=$(wc -l <"$run_dir/journal.log")
 out=$(run_sync "$case_dir" --only-install "" --run-dir "$run_dir")
 assert_exit "reuse: the --only-install re-entry exits 0" 0 $?
 assert_eq "reuse: an --only-install re-entry that installs nothing runs no fleet-state.sh read" "0" \
@@ -3529,6 +3533,18 @@ assert_eq "reuse: an --only-install re-entry that installs nothing runs no fleet
 assert_contains "reuse: the re-entry journals its gate read as a reuse of the first pass's pre read" \
   "$(tail -n +$((journal_lines + 1)) "$run_dir/journal.log")" \
   "# fleet-state reuse pre-install: inputs unchanged since the pre read"
+
+# An input changed between the passes: the re-entry's gate read runs again, and its
+# report is stored, so the re-entry reads once.
+ask_case
+assert_eq "reuse: the ask pass stored its pre read" "stored for reuse" "$(pre_stored)"
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": false}}'
+out=$(run_sync "$case_dir" --only-install "" --run-dir "$run_dir")
+assert_exit "reuse: the re-entry after an input changed exits 0" 0 $?
+assert_eq "reuse: a re-entry after an input changed runs one fleet-state.sh read" "1" \
+  "$(grep -vc -- '--from' "$case_dir/fs.log")"
+assert_eq "reuse: and its pre-install snapshot sees the change" "false" \
+  "$(jq -r '.enabled["alpha@market1"]' "$run_dir/pre-install.market1.json")"
 
 # Cases: an input that changes during a read. The fleet-state stub runs the real
 # read, then changes $1 on the run's second live read (pre), the first that can be
@@ -3566,9 +3582,12 @@ assert_eq "reuse: and the post report sees the moved-in scope" "false" \
   "$(jq -r '.enabled["alpha@market1"]' "$run_dir/post.market1.json")"
 
 # The chmod moves installed_plugins.json's ctime alone, just before the pre read.
+# The margin is its default (an empty override falls back to it), and the refresh
+# pauses 3 s after its touch, so only the ctime is under 2 s old.
 reuse_case
 reuse_run CLAUDE_STUB_REFRESH_TOUCH="$case_dir/user_settings.json" \
-  CLAUDE_STUB_REFRESH_CHMOD="$case_dir/installed_plugins.json"
+  CLAUDE_STUB_REFRESH_CHMOD="$case_dir/installed_plugins.json" SYNC_FLEET_STATE_STORE_MARGIN_S= \
+  CLAUDE_STUB_REFRESH_PAUSE=3
 assert_contains "reuse: a read of an input whose ctime is under 2 s old is not stored" "$(pre_stored)" "not stored"
 
 # ============================================================================

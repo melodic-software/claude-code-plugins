@@ -1829,15 +1829,18 @@ inputs_older_than() {
 # ctime and size it had at that read and each absent one stays absent. A report is
 # stored only when no input can have changed during its read: an earlier read's
 # list matches this one's, the fingerprint taken before the read matches the one
-# after it, and every present input's mtime and ctime are more than 2 s older than
-# the read's start, so a write within one timestamp tick of a fingerprint is not
-# missed. A run's first read has no earlier list, so it is never stored.
+# after it, and every present input's mtime and ctime are more than the margin
+# (SYNC_FLEET_STATE_STORE_MARGIN_S seconds, default 2) older than the read's start,
+# so a write within one timestamp tick of a fingerprint is not missed. A run's
+# first read has no earlier list, so it is never stored.
 # The cache sits in the run directory, keyed by the environment fleet-state.sh
 # reads, so an --only-install re-entry reuses the first pass's last report. Each
 # read and each reuse is journaled. Leaves stderr in .fs-err and returns the
 # reader's status.
 SNAPSHOT_KEY="$PWD|${HOME:-}|${CLAUDE_PROJECT_DIR:-}|$CLAUDE_PLUGIN_ROOT|${FLEET_STATE_INSTALLED_JSON:-}"
 SNAPSHOT_KEY+="|${FLEET_STATE_MARKETPLACES_JSON:-}|${FLEET_STATE_USER_SETTINGS:-}|${FLEET_STATE_CATALOG_DIR:-}"
+STORE_MARGIN_S=2
+[[ ! "${SYNC_FLEET_STATE_STORE_MARGIN_S:-}" =~ ^[0-9]{1,6}$ ]] || STORE_MARGIN_S=$((10#$SYNC_FLEET_STATE_STORE_MARGIN_S))
 fleet_snapshot() {
   local mp="$1" out="$2" label="$3"
   local c="$RUN_DIR/fs-cache.$mp"
@@ -1871,14 +1874,14 @@ fleet_snapshot() {
   printf '%s' "$key" >"$c.key"
   printf '%s' "$list_post" >"$c.list"
   if [[ -n "$fp_post" && -n "$list_pre" && "$list_post" == "$list_pre" && "$fp_post" == "$fp_pre" ]] &&
-    inputs_older_than "$fp_post" $((t_s - 2000000)); then
+    inputs_older_than "$fp_post" $((t_s - STORE_MARGIN_S * 1000000)); then
     slurp_to text "$out"
     printf '%s' "$text" >"$c.json"
     printf '%s' "$fp_post" >"$c.fp"
     printf '%s' "$label" >"$c.from"
     echo "stored for reuse" >>"$JOURNAL_LOG"
   else
-    echo "not stored: a failed read, no fingerprint, no earlier read to compare, or an input changed during or within 2 s before it" >>"$JOURNAL_LOG"
+    echo "not stored: a failed read, no fingerprint, no earlier read to compare, or an input changed during or within $STORE_MARGIN_S s before it" >>"$JOURNAL_LOG"
   fi
   return "$rc"
 }
