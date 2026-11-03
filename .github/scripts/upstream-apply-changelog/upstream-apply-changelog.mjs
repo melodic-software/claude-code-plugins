@@ -194,6 +194,16 @@ export function releasesFromStatus(text) {
   return versions;
 }
 
+// A scheduled gate checks the done marker of at most this many unread
+// releases, newest first: --ci never moves the read marker, so the unread list
+// only grows, and each check is one REST call per tick. Older releases wait
+// for a person to move the marker. Ten is the changelog skill's default
+// replay cap (changelog-status.sh, --cap-releases).
+export const SCHEDULE_WINDOW = 10;
+
+// The releases a scheduled gate checks, newest first.
+export const scheduledCandidates = (text) => releasesFromStatus(text).reverse().slice(0, SCHEDULE_WINDOW);
+
 // The newest release by version, from the release list (newest first is not
 // guaranteed, so it sorts). Tags are `v<MAJOR.MINOR.PATCH>`; any other tag is skipped.
 export function newestRelease(releases) {
@@ -441,7 +451,7 @@ async function gate(env) {
     if (!RELEASE.test(env.RELEASE_INPUT ?? "")) throw new Error("the release input is not one MAJOR.MINOR.PATCH");
     candidates = [env.RELEASE_INPUT];
   } else {
-    candidates = releasesFromStatus(readFileSync(env.STATUS_FILE, "utf8")).reverse();
+    candidates = scheduledCandidates(readFileSync(env.STATUS_FILE, "utf8"));
   }
   let release = "";
   for (const candidate of candidates) {

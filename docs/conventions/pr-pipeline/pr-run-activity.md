@@ -1981,7 +1981,7 @@ The request is `POST <LANES_BROKER_URL>` with `Authorization: Bearer <OIDC token
 body `{"lane": "<lane>", "activity": "<activity>", "pr_number": <n>, "dispatcher_run_id": <id>}`;
 `pr_number` is the gate's PR and is required on `workflow_dispatch` and `workflow_run`, except from
 `intake-triage.yml` and `upstream-apply-changelog.yml`. A request from `upstream-apply-changelog.yml`,
-on its daily `schedule` or a `workflow_dispatch`, sends `release` (the `release` input), the
+on its ten-minute `schedule` or a `workflow_dispatch`, sends `release` (the `release` input), the
 Claude Code release it works as a `MAJOR.MINOR.PATCH` string, and none of `pr_number`,
 `issue_number` or `dispatcher_run_id`; the broker refuses `release` from any other caller. Its
 dispatch, and a re-run of either, must be started by a listed human. Each of its jobs mints one

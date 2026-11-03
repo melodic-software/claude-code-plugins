@@ -29,6 +29,7 @@ import {
   releaseMarker,
   releasesFromStatus,
   renderItems,
+  scheduledCandidates,
   startedInWindow,
   stoppedPlanText,
   SYNTHETIC_MESSAGE,
@@ -305,6 +306,13 @@ test("the status file gives the unread releases, none when up to date, and stops
   assert.deepEqual(releasesFromStatus("range: up to date\n"), []);
   assert.throws(() => releasesFromStatus("range: 2.1.1..2.1.90 (90 releases, 400 core items)\ncap: exceeded (90 releases / 400 items)\n"), /cap: exceeded/);
   assert.throws(() => releasesFromStatus("range: a..b\ncap: within budget\nreleases: v2\n"), /malformed/);
+});
+
+test("a scheduled gate checks only the newest unread releases, newest first", () => {
+  const versions = Array.from({ length: 14 }, (_, i) => `2.1.${300 + i}`);
+  const status = `range: 2.1.300..2.1.313 (14 releases, 90 core items)\nreleases: ${versions.join(" ")}\ncap: within budget (1000 releases / 1000000 items)\n`;
+  assert.deepEqual(scheduledCandidates(status), ["2.1.313", "2.1.312", "2.1.311", "2.1.310", "2.1.309", "2.1.308", "2.1.307", "2.1.306", "2.1.305", "2.1.304"]);
+  assert.deepEqual(scheduledCandidates("range: up to date\n"), []);
 });
 
 // A fake Git Data API: each object's sha is its index in the calls made.

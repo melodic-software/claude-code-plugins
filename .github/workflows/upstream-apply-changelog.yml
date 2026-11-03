@@ -17,8 +17,9 @@ name: upstream-apply-changelog
 # The broker never grants contents and pull-requests write in one mint, nor
 # merge or actions, so no job here can merge.
 #
-# A schedule run takes the newest unread release changelog-status.sh lists
-# that is not done yet; a dispatch names one.
+# A schedule run takes the newest of the ten newest unread releases
+# changelog-status.sh lists that is not done yet, so a later tick takes each
+# release of a burst in turn; a dispatch names one.
 # A release is skipped only when this workflow's
 # upstream-apply-changelog-done-<release> artifact exists, since --ci never
 # moves the read marker; existing branches and PRs are skipped per item. At most limits.upstream-apply-changelog-per-day
@@ -29,10 +30,11 @@ name: upstream-apply-changelog
 # reads it live.
 
 on:
-  # Daily, after maintenance-file-claude-code-release-issues (08:27), at a
-  # minute no other schedule here uses.
+  # Every ten minutes, at minutes no other schedule here uses. A tick makes
+  # at most eleven GITHUB_TOKEN REST calls (ten done-marker reads and the cap
+  # read), at most 66 an hour of the token's 1,000.
   schedule:
-    - cron: "53 9 * * *"
+    - cron: "5-59/10 * * * *"
   workflow_dispatch:
     inputs:
       release:
@@ -120,11 +122,14 @@ jobs:
           RELEASE_INPUT: ${{ inputs.release }}
           STATUS_FILE: ${{ runner.temp }}/changelog-status.txt
         run: |
-          # The unread releases, as maintenance-file-claude-code-release-issues.yml reads them.
+          # The unread releases, as maintenance-file-claude-code-release-issues.yml
+          # reads them. The replay cap bounds a replayed range, and a run here
+          # takes one release, so the caps are raised to keep the list printed.
           if [ "$EVENT_NAME" = schedule ]; then
-            bash plugins/harness-ops/skills/changelog/scripts/changelog-status.sh --ledger docs/upstream/claude-code.md >"$STATUS_FILE"
+            bash plugins/harness-ops/skills/changelog/scripts/changelog-status.sh --ledger docs/upstream/claude-code.md \
+              --cap-releases 1000 --cap-items 1000000 >"$STATUS_FILE"
           fi
-          DAILY_CAP=$(yq '.limits."upstream-apply-changelog-per-day" // 2' docs/conventions/pr-pipeline.yaml)
+          DAILY_CAP=$(yq '.limits."upstream-apply-changelog-per-day" // 3' docs/conventions/pr-pipeline.yaml)
           export DAILY_CAP
           node .github/scripts/upstream-apply-changelog/upstream-apply-changelog.mjs gate
 
