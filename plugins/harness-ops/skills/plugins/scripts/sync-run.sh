@@ -1775,13 +1775,18 @@ slurp_to() {
 }
 
 # `<mtime>|<size>|<path>` for each path listed in file $2 that exists, in list
-# order, from one `stat`; an absent path has no line. Empty when `stat` lacks the
-# GNU format (as on macOS), which turns reuse off.
+# order, from one `stat`; an absent path has no line. `stat` exits non-zero when
+# any path is absent, so the BSD spelling runs only on empty output. Empty when
+# neither dialect answers, which turns reuse off.
 fingerprint_to() {
   local __fp_p __fp_out=""
   local -a __fp_paths=()
   while IFS= read -r __fp_p; do __fp_paths+=("$__fp_p"); done <"$2"
-  ((${#__fp_paths[@]} == 0)) || __fp_out=$(stat -c '%.9Y|%s|%n' -- "${__fp_paths[@]}" 2>/dev/null)
+  if ((${#__fp_paths[@]} > 0)); then
+    # portability-ok: GNU-first rung of a dual-dialect ladder; the BSD -f spelling follows on empty output
+    __fp_out=$(stat -c '%.9Y|%s|%n' -- "${__fp_paths[@]}" 2>/dev/null)
+    [[ -n "$__fp_out" ]] || __fp_out=$(stat -f '%Fm|%z|%N' -- "${__fp_paths[@]}" 2>/dev/null)
+  fi
   printf -v "$1" '%s' "$__fp_out"
 }
 
