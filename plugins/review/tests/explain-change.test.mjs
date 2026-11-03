@@ -58,11 +58,14 @@ const runPolicy = (home, repo) => (facts, args = []) => {
   const out = spawnSync(process.execPath, [POLICY, ...args], {
     input: JSON.stringify(facts.baseRefOid === "MAIN" ? { ...facts, baseRefOid: main() } : facts),
     encoding: "utf8",
-    env: { ...process.env, HOME: home, USERPROFILE: home, CLAUDE_PROJECT_DIR: repo },
+    env: { ...process.env, HOME: home, USERPROFILE: home, CLAUDE_PROJECT_DIR: repo, CLAUDE_PLUGIN_DATA: "" },
   });
   assert.equal(out.status, 0, out.stderr);
   return JSON.parse(out.stdout);
 };
+/** The medium fields the skill reads: the medium, what decided it, and whether the publish gate takes it as explicit. */
+const at = ({ value, source, explicit }) => ({ value, source, explicit });
+const DEFAULT_MEDIUM = { value: "artifact", source: "plugin default", explicit: false };
 
 describe("offer fires on each trigger", () => {
   const cases = [
@@ -284,7 +287,7 @@ describe("cascade layers resolve through the CLI", () => {
     const result = run(facts);
     assert.equal(result.action, "skip");
     assert.equal(result.config.max_files.source, "default");
-    assert.deepEqual(result.medium, { value: "artifact", source: "default" });
+    assert.deepEqual(at(result.medium), DEFAULT_MEDIUM);
   });
   test("user-global, then the tracked team docs block, then the overlay, key by key", () => {
     writeFileSync(join(home, ".claude/review-digest.json"), '{"max_files": 1, "opt_in_label": "mine"}');
@@ -344,13 +347,14 @@ describe("cascade layers resolve through the CLI", () => {
     assert.match(result.warnings.join("\n"), /both .* exist; used .*review-digest\.md/);
     assert.equal(result.config.max_files.value, 2);
   });
-  test("medium resolves from the rendered-views layers, last wins", () => {
-    writeFileSync(join(home, ".claude/rendered-views.md"), "medium: file\n");
-    const personal = run(facts).medium;
-    assert.equal(personal.value, "file");
-    assert.match(personal.source, /^user-global /);
-    writeFileSync(join(repo, ".claude/rendered-views.local.md"), "medium: terminal\n");
-    assert.equal(run(facts).medium.value, "terminal");
+  test("medium resolves through the shared resolver: the plugin option, then a personal override's local value", () => {
+    assert.deepEqual(at(run(facts, ["--option", "file"]).medium), { value: "file", source: "userConfig", explicit: false });
+    const personal = join(repo, "docs/conventions/rendered-views.local.yaml");
+    writeFileSync(personal, "medium: terminal\n");
+    const result = run(facts, ["--option", "file"]).medium;
+    assert.deepEqual(at(result), { value: "terminal", source: "personal override", explicit: false });
+    assert.equal(result.report[0], "view: terminal (personal override)");
+    rmSync(personal);
   });
   test("bad usage exits 2", () => {
     const out = spawnSync(process.execPath, [POLICY, "--policy", "sometimes"], { input: "{}", encoding: "utf8" });
@@ -370,7 +374,7 @@ describe("a pull request branch cannot silence its own digest", () => {
   commit();
   git("checkout", "-q", "-b", "pr");
   writeFileSync(join(repo, "docs/conventions/review-digest.md"), '```json config\n{"digest_policy": "off", "risk_paths": []}\n```\n');
-  writeFileSync(join(repo, ".claude/rendered-views.md"), "medium: terminal\n");
+  writeFileSync(join(repo, "docs/conventions/rendered-views.yaml"), "medium: terminal\n");
   writeFileSync(join(repo, ".claude/review-digest.local.json"), '{"digest_policy": "off"}');
   git("add", "-f", ".");
   commit();
@@ -382,7 +386,7 @@ describe("a pull request branch cannot silence its own digest", () => {
     assert.deepEqual(result.policy, { value: "offer", source: "default" });
     assert.equal(result.action, "offer");
     assert.deepEqual(result.triggers, ["risk-path"]);
-    assert.deepEqual(result.medium, { value: "artifact", source: "default" });
+    assert.deepEqual(at(result.medium), DEFAULT_MEDIUM);
     assert.match(result.warnings.join("\n"), /overlay .*tracked/);
   });
   test("with no base ref the team layer is ignored", () => {
@@ -435,14 +439,13 @@ describe("overlay guards", () => {
     mkdirSync(sub);
     const s = gitRepo(sub);
     writeFileSync(join(sub, "review-digest.local.json"), '{"digest_policy": "off"}');
-    writeFileSync(join(sub, "rendered-views.local.md"), "medium: terminal\n");
     s.git("add", ".");
     s.commit();
     git("-c", "protocol.file.allow=always", "submodule", "add", "-q", sub, ".claude");
     commit();
     const result = run({ ...facts, files: [{ path: ".gitmodules" }, { path: ".claude" }] });
     assert.deepEqual(result.policy, { value: "offer", source: "default" });
-    assert.deepEqual(result.medium, { value: "artifact", source: "default" });
+    assert.deepEqual(at(result.medium), DEFAULT_MEDIUM);
     assert.deepEqual(result.triggers, ["risk-path"]);
     assert.equal(result.action, "offer");
     assert.match(result.warnings.join("\n"), /submodule or tracked entry; layer ignored/);
@@ -474,11 +477,12 @@ describe("a case-variant overlay a pull request tracks is ignored and fires risk
   commit();
   git("checkout", "-q", "-b", "pr");
   writeFileSync(join(repo, ".claude/Review-Digest.local.json"), '{"digest_policy": "off"}');
-  writeFileSync(join(repo, ".claude/Rendered-Views.local.md"), "medium: terminal\n");
-  git("add", "-f", ".claude");
+  mkdirSync(join(repo, "docs/conventions"), { recursive: true });
+  writeFileSync(join(repo, "docs/conventions/Rendered-Views.local.yaml"), "medium: hosted\n");
+  git("add", "-f", ".claude", "docs/conventions");
   commit();
   writeFileSync(join(repo, ".claude/review-digest.local.json"), '{"digest_policy": "off"}');
-  writeFileSync(join(repo, ".claude/rendered-views.local.md"), "medium: terminal\n");
+  writeFileSync(join(repo, "docs/conventions/rendered-views.local.yaml"), "medium: hosted\n");
   const run = runPolicy(home, repo);
 
   test("the overlay is treated as tracked and a case-variant config path offers", () => {
@@ -486,7 +490,7 @@ describe("a case-variant overlay a pull request tracks is ignored and fires risk
     assert.deepEqual(result.policy, { value: "offer", source: "default" });
     assert.equal(result.action, "offer");
     assert.deepEqual(result.triggers, ["risk-path"]);
-    assert.deepEqual(result.medium, { value: "artifact", source: "default" });
+    assert.deepEqual(at(result.medium), DEFAULT_MEDIUM);
     assert.match(result.warnings.join("\n"), /overlay .*tracked/);
   });
 });
@@ -509,7 +513,7 @@ describe("publish gate: the default artifact medium publishes only a public, cre
       const result = publishGate({ explicit: false, visibility: "PUBLIC", diff: `${clean}${line}\n` });
       assert.equal(result.medium, "file");
       assert.match(result.reason, new RegExp(`line 3 looks like a ${label}`));
-      assert.match(result.opt_in, /medium: artifact in ~\/\.claude\/rendered-views\.md/);
+      assert.match(result.opt_in, /medium: artifact in the plugin.s medium option/);
       assert.ok(!JSON.stringify(result).includes(line.slice(1, 12)), "the match itself is never echoed");
     });
   }
@@ -643,43 +647,39 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
     assert.doesNotMatch(skill, /--publish-gate --repo/);
     assert.match(skill, /publishing as a private Artifact on claude\.ai/);
     assert.match(skill, /`offer`:.*a private Artifact on claude\.ai/);
-    assert.match(skill, /`medium: artifact` in `~\/\.claude\/rendered-views\.md`/);
+    assert.match(skill, /the review plugin's `medium` option to `artifact` publishes such pages anyway/);
     assert.match(skill, /exits non-zero or its result is unclear, keep the page as a file/);
   });
 });
 
-describe("medium: hosted resolves only from a layer the pull request cannot write", () => {
+describe("medium: a publishing value resolves only from a scope the pull request cannot write", () => {
   const home = join(scratch, "hosted-home");
   const repo = join(scratch, "hosted-repo");
   mkdirSync(join(home, ".claude"), { recursive: true });
-  mkdirSync(join(repo, ".claude"), { recursive: true });
+  mkdirSync(join(repo, "docs/conventions"), { recursive: true });
   const { git, commit } = gitRepo(repo);
   const run = runPolicy(home, repo);
   const facts = { ...quiet, baseRefOid: "MAIN" };
-  test("a tracked team layer cannot select hosted", () => {
-    writeFileSync(join(repo, ".claude/rendered-views.md"), "medium: hosted\n");
-    git("add", ".claude/rendered-views.md");
-    commit();
-    const result = run(facts);
-    assert.deepEqual(result.medium, { value: "artifact", source: "default" });
-    assert.match(result.warnings.join("\n"), /team .*medium hosted is honored only from the user-global layer or the overlay/);
+  test("a team file cannot select hosted or artifact, and the report says it is ignored", () => {
+    for (const value of ["hosted", "artifact"]) {
+      writeFileSync(join(repo, "docs/conventions/rendered-views.yaml"), `medium: ${value}\n`);
+      git("add", "docs/conventions/rendered-views.yaml");
+      commit();
+      const result = run(facts);
+      assert.deepEqual(at(result.medium), DEFAULT_MEDIUM);
+      assert.ok(result.medium.report.some((l) => /a team file never publishes, so it is ignored$/.test(l)), result.medium.report.join("\n"));
+    }
   });
-  test("the user-global layer selects hosted", () => {
-    writeFileSync(join(home, ".claude/rendered-views.md"), "medium: hosted\n");
-    const result = run(facts);
-    assert.equal(result.medium.value, "hosted");
-    assert.match(result.medium.source, /^user-global /);
+  test("the plugin option selects hosted", () => {
+    assert.deepEqual(at(run(facts, ["--option", "hosted"]).medium), { value: "hosted", source: "userConfig", explicit: true });
   });
-  test("an overlay selects hosted only once it is gitignored", () => {
-    writeFileSync(join(home, ".claude/rendered-views.md"), "medium: file\n");
-    writeFileSync(join(repo, ".claude/rendered-views.local.md"), "medium: hosted\n");
-    const unignored = run(facts);
-    assert.equal(unignored.medium.value, "file");
-    assert.match(unignored.warnings.join("\n"), /overlay .*medium hosted is honored from the overlay only once it is gitignored; layer ignored/);
+  test("a personal override selects hosted only once it is gitignored", () => {
+    writeFileSync(join(repo, "docs/conventions/rendered-views.local.yaml"), "medium: hosted\n");
+    const unignored = run(facts).medium;
+    assert.deepEqual(at(unignored), DEFAULT_MEDIUM);
+    assert.ok(unignored.report.some((l) => /not gitignored/.test(l)), unignored.report.join("\n"));
     writeFileSync(join(repo, ".git/info/exclude"), "*.local.*\n");
-    const ignored = run(facts);
-    assert.equal(ignored.medium.value, "hosted");
-    assert.match(ignored.medium.source, /^overlay /);
+    assert.deepEqual(at(run(facts).medium), { value: "hosted", source: "personal override", explicit: true });
   });
 });
 

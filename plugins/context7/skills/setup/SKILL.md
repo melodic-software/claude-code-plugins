@@ -87,8 +87,8 @@ MCP, or both).
 
 ## Boundaries
 
-- Never run `ctx7 setup` or `ctx7 skills install`: they install a parallel skill that fragments
-  this plugin's lookup surface.
+- Never run `ctx7 setup`, which installs a parallel skill that fragments this plugin's lookup
+  surface, and never run `ctx7 skills install` if a guide names it.
 - Never run `ctx7 setup --mcp` or edit the user's `.mcp.json` without their consent: their MCP
   configuration is theirs.
 - Never write `CONTEXT7_API_KEY` into the repository, Claude Code settings or any config file, and

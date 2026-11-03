@@ -12,12 +12,17 @@ the record), so the view is offered after the record, never emitted in its place
 1. **Write the record first.** The view is built from the record's content, not the other way around.
 2. **Offer the view in one sentence.** Build only when the reader accepts and the environment can serve a
    file. A CI or other non-interactive run emits no view: the record stands.
-3. **Resolve `medium`.** Read the `rendered-views` cascade surface: `~/.claude/rendered-views.md`, then
-   `<repo root>/.claude/rendered-views.md`, then `<repo root>/.claude/rendered-views.local.md`, whichever exist.
-   The last layer that states `medium:` wins (`auto`, `terminal`, `file`, `artifact`). A team layer that is not
-   tracked is a hard stop; an overlay that is staged or not gitignored is reported, not honored; a malformed
-   layer is reported and treated as absent. Name the layer that decided. Absent or `auto` means `file`. `hosted`
-   is treated as `artifact` here: this view is never sent to a page host.
+3. **Resolve `medium`.** Run the shared medium resolver. `--option` takes this plugin's `medium` option as
+   the calling skill states it; add `--argument` only when the reader named a medium in the request:
+
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --lane planning --option "<medium option>" [--argument terminal|file|artifact]
+   ```
+
+   It prints one JSON line, then the report line naming the medium and what decided it, then any notice; print
+   those lines as they stand. The JSON's `medium` is the one to use: `terminal`, `file` or `artifact` (`hosted`
+   is read as `artifact` here: this view is never sent to a page host). Do not read the rendered-views
+   convention files yourself. When `node` is missing, the builder cannot run either: deliver the record.
 4. **Build.** Pipe one JSON object (shapes below) to the builder. It prints the path of the page it wrote under
    the OS temp directory:
 
@@ -100,9 +105,8 @@ With no session listening, the page says so and its copy and save controls still
 ## Other optional views
 
 The interview's read-only decision table, the PRD pitch view and the design topology view are written
-by the session, not the builder, and are only ever local files. Before writing one, resolve `medium`:
-a medium the reader names in the request decides; otherwise read the layers as step 3 above does
-(planning has no `medium` option, so no rung sits between the request and the layers). Then:
+by the session, not the builder, and are only ever local files. Before writing one, resolve `medium` as
+step 3 above does, passing a medium the reader names in the request as `--argument`. Then:
 
 - `terminal`: write no file. The interview renders the same table inline as a fenced markdown table;
   the PRD and design steps skip the view.

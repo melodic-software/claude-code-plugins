@@ -5,7 +5,7 @@
 # and `sleep`.
 #
 # When a review run completes and the other lane's newest run on the head has
-# finished or never ran, the job re-runs only the ci-status job of the newest
+# finished before it or never ran, the job re-runs only the ci-status job of the newest
 # pr-require-checks pull_request run on the reviewed head, after that run
 # finishes, polling at most POLL_LIMIT_SECONDS; the find step names the job
 # and the rerun-ci-status record of the attempt the re-run starts, which the
@@ -216,14 +216,14 @@ HEAD=0123456789abcdef0123456789abcdef01234567
 RCF=.github/workflows/pr-require-checks.yml
 CODE=.github/workflows/pr-review-hosted.yml
 SEC=.github/workflows/pr-review-security-hosted.yml
-# This lane finished at DONE, the other lane at LATER; ci-status started at
-# EARLY unless a case says otherwise. AFTER is just past the 60 s margin.
+# The other lane finished at DONE, this lane last at LATER; ci-status started
+# at EARLY unless a case says otherwise. AFTER is just past the 60 s margin.
 EARLY=2026-10-23T09:50:00Z DONE=2026-10-23T10:00:00Z LATER=2026-10-23T10:05:00Z AFTER=2026-10-23T10:06:01Z
 # A person's PR unless a case says otherwise.
 pr() { jq -cn --arg st "${1:-open}" --arg sha "${2:-$HEAD}" --argjson by "$KYLE" '{state: $st, head: {sha: $sha}, user: {id: $by, type: "User"}}'; }
 # run <id> [status] [sha] [path] [event] [updated_at] [run_attempt] [head repository]
 run() {
-  jq -cn --argjson id "$1" --arg st "${2:-completed}" --arg sha "${3:-$HEAD}" --arg p "${4:-$RCF}" --arg ev "${5:-pull_request}" --arg at "${6:-$LATER}" \
+  jq -cn --argjson id "$1" --arg st "${2:-completed}" --arg sha "${3:-$HEAD}" --arg p "${4:-$RCF}" --arg ev "${5:-pull_request}" --arg at "${6:-$DONE}" \
     --argjson n "${7:-1}" --arg repo "${8:-o/r}" \
     '{id: $id, status: $st, head_sha: $sha, path: $p, event: $ev, updated_at: $at, run_attempt: $n, head_repository: {full_name: $repo}}'
 }
@@ -254,7 +254,7 @@ expect() {
   rm -rf "$TMP_ROOT/rt"
   mkdir -p "$TMP_ROOT/rt"
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REPOSITORY=o/r HEAD_SHA="${HEAD_SHA-$HEAD}" \
-    PR_NUMBER="${PR_NUMBER-42}" LANE_PATH="${LANE_PATH-$CODE}" LANE_DONE_AT="${LANE_DONE_AT-$DONE}" \
+    PR_NUMBER="${PR_NUMBER-42}" LANE_PATH="${LANE_PATH-$CODE}" LANE_DONE_AT="${LANE_DONE_AT-$LATER}" \
     GITHUB_OUTPUT="$TMP_ROOT/out" RECORD_FILE="$TMP_ROOT/record.json" GITHUB_RUN_ID=555 \
     REVIEW_ATTEMPT="${REVIEW_ATTEMPT-1}" REVIEW_RERUNNER_ID="${REVIEW_RERUNNER_ID-$KYLE}" \
     REVIEW_RUN_ID="${REVIEW_RUN_ID-3}" RECONCILER_RECORD="${RECONCILER_RECORD-$TMP_ROOT/record-stub.mjs}" STUB_RECORD_RC="${STUB_RECORD_RC-3}" \
@@ -345,6 +345,51 @@ for c in skipped cancelled failure; do
 done
 STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC")")"
 
+# Both lanes finished: only the lane that finished last re-runs ci-status, so
+# the two completions at a head make one re-run. The earlier lane's run, even
+# one the per-head queue held until both finished, stops after one read.
+# reran: 1 when the last case handed on a job to re-run.
+reran() { grep -c '^job-id=' "$TMP_ROOT/out"; }
+CODE_RUN="$(run 4 completed "$HEAD" "$CODE" pull_request "$DONE")" SEC_RUN="$(run 3 completed "$HEAD" "$SEC" pull_request "$LATER")"
+STUB_LANE_RUNS="$(runs "$SEC_RUN")"
+LANE_DONE_AT=$DONE REVIEW_RUN_ID=4 expect "both finished, this lane first: left for the later lane" 0 "pr-review-security-hosted.yml finished on $HEAD after this lane; its completion re-runs ci-status."
+check_reran 0 "the earlier lane re-runs nothing"
+check_calls 1 "the earlier lane stops after one read"
+pair=$(reran)
+STUB_LANE_RUNS="$(runs "$CODE_RUN")"
+LANE_PATH=$SEC LANE_DONE_AT=$LATER REVIEW_RUN_ID=3 expect "both finished, this lane last: re-run" 0 "Re-running ci-status (job 77) of run 9"
+pair=$((pair + $(reran)))
+if [[ $pair == 1 ]]; then ok "both lanes' completions re-run ci-status exactly once"; else fail "re-runs over both completions: $pair"; fi
+# The earlier lane's run held in the queue past the later lane's re-run,
+# which started inside the 60 s margin, re-runs nothing more.
+STUB_LANE_RUNS="$(runs "$SEC_RUN")" STUB_RUNS="$(runs "$(run 9 completed "$HEAD" "$RCF" pull_request "$LATER" 2)")"
+STUB_JOBS="$(cijob completed 2026-10-23T10:05:30Z)" STUB_RUN_SEQ="$(run 9 completed "$HEAD" "$RCF" pull_request "$LATER" 2)"
+LANE_DONE_AT=$DONE REVIEW_RUN_ID=4 expect "a late run of the earlier lane after the re-run" 0 "after this lane; its completion re-runs ci-status."
+check_reran 0 "no third attempt"
+check_calls 1 "the late run stops after one read"
+STUB_RUNS="$(runs "$(run 9)")" STUB_JOBS="$(cijob completed)" STUB_RUN_SEQ=''
+# Lanes that finished the same second: the higher run id acts, so one does.
+STUB_LANE_RUNS="$(runs "$(run 4 completed "$HEAD" "$SEC" pull_request "$LATER")")"
+REVIEW_RUN_ID=3 expect "a tie, this run id lower: left for the other lane" 0 "after this lane"
+pair=$(reran)
+REVIEW_RUN_ID=5 expect "a tie, this run id higher: re-run" 0 "Re-running ci-status (job 77)"
+pair=$((pair + $(reran)))
+if [[ $pair == 1 ]]; then ok "a tie re-runs ci-status exactly once"; else fail "re-runs over a tie: $pair"; fi
+# A later lane whose completion starts no run of this job (skipped by design,
+# as on a draft), or whose re-run is not its first attempt, does not hold this
+# lane: this one re-runs. A cancelled or failed one starts this job, so it acts.
+STUB_LANE_RUNS="$(runs "$(jq -c '. + {conclusion: "skipped"}' <<<"$SEC_RUN")")"
+LANE_DONE_AT=$DONE REVIEW_RUN_ID=4 expect "the later lane skipped: this lane re-runs" 0 "Re-running ci-status (job 77)"
+check_reran 1 "the later lane skipped: re-run on this lane"
+STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC" pull_request "$LATER" 2)")"
+LANE_DONE_AT=$DONE REVIEW_RUN_ID=4 expect "the later lane at attempt 2: this lane re-runs" 0 "Re-running ci-status (job 77)"
+for c in cancelled failure; do
+  STUB_LANE_RUNS="$(runs "$(jq -c --arg c "$c" '. + {conclusion: $c}' <<<"$SEC_RUN")")"
+  LANE_DONE_AT=$DONE REVIEW_RUN_ID=4 expect "the later lane $c: left for its completion" 0 "after this lane"
+  check_calls 1 "the later lane $c: one read"
+done
+STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC")")"
+
 # ci-status that already read both finished lanes is left alone.
 STUB_JOBS="$(cijob completed "$AFTER")"
 expect "a ci-status that started after both lanes finished is left alone" 0 "started at $AFTER, after both lanes finished ($LATER)"
@@ -359,7 +404,7 @@ expect "a ci-status that started the second the last lane finished is re-run" 0 
 STUB_JOBS="$(cijob completed 2026-10-23T10:06:00Z)"
 expect "a ci-status that started within 60 s of the last lane is re-run" 0 "Re-running ci-status (job 77)"
 STUB_JOBS="$(cijob completed "$AFTER")" STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC" pull_request 2026-10-23T10:05)")"
-expect "an unreadable finish time of the other lane means a re-run" 0 "Re-running ci-status (job 77)"
+LANE_DONE_AT=$DONE expect "an unreadable finish time of the other lane means a re-run" 0 "Re-running ci-status (job 77)"
 STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC")")"
 STUB_RUNS="$(runs "$(run 9 queued)")" STUB_JOBS="$(cijob queued "")"
 expect "a ci-status re-run already queued is left alone" 0 "ci-status of run 9 has not started"

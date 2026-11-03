@@ -59,6 +59,14 @@
 //             last outcome comment, does not open with DECISION_LINE, the
 //             comment links it and shows the line, since the lane counts no
 //             other comment as an answer.
+//   redispatch a pushback, intent-change, design-change or cost-risk hold
+//             whose answer, a listed human's decision comment or intake's
+//             refinement, was posted after the run's admission (lateRecord),
+//             which the run never read: instead of the hold it posts a
+//             redispatch record naming that comment (a re-run whose label
+//             move did not land finishes it without a second one), and the
+//             App removes and adds back `status: ready` and agent-ready, a
+//             fresh admission whose run reads the answer (redispatch).
 //   stopped   comments why, takes its stop's route, and names the branch
 //             that holds any partial work. A missing or
 //             invalid outcome file is stopped; with a scan refusal marker
@@ -373,10 +381,25 @@ export function parseOutcomeMarker(body) {
   };
 }
 
+// `value` cut to `cap` UTF-16 units at its last whitespace, `tidy` applied,
+// and CUT added; a single token longer than the cap is cut hard, never inside
+// a surrogate pair. Text within the cap is only tidied; a cut that keeps only
+// whitespace is empty.
+const CUT = "…";
+const clip = (value, cap, tidy = (kept) => kept) => {
+  if (value.length <= cap) {
+    return tidy(value);
+  }
+  const head = value.slice(0, cap - CUT.length + 1);
+  const words = head.slice(0, head.search(/\s\S*$/) + 1).trimEnd();
+  const kept = tidy(words || head.slice(0, -1).replace(/[\uD800-\uDBFF]$/, "")).trimEnd();
+  return kept && `${kept}${CUT}`;
+};
+
 const stopped = (reason) => ({ exit: "stopped", reason, title: "", summary: "", changes: [], verification: [], notDone: [], steps: [] });
-const text = (value) => (typeof value === "string" ? value.slice(0, MAX_TEXT) : "");
+const text = (value) => (typeof value === "string" ? clip(value, MAX_TEXT) : "");
 const list = (value) =>
-  Array.isArray(value) ? value.filter((item) => typeof item === "string").slice(0, MAX_ITEMS).map((item) => item.slice(0, MAX_ITEM)) : [];
+  Array.isArray(value) ? value.filter((item) => typeof item === "string").slice(0, MAX_ITEMS).map((item) => clip(item, MAX_ITEM)) : [];
 // A not_done entry is a string or {what, required}; required marks a check the
 // run had to pass and did not, and counts whatever `what` holds.
 const notDoneList = (value) =>
@@ -392,7 +415,7 @@ const notDoneList = (value) =>
     )
     .filter(Boolean)
     .slice(0, MAX_ITEMS)
-    .map(({ what, required }) => ({ what: what.slice(0, MAX_ITEM), required }));
+    .map(({ what, required }) => ({ what: clip(what, MAX_ITEM), required }));
 
 // The prep steps the run reports, each {activity, result}, both strings;
 // post-statuses.mjs decides which of them it posts.
@@ -494,11 +517,11 @@ export function readOutcome(path) {
 }
 
 // The parts of the issue the PR leaves for later work: 1 to MAX_ITEMS strings,
-// each with text left in the bullet it renders as. Anything else is empty, so
-// the PR closes the issue.
+// each with text other than CUT left in the bullet it renders as. Anything
+// else is empty, so the PR closes the issue.
 function remainingList(value) {
-  const items = Array.isArray(value) && value.length <= MAX_ITEMS && value.every((item) => typeof item === "string") ? value.map((item) => item.slice(0, MAX_ITEM)) : [];
-  return items.every((item) => bullets([item]).slice(2)) ? items : [];
+  const items = Array.isArray(value) && value.length <= MAX_ITEMS && value.every((item) => typeof item === "string") ? value.map((item) => clip(item, MAX_ITEM)) : [];
+  return items.every((item) => bullets([item]).slice(2).replace(CUT, "")) ? items : [];
 }
 
 // Model text is data. HTML comments go; `&` is escaped first, so no entity
@@ -510,26 +533,29 @@ function remainingList(value) {
 // `://` and `www.` gain a space too, so no bare URL autolinks.
 // Control characters other than newline go, and so do format characters
 // (bidi overrides, zero-width), which can make text read other than it is.
-// The cap applies after escaping. A file path keeps its comments, escaped,
-// so the whole name shows.
+// The cap applies after escaping, at a word (clip), and drops a half-cut
+// entity or escape. A file path keeps its comments, escaped, so the whole
+// name shows.
 const neutral = (value, cap, { path = false } = {}) =>
-  (path ? value : value.replaceAll(/<!--[\s\S]*?(-->|$)/g, ""))
-    .replaceAll(/\p{Cf}/gu, "")
-    .replaceAll("\r\n", "\n")
-    .replaceAll(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f]/g, " ")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll("[", "\\[")
-    .replaceAll("]", "\\]")
-    .replaceAll("@", "")
-    .replaceAll("#", "＃")
-    .replaceAll(/\bGH-/gi, "GH -")
-    .replaceAll(/\/(issues|pull)\//gi, "/$1 /")
-    .replaceAll("://", ": //")
-    .replaceAll(/\bwww\./gi, "www .")
-    .slice(0, cap)
-    .replace(/&[a-z]*$|\\$/, "");
+  clip(
+    (path ? value : value.replaceAll(/<!--[\s\S]*?(-->|$)/g, ""))
+      .replaceAll(/\p{Cf}/gu, "")
+      .replaceAll("\r\n", "\n")
+      .replaceAll(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f]/g, " ")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll("[", "\\[")
+      .replaceAll("]", "\\]")
+      .replaceAll("@", "")
+      .replaceAll("#", "＃")
+      .replaceAll(/\bGH-/gi, "GH -")
+      .replaceAll(/\/(issues|pull)\//gi, "/$1 /")
+      .replaceAll("://", ": //")
+      .replaceAll(/\bwww\./gi, "www ."),
+    cap,
+    (kept) => kept.replace(/&[a-z]*$|\\$/, ""),
+  );
 
 // Every line prefixed `> `, so no line of it can start a heading or leave the
 // quote, and the text wraps when rendered.
@@ -908,6 +934,107 @@ export async function refireStale(github, repo, issueNumber, { workflowSha, bot,
   return `re-fired on workflow files ${key}`;
 }
 
+// intake's refinement record (admit.mjs REFINE_MARKER), restated as
+// DECISION_LINE is: a script activity runs from a copy of its own directory.
+export const REFINE_MARKER = "<!-- intake-triage refinement -->";
+// The hold stops that wait on a person's answer on the issue. A security
+// stop is never among them: a person checks it first, whatever was posted.
+const ANSWERED_STOPS = new Set(["pushback", "intent-change", "design-change", "cost-risk"]);
+// The record opens with an outcome marker naming the run, so findPrior counts
+// the run's lane branch as reported and the fresh run starts past it instead
+// of reusing it unread.
+const REDISPATCHED = /^(?:<!-- work-resolve-issue outcome=redispatch[^\n]* -->\r?\n)?<!-- work-resolve-issue redispatch comment=([1-9][0-9]{0,15}) -->/;
+export const redispatchComment = (comment, runId = "") =>
+  `<!-- work-resolve-issue outcome=redispatch${runId ? ` run=${runId}` : ""} -->\n<!-- work-resolve-issue redispatch comment=${comment.id} -->\nA record this run did not read was posted after its admission: ${comment.html_url}. The run's report-outcome removed and added back \`status: ready\` and \`agent-ready\`, so a fresh run admits the issue as it stands now and reads it.`;
+
+// The record a hold would leave unread, or null: a listed human's own
+// decision (DECISION_LINE first, not posted through an App) or the lanes
+// App's (`bot`) refinement, created or last updated at or after the newest
+// agent-ready add. write-issue.mjs freezes a run at that add or an earlier
+// one, so each such record is one the run left out. `comments` and `events`
+// are oldest first. Returns {comment, posted}, `posted` when a redispatch
+// record names the comment and no App agent-ready add followed that record:
+// its label move did not land, and a re-run finishes it without a second
+// record. A move that landed made the newest add, past the comment. `moving`
+// when, besides, the newest agent-ready event is the App's removal after that
+// record: the move stopped partway, with agent-ready off by the App's hand,
+// not a person's.
+export function lateRecord({ comments, events, bot, humans }) {
+  const adds = events.filter((event) => event?.event === "labeled" && event.label?.name === "agent-ready");
+  const from = Date.parse(adds.at(-1)?.created_at ?? "");
+  if (!Number.isFinite(from)) {
+    return null;
+  }
+  const comment = comments.find((item) => {
+    const body = String(item?.body ?? "");
+    if (!(Date.parse(item?.updated_at ?? item?.created_at ?? "") >= from)) {
+      return false;
+    }
+    if (item.user?.login === bot) {
+      return body.startsWith(REFINE_MARKER);
+    }
+    const first = body.trimStart().split("\n", 1)[0].trimEnd();
+    return item.user?.type === "User" && humans.has(item.user.id) && item.performed_via_github_app == null && DECISION.test(first);
+  });
+  if (!comment) {
+    return null;
+  }
+  const record = comments.find(
+    (item) =>
+      item?.user?.login === bot &&
+      REDISPATCHED.exec(String(item.body ?? ""))?.[1] === String(comment.id) &&
+      !adds.some((event) => event.actor?.login === bot && Date.parse(event.created_at) >= Date.parse(item.created_at)),
+  );
+  const newest = events.filter((event) => ["labeled", "unlabeled"].includes(event?.event) && event.label?.name === "agent-ready").at(-1);
+  const moving =
+    record !== undefined &&
+    newest?.event === "unlabeled" &&
+    newest.actor?.login === bot &&
+    Date.parse(newest.created_at) >= Date.parse(record.created_at);
+  return { comment, posted: record !== undefined, moving };
+}
+
+// A hold whose answer landed after the run's admission starts a fresh run
+// instead: a record naming the answer, then agent-ready and `status: ready`
+// removed and added back by the App. The `status: ready` add between them
+// makes the re-add a fresh admission (write-issue.mjs readAdmittedAt), so the
+// new run freezes after the answer. Nothing moves when the issue is closed, a
+// hold is on, or agent-ready is off unless the App's own move took it off
+// (`late.moving`), which a re-run finishes. `late` is lateRecord's answer.
+// Returns whether it re-dispatched.
+async function redispatch(github, repo, plan, late, runId) {
+  const base = `${repo}/issues/${plan.issueNumber}`;
+  const issue = await github("GET", base);
+  const labels = (issue?.labels ?? []).map((label) => String(typeof label === "string" ? label : label?.name).toLowerCase());
+  const ready = labels.includes("agent-ready");
+  if (issue?.state !== "open" || !(ready || late.moving) || labels.some((label) => LANE_HOLDS.has(label))) {
+    return false;
+  }
+  if (!late.posted) {
+    await github("POST", `${base}/comments`, { body: redispatchComment(late.comment, runId) });
+  }
+  const remove = (name) =>
+    github("DELETE", `${base}/labels/${encodeURIComponent(name)}`).then(
+      () => true,
+      (error) => {
+        if (/ answered 404$/.test(error?.message ?? "")) {
+          return false;
+        }
+        throw error;
+      },
+    );
+  // A person's removal since the read stands.
+  if (ready && !(await remove("agent-ready"))) {
+    return true;
+  }
+  await remove("status: ready");
+  for (const name of ["status: ready", "agent-ready"]) {
+    const add = () => github("POST", `${base}/labels`, { labels: [name] });
+    await add().catch(add);
+  }
+  return true;
+}
+
 // A run the usage limit stopped: one marker comment, agent-ready kept, no
 // label, so work-unblock restarts the issue once the limit resets.
 function limitedPlan({ issueNumber, branch, resets, runId, runUrl, onResumed }) {
@@ -1026,7 +1153,7 @@ export function readChecks(text, { branch }) {
   if (!valid) {
     return null;
   }
-  const record = { tip: parsed.tip, results: results.map(({ check, exit }) => ({ check: check.slice(0, MAX_ITEM), exit })) };
+  const record = { tip: parsed.tip, results: results.map(({ check, exit }) => ({ check: clip(check, MAX_ITEM), exit })) };
   return Object.hasOwn(parsed, "scan") ? { ...record, scan: SCAN_WORDS.has(parsed.scan) ? parsed.scan : "failed" } : record;
 }
 const SCAN_WORDS = new Set(["clean", "found", "failed"]);
@@ -2039,6 +2166,15 @@ async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane
   }
   // Every plan above is final here, rebuilt or not, so each takes the run's tags.
   plan = withCredential(plan, lane);
+  // A hold whose answer this run never read re-dispatches once instead. A
+  // failed read takes the hold, as before.
+  if (plan.action === "hand-back" && ANSWERED_STOPS.has(plan.stop)) {
+    const late = await read().then(lateRecord, () => null);
+    if (late && (await redispatch(github, repo, plan, late, runId))) {
+      console.log(`report-outcome: issue #${plan.issueNumber} got a record after its admission (${late.comment.html_url}); a fresh run reads it`);
+      return;
+    }
+  }
   if (KEPT.has(plan.action)) {
     const posted = history.comments.some((comment) => {
       const marker = comment.user?.login === bot ? parseOutcomeMarker(comment.body) : null;

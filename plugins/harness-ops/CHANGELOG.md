@@ -3,6 +3,34 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.1.4] - 2026-11-03
+
+### Changed
+
+- The prerequisites skill's ranking probe no longer lists a deleted skill as a competitor.
+
+## [8.1.3] - 2026-11-03
+
+### Added
+
+- The bundled publish gate (`lib/publish-gate.mjs`) gains `locateHit` and `hitFingerprint`: for a blocked leak-scan hit, the rule, the path and the line number, with no character of the match and every character outside printable ASCII escaped. `scanLeak` is unchanged.
+
+## [8.1.2] - 2026-11-03
+
+### Changed
+
+- carries the shared medium resolver (`lib/view-settings.mjs`,
+  `lib/view-registry.mjs`) and the libraries it imports
+
+  No skill of this plugin calls it yet; its view lanes move onto it in a
+  later change.
+
+## [8.1.1] - 2026-11-03
+
+### Changed
+
+- The `prerequisites` skill's `## Next` section and its eval no longer name the formatter and linter `check` skills, because they are gone.
+
 ## [8.1.0] - 2026-11-03
 
 ### Added

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "surface: terminal (default). Also available: page. Ask for one by name to switch.\n\nRound 1. Decided so far: nothing.\n\nQ1: **How many delivery attempts does the sender make before giving up?**\nContext: the sender makes one POST per event today and retries nothing (user, this message).\nMy recommendation: five attempts with exponential backoff.\nOrigin: new (ours)\nBasis: verified, user, this message (one POST, no retries)\nInference: one attempt drops every event a transient receiver error hits.\nAlternatives:\n- (a) Three attempts. Fewer duplicate deliveries, less recovery time.\n\nIs there something else that would change this recommendation?",
+      "why": "one offer line stated, then round 1 asked in the conversation"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "surface: terminal (default). Also available: page. Ask for one by name to switch.\n\nWhich surface would you like for this interview: the terminal or the page? I'll start round 1 once you choose.",
+      "why": "turns the offer into a question and stops before round 1"
+    },
+    {
+      "answer": "Round 1.\n\nQ1: **How many delivery attempts does the sender make before giving up?**\nMy recommendation: five attempts.\nBasis: verified, user, this message (one POST, no retries)\n\nIs there something else that would change this recommendation?",
+      "why": "no offer line naming the default and the alternatives"
+    }
+  ]
+}
