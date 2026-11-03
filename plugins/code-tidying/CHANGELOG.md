@@ -3,6 +3,17 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.1] - 2026-11-03
+
+### Changed
+
+- `/code-tidying:audit-dead-code`, `/code-tidying:batch-simplify` and the `/code-tidying:tidy`
+  self-update lane and exclusions reference no longer restate upstream behavior (LSP reference
+  counting, detector exit codes, gopls and staticcheck suppression, knip and vulture config
+  details, how injected commands run, git's `--since` parsing, frontmatter loading, hook
+  locations, `userConfig` types). Each keeps its own rule and links the upstream section with an
+  as-of date and a recheck trigger. The self-update lane drops its note on how consumers update.
+
 ## [0.38.0] - 2026-11-03
 
 ### Added

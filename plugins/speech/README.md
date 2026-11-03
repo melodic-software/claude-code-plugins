@@ -16,8 +16,7 @@ interactive page can then follow the voice word by word.
 | Skill | What it does |
 |---|---|
 | `/speech:narrate <script>` | Writes `narration.wav` (24 kHz mono) and `words.json` (one `{word, start, end}` per script word) |
-| `/speech:check` | Read-only: one PASS or FAIL row per prerequisite, each FAIL with its remedy, then an offer to run each fix on your yes |
-| `/speech:setup [check \| apply install-model]` | `check` is the same report; `apply install-model` downloads the pinned model files |
+| `/speech:setup [check \| apply install-model]` | `check` is the read-only report from `scripts/check.py`: one PASS or FAIL row per prerequisite, each FAIL with its remedy; `apply install-model` downloads the pinned model files |
 
 ## The kokoro backend
 
@@ -80,7 +79,7 @@ Word times come from the API's per-character alignment: a word spans its first t
 | Kokoro model, tokenizer, voices (about 340 MB) | `/speech:setup apply install-model`, into the `model_dir` option's folder when set | `/speech:narrate` |
 
 `prerequisites.json` declares the tools, with their install hints and what stops without each
-one. `/speech:check` reads it.
+one. `scripts/check.py`, the read-only report behind `/speech:setup check`, reads it.
 
 The Python packages follow the
 [on-demand dependencies convention](../../docs/contracts/on-demand-dependencies/README.md#python).
