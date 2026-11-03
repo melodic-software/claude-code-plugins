@@ -1059,6 +1059,21 @@ describe("decide", () => {
         }
       });
 
+      test("a plan change, a paid tier, another billing account or a stated keep period", () => {
+        for (const [item, found] of [
+          ["Upgrade the GitHub plan to Enterprise.", "github plan"],
+          ["Move the org to the GitHub Team plan.", "github team plan"],
+          ["Subscribe the org to a paid Cloudflare plan.", "paid cloudflare plan"],
+          ["Use the OpenAI API with a paid key for this lane.", "openai api, paid key"],
+          ["Create an AWS account for the e2e job.", "aws account"],
+          ["Route the lane through Vertex AI.", "vertex ai"],
+          ["Keep artifacts for 400 days.", "artifacts for 400 days"],
+          ["Store the logs for 2 years.", "logs for 2 years"],
+        ]) {
+          assert.equal(inBody(`- [ ] ${item}`), found, item);
+        }
+      });
+
       test("a spend guard the work lowers or raises, with no cost word", () => {
         for (const item of ["Turn off the budget cap.", "Delete the spend cap.", "Raise the spending quota.", "Raise the cap on spend to $500."]) {
           assert.equal(inBody(`- [ ] ${item}`), "a spend guard", item);
@@ -1087,6 +1102,12 @@ describe("decide", () => {
 
       test("a title that drops a billing alert", () => {
         admitted(issueOf({ title: "chore: drop the billing alert" }));
+      });
+
+      test("a billing account or plan named without taking on a charge", () => {
+        for (const item of ["Fix the map-deployment reader for AWS stacks.", "Document the openai/codex review lane.", "Write the implementation plan for the GitHub lane.", "Trim the logs for 7 days.", "Remove the OpenAI API key."]) {
+          admitted(issueOf({ body: `## Done when\n\n- [ ] ${item}` }));
+        }
       });
 
       test("a lane cap or budget that does not limit spend", () => {
