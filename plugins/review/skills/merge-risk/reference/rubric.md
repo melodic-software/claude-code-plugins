@@ -20,7 +20,8 @@ than the request.
 
 - `MEDIUM` at least: the diff changes behavior the issue does not ask for and the body does not
   name it.
-- `MEDIUM` at least: no closing issue, so nothing independent says what was asked.
+- `MEDIUM` at least: no closing issue, or one this run could not read (no saved `issue.md`), so
+  nothing independent says what was asked.
 
 ## Impact
 

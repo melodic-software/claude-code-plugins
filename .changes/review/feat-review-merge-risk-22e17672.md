@@ -1,5 +1,5 @@
 ---
-bump: minor
+bump: major
 ---
 
 ### Added
@@ -8,4 +8,8 @@ bump: minor
 
 ### Changed
 
-- `/review:explain-change` takes its risk map from `/review:merge-risk` and drops `--risk-only`; a request for the risk rating alone goes to `/review:merge-risk`.
+- `/review:explain-change` takes its risk map from `/review:merge-risk`; a disputed row shows the checker's level beside its reason.
+
+### Removed
+
+- `/review:explain-change --risk-only`. Use `/review:merge-risk <pr> [--dir <dir>]` instead.
