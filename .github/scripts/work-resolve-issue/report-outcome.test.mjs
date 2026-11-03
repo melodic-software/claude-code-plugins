@@ -18,6 +18,8 @@ import {
   countRestarts,
   countTurnCapRestarts,
   decide,
+  DECISION_LINE,
+  REFINE_MARKER,
   doneEvidence,
   ESCALATION_MARKER,
   findPrior,
@@ -1919,7 +1921,7 @@ test("main on a resumed stop with no commit of its own names no branch", async (
       ]);
       assert.equal(await main({ env: env(dir), fetch }), 0);
       assert.ok(!calls.some((c) => c.path.endsWith("/pulls")));
-      const comment = calls.find((c) => c.path.endsWith("/issues/77/comments")).body.body;
+      const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/issues/77/comments")).body.body;
       assert.ok(!comment.includes(RESUMED), comment);
       assert.equal(parseOutcomeMarker(comment).onResumed, true, comment);
     },
@@ -4040,6 +4042,95 @@ test("main on a pushback whose work-outcome.json names cause cost-risk holds it 
     assert.equal(parseReason(comment).reason, "cost", comment);
     assert.ok(calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")), "adds the human-gated label");
   });
+});
+
+// Ledger L7: write-issue.mjs leaves out a record posted after the run's
+// admission, so a pushback hold would wait on an answer the issue already
+// has. The answer re-dispatches the lane once, with a fresh admission; any
+// other late comment takes the hold as before.
+const ADDED = "2026-10-02T00:00:00Z";
+const LATE = "2026-10-02T01:00:00Z";
+const late = (id, userId, body, { at = LATE, type = "User", login = "someone", app = null } = {}) =>
+  issueComment(id, userId, body, { user: { id: userId, type, login }, created_at: at, updated_at: at, performed_via_github_app: app });
+const DECISION_BODY = "**Decision recorded.** Change only the README.";
+const readyAdd = (id, actor, at) => ({ id, event: "labeled", label: { name: "agent-ready" }, actor, created_at: at });
+const OWNER_ADD = readyAdd(1, { id: OWNER_ID, login: "kyle-sexton" }, ADDED);
+const redispatchRecord = (id, names, at = LATE) => late(id, 337595936, `<!-- work-resolve-issue redispatch comment=${names} -->\nre-dispatched`, { at, type: "Bot", login: BOT });
+async function runLateRecord(comments, { events = [OWNER_ADD], reason = "Which file?" } = {}) {
+  const pushback = JSON.stringify({ exit: "pushback", reason, cause: "intent", title: "", summary: "" });
+  let result;
+  await withAsyncDir({ "work-outcome.json": pushback, "lane.json": JSON.stringify({ branch: "" }), "trusted.json": TRUSTED_LIST }, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77\/comments$/, 200, comments],
+      ["GET", /\/issues\/77\/events$/, 200, events],
+      ["GET", /\/issues\/77$/, 200, { number: 77, state: "open", labels: [{ name: "agent-ready" }, { name: "status: ready" }] }],
+      ["POST", /\/issues\/77\/labels$/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\/status%3A%20ready$/, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch }), 0);
+    const posted = calls.filter((c) => c.method === "POST" && c.path.endsWith("/comments")).map((c) => c.body.body);
+    const labeled = calls.filter((c) => c.method === "POST" && c.path.endsWith("/labels")).map((c) => c.body.labels);
+    result = { posted, labeled, redispatches: posted.filter((body) => body.startsWith("<!-- work-resolve-issue redispatch comment=")) };
+  });
+  return result;
+}
+
+test("a listed human's decision posted after admission re-dispatches a pushback hold exactly once, with a fresh admission", async () => {
+  const { posted, labeled, redispatches } = await runLateRecord([late(5, OWNER_ID, DECISION_BODY, { login: "kyle-sexton" })]);
+  assert.deepEqual(redispatches, [`<!-- work-resolve-issue redispatch comment=5 -->\nA record this run did not read was posted after its admission: ${commentUrl(5)}. The run's report-outcome removed and added back \`status: ready\` and \`agent-ready\`, so a fresh run admits the issue as it stands now and reads it.`]);
+  assert.equal(posted.length, 1, "no hand-back comment beside the redispatch record");
+  assert.deepEqual(labeled, [["status: ready"], ["agent-ready"]], "no needs-human, and status: ready lands between the agent-ready moves");
+});
+
+test("intake's refinement posted after admission re-dispatches a pushback hold once", async () => {
+  const refinement = late(6, 337595936, "<!-- intake-triage refinement -->\nDone when: the README says so.", { type: "Bot", login: BOT });
+  const { redispatches, labeled } = await runLateRecord([refinement]);
+  assert.equal(redispatches.length, 1);
+  assert.deepEqual(labeled, [["status: ready"], ["agent-ready"]]);
+});
+
+test("a late comment that is no decision, or is not a listed human's own, or predates admission, takes the hold", async () => {
+  const cases = {
+    "a listed human's comment without the decision line": [late(5, OWNER_ID, "Change only the README.")],
+    "an unlisted account's decision line": [late(5, 999, DECISION_BODY)],
+    "a listed human's decision posted through an App": [late(5, OWNER_ID, DECISION_BODY, { app: { id: 1 } })],
+    "a decision posted before the agent-ready add": [late(5, OWNER_ID, DECISION_BODY, { at: "2026-10-01T23:59:59Z" })],
+  };
+  for (const [name, comments] of Object.entries(cases)) {
+    const { redispatches, labeled } = await runLateRecord(comments);
+    assert.deepEqual(redispatches, [], name);
+    assert.deepEqual(labeled, [["needs-human"]], name);
+  }
+});
+
+// A security stop reaches a person first, whatever was posted since.
+test("a security-risk hold takes the hold even with a listed human's late decision", async () => {
+  const { redispatches, labeled } = await runLateRecord([late(5, OWNER_ID, DECISION_BODY)], { reason: "security-risk: the change prints a token." });
+  assert.deepEqual(redispatches, []);
+  assert.deepEqual(labeled, [["needs-human"]]);
+});
+
+test("a redispatch record whose label move did not land is finished without a second record; one the App's re-add followed is done", async () => {
+  const comments = [late(5, OWNER_ID, DECISION_BODY), redispatchRecord(6, 5)];
+  const unfinished = await runLateRecord(comments);
+  assert.equal(unfinished.posted.length, 0, "no second record and no hand-back comment");
+  assert.deepEqual(unfinished.labeled, [["status: ready"], ["agent-ready"]]);
+  const appAdd = readyAdd(2, { id: 337595936, login: BOT }, "2026-10-02T01:00:01Z");
+  const finished = await runLateRecord(comments, { events: [OWNER_ADD, appAdd] });
+  assert.deepEqual(finished.redispatches, []);
+  assert.deepEqual(finished.labeled, [["needs-human"]]);
+});
+
+// report-outcome restates these because a script activity runs from a copy
+// of its own directory; the sources they restate must not drift from them.
+test("report-outcome's restated decision line and refinement marker match their sources", async () => {
+  const admit = await import("../intake-triage/admit.mjs");
+  assert.equal(REFINE_MARKER, admit.REFINE_MARKER);
+  const { isDecisionComment } = await import("../../actions/select-trusted-text/select-trusted-text.mjs");
+  const decision = (body) => ({ comment: { user: { id: OWNER_ID }, performed_via_github_app: null, body }, lastEditedAt: null, lastEditorId: null });
+  assert.equal(isDecisionComment(decision(`${DECISION_LINE} yes`), HUMANS), true);
 });
 
 // stop-routes.json routes every stop. Expected values are the owner's
