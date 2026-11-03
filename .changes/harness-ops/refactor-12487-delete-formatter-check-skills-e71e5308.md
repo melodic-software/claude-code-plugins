@@ -4,4 +4,4 @@ bump: patch
 
 ### Changed
 
-- `/harness-ops:prerequisites` reports a row with no check skill as a report with its install hints, because the formatter and linter `check` skills are gone.
+- The `prerequisites` skill's `## Next` section and its eval no longer name the formatter and linter `check` skills, because they are gone.
