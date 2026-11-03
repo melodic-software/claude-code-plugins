@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "**IMPORTANT**\n- `jest.config.js:7-8`: the coverage thresholds drop from 85/90 to 60/75 with no reason given, so the new untested tiers pass by lowering the bar. Restore the thresholds and test the tiers.",
+      "why": "finding at the threshold lines naming the lowering"
+    },
+    {
+      "answer": "The change lowers the coverage minimum (branches 85 to 60) in jest.config.js (lines 7-8).",
+      "why": "class words before a parenthesized line location"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No findings.",
+      "why": "no finding"
+    },
+    {
+      "answer": "**Location**: `src/pricing.js:5`\n**Issue**: bulkDiscountPercent's 5, 10 and 15 percent tiers have no tests.",
+      "why": "the missing tests, not the lowered bar"
+    },
+    {
+      "answer": "`jest.config.js:12-13` lowers branches to 60 and lines to 75.",
+      "why": "right defect cited at diff-file line numbers, not the source lines 7 and 8"
+    },
+    {
+      "answer": "`jest.config.js:4` collectCoverage stays on; nothing lowered in the test files.",
+      "why": "a different line of the config"
+    }
+  ]
+}
