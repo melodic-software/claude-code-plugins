@@ -1949,9 +1949,9 @@ nothing. A pr-unblock run the switch stopped mid-run posts its check neutral `ki
 dispatcher counts as handling the head, so the next dispatcher run after the lift (the half-hourly
 `pr-unblock-dispatch.yml` tick, or a review completing at the head) dispatches it again, at most
 `limits.limit-stops-per-head` times per head, `SWEEP_HEAD_CAP` for `address-feedback`.
-`ci-status` enforces the same holds on every lanes App pull request, the two text holds and the
-hold paths, so one added after arming stops the merge without waiting for this job: its step
-`Fail a lanes App pull request its body or a member holds` runs
+`ci-status` enforces a member's veto comment and the hold paths on every lanes App pull request,
+so one added after arming stops the merge without waiting for this job: its step
+`Fail a lanes App pull request on kill switch, hold path, verifier or veto` runs
 `.github/scripts/pr-merge/merge-holds.mjs` as main has it, the module `enable-auto-merge.mjs` arms
 by, over the live body, discussion and changed files (renamed-from paths included) against main's
 `merge.diff-check.denied-paths` plus the path floor (`HOLD_PATH_FLOOR`, a constant of the module
@@ -3148,7 +3148,7 @@ Which GitHub identity each workflow in `.github/workflows/` writes as. GitHub's 
 | Identity | Workflows | Why |
 |---|---|---|
 | `GITHUB_TOKEN` (`github-actions[bot]`) | every workflow not named below, and the reads and check runs of those that are | Its writes start no workflow run, a dispatch aside, which the lane sweep's digest and the monitoring lane rely on so their own issues start no lane; it has its own per-repository API quota ([ADR 0085](../../adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md)) |
-| Lanes App `melodic-automation-lanes`, minted per job by the broker (`.github/actions/request-lane-token`) | `pr-merge.yml`, `pr-run-activity-write.yml` (which the write jobs of `pr-unblock`, `pr-refine` and `work-resolve-issue` call), `intake-triage.yml`, `work-unblock.yml`, `upstream-apply-changelog.yml` | Its pushes, labels and auto-merge arms must start the next lane's runs, which a `GITHUB_TOKEN` write does not; one App identity also lets the person tests tell a lane from a person ([lane write identity](../loop-lane/README.md#lane-write-identity)) |
+| Lanes App `melodic-automation-lanes`, minted per job by the broker (`.github/actions/request-lane-token`) | `pr-merge.yml`, `pr-run-activity-write.yml` (which the write jobs of `pr-unblock`, `pr-refine` and `work-resolve-issue` call), `intake-triage.yml`, `work-unblock.yml`, `upstream-apply-changelog.yml`, `maintenance-tidy-code-upkeep.yml` | Its pushes, labels and auto-merge arms must start the next lane's runs, which a `GITHUB_TOKEN` write does not; one App identity also lets the person tests tell a lane from a person ([lane write identity](../loop-lane/README.md#lane-write-identity)) |
 | Release App (`PLUGIN_RELEASE_APP_PRIVATE_KEY`, `actions/create-github-app-token`) | `release-publish-plugins.yml`, `dependabot-fragments.yml` | A pull request `GITHUB_TOKEN` opens or updates gets its `pull_request` runs only after approval, and these pull requests need theirs unattended |
 | Owner token | none | Only the owner's own sessions use it; the babysit scripts count its calls as the `owner-token` API pool |
 
@@ -3949,9 +3949,9 @@ list. The config reader reads the synced copy from the base SHA's
   rejects any value until a second repository adopts.
 - The post-merge failure remedy, revert or fail forward, is the per-repository `red-main.remedy`
   key ([Red main](#red-main)), not a choice by change type.
-- Holds converge on one label. `ci-status` enforces holds in seven places
-  ([Review-lane holds](#review-lane-holds)), and in a 2026-11-01 sample holds, not code, made 17 of 24 red
-  pull request runs and 10 of 12 red merge groups red
+- Holds converge on one label. On 2026-11-01 `ci-status` enforced holds in seven places
+  ([Review-lane holds](#review-lane-holds)), and in a sample that day holds, not code, made 17 of 24
+  red pull request runs and 10 of 12 red merge groups red
   ([#12284 audit](https://github.com/melodic-software/claude-code-plugins/issues/12284#issuecomment-6582114885)).
   The direction: a hold our own actors place is `do-not-merge`, read once per run; only the
   review lanes' critical-security and cost holds and the trust-path holds stay person-only. The

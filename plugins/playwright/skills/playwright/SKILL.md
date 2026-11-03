@@ -8,9 +8,9 @@ allowed-tools: Bash(playwright-cli:*)
 metadata:
   source: https://github.com/microsoft/playwright-cli
   upstream-package: "@playwright/cli"
-  upstream-version: 0.1.22
-  upstream-sha: 8f4bb69e84084f1fabcb4ba08f491f7e16894a06
-  synced: 2026-10-04
+  upstream-version: 0.1.23
+  upstream-sha: a180691e3dfe0b55afdcc7a54f24bf7404186513
+  synced: 2026-11-03
   workflow-stage: test
   summary: Live E2E browser automation with disk-written artifacts
 ---
@@ -100,7 +100,7 @@ Load the right reference file for the scenario. Each is distilled from Microsoft
 
 Microsoft's defaults are right for autonomous E2E work: headless, an isolated in-memory profile per session, and artifacts under `.playwright-cli/`. Don't add `PLAYWRIGHT_MCP_*` env vars to project settings unless a real, recurring need surfaces; they add maintenance surface without benefit. Override per command instead: `--headed` when the user wants to watch, and a saved login state ([Logged-in sites](#logged-in-sites)) when a flow needs a logged-in site.
 
-- **Pointer**: for the current default values (timeouts, viewport, console level) and the full env-var and config-file schema, read `$(npm root -g)/@playwright/cli/README.md` or run `playwright-cli open --help`. **As of**: 2026-10-07. **Recheck trigger**: the frontmatter `upstream-version` moves.
+- **Pointer**: for the current default values (timeouts, viewport, console level) and the full env-var and config-file schema, read `$(npm root -g)/@playwright/cli/README.md` or run `playwright-cli open --help`. **As of**: 2026-11-03. **Recheck trigger**: the frontmatter `upstream-version` moves.
 
 **One exception: video recording.** A bare `video-start` records at a small fixed size that `resize` does not change. A demo a reviewer will watch needs the viewport set on `open` and a matching `video-start --size`, both per command, so it does not contradict the guidance above. The levers, frame rate, cursor and action highlights, and the measured outcomes are in [reference/tracing-and-video.md](reference/tracing-and-video.md).
 

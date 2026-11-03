@@ -1,0 +1,75 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "MSYS_NO_PATHCONV=1 ctx7 docs \"/lumenjs/lumen\" \"retry a failed request with exponential backoff\"",
+            "description": "Probe the second candidate"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 docs /lumen-http/lumen 'retry with exponential backoff'",
+            "description": "Probe the first candidate"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 docs /lumenjs/lumen 'retry with exponential backoff'",
+            "description": "Probe the second candidate"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pnpm dlx ctx7 docs \"/lumenjs/lumen\" \"retry with exponential backoff\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "pnpm dlx runner"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "MSYS_NO_PATHCONV=1 ctx7 docs \"/lumen-http/lumen\" \"retry a failed request with exponential backoff\"",
+            "description": "Probe the first candidate only"
+          }
+        }
+      ],
+      "why": "only the other candidate probed"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo \"note; ctx7 docs /lumenjs/lumen\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "separator inside quoted echo text"
+    },
+    {
+      "answer": [],
+      "why": "asked the user without running any probe"
+    }
+  ]
+}

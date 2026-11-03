@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: lk-ambiguous-names-choice
+graders:
+  - name: names-both-ids
+    type: regex
+    pattern: '^(?=[\s\S]*?/lumen-http/lumen(?![\w-]|\.\w))(?=[\s\S]*?/lumenjs/lumen(?![\w-]|\.\w))'
+    target: last_message
+  - name: no-which-library-question
+    type: regex
+    pattern: '\b(?:which|what)\s+(?:one|library|lib|lumen|package|candidate|of\s+(?:the|these|them)(?:\s+two)?)\b[^.!?\n]{0,80}\?|\b(?:did|do)\s+you\s+mean\b|\bcan\s+you\s+(?:clarify|confirm|tell\s+me)\s+which\b'
+    flags: i
+    match: not_contains
+    target: last_message
+  - name: chose-the-answering-library
+    type: llm
+    focus: last_message
+    criteria: "The docs for /lumen-http/lumen show a retry option with exponential backoff; the docs for /lumenjs/lumen cover caching and errors but not retries. PASS if the reply answers from /lumen-http/lumen, presents /lumen-http/lumen as the library it chose, and presents /lumenjs/lumen as the runner-up it rejected or did not use. FAIL if it presents /lumenjs/lumen as the choice, names only one of the two IDs, or asks the user which library they meant instead of answering. Judge only the choice and how the two IDs are presented."

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"t1\",\"content\":\"codex: ran\\nReview text.\\n\"}]}}",
+      "why": "the script's first line is the ran status"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty trace"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"t1\",\"content\":\"codex: skipped (Codex CLI not logged in)\\n\"}]}}",
+      "why": "Codex never started"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"t1\",\"content\":\"codex: failed (review exited 1)\\n\"}]}}",
+      "why": "Codex returned no result"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"t1\",\"content\":\"#!/usr/bin/env bash\\n#   codex: ran\\nprintf 'codex: ran\\\\n'\\n\"}]}}",
+      "why": "a read of the script quotes the status without running it"
+    }
+  ]
+}

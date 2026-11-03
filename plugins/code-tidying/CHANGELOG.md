@@ -3,6 +3,26 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.37.1] - 2026-11-03
+
+### Changed
+
+- The README and `/code-tidying:tidy` now say the repository's merge lane, where it has one, or a
+  person merges a tidy PR; the skill itself never merges.
+
+## [0.37.0] - 2026-11-03
+
+### Added
+
+- Upkeep settings `upkeep_cadence`, `upkeep_backstop` and `upkeep_max_open` in
+  `<home>/code-tidying.yaml` (defaults `daily`, `weekly`, 3), read by
+  `skills/tidy/scripts/upkeep-setting.sh`. See `reference/config.md`.
+
+### Changed
+
+- The `/code-tidying:tidy` backlog throttle takes its limit from `upkeep_max_open`, and
+  `open-pr-count.sh` reports the limit and the layer that supplied it.
+
 ## [0.36.0] - 2026-11-03
 
 ### Changed

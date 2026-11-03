@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: lk-ambiguous-probes-candidates
+graders:
+  - name: probes-http-client
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\'']|\\[^"]|\\"(?:[^"\\]|\\[^"])*\\"|''[^'']*'')*?(?:&&|\|\||[;|(]|\$\(|\\n))?\s*(?:(?:\w+=\S*|timeout(?:\s+-\S+)*\s+\S+|command|exec|env|time|nice)\s+)*(?:(?:npx|bunx|pnpx)\s+(?:-{1,2}[\w-]+(?:[= ][^\s-]\S*)?\s+)*|(?:pnpm|yarn|bun)\s+(?:dlx|x)\s+(?:-{1,2}[\w-]+(?:[= ][^\s-]\S*)?\s+)*|npm\s+(?:exec|x)\s+(?:-{1,2}[\w-]+(?:[= ][^\s-]\S*)?\s+)*(?:--\s+)?)?(?:[^\s"\\;&|]*/)?ctx7(?:@[\w.-]+)?\s+docs\s+(?:-{1,2}[\w-]+(?:=\S+)?\s+)*(?:\\"|'')?/lumen-http/lumen(?![\w.-])'
+    min: 1
+  - name: probes-fetch-wrapper
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\'']|\\[^"]|\\"(?:[^"\\]|\\[^"])*\\"|''[^'']*'')*?(?:&&|\|\||[;|(]|\$\(|\\n))?\s*(?:(?:\w+=\S*|timeout(?:\s+-\S+)*\s+\S+|command|exec|env|time|nice)\s+)*(?:(?:npx|bunx|pnpx)\s+(?:-{1,2}[\w-]+(?:[= ][^\s-]\S*)?\s+)*|(?:pnpm|yarn|bun)\s+(?:dlx|x)\s+(?:-{1,2}[\w-]+(?:[= ][^\s-]\S*)?\s+)*|npm\s+(?:exec|x)\s+(?:-{1,2}[\w-]+(?:[= ][^\s-]\S*)?\s+)*(?:--\s+)?)?(?:[^\s"\\;&|]*/)?ctx7(?:@[\w.-]+)?\s+docs\s+(?:-{1,2}[\w-]+(?:=\S+)?\s+)*(?:\\"|'')?/lumenjs/lumen(?![\w.-])'
+    min: 1
