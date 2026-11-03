@@ -775,6 +775,8 @@ def queue_lookup_script() -> str:
         raise AssertionError(f"no line starting {prefix!r} in the queue lookup")
 
     digest = at("digest=$(")
+    names = at("pass_names=(")
+    names_end = next(n for n in range(names, len(body)) if body[n].rstrip().endswith(")"))
     loop = at('[ "$listed" = false ] || for name in')
     loop_end = body.index("            done", loop)
     artifact = at("artifact=$(jq -sr")
@@ -783,6 +785,7 @@ def queue_lookup_script() -> str:
         "\n".join(
             [
                 body[digest],
+                *body[names : names_end + 1],
                 *body[loop : loop_end + 1],
                 *body[artifact : artifact_end + 1],
             ]
