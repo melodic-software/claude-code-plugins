@@ -158,9 +158,9 @@ check "<root>"`, where `<root>` is the absolute plugin root. `check` mode is the
 `report` prints the fleet table. The command passes no `--data-dir`, so a hook's `python-pkg` or
 `node-pkg` entry that only the plugin data directory holds reports `unverified` there.
 
-The node notice still names `/harness-ops:check`, passed by harness-ops' row, while the waves that
-delete the per-plugin `check` and `check-prerequisites` skills run; an entry's `check` may still
-name one of those skills until its wave drops the field. A probe the checker
+The node notice names `/harness-ops:prerequisites`, passed by harness-ops' row, because the notice
+speaks for the whole fleet. An entry's `check` may still name a per-plugin `check` or
+`check-prerequisites` skill until the wave that deletes it drops the field. A probe the checker
 cannot express stays a script in that plugin's `scripts/`: `check-hook-registration.sh` for hook
 registration, `check-mod-load.sh` for whether a mod can load. The plugin's `degrade` text and README
 name it, and it runs after the checker. Neither notice names `/<plugin>:setup`,

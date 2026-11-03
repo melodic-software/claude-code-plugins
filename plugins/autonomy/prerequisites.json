@@ -15,8 +15,7 @@
       "degrade": "Without node, the autonomy hooks cannot launch, so they do nothing.",
       "install": {
         "docs": "https://nodejs.org/en/download"
-      },
-      "check": "/autonomy:check"
+      }
     },
     {
       "id": "jq",
@@ -33,8 +32,7 @@
       "degrade": "Without jq, the autonomy hooks skip their work.",
       "install": {
         "docs": "https://jqlang.org/download/"
-      },
-      "check": "/autonomy:check"
+      }
     }
   ]
 }

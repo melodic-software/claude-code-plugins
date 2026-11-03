@@ -380,7 +380,7 @@ if grep -q 'display notification (item 2 of argv)' <<<"$PROG"; then ok "sanitize
 # --- jq-absent -> exit 0 and print nothing -----------------------------------
 # Without jq the hook can neither classify the notification nor emit its
 # terminalSequence. Claude Code discards a Notification hook's systemMessage, so
-# a notice would reach no one; /desktop-notification:check reports the gap.
+# a notice would reach no one; lib/prerequisites.mjs check reports the gap.
 FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
 for t in bash git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink; do
   real_t="$(command -v "$t" 2>/dev/null)" || continue
