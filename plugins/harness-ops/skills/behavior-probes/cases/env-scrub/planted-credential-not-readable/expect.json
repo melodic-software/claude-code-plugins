@@ -1,5 +1,5 @@
 {
-  "claim": "With the subprocess env scrub on, a Bash child cannot read a planted credential from its own environment or any /proc/<pid>/environ it can see.",
+  "claim": "With the subprocess env scrub on, a Bash child cannot read a planted credential from its own environment or any other process's /proc/<pid>/environ it can see.",
   "tags": ["CLAUDE_CODE_SUBPROCESS_ENV_SCRUB", "subprocess environment", "env scrub", "PID namespace"],
   "permission_mode": "dontAsk",
   "allowed_tools": ["Bash(python3 ${PROBE_WORKDIR}/plant-check.py)"],
@@ -15,9 +15,9 @@
     "tool": "Bash",
     "input_match": "plant-check\\.py",
     "example": { "command": "python3 plant-check.py" },
-    "result_match": "planted-value-(not-)?readable"
+    "result_match": "planted-value own=(not-)?found others=(not-)?found"
   },
   "outcome": "refused",
-  "match": "planted-value-not-readable",
+  "match": "planted-value own=not-found others=not-found",
   "control": "env-scrub/planted-credential-readable-without-scrub"
 }

@@ -90,9 +90,12 @@ each run sees, for the date-zone question tracked in #7679 (record 19).
 The `env-scrub` area checks that `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` keeps a planted credential away
 from a Bash child. The runner plants a fresh fake value (its `plant_env`) in the child `claude`'s
 environment. A checker the scaffold copies in compares hashes of its own environment and of every
-`/proc/<pid>/environ` it can read with the value's hash, and prints only a fixed marker. Under
-`dontAsk` that checker is the one command allowed. The cases are verdict-only, and the two differ
-only in the scrub variable. `plant_env` holds one variable the scrub removes; what it removes and
+other `/proc/<pid>/environ` it can read with the value's hash, and prints only a fixed marker naming
+each channel's result. It crashes with no marker, an `inconclusive`, when it cannot read its own
+`/proc/self/environ`. The scrub-on case passes when neither channel finds the value; its control
+passes only when both do, so a run where the `/proc` route reaches nothing cannot back the scrub-on
+`pass`. Under `dontAsk` that checker is the one command allowed. The cases are verdict-only, and the
+two differ only in the scrub variable. `plant_env` holds one variable the scrub removes; what it removes and
 keeps is the docs section's to state, so no case lists it. **Pointer**: before changing the planted
 variable, or reading what a `pass` covers, fetch
 <https://code.claude.com/docs/en/env-vars#what-the-subprocess-environment-scrub-removes> live.

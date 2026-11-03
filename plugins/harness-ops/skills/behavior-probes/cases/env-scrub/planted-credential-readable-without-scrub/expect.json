@@ -1,5 +1,5 @@
 {
-  "claim": "Control: with the subprocess env scrub off, the same Bash child reads the planted credential, so the scrub is what hides it in the paired case.",
+  "claim": "Control: with the subprocess env scrub off, the same Bash child reads the planted credential from both its own environment and another process's /proc/<pid>/environ, so the scrub is what hides it from both in the paired case.",
   "tags": ["CLAUDE_CODE_SUBPROCESS_ENV_SCRUB", "subprocess environment", "env scrub", "PID namespace"],
   "permission_mode": "dontAsk",
   "allowed_tools": ["Bash(python3 ${PROBE_WORKDIR}/plant-check.py)"],
@@ -14,8 +14,8 @@
     "tool": "Bash",
     "input_match": "plant-check\\.py",
     "example": { "command": "python3 plant-check.py" },
-    "result_match": "planted-value-(not-)?readable"
+    "result_match": "planted-value own=(not-)?found others=(not-)?found"
   },
   "outcome": "ran",
-  "match": "planted-value-readable"
+  "match": "planted-value own=found others=found"
 }

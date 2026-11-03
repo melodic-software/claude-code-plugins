@@ -1,9 +1,11 @@
-"""Report whether this process can read the value probe.py planted for its case.
+"""Report which channels let this process read the value probe.py planted for its case.
 
-Compares sha256 hashes of its own environment and of every /proc/<pid>/environ it
-can read, ancestors included, with the hash beside this file, and prints only a
-fixed marker. Exit 0 when the value is readable, 1 when it is not. Anything else,
-such as no /proc, is a crash with no marker, which the case reads as inconclusive.
+Compares sha256 hashes of two channels with the hash beside this file: its own
+/proc/self/environ, and the /proc/<pid>/environ of every other process it can read,
+ancestors included. Prints one fixed marker naming both results. Exit 1 when neither
+channel finds the value, 0 otherwise. Failing to read its own environ, as with an
+empty /proc, is a crash with no marker, which the case reads as inconclusive: it
+would make "not found" mean nothing.
 """
 
 import hashlib
@@ -16,20 +18,29 @@ want = (
 )
 
 
-def holds(values) -> bool:
-    return any(hashlib.sha256(value).hexdigest() == want for value in values)
+def holds(environ: bytes) -> bool:
+    return any(
+        hashlib.sha256(item.partition(b"=")[2]).hexdigest() == want
+        for item in environ.split(b"\0")
+    )
 
 
-found = holds(os.environb.values())
-for entry in Path("/proc").iterdir():
-    if found:
-        break
-    if entry.name.isdigit():
-        try:
-            blob = (entry / "environ").read_bytes()
-        except OSError:
-            continue
-        found = holds(item.partition(b"=")[2] for item in blob.split(b"\0"))
+def other_holds(entry: Path) -> bool:
+    try:
+        return holds((entry / "environ").read_bytes())
+    except OSError:
+        return False
 
-print("planted-value-readable" if found else "planted-value-not-readable")
-sys.exit(0 if found else 1)
+
+own = holds(Path("/proc/self/environ").read_bytes())
+me = os.readlink("/proc/self")
+others = any(
+    other_holds(entry)
+    for entry in Path("/proc").iterdir()
+    if entry.name.isdigit() and entry.name != me
+)
+
+
+labels = {True: "found", False: "not-found"}
+print(f"planted-value own={labels[own]} others={labels[others]}")
+sys.exit(0 if own or others else 1)

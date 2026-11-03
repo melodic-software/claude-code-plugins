@@ -888,6 +888,9 @@ def run_case(case: dict, runner, keep: bool, live: bool) -> dict:
         return {**row, "verdict": "skipped", "note": reason}
     if not cli_args_ok(case.get("cli_args") or []):
         return {**row, "verdict": "error", "note": "cli_args is not allowed flag-value pairs"}
+    # The stream of a run that saves one could carry the planted value.
+    if case.get("plant_env") and case.get("verdict_only") is not True:
+        return {**row, "verdict": "error", "note": "a plant_env case must be verdict_only"}
     workdir = Path(tempfile.mkdtemp(prefix="cc-probe-"))
     try:
         case_dir = case["dir"]
