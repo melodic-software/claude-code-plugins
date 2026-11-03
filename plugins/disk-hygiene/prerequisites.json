@@ -41,7 +41,7 @@
           "min": "3.11"
         }
       },
-      "degrade": "Without Python 3.11 or newer, the guard denies hygiene.py calls, /disk-hygiene:clean cannot run, and /disk-hygiene:audit cannot scan.",
+      "degrade": "Without Python 3.11 or newer, the guard denies hygiene.py calls, /disk-hygiene:clean cannot run, and /disk-hygiene:audit cannot scan. This check judges only the first of python3, python and py on PATH. The guard tries each in that order (py as py -3) and uses the first that passes its own probe, so when a later one is 3.11 or newer the guard still runs.",
       "install": {
         "docs": "https://www.python.org/downloads/",
         "brew": "python",

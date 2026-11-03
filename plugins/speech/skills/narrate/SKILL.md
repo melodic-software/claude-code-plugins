@@ -116,8 +116,9 @@ live ElevenLabs specifics (models, script-writing guidance, voice cloning, prici
 
 ## Next
 
-Run the report under Exit 2 when the run stopped with exit 2. It names each missing prerequisite with
-its remedy.
+/harness-ops:prerequisites
+
+When the run stopped with exit 2, it lists the declared tools this machine lacks.
 
 ## Gotchas
 
