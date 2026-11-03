@@ -3487,6 +3487,16 @@ assert_eq "reuse: a created settings file runs fleet-state.sh again" "2" "$reads
 assert_eq "reuse: and the read after it sees the new scope" "false" \
   "$(jq -r '.enabled["alpha@market1"]' "$run_dir/pre.market1.json")"
 
+# A write through a symlinked input moves the target, not the link.
+reuse_case
+mv "$case_dir/user_settings.json" "$case_dir/user_settings.target.json"
+ln -s "$case_dir/user_settings.target.json" "$case_dir/user_settings.json"
+touch -h -d "@$(($(date +%s) - 60))" "$case_dir/user_settings.json"
+reuse_run CLAUDE_STUB_REFRESH_SETTINGS="$case_dir/user_settings.json"
+assert_eq "reuse: a write through a symlinked input runs fleet-state.sh again" "2" "$reads"
+assert_eq "reuse: and the read after it sees the target's new content" "false" \
+  "$(jq -r '.enabled["alpha@market1"]' "$run_dir/pre.market1.json")"
+
 # An `ask` pass stops on the install gap; a re-entry that installs nothing reads
 # nothing new, so it reuses the first pass's last report.
 reuse_case

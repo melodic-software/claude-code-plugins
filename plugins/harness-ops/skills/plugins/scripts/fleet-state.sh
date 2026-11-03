@@ -265,7 +265,7 @@
 #                          or tested, one per line, absent ones included, so the
 #                          caller can fingerprint the inputs by mtime and size.
 #                          Not covered by it: the `git rev-parse` fallback above
-#                          and the `realpath` resolution of symlinks.
+#                          and the `realpath` manifest containment verdict.
 
 set -uo pipefail
 

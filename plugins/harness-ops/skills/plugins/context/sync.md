@@ -143,8 +143,8 @@ makes the read run again. The reuse holds within one invocation and into an `--o
 re-entry run from the same directory and environment. `journal.log` records each read as
 `# fleet-state read <step>: elapsed <seconds>s, exit <rc>, ...` and each reuse as
 `# fleet-state reuse <step>: inputs unchanged since the <step> read`. The fingerprint does not
-cover the project root `git rev-parse` resolves when `CLAUDE_PROJECT_DIR` is unset, or a retargeted
-symlink.
+cover the project root `git rev-parse` resolves when `CLAUDE_PROJECT_DIR` is unset, or the
+`realpath` check that a catalog manifest sits inside its checkout.
 
 **The CLI's text cannot tell that race from a true no-op, but the run's snapshots can.** An id the
 CLI reports "already at the latest version (X)" is consistent with both a plugin that was current and

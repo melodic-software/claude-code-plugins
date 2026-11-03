@@ -1775,18 +1775,22 @@ slurp_to() {
 }
 
 # `<mtime>|<size>|<path>` for each path listed in file $2 that exists, in list
-# order, from one `stat`; an absent path has no line. `stat` exits non-zero when
-# any path is absent, so the BSD spelling runs only on empty output. Empty when
-# neither dialect answers, which turns reuse off.
+# order, from one `stat` that follows symlinks; an absent path or a dangling link
+# has no line. `stat` exits non-zero when any path is absent, so the BSD spelling
+# runs only on empty output. Empty when neither dialect answers or a line carries
+# no fractional mtime, which turns reuse off.
 fingerprint_to() {
   local __fp_p __fp_out=""
   local -a __fp_paths=()
   while IFS= read -r __fp_p; do __fp_paths+=("$__fp_p"); done <"$2"
   if ((${#__fp_paths[@]} > 0)); then
     # portability-ok: GNU-first rung of a dual-dialect ladder; the BSD -f spelling follows on empty output
-    __fp_out=$(stat -c '%.9Y|%s|%n' -- "${__fp_paths[@]}" 2>/dev/null)
-    [[ -n "$__fp_out" ]] || __fp_out=$(stat -f '%Fm|%z|%N' -- "${__fp_paths[@]}" 2>/dev/null)
+    __fp_out=$(stat -L -c '%.9Y|%s|%n' -- "${__fp_paths[@]}" 2>/dev/null)
+    [[ -n "$__fp_out" ]] || __fp_out=$(stat -L -f '%Fm|%z|%N' -- "${__fp_paths[@]}" 2>/dev/null)
   fi
+  while IFS= read -r __fp_p; do
+    [[ "${__fp_p%%|*}" =~ ^[0-9]+\.[0-9]+$ ]] || __fp_out=""
+  done <<<"$__fp_out"
   printf -v "$1" '%s' "$__fp_out"
 }
 
@@ -1794,7 +1798,6 @@ fingerprint_to() {
 inputs_older_than() {
   local line m
   while IFS= read -r line; do
-    [[ "${line%%|*}" =~ ^[0-9]+(\.[0-9]+)?$ ]] || return 1
     stamp_us m "${line%%|*}"
     ((m < $2)) || return 1
   done <<<"$1"
@@ -3364,7 +3367,11 @@ else
   printf '%s' "$SNAPSHOT_KEY" >"$RUN_DIR/fs-cache.$DEFAULT_MP.key"
   slurp_to line "$RUN_DIR/.default.list"
   printf '%s' "$line" >"$RUN_DIR/fs-cache.$DEFAULT_MP.list"
-  echo "# fleet-state read pre-refresh (default marketplace $DEFAULT_MP): not stored, its read list is kept" >>"$JOURNAL_LOG"
+  stamp_us t_s "$MAIN_READ_S"
+  stamp_us t_e "$MAIN_READ_E"
+  t_e=$(((t_e - t_s) / 1000))
+  printf '# fleet-state read pre-refresh: elapsed %d.%03ds, exit 0, not stored, its read list is kept\n' \
+    $((t_e / 1000)) $((t_e % 1000)) >>"$JOURNAL_LOG"
 fi
 
 if ((${#MPS[@]} == 0)); then
