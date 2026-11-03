@@ -31,6 +31,10 @@ HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 
+for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
+    os.environ.pop(_leaked_git_var, None)
+del _leaked_git_var
+
 ROUND = HERE / "round.py"
 FIXTURES = HERE / "tests" / "fixtures"
 TIMEOUT = 10
