@@ -6,11 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/observer-arm.sh"
-            ],
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/node-or-skip.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs\" \"${CLAUDE_PLUGIN_ROOT}/hooks/observer-arm.sh\"; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/node-or-skip.ps1\" \"${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs\" \"${CLAUDE_PLUGIN_ROOT}/hooks/observer-arm.sh\"",
             "timeout": 30,
             "statusMessage": "Arming session observer..."
           }
