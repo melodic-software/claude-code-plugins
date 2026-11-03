@@ -17,7 +17,7 @@ graders:
     focus: 'trace'
   - name: 'expectation-5'
     type: 'llm'
-    criteria: 'A fresh-context semantic-diff subagent is dispatched because the input is longer than a few paragraphs, and its brief includes the ''dropped decision, number, or ask'' class; the model that wrote the rewrite does not grade its own output'
+    criteria: 'A fresh-context semantic-diff subagent is dispatched because the input has more than three paragraphs or more than 250 words, and its brief includes the ''dropped decision, number, or ask'' class; the model that wrote the rewrite does not grade its own output'
     focus: 'trace'
   - name: 'expectation-6'
     type: 'llm'
