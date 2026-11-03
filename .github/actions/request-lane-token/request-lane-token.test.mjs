@@ -454,14 +454,42 @@ test("with kill-switch-ok, an allow still mints the token unchanged", () => {
   assert.doesNotMatch(run.output, /skip-reason/);
 });
 
-test("kill-switch-ok in check mode fails before the broker request", () => {
-  const run = request(
-    { MODE: "check", EFFECT: "", CONTENTS: "", PULL_REQUESTS: "", ISSUES: "", PR_NUMBER: "", KILL_SWITCH_OK: "true" },
-    KILLED,
-  );
+// The read file's broker-check: the broker's kill-switch refusal (run
+// 41576258964's 403) ends green as a stop with no allow, which the job reads
+// from `allowed`, never from the step's outcome.
+const CHECK = { MODE: "check", EFFECT: "", CONTENTS: "", PULL_REQUESTS: "", ISSUES: "", PR_NUMBER: "" };
+const CHECK_ALLOW = { body: { decision: "allow", lane: "pr-unblock", activity: "resolve-conflicts" } };
+
+test("check mode with kill-switch-ok ends a 403 kill-switch green with skip-reason kill-switch and no allow", () => {
+  const run = request({ ...CHECK, KILL_SWITCH_OK: "true" }, KILLED);
+  assert.equal(run.status, 0, run.stdout);
+  assert.match(run.stdout, /^::notice::lane-check-stopped: the broker refused the check because a lanes kill switch is on, a designed stop;/m);
+  assert.doesNotMatch(run.stdout, /::error::/);
+  assert.equal(run.output, "skip-reason=kill-switch\n");
+  assert.equal(run.body, '{"lane":"pr-unblock","activity":"resolve-conflicts"}');
+});
+
+test("check mode with kill-switch-ok still fails red on any other denial", () => {
+  for (const answer of [{ status: "403", body: { reason: "workflow-modified" } }, { ...KILLED, status: "500" }]) {
+    const run = request({ ...CHECK, KILL_SWITCH_OK: "true" }, answer);
+    assert.equal(run.status, 1, answer.status);
+    assert.match(run.output, /^failure-reason=lane-check-denied: the broker answered /m, answer.status);
+    assert.doesNotMatch(run.output, /skip-reason|allowed/, answer.status);
+  }
+});
+
+test("check mode without kill-switch-ok still fails a 403 kill-switch red, as in run 41576258964", () => {
+  const run = request(CHECK, KILLED);
   assert.equal(run.status, 1);
-  assert.match(run.stdout, /::error::kill-switch-ok needs token mode/);
-  assert.equal(run.body, null);
+  assert.equal(run.output, `failure-reason=${KILLED_ERROR.replace("lane-token-denied", "lane-check-denied")}\n`);
+});
+
+test("check mode, with or without kill-switch-ok, sets allowed=true on an allow and no skip-reason", () => {
+  for (const ok of ["true", "false"]) {
+    const run = request({ ...CHECK, KILL_SWITCH_OK: ok }, CHECK_ALLOW);
+    assert.equal(run.status, 0, run.stdout);
+    assert.equal(run.output, "allowed=true\n", ok);
+  }
 });
 
 test("a kill-switch-ok other than true or false fails before the broker request", () => {

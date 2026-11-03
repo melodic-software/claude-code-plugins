@@ -10,7 +10,8 @@ description: >
   of failing, and with `kill-switch-ok` a `kill-switch` refusal skips with a
   notice. In `check` mode it asks the
   broker's check endpoint, which mints nothing, whether a read lane may run,
-  and fails red on anything but an allow. Contract:
+  and fails red on anything but an allow, or, with `kill-switch-ok`, a
+  `kill-switch` refusal, which skips with a notice. Contract:
   docs/conventions/pr-pipeline/pr-run-activity.md, run job step 6 and the
   check job.
 
@@ -104,8 +105,10 @@ inputs:
       reason `kill-switch`: a kill switch turned on after this run read its
       variables, a designed stop. Every step that uses the token must run
       only when the `token` output is set, and every job that depends on this
-      one must skip on `skip-reason`. Any other denial still fails red.
-      `token` mode only. Default `false`.
+      one must skip on `skip-reason`. In `check` mode the same refusal ends
+      green with `skip-reason` `kill-switch` and `allowed` unset, so a caller
+      reads the allow from `allowed`, never from the step's outcome. Any other
+      denial still fails red. Default `false`.
     required: false
     default: "false"
   pr-workflow-change-ok:
@@ -152,6 +155,9 @@ outputs:
       `workflow-modified` when `pr-workflow-change-ok` skipped the activity,
       `kill-switch` when `kill-switch-ok` did; empty otherwise.
     value: ${{ steps.request.outputs.skip-reason }}
+  allowed:
+    description: "`true` when a `check` mode request got the broker's allow; unset otherwise."
+    value: ${{ steps.request.outputs.allowed }}
 
 runs:
   using: composite
@@ -205,8 +211,6 @@ runs:
         [[ $SUPERSEDED_OK == true || $SUPERSEDED_OK == false ]] || fail "superseded-ok must be true or false"
         KILL_SWITCH_OK=${KILL_SWITCH_OK:-false}
         [[ $KILL_SWITCH_OK == true || $KILL_SWITCH_OK == false ]] || fail "kill-switch-ok must be true or false"
-        # A check allow is the exit code itself, so a check may never end green on a refusal.
-        [[ $KILL_SWITCH_OK == false || $MODE == token ]] || fail "kill-switch-ok needs token mode"
         PR_WORKFLOW_CHANGE_OK=${PR_WORKFLOW_CHANGE_OK:-false}
         [[ $PR_WORKFLOW_CHANGE_OK == true || $PR_WORKFLOW_CHANGE_OK == false ]] ||
           fail "pr-workflow-change-ok must be true or false"
@@ -372,6 +376,8 @@ runs:
           # when it was queued, so a switch turned on since reaches it here.
           if [[ $KILL_SWITCH_OK == true && $status == 403 && $reason == kill-switch ]]; then
             msg="lane-token-stopped: the broker refused the token because a lanes kill switch is on, a designed stop; this run takes no token and skips the rest"
+            [ "$MODE" = token ] ||
+              msg="lane-check-stopped: the broker refused the check because a lanes kill switch is on, a designed stop; this run runs no lane and skips the rest"
             echo "::notice::$msg"
             printf -- '- %s\n' "$msg" >>"$GITHUB_STEP_SUMMARY"
             echo "skip-reason=kill-switch" >>"$GITHUB_OUTPUT"
@@ -421,6 +427,7 @@ runs:
           [ "$allowed" = true ] || fail "$denied: the broker's 200 is not an allow for this lane and activity"
           # shellcheck disable=SC2016  # the backticks are Markdown, not expansions
           printf -- '- Broker check allowed: lane `%s`, activity `%s`\n' "$LANE" "$ACTIVITY" >>"$GITHUB_STEP_SUMMARY"
+          echo "allowed=true" >>"$GITHUB_OUTPUT"
           exit 0
         fi
 

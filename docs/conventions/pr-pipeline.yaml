@@ -650,6 +650,18 @@ activities:
     # sub-issue never splits again, and the issue's body is never edited.
     # Admission waits on an issue while a sub-issue is open.
     inputs: [issue]
+  apply-changelog:
+    # Runs `/harness-ops:changelog apply --ci <release>` in the
+    # upstream-apply-changelog model job, which commits one local branch per
+    # owner plugin and writes ci-plan.json; apply-changelog-branches and
+    # publish-changelog-intake act on what it leaves. The job holds no write
+    # token, so no broker mint names it.
+    skill: harness-ops:changelog
+    args: apply --ci
+    effect: read
+    gating: advisory
+    # Reads the Claude Code changelog, written outside the org.
+    reads-untrusted: true
   apply-changelog-branches:
     # Recreates each changelog/<plugin>/v<release> branch the
     # upstream-apply-changelog model job's `/harness-ops:changelog apply --ci`
@@ -780,14 +792,16 @@ lanes:
       - activity: apply-verdict
       - activity: apply-refinement
         needs: [apply-verdict]
-  # Started daily and by a listed human's dispatch naming one Claude Code
+  # Started every ten minutes and by a listed human's dispatch naming one Claude Code
   # release (.github/workflows/upstream-apply-changelog.yml). Push and pull request
   # open are separate jobs: the broker refuses contents and pull-requests
   # write in one mint.
   upstream-apply-changelog:
     stage: upstream
     slots:
+      - activity: apply-changelog
       - activity: apply-changelog-branches
+        needs: [apply-changelog]
       - activity: publish-changelog-intake
         needs: [apply-changelog-branches]
   # Started daily and by a listed human's dispatch
@@ -873,6 +887,8 @@ models:
     summarize-reuse: summary
     # An issue's code change, on run-claude-cli, which needs a model alias.
     resolve-issue: code-fix
+    # A release's plugin edits, on run-claude-cli, as resolve-issue's.
+    apply-changelog: code-fix
     # pr-unblock's read-only judge of a finding address-feedback disputed: at
     # least the review lanes' model, so a weaker model never overrules the
     # reviewer.

@@ -3,6 +3,13 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.0] - 2026-11-03
+
+### Removed
+
+- The `check` skill is gone. To check this plugin's prerequisites, run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`.
+- The checker sees no PowerShell module, so `/powershell-format:setup check` is now the one report on PSScriptAnalyzer.
+
 ## [0.14.3] - 2026-11-02
 
 ### Changed

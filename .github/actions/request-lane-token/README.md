@@ -25,7 +25,7 @@ run, and mints nothing ([Check mode](#check-mode)).
 | `dispatcher-run-id` | `token` mode: the `pr-unblock-dispatch.yml` run that dispatched this one; sent as `dispatcher_run_id` when set. The broker needs it to trust a run sent by `github-actions[bot]` |
 | `effect`, `contents`, `pull-requests`, `issues`, `actions` | `token` mode: this job's own `resolve-config` outputs, compared with the broker's answer. `actions` is `read` or empty; empty expects no `actions` permission |
 | `superseded-ok` | `true` ends green, with a `lane-token-superseded` warning and no token, on a 403 whose reason is `workflow-modified` (a newer copy of the caller workflow on the default branch, whose run does the work). Default `false` |
-| `kill-switch-ok` | `token` mode: `true` ends green, with a `lane-token-stopped` notice, no token and `skip-reason` `kill-switch`, on a 403 whose reason is `kill-switch` (a kill switch turned on after the run read its variables, a designed stop). Steps that use the token must gate on `token`, and jobs that need this one on `skip-reason`. Default `false` |
+| `kill-switch-ok` | `true` ends green, with a `lane-token-stopped` notice (`lane-check-stopped` in `check` mode), no token, no `allowed` and `skip-reason` `kill-switch`, on a 403 whose reason is `kill-switch` (a kill switch turned on after the run read its variables, a designed stop). Steps that use the token must gate on `token`, and jobs that need this one on `skip-reason`. Default `false` |
 | `pr-workflow-change-ok` | `token` mode with `pr-number`: `true` ends green, with no token and `skip-reason` `workflow-modified`, on a 403 `workflow-modified` naming a workflow file the PR itself changes ([below](#a-workflow-file-the-pr-changes)). Default `false` |
 | `head-sha`, `default-branch`, `github-token` | Required with `pr-workflow-change-ok`: the gated head, the default branch, and a token that reads the repository's contents, for the compare |
 
@@ -38,6 +38,7 @@ run, and mints nothing ([Check mode](#check-mode)).
 | `mint-id` | `<check_run_id>-<run_attempt>`, the broker's audit key for this mint |
 | `failure-reason` | The one-line reason the step failed with (`lane-token-denied: ...`); empty on a success |
 | `skip-reason` | `workflow-modified` when `pr-workflow-change-ok` skipped, `kill-switch` when `kill-switch-ok` did; empty otherwise |
+| `allowed` | `check` mode: `true` on the broker's allow; unset otherwise |
 
 ## What it does
 
@@ -141,7 +142,10 @@ With `mode: check` the action takes only `broker-url`, `audience`, `lane` and `a
 path's inputs. It posts to `broker-url`, retrying a 503 `github-unavailable` or `github-rate-limited` as in step 3, with its final `/token` replaced by `/check` (a URL
 that does not match `^https://[^/]+/(.+/)?token$` fails red), with the body `{"lane", "activity"}`, and passes only on a 200
 whose `decision` is `allow` and whose `lane` and `activity` are its own. Any other answer fails red
-with `lane-check-denied`; no response is `broker-unreachable`. It sets no output.
+with `lane-check-denied`; no response is `broker-unreachable`. An allow sets `allowed=true`. With
+`kill-switch-ok: true`, a 403 `kill-switch` ends green with a `lane-check-stopped` notice,
+`skip-reason=kill-switch` and no `allowed`, so the job reads the allow from `allowed`, never from
+the step's outcome.
 
 ```yaml
 - name: Ask the broker whether the lane may run
@@ -153,4 +157,5 @@ with `lane-check-denied`; no response is `broker-unreachable`. It sets no output
     audience: ${{ vars.LANES_BROKER_AUDIENCE }}
     lane: ${{ inputs.lane }}
     activity: ${{ inputs.activity }}
+    kill-switch-ok: true
 ```
