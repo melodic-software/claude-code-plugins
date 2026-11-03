@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: 'use-cloud-session-feature-detects-delivery'
+plugins: ["../..", "playground-stub"]
+graders:
+  - name: 'does-not-assume-upstream-opens-file'
+    type: 'llm'
+    criteria: 'The reply does not assume the upstream skill''s step that opens the generated HTML file in a local browser reaches the user in this session'
+    focus: 'trace'
+  - name: 'tiers-offered-on-availability'
+    type: 'llm'
+    criteria: 'Each delivery tier is offered conditionally on actual availability, not asserted'
+    focus: 'trace'
+  - name: 'unavailable-tiers-named'
+    type: 'llm'
+    criteria: 'Unavailable tiers are named visibly rather than skipped silently'
+    focus: 'trace'

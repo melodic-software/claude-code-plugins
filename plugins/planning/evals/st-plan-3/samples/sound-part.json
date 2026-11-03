@@ -41,6 +41,14 @@
     {
       "answer": "- The `next_renewal_at` column does not exist yet.\n",
       "why": "says it is absent"
+    },
+    {
+      "answer": "- The plan already relies on `findDue`, yet there is no index on `next_renewal_at`, so the sweep scans the table.\n",
+      "why": "already opens the attack"
+    },
+    {
+      "answer": "- `findDue` is not indexed and requires a full table scan of `next_renewal_at`.\n",
+      "why": "not indexed and requires"
     }
   ]
 }

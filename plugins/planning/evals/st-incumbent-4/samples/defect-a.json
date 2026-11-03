@@ -19,6 +19,10 @@
     {
       "answer": "- The draft treats the email lookup as fine, but Vaultline lacks a deterministic mode.\n",
       "why": "quotes then contradicts"
+    },
+    {
+      "answer": "- The swap does not drop `email_bidx`, but Vaultline's random output means the blind index no longer matches for AC2.\n",
+      "why": "does not drop the column"
     }
   ],
   "fail": [

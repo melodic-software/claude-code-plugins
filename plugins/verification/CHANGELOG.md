@@ -3,6 +3,14 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.4] - 2026-11-03
+
+### Changed
+
+- `measure metrics` names `/code-metrics:audit complexity --json` and `/code-metrics:audit size --json`
+  for the complexity and size rows, since code-metrics replaced its `audit-complexity` and
+  `audit-size` skills with the `audit` router.
+
 ## [0.18.3] - 2026-11-02
 
 ### Changed

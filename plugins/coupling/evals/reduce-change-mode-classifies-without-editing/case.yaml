@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: 'reduce-change-mode-classifies-without-editing'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'classifies-each-site'
+    type: 'llm'
+    criteria: 'Assigns setup, record, contract, and fixture classes and states what happens to each'
+    focus: 'trace'
+  - name: 'reference-form-per-setup-site'
+    type: 'llm'
+    criteria: 'Proposes a reference form for each setup site instead of only swapping the literal'
+    focus: 'trace'
+  - name: 'no-edit-names-change-apply'
+    type: 'llm'
+    criteria: 'Edits no file, creates no branch, and says that change apply is the edit path'
+    focus: 'trace'
+  - name: 'runs-value-sites'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'value-sites\.py'
+    arm: 'with-only'
