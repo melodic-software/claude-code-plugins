@@ -5,7 +5,7 @@ import { test } from "node:test";
 
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, parseRecord, serializeRecord } from "./dispatch-record.mjs";
-import { createGitHubApi, dispatchFeedback, failureAnnotation, FAILED_RUN_WINDOW_HOURS, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, reviewRunAt, SWEEP_HEAD_CAP, sweepReleased, UNSENT_GRACE_MS } from "./feedback-dispatch.mjs";
+import { createGitHubApi, dispatchFeedback, EARLIER_FAIL_READS, failureAnnotation, FAILED_RUN_WINDOW_HOURS, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, reviewRunAt, SWEEP_HEAD_CAP, sweepReleased, UNSENT_GRACE_MS } from "./feedback-dispatch.mjs";
 import { onReviewedHead, threadAuthors } from "./address-feedback.mjs";
 import { verifyReader } from "./verify-cap.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -1543,12 +1543,19 @@ test("a PR with no unresolved thread does not dispatch", async () => {
   assert.match(lines.at(-1), /has no unresolved review thread/);
 });
 
+// A pr-verify fail note as verify-notes.mjs posts it: github-actions[bot]'s
+// review of `reviewed`, VERIFY_NOTE_MARKER first.
+const failNote = (isResolved, reviewed = OLD_HEAD) => ({
+  isResolved,
+  comments: { nodes: [{ author: ACTIONS_BOT_NODE, body: "<!-- pr-verify:fail-note -->\nThe pr-verify verifier failed head.", ...onReview(ACTIONS_BOT_NODE, reviewed) }], pageInfo: { hasNextPage: false } },
+});
+
 // #12809: a lanes App PR the merge gate refuses verify:earlier-fail, its
 // fail-note threads all resolved, gets a model round naming the FAILed heads,
 // whose select job reads their notes from the verdict artifacts. With no such
 // refusal it still skips, and a pass-only round never names them.
 test("a lanes App PR refused verify:earlier-fail with no unresolved thread gets a model round naming the FAILed heads", async () => {
-  const resolvedOnly = [thread([ACTIONS_BOT_NODE], true, OLD_HEAD)];
+  const resolvedOnly = [failNote(true)];
   const earlier = { cap: null, supersededAtHead: false, earlierFailHeads: [OLD_HEAD] };
   const api = fakeApi({ threads: resolvedOnly });
   const asked = [];
@@ -1565,7 +1572,7 @@ test("a lanes App PR refused verify:earlier-fail with no unresolved thread gets 
   assert.equal(api.calls.dispatch[0].inputs["verify-pass-head"], undefined);
 
   // Two FAILed heads go space-separated, in the reader's order.
-  const two = fakeApi({ threads: [] });
+  const two = fakeApi({ threads: resolvedOnly });
   await decide(two, resolvedLane(), { verifyCapped: () => ({ ...earlier, earlierFailHeads: [OLD_HEAD, "3".repeat(40)] }) });
   assert.equal(two.calls.dispatch[0].inputs["verify-earlier-fail-heads"], `${OLD_HEAD} ${"3".repeat(40)}`);
 
@@ -1593,6 +1600,48 @@ test("a lanes App PR refused verify:earlier-fail with no unresolved thread gets 
   });
   assert.deepEqual(handled.calls.dispatch, []);
   assert.equal(reads, 0);
+});
+
+// No fail note from another head: no earlier FAIL to work, so no verifier
+// read and today's free skip.
+test("a lanes App PR with no unresolved thread and no fail note from another head skips with no verifier read", async () => {
+  for (const threads of [[], [thread([CLAUDE], true)], [failNote(true, HEAD)], [{ ...failNote(true), comments: { nodes: [{ author: CLAUDE, body: "<!-- pr-verify:fail-note -->", ...onReview(CLAUDE, OLD_HEAD) }] } }]]) {
+    const api = fakeApi({ threads });
+    let reads = 0;
+    const { result, lines } = await decide(api, resolvedLane(), {
+      verifyCapped: () => {
+        reads += 1;
+        return { cap: null, supersededAtHead: false, earlierFailHeads: [OLD_HEAD] };
+      },
+    });
+    assert.equal(result, null, JSON.stringify(threads));
+    assert.equal(reads, 0, JSON.stringify(threads));
+    assert.match(lines.at(-1), /has no unresolved review thread/);
+  }
+});
+
+// A sweep decides PR after PR in one job, each such read up to
+// VERIFY_CAP_TIMEOUT_MS: one pass reads at most EARLIER_FAIL_READS heads with
+// no thread, records none of the rest, and a PR with a thread still reads.
+test("one pass spends at most EARLIER_FAIL_READS verifier reads on PRs with no unresolved thread", async () => {
+  const earlierFailReads = { left: EARLIER_FAIL_READS };
+  let reads = 0;
+  const verifyCapped = () => {
+    reads += 1;
+    return { cap: null, supersededAtHead: false, earlierFailHeads: [] };
+  };
+  const record = emptyRecord();
+  const skipped = [];
+  for (let i = 0; i <= EARLIER_FAIL_READS; i += 1) {
+    const { lines } = await decide(fakeApi({ threads: [failNote(true)] }), resolvedLane(), { verifyCapped, earlierFailReads, record });
+    skipped.push(lines.at(-1));
+  }
+  assert.equal(reads, EARLIER_FAIL_READS);
+  assert.match(skipped.at(-1), /verifier reads for an earlier FAIL are spent/);
+  assert.equal(record.handled.size, 0);
+  const withThread = fakeApi();
+  await decide(withThread, resolvedLane(), { verifyCapped: () => null, earlierFailReads });
+  assert.equal(withThread.calls.dispatch.length, 1);
 });
 
 test("a round with a thread also names the FAILed heads; a pass-only round never does", async () => {
