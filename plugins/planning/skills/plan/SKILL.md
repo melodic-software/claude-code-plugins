@@ -317,7 +317,7 @@ The command and this skill share a name, so "plan this" can mean either.
 - **`/plan` (built-in command)**: enters plan mode. Its forms are in the `/plan` row of [All commands](https://code.claude.com/docs/en/commands#all-commands), as of 2026-11-03; recheck when that row changes. This skill offers it to the person and never runs it.
 - **This skill (marketplace plugin).** The planning discipline: stress-test, blast radius, an approval gate, and a persisted PLAN.md a cleared session can execute.
 
-**Routing.** Where Plan Mode Integration says to suggest plan mode, offer it to the person: If /plan is available in your session (records in [reference/native-plan.md](reference/native-plan.md)), you can run it (or press `shift+tab`) alongside this skill. Prefer this skill for the plan itself. When the caller passes `--unattended`, the run records the offer in its output instead of asking; without that flag it asks.
+**Routing.** Where Plan Mode Integration says to suggest plan mode, offer it to the person: If /plan is available in your session (gate basis: the records in [reference/native-plan.md](reference/native-plan.md)), you can run it (or press `shift+tab`) alongside this skill. Prefer this skill for the plan itself. When the caller passes `--unattended`, the run records the offer in its output instead of asking; without that flag it asks.
 
 **Mutation gate.** This skill writes PLAN.md and its checklist; `/plan` changes the permission mode. This skill never toggles the mode on the person's behalf.
 

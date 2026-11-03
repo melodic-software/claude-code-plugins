@@ -140,9 +140,9 @@ Bounded by design. Evidence catalogue: [context/adjudication.md](context/adjudic
 - **T3 is the drift bucket.** An unrecognized detector line is recorded, never dropped and never
   counted as a finding. A fourth verdict landing there is the alarm, not the answer.
 - **Exit codes are never run health.** Run health comes from the detector's output, never its
-  exit code. Each detector's codes: [vulture](https://github.com/jendrikseipp/vulture#exit-codes),
-  [knip](https://knip.dev/reference/cli#--no-exit-code), [gopls](https://go.dev/gopls/command-line).
-  As of 2026-11-03; recheck when one of those sections changes its exit codes.
+  exit code. The documented codes: [vulture](https://github.com/jendrikseipp/vulture#exit-codes),
+  [knip](https://knip.dev/reference/cli#--no-exit-code). As of 2026-11-03; recheck when one of
+  those sections changes its exit codes.
 - **Presence is proven by invocation**, never by a locator hit (measured: `command -v
   rust-analyzer` succeeds while invocation fails).
 - **knip evaluates repo-controlled config through jiti.** Disclose it on every run that loads one.
