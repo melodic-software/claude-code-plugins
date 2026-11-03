@@ -20,8 +20,7 @@
         "brew": "node",
         "winget": "OpenJS.NodeJS.LTS",
         "apt": "nodejs"
-      },
-      "check": "/toolchain:check-prerequisites"
+      }
     },
     {
       "id": "python3",
@@ -49,8 +48,7 @@
         "brew": "python",
         "winget": "Python.Python.3.12",
         "apt": "python3"
-      },
-      "check": "/toolchain:check-prerequisites"
+      }
     }
   ]
 }

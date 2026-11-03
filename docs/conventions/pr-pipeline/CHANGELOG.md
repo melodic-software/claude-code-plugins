@@ -1,5 +1,36 @@
 # Changelog for the PR pipeline convention
 
+## [8.44.6] - 2026-11-03
+
+### Fixed
+
+- pr-unblock's `report-stop-status` posts the stop status on the commit the activity's push job
+  pushed (`apply-conflict-patch`, `apply-feedback-patch`, `apply-dependency-patch`), and on the
+  select job's head only when that job pushed none. A reply or verdict job that stopped after the
+  push, such as `publish-feedback` with `feedback-unadjudicated`, put the failing status on the
+  head before it, so the pull request's head carried none, ci-status passed and pr-merge armed
+  auto-merge over the stop.
+
+## [8.44.5] - 2026-11-03
+
+### Changed
+
+- `handoff-evidence.sh` reads the job listing a page at a time. Each read after the first sends
+  each page that came with an `etag` as a conditional request, and a `304` reuses the page it
+  already read. A `200` whose body was cut off or is empty is now a failed read, as it was under
+  `--paginate`, not a listing of no jobs.
+- A read that fails, whatever GitHub answered, no longer fails `pr-unblock-dispatch.yml`. A
+  listing it cannot read dispatches nothing, and a PR whose reads fail is skipped, each with a
+  warning, and the next tick reads them again. Before, a read held only on a `5xx`, or in some
+  places a rate limit, and any other failed read ended the run red. A failed dispatch still does,
+  and so does a rate limit, which the shared rate guard fails. `fix-ci` still dispatches under its
+  caps when it cannot read its required run or the head's check runs for a reason other than a
+  `5xx` or a rate limit, as before.
+
+### Fixed
+
+- A pr-verify pass verdict's PR-scoped pr-merge run (`pr-merge: arm #<n>`) no longer skips when the last sweep's post-merge report does not stand. It removes that report, runs the post-merge check fresh on its own read-only token, and arms only when the check passes (exit 0 or 5) and `settle --idle-tick` keeps the fresh report. That is every gate the sweep applies, plus the idle tick on the fresh report, because the wake starts no full run or re-run. A wake no longer waits up to 30 minutes for the sweep, and each refused wake costs more `GITHUB_TOKEN` calls, as the pull request states. The `pr-merge-wake` notice now reports which report the room came from (`report=last`, `fresh` or `none`) and why the idle tick refused a fresh report, and a run the lanes kill switch stops says so instead of "the who step stopped it".
+
 ## [8.44.4] - 2026-11-03
 
 ### Fixed

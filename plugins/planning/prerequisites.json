@@ -90,6 +90,31 @@
       "check": "/harness-ops:prerequisites"
     },
     {
+      "id": "claude",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:interview"
+      ],
+      "detect": {
+        "any": [
+          "claude"
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "^([0-9.]+)",
+          "min": "2.1.292"
+        }
+      },
+      "degrade": "Without the claude CLI, /planning:interview cannot list installed plugins, so it names no installed optional planner and offers no optional plugin. Before 2.1.292, an offer's install command fails, because `claude plugin install --marketplace` needs that version.",
+      "install": {
+        "docs": "https://code.claude.com/docs/en/setup"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
       "id": "node",
       "kind": "cli",
       "need": "optional",

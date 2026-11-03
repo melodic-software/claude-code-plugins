@@ -275,8 +275,8 @@ run it by hand when the pre-computed context did not run. It also prints where t
 install. `--data-dir` is the relocation override: pass another directory to both `setup-deps.mjs`
 and `run.mjs` when the default is not writable.
 
-`/knowledge:check` is the model-invocable, read-only report of every tool the plugin declares;
-name it beside the preflight when a prerequisite fails.
+`sh "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh" check "${CLAUDE_PLUGIN_ROOT}" --data-dir "${CLAUDE_PLUGIN_DATA}"` is the read-only
+report of every tool the plugin declares; name it beside the preflight when a prerequisite fails.
 
 1. **video-extraction deps**. `node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/setup-deps.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}"`.
    Installs the pipeline's node dependencies into `${CLAUDE_PLUGIN_DATA}` (persists across plugin
@@ -289,7 +289,7 @@ name it beside the preflight when a prerequisite fails.
 4. **ImageMagick 7**, required for `watch` only (contact sheets). `magick -version`
 
 If any prerequisite is missing or below its floor, stop and tell the user, naming the preflight
-and `/knowledge:check` for the readiness report. `setup-deps.mjs` fixes
+and the plugin's report above for the readiness report. `setup-deps.mjs` fixes
 the node dependencies; the media binaries are OS-level installs via the platform's package
 manager, or one of the fallbacks below.
 

@@ -3,6 +3,12 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.8] - 2026-11-03
+
+### Fixed
+
+The lookup skill's CLI reference no longer says `ctx7 skills` is still runnable or that `CONTEXT7_API_KEY` is required for `ctx7 skills generate`: the installed CLI has neither `skills` nor `generate`. The guidance never to run `ctx7 setup` or `ctx7 skills install` stays across the lookup and setup skills, reworded so it does not claim the second works.
+
 ## [0.8.7] - 2026-11-03
 
 ### Changed

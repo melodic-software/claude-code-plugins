@@ -4,6 +4,6 @@
   ],
   "fail": [
     {"answer": [], "why": "answers without loading the skill"},
-    {"answer": [{"tool": "Skill", "input": {"skill": "playwright:check"}}], "why": "a different skill"}
+    {"answer": [{"tool": "Skill", "input": {"skill": "playwright:setup"}}], "why": "a different skill"}
   ]
 }
