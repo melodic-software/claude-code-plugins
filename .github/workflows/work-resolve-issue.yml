@@ -54,7 +54,10 @@ jobs:
   # blocks, or whose labels, events or blockers cannot be read. On the first,
   # report-skip removes agent-ready and comments that a listed human re-files
   # the work; on the rest agent-ready stays, and work-unblock's sweep re-fires
-  # the last two once they clear.
+  # the last two once they clear. A blocker added while the run waits for its
+  # slot is caught inside it: resolve-issue's broker-check re-runs
+  # check-blockers.mjs (RECHECK) before the model job and stops the run the
+  # same way, at its `Stop on an open blocker` step.
   admit:
     if: github.event.label.name == 'agent-ready'
     runs-on: ubuntu-24.04
