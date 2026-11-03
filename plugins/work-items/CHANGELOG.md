@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.1.2] - 2026-11-03
+
+### Fixed
+
+- The leak scan the lane telemetry body gate runs now also reads JSON-encoded text with its `\n`, `\r` and `\t` escapes decoded, so a credential at the start of a line or after a tab in a JSON body is withheld. Before, the escape's letter sat directly before the token and hid it from every pattern anchored on a word boundary (#12562).
+
 ## [8.1.1] - 2026-11-02
 
 ### Changed

@@ -595,6 +595,12 @@ forge it, for example by writing a `$RUNNER_TEMP` file-command file such as one 
 at, or by leaving a process running. Tests, linters and builds that gate run as a `script` activity,
 or under a separate design that judges their result in a job head code never touched.
 
+After a write-file skill, a pinned `actions/github-script` step removes the head checkout's
+and `.base`'s `.git` directories, so neither `actions/checkout` post step runs git under config the
+skill wrote while it holds the job's runtime token. A script activity skips that step. A process
+the skill left running can make them again: no step stops such processes yet
+([#8302](https://github.com/melodic-software/claude-code-plugins/issues/8302)).
+
 The step summary (in a PR-mode read run, the scan job's) shows the skill's final reply (at most 4000 characters, backticks
 neutralized) for audit. It is model output, printed as data. The same text is uploaded as the
 artifact `skill-reply-<lane>-<activity>-<run_attempt>` (3-day retention) whenever the skill step
