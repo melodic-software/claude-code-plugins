@@ -757,8 +757,8 @@ assert_contains "_existing fails when the env file does not exist" "$out" "nofil
 
 out="$(
   case_run "$TTY_EOF" <<'BODY'
-printf '%s\n' 'ESCAPED="a\"b"' 'DOLLAR="$HOME/x"' 'SLASH="a\nb"' >.env
-for key in ESCAPED DOLLAR SLASH; do
+printf '%s\n' 'ESCAPED="a\"b"' 'DOLLAR="$HOME/x"' 'SLASH="a\nb"' 'BACKTICK="a`id`b"' >.env
+for key in ESCAPED DOLLAR SLASH BACKTICK; do
   rc=0
   value="$(_existing "$key")" || rc=$?
   printf '%s_rc=%s value=[%s]\n' "$key" "$rc" "$value"
@@ -768,6 +768,7 @@ BODY
 assert_contains "_existing offers no double-quoted value holding an escaped quote" "$out" 'ESCAPED_rc=1 value=[]'
 assert_contains "_existing offers no double-quoted value holding a dollar sign" "$out" 'DOLLAR_rc=1 value=[]'
 assert_contains "_existing offers no double-quoted value holding a backslash" "$out" 'SLASH_rc=1 value=[]'
+assert_contains "_existing offers no double-quoted value holding a backtick" "$out" 'BACKTICK_rc=1 value=[]'
 
 # --- 5. The gitignore pre-flight -------------------------------------------
 

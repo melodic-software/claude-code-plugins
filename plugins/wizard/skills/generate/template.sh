@@ -219,8 +219,8 @@ gate() {
 # so re-run defaults must offer the value back, not the quoting). For a
 # single-quoted line, write_env's escaping ('\'' for an embedded ') is also
 # reversed, so Enter-keeps-current never re-escapes an already-escaped value. A
-# double-quoted value holding a backslash, $ or " cannot be decoded safely, so
-# it returns status 1 and the prompt asks again.
+# double-quoted value holding a backslash, $, ` or " cannot be decoded safely,
+# so it returns status 1 and the prompt asks again.
 _existing() {
   _valid_key "$1"
   [[ -f "$ENV_FILE" ]] || return 1
@@ -236,7 +236,7 @@ _existing() {
       ;;
     \"*\")
       val="${val:1:${#val}-2}"
-      [[ "$val" != *[\\\$\"]* ]] || return 1
+      [[ "$val" != *[\\\$\"\`]* ]] || return 1
       ;;
     *) ;; # unquoted (hand-written line), offer verbatim
     esac
