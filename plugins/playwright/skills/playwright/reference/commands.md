@@ -140,7 +140,7 @@ playwright-cli webmcp-call search --params '{"query":"cats"}'
 
 ## Raw mode: pipe into jq, diff, and similar
 
-The global `--raw` flag strips status and generated-code blocks from stdout, which makes command output composable with Unix pipes. It keeps errors and the page snapshot, so an action such as `--raw click` prints a snapshot link: pipe only commands that return a value.
+Use the global `--raw` flag to pipe a command's output into other tools, and only from commands that return a value (`eval`, `snapshot`, `cookie-get`), not from actions such as `click`.
 
 ```bash
 playwright-cli --raw eval "JSON.stringify(performance.timing)" | jq '.loadEventEnd'
