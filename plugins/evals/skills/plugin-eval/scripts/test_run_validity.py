@@ -1481,6 +1481,8 @@ class RunValidityTest(unittest.TestCase):
             "F=%s; grep -n x $F" % saved,
             "F=%s\ngrep -n x \"$F\"" % saved,
             "F='%s'; sed -n 1,5p ${F} | grep x" % saved,
+            "F=%s; grep 'x$' $F" % saved,
+            "F=%s; grep \"'\" \"$F\"" % saved,
         ):
             proc = self.denied_in_sandbox([("Bash", {"command": command})])
             self.assertDenials(proc, "WARN")
@@ -1541,6 +1543,12 @@ class RunValidityTest(unittest.TestCase):
             "F=%s; rm $F" % saved,
             "F=%s; cat $F; rm $F" % saved,
             "F=%s && cat $F; rm $F" % saved,
+            # Single quotes keep $F literal, a relative file named $F.
+            "F=%s; cat '$F'" % saved,
+            "F=%s; grep \"'\" '$F'" % saved,
+            # The shell sets these itself, so the assignment does not fix them.
+            "UID=%s; cat $UID" % saved,
+            "BASHPID=%s; cat $BASHPID" % saved,
             # A recursive grep with no operand reads the working directory.
             "cat %s | grep -r secret" % saved,
             # No path at all.

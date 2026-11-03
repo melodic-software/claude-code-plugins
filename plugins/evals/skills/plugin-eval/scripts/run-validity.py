@@ -1372,18 +1372,27 @@ def bash_paths(command):
 
 def inline_leading_variable(command):
     """command with one opening NAME=<literal word>; or newline removed and its
-    $NAME and ${NAME} replaced by the word. Unchanged when it opens otherwise, or
-    the word is one UNRECORDED_VALUE rejects. A second assignment or unset left
-    behind is a second command, which bash_read_paths refuses."""
+    $NAME and ${NAME} replaced by the word. Unchanged when it opens otherwise, the
+    name is one the assignment does not fix (SHELL_SET, BASH*), the word is one
+    UNRECORDED_VALUE rejects, or a single-quoted span holds an EXPANSION, which
+    bash keeps literal. A second assignment or unset left behind is a second
+    command, which bash_read_paths refuses."""
     match = LEADING_VARIABLE.match(command)
     if not match:
         return command
-    name, value = match.group(1), match.group(3)
-    if UNRECORDED_VALUE.search(value):
+    name, value, rest = match.group(1), match.group(3), command[match.end() :]
+    if (
+        name in SHELL_SET
+        or name.startswith("BASH")
+        or UNRECORDED_VALUE.search(value)
+        or any(
+            span.group().startswith("'") and EXPANSION.search(span.group())
+            for span in QUOTED_SPAN.finditer(rest)
+        )
+    ):
         return command
     return EXPANSION.sub(
-        lambda found: value if name in found.groups() else found.group(0),
-        command[match.end() :],
+        lambda found: value if name in found.groups() else found.group(0), rest
     )
 
 
