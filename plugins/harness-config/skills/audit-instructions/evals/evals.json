@@ -276,7 +276,7 @@
       "id": 23,
       "name": "oversized-plugin-splits-by-skill-and-cost-line-names-it",
       "prompt": "/harness-config:audit-instructions skills in a marketplace repository. One plugin's skill text is about three times the lane budget; every other plugin fits well inside it.",
-      "expected_output": "Sizes lanes with lane-runs.sh partition from the lane model's own context window at a 0.25 fraction and 3.5 bytes per token, never from a shipped line count. Small plugins pack whole into lanes; the oversized plugin is split by skill into lanes of its own, and the Phase D cost line names the split plugin and its lane count along with the token budget and the line figure derived from measured bytes per line. Concurrency stays at 3 to 5 lanes.",
+      "expected_output": "Sizes lanes with lane-runs.sh partition from the lane model's own context window at a 0.25 fraction and 2.7 bytes per token, never from a shipped line count. Small plugins pack whole into lanes; the oversized plugin is split by skill into lanes of its own, and the Phase D cost line names the split plugin and its lane count along with the token budget and the line figure derived from measured bytes per line. Concurrency stays at 3 to 5 lanes.",
       "files": [],
       "expectations": [
         "Derives the lane budget from the lane model's context window, not a fixed line count",
