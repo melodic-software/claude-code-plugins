@@ -39,7 +39,8 @@ you cannot inspect it, don't assume it is empty.
   or any `env` block), report it as authoritative whatever `autoMemoryEnabled` says, with the value
   it holds. For what the env var does, read
   [Enable or disable auto memory](https://code.claude.com/docs/en/memory#enable-or-disable-auto-memory)
-  (as of 2026-11-03; recheck when that section changes what the env var or its values do). If the env var is unset, apply settings precedence to `autoMemoryEnabled`, in the order
+  (as of 2026-11-03; recheck when that section changes what the env var or its values do). If
+  the env var is unset, apply settings precedence to `autoMemoryEnabled`, in the order
   [Settings precedence](https://code.claude.com/docs/en/settings#settings-precedence) lists; a
   `--settings` value the snapshot cannot see ranks among those levels, so say so when the session
   was started with one. With no scope setting it, the default applies: read
