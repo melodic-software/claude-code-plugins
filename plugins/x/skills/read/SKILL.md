@@ -159,8 +159,8 @@ Drop the `Accept` header for JSON: `{markdown, url, author}`. For raw fields (`t
 `media`, `quoteTweet`, `isNoteTweet`, engagement counts) POST the same body to `/api/fetch`.
 
 **Spool directory:** before the first request, run `mktemp -d` as its own command (it honors
-`$TMPDIR`); in Git Bash run `cygpath -m "$(mktemp -d)"`, because `Read` cannot open the `/tmp/…`
-form Git Bash prints. Carry the path it prints (forward slashes) as a literal and substitute it wherever this
+`$TMPDIR`); in Git Bash run `cygpath -m "$(mktemp -d)"`, so the path is in Windows form for
+both the shell sites and `Read`. Carry the path it prints (forward slashes) as a literal and substitute it wherever this
 skill says `<spool-dir>`; never spool into the working directory. If `mktemp -d` fails, report it
 and stop. One directory serves the whole invocation.
 
