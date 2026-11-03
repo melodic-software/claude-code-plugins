@@ -172,7 +172,7 @@ times out after 10 minutes. In order:
    `check-kill-switch` step then stops the lane, and the check is neutral `kill-switch`.
 4. [`request-lane-token`](../../../.github/actions/request-lane-token/README.md) in `check` mode
    asks the broker's check endpoint whether the lane may run
-   ([below](#the-check-endpoint)). The check mints nothing.
+   ([below](#the-check-endpoint)), with `kill-switch-ok`. The check mints nothing.
 5. In issue mode, after an allow, claims the issue with a lease comment through the work-items
    tracker's `claim --lease-only --holder <vars.AUTOMATION_LANES_APP_SENDER_ID>` on its own
    `GITHUB_TOKEN`, with a TTL longer than the run job's timeout. When a live lease older than its
@@ -194,15 +194,20 @@ times out after 10 minutes. In order:
    that backed off as `already-leased` skips the earlier-work check, so it names no `reuse-branch`
    and the caller's report-outcome does not run on it.
 
-Any answer but an allow, or no answer, fails the job, which skips the run job. The report job
-passes the broker-check job's result as `run-result` whenever it is not `success`, so a failure
-posts a failure check and a cancel follows `report-check-run`'s cancel rule. A broker denial is
-red, not neutral, `kill-switch` included: step 3 already stopped the common case. Off
-`pull_request`, a failed broker-check job posts no check, since no
-head SHA was gated ([Runs that post no check](#runs-that-post-no-check)).
+A 403 `kill-switch` (a switch turned on after step 3 read it) ends step 4 green with the
+`lane-check-stopped` notice and the job's `skip-reason` output `kill-switch`, a designed stop: the
+run job and every job after it skip, no lease is claimed, the report job posts no lane run report
+comment, and its check is neutral `kill-switch` (`not-run-reason`). The read file exposes the
+output as `skip-reason`. A caller's later leg that still starts asks the broker again, which reads
+the switch live, so it stops the same way while the switch is on. Any other answer but an allow, or
+no answer, fails the job, which skips the run job. The report job passes the broker-check job's
+result as `run-result` whenever it is not `success`, so a failure posts a failure check and a
+cancel follows `report-check-run`'s cancel rule. Off `pull_request`, a failed or stopped
+broker-check job posts no check, since no head SHA was gated
+([Runs that post no check](#runs-that-post-no-check)).
 
-The job outputs `allowed` (`true` only when step 4 succeeded) and `attempt`
-(`github.run_attempt`). "Re-run failed jobs" reuses a successful broker-check job and its outputs,
+The job outputs `allowed` (`true` only when step 4 succeeded with the broker's allow), `skip-reason`
+and `attempt` (`github.run_attempt`). "Re-run failed jobs" reuses a successful broker-check job and its outputs,
 so in the read file, right after its own kill-switch step proceeds, the run job fails red with
 `kill-switch` unless `allowed` is `true` and `attempt` equals its own run attempt. That also fails
 a run whose broker-check job skipped the broker on a kill-switch stop its run job no longer sees.
@@ -2064,9 +2069,10 @@ from its `skip-reason` output. The pr-unblock dispatchers count a `kill-switch` 
 did no work (`limit-stop.mjs` `killSwitchStop`): on the activity's own check it does not handle the
 head, and on a push, reply or verdict job's check it releases the head's earlier activity checks as
 a lane stop does, both under the per-head caps. They run only with the switch off, so the head is
-dispatched again once the switch lifts. An issue run's denial stays red, since work-unblock re-fires
-its issue from the failed mint step, and so does a `report-escalation` run's, since no dispatcher
-re-fires it and a skip would drop the escalation's comment and label.
+dispatched again once the switch lifts. An issue run's stopped mint, or its broker-check stopped
+green, is a breaker trip work-unblock re-fires from the stop notice. A `report-escalation` run's
+denial stays red, since no dispatcher re-fires it and a skip would drop the escalation's comment
+and label.
 
 ### A workflow file the PR changes
 
@@ -2099,7 +2105,8 @@ replaced by `/check`, with `Authorization: Bearer <OIDC token>` and the body
 same token, claim, repository and kill-switch checks as a mint, with `pr-run-activity-read.yml` as
 the job's workflow, and mints and reserves nothing, so re-running all jobs asks again. It answers 200
 `{"decision": "allow", "lane", "activity"}`; the client fails red with `lane-check-denied` unless
-`decision` is `allow` and `lane` and `activity` are its own. Any other status fails red with
+`decision` is `allow` and `lane` and `activity` are its own. A 403 `kill-switch` is the stop
+[above](#the-broker-check-job). Any other status fails red with
 `lane-check-denied`, the status and the broker's reason, from the table above minus the
 mint-only rows; no response is `broker-unreachable`. The lanes bot is refused only on a mint, so
 a `workflow_run` read lane still runs after a bot push. It checks no actor either, so a

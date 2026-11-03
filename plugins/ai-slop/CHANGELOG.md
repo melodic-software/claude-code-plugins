@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.16.7] - 2026-11-03
+
+### Changed
+
+- Cross-references to `code-tidying`'s comment skills now name `/code-tidying:remove-comments`, which replaces `dissolve-comments`, and its `audit` action.
+
 ## [0.16.6] - 2026-11-02
 
 ### Changed
