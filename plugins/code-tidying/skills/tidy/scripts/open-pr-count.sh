@@ -5,7 +5,8 @@
 # -o pipefail omitted: graceful degradation when gh fails mid-pipeline.
 set -u
 
-THROTTLE_LIMIT=3
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+IFS=$'\t' read -r THROTTLE_LIMIT LIMIT_SOURCE < <(bash "$SCRIPT_DIR/upkeep-setting.sh" upkeep_max_open)
 # Open PRs are listed without a search and filtered by head branch here: a
 # degraded search can answer a false empty with no signal gh passes on. A
 # listing that fills its limit may be missing tidy PRs, so it throttles.
@@ -15,8 +16,9 @@ usage() {
   cat <<EOF
 open-pr-count.sh — count open chore/tidy-* PRs (backlog-throttle facts).
 
-Throttle active when count >= ${THROTTLE_LIMIT} and gh exit 0, or when the
-open-PR listing reaches its ${LIST_LIMIT}-PR limit.
+Throttle active when count >= the upkeep_max_open setting (now ${THROTTLE_LIMIT},
+${LIMIT_SOURCE}) and gh exit 0, or when the open-PR listing reaches its
+${LIST_LIMIT}-PR limit.
 
 Usage:
   open-pr-count.sh [--help]
@@ -38,6 +40,8 @@ case "${1:-}" in
   ;;
 *) ;;
 esac
+
+printf 'Throttle limit: %s, %s\n' "$THROTTLE_LIMIT" "$LIMIT_SOURCE"
 
 if ! command -v gh >/dev/null 2>&1; then
   emit_unknown "gh not installed"
