@@ -129,6 +129,43 @@ class NextGraphTest(unittest.TestCase):
         )
         self.assertEqual(out, "")
 
+    def test_declared_skip_to_passes_only_its_own_edge(self) -> None:
+        self.fx.skill("p:start", "contract", "/p:interview")
+        self.fx.skill(
+            "p:interview",
+            "contract",
+            "- Locked: /p:design.\n- Build items: /p:decompose.",
+        )
+        self.fx.roster(
+            "p:start | entry: start",
+            "p:interview | skip-to: p:decompose an owner decision",
+            "p:design",
+            "p:plan",
+            "p:decompose",
+            "p:implement | terminal: end",
+        )
+        rc, _, err = self.fx.run()
+        self.assertEqual(rc, 0, err)
+
+        self.fx.skill(
+            "p:interview",
+            "contract",
+            "- Locked: /p:design.\n- Build items: /p:decompose.\n- No design question: /p:plan.",
+        )
+        rc, _, err = self.fx.run()
+        self.assertEqual(rc, 1)
+        self.assertNotIn("/p:decompose (decompose)", err)
+        self.assertIn(
+            "stage-skip: /p:interview (contract) routes to /p:plan (plan), skipping the design stage",
+            err,
+        )
+
+    def test_skip_to_without_a_target_exits_2(self) -> None:
+        self.fx.roster("p:interview | skip-to: an owner decision")
+        rc, _, err = self.fx.run()
+        self.assertEqual(rc, 2)
+        self.assertIn("'skip-to: <plugin:skill> <reason>'", err)
+
     def test_backward_edge_is_not_a_skip(self) -> None:
         self.fx.skill(
             "p:plan",

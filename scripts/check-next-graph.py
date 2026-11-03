@@ -15,7 +15,8 @@ WHAT FIRES, over the chain roster in scripts/next-graph-chain.txt:
     `terminal:` reason for it;
   * stage-skip: a roster skill's `## Next` names a successor whose ladder stage
     lies more than one stage ahead, and a stage in between is neither
-    conditional nor optional on the ladder;
+    conditional nor optional on the ladder, unless the roster declares that one
+    edge with `skip-to: <plugin:skill> <reason>`;
   * unstaged: a roster skill's `workflow-stage` is missing or names no ladder
     stage, which would otherwise exempt its edges, and edges into it, from the
     stage-skip check;
@@ -167,12 +168,20 @@ def read_roster(root: Path) -> dict[str, dict[str, str]]:
         flags: dict[str, str] = {}
         if declaration:
             kind, _, reason = (part.strip() for part in declaration.partition(":"))
-            if kind not in ("entry", "terminal") or not reason:
+            if kind == "skip-to":
+                target, _, reason = reason.partition(" ")
+                if not re.fullmatch(r"[a-z0-9-]+:[a-z0-9-]+", target):
+                    reason = ""
+                kind = f"skip-to {target}"
+            if (
+                kind.split(" ")[0] not in ("entry", "terminal", "skip-to")
+                or not reason.strip()
+            ):
                 raise SetupError(
                     f"{ROSTER}:{number}: a declaration is 'entry: <reason>' or "
-                    f"'terminal: <reason>', got '{declaration}'"
+                    f"'terminal: <reason>', or 'skip-to: <plugin:skill> <reason>', got '{declaration}'"
                 )
-            flags[kind] = reason
+            flags[kind] = reason.strip()
         roster[name] = flags
     if not roster:
         raise SetupError(f"{ROSTER} names no chain skill")
@@ -226,7 +235,11 @@ def check(root: Path) -> list[str]:
             there = ladder_index(
                 frontmatter_stage(target_md.read_text(encoding="utf-8")), ladder
             )
-            if there is None or there <= here + 1:
+            if (
+                there is None
+                or there <= here + 1
+                or f"skip-to {target}" in roster[name]
+            ):
                 continue
             skipped = [s for s in ladder[here + 1 : there] if s not in skippable]
             if skipped:
