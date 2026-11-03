@@ -418,15 +418,25 @@ test("the key job uploads the gate's marker only after a credit-stop handoff, an
 // ci-workflows#980 (09cf6f2): past a credit stop's window, the gate names this
 // run the probe in its `probing-marker` output, and later gates skip while that
 // artifact is fresh. pr-review-cli.yml's gate job at that SHA writes, scans and
-// uploads it right after the read; this key job does the same.
-test("the key job writes, scans and uploads the gate's probing marker right after the gate", () => {
+// uploads it right after the read; this key job does the same once its
+// credential check shows a judge step will start.
+test("the key job writes, scans and uploads the gate's probing marker once a judge step will start", () => {
   // gate.cjs probeName at 09cf6f2: `key-credit-probing-${workflow file}-${key-job}`.
   const probe = "key-credit-probing-pr-verify.yml-check-intent";
   const [write, scan, upload] = PROBE_STEPS;
   const writeStep = step(write);
   assert.match(writeStep, /^ {8}id: probe-marker$/m);
-  // Written only while the output equals the name the upload writes out.
-  assert.equal(/^ {8}if: (.*)$/m.exec(writeStep)[1], `always() && steps.credit.outputs.probing-marker == '${probe}'`);
+  // Written only while the output equals the name the upload writes out, and the
+  // key is set: the first judge step's own term.
+  const writeIf = /^ {8}if: (.*)$/m.exec(writeStep)[1];
+  assert.equal(writeIf, `always() && steps.credit.outputs.probing-marker == '${probe}' && steps.credential.outputs.present == 'true'`);
+  assert.match(step("Judge the pull request"), /^ {8}if: steps\.credential\.outputs\.present == 'true'$/m);
+  const writes = (output, present) =>
+    admits(writeIf.replace(/^always\(\) && /, ""), { steps: { credit: { outputs: { "probing-marker": output } }, credential: { outputs: { present } } } });
+  assert.ok(writes(probe, "true"));
+  for (const [output, present] of [["", "true"], ["key-credit-probing-pr-verify.yml-other", "true"], [probe, "false"], [probe, ""]]) {
+    assert.ok(!writes(output, present), `${output} ${present}`);
+  }
   assert.match(writeStep, /echo "\$GITHUB_RUN_ID" >"\$RUNNER_TEMP\/key-credit-probing\/run-id"/);
   const scanStep = step(scan);
   assert.match(scanStep, /^ {8}id: probe-marker-scan$/m);
@@ -441,11 +451,12 @@ test("the key job writes, scans and uploads the gate's probing marker right afte
   assert.equal(input(uploadStep, "retention-days"), "1");
   assert.equal(input(uploadStep, "if-no-files-found"), "error");
   for (const name of PROBE_STEPS) assert.match(step(name), /^ {8}continue-on-error: true$/m, name);
-  // Right after the gate, before the skipped-leg report and any judge step.
-  assert.equal(index(write), index("Read the key's credit history") + 1);
+  // Right after the credential check that follows the gate, before any judge step.
+  assert.ok(index("Read the key's credit history") < index("Check the credential"));
+  assert.equal(index(write), index("Check the credential") + 1);
   assert.equal(index(scan), index(write) + 1);
   assert.equal(index(upload), index(scan) + 1);
-  assert.ok(index(upload) < index("Report the skipped key leg"));
+  assert.ok(index(upload) < index("Judge the pull request"));
   // Only the key job probes: the other legs never pass the key.
   for (const job of [SUB, FB]) for (const name of PROBE_STEPS) assert.equal(index(name, job), -1, `${job} ${name}`);
 });

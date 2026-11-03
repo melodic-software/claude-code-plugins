@@ -308,42 +308,6 @@ jobs:
           key-job: check-intent
           window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}
 
-      # Read by the next runs' gates: the probing marker the gate names
-      # (gate.cjs probeName) when this run tries the key first after a credit
-      # stop's window, so they skip while this run's judge steps do. Uploaded
-      # right after the read to keep the gap short; a judge step's credit stop
-      # writes the credit-stop marker below, which takes over. The name is
-      # written out so its retention row claims it. An artifact upload uses the
-      # runner's token, not the job token.
-      - name: Write the key's probing marker
-        id: probe-marker
-        if: always() && steps.credit.outputs.probing-marker == 'key-credit-probing-pr-verify.yml-check-intent'
-        continue-on-error: true
-        timeout-minutes: 1
-        run: |
-          mkdir -p "$RUNNER_TEMP/key-credit-probing"
-          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-probing/run-id"
-
-      - name: Scan the key's probing marker for credentials
-        id: probe-marker-scan
-        if: always() && steps.probe-marker.outcome == 'success'
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
-        with:
-          path: ${{ runner.temp }}/key-credit-probing/run-id
-
-      - name: Upload the key's probing marker
-        if: (always() && steps.probe-marker.outcome == 'success') && steps.probe-marker-scan.outputs.clean == 'true'
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: key-credit-probing-pr-verify.yml-check-intent
-          path: ${{ runner.temp }}/key-credit-probing/run-id
-          if-no-files-found: error
-          retention-days: 1
-
       # The skipped key leg's lane record: outcome skip, class credit-stop,
       # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped key leg
@@ -384,6 +348,43 @@ jobs:
             echo "::warning::$SECRET_NAME is empty; this job does not judge."
             echo "present=false" >>"$GITHUB_OUTPUT"
           fi
+
+      # Read by the next runs' gates: the probing marker the gate names
+      # (gate.cjs probeName) when this run tries the key first after a credit
+      # stop's window, so they skip while this run's judge steps do. Written
+      # only when the key is set, the first judge step's term, so a run that
+      # judges nothing never holds the key off; as soon after the read as that
+      # allows. A judge step's credit stop writes the credit-stop marker below,
+      # which takes over. The name is written out so its retention row claims
+      # it. An artifact upload uses the runner's token, not the job token.
+      - name: Write the key's probing marker
+        id: probe-marker
+        if: always() && steps.credit.outputs.probing-marker == 'key-credit-probing-pr-verify.yml-check-intent' && steps.credential.outputs.present == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          mkdir -p "$RUNNER_TEMP/key-credit-probing"
+          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-probing/run-id"
+
+      - name: Scan the key's probing marker for credentials
+        id: probe-marker-scan
+        if: always() && steps.probe-marker.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/key-credit-probing/run-id
+
+      - name: Upload the key's probing marker
+        if: (always() && steps.probe-marker.outcome == 'success') && steps.probe-marker-scan.outputs.clean == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: key-credit-probing-pr-verify.yml-check-intent
+          path: ${{ runner.temp }}/key-credit-probing/run-id
+          if-no-files-found: error
+          retention-days: 1
 
       # run-claude-cli refuses to run without these root-owned settings, which
       # need sudo, so they are written before the runner is isolated.
