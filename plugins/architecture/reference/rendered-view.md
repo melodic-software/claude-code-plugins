@@ -159,8 +159,7 @@ With no session listening, the page says so and its copy and save controls still
 
 The interview's read-only decision table, the PRD pitch view and the design topology view are written
 by the session, not the builder, and are only ever local files. Before writing one, run the shared medium
-resolver, passing a medium the reader names in the request as `--argument`, and print its report and
-notice lines:
+resolver, passing a medium the reader names in the request as `--argument`, and print its notice lines:
 
 ```bash
 node "<plugin-root>/lib/view-settings.mjs" resolve --lane planning --option "<medium option>" [--argument "<medium>"]
@@ -168,10 +167,11 @@ node "<plugin-root>/lib/view-settings.mjs" resolve --lane planning --option "<me
 
 Its JSON line then decides:
 
-- `page` false: write no file. The interview renders the same table inline as a fenced markdown table;
-  the PRD and design steps skip the view.
-- `page` true: write the local file. These views are never published, so when `publishes` is true, say the
-  view was kept as a local file.
+- `page` false: write no file, and print the report line as it stands. The interview renders the same
+  table inline as a fenced markdown table; the PRD and design steps skip the view.
+- `page` true: write the local file. These views are never published, so when `publishes` is true, print
+  the report line with `file` in place of the medium and keep what decided it, as in
+  `view: file (plugin default)`; otherwise print it as it stands.
 
 The interview's `page` surface follows the `surface` option, not `medium`.
 
