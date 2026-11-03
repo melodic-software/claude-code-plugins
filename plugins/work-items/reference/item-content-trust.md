@@ -82,9 +82,10 @@ These are instances of the rule above, not separate rules:
 - **Machine markers**: an escalation marker is matched on its author, not on the marker text alone,
   because any commenter can paste a marker prefix. Which authors an escalation marker counts from
   is defined once, in [`escalation-marker.md`](escalation-marker.md#trusted-escalation-authors).
-- **The untrusted-provenance class**: read from the provider-permissioned `work-class:` label,
-  never from a `Work-class: C<n>` body trailer, which any item author can write about their own
-  item. No merge partition reads any other class.
+- **The untrusted-provenance floor**: read from the provider-permissioned
+  `work-class: untrusted-provenance` label, never from a `Work-class: C<n>` body trailer, which any
+  item author can write about their own item ([`work-class-labels.md`](work-class-labels.md)). No
+  merge step decides by any other class.
 - **Capability-tier label**: `work-loop`'s frontier-tier quota guard reads
   `capability-tier: frontier` from the provider-permissioned label projection, never from triage
   briefing prose in the item body ([`work-loop`](../skills/work-loop/SKILL.md), "Adaptive item

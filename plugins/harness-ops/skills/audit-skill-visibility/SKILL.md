@@ -56,10 +56,10 @@ binary: [reference/listing-scorer.md](reference/listing-scorer.md) carries the c
 greps, the budget arithmetic, and the stamp. As of 2026-10-11; recheck when that section changes
 its drop order or the binary's scorer changes.
 
-So the useful question is not *which skills are unused*. Claude Code already
-reports that, through the built-in `/skill-doctor` command and the bundled
-`/doctor` skill's checkup, which the run-start and run-end suggestions offer;
-the Stats tab carries the `/skill-doctor` report in an interactive session.
+So the useful question is not *which skills are unused*: that one belongs to Claude Code's own
+surfaces, which the run-start and run-end suggestions offer; what they report is read live from
+[skills: find unused skills](https://code.claude.com/docs/en/skills#find-unused-skills) (as of
+2026-11-03; recheck when that section changes which command or tab reports unused skills).
 It is **which skills are starved by
 that loop and still wanted, versus genuinely unwanted, versus not observable at
 all.**
@@ -126,14 +126,13 @@ per plugin. This resolves to one entry per plugin, and the report states both
 numbers so the collapse is auditable. Counting entries would inflate the fleet
 and, since the fleet is the denominator, roughly double the reported overflow.
 
-Where a plugin is installed at more than one scope, resolution follows the
-documented precedence **`local > project > user`**, the record that loads is
-the highest-precedence *applicable* one, **never the newest version installed**.
-That rule and its "not the newest" warning are stated in this plugin's own
-[`skills/plugins/context/scope-semantics.md`](../plugins/context/scope-semantics.md),
-which verified it against the official plugins-reference docs. Getting it wrong
-is not cosmetic: plugins pinned at different versions across scopes can ship
-different skill *sets* and different `description` text. Superseded records are
+Where a plugin is installed at more than one scope, resolution loads the highest-precedence
+*applicable* record. The scope order and its record live in this plugin's own
+[`skills/plugins/context/scope-semantics.md`](../plugins/context/scope-semantics.md). The nearest
+docs section, [settings: settings precedence](https://code.claude.com/docs/en/settings#settings-precedence),
+ranks settings files and names no install records as of 2026-11-03; recheck when it or the plugin
+loading page states which install record loads. Getting it wrong is not cosmetic: plugins pinned
+at different versions across scopes can ship different skill *sets* and different `description` text. Superseded records are
 listed under **Fleet resolution** so a pin being outranked is visible.
 
 Applicability matters as much as precedence: `project` and `local` records load
@@ -147,9 +146,10 @@ marketplace directory. For those, the plugin's root comes from the catalog's
 declared `source`, since `plugins/<name>` is the common layout but not a rule.
 
 Whether each resolved plugin actually loads is read from `enabledPlugins` in the
-same settings scopes the listing budget reads, merged per `plugin@marketplace`
-key with the product's precedence: user < project < local < the `--settings`
-flag (unread from outside the session) < managed policy. A key set to `false`
+same settings scopes the listing budget reads, merged per `plugin@marketplace` key across scopes
+by the order in [plugin loading: find where a plugin is enabled](https://code.claude.com/docs/en/plugins/loading#find-where-a-plugin-is-enabled)
+(as of 2026-11-03; recheck when that section changes its source list or order). The
+`--settings` flag scope is unread from outside the session. A key set to `false`
 makes every skill of that plugin `hidden`, with the scope file that supplied
 the `false` as evidence. A key absent from every scope makes every skill of
 that plugin `not-enabled` (cause `plugin-never-enabled`, remedy
@@ -217,9 +217,12 @@ The budget has five inputs, and the report states where each one came from:
   in the script; when that enumeration cannot run, the policy scope is reported
   as unreadable rather than empty. `--budget-fraction` and `--max-desc-chars`
   pin either value over every scope.
-- `SLASH_COMMAND_TOOL_CHAR_BUDGET` overrides the whole computation
-  unconditionally, exactly as the product does, and the row then carries
-  `budget_basis: env-override` and the label `SLASH_COMMAND_TOOL_CHAR_BUDGET`.
+- When `SLASH_COMMAND_TOOL_CHAR_BUDGET` is set, the engine uses it in place of
+  the computation, and the row carries `budget_basis: env-override` and the
+  label `SLASH_COMMAND_TOOL_CHAR_BUDGET`. What the variable does in the product
+  is read live from its row in
+  [environment variables](https://code.claude.com/docs/en/env-vars#variables)
+  (as of 2026-11-03; recheck when that row changes what the override replaces).
 - The context window is per model. `CLAUDE_CODE_DISABLE_1M_CONTEXT` collapses
   it to 200k, and `CLAUDE_CODE_MAX_CONTEXT_TOKENS` names it when
   `DISABLE_COMPACT` is also set; both are read from the process environment and
@@ -400,9 +403,12 @@ the settings file that did), and says so when there is nothing to fix.
   same invocation, so adding them double-counts. At a given instant the count is
   the MAX across sources, while two events from ONE source at the same instant
   still count twice, because those are genuinely two invocations.
-- **`pluginUsage` is not a skill signal.** It counts hook, agent, MCP, and LSP
-  dispatch, and is seeded at install with `usageCount: 0` beside a current
-  `lastUsedAt`. Recency from it is meaningless unless `usageCount > 0`.
+- **`pluginUsage` is not a skill signal.** Neither its counts nor its
+  timestamps are read as skill use. What it counts and how its rows are seeded
+  are this plugin's binary reading in
+  [reference/usage-counters.md](reference/usage-counters.md#pluginusage-machine-global-per-plugin),
+  which carries the version, date and recheck trigger; read it before
+  explaining the field to a user.
 - **Ambiguous attribution is reported, not guessed.** Two marketplaces shipping
   a same-named plugin collapse to one usage key; those rows are marked
   `ambiguous-attribution` rather than attributed to one of them.
@@ -434,12 +440,14 @@ fix-me, not a removal candidate.
 Two native Claude Code surfaces answer the question this skill starts from, and the three get
 conflated whenever a fleet looks unused:
 
-- **`doctor` (bundled skill, alias `/checkup`)**: among its checks, finds unused skills, MCP
-  servers, and plugins against
-  their context cost, groups them with a benefit estimate, and offers to disable the groups the
-  user selects. It reports first and asks before changing anything.
-- **`/skill-doctor` (built-in command).** Shows which loaded skills go unused and what they cost in
-  context; the Stats tab carries its report in an interactive session.
+- **`doctor` (bundled skill)**: an in-session checkup that can offer to disable components, which
+  this skill never does. What it checks is read live from
+  [skills: check your setup with /doctor](https://code.claude.com/docs/en/skills#check-your-setup-with-doctor)
+  (as of 2026-11-03; recheck when that section changes what the checkup covers).
+- **`/skill-doctor` (built-in command).** Claude Code's own unused-skills report; what it shows
+  and where is read live from
+  [skills: find unused skills](https://code.claude.com/docs/en/skills#find-unused-skills) (as of
+  2026-11-03; recheck when that section changes what the report covers).
 - **This skill (marketplace plugin).** Reconciles the native counters with a JSONL store and OTEL,
   computes an observed horizon, and separates starved-and-wanted from unwanted from unobservable,
   withholding every verdict the span cannot support. Read-only.
@@ -480,9 +488,10 @@ If /doctor is available in your session (claim: `/doctor` is reserved for the pe
   invocation; summing them doubles every count. The reconciliation is MAX across
   sources at an instant, and it is deliberately not MAX across an entire skill:
   two same-instant events from one source are two invocations.
-- **OTEL and native counts legitimately disagree.** The native counter is
-  debounced (one write per skill per 60 s, suppressing the timestamp refresh
-  too); telemetry is not. Divergence is expected and must not be reconciled away.
+- **OTEL and native counts legitimately disagree.** Divergence is expected and
+  must not be reconciled away. Why the native counter records fewer is this
+  plugin's binary reading in
+  [reference/usage-counters.md](reference/usage-counters.md#skillusage-machine-global-per-skill).
 - **`misconfigured` never renders as a removal candidate.** Several of its causes
   are silent misconfigurations, a skill that looks fine and can never be
   selected. The remedy is a fix.

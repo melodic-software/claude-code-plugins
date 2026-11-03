@@ -39,10 +39,18 @@ consumer-run.
   claude plugin install <plugin>@<marketplace> -s <scope> --config KEY=VALUE
   ```
 
-  (`--config` repeatable per key.) Against an already-installed plugin it prints
-  `already installed` **and still writes the value**. The short-circuit is about the install, not
-  the config write. A bundled MCP server's setting takes the key form `<server>.<key>`, which
-  needs Claude Code 2.1.285 or later; the record below did not measure that form.
+  (`--config` repeatable per key.) The rerun is the fallback because it saves the value on an
+  already-installed plugin, as the [record below](#claude-plugin-install---config-rerun) measured.
+  A bundled MCP server's setting takes the key form `<server>.<key>`; the record below did not
+  measure that form.
+
+  - **Pointer**: when checking what the rerun prints for an installed plugin, or which `--config`
+    key forms a release takes, fetch
+    [plugin CLI reference § plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+    live.
+  - **As of**: 2026-11-03
+  - **Recheck trigger**: that section changes what an install of an already-installed plugin does,
+    or the `--config` key forms.
 
 ## Verified-version record
 
@@ -66,8 +74,6 @@ Measured on **Claude Code 2.1.312** (sandbox probe, 2026-10-28,
   message. An object with one valid and one invalid key wrote nothing.
 - **Booleans are strings.** `"true"`, `"false"` (also 1/0, yes/no, on/off) were stored as JSON
   `true`/`false`.
-- **Uninstall drops the values.** `claude plugin uninstall` removed the plugin's `pluginConfigs`
-  entry and its `pluginSecrets` entry.
 
 Not covered by that probe: a host with an OS keychain (macOS, or Linux with a secret service),
 which may store a sensitive value there instead; whether `""` (accepted and stored as `""`)
@@ -81,10 +87,6 @@ Measured on **Claude Code 2.1.283** (sandbox probe, 2026-09-27):
   command printed `already installed` and wrote the value while the install record stayed
   byte-identical and only the named option keys changed. Measured for a `string` option at `user`
   and `project` scope, and for `boolean` and `directory` options at `local` scope.
-- **The value always lands in user settings.** `--config` wrote `pluginConfigs` to the user
-  `settings.json` whatever `-s` said, measured on first installs at `project` and `local` scope;
-  `-s` governed only the install record and the `enabledPlugins` entry in that scope's settings
-  file.
 - **A scope mismatch adds an install.** A rerun at a scope other than the installed one added an
   install record at that scope and enabled the plugin there, measured both ways: a `-s user` rerun
   of a plugin installed at `project` and `local` enabled it machine-wide, and a `-s project` rerun
@@ -101,28 +103,36 @@ newer release is verified.
 
 ## Caveats every setup skill's short form carries
 
-1. **Never uninstall to reconfigure.** Uninstalling drops the plugin's stored `pluginConfigs`
-   entry and its stored sensitive values, resetting every option in its README Options reference
-   to its manifest default. Customized values are simply gone, with nothing left to read the old
-   values from.
-2. **Scope.** A non-sensitive value always lands in user settings, whichever route writes it.
-   Run `claude plugin configure` from the project the plugin is installed in; it has no scope flag.
-   For the `--config` rerun, pass the scope `claude plugin list` reports for the plugin: `-s`
-   places the install record and `enabledPlugins`, and a rerun at another scope adds an install
-   record at that scope and enables the plugin there (measured in both directions, user over
-   project/local and project over user). When the working directory is the home directory,
-   project scope and user scope are the same settings file, so the list can label that one file
-   as both `user` and `project`: pass `user`.
-3. **Observation is next-session.** The rendered `${user_config.*}` is injected at skill load and
-   each hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so
-   a same-session `check` still reports the OLD value. That is not a failed write. Verify the
-   effective value by rerunning the plugin's setup `check` in a **fresh session**, and never claim
-   an unobserved change.
-4. **Check each route's own failure signal.** `claude plugin configure --values-stdin` rejects a
-   bad value with exit 1 and saves nothing, but it accepts an empty string and stores `""`. The
-   `--config` rerun prints a warning for a rejected value (wrong type, unknown key, empty value,
-   or a value outside a declared `options` list) and does not write it, yet still exits 0, so
-   read its output, not the exit code.
+1. **Never uninstall to reconfigure.** Change a value through one of the routes above; an
+   uninstall is not a reconfiguration route.
+2. **Scope.** Run `claude plugin configure` from the project the plugin is installed in; it has no
+   scope flag. For the `--config` rerun, pass the scope `claude plugin list` reports for the
+   plugin: a rerun at another scope adds an install record at that scope and enables the plugin
+   there (measured in both directions, user over project/local and project over user). When the
+   working directory is the home directory, project scope and user scope are the same settings
+   file, so the list can label that one file as both `user` and `project`: pass `user`.
+3. **Observation is next-session.** A same-session `check` can still report the old value, and
+   that is not a failed write. Verify the effective value by rerunning the plugin's setup `check`
+   in a **fresh session**, and never claim an unobserved change.
+4. **Check each route's own failure signal.** Read both the exit code and the output of the route
+   that ran before reporting a value saved; the two routes do not signal a rejected value the same
+   way.
+
+- **Pointer**: when a caveat above needs the upstream specifics, fetch them live: what an
+  uninstall deletes, at
+  [plugin CLI reference § What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps);
+  which settings file holds a saved value and what `-s` places, at
+  [plugins manifest reference § Where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored)
+  and [§ plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install);
+  when a saved value reaches skills and hooks, at
+  [plugins manifest reference § Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value);
+  how each route reports a rejected value, at
+  [§ plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+  and [§ plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
+- **As of**: 2026-11-03
+- **Recheck trigger**: one of those sections changes what an uninstall deletes, where a saved value
+  is stored, what `-s` places, when a saved value takes effect, or how a route reports a
+  rejection.
 
 ## The short form setups print
 

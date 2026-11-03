@@ -164,21 +164,24 @@ basis on it would read as a claim about what is in force, and instead names what
 
 ## Whole-tool rules
 
-The reader treats a deny rule that is a bare tool name as removing the tool from the model's
-context, and a scoped deny rule as leaving the tool available and blocking matching calls (pointer:
-[Manage permissions](https://code.claude.com/docs/en/permissions#manage-permissions)).
+The reader classifies a rule that names a whole tool apart from a scoped rule, as below.
+
+- **Pointer**: when deciding what a bare or scoped deny or ask does to a tool, and which tool is
+  exempt, fetch [permissions: manage permissions](https://code.claude.com/docs/en/permissions#manage-permissions)
+  live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section changes what a whole-tool deny or ask does, or which tool it
+  exempts.
 
 The tool token is the text before the first `(`; a rule that **is** its own token names the whole
 tool. That test needs no pattern matcher, so it is computed rather than caveated.
 
-- **A whole-tool deny makes every other rule for that tool inert**, whatever its kind. An inert deny
-  is moot, not weakened. The tool is gone, so a second deny has nothing left to block. Reporting a
-  scoped allow as effective underneath one would claim access to a tool that is not in context.
-- **`EndConversation` is the documented exception**: the reader never treats a deny rule as removing
-  it while any other tool remains, and never expects an ask rule to prompt for it. It is exempt from
-  removal here.
-- **A whole-tool ask outranks every scoped allow for that tool**, because it matches every call and
-  ask is evaluated before allow.
+- **Under a whole-tool deny, the reader marks every other rule for that tool inert**
+  (`removed_by=deny@<tool>`), whatever its kind, and reports an inert deny as moot, not weakened.
+  Reporting a scoped allow as effective underneath one would claim access the session does not have.
+- **`EndConversation` is exempt from that removal here**, the exception the pointer names.
+- **Under a whole-tool ask, the reader marks every scoped allow for that tool**
+  `outranked_by=ask@<tool>`.
 
 Both cases print a `NOTE:` naming the tool, so the removal is announced rather than inferred from a
 run of `inert` records.
@@ -342,7 +345,7 @@ fixed all three.
 | `C6-allowParam` | Fires on an **allow** rule in `Tool(param:value)` form, since we treat parameter matching as a deny-and-ask feature only; allow rules keep each tool's own specifier syntax. Pointer: [Match by input parameter](https://code.claude.com/docs/en/permissions#match-by-input-parameter). An operator writing one believes they narrowed a grant and has not. Fires only on parameters the page names for tools whose own syntax is a path or a command. `WebFetch(domain:host)` is the documented WebFetch form and `Bash(npm:*)` is a command prefix, so neither is distinguishable from a parameter by shape and neither fires |
 | `C6-uncoveredPath` | Fires on a path rule whose tool is `Write`, `NotebookEdit`, `Glob`, or the retired `MultiEdit`, since we treat file access as decided by `Read(path)` and `Edit(path)` rules alone; such a rule is accepted, never consulted, and warned about at startup (v2.1.210+; a `Glob` rule passed in `--allowedTools` is the stated exception). Pointer: [Read and Edit](https://code.claude.com/docs/en/permissions#read-and-edit). **As of** 2026-10-13. **Recheck when** that section stops naming `MultiEdit` or changes which tools path rules cover |
 | `C6-colonStar` | Fires on a mid-pattern `:*`, as in `Bash(git:* push)`, since we treat `:*` as prefix syntax only at the end of a pattern: mid-pattern, the colon is a literal and the `*` a wildcard, so `Bash(git:* push)` matches `git:<anything> push` and none of the git commands its author meant. We saw no startup warning for such a rule in a `-p` run, so the lint reports it. **Pointer**: when the mid-pattern colon matters, fetch [Wildcard patterns](https://code.claude.com/docs/en/permissions#wildcard-patterns) live. **As of** 2026-10-10. **Recheck when** that section changes how a mid-pattern `:*` matches, or a release makes it prefix syntax. **Probe**: probed on Claude Code 2.1.296, 2026-10-10; evidence in the pull request that carries this change. The mechanic is about **command-prefix** patterns, so a documented parameter form is exempt: WebFetch's `domain:` prefix takes `*` wildcards ([WebFetch](https://code.claude.com/docs/en/permissions#webfetch)), and firing on `WebFetch(domain:*.example.com)` called a documented, working rule broken. A body that starts with `*` and holds no space, as in `PowerShell(*env:*lefthook*)`, is exempt too: it has no command prefix, so the literal colon is what it means to match. A space restores the prefix-then-words shape, so `Bash(* git:* push)` and `Bash(*foo:* rm)` still fire. **Known gap:** in a deny or ask rule a mid-pattern `:*` with NO space after it, as in `Bash(git:*push)`, is not reported. It is structurally identical to the parameter form `Agent(model:*-haiku)`, so once the space is gone nothing in the rule text distinguishes them; the space was the only signal. The documented example is the space form, and the pages show no no-space mid-pattern rule anywhere. The exemption is by **grammar**, where in a deny or ask rule an `identifier:value` body is the parameter form, not by a list of parameter names: we treat parameter matching as working for any scalar parameter on any tool ([Match by input parameter](https://code.claude.com/docs/en/permissions#match-by-input-parameter)), so an allowlist could only ever chase it and would flag documented forms such as `Agent(model:*-haiku)` |
-| `C6-malformed` | We accept two rule shapes, a bare tool name or a tool name with one parenthesized specifier; a parenthesis within the specifier counts as an ordinary character, which makes `Edit(./Finance (2024)/**)` one rule. Text after the closing parenthesis, as in `Bash(ls) x`, is a malformed Tool(content) rule: Claude Code reports it as invalid settings instead of matching it. An unclosed specifier is the same check. The lint used to keep only the token and treat `Bash(ls) x` as `Bash(ls)` |
+| `C6-malformed` | Fires on text after a specifier's closing parenthesis, as in `Bash(ls) x`, and on an unclosed specifier. A parenthesis inside the specifier does not fire, so `Edit(./Finance (2024)/**)` is one rule. The lint used to keep only the token and treat `Bash(ls) x` as `Bash(ls)`. **Pointer**: when deciding which rule shapes are accepted and how trailing text is treated, fetch [permissions: permission rule syntax](https://code.claude.com/docs/en/permissions#permission-rule-syntax) live. **As of** 2026-11-03. **Recheck when** that section changes how parentheses in a specifier or text after one are read |
 | `C6-literalPath` | A Read or Edit path that is not a usable gitignore pattern, such as an unclosed `[`. As a deny or ask rule it protects only that literal path; as an allow rule it grants nothing. One such deny used to fail every file edit; that is not the current behavior |
 
 The version boundaries and field lists a row names are the ones its script emits; before acting
@@ -378,7 +381,7 @@ Prose judgment belongs to `claude auto-mode critique`, which is surfaced rather 
 
 | Check | What it means |
 | --- | --- |
-| `C4-defaults` | a customized section omits `"$defaults"`, which **replaces** the built-in list rather than adding to it. The finding names how many built-in entries are gone, because "you dropped 65 soft_deny rules" is actionable where "missing $defaults" is not |
+| `C4-defaults` | a customized section omits `"$defaults"`. The finding names how many built-in entries are gone, because "you dropped N soft_deny rules" is actionable where "missing $defaults" is not. **Pointer**: when deciding what omitting `"$defaults"` does, fetch [auto mode config: override the block and allow rules](https://code.claude.com/docs/en/auto-mode-config#override-the-block-and-allow-rules) live. **As of** 2026-11-03. **Recheck when** that section changes what a section without `"$defaults"` keeps |
 | `C2b-contradiction` | the same label subject appears in `allow` and in a deny section |
 | `C3-shadowed` | an entry whose subject is already in `hard_deny`, which cannot be overridden, so the entry can never change an outcome |
 
