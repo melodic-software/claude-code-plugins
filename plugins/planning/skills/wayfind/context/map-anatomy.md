@@ -102,7 +102,7 @@ the user's intent or vision, whatever its type (SKILL.md "Readiness"). Extension
   or closed as moot, and a closed decision it shows was wrong is superseded by a new item, per
   Work mode step 7.
 - **Closure (whole map):** frontier empty ∧ every decision item closed ⟹ the destination is
-  coherent. Close the map and pass its URL to the destination's skill (`/planning:prd`,
-  `/work-items:decompose` or `/work-items:work`, or a decision record or general summary; SKILL.md
-  work step 8), which reads Decisions-so-far and the resolution comments. Then delete the dossier
-  branch.
+  coherent. Post a closing comment that states every resolved decision in full, close the map,
+  and hand those decisions to the destination's skill in a source form it accepts
+  (`/planning:prd`, `/work-items:decompose #<map-number>` or `/work-items:work`, or a decision
+  record or general summary; SKILL.md work step 8). Then delete the dossier branch.

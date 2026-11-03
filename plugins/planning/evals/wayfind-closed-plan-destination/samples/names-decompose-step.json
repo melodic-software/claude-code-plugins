@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "The map is closed and its destination is a plan of build work, so close the map issue and run `/work-items:decompose` with the map's URL.",
+      "answer": "The map is closed and its destination is a plan of build work, so close the map issue and run `/work-items:decompose #<map-number>`; the map's closing comment states every decision.",
       "why": "the skill's own hand-off"
     },
     {
@@ -9,7 +9,7 @@
       "why": "negation about charting, decompose step named without the slash"
     },
     {
-      "answer": "Hand it on: decompose the map into work items, reading Decisions-so-far and each resolution comment.",
+      "answer": "Hand it on: decompose the map into work items, reading the decisions from the map's closing comment.",
       "why": "names the decompose step in prose"
     }
   ],

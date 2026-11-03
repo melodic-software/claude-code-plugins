@@ -168,15 +168,14 @@ def read_roster(root: Path) -> dict[str, dict[str, str]]:
         flags: dict[str, str] = {}
         if declaration:
             kind, _, reason = (part.strip() for part in declaration.partition(":"))
-            if kind == "skip-to":
+            if kind not in ("entry", "terminal", "skip-to"):
+                reason = ""
+            elif kind == "skip-to":
                 target, _, reason = reason.partition(" ")
                 if not re.fullmatch(r"[a-z0-9-]+:[a-z0-9-]+", target):
                     reason = ""
                 kind = f"skip-to {target}"
-            if (
-                kind.split(" ")[0] not in ("entry", "terminal", "skip-to")
-                or not reason.strip()
-            ):
+            if not reason.strip():
                 raise SetupError(
                     f"{ROSTER}:{number}: a declaration is 'entry: <reason>' or "
                     f"'terminal: <reason>', or 'skip-to: <plugin:skill> <reason>', got '{declaration}'"

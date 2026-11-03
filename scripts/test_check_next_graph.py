@@ -168,6 +168,17 @@ class NextGraphTest(unittest.TestCase):
         self.assertEqual(rc, 2)
         self.assertIn("'skip-to: <plugin:skill> <reason>'", err)
 
+    def test_misspelled_declaration_kinds_exit_2(self) -> None:
+        for line in (
+            "p:interview | entry point: an owner decision",
+            "p:interview | skip-to p:decompose: an owner decision",
+        ):
+            with self.subTest(line=line):
+                self.fx.roster(line)
+                rc, _, err = self.fx.run()
+                self.assertEqual(rc, 2)
+                self.assertIn("a declaration is 'entry: <reason>'", err)
+
     def test_backward_edge_is_not_a_skip(self) -> None:
         self.fx.skill(
             "p:plan",

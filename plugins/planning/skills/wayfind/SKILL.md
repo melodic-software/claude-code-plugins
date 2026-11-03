@@ -253,16 +253,18 @@ that charting needs an interactive session. Do not fabricate a map.
      line to `[<old title>](<old URL>): superseded by [<new title>](<new URL>) (resolved <date>)`.
      Never reopen the old item or edit its resolution comment.
 8. **Map closure → destination handoff.** When the frontier holds no item and every decision item
-   is closed, close the map issue and pass the map's absolute URL to the destination's skill,
-   telling it to read Decisions-so-far and each resolution comment it links:
+   is closed, post a closing comment on the map that states every resolved decision in full: for
+   each Decisions-so-far line, its title and Q/D id (when it has one) and the decision its
+   resolution comment records, not only the link. Then close the map issue and hand the decisions
+   to the destination's skill in a source form it accepts:
 
    | Destination | Closes to |
    |---|---|
-   | A PRD | `/planning:prd` |
-   | A set of build items (a spec or plan) | `/work-items:decompose` |
-   | One change | `/work-items:work` on the item `/work-items:track add` files for it |
-   | A decision record | `/architecture:record-decision` when enabled, else the repository's ADR convention |
-   | A general summary | The summary, written as the map's closing comment; no further skill |
+   | A PRD | `/planning:prd`, with the closing comment's decisions as its task description |
+   | A set of build items (a spec or plan) | `/work-items:decompose #<map-number>`; its item source reads the map's body and comments, so it finds the decisions in the closing comment |
+   | One change | `/work-items:work` on the item `/work-items:track add` files for it, its body carrying the decisions |
+   | A decision record | `/architecture:record-decision` when enabled, else the repository's ADR convention, given the decisions |
+   | A general summary | The closing comment is the summary; no further skill |
 
    Then delete the map's dossier branch, if one exists, after the destination skill has the map.
 
@@ -310,8 +312,8 @@ it outgrows one session → reference port → design → plan → decompose): t
 
 - The map is charted: /planning:wayfind work.
 - The effort has no interview behind it yet: /planning:interview.
-- The map closed: the destination's skill from work step 8 (/planning:prd, /work-items:decompose,
-  /work-items:work, or /architecture:record-decision for a decision record).
+- The map closed on a set of build items: /work-items:decompose #<map-number>.
+- The map closed on a PRD: /planning:prd.
 
 ## Reference
 
