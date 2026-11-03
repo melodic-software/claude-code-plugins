@@ -1027,6 +1027,17 @@ class TestFlowQuery(unittest.TestCase):
             ),
             ('const J=(e,n)=>e[n];J(o,"runInThisContext");', ["vm-string-code"]),
             ('const J=(e,n)=>e[n];J(o,"__defineGetter__");', ["definer-escape"]),
+            # A destructured key reads its member as a computed read does.
+            ('const J=(o,k)=>{const{[k]:f}=o;return f};J(globalThis,"eval")(s);', ["indirect-eval"]),
+            (
+                'const J=(o,k)=>{const{[k]:F}=o;return F};J(globalThis,"Function")(s)();',
+                ["function-constructor"],
+            ),
+            ('const J=(o,k)=>{const{[k]:r}=o;return r};J(o,"runInThisContext");', ["vm-string-code"]),
+            ("const{eval:f}=globalThis;f(s);", ["indirect-eval"]),
+            ("const{Function:F}=globalThis;F(s)();", ["function-constructor"]),
+            ('const J=(o,k)=>{const{[k]:d}=o;return d};J(o,"__defineSetter__");', ["definer-escape"]),
+            ('const J=(o,k)=>{const{[k]:f}=o;return f};J(o,"a");', []),
             ("function J(e,n){return e[n]}J(o,s);", unknown),
             ("function J(e,n){return e[n]}h(J);", unknown),
             ("export const J=(e,n)=>e[n];J(o,1);", unknown),

@@ -522,13 +522,18 @@ call, the global `Function` used other
 than for `typeof`, `instanceof`, a `.prototype` read that cannot reach `constructor` (every
 further member, past any call on the way, names another key, a computed one known not to spell
 it, and the chain ends discarded, tested, compared or written, never held, passed on or the left
-of `instanceof`) or a build cleared below, any member named `eval` or `Function`, a read of
-`constructor` (by name, by a computed key that may spell it, as an unknown key does while a loop
-counter or `n+1` does not, or as a destructured key; every
+of `instanceof`) or a build cleared below, any member read or destructured whose key is or may
+spell `eval` or `Function` (`globalThis[k]` or `const{[k]:f}=o` with `k` only ever `"eval"`), a
+read of `constructor` (by name, by a computed key that may spell it, as an unknown key does while
+a loop counter or `n+1` does not, or as a destructured key; every
 function's `constructor` is `Function`, as in `(()=>0).constructor("...")()`) other than one that
 is discarded, tested, compared with `===` or `!==`, the right of `instanceof`, or followed by a
 `.name` read or a plain `.prototype` write, since coercing it or writing a key it lacks runs a
-method with it as `this`; and node:vm,
+method with it as `this`. That exemption covers only a key that cannot also spell `eval`,
+`Function`, a vm runner, `__defineGetter__` or `__defineSetter__`: a computed read whose key may
+spell one of those counts wherever it stands, inert or not. An unknown key (a `for in` key, or any
+key in code that may run sloppy) may spell all of them, so a discarded or tested `o[k]` such as
+`for(k in o)if(o[k])` is a `function-constructor` hit; and node:vm,
 since code in a new context still reaches this realm (`this.constructor.constructor("...")()`
 inside `runInNewContext`): any load of `vm` or `node:vm` except an import naming only
 `isContext`, and a runner's name

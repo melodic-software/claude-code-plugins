@@ -2350,6 +2350,18 @@ function sinkHits(entry, names, depth, loaders = new Set()) {
       else if ([...VM_RUNNERS].some(may)) hit("vm-string-code", null, node);
       else if (may("__defineGetter__") || may("__defineSetter__")) hit("definer-escape", null, node);
     }
+    // A destructured key reads its member as `o[k]` does, literal or
+    // computed (`const{eval:f}=o`, `const{[k]:F}=o` with `k` only ever
+    // "Function"). A literal vm runner or getter definer key is counted
+    // where its own name is checked.
+    if (node.type === "Property" && holder?.type === "ObjectPattern" && !maySpellConstructor(node.key, node.computed)) {
+      const name = keyName(node.key, node.computed);
+      const may = (n) => (name === null ? spells(node.key, n) : name === n);
+      if (may("eval")) hit("indirect-eval", null, node);
+      else if (may("Function")) hit("function-constructor", null, node);
+      else if (name === null && [...VM_RUNNERS].some(may)) hit("vm-string-code", null, node);
+      else if (name === null && (may("__defineGetter__") || may("__defineSetter__"))) hit("definer-escape", null, node);
+    }
     // node:vm runs strings as code, and even a new context reaches this
     // realm (`this.constructor.constructor("...")()` inside
     // `runInNewContext` patches the outer prototypes). Any load of the vm
