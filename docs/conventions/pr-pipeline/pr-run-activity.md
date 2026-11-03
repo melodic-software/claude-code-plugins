@@ -2381,8 +2381,8 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   which counts `outcome=intake` as a hand-back, sends the issue back through intake. `close`
   comments, removes `agent-ready` and closes the issue as completed: `already-done` only once a
   cited merged pull request (the first three `#<n>` are tried) or commit is on the default branch
-  and its commit message closes the issue, and `report-delivered` only on a
-  `work-class: read-only` issue the run committed nothing for, with the run's `summary` as the
+  and its commit message closes the issue, and `report-delivered` only on an
+  issue the run committed nothing for, whatever its work class, with the run's `summary` as the
   report; either retries otherwise. Dependents and split parents count the lanes App's
   `already-done` close as trusted only while that evidence re-checks true when they read it
   (`isTrustedClose` in check-trusted-trigger, through `.github/scripts/lib/done-evidence.mjs`); a

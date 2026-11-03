@@ -4177,11 +4177,23 @@ test("route close: already-done and report-delivered close the issue as complete
   const report = stoppedPlan("report-delivered: the report is below", { issueLabels: ["agent-ready", "work-class: read-only"], branch: "" });
   assert.equal(closeStop(report.comment).stop, "report-delivered");
   assert.equal(closeStop(stoppedPlan("the tests failed").comment), null, "a retry comment is no close");
-  // A report closes only a read-only issue the run committed nothing for.
+  // A report closes only an issue the run committed nothing for.
   assert.equal(stoppedPlan("report-delivered: the report is below").action, "retry");
-  for (const opts of [{}, { issueLabels: ["agent-ready"], branch: "" }, { issueLabels: ["agent-ready", "work-class: read-only"], branch: "work/7" }]) {
+  for (const opts of [{}, { issueLabels: ["agent-ready", "work-class: read-only"], branch: "work/7" }]) {
     const retry = stoppedPlan("report-delivered: the report is below", opts);
     assert.equal(retry.action, "retry");
+    assert.match(retry.comment, /so it retries instead of closing\./, retry.comment);
+  }
+});
+
+// Owner Q85: a stop routes by no work class, or by a missing one.
+test("route close: report-delivered closes a class-less or structural issue with no branch, and retries with one", () => {
+  for (const issueLabels of [["agent-ready"], ["agent-ready", "work-class: structural"]]) {
+    const closed = stoppedPlan("report-delivered: the report is below", { issueLabels, branch: "" });
+    assert.equal(closed.action, "close", issueLabels.join());
+    assert.equal(closeStop(closed.comment).stop, "report-delivered");
+    const retry = stoppedPlan("report-delivered: the report is below", { issueLabels, branch: "work/7" });
+    assert.equal(retry.action, "retry", issueLabels.join());
     assert.match(retry.comment, /so it retries instead of closing\./, retry.comment);
   }
 });
