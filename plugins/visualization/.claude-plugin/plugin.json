@@ -26,7 +26,7 @@
     "medium": {
       "type": "string",
       "title": "Preferred delivery medium",
-      "description": "Preferred delivery medium. auto (default) leaves it to the shared medium resolver (a repository's docs/conventions/rendered-views.yaml can keep a view local but never publishes one), then decides by content and available surfaces; terminal always renders inline; file renders richer forms as a local HTML file, never published; artifact or hosted prefers a published Artifact, else a file.",
+      "description": "Preferred delivery medium. auto (default) defers to the shared medium resolver, then decides by content and available surfaces; terminal always renders inline; file renders richer forms as a local HTML file, never published; artifact or hosted prefers a published Artifact, else a file.",
       "default": "auto",
       "options": ["auto", "terminal", "file", "artifact", "hosted"]
     },
