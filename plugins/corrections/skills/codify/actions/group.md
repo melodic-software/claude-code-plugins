@@ -40,7 +40,7 @@ each group's line with its counts and its members' `obs_id`, `ts` and `source_id
 Group the rows again by what went wrong, read from each row's text, whatever the path, producer or
 field group. State that this grouping's key is the mistake and its occurrence key is `source_id`.
 A row with `kind` `applied` records a change already made, not a mistake: leave it out of these
-groups and counts, and list it apart with its `obs_id`, `source_id` and `signal`.
+groups and counts, and list it apart with its `obs_id`, `source_id`, `signal` and `location` (when set).
 For each group, show:
 
 - one sentence naming the mistake;
