@@ -468,8 +468,7 @@ disagrees with it.
   subagent spawning") disagree on throttling subagent dispatch, so on an `opus-5` target this
   instance is inert, not merely unattested: there we treat a throttle as the recommended shape
   rather than a workaround. On an `opus-4-8` target it is unattested: the instance does not fire,
-  and we do not endorse the throttle either, because the Opus 4.8 guide's section of that name
-  steers toward more spawning, not a cap. **A cap carrying its own
+  and we do not endorse the throttle either. **A cap carrying its own
   non-model rationale is not this instance.** Reviewability of returns, rate limits, cost, or
   shared mutable state each justify a bound on their own terms, and that justification is the
   surface's to make, not this row's to override.
