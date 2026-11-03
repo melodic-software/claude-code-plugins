@@ -95,7 +95,7 @@ import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../acti
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { ADMIT_MARKER, admissionParked, authorAdmitted, bodyVersion, CONFIRMED, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, loadRules, ownedLines, REFINE_FOOTERS, REFINE_MARKER, refusalText, SPEC_COMMENTS, specOf, splitItemsLine, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
 import { LANES_APP_LOGIN, MARKER } from "./apply-verdict.mjs";
-import { linesDigest, renderSplitRecord, SCOPE_PREFIX, scopeTarget, SIZE_SPLIT_MARKER, SIZE_SPLIT_PENDING, SPLIT_CHILD_MARKER, splitChildHeader, splitRecord, splitSourceLine, splitTaskLines, taskText } from "./admit.mjs";
+import { linesDigest, renderSplitRecord, SCOPE_PREFIX, scopeTarget, SIZE_SPLIT_MARKER, SPLIT_CHILD_MARKER, SPLIT_PENDING, splitChildHeader, splitRecord, splitSourceLine, splitTaskLines, taskText } from "./admit.mjs";
 import { statusMirror } from "../../actions/resolve-config/write-status.mjs";
 
 export { bodyVersion, REFINE_MARKER };
@@ -206,7 +206,7 @@ async function candidates(github, repository, issue, trusted) {
   return found;
 }
 
-// A size split (owner Q93): an issue admission parked at SIZE_SPLIT_PENDING
+// A size split (owner Q93): an issue admission parked at a SPLIT_PENDING reason
 // is split into sub-issues before any run takes it. The model returns only
 // item numbers: `parts`, each a list of the 1-based numbers of the issue's
 // trusted task-list lines (admit.mjs splitTaskLines: the listed human's, then
@@ -264,7 +264,7 @@ async function postDecline({ github, base, appId, body, code, log }) {
     return;
   }
   await github("POST", `${base}/comments`, {
-    body: `${head}**Not split at intake (owner Q93).** This Size Large issue stays parked at \`status: ready\`: ${DECLINES[code]}. No person is asked to act and no hold label is added. The split settings are \`size-split\` in \`.github/actions/resolve-config/admission-rules.json\`.\n\n<sub>Automated by the lanes App, once per reason and body version.</sub>`,
+    body: `${head}**Not split at intake (owner Q93).** This issue stays parked at \`status: ready\`: ${DECLINES[code]}. No person is asked to act and no hold label is added. The split settings are \`size-split\` in \`.github/actions/resolve-config/admission-rules.json\`.\n\n<sub>Automated by the lanes App, once per reason and body version.</sub>`,
   });
   log(`refine: ${base} says why it is not split (${code})`);
 }
@@ -287,12 +287,12 @@ export async function applySizeDecline({ github, repository, number, appId, cont
 // same lines files no second set of sub-issues. Pure.
 export const splitDigest = ({ lines, source }) => linesDigest(source === null ? lines : [...lines, splitSourceLine(source)]);
 
-// Whether the lanes App's admission comment waits on SIZE_SPLIT_PENDING.
+// Whether the lanes App's admission comment waits on a SPLIT_PENDING reason.
 export function sizeSplitPending(comments, appId) {
   const prefix = `${ADMIT_MARKER}\nNot admitted to the issue lane yet: `;
   const own = comments.find((comment) => appId !== undefined && comment?.user?.id === appId && String(comment.body ?? "").startsWith(ADMIT_MARKER));
   const body = String(own?.body ?? "");
-  return body.startsWith(prefix) && body.slice(prefix.length).replace(/\.$/, "").split("; ").includes(SIZE_SPLIT_PENDING);
+  return body.startsWith(prefix) && body.slice(prefix.length).replace(/\.$/, "").split("; ").some((reason) => SPLIT_PENDING.has(reason));
 }
 
 // The lanes App's split record on the issue: {comment, record}, or null.
@@ -302,7 +302,7 @@ const ownSplit = (comments, appId) => {
 };
 
 // {refine, reason, context} for an issue admission parked at
-// SIZE_SPLIT_PENDING, or null for any other: a parked issue is never refined
+// a SPLIT_PENDING reason, or null for any other: a parked issue is never refined
 // another way, and `note(why)` records why one is not split. Only an issue a
 // listed human filed splits, since only its text, and the refinement on it,
 // the sub-issues can carry (admit.mjs splitChildBody). Reads only.
