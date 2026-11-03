@@ -5076,6 +5076,10 @@ hook::bash_parse_segments() {
 # differ.
 # shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
 hook::bash_parse_segments_uncached() {
+  if [[ "${HOOK_BASH_READER:-}" == shfmt ]]; then
+    hook::bash_parse_segments_shfmt "$1" "$2"
+    return
+  fi
   local cmd="$1" cb="$2" ext="${3:-0}"
   local -a chars=()
   local c nx n i __hu_acd
@@ -5728,6 +5732,369 @@ hook::bash_parse_segments_uncached() {
   # Set last: a callback's own parse would overwrite it.
   # shellcheck disable=SC2034  # result global is consumed by the sourcing guard
   HOOK_HEREDOC_BODIES=(${hd_bodies[@]+"${hd_bodies[@]}"})
+}
+
+# ============================================================================
+# The command reader on shfmt's parse tree
+# ============================================================================
+#
+# hook::bash_parse_segments_shfmt has the same contract as
+# hook::bash_parse_segments_uncached (callback, HOOK_SEG_*, HOOK_HEREDOC_BODIES)
+# and reads the command from `shfmt --to-json`. HOOK_BASH_READER=shfmt selects
+# it. plugins/guardrails/reference/shfmt-parse-differences.md lists where its
+# parse differs from bash's.
+#
+# One jq program flattens the tree into a list of shell words, one list per
+# parse, read by `eval` from jq's @sh quoting:
+#
+#   tree node                      what the list holds
+#   ---------                      -------------------
+#   Stmt holding a CallExpr        G, argc, redirs, its Assigns and Args, redirs
+#   Stmt holding a DeclClause      the same, with the variant as the first word
+#   Stmt holding a LetClause       the same, `let` then each expression as text
+#   Stmt holding a TestClause      the same, `[[`, the test as text, `]]`
+#   Stmt holding a ForClause       the same, `for`, the name, `in`, the items
+#   Stmt holding a CaseClause      the same, `case`, the subject, `in`
+#   Stmt holding any other command G with its closing word, only when redirected
+#   CmdSubst, ProcSubst, Subshell, nothing of its own: the walk reaches each Stmt
+#   Block, If/While/Func/Time...   inside them, here-doc bodies included
+#   Redirect with a Hdoc           H, start offset, quoted, strip, delimiter
+#   ExtGlob                        P and its pattern, parsed as a command too
+#   ExtGlob `!(` at offset o       X, 0, o: the extglob-off reading
+#   ExtGlob `f@()` at offset o     X, 1, o: the extglob-off reading
+#   Assign with an Array           Y, its end: a `#` there is in bash's next word,
+#                                  where shfmt reads a comment
+#   CmdSubst in backticks          B, start, end, whether a here-doc opens in it
+#
+# Bash ends a backtick substitution at its first unescaped backtick before it
+# reads anything inside, and shfmt reads quotes and here-docs first. So a span
+# holding an unescaped backtick, or a here-doc, is refused; and text with an
+# escaped backtick is unescaped and parsed again, as bash does when it runs it.
+#
+# A word is its provenance (HOOK_SEG_WORD_QUOTED), a piece count, then pieces:
+# L and text, A and an ANSI-C body, S and `start:end`, a span of the command
+# whose text is the word's (a substitution, a parameter). shfmt's Offset counts
+# bytes, so spans are sliced under LC_ALL=C.
+# shellcheck disable=SC2016  # jq program, not a shell expansion
+HOOK_BPS_JQ='
+def q: @sh | gsub("\n"; "'$'\\n''") | gsub("\r"; "'$'\\r''");
+def span: ["S", "\(.Pos.Offset):\(.End.Offset)"];
+def lit_text: gsub("\\\\\n"; "") | gsub("(?s)\\\\(?<c>.)"; "\(.c)");
+def dq_text: gsub("\\\\\n"; "") | gsub("\\\\(?<c>[\"\\\\$`])"; "\(.c)");
+def pieces:
+  [.Parts[]? |
+    if .Type == "Lit" then ["L", (.Value | lit_text)]
+    elif .Type == "SglQuoted" then (if .Dollar then ["A", (.Value // "")] else ["L", (.Value // "")] end)
+    elif .Type == "DblQuoted" then
+      (.Parts[]? | if .Type == "Lit" then ["L", (.Value | dq_text)] else span end)
+    else span end];
+# shfmt drops a backslash-newline from Value, so a span longer than its text held one.
+def has_esc: any(.Parts[]?; .Type == "Lit" and ((.Value | contains("\\")) or (.End.Offset - .Pos.Offset) != (.Value | utf8bytelength)));
+def has_plain: any(.Parts[]?; .Type != "SglQuoted" and .Type != "DblQuoted");
+def has_quoted: any(.Parts[]?; .Type == "SglQuoted" or .Type == "DblQuoted");
+def prov: if (has_quoted or has_esc) then (if (has_quoted and (has_plain | not)) then 2 else 1 end) else 0 end;
+def emit($q; $ps): [$q, ($ps | length)] + ($ps | add // []);
+def word: emit(prov; pieces);
+def textword($s): emit(0; [["L", $s]]);
+def spanword: emit(0; [span]);
+def assign:
+  if .Array != null then spanword
+  elif .Naked then
+    (if .Name then textword(.Name.Value) elif .Value then (.Value | word) else spanword end)
+  else
+    (.Value // {Parts: []}) as $v
+    | emit(($v | prov); [["S", "\(.Pos.Offset):\((.Value.Pos.Offset // .End.Offset))"]] + ($v | pieces))
+  end;
+def closer:
+  {Block: "}", Subshell: ")", IfClause: "fi", WhileClause: "done", ForClause: "done", CaseClause: "esac"}[.Type] // ")";
+def argv:
+  if . == null then []
+  elif .Type == "CallExpr" then
+    [((.Assigns // [])[] | {o: .Pos.Offset, w: assign}), ((.Args // [])[] | {o: .Pos.Offset, w: word})]
+    | sort_by(.o) | map(.w)
+  elif .Type == "DeclClause" then [textword(.Variant.Value)] + [(.Args // [])[] | assign]
+  elif .Type == "LetClause" then [textword("let")] + [(.Exprs // [])[] | spanword]
+  elif .Type == "TestClause" then [textword("[["), (.X | spanword), textword("]]")]
+  elif .Type == "ForClause" and .Loop.Type == "WordIter" then
+    [textword("for"), textword(.Loop.Name.Value), textword("in")] + [(.Loop.Items // [])[] | word]
+  elif .Type == "CaseClause" then [textword("case"), (.Word | word), textword("in")]
+  else [] end;
+def op: if . == "&>" then ">" elif . == "&>>" then ">>" else . end;
+def opaque: if (.Parts | length) == 1 and .Parts[0].Type == "ProcSubst" then 1 else 0 end;
+def redir: [(.Op | op), (.N.Value // ""), (.Word | prov), (.Word | opaque)] + (.Word | word);
+def stmt:
+  (.Cmd | argv) as $a
+  | (.Redirs // []) as $r
+  | (if ($a | length) > 0 then $a
+     elif (.Cmd != null and ($r | length) > 0) then [textword(.Cmd | closer)]
+     else [] end) as $w
+  | if ($w | length) == 0 then empty
+    else {o: .Pos.Offset, t: (["G", ($w | length), ($r | length)] + ($w | add) + ([$r[] | redir] | add // []))} end;
+def strip_q: [.Parts[]? |
+    if .Type == "Lit" then (.Value | lit_text)
+    else (.Value // ([.Parts[]?.Value] | join(""))) end] | join("");
+[.. | objects] as $all
+| ([$all[] | select(has("Cmd") or has("Redirs")) | select(has("Type") | not) | stmt] | sort_by(.o) | map(.t) | add // [])
+  + ([$all[] | select(.Op == "<<" or .Op == "<<-")
+     | {o: .OpPos.Offset,
+        t: ["H", (.Hdoc.Pos.Offset // -1),
+            (if (.Word | has_quoted or has_esc) then 1 else 0 end),
+            (if .Op == "<<-" then 1 else 0 end), (.Word | strip_q)]}]
+     | sort_by(.o) | map(.t) | add // [])
+  + ([$all[] | select(.Type == "ExtGlob") | ["P", .Pattern.Value]] | add // [])
+  + ([$all[] | select(.Type == "ExtGlob")
+      | if .Op == "!(" then ["X", 0, .OpPos.Offset]
+        elif (.Pattern.Value == "") then ["X", 1, .OpPos.Offset]
+        else empty end] | add // [])
+  + ([$all[] | select(.Array != null) | ["Y", .End.Offset]] | add // [])
+  + ([$all[] | select(.Type == "CmdSubst" and .Backquotes)
+      | ["B", .Pos.Offset, .End.Offset,
+         (if any(.. | objects; .Op == "<<" or .Op == "<<-") then 1 else 0 end)]] | add // [])
+| map(tostring | q) | join(" ")'
+
+# Seconds shfmt may take on one command before the guard refuses it. A parse
+# takes milliseconds; this bound only has to end a hung process well inside the
+# hook's own timeout (https://code.claude.com/docs/en/hooks#common-fields, as of
+# 2026-11-02; recheck when that section changes the default for command hooks).
+HOOK_BPS_TIMEOUT=5
+
+# hook::_bps_shfmt_to <var> <command>: <var> gets the jq list, or return 1 when
+# shfmt or jq is missing, fails or runs out of time. A background timer kills
+# shfmt, so the bound needs no `timeout` command, which stock macOS lacks, and no
+# `wait -n`, which Bash 3.2 lacks; a killed shfmt's status fails the pipeline.
+# Processes per parse: shfmt, jq, sleep, and the pipeline's subshells.
+# shellcheck disable=SC2030,SC2031  # pipefail and the job ids belong to this subshell
+hook::_bps_shfmt_to() {
+  local __hu_bs_out
+  hash shfmt jq 2>/dev/null || return 1
+  __hu_bs_out=$(
+    set -o pipefail
+    printf '%s' "$2" | {
+      shfmt -ln bash --to-json <&0 2>/dev/null &
+      __hu_bs_p=$!
+      {
+        sleep "${HOOK_BPS_TIMEOUT:-5}" &
+        __hu_bs_s=$!
+        trap 'kill "$__hu_bs_s" 2>/dev/null; exit 0' TERM
+        wait "$__hu_bs_s"
+        kill "$__hu_bs_p" 2>/dev/null
+      } >/dev/null 2>&1 &
+      __hu_bs_w=$!
+      wait "$__hu_bs_p"
+      __hu_bs_rc=$?
+      kill "$__hu_bs_w" 2>/dev/null
+      exit "$__hu_bs_rc"
+    } | jq -j "$HOOK_BPS_JQ" 2>/dev/null
+  ) || return 1
+  printf -v "$1" '%s' "${__hu_bs_out%$'\r'}"
+}
+
+# The refusal for a command no parse came back for: bash has not run it, and
+# with no tree the guard cannot say what it would run. Shared across a dispatcher's
+# guards when guard::say_once is there. Its reason is what the model can act on.
+hook::_bps_refuse() {
+  local __hu_br_m="BLOCKED: this command could not be parsed by shfmt (missing, failed, timed out after ${HOOK_BPS_TIMEOUT:-5} s, or a syntax error), so the guard cannot check it. Fix the syntax or install shfmt, then reissue the call."
+  if declare -F guard::say_once >/dev/null; then
+    guard::say_once shfmt-unparsable "$__hu_br_m"
+  else
+    printf '%s\n' "$__hu_br_m" >&2
+  fi
+  exit 2
+}
+
+# hook::_bps_tree_word <dest>: decode one word from __hu_bt[__hu_bi] on, under
+# LC_ALL=C. <dest> gets the text; __hu_bq its provenance. Dynamic scope, like
+# hook::_bps_close_word.
+# shellcheck disable=SC2154  # __hu_bt, __hu_bi and __hu_bcmd are hook::_bps_tree_decode's
+hook::_bps_tree_word() {
+  local __hu_bn __hu_bv __hu_btag __hu_ba
+  __hu_bq=${__hu_bt[__hu_bi++]}
+  __hu_bn=${__hu_bt[__hu_bi++]}
+  __hu_bw=""
+  while ((__hu_bn-- > 0)); do
+    __hu_btag=${__hu_bt[__hu_bi++]}
+    __hu_bv=${__hu_bt[__hu_bi++]}
+    case "$__hu_btag" in
+    L) __hu_bw+=$__hu_bv ;;
+    A)
+      hook::ansi_c_decode_to __hu_ba "$__hu_bv"
+      __hu_bw+=$__hu_ba
+      ;;
+    *) __hu_bw+=${__hu_bcmd:${__hu_bv%:*}:$((${__hu_bv#*:} - ${__hu_bv%:*}))} ;;
+    esac
+  done
+}
+
+# hook::_bps_tree_decode: turn the flat list into per-segment arrays, under
+# LC_ALL=C so spans slice by byte, and leave the callbacks to the caller, which
+# runs them in its own locale. Dynamic scope.
+# shellcheck disable=SC2154,SC2034  # the __hu_b* names are hook::bash_parse_segments_shfmt's
+hook::_bps_tree_decode() {
+  local __hu_bi=0 __hu_bq __hu_bw __hu_bk __hu_bn=${#__hu_bt[@]} __hu_br __hu_bj __hu_bs __hu_bl __hu_bd __hu_be __hu_bc __hu_bp __hu_bstrip __hu_bquoted
+  local __hu_bcn=${#__hu_bcmd}
+  __hu_bp=0
+  while ((__hu_bi < __hu_bn)); do
+    case "${__hu_bt[__hu_bi++]}" in
+    G)
+      __hu_bk=${__hu_bt[__hu_bi++]}
+      __hu_br=${__hu_bt[__hu_bi++]}
+      __hu_ac+=("$__hu_bk")
+      __hu_rc+=("$__hu_br")
+      for ((__hu_bj = 0; __hu_bj < __hu_bk; __hu_bj++)); do
+        hook::_bps_tree_word
+        __hu_wd+=("$__hu_bw")
+        __hu_wq+=("$__hu_bq")
+      done
+      for ((__hu_bj = 0; __hu_bj < __hu_br; __hu_bj++)); do
+        __hu_rop+=("${__hu_bt[__hu_bi++]}")
+        __hu_rfd+=("${__hu_bt[__hu_bi++]}")
+        __hu_bs=${__hu_bt[__hu_bi++]}
+        __hu_ro+=("${__hu_bt[__hu_bi++]}")
+        hook::_bps_tree_word
+        __hu_rtg+=("$__hu_bw")
+        ((__hu_bs)) && __hu_bs=1
+        __hu_rq+=("$__hu_bs")
+      done
+      ;;
+    H)
+      # A delimiter's own line ends the body. Scanned here rather than taken
+      # from the tree because the tree stops at the delimiter's first bytes.
+      __hu_bs=${__hu_bt[__hu_bi++]}
+      __hu_bquoted=${__hu_bt[__hu_bi++]}
+      __hu_bstrip=${__hu_bt[__hu_bi++]}
+      __hu_bd=${__hu_bt[__hu_bi++]}
+      if ((__hu_bs < 0)); then
+        # An empty body has no node: it starts on the line after the opener.
+        __hu_bs=$__hu_bp
+        ((__hu_bs == 0)) && {
+          __hu_be=${__hu_bcmd%%$'\n'*}
+          __hu_bs=$((${#__hu_be} + 1))
+        }
+      fi
+      __hu_be=$__hu_bs
+      __hu_bc=0
+      while ((__hu_be < __hu_bcn)); do
+        __hu_bl=${__hu_bcmd:__hu_be}
+        __hu_bl=${__hu_bl%%$'\n'*}
+        __hu_be=$((__hu_be + ${#__hu_bl} + 1))
+        if ((__hu_bstrip)); then
+          while [[ "$__hu_bl" == $'\t'* ]]; do __hu_bl=${__hu_bl#?}; done
+        fi
+        if [[ "$__hu_bl" == "$__hu_bd" ]]; then
+          __hu_bc=1
+          break
+        fi
+      done
+      ((__hu_be > __hu_bcn)) && __hu_be=$__hu_bcn
+      __hu_bp=$__hu_be
+      __hu_hb+=("$__hu_bs $__hu_be $__hu_bquoted $__hu_bc $__hu_bd")
+      # Bash joins a backslash-newline before it reads an unquoted body, so
+      # `$\<newline>(cmd)` is a substitution that shfmt's body text does not hold.
+      if ((!__hu_bquoted)); then
+        __hu_bl=${__hu_bcmd:__hu_bs:__hu_be-__hu_bs}
+        if [[ "$__hu_bl" == *$'\\\n'* ]]; then
+          ((__hu_bstrip)) && __hu_bq='<<-' || __hu_bq='<<'
+          __hu_pt+=(": $__hu_bq$__hu_bd"$'\n'"${__hu_bl//$'\\\n'/}")
+        fi
+      fi
+      ;;
+    B)
+      __hu_bs=${__hu_bt[__hu_bi++]}
+      __hu_be=${__hu_bt[__hu_bi++]}
+      __hu_bc=${__hu_bt[__hu_bi++]}
+      ((__hu_bc)) && return 1
+      __hu_bl=${__hu_bcmd:__hu_bs+1:__hu_be-__hu_bs-2}
+      __hu_bd=${__hu_bl//\\\\/}
+      __hu_bd=${__hu_bd//\\\`/}
+      [[ "$__hu_bd" == *\`* ]] && return 1
+      if [[ "$__hu_bl" == *\\\`* ]]; then
+        __hu_bl=${__hu_bl//\\\\/$'\x01'}
+        __hu_bl=${__hu_bl//\\\`/\`}
+        __hu_bl=${__hu_bl//\\\$/\$}
+        __hu_bt_more+=("${__hu_bl//$'\x01'/\\}")
+      fi
+      ;;
+    P) __hu_pt+=("${__hu_bt[__hu_bi++]}") ;;
+    X)
+      # The extglob-off reading: `!(` is a negated subshell, `f@()` a function.
+      __hu_bk=${__hu_bt[__hu_bi++]}
+      __hu_bs=${__hu_bt[__hu_bi++]}
+      if ((__hu_bk == 0)); then
+        __hu_off=${__hu_off:-$__hu_bcmd}
+        __hu_off=${__hu_off:0:__hu_bs+__hu_bshift}'! ('${__hu_off:__hu_bs+__hu_bshift+2}
+        ((__hu_bshift += 1))
+      else
+        __hu_off=${__hu_off:-$__hu_bcmd}
+        __hu_off=${__hu_off:0:__hu_bs+__hu_bshift}_${__hu_off:__hu_bs+__hu_bshift+1}
+      fi
+      ;;
+    Y)
+      # Bash keeps a `#` right after an array's `)` in the next word.
+      __hu_bs=${__hu_bt[__hu_bi++]}
+      if [[ "${__hu_bcmd:__hu_bs:1}" == '#' ]]; then
+        __hu_sp=${__hu_sp:-$__hu_bcmd}
+        __hu_sp=${__hu_sp:0:__hu_bs+__hu_bsshift}';_'${__hu_sp:__hu_bs+__hu_bsshift+1}
+        ((__hu_bsshift += 1))
+      fi
+      ;;
+    *) return 1 ;;
+    esac
+  done
+}
+
+# hook::bash_parse_segments_shfmt <command> <callback> [soft]: every simple
+# command in the tree reaches <callback>, the extglob-off reading and each
+# extglob pattern's commands too. With no parse it refuses the call (exit 2),
+# or with [soft] returns 1: a second reading that is a syntax error is one bash
+# rejects as well, and the first reading already stands.
+hook::bash_parse_segments_shfmt() {
+  local __hu_bcmd=$1 __hu_bcb=$2 __hu_bsoft=${3:-0} __hu_bout=""
+  local __hu_off="" __hu_sp="" __hu_bshift=0 __hu_bsshift=0
+  local -a __hu_bt=() __hu_ac=() __hu_rc=() __hu_wd=() __hu_wq=() __hu_rop=() __hu_rfd=() __hu_rtg=() __hu_rq=() __hu_ro=() __hu_hb=() __hu_pt=() __hu_bt_more=()
+  if ! hook::_bps_shfmt_to __hu_bout "$__hu_bcmd"; then
+    ((__hu_bsoft)) && return 1
+    hook::_bps_refuse
+  fi
+  eval "__hu_bt=($__hu_bout)"
+  hook::_c_locale hook::_bps_tree_decode || {
+    ((__hu_bsoft)) && return 1
+    hook::_bps_refuse
+  }
+  local __hu_s __hu_w=0 __hu_r=0 __hu_a __hu_c __hu_x
+  local -a __hu_argv=()
+  for ((__hu_s = 0; __hu_s < ${#__hu_ac[@]}; __hu_s++)); do
+    __hu_a=${__hu_ac[__hu_s]}
+    __hu_c=${__hu_rc[__hu_s]}
+    __hu_argv=("${__hu_wd[@]:__hu_w:__hu_a}")
+    HOOK_SEG_WORD_QUOTED=("${__hu_wq[@]:__hu_w:__hu_a}")
+    HOOK_SEG_REDIR_OP=(${__hu_rop[@]+"${__hu_rop[@]:__hu_r:__hu_c}"})
+    HOOK_SEG_REDIR_FD=(${__hu_rfd[@]+"${__hu_rfd[@]:__hu_r:__hu_c}"})
+    HOOK_SEG_REDIR_TARGET=(${__hu_rtg[@]+"${__hu_rtg[@]:__hu_r:__hu_c}"})
+    HOOK_SEG_REDIR_QUOTED=(${__hu_rq[@]+"${__hu_rq[@]:__hu_r:__hu_c}"})
+    HOOK_SEG_REDIR_OPAQUE=(${__hu_ro[@]+"${__hu_ro[@]:__hu_r:__hu_c}"})
+    __hu_w=$((__hu_w + __hu_a))
+    __hu_r=$((__hu_r + __hu_c))
+    "$__hu_bcb" "${__hu_argv[@]}"
+  done
+  HOOK_SEG_WORD_QUOTED=()
+  HOOK_SEG_REDIR_OP=()
+  HOOK_SEG_REDIR_FD=()
+  HOOK_SEG_REDIR_TARGET=()
+  HOOK_SEG_REDIR_QUOTED=()
+  HOOK_SEG_REDIR_OPAQUE=()
+  # The array `#` reading replaces a tree that took the rest of its line for a
+  # comment, so it is a reading of the whole command like the extglob-off one.
+  for __hu_x in ${__hu_pt[@]+"${__hu_pt[@]}"} ${__hu_off:+"$__hu_off"} ${__hu_sp:+"$__hu_sp"}; do
+    [[ -n "$__hu_x" ]] && hook::bash_parse_segments_shfmt "$__hu_x" "$__hu_bcb" 1
+  done
+  # A backtick's own text is a command as written, so it refuses as the command does.
+  for __hu_x in ${__hu_bt_more[@]+"${__hu_bt_more[@]}"}; do
+    hook::bash_parse_segments_shfmt "$__hu_x" "$__hu_bcb" "$__hu_bsoft" || return 1
+  done
+  # Set last: a callback's own parse would overwrite it.
+  # shellcheck disable=SC2034  # result global is consumed by the sourcing guard
+  HOOK_HEREDOC_BODIES=(${__hu_hb[@]+"${__hu_hb[@]}"})
+  return 0
 }
 
 # ============================================================================

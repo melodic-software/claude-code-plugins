@@ -93,6 +93,25 @@
       "install": {
         "docs": "https://docs.npmjs.com/downloading-and-installing-node-js-and-npm"
       }
+    },
+    {
+      "id": "shfmt",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "hook:pr-body-linkage-gate.sh",
+        "hook:worktree-add-claim-gate.sh",
+        "hook:worktree-add-containment-gate.sh"
+      ],
+      "detect": {
+        "any": [
+          "shfmt"
+        ]
+      },
+      "degrade": "With HOOK_BASH_READER=shfmt set and shfmt missing, these gates deny the commands they read. Without that setting shfmt is unused.",
+      "install": {
+        "docs": "https://github.com/mvdan/sh#shfmt"
+      }
     }
   ]
 }

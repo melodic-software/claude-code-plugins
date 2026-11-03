@@ -63,6 +63,27 @@
         "apt": "nodejs"
       },
       "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "shfmt",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "hook:destructive-guard.sh"
+      ],
+      "detect": {
+        "any": [
+          "shfmt"
+        ]
+      },
+      "degrade": "With HOOK_BASH_READER=shfmt set and shfmt missing, the destructive-command guard denies the commands it reads. Without that setting shfmt is unused.",
+      "install": {
+        "docs": "https://github.com/mvdan/sh#shfmt",
+        "brew": "shfmt",
+        "winget": "mvdan.shfmt",
+        "apt": "shfmt"
+      },
+      "check": "/harness-ops:prerequisites"
     }
   ]
 }

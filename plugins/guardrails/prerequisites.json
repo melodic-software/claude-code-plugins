@@ -37,6 +37,23 @@
       "install": {
         "docs": "https://jqlang.org/download/"
       }
+    },
+    {
+      "id": "shfmt",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "hook:run-guards.sh"
+      ],
+      "detect": {
+        "any": [
+          "shfmt"
+        ]
+      },
+      "degrade": "With HOOK_BASH_READER=shfmt set and shfmt missing, guardrails denies Bash and PowerShell calls. Without that setting shfmt is unused.",
+      "install": {
+        "docs": "https://github.com/mvdan/sh#shfmt"
+      }
     }
   ]
 }
