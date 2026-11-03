@@ -42,10 +42,12 @@ Report the surface as INFO. It is context for everything below, not a pass/fail.
 ### 2. Tool availability
 
 Confirm the computer-use tools are actually reachable in this session. Call
-`list_granted_applications`, which is read-only and has no side effects. It returns the
-allowlist and the active grant flags.
+`list_granted_applications`: it is this check's probe. For what it returns, read its
+description in the `computer-use` server's tool listing (`/mcp`); no docs page names the
+computer-use tools (as of 2026-11-03; recheck when a docs page documents them, or the server
+renames or drops `list_granted_applications`).
 
-- Tools reachable → PASS, and report the current allowlist and grant flags as INFO.
+- Tools reachable → PASS, and report what the probe returned as INFO.
 - Tools absent → FAIL. Remediation: enable the `computer-use` MCP server for this project, and
   confirm the session meets each eligibility condition the pointer lists, naming each unmet one
   in the report.
@@ -57,14 +59,22 @@ allowlist and the active grant flags.
   - **As of**: 2026-10-11
   - **Recheck trigger**: either section changes which plans, providers or session modes it names.
 
-Do **not** call `request_access` during a check. That raises a consent dialog, which is not
-read-only behavior.
+Do **not** call `request_access` during a check: a check stays read-only, and an access request
+is not.
+
+- **Pointer**: for what an app-access request does, see
+  [Computer use: Approve apps per session](https://code.claude.com/docs/en/computer-use#approve-apps-per-session).
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section changes how an app is approved for a session.
 
 ### 3. Session-killing timeouts (the one that actually bites)
 
-This is why the skill exists. Claude's synthesized input does not reset the OS idle timer, so a
-session dies on schedule regardless of how busy Claude is. Probe and report the **measured
-numbers**:
+This is why the skill exists. In our measurement, Claude's synthesized input did not hold off
+the OS idle timeout, so a session dies on schedule regardless of how busy Claude is (the
+measurement:
+[failure-diagnostics.md](../diagnose/reference/failure-diagnostics.md#the-idle-timer-does-not-see-claude),
+measured 2026-08-10 on Windows 11; recheck when a release changes how synthesized input
+interacts with the OS idle timer). Probe and report the **measured numbers**:
 
 - screensaver enabled, its timeout, and whether it locks on resume;
 - display-off timeout;
@@ -103,8 +113,13 @@ class of confusion, and knowing it up front is cheaper than diagnosing it later.
 
 If any known focus-stealing utility is running (peripheral suites, overlays, launchers), report
 it as INFO with the retry pattern from the diagnostics reference. This is a nuisance, not a
-blocker. When one of these windows is in front, the allowlist gate refuses the action with the
-"not in the allowed applications" error instead of sending it to the wrong app.
+blocker: in our measurement the gate refused the action rather than sending it to the wrong app
+([failure-diagnostics.md](../diagnose/reference/failure-diagnostics.md#x-is-not-in-the-allowed-applications-and-is-currently-in-front)).
+
+- **Pointer**: for the per-app approval gate such a window runs into, see
+  [Computer use: Approve apps per session](https://code.claude.com/docs/en/computer-use#approve-apps-per-session).
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section changes which apps Claude may act on in a session.
 
 ## Reporting
 
@@ -114,9 +129,8 @@ action rather than listing everything at once.
 
 ## Gotchas
 
-- **`request_access` is not a probe.** It raises a consent dialog, so calling it during a
-  read-only check violates the contract. `list_granted_applications` is the read-only way to see
-  the allowlist and grant flags.
+- **`request_access` is not a probe.** Calling it during a read-only check violates the
+  contract (step 2 carries the pointer). `list_granted_applications` is the check's probe.
 - **A "never" display-sleep timeout does not mean the machine stays awake.** Screensaver,
   display sleep, and lock are three independent settings; the screensaver has its own timeout
   and is the more common cause of a dead session. Probe all three or the check is misleading.

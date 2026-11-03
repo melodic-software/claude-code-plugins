@@ -39,7 +39,7 @@ This tool is a neutral distiller: it applies a method, it does not judge what yo
 - "New skill or extend existing?" → If the book's discipline matches an existing skill (e.g., a testing book matches a testing skill), extend it. Otherwise create a new skill
 - "One file per chapter or per concept?" → Per concept. Chapters often split across concepts or overlap
 - "How many sessions will this take?" → Roughly: total chapters / 3, plus 1-2 sessions for merges, SKILL.md update, and polish
-- "PDF or EPUB?" → PDF works natively with the Read tool (`pages: "1-20"`). EPUB requires unzipping and text extraction. PDF is simpler
+- "PDF or EPUB?" → PDF is read with the Read tool (`pages: "1-20"`, within the limit the pointer under "Reading a chapter (PDF)" names). EPUB requires unzipping and text extraction. PDF is simpler
 - "How do I resume across sessions?" → The continuation prompt (generated at session end) tells the next session exactly where to pick up
 - "Book or web corpus?" → A PDF or EPUB file you hold runs the phases below as written. A person's or company's published essays, blog, talk transcripts, newsletter or docs run as a web corpus: Phase 1.2 settles its scope, and its collect, extract and cluster steps replace Phase 2 and Phase 3 ([reference/web-corpus.md](reference/web-corpus.md))
 
@@ -185,7 +185,7 @@ After all author-specific files are written, identify concepts covered by multip
 2. Merge into the shared file:
    - If `{concept}.md` does not exist: rename `{concept}-{author}.md` to `{concept}.md` with `mv` when the source is untracked, or `git mv` when already staged/tracked
    - If `{concept}.md` already exists: Read both files, append the new author's content below the existing shared file, then remove `{concept}-{author}.md` with `rm` (untracked) or `git rm` (tracked). Do not use `git mv -f`. That would replace rather than merge
-3. **Re-Read the file at its new path**. `git mv` invalidates Claude Code's read tracker, so Edit/Write will fail without a fresh Read
+3. **Re-Read the file at its new path** before any Edit or Write to it (**Pointer**: for when Edit and Write need a prior Read, see <https://code.claude.com/docs/en/tools-reference#write-tool-behavior>. **As of**: 2026-11-03. **Recheck trigger**: that section changes when an existing file needs a Read before it is written)
 4. Add the new author's section, when you appended into an existing shared file, ensure the new section is clearly headed; when you renamed, append below existing content, don't rewrite what's already there
 5. Synthesize. Add a brief note connecting the authors' perspectives where they complement or contrast
 
@@ -251,7 +251,7 @@ These are hard-won lessons from real distillation sessions:
 
 3. **The continuation prompt is your session handoff.** Without it, the next session wastes time figuring out what's done and what's next. Generate it before every session end. Include exact PDF page ranges. Don't make the next session guess
 
-4. **`git mv` breaks the read tracker; plain `mv` does not.** After renaming a tracked file with `git mv`, Claude Code still tracks it under the old path. Read the file at its new path before Edit or Write will work. For untracked Phase 2 files, use plain `mv`/`rm` instead of `git mv`/`git rm`
+4. **Read a renamed file at its new path before editing it** (Phase 3 step 3 carries the pointer). For untracked Phase 2 files, use plain `mv`/`rm` instead of `git mv`/`git rm`
 
 5. **Progress file is the SSOT.** Update it after every file write, not in batches at session end. If the session crashes, the progress file tells the next session exactly where things stand
 

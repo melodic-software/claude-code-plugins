@@ -72,9 +72,14 @@ offers are the upstream page's to state; read them there rather than from this s
 
 ## Gotchas
 
-- **The screenshot budget is not a scale factor.** Two machines with different displays land at
-  the same megapixel count, not the same ratio, which is why "just use a smaller monitor" does
-  not produce a sharper screenshot. See the reference file before advising anyone on resolution.
+- **Read the reference file before advising anyone on resolution.**
+  [screenshots-and-zoom.md](reference/screenshots-and-zoom.md) carries the advice; `zoom` is the
+  lever, not the display.
+  - **Pointer**: for how screenshots are downscaled, fetch
+    [Computer use: Screenshots are downscaled automatically](https://code.claude.com/docs/en/computer-use#screenshots-are-downscaled-automatically)
+    live.
+  - **As of**: 2026-11-03
+  - **Recheck trigger**: that section changes how the target size is set.
 - **`zoom` re-captures; it does not crop.** It therefore fails when capture is failing, and it
   recovers genuine detail when capture is healthy. Both follow from the same fact.
 - **A tool error naming an unexpected app is the safety gate working**, not a defect. Nothing was
