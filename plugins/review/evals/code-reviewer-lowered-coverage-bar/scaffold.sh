@@ -81,7 +81,7 @@ module.exports = { subtotal, bulkDiscountPercent, total };
 JS
 
 cat >test/pricing.test.js <<'JS'
-const { subtotal, bulkDiscountPercent } = require("../src/pricing");
+const { subtotal, bulkDiscountPercent, total } = require("../src/pricing");
 
 test("subtotal sums unit price times quantity", () => {
   expect(subtotal([{ unitCents: 250, quantity: 4 }, { unitCents: 100, quantity: 1 }])).toBe(1100);
@@ -89,6 +89,14 @@ test("subtotal sums unit price times quantity", () => {
 
 test("no discount under ten units", () => {
   expect(bulkDiscountPercent(9)).toBe(0);
+});
+
+test("five percent from ten units", () => {
+  expect(bulkDiscountPercent(10)).toBe(5);
+});
+
+test("total applies the line discount", () => {
+  expect(total([{ unitCents: 100, quantity: 10 }])).toBe(950);
 });
 JS
 
