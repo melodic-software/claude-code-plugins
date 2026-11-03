@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "ssh ssh-admin@desk-win pwsh -c 'Get-Service sshd'",
+      "why": "names it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "ssh desk-wsl 'Get-Service sshd'",
+      "why": "missing"
+    }
+  ]
+}

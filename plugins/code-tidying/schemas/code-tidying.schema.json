@@ -49,6 +49,11 @@
       "minimum": 1,
       "default": 3,
       "description": "At most this many chore/tidy-* pull requests open at once: /code-tidying:tidy stops at it, and an upkeep batch opens only the difference."
+    },
+    "upkeep_spec_issue": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The issue holding the upkeep sweep's contract. Each upkeep batch pull request's body opens with `Refs: #<this>`, the spec a verifier judges it against. No default: a batch with none set opens no pull request."
     }
   }
 }

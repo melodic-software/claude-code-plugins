@@ -36,9 +36,15 @@ same-lane with the target's sessions, so its peer tools list and message them no
 cd /mnt/c/Users/<user>/<scratch> && /mnt/c/Users/<user>/.local/bin/claude.exe -p "<prompt>" < /dev/null
 ```
 
-The `cd` matters: `claude.exe` needs a Windows-side working directory. Inside an sshd session
-interop still answers by absolute path even though `$WSL_INTEROP` is unset there; do not probe with
-`cmd.exe /c`, which prints nothing in that session.
+`cd` to a Windows-side directory first. Probe interop by running the `.exe` by absolute path, never
+with `cmd.exe /c`.
+
+- **Pointer**: for how a Windows tool started from WSL picks its working directory, fetch
+  [Run Windows tools from Linux](https://learn.microsoft.com/en-us/windows/wsl/filesystems#run-windows-tools-from-linux)
+  live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section changes its working-directory exceptions or how a `.exe` is
+  run from WSL.
 
 **Windows to this machine's WSL (R4).** Take the distro name from `wsl.exe -l -q`, and run the
 account's login shell so `claude` is on `PATH`:
@@ -112,9 +118,14 @@ with user messages as NDJSON lines on stdin:
 <producer of NDJSON user messages> | <ssh> <wsl-alias> 'claude -p --input-format stream-json --output-format stream-json --verbose'
 ```
 
-Two turns sent this way came back under one session id with the first turn's context. The CLI
-docs do not specify the stdin message schema; the Agent SDK's `SDKUserMessage` type is the de facto
-one. Losing the connection ends the process, so resume by its session id afterwards.
+Two turns sent this way came back under one session id with the first turn's context. We write each
+stdin line in the shape of the Agent SDK's `SDKUserMessage`. Losing the connection ends the process,
+so resume by its session id afterwards.
+
+- **Pointer**: [Agent SDK TypeScript reference: `SDKUserMessage`](https://code.claude.com/docs/en/agent-sdk/typescript#sdkusermessage).
+- **As of**: 2026-11-03
+- **Recheck trigger**: that type changes its required fields, or the CLI reference documents a
+  stdin message schema of its own.
 
 ## Background sessions
 

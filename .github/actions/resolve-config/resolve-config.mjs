@@ -278,6 +278,7 @@ function outputsFor({ lane, selected }) {
     ...(selected["applied-by"]?.patch === undefined ? {} : { "applied-by-patch": selected["applied-by"].patch }),
     ...(selected.prepare === undefined ? {} : { prepare: selected.prepare }),
     ...(selected.kind === "skill" ? { "permission-mode": selected["permission-mode"] ?? "dontAsk" } : {}),
+    ...(selected.kind === "script" ? { checkout: selected.checkout ?? "head" } : {}),
     ...(selected["issue-dimensions"] === undefined
       ? {}
       : { "issue-dimensions": selected["issue-dimensions"], "timeout-minutes": String(selected["timeout-minutes"]) }),

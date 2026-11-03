@@ -25,9 +25,12 @@ included") and offer to additionally check any repos the user names.
 
 ## Step 1: Resolve EVERY candidate directory
 
-We treat `autoMemoryDirectory` as able to relocate the store from **any** settings scope (user,
-project, local, policy, `--settings`); [official-guidance.md](../reference/official-guidance.md),
-"Storage location", holds the pointer. Miss that and you purge the wrong place. So:
+We resolve `autoMemoryDirectory` from **every** settings scope present before purging; miss one and
+you purge the wrong place. Which scopes it is read from is in
+[`autoMemoryDirectory`](https://code.claude.com/docs/en/settings-reference#automemorydirectory)
+(as of 2026-11-03; recheck when that entry changes the scopes it is read from), and
+[official-guidance.md](../reference/official-guidance.md), "Storage location", holds the rest of
+the record. So:
 
 1. Read `autoMemoryDirectory` from every present settings scope: managed, local, project, and
    user. The snapshot in SKILL.md lists which files exist; Read each. Expand `~/` to `$HOME`.

@@ -34,27 +34,27 @@ MEMORY_DIR=.work
 ARGS=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  --json)
-    JSON=1
-    shift
-    ;;
-  --findings)
-    FINDINGS=1
-    shift
-    ;;
-  --memory-dir)
-    [[ $# -ge 2 && -n "$2" ]] || die_usage "--memory-dir needs a value"
-    MEMORY_DIR="$2"
-    shift 2
-    ;;
-  --help | -h)
-    cm_usage_banner "${BASH_SOURCE[0]}" 16
-    exit 0
-    ;;
-  *)
-    ARGS+=("$1")
-    shift
-    ;;
+    --json)
+      JSON=1
+      shift
+      ;;
+    --findings)
+      FINDINGS=1
+      shift
+      ;;
+    --memory-dir)
+      [[ $# -ge 2 && -n "$2" ]] || die_usage "--memory-dir needs a value"
+      MEMORY_DIR="$2"
+      shift 2
+      ;;
+    --help | -h)
+      cm_usage_banner "${BASH_SOURCE[0]}" 16
+      exit 0
+      ;;
+    *)
+      ARGS+=("$1")
+      shift
+      ;;
   esac
 done
 
@@ -90,16 +90,16 @@ BASE_SET=0
 set -- "${CM_PASS_ARGS[@]}"
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  --all) MODE=all ;;
-  --base)
-    [[ $# -ge 2 ]] || die_usage "--base needs a value"
-    BASE="$2"
-    BASE_SET=1
-    shift
-    ;;
-  --) MODE=paths ;;
-  -*) die_usage "unknown option: $1" ;;
-  *) [[ "$MODE" == all ]] || MODE=paths ;;
+    --all) MODE=all ;;
+    --base)
+      [[ $# -ge 2 ]] || die_usage "--base needs a value"
+      BASE="$2"
+      BASE_SET=1
+      shift
+      ;;
+    --) MODE=paths ;;
+    -*) die_usage "unknown option: $1" ;;
+    *) [[ "$MODE" == all ]] || MODE=paths ;;
   esac
   shift
 done
@@ -258,6 +258,7 @@ NO_REASON = "code-metrics/audit-suppressions/rule-no-reason"
 NO_RULE_ID = "code-metrics/audit-suppressions/rule-no-rule-id"
 TIER = "IMPORTANT"  # both rules, per their crosswalk rows
 DEFAULT_SLOT = "in a comment after the directive on the same line"
+UNNAMED = {"istanbul", "c8", "coverage.py", "gitleaks"}  # directives whose syntax names no rule
 SLOTS = {
     "eslint": "after ` -- ` at the end of the directive",
     "rubocop": "after ` -- ` at the end of the directive",
@@ -278,6 +279,8 @@ def subject(r):
         return "%s suppression of %s" % (r["tool"], ", ".join(r["rules"]))
     if r["tool"] == "typescript":
         return "typescript directive (it cannot name an error code)"
+    if r["tool"] in UNNAMED:
+        return "%s directive (it cannot name a rule)" % r["tool"]
     return "%s suppression naming no rule id" % r["tool"]
 
 
@@ -298,6 +301,9 @@ def is_pragma(rel, line):
 def action_no_reason(r, rel):
     if r["tool"] == "typescript":
         return ("Decide whether the silenced error is a false positive. If it is, write the reason as "
+                "text after the directive on the same line; if it is not, fix the code and delete the directive.")
+    if r["tool"] in UNNAMED:
+        return ("Decide whether switching this check off is justified. If it is, write the reason as "
                 "text after the directive on the same line; if it is not, fix the code and delete the directive.")
     name = "" if r["rules"] else "name the rule id it silences in the directive and "
     tool = "csharp-pragma" if r["tool"] == "csharp" and is_pragma(rel, r["line"]) else r["tool"]

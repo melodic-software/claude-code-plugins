@@ -200,8 +200,11 @@ such findings under a `REPO` check-ID so they stay distinct from the doc-derived
 
 ## Complementary workflows
 
-If the `claude-md-management` plugin from Anthropic's `claude-plugins-official` marketplace is
-installed, its `claude-md-improver` skill audits CLAUDE.md structure and content quality,
-complementary to this health check. Run this audit first to identify issues. Its
-`revise-claude-md` command captures session learnings after a fix pass. Absent that plugin, the
-fix mode here stands on its own.
+The `claude-md-management` plugin from Anthropic's `claude-plugins-official` marketplace
+complements this health check when it is installed. Run this audit first to identify issues.
+Absent that plugin, the fix mode here stands on its own.
+
+- **Pointer**: for what the plugin's skill and command do, read its
+  [README: Usage](https://github.com/anthropics/claude-plugins-official/tree/main/plugins/claude-md-management#usage).
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section renames, adds or drops the plugin's skill or command.
