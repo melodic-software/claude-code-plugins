@@ -6,8 +6,9 @@ edit the canonical source, then rerun the script. -->
 How a view lane offers an interactive view of the record its skill wrote. The lanes that carry this file:
 planning (`/planning:plan`, `/planning:brainstorm`), architecture (the `map-*` skills), discovery
 (`/discovery:blindspot`) and debugging (`/debugging:debug`). Each lane's section below names its record,
-build command and data shape. `<plugin-root>` is the plugin's root directory: the start of the path the
-calling skill gave for this file, before `reference/` or `skills/`.
+build command and data shape. `<plugin-root>` is the plugin's root directory, the one that holds
+`.claude-plugin/`: the path the calling skill gave for this file, cut before its first `skills/` or
+`reference/` segment.
 
 The record stays authoritative. A view never sits beside the record, and nothing reads a view back as a
 finding. The record is dual-audience or read once and acted on, so the view is offered after the record,
@@ -23,8 +24,10 @@ script written in the session.
 1. **Write the record first.** The view is built from the record's content, not the other way around.
 2. **Offer the view in one sentence.** Build only when the reader accepts and the environment can serve a
    file. A CI or other non-interactive run emits no view: the record stands.
-3. **Resolve `medium`.** The path depends on whether the shared medium resolver registers the lane. It
-   registers `planning` today; architecture, discovery and debugging read the cascade themselves.
+3. **Resolve `medium`.** The path depends on whether the lane's skill has migrated to the shared medium
+   resolver, not on whether the resolver registers the lane. Only `planning` has migrated today;
+   architecture, discovery and debugging are registered but read the cascade themselves until their own
+   change migrates them.
    - **Resolver lanes** (`planning`). Run the resolver. `--option` takes this plugin's `medium` option as the
      calling skill states it; add `--argument` only when the reader named a medium in the request:
 
