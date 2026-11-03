@@ -625,13 +625,12 @@ flag fragmented across per-skill actions. Where distinct skills carry distinct r
 setup skill aggregates and reports it per skill.
 
 `disable-model-invocation` is a whole-skill flag, so `setup` cannot hide `apply` from Claude and
-leave `check` reachable. A plugin whose hook or probe names a read-only check therefore also ships
-a separate `<plugin>:check` skill with `disable-model-invocation: false`. It reads `setup` and
-follows only its `check` section, so `setup` stays the one account of what is checked, and it
-installs and writes nothing. `setup` keeps `true`, and `apply` stays manual. A hook or probe names
-`/<plugin>:check`, never `/<plugin>:setup check`, which the flag hides from Claude.
-`plugins/context7/skills/check/SKILL.md` is the shape to copy. Decision record: we set the flag
-per skill and split `check` into its own skill, because we found no per-action invocation flag.
+leave `check` reachable. A hook or probe that points at a read-only check therefore names the plugin's
+bundled checker, `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`, which Claude can run and which
+installs and writes nothing, or a read-only script in the plugin's `scripts/` for a probe the checker
+cannot express, never `/<plugin>:setup check`, which the flag hides from Claude. `setup` keeps
+`true`, and `apply` stays manual. Decision record: we set the flag per skill, because we found no
+per-action invocation flag.
 Pointer: for `disable-model-invocation`, see
 <https://code.claude.com/docs/en/skills#frontmatter-reference> and
 <https://code.claude.com/docs/en/skills#control-who-invokes-a-skill>. As of: 2026-09-29. Recheck

@@ -48,7 +48,10 @@ Keep the `--model-dir` argument exactly as shown, in single quotes: it carries t
   Report both paths and the length.
 - **Exit 2:** a prerequisite is missing. The message names it: espeak-ng, the model files, or the
   Python packages. Report the message as written and stop. Do not install anything.
-  `/speech:check` lists every gap with its remedy.
+  `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check.py" --data-dir "${CLAUDE_PLUGIN_DATA}" --model-dir '${user_config.model_dir}'`
+  lists every gap with its remedy, and installs nothing. Where `python3` is not on PATH, run it with
+  `python`. Keep `--model-dir` exactly as shown, in single quotes; the script handles an unset
+  `model_dir` option.
 - **Exit 1:** report the error. An unknown voice or a speed out of range is the caller's to fix.
 
 ## The elevenlabs backend
@@ -113,9 +116,9 @@ live ElevenLabs specifics (models, script-writing guidance, voice cloning, prici
 
 ## Next
 
-/speech:check
+/harness-ops:prerequisites
 
-Run it when the run stopped with exit 2. It names each missing prerequisite with its remedy.
+When the run stopped with exit 2, it lists the declared tools this machine lacks.
 
 ## Gotchas
 
