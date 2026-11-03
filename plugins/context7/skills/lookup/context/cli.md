@@ -50,7 +50,7 @@ Set it wherever your project manages local environment variables (shell profile,
 path shows the candidate libraries, which the selection, ambiguity-probe and version-specific-ID
 steps in [lookup.md](lookup.md) depend on, and its `docs` answer stays inside the chosen library.
 `search` saves the resolve call but picks the libraries itself and can mix in mirrors, source
-repositories or neighbouring topics. Use it when the question spans several libraries or names
+repositories or neighboring topics. Use it when the question spans several libraries or names
 none, or narrow it with `--library` to one or a few you already know. Use it only when the
 installed CLI's `ctx7 --help` lists `search`; an older install rejects it, and the two-step path
 still answers. Its flags come from `ctx7 search --help`, read live.
