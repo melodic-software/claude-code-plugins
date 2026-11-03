@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { areaOf, detectAreas, parseCount, parseLog, plan, readPulls, slugOf } from "./upkeep.mjs";
+import { areaOf, detectAreas, parseCount, lookbackStart, parseLog, plan, slugOf } from "./upkeep.mjs";
 
 const NOW = Date.parse("2026-11-20T06:00:00Z");
 const daysAgo = (days) => NOW - days * 86_400_000;
@@ -139,27 +139,36 @@ test("a sweep history the page cap cut plans nothing", () => {
   assert.deepEqual(plan({ ...base, paths: ["scripts/x"], truncated: true }), { proceed: false, reason: "sweep-history-truncated", areas: [] });
 });
 
-test("readPulls stops at the first page that reaches past the window", () => {
-  const pages = [];
-  const fetchPage = (page) => {
-    pages.push(page);
-    return page === 1 ? [pull("a", 1), pull("b", 2)] : [pull("c", 3), pull("d", 8)];
-  };
-  const { pulls, truncated } = readPulls(fetchPage, daysAgo(7));
-  assert.deepEqual(pages, [1, 2]);
-  assert.equal(pulls.length, 4);
-  assert.equal(truncated, false);
+test("an area whose only later commit is its sweep's merge stays out; a different later commit brings it back", () => {
+  const paths = ["plugins/a/x"];
+  const swept = { ...pull("plugins-a", 3), mergeCommit: { oid: "m".repeat(40) } };
+  const merge = { sha: "m".repeat(40), at: daysAgo(2), paths };
+  assert.deepEqual(plan({ ...base, paths, pulls: [swept], commits: [merge] }), { proceed: false, reason: "nothing-due", areas: [] });
+  const other = { sha: "c".repeat(40), at: daysAgo(1), paths };
+  assert.deepEqual(plan({ ...base, paths, pulls: [swept], commits: [merge, other] }).areas.map((row) => row.area), ["plugins/a"]);
 });
 
-test("readPulls stops at an empty page and reports the page cap", () => {
-  assert.deepEqual(readPulls(() => [], daysAgo(7)), { pulls: [], truncated: false });
-  let calls = 0;
-  const always = () => {
-    calls += 1;
-    return [pull("a", 1)];
-  };
-  assert.equal(readPulls(always, daysAgo(7)).truncated, true);
-  assert.equal(calls, 100);
+test("an unswept commit older than twice the backstop is planned, overdue first", () => {
+  const result = plan({
+    ...base,
+    paths: ["plugins/a/x", "plugins/b/x"],
+    commits: [
+      { sha: "1", at: daysAgo(1), paths: ["plugins/b/x"] },
+      { sha: "2", at: daysAgo(20), paths: ["plugins/a/x"] },
+    ],
+  });
+  assert.deepEqual(result.areas.map((row) => [row.area, row.overdue]), [
+    ["plugins/a", true],
+    ["plugins/b", false],
+  ]);
+});
+
+test("the lookback reaches the oldest sweep, and 90 days with none", () => {
+  assert.equal(lookbackStart([], NOW), daysAgo(90));
+  assert.equal(lookbackStart([pull("plugins-a", 10)], NOW), daysAgo(90));
+  assert.equal(lookbackStart([pull("plugins-a", 10), pull("plugins-b", 200)], NOW), daysAgo(200));
+  const lane = { headRefName: "chore/tidy-docs-prose-2026-01-01", createdAt: new Date(daysAgo(300)).toISOString(), state: "MERGED" };
+  assert.equal(lookbackStart([lane], NOW), daysAgo(90));
 });
 
 test("parseCount reads open-pr-count.sh's lines and refuses an unknown count", () => {
@@ -171,9 +180,9 @@ test("parseCount reads open-pr-count.sh's lines and refuses an unknown count", (
 });
 
 test("parseLog splits git log output by commit", () => {
-  assert.deepEqual(parseLog("\x00100\n\nscripts/a\nscripts/b\n\x00200\n\nlib/c\n"), [
-    { at: 100_000, paths: ["scripts/a", "scripts/b"] },
-    { at: 200_000, paths: ["lib/c"] },
+  assert.deepEqual(parseLog("\x00aa 100\n\nscripts/a\nscripts/b\n\x00bb 200\n\nlib/c\n"), [
+    { sha: "aa", at: 100_000, paths: ["scripts/a", "scripts/b"] },
+    { sha: "bb", at: 200_000, paths: ["lib/c"] },
   ]);
 });
 

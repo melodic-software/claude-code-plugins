@@ -2,6 +2,7 @@
 # Self-contained contract tests for open-pr-count.sh (network-free: gh is
 # stubbed via a PATH shim so no real GitHub calls happen).
 set -uo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/open-pr-count.sh"
