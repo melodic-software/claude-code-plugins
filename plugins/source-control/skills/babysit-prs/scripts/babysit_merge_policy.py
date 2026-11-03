@@ -3195,6 +3195,7 @@ CARRY_REFUSES: tuple[str, ...] = (
     "plugins/testing/evals/browser-probe/**",
     "plugins/work-items/scripts/**",
     "plugins/work-items/tools/work-item-tracker/**",
+    _skill_scripts("harness-ops:changelog"),
 )
 
 

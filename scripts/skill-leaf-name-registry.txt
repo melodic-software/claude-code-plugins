@@ -141,24 +141,18 @@ audit ai-slop,attribution,harness-config,harness-memory,codebase-health,context-
 # binary and a browser resolve, read-only, never installing. harness-ops joins on
 # the same grounds: it reports whether node and jq resolve for its hooks.
 # guardrails joins on the same grounds: it reports whether node and jq resolve
-# for its hooks. autonomy, context-guard, desktop-notification, eol-normalizer,
+# for its hooks. autonomy, desktop-notification, eol-normalizer,
 # session-flow, source-control and testing join on the same grounds: each reports
-# whether node and jq resolve for its hooks. context-budget and rate-limit-guard
-# join on the same grounds: context-budget reports whether node resolves for its
-# hooks, rate-limit-guard whether node resolves for its hook and snapshot writes and
-# whether its mod can load.
+# whether node and jq resolve for its hooks. context-budget joins on the same
+# grounds: it reports whether node resolves for its hooks.
 # speech joins on the same grounds: it reports whether Python, espeak-ng, the
 # hook-installed Python packages and the Kokoro model files resolve, read-only,
 # never installing. It is its own skill because `setup` is manual-only.
-# multi-agent joins on the same grounds: it reports whether node resolves for its
-# drift-checker fetch gate hook and whether that hook is registered.
-# discovery joins on the same grounds: it reports whether node resolves for its
-# WebFetch truncation hook and whether that hook is registered.
 # explainer-video joins on the same grounds: it reports whether Python, the
 # ManimCE packages its hook installs, ffmpeg and ffprobe resolve, read-only.
 # knowledge joins on the same grounds: it reports whether the tools its digest
 # skills declare resolve, read-only.
-check actionlint,autonomy,bash-format,biome-format,harness-ops,context-budget,context-guard,context7,desktop-notification,discovery,disk-hygiene,eol-normalizer,explainer-video,go-format,guardrails,instruction-placement,knowledge,markdown-format,multi-agent,playwright,powershell-format,rate-limit-guard,review,ruff-format,session-flow,skill-quality,source-control,speech,testing,toolchain,typos-format
+check actionlint,autonomy,bash-format,biome-format,harness-ops,context-budget,context7,desktop-notification,disk-hygiene,eol-normalizer,explainer-video,go-format,guardrails,instruction-placement,knowledge,markdown-format,playwright,powershell-format,ruff-format,session-flow,skill-quality,source-control,speech,testing,toolchain,typos-format
 
 # The prerequisites check, for a plugin whose `check` already means something
 # else (docs/contracts/prerequisites/). instruction-placement gates rule

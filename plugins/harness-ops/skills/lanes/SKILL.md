@@ -168,7 +168,8 @@ the lane says so. So `start`, `restart` and `status` print a `mods:` line under 
 
 The line reports and never changes the exit code. In `status` it describes what a launch
 would get now, not what a running lane got when it launched. Check a running lane from
-inside it with `/context-guard:check` or `/rate-limit-guard:setup`.
+inside it by looking for `mcp__context-guard__status` in its tool list, or with
+`/rate-limit-guard:setup`.
 
 The causes, and which of them `claude plugin test` reports, belong to upstream; this skill
 keeps no list of them:

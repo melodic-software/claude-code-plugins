@@ -451,6 +451,31 @@
       ],
       "reason": "Manual inspection only; no workflow reads it after the run. A person reads a dispatched eval's results soon after starting it, and 3 days covers a weekend.",
       "scan": "upload"
+    },
+    "upstream-apply-changelog-started": {
+      "retention-days": 2,
+      "readers": [
+        ".github/scripts/upstream-apply-changelog/upstream-apply-changelog.mjs gate counts the start records of the last 24 hours against the per-day cap"
+      ],
+      "reason": "The cap counts runs started in the last 24 hours, so a record must outlive one day; 2 days keeps the newest day whole. It holds only the release number the gate chose, never model text, so it is not scanned.",
+      "scan": "none"
+    },
+    "upstream-apply-changelog-plan-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/upstream-apply-changelog.yml push-branches and publish download it by id, same run"
+      ],
+      "reason": "Read by its own run; 1 day is the minimum. The scan job uploads it only after its scans of the plan, the branch diffs and the publish text are clean.",
+      "scan": "plaintext"
+    },
+    "upstream-apply-changelog-done-*": {
+      "retention-days": "max",
+      "readers": [
+        ".github/scripts/upstream-apply-changelog/upstream-apply-changelog.mjs gate skips a release whose done marker exists"
+      ],
+      "max-reader": ".github/scripts/upstream-apply-changelog/upstream-apply-changelog.mjs",
+      "reason": "The marker is the only record that a release was processed: once it expires a schedule run takes the release again, so it keeps the longest retention. It holds the plan the scan job cleared and publish posted, downloaded by id and hash; the publish job runs no scan of its own.",
+      "scan": "none"
     }
   }
 }

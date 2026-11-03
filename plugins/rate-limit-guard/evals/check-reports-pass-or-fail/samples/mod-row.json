@@ -1,0 +1,1 @@
+{"pass": [{"answer": "| mods-floor | PASS | present |", "why": "table row"}, {"answer": "PASS  mods-floor (cli, required): /usr/bin/mods-floor", "why": "the checker's own line"}], "fail": [{"answer": "", "why": "empty"}, {"answer": "mods-floor is installed, so the hooks should work.", "why": "no result word"}]}
