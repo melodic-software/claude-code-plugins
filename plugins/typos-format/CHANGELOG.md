@@ -3,6 +3,12 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.1] - 2026-11-03
+
+### Changed
+
+- The README's requirements no longer list the package managers that install typos; they keep the rule that the machine's owner puts typos on `PATH` and that it is never downloaded, and link typos' Install section with an as-of date and a recheck trigger.
+
 ## [1.0.0] - 2026-11-03
 
 ### Removed

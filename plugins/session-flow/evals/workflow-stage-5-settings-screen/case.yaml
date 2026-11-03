@@ -3,7 +3,7 @@ name: workflow-stage-5-settings-screen
 description: 'After a written PRD and a locked contract for a new user-facing settings screen, the next stage is 5, Design, and its answer says the flow and the screens are designed before the technical design: /user-experience:structure for the flow and navigation, then /user-interface:design for the screens. Only session-flow is loaded, so the answer names those skills as if-installed examples from the stage definitions. A run needs --scaffold.'
 tags: [workflow, design-stage, user-interface]
 plugins: ["../.."]
-expected_outcome: 'The answer places the session after stage 4 (the PRD in docs/prd and the Brief in PLAN.md satisfy stages 3 and 4), suggests stage 5, Design, and for this screen names the stage 5 UI work, with /user-experience:structure for the flow and navigation and /user-interface:design for the screens as if-installed examples, before the technical design.'
+expected_outcome: 'The answer places the session past the interview and its PRD detour (the Brief in PLAN.md and the PRD in docs/prd satisfy stages 1 and 4), suggests stage 5, Design, and for this screen names the stage 5 UI work, with /user-experience:structure for the flow and navigation and /user-interface:design for the screens as if-installed examples, before the technical design.'
 context:
   scaffold_script: scaffold.sh
 execution:

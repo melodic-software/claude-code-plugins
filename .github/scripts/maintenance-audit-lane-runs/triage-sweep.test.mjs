@@ -5,7 +5,8 @@
 // is not one), whatever comments intake left (owner 2026-10-24, rows S2 and
 // S3); or it was born triaged in `status: ready` with nothing admitting it
 // and nothing holding it (row S1). Each pass dispatches at most 5, and
-// after 2 dispatches that left the issue untriaged the sweep labels it
+// after 2 dispatches that reached intake and left the issue untriaged (or 6
+// dispatches whatever reached intake) the sweep labels it
 // needs-triage, says so in its comment on the issue, and stops dispatching it.
 // Owner rule 2026-10-24: no new issues; comment on the original instead.
 import assert from "node:assert/strict";
@@ -18,8 +19,10 @@ import {
   HANDED,
   handedInComments,
   MAX_DISPATCHES,
+  reachedIntake,
   readState,
   renderState,
+  RUN_LIMIT,
   runSweep,
   selectCandidates,
 } from "./triage-sweep.mjs";
@@ -102,13 +105,23 @@ test("the sweep state round-trips and is read only from the bot's comment", () =
     { id: 1, user: { login: "someone", id: 9 }, body: renderState({ runs: [], filed: 5, runUrl: "u" }) },
     { id: 2, user: BOT, body },
   ];
-  assert.deepEqual(readState(comments), { commentId: 2, runs: [11, 22], filed: null });
+  assert.deepEqual(readState(comments), { commentId: 2, runs: [11, 22], filed: null, reached: new Map() });
   assert.deepEqual(readState([{ id: 3, user: BOT, body: renderState({ runs: [11, 22], filed: 77, runUrl: "u" }) }]), {
     commentId: 3,
     runs: [11, 22],
     filed: 77,
+    reached: new Map(),
   });
-  assert.deepEqual(readState([]), { commentId: null, runs: [], filed: null });
+  assert.deepEqual(readState([]), { commentId: null, runs: [], filed: null, reached: new Map() });
+  // Each run read records whether it reached intake; an unmarked id is unread.
+  const marked = renderState({ runs: [11, 22, 33], filed: null, runUrl: "u", reached: new Map([[11, true], [22, false]]) });
+  assert.ok(marked.startsWith("<!-- claude-lane triage-sweep runs=11+,22-,33 filed= -->\n"));
+  assert.deepEqual(readState([{ id: 7, user: BOT, body: marked }]), {
+    commentId: 7,
+    runs: [11, 22, 33],
+    filed: null,
+    reached: new Map([[11, true], [22, false]]),
+  });
   assert.equal(readState([{ id: 4, user: BOT, body: renderState({ runs: [11, 22], filed: FILING }) }]).filed, FILING);
   assert.equal(readState([{ id: 6, user: BOT, body: renderState({ runs: [11, 22], filed: HANDED, repoUrl: "u" }) }]).filed, HANDED);
 });
@@ -148,7 +161,8 @@ test("the hand-off comment names every dispatched run and asks a maintainer to t
 });
 
 // A fake GitHub holding issues, comments and runs, recording every write.
-function fakeGitHub({ issues, comments = {}, runs = {}, failPatch = () => false, filedIssues = [], handedIssues = [], graphqlError = false }) {
+// `jobs` maps a run id to its job list; a run with none fails the jobs read.
+function fakeGitHub({ issues, comments = {}, runs = {}, jobs = {}, failPatch = () => false, filedIssues = [], handedIssues = [], graphqlError = false }) {
   const writes = [];
   let nextRun = 900;
   let nextIssue = 5000;
@@ -192,6 +206,10 @@ function fakeGitHub({ issues, comments = {}, runs = {}, failPatch = () => false,
     }
     if (method === "GET" && (m = /^\/repos\/o\/r\/actions\/runs\/(\d+)$/.exec(path))) {
       return runs[m[1]] ?? null;
+    }
+    if (method === "GET" && (m = /^\/repos\/o\/r\/actions\/runs\/(\d+)\/jobs\?per_page=100$/.exec(path))) {
+      if (!(m[1] in jobs)) throw new Error(`GET ${path}: HTTP 502`);
+      return { total_count: jobs[m[1]].length, jobs: jobs[m[1]] };
     }
     writes.push({ method, path, body });
     // API version 2022-11-28 returns the run id only when return_run_details
@@ -317,6 +335,188 @@ test("a run still in progress holds the issue for a later pass", async () => {
   const result = await sweep(gh);
   assert.deepEqual(gh.writes, []);
   assert.deepEqual(result.waiting, [1]);
+});
+
+// Job lists as the jobs API returns them: one where intake ran, one the kill
+// switch stopped (run 41591527742: kill-switch succeeded, everything after it
+// skipped), and one cancelled before intake.
+const job = (name, conclusion) => ({ name, status: "completed", conclusion });
+const RAN = [job("kill-switch", "success"), job("born-triaged", "success"), job("intake-triage / claude-intake-triage", "success"), job("intake-triage / claude-intake-triage-skipped", "skipped"), job("apply-verdict", "success")];
+const KILLED = [job("born-triaged", "success"), job("kill-switch", "success"), job("intake-triage", "skipped"), job("apply-verdict", "skipped")];
+const CANCELLED = [job("kill-switch", "success"), job("born-triaged", "cancelled"), job("intake-triage", "cancelled"), job("apply-verdict", "skipped")];
+
+test("reachedIntake: an intake job that ran counts; skipped, cancelled, unfinished or absent does not", () => {
+  assert.equal(reachedIntake(RAN), true);
+  assert.equal(reachedIntake([job("intake-triage / claude-intake-triage", "failure")]), true);
+  assert.equal(reachedIntake(KILLED), false);
+  assert.equal(reachedIntake(CANCELLED), false);
+  assert.equal(reachedIntake([{ name: "intake-triage / claude-intake-triage", status: "in_progress", conclusion: null }]), false);
+  assert.equal(reachedIntake([job("kill-switch", "success"), job("intake-triage-other", "success")]), false);
+  assert.equal(reachedIntake([]), false);
+});
+
+test("decide: only runs that reached intake count, and RUN_LIMIT dispatches hand off whatever reached it", () => {
+  const done = { status: "completed", conclusion: "success" };
+  assert.equal(decide({ state: { runs: [1, 2], filed: null }, latest: done, reached: 1 }), "dispatch");
+  assert.equal(decide({ state: { runs: [1, 2, 3], filed: null }, latest: done, reached: 2 }), "hand");
+  assert.equal(RUN_LIMIT, 6);
+  assert.equal(decide({ state: { runs: [1, 2, 3, 4, 5], filed: null }, latest: done, reached: 0 }), "dispatch");
+  assert.equal(decide({ state: { runs: [1, 2, 3, 4, 5, 6], filed: null }, latest: done, reached: 0 }), "hand");
+});
+
+const twoRuns = (jobs) =>
+  fakeGitHub({
+    issues: [issue(1)],
+    comments: { 1: [{ id: 5, user: BOT, body: renderState({ runs: [11, 22], filed: null, runUrl: "u" }) }] },
+    runs: { 11: { status: "completed", conclusion: "success" }, 22: { status: "completed", conclusion: "success" } },
+    jobs,
+  });
+
+test("a run the kill switch skipped leaves an attempt: the sweep dispatches again and hands nothing off", async () => {
+  const gh = twoRuns({ 11: RAN, 22: KILLED });
+  const result = await sweep(gh);
+  assert.deepEqual(result.dispatched, [1]);
+  assert.deepEqual(result.handed, []);
+  assert.deepEqual(
+    gh.writes.map((w) => [w.method, w.path]),
+    [
+      ["POST", "/repos/o/r/actions/workflows/intake-triage.yml/dispatches"],
+      ["PATCH", "/repos/o/r/issues/comments/5"],
+    ],
+  );
+  assert.deepEqual(readState([{ id: 5, user: BOT, body: gh.writes[1].body.body }]).runs, [11, 22, 901]);
+  assert.ok(gh.writes[1].body.body.startsWith("<!-- claude-lane triage-sweep runs=11+,22-,901 filed= -->"));
+});
+
+// Reading every run's jobs on every pass, before the dispatch cap demotes an
+// issue to stop, cost 20 issues at 5 runs each about 140 calls, past the
+// 120-call budget, so the newest issues starved. Each run's result is recorded
+// once read, so a pass reads only the run that finished since. Every write
+// records the runs read, so only the newest dispatch is unmarked; a state an
+// older sweep wrote holds at most 2 runs, since it handed off at 2.
+test("recorded runs are not read again: 20 issues at 5 killed runs fit one 120-call pass", async () => {
+  const issues = Array.from({ length: 20 }, (_, i) => issue(i + 1));
+  const ids = (n) => [1, 2, 3, 4, 5].map((k) => n * 10 + k);
+  // As the sweep wrote it when it dispatched the fifth run: four read, one not.
+  const recorded = (n) => new Map(ids(n).slice(0, 4).map((id) => [id, false]));
+  const gh = fakeGitHub({
+    issues,
+    comments: Object.fromEntries(
+      issues.map(({ number: n }) => [n, [{ id: n, user: BOT, body: renderState({ runs: ids(n), filed: null, runUrl: "u", reached: recorded(n) }) }]]),
+    ),
+    runs: Object.fromEntries(issues.flatMap(({ number: n }) => ids(n).map((id) => [id, { status: "completed", conclusion: "success" }]))),
+    jobs: Object.fromEntries(issues.flatMap(({ number: n }) => ids(n).map((id) => [id, KILLED]))),
+  });
+  const reads = [];
+  let left = 120;
+  const call = async (method, path, body) => {
+    if (left === 0) throw new Error("call budget of 120 reached");
+    left -= 1;
+    if (method === "GET") reads.push(path);
+    return gh.call(method, path, body);
+  };
+  const result = await runSweep({ call, remaining: () => left, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP) });
+  assert.equal(result.truncated, null);
+  assert.deepEqual(result.dispatched, [1, 2, 3, 4, 5]);
+  assert.ok(reads.includes("/repos/o/r/issues/20/comments?per_page=100&page=1"));
+  const jobReads = reads.filter((p) => p.endsWith("/jobs?per_page=100"));
+  assert.deepEqual(jobReads, issues.map(({ number: n }) => `/repos/o/r/actions/runs/${n * 10 + 5}/jobs?per_page=100`));
+  // The capped issues record their fifth run, so the next pass reads no jobs.
+  const capped = gh.writes.filter((w) => w.method === "PATCH" && Number(/comments\/(\d+)$/.exec(w.path)[1]) > 5);
+  assert.equal(capped.length, 15);
+  for (const w of capped) assert.deepEqual([...readState([{ id: 1, user: BOT, body: w.body.body }]).reached.values()], [false, false, false, false, false]);
+  const next = fakeGitHub({
+    issues: issues.slice(5),
+    comments: Object.fromEntries(capped.map((w) => [Number(/comments\/(\d+)$/.exec(w.path)[1]), [{ id: 1, user: BOT, body: w.body.body }]])),
+    runs: Object.fromEntries(issues.flatMap(({ number: n }) => ids(n).map((id) => [id, { status: "completed", conclusion: "success" }]))),
+  });
+  const again = [];
+  await runSweep({
+    call: (method, path, body) => (again.push(path), next.call(method, path, body)),
+    repo: "o/r",
+    serverUrl: "https://github.com",
+    now: NOW,
+    authorIds: authors,
+    appId: String(APP),
+  });
+  assert.equal(again.filter((p) => p.endsWith("/jobs?per_page=100")).length, 0);
+});
+
+test("with the hand slots used up, an issue at RUN_LIMIT is not read: it could only stop", async () => {
+  const issues = Array.from({ length: 6 }, (_, i) => issue(i + 1));
+  const ids = (n) => Array.from({ length: RUN_LIMIT }, (_, k) => n * 10 + k);
+  const gh = fakeGitHub({
+    issues,
+    comments: Object.fromEntries(issues.map(({ number: n }) => [n, [{ id: n, user: BOT, body: renderState({ runs: ids(n), filed: null, runUrl: "u" }) }]])),
+    runs: Object.fromEntries(issues.flatMap(({ number: n }) => ids(n).map((id) => [id, { status: "completed", conclusion: "success" }]))),
+    jobs: Object.fromEntries(issues.flatMap(({ number: n }) => ids(n).map((id) => [id, KILLED]))),
+  });
+  const reads = [];
+  const result = await runSweep({
+    call: (method, path, body) => (reads.push(path), gh.call(method, path, body)),
+    repo: "o/r",
+    serverUrl: "https://github.com",
+    now: NOW,
+    authorIds: authors,
+    appId: String(APP),
+  });
+  assert.deepEqual(result.handed, [1, 2, 3, 4, 5]);
+  assert.ok(reads.includes("/repos/o/r/issues/6/comments?per_page=100&page=1"));
+  assert.ok(!reads.some((p) => p.startsWith("/repos/o/r/actions/runs/6") && p.endsWith("/jobs?per_page=100")));
+  assert.ok(!gh.writes.some((w) => w.path.endsWith("/comments/6")));
+});
+
+test("two runs that reached intake still hand the issue off", async () => {
+  const gh = twoRuns({ 11: RAN, 22: RAN });
+  const result = await sweep(gh);
+  assert.deepEqual(result.handed, [1]);
+  assert.deepEqual(result.dispatched, []);
+  assert.deepEqual(gh.writes[0].body, { labels: ["needs-triage"] });
+});
+
+test("a run cancelled before intake does not count", async () => {
+  const gh = twoRuns({ 11: CANCELLED, 22: RAN });
+  const result = await sweep(gh);
+  assert.deepEqual(result.dispatched, [1]);
+  assert.deepEqual(result.handed, []);
+});
+
+test("a failing jobs read counts the run, as before: two runs hand the issue off", async () => {
+  const gh = twoRuns({});
+  const result = await sweep(gh);
+  assert.deepEqual(result.handed, [1]);
+  assert.deepEqual(result.dispatched, []);
+});
+
+test("an older unmarked handed-off state is left as it is: no run or jobs read, no write", async () => {
+  const gh = fakeGitHub({
+    issues: [issue(1)],
+    comments: { 1: [{ id: 5, user: BOT, body: "<!-- claude-lane triage-sweep runs=11,22 filed=handed -->\nHanded off." }] },
+    runs: { 11: { status: "completed", conclusion: "success" }, 22: { status: "completed", conclusion: "success" } },
+    jobs: { 11: RAN, 22: RAN },
+  });
+  const reads = [];
+  const call = (method, path, body) => {
+    if (/\/actions\/runs\//.test(path)) reads.push(path);
+    return gh.call(method, path, body);
+  };
+  const result = await runSweep({ call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP) });
+  assert.deepEqual(reads, []);
+  assert.deepEqual(gh.writes, []);
+  assert.deepEqual([result.dispatched, result.handed], [[], []]);
+});
+
+test("after RUN_LIMIT dispatches that never reached intake the sweep hands the issue off and names why", async () => {
+  const ids = [11, 22, 33, 44, 55, 66];
+  const gh = fakeGitHub({
+    issues: [issue(1)],
+    comments: { 1: [{ id: 5, user: BOT, body: renderState({ runs: ids, filed: null, runUrl: "u" }) }] },
+    runs: Object.fromEntries(ids.map((id) => [id, { status: "completed", conclusion: "success" }])),
+    jobs: Object.fromEntries(ids.map((id) => [id, KILLED])),
+  });
+  const result = await sweep(gh);
+  assert.deepEqual(result.handed, [1]);
+  assert.ok(gh.writes[1].body.body.includes("- https://github.com/o/r/actions/runs/66 (success, intake did not run)"));
 });
 
 // A comment flood past the pages read would hide the state comment and force
@@ -461,7 +661,7 @@ test("a lanes App hand-back newer than the state comment starts a new cycle of d
       ],
       String(filed),
     );
-    assert.deepEqual(readState([{ id: 5, user: BOT, body: gh.writes[1].body.body }]), { commentId: 5, runs: [901], filed: null });
+    assert.deepEqual(readState([{ id: 5, user: BOT, body: gh.writes[1].body.body }]), { commentId: 5, runs: [901], filed: null, reached: new Map() });
   }
 });
 
