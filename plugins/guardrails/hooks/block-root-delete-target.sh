@@ -1761,9 +1761,9 @@ rdt_bare_var() {
 # Past the call budget it fails too, so a refusal, not a hook timeout, ends a
 # chain built to run long. Read from the text, so a false pass only returns to
 # allowing the operand.
-# shellcheck disable=SC2016,SC2329  # literal `$` patterns; called from rdt_led_by_unbound
 RDT_NAME_SET_CALLS=0
 RDT_NAME_SET_MAX=256
+# shellcheck disable=SC2016,SC2329  # literal `$` patterns; called from rdt_led_by_unbound
 rdt_name_set() {
   local n="$1" t="$COMMAND" v found=0 re ref
   local re_ref='\$\{?([A-Za-z_][A-Za-z0-9_]*)'

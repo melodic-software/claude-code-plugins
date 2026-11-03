@@ -886,13 +886,13 @@ expect_both 'unset suffixed: a quoted expansion in a for list blocks' 2 "${RDT_C
 expect_both 'unset suffixed: bash -c from the PowerShell tool blocks' 2 --tool PowerShell --command "bash -c 'rm -rf \$S/x'"
 expect_both 'unset suffixed: a Remove-Item operand on the PowerShell tool stays allowed' 0 --tool PowerShell --command 'Remove-Item -Recurse $env:S/x'
 rdt_chain='A='
-for rdt_i in {1..30}; do rdt_chain+='$B'; done
+for _ in {1..30}; do rdt_chain+='$B'; done
 rdt_chain+='; B='
-for rdt_i in {1..30}; do rdt_chain+='$C'; done
+for _ in {1..30}; do rdt_chain+='$C'; done
 rdt_chain+='; C='
-for rdt_i in {1..30}; do rdt_chain+='$D'; done
+for _ in {1..30}; do rdt_chain+='$D'; done
 rdt_chain+='; D='
-for rdt_i in {1..30}; do rdt_chain+='$E'; done
+for _ in {1..30}; do rdt_chain+='$E'; done
 rdt_chain+='; E=x; rm -rf $A/x'
 expect_both 'unset suffixed: a chain past the call budget blocks' 2 "${RDT_CWD[@]}" --command "$rdt_chain"
 expect_both 'unset suffixed: "$S/x" allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf "$S/x"'
