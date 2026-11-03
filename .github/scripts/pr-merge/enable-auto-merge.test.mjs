@@ -1292,20 +1292,29 @@ test("pinBody names a C2 or C3 rung and omits any other", () => {
   for (const rung of [undefined, null, "off", "C4"]) assert.equal(pinBody(HEAD, rung).split("\n")[0], PIN_LINE);
 });
 
-test("an unedited pin naming a rung for the same head is not posted again", async () => {
-  for (const line of [pinLine("C2"), pinLine("C3")]) {
-    const pin = { ...lanesSaid(`${line}\nArmed.`), lastEditedAt: null };
-    const { writes, pins } = await run([pull(7, { discussion: { comments: [pin] } })]);
-    assert.deepEqual(pins, [], line);
+test("an unedited pin naming the room's rung for the same head is not posted again", async () => {
+  for (const rung of ["C2", "C3"]) {
+    const pin = { ...lanesSaid(`${pinLine(rung)}\nArmed.`), lastEditedAt: null };
+    const { writes, pins } = await run([pull(7, { discussion: { comments: [pin] } })], {}, {}, { ...ROOM, rung });
+    assert.deepEqual(pins, [], rung);
     assert.deepEqual(writes, [{ mutation: "arm", id: "PR_7", head: HEAD }]);
   }
 });
 
-test("an unedited pin for the same head is not posted again", async () => {
+// The publisher credits the rung the newest pin names, so a pin from an earlier
+// arm at another rung, or of the older shape with no rung, is replaced.
+test("a pin for the same head naming another rung or none is posted again with the room's rung", async () => {
+  for (const [line, rung] of [[pinLine("C3"), "C2"], [pinLine("C2"), "C3"], [PIN_LINE, "C2"]]) {
+    const pin = { ...lanesSaid(`${line}\nArmed.`), lastEditedAt: null };
+    const { pins } = await run([pull(7, { discussion: { comments: [pin] } })], {}, {}, { ...ROOM, rung });
+    assert.deepEqual(pins.map((p) => p.body.split("\n")[0]), [pinLine(rung)], `${line} under ${rung}`);
+  }
+});
+
+test("an old-shape pin stands when the room's rung names none", async () => {
   const pin = { ...lanesSaid(`${PIN_LINE}\nArmed.`), lastEditedAt: null };
-  const { writes, pins } = await run([pull(7, { discussion: { comments: [pin] } })]);
+  const { pins } = await run([pull(7, { discussion: { comments: [pin] } })], {}, {}, { ...ROOM, rung: "off" });
   assert.deepEqual(pins, []);
-  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_7", head: HEAD }]);
 });
 
 test("a pin for another head, an edited pin or another author's pin is posted again", async () => {
