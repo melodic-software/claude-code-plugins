@@ -95,7 +95,7 @@ Accepted by `identify` and `batch` (the roster-producing surfaces); `batch` pass
 | `--dry-run` | off | Print the diff `--fix` would apply; write nothing |
 | `--yes` | off | Non-interactive; skip the per-bucket review gate. Only meaningful with `--fix` |
 | `--inline` | off | `identify` only. Survey in the main session with a Tier 0 grep per candidate instead of dispatching the survey subagent, whatever the corpus size. A small corpus already surveys inline without it |
-| `--parallel-waves` | off | `batch` only. Permit parallel dispatch within a wave whose candidates the overlap matrix proves disjoint. Without it every wave runs sequentially, because there is no file-level locking |
+| `--parallel-waves` | off | `batch` only. Permit parallel dispatch within a wave whose candidates the overlap matrix proves disjoint. Without it every wave runs sequentially |
 | `--commit-mode=<mode>` | `per-wave` | `batch` only. `per-wave` commits each wave, `single` commits once after the last wave, `none` leaves the changes uncommitted for the caller. See `context/orchestrated-mode.md` "Cadence and commits" |
 
 Bare invocation (no flags) stays read-only: it reports the buckets and stops, matching `/docs-hygiene:audit-noise` and `/docs-hygiene:audit-derivability`. Full flag semantics: `actions/identify.md`.
