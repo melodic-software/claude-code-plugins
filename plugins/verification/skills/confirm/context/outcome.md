@@ -42,7 +42,7 @@ Rank each piece of test evidence by how independent its expected value is from t
 3. **Self-authored, sourced.** A test added or changed in the diff under review whose expected value names an independent source per `/testing:test-value`.
 4. **Self-authored, unsourced.** A test added or changed in the diff whose expected value names no independent source. This is a producer claim: report it as a finding, never as proof of the behavior.
 
-Label every test the producing session wrote as self-authored in the evidence table. A criterion proved only by rank 4 evidence is not COMPLETE.
+Label every test the producing session wrote as self-authored in the evidence table. A criterion proved only by rank 4 evidence is not COMPLETE. List every plan item whose best evidence is rank 4, or that no check exercised, under "Not proved by these checks", so a reviewer sees what the green checks did not cover.
 
 Basis: LLM-written test oracles were measured to assert what the code does rather than what it should do (three papers, measured on LLM test generators over benchmark repositories; the transfer to an interactive agent is inferred). Recorded in the agent-self-check research slice, 2026-10-06, prompted by Addy Osmani's 2026-10-05 post (<https://x.com/addyosmani/status/2106995301802541481>). Recheck trigger: a measurement on interactive coding agents that contradicts it.
 
@@ -75,6 +75,12 @@ Basis: LLM-written test oracles were measured to assert what the code does rathe
 | # | Plan item | Test or check | Rank (1-4) | Authorship | Oracle source |
 |---|-----------|---------------|------------|------------|---------------|
 | 1 | <plan item #> | <test name + assertion> | <rank> | pre-existing / self-authored | <criterion, spec, recording, or "none named"> |
+
+### Not proved by these checks
+| # | Plan item or criterion | Best evidence | What a reviewer must still check |
+|---|------------------------|---------------|----------------------------------|
+| 1 | <item whose only evidence is rank 4, or that no check exercised> | rank 4 / none | <the behavior left unproven> |
+<None, when every plan item has rank 1-3 evidence.>
 
 ### Lessons
 | # | Lesson | Scope | Route |
