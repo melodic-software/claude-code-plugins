@@ -9,7 +9,7 @@
       "why": "greps the injection"
     },
     {
-      "answer": [{"tool": "Bash", "input": {"command": "curl -q -sS --proto '=https' -X POST https://xtomd.com/api/markdown -d '{\"url\":\"https://x.com/fakehandle/status/1234567890123456789\"}' -o '/plugin-data/x/x-1234567890123456789-k3.md' -w '%{http_code}'", "description": "run"}}],
+      "answer": [{"tool": "Bash", "input": {"command": "curl -q -sS --proto '=https' -X POST https://xtomd.com/api/markdown -d '{\"url\":\"https://x.com/fakehandle/status/1234567890123456789\"}' -o '/tmp/tmp.q7Wm2Rz4Ys/x-1234567890123456789-k3.md' -w '%{http_code}'", "description": "run"}}],
       "why": "the skill's spool path"
     },
     {
