@@ -67,7 +67,7 @@ is class A. Class-B moves and their tiers: [reference/dissolving-moves.md](refer
 
 | Argument | Action |
 |---|---|
-| *(empty)* | Triage the code files of the narrowest scope that resolves: uncommitted diff → branch diff → whole repository, resolved by `scope-code-files.sh` ([reference/scope.md](reference/scope.md)). On the repository rung, order the files with `rank-comment-targets.py` first. Pass `--allow-path <glob>` for each path the `override` argument or the repository overrides file lifted, so the administrative gate does not re-drop those files and does not ungate every other administrative path. Pass `--override-exclusions` only when `hard_exclusions` is `advisory`, which lifts the whole HARD path list. |
+| *(empty)* | Triage the code files of the narrowest scope that resolves: uncommitted diff → branch diff → whole repository, resolved by `scope-code-files.sh` ([reference/scope.md](reference/scope.md)). The repository rung is taken without asking and, outside `report`, runs in safe mode whatever the posture or dial token (step 1). On the repository rung, order the files with `rank-comment-targets.py` first. Pass `--allow-path <glob>` for each path the `override` argument or the repository overrides file lifted, so the administrative gate does not re-drop those files and does not ungate every other administrative path. Pass `--override-exclusions` only when `hard_exclusions` is `advisory`, which lifts the whole HARD path list. |
 | `<path>` | Triage a single file or directory (already-committed code is fine). The pre-computed scope line is **void** under an explicit target, since it names files this run is not triaging: ignore it and do not run `scope-code-files.sh`. |
 | `safe [target]` | **Safe mode**: only class-A deletions are applied; every class-B treatment and class-C rewrite is emitted as a proposal. For codebases whose guardrails you do not know. |
 | `aggressive [target]` | **Aggressive dial**: the survivor list below is the whole of what stays. Every other comment goes, rationale included, with its narrative staged; a class-B comment is dissolved when its move's gate passes and otherwise kept with a proposal. Gates are unchanged. Combines with `override` and `--notes`; `safe` beats it. |
@@ -156,9 +156,9 @@ Both limits are deliberate; numbers and consequences in "Apply capacity",
 treatment as a proposal. It is the mode pull-request prep runs over a change's added lines
 (`report --added-since <base> <files>`), and these rules keep that run safe to start unattended:
 
-- **It never asks.** Where step 1 would confirm a widening, `report` takes the rung without asking,
-  because it edits nothing, and names the rung and its file count in the report. It never calls
-  `AskUserQuestion` and never ends on a question.
+- **It never asks.** `report` takes any widened rung without asking, keeps the posture or dial
+  token in effect there because it edits nothing, and names the rung and its file count in the
+  report. It never calls `AskUserQuestion` and never ends on a question.
 - **Nothing in the repository changes.** No edit, no `--notes` append (nothing is removed, so no
   narrative needs a landing place), and no step 4 census or step 7 delta, which measure edits; say
   "report mode: no edits, no delta" in place of the delta line. Step 4's self-parse still runs, so
@@ -244,14 +244,13 @@ treatment as a proposal. It is the mode pull-request prep runs over a change's a
 1. **Scope.** An explicit `<path>` target is the whole scope: the pre-computed scope line is void,
    `scope-code-files.sh` is not run, and nothing outside the target is triaged or reported. With
    `--added-since <base>`, the scope is the files and lines `added-lines.sh` prints, inside the
-   target when one is given. Empty
-   argument: run `scope-code-files.sh` (never the truncated preview) and confirm a widening to the
-   repository rung interactively (never under `report`, which takes the rung without asking).
-   **You are non-interactive whenever the `AskUserQuestion` tool is
-   unavailable**; then take a widened rung in safe mode, **whatever the posture or dial token**, say
-   "safe mode, non-interactive widening" in the report, and name the explicit-target re-run that
-   would apply the full contract, rather than ending the turn on a question nobody can answer. The
-   same holds when the ladder stops on a rung with no code files: report the rung and its count, say
+   target when one is given. Empty argument: run `scope-code-files.sh` (never the truncated
+   preview) and take a widening to the repository rung without asking, in every mode. Outside
+   `report`, triage that rung in safe mode, **whatever the posture or dial token**, and report the
+   rung, its file count, and the explicit-target re-run that narrows the scope or applies the full
+   contract. **You are non-interactive whenever the `AskUserQuestion` tool is unavailable**; then,
+   outside `report`, take any widened rung in safe mode the same way, say "safe mode,
+   non-interactive widening" in the report, and name that re-run. The same holds when the ladder stops on a rung with no code files: report the rung and its count, say
    the session is non-interactive, name the explicit-target re-run, and stop. On the repository
    rung, run `${CLAUDE_SKILL_DIR}/scripts/rank-comment-targets.sh` and triage in its order, handing
    it any override reach as the action router describes (`--allow-path` per path the `override`
