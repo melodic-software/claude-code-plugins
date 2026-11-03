@@ -79,7 +79,7 @@ The hook runs on Bash 3.2+. On native Windows, install
 available. It needs Node.js on `PATH`: the hook launches through `node hooks/exec-bash.mjs`, and
 a Claude Code install does not guarantee Node, so without it the hook does not launch and
 notifications do not fire ([install Node.js](https://nodejs.org/en/download)). It also needs [`jq`](https://jqlang.github.io/jq/) on `PATH`; without jq, notifications
-are disabled and `/desktop-notification:check` reports it, because a Notification hook has no notice
+are disabled and the bundled checker reports it, because a Notification hook has no notice
 channel of its own. Relay: what it can return is in the Notification pointer record under
 [Behavior](#behavior). **As of**: 2026-10-11. **Recheck trigger**: that record leaves Behavior,
 or its own recheck trigger fires. macOS needs nothing
@@ -102,7 +102,7 @@ skipped while notifications still fire.
 /plugin install desktop-notification@melodic-software
 ```
 
-Then verify prerequisites with `/desktop-notification:setup check`. `/desktop-notification:check` reports whether `node` and `jq` resolve.
+Then verify prerequisites with `/desktop-notification:setup check`. `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"` reports whether `node` and `jq` resolve.
 
 ## Configuration
 

@@ -19,7 +19,7 @@ Add the marketplace and install `autonomy` as the root README's
 Node.js on PATH. Every hook row runs through `node hooks/exec-bash.mjs`, and this plugin does not
 count on Claude Code to supply Node, so without `node` the hooks do not launch and the lane-stop
 gate is not enforced. The setup `check` reports whether `node` resolves. The hooks also use Bash
-(Git Bash on native Windows) and `jq`; without `jq` they fail open. `/autonomy:check` reports
+(Git Bash on native Windows) and `jq`; without `jq` they fail open. `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"` reports
 whether `node` and `jq` resolve.
 
 - **Pointer**: when checking whether a Claude Code install brings Node, fetch
