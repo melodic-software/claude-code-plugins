@@ -97,9 +97,6 @@ user="${HOME:+$HOME/.claude/bugs.md}"
 for pair in "team:docs/conventions/bugs.md" "local overlay:.claude/bugs.local.md"; do
   [[ -n "$root" ]] || break
   file="$root/${pair#*:}"
-  # One-release fallback: the team gotchas come from .claude/bugs.md while
-  # docs/conventions/bugs.md is absent.
-  [[ "${pair%%:*}" == team && ! -e "$file" ]] && file="$root/.claude/bugs.md"
   [[ -n "$user" && "$file" -ef "$user" ]] && continue
   emit_layer "${pair%%:*}" "$file"
 done
