@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"model\":\"m\",\"tools\":[\"Bash\",\"Glob\",\"Grep\",\"Read\",\"Skill\"]}\n{\"type\":\"result\",\"subtype\":\"success\"}", "why": "the grant reached this case" },
+    { "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"tools\":[\"Read\",\"Bash\"]}", "why": "not first in the list" }
+  ],
+  "fail": [
+    { "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"model\":\"m\",\"tools\":[\"Glob\",\"Grep\",\"Read\",\"Skill\"]}\n{\"type\":\"result\",\"subtype\":\"success\"}", "why": "run with no Bash grant: no-remediation-bash would test nothing" },
+    { "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"tools\":[\"Read\"]}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Bash is not available here.\"}]}}", "why": "the reply names the tool; the session lacked it" },
+    { "answer": "", "why": "no trace" }
+  ]
+}

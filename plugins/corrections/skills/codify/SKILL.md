@@ -1,6 +1,6 @@
 ---
 description: "Counts how often a described mistake recurs in recent commits and the session, picks the strongest enforcement-ladder rung that can catch it, places the lesson by scope, and proposes a check proven to fail on the old code and pass on the current code; also takes a review findings file or merged pull requests' review comments as the source. Use when: 'codify this', 'this keeps happening', 'stop us making this mistake again', 'turn this correction into a check', 'what rung catches this', 'prove this check', 'can we stop re-finding this', 'mine our review comments'."
-argument-hint: "<<description> [#PR]|findings <file>|reviews|note <observation>|group…>"
+argument-hint: "<<description> [#PR]|findings <file>|reviews|note [--applied] <observation>|group…>"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/codify-settings.mjs:*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/scripts/codify-settings.mjs\":*)", "Bash(git log:*)", "Bash(git rev-parse:*)", "Bash(git merge-base:*)", "Bash(git branch --show-current)", "Bash(git symbolic-ref:*)", "Write(.work/codify/**)"]
@@ -29,12 +29,13 @@ An optional `#PR` after it names the pull request whose pre-fix commit is the ol
 | `"<description>" [#PR]` (default) | Counts the mistake, picks the rung, proposes and proves the check | Sections 1-6 below |
 | `findings <findings-file>` | Each row of one review findings file becomes a described mistake, counted, proved and ending in a proposal | [actions/findings.md](actions/findings.md) |
 | `reviews` | Mines recent merged pull requests' review comments and takes each recurring lesson through sections 2-6 | [actions/reviews.md](actions/reviews.md) |
-| `note "<observation>" [#PR \| <commit>]` | Appends one observation to the findings buffer; never counts, codifies or fixes | [actions/note.md](actions/note.md) |
+| `note [--applied] "<observation>" [#PR \| <commit>]` | Appends one observation, or with `--applied` one change already made, to the findings buffer; never counts, codifies or fixes | [actions/note.md](actions/note.md) |
 | `group [--by <field>[,<field>...]] [--since <UTC ISO-8601>]` | Read-only: groups buffer rows by the named fields (default `producer`) and by mistake, naming the keys, with each mistake's count next to the threshold | [actions/group.md](actions/group.md) |
 
 An action runs only when the first word of `$ARGUMENTS` is exactly `findings`, `reviews`, `note` or
 `group`, unquoted. Anything else, including a quoted description that starts with one of those words,
-is the default action. The action word is the only token read as a choice. The rest stays data, as above.
+is the default action. The action word, and `note`'s unquoted `--applied` right after it, are the
+only tokens read as a choice. The rest stays data, as above.
 
 ## 1. Count
 
@@ -103,6 +104,15 @@ Say which scope the lesson belongs in, and why:
   rule that changes what a stage produces or permits is project scope.
 
 When in doubt, prefer project scope: a tracked rule is reviewable and portable.
+
+Scope follows from whether the mistake is a one-off or a pattern. A one-off below the threshold, with
+neither section 1 exception, stays a `note` row (`/corrections:codify note`), not a proposal; a
+one-off that either exception let through goes on to a proposal like a recurring mistake; a
+recurring mistake gets the checking rung section 2 picks when it meets the guardrail criterion; and
+a mistake that holds for every repository becomes a team standard. Recording the lesson is not the
+end: a run past the count ends in a proposed check, a placed rule or a filed work item, because a
+lesson that is only recorded is not acted on. Codify still only proposes; it never builds a rung
+(see Boundary).
 
 ## 4. Propose the check and prove it
 

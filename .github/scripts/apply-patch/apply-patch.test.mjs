@@ -1140,6 +1140,24 @@ test("keptThreadsFrom keeps each thread id of the select job's shape, in the fil
   assert.deepEqual(keptThreadsFrom(file).ids, ["PRRT_2", "PRRT_1"]);
 });
 
+// #12809: an earlier-fail round keeps no thread, only the FAIL's notes, each a
+// path and a VNOTE_ id: the fix's scope and its Lane-Thread trailer take them
+// as threads.
+test("keptThreadsFrom takes an earlier FAIL's notes as threads on their paths, by note id", (t) => {
+  const file = join(scratch(t), "threads.json");
+  writeFileSync(file, JSON.stringify({ threads: [], verify_notes: [{ id: "VNOTE_1", head: "b".repeat(40), path: "src/a.js", body: "x" }, { id: "VNOTE_2", head: "b".repeat(40), path: "docs/b.md", body: "y" }], pr_paths: ["src/a.js"] }));
+  const kept = keptThreadsFrom(file);
+  assert.deepEqual(kept.paths, new Set(["src/a.js", "docs/b.md"]));
+  assert.deepEqual(kept.ids, ["VNOTE_1", "VNOTE_2"]);
+  const replies = join(scratch(t), "replies.jsonl");
+  writeFileSync(replies, [replyLine("VNOTE_2", "VALID"), replyLine("VNOTE_1", "already-addressed")].join("\n"));
+  assert.deepEqual(fixedThreadsFrom(replies, kept), ["VNOTE_2"]);
+  for (const notes of [[{ id: "VNOTE_0", path: "a" }], [{ id: "PRRT_1", path: "a" }], [{ id: "VNOTE_1" }], "VNOTE_1"]) {
+    writeFileSync(file, JSON.stringify({ threads: [], verify_notes: notes }));
+    assert.throws(() => keptThreadsFrom(file), /KEPT_THREADS_FILE/, JSON.stringify(notes));
+  }
+});
+
 // replies.jsonl as the model job's scan job uploads it, one reply per line.
 const replyLine = (thread, disposition) => JSON.stringify({ thread, disposition, evidence: ["a:1"], fix_sha: "", note: "n" });
 

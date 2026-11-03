@@ -3,6 +3,12 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.1] - 2026-11-03
+
+### Changed
+
+- The README no longer restates how Claude Code handles an undecided `PreToolUse` call or a failed hook with `onFailure: block`, or which release honors that key; it points at the hooks reference sections instead.
+
 ## [1.0.0] - 2026-11-03
 
 ### Removed

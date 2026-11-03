@@ -69,6 +69,15 @@ on:
         required: false
         type: string
         default: ""
+      verify-close:
+        description: >-
+          Issue mode, report-outcome: the sub-issue numbers, comma-joined,
+          of a finished parent (each closed as completed by a trusted close,
+          as the caller's admit job read them), which a verified-done stop
+          needs before it closes the issue. Empty otherwise.
+        required: false
+        type: string
+        default: ""
       dimension-skip:
         description: >-
           Issue mode, report-outcome: the issue-dimension skip reason
@@ -626,6 +635,7 @@ jobs:
           PATCH_BASE_SHA: ${{ inputs.patch-base-sha }}
           PATCH_RESUME_TIP: ${{ inputs.patch-resume-tip }}
           DIMENSION_SKIP: ${{ inputs.dimension-skip }}
+          VERIFY_CLOSE: ${{ inputs.verify-close }}
           PATCH_PREPARE: ${{ inputs.patch-prepare }}
           PATCH_MERGE_BASE_SHA: ${{ inputs.patch-merge-base-sha }}
           PATCH_MERGE_STATE: ${{ inputs.patch-merge-state }}
@@ -673,6 +683,12 @@ jobs:
             echo "::error::dimension-skip must be an issue-dimension skip reason, outside-author or workflow-stale, in issue mode"
             exit 1
           fi
+          # A finished parent's sub-issues are issue numbers, only in issue mode.
+          if [ -n "$VERIFY_CLOSE" ] && { [ -z "$ISSUE_NUMBER" ] ||
+            ! [[ $VERIFY_CLOSE =~ ^[1-9][0-9]{0,9}(,[1-9][0-9]{0,9})*$ ]]; }; then
+            echo "::error::verify-close must be comma-joined issue numbers, in issue mode"
+            exit 1
+          fi
           if ! [[ $APP_SENDER_ID =~ ^[1-9][0-9]*$ ]]; then
             echo "::error::the AUTOMATION_LANES_APP_SENDER_ID variable must hold the lanes App bot's numeric user id"
             exit 1
@@ -689,6 +705,7 @@ jobs:
             feedback-untaken-threads | feedback-publish-failed) ;;
             feedback-unadjudicated | feedback-question-intent | feedback-question-design) ;;
             feedback-question-security | feedback-stood-open | feedback-verifier-open) ;;
+            feedback-already-addressed | feedback-verdict-unreadable) ;;
             dependency-round-cap | dependency-invalid | dependency-fix-not-landed) ;;
             dependency-security-close | dependency-escalate | dependency-config-unreadable) ;;
             dependency-files-truncated | dependency-control-uncited | dependency-workflow-unpinned) ;;
@@ -2051,6 +2068,8 @@ jobs:
           RUNNER_CHECKS: ${{ inputs.runner-checks }}
           # Checked against the skip reasons by the job's first step.
           DIMENSION_SKIP: ${{ inputs.dimension-skip }}
+          # Checked as issue numbers by the job's first step.
+          VERIFY_CLOSE: ${{ inputs.verify-close }}
           # Issue mode only; report-outcome counts only `true`.
           COLLECT_REFUSED: ${{ inputs.issue-number != '' && inputs.collect-refused || '' }}
           # review-replies only; empty otherwise.

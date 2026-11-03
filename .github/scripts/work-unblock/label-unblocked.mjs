@@ -10,6 +10,14 @@
 // marker, and a listed human closing it runs the sweep below at once, not the
 // close path. No model.
 //
+// The close path also strips the closed issue's own queue labels
+// (agent-ready, `status: ready`, admission-deferred; stripClosed), only those
+// present, unless it is open again or is a post-merge fix issue. A bot's close
+// runs no close path: where the lanes App closes an issue itself (a split
+// parent here, report-outcome's close route) it strips them before the close,
+// and the sweep strips each issue in its window a listed human or a merge
+// closed (a merge the App ran among them).
+//
 // Each new agent-ready is paced: at or over the issue lane's queued cap, or
 // with the lane paused over its WIP or held cap (check-wip-cap.mjs, on or
 // after wip.pause-from, or whenever a search answers incomplete_results:
@@ -222,7 +230,10 @@
 // App or a listed human linked, not `recurring`, each open task-list item in
 // its body being one of those sub-issues: its `#N` alone or with that
 // sub-issue's title. A parent that stays open gets no comment here: admission
-// says why, in its one comment (readmitReady).
+// says why, in its one comment (readmitReady). One that admission parked on
+// SIZE_SPLIT_DONE, every sub-issue now closed as completed by a trusted close,
+// loses status: confirmed instead, so intake admits it for the issue lane's
+// one verified-done run (reenterFinished, #12456 class A).
 //
 // The App's admission comment on an open parent in no queue that waits on its
 // sub-issues alone (no blocker) is rewritten when it says only that the split
@@ -278,9 +289,10 @@ import { notBornTriaged } from "../../actions/check-born-triaged/check-born-tria
 import { createGitHub, isTrustedClose as closedByHumanOrMerge, loadTrustedList, paginate, readRerunner } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
-import { clampReset, isLaneBranch, LANE_HOLDS, LANE_WORKFLOWS, parseOutcomeMarker, REFIRED, refireComment as refireRecord, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
+import { clampReset, isLaneBranch, LANE_HOLDS, LANE_WORKFLOWS, parseOutcomeMarker, REFIRED, refireComment as refireRecord, refsHoldMarker, stripQueueLabels } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip, resolveStrandedBackoff, STRANDED_BACKOFF_MAX } from "../work-resolve-issue/limits.mjs";
-import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorAdmitted, attendedHold, blockersOf, CONFIRMED, decide, deferralLapsed, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, SIZE_SPLIT_PENDING, specOf, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorAdmitted, attendedHold, blockersOf, CONFIRMED, confirmedOnly, decide, deferralLapsed, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, specOf, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { subIssueLeftOpen } from "../lib/done-evidence.mjs";
 import { clearedPastReport, retriageNote, doneReason, judgedSince, mergedRefsReader, splitLeftOpen, splitParentClosed } from "../intake-triage/admit.mjs";
 import { budgetLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createJobLogReader } from "./job-log.mjs";
@@ -605,14 +617,21 @@ async function closedSince(github, repo, since) {
 // One answer per issue per run: a swept close is also its dependents'
 // blocker, and a blocker can block several dependents. `where` is the
 // blocker's repository: outside `repo`, only a listed human's close counts.
-function trustedClose({ github, repo, where = repo, number, humans, closes, bot = DEFAULT_BOT }) {
+function trustedClose(args) {
+  return readClose(args).then(({ trusted }) => trusted);
+}
+
+// trustedClose's one read, cached in `closes`: { issue, trusted }, the issue
+// as read then, so a caller that needs it reads it no second time.
+function readClose({ github, repo, where = repo, number, humans, closes, bot = DEFAULT_BOT }) {
   const key = `${where.toLowerCase()}#${number}`;
   if (!closes.has(key)) {
     closes.set(
       key,
       (async () => {
-        const closed = await github("GET", `/repos/${where}/issues/${number}`);
-        return where.toLowerCase() === repo.toLowerCase() ? isTrustedClose(github, repo, closed, humans, bot) : humans.has(closed?.closed_by?.id);
+        const issue = await github("GET", `/repos/${where}/issues/${number}`);
+        const trusted = await (where.toLowerCase() === repo.toLowerCase() ? isTrustedClose(github, repo, issue, humans, bot) : humans.has(issue?.closed_by?.id));
+        return { issue, trusted };
       })(),
     );
   }
@@ -856,6 +875,34 @@ const noMirror = async () => {};
 
 // A label change as the status mirror takes it (write-status.mjs statusMirror).
 const change = (had = [], add = [], remove = []) => ({ had, add, remove });
+
+// A closed issue loses its queue labels, so no queue or count reads it as
+// waiting. Read fresh: a run queued behind another may land after a reopen,
+// and an open issue keeps them; the sweep hands in the issue its close check
+// just read (`read`) instead. A post-merge fix issue keeps agent-ready
+// across its close, as post-merge-demotion-alert.yml reopens it with the label
+// and the sweep relabels it (recurrenceRefusal). No Work status write: the
+// field's states are an open issue's.
+async function stripClosed({ github, repo, number, read }) {
+  const base = `/repos/${repo}/issues/${number}`;
+  try {
+    const issue = read ?? (await github("GET", base));
+    if (issue?.state !== "closed") {
+      console.log(`label-unblocked: #${number} is open again; its queue labels stay`);
+      return 0;
+    }
+    if (issue.user?.login === ALERT_BOT && FIX_ISSUE.test(String(issue.body ?? ""))) {
+      console.log(`label-unblocked: #${number} is a post-merge fix issue; its queue labels stay`);
+      return 0;
+    }
+    const removed = await stripQueueLabels(github, base, labelNames(issue));
+    console.log(`label-unblocked: #${number} closed; removed ${removed.length} queue label(s)${removed.length > 0 ? `: ${removed.join(", ")}` : ""}`);
+    return 0;
+  } catch (error) {
+    reportError(number, error);
+    return 1;
+  }
+}
 
 // The verdict intake's admission reads, from the issue itself: each of Size,
 // Complexity and Uncertainty as the config's key for the option a listed
@@ -1119,16 +1166,21 @@ async function readmitReady({ github, repo, listed: open, humans, bot, gate, app
 // Labels each issue `closed` blocked that is ready, each at most once per run,
 // within the gate's room, oldest opened first (owner Q95). Returns how many
 // reads or writes failed.
-async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, appId, admission, mirror = noMirror }) {
+async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, appId, admission, mirror = noMirror, closes = new Map() }) {
   const seen = new Map();
-  const closes = new Map();
   let failed = 0;
   for (const source of closed) {
     let blocked;
     try {
-      if (sweep && !(await trustedClose({ github, repo, number: source, humans, closes, bot }))) {
-        console.log(`label-unblocked: #${source} was closed by neither a listed human nor a merge; skipped`);
-        continue;
+      if (sweep) {
+        const { issue, trusted } = await readClose({ github, repo, number: source, humans, closes, bot });
+        if (!trusted) {
+          console.log(`label-unblocked: #${source} was closed by neither a listed human nor a merge; skipped`);
+          continue;
+        }
+        // A merge the App ran closes an issue with no close run, so the sweep
+        // strips its queue labels, from the issue the close check just read.
+        failed += await stripClosed({ github, repo, number: source, read: issue });
       }
       blocked = await paginate(github, `/repos/${repo}/issues/${source}/dependencies/blocking`);
     } catch (error) {
@@ -1979,13 +2031,8 @@ async function restartLimited({ github, actions, jobLog, repo, bot, humans, now,
         if (release) {
           await github("DELETE", `${base}/labels/${HUMAN_LABEL}`);
         }
-        await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`).catch((error) => {
-          if (error?.status !== 404) {
-            throw error;
-          }
-        });
-        await github("DELETE", `${base}/labels/${LABEL}`);
-        await mirror(number, change(had, [], [LABEL, READY, ...(release ? [HUMAN_LABEL] : [])]));
+        const removed = await stripQueueLabels(github, base, had);
+        await mirror(number, change(had, [], [...removed, ...(release ? [HUMAN_LABEL] : [])]));
         console.log(`label-unblocked: #${number} handed to triage: lane PR #${pr} ${handOff === "merged" ? "merged with Refs:" : "closed unmerged"}`);
       } catch (error) {
         failed += 1;
@@ -2046,12 +2093,11 @@ async function isTrustedClose(github, repo, issue, humans, bot) {
 // For each issue in `closed` (on the sweep, only one a listed human or a
 // merge closed), closes its split parent when it is done (closeSplitParent).
 // Returns how many reads or writes failed.
-async function closeSplitParents({ github, repo, closed, sweep, humans, bot }) {
-  const closes = new Map();
+async function closeSplitParents({ github, repo, closed, sweep, humans, bot, closes = new Map(), mirror = noMirror }) {
   let failed = 0;
   for (const number of closed) {
     try {
-      await closeSplitParent({ github, repo, number, humans, closes, bot, sweep });
+      await closeSplitParent({ github, repo, number, humans, closes, bot, sweep, mirror });
     } catch (error) {
       failed += 1;
       reportError(number, error);
@@ -2062,19 +2108,22 @@ async function closeSplitParents({ github, repo, closed, sweep, humans, bot }) {
 
 // Closes the open parent of issue `number` once its split is finished
 // (closeDoneParent).
-async function closeSplitParent({ github, repo, number, humans, closes, bot, sweep }) {
-  if (!(await github("GET", `/repos/${repo}/issues/${number}`))?.parent_issue_url || (sweep && !(await trustedClose({ github, repo, number, humans, closes, bot })))) {
+async function closeSplitParent({ github, repo, number, humans, closes, bot, sweep, mirror }) {
+  // The sweep's close check already read the issue (readClose, cached in `closes`).
+  const { issue, trusted } = sweep ? await readClose({ github, repo, number, humans, closes, bot }) : { issue: await github("GET", `/repos/${repo}/issues/${number}`), trusted: true };
+  if (!issue?.parent_issue_url || !trusted) {
     return;
   }
-  await closeDoneParent({ github, repo, parent: await github("GET", `/repos/${repo}/issues/${number}/parent`), humans, closes, bot });
+  await closeDoneParent({ github, repo, parent: await github("GET", `/repos/${repo}/issues/${number}/parent`), humans, closes, bot, mirror });
 }
 
 // On the sweep, the open issues (`listed`) whose sub_issues_summary shows
 // every sub-issue completed, whose number is the UTC hour of `now` modulo 24,
 // at most `cap` of them in listing order, each read fresh and closed when its
 // split is finished (closeDoneParent): a parent whose last sub-issue closed
-// outside the sweep window. Returns how many reads or writes failed.
-async function rescanSplitParents({ github, repo, listed, humans, bot, cap, now }) {
+// outside the sweep window, or one admission parked that now re-enters
+// (reenterFinished). Returns how many reads or writes failed.
+async function rescanSplitParents({ github, repo, listed, humans, bot, cap, now, mirror = noMirror }) {
   const hour = new Date(now).getUTCHours();
   const done =(item) => (item.sub_issues_summary?.total ?? 0) > 0 && item.sub_issues_summary.completed === item.sub_issues_summary.total;
   const due = listed.filter((item) => done(item) && Number(item.number) % 24 === hour);
@@ -2086,7 +2135,7 @@ async function rescanSplitParents({ github, repo, listed, humans, bot, cap, now 
   let failed = 0;
   for (const item of due.slice(0, cap)) {
     try {
-      await closeDoneParent({ github, repo, parent: await github("GET", `/repos/${repo}/issues/${item.number}`), humans, closes, bot });
+      await closeDoneParent({ github, repo, parent: await github("GET", `/repos/${repo}/issues/${item.number}`), humans, closes, bot, mirror });
     } catch (error) {
       failed += 1;
       reportError(item.number, error);
@@ -2098,8 +2147,8 @@ async function rescanSplitParents({ github, repo, listed, humans, bot, cap, now 
 // Closes `parent` (an issue as just read), as completed and with one comment
 // first, when it is open here and its split is finished (admit.mjs
 // splitLeftOpen, owner Q93, which checks every sub-issue's close). Its body is
-// never edited.
-async function closeDoneParent({ github, repo, parent, humans, closes, bot }) {
+// never edited. One that stays open may re-enter intake (reenterFinished).
+async function closeDoneParent({ github, repo, parent, humans, closes, bot, mirror = noMirror }) {
   if (parent?.state !== "open" || !NUMBER.test(String(parent.number)) || !String(parent.repository_url ?? "").toLowerCase().endsWith(`/repos/${repo}`.toLowerCase())) {
     return;
   }
@@ -2119,6 +2168,7 @@ async function closeDoneParent({ github, repo, parent, humans, closes, bot }) {
   const leftOpen = await splitLeftOpen({ github, repository: repo, issue: parent, comments, children, isApp: (actor) => actor?.login === bot, humans, trusted });
   if (leftOpen) {
     console.log(`label-unblocked: #${parent.number} stays open: ${leftOpen}`);
+    await reenterFinished({ github, repo, parent, comments, children, trusted, bot, mirror });
     return;
   }
   if (!comments.some((comment) => comment.user?.login === bot && String(comment.body ?? "").startsWith(SPLIT_CLOSED))) {
@@ -2126,8 +2176,29 @@ async function closeDoneParent({ github, repo, parent, humans, closes, bot }) {
       body: `${SPLIT_CLOSED}\nEvery sub-issue of this split is closed as completed by a listed human or a merge (${children.map((child) => `#${child.number}`).join(", ")}), so the lanes App closes it as completed.`,
     });
   }
+  // The App's close starts no close run, so its queue labels come off here,
+  // before the close: a failed removal leaves the parent open.
+  const removed = await stripQueueLabels(github, base, labelNames(parent));
   await github("PATCH", base, { state: "closed", state_reason: "completed" });
-  console.log(`label-unblocked: split parent #${parent.number} closed as completed`);
+  console.log(`label-unblocked: split parent #${parent.number} closed as completed; removed ${removed.length} queue label(s)`);
+}
+
+// Takes status: confirmed off `parent` (an open issue as read, with its
+// `comments` and sub-issues `children`) when admission parked it on
+// SIZE_SPLIT_DONE and every sub-issue now counts as done (subIssueLeftOpen,
+// `trusted` judging each close): decide admits such a finished parent for the
+// issue lane's one verified-done run, so intake-reenter sends it to intake, as
+// unpark does. Any other park stays, a verify-unmet one included: that run's
+// park rewrote the admission comment. Returns whether it wrote.
+async function reenterFinished({ github, repo, parent, comments, children, trusted, bot, mirror }) {
+  const parkedDone = comments.some((comment) => comment.user?.login === bot && String(comment.body ?? "").startsWith(ADMIT_MARKER) && String(comment.body).includes(SIZE_SPLIT_DONE));
+  if (!parkedDone || !confirmedOnly(labelNames(parent).map((name) => name.toLowerCase())) || children.length === 0 || (await subIssueLeftOpen(children, trusted, repo)) !== null) {
+    return false;
+  }
+  await github("DELETE", `/repos/${repo}/issues/${parent.number}/labels/${encodeURIComponent(CONFIRMED)}`);
+  await mirror(parent.number, change(labelNames(parent), [], [CONFIRMED]));
+  console.log(`label-unblocked: #${parent.number} ${CONFIRMED} removed: every sub-issue closed as completed, so intake-reenter sends it to intake for one verified-done run`);
+  return true;
 }
 
 // The admission comment's text for a wait, before its reasons (sayWhy's callers).
@@ -2250,10 +2321,16 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     const status = () => (read ??= checkWip(github, { repo, bot, now, limits, wip, remaining: rate.remaining }));
     const gate = admissionGate(status);
     let failed = sweep ? await admitDeferred({ github, repo, humans, bot, gate, appId: logins.get(bot), admission, mirror: mirrorTo }) : 0;
-    failed += await labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, appId: logins.get(bot), admission, mirror: mirrorTo });
+    // One close check per issue this run, shared by both passes below.
+    const closes = new Map();
+    failed += await labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, appId: logins.get(bot), admission, mirror: mirrorTo, closes });
     // Before readmitReady, so a split parent whose last sub-issue closed is
     // closed, not decided, on the sweep that sees that close.
-    failed += await closeSplitParents({ github, repo, closed, sweep, humans, bot });
+    failed += await closeSplitParents({ github, repo, closed, sweep, humans, bot, closes, mirror: mirrorTo });
+    // The sweep marker carries no queue labels, so a kick skips this.
+    if (!sweep) {
+      failed += await stripClosed({ github, repo, number: Number(event.issue.number) });
+    }
     if (sweep) {
       // One listing of the open issues, oldest updated first, for the parent
       // rescan and readmitReady.
@@ -2265,7 +2342,7 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
         failed += 1;
       }
       if (listed) {
-        failed += await rescanSplitParents({ github, repo, listed, humans, bot, cap: limits["parent-rescan-per-run"], now });
+        failed += await rescanSplitParents({ github, repo, listed, humans, bot, cap: limits["parent-rescan-per-run"], now, mirror: mirrorTo });
         failed += await readmitReady({ github, repo, listed, humans, bot, gate, appId: logins.get(bot), admission, cap: limits["readmit-per-run"], now, mirror: mirrorTo });
       }
       failed += await restartLimited({ github, actions, jobLog, repo, bot, humans, now, limits, status, mirror: mirrorTo });

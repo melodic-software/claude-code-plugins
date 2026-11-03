@@ -17,6 +17,14 @@
     {
       "answer": "That rule would allow every ssh command, not just the ones to the laptop.",
       "why": "observed wording: 'allow every ssh command'"
+    },
+    {
+      "answer": "That rule would cover any remote command the relay sends.",
+      "why": "cost wording: cover any remote command"
+    },
+    {
+      "answer": "A bare Bash(ssh:*) would allow ssh to any host without asking.",
+      "why": "cost wording: any host without asking"
     }
   ],
   "fail": [

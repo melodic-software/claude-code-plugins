@@ -2155,7 +2155,7 @@ test("no run-claude-cli plugin-dirs or add-dirs value names runner.temp, RUNNER_
 // does; check-permission-mode.sh accepts default for dontAsk on that basis.
 // 7b362428: lane.cjs:311-312; 164c2809: lane.cjs:355-358; d02b8697 and e5167fc2: lane.cjs:357-358;
 // ba7af78d291f10bd75651857a0db2357c23df0fe, 30b251532b2e9f7e0c4215e1dee5be0d3c688743, 81a603a6e2b0319428c981bf28f3fe923032afb2
-// and 2476d5dde8979eab34374150b7e4b0a2b99f4e88: lane.cjs:404-405; in cliArgs. The org requires
+// 2476d5dde8979eab34374150b7e4b0a2b99f4e88 and bc62beb95a989641f30552a932a132ebb8ecd801: lane.cjs:404-405; in cliArgs. The org requires
 // actions pinned to a full SHA, so a pin bump fails here until its lane.cjs is read and its SHA added.
 const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set([
   "7b362428c76085a160e28656cd2c75c3147a69ff",
@@ -2166,6 +2166,7 @@ const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set([
   "30b251532b2e9f7e0c4215e1dee5be0d3c688743",
   "81a603a6e2b0319428c981bf28f3fe923032afb2",
   "2476d5dde8979eab34374150b7e4b0a2b99f4e88",
+  "bc62beb95a989641f30552a932a132ebb8ecd801",
 ]);
 
 test("every run-claude-cli step pin in this repo's workflows is a launcher checked to pass --permission-prompts none", () => {
@@ -3109,6 +3110,39 @@ function gateApi(gate, { tip = async () => ({ data: { commit: { sha: GATE_TIP } 
     },
   };
 }
+
+// The scan job's job-end notice sums the counts its two github-script steps
+// write, each before its request, so a refused or failed request still counts.
+test("pr-run-activity-read.yml: the scan job's github-script steps count each request before sending it", async (t) => {
+  const root = tempDir("scan-calls-");
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const { createRequire } = await import("node:module");
+  const core = { setOutput: () => {}, setFailed: () => {}, warning: () => {}, info: () => {} };
+  const count = async (id, name, github, env = {}) => {
+    const step = scanSteps().find((s) => s.id === id);
+    assert.equal(step.env.CALLS_FILE, `\${{ runner.temp }}/${name}`, id);
+    const file = join(root, name);
+    rmSync(file, { force: true });
+    rmSync(join(root, "scan-gate"), { recursive: true, force: true });
+    await new AsyncFunction("require", "core", "github", "context", "process", step.with.script)(createRequire(import.meta.url), core, github, SCAN_CONTEXT, {
+      env: { ...env, CALLS_FILE: file },
+    }).catch(() => {});
+    return existsSync(file) ? readFileSync(file, "utf8") : null;
+  };
+  const refused = async () => {
+    throw new Error("refused");
+  };
+  const api = (getContent) => ({ rest: { repos: { getBranch: async () => ({ data: { commit: { sha: GATE_TIP } } }), getContent } } });
+  const served = async () => ({ data: { content: Buffer.from("export const x = 1;\n").toString("base64") } });
+  const stage = { RUNNER_TEMP: root };
+  assert.equal(await count("stage-scanner", "scan-stage-calls", api(served), stage), "3\n", "getBranch and two getContent");
+  assert.equal(await count("stage-scanner", "scan-stage-calls", api(refused), stage), "2\n", "a refused read still counts");
+  assert.equal(await count("stage-scanner", "scan-stage-calls", { rest: { repos: { getBranch: refused } } }, stage), "1\n");
+  const leak = { HEAD_SHA: "a".repeat(40) };
+  assert.equal(await count("leak-scan", "scan-leak-calls", api(refused), leak), "2\n", "getBranch and the gate's getContent");
+  assert.equal(await count("leak-scan", "scan-leak-calls", { rest: { repos: { getBranch: refused } } }, leak), "1\n");
+  assert.equal(await count("leak-scan", "scan-leak-calls", api(refused), {}), null, "no head: no request, no count");
+});
 
 // source, given the run's temp directory once the patch is collected, returns
 // the directory the scan reads the reply, run fields and patch from (the scan
@@ -5591,7 +5625,11 @@ test("pr-unblock.yml: the select job runs only base code with a read-only token 
   const { jobs } = workflow("pr-unblock.yml");
   const select = jobs["address-feedback-select"];
   assert.equal(select.uses, undefined, "a script job, never a runner that runs a model");
-  assert.deepEqual(select.permissions, { contents: "read", "pull-requests": "read", checks: "read" });
+  // actions read: an earlier FAIL's verdict artifact and its pr-verify run
+  // (earlier-fail-notes.mjs), every scope read-only.
+  assert.deepEqual(select.permissions, { contents: "read", "pull-requests": "read", checks: "read", actions: "read" });
+  assert.equal(select.steps.find((s) => s.id === "select").env.VERIFY_EARLIER_FAIL_HEADS, "${{ inputs.verify-earlier-fail-heads }}");
+  assert.equal(workflow("pr-unblock.yml").on.workflow_dispatch.inputs["verify-earlier-fail-heads"].type, "string");
   assert.doesNotMatch(JSON.stringify(select), /secrets\./);
   for (const step of select.steps.filter((s) => String(s.uses ?? "").startsWith("actions/checkout@"))) {
     assert.equal(step.with.ref, "${{ github.event.repository.default_branch }}");

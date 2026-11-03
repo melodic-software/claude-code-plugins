@@ -183,11 +183,11 @@ SESSION_REASONS=(protected-path-conflict conflict-patch-protected-path
   dependency-pin-invalid dependency-pin-not-applied dependency-pin-protected-path
   shared-copy-tooling-changed shared-copy-path-unregistered shared-copy-unexpected-path-staged
   shared-copy-patch-protected-path shared-copy-merge-conflicted
-  feedback-untaken-threads feedback-unadjudicated
+  feedback-untaken-threads feedback-unadjudicated feedback-already-addressed
   feedback-round-cap feedback-uncertain feedback-disputed)
 FAIL_REASONS=(workflow-staged unexpected-path-staged repeat-cap unresolved-conflict conflict-patch-invalid conflict-patch-not-applied
   feedback-not-converging feedback-verifier-open feedback-not-landed feedback-invalid feedback-partial
-  feedback-incomplete feedback-stood-open feedback-publish-failed
+  feedback-incomplete feedback-stood-open feedback-publish-failed feedback-verdict-unreadable
   dependency-invalid
   ci-fix-round-cap ci-fix-empty ci-fix-invalid ci-fix-not-applied ci-fix-weaken-retry
   shared-copy-workflow-staged shared-copy-patch-invalid shared-copy-patch-not-applied)

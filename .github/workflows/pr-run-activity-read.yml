@@ -2698,14 +2698,24 @@ jobs:
         continue-on-error: true
         timeout-minutes: 2
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          CALLS_FILE: ${{ runner.temp }}/scan-stage-calls
         with:
           retries: 2
           retry-exempt-status-codes: 400,401,403,404,422,429
           script: |
             const fs = require('fs');
             const path = require('path');
+            // Each request's count, written before it is sent, for the job-end notice.
+            let calls = 0;
+            const sent = () => {
+              try {
+                fs.writeFileSync(process.env.CALLS_FILE, `${++calls}\n`);
+              } catch {}
+            };
             const branch = context.payload.repository?.default_branch;
             if (typeof branch !== 'string' || branch === '') throw new Error('no default branch');
+            sent();
             const tip = (await github.rest.repos.getBranch({ ...context.repo, branch })).data?.commit?.sha;
             if (typeof tip !== 'string' || !/^[0-9a-f]{40}$/.test(tip)) throw new Error('no default branch tip');
             const dest = path.join(process.env.RUNNER_TEMP, 'scan-gate');
@@ -2716,6 +2726,7 @@ jobs:
               ['.github/actions/scan-upload/scan-upload.mjs', ['../../../lib/publish-gate.mjs']],
             ];
             for (const [file, allowed] of files) {
+              sent();
               const { data } = await github.rest.repos.getContent({ ...context.repo, path: file, ref: tip });
               const source = Buffer.from(data.content, 'base64').toString('utf8');
               const specifiers = [...source.matchAll(/\bfrom\s*['"]([^'"]+)['"]|^\s*import\s*['"]([^'"]+)['"]|\bimport\s*\(\s*['"]?([^'")]*)/gm)].map((match) => match[1] ?? match[2] ?? match[3]);
@@ -2779,6 +2790,7 @@ jobs:
           # The caller's input, never a run job output: a merge-base patch is
           # read as text only.
           TEXT_PATCH: ${{ inputs.merge-conflict-tree != '' }}
+          CALLS_FILE: ${{ runner.temp }}/scan-leak-calls
         with:
           retries: 2
           # The action's default list, plus the rate limit it leaves out.
@@ -2790,7 +2802,14 @@ jobs:
             const crypto = require('crypto');
             const { pathToFileURL } = require('url');
             const { execFileSync } = require('child_process');
-            const { HEAD_SHA, REPLY_DIR, PATCH_FILE, GITHUB_WORKSPACE, TEXT_PATCH } = process.env;
+            const { HEAD_SHA, REPLY_DIR, PATCH_FILE, GITHUB_WORKSPACE, TEXT_PATCH, CALLS_FILE } = process.env;
+            // Each request's count, written before it is sent, for the job-end notice.
+            let calls = 0;
+            const sent = () => {
+              try {
+                fs.writeFileSync(CALLS_FILE, `${++calls}\n`);
+              } catch {}
+            };
             // A regular file's bytes, a link's target text; anything else holds none.
             const read = (file) => {
               let stat;
@@ -2814,8 +2833,10 @@ jobs:
               // sudo on that runner could have forged.
               const branch = context.payload.repository?.default_branch;
               if (typeof branch !== 'string' || branch === '') throw new Error('no default branch');
+              sent();
               const tip = (await github.rest.repos.getBranch({ ...context.repo, branch })).data?.commit?.sha;
               if (typeof tip !== 'string' || !/^[0-9a-f]{40}$/.test(tip)) throw new Error('no default branch tip');
+              sent();
               const { data } = await github.rest.repos.getContent({ ...context.repo, path: 'lib/publish-gate.mjs', ref: tip });
               const source = Buffer.from(data.content, 'base64').toString('utf8');
               const specifiers = [...source.matchAll(/\bfrom\s*['"]([^'"]+)['"]|^\s*import\s*['"]([^'"]+)['"]|\bimport\s*\(\s*['"]?([^'")]*)/gm)].map((match) => match[1] ?? match[2] ?? match[3]);
@@ -3140,20 +3161,22 @@ jobs:
       # The hub's api-calls notice, in log-api-budget's shape, written here
       # since this job holds the scan-carrier key and loads no other action
       # from a checkout. Its only job-token calls are the two github-script
-      # steps' branch and content reads, which no counter sees, so the count
-      # is 0 and api-uncounted names them.
+      # steps' branch and content reads, each counted into its step's file
+      # before it is sent; a 5xx retry inside github-script is not, so the
+      # count is a floor.
       - name: Log the API calls at the end
         if: always()
         continue-on-error: true
-        env:
-          STAGED: ${{ steps.stage-scanner.outcome }}
-          SCANNED: ${{ steps.leak-scan.outcome }}
         run: |
-          echo "::notice title=api-calls::github-token=0 not-modified=0 graphql=0"
-          outside=()
-          [[ $STAGED == skipped || -z $STAGED ]] || outside+=(stage-scanner:branches/contents)
-          [[ $SCANNED == skipped || -z $SCANNED ]] || outside+=(leak-scan:branches/contents)
-          ((${#outside[@]} == 0)) || echo "::notice title=api-uncounted::github-token ${outside[*]}"
+          # No file: that step sent nothing, so 0 for it.
+          calls=0
+          for file in scan-stage-calls scan-leak-calls; do
+            n=0
+            [[ -f $RUNNER_TEMP/$file ]] && n=$(<"$RUNNER_TEMP/$file")
+            [[ $n =~ ^[0-9]{1,6}$ ]] || n=0
+            calls=$((calls + 10#$n))
+          done
+          echo "::notice title=api-calls::github-token=$calls not-modified=0 graphql=0"
 
   # The scan job's refusal, as an artifact a job that succeeds uploads. A
   # failed scan fails the caller's job for this whole workflow, and no

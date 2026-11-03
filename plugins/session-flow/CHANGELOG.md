@@ -1,5 +1,39 @@
 # Changelog: session-flow plugin
 
+## [6.3.0] - 2026-11-03
+
+### Changed
+
+- `workflow`: one stage order with the interview first. Stage 1 is now Interview (the Contract stage's work, renamed); Explore, Research and PRD become stages 2-4, conditional detours the interview calls when a question needs one. Stages 5-12 keep their numbers. The stage list, prose, checklist template, spec-first table and `retro`'s quick table all follow the new order (#12663).
+- `workflow`: the stage definitions name the level each planning stage decides: the interview decides behavior, design decides interfaces and contracts, and plan decides files and symbols (#12663).
+- `workflow`: between human stages (interview, PRD, design, plan) the continuation router suggests a handoff only at context-guard zone `dumb`; at `smart`, `acceptable` or `unknown` it compacts or continues (#12663).
+- `workflow` tests: `test_workflow_continuation_rule.py` fails when the continuation context loses the `dumb`-zone handoff rule line, and `test_workflow_stage_order.py` fails when the skill's at-a-glance list or stage-detection list drifts from the `steps.md` stage order or names a Contract stage.
+
+- move the handoff skill's WIP-commit mechanics and /export record out of its hub
+
+  The /session-flow:handoff SKILL.md body drops from 36,785 to 34,609
+  bytes (frontmatter stripped). The WIP commit's refusal checks, staging
+  and record, and the /export verification record, move verbatim to
+  reference files read on demand, listed in a new reference index. A new
+  ho-wip-commit-on-pause eval case covers the moved WIP-commit text.
+
+## [6.2.0] - 2026-11-03
+
+### Added
+
+- workflow: the pre-PR sequence's simplify step ends with a comment pass over the comments the
+  change adds (`/code-tidying:remove-comments --pipeline` when that plugin is enabled), in `report`
+  mode when unattended unless the project pre-approves comment edits there.
+
+### Changed
+
+- The handoff structure reference, `/session-flow:clean-stop`, `/session-flow:recommend-skills`,
+  `/session-flow:reconcile` and `/session-flow:running-retro` no longer restate upstream behavior
+  (which task tools exist and what `/clear` removes, the transcript path, how `git status` and
+  `git worktree remove` treat ignored files, the plugin cache layout, why a finished worker stays
+  listed, what the on-disk transcript records, and when a `/loop` stops firing). Each keeps its own
+  rule and links the upstream section with an as-of date and a recheck trigger.
+
 ## [6.1.0] - 2026-11-03
 
 ### Changed

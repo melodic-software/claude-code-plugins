@@ -74,6 +74,13 @@
 // App PRs: on a PR a person opened, verify-notes.mjs holds a fail with a label
 // it removes itself on the next pass, so there is no thread to resolve.
 //
+// A lanes App PR the merge gate's reader refuses verify:earlier-fail (a FAIL
+// at another head of the same change) dispatches even with no unresolved
+// thread: once its fail-note threads are resolved nothing else moves the head.
+// That model round names the FAILed heads (input verify-earlier-fail-heads,
+// verify-cap.mjs earlierFailHeads), and its select job works their notes from
+// the verdict artifacts. Every other skip above still holds.
+//
 // A round whose reply job skipped no-model-turn, finding-stands (an
 // adjudicator let a disputed finding stand and the head did not move, so no
 // review run follows), or kill-switch (the lanes kill switch stopped it, and
@@ -121,6 +128,11 @@
 //
 // A sweep dispatches at most once, since the
 // dispatched-run record names one upstream and one run, and keeps no record.
+// The unsent sweep also sends a head with no unresolved thread and a fail note
+// from another head, while its newest review run completed within
+// EARLIER_FAIL_WINDOW_MS: its verifier read may have failed, or a pass's
+// EARLIER_FAIL_READS cap may have left it. Nothing records an answer, so a
+// head answered "no earlier FAIL" may be read again inside that window.
 //
 // A run of this file an outage lost, or whose dispatch job failed, dispatched
 // nothing the lanes trust when re-run: check-trusted-trigger's dispatcher
@@ -164,7 +176,7 @@ import { pathToFileURL } from "node:url";
 import { commitPulls, detailSuffix, errorLabel, responseDetail } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { anyListed, fixRequesters, HOLD_LINE, humanGatedLabelFrom, isFixRequest, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, readTriggers, REQUEST_HISTORY_QUERY, requestHistoryOf, requestSkip, requestSkipLine, restMentions, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
+import { anyListed, fixRequesters, HOLD_LINE, humanGatedLabelFrom, isFixRequest, MARKER_AUTHOR_ID, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, readTriggers, REQUEST_HISTORY_QUERY, requestHistoryOf, requestSkip, requestSkipLine, restMentions, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 
 // fix-ci-dispatch.mjs imports HOLD_LINE from here.
 export { HOLD_LINE, NO_ADOPTION, ownerAdoption, ownerAuthored };
@@ -459,6 +471,9 @@ export async function dispatchFeedback({
   // verify-cap.mjs verifyReader's { cap, supersededAtHead }, or
   // verifyCapReader's cap refusal alone, or null.
   verifyCapped = () => null,
+  // The verifier reads this pass may still spend on PRs with no unresolved
+  // thread (EARLIER_FAIL_READS); main shares one across the pass's sweeps.
+  earlierFailReads = { left: EARLIER_FAIL_READS },
 }) {
   // Each skip names the upstream run, so a relay or review run traces to its
   // dispatch decision in one log read.
@@ -549,6 +564,10 @@ export async function dispatchFeedback({
   }
   // A pass-only round reads its own threads and runs no model, so neither the
   // review markers, a workable thread nor the human gate below decide it.
+  // A lanes App PR with no unresolved thread waits for the verifier read
+  // below: a verify:earlier-fail refusal there sends a round for the FAILed
+  // heads' notes, which their verdict artifacts hold (#12809).
+  let noThread = false;
   if (!passOnly) {
     const comments = await api.listIssueComments(number);
     const unreviewed = settings.markerLanes.filter((lane) => markedHead(comments, lane, settings.markerAuthorId) !== head);
@@ -600,7 +619,12 @@ export async function dispatchFeedback({
       return skip(`#${number} is labeled ${humanGatedLabel} (${why}) and has no thread a trusted person with write access asked the lane to fix`);
     }
     if (!workable && !threads.some((thread) => thread.isResolved === false)) {
-      return skip(`#${number} has no unresolved review thread`);
+      // Only a PR with a fail note from another head can be refused
+      // verify:earlier-fail with notes to work; the rest keep the free skip.
+      if (owner || !earlierFailNoted(threads, head)) {
+        return skip(`#${number} has no unresolved review thread`);
+      }
+      noThread = true;
     }
     // On an owner PR an unresolved thread the lane does not take (one the
     // person wrote or answered) stays the person's, so it starts no round.
@@ -684,8 +708,21 @@ export async function dispatchFeedback({
   // reader's FAIL refusal there, and so does a pass-only round: its pass may
   // meet a same-head FAIL it did not supersede, whose notes stay open.
   const expected = passOnly || notesSince !== null ? [VERIFY_FAIL] : [];
+  // Each read can take VERIFY_CAP_TIMEOUT_MS, and a sweep decides PR after PR
+  // inside one 10-minute job, so a pass reads at most EARLIER_FAIL_READS heads
+  // that have no thread; the rest wait for a later pass inside
+  // EARLIER_FAIL_WINDOW_MS (sweepUnsent), as does a head whose read failed.
+  if (noThread) {
+    if (earlierFailReads.left <= 0) {
+      return skip(`#${number} has no unresolved review thread, and this pass's ${EARLIER_FAIL_READS} verifier reads for an earlier FAIL are spent; the next pass reads it`);
+    }
+    earlierFailReads.left -= 1;
+  }
   const read = owner ? null : await verifyCapped({ number, head, base: pull.base?.sha, expected });
-  const { cap: capped, supersededAtHead } = read !== null && typeof read === "object" ? read : { cap: read, supersededAtHead: false };
+  const { cap: capped, supersededAtHead, earlierFailHeads = [], readFailed = false } = read !== null && typeof read === "object" ? read : { cap: read, supersededAtHead: false };
+  if (noThread && (readFailed || (capped && !capFinal(capped)))) {
+    return skip(`#${number} has no unresolved review thread, and the verifier read for an earlier FAIL ${readFailed ? "failed" : `could not count every FAIL (${capped})`}; a later pass inside the retry window reads it again`);
+  }
   if (capped) {
     // The cap never clears for the head: later runs skip it before any
     // read. A sibling read that failed is read again next run.
@@ -702,6 +739,13 @@ export async function dispatchFeedback({
       return skip(`#${number}: pr-verify's FAILs are at the cap or cannot all be read (${capped}); pr-merge closes it for a fresh attempt, so no ${settings.activity} round`);
     }
   }
+  // A model round names the FAILed heads behind the gate's verify:earlier-fail
+  // refusal, whose notes the select job reads from their verdict artifacts
+  // when no thread is left to work.
+  const earlierFail = passOnly ? [] : earlierFailHeads;
+  if (noThread && earlierFail.length === 0) {
+    return skip(`#${number} has no unresolved review thread`);
+  }
   const request = {
     workflow: settings.workflow,
     ref: `refs/heads/${settings.base}`,
@@ -713,6 +757,7 @@ export async function dispatchFeedback({
       // The gate's reader found the FAIL at this head superseded, so the
       // round resolves that FAIL's notes too (address-feedback.mjs select).
       ...(passOnly && supersededAtHead === true ? { "verify-superseded-head": head } : {}),
+      ...(earlierFail.length > 0 ? { "verify-earlier-fail-heads": earlierFail.join(" ") } : {}),
     },
   };
   let workflowRunId;
@@ -740,6 +785,26 @@ export async function dispatchFeedback({
   log(`dispatched #${number} head ${head} upstream run ${upstreamRunId} workflow_run_id=${id}`);
   return { number, workflowRunId: id };
 }
+
+// The verifier reads one dispatcher pass spends on lanes App PRs with no
+// unresolved thread (judgment: 3 reads of up to VERIFY_CAP_TIMEOUT_MS each
+// leave the 10-minute job room for its other work).
+export const EARLIER_FAIL_READS = 3;
+// How long after a head's newest review run completed the unsent sweep still
+// reads a head with no unresolved thread and a fail note from another head
+// (judgment: about four half-hourly ticks, so a failed or capped read is
+// retried a few times, and an answered one is re-read at most that often,
+// with no record to carry across ticks).
+export const EARLIER_FAIL_WINDOW_MS = 2 * 60 * 60_000;
+
+// Whether a review thread holds a pr-verify fail note (verify-notes.mjs, by
+// github-actions[bot], VERIFY_NOTE_MARKER first) from a review of another
+// head than `head`: the sign of an earlier FAIL the gate may refuse on.
+export const earlierFailNoted = (threads, head) =>
+  threads.some((thread) => {
+    const first = thread?.comments?.nodes?.[0];
+    return first?.author?.databaseId === MARKER_AUTHOR_ID && String(first.body ?? "").split("\n")[0].replace(/\r$/, "") === VERIFY_NOTE_MARKER && first.pullRequestReview?.commit?.oid !== head;
+  });
 
 // A request whose connection broke before any answer (undici's `fetch failed`
 // with a reset or closed socket); an HTTP answer is never one.
@@ -935,12 +1000,21 @@ async function sweepUnsent(context) {
   if ((await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId })).length > 0) {
     return null;
   }
-  const unresolved = (await api.listReviewThreads(pull.number)).filter((thread) => thread.isResolved === false);
-  if (unresolved.length === 0) {
+  const threads = await api.listReviewThreads(pull.number);
+  const unresolved = threads.filter((thread) => thread.isResolved === false);
+  // A head with no unresolved thread is sent again only while it may be
+  // refused verify:earlier-fail with notes to work (a fail note from another
+  // head), and only inside EARLIER_FAIL_WINDOW_MS of its newest review run's
+  // completion: its read may have failed, or a pass's read cap left it.
+  if (unresolved.length === 0 && !earlierFailNoted(threads, head)) {
     return null;
   }
   const upstream = await reviewRunAt({ api, head, repository, settings });
   if (upstream === null) {
+    return null;
+  }
+  // NaN compares false, so a review with no readable completion is left alone.
+  if (unresolved.length === 0 && !(Date.parse(upstream.updated_at ?? "") >= (rest.now ?? Date.now()) - EARLIER_FAIL_WINDOW_MS)) {
     return null;
   }
   // Each review, pr-merge and comment-relay run's completion at the head
@@ -1472,6 +1546,8 @@ export async function main(env, { api, github, resolveSlot, verifyCapped, log = 
     api: client,
     repository: env.GITHUB_REPOSITORY,
     runId: env.GITHUB_RUN_ID,
+    // One read budget for every dispatch this pass decides.
+    earlierFailReads: { left: EARLIER_FAIL_READS },
     appSenderId: Number(env.APP_SENDER_ID),
     reviewerIds: reviewerIdsFrom(env.REVIEWER_IDS),
     // The base checkout's list, the one resolve-config reads beside it.

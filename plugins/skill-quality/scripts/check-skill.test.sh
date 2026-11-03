@@ -4455,7 +4455,7 @@ fi
 
 # 27b. A stage-bearing skill (metadata.workflow-stage in the stage list) with no
 # '## Next' and no older routing heading warns; any routing heading, a
-# conforming '## Next', a non-stage value, or `contract` keeps today's verdict.
+# conforming '## Next', a non-stage value, or `interview` keeps today's verdict.
 # make_stage_skill <name> <workflow-stage-line-value> <extra-section>
 make_stage_skill() {
   make_skill "$1" '---
@@ -4537,8 +4537,8 @@ else
   fail "anytime skill should keep the INFO note (rc=$rc): $out"
 fi
 
-make_stage_skill stage-contract contract ''
-stage_quiet_case stage-contract "a contract-stage skill with no '## Next' does not warn (contract routes through its slice)"
+make_stage_skill stage-interview interview ''
+stage_quiet_case stage-interview "an interview-stage skill with no '## Next' does not warn (interview routes through its slice)"
 
 # --- R1-R12: explicit skills roots as positionals -----------------------------
 # One or more existing directories run the gate over every skill under each,

@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: codify-note-applied-kind
+description: 'note --applied records a change already made: the row written under .work/codify/notes/ carries "kind": "applied" and the #PR as its source_id, and nothing is written elsewhere.'
+tags: [codify, note, applied]
+plugins: ["../.."]
+expected_outcome: 'The skill composes one row with producer corrections/codify-note, kind applied, source_id #42 and a signal naming the situation and the action to prevent, writes it with the Write tool under .work/codify/notes/, runs buffer.sh append with that file and reports the result. It does not count, pick a rung or propose a check.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/corrections:codify note --applied "When a test fails before any edit to its code, run it on the base commit before debugging it as caused by this change" #42'
+  allowed_tools: [Bash, Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 12
+  timeout_seconds: 300
+graders:
+  - name: row-is-applied
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '^(?=[\s\S]*"file_path":"[^"]*\.work/codify/notes/[^"]*\.jsonl")(?=[\s\S]*\\"kind\\":\s*\\"applied\\")(?=[\s\S]*\\"source_id\\":\s*\\"#42\\")'
+    min: 1
+    arm: 'with-only'
+  - name: writes-only-under-work-codify
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"(?![^"]*\.work/codify/)'
+    min: 0
+    max: 0
+    arm: 'both'

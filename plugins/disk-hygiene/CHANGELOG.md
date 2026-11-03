@@ -3,6 +3,16 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.1] - 2026-11-03
+
+### Changed
+
+- The README, the setup skill and the unsupported-platform handoff no longer restate the Windows
+  `python3` alias stub's behavior and Settings steps, hook variable substitution, skill-hook
+  lifetime, the shell path-length limit or what an uninstall deletes; each passage keeps the
+  plugin's own decision and points at the live upstream section with an as-of date and a recheck
+  trigger.
+
 ## [1.0.0] - 2026-11-03
 
 ### Removed

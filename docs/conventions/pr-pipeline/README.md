@@ -307,6 +307,16 @@ PR head is the passing one, as the lanes App, with no reply and no round marker,
 App PRs; other address-feedback rounds also go to adopted owner PRs
 ([Owner pull requests](#owner-pull-requests)). Resolving a thread
 takes more than the `post-verify-notes` token holds, so that job never resolves one.
+When the gate's reader refuses a lanes App PR's head `verify:earlier-fail` (a FAIL at another head
+of the same change), its report's `earlierFails` names the FAILed heads, and the dispatcher sends a
+model round with them in `verify-earlier-fail-heads`, even with no unresolved thread. When no
+thread is left to work, `address-feedback-select` (with `actions: read`) reads those FAILs' notes
+from their verdict artifacts (`earlier-fail-notes.mjs`: the head's FAIL index, a run the gate
+counts, `verify-notes.mjs` `readVerdict` and `noteComments`) into `threads.json`'s
+`verify_notes`; a read that fails stops `feedback-verdict-unreadable`. The model fixes each note
+or reports it `already-addressed`; `publish-feedback` posts nothing for them. A push fixing a
+named note ends as any fix round; no push with every note already addressed stops
+`feedback-already-addressed` for a session builder.
 In `pr-unblock.yml`, `address-feedback-select` (a base job with no model and a read-only token)
 keeps the threads, `address-feedback` (the model job, `read`, on the read runner with a
 subscription fallback) answers them and hands on a patch and its replies,
@@ -3113,8 +3123,10 @@ priority or work-class label. The `needs-triage` floor label is not a triage lab
 whether or not intake runs, so an issue whose intake run failed is still selected; one the sweep
 already filed a hand-off issue for, found by one search of those issues, is skipped unread. Issues from
 `github-actions[bot]`, the lane sweep's own included, are left out. For each it re-dispatches `intake-triage.yml`, at most 5 a pass, and records the runs in
-one comment on the issue; after 2 dispatches leave it untriaged it labels the original
-`needs-triage`, then files one `needs-triage` issue naming the runs. It holds the job's own `GITHUB_TOKEN`
+one comment on the issue; after 2 runs that reached intake leave it untriaged it labels the original
+`needs-triage` and rewrites that comment to name the runs. A run whose `intake-triage` job the kill
+switch or another gate skipped, or that was cancelled before it, does not count, read from the run's
+jobs; 6 dispatches hand the issue off whatever reached intake. It holds the job's own `GITHUB_TOKEN`
 (`actions: write`, `contents: read`, `issues: write`), never a lanes App token, and stops at 120
 REST calls.
 

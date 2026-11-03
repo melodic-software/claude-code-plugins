@@ -247,7 +247,8 @@ beside `context_window`:
 - `zone` is `smart`, `acceptable`, `dumb` or `unknown`. It is computed from the bands below, and is
   `dumb` once the session was compacted.
 - `bands` are the edges after `zones.json`. The token edges are for the session's window class, and
-  are `null` when the token shape is not computable.
+  are `null` when the token shape is not computable. Under a lowered auto-compact window `bands`
+  also holds `auto_compact_window`, and the percentage edges are already scaled to it.
 - Treat a `captured_at` older than 10 minutes as `unknown`.
 - With no file, or a file without these keys (an older plugin version), use your own fallback.
 
@@ -296,9 +297,15 @@ its event through unchanged.
   live. **As of**: 2026-10-11. **Recheck trigger**: that table changes, or its section is renamed
   or removed. The trigger itself is
   operator-tunable, per model as well as globally; the reader contract's tunable
-  table records which surfaces we rely on and where to read the rest. Bands
-  belong **below** whatever it resolves to, normalized into the percentage shape, so the session
-  reaches a boundary decision before the harness compacts for it. After the auto-compact window is
+  table records which surfaces we rely on and where to read the rest. The module's percentage
+  bands follow it: it reads the window the engine settled on (the `/context` breakdown's
+  `rawMaxTokens`, whichever of the variable, a setting or a per-model value set it), and when that
+  window is smaller than the model's it scales the percentage edges, the `thresholds` and the
+  approach margin by the ratio, so `zones.json` percentages are of the auto-compact window. The
+  token bands measure occupancy and stay as set. No hand retune of `zones.json` is needed for a
+  lowered window; undo one made before this release, or it applies twice. The fallback resolver
+  `scripts/context-zone.sh` cannot see the window and still measures against the full one, so a
+  reader takes the snapshot's published `zone` and `bands`. After the auto-compact window is
   lowered, we never read `used_percentage` as a forecast of when compaction will run. **Pointer**:
   when deciding what the percentage is measured against, fetch
   [environment variables: variables](https://code.claude.com/docs/en/env-vars#variables) live.

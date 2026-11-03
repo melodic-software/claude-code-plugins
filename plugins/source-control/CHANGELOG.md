@@ -3,6 +3,44 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.3.0] - 2026-11-03
+
+### Changed
+
+- **The babysit loop admits a pull request at each rung by that rung's promotion, not by work class.** The rung partition no longer reads the close-linked item's `work-class:` label: once the effective rung's promotion cells are promoted (`C2-auto-merge` at `c2-mechanical`, every promotable cell at `c3-autonomous` and `full-autonomy`), an item with no class or any class but untrusted provenance is eligible. The untrusted-provenance hold, the fork and trust tests, and the other withholdings stay (#12748).
+- **The unattended merge pin names its rung.** The pin comment the merge gate posts before it enqueues is now `<!-- babysit-merge-pin sha=<sha> rung=C2|C3 -->`, and the post-merge read-back accepts both that and the older shape. The pr-merge lane's native-arm pin names the lane room's rung the same way.
+- **Promotion evidence is credited by rung.** `publish-promotion-evidence.mjs` credits each autonomous merge to the cells of the rung its lane pin names and reads no work-class label. A merge with no rung (no unedited pin at its head, an older pin, another bot's merge; a native auto-merge is credited by the pin the pr-merge lane posted) earns no credit, is listed in `noRungAutonomous` (formerly `unclassedAutonomous`), and its contrary events count against every cell. `C3-ai-review-blocking` takes its positive evidence from rung-C3 merges only; a human-confirmed missed-blocking finding on a rung-C3 merge or a human merge still counts against it.
+
+### Fixed
+
+- The merge gate's review evidence binds an AI review run's second attempt when the first failed with `failure-class=timeout` and the lane posted nothing on the head, the same unposted proof `no-outcome` uses. The gate still never starts that re-run itself.
+
+- The `comments --ci` review-thread tool (`feedback-thread.sh`) takes the notes of an earlier pr-verify FAIL as work items: `notes` lists them, and `record` takes `VALID` or `already-addressed` (with evidence) for a `VNOTE_` id, with each note's path in the fix's scope. The pr-unblock lane uses this when the merge gate refuses a head `verify:earlier-fail` and the FAIL's threads are already resolved.
+
+## [6.2.1] - 2026-11-03
+
+### Changed
+
+- move the commit skill's rationale out of its hub
+
+  The /source-control:commit SKILL.md body drops from 28,967 to 25,098
+  bytes (frontmatter stripped). Explanatory prose moves verbatim to
+  reference files read on demand; every command, table and gate stays in
+  the hub.
+
+### Fixed
+
+- The pr-merge lane's post-merge floor anchor now starts when every lane merge since the policy floor already carries its settled marker. The check that writes the anchor judges each settled merge the anchor needs again from its own runs, under the check's existing read caps, and passes it only when those runs show it final. The marker alone still never passes a merge, and the check's verdict and report are unchanged. Before, `anchor.json` was never written in that state. The merge gate now reads the anchor with the job token in `BABYSIT_VERIFY_GH_TOKEN` when set, since the lane token it runs under holds no Actions permission.
+
+## [6.2.0] - 2026-11-03
+
+### Added
+
+- pull-request: `prep` runs a comment pass after simplify and before the simplify diff is
+  reviewed, through `/code-tidying:remove-comments --pipeline --added-since <base>` when that
+  plugin is enabled. An unattended run applies no comment edit unless the project's instructions
+  pre-approve it: it runs the pass in `report` mode and lists the proposals in the prep report.
+
 ## [6.1.4] - 2026-11-03
 
 ### Changed

@@ -717,9 +717,27 @@ class TestOpenFindings(unittest.TestCase):
             "Q[a+b]=f;",
             'Q[`inc${"ludes"}`]=f;',
             "function g(k){Q[k]=f}g(n);",
+            'export{};function g(k){Q[k]=f}g(1);g("includes");',
         ):
             with self.subTest(module=module):
                 self.assert_across_modules(True, named, module)
+
+    def test_a_computed_read_that_spells_no_loader_or_constructor_clears(self) -> None:
+        """In a module, whose code runs strict, a computed read whose key can
+        be neither `require` nor `constructor` loads no file unseen and
+        reaches no `Function`, so the list keeps its literal; one whose key
+        may be either reads partial."""
+        named = 'import{pY}from"/a.js";pY.includes("x");'
+        for module, changed in (
+            ('export{};function J(e){var n=e.indexOf("x");return e[n+1]}', False),
+            ("export{};function J(e,n){return e[n]}J(o,0);J(o,`k${s}`);", False),
+            ("export{};var k=s+1;Q[k];", False),
+            ('export{};function J(e,n){return e[n]}J(o,"req"+"uire");', True),
+            ("export{};function J(e,n){return e[n]}J(o,0);h(J);", True),
+            ("function J(e,n){return e[n]}J(o,0);", True),
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(changed, named, module)
 
     def test_a_bundle_calling_vm_run_in_this_context_stays_partial(self) -> None:
         """node:vm runs a string as code in this realm, where it could patch

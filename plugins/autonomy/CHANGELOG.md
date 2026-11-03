@@ -3,6 +3,18 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.0.3] - 2026-11-03
+
+### Fixed
+
+- **The trigger-adapters template states the drain's admission labeler check correctly.** The drain reads who last applied the autonomous-eligible role label only, never a `work-class:` label (#12748).
+
+## [4.0.2] - 2026-11-03
+
+### Changed
+
+- **README, prerequisite resolution, setup:** passages that restated Claude Code behavior (the `/goal` evaluator, the `pluginConfigs` shape, how an option value reaches a hook, project MCP server approval settings, and the telemetry variables and export path) now keep only this plugin's decision and point at the live docs section, with an as-of date and a recheck trigger.
+
 ## [4.0.1] - 2026-11-03
 
 ### Changed

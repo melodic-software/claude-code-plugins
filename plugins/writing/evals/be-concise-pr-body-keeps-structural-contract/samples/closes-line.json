@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Closes #123\n\n## Summary\n...",
+      "why": "first line"
+    },
+    {
+      "answer": "Here it is:\n\n```markdown\nCloses #123\n```",
+      "why": "inside a fence"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Fixes the stale cache (#123).\n## Summary",
+      "why": "closing keyword lost"
+    }
+  ]
+}
