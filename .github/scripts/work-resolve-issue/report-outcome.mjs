@@ -664,7 +664,9 @@ const ROUTE_LABEL = { "host-run": HOST_RUN_LABEL, attended: ATTENDED_LABEL, park
 const KEPT = new Set(["retry", "wait"]);
 // The routes whose stops are counted against a cap: past it, retry-spent's.
 const COUNTED = new Set([...KEPT, "intake"]);
-const ADMISSION_LABELS = ["agent-ready", "status: ready", "admission-deferred"];
+// The queue labels: admission's, which work-unblock also strips from a closed
+// issue and from one its lane PR handed back to triage.
+export const ADMISSION_LABELS = ["agent-ready", "status: ready", "admission-deferred"];
 const ROUTE_REMOVES = { intake: ADMISSION_LABELS, park: ADMISSION_LABELS };
 const ROUTE_TEXT = {
   "host-run": `It added \`${HOST_RUN_LABEL}\` and removed \`agent-ready\`: an agent run on a host builds it, and it waits on no decision from a person.`,

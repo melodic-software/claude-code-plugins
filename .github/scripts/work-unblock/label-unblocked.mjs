@@ -10,6 +10,11 @@
 // marker, and a listed human closing it runs the sweep below at once, not the
 // close path. No model.
 //
+// The close path also strips the closed issue's own queue labels
+// (agent-ready, `status: ready`, admission-deferred; stripClosed), only those
+// present, unless it is open again or is a post-merge fix issue. A close the
+// broker refuses (a bot's) runs no close path, so it keeps them.
+//
 // Each new agent-ready is paced: at or over the issue lane's queued cap, or
 // with the lane paused over its WIP or held cap (check-wip-cap.mjs, on or
 // after wip.pause-from, or whenever a search answers incomplete_results:
@@ -277,7 +282,7 @@ import { notBornTriaged } from "../../actions/check-born-triaged/check-born-tria
 import { createGitHub, isTrustedClose as closedByHumanOrMerge, loadTrustedList, paginate, readRerunner } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
-import { clampReset, isLaneBranch, LANE_HOLDS, LANE_WORKFLOWS, parseOutcomeMarker, REFIRED, refireComment as refireRecord, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
+import { ADMISSION_LABELS, clampReset, isLaneBranch, LANE_HOLDS, LANE_WORKFLOWS, parseOutcomeMarker, REFIRED, refireComment as refireRecord, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorAdmitted, attendedHold, blockersOf, CONFIRMED, decide, deferralLapsed, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, SIZE_SPLIT_PENDING, specOf, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 import { clearedPastReport, retriageNote, doneReason, judgedSince, mergedRefsReader, splitLeftOpen, splitParentClosed } from "../intake-triage/admit.mjs";
@@ -855,6 +860,52 @@ const noMirror = async () => {};
 
 // A label change as the status mirror takes it (write-status.mjs statusMirror).
 const change = (had = [], add = [], remove = []) => ({ had, add, remove });
+
+// The queue labels (report-outcome's ADMISSION_LABELS), agent-ready last: the
+// sweep lists open agent-ready issues, so a failed write leaves the issue for it.
+const QUEUE_LABELS = [...ADMISSION_LABELS.filter((name) => name !== LABEL), LABEL];
+
+// Removes the queue labels `had` holds from the issue at `base`, and returns
+// their names. A 404 is a label already gone, so it counts as removed.
+async function stripQueueLabels(github, base, had) {
+  const present = new Set(had.map((name) => name.toLowerCase()));
+  const removed = QUEUE_LABELS.filter((name) => present.has(name));
+  for (const name of removed) {
+    await github("DELETE", `${base}/labels/${encodeURIComponent(name)}`).catch((error) => {
+      if (error?.status !== 404) {
+        throw error;
+      }
+    });
+  }
+  return removed;
+}
+
+// A closed issue loses its queue labels, so no queue or count reads it as
+// waiting. Read fresh: a run queued behind another may land after a reopen,
+// and an open issue keeps them. A post-merge fix issue keeps agent-ready
+// across its close, as post-merge-demotion-alert.yml reopens it with the label
+// and the sweep relabels it (recurrenceRefusal). No Work status write: the
+// field's states are an open issue's.
+async function stripClosed({ github, repo, number }) {
+  const base = `/repos/${repo}/issues/${number}`;
+  try {
+    const issue = await github("GET", base);
+    if (issue?.state !== "closed") {
+      console.log(`label-unblocked: #${number} is open again; its queue labels stay`);
+      return 0;
+    }
+    if (issue.user?.login === ALERT_BOT && FIX_ISSUE.test(String(issue.body ?? ""))) {
+      console.log(`label-unblocked: #${number} is a post-merge fix issue; its queue labels stay`);
+      return 0;
+    }
+    const removed = await stripQueueLabels(github, base, labelNames(issue));
+    console.log(`label-unblocked: #${number} closed; removed ${removed.length} queue label(s)${removed.length > 0 ? `: ${removed.join(", ")}` : ""}`);
+    return 0;
+  } catch (error) {
+    reportError(number, error);
+    return 1;
+  }
+}
 
 // The verdict intake's admission reads, from the issue itself: each of Size,
 // Complexity and Uncertainty as the config's key for the option a listed
@@ -1974,13 +2025,8 @@ async function restartLimited({ github, actions, jobLog, repo, bot, humans, now,
         if (release) {
           await github("DELETE", `${base}/labels/${HUMAN_LABEL}`);
         }
-        await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`).catch((error) => {
-          if (error?.status !== 404) {
-            throw error;
-          }
-        });
-        await github("DELETE", `${base}/labels/${LABEL}`);
-        await mirror(number, change(had, [], [LABEL, READY, ...(release ? [HUMAN_LABEL] : [])]));
+        const removed = await stripQueueLabels(github, base, had);
+        await mirror(number, change(had, [], [...removed, ...(release ? [HUMAN_LABEL] : [])]));
         console.log(`label-unblocked: #${number} handed to triage: lane PR #${pr} ${handOff === "merged" ? "merged with Refs:" : "closed unmerged"}`);
       } catch (error) {
         failed += 1;
@@ -2249,6 +2295,10 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     // Before readmitReady, so a split parent whose last sub-issue closed is
     // closed, not decided, on the sweep that sees that close.
     failed += await closeSplitParents({ github, repo, closed, sweep, humans, bot });
+    // The sweep marker carries no queue labels, so a kick skips this.
+    if (!sweep) {
+      failed += await stripClosed({ github, repo, number: Number(event.issue.number) });
+    }
     if (sweep) {
       // One listing of the open issues, oldest updated first, for the parent
       // rescan and readmitReady.
