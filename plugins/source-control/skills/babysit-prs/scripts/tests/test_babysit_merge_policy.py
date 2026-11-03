@@ -842,15 +842,19 @@ DISPATCH_RUNS = green_runs("workflow_dispatch")
 
 
 def lift_answer(
-    references: list[dict[str, Any]] = (), pull: dict[str, Any] | None = None
+    references: list[dict[str, Any]] = (),
+    pull: dict[str, Any] | None = None,
+    comments: list[dict[str, Any]] = (),
 ) -> dict[str, Any]:
     """`PolicyRecordLift`'s data: the pull requests that cross-reference the
-    record and, for a read-back record, the pull request it names."""
+    record, its comments and, for a read-back record, the pull request it
+    names."""
     issue = {
         "timelineItems": {
             "pageInfo": {"hasNextPage": False},
             "nodes": [{"source": p} for p in references],
-        }
+        },
+        "comments": {"pageInfo": {"hasNextPage": False}, "nodes": list(comments)},
     }
     return {"repository": {"issue": issue} | ({"pullRequest": pull} if pull else {})}
 
@@ -1537,6 +1541,10 @@ READ_BACK_BODY = (
     "- Merge commit: `" + "b" * 40 + "`"
 )
 CANARY_BODY = DEMOTION_BODY.replace("dispatch", "canary")
+# A canary record whose merge deleted two lines of f.py.
+CANARY_BLOCK_BODY = (
+    CANARY_BODY + "\n\n" + policy.lift_block([("f.py", b"gone one"), ("f.py", b"gone two")])
+)
 FIX_MERGE = "e" * 40
 PULL_HEAD = "f" * 40
 
@@ -1573,8 +1581,10 @@ class RecordLift(unittest.TestCase):
     after all (the identity's unedited pin, posted no later than the merge,
     names the head that merged); (2) a pull request that references the
     record merges into main after it, and for a read-back record that pull
-    request's own read-back holds. Until then it holds; a canary record never
-    lifts this way."""
+    request's own read-back holds. A canary or revert record also lifts once
+    the content its lift block names is back on main, and a canary record on
+    a referencing merge holding that content (or, when nothing was deleted, a
+    green canary run there). Until then it holds."""
 
     def fake(self, body: str, lift: dict[str, Any], tip: str = FIX_MERGE) -> GhFake:
         gh = demotion_fake(self, body=body, state="OPEN", timelineItems={"nodes": []})
@@ -1699,10 +1709,95 @@ class RecordLift(unittest.TestCase):
         self.assertEqual(read_demotion().reason, "#9 open")
         self.assertFalse([c for c in gh.calls if any("PolicyRecordLift" in a for a in c)])
 
-    def test_a_canary_record_never_lifts_and_reads_no_references(self) -> None:
+    def test_a_canary_record_without_a_lift_block_never_lifts(self) -> None:
+        # The one exception: no block records what was deleted, so neither
+        # condition can be checked and only a person's close clears it.
         gh = self.fake(CANARY_BODY, lift_answer([merged_pull()]))
         self.assertEqual(read_demotion().reason, "#9 open")
-        self.assertFalse([c for c in gh.calls if any("PolicyRecordLift" in a for a in c)])
+        self.assertFalse([c for c in gh.calls if c[:2] != ["api", "graphql"]])
+
+    def content(self, gh: GhFake, ref: str, text: Any) -> None:
+        """`f.py` at `ref`, read raw: its text, or an HTTP status."""
+        gh.rest[f"repos/{REPO}/contents/f.py?ref={ref}"] = (
+            text if isinstance(text, int) else RawText(text)
+        )
+
+    def test_a_canary_record_lifts_once_its_content_is_back_on_main(self) -> None:
+        for name, text, lifts in (
+            ("every deleted line back", "keep\ngone one\ngone two\n", True),
+            ("back with a line moved", "gone two\nother\ngone one\n", True),
+            ("one line still missing", "keep\ngone one\n", False),
+            ("the file absent", 404, False),
+        ):
+            with self.subTest(name):
+                gh = self.fake(CANARY_BLOCK_BODY, lift_answer())
+                self.content(gh, FIX_MERGE, text)
+                if lifts:
+                    self.lifted(read_demotion(), "2026-10-12T10:00:00Z")
+                else:
+                    self.assertEqual(read_demotion().reason, "#9 open")
+
+    def test_a_line_deleted_twice_must_be_back_twice(self) -> None:
+        body = CANARY_BODY + "\n" + policy.lift_block([("f.py", b"x"), ("f.py", b"x")])
+        for text, lifts in (("x\n", False), ("x\ny\nx\n", True)):
+            with self.subTest(text):
+                gh = self.fake(body, lift_answer())
+                self.content(gh, FIX_MERGE, text)
+                self.assertEqual(not read_demotion().active, lifts)
+
+    def test_a_canary_record_lifts_on_a_referencing_merge_with_its_content(self) -> None:
+        # main's tip lost the content again; the merge commit held it.
+        gh = self.fake(CANARY_BLOCK_BODY, lift_answer([merged_pull()]), tip=MAIN_TIP)
+        self.content(gh, MAIN_TIP, "keep\n")
+        self.content(gh, FIX_MERGE, "gone one\ngone two\n")
+        gh.rest[f"repos/{REPO}/compare/{FIX_MERGE}...{MAIN_TIP}"] = {"status": "ahead"}
+        self.lifted(read_demotion(), "2026-10-13T09:00:00Z")
+        self.content(gh, FIX_MERGE, "keep\n")
+        self.assertEqual(read_demotion().reason, "#9 open")
+
+    def test_a_filers_comment_carries_the_block_of_a_record_filed_without(self) -> None:
+        block = policy.lift_block([("f.py", b"gone one")])
+        for name, author, edited, lifts in (
+            ("the alert's", bot("github-actions"), None, True),
+            ("the identity's", bot("agent-lanes"), None, True),
+            ("an edited one", bot("github-actions"), "2026-10-13T00:00:00Z", False),
+            ("a person's", user(OPERATOR), None, False),
+        ):
+            with self.subTest(name):
+                comment = {"author": author, "body": block, "lastEditedAt": edited}
+                gh = self.fake(CANARY_BODY, lift_answer(comments=[comment]))
+                self.content(gh, FIX_MERGE, "gone one\n")
+                self.assertEqual(not read_demotion().active, lifts)
+
+    def test_a_canary_record_that_deleted_nothing_lifts_on_a_green_canary(self) -> None:
+        body = CANARY_BODY + "\n" + policy.lift_block([])
+        runs = f"repos/{REPO}/actions/workflows/post-merge-detect-silent-revert.yml/runs"
+        listing = f"{runs}?head_sha={FIX_MERGE}&event=push&status=success&per_page=100"
+        green = {
+            "conclusion": "success", "event": "push", "head_sha": FIX_MERGE,
+            "head_branch": "main", "head_repository": {"full_name": REPO},
+        }
+        for name, answer, lifts in (
+            ("a green canary at the merge", {"workflow_runs": [green]}, True),
+            ("none", {"workflow_runs": []}, False),
+            ("a failed one", {"workflow_runs": [green | {"conclusion": "failure"}]}, False),
+            ("unreadable", 502, False),
+        ):
+            with self.subTest(name):
+                gh = self.fake(body, lift_answer([merged_pull()]))
+                gh.rest[listing] = answer
+                self.assertEqual(not read_demotion().active, lifts)
+        with self.subTest("no referencing merge"):
+            self.fake(body, lift_answer())
+            self.assertEqual(read_demotion().reason, "#9 open")
+
+    def test_a_revert_record_lifts_once_the_reverted_lines_are_back(self) -> None:
+        body = REVERT_BODY + "\n\n" + policy.lift_block([("f.py", b"gone one")])
+        for text, lifts in (("gone one\n", True), ("other\n", False)):
+            with self.subTest(text):
+                gh = self.fake(body, lift_answer())
+                self.content(gh, FIX_MERGE, text)
+                self.assertEqual(not read_demotion().active, lifts)
 
     def test_a_failed_or_truncated_read_holds(self) -> None:
         truncated = lift_answer([merged_pull()])

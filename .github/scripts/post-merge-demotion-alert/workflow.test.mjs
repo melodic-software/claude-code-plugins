@@ -255,7 +255,8 @@ test("the alert's job if admits exactly the workflow_run events the file step ac
 
 // The close-cleared job runs on any completed scheduled full run on this
 // repository's main, whatever it concluded, and holds only actions: read,
-// contents: read and issues: write.
+// contents: read, issues: write and pull-requests: read (babysit_lift.py
+// close reads the pull requests that reference a record).
 test("close-cleared runs on every completed scheduled full run on main, with a narrow token", () => {
   const closer = text.slice(text.indexOf("\n  close-cleared:\n"));
   const folded = /\n {4}if: >-\n((?: {6}.*\n)+)/.exec(closer);
@@ -288,6 +289,7 @@ test("close-cleared runs on every completed scheduled full run on main, with a n
     actions: "read",
     contents: "read",
     issues: "write",
+    "pull-requests": "read",
   });
 });
 

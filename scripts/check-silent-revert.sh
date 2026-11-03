@@ -978,6 +978,11 @@ report_finding() {
   if [[ -n "${FINDINGS_SINK:-}" ]]; then
     printf '%s %s\n' "$culprit" "$count" >>"$FINDINGS_SINK"
   fi
+  # DELETED_SINK: every line this finding counts, as `<culprit>\t<file>\t<line>`,
+  # for the demotion record's lift check (babysit_lift.py canary-block).
+  if [[ -n "${DELETED_SINK:-}" ]]; then
+    awk -F '\t' -v c="$culprit" '$1 == c' "$data" >>"$DELETED_SINK"
+  fi
 
   printf '\n'
   printf 'SILENT REVERT SUSPECTED\n'

@@ -4,4 +4,5 @@ bump: minor
 
 ### Changed
 
-- A `revert` demotion record that `post-merge-demotion-alert.yml` files now says it lifts once a pull request that references it merges into main (the merge gate's `_lifted_at`), not only on a person's close. The pr-pipeline README states the revert and read-back lift and why a canary record stays human-close.
+- `post-merge-demotion-alert.yml` writes a lift block into each canary and revert record it files: the lines `scripts/check-silent-revert.sh` attributes to a culprit in the pushed commits (its new opt-in `DELETED_SINK`), or the lines the revert commits deleted. A canary record `babysit_postmerge.py --remediate` filed first gets the block as a comment. The record bodies say they lift once that content is back on main or a referencing pull request merges with it.
+- The `close-cleared` job checks out main and runs `babysit_lift.py close`, which comments on, unlabels and closes each lifted canary, revert or read-back record; it now also holds `pull-requests: read`. The pr-pipeline README states the lift rule and its one exception, a canary record with no lift block.
