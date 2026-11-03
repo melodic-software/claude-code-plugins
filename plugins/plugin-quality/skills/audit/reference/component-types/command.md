@@ -1,9 +1,15 @@
 # Auditing a command
 
-A `.claude/commands/x.md` file and a skill both produce `/x`; skills are the recommended form
-because they support `reference/`, supporting files, and auto-load. When auditing a command, one
-valid finding is "should this be a skill?" if it needs supporting files or auto-discovery. Grade
-both forms against the pages linked below at audit time, never from memory.
+When auditing a command, one valid finding is "should this be a skill?" if it needs supporting
+files or auto-discovery. Grade both forms against the pages linked below at audit time, never from
+memory.
+
+- **Pointer**: when comparing what a command file and a skill each produce and support, fetch
+  [How a skill gets its command name](https://code.claude.com/docs/en/skills#how-a-skill-gets-its-command-name)
+  live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section changes how a command file's name is formed, or the skills page
+  changes what command files support.
 
 ## Read first
 
