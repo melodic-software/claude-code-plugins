@@ -100,12 +100,13 @@ is interpreter-led, so no allow rule pre-approves it
 permission mode decides it, the auto-mode classifier in an unattended lane. It reads the effective `permissions.allow` from the operator's user-global settings
 and the project settings. It never runs a live permission probe. A verb counts as covered only by an
 **open-glob** grant: `Bash(git commit *)` or `Bash(git commit:*)`. A **bare-exact** rule
-(`Bash(git commit)`) is **not** coverage: it permits only the argumentless command, and a work-lane
-invocation always carries arguments, so the real call would still prompt. When a gapped verb has
-*only* a bare-exact grant, the gap message says so precisely. That grant does cover an argumentless
-call but not the work lane's argument-carrying one, and the remedy is to add the open glob
-(`git commit *`). A narrower, flag-scoped rule
-(`Bash(git commit --amend)`) is likewise not coverage. A missing
+(`Bash(git commit)`) or a narrower, flag-scoped one (`Bash(git commit --amend)`) is **not**
+coverage, because a work-lane invocation always carries arguments. When a gapped verb has *only* a
+bare-exact grant, the gap message names it, and the remedy is to add the open glob
+(`git commit *`). What each rule shape matches is read live at
+[permissions § Wildcard patterns](https://code.claude.com/docs/en/permissions#wildcard-patterns)
+(as of 2026-11-03; recheck when that section changes what a rule with no `*`, or with a trailing
+`*`, matches). A missing
 verb means the floor is not composed in on this machine; the remediation is to apply the component
 operator-side, not to add a one-off rule.
 
@@ -168,9 +169,12 @@ one). The candidates:
 1. **The probed checkout itself**, whose own git dir *is* the common dir. True whatever the git dir
    is named, so the **main checkout of** a `--separate-git-dir` or submodule layout resolves here.
    The probed checkout is `--project-root` when given, else the cwd.
-2. **`core.worktree`** in the common dir's config, resolved relative to that dir. Git writes it for
-   submodules, which is what makes a submodule's `<super>/.git/modules/<name>` common dir resolvable at
-   all, since no parent-of-`.git` arithmetic can invert it.
+2. **`core.worktree`** in the common dir's config, resolved relative to that dir. It is the
+   candidate for a submodule's `<super>/.git/modules/<name>` common dir, which no parent-of-`.git`
+   arithmetic can invert. Where git sets the key, and how a relative value resolves, is read live
+   at [git-config § core.worktree](https://git-scm.com/docs/git-config#Documentation/git-config.txt-coreworktree)
+   (as of 2026-11-03; recheck when that entry changes how a relative value resolves or what
+   overrides it).
 3. **The conventional `<root>/.git` spelling**, the parent of the common dir.
 
 Resolution has three outcomes, and the report distinguishes them:
@@ -215,9 +219,8 @@ that worktree. Two cases:
   in silence.** For a repository created with `--separate-git-dir <path>/.git`, the main working tree is
   the directory holding the `.git` *file*, but git records no back-pointer to it. A recursive search
   of the whole common dir turns up only `worktrees/<name>/gitdir` entries, which point at *linked*
-  worktrees; `core.worktree` is unset by every creation path (`git init --separate-git-dir` on a
-  fresh directory, `git clone --separate-git-dir`, and `git init --separate-git-dir` over an existing
-  repository). Git's own `git worktree list` therefore reports `<path>` as the main worktree, and
+  worktrees, and the `core.worktree` candidate resolves only where that key is set (git's entry
+  above). Git's own `git worktree list` therefore reports `<path>` as the main worktree, and
   reports it identically when run *from* that true working tree. That `<path>` is the parent of the
   separate git *directory*, not of the `.git` file, which lives in the true working tree and is the
   very link git does not record in reverse. `<path>`
