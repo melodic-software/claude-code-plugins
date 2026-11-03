@@ -23,6 +23,7 @@ import {
   doneEvidence,
   ESCALATION_MARKER,
   findPrior,
+  redispatchComment,
   limitedMarker,
   readLaneCredential,
   withCredential,
@@ -4055,15 +4056,15 @@ const late = (id, userId, body, { at = LATE, type = "User", login = "someone", a
 const DECISION_BODY = "**Decision recorded.** Change only the README.";
 const readyAdd = (id, actor, at) => ({ id, event: "labeled", label: { name: "agent-ready" }, actor, created_at: at });
 const OWNER_ADD = readyAdd(1, { id: OWNER_ID, login: "kyle-sexton" }, ADDED);
-const redispatchRecord = (id, names, at = LATE) => late(id, 337595936, `<!-- work-resolve-issue redispatch comment=${names} -->\nre-dispatched`, { at, type: "Bot", login: BOT });
-async function runLateRecord(comments, { events = [OWNER_ADD], reason = "Which file?" } = {}) {
+const redispatchRecord = (id, names, at = LATE) => late(id, 337595936, `<!-- work-resolve-issue outcome=redispatch run=99 -->\n<!-- work-resolve-issue redispatch comment=${names} -->\nre-dispatched`, { at, type: "Bot", login: BOT });
+async function runLateRecord(comments, { events = [OWNER_ADD], reason = "Which file?", labels = ["agent-ready", "status: ready"] } = {}) {
   const pushback = JSON.stringify({ exit: "pushback", reason, cause: "intent", title: "", summary: "" });
   let result;
   await withAsyncDir({ "work-outcome.json": pushback, "lane.json": JSON.stringify({ branch: "" }), "trusted.json": TRUSTED_LIST }, async (dir) => {
     const { fetch, calls } = fakeFetch([
       ["GET", /\/issues\/77\/comments$/, 200, comments],
       ["GET", /\/issues\/77\/events$/, 200, events],
-      ["GET", /\/issues\/77$/, 200, { number: 77, state: "open", labels: [{ name: "agent-ready" }, { name: "status: ready" }] }],
+      ["GET", /\/issues\/77$/, 200, { number: 77, state: "open", labels: labels.map((name) => ({ name })) }],
       ["POST", /\/issues\/77\/labels$/, 200, []],
       ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
       ["DELETE", /\/issues\/77\/labels\/status%3A%20ready$/, 200, []],
@@ -4072,14 +4073,15 @@ async function runLateRecord(comments, { events = [OWNER_ADD], reason = "Which f
     assert.equal(await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch }), 0);
     const posted = calls.filter((c) => c.method === "POST" && c.path.endsWith("/comments")).map((c) => c.body.body);
     const labeled = calls.filter((c) => c.method === "POST" && c.path.endsWith("/labels")).map((c) => c.body.labels);
-    result = { posted, labeled, redispatches: posted.filter((body) => body.startsWith("<!-- work-resolve-issue redispatch comment=")) };
+    const removed = calls.filter((c) => c.method === "DELETE").map((c) => decodeURIComponent(c.path.split("/labels/")[1]));
+    result = { posted, labeled, removed, redispatches: posted.filter((body) => body.includes("<!-- work-resolve-issue redispatch comment=")) };
   });
   return result;
 }
 
 test("a listed human's decision posted after admission re-dispatches a pushback hold exactly once, with a fresh admission", async () => {
   const { posted, labeled, redispatches } = await runLateRecord([late(5, OWNER_ID, DECISION_BODY, { login: "kyle-sexton" })]);
-  assert.deepEqual(redispatches, [`<!-- work-resolve-issue redispatch comment=5 -->\nA record this run did not read was posted after its admission: ${commentUrl(5)}. The run's report-outcome removed and added back \`status: ready\` and \`agent-ready\`, so a fresh run admits the issue as it stands now and reads it.`]);
+  assert.deepEqual(redispatches, [`<!-- work-resolve-issue outcome=redispatch run=123 -->\n<!-- work-resolve-issue redispatch comment=5 -->\nA record this run did not read was posted after its admission: ${commentUrl(5)}. The run's report-outcome removed and added back \`status: ready\` and \`agent-ready\`, so a fresh run admits the issue as it stands now and reads it.`]);
   assert.equal(posted.length, 1, "no hand-back comment beside the redispatch record");
   assert.deepEqual(labeled, [["status: ready"], ["agent-ready"]], "no needs-human, and status: ready lands between the agent-ready moves");
 });
@@ -4121,6 +4123,32 @@ test("a redispatch record whose label move did not land is finished without a se
   const finished = await runLateRecord(comments, { events: [OWNER_ADD, appAdd] });
   assert.deepEqual(finished.redispatches, []);
   assert.deepEqual(finished.labeled, [["needs-human"]]);
+});
+
+// Each label call after the agent-ready DELETE can fail; a re-run of the
+// report then finds agent-ready off by the App's own hand and finishes the
+// move, while a person's removal still takes the hold.
+test("a redispatch move stopped after the App removed agent-ready is finished on a re-run; a person's removal takes the hold", async () => {
+  const comments = [late(5, OWNER_ID, DECISION_BODY), redispatchRecord(6, 5)];
+  const unlabel = (actor) => ({ id: 3, event: "unlabeled", label: { name: "agent-ready" }, actor, created_at: "2026-10-02T01:00:01Z" });
+  const resumed = await runLateRecord(comments, { events: [OWNER_ADD, unlabel({ id: 337595936, login: BOT })], labels: ["status: ready"] });
+  assert.equal(resumed.posted.length, 0, "no second record and no hand-back comment");
+  assert.deepEqual(resumed.removed, ["status: ready"], "agent-ready is already off, so only status: ready is removed");
+  assert.deepEqual(resumed.labeled, [["status: ready"], ["agent-ready"]]);
+  const person = await runLateRecord(comments, { events: [OWNER_ADD, unlabel({ id: OWNER_ID, login: "kyle-sexton" })], labels: ["status: ready"] });
+  assert.deepEqual(person.redispatches, []);
+  assert.deepEqual(person.labeled, [["needs-human"]]);
+});
+
+// The stopped run may have committed to its lane branch; the record's outcome
+// marker reports that run, so the fresh admission runs the model instead of
+// reusing the branch unread.
+test("a redispatch record reports its run's lane branch, so findPrior runs fresh instead of reusing it", () => {
+  const body = redispatchComment({ id: 5, html_url: commentUrl(5) }, "400");
+  assert.deepEqual(parseOutcomeMarker(body), { outcome: "redispatch", resets: null, run: "400", onResumed: false });
+  const branches = [branchFact(lane(400))];
+  assert.equal(prior({ branches }).action, "reuse", "unreported without the record");
+  assert.deepEqual(prior({ branches, markers: [{ ...parseOutcomeMarker(body), at: Date.parse(LATE) }] }), { action: "run" });
 });
 
 // report-outcome restates these because a script activity runs from a copy

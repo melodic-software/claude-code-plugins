@@ -916,9 +916,12 @@ export const REFINE_MARKER = "<!-- intake-triage refinement -->";
 // The hold stops that wait on a person's answer on the issue. A security
 // stop is never among them: a person checks it first, whatever was posted.
 const ANSWERED_STOPS = new Set(["pushback", "intent-change", "design-change", "cost-risk"]);
-const REDISPATCHED = /^<!-- work-resolve-issue redispatch comment=([1-9][0-9]{0,15}) -->/;
-export const redispatchComment = (comment) =>
-  `<!-- work-resolve-issue redispatch comment=${comment.id} -->\nA record this run did not read was posted after its admission: ${comment.html_url}. The run's report-outcome removed and added back \`status: ready\` and \`agent-ready\`, so a fresh run admits the issue as it stands now and reads it.`;
+// The record opens with an outcome marker naming the run, so findPrior counts
+// the run's lane branch as reported and the fresh run starts past it instead
+// of reusing it unread.
+const REDISPATCHED = /^(?:<!-- work-resolve-issue outcome=redispatch[^\n]* -->\r?\n)?<!-- work-resolve-issue redispatch comment=([1-9][0-9]{0,15}) -->/;
+export const redispatchComment = (comment, runId = "") =>
+  `<!-- work-resolve-issue outcome=redispatch${runId ? ` run=${runId}` : ""} -->\n<!-- work-resolve-issue redispatch comment=${comment.id} -->\nA record this run did not read was posted after its admission: ${comment.html_url}. The run's report-outcome removed and added back \`status: ready\` and \`agent-ready\`, so a fresh run admits the issue as it stands now and reads it.`;
 
 // The record a hold would leave unread, or null: a listed human's own
 // decision (DECISION_LINE first, not posted through an App) or the lanes
@@ -928,7 +931,10 @@ export const redispatchComment = (comment) =>
 // are oldest first. Returns {comment, posted}, `posted` when a redispatch
 // record names the comment and no App agent-ready add followed that record:
 // its label move did not land, and a re-run finishes it without a second
-// record. A move that landed made the newest add, past the comment.
+// record. A move that landed made the newest add, past the comment. `moving`
+// when, besides, the newest agent-ready event is the App's removal after that
+// record: the move stopped partway, with agent-ready off by the App's hand,
+// not a person's.
 export function lateRecord({ comments, events, bot, humans }) {
   const adds = events.filter((event) => event?.event === "labeled" && event.label?.name === "agent-ready");
   const from = Date.parse(adds.at(-1)?.created_at ?? "");
@@ -949,31 +955,39 @@ export function lateRecord({ comments, events, bot, humans }) {
   if (!comment) {
     return null;
   }
-  const posted = comments.some(
+  const record = comments.find(
     (item) =>
       item?.user?.login === bot &&
       REDISPATCHED.exec(String(item.body ?? ""))?.[1] === String(comment.id) &&
       !adds.some((event) => event.actor?.login === bot && Date.parse(event.created_at) >= Date.parse(item.created_at)),
   );
-  return { comment, posted };
+  const newest = events.filter((event) => ["labeled", "unlabeled"].includes(event?.event) && event.label?.name === "agent-ready").at(-1);
+  const moving =
+    record !== undefined &&
+    newest?.event === "unlabeled" &&
+    newest.actor?.login === bot &&
+    Date.parse(newest.created_at) >= Date.parse(record.created_at);
+  return { comment, posted: record !== undefined, moving };
 }
 
 // A hold whose answer landed after the run's admission starts a fresh run
 // instead: a record naming the answer, then agent-ready and `status: ready`
 // removed and added back by the App. The `status: ready` add between them
 // makes the re-add a fresh admission (write-issue.mjs readAdmittedAt), so the
-// new run freezes after the answer. Nothing moves when the issue is closed,
-// agent-ready is off or a hold is on. `late` is lateRecord's answer. Returns
-// whether it re-dispatched.
-async function redispatch(github, repo, plan, late) {
+// new run freezes after the answer. Nothing moves when the issue is closed, a
+// hold is on, or agent-ready is off unless the App's own move took it off
+// (`late.moving`), which a re-run finishes. `late` is lateRecord's answer.
+// Returns whether it re-dispatched.
+async function redispatch(github, repo, plan, late, runId) {
   const base = `${repo}/issues/${plan.issueNumber}`;
   const issue = await github("GET", base);
   const labels = (issue?.labels ?? []).map((label) => String(typeof label === "string" ? label : label?.name).toLowerCase());
-  if (issue?.state !== "open" || !labels.includes("agent-ready") || labels.some((label) => LANE_HOLDS.has(label))) {
+  const ready = labels.includes("agent-ready");
+  if (issue?.state !== "open" || !(ready || late.moving) || labels.some((label) => LANE_HOLDS.has(label))) {
     return false;
   }
   if (!late.posted) {
-    await github("POST", `${base}/comments`, { body: redispatchComment(late.comment) });
+    await github("POST", `${base}/comments`, { body: redispatchComment(late.comment, runId) });
   }
   const remove = (name) =>
     github("DELETE", `${base}/labels/${encodeURIComponent(name)}`).then(
@@ -986,7 +1000,7 @@ async function redispatch(github, repo, plan, late) {
       },
     );
   // A person's removal since the read stands.
-  if (!(await remove("agent-ready"))) {
+  if (ready && !(await remove("agent-ready"))) {
     return true;
   }
   await remove("status: ready");
@@ -2122,7 +2136,7 @@ async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane
   // failed read takes the hold, as before.
   if (plan.action === "hand-back" && ANSWERED_STOPS.has(plan.stop)) {
     const late = await read().then(lateRecord, () => null);
-    if (late && (await redispatch(github, repo, plan, late))) {
+    if (late && (await redispatch(github, repo, plan, late, runId))) {
       console.log(`report-outcome: issue #${plan.issueNumber} got a record after its admission (${late.comment.html_url}); a fresh run reads it`);
       return;
     }
