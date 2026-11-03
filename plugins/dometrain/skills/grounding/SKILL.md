@@ -1,5 +1,5 @@
 ---
-description: "Ground an approach in how a Dometrain course teaches it, via the Dometrain MCP server, and cite lessons with timestamped deep links. Use when: 'implementing', 'designing', 'reviewing', or 'debugging' anything covered by a Dometrain course: C#/.NET, ASP.NET Core, EF Core, testing, design patterns, architecture, messaging, databases, cloud/DevOps, TypeScript, or AI development."
+description: "Ground an approach in how a Dometrain course teaches it, via the Dometrain MCP server, and cite lessons with timestamped deep links. Use when: 'implementing', 'designing', 'reviewing', or 'debugging' anything covered by a Dometrain course: C#/.NET, ASP.NET Core, EF Core, testing, design patterns, architecture, messaging, databases, cloud/DevOps, TypeScript, or AI development. Plain how-to or design questions on these topics qualify without naming Dometrain."
 argument-hint: "[grounding query]"
 user-invocable: true
 disable-model-invocation: false
