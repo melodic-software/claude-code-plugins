@@ -70,7 +70,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { BODY_HOLD, LANES_APP_LOGIN } from "../pr-merge/merge-holds.mjs";
-import { fixRefusal, parseConfig } from "../pr-unblock/dependency-classify.mjs";
+import { fixRefusal, installScriptPinRefusal, parseConfig } from "../pr-unblock/dependency-classify.mjs";
 import { stopSkip } from "../pr-unblock/escalation-routes.mjs";
 import { THREAD_ID, threadTrailerLines } from "../pr-unblock/thread-scope.mjs";
 import { PREDICATES } from "./predicates.mjs";
@@ -312,6 +312,19 @@ export const CONTENT_RULES = {
         text: async (side, path) => blob(side === "before" ? byPath.get(path).oldSha : byPath.get(path).newSha),
       },
     );
+  },
+  // The root package.json alone, modified in place, with one install-script
+  // pin moved to the version the manifest pins and nothing else
+  // (dependency-classify.mjs installScriptPinRefusal): review-dependency
+  // select's patch, made with no model.
+  "install-script-pin": async ({ entries, git, context }) => {
+    if (entries.length !== 1 || entries[0].path !== "package.json") {
+      return `the patch changes ${entries.map((entry) => entry.path).join(", ") || "nothing"}, not package.json alone`;
+    }
+    const [entry] = entries;
+    const blob = (sha) => (ZERO.test(sha) ? null : git(["cat-file", "blob", sha]).toString("utf8"));
+    const scope = await CONTENT_RULES["dependency-version-change"]({ entries, git, context });
+    return scope ?? installScriptPinRefusal(blob(entry.oldSha), blob(entry.newSha));
   },
 };
 

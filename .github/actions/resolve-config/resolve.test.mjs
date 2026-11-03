@@ -1824,6 +1824,7 @@ test("patch rules: the shipped registry passes, with a row for each prepare mode
     "default",
     "dependency-review",
     "docs",
+    "install-script-pin",
     "issue",
     "merge-base",
     "review-threads",

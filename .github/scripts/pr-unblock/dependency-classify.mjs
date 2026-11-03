@@ -435,16 +435,63 @@ const canonical = (value) =>
           .join(",")}}`
       : JSON.stringify(value);
 
+// The packages whose install script package.json's `allowScripts` approves
+// for one exact version, which a fix may move to the version the manifest
+// pins (the owner's decision on claude-code-plugins#12807).
+export const INSTALL_SCRIPT_PINS = Object.freeze(["@anthropic-ai/claude-code"]);
+const EXACT_VERSION = /^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$/;
+
+// The exact version `manifest` pins `name` to in a dependency section, or null
+// for a range, an absent name, or two sections that disagree.
+export function pinnedVersion(manifest, name) {
+  const specs = new Set(DEPENDENCY_SECTIONS.map((key) => manifest?.[key]).filter(isObject).filter((section) => Object.hasOwn(section, name)).map((section) => section[name]));
+  const [spec] = specs;
+  return specs.size === 1 && typeof spec === "string" && EXACT_VERSION.test(spec) ? spec : null;
+}
+
+// Why an `allowScripts` change is not exactly one install-script pin moved,
+// or null: one INSTALL_SCRIPT_PINS key `<name>@<old>` becomes `<name>@<new>`
+// with the same value, `<new>` is the exact version `now` pins the package to,
+// and every other key stays.
+export function allowScriptsRefusal(old, now) {
+  const was = old?.allowScripts;
+  const is = now?.allowScripts;
+  if (!isObject(was) || !isObject(is)) return "allow-scripts-shape";
+  const gone = Object.keys(was).filter((key) => !Object.hasOwn(is, key));
+  const added = Object.keys(is).filter((key) => !Object.hasOwn(was, key));
+  if (gone.length !== 1 || added.length !== 1) return "allow-scripts-not-one-pin";
+  const kept = Object.keys(was).filter((key) => key !== gone[0]);
+  if (kept.some((key) => canonical(was[key]) !== canonical(is[key]))) return "allow-scripts-other-key";
+  const name = INSTALL_SCRIPT_PINS.find((pin) => gone[0].startsWith(`${pin}@`) && added[0].startsWith(`${pin}@`));
+  if (!name) return "allow-scripts-package";
+  if (canonical(was[gone[0]]) !== canonical(is[added[0]])) return "allow-scripts-value";
+  const version = pinnedVersion(now, name);
+  if (version === null || added[0] !== `${name}@${version}`) return "allow-scripts-version";
+  return null;
+}
+
+// Why a package.json change is not one install-script pin move and nothing
+// else, or null: the rule apply-patch.mjs's install-script-pin row holds the
+// select job's pin patch to.
+export function installScriptPinRefusal(before, after) {
+  const old = parseJson(before);
+  const now = parseJson(after);
+  if (!old || !now) return "package-json-unreadable";
+  const other = [...new Set([...Object.keys(old), ...Object.keys(now)])].sort().find((key) => key !== "allowScripts" && canonical(old[key]) !== canonical(now[key]));
+  return other ? `package-json-key:${other}` : allowScriptsRefusal(old, now);
+}
+
 // package.json: only the version range of a dependency already listed in a
 // dependency section changes, to a plain semver range. Any other key
-// (scripts, overrides, resolutions, bin, ...) stays as it was.
+// (scripts, overrides, resolutions, bin, ...) stays as it was, except an
+// install-script pin moved to the pinned version (allowScriptsRefusal).
 export function packageJsonRefusal(before, after) {
   const old = parseJson(before);
   const now = parseJson(after);
   if (!old || !now) return "package-json-unreadable";
   for (const key of [...new Set([...Object.keys(old), ...Object.keys(now)])].sort()) {
     if (!DEPENDENCY_SECTIONS.includes(key)) {
-      if (canonical(old[key]) !== canonical(now[key])) return `package-json-key:${key}`;
+      if (canonical(old[key]) !== canonical(now[key]) && (key !== "allowScripts" || allowScriptsRefusal(old, now))) return `package-json-key:${key}`;
       continue;
     }
     const was = old[key];

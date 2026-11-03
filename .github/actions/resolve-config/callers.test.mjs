@@ -7782,6 +7782,7 @@ test("every kill-switch-ok caller runs no token step and no dependent job on a k
     "work-resolve-issue.yml:resolve-issue-fallback -> pr-run-activity-read.yml",
     "pr-unblock.yml:apply-conflict-patch -> pr-run-activity-write.yml",
     "pr-unblock.yml:apply-dependency-patch -> pr-run-activity-write.yml",
+    "pr-unblock.yml:apply-dependency-pin -> pr-run-activity-write.yml",
     "pr-unblock.yml:apply-dependency-verdict -> pr-run-activity-write.yml",
     "pr-unblock.yml:apply-feedback-patch -> pr-run-activity-write.yml",
     "pr-unblock.yml:apply-patch -> pr-run-activity-write.yml",
@@ -8157,6 +8158,36 @@ test("pr-unblock.yml: sync-shared-copies-select proceeds on a written or empty s
   assert.deepEqual(decide({ "steps.head.outputs.applicable": "false" }), ["false", "not-applicable"], "another author or base");
   assert.deepEqual(decide({}), ["", ""], "stopped before deciding");
   assert.deepEqual(decide({ ...gated, "steps.prepare.outputs.merge-state": "clean" }), ["", ""], "the sync step failed");
+});
+
+// The install-script pin: review-dependency-select writes the patch from base
+// code with no model turn, and apply-dependency-pin pushes it with
+// apply-dependency-patch's grant under the install-script-pin row, which needs
+// no verdict. No model job, verdict job or round marker follows.
+test("pr-unblock.yml: apply-dependency-pin pushes only the select job's uploaded pin patch, under the install-script-pin row", () => {
+  const { jobs } = workflow("pr-unblock.yml");
+  const select = jobs["review-dependency-select"];
+  const upload = select.steps.find((step) => step.id === "upload-pin");
+  assert.equal(upload.with.name, "patch-pr-unblock-review-dependency-${{ github.run_attempt }}", "the name the write runner downloads for patch-activity review-dependency");
+  assert.equal(evaluate(upload.if, { "steps.select.outputs.pin-state": "written", "steps.scan-pin.outputs.clean": "true" }), true);
+  assert.equal(evaluate(upload.if, { "steps.select.outputs.pin-state": "written", "steps.scan-pin.outputs.clean": "false" }), false, "an unscanned patch is not uploaded");
+  const state = (outcome) => evaluate(select.outputs["pin-state"], { "steps.upload-pin.outcome": outcome });
+  assert.deepEqual([state("success"), state("skipped"), state("failure")], ["written", "", ""]);
+  const push = jobs["apply-dependency-pin"];
+  assert.deepEqual(push.needs, "review-dependency-select");
+  assert.equal(evaluate(push.if, { "needs.review-dependency-select.outputs.pin-state": "written" }), true);
+  assert.equal(evaluate(push.if, { "needs.review-dependency-select.outputs.pin-state": "" }), false);
+  assert.equal(push.uses, "./.github/workflows/pr-run-activity-write.yml");
+  assert.equal(push.with.activity, "apply-dependency-patch", "the existing mutate-branch grant, no new activity");
+  assert.equal(push.with["patch-prepare"], "install-script-pin");
+  assert.equal(push.with["patch-activity"], "review-dependency");
+  assert.equal(push.with["patch-head-sha"], "${{ needs.review-dependency-select.outputs.head-sha }}");
+  assert.equal(push.with["patch-verdict-attempt"], undefined, "the row requires no verdict");
+  const PATCH_RULES = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "patch-rules.json"), "utf8"));
+  assert.deepEqual(PATCH_RULES["install-script-pin"].requires, []);
+  assert.equal(PATCH_RULES["install-script-pin"]["content-rule"], "install-script-pin");
+  assert.equal(PATCH_RULES["install-script-pin"]["max-files"], 1);
+  assert.ok(!["review-dependency", "apply-dependency-patch", "apply-dependency-verdict"].some((name) => (jobs[name].needs ?? []).includes("apply-dependency-pin")), "no model or verdict job waits on the pin");
 });
 
 // The not-run job posts the activity's check on every head the select job

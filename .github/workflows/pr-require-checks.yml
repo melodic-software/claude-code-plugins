@@ -2887,6 +2887,14 @@ jobs:
           path: ~/.npm
           key: ${{ steps.npm_cache.outputs.cache-primary-key }}
 
+      # npm ci runs the claude CLI's install script only while package.json's
+      # allowScripts pin names the version the lockfile installs. A stale pin
+      # reds ci-status, which sends a Dependabot bump to review-dependency,
+      # whose select job moves the pin (install-script-pin.mjs).
+      - name: Check the claude-code install-script pin matches the lockfile
+        if: needs.select-tests.outputs.run_tests == 'true'
+        run: node .github/scripts/pr-unblock/install-script-pin.mjs check
+
       # The html-assets gate needs the root npm ci above (its linter is the
       # exact-pinned htmlhint in node_modules/.bin): a tracked rendered-view
       # asset must lint clean and be registered in the gate's manifest, per the

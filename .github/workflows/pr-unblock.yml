@@ -26,7 +26,9 @@ name: pr-unblock
 # bump, an action publisher outside the allowlist, a group holding a major, or
 # a red ci-status) whose head has no review yet; a base job selects the PR, a
 # read model job returns a verdict and any fix as a patch, and script jobs
-# push a fix verdict's patch and act on the verdict. fix-ci: pr-unblock-dispatch.yml
+# push a fix verdict's patch and act on the verdict. A head whose claude-code
+# install-script pin lags its lockfile gets the pin moved instead, with no
+# model turn, and its new head is reviewed. fix-ci: pr-unblock-dispatch.yml
 # also sends one per lanes App PR whose ci-status or pr-test-platforms run failed
 # past the lost-run reconciler's re-run. sync-shared-copies:
 # pr-unblock-dispatch.yml also sends one per lanes App PR that pr-merge refused
@@ -2138,8 +2140,10 @@ jobs:
   # one runs only base code with a read-only token and checks out no PR head.
   # Before any model turn it reads the PR head, resolves the slot (draft and
   # held PRs skip it) and selects the PR (review-dependency.mjs select): it
-  # skips one Dependabot did not open or one sorted auto, hands the PR to a
-  # person once the round cap is reached, or writes the context file the
+  # skips one Dependabot did not open or one sorted auto, writes the
+  # install-script pin patch apply-dependency-pin pushes when the head's
+  # claude-code allowScripts pin lags its lockfile (no model turn), hands the
+  # PR to a person once the round cap is reached, or writes the context file the
   # model job reads and context.json, the run fields the verdict job reads.
   # Every gate and head the jobs after it take comes from here, and every
   # model-call input from a model call's scan job, never from its run job,
@@ -2173,6 +2177,11 @@ jobs:
       # The artifact name's attempt, so a re-run of a later job alone still
       # finds it.
       context-attempt: ${{ steps.upload.outcome == 'success' && github.run_attempt || '' }}
+      # The install-script pin patch the select step wrote with no model turn,
+      # which apply-dependency-pin pushes: written once uploaded, else empty.
+      pin-state: ${{ steps.upload-pin.outcome == 'success' && 'written' || '' }}
+      pin-sha256: ${{ steps.upload-pin.outcome == 'success' && steps.select.outputs.pin-sha256 || '' }}
+      pin-attempt: ${{ steps.upload-pin.outcome == 'success' && github.run_attempt || '' }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
     # notice (.github/actions/log-api-budget).
     env:
@@ -2255,8 +2264,10 @@ jobs:
           # The review-only dependencies, read from the base.
           DEPENDABOT_POLICY: .base/.github/standards/dependabot-policy/policy.json
           RESOLVED: ${{ runner.temp }}/resolved-config.json
+          # Where a stale install-script pin's patch goes (install-script-pin.mjs).
+          PIN_PATCH_FILE: ${{ runner.temp }}/dependency-pin/patch.diff
         run: |
-          mkdir -p "$DEPENDENCY_DIR"
+          mkdir -p "$DEPENDENCY_DIR" "$(dirname "$PIN_PATCH_FILE")"
           DEPENDENCY_REVIEW_ROUNDS=$(jq -r '.loop["dependency-review-rounds"] // empty' "$RESOLVED")
           export DEPENDENCY_REVIEW_ROUNDS
           DEPENDENCY_FILE="$DEPENDENCY_DIR/dependency.json" CONTEXT_RUN_FILE="$DEPENDENCY_DIR/context.json" \
@@ -2288,6 +2299,25 @@ jobs:
           path: |
             ${{ runner.temp }}/dependency-context/dependency.json
             ${{ runner.temp }}/dependency-context/context.json
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Scan the pin patch for credentials
+        id: scan-pin
+        if: steps.select.outputs.pin-state == 'written'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/dependency-pin/patch.diff
+
+      # Named as the push job's patch-activity reads it: no model job runs in
+      # this round, so nothing else uploads that name.
+      - name: Upload the pin patch
+        id: upload-pin
+        if: steps.select.outputs.pin-state == 'written' && steps.scan-pin.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: patch-pr-unblock-review-dependency-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dependency-pin/patch.diff
           retention-days: 1
           if-no-files-found: error
 
@@ -2604,6 +2634,43 @@ jobs:
       patch-verdict-attempt: ${{ needs.review-dependency-fallback.result != 'skipped' && needs.review-dependency-fallback.outputs.dependency-attempt || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.dependency-attempt || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.dependency-attempt || '' }}
       patch-verdict-sha256: ${{ needs.review-dependency-fallback.result != 'skipped' && needs.review-dependency-fallback.outputs.dependency-sha256 || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.dependency-sha256 || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.dependency-sha256 || '' }}
       reply-attempt: ${{ needs.review-dependency-fallback.result != 'skipped' && needs.review-dependency-fallback.outputs.scan-reply-attempt || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.scan-reply-attempt || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.scan-reply-attempt || '' }}
+
+  # The pin push job: apply-patch.mjs under patch-rules.json's
+  # install-script-pin row, with apply-dependency-patch's grant, a script with
+  # no model that runs no head code. It takes the select job's patch, made
+  # from the head's package.json and package-lock.json read as data, admits
+  # only the root package.json with the @anthropic-ai/claude-code allowScripts
+  # pin moved to the exact version the manifest pins, skips a head that moved
+  # since the select job read it, and pushes one commit with [dependabot
+  # skip] without force. No round marker is posted and no round counted: the
+  # new head goes through review-dependency like any other.
+  apply-dependency-pin:
+    needs: review-dependency-select
+    if: ${{ !cancelled() && needs.review-dependency-select.outputs.pin-state == 'written' }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    with:
+      role: pr-unblock
+      lane: pr-unblock
+      activity: apply-dependency-patch
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      # The select job's own outputs: it ran no model and only base code.
+      patch-state: written
+      patch-sha256: ${{ needs.review-dependency-select.outputs.pin-sha256 }}
+      patch-attempt: ${{ needs.review-dependency-select.outputs.pin-attempt }}
+      patch-activity: review-dependency
+      patch-prepare: install-script-pin
+      patch-head-sha: ${{ needs.review-dependency-select.outputs.head-sha }}
 
   # The verdict job, a script with no model: it holds pull-requests and
   # issues write and acts on the verdict: the round marker, a close (never a

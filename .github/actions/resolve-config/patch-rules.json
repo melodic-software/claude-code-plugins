@@ -33,6 +33,18 @@
     "skip-moved-head": true,
     "escalations": ["dependency-fix-not-landed", "patch-invalid", "patch-not-applied", "patch-protected-path"]
   },
+  "install-script-pin": {
+    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "lane-grants", "symlink", "gitlink", "rename-into-refused"],
+    "allow": ["dependency-manifests"],
+    "max-files": 1,
+    "requires": [],
+    "content-rule": "install-script-pin",
+    "commit": { "parents": ["head"], "message": "Approve the locked claude-code install script on {ref} [dependabot skip]", "trailer": "Lane-Activity: {lane}/{activity}" },
+    "reads-report": null,
+    "skip-moved-head": true,
+    "empty-at-push": "invalid",
+    "escalations": ["patch-invalid", "patch-not-applied", "patch-protected-path"]
+  },
   "merge-base": {
     "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "lane-grants", "symlink", "gitlink", "rename-into-refused"],
     "allow": ["merge-result"],

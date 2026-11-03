@@ -441,6 +441,14 @@ verdict; and `apply-dependency-verdict` (a script, `publish-artifact`) acts on t
 never merges; the pr-merge lane merges on its `verdict=merge` marker at the current head
 ([`pr-run-activity.md`](pr-run-activity.md#prepare-dependency-review);
 [ADR 0074](../../adr/0074-review-risky-dependabot-updates-in-a-model-job-and-act-in-a-scripted-job.md)).
+When the head's `package.json` approves the `@anthropic-ai/claude-code` install script
+(`allowScripts`) for a version other than the one its `package-lock.json` installs,
+`review-dependency-select` writes the patch that moves that one pin instead, with no model turn
+([`install-script-pin.mjs`](../../../.github/scripts/pr-unblock/install-script-pin.mjs)), and
+`apply-dependency-pin` pushes it with `apply-dependency-patch`'s grant under the
+`install-script-pin` row; it posts no round marker, and the new head is reviewed as any other.
+`check-catalog` fails `ci-status` while the pin and the lockfile disagree, so a Dependabot bump
+of the CLI sorts `review` and reaches this step.
 
 `pr-unblock`'s `fix-ci` runs in separate jobs of `pr-unblock.yml`, so no model holds a write token:
 `fix-ci-context` (base code only, read-only token) writes the failing checks' context or hands
@@ -844,7 +852,8 @@ label back.
 [`patch-rules.json`](../../../.github/actions/resolve-config/patch-rules.json) is the registry
 of what one `prepare: apply-patch` script is to admit from a producer's patch, read from the
 trusted base: one row per prepare mode a patch-producing skill uses (`ci-context`,
-`review-threads`, `dependency-review`, `merge-base`), `docs` for a push job that passes
+`review-threads`, `dependency-review`, `merge-base`), `install-script-pin` for the pin patch
+`review-dependency-select` writes with no model, `docs` for a push job that passes
 `patch-prepare: docs` to hold a patch to markdown (fix-docs's `apply-docs-patch`), `default` for
 one with no prepare mode, and
 `issue` for a patch that goes to a new issue-lane branch made at the run's base or resume tip.
@@ -860,7 +869,7 @@ each row to these keys:
 | `max-files` | The most paths one patch may change, or `null`. |
 | `max-blobs` | Merge rows only: the most blobs one merge commit may upload, each one neither the head nor the base holds at its path; over it nothing is written. |
 | `requires` | What the producer's output must say before anything applies: `dependency-verdict: fix`, the scanned verdict's field. |
-| `content-rule` | Optional; what each changed file's bytes must also meet, on the local blobs before any commit is built, escalating as `protected-path`: `dependency-version-change` (`dependency-review`: modified in place, a regular file, changed only by a version, `fixRefusal` in `dependency-classify.mjs`) or `pr-mode-revert` (`review-threads`: a file whose mode changes between `100644` and `100755` takes the mode its path has at the merge base of the PR head and its base, read through the GitHub API, so the lane can only revert a mode the pull request introduced). |
+| `content-rule` | Optional; what each changed file's bytes must also meet, on the local blobs before any commit is built, escalating as `protected-path`: `dependency-version-change` (`dependency-review`: modified in place, a regular file, changed only by a version, `fixRefusal` in `dependency-classify.mjs`), `install-script-pin` (`install-script-pin`: the root `package.json` alone, under `dependency-version-change`, with one `allowScripts` install-script pin moved to the exact version the manifest pins and nothing else, `installScriptPinRefusal`) or `pr-mode-revert` (`review-threads`: a file whose mode changes between `100644` and `100755` takes the mode its path has at the merge base of the PR head and its base, read through the GitHub API, so the lane can only revert a mode the pull request introduced). |
 | `commit` | `parents` (`[head]`, or `[head, base]` for a merge), `message` and `trailer`, with `{ref}`, `{base}`, `{lane}`, `{activity}` and `{issue}` filled in. |
 | `thread-trailer` | Optional; `true` (`review-threads`, a `kept-threads` row only) adds after the trailer a `Lane-Thread: <thread id>` line for each kept thread a `VALID` reply in the model job's scanned replies names, the binding `publish-feedback.mjs` requires before it credits the commit to a thread; with no replies read, nothing is committed. |
 | `reads-report` | The producer report the apply reads (`ci-escalations`: the checks the model escalated), or `null`. |
@@ -2149,7 +2158,10 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   its commits change nothing but npm or pip manifest and lock files outside `.github/`, in a
   directory `.github/dependabot.yml` lists for that ecosystem, each modified in place as a regular
   `100644` file and changed only by a version (the **fix rule**: in `package.json` only an
-  existing dependency entry's plain, bounded semver range (no `*` or lower bound alone); in a
+  existing dependency entry's plain, bounded semver range (no `*` or lower bound alone), and one
+  `allowScripts` key `@anthropic-ai/claude-code@<old>` renamed to `@anthropic-ai/claude-code@<v>`
+  with its value kept, where `<v>` is the exact version the manifest pins, never a name-only or
+  wildcard key nor any other package's pin (`INSTALL_SCRIPT_PINS`); in a
   lock the same package keys as the Dependabot commit's lock, each entry's `resolved` exactly
   `https://registry.npmjs.org/<name>/-/<unscoped name>-<version>.tgz` for its own name (or
   alias `name`, which must be the Dependabot commit's) and version with a `sha512-` integrity, and no install-script change; in

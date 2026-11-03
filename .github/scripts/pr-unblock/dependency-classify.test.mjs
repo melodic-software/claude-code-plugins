@@ -824,6 +824,15 @@ const FIX_VECTORS = [
   ["requirements.txt", "numpy==2.5.3\n", "numpy>=2.5.4\n", "requirements-line"],
   ["requirements.txt", "-r base.txt\nnumpy==2.5.3\n", "-r base.txt\nnumpy==2.5.4\n", null],
   ["setup.py", "", "", "content-unchecked"],
+  // The install-script pin: moved to the version the manifest pins, and no
+  // other way (claude-code-plugins#12807).
+  ["package.json", FIX_PKG({ "@anthropic-ai/claude-code": "2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.316": true, "e@1.0.0": true } }), FIX_PKG({ "@anthropic-ai/claude-code": "2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.317": true, "e@1.0.0": true } }), null],
+  ["package.json", FIX_PKG({ "@anthropic-ai/claude-code": "2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.316": true } }), FIX_PKG({ "@anthropic-ai/claude-code": "2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.318": true } }), "package-json-key:allowScripts"],
+  ["package.json", FIX_PKG({ "@anthropic-ai/claude-code": "2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.316": true } }), FIX_PKG({ "@anthropic-ai/claude-code": "2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code": true } }), "package-json-key:allowScripts"],
+  ["package.json", FIX_PKG({ "@anthropic-ai/claude-code": "2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.316": true } }), FIX_PKG({ "@anthropic-ai/claude-code": "2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@*": true } }), "package-json-key:allowScripts"],
+  ["package.json", FIX_PKG({ "@anthropic-ai/claude-code": "^2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.316": true } }), FIX_PKG({ "@anthropic-ai/claude-code": "^2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.317": true } }), "package-json-key:allowScripts"],
+  ["package.json", FIX_PKG({ x: "1.0.1" }, { allowScripts: { "x@1.0.0": true } }), FIX_PKG({ x: "1.0.1" }, { allowScripts: { "x@1.0.1": true } }), "package-json-key:allowScripts"],
+  ["package.json", FIX_PKG({ "@anthropic-ai/claude-code": "2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.316": true, "e@1.0.0": true } }), FIX_PKG({ "@anthropic-ai/claude-code": "2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.317": true, "e@1.0.0": true, "f@1.0.0": true } }), "package-json-key:allowScripts"],
 ];
 
 test("the fix rule admits a version change and refuses anything else", () => {
