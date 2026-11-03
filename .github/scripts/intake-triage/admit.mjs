@@ -768,9 +768,10 @@ const CHARGING =
 const ADMIT_CHARGES = /\bazure\b/gi;
 // Another billing account reads as a charge only in a clause that takes
 // something on (CHARGING): work often names these without paying them.
-// A name inside a compound is not the account (`openai/codex`, `aws-sdk`). A verb
-// inside one still is the verb (`auto-deploy`), but `deployment` is a noun.
-const ACCOUNT_CHARGES = /(?<![-/])\b(?:aws|gcp|google cloud|openai|openrouter|bedrock)\b(?![-/]\w)/gi;
+// A name counts unless it opens a compound that is no account: `openai/codex`,
+// `aws-sdk`. A verb inside a compound still is the verb (`auto-deploy`), but
+// `deployment` is a noun.
+const ACCOUNT_CHARGES = /\b(?:aws|gcp|google cloud|openai|openrouter|bedrock)\b(?![-/](?:sdk|cli|compatible|codex)\b)/gi;
 const accountsTakenOn = (clause) => (CHARGING.test(clause.replace(/[-/]/g, " ").replace(/\bdeployments?\b/gi, "")) ? [...clause.matchAll(ACCOUNT_CHARGES)].map((m) => m[0].toLowerCase()) : []);
 const SAFEGUARD = /\b(?:spend(?:ing)?[- ](?:limits?|caps?)|caps?|budgets?|quotas?)\b/i;
 // The charge a clause that lowers or raises a guard on money (SPEND_LIMIT)

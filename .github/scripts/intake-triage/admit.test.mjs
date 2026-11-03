@@ -1072,6 +1072,8 @@ describe("decide", () => {
           ["Deploy the job to AWS.", "aws"],
           ["Auto-deploy the stack to AWS.", "aws"],
           ["Build/deploy the job on GCP.", "gcp"],
+          ["Deploy the job to AWS/GCP.", "aws, gcp"],
+          ["Migrate the runners to AWS-hosted machines.", "aws"],
           ["Run the eval through Bedrock.", "bedrock"],
           ["Move the lane to Google Cloud.", "google cloud"],
           ["Subscribe to Cloudflare Pro.", "cloudflare pro"],
