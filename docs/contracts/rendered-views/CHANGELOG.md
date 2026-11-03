@@ -3,6 +3,21 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## One medium resolver on the ADR 0075 scopes and one fallback chain, 2026-11-02
+
+- **`medium` is set in the ADR 0075 scopes.** The argument, the lane plugin's `medium` option, the
+  team file `docs/conventions/rendered-views.yaml` and the personal override
+  `docs/conventions/rendered-views.local.yaml`. `lib/view-settings.mjs` resolves them for every
+  view lane by the publish trust walk, now written out under The `rendered-views` settings.
+- **The retired files give a notice, never a value.** `~/.claude/rendered-views.md`,
+  `.claude/rendered-views.md` and `.claude/rendered-views.local.md` are no longer read; each names
+  where its value moves, once per lane plugin per project while unchanged.
+- **One fallback chain and one report line.** Reachability and preference becomes Reachability and
+  the fallback chain: artifact, then file, then terminal, owned by `lib/view-registry.mjs`, and
+  every view lane prints `view: <medium> (<what decided it>)`.
+- **A team `artifact` no longer publishes a digest.** `/review:explain-change` honoured a team
+  `artifact` before; under the walk it is ignored with a notice, and the shipped default applies.
+
 ## The genre rubric applied to `knowledge:course-digest` and `knowledge:map-corpus`, 2026-11-02
 
 - **Both are recorded with no lane.** Each has a person-facing step in a corpus genre: the

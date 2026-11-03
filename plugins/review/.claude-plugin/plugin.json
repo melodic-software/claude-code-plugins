@@ -49,6 +49,19 @@
         "lens",
         "model"
       ]
+    },
+    "medium": {
+      "type": "string",
+      "title": "Preferred delivery medium",
+      "description": "Where /review:explain-change delivers a digest page. auto (default) leaves it to the shared medium resolver and the plugin's own default, a private Artifact that the publish gate keeps local for a non-public repository or credential-shaped diff; terminal builds no page; file keeps it a local file; artifact publishes it as a private Artifact even from a non-public repository; hosted sends it to the shared page host. A repository's docs/conventions/rendered-views.yaml can keep a page local but never publishes one.",
+      "default": "auto",
+      "options": [
+        "auto",
+        "terminal",
+        "file",
+        "artifact",
+        "hosted"
+      ]
     }
   }
 }

@@ -265,7 +265,7 @@ Rules:
 [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md).
 Resolve `medium` first per
 [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md)
-"Other optional views": `terminal` skips the view.
+"Other optional views", with this plugin's `medium` option `${user_config.medium}`: `terminal` skips the view.
 
 ### Phase 5: Discussion Rounds
 
