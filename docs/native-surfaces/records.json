@@ -3094,24 +3094,6 @@
       },
       "component": {
         "plugin": "bash-format",
-        "skill": "check",
-        "kind": "skill"
-      },
-      "reason": "Name overlap only: bash-format:check is a read-only check that shfmt, shellcheck and node resolve for the bash-format hook; the built-in Bash tool executes shell commands. Different jobs, no routing.",
-      "as_of": "2.1.287",
-      "date": "2026-10-01",
-      "fingerprint": {
-        "native": "a7f67a9b12ebfca6f87a32ccdee185d9",
-        "component": "dd6798c14d26edab70e9c138812da51e"
-      }
-    },
-    {
-      "native": {
-        "name": "Bash",
-        "class": "builtin-tool"
-      },
-      "component": {
-        "plugin": "bash-format",
         "skill": "setup",
         "kind": "skill"
       },
@@ -3274,24 +3256,6 @@
       },
       "component": {
         "plugin": "powershell-format",
-        "skill": "check",
-        "kind": "skill"
-      },
-      "reason": "Name overlap only: powershell-format:check is a read-only check that pwsh, PSScriptAnalyzer, jq and node resolve for the powershell-format hook; the built-in PowerShell tool executes PowerShell commands. Different jobs, no routing.",
-      "as_of": "2.1.287",
-      "date": "2026-10-01",
-      "fingerprint": {
-        "native": "7e8a83657f5c47a86bcd429dbf18e53e",
-        "component": "3ea7d63b3f8a7f725c0afbc70c615504"
-      }
-    },
-    {
-      "native": {
-        "name": "PowerShell",
-        "class": "builtin-tool"
-      },
-      "component": {
-        "plugin": "powershell-format",
         "skill": "setup",
         "kind": "skill"
       },
@@ -3337,24 +3301,6 @@
       "fingerprint": {
         "native": "ca8c15ae799fa188bc0172ddccfc4d0a",
         "component": "74ee32515711d56b10ecdf9051406baa"
-      }
-    },
-    {
-      "native": {
-        "name": "ReadNotifications",
-        "class": "builtin-tool"
-      },
-      "component": {
-        "plugin": "desktop-notification",
-        "skill": "check",
-        "kind": "skill"
-      },
-      "reason": "Name overlap only: desktop-notification:check is a read-only check that node and jq resolve for the desktop-notification hooks; the built-in ReadNotifications tool reads queued external notifications (webhooks, triggers). Different jobs, no routing.",
-      "as_of": "2.1.287",
-      "date": "2026-10-01",
-      "fingerprint": {
-        "native": "e782dd30b656e3a5d75d4859b5a42e64",
-        "component": "d9268c18bba640ca15777b1d186ee196"
       }
     },
     {
@@ -4327,24 +4273,6 @@
       "fingerprint": {
         "native": "0128106e46d5fedcb45ba742470916bc",
         "component": "e05e47420038074de1e8f90071710308"
-      }
-    },
-    {
-      "native": {
-        "name": "desktop",
-        "class": "builtin-command"
-      },
-      "component": {
-        "plugin": "desktop-notification",
-        "skill": "check",
-        "kind": "skill"
-      },
-      "reason": "Name overlap only: desktop-notification:check is a read-only check that node and jq resolve for the desktop-notification hooks; the user-only /desktop command continues the current session in Claude Desktop. Different jobs, no routing.",
-      "as_of": "2.1.287",
-      "date": "2026-10-01",
-      "fingerprint": {
-        "native": "47f26aa289e2c8339a42d3523417d50f",
-        "component": "d9268c18bba640ca15777b1d186ee196"
       }
     },
     {

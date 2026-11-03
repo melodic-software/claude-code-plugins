@@ -56,7 +56,7 @@ imposes no rules of its own.
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run it under Git Bash.
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook exits silently and
-  normalizes nothing; `/eol-normalizer:check` reports it. [Install jq](https://jqlang.org/download/).
+  normalizes nothing; the bundled checker reports it. [Install jq](https://jqlang.org/download/).
 - **git** on `PATH`. The attribute resolution (`git check-attr`) and repo-root
   detection depend on it. Without a git repository the hook is a quiet no-op
   (nothing to normalize against, not a missing prerequisite).
@@ -96,7 +96,7 @@ The ceiling for a per-batch formatter row is 1 s median per fire. Fences:
 /plugin install eol-normalizer@melodic-software
 ```
 
-Then verify prerequisites with `/eol-normalizer:setup check`. `/eol-normalizer:check` reports whether `node` and `jq` resolve.
+Then verify prerequisites with `/eol-normalizer:setup check`. `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"` reports whether `node` and `jq` resolve.
 
 ## Configuration
 

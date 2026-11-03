@@ -122,11 +122,11 @@ The script validates config with `git config --file`; it never sources or execut
 The bundled collector is authoritative for classifications. Preserve its evidence in the report:
 
 1. **Canonical checkout:** explicit remote-keyed override → configured remote-keyed override → the
-   repository's **main worktree**, read as the first record of `git worktree list --porcelain`
-   (which lists the main worktree first regardless of where it runs). `git rev-parse
-   --show-toplevel` alone cannot identify a canonical checkout: inside a linked worktree it returns
-   the linked root, so a sibling worktree reached first by discovery would otherwise become the
-   path every handoff points at. When a supplied or discovered path resolves to a different main
+   repository's **main worktree**, read from `git worktree list --porcelain`, never from the
+   checkout discovery reached first. Which record is the main worktree: git-worktree's
+   [`list`](https://git-scm.com/docs/git-worktree#Documentation/git-worktree.txt-list) entry and
+   [List output format](https://git-scm.com/docs/git-worktree#_list_output_format), as of 2026-11-03; recheck when that entry changes the order it lists worktrees
+   in. When a supplied or discovered path resolves to a different main
    worktree, the header states the substitution on one `Resolved to main worktree:` line per
    repository, naming every path that resolved into it. Relay it, because the operator named one
    path and the report is about another. The report always shows
@@ -144,8 +144,11 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    (up to `MERGED_PR_GRAPHQL_ALIAS_PAGE` `headRefName` aliases per call, `first:1`,
    `states:[MERGED]`). GraphQL's `headRefName` argument is an **exact** match, never the search
    API's prefix-matching `head:` qualifier, so `feature/auth` and `feature/auth-v2` never conflate.
-   Measured rate cost stays 1 per call (nodeCount equals the alias count); that stays well under
-   GitHub's documented 500,000-node ceiling and 5,000-point/hour primary limit. There is no merged-PR
+   Measured rate cost stays 1 per call (nodeCount equals the alias count), well under GitHub's
+   limits:
+   [Primary rate limit](https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api#primary-rate-limit)
+   and [Node limit](https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api#node-limit),
+   as of 2026-11-03; recheck when either section changes its limit. There is no merged-PR
    result window and no per-branch fallback: every non-default local branch the operator asked
    about is queried by exact name, including heads GitHub auto-deleted and a later fetch pruned. Fail closed when `gh`/GraphQL is
    unavailable. Emit `github-pr-evidence-unavailable` and never infer unmerged from a missing
@@ -335,8 +338,10 @@ Related fleet contracts that remain separate:
   audit target unless named explicitly via `--repo` / `fleet.repo`.
 - A symlinked or junctioned intermediate directory under `--root` is not followed, but is disclosed
   as an `UNKNOWN` `discovery-symlink-skip` finding and counted on the discovery-skips header line.
-  Like `discovery-skip`, it is disclosure-only and does not make the fleet BLOCKED. Windows
-  directory junctions test as symlinks under Git Bash, so they take this path. Symlinked
+  Like `discovery-skip`, it is disclosure-only and does not make the fleet BLOCKED. What a Windows
+  directory junction is:
+  [Creating directory junctions](https://gitforwindows.org/symbolic-links.html#creating-directory-junctions),
+  as of 2026-11-03; recheck when that page moves or covers how Git Bash tests a junction. Symlinked
   discovery *roots* remain a hard refusal (CLI) or `stale-config-entry` (configured).
 - `gh` missing/unauthenticated or API/timeout failure: continue Git/worktree checks, report GitHub
   evidence as `UNKNOWN`, and make no merged/migration claim. Compatible `timeout`/`gtimeout` is
@@ -374,7 +379,7 @@ Related fleet contracts that remain separate:
 | `ls-remote-fleet-unavailable` | Confirm `git ls-remote --heads` works by hand with the operator's usual Git transport, then rerun |
 | `worktree-root-pluginconfigs-unreadable` | Install `jq`, or set `worktreeroot.path`; do not treat the fleet as unconfigured |
 | `worktree-placement-unverifiable` | Inspect the canonical checkout; placement was not checked for any of its worktrees, so their placement is unknown rather than confirmed |
-| `bare-repo-with-working-tree` | Manual review. `core.bare=true` coincides with working-tree content or registered linked worktrees, so the main worktree is disabled while linked worktrees keep working. Nothing is lost; the documented remedy is `git config --local core.bare false` in the named checkout |
+| `bare-repo-with-working-tree` | Manual review: `core.bare=true` coincides with working-tree content or registered linked worktrees. What the setting does: the [`core.bare`](https://git-scm.com/docs/git-config#Documentation/git-config.txt-corebare) entry, as of 2026-11-03; recheck when that entry changes |
 | `github-remote-moved` | Human-reviewed `git remote set-url`; this plugin never changes remotes |
 
 This plugin remains useful if those optional collaborators are absent: the report names the local

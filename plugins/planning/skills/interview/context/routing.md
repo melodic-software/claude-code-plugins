@@ -18,14 +18,15 @@ cut before wayfind" first, in round 1 when the request already shows it.
 ## Bigger than you thought? Check at every round boundary
 
 After each reply is recorded and before the next round is written, answer one question: did this
-turn out larger or foggier than it looked at entry? Each trigger has its own recommendation:
+turn out larger or foggier than it looked at entry? The first two triggers each have their own
+recommendation; the third is a pointer:
 
 - **Fog: more branches opened than closed → `/planning:wayfind chart`.** Recompute the frontier
   first, then count the branches this round's answers exposed (the questions the next round would
   add) against the rows it moved to a terminal status. Register rows alone miss this: a new
   branch gets its row only when it is asked. Two rounds running with more opened than closed is
   the trigger; one is noise. This is the fog evidence wayfind's too-big AND foggy stop rule needs,
-  so wayfind is never recommended without it.
+  so a recommendation to chart always rests on it.
 - **Size alone: the context zone has worsened → `/session-flow:workflow`.** The session's
   context-guard report (the zone line the module injects, or its `mcp__context-guard__status`
   tool) puts the session in a worse zone than the one it reported at entry. Use only a report the
@@ -33,11 +34,21 @@ turn out larger or foggier than it looked at entry? Each trigger has its own rec
   token or percentage figure here, because the zone thresholds belong to context-guard. No report,
   or `unknown`, is not a trigger. With no fog trigger, this recommends routing the continuation
   through `/session-flow:workflow` (Step 5), not wayfind. When both hold, recommend wayfind.
+- **Question count: the register passed `wayfind_suggest_questions` → suggest `/planning:wayfind
+  chart`.** Resolve the key per [`<plugin-root>/reference/config.md`](../../../reference/config.md)
+  "Convention-home keys" (no `userConfig` layer; the default is `27`; `0` never suggests). Count the
+  rows in the ledger's `## Open-question register`, every status. The first time the count passes
+  the value, say once, in one short block after the read-back: the count, the value and its layer,
+  that the interview may be outrunning one session, and that `/planning:wayfind chart` would carry
+  this ledger over if the effort is still foggy. That block is a pointer, not a question: it waits
+  for nothing, the next round goes out as usual, and a reply asking for wayfind takes the handoff
+  below. It recommends nothing, so a `/session-flow:workflow` recommendation on the same boundary
+  stands. Skip it when a wayfind recommendation has already been made in this session.
 
-On a trigger, recommend its route to the user in one short block (the trigger and its evidence,
-what it would carry over); never switch on your own. If it is not a trigger, say nothing and ask
-the next round. After the user declines, raise it again only when it escalates: the zone worsens
-further, or the other trigger fires.
+On a fog or context-zone trigger, recommend its route to the user in one short block (the trigger
+and its evidence, what it would carry over); never switch on your own. If neither fired, say nothing
+beyond the question-count pointer and ask the next round. After the user declines, raise it again
+only when it escalates: the zone worsens further, or the other of those two triggers fires.
 
 ## The handoff to wayfind
 

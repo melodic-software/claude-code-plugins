@@ -22,6 +22,7 @@
 #         "az_config_dir": "<dir>"
 #       }
 #     },
+#     "owner_roots": { "linux": ["<abs>"], "macos": ["<abs>"], "windows": ["<abs>"] },
 #     "identity_files": ["<path>"],
 #     "shared_exceptions": [{ "path": "<abs>", "from": ["<name>"], "to": "<name>" }],
 #     "messages": { "<key>": "<text>" }
@@ -89,10 +90,26 @@
 #      the call; from a neutral cwd nothing else is denied.
 #
 # A domain's PATHS are its roots and, for each owner, the owner's directory
-# below $HOME/src/github.com and $HOME/worktrees/github.com. A text NAMES a
-# path or marker when it holds it with no letter, digit, `.`, `_` or `-` right
-# before or after it: the root /x/work names neither /x/workshop nor
-# /y/x/work. `\` reads as `/` and a run of separators as one, so `C:\x`,
+# below each of this host's owner_roots, or below $HOME/src/github.com and
+# $HOME/worktrees/github.com when the map gives this host none. An owner root
+# holds a directory per owner or, flat, `<owner>-<repo>-<slug>` trees, or both,
+# so an owner's directory also covers every name that starts with it and a `-`.
+# A text NAMES a path or marker when it holds it with no letter, digit, `.`, `_`
+# or `-` right before or after it, except that a `-` may follow an owner's
+# directory: the root /x/work names neither /x/workshop nor /x/work-a nor
+# /y/x/work, and /x/owners/acme names /x/owners/acme-repo and not
+# /x/owners/acmex-repo. The name alone cannot say where an owner ends, so of two
+# listed owners the longest one that fits holds it, in a command as for a cwd:
+# with `acme` and `acme-labs` listed, `acme-labs-x` is acme-labs's even when it
+# is acme's repository `labs-x`, so that tree is open to an acme-labs session
+# and denied to an acme one. An owner no domain lists, such as `acme-labs` with
+# only `acme` listed, reads as acme's, a nested root's `acme-labs/` included.
+# A name only a `-` ties to an owner also leaves a shorter root above it named,
+# so a session in either domain is denied it. A cwd only a `-` ties to an owner
+# is that owner's domain only when no root or owner's directory holds it. So
+# against the exact test the `-` takes no name or cwd from a domain that held
+# it: it only adds names, and so denies.
+# `\` reads as `/` and a run of separators as one, so `C:\x`,
 # `C:\\x` and `C:/x` are one spelling. A path on a drive is also named in its
 # other drive forms (`C:/x`, `/c/x`, `/cygdrive/c/x`, `/mnt/c/x`, where a
 # Windows root `/c/x` and a `/cygdrive/c` or `/mnt/c` root on any host are on
@@ -154,9 +171,9 @@
 #   - `git config` with `--global`, `--system` or `--file <identity file>`
 #     (`-f`, `--file=`) that sets, adds, replaces or unsets user.email,
 #     user.signingkey, user.useConfigOnly, credential.helper (and its
-#     credential.<url>.helper form), core.sshCommand, core.hooksPath or an
-#     includeIf key, in the old form or after `set` or `unset`; one that
-#     renames or removes the user, core, credential or an includeIf section;
+#     credential.<url>.helper form), core.sshCommand, core.hooksPath, include.path
+#     or an includeIf key, in the old form or after `set` or `unset`; one that
+#     renames or removes the user, core, credential, include or an includeIf section;
 #     and `--edit` or `edit`, which may touch every key;
 #   - a shell write to an identity file: an output redirection to it (the
 #     targets of `&>`, `&>>` and `>|`, which the parse splits at the `&` or
@@ -190,6 +207,9 @@
 #     heredoc body, which the parse skips even when a shell runs it
 #     (`bash <<'EOF'`)
 #   - a path relative to the cwd (`../other`), and a symlink into a root
+#   - a tree in a flat owner root whose name does not start with its owner
+#     (`cc-plugins-1`), and a shared exception inside a flat tree, which grants
+#     nothing because the path is not below an owner's directory
 #   - on macOS, a cwd spelled in another case than its root, which reads as
 #     neutral
 #   - an identity position inside a `bash -c` or `sh -c` operand, a git alias,
@@ -293,7 +313,7 @@ esac
 
 # What the compiler below writes. A change to the jq program or to how the
 # records are read changes it, so a cache an older guard wrote is compiled again.
-BCD_FORMAT=5
+BCD_FORMAT=7
 BCD_CACHE="${BCD_MAP%.json}.cache"
 BCD_TAB=$'\t'
 BCD_CWD_DOMAIN=""
@@ -302,6 +322,7 @@ BCD_HOME_FOLD=""
 BCD_RECORDS=()
 BCD_ROOT=()
 BCD_ROOT_DOMAIN=()
+BCD_ROOT_KIND=()
 BCD_NEEDLE=()
 BCD_NEEDLE_DOMAIN=()
 BCD_NEEDLE_PATH=()
@@ -341,7 +362,7 @@ BCD_WRITE_DENY=()
 # `marker`, `gh` and `az` records, one `idfile` record per identity file with
 # an empty domain, a `legacy` or `outside` record for each shared exception that
 # grants nothing (its index as the value), then this host's `root` records, each
-# owner's two `owner` directories below HOME and each `shared` record (its
+# owner's `owner` directories and each `shared` record (its
 # domain `<to><TAB><from domains, space-separated>`), longest first
 # (`<kind><TAB><domain><TAB><value>`), or one `invalid<TAB><reason>` line for a
 # map it rejects. The whole map is validated before any record is written, so a
@@ -365,7 +386,7 @@ def absolute($os):
   if $os == "windows"
   then test("^[A-Za-z]:[\\\\/]+[^\\\\/]") or (test("^/[^/]") and (test("^/[A-Za-z][\\\\/]*$") | not))
   else test("^/[^/]") end;
-def domain($d; $os; $home):
+def domain($d; $os; $owner_roots):
   if ($d | test("\\A[A-Za-z0-9_.-]+\\z")) | not
   then fail("a domain name holds a character other than a letter, digit, dot, underscore or hyphen")
   else . end
@@ -382,9 +403,16 @@ def domain($d; $os; $home):
         else fail("domains.\($d).roots.\($o) holds a path that is not absolute below a filesystem root") end] as $roots
   | ($roots[] | {kind: "root", d: $d, v: .}), ($markers[] | {kind: "marker", d: $d, v: .}),
     ($gh[] | {kind: "gh", d: $d, v: .}), ($az[] | {kind: "az", d: $d, v: .}),
-    (if $home == "" then empty
-     else $owners[] | {kind: "owner", d: $d, v: "\($home)/src/github.com/\(.)"},
-       {kind: "owner", d: $d, v: "\($home)/worktrees/github.com/\(.)"} end);
+    ($owners[] as $o | $owner_roots[] | {kind: "owner", d: $d, v: "\(sub("[\\\\/]+$"; ""))/\($o)"});
+def owner_roots($os; $home):
+  [optional("owner_roots"; only("owner_roots"; ["linux", "macos", "windows"])
+      | to_entries[] | .key as $o | .value
+      | list("owner_roots.\($o)")
+      | if absolute($o) then select($o == $os)
+        else fail("owner_roots.\($o) holds a path that is not absolute below a filesystem root") end)] as $given
+  | if .owner_roots[$os]? != null then $given
+    elif $home == "" then []
+    else ["\($home)/src/github.com", "\($home)/worktrees/github.com"] end;
 def fold($os):
   gsub("[\\\\/]+"; "/") | sub("(?<=.)/$"; "")
   | if $os == "windows" then ascii_downcase | sub("^/(cygdrive/|mnt/)?(?<d>[a-z])(?=/|$)"; "\(.d):")
@@ -410,11 +438,12 @@ def shared($names; $paths; $os):
       else {kind: "outside", d: $to, v: "\($i)"} end
     end;
 def compile($os; $home):
-  only("the map"; ["domains", "identity_files", "shared_exceptions", "messages"])
+  only("the map"; ["domains", "owner_roots", "identity_files", "shared_exceptions", "messages"])
   | if has("domains") | not then fail("the map has no domains") else . end
   | [optional("identity_files"; list("identity_files"))] as $files
   | [optional("messages"; object("messages") | to_entries[] | .key as $k | .value | line("messages.\($k)"))] as $messages
-  | (.domains | object("domains") | [to_entries[] | .key as $d | .value | domain($d; $os; $home)]) as $records
+  | owner_roots($os; $home) as $owner_roots
+  | (.domains | object("domains") | [to_entries[] | .key as $d | .value | domain($d; $os; $owner_roots)]) as $records
   | ($records | map(select(.kind == "root" or .kind == "owner"))) as $paths
   | (.domains | keys) as $names
   | [optional("shared_exceptions"; shared($names; $paths; $os))] as $shared
@@ -554,7 +583,8 @@ bcd::dir_to() {
 }
 
 # bcd::add_needle <domain> <folded text> <1 for a path, 2 for a shared
-# exception's path, 0 for a marker> [<the exception's from domains>]
+# exception's path, 3 for an owner's directory, 0 for a marker> [<the
+# exception's from domains>]
 bcd::add_needle() {
   [[ -n "$2" ]] || return 0
   BCD_NEEDLE+=("$2")
@@ -563,17 +593,19 @@ bcd::add_needle() {
   BCD_NEEDLE_FROM+=("${4-}")
 }
 
-# bcd::add_root <domain> <root or owner directory as spelled> [<from domains>]:
-# the path for the cwd and every spelling of it a command can name; with from
-# domains, a shared exception's path, which classifies no cwd.
+# bcd::add_root <domain> <root or owner directory as spelled> [<from domains>]
+# [<3 for an owner's directory>]: the path for the cwd and every spelling of it a
+# command can name; with from domains, a shared exception's path, which
+# classifies no cwd.
 bcd::add_root() {
-  local c n rest drive="" p kind=1
+  local c n rest drive="" p kind=${4:-1}
   bcd::norm_to c "$2"
   if [[ -n "${3-}" ]]; then
     kind=2
   else
     BCD_ROOT+=("$c")
     BCD_ROOT_DOMAIN+=("$1")
+    BCD_ROOT_KIND+=("$kind")
   fi
   bcd::fold_to n "$2"
   bcd::add_needle "$1" "$n" "$kind" "${3-}"
@@ -620,22 +652,54 @@ bcd::names() {
   for ((i = 0; i < ${#BCD_NEEDLE[@]}; i++)); do
     n=${BCD_NEEDLE[i]}
     [[ "$t" == *"$n"* ]] || continue
-    case "$t" in
-    "$n" | "$n"[!a-z0-9._-]* | *[!a-z0-9._-]"$n" | *[!a-z0-9._-]"$n"[!a-z0-9._-]*) ;;
-    *) continue ;;
-    esac
+    if ((BCD_NEEDLE_PATH[i] == 3)); then
+      case "$t" in
+      "$n" | "$n"[!a-z0-9._]* | *[!a-z0-9._-]"$n" | *[!a-z0-9._-]"$n"[!a-z0-9._]*) ;;
+      *) continue ;;
+      esac
+    else
+      case "$t" in
+      "$n" | "$n"[!a-z0-9._-]* | *[!a-z0-9._-]"$n" | *[!a-z0-9._-]"$n"[!a-z0-9._-]*) ;;
+      *) continue ;;
+      esac
+    fi
     if ((BCD_NEEDLE_PATH[i] == 2 && BCD_DOTDOT == 0)) && [[ -n "$BCD_CWD_DOMAIN" && " ${BCD_NEEDLE_FROM[i]} " == *" $BCD_CWD_DOMAIN "* ]]; then
       bcd::spend_open "$n" "${BCD_NEEDLE_DOMAIN[i]}"
       continue
     fi
     bcd::named "${BCD_NEEDLE_DOMAIN[i]}" "${BCD_NEEDLE_PATH[i]}"
     if ((BCD_NEEDLE_PATH[i])); then
-      t=${t//"$n"/ }
+      bcd::spend "$n" "${BCD_NEEDLE_PATH[i]}"
     elif [[ "${BCD_NEEDLE_DOMAIN[i]}" != "$BCD_CWD_DOMAIN" ]]; then
       BCD_FOREIGN_MARKER=1
     fi
   done
   return 0
+}
+
+# bcd::spend <needle> <its kind>: a named path, in bcd::names's text `t`. Each
+# occurrence that names it becomes a space; one inside a longer name is kept. One
+# only a `-` ties to an owner's directory stays for a shorter root to name as well,
+# with a newline before its last segment so a shorter owner no longer fits it.
+bcd::spend() {
+  local rest=$t out="" pre before after
+  while [[ "$rest" == *"$1"* ]]; do
+    pre=${rest%%"$1"*}
+    rest=${rest#*"$1"}
+    before=${pre: -1}
+    [[ -n "$pre" ]] || before=${out: -1}
+    after=${rest:0:1}
+    if [[ "$before" == [a-z0-9._-] ]]; then
+      out+=$pre$1
+    elif [[ "$2" == 3 && "$after" == - ]]; then
+      out+="$pre${1%/*}/"$'\n'"${1##*/}"
+    elif [[ "$after" == [a-z0-9._-] ]]; then
+      out+=$pre$1
+    else
+      out+="$pre "
+    fi
+  done
+  t=$out$rest
 }
 
 # bcd::spend_open <needle> <its to domain>: an open shared exception's path, in
@@ -1209,7 +1273,7 @@ bcd::write_word() { # <command word or operator> <operand>
 bcd::identity_key() { # <config key>
   case "${1,,}" in
   user.email | user.signingkey | user.useconfigonly | credential.helper | credential.*.helper | \
-    core.sshcommand | core.hookspath | includeif.*) return 0 ;;
+    core.sshcommand | core.hookspath | include.path | includeif.*) return 0 ;;
   *) return 1 ;;
   esac
 }
@@ -1217,7 +1281,7 @@ bcd::identity_key() { # <config key>
 # shellcheck disable=SC2329  # reached from the parse callback
 bcd::identity_section() { # <config section>
   case "${1,,}" in
-  user | core | credential | credential.* | includeif.*) return 0 ;;
+  user | core | credential | credential.* | include | includeif.*) return 0 ;;
   *) return 1 ;;
   esac
 }
@@ -1406,16 +1470,22 @@ bcd::write_deny() {
 }
 
 bcd::classify_cwd() {
-  local cwd r i best=0
+  local cwd r i best=0 tied=0 tied_domain=""
   [[ -n "$BCD_CWD_RAW" ]] || return 0
   bcd::norm_to cwd "$BCD_CWD_RAW"
   for ((i = 0; i < ${#BCD_ROOT[@]}; i++)); do
     r=${BCD_ROOT[i]}
-    if ((${#r} > best)) && [[ "$cwd" == "$r" || "$cwd" == "$r"/* ]]; then
-      best=${#r}
-      BCD_CWD_DOMAIN=${BCD_ROOT_DOMAIN[i]}
+    if [[ "$cwd" == "$r" || "$cwd" == "$r"/* ]]; then
+      if ((${#r} > best)); then
+        best=${#r}
+        BCD_CWD_DOMAIN=${BCD_ROOT_DOMAIN[i]}
+      fi
+    elif ((BCD_ROOT_KIND[i] == 3 && ${#r} > tied)) && [[ "$cwd" == "$r"-* ]]; then
+      tied=${#r}
+      tied_domain=${BCD_ROOT_DOMAIN[i]}
     fi
   done
+  ((best)) || BCD_CWD_DOMAIN=$tied_domain
 }
 
 [[ -n "${HOME:-}" ]] && bcd::norm_to BCD_HOME "$HOME"
@@ -1429,7 +1499,8 @@ for BCD_REC in ${BCD_RECORDS[@]+"${BCD_RECORDS[@]}"}; do
   BCD_DOM=${BCD_REC%%"$BCD_TAB"*}
   BCD_VAL=${BCD_REC#*"$BCD_TAB"}
   case "$BCD_KIND" in
-  root | owner) bcd::add_root "$BCD_DOM" "$BCD_VAL" ;;
+  root) bcd::add_root "$BCD_DOM" "$BCD_VAL" ;;
+  owner) bcd::add_root "$BCD_DOM" "$BCD_VAL" "" 3 ;;
   shared) bcd::add_root "$BCD_DOM" "${BCD_VAL#*"$BCD_TAB"}" "${BCD_VAL%%"$BCD_TAB"*}" ;;
   legacy) BCD_GRANTS_NOTHING+=("shared_exceptions[$BCD_VAL] grants nothing: it is a plain path, the earlier shape") ;;
   outside) BCD_GRANTS_NOTHING+=("shared_exceptions[$BCD_VAL] grants nothing: its path is not a path of its to domain, '$BCD_DOM', on this host") ;;

@@ -27,7 +27,7 @@ Read the actual code before forming opinions about it.
 - **Targeted files**. Read files directly relevant to the task. Use Glob by pattern, Grep by content
 - **Adjacent code**. Read code that calls, is called by, or is structurally similar to the target. Understand the neighborhood, not just the target
 - **Existing patterns**. Before proposing a new pattern, search for how the same concern is handled elsewhere in the repo. Reuse > reinvent (unless the existing pattern is an anti-pattern or well outside modern best practices and not documented as a pragmatic decision)
-- **Convention files**. The project's always-loaded instructions (root `CLAUDE.md` and the files it imports) are already in context, in a dispatched run too, so do not re-read them. Read the path-scoped rule files under `.claude/rules/` and any nested `AGENTS.md` covering the target area for conventions that constrain the solution space: those reach a context only when a file they cover is read, which an exploration may never do for the area a rule governs
+- **Convention files**. Read the path-scoped rule files under `.claude/rules/` and any nested `AGENTS.md` covering the target area for conventions that constrain the solution space, without counting on the exploration's other reads to have loaded them. Read the root `CLAUDE.md` and the files it imports only when they are not already in your context. Which instruction files load at the start and which load later is [memory: how CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claudemd-files-load)'s to say (as of 2026-11-03; recheck when that section changes which files load at startup or on demand)
 - **Reference source as spec**, when the task points at an existing implementation to match (a vendored library, another module, even another language), READ that source as the authoritative spec
 
 ### 2. Git history
@@ -38,7 +38,10 @@ Code has context only git reveals, who changed it, when, why, and what else chan
 - `git log --oneline --all --since="2 weeks ago"`. Recent repo-wide activity
 - `git diff HEAD~5 -- <path>`. What changed recently in the target area
 - `git blame <file>`, when specific lines were last touched and by whom
-- **Missing files**, when `git status` or history references files that don't exist on disk, they may be intentionally deleted, so do not open git archaeology on them unprompted. Inline, ask first. **Dispatched, you cannot ask**. Record the file as an `open_questions` entry for the parent to surface and move on; asking is not optional here, so proceeding anyway would silently violate the rule that protects a deliberate deletion
+- **Missing files**, when code, `git status` or history references a file that is not on disk, probe before any archaeology the scope did not ask for. Run `git --no-optional-locks status --porcelain -- <path>` and `git log --oneline -1 --diff-filter=D -- <path>`, each its own read-only call. A status line decides first; the deleting commit counts only when status prints nothing:
+  - **Intentional**: a staged removal (`D` in the first status column), or no status line and a commit that deleted the path. Skip the archaeology and list the file under Current state as intentionally deleted, with the status line or commit that showed it.
+  - **Unexplained**: deleted only in the working tree (`D` in the second status column). Investigate it like any other file in scope, reading the last version with `git show :<path>` when the first column is not blank, else `git show HEAD:<path>`.
+  - **Not settled**: neither probe names the path, or a probe fails. Inline, ask before any archaeology. **Dispatched, you cannot ask**: record the file as an `open_questions` entry for the parent to surface and move on, since running the archaeology anyway could rebuild a file someone deleted on purpose
 
 ### 3. Project structure
 
@@ -101,7 +104,7 @@ Multiple arguments combine: `/discovery:explore payments deps tests` explores th
 Present exploration findings as:
 
 1. **Summary**. 2-3 sentence overview of what was found
-2. **Current state**. Key facts about the explored area (structure, patterns, dependencies). When the explored module has a domain-vocabulary or glossary file, frame findings using the module's domain vocabulary
+2. **Current state**. Key facts about the explored area (structure, patterns, dependencies). When the explored module has a domain-vocabulary or glossary file, frame findings using the module's domain vocabulary. List each file skipped as intentionally deleted (dimension 2's probe), with the status line or commit that showed it
 3. **Existing patterns**. How similar concerns are handled elsewhere in the repo
 4. **Test coverage**. What's tested, what's not, what test patterns are used
 5. **Constraints**. Analyzers, conventions, layer rules, or CI gates that constrain the solution

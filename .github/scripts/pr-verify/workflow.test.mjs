@@ -13,12 +13,15 @@ import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { admits } from "../lib/gate-expression.mjs";
 
 const text = readFileSync(new URL("../../workflows/pr-verify.yml", import.meta.url), "utf8");
 const KEY = "check-intent";
 const SUB = "check-intent-subscription";
 const FB = "check-intent-fallback";
 const JOBS = [KEY, SUB, FB];
+// The credit gate before the key job: no model, no secret.
+const PROBE = "check-intent-credit";
 const jobText = (id) => {
   const found = new RegExp(`\\n  ${id}:\\n([\\s\\S]*?)(?=\\n  [a-z-]+:\\n|$)`).exec(text);
   assert.ok(found, `a job ${id}`);
@@ -30,7 +33,7 @@ const stepsOf = (id) =>
     .split(/\n(?=      - name: )/)
     .slice(1)
     .map((block) => ({ name: /^      - name: (.*)$/m.exec(block)[1], block }));
-const STEPS = Object.fromEntries(JOBS.map((id) => [id, stepsOf(id)]));
+const STEPS = Object.fromEntries([...JOBS, PROBE].map((id) => [id, stepsOf(id)]));
 const index = (name, job = KEY) => STEPS[job].findIndex((step) => step.name === name);
 const step = (name, job = KEY) => {
   const found = STEPS[job].find((s) => s.name === name);
@@ -49,9 +52,10 @@ const CEILING = Number(/^MAX_CHUNKS=\$\{MAX_CHUNKS:-([1-9][0-9]*)\}$/m.exec(chun
 const SLOTS = Array.from({ length: CEILING }, (_, i) => i + 1);
 const PIN = /^melodic-software\/ci-workflows\/\.github\/actions\/([a-z-]+)@[0-9a-f]{40} # \S/;
 // The subscription job's one lane record names why the key did not judge,
-// in report-lane-outcome's fallback-reason (ci-workflows intake-triage.yml).
+// in report-lane-outcome's fallback-reason (ci-workflows intake-triage.yml);
+// a key the credit gate skipped is a credit stop too.
 const FALLBACK_REASON =
-  "${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}";
+  "${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || needs.check-intent-credit.outputs.skip-key == 'true' && 'credit-stop' || '' }}";
 // The fallback job's record names why the subscription did not judge, from
 // its handoff-reason (ci-workflows intake-triage.yml, the fallback job).
 const FB_REASON =
@@ -81,17 +85,6 @@ const CREDENTIAL = {
 };
 const others = (job) => JOBS.filter((id) => id !== job).map((id) => CREDENTIAL[id]);
 const keyGate = () => /^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(jobText(KEY))?.[1].replace(/\s+/g, " ").trim();
-// Evaluates a gate of `a == b` terms joined by && and parenthesized || groups
-// on one run's context; an evaluated term of any other shape fails the test.
-const admits = (gate, context) => {
-  const value = (term) => (/^'.*'$/.test(term) ? term.slice(1, -1) : term.split(".").reduce((at, key) => at?.[key], context));
-  const equal = (term) => {
-    assert.match(term, /^\S+ == \S+$/);
-    const [left, right] = term.split(" == ");
-    return value(left) === value(right);
-  };
-  return gate.split(" && ").every((clause) => clause.replace(/^\(|\)$/g, "").split(" || ").some(equal));
-};
 // A branch filter pattern per GitHub's filter pattern cheat sheet: `*` stops
 // at `/`, `**` matches any character including `/`. Every other character is
 // taken literally, so a pattern using `?`, `+`, `[]` or `!` needs more here.
@@ -100,6 +93,12 @@ const glob = (pattern) => {
   return new RegExp("^" + literal.replace(/\*\*|\*/g, (star) => (star === "**" ? ".*" : "[^/]*")) + "$");
 };
 const REPO = "melodic-software/claude-code-plugins";
+// Each verdict job's outputs for wake-pr-merge: the verdict only once it uploaded.
+const WAKE_OUTPUTS = [
+  "      # For wake-pr-merge: the pull request, and the verdict once it uploaded.",
+  "      pr-number: ${{ steps.pr.outputs.pr-number }}",
+  "      verdict: ${{ steps.upload-verdict.outcome == 'success' && steps.verdict.outputs.verdict || '' }}",
+];
 // A job output read from each chunk's step, chunk 1's id being `first`.
 const chainOf = (build, first) => [first, ...SLOTS.slice(1).map((k) => `${first}-${k}`), `${first}-spec`].map(build).join(" || ");
 // Every leg check of a job left no clean handoff: "&& steps.<leg>-k.outcome != 'success'" for each slot and the spec.
@@ -311,16 +310,70 @@ test("each secret appears only in its own job", () => {
 // A failed upstream run reaches resolve-pr, which judges it only when it
 // failed on nothing but holds an approving review of the head lifts, the
 // `do-not-merge` label, or both (heldOnly).
+const TRIGGER_GATE = [
+  "github.ref == 'refs/heads/main'",
+  "&& github.event.workflow_run.event == 'pull_request'",
+  "&& (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')",
+  "&& github.event.workflow_run.head_repository.full_name == github.repository",
+].join(" ");
+const gateOf = (id) => /^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(jobText(id))?.[1].replace(/\s+/g, " ").trim();
+const withNeeds = (needs, overrides) => ({ ...upstreamRun(overrides), needs });
+
 test("the key job runs on main for a same-repository pull_request run that passed or failed", () => {
-  assert.equal(
-    keyGate(),
-    [
-      "github.ref == 'refs/heads/main'",
-      "&& github.event.workflow_run.event == 'pull_request'",
-      "&& (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')",
-      "&& github.event.workflow_run.head_repository.full_name == github.repository",
-    ].join(" "),
-  );
+  // !cancelled(): a failed or skipped credit gate still runs the key.
+  assert.equal(keyGate(), `needs.${PROBE}.outputs.skip-key != 'true' && !cancelled() && ${TRIGGER_GATE}`);
+  assert.equal(gateOf(PROBE), TRIGGER_GATE);
+});
+
+// ci-workflows check-key-credit (gate.cjs at the pinned SHA): skip-key is
+// `true` only while a credit stop recorded in this workflow is inside the
+// window; any failure leaves it empty, so the key runs as before the gate.
+test("the credit gate skips the key job only on skip-key true, and a gate failure runs the key", () => {
+  assert.match(jobText(KEY), /^ {4}needs: check-intent-credit$/m);
+  assert.ok(!admits(keyGate(), withNeeds({ [PROBE]: { outputs: { "skip-key": "true" } } })));
+  for (const skip of ["false", "", undefined]) {
+    assert.ok(admits(keyGate(), withNeeds({ [PROBE]: { result: skip === undefined ? "failure" : "success", outputs: { "skip-key": skip } } })), String(skip));
+  }
+  assert.ok(!admits(keyGate(), withNeeds({ [PROBE]: { outputs: {} } }), { cancelled: true }));
+});
+
+test("the credit gate holds no secret, checks nothing out and reads only this workflow's runs", () => {
+  const job = jobText(PROBE);
+  assert.match(job, /^ {4}permissions:\n {6}actions: read #.*\n {4}outputs:\n {6}skip-key: \$\{\{ steps\.gate\.outputs\.skip-key \}\}\n/m);
+  assert.doesNotMatch(job, /secrets\.|actions\/checkout|run-claude-cli|\.\/\.base/);
+  const gate = step("Read the key's credit history", PROBE);
+  assert.match(gate, /^ {8}id: gate$/m);
+  assert.match(gate, /^ {8}continue-on-error: true$/m);
+  assert.match(gate, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/check-key-credit@[0-9a-f]{40} # \S/m);
+  // The key job's display name is its id: the gate reads its record there and
+  // in this job, `<key-job>-credit`.
+  assert.equal(input(gate, "key-job"), KEY);
+  assert.doesNotMatch(jobText(KEY), /^ {4}name:/m);
+  assert.equal(input(gate, "window-hours"), "${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}");
+});
+
+// check-key-credit RECORD_PATTERN: /^Record the key's credit stop in run (\d{1,20})$/.
+const RECORD_PATTERN = /^Record the key's credit stop in run (\d{1,20})$/u;
+test("the record steps carry the pattern the gate reads, the key's only after a credit-stop handoff", () => {
+  const carried = "Record the key's credit stop in run ${{ steps.gate.outputs.origin-run }}";
+  const own = "Record the key's credit stop in run ${{ github.run_id }}";
+  assert.match(carried.replace("${{ steps.gate.outputs.origin-run }}", "12345"), RECORD_PATTERN);
+  assert.match(own.replace("${{ github.run_id }}", "12345"), RECORD_PATTERN);
+  assert.match(step(carried, PROBE), /^ {8}if: steps\.gate\.outputs\.skip-key == 'true'$/m);
+  const record = step(own, KEY);
+  const condition = /^ {8}if: (.*)$/m.exec(record)[1];
+  assert.equal(condition, `always() && (${chainOf((id) => `steps.${id}.outputs.handoff-reason == 'credit-stop'`, "judge")})`);
+  assert.match(record, /^ {8}continue-on-error: true$/m);
+  // Only the key job records: a subscription credit stop says nothing of the key.
+  for (const job of [SUB, FB]) assert.equal(index(own, job), -1, job);
+  // The skipped key leg still leaves its lane record, so leg counts compare.
+  const report = step("Report the skipped key leg", PROBE);
+  assert.match(report, /^ {8}if: steps\.gate\.outputs\.skip-key == 'true'$/m);
+  assert.equal(input(report, "outcome"), "skipped");
+  assert.equal(input(report, "lane-id"), "pr-verify");
+  assert.equal(input(report, "credential"), CREDENTIAL[KEY][1]);
+  assert.equal(input(report, "known-failure-class"), "credit-stop");
+  assert.equal(input(report, "handoff"), '"true"');
 });
 
 // The trigger's branch filter matches the branch the pr-require-checks run ran
@@ -354,24 +407,37 @@ test("a same-repository pull_request run on a feature branch passes the trigger 
   assert.ok(!admits(keyGate(), upstreamRun({ head_repository: { full_name: "someone/fork" } })));
 });
 
-test("the subscription job runs only on a clean handoff or an empty key, on a fixed runner", () => {
+test("the subscription job runs only on a clean handoff, an empty key or a key the credit gate skipped, on a fixed runner", () => {
   const job = jobText(SUB);
-  assert.match(job, /^ {4}needs: check-intent$/m);
-  const gate = /^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(job)?.[1].replace(/\s+/g, " ").trim();
+  assert.match(job, /^ {4}needs: \[check-intent-credit, check-intent\]$/m);
+  const gate = gateOf(SUB);
   assert.equal(
     gate,
     [
-      "github.ref == 'refs/heads/main'",
-      "&& github.event.workflow_run.event == 'pull_request'",
-      "&& (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')",
-      "&& github.event.workflow_run.head_repository.full_name == github.repository",
+      "!cancelled()",
+      `&& ${TRIGGER_GATE}`,
+      "&& ((needs.check-intent.result == 'success'",
       "&& ((needs.check-intent.outputs.handoff == 'true'",
       "&& needs.check-intent.outputs.key-leg-clean == 'true')",
-      "|| needs.check-intent.outputs.credential-present == 'false')",
+      "|| needs.check-intent.outputs.credential-present == 'false'))",
+      "|| (needs.check-intent.result == 'skipped'",
+      "&& needs.check-intent-credit.outputs.skip-key == 'true'))",
     ].join(" "),
   );
-  // No status function, so GitHub adds success(): a failed key job skips it.
-  assert.doesNotMatch(gate, /always\(\)|failure\(\)|cancelled\(\)|success\(\)/);
+  // !cancelled() keeps a gate-skipped key job from skipping this one, so the
+  // key job's success is spelled out: a failed key job skips it.
+  assert.doesNotMatch(gate, /always\(\)|failure\(\)|success\(\)/);
+  const run = (key, probe = { outputs: { "skip-key": "" } }) => admits(gate, withNeeds({ [KEY]: key, [PROBE]: probe }));
+  const handedOff = { handoff: "true", "key-leg-clean": "true", "credential-present": "true" };
+  assert.ok(run({ result: "success", outputs: handedOff }));
+  assert.ok(run({ result: "success", outputs: { "credential-present": "false" } }));
+  assert.ok(!run({ result: "success", outputs: { ...handedOff, "key-leg-clean": "" } }));
+  assert.ok(!run({ result: "success", outputs: { "credential-present": "true" } }));
+  assert.ok(!run({ result: "failure", outputs: handedOff }));
+  assert.ok(run({ result: "skipped", outputs: {} }, { result: "success", outputs: { "skip-key": "true" } }));
+  // A key job skipped for any other reason (the trigger gate) judges nothing.
+  assert.ok(!run({ result: "skipped", outputs: {} }, { result: "skipped", outputs: {} }));
+  assert.ok(!run({ result: "skipped", outputs: {} }, { result: "success", outputs: { "skip-key": "false" } }));
   assert.match(job, /^ {4}runs-on: ubuntu-24\.04$/m);
   // The key job's outputs reach only that if, the resolver's env and the
   // record's fallback reason, which they pick between three literals; never a
@@ -391,6 +457,7 @@ test("the subscription job runs only on a clean handoff or an empty key, on a fi
       "      credential-present: ${{ steps.credential.outputs.present }}",
       `      key-leg-clean: \${{ ${chainOf((id) => `steps.${id}.outputs.clean`, "key-leg")} }}`,
       "      reads: ${{ steps.carry.outputs.reads }}",
+      ...WAKE_OUTPUTS,
       "",
     ].join("\n"),
   );
@@ -402,10 +469,12 @@ test("the subscription job runs only on a clean handoff or an empty key, on a fi
       `      handoff: \${{ ${chainOf((id) => `steps.${id}.outputs.handoff == 'true'`, "judge")} }}`,
       `      handoff-reason: \${{ ${chainOf((id) => `steps.${id}.outputs.handoff-reason`, "judge")} }}`,
       `      leg-clean: \${{ ${chainOf((id) => `steps.${id}.outputs.clean`, "sub-leg")} }}`,
+      ...WAKE_OUTPUTS,
       "",
     ].join("\n"),
   );
-  assert.doesNotMatch(jobText(FB), /^ {4}outputs:/m);
+  // The fallback job's only outputs are wake-pr-merge's.
+  assert.equal(/^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(jobText(FB))?.[1], [...WAKE_OUTPUTS, ""].join("\n"));
   for (const id of JOBS) {
     assert.match(jobText(id), /^ {4}permissions:\n {6}contents: read #.*\n {6}pull-requests: read #.*\n {6}actions: read #.*\n {4}[a-z]/m, id);
   }
@@ -414,21 +483,26 @@ test("the subscription job runs only on a clean handoff or an empty key, on a fi
 test("the fallback job runs only on the subscription job's clean handoff, on a fixed runner", () => {
   const job = jobText(FB);
   assert.match(job, /^ {4}needs: check-intent-subscription$/m);
-  const gate = /^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(job)?.[1].replace(/\s+/g, " ").trim();
+  const gate = gateOf(FB);
   // One hop: an empty subscription token is the subscription job's red,
   // never a reason to run the fallback (the reusables gate on handoff alone).
   assert.equal(
     gate,
     [
-      "github.ref == 'refs/heads/main'",
-      "&& github.event.workflow_run.event == 'pull_request'",
-      "&& (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')",
-      "&& github.event.workflow_run.head_repository.full_name == github.repository",
+      "!cancelled()",
+      "&& needs.check-intent-subscription.result == 'success'",
+      `&& ${TRIGGER_GATE}`,
       "&& needs.check-intent-subscription.outputs.handoff == 'true'",
       "&& needs.check-intent-subscription.outputs.leg-clean == 'true'",
     ].join(" "),
   );
-  assert.doesNotMatch(gate, /always\(\)|failure\(\)|cancelled\(\)|success\(\)/);
+  // The implicit success() needs every ancestor, so a key job the credit gate
+  // skipped would skip this job; the subscription job's success is spelled out.
+  assert.doesNotMatch(gate, /always\(\)|failure\(\)|success\(\)/);
+  const handedOff = { handoff: "true", "leg-clean": "true" };
+  assert.ok(admits(gate, withNeeds({ [SUB]: { result: "success", outputs: handedOff } })));
+  assert.ok(!admits(gate, withNeeds({ [SUB]: { result: "failure", outputs: handedOff } })));
+  assert.ok(!admits(gate, withNeeds({ [SUB]: { result: "success", outputs: { ...handedOff, "leg-clean": "" } } })));
   assert.match(job, /^ {4}runs-on: ubuntu-24\.04$/m);
   const steps = job.slice(job.indexOf("\n    steps:\n"));
   assert.deepEqual(
@@ -499,7 +573,14 @@ test("the subscription job repeats the key job's steps but for the credential", 
       .join("\n");
   const normalize = (blocks) =>
     blocks
-      .filter((s) => !s.name.startsWith("Check the key leg") && !s.name.startsWith("Check the subscription leg") && s.name !== "Hand the reads on")
+      .filter(
+        (s) =>
+          !s.name.startsWith("Check the key leg") &&
+          !s.name.startsWith("Check the subscription leg") &&
+          s.name !== "Hand the reads on" &&
+          // The key's credit record: only a key leg's credit stop says the key is out.
+          s.name !== "Record the key's credit stop in run ${{ github.run_id }}",
+      )
       .map((s) =>
         lines(s.block)
           .replace(`\n${CARRY_ENV.join("\n")}`, "")
@@ -677,7 +758,8 @@ test("a handoff leaves one lane record per leg, the leg that handed off marked h
   // name and says why in fallback-reason, one of report-lane-outcome's
   // credit-stop, auth or no-key.
   assert.match(jobText(SUB), /needs\.check-intent\.outputs\.key-leg-clean == 'true'/);
-  assert.deepEqual([...FALLBACK_REASON.matchAll(/&& '([a-z-]+)'/g)].map((m) => m[1]), ["credit-stop", "auth", "no-key"]);
+  // The last credit-stop is the credit gate's skip of the key job.
+  assert.deepEqual([...FALLBACK_REASON.matchAll(/&& '([a-z-]+)'/g)].map((m) => m[1]), ["credit-stop", "auth", "no-key", "credit-stop"]);
   assert.match(FALLBACK_REASON, /lane-class == 'auth' && 'auth'/);
   // A clean subscription handoff skips the subscription job's report the
   // same way; the fallback job, which runs exactly when leg-clean is true,
@@ -943,4 +1025,104 @@ test("the report steps only record, so a broken one cannot stop the judgment", (
     }
   }
   assert.doesNotMatch(text, /steps\.report/);
+});
+
+// After the verdict jobs, one job holding only actions: write starts a
+// PR-scoped pr-merge run on a pass or pass-notes that uploaded, and nothing
+// else.
+const WAKE = "wake-pr-merge";
+test("wake-pr-merge runs after every verdict job, only on an uploaded pass, holding only actions: write and pull-requests: read", () => {
+  const job = jobText(WAKE);
+  assert.match(job, /^ {4}needs: \[check-intent, check-intent-subscription, check-intent-fallback\]$/m);
+  const gate = /^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(job)?.[1].replace(/\s+/g, " ").trim();
+  assert.equal(
+    gate,
+    [
+      "!cancelled() && github.ref == 'refs/heads/main' &&",
+      `(${JOBS.flatMap((id) => ["pass", "pass-notes"].map((v) => `needs.${id}.outputs.verdict == '${v}'`)).join(" || ")})`,
+    ].join(" "),
+  );
+  const block = /^ {4}permissions:\n((?: {6}.*\n)+)/m.exec(job)[1];
+  assert.deepEqual([...block.matchAll(/^ {6}([a-z-]+): ([a-z]+)/gm)].map((m) => `${m[1]}: ${m[2]}`), ["actions: write", "pull-requests: read", "contents: read"]);
+  // No model and no action but main's api-budget library, checked out alone
+  // (contents: read is for that checkout) and logged at job end; outputs
+  // reach only env.
+  assert.deepEqual([...job.matchAll(/^ {8}uses: (\S+)/gm)].map((m) => m[1]), ["actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1", "./.base/.github/actions/log-api-budget"]);
+  assert.match(job, /\n {10}ref: refs\/heads\/main\n {10}path: \.base\n {10}persist-credentials: false\n {10}sparse-checkout: \|\n {12}\/\.github\/actions\/log-api-budget\/\n {10}sparse-checkout-cone-mode: false\n/);
+  assert.match(job, /^ {4}env:\n {6}API_BUDGET_TOKEN: github-token$/m);
+  const script = wakeScript();
+  assert.doesNotMatch(script, /\$\{\{/);
+  assert.match(script, /^\{ \. \.base\/\.github\/actions\/log-api-budget\/api-budget\.bash 2>\/dev\/null && api_budget_wrap_gh github-token; \} \|\| true$/m);
+  const log = /- name: Log the API budget\n([\s\S]*)$/.exec(job)?.[1];
+  assert.match(log, /^ {8}if: always\(\)$/m);
+  assert.match(log, /^ {10}tokens: github-token$/m);
+  assert.match(job, /^ {8}continue-on-error: true$/m);
+  // A failed wake job never fails the run: pr-merge counts a pass only from
+  // a run that ended success.
+  assert.match(job, /^ {4}timeout-minutes: 5\n {4}continue-on-error: true\n {4}permissions:$/m);
+});
+
+// The wake step's script, from its `run: |` to the next step.
+const wakeScript = () =>
+  /- name: Wake pr-merge for this pull request\n[\s\S]*?\n {8}run: \|\n([\s\S]*?)(?=\n\n {6}- name: |$)/.exec(jobText(WAKE))[1].replace(/^ {10}/gm, "");
+
+// Run without the library (its checkout absent), so gh is the stand-in itself.
+const wake = (env) => {
+  const script = wakeScript();
+  const dir = tempDir("wake-pr-merge-");
+  const bin = path.join(dir, "bin");
+  mkdirSync(bin);
+  const args = path.join(dir, "args");
+  writeFileSync(args, "");
+  // The stand-in answers an author read with GH_AUTHOR, or fails it when that is unset.
+  writeFileSync(
+    path.join(bin, "gh"),
+    `#!/bin/sh\necho "$@" >>'${args}'\nif [ "$1" = api ]; then [ -n "$GH_AUTHOR" ] || exit 1; echo "$GH_AUTHOR"; fi\n`,
+    { mode: 0o755 },
+  );
+  const run = spawnSync("bash", ["--noprofile", "--norc", "-c", script], {
+    cwd: dir,
+    env: { PATH: `${bin}:${process.env.PATH}`, GITHUB_REPOSITORY: REPO, GH_TOKEN: "t", ...env },
+    encoding: "utf8",
+  });
+  return { status: run.status, stdout: run.stdout, gh: readFileSync(args, "utf8").split("\n").filter(Boolean) };
+};
+
+test("wake-pr-merge dispatches pr-merge on main for the passing job's pull request", () => {
+  for (const [env, pr] of [
+    [{ KEY_PR: "41", KEY_VERDICT: "pass" }, "41"],
+    [{ KEY_PR: "41", KEY_VERDICT: "", SUB_PR: "42", SUB_VERDICT: "pass-notes" }, "42"],
+    [{ KEY_PR: "41", SUB_PR: "41", FB_PR: "43", FB_VERDICT: "pass" }, "43"],
+  ]) {
+    const run = wake(env);
+    assert.equal(run.status, 0);
+    assert.deepEqual(run.gh, [`workflow run pr-merge.yml -R ${REPO} --ref main -f pr=${pr}`]);
+    assert.match(run.stdout, new RegExp(`::notice title=pr-verify wake::pr=${pr} `));
+  }
+});
+
+test("wake-pr-merge dispatches nothing on a fail, no verdict or a pull request number it cannot read", () => {
+  for (const env of [{ KEY_PR: "41", KEY_VERDICT: "fail" }, { KEY_PR: "41" }, { KEY_PR: "", KEY_VERDICT: "pass" }, { KEY_PR: "41; x", KEY_VERDICT: "pass" }, { KEY_PR: "041", KEY_VERDICT: "pass" }]) {
+    const run = wake(env);
+    assert.equal(run.status, 0, JSON.stringify(env));
+    assert.deepEqual(run.gh, [], JSON.stringify(env));
+  }
+});
+
+test("wake-pr-merge wakes only a lanes App pull request when it can read the author", () => {
+  const read = `api repos/${REPO}/pulls/41 --jq "\\(.user.id) \\(.user.type)"`;
+  const dispatch = `workflow run pr-merge.yml -R ${REPO} --ref main -f pr=41`;
+  const pass = { KEY_PR: "41", KEY_VERDICT: "pass", LANES_APP_ID: "7" };
+  // The lanes App's pull request: read, then woken.
+  assert.deepEqual(wake({ ...pass, GH_AUTHOR: "7 Bot" }).gh, [read, dispatch]);
+  // Another author, or the App's id on a User: read, nothing woken.
+  for (const author of ["9 User", "7 User", "8 Bot"]) {
+    const run = wake({ ...pass, GH_AUTHOR: author });
+    assert.equal(run.status, 0, author);
+    assert.deepEqual(run.gh, [read], author);
+    assert.match(run.stdout, /not a lanes App pull request; nothing woken/, author);
+  }
+  // A failed read, or no usable lanes App id: woken anyway, pr-merge filters.
+  assert.deepEqual(wake(pass).gh, [read, dispatch]);
+  for (const id of ["", "x"]) assert.deepEqual(wake({ ...pass, LANES_APP_ID: id, GH_AUTHOR: "9 User" }).gh, [dispatch], id);
 });

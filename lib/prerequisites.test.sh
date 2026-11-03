@@ -99,44 +99,44 @@ notice_shape() { # reads a notice on stdin; prints ok when it is exactly the use
 }
 s1='{"session_id":"sess-1","hook_event_name":"SessionStart"}'
 
-out="$(notice_sh "$s1" /bash-format:check)"
-if [[ "$(printf '%s' "$out" | notice_shape bash-format)" == ok ]]; then
+out="$(notice_sh "$s1" /other-plugin:check)"
+if [[ "$(printf '%s' "$out" | notice_shape other-plugin)" == ok ]]; then
   pass "sh node-notice: node absent prints one SessionStart notice to the user naming the check skill"
 else
   fail "sh node-notice: node absent gave $out"
 fi
-out="$(notice_sh "$s1" /guardrails:check)"
+out="$(notice_sh "$s1" /demo-plugin:check)"
 if [[ -z "$out" ]]; then
   pass "sh node-notice: a second plugin in the same session stays silent"
 else
   fail "sh node-notice: second plugin printed $out"
 fi
-out="$(notice_sh '{"session_id":"sess-2"}' /guardrails:check)"
-if [[ "$(printf '%s' "$out" | notice_shape guardrails)" == ok ]]; then
+out="$(notice_sh '{"session_id":"sess-2"}' /demo-plugin:check)"
+if [[ "$(printf '%s' "$out" | notice_shape demo-plugin)" == ok ]]; then
   pass "sh node-notice: a new session gets its own notice"
 else
   fail "sh node-notice: new session gave $out"
 fi
-out="$(notice_sh '{"session_id":"sess-3"}' /bash-format:check BASH_FORMAT_ENABLED)"
+out="$(notice_sh '{"session_id":"sess-3"}' /demo-plugin:check BASH_FORMAT_ENABLED)"
 if [[ "$out" == *'node is not on PATH'* ]]; then
   pass "sh node-notice: an unset kill switch leaves the notice on"
 else
   fail "sh node-notice: unset kill switch gave $out"
 fi
-out="$(CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=false notice_sh '{"session_id":"sess-4"}' /bash-format:check BASH_FORMAT_ENABLED)"
+out="$(CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=false notice_sh '{"session_id":"sess-4"}' /demo-plugin:check BASH_FORMAT_ENABLED)"
 if [[ -z "$out" ]]; then
   pass "sh node-notice: a plugin kill switch set to false silences the notice"
 else
   fail "sh node-notice: kill switch false gave $out"
 fi
-a="$(notice_sh '{}' /bash-format:check)"
-b="$(notice_sh '{}' /guardrails:check)"
+a="$(notice_sh '{}' /other-plugin:check)"
+b="$(notice_sh '{}' /demo-plugin:check)"
 if [[ -n "$a" && -n "$b" ]]; then
   pass "sh node-notice: with no session id every plugin still notifies"
 else
   fail "sh node-notice: no session id gave a=$a b=$b"
 fi
-out="$(printf '%s' '{"session_id":"sess-5"}' | TMPDIR="$WORK/tmp" "$SH" "$LIB/prerequisites.sh" node-notice /bash-format:check)"
+out="$(printf '%s' '{"session_id":"sess-5"}' | TMPDIR="$WORK/tmp" "$SH" "$LIB/prerequisites.sh" node-notice /demo-plugin:check)"
 if [[ -z "$out" ]]; then
   pass "sh node-notice: node present prints nothing"
 else
@@ -149,25 +149,25 @@ if [[ -n "${PWSH:-}" ]]; then
     shift
     printf '%s' "$payload" | PATH="$EMPTY" TMPDIR="$WORK/tmp-ps" "$PWSH" -NoProfile -NonInteractive -File "$LIB/prerequisites.ps1" node-notice "$@"
   }
-  out="$(notice_ps "$s1" /bash-format:check)"
-  if [[ "$(printf '%s' "$out" | notice_shape bash-format)" == ok ]]; then
+  out="$(notice_ps "$s1" /other-plugin:check)"
+  if [[ "$(printf '%s' "$out" | notice_shape other-plugin)" == ok ]]; then
     pass "pwsh node-notice: node absent prints one SessionStart notice to the user"
   else
     fail "pwsh node-notice: node absent gave $out"
   fi
-  out="$(notice_ps "$s1" /guardrails:check)"
+  out="$(notice_ps "$s1" /demo-plugin:check)"
   if [[ -z "$out" ]]; then
     pass "pwsh node-notice: a second plugin in the same session stays silent"
   else
     fail "pwsh node-notice: second plugin printed $out"
   fi
-  out="$(CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=false notice_ps '{"session_id":"sess-4"}' /bash-format:check BASH_FORMAT_ENABLED)"
+  out="$(CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=false notice_ps '{"session_id":"sess-4"}' /demo-plugin:check BASH_FORMAT_ENABLED)"
   if [[ -z "$out" ]]; then
     pass "pwsh node-notice: a plugin kill switch set to false silences the notice"
   else
     fail "pwsh node-notice: kill switch false gave $out"
   fi
-  out="$(printf '%s' "$s1" | "$PWSH" -NoProfile -NonInteractive -File "$LIB/prerequisites.ps1" node-notice /bash-format:check)"
+  out="$(printf '%s' "$s1" | "$PWSH" -NoProfile -NonInteractive -File "$LIB/prerequisites.ps1" node-notice /demo-plugin:check)"
   if [[ -z "$out" ]]; then
     pass "pwsh node-notice: node present prints nothing"
   else

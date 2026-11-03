@@ -69,6 +69,12 @@ cat >"$TMP/bin/getent" <<'GETENT'
 printf 'tester:x:1000:1000::%s:/bin/sh\n' "${STUB_PASSWD_HOME:-/nonexistent-home}"
 GETENT
 chmod +x "$TMP/bin/getent"
+# A version-manager shim for node needs the real HOME; check 95 runs with another one.
+cat >"$TMP/bin/node" <<NODE
+#!/usr/bin/env bash
+HOME="$HOME" exec "$(command -v node)" "\$@"
+NODE
+chmod +x "$TMP/bin/node"
 
 SENT='<!-- harness-ops:lane-telemetry marker=source-control:babysit-loop@lap-1 -->'
 PAYLOAD='cycle: 7

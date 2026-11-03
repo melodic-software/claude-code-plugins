@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/month-export\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | high | src/export.js:10 | code-reviewer | end is 00:00 UTC on the last day, so created_at <= end drops every order placed later that day; an order at 2026-10-31T18:42Z is in no month's export. | Fix it |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names the failing input and what fails, at IMPORTANT"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/month-export\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | high | src/export.js:10 | code-reviewer | end is 00:00 UTC on the last day, so created_at <= end drops every order placed later that day; an order at 2026-10-31T18:42Z is in no month's export. | Fix it |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names the defect only at SUGGESTION"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/month-export\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/export.js:17 | code-reviewer | The comparator returns a boolean, never a negative number, so sort leaves rows in database order and the imported orders come out unsorted, not oldest first. | Fix it |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names only the other planted defect"
+    }
+  ]
+}

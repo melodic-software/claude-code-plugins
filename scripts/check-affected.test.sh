@@ -32,7 +32,7 @@ for s in check-shell-portability check-changelog-fragments check-stale-base-over
   printf '#!/usr/bin/env bash\necho "%s ran: $*" >&2\nexit "${%s:-0}"\n' "$s" "$var" >"$repo/scripts/$s.sh"
 done
 # The changed-skills stub also echoes whether the skills' script tests are skipped.
-printf '#!/usr/bin/env bash\necho "check-changed-skills ran: $* skip-script-tests=${CHECK_SKILL_SKIP_SCRIPT_TESTS-unset}" >&2\nexit "${STUB_CHECK_CHANGED_SKILLS:-0}"\n' \
+printf '#!/usr/bin/env bash\necho "check-changed-skills ran: $* skip-script-tests=${CHECK_SKILL_SKIP_SCRIPT_TESTS-unset} deadline=${PLUGIN_TEST_DEADLINE-unset}" >&2\n[[ -z "${STUB_SKILL_SKIP_LINE:-}" ]] || echo "$STUB_SKILL_SKIP_LINE"\nexit "${STUB_CHECK_CHANGED_SKILLS:-0}"\n' \
   >"$repo/scripts/check-changed-skills.sh"
 # The affected-tests stub also writes STUB_NOT_RUN to its --write-not-run file,
 # as the real one lists the selected suites it did not run.
@@ -42,6 +42,10 @@ echo "affected-tests ran" >&2
 [[ -z "${STUB_ARGS_LOG:-}" ]] || printf '%s\n' "$*" >"$STUB_ARGS_LOG"
 [[ -z "${STUB_ENV_LOG:-}" ]] || printf '%s' "${CHECK_DATA_ROOT-unset}" >"$STUB_ENV_LOG"
 [[ -z "${STUB_SHARE_LOG:-}" ]] || printf '%s' "${PLUGIN_TEST_SHARE_WARN_ONLY-unset}" >"$STUB_SHARE_LOG"
+[[ -z "${STUB_DEADLINE_LOG:-}" ]] || printf '%s' "${PLUGIN_TEST_DEADLINE-unset}" >"$STUB_DEADLINE_LOG"
+# The real runner writes the suites the deadline left to PLUGIN_TEST_LEFT_FILE.
+[[ -z "${STUB_LEFT:-}" ]] || printf '%s' "$STUB_LEFT" >"$PLUGIN_TEST_LEFT_FILE"
+sleep "${STUB_AFFECTED_SLEEP:-0}"
 # The real selector diffs its own tree's work tree, so the stub logs that.
 [[ -z "${STUB_STATUS_LOG:-}" ]] || git -C "$(dirname "$0")/.." status --porcelain --untracked-files=all >"$STUB_STATUS_LOG"
 [[ -v CHECK_DATA_ROOT ]] && { echo "affected-tests saw CHECK_DATA_ROOT" >&2; exit 1; }
@@ -58,7 +62,7 @@ cp "$SELF_DIR/check-affected-gates.txt" "$repo/scripts/"
 mkdir -p "$repo/scripts/lib"
 cp "$SELF_DIR/lib/read-list.sh" "$SELF_DIR/lib/test-git-env.sh" "$repo/scripts/lib/"
 cp "$SELF_DIR/run-outside-node-suites.sh" "$repo/scripts/"
-printf '# fixture\npkg/demo\n' >"$repo/scripts/outside-node-packages.txt"
+printf '# fixture\npkg/demo\npkg/other\n' >"$repo/scripts/outside-node-packages.txt"
 printf '# fixture\nfixtures/\n' >"$repo/scripts/outside-node-exclusions.txt"
 : >"$repo/_typos.toml"
 # The workflow typos reads its exclusions from: its typos step's `exclude:` line.
@@ -300,6 +304,29 @@ run -u PLUGIN_TEST_SHARE_WARN_ONLY STUB_SHARE_LOG="$share_log" -- --base base --
 check "--tests passes PLUGIN_TEST_SHARE_WARN_ONLY=1 to the suites" '[[ $RC == 0 && $(cat "$share_log") == 1 ]]'
 run CHECK_DATA_ROOT="$repo" -- --base base --tests
 check "--tests keeps a caller's CHECK_DATA_ROOT from the suites" '[[ $RC == 0 && $ERR != *"saw CHECK_DATA_ROOT"* ]]'
+# The deadline is the budget counted from the run's start: read before and after
+# the run, it falls between the two clocks plus the 45 s asked for.
+deadline_log="$tmp/affected-deadline.log"
+printf -v before '%(%s)T' -1
+run STUB_DEADLINE_LOG="$deadline_log" -- --base base --tests --budget 45
+printf -v after '%(%s)T' -1
+got_deadline="$(cat "$deadline_log")"
+if [[ $RC == 0 && $got_deadline =~ ^[0-9]+$ ]] && ((got_deadline >= before + 45 && got_deadline <= after + 45)); then
+  ok "--tests hands the suites a deadline of the run's start plus its budget"
+else
+  bad "--tests hands the suites a deadline of the run's start plus its budget" "rc=$RC deadline=$got_deadline before=$before after=$after"
+fi
+run STUB_LEFT=$'plugins/a/a.test.sh\nplugins/b/b.test.sh\n' -- --base base --tests --budget 45
+check "--tests reads suites the budget left as a skip, never a pass" \
+  '[[ $RC == 0 && $ERR == *"SKIP tests (could not run, exit 2: 2 selected suite(s) left to CI, past the 45s budget)"* ]]'
+check "--tests names each suite the budget left" \
+  '[[ $ERR == *"SKIP tests: plugins/a/a.test.sh (past the 45s budget, left to CI)"* && $ERR == *"SKIP tests: plugins/b/b.test.sh (past the 45s budget, left to CI)"* ]]'
+run STUB_LEFT=$'plugins/a/a.test.sh\n' STUB_AFFECTED_TESTS=1 -- --base base --tests
+check "--tests still fails on a failed suite when the budget left others" \
+  '[[ $RC == 1 && $ERR == *"FAIL tests"* && $ERR == *"SKIP tests: plugins/a/a.test.sh ("* ]]'
+run STUB_LEFT=$'plugins/a/a.test.sh\n' STUB_AFFECTED_TESTS=3 STUB_NOT_RUN=$'eco/test_x.py\n' -- --base base --tests --budget 45
+check "--tests counts both the suites its budget left and those it does not run" \
+  '[[ $RC == 0 && $ERR == *"SKIP tests: plugins/a/a.test.sh ("* && $ERR == *"exit 2: 1 selected suite(s) left to CI, past the 45s budget; 1 selected suite(s) not run here, left to their own CI lanes)"* ]]'
 run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN=$'eco/test_x.py\neco/X.Tests.ps1\n' -- --base base --tests
 check "--tests reports selected suites left unrun as a skip counting them, never a pass" \
   '[[ $RC == 0 && $ERR == *"SKIP tests (could not run, exit 2: 2 selected suite(s) not run here, left to their own CI lanes)"* ]]'
@@ -334,6 +361,29 @@ if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1 && command 
   run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN=$'pkg/demo/x.test.mjs\neco/test_x.py\n' -- --base base --tests
   check "--tests runs the Node package suites and still skips, counting, the ones left unrun" \
     '[[ $RC == 0 && $ERR == *"SKIP tests (could not run, exit 2: 1 selected suite(s) not run here"* ]]'
+  # Past the deadline the package's npm test does not start. Its suite fails, so
+  # a run that started it would fail tests.
+  # shellcheck disable=SC2059 # the format is the suite template above.
+  printf "$node_suite" 2 >"$repo/pkg/demo/x.test.mjs"
+  run STUB_AFFECTED_TESTS=3 STUB_AFFECTED_SLEEP=2 STUB_NOT_RUN=$'pkg/demo/x.test.mjs\n' -- --base base --tests --budget 1
+  check "--tests starts no Node package past its budget, and names it as left" \
+    '[[ $RC == 0 && $ERR != *"FAIL tests"* && $ERR == *"SKIP tests: pkg/demo/x.test.mjs (past the 1s budget, left to CI)"* ]]'
+  # A failed package does not stop the next: pkg/demo fails first, pkg/other
+  # still runs, and the run still fails.
+  mkdir -p "$repo/pkg/other"
+  printf '{"name":"other","private":true,"scripts":{"test":"touch ran.marker"}}\n' >"$repo/pkg/other/package.json"
+  : >"$repo/pkg/other/y.test.mjs"
+  both_packages=$'pkg/demo/x.test.mjs\npkg/other/y.test.mjs\n'
+  run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN="$both_packages" -- --base base --tests
+  check "--tests runs the next Node package after one fails, and still fails" \
+    '[[ $RC == 1 && $ERR == *"FAIL tests"* && -f "$repo/pkg/other/ran.marker" ]]'
+  # pkg/demo starts inside a 15 s budget, far enough for a loaded host, and fails
+  # past it, so pkg/other does not start and is named.
+  rm -f "$repo/pkg/other/ran.marker"
+  printf '{"name":"demo","private":true,"scripts":{"test":"sleep 16; exit 1"}}\n' >"$repo/pkg/demo/package.json"
+  run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN="$both_packages" -- --base base --tests --budget 15
+  check "--tests names the Node package a failed one's overrun left, and still fails" \
+    '[[ $RC == 1 && $ERR == *"FAIL tests"* && ! -e "$repo/pkg/other/ran.marker" && $ERR == *"SKIP tests: pkg/other/y.test.mjs (past the 15s budget, left to CI)"* ]]'
   rm -rf "$repo/pkg"
 else
   ok "SKIP Node package cases (node, npm or jq not installed)"
@@ -438,6 +488,12 @@ check "a changed skill file runs changed-skills against the base, resolved to it
 run STUB_CHECK_CHANGED_SKILLS=1 -- --base plugin-base --tests
 check "--tests runs changed-skills with the skills' script tests" \
   '[[ $RC == 1 && $ERR == *"skip-script-tests=unset"* && $ERR == *"Reproduce: scripts/check-changed-skills.sh $plugin_base_sha"* ]]'
+check "--tests hands changed-skills the deadline" '[[ $ERR =~ deadline=[0-9]+ ]]'
+run STUB_CHECK_CHANGED_SKILLS=1 -- --base plugin-base
+check "without --tests changed-skills gets no deadline" '[[ $ERR == *"deadline=unset"* ]]'
+run STUB_CHECK_CHANGED_SKILLS=2 STUB_SKILL_SKIP_LINE="SKIP plugins/demo/skills/s/scripts/x.test.sh (past the deadline, left to CI)" -- --base plugin-base --tests
+check "--tests reads a skill script test the deadline left as a skip naming it" \
+  '[[ $RC == 0 && $ERR == *"SKIP changed-skills: plugins/demo/skills/s/scripts/x.test.sh (past the deadline, left to CI)"* && $ERR == *"SKIP changed-skills (could not run, exit 2:"* ]]'
 run PATH="$tmp/bin:$PATH" STUB_CHECK_CHANGELOG_FRAGMENTS=1 STUB_VALIDATE_PLUGINS=1 STUB_CHECK_CHANGED_SKILLS=1 -- --base plugin-base
 check "a failing static check reports at once, with validate-plugins and changed-skills skipped" \
   '[[ $RC == 1 && $ERR == *"FAIL changelog-fragments"* && $ERR == *"SKIP validate-plugins (a static check failed above)"* && $ERR == *"SKIP changed-skills (a static check failed above)"* && $ERR != *"validate-plugins ran"* && $ERR != *"check-changed-skills ran"* ]]'

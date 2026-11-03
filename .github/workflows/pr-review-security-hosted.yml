@@ -243,6 +243,8 @@ jobs:
       # Copies scripts/sync-shared-copies.sh generates, read at the merge base:
       # identical changes to copies of one source are read once, hooks included.
       generated-copies: scripts/shared-copies.txt
+      # Generated data files counted as read, read at the merge base.
+      generated-data: scripts/review-generated-data.txt
       # A hold adds this label and a `claude-lane-hold` marker comment; ci-status
       # fails while the label is on. The review holds only for a real-charge
       # cost or a CRITICAL security finding; hold-paths names the files the
@@ -361,6 +363,7 @@ jobs:
         .github/workflows/intake-triage.yml
         .github/workflows/maintenance-audit-lane-runs.yml
         .github/workflows/maintenance-reconcile-lost-runs.yml
+        .github/workflows/maintenance-tidy-code-upkeep.yml
         .github/workflows/post-merge-demotion-alert.yml
         .github/workflows/post-merge-test-mutation.yml
         .github/workflows/pr-feedback-dispatch.yml

@@ -27,6 +27,7 @@
 .github/scripts/maintenance-audit-lane-runs
 .github/scripts/maintenance-monitor-signals
 .github/scripts/maintenance-reconcile-lost-runs
+.github/scripts/maintenance-tidy-code-upkeep
 .github/scripts/post-merge-demotion-alert
 .github/scripts/plugin-eval
 .github/scripts/post-merge-test-mutation

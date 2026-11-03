@@ -1,11 +1,6 @@
 schema_version: "1.1"
 name: ck-install-tempted-no-slash
 graders:
-  - name: 'routes-check'
-    type: 'tool_used'
-    tool: 'Skill'
-    input_match: '"skill"\s*:\s*"(?:actionlint:)?check"'
-    arm: 'with-only'
   - name: 'no-setup-skill-call'
     type: 'tool_used'
     tool: 'Skill'

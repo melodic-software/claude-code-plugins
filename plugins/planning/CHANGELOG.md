@@ -3,6 +3,51 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.0] - 2026-11-03
+
+### Added
+
+- `interview`: a surface registry, `surfaces/registry.mjs`, with one entry file per surface under `surfaces/entries/` (terminal, page, shared session). `resolve` picks the surface from a surface the user asks for in the session, then the plugin's `surface` option, then the plugin default; a rendered-view medium setting never moves it. Adding a surface or a shared-session variant is adding an entry file, with no edit to the skill (#12658).
+- `interview`: with `surface` unset and another surface available, the interview prints one line naming the default and the alternatives, then goes on with round 1 (#12658).
+
+- a `medium` option for the planning views
+
+  Set it to `terminal`, `file`, `artifact` or `hosted` (read as `artifact`) to
+  choose where the plan, brainstorm, design, PRD and decision-table views go;
+  `auto`, the default, keeps the shipped `file` default.
+
+### Changed
+
+- `interview`: the skill picks its lane through the registry instead of its own lane table, and the `share` action passes `share` to it. A configured surface whose tools are missing stays chosen and takes its spoke's degrade, as before (#12658).
+
+- `/planning:design`, `/planning:plan`, `/planning:prd`, `/planning:interview` and
+  `/planning:draft-goal-condition` no longer restate upstream behavior (how injected commands run,
+  Mermaid's C4 support, plan mode, the `/plan` command, the `Plan` subagent, the `/goal`
+  evaluator, limit and permissions). Each keeps its own rule and links the upstream section with
+  an as-of date and a recheck trigger.
+
+- the planning views resolve the medium through the shared medium resolver
+
+  The settings are a medium named in the request, the `medium` option, the
+  team file `docs/conventions/rendered-views.yaml` and the personal override
+  `docs/conventions/rendered-views.local.yaml`. A team file can keep a view
+  local but never publishes one. The skill prints the report line naming the
+  medium and what decided it.
+
+### Removed
+
+- `~/.claude/rendered-views.md`, `.claude/rendered-views.md` and
+  `.claude/rendered-views.local.md` are no longer read
+
+  Each gives one notice per project naming its value and where to set it
+  instead.
+
+## [0.141.1] - 2026-11-03
+
+### Changed
+
+- `draft-goal-condition`: the rule that `/effort ultracode` needs a model with `xhigh` effort moves from `SKILL.md` to `reference/workflow-row.md`, with its pointer, as-of date and recheck trigger, so it still applies when the docs cannot be fetched (#12357).
+
 ## [0.141.0] - 2026-11-03
 
 ### Added

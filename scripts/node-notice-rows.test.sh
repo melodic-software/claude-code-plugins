@@ -45,7 +45,7 @@ else
 fi
 
 # shellcheck disable=SC2016 # the row's ${...} placeholders are literal hooks.json text
-want='sh "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh" node-notice /harness-ops:check; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1" node-notice /harness-ops:check'
+want='sh "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh" node-notice /harness-ops:prerequisites; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1" node-notice /harness-ops:prerequisites'
 row="$(jq -r --arg want "$want" --arg m "$MATCHER" '[.hooks.SessionStart[] | select(.matcher == $m) | .hooks[] | select(.command == $want)] | length' "$HOOKS")"
 if [[ "$row" == 1 ]]; then
   ok "harness-ops' node-notice row is the canonical polyglot under the $MATCHER matcher"
@@ -100,8 +100,8 @@ node_absent_cases() {
   rc1=$?
   out2="$(printf '%s' "$session" | PATH="$TOOLS" TMPDIR="$WORK/tmp" "$(command -v bash)" -c "$(expand harness-ops)" 2>/dev/null)"
   rc2=$?
-  if ((rc1 == 0 && rc2 == 0)) && [[ "$out1" == *'"systemMessage":"harness-ops: node is not on PATH'*'then run /harness-ops:check."}' && -z "$out2" ]]; then
-    ok "bash: the row prints one notice per session, naming /harness-ops:check, and exits 0"
+  if ((rc1 == 0 && rc2 == 0)) && [[ "$out1" == *'"systemMessage":"harness-ops: node is not on PATH'*'then run /harness-ops:prerequisites."}' && -z "$out2" ]]; then
+    ok "bash: the row prints one notice per session, naming /harness-ops:prerequisites, and exits 0"
   else
     bad "bash: want one notice per session" "rc=$rc1/$rc2 first=$out1 second=$out2"
   fi

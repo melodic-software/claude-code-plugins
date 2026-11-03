@@ -2,11 +2,9 @@
   "skill": "disk-hygiene:check",
   "plugin": "disk-hygiene",
   "skill_dir": "plugins/disk-hygiene/skills/check",
-  "ranking_note": "Authored from the before descriptions at commit 0ad858ec054897c381bfed3e652d4236535a69a3, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are harness-ops:prerequisites (fleet-wide missing-tool report), guardrails:check and bash-format:check (other plugins' hook prerequisite checks), skill-quality:check-prerequisites (skill-quality's own tools), skill-quality:check (skill lint), disk-hygiene:audit and disk-hygiene:clean (directory scans) and machine-health:audit (workstation health). check owns disk-hygiene's own prerequisites (node, bash, Python, launcher registration) and installs nothing, so an install request is a negative. Hook-notice probes simulate the notice as text in the request.",
+  "ranking_note": "Authored from the before descriptions at commit 0ad858ec054897c381bfed3e652d4236535a69a3, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are harness-ops:prerequisites (fleet-wide missing-tool report), skill-quality:check-prerequisites (skill-quality's own tools), skill-quality:check (skill lint), disk-hygiene:audit and disk-hygiene:clean (directory scans) and machine-health:audit (workstation health). check owns disk-hygiene's own prerequisites (node, bash, Python, launcher registration) and installs nothing, so an install request is a negative. Hook-notice probes simulate the notice as text in the request.",
   "competitors": [
     "harness-ops:prerequisites",
-    "guardrails:check",
-    "bash-format:check",
     "skill-quality:check-prerequisites",
     "skill-quality:check",
     "disk-hygiene:audit",

@@ -1,4 +1,7 @@
 name: pr-merge
+# A PR-scoped dispatch's marker (rotation.mjs WAKE_TITLE); every other run
+# keeps GitHub's own name, which a whitespace-only run-name leaves.
+run-name: "${{ inputs.pr && format('pr-merge: arm #{0}', inputs.pr) || '' }}"
 
 # What this does, in plain words:
 #
@@ -86,16 +89,34 @@ on:
 
   # A person can start a run by hand (Actions tab, "Run workflow") to retry a
   # PR that looks stuck. Only a run on main does anything.
-  workflow_dispatch: {}
+  #
+  # With `pr` set, the run is PR-scoped: only enable-auto-merge runs, for that
+  # one pull request, and arms it if every rule allows. pr-verify.yml's
+  # wake-pr-merge job starts one, as github-actions[bot], when its verdict
+  # for a head is pass or pass-notes (who.mjs admits that one bot case).
+  # post-merge-dispatch, merge, unarmed-status and the jobs after merge are
+  # skipped; enable-auto-merge reads the last sweep's post-merge report for
+  # the lane's room (last-report.mjs), or runs the check fresh when that
+  # report does not stand. Its run name, `pr-merge: arm #<pr>`
+  # (run-name below), marks it: no later run reads its artifacts
+  # (rotation.mjs trustedRun), and it never supersedes a sweep
+  # (superseded.mjs).
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "Arm only this pull request (number); empty runs the full sweep"
+        type: string
+        required: false
 
-  # Every 15 minutes the lane looks at every candidate. This is how it sees
-  # checks or reviews that finished, a review thread resolved, a body or ready
-  # change, or a PR dropped from the merge queue. It does not wake on each CI or
-  # review completion: those arrive faster than runs finish, which would
-  # overflow the concurrency queue below. Its summary also lists candidates that
-  # are still blocked and have not changed for over 24 hours.
+  # Every 30 minutes the lane looks at every candidate, as the backstop for
+  # the wake above. This is how it sees checks or reviews that finished, a
+  # review thread resolved, a body or ready change, or a PR dropped from the
+  # merge queue. Only a pass verdict wakes it, one PR at a time: a wake on
+  # every CI or review completion would arrive faster than runs finish and
+  # overflow the concurrency queue below. Its summary also lists candidates
+  # that are still blocked and have not changed for over 24 hours.
   schedule:
-    - cron: "11,26,41,56 * * * *"
+    - cron: "11,41 * * * *"
 
   # A merge-queue landing on main (the merge-queue ruleset has no bypass, so
   # every push to main is one). Only `dispatch-full-run` runs on it: it starts
@@ -122,11 +143,13 @@ jobs:
   # full run to post-merge-demotion-alert.yml. Same mechanics as
   # dispatch-full-run: ref main, and the pr-merge-dispatched-<id> artifact the
   # post-merge check trusts. Not on pull_request_target, whose dispatch the
-  # check does not trust; that event's merge job still runs the check.
+  # check does not trust; that event's merge job still runs the check. Not on
+  # a PR-scoped dispatch (inputs.pr), which only arms.
   post-merge-dispatch:
     if: >-
       github.ref == 'refs/heads/main'
       && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+      && !inputs.pr
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -215,12 +238,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
           BABYSIT_POSTMERGE_ATTEMPTS: ${{ runner.temp }}/post-merge-attempts.json
+          # Where the check writes the lane floor's anchor, uploaded below.
+          BABYSIT_POSTMERGE_ANCHOR: ${{ runner.temp }}/post-merge-anchor/anchor.json
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           last=$RUNNER_TEMP/post-merge-last
           scripts=.base/plugins/source-control/skills/babysit-prs/scripts
           code='' code_sha=''
+          mkdir -p "$RUNNER_TEMP/post-merge-anchor"
           # The completed attempts the last check read, which the check
           # answers with no read (babysit_postmerge.py ATTEMPTS_ENV); kept
           # below whether or not the check runs.
@@ -317,6 +343,32 @@ jobs:
           path: ${{ runner.temp }}/post-merge-report/
           retention-days: 1
           if-no-files-found: error
+
+      # The lane floor's anchor the check wrote (babysit_postmerge.py
+      # ANCHOR_ENV), which the next lane check reads back only from this job's
+      # runs on main. Only this job uploads it; a run whose check wrote none
+      # (an idle tick, an unreadable check) leaves the last one standing.
+      - name: Scan the upload for credentials
+        id: scan-upload-5
+        if: >-
+          steps.post-merge.conclusion == 'success'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/post-merge-anchor/anchor.json
+
+      - name: Keep the lane floor's anchor
+        if: >-
+          (steps.post-merge.conclusion == 'success') && steps.scan-upload-5.outputs.clean == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pr-merge-post-merge-anchor
+          path: ${{ runner.temp }}/post-merge-anchor/anchor.json
+          retention-days: 7
+          if-no-files-found: ignore
 
       # The same body as dispatch-full-run's step of this name; see there.
       # It runs whether or not the post-merge check did, while the lane is
@@ -684,7 +736,7 @@ jobs:
       # after both clear, within LOOKBACK_HOURS. A rate limit stops the step red, as the re-run step's, and
       # one the cover read stopped on skips it; any other failed read or send
       # sends nothing more and leaves the run to the next one. LOOKBACK_HOURS:
-      # a red run is sent within 15 minutes of its end; 6 hours outlasts a day
+      # a red run is sent within 30 minutes of its end; 6 hours outlasts a day
       # of missed schedules many times over (judgment).
       - name: Send a red full run to the demotion alert
         id: alert
@@ -836,10 +888,13 @@ jobs:
     # a fork PR or sent by a bot are skipped before the job joins the
     # concurrency group, so an outsider editing a fork PR over and over cannot
     # keep pushing real runs out of the queue, and a bot's event does not wait
-    # in it only to stop at the who step (a bot is never a listed human).
+    # in it only to stop at the who step (a bot is never a listed human). A
+    # PR-scoped dispatch (inputs.pr) only arms, so it skips this job and with
+    # it dispatch-full-run and gate-check.
     if: >-
       !cancelled()
       && github.ref == 'refs/heads/main' && github.event_name != 'push'
+      && !inputs.pr
       && (github.event_name != 'pull_request_target'
       || (github.event.pull_request.head.repo.full_name == github.repository
       && github.event.sender.type != 'Bot'))
@@ -2163,7 +2218,10 @@ jobs:
   # label). Every event is a wake-up: the script lists the pull requests
   # itself. A listed human's unlabel wakes a run; an edit or ready change
   # disarms at the next scheduled run, which also arms a new pull request and
-  # catches what the events missed. Only the scheduled run and a hand-started one arm, on
+  # catches what the events missed. A PR-scoped dispatch (inputs.pr, which
+  # pr-verify starts on a pass verdict) reads and arms only that pull
+  # request, its room from the last sweep's post-merge report. Only the
+  # scheduled run and a dispatched one arm, on
   # the issue link (one closing issue, or one plain `Refs:` issue) and verdict
   # pr-merge's gate would take at the head, with no hold on the gate's risk
   # score (babysit_verify_evidence.py `evidence --lane-link --lane-reviews`,
@@ -2175,9 +2233,10 @@ jobs:
   # Its own job and token: the broker mints one token per
   # job. Rules: .github/scripts/pr-merge/enable-auto-merge.mjs.
   enable-auto-merge:
-    # On the schedule and a hand-started run it waits for post-merge-dispatch
-    # and reads its report; on every other event that job is skipped, and
-    # !cancelled() runs this one anyway.
+    # On the schedule and a hand-started sweep it waits for
+    # post-merge-dispatch and reads its report; on every other event and a
+    # PR-scoped dispatch that job is skipped, and !cancelled() runs this one
+    # anyway.
     needs: [post-merge-dispatch]
     # A pull request event wakes it only for a lanes App pull
     # request (its author's id is AUTOMATION_LANES_APP_SENDER_ID), the only
@@ -2198,9 +2257,9 @@ jobs:
       group: pr-merge-enable-auto-merge
       queue: max
     runs-on: ubuntu-24.04
-    # Above the sum of its steps' timeouts (35, workflow.test.mjs checks it),
+    # Above the sum of its steps' timeouts (43, workflow.test.mjs checks it),
     # with a minute left for the steps that name none.
-    timeout-minutes: 36
+    timeout-minutes: 44
     permissions:
       contents: read # check out main
       actions: read # the verifier verdicts, their runs and the head-ref map
@@ -2265,8 +2324,9 @@ jobs:
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
       # Same rule as the merge job's who step (who.mjs): a listed human by
-      # account id, or a scheduled run's first attempt; any other run stops
-      # here quietly.
+      # account id, a scheduled run's first attempt, or pr-verify's PR-scoped
+      # dispatch (github-actions[bot], attempt 1, on main, with DISPATCH_PR);
+      # any other run stops here quietly.
       - name: Check who started the run
         id: who
         if: steps.kill.outputs.proceed == 'true'
@@ -2276,6 +2336,7 @@ jobs:
           # The lane token holds no Actions permission.
           ACTIONS_TOKEN: ${{ github.token }}
           ACTOR_ID: ${{ github.actor_id }}
+          DISPATCH_PR: ${{ inputs.pr }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
           STOP_NOTICE: the next scheduled run arms what this one would
         run: node .base/.github/scripts/pr-merge/who.mjs
@@ -2298,6 +2359,9 @@ jobs:
           ACTIONS_TOKEN: ${{ github.token }}
           SUPERSEDED_JOB: enable-auto-merge
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          # A PR-scoped run's pull request: a sweep or a newer dispatch for it
+          # supersedes this run, and this run supersedes no sweep.
+          DISPATCH_PR: ${{ inputs.pr }}
         run: node .base/.github/scripts/pr-merge/superseded.mjs
 
       - name: Resolve the config
@@ -2326,6 +2390,11 @@ jobs:
           contents: ${{ steps.config.outputs.contents }}
           pull-requests: ${{ steps.config.outputs.pull-requests }}
           issues: ${{ steps.config.outputs.issues }}
+          # A verdict wake (github-actions[bot]'s PR-scoped dispatch) names
+          # its pull request: the broker mints for that run only when the
+          # pull request is an open lanes App one on main. Any other run,
+          # a person's hand-started PR-scoped run included, names none.
+          pr-number: ${{ github.actor_id == '41898282' && inputs.pr || '' }}
           superseded-ok: true
           kill-switch-ok: true
 
@@ -2418,6 +2487,23 @@ jobs:
           name: pr-merge-post-merge-report
           path: ${{ runner.temp }}/post-merge
 
+      # A PR-scoped dispatch has no post-merge-dispatch job, so it reads the
+      # report the last sweep kept, from a trusted run on main
+      # (last-report.mjs), into the same place. The next step keeps it only
+      # under post-merge-dispatch's idle-tick rule, and otherwise runs the
+      # check fresh in its place.
+      - name: Read the post-merge report the last sweep kept
+        if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          API_BUDGET_TOKEN: github-token
+          API_BUDGET_SCRIPT: last-report
+          ACTIONS_TOKEN: ${{ github.token }}
+          LAST_REPORT_DIR: ${{ runner.temp }}/post-merge
+          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
+        run: node .base/.github/scripts/pr-merge/last-report.mjs
+
       # The lane records earlier checks proved, as post-merge-dispatch reads
       # them, for a room whose post-merge answer must be checked again: the
       # check answers those records with no read. Any error leaves no file,
@@ -2434,19 +2520,106 @@ jobs:
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
         run: node .base/.github/scripts/pr-merge/lane-records.mjs read
 
+      # The last sweep's report stands for a PR-scoped run only as it stands
+      # for post-merge-dispatch's idle tick: a check that passed (exit 0 or
+      # 5) and `settle --idle-tick` keeps, so a verifying run or canary that
+      # moved since its computedAt, changed quarantine markers or pins, or
+      # any hold the report carries refuses it (postmerge.idle_refusal).
+      # A report that does not stand is never reused: the step removes it
+      # and runs the sweep's post-merge check fresh, as post-merge-dispatch
+      # does when its idle tick refuses, with this job's read-only token (the
+      # check writes nothing without --remediate). The fresh report stands
+      # only when the check passed (exit 0 or 5) and `settle --idle-tick`
+      # keeps it too: the wake starts no full run or re-run and files
+      # nothing, so it arms only on a report that needs none of those
+      # (idle_report_refusal: no hold, no needsDispatch, no reruns). Any
+      # other result removes it and skips the arm step: a wake with no
+      # standing report decides nothing, so it neither arms nor disarms (an
+      # unreadable room would disarm every armed lane pull request), and the
+      # next sweep checks again. The fresh check makes the sweep's own reads,
+      # under the same bounds, and no others.
+      - name: Keep the last sweep's report only while nothing it read has moved
+        id: keep-report
+        if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr
+        timeout-minutes: 5
+        env:
+          GH_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
+          API_BUDGET_SCRIPT: settle-idle-tick
+          BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
+          # The completed attempts the last check read, which the fresh check
+          # answers with no read (babysit_postmerge.py ATTEMPTS_ENV).
+          BABYSIT_POSTMERGE_ATTEMPTS: ${{ runner.temp }}/post-merge-attempts.json
+          REPO: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+          last=$RUNNER_TEMP/post-merge
+          scripts=.base/plugins/source-control/skills/babysit-prs/scripts
+          kept=false fresh='' reason=''
+          settle() {
+            python3 "$scripts/babysit_verify_evidence.py" settle --idle-tick --repo "$REPO" \
+              --postmerge-result "$last/post-merge.json" --code-sha "$1"
+          }
+          if [ -f "$last/post-merge.json" ] && [ -f "$last/post-merge-code" ]; then
+            last_code=$(cat "$last/post-merge-code")
+            last_sha=$(cat "$last/post-merge-code-sha" 2>/dev/null || true)
+            if [[ $last_code =~ ^[05]$ ]] && settle "$last_sha"; then
+              kept=true
+            fi
+          fi
+          if [ "$kept" = true ]; then
+            echo "the last sweep's post-merge report still stands: nothing it reads has moved"
+          else
+            [ ! -f "$last/attempts.json" ] || cp "$last/attempts.json" "$BABYSIT_POSTMERGE_ATTEMPTS"
+            rm -rf "${last:?}"
+            mkdir -p "$last"
+            echo "the last sweep's post-merge report does not stand for this run; the post-merge check runs fresh"
+            identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
+            fresh=0
+            # Written now, so a check that times out or is cancelled still says it ran.
+            echo "fresh-started=true" >>"$GITHUB_OUTPUT"
+            python3 "$scripts/babysit_postmerge.py" \
+              --repo "$REPO" --agent-identity "$identity" --lane-merges-only \
+              </dev/null >"$last/post-merge.json" || fresh=$?
+            echo "::group::fresh post-merge check: exit $fresh"
+            cat "$last/post-merge.json"
+            echo "::endgroup::"
+            echo "$fresh" >"$last/post-merge-code"
+            sha=$(git -C .base rev-parse HEAD) || sha=''
+            echo "$sha" >"$last/post-merge-code-sha"
+            if [[ $fresh =~ ^[05]$ ]]; then
+              settled=$(settle "$sha") && kept=true
+              echo "$settled"
+              # Why the idle tick refused the fresh report, for the outcome line.
+              reason=$(jq -r '.reason // ""' <<<"$settled" 2>/dev/null | head -n 1) || reason=''
+            fi
+            if [ "$kept" = true ]; then
+              echo "the fresh post-merge check (exit $fresh) passed and settle --idle-tick keeps it"
+            else
+              rm -rf "${last:?}"
+              echo "::notice::the fresh post-merge check (exit $fresh) does not stand for this run; nothing is armed or disarmed, and the next sweep checks again"
+            fi
+          fi
+          {
+            echo "stands=$kept"
+            echo "fresh=$fresh"
+            echo "fresh-reason=${reason//[$'\r\n']/ }"
+          } >>"$GITHUB_OUTPUT"
+
       # While merge.report-only is anything but false it reports each
       # decision and writes nothing.
       - name: Arm and disarm auto-merge
         id: arm
-        if: steps.lane-token.outputs.token != ''
+        if: steps.lane-token.outputs.token != '' && !(github.event_name == 'workflow_dispatch' && inputs.pr && steps.keep-report.outputs.stands != 'true')
         timeout-minutes: 18
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           RESOLVED_CONFIG: ${{ runner.temp }}/resolved-config.json
           EVENT_NAME: ${{ github.event_name }}
-          # Empty on the schedule and a hand-started run.
-          EVENT_PR: ${{ github.event.pull_request.number }}
+          # The event's pull request, or a PR-scoped dispatch's; empty on the
+          # schedule and a hand-started sweep.
+          EVENT_PR: ${{ github.event.pull_request.number || inputs.pr }}
           BABYSIT_VERIFY_GH_TOKEN: ${{ github.token }}
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
           BABYSIT_VERIFY_LISTING_CARRY: ${{ runner.temp }}/verify-listing-carry.json
@@ -2498,7 +2671,7 @@ jobs:
       - name: Scan the upload for credentials
         id: scan-upload
         if: >-
-          always() && steps.arm.outcome != 'skipped' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+          always() && steps.arm.outcome != 'skipped' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && !inputs.pr
         continue-on-error: true
         timeout-minutes: 2
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
@@ -2509,7 +2682,7 @@ jobs:
 
       - name: Upload the verifier answers for the next run
         if: >-
-          (always() && steps.arm.outcome != 'skipped' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')) && steps.scan-upload.outputs.clean == 'true'
+          (always() && steps.arm.outcome != 'skipped' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && !inputs.pr) && steps.scan-upload.outputs.clean == 'true'
         continue-on-error: true
         timeout-minutes: 2
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -2528,12 +2701,15 @@ jobs:
       # `read` adds only this file's carried-* sections to them. Only a
       # scheduled or hand-started run's file is read back, so only one
       # uploads it, and only when it kept a read: an empty file would hide an
-      # older one.
+      # older one. A PR-scoped dispatch (inputs.pr) uploads neither file, nor
+      # the verifier answers above: they cover one pull request, not a sweep
+      # (rotation.mjs trustedRun skips such a run too).
       - name: Keep the verdict reads that never change
         id: carry
         if: >-
           always() && steps.arm.outcome != 'skipped'
           && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+          && !inputs.pr
         continue-on-error: true
         env:
           CARRY_FROM: ${{ runner.temp }}/babysit-run-cache.json
@@ -2573,6 +2749,56 @@ jobs:
         uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
           tokens: lanes-app github-token
+
+      # One countable line per PR-scoped run: its pull request, what became
+      # of it (armed, refused with the reason, or skipped with why) and the
+      # api-calls totals the step above logged.
+      - name: Report the PR-scoped outcome
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.pr
+        continue-on-error: true
+        timeout-minutes: 1
+        env:
+          PR: ${{ inputs.pr }}
+          OUTCOME: ${{ steps.arm.outputs.wake-outcome }}
+          ARM: ${{ steps.arm.outcome }}
+          KILL: ${{ steps.kill.outputs.proceed }}
+          WHO: ${{ steps.who.outputs.proceed }}
+          SUPERSEDED: ${{ steps.superseded.outputs.superseded }}
+          STANDS: ${{ steps.keep-report.outputs.stands }}
+          FRESH: ${{ steps.keep-report.outputs.fresh }}
+          FRESH_REASON: ${{ steps.keep-report.outputs.fresh-reason }}
+          FRESH_STARTED: ${{ steps.keep-report.outputs.fresh-started }}
+          CALLS: ${{ steps.budget-end.outputs.calls }}
+        run: |
+          if [ -z "$OUTCOME" ]; then
+            if [ "$KILL" != true ]; then
+              OUTCOME="skipped: the lanes kill switch stopped it"
+            elif [ "$WHO" != true ]; then
+              OUTCOME="skipped: the who step stopped it"
+            elif [ "$SUPERSEDED" = true ]; then
+              OUTCOME="skipped: a waiting run does this work"
+            elif [ -z "$FRESH" ] && [ "$FRESH_STARTED" = true ]; then
+              OUTCOME="skipped: the fresh post-merge check did not finish (timeout or cancel)"
+            elif [ "$STANDS" = false ] && [ "$FRESH" = 75 ]; then
+              OUTCOME="skipped: the fresh post-merge check stopped on a GitHub rate limit"
+            elif [ "$STANDS" = false ] && [[ $FRESH =~ ^[05]$ ]]; then
+              OUTCOME="skipped: settle --idle-tick refused the fresh post-merge report (${FRESH_REASON:-no reason read})"
+            elif [ "$STANDS" = false ] && [ -n "$FRESH" ]; then
+              OUTCOME="skipped: the fresh post-merge check exited $FRESH"
+            elif [ "$STANDS" = false ]; then
+              OUTCOME="skipped: the last sweep's report does not stand"
+            else
+              OUTCOME="skipped: the arm step ended ${ARM:-unrun} with no outcome"
+            fi
+          fi
+          # Which report the room came from: none read, the last sweep's, or
+          # a fresh check's.
+          report=none
+          [ -z "$STANDS" ] || report=last
+          [ -z "$FRESH" ] && [ "$FRESH_STARTED" != true ] || report=fresh
+          # The outcome last: its reason holds spaces.
+          line="pr=$PR ${CALLS:-calls=unknown} report=$report outcome=$OUTCOME"
+          echo "::notice title=pr-merge-wake::${line//[$'\r\n%']/ }"
 
       - name: Revoke the lane token
         if: always() && steps.lane-token.outputs.token != ''
@@ -2625,9 +2851,10 @@ jobs:
   # statuses permission, and only this job, which holds no lane token or
   # OIDC token and runs nothing but main's script, gets statuses: write.
   # Rules: .github/scripts/pr-merge/post-unarmed-status.mjs.
+  # Not on a PR-scoped dispatch: the next sweep posts what that run would.
   unarmed-status:
     needs: [enable-auto-merge]
-    if: ${{ !cancelled() && needs.enable-auto-merge.outputs.unarmed-statuses != '' }}
+    if: ${{ !cancelled() && !inputs.pr && needs.enable-auto-merge.outputs.unarmed-statuses != '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

@@ -3,6 +3,66 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.1] - 2026-11-03
+
+### Changed
+
+- `/code-tidying:audit-dead-code`, `/code-tidying:batch-simplify` and the `/code-tidying:tidy`
+  self-update lane and exclusions reference no longer restate upstream behavior (LSP reference
+  counting, detector exit codes, gopls and staticcheck suppression, knip and vulture config
+  details, how injected commands run, git's `--since` parsing, frontmatter loading, hook
+  locations, `userConfig` types). Each keeps its own rule and links the upstream section with an
+  as-of date and a recheck trigger. The self-update lane drops its note on how consumers update.
+
+## [0.38.0] - 2026-11-03
+
+### Added
+
+- The `code-tidying:comment-reviewer` agent. `/code-tidying:remove-comments` hands it the triage and the comment-only edits, checks its diff with the token proof, retries a rejected report once, and applies any code moves itself.
+- Postures `none`, `necessary` and `explanatory` (setting `comment_posture`, default `auto`: `explanatory`, or `necessary` with `--pipeline`). Under `necessary` only machine-read directives, license headers, `TODO(#issue)` markers, paired comment-and-test records, public-API doc comments and verified outside-constraint comments stay; every other comment is deleted with its narrative staged and a reshape flag naming the symbol.
+- Settings `comment_edit_scope` (`diff` by default: only the comments on lines a change adds) and `encode_constraints_unattended` (off by default), and a constraint-encoding step that offers a type, an assertion, a test or a lint rule for a constraint comment.
+- The settings now also read from `docs/conventions/code-tidying.yaml` and its personal overlay `code-tidying.local.yaml`, validated by `schemas/code-tidying.schema.json`.
+
+### Changed
+
+- The `dissolve-comments` skill is now `/code-tidying:remove-comments`, which gains an `audit` action that holds the residue classifier. `/code-tidying:audit-comment-residue` stays as a read-only skill that runs that action. The old `aggressive` and `strip` tokens still work as `necessary` and `none`, and the old posture values still resolve. A linked workaround comment no longer survives `necessary`: it is deleted and listed as open root-cause work.
+
+### Removed
+
+- The `dissolve-comments` skill.
+
+## [0.37.1] - 2026-11-03
+
+### Changed
+
+- The README and `/code-tidying:tidy` now say the repository's merge lane, where it has one, or a
+  person merges a tidy PR; the skill itself never merges.
+
+## [0.37.0] - 2026-11-03
+
+### Added
+
+- Upkeep settings `upkeep_cadence`, `upkeep_backstop` and `upkeep_max_open` in
+  `<home>/code-tidying.yaml` (defaults `daily`, `weekly`, 3), read by
+  `skills/tidy/scripts/upkeep-setting.sh`. See `reference/config.md`.
+
+### Changed
+
+- The `/code-tidying:tidy` backlog throttle takes its limit from `upkeep_max_open`, and
+  `open-pr-count.sh` reports the limit and the layer that supplied it.
+
+## [0.36.0] - 2026-11-03
+
+### Changed
+
+- **`dissolve-comments` widens to the repository rung without asking** ([#12588](https://github.com/melodic-software/claude-code-plugins/issues/12588)). When an empty argument resolves to the repository rung, step 1 now takes it in every mode instead of asking first. Outside `report`, that rung runs in safe mode whatever the posture or dial token, and the report names the rung, its file count and the explicit-target re-run that narrows the scope or applies the full contract. Outside `report`, `aggressive` and `strip` now apply to the whole repository only through an explicit target.
+
+## [0.35.5] - 2026-11-03
+
+### Fixed
+
+- The `/code-tidying:tidy` dependency-root and polyglot-services lane templates give `npx @biomejs/biome check` as the example lint command, not `npx biome check`, which runs an unrelated npm package when the project has no local Biome install (#12573).
+
 ## [0.35.4] - 2026-11-02
 
 ### Changed

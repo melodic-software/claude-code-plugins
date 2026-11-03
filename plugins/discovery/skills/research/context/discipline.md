@@ -280,16 +280,19 @@ When the topic centers on a specific library / framework / site, probe for a pub
 
 | Probe | Path | Nature | Use for |
 |---|---|---|---|
-| `llms.txt` | `/llms.txt` (or `/.well-known/llms.txt`) | **Curated** markdown index, a maintainer hand-pick, deliberately partial | Fast orientation + page prioritization; NOT completeness |
+| `llms.txt` | `/llms.txt` (or `/.well-known/llms.txt`) | The site's own markdown index for LLMs; what it holds: [llms.txt: proposal](https://llmstxt.org/#proposal) | Try first: fast orientation + page prioritization; NOT completeness |
 | `llms-full.txt` | `/llms-full.txt` | Full doc content inlined | One fetch for a deep read of the whole curated set |
-| `sitemap.xml` | `/sitemap.xml` | **Exhaustive for that host's listed pages**, every URL it carries (50k URL / 50 MB cap per file); silent about assets it omits and about any sibling first-party host | Completeness over one host's pages, enumerate them ALL. NOT an artifact inventory: see the absence rule above |
-| `sitemap_index.xml` | root | Index of child sitemaps when the site exceeds the cap | Large sites: follow the index to each child |
+| `sitemap.xml` | `/sitemap.xml` | **Exhaustive for that host's listed pages**, every URL it carries; silent about assets it omits and about any sibling first-party host. Per-file limits: [sitemaps protocol: index files](https://www.sitemaps.org/protocol.html#index) | Completeness over one host's pages, enumerate them ALL. NOT an artifact inventory: see the absence rule above |
+| `sitemap_index.xml` | root | Index of child sitemaps, for a site split across several files | Large sites: follow the index to each child |
 | `robots.txt` `Sitemap:` directive | `/robots.txt` | Names the sitemap location when non-default | Locating a non-default sitemap |
 | `.md` page variant | append `.md` to a page URL | **Platform-specific**, native on some doc platforms; absent elsewhere | Markdown of one page without an HTML parse. PROBE first |
 | In-repo docs tree | `gh api repos/<owner>/<repo>/contents/docs` or `git ls-tree` | Tier-0 enumeration when docs live in a Git repo | Doc source is a repo, not a site |
 | Changelog feed | RSS/Atom, or `CHANGELOG.md` / releases | Release/change stream | Feeds the Recency gate above |
 
-**Curated ≠ exhaustive: the completeness trap.** `llms.txt` is the maintainer's hand-pick; using it alone for "go through every page" silently drops whatever was omitted. For full coverage, **sitemap enumerates, llms.txt prioritizes**.
+The two pointers in the table are as of 2026-11-03; recheck when the llms.txt proposal or the
+sitemaps protocol's index-file section is revised.
+
+**Curated ≠ exhaustive: the completeness trap.** Treat `llms.txt` as a selection, never a full list; using it alone for "go through every page" silently drops whatever was omitted. For full coverage, **sitemap enumerates, llms.txt prioritizes**.
 
 ## Source-quality red flags
 
@@ -321,6 +324,8 @@ The evidence-table `Confidence` column must be set per claim:
 - **LOW**: fewer than 3 sources; OR sources conflict; OR Tier 2-only consensus; OR primary source > 90d old
 
 The `> 30d` and `> 90d` age clauses do not apply to a version-independent pattern-definition claim, whose primary is the canonical source however old it is (see "Canonical pattern sources").
+
+`<plugin-root>/scripts/check-claim-eligibility.py` checks the header side of these levels before hand-back: a HIGH claim with fewer than three `current` Tier 0/1 sources in distinct pools, and a HIGH (single source) claim whose `claim_kind:` is not `content` or whose primary's pool is not its `source_owner:` (the artifact-shape file's sidecar header).
 
 Only HIGH and HIGH (single source) claims are accepted (the outcome gate enforces this). A MEDIUM or LOW claim is a **Gap**: return to Phase 4 follow-up and iterate until HIGH, or report it as a gap; never a basis for code edits.
 

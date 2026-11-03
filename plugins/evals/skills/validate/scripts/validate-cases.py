@@ -104,6 +104,15 @@ run, where a `\\A` pattern sorted every sample correctly under `re` and failed
 every with-plugin run. AS OF: 2026-10-22. Recheck when the grader-types row
 names a different engine, or an ECMAScript edition changes either section.
 
+Drift record. CLAIM: a grader or `prompt.md` whose frontmatter holds `---`
+on a line other than its two delimiter lines is a FAIL naming the line. This
+is stricter than the loader may need: which split rule the binary uses is not
+verified, so the check catches every `---` instead of copying an unknown rule.
+BASIS: in the #6598 measured pass on Claude Code 2.1.316, a grader whose regex
+`pattern` held `\\|---\\|` produced 0 runs with `invalid YAML frontmatter: YAML
+Parse error: Unexpected EOF`. AS OF: 2026-11-03. Recheck when the loader's
+split rule is read out of a release, and narrow the check to that rule.
+
 Python 3.8+, standard library only: these scripts run from a consumer checkout
 where no third-party package is provisioned.
 """
@@ -606,6 +615,14 @@ def parse_yaml(text):
     return value
 
 
+class DelimiterInFrontmatter(ParseError):
+    """A `---` inside a frontmatter line, which the binary cannot load."""
+
+    def __init__(self, line_number):
+        ParseError.__init__(self, "`---` inside line %d" % line_number)
+        self.line_number = line_number
+
+
 def split_markdown(text):
     """Return (frontmatter block or None, body) of a markdown file."""
     lines = text.splitlines()
@@ -613,8 +630,13 @@ def split_markdown(text):
         return None, text
     for index in range(1, len(lines)):
         if lines[index].strip() == "---":
-            return "\n".join(lines[1:index]), "\n".join(lines[index + 1 :])
-    raise ParseError("unterminated frontmatter")
+            break
+    else:
+        raise ParseError("unterminated frontmatter")
+    for inner in range(1, index):
+        if "---" in lines[inner]:
+            raise DelimiterInFrontmatter(inner + 1)
+    return "\n".join(lines[1:index]), "\n".join(lines[index + 1 :])
 
 
 def split_frontmatter(text):
@@ -655,6 +677,15 @@ class Finding(object):
 
 
 def unparsed(case, path, error):
+    if isinstance(error, DelimiterInFrontmatter):
+        return Finding(
+            "FAIL",
+            case,
+            path,
+            "frontmatter not loadable: line %d holds `---`, which `claude plugin"
+            " eval` rejects (invalid YAML frontmatter); spell it another way,"
+            " such as `-{3}` in a regex" % error.line_number,
+        )
     return Finding(
         "FAIL",
         case,

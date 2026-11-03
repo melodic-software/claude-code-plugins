@@ -286,7 +286,7 @@ The docs-fetcher and drift-checker gates match every `Bash` or `WebFetch` call i
 and outside their agent they allow every call. With `block`, a gate that cannot start or times out
 (10 s) denies the main thread's call too. A host with no `node` loses its guardrails `Bash` the
 same way. With harness-ops enabled, its `SessionStart` node notice says `node` is missing and names
-`/harness-ops:check`. The check skill's own `Bash` call is denied too, and the denial names the missing
+`/harness-ops:prerequisites`. That skill's own `Bash` call is denied too, and the denial names the missing
 `node`.
 
 These rows do not set `block`:
