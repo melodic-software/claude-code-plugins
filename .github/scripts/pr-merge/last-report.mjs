@@ -17,14 +17,13 @@
 //   PR_MERGE_READS_PATH  the job's shared GET answers (rotation.mjs sharedReads), if set
 //   GITHUB_API_URL
 //   LAST_REPORT_DIR      where the report's files are written
-import { execFileSync } from "node:child_process";
 import { renameSync, rmSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { onMain } from "./head-ref-map.mjs";
-import { newestTrustedRun, sharedReads } from "./rotation.mjs";
+import { countedGh, newestTrustedRun, sharedReads } from "./rotation.mjs";
 
 export const REPORT_ARTIFACT = "pr-merge-post-merge-report";
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -43,11 +42,7 @@ export async function main({ env = process.env, actions, download } = {}) {
       actions ?? createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined }),
       env.PR_MERGE_READS_PATH,
     );
-    download ??= (id, target) =>
-      execFileSync("gh", ["run", "download", String(id), "-R", repo, "-n", REPORT_ARTIFACT, "-D", target], {
-        env: { ...process.env, GH_TOKEN: env.ACTIONS_TOKEN },
-        stdio: ["ignore", "ignore", "inherit"],
-      });
+    download ??= (id, target) => countedGh(["run", "download", String(id), "-R", repo, "-n", REPORT_ARTIFACT, "-D", target], { token: env.ACTIONS_TOKEN, env });
     const accept = (run) => onMain({ repo, actions, sha: run.head_sha });
     const id = await newestTrustedRun({ repo, runId: String(env.GITHUB_RUN_ID), actions, name: REPORT_ARTIFACT, accept });
     if (id === undefined) {
