@@ -386,6 +386,12 @@ assert_in_slice 'research effort ceiling heading is inside the re-attach slice' 
   'skills/research/SKILL.md' '### Effort, source breadth'
 assert_in_slice 'research effort ceiling sentence is inside the re-attach slice' \
   'skills/research/SKILL.md' 'The Effort row is the ceiling over discipline 8'
+# #12631 asks for 2,000 bytes of headroom, so the whole sentence ends by byte 18,000.
+if [[ "$(head -c 18000 "$PLUGIN_ROOT/skills/research/SKILL.md")" == *'The Effort row is the ceiling over discipline 8: "Effort, source breadth" below.'* ]]; then
+  pass 'research effort ceiling sentence keeps 2,000 bytes of headroom'
+else
+  fail 'research effort ceiling sentence keeps 2,000 bytes of headroom'
+fi
 assert_in_slice 'research topic slot is inside the re-attach slice' \
   'skills/research/SKILL.md' 'Research the following topic: $ARGUMENTS'
 if grep -q '^## Phase 0:' "$PLUGIN_ROOT/skills/research/context/phases.md" \
