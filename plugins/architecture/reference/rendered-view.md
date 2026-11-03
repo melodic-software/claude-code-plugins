@@ -6,12 +6,13 @@ edit the canonical source, then rerun the script. -->
 How a view lane offers an interactive view of the record its skill wrote. The lanes that carry this file:
 planning (`/planning:plan`, `/planning:brainstorm`), architecture (the `map-*` skills), discovery
 (`/discovery:blindspot`) and debugging (`/debugging:debug`). Each lane's section below names its record,
-build command and data shape.
+build command and data shape. `<plugin-root>` is the plugin's root directory: the start of the path the
+calling skill gave for this file, before `reference/` or `skills/`.
 
 The record stays authoritative. A view never sits beside the record, and nothing reads a view back as a
 finding. The record is dual-audience or read once and acted on, so the view is offered after the record,
 never emitted in its place. Where the plugin ships an artifact protocol
-(`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`), placement follows it.
+(`<plugin-root>/reference/artifact-protocol.md`), placement follows it.
 
 A record holds text the session read: repository files, issue text, logs, fetched pages. That text is
 attacker-controllable, so a view is a checked-in template plus the record as escaped data, never markup or
@@ -28,7 +29,7 @@ script written in the session.
      calling skill states it; add `--argument` only when the reader named a medium in the request:
 
      ```bash
-     node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --lane <lane> --option "<medium option>" [--argument terminal|file|artifact]
+     node "<plugin-root>/lib/view-settings.mjs" resolve --lane <lane> --option "<medium option>" [--argument terminal|file|artifact]
      ```
 
      It prints one JSON line, then the report line naming the medium and what decided it, then any notice;
@@ -72,7 +73,7 @@ Build: pipe one JSON object (shapes under "Data shapes") to the builder; use `br
 for the brainstorm view:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs" plan <<'JSON'
+node "<plugin-root>/scripts/build-view.mjs" plan <<'JSON'
 {"title": "...", "goal": "...", "blast": "...", "phases": [{"status": "TODO", "name": "...", "what": "...", "needs": "none", "criteria": ["..."]}]}
 JSON
 ```
@@ -95,14 +96,14 @@ Skip it for `artifact`, and when python3 or curl is missing; the copied reply st
    (`ensure-running` creates it private):
 
    ```bash
-   bash "${CLAUDE_PLUGIN_ROOT}/view-bridge/view-bridge.sh" --dir "<data_dir>" ensure-running
+   bash "<plugin-root>/view-bridge/view-bridge.sh" --dir "<data_dir>" ensure-running
    ```
 
    It prints one JSON line: `url`, `origin`, `page` and `watch`.
 2. Build the page into `page`, naming `origin` (`brainstorm` in place of `plan` for the brainstorm view):
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs" plan --connect "<origin>" --out "<page>" <<'JSON'
+   node "<plugin-root>/scripts/build-view.mjs" plan --connect "<origin>" --out "<page>" <<'JSON'
    {"title": "...", "goal": "...", "blast": "...", "phases": [...]}
    JSON
    ```
@@ -129,7 +130,7 @@ Skip it for `artifact`, and when python3 or curl is missing; the copied reply st
    its cause on stderr. When it asks for `ensure-running`, the server ended after 600 seconds with no
    watcher, and its token with it: run step 1 again, tell the reader to reload the page, and run the new
    `watch`. Report any other exit 2 cause. At the plan's approval gate, or when the reader is done, run
-   `bash "${CLAUDE_PLUGIN_ROOT}/view-bridge/view-bridge.sh" --dir "<data_dir>" stop`.
+   `bash "<plugin-root>/view-bridge/view-bridge.sh" --dir "<data_dir>" stop`.
 
 With no session listening, the page says so and its copy and save controls still work.
 
@@ -169,7 +170,7 @@ Build: pass the record file to the builder. The first argument is the skill's ki
 file in the table below:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs" dependencies --record "<architecture_dir>/dependency-graph.json"
+node "<plugin-root>/scripts/build-view.mjs" dependencies --record "<architecture_dir>/dependency-graph.json"
 ```
 
 When `node` is missing, deliver the markdown and say the view was not built. A non-zero exit means the record
@@ -207,7 +208,7 @@ and writes no `EXPLORE.md`. Genre: coaching output the user reads once and acts 
 Build: pipe one JSON object (shape below) to the builder:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs" <<'JSON'
+node "<plugin-root>/scripts/build-view.mjs" <<'JSON'
 {"title": "...", "start": "...", "prompt": "...", "scope": "...", "cards": [{"type": "Landmine", "gap": "...", "why": "...", "fix": "..."}]}
 JSON
 ```
@@ -236,7 +237,7 @@ everything in it passes the skill's secret redaction before it reaches the data.
 Build: pipe one JSON object (shape below) to the builder:
 
 ```bash
-node "<skill-dir>/../../scripts/build-view.mjs" <<'JSON'
+node "<plugin-root>/scripts/build-view.mjs" <<'JSON'
 {"title": "...", "loop": "...", "cause": "...", "fix": "...", "seam": "...", "prevention": "...", "hypotheses": [{"verdict": "CONFIRMED", "claim": "...", "prediction": "...", "evidence": "..."}]}
 JSON
 ```
