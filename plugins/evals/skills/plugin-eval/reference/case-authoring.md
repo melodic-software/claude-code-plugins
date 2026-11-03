@@ -61,8 +61,13 @@ with and what it withholds:
 - [ ] The eval dir itself is hidden from the agent, so a case cannot read its own graders or its
       siblings. That is what makes the measurement honest; do not defeat it with `add_dirs`.
 - [ ] Text a grader must match lives where the model will actually read it. A skill's hub file is
-      loaded on invocation; a reference spoke is read only if the model chooses to, and a `Read`
-      outside the empty workspace can be denied. Grade on terms the hub itself carries.
+      loaded on invocation; a reference spoke is read only if the model chooses to. A run can
+      read, glob and grep its own plugin copy by absolute path, with or without a Bash grant, but a
+      pathless or workspace-relative lookup searches the empty workspace and finds nothing
+      ([#12880](https://github.com/melodic-software/claude-code-plugins/issues/12880), Claude Code
+      2.1.317, as of 2026-11-03; recheck when
+      [How runs are isolated](https://code.claude.com/docs/en/plugin-evals#how-runs-are-isolated)
+      changes what a run can read). Grade on terms the hub itself carries.
 - [ ] A case whose skill must write under the workspace's `.claude/` is graded only on what the
       skill produces before that write, or recorded as unmeasured. Why the write is denied:
       [Protected paths](https://code.claude.com/docs/en/permission-modes#protected-paths) (the
