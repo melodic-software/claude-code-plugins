@@ -39,7 +39,10 @@ Show:
    skipped layer, a rejected value, an ignored key) is a finding to report;
 3. the overlay row: PASS when `.claude/multi-agent.local.yaml` is gitignored,
    else WARN with the recommended line `.claude/**/*.local.*`. Recommend the
-   line; do not edit `.gitignore`.
+   line; do not edit `.gitignore`;
+4. each `WARN team:` row: a retired team file (the config block in
+   `docs/conventions/multi-agent.md`, or `.claude/multi-agent.yaml`) that the
+   resolver no longer reads. Relay the row's next step as written.
 
 It modifies nothing.
 
@@ -123,9 +126,8 @@ Prints the map the next workflow reads from `args.roles`.
 - An existing layer that does not parse stops `apply` with the line and the
   reason. Fix or remove the file first; setup never overwrites content it could
   not read.
-- The first `team` write creates the YAML. A team file from an earlier release
-  that the resolver still reads while the YAML is absent seeds its keys, and
-  stays as it was; once the YAML exists the resolver ignores it and `check`
-  names it in `notes`.
+- The first `team` write creates the YAML. A retired team file, which the
+  resolver no longer reads, seeds its keys and stays as it was; `check` names
+  it until it is deleted.
 - Team and local layers resolve against the repository root of the working
   directory. Inside a second worktree, run from that worktree.

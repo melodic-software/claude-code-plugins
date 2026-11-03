@@ -119,6 +119,9 @@ printf 'schema: 1\nroles:\n  worker:\n    effort: low\n' >"$T/claudefile/repo/.c
 out="$(run claudefile apply --layer team roles.verifier.effort=high)"
 assert_contains "team targets the concern YAML, not the .claude file" "$out" "would write: $T/claudefile/repo/docs/conventions/multi-agent.yaml"
 assert_contains "the .claude file seeds the preview" "$out" '+    effort: low'
+out="$(run claudefile check session=opus)"
+assert_contains "check names the retired .claude file and the seed" "$out" "WARN team: $T/claudefile/repo/.claude/multi-agent.yaml is no longer read; the first apply --layer team copies its keys into $T/claudefile/repo/docs/conventions/multi-agent.yaml, then delete it"
+assert_contains "the resolver does not read the retired .claude file" "$out" '"layer":"team","path":"'"$T/claudefile/repo/docs/conventions/multi-agent.yaml"'","state":"absent"'
 
 fixture existing
 mkdir -p "$T/existing/repo/docs/conventions"
@@ -128,6 +131,10 @@ run existing apply --layer team --write roles.verifier.effort=high >/dev/null
 assert_eq "an existing YAML is merged, the legacy block is not read" \
   $'schema: 1\nroles:\n  verifier:\n    effort: high\n  worker:\n    effort: max' \
   "$(cat "$T/existing/repo/docs/conventions/multi-agent.yaml")"
+out="$(run existing check session=opus)"
+assert_contains "check names the retired block beside the YAML" "$out" "WARN team: the config block in $T/existing/repo/docs/conventions/multi-agent.md is no longer read; copy any key still wanted into $T/existing/repo/docs/conventions/multi-agent.yaml, then delete it"
+out="$(run team check session=opus)"
+assert_lacks "no retired file: no team WARN row" "$out" 'WARN team'
 
 fixture broken
 mkdir -p "$T/broken/repo/.claude"
