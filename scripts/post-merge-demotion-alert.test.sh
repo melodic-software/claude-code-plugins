@@ -2132,6 +2132,29 @@ if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$body" != *"lift-content"* &&
 else
   fail "canary without block: rc=$RC body='$body' out='$OUT'"
 fi
+# A push range cut to the newest 20 commits, or guessed because the previous
+# canary push run's head did not read, may leave out the deleting commit: no
+# block, so the record stays human-close rather than lifting on a block that
+# understates the deletion.
+mapfile -t many < <(for i in $(seq 21); do echo "feat: change $i (#$((1300 + i)))"; done)
+push_repo "${many[@]}"
+LIFT_TOOL=1 LIFT_OUT="$BLOCK" canary_fail
+body="$(post_fields 2>/dev/null)"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && ! -e "$TMP_ROOT/stub/lift" && "$body" != *"lift-content"* &&
+  "$(tr -s ' \n' ' ' <<<"$body")" == *"Only a person's direct close"* ]]; then
+  ok "a canary push of more than 20 commits gets no lift block and stays human-close"
+else
+  fail "canary cut range: rc=$RC lift='$(cat "$TMP_ROOT/stub/lift" 2>/dev/null)' body='$body' out='$OUT'"
+fi
+push_repo 'feat: a change (#1260)' 'fix: another change (#1261)'
+FAIL_PREV_READ=1 LIFT_TOOL=1 LIFT_OUT="$BLOCK" canary_fail
+body="$(post_fields 2>/dev/null)"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && ! -e "$TMP_ROOT/stub/lift" && "$body" != *"lift-content"* ]]; then
+  ok "a canary push whose previous run's head did not read gets no lift block"
+else
+  fail "canary guessed range: rc=$RC lift='$(cat "$TMP_ROOT/stub/lift" 2>/dev/null)' body='$body' out='$OUT'"
+fi
+
 # A canary record babysit_postmerge.py filed first gets the block as a
 # comment, once.
 CANARY_MARKER="<!-- babysit-merge-demotion sha=$HEAD_SHA signal=canary -->"

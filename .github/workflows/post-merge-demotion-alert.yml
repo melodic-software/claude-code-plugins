@@ -19,7 +19,8 @@ name: post-merge-demotion-alert
 # naming the lines the canary found deleted, and lifts once they are back on
 # main or a referencing pull request merges with them (`_lift`), when the
 # close-cleared job closes it and removes the label. A canary record with no
-# block (the scan could not run, or the block was too large) clears only on a
+# block (the push's commits were not all read, the scan could not run, or the
+# block was too large) clears only on a
 # person's close. A fix issue or quarantine issue not delivered to
 # intake gets needs-human; the record does when a failing check got no fix
 # issue, whether over the cap, outside the name charset, or not filed.
@@ -771,8 +772,9 @@ jobs:
           # Anchored at a line's start, never a substring, so prose, a quoted
           # line or another repository's pull request names nothing.
           # push_range: the canary push run's commits into `pushed`, read once;
-          # `in_checkout` is set when they come from main's history.
-          pushed=() in_checkout=''
+          # `in_checkout` is set when they come from main's history, and
+          # `whole_push` when they are the whole push, uncut.
+          pushed=() in_checkout='' whole_push=''
           push_range() {
             local prev
             if ((${#pushed[@]})); then
@@ -788,6 +790,8 @@ jobs:
               if ((${#pushed[@]} > 20)); then
                 echo "::warning::more than 20 commits since the previous canary push run at ${prev:0:12}: reading the newest 20"
                 pushed=("${pushed[@]:0:20}")
+              elif ((${#pushed[@]})); then
+                whole_push=1
               fi
             else
               echo "::warning::the previous canary push run's head could not be read or is not on ${RUN_SHA:0:12}'s history: reading the newest 20 commits"
@@ -964,7 +968,9 @@ jobs:
           canary_block=''
           if [[ "$signal" == canary && -z "$passed" && -z "$has_block" ]]; then
             push_range
-            if [[ -n "$in_checkout" ]]; then
+            # A cut or guessed range could leave out the deleting commit, and
+            # a block that understates the deletion would lift the record.
+            if [[ -n "$whole_push" ]]; then
               canary_block="$(lift_block_of canary-block "${pushed[@]}")" || canary_block=''
             fi
           fi

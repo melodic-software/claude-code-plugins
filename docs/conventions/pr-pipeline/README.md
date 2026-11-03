@@ -1178,7 +1178,8 @@ the rules that only tighten in
   `DELETED_SINK`); for a canary record `babysit_postmerge.py --remediate` filed first, the alert
   posts the block as a comment, which counts when github-actions[bot] or the agent identity wrote
   it and nobody edited it. The one exception is a canary record with no block, because the pushed
-  commits are not in main's checkout, the scan could not run, or the block passed 40,000
+  commits are not in main's checkout or were not all read (more than 20 since the previous canary
+  push run's head, or that head unreadable or off the push's history), the scan could not run, or the block passed 40,000
   characters: no lane can tell what was deleted, so only a person's close clears it. On each completed scheduled full run on main, `close-cleared` runs
   `babysit_lift.py close` from main's checkout, which comments on, removes the human-gated label
   from and closes as completed each open canary, revert or read-back record either filer opened
