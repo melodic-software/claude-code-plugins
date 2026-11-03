@@ -27,7 +27,8 @@
 // changes Markdown (fix-docs-dispatch.mjs), and sync-shared-copies for lanes
 // App PRs pr-merge refused as shared-copy-sources-changed at their head
 // (dispatchSharedCopies), and their run ids join the same record.
-// resolve-conflicts and review-dependency read the one open-PR listing, and
+// resolve-conflicts, review-dependency, fix-ci and fix-docs read the one
+// open-PR listing (LIST_QUERY, each page read once a run), and
 // resolve-conflicts and fix-ci the one pr-unblock.yml run listing; a
 // rate-limited run listing defers that pass, not fails it. A head whose check
 // runs handle it for good is kept in DISPATCH_RECORD (dispatch-record.mjs), which the workflow
@@ -48,8 +49,8 @@ import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
 import { emptyRecord, isHandled, markHandled, pruneRecord, readRecord, writeRecord } from "./dispatch-record.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
 import { runTitle, shareWorkflowRuns } from "./feedback-dispatch.mjs";
-import { DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, humanGatedLabel, LIST_QUERY as CI_FIX_QUERY } from "./fix-ci-dispatch.mjs";
-import { DEFAULTS as DOCS_FIX_DEFAULTS, dispatchDocsFixes, HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY, LIST_QUERY as DOCS_FIX_QUERY } from "./fix-docs-dispatch.mjs";
+import { DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, humanGatedLabel } from "./fix-ci-dispatch.mjs";
+import { DEFAULTS as DOCS_FIX_DEFAULTS, dispatchDocsFixes, HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY } from "./fix-docs-dispatch.mjs";
 import { anyHandles, cappedAt, laneStop, limitStop, pendingStop, permanentlyHandles, releasedBy, stopRelease } from "./limit-stop.mjs";
 import { budgetedFetch, serverFailure } from "./request-budget.mjs";
 import { verifyCapReader } from "./verify-cap.mjs";
@@ -459,10 +460,39 @@ const BASE_TIP_QUERY = `query($owner: String!, $name: String!, $base: String!) {
   }
 }`;
 
-const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!, $after: String) {
+// The one open-PR listing resolve-conflicts, review-dependency, fix-ci and
+// fix-docs all read: PULL_FIELDS, fix-ci's body, update time and head rollup
+// with the base tip's commit time, and fix-docs's files, 50 a page, with its
+// rateLimit.cost. commits(last: 1) also carries PULL_FIELDS's totalCount.
+export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!, $after: String) {
+  rateLimit { cost remaining }
   repository(owner: $owner, name: $name) {
-    pullRequests(states: OPEN, baseRefName: $base, first: 100, after: $after) {
-      nodes { ${PULL_FIELDS} }
+    ref(qualifiedName: $base) { target { ... on Commit { committedDate } } }
+    pullRequests(states: OPEN, baseRefName: $base, first: 50, after: $after) {
+      nodes {
+        number isDraft isCrossRepository mergeable baseRefName baseRefOid headRefOid headRefName state title body updatedAt changedFiles
+        author { __typename login ... on Bot { databaseId } ... on User { databaseId } }
+        labels(first: 100) { nodes { name } }
+        files(first: 100) { nodes { path } pageInfo { hasNextPage } }
+        commits(last: 1) {
+          totalCount
+          nodes {
+            commit {
+              oid committedDate
+              statusCheckRollup {
+                contexts(first: 100) {
+                  nodes {
+                    __typename
+                    ... on CheckRun { name status conclusion title completedAt checkSuite { app { databaseId } } }
+                    ... on StatusContext { context state createdAt creator { __typename ... on Bot { databaseId } } }
+                  }
+                  pageInfo { hasNextPage }
+                }
+              }
+            }
+          }
+        }
+      }
       pageInfo { hasNextPage endCursor }
     }
   }
@@ -525,10 +555,26 @@ export function createGitHubApi({
     return result.data;
   }
 
+  // Each LIST_QUERY page is sent once per adapter, however many dispatchers
+  // page through it; a failed read is forgotten, so a later one sends it again.
+  const pages = new Map();
+  function listPage(base, after) {
+    const key = JSON.stringify([base, after ?? null]);
+    if (!pages.has(key)) {
+      pages.set(
+        key,
+        graphql(LIST_QUERY, { owner, name, base, after: after ?? null }).catch((error) => {
+          pages.delete(key);
+          throw error;
+        }),
+      );
+    }
+    return pages.get(key);
+  }
+
   return {
     async listOpenPulls({ base, after }) {
-      const data = await graphql(LIST_QUERY, { owner, name, base, after: after ?? null });
-      return data.repository.pullRequests;
+      return (await listPage(base, after)).repository.pullRequests;
     },
     // The base branch tip and when it was committed.
     async readBaseTip(base) {
@@ -539,14 +585,14 @@ export function createGitHubApi({
       }
       return { oid: target.oid, committedAt };
     },
-    // fix-ci-dispatch.mjs's listing: one query per page, with its cost.
+    // fix-ci-dispatch.mjs's view of the listing, with the page's cost.
     async listCiFixCandidates({ base, after }) {
-      const data = await graphql(CI_FIX_QUERY, { owner, name, base, after: after ?? null });
+      const data = await listPage(base, after);
       return { rateLimit: data.rateLimit, pullRequests: data.repository.pullRequests, baseCommittedAt: data.repository.ref?.target?.committedDate };
     },
-    // fix-docs-dispatch.mjs's listing and its per-PR check-run history.
+    // fix-docs-dispatch.mjs's view of the listing, and its per-PR check-run history.
     async listDocsFixCandidates({ base, after }) {
-      const data = await graphql(DOCS_FIX_QUERY, { owner, name, base, after: after ?? null });
+      const data = await listPage(base, after);
       return { rateLimit: data.rateLimit, pullRequests: data.repository.pullRequests };
     },
     async readDocsFixHistory({ number, appId, checkName, earlierCheckName }) {

@@ -15,8 +15,7 @@
       "degrade": "Without node, the PostCompact marker hook cannot launch and the module writes no snapshot, so file readers read unknown; the module's zone lines, band row and status tool still run.",
       "install": {
         "docs": "https://nodejs.org/en/download"
-      },
-      "check": "/context-guard:check"
+      }
     },
     {
       "id": "claude",
@@ -37,11 +36,10 @@
           "min": "2.1.287"
         }
       },
-      "degrade": "Claude Code older than 2.1.287 is unsupported: the module that sends zone lines, draws the band row, serves the status tool and writes the snapshot does not load there.",
+      "degrade": "Claude Code older than 2.1.287 is unsupported: the module that sends zone lines, draws the band row, serves the status tool and writes the snapshot does not load there. Run `bash <plugin root>/scripts/check-mod-load.sh`: it reports the floor and how to tell whether the mod runs in this session.",
       "install": {
         "docs": "https://code.claude.com/docs/en/setup#update-claude-code"
-      },
-      "check": "/context-guard:check"
+      }
     },
     {
       "id": "jq",
@@ -58,8 +56,7 @@
       "degrade": "Without jq, the setup check's zone resolver prints unknown and setup apply cannot merge into an existing zones.json. No hook and no part of the module uses jq.",
       "install": {
         "docs": "https://jqlang.org/download/"
-      },
-      "check": "/context-guard:check"
+      }
     }
   ]
 }

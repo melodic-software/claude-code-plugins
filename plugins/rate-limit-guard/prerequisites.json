@@ -15,8 +15,7 @@
       "degrade": "Without node, the StopFailure hook cannot launch and records nothing, and the module cannot write the snapshot file; its lines and band row still work.",
       "install": {
         "docs": "https://nodejs.org/en/download"
-      },
-      "check": "/rate-limit-guard:check"
+      }
     },
     {
       "id": "claude",
@@ -37,11 +36,10 @@
           "min": "2.1.287"
         }
       },
-      "degrade": "Claude Code older than 2.1.287 is unsupported: the module that sends rate-limit lines, draws the band row, serves the status tool and writes the snapshot does not load there.",
+      "degrade": "Claude Code older than 2.1.287 is unsupported: the module that sends rate-limit lines, draws the band row, serves the status tool and writes the snapshot does not load there. Run `bash <plugin root>/scripts/check-mod-load.sh`: it reports the floor and how to tell whether the mod runs in this session.",
       "install": {
         "docs": "https://code.claude.com/docs/en/setup#update-claude-code"
-      },
-      "check": "/rate-limit-guard:check"
+      }
     }
   ]
 }

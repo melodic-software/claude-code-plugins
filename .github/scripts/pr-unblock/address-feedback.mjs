@@ -356,6 +356,19 @@ export const needsPerson = (thread, rootAuthorId, floor = SECURITY_PERSON_SEVERI
   return lane === "claude-security-review" ? securityNeedsPerson(root.body, floor) : lane !== "claude-review";
 };
 
+// Whether a thread past the round cap is a security finding a person decides
+// (needsPerson's reviewer findings: CRITICAL or unrated security, a listed
+// bot's finding on a head the security-review lane held, or an unknown lane's,
+// which fails safe), as opposed to a person's own or directed thread or a
+// verifier note, which a session takes.
+export const securityThread = (thread, rootAuthorId, floor = SECURITY_PERSON_SEVERITY) => {
+  const root = thread.comments[0];
+  if (isVerifierNote(thread) || root?.author !== "reviewer") {
+    return false;
+  }
+  return root.listed === true ? root.security === "held" : needsPerson(thread, rootAuthorId, floor);
+};
+
 // Round markers the lanes App posted; any other author's copy is ignored.
 export const isRoundMarker = (comment, appId) => comment.user?.id === appId && firstLine(comment.body) === ROUND_MARKER;
 
@@ -1120,7 +1133,8 @@ export async function select({
       const spent = rounds >= bound;
       const holds = (thread) => needsPerson(thread, rootOf(thread)?.user?.id);
       if (gated || kept.some(holds)) {
-        return { decision: "escalate", escalationReason: "feedback-round-cap", rounds, maxRounds: bound, threads: kept };
+        const security = kept.some((thread) => securityThread(thread, rootOf(thread)?.user?.id));
+        return { decision: "escalate", escalationReason: security ? "feedback-round-cap-security" : "feedback-round-cap", rounds, maxRounds: bound, threads: kept };
       }
       if (spent) {
         const escalationReason = kept.every(isVerifierNote) ? "feedback-verifier-open" : "feedback-not-converging";

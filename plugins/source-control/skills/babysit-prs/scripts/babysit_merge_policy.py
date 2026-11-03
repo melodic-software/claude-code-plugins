@@ -131,13 +131,11 @@ BODY_MERGE_HOLD_RE = re.compile(
 # autopilot merge tier is engaged. `--block-labels` only adds to it.
 # `pr-verify-failed` is pr-verify's FAIL on a person's pull request, which
 # ci-status enforces only in the merge queue: held here, it is never queued.
-# `human-merge-hold` is the lanes App's label on a pull request a person merges;
 # `security: outside-actor` is security-outside-actor.yml's flag on an item
 # someone outside the organization wrote on, which only a person removes.
 MERGE_HOLD_LABELS = (
     "do-not-merge",
     "pr-verify-failed",
-    "human-merge-hold",
     "security: outside-actor",
 )
 # An `adoption.idle-hours` value outside 1 to `MAX_ADOPTION_IDLE_HOURS`, or
@@ -3197,6 +3195,7 @@ CARRY_REFUSES: tuple[str, ...] = (
     "plugins/testing/evals/browser-probe/**",
     "plugins/work-items/scripts/**",
     "plugins/work-items/tools/work-item-tracker/**",
+    _skill_scripts("harness-ops:changelog"),
 )
 
 

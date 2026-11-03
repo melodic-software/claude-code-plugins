@@ -19,7 +19,7 @@ import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CI_WORKFLOWS, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, PR_UNBLOCK_STOP_NOTE, prefilterSpec, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, SETTLED_VERSION, TOO_OLD_DAYS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
+import { CI_WORKFLOWS, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, SETTLED_VERSION, TOO_OLD_DAYS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
 import { switchHold } from "../pr-merge/merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -1735,12 +1735,8 @@ test("ci-status's lanes-hold step still fails a lanes App PR with the kill-switc
   assert.ok(switchHold(lanes, { appId: "7", disabled: "true", repoDisabled: "false" }).startsWith(`#1: ${KILL_SWITCH_NOTE} (`));
 });
 
-// Any PR whose newest pr-require-checks run failed only in ci-status, on its
-// first attempt, on the pr-unblock step's notes: once no pr-unblock/* status
-// by github-actions[bot] fails the head (the lane's clear posted success over
-// its stop), that ci-status is re-run, recorded as attempt 2. The notes are
-// the ones ci-status wrote on #10828's head (check run 123256890668), and the
-// step's line is pinned below.
+// A ci-status that failed on a pr-unblock stop note (the step ci-status no
+// longer has) is not re-run: the reconciler has no stop kind.
 const STOP_LINE = (context = "pr-unblock/address-feedback", head = sha(1)) =>
   `'${context}' is failure on ${head}: Lane stopped: feedback-untaken-threads; checked again on a new head. The lane that stopped clears it by running again on this head, or a new head carries none.`;
 const stopJobs = ({ notes = [STOP_LINE()] } = {}) => [
@@ -1763,75 +1759,11 @@ const unblockStatus = (state, { context = "pr-unblock/address-feedback", creator
 // Newest first, as GitHub lists them: the clear over the stop.
 const cleared = (head = sha(1)) => ({ [head]: [unblockStatus("success"), unblockStatus("failure")] });
 
-test("a ci-status a pr-unblock stop failed is re-run once after the lane clears the stop, recorded, past the lookback", async () => {
-  for (const created of ["2026-10-19T19:00:00Z", "2026-10-12T19:00:00Z"]) {
-    const { code, outputs, reruns, failedJobReruns, calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: stopJobs(), created })], statuses: cleared() });
-    assert.equal(code, 0);
-    assert.deepEqual(failedJobReruns, [101]);
-    assert.deepEqual(reruns, []);
-    assert.deepEqual(records(outputs), [`reconcile-rerun-101-2-${sha(1)}`, "", ""]);
-    assert.ok(calls.includes(`GET /repos/${REPO}/commits/${sha(1)}/statuses?per_page=100&page=1`));
-  }
-  const again = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: stopJobs(), attempt: 2 })], statuses: cleared() });
-  assert.equal(again.code, 0);
-  assert.deepEqual(again.failedJobReruns, []);
-});
-
-test("a ci-status re-run waits for every pr-unblock stop on the head to clear, and reads only github-actions[bot]'s statuses", async () => {
-  const notes = [STOP_LINE(), STOP_LINE("pr-unblock/fix-ci")];
-  const statuses = { [sha(1)]: [unblockStatus("success"), unblockStatus("error", { context: "pr-unblock/fix-ci" }), unblockStatus("failure")] };
-  const standing = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: stopJobs({ notes }) })], statuses });
-  assert.deepEqual(standing.failedJobReruns, []);
-  const other = { [sha(1)]: [unblockStatus("success", { creator: { login: "someone" } }), unblockStatus("failure")] };
-  const forged = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: stopJobs() })], statuses: other });
-  assert.deepEqual(forged.failedJobReruns, []);
-});
-
-test("a ci-status with no pr-unblock stop note, or another failure beside it, is not re-run and its statuses are not read", async () => {
-  const cases = [
-    stopJobs({ notes: ["#1: the PR body holds it"] }),
-    stopJobs({ notes: [] }),
-    stopJobs({ notes: [STOP_LINE(), "the pull request title is not in Conventional Commits form"] }),
-    stopJobs().map((j) => (j.name === "ci-status" ? { ...j, notes: [...j.notes, { annotation_level: "failure", message: "Process completed with exit code 1." }] } : j)),
-  ];
-  for (const jobs of cases) {
-    const { code, calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs })], statuses: cleared() });
-    assert.equal(code, 0);
-    assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
-    assert.ok(!calls.some((c) => c.includes("/statuses")));
-  }
-  const passed = await reconcile({ pulls: [pr(1)], runs: [run(101, sha(1), { conclusion: "success" })], statuses: cleared() });
-  assert.deepEqual(passed.calls.filter((c) => c.startsWith("POST ") || c.includes("/statuses")), []);
-});
-
-test("an unreadable status list re-runs nothing and fails no listing", async (t) => {
-  const log = t.mock.method(console, "log", () => {});
-  const fail = { [`GET /repos/${REPO}/commits/${sha(1)}/statuses?per_page=100&page=1`]: new Error("HTTP 502") };
-  const { code, calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: stopJobs() })], statuses: cleared(), fail });
+test("a ci-status that failed on a pr-unblock stop note is not re-run, even once the stop cleared", async () => {
+  const { code, calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: stopJobs() })], statuses: cleared() });
   assert.equal(code, 0);
   assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
-  assert.ok(log.mock.calls.some((c) => String(c.arguments[0]).includes("#1: its pr-unblock statuses could not be read (HTTP 502)")));
-});
-
-test("a failed ci-status re-run after a cleared stop is a warning, and the run still passes", async (t) => {
-  const log = t.mock.method(console, "log", () => {});
-  const fail = { [`POST /repos/${REPO}/actions/runs/101/rerun-failed-jobs`]: new Error("HTTP 500") };
-  const { code, calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: stopJobs() })], statuses: cleared(), fail });
-  const lines = log.mock.calls.map((c) => String(c.arguments[0]));
-  assert.equal(code, 0);
-  assert.ok(calls.includes(`POST /repos/${REPO}/actions/runs/101/rerun-failed-jobs`));
-  assert.ok(lines.includes("::warning title=reconcile::#1 run 101: HTTP 500"));
-  assert.ok(!lines.some((l) => l.startsWith("::error")));
-});
-
-test("ci-status's pr-unblock step still writes the stop note the reconciler matches", () => {
-  const workflow = readFileSync(new URL("../../workflows/pr-require-checks.yml", import.meta.url), "utf8");
-  const step = /- name: Fail a head a pr-unblock lane stopped\n(?:(?:[ ]{8,}.*)?\n)+/.exec(workflow)?.[0] ?? "";
-  const line = step.split("\n").find((l) => l.includes(`echo "::error::'$context' is $state on $head: `));
-  assert.ok(line, "the stop error line is in the step");
-  assert.match(step, /done <<<"\$failing"\n[ ]+exit 1\n/);
-  assert.match(STOP_LINE("pr-unblock/conflict"), PR_UNBLOCK_STOP_NOTE);
-  assert.doesNotMatch(STOP_LINE("ci-lanes"), PR_UNBLOCK_STOP_NOTE);
+  assert.ok(!calls.some((c) => c.includes("/statuses")));
 });
 
 // A hosted review run the upstream-status gate stopped: its kill-switch job
@@ -2131,7 +2063,7 @@ const SETTLED = [
 ];
 const jobReads = (calls) => calls.filter((c) => /\/attempts\/1\/jobs\?/.test(c)).map((c) => Number(/runs\/([0-9]+)\//.exec(c)[1])).sort();
 const ids = (settled) => settled.runs.map((r) => r.id).sort();
-const carryOf = (runs, version = SETTLED_VERSION) => JSON.stringify({ version, repository: REPO, runs });
+const carryOf = (runs, version = SETTLED_VERSION, jobs = []) => JSON.stringify({ version, repository: REPO, runs, jobs });
 
 test("a pass reads the attempt-1 jobs only of runs the last pass did not settle", async () => {
   const toRerun = [verifyRun(201), verdictRun(403)];
@@ -2189,7 +2121,7 @@ test("a short or unfinished listing, or a cut step list, is not settled", async 
 });
 
 test("a carry that cannot be read, names another repository or has another version reads every run", async () => {
-  for (const carry of ["not json", JSON.stringify({ version: SETTLED_VERSION, repository: "other/repo", runs: SETTLED }), carryOf(SETTLED, SETTLED_VERSION - 1), carryOf([202, 302, 401, 402])]) {
+  for (const carry of ["not json", JSON.stringify({ version: SETTLED_VERSION, repository: "other/repo", runs: SETTLED, jobs: [] }), carryOf(SETTLED, SETTLED_VERSION - 1), carryOf([202, 302, 401, 402]), JSON.stringify({ version: SETTLED_VERSION, repository: REPO, runs: SETTLED }), carryOf(SETTLED, SETTLED_VERSION, [{ id: 101, attempt: 1, head: "main", updated_at: "x", jobs: [] }])]) {
     const { code, calls, settled } = await reconcile({ pulls: [], runs: settledRuns(), carry });
     assert.equal(code, 0);
     assert.deepEqual(jobReads(calls), [202, 302, 401, 402]);
@@ -2241,6 +2173,92 @@ test("a failed job that lost its runner with no steps listed is held but not set
   assert.equal(code, 0);
   assert.deepEqual(settled.runs, []);
   assert.deepEqual(reruns, []);
+});
+
+// An open PR's latest-attempt job reads ride the same carry, keyed on run id
+// and attempt, while the head's listing shows that run completed at the same
+// attempt, head and updated_at. Each pin compares a pass with the carry
+// against the same pass without it (the old path); the call counts are the
+// requirement this carry exists for. Jobs follow the REST job shape: a whole
+// step list opening with "Set up job" and ending with "Complete job".
+const jobStep = (number, name, conclusion) => ({ name, number, status: "completed", conclusion });
+const finalJob = (id, name, conclusion, middle) => ({
+  id,
+  name,
+  status: "completed",
+  conclusion,
+  run_attempt: 1,
+  runner_id: 3,
+  steps: [jobStep(1, "Set up job", "success"), ...middle.map(([n, c], i) => jobStep(i + 2, n, c)), jobStep(middle.length + 2, "Complete job", "success")],
+});
+const realJobs = [
+  finalJob(8001, "lint-repo", "success", [["Run the linters", "success"]]),
+  finalJob(8002, "test-node", "failure", [["Install dependencies", "success"], ["Run the tests", "failure"]]),
+  finalJob(8003, "ci-status", "failure", [["Check the lanes", "failure"]]),
+];
+const infraJobs = [
+  finalJob(8001, "lint-repo", "success", [["Run the linters", "success"]]),
+  finalJob(8002, "test-node", "failure", [["Install dependencies", "cancelled"], ["Run the tests", "skipped"]]),
+  finalJob(8003, "ci-status", "failure", [["Check the lanes", "failure"]]),
+];
+const latestReads = (calls) => calls.filter((c) => /\/jobs\?filter=latest/.test(c)).map((c) => Number(/runs\/([0-9]+)\//.exec(c)[1]));
+
+test("a red head's job read is carried, and the next pass makes the same plan without reading it", async () => {
+  const runs = [failed(101, sha(1), { jobs: realJobs })];
+  const first = await reconcile({ pulls: [pr(1)], runs, carry: null });
+  assert.equal(first.code, 0);
+  assert.deepEqual(latestReads(first.calls), [101]);
+  assert.deepEqual(first.failedJobReruns, [101]);
+  assert.deepEqual(
+    first.settled.jobs.map((e) => [e.id, e.attempt, e.head, e.updated_at, e.jobs.length]),
+    [[101, 1, sha(1), "2026-10-19T19:30:00Z", 3]],
+  );
+  const second = await reconcile({ pulls: [pr(1)], runs, carry: JSON.stringify(first.settled) });
+  assert.equal(second.code, 0);
+  assert.deepEqual(latestReads(second.calls), []);
+  assert.deepEqual(second.failedJobReruns, first.failedJobReruns);
+  assert.deepEqual(second.reruns, first.reruns);
+  assert.deepEqual(second.settled.jobs, first.settled.jobs);
+});
+
+test("a carried job read still waits on the status pages each pass", async () => {
+  const runs = [failed(101, sha(1), { jobs: infraJobs })];
+  const held = await reconcile({ pulls: [pr(1)], runs, carry: null, upstream: { [NPM_STATUS_URL]: NPM_DOWN, [GITHUB_STATUS_URL]: GITHUB_OK } });
+  assert.deepEqual(held.failedJobReruns, []);
+  const live = await reconcile({ pulls: [pr(1)], runs, carry: null });
+  const carried = await reconcile({ pulls: [pr(1)], runs, carry: JSON.stringify(held.settled) });
+  assert.deepEqual(live.failedJobReruns, [101]);
+  assert.deepEqual(carried.failedJobReruns, live.failedJobReruns);
+  assert.deepEqual(latestReads(carried.calls), []);
+});
+
+test("a new attempt, a new run, a changed run or a carry for another head reads the jobs again", async () => {
+  const first = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: realJobs })], carry: null });
+  const carry = JSON.stringify(first.settled);
+  const otherHead = JSON.stringify({ ...first.settled, jobs: first.settled.jobs.map((e) => ({ ...e, head: sha(9) })) });
+  const cases = [
+    [[failed(101, sha(1), { jobs: realJobs, attempt: 2 })], carry, [101]],
+    [[failed(101, sha(1), { jobs: realJobs, updated: "2026-10-19T19:45:00Z" })], carry, [101]],
+    [[failed(101, sha(1), { jobs: realJobs }), failed(102, sha(1), { jobs: realJobs, created: "2026-10-19T19:10:00Z" })], carry, [102]],
+    [[failed(101, sha(1), { jobs: realJobs })], otherHead, [101]],
+  ];
+  for (const [runs, given, read] of cases) {
+    const live = await reconcile({ pulls: [pr(1)], runs, carry: null });
+    const withCarry = await reconcile({ pulls: [pr(1)], runs, carry: given });
+    assert.deepEqual(latestReads(withCarry.calls), read);
+    assert.deepEqual(withCarry.failedJobReruns, live.failedJobReruns);
+    assert.deepEqual(withCarry.reruns, live.reruns);
+  }
+});
+
+test("a job read that is not whole and final, or is empty, is not carried", async () => {
+  const cut = realJobs.map((j) => (j.name === "test-node" ? { ...j, steps: j.steps.slice(0, -1) } : j));
+  const unfinished = realJobs.map((j) => (j.name === "lint-repo" ? { ...j, status: "in_progress", conclusion: null } : j));
+  for (const jobs of [cut, unfinished, MIXED_JOBS, []]) {
+    const { code, settled } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs })], carry: null });
+    assert.equal(code, 0);
+    assert.deepEqual(settled.jobs, []);
+  }
 });
 
 // Any PR whose newest pr-require-checks run failed only in ci-status, on its

@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { collect, LIMITS, listFiled } from "./collect.mjs";
+import { collect, jobsCarryFile, JOBS_VERSION, LIMITS, listFiled, parseJobsCarry } from "./collect.mjs";
 import { ceilingFindings } from "./signals.mjs";
 
 const repo = "o/r";
@@ -937,4 +937,94 @@ test("post-merge reports: a still-running sweep's report is read first; the budg
   );
   assert.ok(!api.calls.some((p) => p.includes("runs/9/jobs")));
   assert.ok(api.calls.some((p) => p.includes("pr-merge.yml/runs") && !p.includes("status=")));
+});
+
+// A completed run's job read is carried to the next run, keyed on run id and
+// attempt, and used while the listing shows the same attempt and updated_at.
+// Each pin compares a run with the carry against the same run without it (the
+// old path); the call counts are the requirement the carry exists for. Jobs
+// follow the REST job shape: a whole step list from "Set up job" to
+// "Complete job", with total_count.
+const jobStep = (number, name, conclusion) => ({ name, number, status: "completed", conclusion });
+const queueJobs = (attempt = 1) => ({
+  total_count: 1,
+  jobs: [
+    {
+      id: 500,
+      name: "test-bash (1/4)",
+      status: "completed",
+      conclusion: "failure",
+      run_attempt: attempt,
+      steps: [jobStep(1, "Set up job", "success"), jobStep(2, "Run the suites", "failure"), jobStep(3, "Complete job", "success")],
+    },
+  ],
+});
+const queueRoutes = ({ attempt = 1, updated = "2026-10-19T15:20:00Z", jobs = queueJobs(attempt) } = {}) => [
+  [
+    /event=merge_group/,
+    { workflow_runs: [run(50, { name: "pr-require-checks", head_branch: "gh-readonly-queue/main/pr-8225-aaaa", created_at: "2026-10-19T15:00:00Z", updated_at: updated, conclusion: "failure", run_attempt: attempt })] },
+  ],
+  [/runs\/50\/jobs/, jobs],
+  [/actions\/runs\?status=in_progress/, { workflow_runs: [run(20, { status: "in_progress", run_attempt: 1 })] }],
+  ...routes(),
+];
+const carried = (data) => parseJobsCarry(jobsCarryFile(repo, data.jobsCarry), repo);
+const jobReads = (api) => api.calls.filter((p) => /runs\/\d+\/jobs/.test(p)).map((p) => Number(/runs\/(\d+)\/jobs/.exec(p)[1]));
+
+test("a completed run's job read is carried, and the next run reads the same data without it", async () => {
+  const firstApi = fakeApi(queueRoutes());
+  const first = await collect(input(firstApi));
+  assert.ok(jobReads(firstApi).includes(50));
+  assert.deepEqual(
+    first.jobsCarry.map((e) => [e.id, e.attempt, e.updated_at, e.jobs.length]),
+    [[50, 1, "2026-10-19T15:20:00Z", 1]],
+  );
+  const api = fakeApi(queueRoutes());
+  const second = await collect(input(api, { carriedJobs: carried(first) }));
+  assert.ok(!jobReads(api).includes(50));
+  assert.equal(api.calls.length, firstApi.calls.length - 1);
+  assert.deepEqual(second.mergeGroupFailures, first.mergeGroupFailures);
+  assert.deepEqual(second.mergeGroupFailures[0].failedSteps, ["test-bash (1/4) / Run the suites"]);
+  assert.deepEqual(second.jobsCarry, first.jobsCarry);
+});
+
+test("a new attempt or a changed run reads its jobs again, and an in-progress run is never carried", async () => {
+  const first = await collect(input(fakeApi(queueRoutes())));
+  const inProgress = { id: 20, attempt: 1, updated_at: "2026-10-19T16:00:00Z", jobs: [] };
+  for (const changed of [{ attempt: 2 }, { updated: "2026-10-19T15:40:00Z" }]) {
+    const live = await collect(input(fakeApi(queueRoutes(changed))));
+    const api = fakeApi(queueRoutes(changed));
+    const data = await collect(input(api, { carriedJobs: new Map([...carried(first), ["20:1", inProgress]]) }));
+    assert.ok(jobReads(api).includes(50));
+    assert.ok(jobReads(api).includes(20));
+    assert.deepEqual(data.mergeGroupFailures, live.mergeGroupFailures);
+    assert.deepEqual(data.jobsInUse, live.jobsInUse);
+    assert.ok(!data.jobsCarry.some((e) => e.id === 20));
+  }
+});
+
+test("a job read that is short, unfinished, empty or has a cut step list is not carried", async () => {
+  const whole = queueJobs();
+  const cases = [
+    { ...whole, total_count: 2 },
+    { ...whole, jobs: [{ ...whole.jobs[0], status: "in_progress", conclusion: null }] },
+    { ...whole, jobs: [{ ...whole.jobs[0], steps: whole.jobs[0].steps.slice(0, -1) }] },
+    { ...whole, total_count: 0, jobs: [] },
+  ];
+  for (const jobs of cases) {
+    const data = await collect(input(fakeApi(queueRoutes({ jobs }))));
+    assert.deepEqual(data.jobsCarry, []);
+  }
+});
+
+test("a carried job reads file of another version or repository, or a malformed entry, is refused", () => {
+  const entry = { id: 50, attempt: 1, updated_at: "2026-10-19T15:20:00Z", jobs: [] };
+  assert.equal(parseJobsCarry(jobsCarryFile(repo, [entry]), repo).get("50:1").id, 50);
+  for (const text of [
+    JSON.stringify({ version: JOBS_VERSION + 1, repository: repo, runs: [entry] }),
+    jobsCarryFile("other/repo", [entry]),
+    jobsCarryFile(repo, [{ ...entry, attempt: 0 }]),
+  ]) {
+    assert.throws(() => parseJobsCarry(text, repo), /unexpected shape/);
+  }
 });

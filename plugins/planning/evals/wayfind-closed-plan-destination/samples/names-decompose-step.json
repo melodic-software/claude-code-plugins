@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "The map is closed and its destination is a plan of build work, so close the map issue and run `/work-items:decompose #<map-number>`; the map's closing comment states every decision.",
+      "why": "the skill's own hand-off"
+    },
+    {
+      "answer": "Don't restart charting. Run work-items:decompose next and point it at the map's decisions.",
+      "why": "negation about charting, decompose step named without the slash"
+    },
+    {
+      "answer": "Hand it on: decompose the map into work items, reading the decisions from the map's closing comment.",
+      "why": "names the decompose step in prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Your map's destination is an implementation plan, but first restart charting with /planning:wayfind chart to check nothing was missed.",
+      "why": "restates the destination and restarts charting"
+    },
+    {
+      "answer": "Don't run /work-items:decompose yet; go back to /planning:interview and re-check the decisions.",
+      "why": "negated decompose step"
+    },
+    {
+      "answer": "Run /planning:design ahead of /planning:plan to write the implementation plan.",
+      "why": "the closure target before the map closed to prd, decompose or work"
+    },
+    {
+      "answer": "Run /planning:wayfind work to pick the next frontier item.",
+      "why": "keeps working the map"
+    }
+  ]
+}

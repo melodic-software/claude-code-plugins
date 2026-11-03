@@ -595,6 +595,12 @@ forge it, for example by writing a `$RUNNER_TEMP` file-command file such as one 
 at, or by leaving a process running. Tests, linters and builds that gate run as a `script` activity,
 or under a separate design that judges their result in a job head code never touched.
 
+After a write-file skill, a pinned `actions/github-script` step removes the head checkout's
+and `.base`'s `.git` directories, so neither `actions/checkout` post step runs git under config the
+skill wrote while it holds the job's runtime token. A script activity skips that step. A process
+the skill left running can make them again: no step stops such processes yet
+([#8302](https://github.com/melodic-software/claude-code-plugins/issues/8302)).
+
 The step summary (in a PR-mode read run, the scan job's) shows the skill's final reply (at most 4000 characters, backticks
 neutralized) for audit. It is model output, printed as data. The same text is uploaded as the
 artifact `skill-reply-<lane>-<activity>-<run_attempt>` (3-day retention) whenever the skill step
@@ -1931,7 +1937,10 @@ other than `${{ github.event.repository.default_branch }}` or a `with` key other
 `./.base/.github/actions/open-lane-output` with `private-key: ${{ secrets.scan-carrier-private-key }}`
 exactly; a job that calls the read file passes it by name only,
 `scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}` in its `secrets` map; and only
-the `scan` job may name an `environment`, `pr-pipeline-scan-carrier`. GitHub gives an environment
+the `scan` job may name an `environment`, `pr-pipeline-scan-carrier`. The one second holder (owner
+decision, 2026-11-02) is `upstream-apply-changelog.yml`'s `scan` job: one `open` step, the same
+action and exact `private-key`, after the main-only gate job, with `contents: read` alone, no
+id-token and a read-only cache; the environment admits main only. GitHub gives an environment
 secret to a reusable workflow only when the caller passes it by name, and the value it then holds
 is the environment's only in the job that names the environment
 ([Reuse workflows](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows)).
@@ -1971,7 +1980,13 @@ Both are organization variables declared in github-iac
 The request is `POST <LANES_BROKER_URL>` with `Authorization: Bearer <OIDC token>` and the JSON
 body `{"lane": "<lane>", "activity": "<activity>", "pr_number": <n>, "dispatcher_run_id": <id>}`;
 `pr_number` is the gate's PR and is required on `workflow_dispatch` and `workflow_run`, except from
-`intake-triage.yml`. An `issues` request, allowed from `work-resolve-issue.yml`, `work-unblock.yml`
+`intake-triage.yml` and `upstream-apply-changelog.yml`. A request from `upstream-apply-changelog.yml`,
+on its ten-minute `schedule` or a `workflow_dispatch`, sends `release` (the `release` input), the
+Claude Code release it works as a `MAJOR.MINOR.PATCH` string, and none of `pr_number`,
+`issue_number` or `dispatcher_run_id`; the broker refuses `release` from any other caller. Its
+dispatch, and a re-run of either, must be started by a listed human. Each of its jobs mints one
+effect: the broker never grants `contents` and `pull_requests` write in one mint, nor `merge` or
+`actions`. An `issues` request, allowed from `work-resolve-issue.yml`, `work-unblock.yml`
 and `intake-triage.yml`, sends `issue_number` (the `issue-number` input) instead, and neither of the
 other two. From `work-resolve-issue.yml` its actor, the labeler, must be a listed human, or the
 lanes App; from the other two a listed human. `work-unblock.yml` (also on its hourly `schedule`)
@@ -2015,17 +2030,17 @@ reason; no response at all is `broker-unreachable`. Broker reasons:
 
 | Status | Reason | Meaning |
 |---|---|---|
-| 400 | (none) | The body is not `{lane, activity, pr_number?, issue_number?, dispatcher_run_id?}` with valid names and positive integers, or `issue_number` is missing on `issues` or present off it |
+| 400 | (none) | The body is not `{lane, activity, pr_number?, issue_number?, release?, dispatcher_run_id?}` with valid names, positive integers and a `MAJOR.MINOR.PATCH` release, `issue_number` is missing on `issues` or present off it, or `release` is missing from `upstream-apply-changelog.yml` or present from any other caller |
 | 403 | `invalid-token`, `wrong-audience` | The OIDC token does not verify, or is for another audience |
 | 403 | `wrong-owner`, `repo-not-allowed`, `self-hosted-runner` | Not a melodic-software repository on the broker's allowlist, or not a GitHub-hosted runner |
-| 403 | `event-not-allowed` | Not `pull_request` on `refs/pull/<n>/merge`, or `workflow_dispatch` or `workflow_run` on `refs/heads/main`, or `issues` on `refs/heads/main` from `work-resolve-issue.yml`, `work-unblock.yml` or `intake-triage.yml`, or `schedule` on `refs/heads/main` from `pr-merge.yml` or `work-unblock.yml` only |
+| 403 | `event-not-allowed` | Not `pull_request` on `refs/pull/<n>/merge`, or `workflow_dispatch` or `workflow_run` on `refs/heads/main`, or `issues` on `refs/heads/main` from `work-resolve-issue.yml`, `work-unblock.yml` or `intake-triage.yml`, or `schedule` on `refs/heads/main` from `pr-merge.yml`, `work-unblock.yml` or `upstream-apply-changelog.yml` only |
 | 403 | `workflow-not-allowed` | The job is not this repository's `pr-run-activity-write.yml`, or the caller is not a lane under `lanes:` in the tip's `pr-pipeline.yaml` |
 | 403 | `workflow-modified` | The caller or `pr-run-activity-write.yml` differs from the default-branch tip (a report job, `work-resolve-issue` `report-outcome` or `pr-unblock` `report-escalation`, still mints when every main commit that changed the file is signed, GitHub-made, on a linear range and landed after run start, at most 50 minutes ago: [azure-iac#39](https://github.com/melodic-software/azure-iac/pull/39)) |
 | 403 | `workflow-modified` | With `dispatcher_run_id`: the dispatcher workflow at the dispatcher run's head differs from the tip (same report-job exception) |
 | 403 | `lane-mismatch` | The requested lane is not the caller's file stem |
 | 403 | `activity-not-in-lane`, `slot-disabled`, `config-invalid`, `effect-forbidden-by-lane` | The tip config does not give this activity a write grant |
 | 403 | `effect-read` | The activity is `read`; it belongs in the read file |
-| 403 | `untrusted-actor`, `untrusted-author`, `bot-actor` | The actor, the PR author or a re-runner is not on the tip's trusted-actor list (a scheduled `pr-merge.yml` run has no actor check, and its re-runner must be a listed human; a scheduled `work-unblock.yml` run has no actor check either and skips the workflow's own closer check, so the broker alone gates its re-runs; a `github-actions[bot]` dispatch of `intake-triage.yml` has no actor check and needs its issue open, and its re-runner must be a listed human), or is the lanes bot |
+| 403 | `untrusted-actor`, `untrusted-author`, `bot-actor` | The actor, the PR author or a re-runner is not on the tip's trusted-actor list (a scheduled `pr-merge.yml` run has no actor check, and its re-runner must be a listed human; a scheduled `work-unblock.yml` run has no actor check either and skips the workflow's own closer check, so the broker alone gates its re-runs; a `github-actions[bot]` dispatch of `intake-triage.yml` has no actor check and needs its issue open, and its re-runner must be a listed human; a scheduled `upstream-apply-changelog.yml` run has no actor check, and its re-runner must be a listed human), or is the lanes bot |
 | 403 | `untrusted-actor` | With `dispatcher_run_id` from `github-actions[bot]`: the dispatcher run or this run is missing or fails a dispatcher check above |
 | 503 | `github-unavailable` | With `dispatcher_run_id`: a dispatcher, run, tag or compare read failed; nothing was minted |
 | 403 | `pr-not-eligible` | The PR is not open, not from a branch of this repository, or does not target `main` |
@@ -2281,7 +2296,7 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   resolved config; unreadable holds every PR), or, while some path is denied, for one too large
   for the compare listing to show whole. It adds the same line when the issue carries `merge: human` whose newest `labeled`
   event is a listed human's or the lanes App's, or cannot be read, and never for anyone else's.
-  A PR with that line also gets the `human-merge-hold` label right after it opens, or when the run
+  A PR with that line also gets the `do-not-merge` label right after it opens, or when the run
   reuses its open PR; the work class stays on the issue. A PR the label cannot reach is closed
   and the issue retried (`hold-label-failed`).
   The run's own summary is quoted with issue references broken, so squash-merging the PR closes only `#<n>`. Every stop takes the route its reason has in

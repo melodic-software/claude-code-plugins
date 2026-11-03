@@ -2822,12 +2822,11 @@ them on every `pull_request` run, contract-only runs included:
   trusted-actor list; a later removal is of a later label, such as an escalation
   `clear-escalations` lifts. A bot's or anyone else's lift, or none recorded, fails. To recover, a
   trusted person adds the label back, which starts a new hold, and a trusted person removes it.
-- **Only a trusted person lifts a human-merge hold.** report-outcome labels a lanes App PR that
-  carries `Hold: a human merges this` with `human-merge-hold`, since the App can edit that body
-  line. ci-status fails while the label is on, and once it is off unless the first removal at or
-  after its newest add, by anyone, was a `human` of the base's trusted-actor list acting directly,
-  not through an App. No other hold step skips it. `enable-auto-merge.mjs`, the merge queue's
-  label step and the babysit merge lane hold the label too.
+- **`do-not-merge` is the veto.** report-outcome labels a lanes App PR that carries `Hold: a
+  human merges this` with `do-not-merge`, since the App can edit that body line; ci-status's label
+  steps fail while it is on, and removing it lifts the hold. ci-status reads no body hold text: a
+  person who wants a PR held applies `do-not-merge`. On a lanes App PR, a member's veto comment
+  still fails ci-status's merge-holds step until a later comment by the same member lifts it.
 - **Both lanes review the head.** On a ready PR, the newest `pull_request` run of each caller on the
   head must have a successful status job (`pr-review / claude-review-status`,
   `pr-review-security / security-review`) whose `Apply the hold` step ran. A summary-mode run or
@@ -2873,13 +2872,24 @@ them on every `pull_request` run, contract-only runs included:
   A draft is exempt. Restoring the App hold takes three steps: list `melodic-agent[bot]` again, set
   `merge.diff-check.path-holds` true and run `scripts/sync-hold-floor.py`, because ci-status's inline hold runs only while `path-holds` is
   true.
-- **A stopped lane holds its head.** ci-status fails while the newest `pr-unblock/*` commit status
-  on the head by `github-actions[bot]` is `failure` or `error`, naming each such context; a later
-  `success` on the same head (`report-escalation.sh clear`) supersedes it, and another account's
-  status is not read. The merge-group run checks the queued pull request's head too. A status post
-  re-runs nothing, so a stop posted after ci-status passed holds at the merge queue's run. A clear
-  re-runs nothing either: the next `maintenance-reconcile-lost-runs` run (half-hourly) re-runs,
-  once and recorded, a first-attempt ci-status that failed only on stops once none fails the head.
+- **A stopped lane does not hold ci-status.** A `pr-unblock/*` failure status is read only by
+  `enable-auto-merge.mjs`, which does not arm the head. A stop that needs a session puts
+  `needs-session` on the PR, including the review round cap, an uncertain finding and a disputed
+  finding, and a session's answer on the thread restarts address-feedback. A stop with no label
+  leaves the condition it stopped on, which blocks the merge by itself:
+  - `address-feedback` (`feedback-not-converging`, `-not-landed`, `-invalid`, `-partial`,
+    `-publish-failed`, `-incomplete`, `-stood-open`, `-verifier-open`): a review thread stays
+    unresolved, and the ruleset requires thread resolution.
+  - `resolve-conflicts` (`workflow-staged`, `unexpected-path-staged`, `repeat-cap`,
+    `unresolved-conflict`, `conflict-patch-invalid`, `conflict-patch-not-applied`): the lane pushed
+    no merge, so the conflict stays, and GitHub merges no conflicted PR.
+  - `sync-shared-copies` (`shared-copy-workflow-staged`, `shared-copy-patch-invalid`,
+    `shared-copy-patch-not-applied`): the human-gated label pr-merge's
+    `shared-copy-sources-changed` refusal put on stays until the head moves.
+  - `fix-ci` (`ci-fix-round-cap`, `ci-fix-empty`, `ci-fix-invalid`, `ci-fix-not-applied`,
+    `ci-fix-weaken-retry`): the failing check stays red, so ci-status fails.
+  - `review-dependency` (`dependency-invalid`): no merge marker is posted, and pr-merge merges a
+    review-tier update only on one (tier `review` above).
 
 A review usually finishes after ci-status has read it, so `pr-feedback-dispatch.yml`'s
 `rerun-ci-status` job re-runs the ci-status job of the newest `pr-require-checks` run on the head
@@ -3138,7 +3148,7 @@ Which GitHub identity each workflow in `.github/workflows/` writes as. GitHub's 
 | Identity | Workflows | Why |
 |---|---|---|
 | `GITHUB_TOKEN` (`github-actions[bot]`) | every workflow not named below, and the reads and check runs of those that are | Its writes start no workflow run, a dispatch aside, which the lane sweep's digest and the monitoring lane rely on so their own issues start no lane; it has its own per-repository API quota ([ADR 0085](../../adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md)) |
-| Lanes App `melodic-automation-lanes`, minted per job by the broker (`.github/actions/request-lane-token`) | `pr-merge.yml`, `pr-run-activity-write.yml` (which the write jobs of `pr-unblock`, `pr-refine` and `work-resolve-issue` call), `intake-triage.yml`, `work-unblock.yml` | Its pushes, labels and auto-merge arms must start the next lane's runs, which a `GITHUB_TOKEN` write does not; one App identity also lets the person tests tell a lane from a person ([lane write identity](../loop-lane/README.md#lane-write-identity)) |
+| Lanes App `melodic-automation-lanes`, minted per job by the broker (`.github/actions/request-lane-token`) | `pr-merge.yml`, `pr-run-activity-write.yml` (which the write jobs of `pr-unblock`, `pr-refine` and `work-resolve-issue` call), `intake-triage.yml`, `work-unblock.yml`, `upstream-apply-changelog.yml` | Its pushes, labels and auto-merge arms must start the next lane's runs, which a `GITHUB_TOKEN` write does not; one App identity also lets the person tests tell a lane from a person ([lane write identity](../loop-lane/README.md#lane-write-identity)) |
 | Release App (`PLUGIN_RELEASE_APP_PRIVATE_KEY`, `actions/create-github-app-token`) | `release-publish-plugins.yml`, `dependabot-fragments.yml` | A pull request `GITHUB_TOKEN` opens or updates gets its `pull_request` runs only after approval, and these pull requests need theirs unattended |
 | Owner token | none | Only the owner's own sessions use it; the babysit scripts count its calls as the `owner-token` API pool |
 

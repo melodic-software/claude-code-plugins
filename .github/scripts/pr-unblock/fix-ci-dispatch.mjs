@@ -10,11 +10,11 @@
 // from a head branch a workflow owns and rebuilds (merge.refire-skip-branches,
 // the release branch) is never dispatched: the rebuild is its fix.
 //
-// The listing is one GraphQL query per page of 50 pull requests: each one's
-// author, labels, body, last update, and its last commit's date and check
-// rollup. Its rateLimit.cost
-// is logged, the baseline for what the listing spends; the same query reads
-// when the base tip was committed. A head is dispatched when it has no
+// The listing is dispatch.mjs's LIST_QUERY, one GraphQL query per page of 50
+// pull requests shared with the run's other dispatchers: each one's author,
+// labels, body, last update, and its last commit's date and check rollup. Its
+// rateLimit.cost is logged; the same query reads when the base tip was
+// committed. A head is dispatched when it has no
 // pr-unblock / fix-ci check run from the GitHub Actions app, or when every
 // such run failed or found no failing check, fewer than
 // `limit-stops-per-head` of them stand on it, and since the base tip at most
@@ -106,38 +106,6 @@ export function humanGatedLabel(text) {
   const label = JSON.parse(text)?.config?.role_labels?.["human-gated"];
   return typeof label === "string" && label.trim() !== "" ? label.trim() : "needs-human";
 }
-
-export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!, $after: String) {
-  rateLimit { cost remaining }
-  repository(owner: $owner, name: $name) {
-    ref(qualifiedName: $base) { target { ... on Commit { committedDate } } }
-    pullRequests(states: OPEN, baseRefName: $base, first: 50, after: $after) {
-      nodes {
-        number isDraft isCrossRepository baseRefName baseRefOid headRefName headRefOid updatedAt body
-        author { __typename login ... on Bot { databaseId } ... on User { databaseId } }
-        labels(first: 100) { nodes { name } }
-        commits(last: 1) {
-          nodes {
-            commit {
-              oid committedDate
-              statusCheckRollup {
-                contexts(first: 100) {
-                  nodes {
-                    __typename
-                    ... on CheckRun { name status conclusion title completedAt checkSuite { app { databaseId } } }
-                    ... on StatusContext { context state createdAt creator { __typename ... on Bot { databaseId } } }
-                  }
-                  pageInfo { hasNextPage }
-                }
-              }
-            }
-          }
-        }
-      }
-      pageInfo { hasNextPage endCursor }
-    }
-  }
-}`;
 
 // The check runs the GitHub Actions app posted on the PR's head.
 function headChecks(node, actionsAppId) {
