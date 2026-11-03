@@ -4281,11 +4281,14 @@ const doneSub = (number, reason = "completed") => ({ number, state: "closed", st
 const VERIFIED = "verified-done: every done-when item checks out: the guide names each flag (#80), the tests cover each (#81)";
 
 test("main closes a verified-done parent only when every sub-issue is closed as completed among VERIFY_CLOSE", async () => {
-  const done = await stopRun({ reason: VERIFIED, routes: [subs(doneSub(80), doneSub(81))], extraEnv: { VERIFY_CLOSE: "80,81" } });
+  const checks = "The guide names each flag: #80.\nThe tests cover each flag: #81.";
+  const done = await stopRun({ reason: VERIFIED, summary: checks, routes: [subs(doneSub(80), doneSub(81))], extraEnv: { VERIFY_CLOSE: "80,81" } });
   assert.equal(done.code, 0);
   assert.deepEqual(done.calls.find((c) => c.method === "PATCH").body, { state: "closed", state_reason: "completed" });
   const comment = done.calls.find((c) => c.method === "POST").body.body;
   assert.match(comment, /^<!-- work-resolve-issue outcome=closed run=123 -->/);
+  // The close posts each check the run cites (its summary).
+  assert.match(comment, /The run's report:\n\n> The guide names each flag: ＃80\.\n> The tests cover each flag: ＃81\./);
   // The stop line carries the code, so a verify run's close is told apart from
   // an already-done one when close lag is measured again.
   assert.equal(closeStop(comment).stop, "verified-done");
