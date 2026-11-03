@@ -1772,9 +1772,12 @@ rdt_name_set() {
   RDT_NAME_SET_CALLS=$((RDT_NAME_SET_CALLS + 1))
   ((RDT_NAME_SET_CALLS > RDT_NAME_SET_MAX || $2 > 4)) && return 1
   # Bash removes quotes before a builtin parses its words, so the setter checks
-  # read the command with them gone (`printf -v"S"`, `read '-aS'`).
-  local tq="${t//\$\'/}"
-  tq="${tq//[\"\'\\]/}"
+  # read the command with them gone (`printf -v"S"`, `read '-aS'`). `$'...'` and
+  # `$"..."` can spell the name in escapes this reading does not decode
+  # (`printf -v $'\x53'`), so beside a setter builtin they fail outright.
+  re='(^|[^A-Za-z0-9_])(read|mapfile|readarray|getopts|select|printf|wait|declare|typeset|local)([^A-Za-z0-9_]|$)'
+  [[ "$t" =~ $re && ("$t" == *"\$'"* || "$t" == *'$"'*) ]] && return 1
+  local tq="${t//[\"\'\\]/}"
   re="(^|[^A-Za-z0-9_])${n}\\+=|\\$\\{${n}:?=|(^|[^A-Za-z0-9_])(read|mapfile|readarray|getopts|select|printf[[:space:]]+-v|wait[[:space:]]+-p|(declare|typeset|local)([[:space:]]+[-+][A-Za-z]+)*[[:space:]]+-[A-Za-z]*n[A-Za-z]*)[[:space:]]([^;&|"$'\n'"]*[[:space:]])?${n}([^A-Za-z0-9_]|$)"
   [[ "$tq" =~ $re ]] && return 1
   # A name-taking option with its name glued on (`printf -vS`, `read -raS`,
@@ -1782,8 +1785,9 @@ rdt_name_set() {
   local re_any="[[:space:]]([^;&|"$'\n'"]*[[:space:]])?-[A-Za-z]*"
   re="(^|[^A-Za-z0-9_])(read${re_any}a|printf${re_any}v|wait${re_any}p)${n}([^A-Za-z0-9_]|$)"
   [[ "$tq" =~ $re ]] && return 1
-  # So does a subscript assignment (`S[0]=`).
-  re="(^|[[:space:];&|(\"'])${n}\\["
+  # So does a subscript assignment (`S[0]=`, `S[ 0 ]+=`): a `]=` somewhere after
+  # `NAME[`, so `echo "S[1]"` alone stays allowed.
+  re="(^|[[:space:];&|(\"'])${n}\\[.*\\]\\+?="
   [[ "$t" =~ $re ]] && return 1
   # Another word-split separator, or a command that can set any name out of sight.
   [[ "$t" =~ $RDT_NAME_SET_FORBID_RE ]] && return 1

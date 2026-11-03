@@ -891,6 +891,14 @@ expect_both 'unset suffixed: a quoted glued printf option word blocks' 2 "${RDT_
 expect_both 'unset suffixed: read -a with a quoted glued name blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; read -a"S" <f; rm -rf $S/x'
 expect_both 'unset suffixed: a quoted glued read option word blocks' 2 "${RDT_CWD[@]}" --command "S=/tmp; read '-aS' <f; rm -rf \$S/x"
 expect_both 'unset suffixed: printf -v with a quoted separate name blocks' 2 "${RDT_CWD[@]}" --command "S=/tmp; printf -v \"S\" '/ tmp'; rm -rf \$S/x"
+expect_both 'unset suffixed: printf -v with a glued locale-quoted name blocks' 2 "${RDT_CWD[@]}" --command "S=/tmp; printf -v\$\"S\" '/ tmp'; rm -rf \$S/x"
+expect_both 'unset suffixed: printf -v with a separate locale-quoted name blocks' 2 "${RDT_CWD[@]}" --command "S=/tmp; printf -v \$\"S\" '/ tmp'; rm -rf \$S/x"
+expect_both 'unset suffixed: read -a with a locale-quoted name blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; read -a $"S" <f; rm -rf $S/x'
+expect_both 'unset suffixed: printf -v with an ANSI-C escaped name blocks' 2 "${RDT_CWD[@]}" --command "S=/tmp; printf -v \$'\\x53' '/ tmp'; rm -rf \$S/x"
+expect_both 'unset suffixed: printf -v with a glued ANSI-C name blocks' 2 "${RDT_CWD[@]}" --command "S=/tmp; printf -v\$'S' '/ tmp'; rm -rf \$S/x"
+expect_both 'unset suffixed: a spaced subscript assignment blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; S[ 0 ]="/ tmp"; rm -rf $S/x'
+expect_both 'unset suffixed: a subscript only inside a string stays allowed' 0 "${RDT_CWD[@]}" --command 'S=/tmp/x; echo "S[1]"; echo "$(date)"; rm -rf $S/y'
+expect_both 'unset suffixed: ANSI-C quoting with no setter stays allowed' 0 "${RDT_CWD[@]}" --command "S=/tmp/x; echo \$'a\\tb'; echo \"\$(date)\"; rm -rf \$S/y"
 expect_both 'unset suffixed: read -r of another name stays allowed for r' 0 "${RDT_CWD[@]}" --command 'r=/tmp/x; read -r line </dev/null; rm -rf $r/y'
 expect_both 'unset suffixed: printf -v into another name stays allowed for v' 0 "${RDT_CWD[@]}" --command 'v=/tmp/x; printf -v output hello; rm -rf $v/y'
 expect_both 'unset suffixed: a nameref flag after another flag blocks' 2 "${RDT_CWD[@]}" --command 'R="/ tmp"; declare -g -n S=R; rm -rf $S/x'
