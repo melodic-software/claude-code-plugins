@@ -808,14 +808,16 @@ elif ((run_tests)); then
         bash "$tools/scripts/run-outside-node-suites.sh" --paths "$out.node" || return
       done
     fi
+    local summary=''
+    ((${#left[@]} == 0)) || summary="${#left[@]} selected suite(s) left to CI, past the ${budget}s budget"
     if ((${#unrun[@]})); then
       printf 'not run here: %s\n' "${unrun[@]}"
-      echo "${#unrun[@]} selected suite(s) not run here, left to their own CI lanes${missing:+ ($missing not installed)}"
+      summary+="${summary:+; }${#unrun[@]} selected suite(s) not run here, left to their own CI lanes${missing:+ ($missing not installed)}"
     fi
-    if ((${#left[@]})); then
-      echo "${#left[@]} selected suite(s) left to CI, past the ${budget}s budget"
+    if [[ -n "$summary" ]]; then
+      echo "$summary"
+      return 2
     fi
-    ((${#unrun[@]} == 0 && ${#left[@]} == 0)) || return 2
   }
   if ((npm_failed)); then
     skip tests "npm dependencies did not install"

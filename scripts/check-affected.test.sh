@@ -326,7 +326,7 @@ check "--tests still fails on a failed suite when the budget left others" \
   '[[ $RC == 1 && $ERR == *"FAIL tests"* && $ERR == *"SKIP tests: plugins/a/a.test.sh ("* ]]'
 run STUB_LEFT=$'plugins/a/a.test.sh\n' STUB_AFFECTED_TESTS=3 STUB_NOT_RUN=$'eco/test_x.py\n' -- --base base --tests --budget 45
 check "--tests counts both the suites its budget left and those it does not run" \
-  '[[ $RC == 0 && $ERR == *"SKIP tests: plugins/a/a.test.sh ("* && $ERR == *"1 selected suite(s) left to CI, past the 45s budget"* ]]'
+  '[[ $RC == 0 && $ERR == *"SKIP tests: plugins/a/a.test.sh ("* && $ERR == *"exit 2: 1 selected suite(s) left to CI, past the 45s budget; 1 selected suite(s) not run here, left to their own CI lanes)"* ]]'
 run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN=$'eco/test_x.py\neco/X.Tests.ps1\n' -- --base base --tests
 check "--tests reports selected suites left unrun as a skip counting them, never a pass" \
   '[[ $RC == 0 && $ERR == *"SKIP tests (could not run, exit 2: 2 selected suite(s) not run here, left to their own CI lanes)"* ]]'
