@@ -254,7 +254,6 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/computer-use:diagnose`](../plugins/computer-use/skills/diagnose/SKILL.md) | `computer-use` | Resolve computer-use capture, input, and screenshot symptoms to a cause |
 | [`/context-budget:audit`](../plugins/context-budget/skills/audit/SKILL.md) | `context-budget` | Measure the startup context payload per item and ledger every lever's real delta |
 | [`/context-budget:check`](../plugins/context-budget/skills/check/SKILL.md) | `context-budget` | Report whether node resolves for the context-budget hooks. Never installs. |
-| [`/context-guard:check`](../plugins/context-guard/skills/check/SKILL.md) | `context-guard` | Report whether node and jq resolve and whether the context-guard mod can load. Never installs. |
 | [`/context7:check`](../plugins/context7/skills/check/SKILL.md) | `context7` | Report whether ctx7, its auth and the Context7 MCP server resolve. Never installs. |
 | [`/coupling:reduce`](../plugins/coupling/skills/reduce/SKILL.md) | `coupling` | Scan for change-transmitting coupling, apply safe reductions in a budgeted batch, route the rest |
 | [`/desktop-notification:check`](../plugins/desktop-notification/skills/check/SKILL.md) | `desktop-notification` | Report whether node and jq resolve for the desktop-notification hooks. Never installs. |
@@ -275,7 +274,6 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/discipline:tighten-your-output`](../plugins/discipline/skills/tighten-your-output/SKILL.md) | `discipline` | Tighten prose and code. Fewer words, no semantic loss |
 | [`/discipline:use-your-skills`](../plugins/discipline/skills/use-your-skills/SKILL.md) | `discipline` | Map the task to available skills and invoke them instead of reinventing |
 | [`/discipline:wait-what`](../plugins/discipline/skills/wait-what/SKILL.md) | `discipline` | Re-pitch the message that did not land. Missing context added, plain register, project vocabulary |
-| [`/discovery:check`](../plugins/discovery/skills/check/SKILL.md) | `discovery` | Report whether node resolves and the WebFetch truncation hook is registered. Never installs. |
 | [`/disk-hygiene:audit`](../plugins/disk-hygiene/skills/audit/SKILL.md) | `disk-hygiene` | Scan a directory tree for stale leftovers and report the evidence, read-only |
 | [`/disk-hygiene:check`](../plugins/disk-hygiene/skills/check/SKILL.md) | `disk-hygiene` | Report whether node, bash and a supported Python resolve for the disk-hygiene guard. Never installs. |
 | [`/disk-hygiene:clean`](../plugins/disk-hygiene/skills/clean/SKILL.md) | `disk-hygiene` | Audit a directory tree for stale leftovers and remove validated paths |
@@ -325,7 +323,6 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/instruction-placement:delta`](../plugins/instruction-placement/skills/delta/SKILL.md) | `instruction-placement` | Report only what moved since the last placement audit |
 | [`/markdown-format:check`](../plugins/markdown-format/skills/check/SKILL.md) | `markdown-format` | Report whether markdownlint-cli2 and node are installed. Never installs. |
 | [`/multi-agent:audit-defaults`](../plugins/multi-agent/skills/audit-defaults/SKILL.md) | `multi-agent` | Recheck the routing defaults against their upstream sources |
-| [`/multi-agent:check`](../plugins/multi-agent/skills/check/SKILL.md) | `multi-agent` | Report whether node resolves and the drift-checker fetch gate is registered. Never installs. |
 | [`/overengineering:audit`](../plugins/overengineering/skills/audit/SKILL.md) | `overengineering` | Audit the enforcement surface for mechanisms no longer earning their carry cost |
 | [`/overengineering:delta`](../plugins/overengineering/skills/delta/SKILL.md) | `overengineering` | Re-run the enforcement-surface audit and report only what moved since the last run |
 | [`/overengineering:justify`](../plugins/overengineering/skills/justify/SKILL.md) | `overengineering` | Make one artifact, or one proposal before it is built, justify its existence on evidence |
@@ -336,9 +333,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/playgrounds:use`](../plugins/playgrounds/skills/use/SKILL.md) | `playgrounds` | Route playground requests to the first-party plugin, or install it, with recipes and guidance |
 | [`/playwright:check`](../plugins/playwright/skills/check/SKILL.md) | `playwright` | Report whether playwright-cli and a browser resolve. Never installs. |
 | [`/powershell-format:check`](../plugins/powershell-format/skills/check/SKILL.md) | `powershell-format` | Report whether pwsh, PSScriptAnalyzer and node are installed. Never installs. |
-| [`/rate-limit-guard:check`](../plugins/rate-limit-guard/skills/check/SKILL.md) | `rate-limit-guard` | Report whether node resolves and whether the rate-limit-guard mod can load. Never installs. |
 | [`/repo-hygiene:clean`](../plugins/repo-hygiene/skills/clean/SKILL.md) | `repo-hygiene` | Clean caches, build artifacts, stale branches, and stashes per repo |
-| [`/review:check`](../plugins/review/skills/check/SKILL.md) | `review` | Report whether node resolves and the connected-page Artifact guard is registered. Never installs. |
 | [`/ruff-format:check`](../plugins/ruff-format/skills/check/SKILL.md) | `ruff-format` | Report whether ruff and node are installed. Never installs. |
 | [`/session-flow:check`](../plugins/session-flow/skills/check/SKILL.md) | `session-flow` | Report whether node and jq resolve for the session-flow observer hook. Never installs. |
 | [`/session-flow:recommend-skills`](../plugins/session-flow/skills/recommend-skills/SKILL.md) | `session-flow` | Lay out the skills that fit this moment as a ranked, nothing-hidden menu |
