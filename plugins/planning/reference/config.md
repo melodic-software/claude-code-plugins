@@ -154,6 +154,10 @@ Its values:
 - `devils-advocate`: `/planning:devils-advocate` only, whatever the blast radius.
 - `both`: both, whatever the blast radius.
 
+The default stays `auto` in every mode. The 12-plan eval could not measure what the stress test
+adds, because its negative control detected no loss
+([Probe result](https://github.com/melodic-software/claude-code-plugins/issues/12478#issuecomment-6610383544)).
+
 Under `devils-advocate` and `both`, an `incumbent` draft runs the skill's `incumbent` mode. Each mode
 resolves on its own, so a layer that sets one mode leaves the others to the layer below, and an
 invalid value drops only that mode's layer. The key is edited by hand: `/planning:setup apply` writes
