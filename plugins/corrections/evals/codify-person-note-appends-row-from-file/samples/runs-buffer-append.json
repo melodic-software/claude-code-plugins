@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/plugins/corrections/tools/findings-buffer/buffer.sh\" append < .work/codify/notes/20261020T100000Z.jsonl"
+          }
+        }
+      ],
+      "why": "the quoted-path form actions/note.md prescribes"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /plugins/corrections/tools/findings-buffer/buffer.sh append < .work/codify/notes/row.jsonl"
+          }
+        }
+      ],
+      "why": "unquoted path run through bash"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/plugins/corrections/tools/findings-buffer/buffer.sh\" read"
+          }
+        }
+      ],
+      "why": "a read, not an append"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -5"
+          }
+        }
+      ],
+      "why": "another command"
+    }
+  ]
+}

@@ -14,8 +14,14 @@ name: post-merge-demotion-alert
 # lane work: it is not sent to intake triage, since the fix issues below carry
 # the work. A schedule or dispatch record carries no label: it clears itself
 # once main is green at a later commit (babysit_merge_policy.py
-# `_recovered_at`). A canary record is labeled needs-human, since only a
-# person's close clears it. A fix issue or quarantine issue not delivered to
+# `_recovered_at`). A canary record is labeled needs-human, since a green main
+# does not clear it: it carries a lift block (babysit_lift.py canary-block)
+# naming the lines the canary found deleted, and lifts once they are back on
+# main or a referencing pull request merges with them (`_lift`), when the
+# close-cleared job closes it and removes the label. A canary record with no
+# block (the push's commits were not all read, the scan could not run, or the
+# block was too large) clears only on a
+# person's close. A fix issue or quarantine issue not delivered to
 # intake gets needs-human; the record does when a failing check got no fix
 # issue, whether over the cap, outside the name charset, or not filed.
 # The close-cleared job, on each completed scheduled full run, closes each
@@ -29,8 +35,9 @@ name: post-merge-demotion-alert
 # (a person, a release App), the issue's first line is `<!-- post-merge-failure
 # sha=<S> signal=<name> -->` instead, and no reader treats it as a demotion. A
 # full-run one is labeled as a full-run record above, and the close-cleared
-# job closes it too; a canary one is labeled needs-human on purpose, since a
-# canary files no fix issue and nothing else clears it. Anything the lookup cannot prove demotes.
+# job closes it too; a canary one is labeled needs-human, since a canary files
+# no fix issue, and lifts as a canary demotion record does. Anything the
+# lookup cannot prove demotes.
 #
 # A push to main that reverts a pull request the lanes App put in the merge
 # queue files a `revert` record. Every canary push run, whatever it concluded
@@ -42,8 +49,12 @@ name: post-merge-demotion-alert
 # file it once and never again after a person closes its record. A failed
 # canary still files its canary record too. A revert of a pull request someone
 # else enqueued files nothing; an unproven one demotes, a reverted commit whose
-# pull request cannot be read included. A revert record clears only when a
-# person closes it.
+# pull request cannot be read included. A revert record is labeled
+# needs-human and carries a lift block of the lines its revert commits
+# deleted; it holds the rung off until those lines are back on main, a pull
+# request that references it merges into main (babysit_merge_policy.py
+# `_lift`), or a person closes it. The close-cleared job closes a lifted
+# canary, revert or read-back record and removes its label.
 #
 # A red full run files only after one re-run of its failed jobs, which the
 # job waits up to 20 minutes for, fails again or does not finish, and only for checks that were not already failing on main's newest
@@ -701,7 +712,8 @@ jobs:
           # A failed read of github-actions[bot]'s records fails the job; a
           # failed read of the identity's warns and files from this workflow's
           # own records, which can add a record but never drop one.
-          # The sixth column lists the record's `- Revert commit:` SHAs.
+          # The sixth column lists the record's `- Revert commit:` SHAs; the
+          # seventh says whether its body carries a lift block.
           read_records() {
             gh api --paginate \
               "repos/$GITHUB_REPOSITORY/issues?state=all&creator=$1&per_page=100" \
@@ -709,7 +721,8 @@ jobs:
                 | [.[0], .[1], .[2], (.[3] | sub("^\\s+"; "") | split("\n")[0] | sub("\\s+$"; "")),
                    ([.[3] | split("\n")[] | select(startswith("- Failing run: "))][0] // ""
                     | ltrimstr("- Failing run: ") | sub("\\s+$"; "")),
-                   ([.[3] | split("\n")[] | capture("^- Revert commit: \u0060(?<c>[0-9a-f]{40})\u0060").c] | join(" ") | if . == "" then "none" else . end)]
+                   ([.[3] | split("\n")[] | capture("^- Revert commit: \u0060(?<c>[0-9a-f]{40})\u0060").c] | join(" ") | if . == "" then "none" else . end),
+                   (if any(.[3] | split("\n")[]; startswith("<!-- lift-content v1 ")) then "block" else "none" end)]
                 | @tsv'
           }
           own_records="$(read_records "${filers[0]}")"
@@ -758,10 +771,15 @@ jobs:
           #   is an unproven revert, which demotes.
           # Anchored at a line's start, never a substring, so prose, a quoted
           # line or another repository's pull request names nothing.
-          revert_pass() {
-            local prev c n t repo line message rest lines names unproven=''
-            local -a cs pushed=() fresh=()
-            local -A named=() listed=() prs=() unread=()
+          # push_range: the canary push run's commits into `pushed`, read once;
+          # `in_checkout` is set when they come from main's history, and
+          # `whole_push` when they are the whole push, uncut.
+          pushed=() in_checkout='' whole_push=''
+          push_range() {
+            local prev
+            if ((${#pushed[@]})); then
+              return 0
+            fi
             prev="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$RUN_WORKFLOW_ID/runs?event=push&branch=main&created=%3C$RUN_CREATED&per_page=20" \
               --jq '[.workflow_runs[] | select(.head_branch == "main" and .head_sha != env.RUN_SHA and .created_at < env.RUN_CREATED)]
                 | max_by(.created_at) // empty | .head_sha')" || prev=''
@@ -772,6 +790,8 @@ jobs:
               if ((${#pushed[@]} > 20)); then
                 echo "::warning::more than 20 commits since the previous canary push run at ${prev:0:12}: reading the newest 20"
                 pushed=("${pushed[@]:0:20}")
+              elif ((${#pushed[@]})); then
+                whole_push=1
               fi
             else
               echo "::warning::the previous canary push run's head could not be read or is not on ${RUN_SHA:0:12}'s history: reading the newest 20 commits"
@@ -779,7 +799,24 @@ jobs:
             fi
             if ((${#pushed[@]} == 0)); then
               pushed=("$RUN_SHA")
+            else
+              in_checkout=1
             fi
+          }
+          # lift_block_of <canary-block|revert-block> <commit>...: the lift
+          # block babysit_lift.py on main writes for those commits, which a
+          # canary or revert record carries so a lane can check its lift
+          # (babysit_merge_policy.py `_lift`); fails when none can be written.
+          lift_block_of() {
+            local tool=.base/plugins/source-control/skills/babysit-prs/scripts/babysit_lift.py
+            [[ -f "$tool" ]] || return 1
+            python3 "$tool" "$1" --repo-dir .base "${@:2}"
+          }
+          revert_pass() {
+            local c n t repo line message rest lines names unproven='' revert_block
+            local -a cs fresh=()
+            local -A named=() listed=() prs=() unread=()
+            push_range
             # prs: the pull requests each commit names; unread: the reverted
             # commits it names whose subject could not be read.
             for c in "${pushed[@]}"; do
@@ -872,18 +909,26 @@ jobs:
             for c in "${fresh[@]}"; do
               lines="$lines- Revert commit: \`$c\`"$'\n'
             done
+            # The lines the revert deleted, so the record lifts once they are
+            # back on main; without a block only a referencing merge lifts it.
+            revert_block=''
+            if [[ -n "$in_checkout" ]]; then
+              revert_block="$(lift_block_of revert-block "${fresh[@]}")" || revert_block=''
+            fi
             # A failed write still lets a failed canary file its own record;
             # the job fails at its end.
             if ! gh api -X POST "repos/$GITHUB_REPOSITORY/issues" -f 'labels[]=needs-human' \
               -f title="Post-merge revert${names:+ of $names} at ${RUN_SHA:0:12}: unattended merging demoted" \
               -f body="<!-- babysit-merge-demotion sha=$RUN_SHA signal=revert -->
 
-          A push to main reverted a pull request the lanes App put in the merge queue, or one whose enqueuer or pull request could not be read. The unattended merge path stays at rung off while this record, or any other demotion record, is open. A person closes it directly (not through a pull request's closing keyword) to re-enable unattended merging.
+          A push to main reverted a pull request the lanes App put in the merge queue, or one whose enqueuer or pull request could not be read. The unattended merge path stays at rung off while this record, or any other demotion record, holds. It lifts once the reverted lines are back on main, or once a pull request that references this record merges into main, re-landing the reverted change or confirming the revert (babysit_merge_policy.py \`_lift\`); a lane then closes it. A person's direct close also clears it.
 
           $lines- Main at the push: \`$RUN_SHA\`
           - Canary run: $sighting
 
-          Find out why the pull request was reverted before closing this record." >/dev/null; then
+          Find out why the pull request was reverted, then reference this record from the pull request that re-lands it or confirms the revert.${revert_block:+
+
+          $revert_block}" >/dev/null; then
               echo "::error::could not file the revert demotion issue for ${RUN_SHA:0:12}"
               trap 'echo "::error::the revert demotion issue was not filed"; exit 1' EXIT
             else
@@ -902,6 +947,7 @@ jobs:
           number=''
           state=''
           filed=''
+          has_block=''
           while IFS=$'\t' read -r n s _ first failing _; do
             # A record matched by its failing run must be a demotion record:
             # anything else names the run without holding the gate.
@@ -913,6 +959,21 @@ jobs:
               break
             fi
           done <<<"$records"
+          # awk, not read: an empty column would shift read's fields.
+          if [[ -n "$number" ]]; then
+            has_block="$(awk -F'\t' -v n="$number" '$1 == n && $7 == "block" { print 1; exit }' <<<"$records")"
+          fi
+          # canary_block: the lift block of the canary push run's commits, or
+          # empty when none can be written (the record then stays human-close).
+          canary_block=''
+          if [[ "$signal" == canary && -z "$passed" && -z "$has_block" ]]; then
+            push_range
+            # A cut or guessed range could leave out the deleting commit, and
+            # a block that understates the deletion would lift the record.
+            if [[ -n "$whole_push" ]]; then
+              canary_block="$(lift_block_of canary-block "${pushed[@]}")" || canary_block=''
+            fi
+          fi
 
           if [[ -n "$passed" && -z "$number" ]]; then
             echo "attempt $RUN_ATTEMPT passed and no record exists: nothing to file"
@@ -922,6 +983,17 @@ jobs:
             comments="$(LANE_FILER="$lane_filer" gh api --paginate \
               "repos/$GITHUB_REPOSITORY/issues/$number/comments?per_page=100" \
               --jq '.[] | select(.user.login | IN("github-actions[bot]", env.LANE_FILER)) | .body')"
+            # A canary record filed without a lift block (babysit_postmerge.py
+            # has no checkout to scan) gets it as a comment, once.
+            if [[ -n "$canary_block" ]] && ! grep -q '^<!-- lift-content v1 ' <<<"$comments"; then
+              if gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$number/comments" \
+                -f body="$canary_block
+          The content the canary found deleted, which this record's lift checks on main (babysit_merge_policy.py \`_lift\`)." >/dev/null; then
+                echo "recorded the deleted content on #$number"
+              else
+                echo "::warning::could not record the deleted content on #$number"
+              fi
+            fi
             if [[ -n "$passed" ]]; then
               note="re-run passed: $sighting"
               # A pass is noted only on a record of this run's failure.
@@ -1003,17 +1075,24 @@ jobs:
           fi
           # A full-run record clears itself once a full run passes on main at
           # a later commit (babysit_merge_policy.py `_recovered_at`), and its
-          # fix issues fix main; a canary record clears only on a person's
-          # direct close.
+          # fix issues fix main; a canary record with a lift block lifts on
+          # its own evidence (babysit_merge_policy.py `_lift`) and a lane
+          # closes it, and one without clears only on a person's direct close.
+          canary_lift="It lifts once the content whose deletion filed it is on main again, or once a pull request that references this record merges into main with that content in its tree (when nothing was deleted, with a canary run passing at its merge commit); a lane then closes it (babysit_merge_policy.py \`_lift\`)."
           rung="The unattended merge path stays at
           rung off while this record holds. It clears itself once a full run passes on main at a later commit; the fix issues fix main. A new sighting of the same failure reopens it."
-          if [[ "$signal" == canary ]]; then
+          if [[ "$signal" == canary && -n "$canary_block" ]]; then
             rung="The unattended merge path stays at
-          rung off while this record holds. Only a person's direct close (not through a pull request's closing keyword) clears it; a new sighting of the same failure reopens it."
+          rung off while this record holds. $canary_lift A person's direct close also clears it; a new sighting of the same failure reopens it."
+          elif [[ "$signal" == canary ]]; then
+            rung="The unattended merge path stays at
+          rung off while this record holds. Only a person's direct close (not through a pull request's closing keyword) clears it, since the deleted content could not be recorded for a lane to check; a new sighting of the same failure reopens it."
           fi
           if [[ -z "$lane" ]]; then
             rung='No merge in it was put in the merge queue by the lanes App, so the lane is NOT demoted and keeps merging; the fix issues fix main.'
-            if [[ "$signal" == canary ]]; then
+            if [[ "$signal" == canary && -n "$canary_block" ]]; then
+              rung="No merge in it was put in the merge queue by the lanes App, so the lane is NOT demoted and keeps merging. A canary failure files no fix issue, so this record stays labeled needs-human until it lifts. $canary_lift"
+            elif [[ "$signal" == canary ]]; then
               rung='No merge in it was put in the merge queue by the lanes App, so the lane is NOT demoted and keeps merging. A canary failure files no fix issue, so this record stays labeled needs-human for a person to fix main and close it.'
             fi
             if [[ "${#range[@]}" -eq 1 ]]; then
@@ -1063,8 +1142,10 @@ jobs:
           $pr_line- $sha_label: \`$RUN_SHA\`
           - Failing run: $sighting${newly_named:+
           - Newly failing: $newly_named}${fix_over:+
-          - More checks failed than were filed as fix issues: a run files at most 5, and none for a name outside A-Z a-z 0-9 space . _ : , / ( ) -}"
-          # A canary record needs a person's close; a full-run record clears
+          - More checks failed than were filed as fix issues: a run files at most 5, and none for a name outside A-Z a-z 0-9 space . _ : , / ( ) -}${canary_block:+
+
+          $canary_block}"
+          # A canary record keeps needs-human until it lifts; a full-run record clears
           # itself once main is green at a later commit, unless a failing
           # check got no fix issue (over the cap or outside the charset): then
           # a person holds that work.
@@ -1315,10 +1396,19 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      actions: read # list green full runs on main
-      contents: read # read merge.agent-identity on main, compare commits
-      issues: write # comment on and close a cleared record
+      actions: read # list green full runs and canary runs on main
+      contents: read # read merge.agent-identity, files and commits on main
+      issues: write # comment on, unlabel and close a cleared record
+      pull-requests: read # read the pull requests that reference a record
     steps:
+      # main's tip, for babysit_lift.py close; no code from outside main runs.
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
+
       - name: Close the records main cleared
         env:
           GH_TOKEN: ${{ github.token }}
@@ -1343,6 +1433,17 @@ jobs:
             filers+=("${identity%\[bot\]}%5Bbot%5D")
           else
             echo "::warning::merge.agent-identity '$identity' could not be read or is no App login: its records are not closed"
+            identity=''
+          fi
+          # Each open canary, revert or read-back record either filer opened
+          # that has lifted by the merge gate's own rule (babysit_merge_policy.py
+          # `_lift`, run from main's checkout) is commented on, loses its
+          # human-gated label and is closed as completed; a failed read closes
+          # nothing.
+          lift_tool=.base/plugins/source-control/skills/babysit-prs/scripts/babysit_lift.py
+          if [[ -f "$lift_tool" ]]; then
+            python3 "$lift_tool" close --repo "$GITHUB_REPOSITORY" --identity "$identity" ||
+              echo "::warning::the lifted records could not be closed"
           fi
           if ! tip="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)" ||
             [[ ! "$tip" =~ ^[0-9a-f]{40}$ ]]; then

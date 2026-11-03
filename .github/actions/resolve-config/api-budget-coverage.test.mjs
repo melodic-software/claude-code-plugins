@@ -10,10 +10,14 @@
 //   - runs a repository script (scripts/ or .github/scripts/, .sh or .bash,
 //     or any repository .sh or .bash a step env variable names and the step
 //     runs as `bash "$NAME"` or `"$NAME"`) whose own text does any of those;
-//   - uses resolve-config or check-trusted-trigger.
-// It does not see GitHub calls made from Node or Python (an api-budget.mjs
-// caller, babysit_gh.py), through a script a script runs or a scripts/lib file
-// a script sources, or through other gh subcommands.
+//   - uses resolve-config or check-trusted-trigger;
+//   - runs `node <path>.mjs` whose own text runs gh through child_process
+//     ("gh" as the file to run). Each such call sits in a counted helper, a
+//     top-level block naming api_budget_wrap_gh that runs gh under the
+//     wrapper for the token API_BUDGET_TOKEN names, which the job or step sets.
+// It does not see GitHub calls made through fetch or Python (an
+// api-budget.mjs caller, babysit_gh.py), through a script a script runs or a
+// scripts/lib file a script sources, or through other gh subcommands.
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path/posix";
@@ -29,6 +33,7 @@ const WORKFLOWS = new URL(".github/workflows/", ROOT);
 const NO_LOG = "no job-end log-api-budget step";
 const DECIDE_REBUILD =
   ".github/scripts/release-publish-plugins/decide-rebuild.sh does not wrap its gh calls";
+const LAST_REPORT = ".github/scripts/pr-merge/last-report.mjs";
 const ALLOWED = new Map([
   // No checkout to load the log-api-budget action from, and no contents: read
   // to check one out with; each counts its own POSTs and writes the api-calls
@@ -66,6 +71,28 @@ const ALLOWED = new Map([
   // The detector judges selection-audit.sh by the whole file; trace, the mode
   // this job runs, makes none of its gh calls (red-replay does).
   ["maintenance-audit-test-selection.yml:audit-test-selection", NO_LOG],
+  // Likewise upkeep.mjs: detect, the command this job runs, makes no gh call.
+  [
+    "maintenance-tidy-code-upkeep.yml:detect",
+    `${NO_LOG}; .github/scripts/maintenance-tidy-code-upkeep/upkeep.mjs counts its gh calls only under API_BUDGET_TOKEN`,
+  ],
+  // Node scripts that run gh through child_process with no counted helper.
+  [
+    "post-merge-demotion-alert.yml:alert",
+    ".github/scripts/post-merge-demotion-alert/failing-checks.mjs runs gh outside a counted helper (1 call site)",
+  ],
+  [
+    "pr-merge.yml:enable-auto-merge",
+    `${LAST_REPORT} runs gh outside a counted helper (1 call site)`,
+  ],
+  [
+    "pr-merge.yml:merge",
+    ".github/scripts/pr-merge/rotation.mjs runs gh outside a counted helper (1 call site)",
+  ],
+  [
+    "pr-merge.yml:post-merge-dispatch",
+    `${LAST_REPORT} runs gh outside a counted helper (1 call site)`,
+  ],
 ]);
 
 const GH_CALL =
@@ -74,6 +101,12 @@ const GH_ACTION = /\/actions\/(?:resolve-config|check-trusted-trigger)$/;
 const SCRIPT =
   /(?:^|[\s"'])(?:\.base\/)?((?:\.github\/)?scripts\/[\w./-]+\.(?:sh|bash))\b/g;
 const WRAP = /\bapi_budget_wrap_gh\b/;
+// A Node script a step runs, and a gh call in it through child_process: "gh"
+// as the file to run, passed to an exec or spawn function or a local helper.
+const NODE_SCRIPT =
+  /(?:^|[\s;&|(])node +(?:\.base\/|\.lane-trusted\/)?([\w./-]+\.mjs)\b/gm;
+const CHILD_PROCESS = /["'](?:node:)?child_process["']/;
+const NODE_GH = /["'`]gh["'`]\s*[,)]/g;
 // Running a script a step env variable names: `bash "$NAME"`, `sh "$NAME"`, or
 // "$NAME" as the command. Sourcing it (`. "$NAME"`) is not running it.
 const ENV_SCRIPT =
@@ -120,10 +153,32 @@ const detector = ({ read, exists }) => {
     const wrapper = join(dirname(path), rel);
     return exists(wrapper) && /\bapi_budget_wrap_gh\(\)/.test(read(wrapper));
   };
+  // A Node script's gh calls, as { counted, uncounted }: a call in a top-level
+  // block that names api_budget_wrap_gh is that counted helper's own (it runs
+  // gh under the wrapper, or bare with no token); any other is uncounted.
+  const nodeGh = (path) => {
+    const text = read(path);
+    const calls = { counted: 0, uncounted: 0 };
+    if (!CHILD_PROCESS.test(text)) return calls;
+    for (const block of text.split(/^(?=\S)/m)) {
+      const n = block.match(NODE_GH)?.length ?? 0;
+      const code = block.replace(/^\s*\/\/.*$/gm, "");
+      calls[WRAP.test(code) ? "counted" : "uncounted"] += n;
+    }
+    return calls;
+  };
+  const nodeScriptsOf = (step) =>
+    [...(step.run ?? "").matchAll(NODE_SCRIPT)]
+      .map(([, path]) => path)
+      .filter((path) => {
+        const { counted, uncounted } = nodeGh(path);
+        return counted + uncounted > 0;
+      });
   const stepCallsGitHub = (step) =>
     Boolean(actionOf(step)) ||
     GH_CALL.test(step.run ?? "") ||
-    scriptsOf(step).length > 0;
+    scriptsOf(step).length > 0 ||
+    nodeScriptsOf(step).length > 0;
   const sources = (run, path) =>
     new RegExp(
       `(?:^|[\\s;{(])(?:\\.|source) ["']?(?:\\.base/)?${path.replaceAll(".", "\\.")}`,
@@ -189,6 +244,17 @@ const detector = ({ read, exists }) => {
       .map(
         ([s, i]) => `step "${s.name ?? i}" calls gh without api_budget_wrap_gh`,
       );
+    // A Node script's counted helper takes its token name from API_BUDGET_TOKEN.
+    const nodeGaps = steps.flatMap((s) =>
+      nodeScriptsOf(s).map((path) => {
+        const { uncounted } = nodeGh(path);
+        if (uncounted)
+          return `${path} runs gh outside a counted helper (${uncounted} call site${uncounted === 1 ? "" : "s"})`;
+        return job.env?.API_BUDGET_TOKEN || s.env?.API_BUDGET_TOKEN
+          ? null
+          : `${path} counts its gh calls only under API_BUDGET_TOKEN`;
+      }),
+    );
     return [
       logs ? null : "no job-end log-api-budget step",
       ...new Set(actionGaps),
@@ -196,6 +262,7 @@ const detector = ({ read, exists }) => {
       ...[...new Set(unwrapped)].map(
         (path) => `${path} does not wrap its gh calls`,
       ),
+      ...new Set(nodeGaps),
     ].filter(Boolean);
   };
 
@@ -274,6 +341,12 @@ const files = {
   "scripts/bare.sh": "gh issue list\n",
   "scripts/names-only.sh":
     "# api_budget_wrap_gh is defined elsewhere\ngh pr view 1\n",
+  // Node: a counted helper and a call through it; a bare execFileSync and one
+  // through a local runner; a "gh" literal with no child_process import.
+  "scripts/counted.mjs": `import { execFileSync } from "node:child_process";\nexport function gh(args) {\n  if (!token) return execFileSync("gh", args);\n  return execFileSync("bash", ["-c", '. "$1" && api_budget_wrap_gh "$2" && shift 2 && gh "$@"', "gh", lib, token, ...args]);\n}\nconst x = gh(["pr", "list"]);\n`,
+  "scripts/bare.mjs": `import { execFileSync } from "node:child_process";\nconst run = (file, args) => execFileSync(file, args);\nexecFileSync("gh", ["api", "x"]);\nrun("gh", ["pr", "list"]);\n`,
+  "scripts/no-child.mjs": `const name = "gh";\nconsole.log(name, ["gh", 1]);\n`,
+  "scripts/comment-only.mjs": `import { execFileSync } from "node:child_process";\nfunction gh(args) {\n  // api_budget_wrap_gh is not called here\n  return execFileSync("gh", args);\n}\n`,
 };
 const fixture = detector({
   read: (path) => files[path] ?? "",
@@ -422,6 +495,38 @@ test("covered() names each missing piece", () => {
     }),
     [],
   );
+});
+
+test("a Node script's gh calls are counted only through a counted helper under API_BUDGET_TOKEN", () => {
+  const { covered, stepCallsGitHub } = fixture;
+  assert.deepEqual(
+    covered({ env, steps: [{ run: "node .base/scripts/counted.mjs gate" }, LOG] }),
+    [],
+  );
+  assert.deepEqual(
+    covered({
+      steps: [{ env, run: "node scripts/counted.mjs" }, LOG],
+    }),
+    [],
+  );
+  assert.deepEqual(
+    covered({ steps: [{ run: "node scripts/counted.mjs" }, LOG] }),
+    ["scripts/counted.mjs counts its gh calls only under API_BUDGET_TOKEN"],
+  );
+  assert.deepEqual(
+    covered({ env, steps: [{ run: "x=$(node .base/scripts/bare.mjs)" }] }),
+    [
+      "no job-end log-api-budget step",
+      "scripts/bare.mjs runs gh outside a counted helper (2 call sites)",
+    ],
+  );
+  // A comment naming the wrapper is not a counted helper.
+  assert.deepEqual(
+    covered({ env, steps: [{ run: "node scripts/comment-only.mjs" }, LOG] }),
+    ["scripts/comment-only.mjs runs gh outside a counted helper (1 call site)"],
+  );
+  assert.equal(stepCallsGitHub({ run: "node scripts/no-child.mjs" }), false);
+  assert.equal(stepCallsGitHub({ run: "node scripts/missing.mjs" }), false);
 });
 
 test("gaps() reports each uncovered job by file and id", () => {
