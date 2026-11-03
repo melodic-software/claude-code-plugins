@@ -25,6 +25,14 @@
     {
       "answer": "Permission denied (publickey) means the client offered the wrong key or no key, not a broken one. Check which ssh binary ran.",
       "why": "observed wording: 'wrong key or no key, not a broken one'"
+    },
+    {
+      "answer": "It fails with `Permission denied (publickey)`, which looks like a key problem but isn't one. Retry with ssh.exe.",
+      "why": "observed wording: 'looks like a key problem but isn't one'"
+    },
+    {
+      "answer": "Your keys and `~/.ssh/config` are probably fine. A new key pair would only add a key to manage.",
+      "why": "observed wording: a dotted path between 'keys' and 'are fine'"
     }
   ],
   "fail": [
@@ -42,6 +50,14 @@
     {
       "answer": "The config is not a broken one; your key is the problem, so regenerate it with ssh-keygen.",
       "why": "written to fail: 'not a broken one' about the config, then blames the key"
+    },
+    {
+      "answer": "This looks like a key problem, and it is one: regenerate the pair with ssh-keygen.",
+      "why": "written to fail: 'looks like a key problem' with no denial"
+    },
+    {
+      "answer": "Your key.pub file is the problem. The agent is fine, so regenerate the pair.",
+      "why": "written to fail: a dotted filename must not carry the match across to the agent"
     }
   ]
 }

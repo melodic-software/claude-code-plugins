@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# Writes ~/.config/fleet/FLEET.md, the manifest the reach skill reads first, for two
-# made-up hosts: desk-01 (the desktop, where the run is) and lap-01 (the laptop).
+# Writes .config/fleet/FLEET.md in the workspace, the manifest the reach skill reads
+# first, for two made-up hosts: desk-01 (the desktop, where the run is) and lap-01
+# (the laptop). It sits in the workspace, not under $HOME, because the agent never
+# sees $HOME: it expands ~ from the /home/<user> prefix of the absolute paths in its
+# context and the run denies that read. Each case's prompt names this location.
 # The runner sets HOME to the run's temporary home for a scaffold script
 # (https://code.claude.com/docs/en/plugin-evals, "Seed the workspace or
 # conversation"). The guard does not trust that alone: it refuses the account's
@@ -24,7 +27,7 @@ fi
 [[ -n "$real_home" ]] || refuse "the account's real home did not resolve"
 [[ "$(cd "$HOME" && pwd -P)" != "$(cd "$real_home" && pwd -P)" ]] || refuse "HOME is the account's real home: $HOME"
 
-d="$HOME/.config/fleet"
+d="$PWD/.config/fleet"
 f="$d/FLEET.md"
 [[ ! -e "$f" ]] || refuse "$f already exists"
 mkdir -p "$d"
