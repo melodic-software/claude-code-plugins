@@ -19,8 +19,7 @@ the tool's path when present, or `absent` when missing:
 
 - `jq`: !`command -v jq 2>/dev/null || echo absent`
 
-A row missing, reading as literal command text (the skill was reached through
-`/markdown-format:check`, where this line never runs), or reading `[shell command execution
+A row missing, reading as literal command text, or reading `[shell command execution
 disabled by policy]` carries no result: run that tool's `command -v` probe via Bash instead.
 
 ## Purpose

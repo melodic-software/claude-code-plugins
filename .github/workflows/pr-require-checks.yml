@@ -1745,17 +1745,18 @@ jobs:
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/check-comment-markers@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
-          # The audit-comment-residue skill IS a code-comment linter: its detector
+          # The remove-comments skill's audit action IS a code-comment linter: its detector
           # fixtures and shape library necessarily contain the markers this policy
           # bans (TODO/FIXME, PR/issue refs) as test corpus and as the documented
-          # TODO(#issue) sanctioned-exemption. Exempt that skill's scripts + evals
+          # TODO(#issue) sanctioned-exemption. Exempt that action's scripts + evals
           # (its SKILL.md is markdown, already outside the scan's extension set).
           # The implementation eval scaffolds write a PLAN.md whose `### Phase N:
           # ... [TODO]` heading is the phase status tag the skill under test reads,
           # not a comment; the scan sees the heredoc line as a shell comment.
           exclude: >-
-            :(exclude)plugins/code-tidying/skills/audit-comment-residue/scripts/**
-            :(exclude)plugins/code-tidying/skills/audit-comment-residue/evals/**
+            :(exclude)plugins/code-tidying/skills/remove-comments/scripts/detect*
+            :(exclude)plugins/code-tidying/skills/remove-comments/scripts/lib/**
+            :(exclude)plugins/code-tidying/skills/remove-comments/evals/**
             :(exclude)plugins/implementation/evals/*/scaffold.sh
 
       - name: Check repo-local hooks are wired in settings.json
@@ -6137,7 +6138,7 @@ jobs:
       # reader holds it (verify:spec-changed). A record or link that does not
       # read holds.
       # Pinned by scripts/ci-lanes-pr-hold.test.sh, which runs this body.
-      - name: Fail a lanes App pull request its body or a member holds
+      - name: Fail a lanes App pull request on kill switch, hold path, verifier or veto
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && github.event.pull_request.draft != true }}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -6436,17 +6437,31 @@ jobs:
             # holds on it and on the missing pass, and a trusted approval of the
             # head lifts both. An allow with no listing has no pass to bind.
             listed=true
+            pass_names=("pr-verify-$pr-$head-pass" "pr-verify-$pr-$head-pass-$digest"
+              "pr-verify-$pr-$head-pass-notes" "pr-verify-$pr-$head-pass-notes-$digest")
             if [ ! -s "$BABYSIT_VERIFY_LISTING" ]; then
               if jq -e --arg head "$head" '.head == $head and (.refusal | type) == "string"' "$RUNNER_TEMP/evidence.json" >/dev/null 2>&1; then
                 listed=false
                 echo "::notice::the verdict reader refused #$pr before listing artifacts; merge-holds.mjs judges its refusal with no pass."
+              elif [ -f "$(dirname "$VERIFY_EVIDENCE_SCRIPT")/verify-legacy-fails.json" ]; then
+                # FAIL index mode: the reader reads by exact name and saves no
+                # listing, so the head's pass names are read the same way.
+                found=""
+                for name in "${pass_names[@]}"; do
+                  page=$(read_api "the $name artifacts" "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$name&per_page=100" --jq '.artifacts[]') || exit 1
+                  found+="$page"$'\n'
+                done
+                jq -sc '{artifacts: .}' <<<"$found" >"$BABYSIT_VERIFY_LISTING" || {
+                  echo "::error::the pass artifacts of #$pr do not parse."
+                  exit 1
+                }
+                echo "the verdict reader ran in FAIL index mode for #$pr; its pass artifacts were read by exact name."
               else
                 echo "::error::the verdict reader read no artifact listing for #$pr: $(tr -d '\r\n%' <"$RUNNER_TEMP/evidence.json")"
                 exit 1
               fi
             fi
-            [ "$listed" = false ] || for name in "pr-verify-$pr-$head-pass" "pr-verify-$pr-$head-pass-$digest" \
-              "pr-verify-$pr-$head-pass-notes" "pr-verify-$pr-$head-pass-notes-$digest"; do
+            [ "$listed" = false ] || for name in "${pass_names[@]}"; do
               verdict=${name#"pr-verify-$pr-$head-"}
               verdict=${verdict%"-$digest"}
               runs=$(jq -r --arg name "$name" '.artifacts[] | select(.name == $name and .expired == false) | "\(.workflow_run.id) \(.id)"' "$BABYSIT_VERIFY_LISTING") || {
@@ -6505,8 +6520,11 @@ jobs:
             exit 1
           }
           # Exit 0 without the module's no-hold line ran no check: fail closed.
+          # The second line is the module's earlier wording: the module comes
+          # from main's tip, which a queued group that changes the wording has
+          # not reached yet.
           printf '%s\n' "$out"
-          grep -qxF "#$pr: no body hold, no member veto and no hold path." <<<"$out" || { echo "::error::merge-holds.mjs exited 0 without its verdict."; exit 1; }
+          grep -qxF -e "#$pr: no member veto and no hold path." -e "#$pr: no body hold, no member veto and no hold path." <<<"$out" || { echo "::error::merge-holds.mjs exited 0 without its verdict."; exit 1; }
           if [ "${#verdicts[@]}" -gt 0 ] && ! grep -qE "^#$pr: no verifier hold: " <<<"$out"; then
             echo "::error::merge-holds.mjs exited 0 without its verifier verdict."
             exit 1

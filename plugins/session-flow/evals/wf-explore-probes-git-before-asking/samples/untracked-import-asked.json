@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "json_out.py and csv_out.py were removed on purpose; xml_out.py is gone only from the working tree, so I read its last version.\n\nNeither probe names src/exporters/yaml_out.py. Should I investigate where it went?",
+      "why": "the question on its own line names yaml_out"
+    },
+    {
+      "answer": "- yaml_out.py: never tracked by git; do you want me to look into it before stage 2?",
+      "why": "question inline with the finding"
+    },
+    {
+      "answer": "Was `exporters.yaml_out` ever meant to exist, or should report.py drop that import?",
+      "why": "names the module, not the file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "yaml_out.py is missing and git has no record of it.\nReady for stage 2, Research?",
+      "why": "the question on the next line does not name yaml_out"
+    },
+    {
+      "answer": "yaml_out.py was never tracked; I searched the history and found nothing.",
+      "why": "names yaml_out with no question"
+    },
+    {
+      "answer": "Do you want me to restore xml_out.py from HEAD?",
+      "why": "a question naming only xml_out"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "fanout_diversity: model (docs/conventions/review.yaml)\n\n## Surfaces\n\nRan: [model:opus@high, model:sonnet@high]. Returned no result: []. Codex left out by request.",
+      "why": "repository layer read, one leaf per model tier, Codex not in the Ran list"
+    },
+    {
+      "answer": "fanout_diversity: model (repository)\n\n## Surfaces\n\nRan: [model:opus@high, model:sonnet@high]. Returned no result: []. Codex left out by request.",
+      "why": "fanout names the layer `repository` as often as the file path; the arm was used"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "fanout_diversity: model (docs/conventions/review.yaml)\n\n## Surfaces\n\nThe role map resolved fewer than two tiers, so the sweep ran lens.\nRan: [security-reviewer@high, code-reviewer@high]. Returned no result: [].",
+      "why": "model fell back to lens"
+    },
+    {
+      "answer": "fanout_diversity: model (docs/conventions/review.yaml)\n\n## Surfaces\n\nRan: [model:opus@high, model:sonnet@high, codex]. Returned no result: [].",
+      "why": "Codex ran in an arm that leaves it out"
+    },
+    {
+      "answer": "fanout_diversity: model (default)\n\n## Surfaces\n\nRan: [model:opus@high, model:sonnet@high]. Returned no result: []. Codex left out by request.",
+      "why": "the default layer means the repository's review.yaml was not read, so the arm was not used"
+    }
+  ]
+}

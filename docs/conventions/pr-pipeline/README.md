@@ -883,9 +883,12 @@ and none has to. The `review-threads` row alone also refuses a new file at mode 
 change to that mode (`new-exec-bit`), so address-feedback can drop an executable bit but never
 add one; `ci-context` and `issue` keep setting script bits. The `ci-context` and `review-threads`
 rows also refuse, in any case and through any `..` segment, a `.gitattributes` file at any depth
-(`gitattributes`), a path whose first segment is `.husky` (`husky`) and `lefthook.yml` at the root
-(`lefthook`): each changes what git, or a hook it runs, does on the next checkout or commit, so
-fix-ci and address-feedback cannot change them. No other row names these three.
+(`gitattributes`), a path whose first segment is `.husky` (`husky`) and every file lefthook reads
+its config or hook scripts from (`lefthook`): at the root, `lefthook`, `.lefthook`, `lefthook-local`
+and `.lefthook-local` with `.yml`, `.yaml`, `.toml`, `.json` or `.jsonc`; under a root `.config/`,
+`lefthook` and `lefthook-local` with those extensions; and a path whose first segment is `.lefthook`
+or `.lefthook-local`. Each changes what git, or a hook it runs, does on the next checkout or commit,
+so fix-ci and address-feedback cannot change them. No other row names these three.
 The `ci-context`, `docs`, `default`, `issue` and `merge-base` rows cap a patch at 300 paths, and the
 `merge-base` row a merge commit at 300 new blobs.
 `checkPatchRules` in
@@ -943,6 +946,7 @@ each entry once.
 | Within one PR, across write lanes | One queue: a write job waits for the one ahead and never cancels it | job group `pr-pipeline-write-<n>`, `queue: max`, on every write caller job |
 | `pr-unblock-dispatch` | One run at a time; a push cancels the run going, and a tick or hand run waits behind it; any newer run replaces one still waiting | workflow group `pr-unblock-dispatch`, `cancel-in-progress: ${{ github.event_name == 'push' }}` |
 | `pr-feedback-dispatch` | One run per reviewed head at a time; a waiting one is replaced | workflow group `pr-feedback-dispatch-<head SHA>` |
+| `pr-merge` `enable-auto-merge`, across PRs | One run at a time, sweeps and verdict wakes alike, since the lane-room check is not re-read after arming; none is cancelled, and a waiting sweep, or a newer wake for the same PR, does a wake's work. At the measured peak of 31 `pr-verify` completions in 15 minutes, all of them wakes, the job's 42-minute ceiling queues about 87, under GitHub's cap of 100; a run past the cap leaves its PR to the next scheduled run | job group `pr-merge-enable-auto-merge`, `queue: max` |
 
 The write group sits on each caller job, behind an `if:` that leaves out the lanes App's own
 `pull_request` events, so a lane's push never queues a job in it.
@@ -1949,9 +1953,9 @@ nothing. A pr-unblock run the switch stopped mid-run posts its check neutral `ki
 dispatcher counts as handling the head, so the next dispatcher run after the lift (the half-hourly
 `pr-unblock-dispatch.yml` tick, or a review completing at the head) dispatches it again, at most
 `limits.limit-stops-per-head` times per head, `SWEEP_HEAD_CAP` for `address-feedback`.
-`ci-status` enforces the same holds on every lanes App pull request, the two text holds and the
-hold paths, so one added after arming stops the merge without waiting for this job: its step
-`Fail a lanes App pull request its body or a member holds` runs
+`ci-status` enforces a member's veto comment and the hold paths on every lanes App pull request,
+so one added after arming stops the merge without waiting for this job: its step
+`Fail a lanes App pull request on kill switch, hold path, verifier or veto` runs
 `.github/scripts/pr-merge/merge-holds.mjs` as main has it, the module `enable-auto-merge.mjs` arms
 by, over the live body, discussion and changed files (renamed-from paths included) against main's
 `merge.diff-check.denied-paths` plus the path floor (`HOLD_PATH_FLOOR`, a constant of the module
@@ -3949,9 +3953,9 @@ list. The config reader reads the synced copy from the base SHA's
   rejects any value until a second repository adopts.
 - The post-merge failure remedy, revert or fail forward, is the per-repository `red-main.remedy`
   key ([Red main](#red-main)), not a choice by change type.
-- Holds converge on one label. `ci-status` enforces holds in seven places
-  ([Review-lane holds](#review-lane-holds)), and in a 2026-11-01 sample holds, not code, made 17 of 24 red
-  pull request runs and 10 of 12 red merge groups red
+- Holds converge on one label. On 2026-11-01 `ci-status` enforced holds in seven places
+  ([Review-lane holds](#review-lane-holds)), and in a sample that day holds, not code, made 17 of 24
+  red pull request runs and 10 of 12 red merge groups red
   ([#12284 audit](https://github.com/melodic-software/claude-code-plugins/issues/12284#issuecomment-6582114885)).
   The direction: a hold our own actors place is `do-not-merge`, read once per run; only the
   review lanes' critical-security and cost holds and the trust-path holds stay person-only. The
