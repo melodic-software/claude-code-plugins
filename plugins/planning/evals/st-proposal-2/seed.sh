@@ -20,54 +20,54 @@ cat > internal/config/config.go <<'EOF'
 package config
 
 import (
-	"log"
-	"os"
-	"strconv"
+    "log"
+    "os"
+    "strconv"
 
-	"gopkg.in/yaml.v3"
+    "gopkg.in/yaml.v3"
 )
 
 // Config is one scanhub process's settings.
 type Config struct {
-	Site         string `yaml:"site"`
-	ListenAddr   string `yaml:"listen_addr"`
-	SinkURL      string `yaml:"sink_url"`
-	BatchSize    int    `yaml:"batch_size"`
-	FlushSeconds int    `yaml:"flush_seconds"`
+    Site         string `yaml:"site"`
+    ListenAddr   string `yaml:"listen_addr"`
+    SinkURL      string `yaml:"sink_url"`
+    BatchSize    int    `yaml:"batch_size"`
+    FlushSeconds int    `yaml:"flush_seconds"`
 }
 
 // Defaults returns the settings used before any file is read.
 func Defaults() Config {
-	return Config{ListenAddr: ":7400", BatchSize: 100, FlushSeconds: 10}
+    return Config{ListenAddr: ":7400", BatchSize: 100, FlushSeconds: 10}
 }
 
 // Load reads the YAML file at path onto the defaults.
 func Load(path string) Config {
-	cfg := Defaults()
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		log.Printf("config: read %s: %v, using defaults", path, err)
-		return Defaults()
-	}
-	if err := yaml.Unmarshal(raw, &cfg); err != nil {
-		log.Printf("config: parse %s: %v, using defaults", path, err)
-		return Defaults()
-	}
-	return cfg
+    cfg := Defaults()
+    raw, err := os.ReadFile(path)
+    if err != nil {
+        log.Printf("config: read %s: %v, using defaults", path, err)
+        return Defaults()
+    }
+    if err := yaml.Unmarshal(raw, &cfg); err != nil {
+        log.Printf("config: parse %s: %v, using defaults", path, err)
+        return Defaults()
+    }
+    return cfg
 }
 
 // ApplyEnv copies the SCANHUB_* variables that are set onto cfg.
 func ApplyEnv(cfg Config) Config {
-	if v, err := strconv.Atoi(os.Getenv("SCANHUB_BATCH_SIZE")); err == nil {
-		cfg.BatchSize = v
-	}
-	if v, err := strconv.Atoi(os.Getenv("SCANHUB_FLUSH_SECONDS")); err == nil {
-		cfg.FlushSeconds = v
-	}
-	if v := os.Getenv("SCANHUB_SINK_URL"); v != "" {
-		cfg.SinkURL = v
-	}
-	return cfg
+    if v, err := strconv.Atoi(os.Getenv("SCANHUB_BATCH_SIZE")); err == nil {
+        cfg.BatchSize = v
+    }
+    if v, err := strconv.Atoi(os.Getenv("SCANHUB_FLUSH_SECONDS")); err == nil {
+        cfg.FlushSeconds = v
+    }
+    if v := os.Getenv("SCANHUB_SINK_URL"); v != "" {
+        cfg.SinkURL = v
+    }
+    return cfg
 }
 EOF
 
@@ -75,19 +75,19 @@ cat > internal/config/config_test.go <<'EOF'
 package config
 
 import (
-	"testing"
+    "testing"
 
-	"gopkg.in/yaml.v3"
+    "gopkg.in/yaml.v3"
 )
 
 func TestDecodeOntoPopulatedStructKeepsOtherFields(t *testing.T) {
-	cfg := Config{Site: "base", BatchSize: 100, FlushSeconds: 10}
-	if err := yaml.Unmarshal([]byte("batch_size: 40\n"), &cfg); err != nil {
-		t.Fatal(err)
-	}
-	if cfg.BatchSize != 40 || cfg.FlushSeconds != 10 || cfg.Site != "base" {
-		t.Fatalf("unexpected config: %+v", cfg)
-	}
+    cfg := Config{Site: "base", BatchSize: 100, FlushSeconds: 10}
+    if err := yaml.Unmarshal([]byte("batch_size: 40\n"), &cfg); err != nil {
+        t.Fatal(err)
+    }
+    if cfg.BatchSize != 40 || cfg.FlushSeconds != 10 || cfg.Site != "base" {
+        t.Fatalf("unexpected config: %+v", cfg)
+    }
 }
 EOF
 
@@ -96,71 +96,71 @@ cat > internal/ingest/batch.go <<'EOF'
 package ingest
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"time"
+    "bytes"
+    "context"
+    "encoding/json"
+    "fmt"
+    "net/http"
+    "time"
 )
 
 // Scan is one barcode read from a handheld scanner.
 type Scan struct {
-	Barcode string    `json:"barcode"`
-	Scanner string    `json:"scanner"`
-	At      time.Time `json:"at"`
+    Barcode string    `json:"barcode"`
+    Scanner string    `json:"scanner"`
+    At      time.Time `json:"at"`
 }
 
 // Batcher posts scans to sinkURL when size is reached or the interval passes.
 type Batcher struct {
-	SinkURL string
-	Size    int
-	Every   time.Duration
-	In      chan Scan
+    SinkURL string
+    Size    int
+    Every   time.Duration
+    In      chan Scan
 }
 
 // Run batches until ctx ends, then flushes what it holds.
 func (b *Batcher) Run(ctx context.Context) error {
-	tick := time.NewTicker(b.Every)
-	defer tick.Stop()
-	pending := make([]Scan, 0, b.Size)
-	for {
-		select {
-		case scan := <-b.In:
-			pending = append(pending, scan)
-			if len(pending) >= b.Size {
-				if err := b.post(pending); err != nil {
-					return err
-				}
-				pending = pending[:0]
-			}
-		case <-tick.C:
-			if len(pending) > 0 {
-				if err := b.post(pending); err != nil {
-					return err
-				}
-				pending = pending[:0]
-			}
-		case <-ctx.Done():
-			return b.post(pending)
-		}
-	}
+    tick := time.NewTicker(b.Every)
+    defer tick.Stop()
+    pending := make([]Scan, 0, b.Size)
+    for {
+        select {
+        case scan := <-b.In:
+            pending = append(pending, scan)
+            if len(pending) >= b.Size {
+                if err := b.post(pending); err != nil {
+                    return err
+                }
+                pending = pending[:0]
+            }
+        case <-tick.C:
+            if len(pending) > 0 {
+                if err := b.post(pending); err != nil {
+                    return err
+                }
+                pending = pending[:0]
+            }
+        case <-ctx.Done():
+            return b.post(pending)
+        }
+    }
 }
 
 func (b *Batcher) post(scans []Scan) error {
-	body, err := json.Marshal(scans)
-	if err != nil {
-		return err
-	}
-	resp, err := http.Post(b.SinkURL, "application/json", bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 300 {
-		return fmt.Errorf("sink returned %s", resp.Status)
-	}
-	return nil
+    body, err := json.Marshal(scans)
+    if err != nil {
+        return err
+    }
+    resp, err := http.Post(b.SinkURL, "application/json", bytes.NewReader(body))
+    if err != nil {
+        return err
+    }
+    defer resp.Body.Close()
+    if resp.StatusCode >= 300 {
+        return fmt.Errorf("sink returned %s", resp.Status)
+    }
+    return nil
 }
 EOF
 
@@ -169,49 +169,49 @@ cat > cmd/scanhub/main.go <<'EOF'
 package main
 
 import (
-	"context"
-	"encoding/json"
-	"flag"
-	"log"
-	"net/http"
-	"os/signal"
-	"syscall"
-	"time"
+    "context"
+    "encoding/json"
+    "flag"
+    "log"
+    "net/http"
+    "os/signal"
+    "syscall"
+    "time"
 
-	"example.invalid/scanhub/internal/config"
-	"example.invalid/scanhub/internal/ingest"
+    "example.invalid/scanhub/internal/config"
+    "example.invalid/scanhub/internal/ingest"
 )
 
 func main() {
-	path := flag.String("config", "/etc/scanhub/base.yaml", "path to the settings file")
-	flag.Parse()
+    path := flag.String("config", "/etc/scanhub/base.yaml", "path to the settings file")
+    flag.Parse()
 
-	cfg := config.ApplyEnv(config.Load(*path))
+    cfg := config.ApplyEnv(config.Load(*path))
 
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
-	defer stop()
+    ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+    defer stop()
 
-	batcher := &ingest.Batcher{
-		SinkURL: cfg.SinkURL,
-		Size:    cfg.BatchSize,
-		Every:   time.Duration(cfg.FlushSeconds) * time.Second,
-		In:      make(chan ingest.Scan, 1024),
-	}
+    batcher := &ingest.Batcher{
+        SinkURL: cfg.SinkURL,
+        Size:    cfg.BatchSize,
+        Every:   time.Duration(cfg.FlushSeconds) * time.Second,
+        In:      make(chan ingest.Scan, 1024),
+    }
 
-	http.HandleFunc("/scan", func(w http.ResponseWriter, r *http.Request) {
-		var scan ingest.Scan
-		if err := json.NewDecoder(r.Body).Decode(&scan); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		batcher.In <- scan
-		w.WriteHeader(http.StatusAccepted)
-	})
-	go func() { log.Fatal(http.ListenAndServe(cfg.ListenAddr, nil)) }()
+    http.HandleFunc("/scan", func(w http.ResponseWriter, r *http.Request) {
+        var scan ingest.Scan
+        if err := json.NewDecoder(r.Body).Decode(&scan); err != nil {
+            http.Error(w, err.Error(), http.StatusBadRequest)
+            return
+        }
+        batcher.In <- scan
+        w.WriteHeader(http.StatusAccepted)
+    })
+    go func() { log.Fatal(http.ListenAndServe(cfg.ListenAddr, nil)) }()
 
-	if err := batcher.Run(ctx); err != nil {
-		log.Fatal(err)
-	}
+    if err := batcher.Run(ctx); err != nil {
+        log.Fatal(err)
+    }
 }
 EOF
 

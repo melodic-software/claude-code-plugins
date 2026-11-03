@@ -18,30 +18,30 @@ cat >cmd/stockctl/main.go <<'GO'
 package main
 
 import (
-	"bufio"
-	"fmt"
-	"net"
-	"os"
-	"strings"
+    "bufio"
+    "fmt"
+    "net"
+    "os"
+    "strings"
 )
 
 func main() {
-	conn, err := net.Dial("unix", "stockd.sock")
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-	defer conn.Close()
-	fmt.Fprintln(conn, strings.Join(os.Args[1:], " "))
-	reply, err := bufio.NewReader(conn).ReadString('\n')
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-	fmt.Print(reply)
-	if strings.HasPrefix(reply, "error:") {
-		os.Exit(1)
-	}
+    conn, err := net.Dial("unix", "stockd.sock")
+    if err != nil {
+        fmt.Fprintln(os.Stderr, err)
+        os.Exit(1)
+    }
+    defer conn.Close()
+    fmt.Fprintln(conn, strings.Join(os.Args[1:], " "))
+    reply, err := bufio.NewReader(conn).ReadString('\n')
+    if err != nil {
+        fmt.Fprintln(os.Stderr, err)
+        os.Exit(1)
+    }
+    fmt.Print(reply)
+    if strings.HasPrefix(reply, "error:") {
+        os.Exit(1)
+    }
 }
 GO
 
@@ -49,30 +49,30 @@ cat >cmd/stockd/main.go <<'GO'
 package main
 
 import (
-	"log"
-	"net"
-	"os"
+    "log"
+    "net"
+    "os"
 
-	"example.invalid/stockd/internal/server"
-	"example.invalid/stockd/internal/store"
-	"example.invalid/stockd/internal/warehouse"
+    "example.invalid/stockd/internal/server"
+    "example.invalid/stockd/internal/store"
+    "example.invalid/stockd/internal/warehouse"
 )
 
 func main() {
-	cfg, err := warehouse.Load("config/warehouse.yaml")
-	if err != nil {
-		log.Fatalf("config: %v", err)
-	}
-	st, err := store.Open("data")
-	if err != nil {
-		log.Fatalf("store: %v", err)
-	}
-	_ = os.Remove("stockd.sock")
-	listener, err := net.Listen("unix", "stockd.sock")
-	if err != nil {
-		log.Fatalf("listen: %v", err)
-	}
-	log.Fatal(server.New(st, cfg).Serve(listener))
+    cfg, err := warehouse.Load("config/warehouse.yaml")
+    if err != nil {
+        log.Fatalf("config: %v", err)
+    }
+    st, err := store.Open("data")
+    if err != nil {
+        log.Fatalf("store: %v", err)
+    }
+    _ = os.Remove("stockd.sock")
+    listener, err := net.Listen("unix", "stockd.sock")
+    if err != nil {
+        log.Fatalf("listen: %v", err)
+    }
+    log.Fatal(server.New(st, cfg).Serve(listener))
 }
 GO
 
@@ -80,73 +80,73 @@ cat >internal/server/server.go <<'GO'
 package server
 
 import (
-	"bufio"
-	"fmt"
-	"net"
-	"strconv"
-	"strings"
-	"sync"
+    "bufio"
+    "fmt"
+    "net"
+    "strconv"
+    "strings"
+    "sync"
 
-	"example.invalid/stockd/internal/store"
-	"example.invalid/stockd/internal/warehouse"
+    "example.invalid/stockd/internal/store"
+    "example.invalid/stockd/internal/warehouse"
 )
 
 type Server struct {
-	mu    sync.Mutex
-	store *store.Store
-	cfg   *warehouse.Config
+    mu    sync.Mutex
+    store *store.Store
+    cfg   *warehouse.Config
 }
 
 func New(st *store.Store, cfg *warehouse.Config) *Server {
-	return &Server{store: st, cfg: cfg}
+    return &Server{store: st, cfg: cfg}
 }
 
 func (s *Server) Serve(listener net.Listener) error {
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			return err
-		}
-		go func() {
-			defer conn.Close()
-			line, err := bufio.NewReader(conn).ReadString('\n')
-			if err != nil {
-				return
-			}
-			fmt.Fprintln(conn, s.handle(strings.Fields(line)))
-		}()
-	}
+    for {
+        conn, err := listener.Accept()
+        if err != nil {
+            return err
+        }
+        go func() {
+            defer conn.Close()
+            line, err := bufio.NewReader(conn).ReadString('\n')
+            if err != nil {
+                return
+            }
+            fmt.Fprintln(conn, s.handle(strings.Fields(line)))
+        }()
+    }
 }
 
 func (s *Server) handle(args []string) string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if len(args) == 0 {
-		return "error: empty command"
-	}
-	switch args[0] {
-	case "show":
-		return strconv.Itoa(s.store.OnHand(args[1]))
-	case "adjust":
-		delta, err := strconv.Atoi(args[2])
-		if err != nil {
-			return "error: delta"
-		}
-		if err := s.adjust(args[1], delta, args[3]); err != nil {
-			return "error: " + err.Error()
-		}
-		return "ok"
-	}
-	return "error: unknown command"
+    s.mu.Lock()
+    defer s.mu.Unlock()
+    if len(args) == 0 {
+        return "error: empty command"
+    }
+    switch args[0] {
+    case "show":
+        return strconv.Itoa(s.store.OnHand(args[1]))
+    case "adjust":
+        delta, err := strconv.Atoi(args[2])
+        if err != nil {
+            return "error: delta"
+        }
+        if err := s.adjust(args[1], delta, args[3]); err != nil {
+            return "error: " + err.Error()
+        }
+        return "ok"
+    }
+    return "error: unknown command"
 }
 
 func (s *Server) adjust(bin string, delta int, reason string) error {
-	entry := s.store.NextEntry(bin, delta, reason)
-	if err := s.store.AppendJournal(entry); err != nil {
-		return err
-	}
-	s.store.Apply(entry)
-	return s.store.SaveBins()
+    entry := s.store.NextEntry(bin, delta, reason)
+    if err := s.store.AppendJournal(entry); err != nil {
+        return err
+    }
+    s.store.Apply(entry)
+    return s.store.SaveBins()
 }
 GO
 
@@ -154,121 +154,121 @@ cat >internal/store/store.go <<'GO'
 package store
 
 import (
-	"bufio"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"os"
-	"path/filepath"
+    "bufio"
+    "encoding/json"
+    "errors"
+    "fmt"
+    "os"
+    "path/filepath"
 )
 
 type Entry struct {
-	Seq    int64  `json:"seq"`
-	Bin    string `json:"bin"`
-	Delta  int    `json:"delta"`
-	Reason string `json:"reason"`
+    Seq    int64  `json:"seq"`
+    Bin    string `json:"bin"`
+    Delta  int    `json:"delta"`
+    Reason string `json:"reason"`
 }
 
 type snapshot struct {
-	Seq  int64          `json:"seq"`
-	Bins map[string]int `json:"bins"`
+    Seq  int64          `json:"seq"`
+    Bins map[string]int `json:"bins"`
 }
 
 type Store struct {
-	dir  string
-	snap snapshot
+    dir  string
+    snap snapshot
 }
 
 // Open loads bins.json and brings it level with the journal.
 func Open(dir string) (*Store, error) {
-	s := &Store{dir: dir, snap: snapshot{Bins: map[string]int{}}}
-	raw, err := os.ReadFile(filepath.Join(dir, "bins.json"))
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return nil, err
-	}
-	if err == nil {
-		if err := json.Unmarshal(raw, &s.snap); err != nil {
-			return nil, err
-		}
-	}
-	entries, err := s.readJournal()
-	if err != nil {
-		return nil, err
-	}
-	var last int64
-	for _, entry := range entries {
-		last = entry.Seq
-		if entry.Seq > s.snap.Seq {
-			s.Apply(entry)
-		}
-	}
-	if s.snap.Seq > last {
-		return nil, fmt.Errorf("bins.json at seq %d, journal ends at seq %d", s.snap.Seq, last)
-	}
-	return s, s.SaveBins()
+    s := &Store{dir: dir, snap: snapshot{Bins: map[string]int{}}}
+    raw, err := os.ReadFile(filepath.Join(dir, "bins.json"))
+    if err != nil && !errors.Is(err, os.ErrNotExist) {
+        return nil, err
+    }
+    if err == nil {
+        if err := json.Unmarshal(raw, &s.snap); err != nil {
+            return nil, err
+        }
+    }
+    entries, err := s.readJournal()
+    if err != nil {
+        return nil, err
+    }
+    var last int64
+    for _, entry := range entries {
+        last = entry.Seq
+        if entry.Seq > s.snap.Seq {
+            s.Apply(entry)
+        }
+    }
+    if s.snap.Seq > last {
+        return nil, fmt.Errorf("bins.json at seq %d, journal ends at seq %d", s.snap.Seq, last)
+    }
+    return s, s.SaveBins()
 }
 
 func (s *Store) OnHand(bin string) int { return s.snap.Bins[bin] }
 
 func (s *Store) NextEntry(bin string, delta int, reason string) Entry {
-	return Entry{Seq: s.snap.Seq + 1, Bin: bin, Delta: delta, Reason: reason}
+    return Entry{Seq: s.snap.Seq + 1, Bin: bin, Delta: delta, Reason: reason}
 }
 
 func (s *Store) Apply(entry Entry) {
-	s.snap.Bins[entry.Bin] += entry.Delta
-	s.snap.Seq = entry.Seq
+    s.snap.Bins[entry.Bin] += entry.Delta
+    s.snap.Seq = entry.Seq
 }
 
 // SaveBins replaces bins.json through a temporary file and a rename.
 func (s *Store) SaveBins() error {
-	raw, err := json.Marshal(s.snap)
-	if err != nil {
-		return err
-	}
-	tmp := filepath.Join(s.dir, "bins.json.tmp")
-	if err := os.WriteFile(tmp, raw, 0o644); err != nil {
-		return err
-	}
-	return os.Rename(tmp, filepath.Join(s.dir, "bins.json"))
+    raw, err := json.Marshal(s.snap)
+    if err != nil {
+        return err
+    }
+    tmp := filepath.Join(s.dir, "bins.json.tmp")
+    if err := os.WriteFile(tmp, raw, 0o644); err != nil {
+        return err
+    }
+    return os.Rename(tmp, filepath.Join(s.dir, "bins.json"))
 }
 
 func (s *Store) AppendJournal(entries ...Entry) error {
-	file, err := os.OpenFile(filepath.Join(s.dir, "journal.ndjson"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	for _, entry := range entries {
-		raw, err := json.Marshal(entry)
-		if err != nil {
-			return err
-		}
-		if _, err := fmt.Fprintln(file, string(raw)); err != nil {
-			return err
-		}
-	}
-	return file.Sync()
+    file, err := os.OpenFile(filepath.Join(s.dir, "journal.ndjson"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+    if err != nil {
+        return err
+    }
+    defer file.Close()
+    for _, entry := range entries {
+        raw, err := json.Marshal(entry)
+        if err != nil {
+            return err
+        }
+        if _, err := fmt.Fprintln(file, string(raw)); err != nil {
+            return err
+        }
+    }
+    return file.Sync()
 }
 
 func (s *Store) readJournal() ([]Entry, error) {
-	file, err := os.Open(filepath.Join(s.dir, "journal.ndjson"))
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-	var entries []Entry
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		var entry Entry
-		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
-			return nil, err
-		}
-		entries = append(entries, entry)
-	}
-	return entries, scanner.Err()
+    file, err := os.Open(filepath.Join(s.dir, "journal.ndjson"))
+    if errors.Is(err, os.ErrNotExist) {
+        return nil, nil
+    }
+    if err != nil {
+        return nil, err
+    }
+    defer file.Close()
+    var entries []Entry
+    scanner := bufio.NewScanner(file)
+    for scanner.Scan() {
+        var entry Entry
+        if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
+            return nil, err
+        }
+        entries = append(entries, entry)
+    }
+    return entries, scanner.Err()
 }
 GO
 
@@ -278,21 +278,21 @@ package store
 import "testing"
 
 func TestOpenRollsForwardFromJournal(t *testing.T) {
-	dir := t.TempDir()
-	s, err := Open(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := s.AppendJournal(s.NextEntry("A-01", 20, "receipt")); err != nil {
-		t.Fatal(err)
-	}
-	reopened, err := Open(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := reopened.OnHand("A-01"); got != 20 {
-		t.Fatalf("OnHand = %d, want 20", got)
-	}
+    dir := t.TempDir()
+    s, err := Open(dir)
+    if err != nil {
+        t.Fatal(err)
+    }
+    if err := s.AppendJournal(s.NextEntry("A-01", 20, "receipt")); err != nil {
+        t.Fatal(err)
+    }
+    reopened, err := Open(dir)
+    if err != nil {
+        t.Fatal(err)
+    }
+    if got := reopened.OnHand("A-01"); got != 20 {
+        t.Fatalf("OnHand = %d, want 20", got)
+    }
 }
 GO
 
@@ -300,34 +300,34 @@ cat >internal/warehouse/config.go <<'GO'
 package warehouse
 
 import (
-	"os"
+    "os"
 
-	"gopkg.in/yaml.v3"
+    "gopkg.in/yaml.v3"
 )
 
 type Bin struct {
-	Code       string  `yaml:"code"`
-	SKU        string  `yaml:"sku"`
-	CapacityKg float64 `yaml:"capacity_kg"`
+    Code       string  `yaml:"code"`
+    SKU        string  `yaml:"sku"`
+    CapacityKg float64 `yaml:"capacity_kg"`
 }
 
 type SKU struct {
-	Code   string  `yaml:"code"`
-	UnitKg float64 `yaml:"unit_kg"`
+    Code   string  `yaml:"code"`
+    UnitKg float64 `yaml:"unit_kg"`
 }
 
 type Config struct {
-	Bins []Bin `yaml:"bins"`
-	SKUs []SKU `yaml:"skus"`
+    Bins []Bin `yaml:"bins"`
+    SKUs []SKU `yaml:"skus"`
 }
 
 func Load(path string) (*Config, error) {
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	var cfg Config
-	return &cfg, yaml.Unmarshal(raw, &cfg)
+    raw, err := os.ReadFile(path)
+    if err != nil {
+        return nil, err
+    }
+    var cfg Config
+    return &cfg, yaml.Unmarshal(raw, &cfg)
 }
 GO
 

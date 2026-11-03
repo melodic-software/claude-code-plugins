@@ -13,8 +13,8 @@ module example.invalid/rivergauge
 go 1.23
 
 require (
-	example.invalid/tidewrite/v4 v4.2.0
-	gopkg.in/yaml.v3 v3.0.1
+    example.invalid/tidewrite/v4 v4.2.0
+    gopkg.in/yaml.v3 v3.0.1
 )
 MOD
 
@@ -22,62 +22,62 @@ cat >cmd/ingest/main.go <<'GO'
 package main
 
 import (
-	"context"
-	"encoding/json"
-	"log"
-	"net/http"
-	"os"
-	"time"
+    "context"
+    "encoding/json"
+    "log"
+    "net/http"
+    "os"
+    "time"
 )
 
 const (
-	checkEvery  = 20 * time.Second
-	maxBadCheck = 3
+    checkEvery  = 20 * time.Second
+    maxBadCheck = 3
 )
 
 type sample struct {
-	GaugeID string    `json:"gauge_id"`
-	TakenAt time.Time `json:"taken_at"`
-	LevelMM float64   `json:"level_mm"`
+    GaugeID string    `json:"gauge_id"`
+    TakenAt time.Time `json:"taken_at"`
+    LevelMM float64   `json:"level_mm"`
 }
 
 func main() {
-	writer, err := newWriter(os.Getenv("GAUGE_DB"))
-	if err != nil {
-		log.Fatal(err)
-	}
-	go watchDatabase(writer)
+    writer, err := newWriter(os.Getenv("GAUGE_DB"))
+    if err != nil {
+        log.Fatal(err)
+    }
+    go watchDatabase(writer)
 
-	http.HandleFunc("/samples", func(w http.ResponseWriter, r *http.Request) {
-		var batch []sample
-		if err := json.NewDecoder(r.Body).Decode(&batch); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		for _, s := range batch {
-			writer.Enqueue(s.GaugeID, s.TakenAt, s.LevelMM)
-		}
-		w.WriteHeader(http.StatusAccepted)
-	})
-	log.Fatal(http.ListenAndServe(":8080", nil))
+    http.HandleFunc("/samples", func(w http.ResponseWriter, r *http.Request) {
+        var batch []sample
+        if err := json.NewDecoder(r.Body).Decode(&batch); err != nil {
+            http.Error(w, err.Error(), http.StatusBadRequest)
+            return
+        }
+        for _, s := range batch {
+            writer.Enqueue(s.GaugeID, s.TakenAt, s.LevelMM)
+        }
+        w.WriteHeader(http.StatusAccepted)
+    })
+    log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
 func watchDatabase(writer *gaugeWriter) {
-	bad := 0
-	for range time.Tick(checkEvery) {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		err := writer.Ping(ctx)
-		cancel()
-		if err == nil {
-			bad = 0
-			continue
-		}
-		bad++
-		log.Printf("database check %d failed: %v", bad, err)
-		if bad >= maxBadCheck {
-			log.Fatalf("database unreachable after %d checks", bad)
-		}
-	}
+    bad := 0
+    for range time.Tick(checkEvery) {
+        ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+        err := writer.Ping(ctx)
+        cancel()
+        if err == nil {
+            bad = 0
+            continue
+        }
+        bad++
+        log.Printf("database check %d failed: %v", bad, err)
+        if bad >= maxBadCheck {
+            log.Fatalf("database unreachable after %d checks", bad)
+        }
+    }
 }
 GO
 
@@ -85,37 +85,37 @@ cat >cmd/ingest/writer.go <<'GO'
 package main
 
 import (
-	"context"
-	"time"
+    "context"
+    "time"
 
-	"example.invalid/tidewrite/v4"
+    "example.invalid/tidewrite/v4"
 )
 
 const insertSample = `INSERT INTO samples (gauge_id, taken_at, level_mm)
 VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`
 
 type gaugeWriter struct {
-	client *tidewrite.Client
+    client *tidewrite.Client
 }
 
 func newWriter(dsn string) (*gaugeWriter, error) {
-	client, err := tidewrite.Open(dsn,
-		tidewrite.WithStatement(insertSample),
-		tidewrite.WithBuffer(50000),
-		tidewrite.WithFlushEvery(5*time.Second),
-	)
-	if err != nil {
-		return nil, err
-	}
-	return &gaugeWriter{client: client}, nil
+    client, err := tidewrite.Open(dsn,
+        tidewrite.WithStatement(insertSample),
+        tidewrite.WithBuffer(50000),
+        tidewrite.WithFlushEvery(5*time.Second),
+    )
+    if err != nil {
+        return nil, err
+    }
+    return &gaugeWriter{client: client}, nil
 }
 
 func (w *gaugeWriter) Enqueue(gaugeID string, takenAt time.Time, levelMM float64) {
-	w.client.Enqueue(gaugeID, takenAt, levelMM)
+    w.client.Enqueue(gaugeID, takenAt, levelMM)
 }
 
 func (w *gaugeWriter) Ping(ctx context.Context) error {
-	return w.client.Ping(ctx)
+    return w.client.Ping(ctx)
 }
 GO
 

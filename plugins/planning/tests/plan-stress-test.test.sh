@@ -93,6 +93,11 @@ if [[ "$(frontmatter "$degraded")" == "$(frontmatter "$source_skill")" ]]; then
 else
   fail 'the degraded skill keeps its frontmatter'
 fi
+if [[ "$(cat "$degraded")" == "$(frontmatter "$source_skill")"$'\n\n'"$(cat "$ARM/devils-advocate-degraded-body.md.txt")" ]]; then
+  ok 'the degraded skill body is devils-advocate-degraded-body.md.txt'
+else
+  fail 'the degraded skill body is devils-advocate-degraded-body.md.txt'
+fi
 for heading in '## Analysis Process' '### Round 1' '## Output Format'; do
   if grep -qF "$heading" "$source_skill" && ! grep -qF "$heading" "$degraded"; then
     ok "the degraded skill lost: $heading"
