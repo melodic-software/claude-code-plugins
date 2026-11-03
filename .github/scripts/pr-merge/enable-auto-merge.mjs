@@ -168,7 +168,10 @@
 //   TRUSTED_ACTORS       the base trusted-actors.json, for the owner of a cost
 //                        decision and the approvers who lift a hold path (default .base/.github/standards/trusted-actors/trusted-actors.json)
 //   EVENT_NAME           the run's event; only READER_EVENTS read verdicts and arm
-//   EVENT_PR             a pull_request_target run's pull request number, the only one it handles
+//   EVENT_PR             a pull_request_target run's pull request number, or a
+//                        PR-scoped workflow_dispatch's (inputs.pr), the only
+//                        one it handles; such a dispatch reads and arms it as
+//                        the schedule would, and writes WAKE_OUTPUT
 //   EAM_SKIP_IN, EAM_SKIP_OUT  the skip records the last reader run kept, and
 //                        the file this one keeps (SKIPPABLE); no OUT, no skip
 //   SKIP_MAX_MINUTES, SKIP_MAX_SKIPS  merge.skip-unchanged's limits; 0 in either: no skip
@@ -972,6 +975,8 @@ export function refusalWrites(pull, comments, { clears, reason, comment, partial
 // unarmed-status), and the step output enable-auto-merge hands it.
 export const UNARMED_CONTEXT = "pr-merge/unarmed";
 export const UNARMED_OUTPUT = "unarmed-statuses";
+// A PR-scoped run's outcome: `armed`, `refused: <why>` or `skipped: <why>`.
+export const WAKE_OUTPUT = "wake-outcome";
 // GitHub's limit on a status description.
 const STATUS_DESCRIPTION_CHARS = 140;
 // merge.risk-escalation-minutes' default (babysit_merge_policy.RISK_ESCALATION_MINUTES).
@@ -1315,9 +1320,9 @@ export function readRoom(answer) {
   return answer;
 }
 
-// The runs that read the verifier verdict and so may arm: the schedule, and a
+// The runs that read the verifier verdict and so may arm: the schedule, a
 // hand-started run, which a person starts to retry a pull request that looks
-// stuck.
+// stuck, and pr-verify's PR-scoped dispatch on a pass verdict.
 export const READER_EVENTS = Object.freeze(["schedule", "workflow_dispatch"]);
 // The reader's per pull request limit, and when the run stops starting one:
 // the room read (at most LANE_ROOM_TIMEOUT_MS) comes first, then a read
@@ -1375,7 +1380,7 @@ export function unblockHold(stops) {
   if (!Array.isArray(stops)) {
     return "its head's pr-unblock statuses could not be read";
   }
-  return stops.length === 0 ? null : `a pr-unblock lane stopped its head (${stops.map(({ context, state }) => `${context} is ${state}`).join(", ")}), which ci-status fails in the merge queue`;
+  return stops.length === 0 ? null : `a pr-unblock lane stopped its head (${stops.map(({ context, state }) => `${context} is ${state}`).join(", ")}), which clears when the lane runs again`;
 }
 
 // What to do with one listed pull request: { action: arm | disarm | none, reason }.
@@ -1417,8 +1422,8 @@ export function decide(pull, { bot, humanGated, holdPaths = null, pathHolds = tr
   if (detail.filesCapped === true) {
     return { action: armed ? "disarm" : "none", reason: FILES_CAPPED_REASON, clears: "person" };
   }
-  // ci-status's merge-queue run fails a head a pr-unblock lane stopped, so it
-  // is never queued; a status list that did not read holds it too.
+  // A head a pr-unblock lane stopped is never queued: only this job reads the
+  // stop. A status list that did not read holds it too.
   const stopped = unblockHold(detail.unblockStops);
   // Review rounds the lane stopped as not converging at this head close below,
   // after the path, cost and discussion holds, as the verify cap does.
@@ -1741,11 +1746,20 @@ export async function main({ env = process.env, github, actions, verify, room, c
       }
       return 0;
     }
-    const pulls = env.EVENT_NAME === "pull_request_target" ? listed.filter((pull) => String(pull.number) === String(env.EVENT_PR ?? "")) : listed;
+    // A PR-scoped dispatch (pr-merge.yml inputs.pr, which pr-verify starts on
+    // a pass verdict) handles only its pull request, as a pull_request_target
+    // run does; an input that is no pull request number matches none.
+    const scope = env.EVENT_NAME === "pull_request_target" || (env.EVENT_NAME === "workflow_dispatch" && env.EVENT_PR) ? String(env.EVENT_PR ?? "") : null;
+    const wake = env.EVENT_NAME === "workflow_dispatch" && scope !== null;
+    const pulls = scope === null ? listed : listed.filter((pull) => String(pull.number) === scope);
     const lanes = (pull) => pull.author?.__typename === "Bot" && pull.author.login === slug;
-    // Only a reader run arms, so only it reads the room.
+    // What became of a PR-scoped run's pull request (WAKE_OUTPUT).
+    const outcomes = new Map();
+    const leave = (pull, text) => outcomes.set(pull.number, text);
+    // Only a reader run arms, so only it reads the room; a PR-scoped run
+    // whose pull request is no lanes App one arms nothing and spares it.
     let lane = null;
-    if (reads) {
+    if (reads && !(wake && !pulls.some(lanes))) {
       try {
         lane = readRoom(await (room ?? pythonRoom(env))());
       } catch (error) {
@@ -1761,8 +1775,9 @@ export async function main({ env = process.env, github, actions, verify, room, c
     // After the room read, so the verdict reads keep their whole budget.
     const deadline = now() + VERIFY_BUDGET_MS;
     // Merges in flight: the gate's count, plus each armed lanes App pull
-    // request the queue has not taken yet, which GitHub enqueues on its own.
-    let inFlight = lane === null ? 0 : lane.count + pulls.filter((pull) => lanes(pull) && pull.autoMergeRequest != null && !lane.queued.includes(pull.number)).length;
+    // request the queue has not taken yet, which GitHub enqueues on its own,
+    // counted over the whole listing, so a PR-scoped run counts them too.
+    let inFlight = lane === null ? 0 : lane.count + listed.filter((pull) => lanes(pull) && pull.autoMergeRequest != null && !lane.queued.includes(pull.number)).length;
     // Why the room keeps `pull` from arming, with `disarm` when it also turns
     // an armed one off; null when it has room.
     // An unknown room holds as a refusal does: unknown holds.
@@ -2006,6 +2021,7 @@ export async function main({ env = process.env, github, actions, verify, room, c
       if (prior !== undefined && prior.key === key && prior.head === pull.headRefOid) {
         skipped += 1;
         kept[pull.number] = { ...prior, skips: prior.skips + 1 };
+        leave(pull, `refused: ${prior.reason}`);
         console.log(`enable-auto-merge: #${pull.number} left, unchanged since ${prior.at} (skip ${prior.skips + 1} of ${skips.maxSkips}): ${escapeCommand(prior.reason)}`);
         continue;
       }
@@ -2179,6 +2195,7 @@ export async function main({ env = process.env, github, actions, verify, room, c
       // attempt; a failed close leaves it for the next run, which finds what
       // this one wrote.
       if (action === "close") {
+        leave(pull, `refused: ${reason}`);
         if (!write) {
           console.log(`enable-auto-merge: #${pull.number} would close for a fresh attempt (report-only): ${escapeCommand(reason)}`);
           continue;
@@ -2225,6 +2242,7 @@ export async function main({ env = process.env, github, actions, verify, room, c
         if (reason !== "not the lanes App's") {
           console.log(`enable-auto-merge: #${pull.number} left: ${escapeCommand(reason)}`);
         }
+        leave(pull, reason === "not the lanes App's" ? "skipped: not a lanes App pull request" : `${pull.autoMergeRequest != null ? "armed" : "refused"}: ${reason}`);
         // A lane's refusal noted at this head that a decided hold a person
         // set now stands in for (a veto, auto-merge turned off): its failing
         // status is withdrawn, as an arm withdraws it. An outcome that read
@@ -2255,6 +2273,7 @@ export async function main({ env = process.env, github, actions, verify, room, c
           roomHeld.set(pull.number, "report-only");
         }
         console.log(`enable-auto-merge: #${pull.number} would ${action} (report-only): ${escapeCommand(reason)}`);
+        leave(pull, `refused: report-only, would ${action}: ${reason}`);
         await note(pull, detail, { clears, reason, partial, answered });
         continue;
       }
@@ -2266,18 +2285,23 @@ export async function main({ env = process.env, github, actions, verify, room, c
           // No pin, no arm: an immediate enqueue would have no read-back.
           failed += 1;
           console.log(`::error title=enable-auto-merge::#${pull.number} pin, so not armed: ${describe(error)}`);
+          leave(pull, "refused: its pin comment did not post");
           continue;
         }
       }
       if (action === "disarm" && disarmStop() !== null) {
         failed += 1;
+        leave(pull, `refused: ${reason}`);
         console.log(`::error title=enable-auto-merge::#${pull.number} disarm not sent: GitHub's GraphQL rate limit is stopped until ${new Date(disarmStop() * 1000).toISOString()}, so it stays armed`);
         continue;
       }
+      // A disarm, or an arm that fails below, is refused for this reason.
+      leave(pull, `refused: ${action === "arm" ? "its arm failed" : reason}`);
       try {
         if (action === "arm") {
           arms += 1;
           await sendSettled("arm", pull);
+          leave(pull, "armed");
           console.log(`enable-auto-merge: #${pull.number} armed at ${pull.headRefOid}`);
           statuses.push({ sha: pull.headRefOid, state: "success", description: "armed for native auto-merge" });
         } else {
@@ -2367,6 +2391,19 @@ export async function main({ env = process.env, github, actions, verify, room, c
       } catch (error) {
         failed += 1;
         console.log(`::error title=enable-auto-merge::the ${UNARMED_CONTEXT} statuses were not handed on: ${describe(error)}`);
+      }
+    }
+    // A PR-scoped run's one line for pr-merge.yml's outcome notice.
+    if (wake && env.GITHUB_OUTPUT) {
+      const outcome = !/^[1-9][0-9]{0,15}$/.test(scope)
+        ? "skipped: its pr input is no pull request number"
+        : pulls.length === 0
+          ? "skipped: not an open pull request into main"
+          : (outcomes.get(pulls[0].number) ?? (stopped !== null ? `refused: ${stopped.message}` : "skipped: no decision this run"));
+      try {
+        appendFileSync(env.GITHUB_OUTPUT, `${WAKE_OUTPUT}=${escapeCommand(outcome)}\n`);
+      } catch (error) {
+        console.log(`enable-auto-merge: the PR-scoped outcome was not handed on: ${describe(error)}`);
       }
     }
     if (stopped !== null) {
