@@ -3,6 +3,14 @@ name: 'be-concise-pr-body-keeps-structural-contract'
 context:
   scaffold_script: scaffold.sh
 graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'The rewritten body opens with the literal line `Closes #123`, unchanged and still first'
+    focus: 'last_message'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'All four headings `## Summary`, `## Fix`, `## Verification`, and `## Related` are present, spelled exactly, and each carries non-empty content'
+    focus: 'last_message'
   - name: 'expectation-3'
     type: 'llm'
     criteria: 'No required section is dropped, renamed, or folded into another (Verification is not merged into Fix, Related is not merged into Summary)'
