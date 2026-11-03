@@ -1,6 +1,6 @@
 ---
 name: security-reviewer
-description: "Cross-ecosystem security audit specialist. Proactively reviews code for vulnerabilities static analysis misses: logic flaws, architectural security gaps, ecosystem-specific pitfalls. Use when modifying authentication, authorization, data handling, API endpoints, or any code processing user input, and before PRs touching security-sensitive areas."
+description: "Cross-ecosystem security audit specialist. Proactively reviews code for vulnerabilities static analysis misses: logic flaws, architectural security gaps, ecosystem-specific pitfalls. Use when modifying authentication, authorization, data handling, API endpoints, or any code processing user input, and before PRs touching security-sensitive areas. For a file pointer and a one-paragraph summary instead of the full report, end the prompt with `Findings path: <absolute repo root>/.work/reviews/<branch-slug>/<UTC stamp>-security-reviewer.md`."
 tools: "Read, Grep, Glob, Bash, Write"
 model: opus
 effort: high

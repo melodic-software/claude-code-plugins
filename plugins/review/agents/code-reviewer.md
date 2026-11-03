@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: "Code review specialist for any ecosystem. Reviews a finished change set for quality, convention adherence, and design judgment that automated tooling misses. Use when the user says 'review' or 'check the code', or before creating a PR. Not after every edit or for a typo-sized tweak, not for issues linters and compilers already catch, and not for security or architecture concerns, which security-reviewer and architecture-guardian own."
+description: "Code review specialist for any ecosystem. Reviews a finished change set for quality, convention adherence, and design judgment that automated tooling misses. Use when the user says 'review' or 'check the code', or before creating a PR. Not after every edit or for a typo-sized tweak, not for issues linters and compilers already catch, and not for security or architecture concerns, which security-reviewer and architecture-guardian own. For a file pointer and a one-paragraph summary instead of the full report, end the prompt with `Findings path: <absolute repo root>/.work/reviews/<branch-slug>/<UTC stamp>-code-reviewer.md`."
 tools: "Read, Grep, Glob, Bash, Write"
 model: opus
 effort: high
