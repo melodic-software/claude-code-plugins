@@ -90,7 +90,7 @@ def expected_phrases(defaults: dict) -> list[tuple[str, str]]:
             f"| `coverage.crap.reference` | `{_render(coverage['crap']['reference'])}` |",
         ),
         (
-            "plugins/code-metrics/skills/audit-type-debt/SKILL.md",
+            "plugins/code-metrics/skills/audit/actions/type-debt.md",
             f"`type_debt.reference`, `{_render(defaults['type_debt']['reference'])}`",
         ),
         (

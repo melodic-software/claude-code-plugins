@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# /code-metrics:audit-size entry point: lines per file, comment-aware when
+# /code-metrics:audit size entry point: lines per file, comment-aware when
 # `scc` resolves, comment-agnostic from the bundled counter otherwise.
 #
 #   audit-size.sh [--json] [--all] [--base <ref>] [--config <resolved.json>] [<path>...]

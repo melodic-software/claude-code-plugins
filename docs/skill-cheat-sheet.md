@@ -236,12 +236,10 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/ai-slop:audit`](../plugins/ai-slop/skills/audit/SKILL.md) | `ai-slop` | Detect and remove AI-writing tells from markdown, commit messages, PR bodies and interface copy |
 | [`/architecture:record-decision`](../plugins/architecture/skills/record-decision/SKILL.md) | `architecture` | Record an architecture decision in the repository's existing ADR convention |
 | [`/attribution:audit`](../plugins/attribution/skills/audit/SKILL.md) | `attribution` | Find prose copied from external sources and convert it into pointers |
-| [`/code-metrics:audit-complexity`](../plugins/code-metrics/skills/audit-complexity/SKILL.md) | `code-metrics` | Per-function complexity beside a cited reference, no verdict |
+| [`/code-metrics:audit`](../plugins/code-metrics/skills/audit/SKILL.md) | `code-metrics` | Lines, complexity and typed-code numbers beside cited references, no verdict |
 | [`/code-metrics:audit-coverage`](../plugins/code-metrics/skills/audit-coverage/SKILL.md) | `code-metrics` | Coverage and CRAP read from build artifacts, no verdict |
 | [`/code-metrics:audit-duplication`](../plugins/code-metrics/skills/audit-duplication/SKILL.md) | `code-metrics` | Clone groups minus the replication the repo declares, no verdict |
-| [`/code-metrics:audit-size`](../plugins/code-metrics/skills/audit-size/SKILL.md) | `code-metrics` | Lines per file beside a cited reference, no verdict |
 | [`/code-metrics:audit-suppressions`](../plugins/code-metrics/skills/audit-suppressions/SKILL.md) | `code-metrics` | Suppressions with their rule ids and reasons, no verdict |
-| [`/code-metrics:audit-type-debt`](../plugins/code-metrics/skills/audit-type-debt/SKILL.md) | `code-metrics` | Typed-code percentage per file and per lane, with no standard behind it |
 | [`/code-metrics:principles`](../plugins/code-metrics/skills/principles/SKILL.md) | `code-metrics` | What each code measure can and cannot tell you |
 | [`/code-tidying:audit-dead-code`](../plugins/code-tidying/skills/audit-dead-code/SKILL.md) | `code-tidying` | Whole-repo dead-code hunt across four labeled lanes with adjudicated candidates |
 | [`/code-tidying:tidy`](../plugins/code-tidying/skills/tidy/SKILL.md) | `code-tidying` | Proactively hunt one lane for safe structural tidyings and ship a structure-only PR |

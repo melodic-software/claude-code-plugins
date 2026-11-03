@@ -12,11 +12,11 @@ value to count against, not a bar.
 
 | Skill | What it does |
 |---|---|
-| `/code-metrics:audit-complexity` | Per-function cyclomatic and cognitive complexity and Halstead difficulty from whichever collector resolves (`lizard`, `radon`, ESLint rules, `gocyclo`, `gocognit`, `shellmetrics`, `multimetric`), beside the ISO/IEC 5055 §8.2.117 reference of 20 with 10 and 15 selectable; cognitive and Halstead carry no standard threshold. |
-| `/code-metrics:audit-size` | Lines per file (total, blank, comment, code through `scc`; total and non-blank from a bundled counter otherwise) beside a cited reference; `size.mode: iso-8.2.115` adds the ISO function-percentage form. |
+| `/code-metrics:audit complexity` | Per-function cyclomatic and cognitive complexity and Halstead difficulty from whichever collector resolves (`lizard`, `radon`, ESLint rules, `gocyclo`, `gocognit`, `shellmetrics`, `multimetric`), beside the ISO/IEC 5055 §8.2.117 reference of 20 with 10 and 15 selectable; cognitive and Halstead carry no standard threshold. |
+| `/code-metrics:audit size` | Lines per file (total, blank, comment, code through `scc`; total and non-blank from a bundled counter otherwise) beside a cited reference; `size.mode: iso-8.2.115` adds the ISO function-percentage form. |
 | `/code-metrics:audit-duplication` | Clone classes (the detector's pairs merged; duplicated lines and tokens, every instance's range) from `jscpd`, `dupl`, or PMD CPD, rolled up per lane and per directory, minus the replication the repository declares in a sanctioned-replication registry (a path-within-plugin, or a `canonical -> copies` cluster line), which is an exclusion, not a suppression. A file over the size cap is reported as skipped, never silently dropped. |
 | `/code-metrics:audit-coverage` | Line coverage per file and per function read from the artifacts a build already produced (lcov 1.x and 2.2, Cobertura, coverage.py JSON, Go cover profile), plus CRAP per function from the complexity rows; it never runs a test, a missing artifact is a visible warning, and a function with no executable lines reports `null`, never zero. |
-| `/code-metrics:audit-type-debt` | The typed-code percentage per file and per lane: `type-coverage` for TypeScript, mypy's `--any-exprs-report` for Python; no standard or CWE anchors the measure, so the reference is `null` by design. C# is reported as not applicable. |
+| `/code-metrics:audit type-debt` | The typed-code percentage per file and per lane: `type-coverage` for TypeScript, mypy's `--any-exprs-report` for Python; no standard or CWE anchors the measure, so the reference is `null` by design. C# is reported as not applicable. |
 | `/code-metrics:audit-suppressions` | Every lint and type-checker suppression (ESLint, TypeScript, `noqa`, mypy, pylint, Pyright, Ruff, ShellCheck, C# pragmas and attributes, `nolint`, PowerShell attributes, markdownlint, RuboCop, Java `@SuppressWarnings`) in the change's added lines, a path, or the tree, each with its rule ids and reason and whether it is justified (a reason, plus a rule id where the tool can name one); rule ids listed in `suppressions.correctness_rules` are marked. The bundled scanner's `--count` prints the counts for a CI ceiling. |
 | `/code-metrics:principles` | Metric literacy: what each measure can and cannot tell you, where every reference value came from, CRAP's corrected provenance, the cross-metric caveats (carried once, here), and gated pointers to the plugins that own mutation score, tautological tests, dead code, coupling, and lint. |
 | `/code-metrics:setup` | `check` probes the interpreter and every configuration layer, and runs one measure per collector on a bundled fixture; `apply` writes the tracked team configuration per key, idempotently, and never installs a tool. |
@@ -26,7 +26,7 @@ value to count against, not a bar.
 Lanes are detected from file extensions (TypeScript/JavaScript, Python, Bash, Go, and C#, whose
 complexity lane is deferred and reported as such). Every other text file, markdown, JSON, YAML,
 PowerShell, a `Makefile`, lands in the catch-all `other` lane, which carries a line count and
-nothing else: `audit-size` measures it, and every other measure reports it as not applicable.
+nothing else: `audit size` measures it, and every other measure reports it as not applicable.
 When the consuming repository tracks `.claude/ecosystems/<lane>.yaml` files, their `globs`
 override the bundled map for that lane. Two scopes are first-class: the default is the change,
 files that differ from the merge-base with the default branch plus uncommitted and untracked
@@ -162,14 +162,14 @@ root auto-discovers it.
 Every skill description in a session shares one listing budget, and Claude Code drops the
 least-invoked descriptions first when it overflows. Measured with
 `plugins/skill-quality/scripts/check-listing-budget.sh` over every marketplace plugin's skills on
-2026-09-05, this plugin adds six listing-eligible descriptions (`setup` is model-hidden and costs
+2026-11-03, this plugin adds five listing-eligible descriptions (`setup` is model-hidden and costs
 nothing) at these estimated sizes:
 
 | Measurement | Characters |
 |---|---|
-| Marketplace aggregate before this plugin | 135,541 |
-| Marketplace aggregate with this plugin | 141,411 |
-| This plugin alone | 5,870 |
+| Marketplace aggregate before this plugin | 139,091 |
+| Marketplace aggregate with this plugin | 141,819 |
+| This plugin alone | 2,728 |
 
 The aggregate is an upper-bound estimate against the documented 8,000-character fallback; a
 consumer who installs only this plugin sits well inside it, and `/doctor` reports the resolved
