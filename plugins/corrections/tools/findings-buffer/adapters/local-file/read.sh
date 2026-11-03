@@ -46,8 +46,16 @@ refuse_links() {
 refuse_links "$COMMON/findings-buffer" "$COMMON/findings-buffer/findings.jsonl"
 [[ -f "$COMMON/findings-buffer/findings.jsonl" ]] && FILES+=("$COMMON/findings-buffer/findings.jsonl")
 if TOP="$(git rev-parse --show-toplevel 2>/dev/null)" && [[ -n "$TOP" ]]; then
-  refuse_links "$TOP/.work" "$TOP/.work/buffer" "$TOP/.work/buffer/findings.jsonl"
-  [[ -f "$TOP/.work/buffer/findings.jsonl" ]] && FILES+=("$TOP/.work/buffer/findings.jsonl")
+  # A symlink on the legacy path skips only the legacy file, so the shared rows stay readable.
+  LEGACY_OK=1
+  for p in "$TOP/.work" "$TOP/.work/buffer" "$TOP/.work/buffer/findings.jsonl"; do
+    if [[ -L "$p" ]]; then
+      echo "read.sh: $p is a symlink; skipping the legacy buffer" >&2
+      LEGACY_OK=0
+      break
+    fi
+  done
+  [[ $LEGACY_OK -eq 1 && -f "$TOP/.work/buffer/findings.jsonl" ]] && FILES+=("$TOP/.work/buffer/findings.jsonl")
 fi
 [[ ${#FILES[@]} -gt 0 ]] || exit 0
 

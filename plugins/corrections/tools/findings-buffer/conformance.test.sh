@@ -429,8 +429,22 @@ else
 fi
 mv "$LEGACY/findings.jsonl" "$LEGACY/real.jsonl"
 ln -s "$LEGACY/real.jsonl" "$LEGACY/findings.jsonl"
-(cd "$LINKED" && bash "$LOCAL/read.sh" >/dev/null 2>&1)
-expect_exit 2 $? "read.sh refuses a symlinked legacy findings.jsonl"
+OUT="$(cd "$LINKED" && bash "$LOCAL/read.sh" 2>/dev/null)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q '"obs_id":"from-main"' <<<"$OUT" && ! grep -q '"obs_id":"legacy-new"' <<<"$OUT"; then
+  pass "read.sh skips a symlinked legacy findings.jsonl and still returns the shared rows"
+else
+  fail "read.sh skips a symlinked legacy findings.jsonl and still returns the shared rows" "rc: $rc out: $OUT"
+fi
+rm -rf "${LINKED:?}/.work"
+ln -s "$TEST_TMPDIR" "$LINKED/.work"
+OUT="$(cd "$LINKED" && bash "$LOCAL/read.sh" 2>/dev/null)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q '"obs_id":"from-main"' <<<"$OUT"; then
+  pass "read.sh with a symlinked .work still returns the shared rows"
+else
+  fail "read.sh with a symlinked .work still returns the shared rows" "rc: $rc out: $OUT"
+fi
 
 # outside a repository
 NOREPO="$TEST_TMPDIR/norepo"
