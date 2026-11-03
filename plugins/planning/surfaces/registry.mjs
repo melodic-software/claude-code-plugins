@@ -17,7 +17,7 @@
 //
 // CLI: node registry.mjs resolve [--surface <userConfig value>] [--argument <word>] [--project-root <dir>]
 //      prints the resolution as one JSON line; `list` prints the entries.
-import { accessSync, constants, existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { accessSync, constants, existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs'
 import { delimiter, dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
@@ -155,7 +155,7 @@ async function main(argv) {
   console.log(JSON.stringify(out))
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   main(process.argv.slice(2)).catch(e => {
     console.error(`surface registry: ${e.message}`)
     process.exit(2)

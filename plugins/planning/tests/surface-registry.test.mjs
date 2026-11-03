@@ -4,7 +4,7 @@
 import { after, test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -55,6 +55,17 @@ test('AC13 through the CLI: one JSON line whose offer line is a single line', ()
   const r = JSON.parse(out)
   assert.deepEqual([r.surface, r.alternatives], ['terminal', ['page']])
   assert.equal(r.line.split('\n').length, 1)
+})
+
+test('the CLI still prints its JSON line when the plugin path passes through a symlink', () => {
+  const { root } = emptyProject()
+  const link = join(root, 'planning')
+  symlinkSync(join(here, '..'), link)
+  const out = execFileSync(process.execPath, [join(link, 'surfaces', 'registry.mjs'), 'resolve', '--surface', 'page'], {
+    env: { PATH: '', HOME: join(root, 'home'), CLAUDE_PROJECT_DIR: root },
+    encoding: 'utf8',
+  })
+  assert.equal(JSON.parse(out).surface, 'page')
 })
 
 test('no offer line when the surface is set, or when no alternative is available', async () => {
