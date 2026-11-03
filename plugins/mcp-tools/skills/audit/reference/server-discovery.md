@@ -78,7 +78,8 @@ from a quoted string or a number written in that language's syntax.
 - **tool-marker:** `@mcp.tool`
 - **name-extraction:** function name immediately following the `@mcp.tool` decorator
 - **description-extraction:** function docstring (first triple-quoted string in body)
-- **meta-extraction:** the tool registration's metadata argument, read at the
+- **meta-extraction:** the `meta=` argument of `@mcp.tool` (or of `add_tool` when the tool is
+  registered programmatically), read at the
   [`MCPServer.tool` reference](https://py.sdk.modelcontextprotocol.io/api/mcp/server/#mcp.server.MCPServer.tool);
   only a value that serializes to JSON `true` satisfies C18
 
