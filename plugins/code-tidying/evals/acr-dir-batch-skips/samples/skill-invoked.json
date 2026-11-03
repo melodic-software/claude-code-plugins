@@ -22,7 +22,7 @@
           "tool": "Skill",
           "input": {
             "skill": "docs-hygiene:audit-noise",
-            "args": "audit scripts/"
+            "args": "scripts/"
           }
         }
       ]

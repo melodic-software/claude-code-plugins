@@ -32,6 +32,7 @@ dir="${1:-.}"
 valid() {
   case "$1:$2" in
   comment_posture:auto | comment_posture:none | comment_posture:necessary | comment_posture:explanatory) return 0 ;;
+  comment_posture:strict | comment_posture:balanced | comment_posture:conservative | comment_posture:aggressive) return 0 ;;
   comment_edit_scope:diff | comment_edit_scope:files) return 0 ;;
   encode_constraints_unattended:true | encode_constraints_unattended:false) return 0 ;;
   apply_local_renames:true | apply_local_renames:false) return 0 ;;

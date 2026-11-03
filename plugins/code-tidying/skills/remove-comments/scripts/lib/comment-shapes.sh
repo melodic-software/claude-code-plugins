@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 # Shared comment-residue detectors for /code-tidying:remove-comments audit (sourceable; not invoked directly).
-# Shape definitions and treatments: the skill's SKILL.md "Residue shapes and treatments".
+# Shape definitions and treatments: actions/audit.md "Residue shapes and treatments".
 #
 # Detection runs ONLY on the comment portion of a line, so residue-shaped words sitting in
 # code (identifiers, string literals) are not flagged.

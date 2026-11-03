@@ -62,6 +62,12 @@ check 'an invalid overlay is named and the team value stands' \
   "comment_posture${TAB}invalid${TAB}$PERSONAL: strip"$'\n'"comment_posture${TAB}necessary${TAB}$TEAM" \
   "$(lines_for "$repo" comment_posture)"
 
+for legacy in strict balanced conservative aggressive; do
+  repo="$(repo_with "comment_posture: $legacy"$'\n' -)"
+  check "the old posture $legacy is passed on for SKILL.md to map" \
+    "comment_posture${TAB}${legacy}${TAB}$TEAM" "$(lines_for "$repo" comment_posture)"
+done
+
 repo="$(repo_with $'class_c_max_lines: 41\n' -)"
 check 'a line budget above 40 is invalid' \
   "class_c_max_lines${TAB}invalid${TAB}$TEAM: 41"$'\n'"class_c_max_lines${TAB}unset${TAB}no valid value in $TEAM or $PERSONAL" \
