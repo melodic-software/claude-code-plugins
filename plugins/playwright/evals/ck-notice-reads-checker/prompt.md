@@ -11,4 +11,4 @@ This showed up when the session started:
 
 > playwright: Python 3.12 or later was not found on the hook PATH; /playwright:demo-video will fail. Install it (https://www.python.org/downloads/) and start a new session.
 
-A copy of the plugin is in ./plugin, with its checker at plugin/lib/prerequisites.mjs. Is Python really missing here?
+A copy of the plugin is in ./plugin, and its checker runs as `node "plugin/lib/prerequisites.mjs" check "plugin"`. Is Python really missing here?
