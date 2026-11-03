@@ -251,6 +251,15 @@ they graduate into a skill body only on observed, repeated stumble evidence:
   re-check that nothing in it is actually a judgment call. The corpus's failure case is
   a design decision hidden in a collapsed section.
 
+Two more from Addy Osmani's "Critical thinking when agents do the work"
+(`https://x.com/addyosmani/status/2117512471930167377`, 2026-11-03), tracked as eval
+candidates in #12938:
+
+- **Prediction-first** (delegation): before handing a non-trivial task to an agent, write
+  the answer you expect, then compare it with what comes back.
+- **Weekly no-agent practice** (skill upkeep): do one real task a week without an agent;
+  once a month, note what you have stopped doing and decide which of it you accept losing.
+
 ## Sources and citation shape
 
 Citations in this doc use: URL, ISO retrieval date, and `sha256:<hex64>` over the raw
@@ -263,7 +272,10 @@ sources, each read at its link.
   Anthropic blog, published 2026-07-06. No docs page covers it:
   (correlate with `https://claude.com/blog/a-field-guide-to-claude-fable-finding-your-unknowns`)
   (retrieved 2026-09-01,
-  `sha256:ac8229699555d38eb0dfe6c80dd2e85353f30471a7abff0894d342b5107aad26`)
+  `sha256:ac8229699555d38eb0dfe6c80dd2e85353f30471a7abff0894d342b5107aad26`).
+  The page moved: `https://claude.com/resources/articles/a-field-guide-to-claude-fable-finding-your-unknowns`
+  (retrieved 2026-11-03,
+  `sha256:39be1a13baea2a27ca81a62751d6c4b942b4ea2b3d19e8953bddac4dbd280918`)
 - **S2**: "Using Claude Code: The Unreasonable Effectiveness of HTML", X article by the
   same author. `https://x.com/trq212/status/2052809885763747935` (retrieved 2026-09-01,
   `sha256:07dc71b1a7fabe264b9a80ee003edbcd1e74013895372a8ffe13ee4bb178e63c`). Canonical web
