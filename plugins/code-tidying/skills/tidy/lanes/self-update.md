@@ -1,6 +1,6 @@
 # Lane: self-update
 
-The recursive lane: tidy operating on its own plugin files. **Maintainer-facing:** valid ONLY in a working-tree checkout of this plugin (the marketplace clone, or a directory loaded via `--plugin-dir`), never against an installed marketplace copy. Consumers receive updates through `/plugin marketplace update`. **This lane is permanently manual-merge.** The risk profile is unique: a bad change here can disable the safety mechanisms that protect every other lane.
+The recursive lane: tidy operating on its own plugin files. **Maintainer-facing:** valid ONLY in a working-tree checkout of this plugin (the marketplace clone, or a directory loaded via `--plugin-dir`), never against an installed marketplace copy. **This lane is permanently manual-merge.** The risk profile is unique: a bad change here can disable the safety mechanisms that protect every other lane.
 
 ## Scope
 
@@ -48,7 +48,7 @@ npx markdownlint-cli2 <changed .md files>
 bash skills/tidy/scripts/open-pr-count.test.sh    # if the script changed (it shouldn't in this lane)
 ```
 
-Markdown lint does not cover the frontmatter parse contract. A broken `---` fence in a SKILL.md would block the next session's skill discovery. Run from the plugin root:
+Markdown lint does not cover the frontmatter parse contract, so run this fence check from the plugin root. How Claude Code reads a SKILL.md's frontmatter block: [Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference), as of 2026-11-03; recheck when that section changes how a malformed frontmatter block loads.
 
 ```bash
 # Stdlib-only (no PyYAML): confirms each SKILL.md's `---` fences are present and the frontmatter between them is non-empty.

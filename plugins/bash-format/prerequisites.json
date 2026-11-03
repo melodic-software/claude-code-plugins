@@ -18,8 +18,7 @@
       "degrade": "Without shfmt, the hook cannot format edited shell scripts.",
       "install": {
         "docs": "https://github.com/mvdan/sh#shfmt"
-      },
-      "check": "/bash-format:check"
+      }
     },
     {
       "id": "shellcheck",
@@ -36,8 +35,7 @@
       "degrade": "Without shellcheck, the hook cannot lint edited shell scripts.",
       "install": {
         "docs": "https://github.com/koalaman/shellcheck#installing"
-      },
-      "check": "/bash-format:check"
+      }
     },
     {
       "id": "jq",
@@ -54,8 +52,7 @@
       "degrade": "Without jq, the bash-format hooks skip their work.",
       "install": {
         "docs": "https://jqlang.org/download/"
-      },
-      "check": "/bash-format:check"
+      }
     },
     {
       "id": "node",
@@ -72,8 +69,7 @@
       "degrade": "Without node, the bash-format hooks cannot launch, so they do nothing.",
       "install": {
         "docs": "https://nodejs.org/en/download"
-      },
-      "check": "/bash-format:check"
+      }
     }
   ]
 }

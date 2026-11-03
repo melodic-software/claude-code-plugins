@@ -19,8 +19,7 @@
       "install": {
         "cargo": "cargo install typos-cli",
         "docs": "https://github.com/crate-ci/typos#install"
-      },
-      "check": "/typos-format:check"
+      }
     },
     {
       "id": "jq",
@@ -37,8 +36,7 @@
       "degrade": "Without jq, the end-of-turn row reads its hook input with the shared hook library's builtin JSON check alone.",
       "install": {
         "docs": "https://jqlang.org/download/"
-      },
-      "check": "/typos-format:check"
+      }
     },
     {
       "id": "node",
@@ -55,8 +53,7 @@
       "degrade": "Without node, the typos-format hooks cannot launch, so they do nothing.",
       "install": {
         "docs": "https://nodejs.org/en/download"
-      },
-      "check": "/typos-format:check"
+      }
     }
   ]
 }

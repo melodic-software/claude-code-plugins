@@ -49,7 +49,7 @@ audit_noise_line_has_ghost_ref() {
 # --- Prose-adapted residue shapes -------------------------------------------
 #
 # plan-reference, conversational-antecedent, and ticket-pr-residue carry the
-# same shape names the code-side sibling (/code-tidying:audit-comment-residue)
+# same shape names the code-side sibling (/code-tidying:remove-comments audit)
 # owns, but the patterns are deliberately TIGHTER, not copies. That scanner
 # classifies only the extracted comment portion of a line; this one classifies
 # whole markdown prose, where the same words are load-bearing far more often.

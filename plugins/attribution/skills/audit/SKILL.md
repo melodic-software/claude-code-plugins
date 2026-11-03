@@ -277,7 +277,7 @@ fired on an identifier, a test runner exiting non-zero without failing.
   stopping").
 - **Does not assess copyright.** The rubric measures drift risk; findings are editorial and the
   remedies are maintenance remedies. Nothing here is legal advice.
-- **Does not scan** code comments (`code-tidying:audit-comment-residue`), in-repo duplication
+- **Does not scan** code comments (`code-tidying:remove-comments audit`), in-repo duplication
   (`docs-hygiene:extract-ssot`), doc-vs-code drift (the `review` plugin's `doc-drift-detector`
   agent, or `codebase-health:audit`), or AI-writing style (`ai-slop:audit`, same corpus,
   different defect).

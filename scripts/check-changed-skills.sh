@@ -32,7 +32,9 @@
 # step — the check-jsonschema composite action over every evals.json.
 #
 # Exit 0 = every changed skill passes (or none changed); 1 = one or more failed;
-# 2 = usage / environment error (fail closed — never a silent skip).
+# 2 = usage / environment error (fail closed — never a silent skip), or no failure
+# but PLUGIN_TEST_DEADLINE, which scripts/check-affected.sh --tests sets and the
+# checker reads, left a skill's script tests unrun, each named on a `SKIP` line.
 #
 # CHECK_SKILL_BIN overrides the checker path (test injection).
 #   scripts/check-changed-skills.sh --merge-base
@@ -198,6 +200,7 @@ done
 
 checked=0
 failed=0
+left=0
 
 # ONE CHECKER PER CORE. Each skill is checked on its own, so the checks run
 # CHECK_CHANGED_SKILLS_JOBS at a time (default: the core count) and each one's
@@ -245,7 +248,11 @@ wait
 for key in ${keys[@]+"${keys[@]}"}; do
   cat "$out_dir/$key.head" "$out_dir/$key.out"
   rc="$(cat "$out_dir/$key.rc" 2>/dev/null || echo 1)"
-  [[ "$rc" == 0 ]] || failed=$((failed + 1))
+  case "$rc" in
+  0) ;;
+  3) left=$((left + 1)) ;;
+  *) failed=$((failed + 1)) ;;
+  esac
 done
 
 if ((checked == 0)); then
@@ -254,5 +261,7 @@ if ((checked == 0)); then
 fi
 
 printf '\n%d skill(s) checked, %d failed.\n' "$checked" "$failed"
-((failed == 0))
-gate_entry::finish $?
+((left == 0)) || printf '%d skill(s) left script tests to CI, past the deadline.\n' "$left"
+((failed == 0)) || gate_entry::finish 1
+((left == 0)) || gate_entry::finish 2
+gate_entry::finish 0

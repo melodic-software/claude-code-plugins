@@ -248,9 +248,12 @@ be followed.
 no record", purely because the reader compared the 8.3 short form inherited from `%TEMP%`
 of the user directory (`ALICE~1`) against the long form the CLI writes (`AliceExample`). The record
 was there the whole time. Any consumer comparing these paths must resolve first (`pwd -W` on Git
-Bash yields the native long form), unify separators, and fold case on Windows. Two related shapes
-bite the same way: `jq` on Git Bash terminates lines with CRLF, and `@tsv` escapes each backslash to
-`\\`. Both leave a `projectPath` that silently matches nothing.
+Bash yields the native long form), unify separators, and fold case on Windows. Normalize the line
+endings and escaping of what `jq` prints before matching it too. For how jq ends lines and escapes a
+`@tsv` field, see jq's
+[Format strings and escaping](https://jqlang.org/manual/#format-strings-and-escaping) and the
+`--binary` option under [Invoking jq](https://jqlang.org/manual/#invoking-jq) (as of 2026-11-03;
+recheck when either changes how `@tsv` escapes or how jq ends lines on Windows).
 
 ### What this settles in the plugin
 

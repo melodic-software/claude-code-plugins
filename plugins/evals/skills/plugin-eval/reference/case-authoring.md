@@ -17,19 +17,21 @@ a run, because each one costs a paid pass to discover afterwards.
 ## Layout
 
 ```text
-<plugin-root>/evals/            default eval dir; manifest experimental.evals overrides it
+<eval dir>/                     where the run finds it: the first item below
   <case-name>/
     prompt.md                   frontmatter plus the prompt body
     case.yaml                   alternative or companion; schema_version and name required
     graders/<grader-name>.md    one grader per file; the name is the filename minus .md
   mocks/<server>/<tool>.md      MCP tool answers
   mocks/.replay/                recorded agent-mock responses; commit these
-  results/<timestamp>/          written by a run; gitignore it
 ```
 
-- [ ] The eval dir sits under the plugin root, or the manifest's `experimental.evals` key points at
-      it. A path target writes results under the plugin; a named installed plugin writes them under
-      the current directory.
+- [ ] The run can locate the eval dir: it sits where the CLI looks by default, or the plugin
+      records where it is. Keep the run's results out of git. Where the CLI looks and how a plugin
+      records another directory:
+      [Use a different eval directory](https://code.claude.com/docs/en/plugin-evals#use-a-different-eval-directory),
+      as of 2026-11-03. Recheck trigger: that section changes the default directory or how another
+      one is recorded.
 - [ ] Each case is a directory with `prompt.md`, `case.yaml`, or both. A loose file is not a case.
 - [ ] Grader names are unique within the case. Duplicates are rejected at load, which exits 1 and
       looks exactly like a failing case.
@@ -45,11 +47,13 @@ a run, because each one costs a paid pass to discover afterwards.
 
 ## The workspace starts empty
 
-Every run gets a throwaway home, cwd, and config, so nothing on the authoring machine is present
-unless the case routes it in explicitly.
+Nothing on the authoring machine reaches a run unless the case routes it in. What a run starts
+with and what it withholds:
+[How runs are isolated](https://code.claude.com/docs/en/plugin-evals#how-runs-are-isolated), as of
+2026-11-03. Recheck trigger: that section changes what a run starts with or loads.
 
-- [ ] Anything the task needs is in the prompt body, in `context.add_dirs` (read-only), or written
-      by `context.scaffold_script`, which runs only under `--scaffold`, as you, outside the sandbox.
+- [ ] Anything the task needs is routed into the case explicitly: in the prompt body, in
+      `context.add_dirs`, or written by `context.scaffold_script`.
 - [ ] No `@path` mention is expanded into an attachment. A file the model must read needs `Read` in
       `allowed_tools` and a path that exists in the run.
 - [ ] The environment is allowlisted. Anything the case needs beyond the basics and the provider
@@ -76,9 +80,12 @@ unless the case routes it in explicitly.
       separates "the answer was right" from "the plugin is why".
 - [ ] Split by expectation. A mechanical expectation (a format, a required or forbidden string, a
       tool call, a created file) gets a deterministic grader; a holistic one (tone, completeness,
-      judgment) gets an `llm` judge. Prefer the four deterministic types. `regex`, `tool_used`, `tool_order`, and `file_exists` are
-      free and stable; `llm` and `baseline` each cost three judge calls per run and get noisy on long
-      inputs. Grade long output with a `regex` over the file's contents rather than a judge.
+      judgment) gets an `llm` judge. Prefer a deterministic type (`regex`, `tool_used`,
+      `tool_order`, `file_exists`) wherever one can decide the expectation, and grade long output
+      with a `regex` over the file's contents rather than a judge. What each type costs and how a
+      judge decides: [Grader types](https://code.claude.com/docs/en/plugin-evals#grader-types) and
+      [Choose graders that give a stable signal](https://code.claude.com/docs/en/plugin-evals#choose-graders-that-give-a-stable-signal),
+      as of 2026-11-03. Recheck trigger: either section changes a type's cost or how a judge votes.
 - [ ] A grader that cannot pass without the plugin (a `tool_used` on `tool: Skill`, or anything
       `arm: with-only`) is excluded from scoring in both arms and reported as an indicator. Use
       `arm: both` when the check must score in both arms, which a must-not-invoke check
@@ -95,34 +102,40 @@ unless the case routes it in explicitly.
       `regression-guard`, say so in its `description`, and pair it with a case a person judged
       hard, tagged `hard`, with the reason in its `description`.
 
-| Type | Fields | Passes when |
-|---|---|---|
-| `regex` | `pattern`, `flags`, `match`, `target` | The JS regex is found in the target; `match: not_contains` requires absence, `match: "count:N"` exactly N |
-| `tool_used` | `tool`, `input_match`, `min`, `max` | Matching calls fall in range; the range defaults are in the `tool_used` row of [Grader types](https://code.claude.com/docs/en/plugin-evals#grader-types), as of 2026-10-11. Recheck trigger: that row or the grader's fields change |
-| `tool_order` | `before`, `after` | The `tool_order` row of [Grader types](https://code.claude.com/docs/en/plugin-evals#grader-types), as of 2026-10-07. Recheck trigger: that row or the grader's fields change |
-| `file_exists` | `path`, `exists` | The `file_exists` row of [Grader types](https://code.claude.com/docs/en/plugin-evals#grader-types), as of 2026-10-07. Recheck trigger: that row or the grader's fields change. Scaffold output and files the model only edits do not count |
-| `llm` | `criteria`, `focus` | The judge votes PASS in at least 2 of 3. In the `.md` layout the body is the criteria |
-| `baseline` | `baseline_file`, `criteria` | The judge finds the run at least as good as the reference `.jsonl` in the case dir |
+| Type | Fields |
+|---|---|
+| `regex` | `pattern`, `flags`, `match`, `target` |
+| `tool_used` | `tool`, `input_match`, `min`, `max` |
+| `tool_order` | `before`, `after` |
+| `file_exists` | `path`, `exists` |
+| `llm` | `criteria`, `focus` |
+| `baseline` | `baseline_file`, `criteria` |
 
-Targets for `regex.target` and `llm.focus`: `last_message`, `trace` (JSON per line, where quotes
-are JSON-escaped, so match `\"`), `files` (the **list of created paths**, not their contents),
-`{ source: file, path: <p> }` (the contents), and `mock_calls`. Pick the target explicitly rather
-than relying on the default, and assume a judge given `trace` sees only part of a long one.
+- **Pointer**: when deciding what a grader passes on, a field's default, or how a judge votes,
+  fetch [Grader types](https://code.claude.com/docs/en/plugin-evals#grader-types) live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: that table adds or renames a type or a field, or changes when a type passes.
 
-- **Pointer**: when choosing a target, or judging a long trace, fetch
+Pick the target for `regex.target` and `llm.focus` deliberately rather than relying on the default,
+and check what that target holds before writing a pattern or a criterion against it.
+
+- **Pointer**: when choosing a target, writing a pattern against one, or judging a long trace,
+  fetch
   [What a grader can look at](https://code.claude.com/docs/en/plugin-evals#what-a-grader-can-look-at)
-  live for the default target and the judge's trace window.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section adds or renames a target, changes the default, or changes how
-  much of a trace the judge reads.
+  live for what each target holds, the default target, and the judge's trace window.
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section adds or renames a target, changes what one holds or the
+  default, or changes how much of a trace the judge reads.
 
 ## Mocks
 
-- [ ] MCP tools are mocked by default from `evals/mocks/<server>/<tool>.md`. A mock file both answers
-      the tool and grants it; its absence removes the tool rather than failing the call, which reads
-      as the model choosing not to use it.
-- [ ] A real server needs `--allow-real-servers` or `--mocks off`, plus an
-      `--allow-tools "mcp__plugin_<plugin>_<server>__*"` grant, and runs as you, outside the sandbox.
+- [ ] Each MCP tool the case's task reaches is mocked, unless the case deliberately runs a real
+      server as the MCP row of [SKILL.md](../SKILL.md) allows. Where a mock file goes, what a
+      missing one does, and what a real server needs:
+      [Mock MCP servers](https://code.claude.com/docs/en/plugin-evals#mock-mcp-servers) and the
+      `--mocks` rows of [Command options](https://code.claude.com/docs/en/plugin-evals#command-options),
+      as of 2026-11-03. Recheck trigger: either changes where a mock lives, what a missing mock
+      does, or how a real server is enabled.
 - [ ] An agent mock with no committed `mocks/.replay/` recording is a reproducibility defect: the
       answer comes from a fresh model call every run, so the case cannot be compared with itself.
       Commit the recording with the rest of `mocks/`.
@@ -183,13 +196,15 @@ What the hub's "Calibrating a judge" commands do with a case's `samples/<grader>
 
 ## Common mistakes
 
-- `target: files` when the contents were meant. `files` is the list of created paths.
-- Assuming `target` defaults to `trace`. It does not; read the default at the targets
-  record's pointer in [Graders](#graders) (the record has no heading of its own). As of 2026-10-11.
-  Recheck trigger: that record moves or its pointer stops covering the default target.
-- Inline `(?i)` in a pattern. Case-insensitivity is `flags: i`.
-- `file_exists` with the default `exists` in a read-only suite. Nothing is created, so the grader
-  can never pass.
+Check each of the next four against the two pointer records in [Graders](#graders) (they have no
+heading of their own): the targets record and the grader-types record. As of 2026-11-03. Recheck
+trigger: either record moves, or its section changes what a target holds, the default target, how
+a `regex` takes flags, or which files `file_exists` counts.
+
+- `target: files` where a file's contents were meant.
+- Assuming which target is the default.
+- An inline flag group such as `(?i)` in a `regex` pattern.
+- `file_exists` with the default `exists` in a suite where the model creates no file.
 - A gated tool in `allowed_tools` with no matching `--allow-tools` grant. The tool is removed from
   the session and reported on stderr as `not granted`, and the case quietly measures a model without
   it.
