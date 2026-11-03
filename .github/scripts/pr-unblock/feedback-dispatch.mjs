@@ -161,14 +161,13 @@
 // pr-merge runs on every pull_request_target event, so a head whose releasing
 // skips reached SWEEP_HEAD_CAP is skipped there as the sweep skips it.
 //
-// Both review lanes, and any re-run, finish on one head, so a run leaves a
-// record for the next run at that head (dispatch-record.mjs, carried in the
-// Actions cache): a head whose check runs handle it for good, once a reply
-// check started after its newest address-feedback check, is skipped before
-// any read, and a head whose dispatched run for this PR is still queued or
-// going is skipped after the PR read, with one read of that run in place of
-// the comment, thread and run listings. Each shortcut stands for a skip the
-// full path would also reach.
+// main() reads and writes a dispatch record (dispatch-record.mjs) at
+// DISPATCH_RECORD, but the workflow carries it to no later run: the job's
+// workflow_run cache token is read-only, so each run starts from an empty
+// record and takes the full path. With a carried record, a head whose check
+// runs handle it for good would be skipped before any read, and a head whose
+// dispatched run is still going after the PR read. Each shortcut stands for a
+// skip the full path also reaches.
 
 import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";

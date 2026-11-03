@@ -66,7 +66,7 @@ name: pr-feedback-dispatch
 # skipped at its review completion has no other trigger, so the job decides
 # that head again, through its newest completed review run, with every gate as
 # before (feedback-dispatch.mjs main). The run's head SHA is the PR's, so it
-# waits in that head's concurrency group and reads its dispatch record.
+# waits in that head's concurrency group.
 #
 # A completed pr-review-comment-relay.yml run, which a person's new review
 # comment on a lane branch starts, starts the dispatch job too, so a listed
