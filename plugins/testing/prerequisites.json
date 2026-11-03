@@ -15,8 +15,7 @@
       "degrade": "Without node, the testing hooks cannot launch, so they do nothing.",
       "install": {
         "docs": "https://nodejs.org/en/download"
-      },
-      "check": "/testing:check"
+      }
     },
     {
       "id": "jq",
@@ -33,8 +32,7 @@
       "degrade": "Without jq, the testing hooks skip their work.",
       "install": {
         "docs": "https://jqlang.org/download/"
-      },
-      "check": "/testing:check"
+      }
     },
     {
       "id": "npm",
@@ -51,8 +49,7 @@
       "degrade": "Without npm, /testing:check-visual-parity cannot install pixelmatch and pngjs, so compare stops with the repair line and counts nothing.",
       "install": {
         "docs": "https://nodejs.org/en/download"
-      },
-      "check": "/testing:check"
+      }
     }
   ]
 }

@@ -40,7 +40,7 @@ deletion candidate.
 Step 1's scan parses 6 test blocks. With both deletions approved, the re-scan parses 4, and
 `git status --porcelain` lists only `Shop.Tests/WiringTests.cs`. The `BuildProvider` and
 `IsTrialFailure` helpers stay. The report says nothing was built or linted and asks the user to
-build the test project. Nothing is committed before the user approves the batch.
+build the test project. Nothing is committed before step 7 shows the batch.
 
 ## Gated run
 

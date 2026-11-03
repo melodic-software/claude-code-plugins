@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.5] - 2026-11-03
+
+### Fixed
+
+- The `/code-tidying:tidy` dependency-root and polyglot-services lane templates give `npx @biomejs/biome check` as the example lint command, not `npx biome check`, which runs an unrelated npm package when the project has no local Biome install (#12573).
+
 ## [0.35.4] - 2026-11-02
 
 ### Changed

@@ -651,7 +651,7 @@ idw_each() { # <deny|allow> <label> <command> [tool]
   done
 }
 for key in user.email user.signingkey credential.helper core.sshCommand core.hooksPath user.useConfigOnly \
-  'includeIf.gitdir:~/work/.path'; do
+  'includeIf.gitdir:~/work/.path' include.path; do
   for form in "--global $key v" "--system $key v" "--file ~/.gitconfig-work $key v" "-f ~/work.gitconfig $key v" \
     "set --global $key v" "--global --unset $key" "--global --add $key v" "unset --global $key"; do
     idw_each deny "git config $form" "git config $form"
@@ -664,6 +664,7 @@ idw_each deny "git config --global in a later segment" 'cd sub && git config --g
 idw_each deny "git config --global --remove-section user" 'git config --global --remove-section user'
 idw_each deny "git config rename-section includeIf" \
   'git config rename-section --global includeIf.gitdir:~/a/ includeIf.gitdir:~/b/'
+idw_each deny "git config --global --remove-section include" 'git config --global --remove-section include'
 idw_each deny "git config --global --edit" 'git config --global --edit'
 idw_each deny "an append redirection to ~/.gitconfig" 'echo "[user]" >> ~/.gitconfig'
 idw_each deny 'a redirection to $HOME/.gitconfig-work' 'printf x > "$HOME/.gitconfig-work"'

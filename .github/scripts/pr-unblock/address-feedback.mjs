@@ -1224,9 +1224,46 @@ const TREE_QUERY = `query($owner: String!, $name: String!, $expression: String!)
   }
 }`;
 
-const QUEUE_ENTRY_QUERY = `query($owner: String!, $name: String!, $pr: Int!) {
+export const QUEUE_ENTRY_QUERY = `query($owner: String!, $name: String!, $pr: Int!) {
   repository(owner: $owner, name: $name) { pullRequest(number: $pr) { id mergeQueueEntry { id } } }
 }`;
+// Takes a pull request, by node id, out of the merge queue.
+export const DEQUEUE_MUTATION = "mutation($id: ID!) { dequeuePullRequest(input: { id: $id }) { clientMutationId } }";
+
+export const HOLD_DEQUEUE_TITLE = "hold-label-dequeue";
+export const holdDequeueLine = (pr, label, outcome) =>
+  `::notice title=${HOLD_DEQUEUE_TITLE}::pr=${String(pr).replaceAll(/[\r\n%]/g, " ")} label=${String(label).replaceAll(/[\r\n%]/g, " ")} outcome=${outcome}`;
+
+// After the lanes App adds a hold label to pull request `pr`: one read of its
+// queue entry and, when it is queued, the dequeue, so its merge group does not
+// run only for ci-status to fail it on the label. A refused read or dequeue
+// warns and returns; the label is the hold, and ci-status still reads it in
+// the queue. Logs one HOLD_DEQUEUE_TITLE notice; returns its outcome.
+export async function leaveQueueOnHold({ readQueueEntry, dequeuePull, pr, label, log = console.log }) {
+  let outcome;
+  let entry = null;
+  try {
+    entry = await readQueueEntry(pr);
+  } catch (error) {
+    outcome = "refused:read-failed";
+    log(`::warning::#${pr}: its merge-queue entry did not read (${error.message}); it was not dequeued`);
+  }
+  if (entry !== null) {
+    if (!entry.queued) {
+      outcome = "not-queued";
+    } else {
+      try {
+        await dequeuePull(entry.id);
+        outcome = "dequeued";
+      } catch (error) {
+        outcome = "refused:dequeue-failed";
+        log(`::warning::#${pr}: could not dequeue it (${error.message}); ci-status still fails its merge group on ${label}`);
+      }
+    }
+  }
+  log(holdDequeueLine(pr, label, outcome));
+  return outcome;
+}
 const RESOLVE_MUTATION = `mutation($id: ID!) {
   resolveReviewThread(input: { threadId: $id }) { thread { isResolved } }
 }`;
@@ -1445,7 +1482,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       return { id: pull.id, queued: pull.mergeQueueEntry !== null };
     },
     async dequeuePull(id) {
-      await graphql("mutation($id: ID!) { dequeuePullRequest(input: { id: $id }) { clientMutationId } }", { id });
+      await graphql(DEQUEUE_MUTATION, { id });
     },
     async createIssueComment(pr, body) {
       await request(`${repo}/issues/${pr}/comments`, "POST", { body });

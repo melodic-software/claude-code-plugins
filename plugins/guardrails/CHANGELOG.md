@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.0] - 2026-11-03
+
+### Removed
+
+- The `check` skill is gone. To check this plugin's prerequisites, run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`, the command the hook notices already print. With `jq` missing the guards deny that Bash call too, and the denial names `jq`; `/guardrails:setup check` still reports it from its load-time rows.
+
 ## [0.84.5] - 2026-11-02
 
 ### Changed

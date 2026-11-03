@@ -18,8 +18,7 @@
       "degrade": "Without node, the guardrails hooks cannot launch, so they do nothing.",
       "install": {
         "docs": "https://nodejs.org/en/download"
-      },
-      "check": "/guardrails:check"
+      }
     },
     {
       "id": "jq",
@@ -37,8 +36,7 @@
       "degrade": "Without jq, guardrails denies Bash and PowerShell calls, and file writes on Windows; it skips its other file checks.",
       "install": {
         "docs": "https://jqlang.org/download/"
-      },
-      "check": "/guardrails:check"
+      }
     }
   ]
 }
