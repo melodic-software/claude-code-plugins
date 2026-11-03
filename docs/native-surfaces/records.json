@@ -3094,24 +3094,6 @@
       },
       "component": {
         "plugin": "bash-format",
-        "skill": "check",
-        "kind": "skill"
-      },
-      "reason": "Name overlap only: bash-format:check is a read-only check that shfmt, shellcheck and node resolve for the bash-format hook; the built-in Bash tool executes shell commands. Different jobs, no routing.",
-      "as_of": "2.1.287",
-      "date": "2026-10-01",
-      "fingerprint": {
-        "native": "a7f67a9b12ebfca6f87a32ccdee185d9",
-        "component": "dd6798c14d26edab70e9c138812da51e"
-      }
-    },
-    {
-      "native": {
-        "name": "Bash",
-        "class": "builtin-tool"
-      },
-      "component": {
-        "plugin": "bash-format",
         "skill": "setup",
         "kind": "skill"
       },
@@ -3265,24 +3247,6 @@
       "fingerprint": {
         "native": "6bbfd7f717bc99f360fd31b2d78ad20d",
         "component": "0d0c9124d766430cdac185203828a762"
-      }
-    },
-    {
-      "native": {
-        "name": "PowerShell",
-        "class": "builtin-tool"
-      },
-      "component": {
-        "plugin": "powershell-format",
-        "skill": "check",
-        "kind": "skill"
-      },
-      "reason": "Name overlap only: powershell-format:check is a read-only check that pwsh, PSScriptAnalyzer, jq and node resolve for the powershell-format hook; the built-in PowerShell tool executes PowerShell commands. Different jobs, no routing.",
-      "as_of": "2.1.287",
-      "date": "2026-10-01",
-      "fingerprint": {
-        "native": "7e8a83657f5c47a86bcd429dbf18e53e",
-        "component": "3ea7d63b3f8a7f725c0afbc70c615504"
       }
     },
     {

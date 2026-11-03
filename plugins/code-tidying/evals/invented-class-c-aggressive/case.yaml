@@ -1,21 +1,27 @@
 schema_version: "1.1"
 name: invented-class-c-aggressive
-description: aggressive on an invented script keeps a load-bearing warning and two outside-constraint comments and deletes a restating comment
-tags: [calibration, aggressive, invented]
-expected_outcome: The lock-deadlock warning survives in at most two lines; the retry rationale (the upstream API's behavior) and the timeout rationale (the load balancer's limit) survive as outside-constraint comments; the set-the-counter comment is deleted; code is unchanged.
+description: necessary on an invented script deletes the our-code deadlock warning as a reshape flag, keeps two outside-constraint comments, and deletes a restating comment
+tags: [calibration, necessary, invented]
+expected_outcome: The lock-deadlock warning is deleted and reported as a reshape flag or an unenforced constraint naming prepare_lock or start_worker; the retry rationale (the upstream API's behavior) and the timeout rationale (the load balancer's limit) survive as outside-constraint comments; the set-the-counter comment is deleted; code is unchanged.
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: /code-tidying:dissolve-comments aggressive class-c.sh
+  prompt: /code-tidying:remove-comments necessary class-c.sh
   allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
   max_turns: 80
   timeout_seconds: 1200
 graders:
-  - name: warning-kept
+  - name: warning-deleted
     type: regex
     pattern: '#[^\n]*deadlock'
     flags: i
+    match: not_contains
     target: { source: file, path: class-c.sh }
+  - name: warning-flagged
+    type: regex
+    pattern: '(reshape|unenforced)[\s\S]{0,600}(prepare_lock|start_worker)|(prepare_lock|start_worker)[\s\S]{0,600}(reshape|unenforced)'
+    flags: i
+    target: last_message
   - name: retry-rationale-kept
     type: regex
     pattern: '#[^\n]*upstream API'
