@@ -45,6 +45,10 @@
     {
       "answer": "- JSON lines are too large for five years of readings; switch to Parquet.\n",
       "why": "too large"
+    },
+    {
+      "answer": "- gzip NDJSON segments are a poor choice for a five-year archive; use Parquet.\n",
+      "why": "format attack in the draft's own word segments"
     }
   ]
 }

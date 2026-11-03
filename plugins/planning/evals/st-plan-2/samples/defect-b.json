@@ -23,6 +23,10 @@
     {
       "answer": "| 1 | IMPORTANT | Plan | Phase 1 should be journal-first; `AppendJournal` must run before `SaveBins` | Fix before building |\n",
       "why": "paraphrase"
+    },
+    {
+      "answer": "- `Server.transfer` has no crash safety: it calls `SaveBins` before `AppendJournal`, the reverse of `adjust`.\n",
+      "why": "no crash safety is the defect, not a dismissal"
     }
   ],
   "fail": [
@@ -41,6 +45,10 @@
     {
       "answer": "- A crash is handled: `SaveBins` leaves bins.json whole.\n",
       "why": "negated mention"
+    },
+    {
+      "answer": "- `SaveBins` before `AppendJournal` has no crash risk.\n",
+      "why": "dismissal"
     },
     {
       "answer": "- `AppendJournal` should batch fsync calls for speed.\n",

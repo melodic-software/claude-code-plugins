@@ -19,6 +19,10 @@
     {
       "answer": "| 1 | IMPORTANT | Plan | The importer never converts `StartsAt` to UTC, and `Clinic:TimeZone` is America/Denver | Fix before building |\n",
       "why": "paraphrase"
+    },
+    {
+      "answer": "- `ParseExact` does not convert local time to UTC, so `StartsAt` is hours off.\n",
+      "why": "negated conversion verb, not a negated local"
     }
   ],
   "fail": [

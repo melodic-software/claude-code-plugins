@@ -49,6 +49,14 @@
     {
       "answer": "- Polling is the wrong design for this worker.\n",
       "why": "wrong"
+    },
+    {
+      "answer": "- Polling for queued jobs every five seconds is wasteful; use LISTEN/NOTIFY.\n",
+      "why": "poll attack naming queued jobs"
+    },
+    {
+      "answer": "- Sleeping five seconds between empty queries is wasteful; use LISTEN/NOTIFY.\n",
+      "why": "five seconds, plural"
     }
   ]
 }

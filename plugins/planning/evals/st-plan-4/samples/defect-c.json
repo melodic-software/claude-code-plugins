@@ -23,6 +23,10 @@
     {
       "answer": "| 1 | IMPORTANT | Plan | Phase 1 edits only `appsettings.json`, so production settings keep `HoursBefore` at 48 and reminders never send | Fix before building |\n",
       "why": "paraphrase"
+    },
+    {
+      "answer": "- The plan assumes reminders are not disabled in production, but `appsettings.Production.json` sets `Enabled` false.\n",
+      "why": "quotes the assumption, then refutes it"
     }
   ],
   "fail": [

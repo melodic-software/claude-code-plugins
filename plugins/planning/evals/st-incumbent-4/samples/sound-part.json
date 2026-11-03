@@ -19,6 +19,14 @@
     {
       "answer": "- `Sealbox.rekey` has been available since 5.0.0, so Why is wrong about rotation.\n",
       "why": "other finding"
+    },
+    {
+      "answer": "- None of the customer fields exceed the 4 KB value limit; the largest is 254 characters.\n",
+      "why": "negation four words before the attack"
+    },
+    {
+      "answer": "- The 4 KB value limit is fine, but `Sealbox.rekey` exists since 5.0.0, so Why is wrong about rotation.\n",
+      "why": "wrong belongs to another clause"
     }
   ],
   "fail": [
