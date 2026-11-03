@@ -393,10 +393,15 @@ describe("planWrites", () => {
     });
   }
 
+  // A kept trust control (loop-lane "When work stops for the owner"): text
+  // addressed to the triage run escalates, and the needs-human this run's
+  // triage applied for it stays, though the escalated verdict carries no flag.
   test("needs-human on an escalated run holds even when this run's triage applied it", () => {
-    const result = plan(ESCALATED_BODY, { labels: ["needs-human"], triageLabels: ["needs-human"] });
+    const result = plan(ESCALATED_BODY, { labels: ["needs-human"], holdSetters: { "needs-human": ACTIONS_BOT }, triageLabels: ["needs-human"] });
     assert.equal(result.ready, false);
     assert.deepEqual(result.remove, []);
+    assert.deepEqual(result.refused, []);
+    assert.ok(result.reasons.includes("the triage run escalated"), result.reasons.join("; "));
     assert.ok(result.reasons.includes("held by needs-human"), result.reasons.join("; "));
   });
 

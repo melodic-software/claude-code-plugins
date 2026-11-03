@@ -1,7 +1,7 @@
 # Runner escalation
 
 Every runner stop is a terminal state, and every non-success terminal state hands the work
-back to a human through the one governed queue. This leaf resolves the escalation UX the
+back through the one governed queue. This leaf resolves the escalation UX the
 [hub](../runner.md) routes here: the terminal-handoff shape, the two-family stop-criteria
 taxonomy, the deterministic mapping from a stop to a severity-routed escalation item, and the
 acknowledgment and re-escalation knobs. It defines only runner-new content; the inherited
@@ -22,9 +22,10 @@ terminal outcome, carried in the structured-output envelope's `outcome` field
 | `needs-human` | the run cannot proceed without human judgment or intervention |
 | `cap-exceeded` | a turn, budget, or wall-clock cap bounded the drain before completion |
 
-**Non-success outcomes file the escalation item.** `gate-failed`, `needs-human`, and
-`cap-exceeded` each file a human-gated work item on the governed queue carrying the evidence
-bundle: a failure summary, the run-transcript link, the run cost, the trace link, and the
+**Non-success outcomes file the escalation item.** `needs-human` and `cap-exceeded` each file
+a human-gated work item on the governed queue; `gate-failed` files its item on the
+`gate-failure` class's route, human-gated only under the
+[guardrail stop rule](../guardrails.md#escalation). Each item carries the evidence bundle: a failure summary, the run-transcript link, the run cost, the trace link, and the
 `resume_handle`. Human takeover is not a distinct API. It resumes the persisted session behind
 the `resume_handle` ([session-and-resume seam](seams.md)), so the escalation item is a
 resumable takeover, not a cold restart.
