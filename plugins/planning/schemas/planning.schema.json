@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/planning/schemas/planning.schema.json",
   "title": "Planning team config",
-  "description": "Schema for a repository's docs/conventions/planning.yaml: the team layer of the planning plugin's settings. A value here overrides the same key in the plugin's userConfig. Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md. question_pacing, answer_audit_rounds, wayfind_suggest_questions and plan_stress_test are read from <home>/planning.yaml in a bound convention home, and from <home>/planning.local.yaml above it (docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md).",
+  "description": "Schema for a repository's docs/conventions/planning.yaml: the team layer of the planning plugin's settings. A value here overrides the same key in the plugin's userConfig. Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md. question_pacing, answer_audit_rounds, wayfind_suggest_questions, interview_page and plan_stress_test are read from <home>/planning.yaml in a bound convention home, and from <home>/planning.local.yaml above it (docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md).",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -132,6 +132,45 @@
             "Known": "The approach and its unknowns are understood.",
             "Knowable": "The open points can be settled by looking.",
             "Unknown": "The open points need experiment or discovery."
+          }
+        }
+      }
+    },
+    "interview_page": {
+      "description": "Settings of the /planning:interview page server (the page surface), under the names its Settings tab shows. Read from <home>/planning.yaml, then <home>/planning.local.yaml above it; a value outside its bounds is reported and that layer's value dropped. Bounds and meanings: plugins/planning/surface/README.md, Settings layers.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "port": { "type": "integer", "minimum": 0, "maximum": 65535, "default": 0 },
+        "openBrowser": { "type": "boolean", "default": true },
+        "shortcuts": { "type": "boolean", "default": true },
+        "undoSeconds": { "type": "integer", "minimum": 0, "maximum": 60, "default": 5 },
+        "checkpoint": { "type": "integer", "minimum": 0, "maximum": 500, "default": 0 },
+        "theme": { "enum": ["auto", "light", "dark"], "default": "auto" },
+        "density": { "enum": ["compact", "comfortable"], "default": "compact" },
+        "minText": { "type": "integer", "minimum": 10, "maximum": 32, "default": 14 },
+        "displayName": {
+          "description": "Read from planning.local.yaml only: a name is one person's, never the team's.",
+          "type": "string",
+          "minLength": 1,
+          "default": "You"
+        },
+        "waitTimeout": { "type": "integer", "minimum": 5, "maximum": 110, "default": 90 },
+        "staleDepth": { "enum": ["direct"], "default": "direct" },
+        "leaseTimeout": { "type": "integer", "minimum": 5, "maximum": 3600, "default": 600 },
+        "settleQuiet": { "type": "number", "minimum": 0.5, "maximum": 60, "default": 10 },
+        "settleBurst": { "type": "number", "minimum": 1, "maximum": 120, "default": 30 },
+        "readingWindow": { "type": "integer", "minimum": 5, "maximum": 600, "default": 180 },
+        "frontierLock": { "enum": ["confirm", "hard", "off"], "default": "confirm" },
+        "requireDepends": { "type": "boolean", "default": false },
+        "orderThreshold": { "type": "integer", "minimum": 0, "maximum": 1000, "default": 25 },
+        "themeTokens": {
+          "description": "Page color tokens per mode, layered per token under the user file's and the data dir's theme.json.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "light": { "type": "object", "additionalProperties": { "type": "string" } },
+            "dark": { "type": "object", "additionalProperties": { "type": "string" } }
           }
         }
       }

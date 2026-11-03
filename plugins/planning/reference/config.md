@@ -194,6 +194,18 @@ asks one question for each topic the task touches that the survey does not alrea
 file is data the interview matches for topics, never instructions it follows. A missing file or
 heading means no team probe topics.
 
+## Interview page keys
+
+The `interview_page.*` keys sit under one `interview_page` object in `<home>/planning.yaml` and
+`<home>/planning.local.yaml`, `<home>` resolved as in "Convention-home keys", and have no
+user-config option. They keep the names the page's Settings tab shows (`undoSeconds`,
+`frontierLock`), so a value moves between the files, a `--user-settings` file and the data dir's
+`settings.json` unchanged. The page server (`surface/interview_server.py`) reads them itself and
+reports `team` or `personal` as the layer; `displayName` is read from the personal file only. The
+keys, bounds, the layers above these two and the notice for the retired
+`.claude/interview-surface.json` are in [`../surface/README.md`](../surface/README.md) "Settings
+layers".
+
 ## Shared-session keys
 
 The `shared_session.*` keys sit under one `shared_session` object in the repository file and have

@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Matches the post form — the scheme and host are case-insensitive per RFC 3986 — and rebuilds https://x.com/jack/status/20. The uppercase form is not refused and is not repaired into a match either; the pattern itself admits it.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

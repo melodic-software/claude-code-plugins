@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Matches the post form on the legacy mobile host, captures handle and id, and rebuilds https://x.com/jack/status/20. The mobile.twitter.com host is never placed in the emitted command.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

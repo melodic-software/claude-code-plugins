@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "`pricing.tier.imported` evicts keys; `PRICE_CACHE_TTL_SECONDS` 3600 to 900. Ran `pytest tests/pricing/test_cache.py`. Follows #118, unblocks #131.",
+      "why": "all values"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "`pricing.tier.imported` evicts keys; TTL cut to 900. Ran `pytest tests/pricing/test_cache.py`. Follows #118, unblocks #131.",
+      "why": "TTL name and old value lost"
+    }
+  ]
+}
