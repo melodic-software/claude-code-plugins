@@ -51,6 +51,7 @@ import {
   waitedPull,
 } from "./report-outcome.mjs";
 import { closeStop, parentDone } from "../lib/done-evidence.mjs";
+import { finishedParent } from "../intake-triage/admit.mjs";
 import { LIMIT_DEFAULTS } from "./limits.mjs";
 import { STOP_ROUTES } from "./stop-routes.mjs";
 import { isPersonReason, parseReason } from "../lib/stop-reason.mjs";
@@ -4314,7 +4315,37 @@ test("a verify-unmet stop parks the parent naming the unmet item, with no retry 
   assert.ok(!plan.comment.includes(ESCALATION_MARKER));
 });
 
-test("parentDone proves nothing for an issue with no sub-issue, so doneEvidence stays the only already-done proof", async () => {
+// #12365's real shape: its one sub-issue (#12772) closed completed, but its own
+// UX-3 done-when line waits on a watcher capability that does not exist.
+const UX3 = "UX-3: when the watcher or the session can report a pending terminal permission prompt, the page shows that state and a test covers it. Until then, this item stays parked and the #7280 hint stays.";
+const UI14 = "UI-14: the 2026-10-12 \"keep it\" decision is recorded in `plugins/planning/surface/deferred.md`, citing the decision comment.";
+const PARENT_12365 = `## Done when\n\n- [ ] ${UX3}\n- [ ] ${UI14}\n`;
+
+test("#12365: all sub-issues done but its own UX-3 line unmet parks, never closes", async () => {
+  const sub = doneSub(12772);
+  const found = await finishedParent({
+    github: async (method, path) => (path.includes("/sub_issues") ? [sub] : null),
+    repository: "o/r",
+    issue: { number: 12365, body: PARENT_12365, sub_issues_summary: { total: 1, completed: 1 } },
+    trusted: async () => true,
+  });
+  assert.deepEqual(found, [12772], "every sub-issue closed completed, so the parent gets its one verify run");
+  const unmet = `verify-unmet: ${UX3}`;
+  const plan = stoppedPlan(unmet);
+  assert.equal(plan.action, "park");
+  assert.ok(!plan.comment.includes(ESCALATION_MARKER));
+  const run = await stopRun({ reason: unmet, summary: PARENT_12365, routes: [subs(sub), ["POST", /\/issues\/77\/labels$/, 200, []]], extraEnv: { VERIFY_CLOSE: found.join(",") } });
+  assert.equal(run.code, 0);
+  assert.ok(!run.calls.some((c) => c.method === "PATCH"), "no close call");
+  const comment = run.calls.filter((c) => c.method === "POST").map((c) => c.body.body).find((body) => body?.startsWith("<!-- work-resolve-issue outcome=parked"));
+  assert.ok(comment, "the park posts its outcome comment");
+  assert.match(comment, /^<!-- work-resolve-issue outcome=parked run=123 -->/);
+  assert.match(comment, /UX-3/);
+  assert.equal(closeStop(comment), null, "no close evidence");
+  assert.equal(await parentDone(evidenceClient([[/\/issues\/77\/sub_issues/, [sub]]]), "/repos/o/r", 77, async () => true), true, "sub-issues alone would pass, so the unmet own item is what keeps it open");
+});
+
+test("parentDone proves nothing for an issue with no sub-issue,so doneEvidence stays the only already-done proof", async () => {
   assert.equal(await parentDone(evidenceClient([[/\/issues\/77\/sub_issues/, []]]), "/repos/o/r", 77, async () => true), false);
   assert.equal(await parentDone(evidenceClient([]), "/repos/o/r", 77, async () => true), false, "an unread listing");
   assert.equal(await parentDone(evidenceClient([[/\/issues\/77\/sub_issues/, [doneSub(80)]]]), "/repos/o/r", 77, async () => true), true);
