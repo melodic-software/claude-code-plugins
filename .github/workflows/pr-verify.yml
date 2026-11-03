@@ -1958,11 +1958,13 @@ jobs:
       # Read by the next runs' credit gate: the artifact its `marker` output
       # names (check-key-credit gate.cjs markerName), uploaded only after a
       # judge step's credit-stop handoff, which on this key leg means the key
-      # is out of credit. Its upload time starts the window; one day's
-      # retention covers windows up to 24 hours.
+      # is out of credit. The name is written out so its retention row
+      # (.github/artifact-retention.json) claims it; a gate that names
+      # another marker writes none. Its upload time starts the window; one
+      # day's retention covers windows up to 24 hours.
       - name: Write the key's credit-stop marker
         id: credit-marker
-        if: always() && steps.credit.outputs.marker != '' && (steps.judge.outputs.handoff-reason == 'credit-stop' || steps.judge-2.outputs.handoff-reason == 'credit-stop' || steps.judge-3.outputs.handoff-reason == 'credit-stop' || steps.judge-4.outputs.handoff-reason == 'credit-stop' || steps.judge-5.outputs.handoff-reason == 'credit-stop' || steps.judge-6.outputs.handoff-reason == 'credit-stop' || steps.judge-7.outputs.handoff-reason == 'credit-stop' || steps.judge-8.outputs.handoff-reason == 'credit-stop' || steps.judge-9.outputs.handoff-reason == 'credit-stop' || steps.judge-10.outputs.handoff-reason == 'credit-stop' || steps.judge-11.outputs.handoff-reason == 'credit-stop' || steps.judge-12.outputs.handoff-reason == 'credit-stop' || steps.judge-spec.outputs.handoff-reason == 'credit-stop')
+        if: always() && steps.credit.outputs.marker == 'key-credit-stop-pr-verify.yml-check-intent' && (steps.judge.outputs.handoff-reason == 'credit-stop' || steps.judge-2.outputs.handoff-reason == 'credit-stop' || steps.judge-3.outputs.handoff-reason == 'credit-stop' || steps.judge-4.outputs.handoff-reason == 'credit-stop' || steps.judge-5.outputs.handoff-reason == 'credit-stop' || steps.judge-6.outputs.handoff-reason == 'credit-stop' || steps.judge-7.outputs.handoff-reason == 'credit-stop' || steps.judge-8.outputs.handoff-reason == 'credit-stop' || steps.judge-9.outputs.handoff-reason == 'credit-stop' || steps.judge-10.outputs.handoff-reason == 'credit-stop' || steps.judge-11.outputs.handoff-reason == 'credit-stop' || steps.judge-12.outputs.handoff-reason == 'credit-stop' || steps.judge-spec.outputs.handoff-reason == 'credit-stop')
         continue-on-error: true
         timeout-minutes: 1
         run: |
@@ -1979,12 +1981,12 @@ jobs:
           path: ${{ runner.temp }}/key-credit-stop/run-id
 
       - name: Upload the key's credit-stop marker
-        if: always() && steps.credit-marker.outcome == 'success' && steps.credit-marker-scan.outputs.clean == 'true'
+        if: (always() && steps.credit-marker.outcome == 'success') && steps.credit-marker-scan.outputs.clean == 'true'
         continue-on-error: true
         timeout-minutes: 1
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ${{ steps.credit.outputs.marker }}
+          name: key-credit-stop-pr-verify.yml-check-intent
           path: ${{ runner.temp }}/key-credit-stop/run-id
           if-no-files-found: error
           retention-days: 1

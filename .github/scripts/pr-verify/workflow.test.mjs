@@ -375,16 +375,22 @@ test("the key job uploads the gate's marker only after a credit-stop handoff, an
   const writeStep = step(write);
   assert.match(writeStep, /^ {8}id: credit-marker$/m);
   const condition = /^ {8}if: (.*)$/m.exec(writeStep)[1];
-  assert.equal(condition, `always() && steps.credit.outputs.marker != '' && (${chainOf((id) => `steps.${id}.outputs.handoff-reason == 'credit-stop'`, "judge")})`);
+  // gate.cjs markerName at bc62beb: `key-credit-stop-${workflow file}-${key-job}`.
+  // The upload writes it out so its retention row claims it; the write runs only
+  // while the gate's `marker` output equals it, so a contract change uploads none.
+  const keyJob = /^ {10}key-job: (\S+)$/m.exec(step("Read the key's credit history"))[1];
+  const marker = `key-credit-stop-pr-verify.yml-${keyJob}`;
+  assert.equal(marker, "key-credit-stop-pr-verify.yml-check-intent");
+  assert.equal(condition, `always() && steps.credit.outputs.marker == '${marker}' && (${chainOf((id) => `steps.${id}.outputs.handoff-reason == 'credit-stop'`, "judge")})`);
   assert.match(writeStep, /echo "\$GITHUB_RUN_ID" >"\$RUNNER_TEMP\/key-credit-stop\/run-id"/);
   const scanStep = step(scan);
   assert.match(scanStep, /^ {8}id: credit-marker-scan$/m);
   assert.match(scanStep, /^ {8}if: always\(\) && steps\.credit-marker\.outcome == 'success'$/m);
   assert.match(scanStep, /^ {8}uses: \.\/\.base\/\.github\/actions\/scan-upload /m);
   const uploadStep = step(upload);
-  assert.match(uploadStep, /^ {8}if: always\(\) && steps\.credit-marker\.outcome == 'success' && steps\.credit-marker-scan\.outputs\.clean == 'true'$/m);
+  assert.match(uploadStep, /^ {8}if: \(always\(\) && steps\.credit-marker\.outcome == 'success'\) && steps\.credit-marker-scan\.outputs\.clean == 'true'$/m);
   // The name the gate reads is the name the job uploads; the scan covers the same file.
-  assert.equal(input(uploadStep, "name"), "${{ steps.credit.outputs.marker }}");
+  assert.equal(input(uploadStep, "name"), marker);
   assert.equal(input(uploadStep, "path"), "${{ runner.temp }}/key-credit-stop/run-id");
   assert.equal(input(scanStep, "path"), input(uploadStep, "path"));
   assert.equal(input(uploadStep, "retention-days"), "1");
