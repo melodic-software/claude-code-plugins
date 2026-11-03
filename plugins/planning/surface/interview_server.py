@@ -262,6 +262,15 @@ class Settings:
 
         return tuple(stamp(p) for p in self._watch)
 
+    def retry_due(self):
+        """Rerun a failed first read once its pause is over, so a fix reaches an idle page.
+
+        Nothing else calls repo_layers() while the page sits idle, and watched() stays () after
+        a failed first read; a successful retry fills it, which changes the stream's signature.
+        """
+        if self._repo is None and self._retry_at and time.monotonic() >= self._retry_at:
+            self.repo_layers()
+
     def retired_notice(self):
         """Note the retired repository file once per data dir while its bytes are unchanged."""
         if not self.repo or not self.notices:
@@ -1288,6 +1297,7 @@ class Hub(LoopbackWatcher):
     def signature(self):
         user = self.user_settings()
         listener = self.listener()
+        self.layers.retry_due()
         return (
             mtime(self.questions),
             mtime(self.responses),

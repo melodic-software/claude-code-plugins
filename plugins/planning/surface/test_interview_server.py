@@ -3446,6 +3446,51 @@ class TestSettingsResolver(unittest.TestCase):
             self.server.Settings(repo, state).resolve(data)
         self.assertEqual(again.getvalue().count(notice), 1, again.getvalue())
 
+    def test_failed_first_read_is_retried_after_the_pause_without_a_resolve(self):
+        repo = self.tmp / "r"
+        repo.mkdir()
+        watched = repo / "planning.yaml"
+        watched.write_text("planning: {}\n", encoding="utf-8")
+        good = json.dumps(
+            {"values": {}, "layers": {}, "notes": [], "watch": [str(watched)]}
+        )
+        runs = []
+
+        def run(*args, **kwargs):
+            runs.append(args)
+            out = "" if len(runs) == 1 else good
+            return subprocess.CompletedProcess(args, 0, stdout=out, stderr="")
+
+        clock = [1000.0]
+        server = self.server
+        layers = server.Settings(repo)
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
+            stack.enter_context(
+                unittest.mock.patch.object(server.shutil, "which", return_value="node")
+            )
+            stack.enter_context(
+                unittest.mock.patch.object(server.subprocess, "run", side_effect=run)
+            )
+            stack.enter_context(
+                unittest.mock.patch.object(
+                    server.time, "monotonic", side_effect=lambda: clock[0]
+                )
+            )
+            self.assertEqual(layers.repo_layers(), ({}, {}))
+            self.assertIsNone(layers._repo)
+            self.assertEqual(layers.watched(), ())
+            clock[0] += server.REPO_RETRY_S - 1
+            layers.retry_due()
+            self.assertEqual(layers.repo_layers(), ({}, {}))
+            self.assertEqual(len(runs), 1)
+            clock[0] += 1
+            layers.retry_due()
+            self.assertEqual(len(runs), 2)
+            self.assertEqual(len(layers.watched()), 1)
+            layers.retry_due()
+            self.assertEqual(len(runs), 2)
+
 
 class TestEmojiMarkers(ServerCase):
     """meta.emojiMarkers from ensure-running, written once through the locked path."""
