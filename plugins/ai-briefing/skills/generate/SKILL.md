@@ -33,7 +33,10 @@ next to the format's source, which alone says what the briefing was emitted as. 
 the notice for a retired `~/.claude/rendered-views.md` ends "set it in the ai-briefing plugin's
 medium option instead", and this plugin has no such option. Print that notice with
 `docs/conventions/rendered-views.local.yaml` (the personal override) in place of "the
-ai-briefing plugin's medium option", and leave every other notice as it stands. Do
+ai-briefing plugin's medium option". When that notice names a publishing value (`it sets
+medium: artifact` or `it sets medium: hosted`), also append `; it publishes only while that file
+is untracked and gitignored`, the caveat the resolver gives for that file, since a committed
+personal override is ignored. Leave every other notice as it stands. Do
 not read or weigh the rendered-views convention files yourself. When `node` is missing, say so in
 one line and carry on.
 
