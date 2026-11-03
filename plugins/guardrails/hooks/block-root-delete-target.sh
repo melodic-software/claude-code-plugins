@@ -1767,7 +1767,7 @@ RDT_NAME_SET_MAX=256
 RDT_NAME_SET_FORBID_RE='(^|[^A-Za-z0-9_])IFS\+?=|(^|[;&|({'$'\n'']|(^|[[:space:]])(then|else|do|if|while|until|time|command|builtin|!))[[:space:]]*(eval|source)[[:space:]]|(^|[;&|({'$'\n''])[[:space:]]*\.[[:space:]]'
 # shellcheck disable=SC2016,SC2329  # literal `$` patterns; called from rdt_led_by_unbound
 rdt_name_set() {
-  local n="$1" t="$COMMAND" v found=0 grounded=0 self_ref re ref
+  local n="$1" t="$COMMAND" v grounded=0 self_ref re ref
   local re_ref='\$\{?([A-Za-z_][A-Za-z0-9_]*)'
   RDT_NAME_SET_CALLS=$((RDT_NAME_SET_CALLS + 1))
   ((RDT_NAME_SET_CALLS > RDT_NAME_SET_MAX || $2 > 4)) && return 1
@@ -1780,7 +1780,6 @@ rdt_name_set() {
   while [[ "$t" =~ $re ]]; do
     v="${BASH_REMATCH[2]}"
     t="${t#*"${BASH_REMATCH[0]}"}"
-    found=1
     [[ -z "$t" || "$t" == [[:space:]\;\&\|\)]* ]] || return 1
     [[ "$v" == *'('* || "$v" == *'`'* || "$v" == *\\* ]] && return 1
     [[ "$v" == [\"\']* ]] && v="${v:1:${#v}-2}"
