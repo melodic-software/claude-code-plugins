@@ -983,6 +983,59 @@ export function sessionQueued({ labels = [], issueComments, headSha, isLanesApp 
   });
 }
 
+// The files listing stops at FILES_CAP, so a longer diff could hide a
+// .github/workflows/ path and is treated as touching one.
+const touchesProtected = (files) => files.length >= FILES_CAP || files.some((file) => isProtectedPath(file.filename) || isProtectedPath(file.previous_filename ?? ""));
+
+// The rounds the PR has had: round markers or model check runs on its
+// commits, whichever count more, and those check runs.
+async function roundsSoFar(api, pr, issueComments, appId) {
+  const commits = await api.listPullCommits(pr);
+  const checkRuns = [];
+  for (const commit of commits) {
+    checkRuns.push(await api.listCheckRuns(commit.sha, MODEL_CHECK));
+  }
+  return { rounds: Math.max(countRounds(issueComments, appId), countCheckRounds(checkRuns)), checkRuns };
+}
+
+// A round for the notes of the FAILs behind a verify:earlier-fail refusal:
+// no review thread, the notes as work items (`verify_notes`, each an id, the
+// FAILed head, the file its note comment would go on, and that comment's
+// body), which the model fixes or reports already addressed
+// (publish-feedback.mjs). Notes that cannot be read stop the round failing
+// (feedback-verdict-unreadable), never as a success; past the round cap and
+// the fresh fixer's round it stops feedback-verifier-open.
+async function earlierFailRound({ api, pr, headSha, repository, appId, files, issueComments, heads, labeled, maxRounds, earlierFailHeads, readFailNotes, ci, log }) {
+  if (touchesProtected(files)) {
+    return { decision: "escalate", escalationReason: "feedback-protected-path", threads: [] };
+  }
+  let notes;
+  try {
+    notes = await readFailNotes({ heads: earlierFailHeads, files: files.map((file) => file.filename) });
+  } catch (error) {
+    log(`::warning::#${pr}: the notes of pr-verify's FAIL at ${earlierFailHeads.join(", ")} could not be read from its verdict artifact (${String(error?.message ?? error).slice(0, 300)})`);
+    return { decision: "escalate", escalationReason: "feedback-verdict-unreadable", threads: [] };
+  }
+  const { rounds } = await roundsSoFar(api, pr, issueComments, appId);
+  const bound = maxRounds + FRESH_FIXER_ROUNDS;
+  if (rounds >= bound) {
+    return { decision: "escalate", escalationReason: "feedback-verifier-open", rounds, maxRounds: bound, threads: [] };
+  }
+  log(`earlier-fail: ${notes.length} note item(s) from pr-verify's FAIL at ${earlierFailHeads.join(", ")}`);
+  return {
+    decision: "proceed",
+    modelRung: retryRung(await api.listCheckRuns(headSha, REPLY_CHECK)),
+    rounds,
+    maxRounds: bound,
+    // A gated PR returned awaiting-human before any thread was kept.
+    humanGate: labeled ? "lane-escalation" : "",
+    threads: [],
+    file: { version: 1, repository, pr, head_sha: headSha, pr_paths: prPathsOf(files), threads: [], verify_notes: notes },
+    reviewedHeads: [...heads].sort(),
+    ci: await ci({ headSha, files }),
+  };
+}
+
 export async function select({
   api,
   pr,
@@ -996,6 +1049,13 @@ export async function select({
   maxRounds = DEFAULT_MAX_ROUNDS,
   adoption = NO_ADOPTION,
   ci = async () => undefined,
+  // The FAILed heads behind the merge gate's verify:earlier-fail refusal
+  // (input verify-earlier-fail-heads), and the reader of their notes
+  // (earlier-fail-notes.mjs), for a round with no thread left to work.
+  earlierFailHeads = [],
+  readFailNotes = async () => {
+    throw new Error("no reader of the FAILs' verdict artifacts");
+  },
   log = () => {},
 }) {
   // Serial reads: element 6.
@@ -1081,24 +1141,21 @@ export async function select({
     if (untaken && sessionQueued({ labels: pull.labels, issueComments, headSha, isLanesApp })) {
       return { decision: "skip", skipReason: "awaiting-session", threads: kept };
     }
-    return untaken
-      ? { decision: "escalate", escalationReason: "feedback-untaken-threads", threads: kept }
-      : { decision: "skip", skipReason: "stop-resolved", resolved: true, threads: kept };
+    if (untaken) {
+      return { decision: "escalate", escalationReason: "feedback-untaken-threads", threads: kept };
+    }
+    // The merge gate refuses the head verify:earlier-fail, so a round must
+    // move it; the FAIL's notes come from its verdict artifact, since their
+    // threads are resolved (#12809).
+    if (earlierFailHeads.length > 0) {
+      return earlierFailRound({ api, pr, headSha, repository, appId, files, issueComments, heads, labeled, maxRounds, earlierFailHeads, readFailNotes, ci, log });
+    }
+    return { decision: "skip", skipReason: "stop-resolved", resolved: true, threads: kept };
   }
-  // The files listing stops at FILES_CAP, so a longer diff could hide a
-  // .github/workflows/ path and is treated as touching one.
-  if (
-    files.length >= FILES_CAP ||
-    files.some((file) => isProtectedPath(file.filename) || isProtectedPath(file.previous_filename ?? ""))
-  ) {
+  if (touchesProtected(files)) {
     return { decision: "escalate", escalationReason: "feedback-protected-path", threads: kept };
   }
-  const commits = await api.listPullCommits(pr);
-  const checkRuns = [];
-  for (const commit of commits) {
-    checkRuns.push(await api.listCheckRuns(commit.sha, MODEL_CHECK));
-  }
-  const rounds =Math.max(countRounds(issueComments, appId), countCheckRounds(checkRuns));
+  const { rounds, checkRuns } = await roundsSoFar(api, pr, issueComments, appId);
   // The most automatic rounds a PR gets: the cap and the fresh fixer's round.
   const bound = maxRounds + FRESH_FIXER_ROUNDS;
   let worked = kept;
@@ -1187,6 +1244,7 @@ export function runRecord(file, reviewedHeads, ci) {
     })),
     ...(file.stale_notes ? { stale_notes: file.stale_notes } : {}),
     ...(file.superseded_head ? { superseded_head: file.superseded_head } : {}),
+    ...(file.verify_notes ? { verify_notes: file.verify_notes.map(({ id, head, path }) => ({ id, head, path })) } : {}),
     ...(reviewedHeads ? { reviewed_heads: reviewedHeads } : {}),
     ...(ci ? { ci } : {}),
   };
@@ -1415,6 +1473,18 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     async getCommit(sha) {
       return (await request(`${repo}/commits/${sha}`)).data;
     },
+    // A GET of `path` under the API root, for earlier-fail-notes.mjs (actions
+    // and contents read).
+    readPath: async (path) => (await request(`${apiUrl}${path}`)).data,
+    // An artifact's zip, which redirects to a short-lived download URL; fetch
+    // follows it.
+    async downloadArtifact(id) {
+      const response = await fetch(`${repo}/actions/artifacts/${id}/zip`, { headers });
+      if (!response.ok) {
+        throw Object.assign(new Error(`GET artifact ${id} zip returned ${response.status}`), { status: response.status });
+      }
+      return Buffer.from(await response.arrayBuffer());
+    },
     // A file's text at `ref` through the raw media type, which serves files
     // over 1 MB (docs.github.com/en/rest/repos/contents#get-repository-content,
     // as of 2026-10-21; recheck when that section changes its size limits);
@@ -1630,6 +1700,25 @@ export function reviewerIdsFrom(text) {
     .map((id) => positive(id, "an id in REVIEWER_IDS"));
 }
 
+// VERIFY_EARLIER_FAIL_HEADS, the FAILed heads a dispatcher run named
+// (space-separated commit ids, at most 10, none twice); none when unset. Only
+// a dispatcher run sends it, and never with a pr-verify pass head.
+export function earlierFailHeadsFrom(env) {
+  const heads = String(env.VERIFY_EARLIER_FAIL_HEADS ?? "")
+    .split(" ")
+    .filter(Boolean);
+  if (heads.length === 0) {
+    return [];
+  }
+  if (heads.length > 10 || new Set(heads).size !== heads.length || !heads.every((sha) => SHA.test(sha) && sha !== env.HEAD_SHA)) {
+    throw new Error("VERIFY_EARLIER_FAIL_HEADS is not a list of other heads' commit ids");
+  }
+  if (!env.DISPATCHER_RUN_ID || env.VERIFY_PASS_HEAD) {
+    throw new Error("only a dispatcher run's model round names earlier FAILed heads");
+  }
+  return heads;
+}
+
 export async function main(argv, env, { api, log = (line) => console.log(line) } = {}) {
   const command = argv[0];
   need(env, ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_OUTPUT", "PR_NUMBER", "HEAD_SHA", "APP_SENDER_ID"]);
@@ -1648,6 +1737,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
       fetch: await countedFetch(),
     });
   const output = (key, value) => appendFileSync(env.GITHUB_OUTPUT, `${key}=${value}\n`);
+  const earlierFailHeads = earlierFailHeadsFrom(env);
   const selectThreads = async () => {
     need(env, ["TRUSTED_ACTORS"]);
     return select({
@@ -1663,6 +1753,12 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
       maxRounds: maxRoundsFrom(env.REVIEW_ROUNDS),
       adoption: await ownerAdoption(env, log),
       ci: ({ headSha, files }) => ciSnapshot({ api: client, headSha, files }),
+      earlierFailHeads,
+      // Loaded only for such a round: it reads pr-verify's scripts.
+      readFailNotes: async ({ heads, files }) => {
+        const { earlierFailNotes } = await import("./earlier-fail-notes.mjs");
+        return earlierFailNotes({ actions: { read: client.readPath, download: client.downloadArtifact }, repository: env.GITHUB_REPOSITORY, pr, heads, files });
+      },
       log,
     });
   };

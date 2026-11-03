@@ -74,6 +74,13 @@
 // App PRs: on a PR a person opened, verify-notes.mjs holds a fail with a label
 // it removes itself on the next pass, so there is no thread to resolve.
 //
+// A lanes App PR the merge gate's reader refuses verify:earlier-fail (a FAIL
+// at another head of the same change) dispatches even with no unresolved
+// thread: once its fail-note threads are resolved nothing else moves the head.
+// That model round names the FAILed heads (input verify-earlier-fail-heads,
+// verify-cap.mjs earlierFailHeads), and its select job works their notes from
+// the verdict artifacts. Every other skip above still holds.
+//
 // A round whose reply job skipped no-model-turn, finding-stands (an
 // adjudicator let a disputed finding stand and the head did not move, so no
 // review run follows), or kill-switch (the lanes kill switch stopped it, and
@@ -549,6 +556,10 @@ export async function dispatchFeedback({
   }
   // A pass-only round reads its own threads and runs no model, so neither the
   // review markers, a workable thread nor the human gate below decide it.
+  // A lanes App PR with no unresolved thread waits for the verifier read
+  // below: a verify:earlier-fail refusal there sends a round for the FAILed
+  // heads' notes, which their verdict artifacts hold (#12809).
+  let noThread = false;
   if (!passOnly) {
     const comments = await api.listIssueComments(number);
     const unreviewed = settings.markerLanes.filter((lane) => markedHead(comments, lane, settings.markerAuthorId) !== head);
@@ -600,7 +611,10 @@ export async function dispatchFeedback({
       return skip(`#${number} is labeled ${humanGatedLabel} (${why}) and has no thread a trusted person with write access asked the lane to fix`);
     }
     if (!workable && !threads.some((thread) => thread.isResolved === false)) {
-      return skip(`#${number} has no unresolved review thread`);
+      if (owner) {
+        return skip(`#${number} has no unresolved review thread`);
+      }
+      noThread = true;
     }
     // On an owner PR an unresolved thread the lane does not take (one the
     // person wrote or answered) stays the person's, so it starts no round.
@@ -685,7 +699,7 @@ export async function dispatchFeedback({
   // meet a same-head FAIL it did not supersede, whose notes stay open.
   const expected = passOnly || notesSince !== null ? [VERIFY_FAIL] : [];
   const read = owner ? null : await verifyCapped({ number, head, base: pull.base?.sha, expected });
-  const { cap: capped, supersededAtHead } = read !== null && typeof read === "object" ? read : { cap: read, supersededAtHead: false };
+  const { cap: capped, supersededAtHead, earlierFailHeads = [] } = read !== null && typeof read === "object" ? read : { cap: read, supersededAtHead: false };
   if (capped) {
     // The cap never clears for the head: later runs skip it before any
     // read. A sibling read that failed is read again next run.
@@ -702,6 +716,13 @@ export async function dispatchFeedback({
       return skip(`#${number}: pr-verify's FAILs are at the cap or cannot all be read (${capped}); pr-merge closes it for a fresh attempt, so no ${settings.activity} round`);
     }
   }
+  // A model round names the FAILed heads behind the gate's verify:earlier-fail
+  // refusal, whose notes the select job reads from their verdict artifacts
+  // when no thread is left to work.
+  const earlierFail = passOnly ? [] : earlierFailHeads;
+  if (noThread && earlierFail.length === 0) {
+    return skip(`#${number} has no unresolved review thread`);
+  }
   const request = {
     workflow: settings.workflow,
     ref: `refs/heads/${settings.base}`,
@@ -713,6 +734,7 @@ export async function dispatchFeedback({
       // The gate's reader found the FAIL at this head superseded, so the
       // round resolves that FAIL's notes too (address-feedback.mjs select).
       ...(passOnly && supersededAtHead === true ? { "verify-superseded-head": head } : {}),
+      ...(earlierFail.length > 0 ? { "verify-earlier-fail-heads": earlierFail.join(" ") } : {}),
     },
   };
   let workflowRunId;

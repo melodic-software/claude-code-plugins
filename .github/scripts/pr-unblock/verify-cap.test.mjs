@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { tempDir } from "../../../lib/test-tmp.mjs";
-import { carrySteps, DEADLINE_UNREADABLE, FAIL, final, LISTING_MISS_PREFIX, NO_INCREMENTAL_WAITS, SIBLING_UNREADABLE, SUPERSEDED_AT_HEAD, spawnAsync, VERIFY_CAP_TIMEOUT_MS, VERIFY_SCRIPT, verifyCapReader, verifyReader } from "./verify-cap.mjs";
+import { carrySteps, DEADLINE_UNREADABLE, EARLIER_FAIL, EARLIER_FAILS, FAIL, final, LISTING_MISS_PREFIX, NO_INCREMENTAL_WAITS, SIBLING_UNREADABLE, SUPERSEDED_AT_HEAD, spawnAsync, VERIFY_CAP_TIMEOUT_MS, VERIFY_SCRIPT, verifyCapReader, verifyReader } from "./verify-cap.mjs";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
@@ -49,7 +49,6 @@ test("an allow is not the cap, and says nothing", async () => {
 test("any other refusal is not the cap: the round runs, with a warning naming the reader's detail", async () => {
   for (const [refusal, detail] of [
     ["verify:fail", `a FAIL at ${HEAD}`],
-    ["verify:earlier-fail", "an earlier head FAILed"],
     ["verify:too-old", "opened 81 days ago"],
     ["verify:unreadable", "run of pr-verify-42-x-fail: gh: Bad credentials (HTTP 401)"],
   ]) {
@@ -67,10 +66,10 @@ test("a refusal the round expects warns nothing; any other still warns, and the 
   const quiet = reader(answer({ refusal: "verify:fail", detail: `a FAIL at ${HEAD}` }));
   assert.equal(await quiet.read({ number: 42, head: HEAD, base: BASE, expected: ["verify:fail"] }), null);
   assert.deepEqual(quiet.lines, []);
-  const other = reader(answer({ refusal: "verify:earlier-fail", detail: "an earlier head FAILed" }));
+  const other = reader(answer({ refusal: "verify:too-old", detail: "opened 81 days ago" }));
   assert.equal(await other.read({ number: 42, head: HEAD, base: BASE, expected: ["verify:fail"] }), null);
   assert.equal(other.lines.length, 1);
-  assert.match(other.lines[0], /^::warning::#42: .*verify:earlier-fail/);
+  assert.match(other.lines[0], /^::warning::#42: .*verify:too-old/);
   const capped = reader(answer({ refusal: "verify:repeated-fail", detail: CAPPED }));
   assert.equal(await capped.read({ number: 42, head: HEAD, base: BASE, expected: ["verify:fail"] }), `verify:repeated-fail: ${CAPPED}`);
 });
@@ -122,8 +121,8 @@ test("a read that fails, does not parse or answers for another head runs the rou
 // answer for another head is not superseded.
 test("the reader's supersededAtHead reaches the caller only as true from a read at the head", async () => {
   const read = (done) => verifyReader({ GITHUB_REPOSITORY: REPO }, { spawn: () => done, log: () => {} })({ number: 42, head: HEAD, base: BASE });
-  assert.deepEqual(await read(answer({ refusal: null, supersededAtHead: true })), { cap: null, supersededAtHead: true });
-  assert.deepEqual(await read(answer({ refusal: "verify:spec-changed", supersededAtHead: true })), { cap: null, supersededAtHead: true });
+  assert.deepEqual(await read(answer({ refusal: null, supersededAtHead: true })), { cap: null, supersededAtHead: true, earlierFailHeads: [] });
+  assert.deepEqual(await read(answer({ refusal: "verify:spec-changed", supersededAtHead: true })), { cap: null, supersededAtHead: true, earlierFailHeads: [] });
   for (const done of [
     answer({ refusal: "verify:fail", supersededAtHead: false }),
     answer({ refusal: null }),
@@ -131,9 +130,32 @@ test("the reader's supersededAtHead reaches the caller only as true from a read 
     answer({ refusal: null, supersededAtHead: true, head: "c".repeat(40) }),
     { status: 1, stdout: "", stderr: "gh: rate limited" },
   ]) {
-    assert.deepEqual(await read(done), { cap: null, supersededAtHead: false }, JSON.stringify(done));
+    assert.deepEqual(await read(done), { cap: null, supersededAtHead: false, earlierFailHeads: [] }, JSON.stringify(done));
   }
-  assert.deepEqual(await read(answer({ refusal: "verify:repeated-fail", detail: CAPPED, supersededAtHead: false })), { cap: `verify:repeated-fail: ${CAPPED}`, supersededAtHead: false });
+  assert.deepEqual(await read(answer({ refusal: "verify:repeated-fail", detail: CAPPED, supersededAtHead: false })), { cap: `verify:repeated-fail: ${CAPPED}`, supersededAtHead: false, earlierFailHeads: [] });
+});
+
+// #12809: a verify:earlier-fail refusal names the FAILed heads behind it
+// (Evidence.report `earlierFails`), so feedback-dispatch.mjs sends a round
+// that works their notes; it is handled, so it warns nothing. A list that is
+// not of commit ids other than the head names none, with a warning.
+test("a verify:earlier-fail refusal names its FAILed heads and warns nothing; a malformed list names none", async () => {
+  const one = "1".repeat(40);
+  const two = "2".repeat(40);
+  const lines = [];
+  const read = (done) => verifyReader({ GITHUB_REPOSITORY: REPO }, { spawn: () => done, log: (line) => lines.push(line) })({ number: 42, head: HEAD, base: BASE });
+  assert.deepEqual(await read(answer({ refusal: EARLIER_FAIL, earlierFails: [one, two] })), { cap: null, supersededAtHead: false, earlierFailHeads: [one, two] });
+  assert.deepEqual(lines, []);
+  for (const earlierFails of [[], [HEAD], [one, "main"], one, undefined]) {
+    lines.length = 0;
+    assert.deepEqual(await read(answer({ refusal: EARLIER_FAIL, earlierFails })), { cap: null, supersededAtHead: false, earlierFailHeads: [] }, JSON.stringify(earlierFails));
+    assert.match(lines.join("\n"), /^::warning::#42: .*verify:earlier-fail/m);
+  }
+  // Another refusal names no head, whatever the report lists.
+  assert.deepEqual((await read(answer({ refusal: "verify:fail", earlierFails: [one] }))).earlierFailHeads, []);
+  // The cap reader still answers the cap alone.
+  const capRead = verifyCapReader({ GITHUB_REPOSITORY: REPO }, { spawn: () => answer({ refusal: EARLIER_FAIL, earlierFails: [one] }), log: () => {} });
+  assert.equal(await capRead({ number: 42, head: HEAD, base: BASE }), null);
 });
 
 test("without a base commit the reader takes its own cap default", async () => {
@@ -371,6 +393,8 @@ test("the sibling and caller-limit details, the FAIL refusal, the listing-miss p
   assert.ok(source.includes(`SIBLING_UNREADABLE = "${SIBLING_UNREADABLE}"`));
   assert.ok(source.includes(`DEADLINE_UNREADABLE = "${DEADLINE_UNREADABLE}"`));
   assert.ok(source.includes(`FAIL = "${FAIL}"`));
+  assert.ok(source.includes(`EARLIER_FAIL = "${EARLIER_FAIL}"`));
+  assert.ok(source.includes(`"${EARLIER_FAILS}": sorted(`));
   assert.ok(source.includes(`LISTING_MISS_PREFIX = "${LISTING_MISS_PREFIX}"`));
   assert.ok(source.includes(`NO_INCREMENTAL_WAITS_ENV = "${Object.keys(NO_INCREMENTAL_WAITS)[0]}"`));
   assert.ok(source.includes(`"${SUPERSEDED_AT_HEAD}": self.superseded_at_head,`));

@@ -307,6 +307,16 @@ PR head is the passing one, as the lanes App, with no reply and no round marker,
 App PRs; other address-feedback rounds also go to adopted owner PRs
 ([Owner pull requests](#owner-pull-requests)). Resolving a thread
 takes more than the `post-verify-notes` token holds, so that job never resolves one.
+When the gate's reader refuses a lanes App PR's head `verify:earlier-fail` (a FAIL at another head
+of the same change), its report's `earlierFails` names the FAILed heads, and the dispatcher sends a
+model round with them in `verify-earlier-fail-heads`, even with no unresolved thread. When no
+thread is left to work, `address-feedback-select` (with `actions: read`) reads those FAILs' notes
+from their verdict artifacts (`earlier-fail-notes.mjs`: the head's FAIL index, a run the gate
+counts, `verify-notes.mjs` `readVerdict` and `noteComments`) into `threads.json`'s
+`verify_notes`; a read that fails stops `feedback-verdict-unreadable`. The model fixes each note
+or reports it `already-addressed`; `publish-feedback` posts nothing for them. A push fixing a
+named note ends as any fix round; no push with every note already addressed stops
+`feedback-already-addressed` for a session builder.
 In `pr-unblock.yml`, `address-feedback-select` (a base job with no model and a read-only token)
 keeps the threads, `address-feedback` (the model job, `read`, on the read runner with a
 subscription fallback) answers them and hands on a patch and its replies,

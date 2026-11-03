@@ -5585,7 +5585,11 @@ test("pr-unblock.yml: the select job runs only base code with a read-only token 
   const { jobs } = workflow("pr-unblock.yml");
   const select = jobs["address-feedback-select"];
   assert.equal(select.uses, undefined, "a script job, never a runner that runs a model");
-  assert.deepEqual(select.permissions, { contents: "read", "pull-requests": "read", checks: "read" });
+  // actions read: an earlier FAIL's verdict artifact and its pr-verify run
+  // (earlier-fail-notes.mjs), every scope read-only.
+  assert.deepEqual(select.permissions, { contents: "read", "pull-requests": "read", checks: "read", actions: "read" });
+  assert.equal(select.steps.find((s) => s.id === "select").env.VERIFY_EARLIER_FAIL_HEADS, "${{ inputs.verify-earlier-fail-heads }}");
+  assert.equal(workflow("pr-unblock.yml").on.workflow_dispatch.inputs["verify-earlier-fail-heads"].type, "string");
   assert.doesNotMatch(JSON.stringify(select), /secrets\./);
   for (const step of select.steps.filter((s) => String(s.uses ?? "").startsWith("actions/checkout@"))) {
     assert.equal(step.with.ref, "${{ github.event.repository.default_branch }}");
