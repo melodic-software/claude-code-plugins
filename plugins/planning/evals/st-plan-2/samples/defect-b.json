@@ -77,6 +77,10 @@
     {
       "answer": "- `SaveBins` before `AppendJournal` has no crash risk.\n",
       "why": "dismissal"
+    },
+    {
+      "answer": "- A crash is handled: `SaveBins` leaves bins.json whole, though the Phase 3 check could log more.\n",
+      "why": "dismissal, then an unrelated though clause"
     }
   ]
 }

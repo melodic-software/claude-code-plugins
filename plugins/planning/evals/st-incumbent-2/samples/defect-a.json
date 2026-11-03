@@ -31,6 +31,10 @@
   ],
   "fail": [
     {
+      "answer": "- `HOLD_UNTIL` does not meet AC2, so the Redis lock is the simpler path the plan already weighs.\n",
+      "why": "backticked subject dismisses the incumbent"
+    },
+    {
       "answer": "",
       "why": "empty"
     },

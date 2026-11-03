@@ -1,6 +1,14 @@
 {
   "pass": [
     {
+      "answer": "- The hourly NDJSON layout is wrong for AC2: a station-day read opens every segment.\n",
+      "why": "defect-a finding, not an attack on the format"
+    },
+    {
+      "answer": "- The draft assumes UTC, but stations aren't on UTC, so gzip NDJSON segments get the wrong timestamps.\n",
+      "why": "defect-b finding, not an attack on the format"
+    },
+    {
       "answer": "",
       "why": "empty reply flags nothing"
     },

@@ -35,6 +35,10 @@
       "why": "empty"
     },
     {
+      "answer": "- The in-memory queue is not lost when `watchDatabase` exits: `ingest.service` drains it first.\n",
+      "why": "is not lost dismissal"
+    },
+    {
       "answer": "No plan gaps found.\n",
       "why": "clean pass"
     },
