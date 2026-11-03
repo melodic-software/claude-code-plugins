@@ -608,3 +608,5 @@ lib/check-convention-facts.mjs plugins/developer-experience/lib/check-convention
 lib/parse-concern-value.sh plugins/skill-quality/lib/parse-concern-value.sh
 lib/yaml-subset.awk plugins/skill-quality/lib/yaml-subset.awk
 lib/resolve-convention-home.sh plugins/skill-quality/lib/resolve-convention-home.sh
+lib/one-way-doors.md plugins/planning/reference/one-way-doors.md
+lib/one-way-doors.md plugins/review/reference/one-way-doors.md

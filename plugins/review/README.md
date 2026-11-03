@@ -75,7 +75,7 @@ Invoke via `@review:<agent>` or let Claude delegate.
   orchestrator review plugins, then normalizes everything into one ranked findings report.
   Modes: default (auto-scales to diff size), `run-everything` (full roster), `fix` (applies
   the merged set of persisted findings, the only mutating mode).
-- **`/review:explain-change [pr-number|this branch] [--event ready] [--policy off|offer|always] [--quiz] [--risk-only]`**.
+- **`/review:explain-change [pr-number|this branch] [--event ready] [--policy off|offer|always] [--quiz]`**.
   Change digest for a pull request: why, before and after, a risk map that a fresh-context
   agent checks (disputed rows stay, marked), where to focus, a run-e2e recording link when one
   exists for the head, annotated hunks, and a quiz on request. The markdown digest is the
@@ -84,9 +84,13 @@ Invoke via `@review:<agent>` or let Claude delegate.
   says otherwise; the shipped default publishes only a public repository's diff with no
   credential-shaped hunk, and keeps any other page local. The `review-digest` cascade concern sets `digest_policy` (`off`, `offer` by
   default, or `always` at the ready flip) and the offer thresholds. It never posts to the pull
-  request and never gates merge. `--risk-only` returns just the checked risk map and a `demote`
-  flag, which may only send an unattended merge to a human and never makes a pull request
-  merge-eligible.
+  request and never gates merge. Its risk map is a `/review:merge-risk` rating.
+- **`/review:merge-risk [pr-number|pr-url|this branch] [--dir <dir>]`**. Merge-risk rating of one
+  pull request against one rubric: alignment with the closing issue, impact, verification,
+  reversibility and error detection, each `LOW` to `CRITICAL`, checked blind by a fresh-context
+  agent. Returns the rows for the head it read and a `demote` flag, which may only send an
+  unattended merge to a human and never makes a pull request merge-eligible. Posts nothing and
+  gates nothing.
 - **`/review:code-review`**. CI code-review lane command for a pull request
   (correctness / maintainability; security scoped out where a separate security
   lane runs, folded back in where none does).

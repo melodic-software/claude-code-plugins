@@ -28,21 +28,13 @@ A significant decision is one that other modules, stored data, published contrac
 will build on. Call each one a door and record the call in its thread as `Door: one-way` or
 `Door: two-way`:
 
-- **One-way door**: undoing it needs a data migration, a coordinated release or a rewrite (a stored
-  format, a public contract or API, a module boundary others build on, a vendor commitment). Design
-  it deliberately: write the criteria first, and run the Phase 2 two-candidate step when its other
-  triggers hold. Prompt for an
-  ADR: when the thread resolves, offer `/architecture:record-decision` (when that plugin is
-  enabled) and note the offer in the thread. Unattended, list the ADR prompt in the run's output.
-- **Two-way door**: undoing it is a code-only change. Decide it fast, with a recommendation and its
-  `Basis:` line; no ADR prompt.
+The definition of each door is [`<plugin-root>/reference/one-way-doors.md`](../../../reference/one-way-doors.md).
 
-When the evidence cannot settle the call, treat the decision as a one-way door.
-
-Source: Jeff Bezos, 2015 letter to shareowners,
-[Amazon.com exhibit 99.1 to SEC Form 8-K](https://www.sec.gov/Archives/edgar/data/1018724/000119312516530910/d168744dex991.htm)
-(filed 2016), the passage on Type 1 and Type 2 decisions. As of 2026-10-18; recheck when the filing
-URL moves.
+- **One-way door**: design it deliberately: write the criteria first, and run the Phase 2
+  two-candidate step when its other triggers hold. Prompt for an ADR: when the thread resolves,
+  offer `/architecture:record-decision` (when that plugin is enabled) and note the offer in the
+  thread. Unattended, list the ADR prompt in the run's output.
+- **Two-way door**: decide it fast, with a recommendation and its `Basis:` line; no ADR prompt.
 
 ## Baseline: the consumer's style
 
