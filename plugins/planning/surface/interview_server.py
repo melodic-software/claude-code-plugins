@@ -122,6 +122,9 @@ RETIRED_SETTINGS = ".claude/interview-surface.json"
 # <home>/planning.local.yaml, resolved by the shared cascade (docs/adr/0075).
 REPO_SETTINGS_CLI = HERE / "repo_settings.mjs"
 REPO_KEY = "interview_surface"
+# Seconds before a failed first read of the layers runs again: with no watched file yet, no change
+# can trigger the rerun.
+REPO_RETRY_S = 60
 SETTINGS_NOTICES = ".settings-notices.json"  # in the data dir: the retired files already noticed
 
 # Settings, lowest layer first: plugin default, team file, personal file, user file, the data
@@ -240,6 +243,7 @@ class Settings:
         self._noted = set()
         self._repo = None  # (watched() stamps, values, layers) of the last repo_settings.mjs run
         self._watch = ()
+        self._retry_at = 0.0  # time.monotonic() before which a failed first read is not rerun
 
     def note(self, msg):
         if msg not in self._noted:
@@ -289,6 +293,8 @@ class Settings:
             return {}, {}
         if self._repo and self._repo[0] == self.watched():
             return self._repo[1], self._repo[2]
+        if self._repo is None and time.monotonic() < self._retry_at:
+            return {}, {}
         node = shutil.which("node")
         if not node:
             self.note("node is not on PATH, so planning.yaml is not read")
@@ -309,8 +315,13 @@ class Settings:
             notes, watch = got["notes"], got["watch"]
         except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as e:
             self.note(f"planning.yaml not read: {e}")
-            # Cached until a watched file changes, so a poll does not wait on a failing run again.
-            self._repo = (self.watched(), {}, {})
+            if self._watch:
+                # Cached until a watched file changes, so a poll does not wait on a failing run again.
+                self._repo = (self.watched(), {}, {})
+            else:
+                # No run has named its files yet, so no change would rerun it: retry after a pause.
+                self._repo = None
+                self._retry_at = time.monotonic() + REPO_RETRY_S
             return {}, {}
         for msg in notes:
             self.note(str(msg))
