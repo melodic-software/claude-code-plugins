@@ -4,11 +4,11 @@
 # gives a step with no `shell:` (bash -e), against stub `gh` and `sleep`.
 #
 # Native auto-merge (pr-merge.yml's enable-auto-merge job) merges a lanes App
-# pull request without pr-merge's gate, so ci-status holds it on the holds
-# that gate honors: a body hold (a `Hold:` line or "do not merge"), a member's
-# newest comment saying not to merge, a changed or renamed-from path
-# matching the merge lane's denied paths, and a trusted-actor list change that
-# adds or widens an entry. It reads them live, on a pull
+# pull request without pr-merge's gate, so ci-status holds it on the kill
+# switch, a member's newest comment saying not to merge, a changed or
+# renamed-from path matching the merge lane's denied paths, and a trusted-actor
+# list change that adds or widens an entry. Body text holds nothing: the
+# do-not-merge label is the veto. It reads them live, on a pull
 # request event and in the merge queue, runs the base commit's
 # merge-holds.mjs, and fails closed when it cannot tell. In the merge queue it
 # also runs pr-merge's verdict reader (babysit_verify_evidence.py, stubbed

@@ -1949,8 +1949,8 @@ nothing. A pr-unblock run the switch stopped mid-run posts its check neutral `ki
 dispatcher counts as handling the head, so the next dispatcher run after the lift (the half-hourly
 `pr-unblock-dispatch.yml` tick, or a review completing at the head) dispatches it again, at most
 `limits.limit-stops-per-head` times per head, `SWEEP_HEAD_CAP` for `address-feedback`.
-`ci-status` enforces the same holds on every lanes App pull request, the two text holds and the
-hold paths, so one added after arming stops the merge without waiting for this job: its step
+`ci-status` enforces a member's veto comment and the hold paths on every lanes App pull request,
+so one added after arming stops the merge without waiting for this job: its step
 `Fail a lanes App pull request on kill switch, hold path, verifier or veto` runs
 `.github/scripts/pr-merge/merge-holds.mjs` as main has it, the module `enable-auto-merge.mjs` arms
 by, over the live body, discussion and changed files (renamed-from paths included) against main's
