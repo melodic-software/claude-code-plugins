@@ -174,8 +174,9 @@ memory.
      names our surface; `adapt` names what changes and why.
 4. **No upstream text.** Hold every cell to the convention's "What a row may describe" section,
    read in "Read the shape first": name each idea by its unit name and link it, and before writing,
-   run that section's test on each row against the upstream file it links. Write a cell that fails
-   again from the mechanism.
+   run that section's five-word test on each cell, against the upstream file its row links and, for
+   a **Stated** cell, against the place its label links. Write a cell that fails again from the
+   mechanism or the problem.
 5. **License notice.** Read the license at the pin (a LICENSE file, a manifest field, the host's
    reported license) and record what each says, any disagreement between them, and that no
    upstream text or code is copied, with the record parts: pointer to the license file at the pin,
