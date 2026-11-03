@@ -111,7 +111,9 @@ Limits: any local process that can reach the port can read the token from `GET /
 
 ## Settings layers
 
-Nearest wins, per key, and each Settings row names its layer: this browser's localStorage (the Settings tab), the data dir's `settings.json`, a user file passed as `ensure-running --user-settings`, the repository's `.claude/interview-surface.json` (found through `CLAUDE_PROJECT_DIR`, else the nearest ancestor holding `.git`), then defaults.
+Nearest wins, per key, and each Settings row names its layer: this browser's localStorage (the Settings tab), the data dir's `settings.json` (`session`), a user file passed as `ensure-running --user-settings` (`user`), the `interview_page` mapping of planning's personal file `<home>/planning.local.yaml` (`personal`), the same mapping of the team file `<home>/planning.yaml` (`team`), then defaults. The two files are the [ADR 0075](../../../docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md) layers: `<home>` is what `../lib/resolve-convention-home.sh` prints for the git toplevel of `CLAUDE_PROJECT_DIR` (else of the data dir's nearest ancestor holding `.git`), `docs/conventions` when no pointer is bound or the repository declined one, and both files are skipped outside a git work tree, at `$HOME` or above it, or when the pointer fails. No `userConfig` option carries these keys. The team file never sets `displayName`. The keys and their bounds are in `../schemas/planning.schema.json` under `interview_page`.
+
+The retired `.claude/interview-surface.json` is never read for a value. When it exists, `ensure-running` prints one notice on stderr naming each of its keys and where it goes now (a team key to `interview_page.<key>` in the team file, `displayName` to the personal file, `browserCommand` to a `--user-settings` file, `surface` to the plugin's `surface` option). The notice shows once per data dir while the file's bytes are unchanged; the data dir's `.retired-notices.json` records what it showed.
 
 | Key | Default | Bounds |
 |---|---|---|
@@ -123,7 +125,7 @@ Nearest wins, per key, and each Settings row names its layer: this browser's loc
 | `theme` | `auto` | `auto`, `light`, `dark` |
 | `density` | `compact` | `compact`, `comfortable` |
 | `minText` | `14` | 10 to 32 |
-| `displayName` | `You` | user file or session only |
+| `displayName` | `You` | personal file, user file or session only |
 | `waitTimeout` | `90` | 5 to 110 seconds; curl allows 10 more |
 | `staleDepth` | `direct` | `direct` |
 | `leaseTimeout` | `600` | 5 to 3600 seconds a silent watcher keeps its lease; read on every poll |
@@ -134,7 +136,7 @@ Nearest wins, per key, and each Settings row names its layer: this browser's loc
 | `requireDepends` | `false` | `true` turns `add` and `add-round`'s warnings on a question with no `dependsOn`, or one naming a question open in its own round, into refusals |
 | `orderThreshold` | `25` | 0 to 1000 open questions; above it the header's Answering order panel lists the open questions with prerequisites first (topological by `dependsOn`), then the most transitive dependents, then the lower id. Advisory: it changes no state and no `frontierLock` check |
 
-The repo and user files also take `themeTokens` (`{"light": {...}, "dark": {...}}`). `browserCommand` (a program or argv list that receives the URL) is read only from a user file passed as `--user-settings` on that same `ensure-running` call. The user file a running server recorded keeps supplying every other setting, but never the opener, so `--open` alone uses the default browser. An invalid value falls through to the layer below with a note printed by `ensure-running`. Theme tokens layer per token: the data dir's `theme.json`, then the user file's `themeTokens`, then the repo's `themeTokens`, then the built-in set.
+The team, personal and user files also take `themeTokens` (`{"light": {...}, "dark": {...}}`). `browserCommand` (a program or argv list that receives the URL) is read only from a user file passed as `--user-settings` on that same `ensure-running` call. The user file a running server recorded keeps supplying every other setting, but never the opener, so `--open` alone uses the default browser. An invalid value falls through to the layer below with a note printed by `ensure-running`: for the team file that is the default, and for the personal file the team value. Theme tokens layer per token: the data dir's `theme.json`, then the user file's `themeTokens`, then the personal file's, then the team file's, then the built-in set.
 
 ## Differences from the shared page
 
