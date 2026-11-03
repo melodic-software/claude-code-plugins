@@ -2317,10 +2317,10 @@ test("a new attempt, a new run, a changed run or a carry for another head reads 
   }
 });
 
-test("a job read that is not whole and final is not carried", async () => {
+test("a job read that is not whole and final, or is empty, is not carried", async () => {
   const cut = realJobs.map((j) => (j.name === "test-node" ? { ...j, steps: j.steps.slice(0, -1) } : j));
   const unfinished = realJobs.map((j) => (j.name === "lint-repo" ? { ...j, status: "in_progress", conclusion: null } : j));
-  for (const jobs of [cut, unfinished, MIXED_JOBS]) {
+  for (const jobs of [cut, unfinished, MIXED_JOBS, []]) {
     const { code, settled } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs })], carry: null });
     assert.equal(code, 0);
     assert.deepEqual(settled.jobs, []);

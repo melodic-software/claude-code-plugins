@@ -862,6 +862,9 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
           SHA.test(r.head_sha ?? "") &&
           typeof r.updated_at === "string" &&
           wholeListing(listed) &&
+          // An empty listing may not have settled yet (holdReason waits
+          // PASS_MINUTES on one), so it is read again rather than carried.
+          listed.jobs.length > 0 &&
           listed.jobs.every((job) => stepsKnown(job) && (job.run_attempt === undefined || job.run_attempt === r.run_attempt))
         ) {
           keepJobs.set(key, { id: r.id, attempt: r.run_attempt, head: r.head_sha, updated_at: r.updated_at, jobs: listed.jobs.map(slimJob) });

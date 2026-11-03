@@ -1003,12 +1003,13 @@ test("a new attempt or a changed run reads its jobs again, and an in-progress ru
   }
 });
 
-test("a job read that is short, unfinished or has a cut step list is not carried", async () => {
+test("a job read that is short, unfinished, empty or has a cut step list is not carried", async () => {
   const whole = queueJobs();
   const cases = [
     { ...whole, total_count: 2 },
     { ...whole, jobs: [{ ...whole.jobs[0], status: "in_progress", conclusion: null }] },
     { ...whole, jobs: [{ ...whole.jobs[0], steps: whole.jobs[0].steps.slice(0, -1) }] },
+    { ...whole, total_count: 0, jobs: [] },
   ];
   for (const jobs of cases) {
     const data = await collect(input(fakeApi(queueRoutes({ jobs }))));

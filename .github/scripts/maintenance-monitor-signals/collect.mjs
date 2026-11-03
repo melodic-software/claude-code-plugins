@@ -153,6 +153,8 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
         const jobs = listing.jobs ?? [];
         if (
           final &&
+          // An empty listing may not have settled yet, so it is never carried.
+          jobs.length > 0 &&
           jobs.length === listing.total_count &&
           jobs.every((j) => j?.status === "completed" && j.conclusion != null && stepsKnown(j) && (j.run_attempt === undefined || j.run_attempt === run.run_attempt))
         ) {
