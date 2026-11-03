@@ -11,6 +11,10 @@
     {
       "answer": "1. **Severity:** P1\n   **Location:** `src/routes/assistant.js:20-22` (with `:11` and `:17`)\n   **Risk:** The refund runs on whatever order ID and amount the model returns. The only limits are written in the prompt, and nothing in the code checks that the order belongs to the caller.",
       "why": "baseline-shaped report: model-chosen refund with no ownership check in code"
+    },
+    {
+      "answer": "1. **Severity:** P1\n   **Location:** `src/routes/assistant.js:44-47` (with the system prompt at `:36`)\n   **Risk:** The only limits on refunds are written in the system prompt. The model's JSON goes straight to `payments.refund(orderId, amountCents)` with no check in code, so a customer can refund any order.",
+      "why": "right defect cited at diff-file lines 44 and 36, which map to source lines 19 and 11"
     }
   ],
   "fail": [

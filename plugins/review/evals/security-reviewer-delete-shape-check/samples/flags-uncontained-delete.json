@@ -7,6 +7,10 @@
     {
       "answer": "Path traversal via the stored name reaches fs.rm at src/jobs/purge-exports.js line 7",
       "why": "class words before a 'line N' location"
+    },
+    {
+      "answer": "1. **Severity:** P2\n**Location:** `src/jobs/purge-exports.js:13` (regex) and `src/jobs/purge-exports.js:21` (the delete call)\n**Risk:** Path traversal (CWE-22): the safe-name check still allows `../`.",
+      "why": "right defect cited at diff-file lines 13 and 21, which map to source lines 7 and 15"
     }
   ],
   "fail": [
@@ -17,10 +21,6 @@
     {
       "answer": "**Location**: `src/jobs/purge-exports.js:10`\n**Risk**: no audit trail is written when an export is deleted.",
       "why": "right file, a logging gap, not the delete reach"
-    },
-    {
-      "answer": "1. **Severity:** P2\n**Location:** `src/jobs/purge-exports.js:13` (regex) and `src/jobs/purge-exports.js:21` (the delete call)\n**Risk:** Path traversal (CWE-22): the safe-name check still allows `../`.",
-      "why": "right defect cited at diff-file line numbers, not the source lines 7 and 15"
     },
     {
       "answer": "**Location**: `src/routes/exports.js:11`\n**Risk**: the fileName allows path traversal when the worker writes the file.",
