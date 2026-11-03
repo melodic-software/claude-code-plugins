@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "@dataclass(frozen=True)\nclass Money:\n    currency: Currency\n    amount_minor: int\n",
+      "why": "integer minor units beside a currency code"
+    },
+    {
+      "answer": "A Money holds a currency code and an integer count of minor units.\n",
+      "why": "stated in prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no artifact written"
+    },
+    {
+      "answer": "@dataclass(frozen=True)\nclass Money:\n    currency: Currency\n    amount: Decimal\n",
+      "why": "a Decimal, which can hold a fraction of the smallest unit"
+    }
+  ]
+}
