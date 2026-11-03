@@ -31,7 +31,8 @@ PILOT_SUITE = REPO_ROOT / "plugins" / "evals" / "evals"
 # what keeps the fixtures discriminating: this pattern alone does not.
 FAIL_LINE = re.compile(
     r"^FAIL .*(unknown frontmatter key|duplicate grader|no grader|runs|not parsed"
-    r"|schema_version|is required|requires|no prompt|sample|JavaScript)",
+    r"|not loadable|schema_version|is required|requires|no prompt|sample"
+    r"|JavaScript)",
     re.MULTILINE,
 )
 
@@ -428,6 +429,90 @@ class UnparsedFixture(ValidatorTestCase):
         )
         result = self.validate()
         self.assert_fail(result, "not parsed (unterminated frontmatter)")
+
+    def test_dashes_inside_a_grader_frontmatter_value_fail(self):
+        # `claude plugin eval` rejects this grader with "invalid YAML
+        # frontmatter: YAML Parse error: Unexpected EOF" and runs nothing.
+        self.case(
+            "dashes-in-grader",
+            prompt=CLEAN_PROMPT,
+            graders={
+                "table": """\
+                ---
+                type: regex
+                pattern: '\\|---\\|---\\|'
+                ---
+                """
+            },
+        )
+        result = self.validate()
+        self.assert_fail(
+            result,
+            "FAIL dashes-in-grader/graders/table.md: frontmatter not loadable:"
+            " line 3 holds `---`",
+        )
+
+    def test_dashes_inside_prompt_frontmatter_fail(self):
+        self.case(
+            "dashes-in-prompt",
+            prompt="""\
+            ---
+            description: "a --- b"
+            ---
+
+            Do the thing.
+            """,
+            graders={"criteria": REGEX_GRADER},
+        )
+        result = self.validate()
+        self.assert_fail(
+            result,
+            "FAIL dashes-in-prompt/prompt.md: frontmatter not loadable:"
+            " line 2 holds `---`",
+        )
+
+    def test_unterminated_frontmatter_wins_over_dashes_after_it(self):
+        self.case(
+            "unparsed-open-table",
+            prompt="""\
+            ---
+            runs: 3
+
+            |---|---|
+            """,
+            graders={"criteria": REGEX_GRADER},
+        )
+        result = self.validate()
+        self.assert_fail(result, "not parsed (unterminated frontmatter)")
+        self.assertNotIn("not loadable", result.stdout)
+
+    def test_dashes_in_the_body_or_spelled_as_a_quantifier_stay_quiet(self):
+        self.case(
+            "dashes-outside-frontmatter",
+            prompt="""\
+            ---
+            description: A table question
+            ---
+
+            | Flag | Meaning |
+            |---|---|
+            """,
+            graders={
+                "table": """\
+                ---
+                type: regex
+                pattern: '\\|-{3}\\|'
+                ---
+
+                ---
+                """
+            },
+        )
+        self.samples(
+            "dashes-outside-frontmatter", "table", passing=["|---|"], failing=["|--|"]
+        )
+        result = self.validate()
+        self.assert_clean(result)
 
 
 class SchemaFixture(ValidatorTestCase):

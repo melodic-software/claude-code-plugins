@@ -43,12 +43,13 @@ absent, and no move dissolves a *why* ("Apply capacity" in dissolving-moves.md).
    the truncated preview). On the `uncommitted` and `branch` rungs, `comment_edit_scope: diff`
    narrows the triage to comments on the lines the change adds (`added-lines.sh <base>` with the
    rung's base, `HEAD` on the `uncommitted` rung; an untracked file counts whole); `files` triages
-   every comment in each listed file. Confirm a widening to the repository rung interactively
-   (never under `report`, which takes the rung without asking). **You are non-interactive whenever
-   the `AskUserQuestion` tool is unavailable**; then take a widened rung in safe mode, **whatever the
-   posture or token**, say "safe mode, non-interactive widening" in the report, and name the
-   explicit-target re-run that would apply the full contract, rather than ending the turn on a
-   question nobody can answer. The same holds when the ladder stops on a rung with no code files:
+   every comment in each listed file. Take a widening to the repository rung without asking, in
+   every mode. Outside `report`, triage that rung in safe mode, **whatever the posture or token**,
+   and report the rung, its file count, and the explicit-target re-run that narrows the scope or
+   applies the full contract. **You are non-interactive whenever the `AskUserQuestion` tool is
+   unavailable**; then, outside `report`, take any widened rung in safe mode the same way, say "safe
+   mode, non-interactive widening" in the report, and name that re-run. The same holds when the
+   ladder stops on a rung with no code files:
    report the rung and its count, say the session is non-interactive, name the explicit-target
    re-run, and stop. On the repository rung, run `<skill-dir>/scripts/rank-comment-targets.sh` and
    triage in its order, passing `--allow-path <glob>` for each path the `override` argument or the
@@ -171,9 +172,9 @@ match it across files.
 a proposal. It is the mode pull-request prep runs over a change's added lines
 (`report --added-since <base> <files>`), and these rules keep that run safe to start unattended:
 
-- **It never asks.** Where step 1 would confirm a widening, `report` takes the rung without asking
-  and names the rung and its file count. It never calls `AskUserQuestion` and never ends on a
-  question.
+- **It never asks.** `report` takes any widened rung without asking, keeps the posture or token in
+  effect there because it edits nothing, and names the rung and its file count. It never calls
+  `AskUserQuestion` and never ends on a question.
 - **Nothing in the repository changes.** No edit, no `--notes` append, no step 4 census or step 7
   delta; say "report mode: no edits, no delta" in place of the delta line. Step 4's self-parse still
   runs, so each proposal can say whether its proof would be available.

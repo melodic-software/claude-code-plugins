@@ -68,7 +68,7 @@ zero edits.
 
 | Argument | Action |
 |---|---|
-| *(empty)* | Remove under the resolved posture, over the narrowest scope rung that resolves: uncommitted diff → branch diff → whole repository ([reference/scope.md](reference/scope.md)). Read [actions/remove.md](actions/remove.md), run its steps 1 and 2, then dispatch per [The comment-reviewer agent](#the-comment-reviewer-agent). |
+| *(empty)* | Remove under the resolved posture, over the narrowest scope rung that resolves: uncommitted diff → branch diff → whole repository ([reference/scope.md](reference/scope.md)). The repository rung is taken without asking and, outside `report`, runs in safe mode whatever the posture or token ([actions/remove.md](actions/remove.md) step 1). Read [actions/remove.md](actions/remove.md), run its steps 1 and 2, then dispatch per [The comment-reviewer agent](#the-comment-reviewer-agent). |
 | `<path>` | The same, over one file or directory; the pre-computed scope line is **void**: ignore it and do not run `scope-code-files.sh`. |
 | `audit [target]` | Read-only residue audit: history narration, plan and session references, conversational asides, ticket back-references, origin notes, unjustified workarounds. Read [actions/audit.md](actions/audit.md). Edits nothing and never asks. |
 | `report [target]` | Remove's triage with nothing applied: every treatment is a proposal. Combines with a posture token, `override` and `--added-since`; beats `safe`. Rules in [actions/remove.md](actions/remove.md#report-mode). |

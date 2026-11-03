@@ -42,4 +42,4 @@ Node is the only runtime this skill needs; the checker is `lib/prerequisites.mjs
 
 A missing row is a report, not an install. Do not run `npx`, `npm install`, or `go install` from this skill.
 
-The table's `check` column names the skill for that row. When that skill is model-invocable, run it. When it is a setup skill (a `:setup check` command), it is human-only, so the model cannot invoke it and can only relay the command: tell the user to type it and show the row's install command. Install nothing unless the user asked.
+The table's `check` column names the skill for that row, and is empty when the plugin ships none: relay the row's status and install command. When that skill is model-invocable, run it. When it is a setup skill (a `:setup check` command), it is human-only, so the model cannot invoke it and can only relay the command: tell the user to type it and show the row's install command. Install nothing unless the user asked.

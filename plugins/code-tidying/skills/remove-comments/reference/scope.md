@@ -27,10 +27,11 @@ The base is `--base <ref>` when given, else `refs/remotes/origin/HEAD`, else the
 
 The ladder advances on **absence** of a rung, never on emptiness: a rung that exists but yields zero
 code files is reported with `files=0`, so a docs-only branch reports its files as out of scope
-instead of silently escalating to the whole repository. Widening to the `repository` rung is
-confirmed with the user in an interactive session; a non-interactive run proceeds in **safe** mode
-on any widened rung, whatever the posture. `necessary` and `none` reach a widened rung only
-through that interactive confirmation; an explicit target is the other way to mean it.
+instead of silently escalating to the whole repository. Widening to the `repository` rung is taken
+without asking and runs in **safe** mode, whatever the posture, with the rung, its file count and
+the explicit-target re-run in the report; `report` keeps its posture there, since it edits nothing.
+Outside `report`, a non-interactive run proceeds in safe mode on any widened rung, and `necessary`
+and `none` apply to the whole repository only through an explicit target.
 
 Granularity is the `comment_edit_scope` setting. Under `diff`, the default, only comments on the
 lines the change adds are triaged on the `uncommitted` and `branch` rungs, so a pass over a pull

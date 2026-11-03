@@ -9,7 +9,7 @@ Seven skills, one capability:
 
 - **`/code-tidying:remove-comments`**. Removes the comments in a diff or target
   that do not earn their keep (a clean tree widens to the branch diff, then to
-  the whole repository with confirmation, ranked by exposure and comment
+  the whole repository in safe mode, ranked by exposure and comment
   payload), under a posture: `explanatory` (the interactive default) keeps
   every terse, load-bearing comment code cannot express; `necessary` (the
   pull-request pipeline's default) keeps only machine-read directives, license
