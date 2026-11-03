@@ -25,7 +25,11 @@ minor() { "$1" -c 'import sys; print("%d.%d" % sys.version_info[:2])'; }
 install python3
 [[ -x /usr/bin/python3 ]] || exit 0
 own="$(minor python3)"
-fallback="$(minor /usr/bin/python3)"
+# shellcheck disable=SC2310 # best-effort by design: a fallback that does not run is skipped
+fallback="$(minor /usr/bin/python3)" || {
+  echo "comment-tooling-seed: /usr/bin/python3 does not run; skipping the fallback" >&2
+  exit 0
+}
 [[ "$fallback" != "$own" ]] || exit 0
 # shellcheck disable=SC2310 # best-effort by design: a failure only warns
 install /usr/bin/python3 ||
