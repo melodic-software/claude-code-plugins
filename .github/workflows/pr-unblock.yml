@@ -21,6 +21,10 @@ name: pr-unblock
 # those of earlier heads, and those at the head when verify-superseded-head
 # names it, no model job runs, and the reply job resolves them as the lanes
 # App, posting nothing and counting no round.
+# When the merge gate refuses the head verify:earlier-fail, the dispatch names
+# the FAILed heads in verify-earlier-fail-heads; with no thread left to work,
+# the base job reads those FAILs' notes from their verdict artifacts as the
+# model's work items, and the reply job posts nothing for them.
 # review-dependency:
 # pr-unblock-dispatch.yml also sends one per review-tier Dependabot PR (a major
 # bump, an action publisher outside the allowlist, a group holding a major, or
@@ -67,6 +71,11 @@ on:
         default: ""
       verify-superseded-head:
         description: With verify-pass-head only; that head, when the merge gate's reader found the FAIL there superseded, so the round resolves its notes too.
+        required: false
+        type: string
+        default: ""
+      verify-earlier-fail-heads:
+        description: address-feedback from pr-feedback-dispatch.yml only, never with verify-pass-head; the FAILed heads behind the merge gate's verify:earlier-fail refusal, space-separated, whose verdict artifacts hold the notes a round with no thread works.
         required: false
         type: string
         default: ""
@@ -1194,6 +1203,7 @@ jobs:
       contents: read # check out main
       pull-requests: read # the PR, its reviews, review comments and threads
       checks: read # the model check runs that count rounds
+      actions: read # an earlier FAIL's verdict artifact and its pr-verify run (verify-earlier-fail-heads)
     outputs:
       # true once the context is uploaded; false on a skip or an escalation;
       # empty when the job stopped before deciding.
@@ -1304,6 +1314,9 @@ jobs:
           # dispatcher run, which the reply job's gate checks.
           VERIFY_PASS_HEAD: ${{ inputs.verify-pass-head }}
           VERIFY_SUPERSEDED_HEAD: ${{ inputs.verify-superseded-head }}
+          # A model round on the notes of the FAILs behind a verify:earlier-fail
+          # refusal, read from their verdict artifacts (earlier-fail-notes.mjs).
+          VERIFY_EARLIER_FAIL_HEADS: ${{ inputs.verify-earlier-fail-heads }}
           DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
         run: |
           mkdir -p "$FEEDBACK_DIR"

@@ -8,7 +8,7 @@ disk, so the next stage can work from that artifact.
 each stage boundary carry on by whichever continuation fits without losing the stage's output.
 
 **When to use:** multi-phase features spanning hours, work known in advance to have distinct
-explore + research + design + plan + implement stages, cross-session work that may pause overnight.
+interview + design + plan + implement stages, cross-session work that may pause overnight.
 
 **When NOT to use:** one-line fixes, quick config tweaks, tightly-coupled
 exploration+implementation (e.g. debugging where findings shape the fix in real time). The default
@@ -23,10 +23,10 @@ default). The next stage reads only that artifact.
 
 | Stage | Writes | Next stage reads |
 |-------|--------|------------------|
-| 1 Explore | exploration findings file | context for research |
-| 2 Research | research findings file (cited sources) | evidence for design and plan |
-| 3 PRD (conditional) | product requirements file (problem, users, success metrics) | intent for the contract |
-| 4 Contract | brief/plan file (goal, constraints, acceptance criteria) | contract for design and plan |
+| 1 Interview | brief/plan file (goal, constraints, acceptance criteria) | the Brief for design and plan |
+| 2 Explore (conditional) | exploration findings file | context for the question that called it |
+| 3 Research (conditional) | research findings file (cited sources) | evidence for the Brief, design and plan |
+| 4 PRD (conditional) | product requirements file (problem, users, success metrics) | intent for the Brief |
 | 5 Design | design artifacts, plus the plan file's design section (or a one-line early exit) | contracts and boundaries for plan and implement |
 | 6 Plan | plan file (phases + verification criteria), user-approved | roadmap for decompose or implement |
 | 7 Decompose (conditional) | published tickets, each quoting its design excerpt | one ticket per fresh session |
@@ -35,10 +35,8 @@ default). The next stage reads only that artifact.
 ## Execution pattern
 
 ```text
-explore    → writes findings
-research   → writes cited evidence
-prd        → writes product intent (conditional)
-contract   → writes the brief
+interview  → writes the Brief, calling a detour when a question needs one:
+             explore (findings), research (cited evidence), prd (product intent)
 design     → writes the design section into the plan file
 plan       → writes the approved plan
 decompose  → publishes tickets (conditional)

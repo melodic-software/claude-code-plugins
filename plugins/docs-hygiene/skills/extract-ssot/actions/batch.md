@@ -156,7 +156,7 @@ waves:
 
 **SEQUENTIAL within wave when ANY of:**
 
-- Wave has > 1 candidate AND any pair has shared files (collision risk: concurrent agents editing the same file silently overwrite each other, and there is no file-level locking)
+- Wave has > 1 candidate AND any pair has shared files
 - Wave touches files that another wave already touched in this batch (chronological dependency)
 - Candidate has `verify-status: WARN` (an extra adversarial-review step is warranted)
 
@@ -166,7 +166,7 @@ waves:
 - No candidate touches files already edited in earlier waves
 - All candidates have `verify-status: PROCEED` (HIGH confidence)
 
-Default: sequential. Parallel is opt-in via the batch-action argument `--parallel-waves`. Parallel collisions are a real bug class (no file locking); the default conservatism is intentional.
+Default: sequential. Parallel is opt-in via the batch-action argument `--parallel-waves`. The default conservatism is intentional.
 
 **Worker concurrency and rate limits.** Whatever the wave grouping allows, concurrent worker
 dispatches stay under the `context/orchestrated-mode.md` ceiling (default 2, static) and honor its

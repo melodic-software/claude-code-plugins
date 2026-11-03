@@ -697,21 +697,22 @@ test("a verify run is read across all three legs: a fallback write held, a fallb
   assert.deepEqual(records(lost.outputs), [`reconcile-rerun-201-2-${MAIN_TIP}`, "", ""]);
 });
 
-// With the key out of credit, the credit gate skips check-intent and the
-// subscription leg judges: its own steps tell a write held from a run lost.
+// With the key out of credit, check-intent's credit gate skips its key leg and
+// the subscription leg judges: its own steps tell a write held from a run lost.
 test("a verify run whose credit gate skipped the key is read on the subscription leg", async () => {
-  const gate = {
-    name: "check-intent-credit",
+  const key = {
+    name: "check-intent",
     status: "completed",
     conclusion: "success",
     steps: [
       { name: "Set up job", status: "completed", conclusion: "success" },
+      { name: "Hand the reads on", status: "completed", conclusion: "success" },
       { name: "Read the key's credit history", status: "completed", conclusion: "success" },
-      { name: "Record the key's credit stop in run 200", status: "completed", conclusion: "success" },
+      { name: JUDGE_PREDECESSOR, status: "completed", conclusion: "skipped" },
+      { name: JUDGE_STEP, status: "completed", conclusion: "skipped" },
       { name: "Complete job", status: "completed", conclusion: "success" },
     ],
   };
-  const key = { name: "check-intent", status: "completed", conclusion: "skipped", steps: [] };
   const subscription = (write, upload) => ({
     name: "check-intent-subscription",
     status: "completed",
@@ -725,9 +726,9 @@ test("a verify run whose credit gate skipped the key is read on the subscription
       { name: "Complete job", status: "completed", conclusion: "success" },
     ],
   });
-  const held = await reconcile({ pulls: [], runs: [{ ...verifyRun(201, { conclusion: "failure" }), jobs: [gate, key, subscription("success", "failure")] }] });
+  const held = await reconcile({ pulls: [], runs: [{ ...verifyRun(201, { conclusion: "failure" }), jobs: [key, subscription("success", "failure")] }] });
   assert.deepEqual(held.reruns, []);
-  const lost = await reconcile({ pulls: [], runs: [{ ...verifyRun(201, { conclusion: "failure" }), jobs: [gate, key, subscription("skipped", "skipped")] }] });
+  const lost = await reconcile({ pulls: [], runs: [{ ...verifyRun(201, { conclusion: "failure" }), jobs: [key, subscription("skipped", "skipped")] }] });
   assert.deepEqual(lost.reruns, [201]);
   assert.deepEqual(records(lost.outputs), [`reconcile-rerun-201-2-${MAIN_TIP}`, "", ""]);
 });
@@ -1997,6 +1998,14 @@ test("a lane's own switch keeps its re-run, with no read, and leaves the other l
   assert.equal(code, 0);
   assert.deepEqual(reruns, [301]);
   assert.ok(!calls.some((c) => c.includes("/runs/201/jobs")), JSON.stringify(calls));
+});
+
+test("the security lane's own switch keeps its stopped run from a re-run, with no read, once the code review lane has had its", async () => {
+  const runs = [redChecks(101, sha(1)), stoppedRun(201, sha(1), { attempt: 2 }), stoppedRun(301, sha(1), { path: SECURITY_REVIEW })];
+  const { code, reruns, calls } = await reconcile({ pulls: [pr(1)], runs, env: { CLAUDE_SECURITY_REVIEW_DISABLED: "true" } });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, []);
+  assert.ok(!calls.some((c) => c.includes("/runs/301/jobs")), JSON.stringify(calls));
 });
 
 test("a lane's switch stops at true in any case, as its caller's expression compares it", async () => {

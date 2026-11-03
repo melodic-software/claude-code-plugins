@@ -5,6 +5,23 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.9] - 2026-11-03
+
+### Changed
+
+- Tidied the audit collectors: one per-heading state reset in collect-categories.sh, a guard clause and a single declaration alternation in collect-standards.sh, with a test that pins the `declare -x` and `typeset -x` forms.
+
+## [0.18.8] - 2026-11-03
+
+### Changed
+
+- The `/plugin-quality:audit` command, config and hook lenses and its recurring-concerns checklist
+  no longer restate upstream behavior (what a command file and a skill each produce, where a
+  `sensitive` value is stored, which plugin `settings.json` keys take effect, how LSP entries
+  fail, what a hook matcher matches, and whether `.claude/` is protected). Each keeps its own check
+  and links the upstream section with an as-of date and a recheck trigger. The LSP check now
+  validates each `.lsp.json` entry against the `lspServers` field table.
+
 ## [0.18.7] - 2026-11-03
 
 ### Changed

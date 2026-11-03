@@ -72,10 +72,14 @@ tokens"; they are not reused as probe labels.
    flag-system SDK presence: deterministic glob and manifest probes.
 2. **harness-context**: `.mcp.json` server inventory, repo-declared plugins, committed skills,
    deterministic reads of structured, committed surfaces. `.mcp.json` **presence is not
-   availability**: enablement is settings-gated (`enableAllProjectMcpServers` /
-   `enabledMcpjsonServers` / `disabledMcpjsonServers`), owned by the config-audit surface and
+   availability**: whether a declared server is enabled is owned by the config-audit surface and
    composed presence-gated, never re-implemented here. Servers also arrive from user scope and
-   plugins. The probe reports presence and the enablement gate separately.
+   plugins. The probe reports presence and enablement separately. What enables a declared server
+   is a host-harness rule this contract does not restate.
+   - **Pointer**: when a verdict depends on what enables a declared server, read the
+     [project server enablement record](../skills/setup/context/prerequisite-resolution-slice.md#project-server-enablement)
+     and fetch the section it names live. **As of**: 2026-11-03. **Recheck trigger**: that
+     record's recheck trigger fires, or its heading is renamed or removed.
 3. **machine-context**: CLI availability, local substrates, deterministic and per-surface. A
    result is a claim about the probed surface only, never a repo claim.
 4. **prose-context inference**: host instruction files, agent-instruction files, README are a

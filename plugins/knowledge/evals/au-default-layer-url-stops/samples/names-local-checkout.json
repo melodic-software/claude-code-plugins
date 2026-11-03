@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "The source check read unknown (gh could not read acme/agent-skills), so I did not read it. Pass the path of a local checkout instead."
+    },
+    {
+      "answer": "Stopped. Give me a local checkout path and I will read it through git."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The source is not public; I stopped."
+    },
+    {
+      "answer": "Could not read acme/agent-skills."
+    }
+  ]
+}

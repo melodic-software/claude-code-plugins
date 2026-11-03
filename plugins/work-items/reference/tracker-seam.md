@@ -33,8 +33,8 @@ third, the provider **binding**, is discharged differently: a missing binding bl
 routes rather than halting unconditionally.
 
 - **`jq`** (`command -v jq`). The actions' snippets parse with it unconditionally. Missing: stop
-  and surface the install remediation (<https://jqlang.org/download/>; a separate install under Git
-  Bash on native Windows). Never improvise a parse.
+  and surface the install remediation, the per-platform install at <https://jqlang.org/download/>
+  (as of 2026-11-03; recheck when that page moves). Never improvise a parse.
 - **The seam script**, `"$TRACKER"` above. The plugin bundles it, so it resolves at the plugin-dir
   path by default; if it resolves at **neither** the plugin path nor the project-root fallback, the
   plugin install is incomplete: stop and surface that the plugin must be reinstalled or repaired,
@@ -96,8 +96,8 @@ is nonetheless authoritative for `parent_id`, which is how an item reaches its c
 the text of an item, such as a container's Brief or an item's acceptance criteria, is therefore a
 **provider-mechanic** read (`gh issue view <n> --repo <owner>/<repo> --json body,title` on GitHub;
 the provider's REST equivalent otherwise), and a surface that shows a body read must label it as
-such rather than folding it into a seam snippet. That GitHub form is GraphQL-backed, so a sandboxed
-session (Claude Code on the web, remote execution) reads over REST instead; the adapter's
+such rather than folding it into a seam snippet. A sandboxed session (Claude Code on the web,
+remote execution) reads that body over REST instead; the adapter's
 operations reference carries the REST substitute and the pointer record under "View item"
 (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`).
 Provider mechanics run unbound, so the read still
@@ -236,9 +236,9 @@ need attention.
 ## Gotchas
 
 Skill-behavior failure patterns. Add to this section when new gotchas are discovered.
-Provider-mechanic gotchas (Windows `\r`, search-qualifier syntax, the `gh` 30-row default limit,
-`--add-label` vs `--label`, `--reason` values, rate limits, Issue-Forms auto-labeling) live in the
-bound adapter's operations reference. For GitHub, that is
+Provider-mechanic gotchas (Windows `\r`, search syntax, `gh` list limits, label and assignee edit
+flags, close reasons, rate limits, labels on programmatic creation) live in the bound adapter's
+operations reference. For GitHub, that is
 `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md` "Gotchas".
 
 - **Unattended loops hold to the provider's API budget.** Every lane, worker and session under one

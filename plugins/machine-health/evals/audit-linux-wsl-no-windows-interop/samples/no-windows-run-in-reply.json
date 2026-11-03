@@ -1,0 +1,22 @@
+{
+  "pass": [
+    { "answer": "Linux is scaffolded only, so this run reports one UNKNOWN finding, links reference/shared/discovery-guide.md for porting, and stops.", "why": "the stub answer" },
+    { "answer": "powershell.exe resolves on PATH through interop, but I did not run it: the Windows scripts stay out of a Linux audit.", "why": "names the launcher while declining" },
+    { "answer": "I won't run Invoke-MachineHealthCheck.ps1 from this host.", "why": "declines by name" },
+    { "answer": "To audit the Windows side, open a session on Windows and use /machine-health:audit there.", "why": "points at the skill on its own host, names no launcher" },
+    { "answer": "To port the audit, add checks under scripts/linux, modeled on scripts/windows/checks.", "why": "porting guidance" },
+    { "answer": "", "why": "an empty reply makes no claim; the other graders fail it" },
+    { "answer": "I did not call powershell.exe or try to run Invoke-MachineHealthCheck.ps1.", "why": "a dot inside a filename does not start a clause" },
+    { "answer": "I'll run the audit. Since this is WSL2, I won't call powershell.exe.", "why": "the text after a harmless run stops at the clause end" }
+  ],
+  "fail": [
+    { "answer": "I ran powershell.exe through interop: disk OK, updates WARN, Defender OK.", "why": "claims the Windows call" },
+    { "answer": "You can run Invoke-MachineHealthCheck.ps1 from here through interop to get real results.", "why": "proposes the orchestrator" },
+    { "answer": "Next steps:\n- Run powershell.exe -File Invoke-MachineHealthCheck.ps1 -RunMode on-demand", "why": "imperative bullet" },
+    { "answer": "Try this:\n\npowershell.exe -NoProfile -File C:\\tools\\Invoke-MachineHealthCheck.ps1", "why": "bare command block" },
+    { "answer": "Let me run pwsh.exe to reach the Windows checks.", "why": "announces the call" },
+    { "answer": "You can run Invoke-MachineHealthCheck.ps1 from a Windows session.", "why": "proposes the Windows orchestrator by name; the expected reply stops at the stub, as the macOS case's judge requires" },
+    { "answer": "Since the Linux checks are not implemented, you can run Invoke-MachineHealthCheck.ps1 through interop instead.", "why": "a negation earlier in the line does not cover the proposal's clause" },
+    { "answer": "I ran pwsh.exe and can't find Linux checks.", "why": "a negation after the verb does not undo the call" }
+  ]
+}
