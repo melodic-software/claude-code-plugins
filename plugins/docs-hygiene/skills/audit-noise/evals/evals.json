@@ -105,13 +105,13 @@
     {
       "id": 9,
       "name": "markdown-owns-the-shared-residue-shapes",
-      "prompt": "Declutter a README whose body says 'As you asked, this section documents the retry policy.' and 'See PR #45 for the rationale behind the ordering constraint.' Those look like comment-residue shapes — should I run /code-tidying:audit-comment-residue on the README instead?",
-      "expected_output": "Classifies both here: the opener as a conversational-antecedent (Tier 1, delete the address to the requester) and the reference as a ticket-pr-residue (Tier 2, delete the bare provenance or relocate it to a `## Sources` footer). Explains that the boundary between the two skills is the FILE TYPE, not the shape vocabulary — the three shape names are shared deliberately so one authoring failure keeps one name, and markdown has exactly one owner, this skill. Does NOT route the `.md` file to /code-tidying:audit-comment-residue.",
+      "prompt": "Declutter a README whose body says 'As you asked, this section documents the retry policy.' and 'See PR #45 for the rationale behind the ordering constraint.' Those look like comment-residue shapes — should I run /code-tidying:remove-comments audit on the README instead?",
+      "expected_output": "Classifies both here: the opener as a conversational-antecedent (Tier 1, delete the address to the requester) and the reference as a ticket-pr-residue (Tier 2, delete the bare provenance or relocate it to a `## Sources` footer). Explains that the boundary between the two skills is the FILE TYPE, not the shape vocabulary — the three shape names are shared deliberately so one authoring failure keeps one name, and markdown has exactly one owner, this skill. Does NOT route the `.md` file to /code-tidying:remove-comments audit.",
       "files": [],
       "expectations": [
         "The 'As you asked' opener is classified as a conversational-antecedent, not routed elsewhere",
         "The 'See PR #45' reference is classified as a ticket-pr-residue at Tier 2",
-        "Output does NOT send the markdown file to /code-tidying:audit-comment-residue",
+        "Output does NOT send the markdown file to /code-tidying:remove-comments audit",
         "Output states the boundary is by file type (markdown here, code there), with the shape names deliberately shared"
       ]
     },

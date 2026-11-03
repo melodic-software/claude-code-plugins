@@ -6,7 +6,7 @@ expected_outcome: In scheduler/scheduler.go, history-narration-weak at Tier 2 on
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: /code-tidying:audit-comment-residue scheduler/scheduler.go
+  prompt: /code-tidying:remove-comments audit scheduler/scheduler.go
   allowed_tools: [Read, Glob, Grep, Skill, Bash]
   max_turns: 80
   timeout_seconds: 1200

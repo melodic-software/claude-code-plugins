@@ -85,7 +85,7 @@ Arguments in angle brackets are resolved per repo before the step runs.
 <!-- repo-sweep:begin playbook=hygiene -->
 - [ ] dead-code: code-tidying:audit-dead-code
 - [~] batch-simplify: code-tidying:batch-simplify
-- [x] residue-dissolve: code-tidying:audit-comment-residue@1.1.0, code-tidying:dissolve-comments@1.4.0, no findings
+- [x] residue-dissolve: code-tidying:remove-comments@1.4.0, no findings
 <!-- repo-sweep:end -->
 ```
 
