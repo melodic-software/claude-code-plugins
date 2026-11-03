@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Closes #123\n\n## Summary\na\n\n## Fix\nb\n\n## Verification\nc\n\n## Related\nd",
+      "why": "all four"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Closes #123\n\n## Summary\na\n\n## Fix and verification\nb\n\n## Related\nd",
+      "why": "Verification folded into Fix"
+    }
+  ]
+}

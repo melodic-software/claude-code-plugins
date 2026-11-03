@@ -6,7 +6,7 @@
   "scripts": {
     "test": "node --test"
   },
-  "description": "Shared hardened repository clone and git-repo structure, framework, and section-diff analysis used by the knowledge plugin's course-digest, video-digest and absorb-upstream skills",
+  "description": "Shared hardened repository clone and git-repo structure, framework, and section-diff analysis used by the knowledge plugin's course-digest and video-digest skills",
   "exports": {
     ".": "./repo-analysis.js",
     "./clone": "./clone.js"

@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Emits the -o target and the delete with the concrete path in single quotes, so the $user segment is passed through literally rather than expanded by the shell. The file written and the file read are the same path.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

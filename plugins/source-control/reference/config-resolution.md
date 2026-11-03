@@ -424,8 +424,8 @@ raise supplied by any of them is ignored and reported.
 **The one named exception: the typed pair `autopilot` + `--merge c3-this-run`.** Per the loop-lane
 convention's "one named, explicit paired-argument exception" (§1), an invocation whose own argument
 line types both the literal `autopilot` tier keyword and the explicit raise argument
-`--merge c3-this-run` widens *that single invocation's* merge dimension to the C3 rung (C2 through
-C4), still bounded by the C5 hold (below). Either token alone does nothing to the
+`--merge c3-this-run` widens *that single invocation's* merge dimension to the C3 rung, still
+bounded by the C5 hold (below). Either token alone does nothing to the
 merge dimension: `autopilot` is a merge-inert tier keyword, so a saved invocation or template
 carrying it acquires no merge authority, and `c3-this-run` without the typed `autopilot` tier is
 reported and ignored. The pair is not a config value and is never persisted: the next invocation
@@ -464,12 +464,12 @@ keyword or any other layer never substitutes for tracked adoption: with the tier
 no tracked adoption, merges stay `human-only` and the lane reports why.
 
 **Promotion-evidence gate.** A tracked rung is a ceiling, not autonomous-merge permission:
-before the rung partition admits a C2, C3 or C4 PR, the lane resolves `C2-auto-merge` /
-`C3-auto-merge` effective state through the trusted promotion-evidence gate (C4 takes the
-`C3-auto-merge` cell), fail-closing to unpromoted when evidence is unavailable or unqualified
+before the rung partition admits any PR, the lane resolves the cells the effective rung needs
+(`C2-auto-merge` at `c2-mechanical`, every promotable cell at the C3 rungs) through the trusted
+promotion-evidence gate, fail-closing to unpromoted when evidence is unavailable or unqualified
 (`${CLAUDE_PLUGIN_ROOT}/skills/babysit-loop/reference/promotion-evidence-resolution.md`).
-Until that gate returns a qualified read, C2-C4 classes stay off the merge-eligible set regardless of
-`babysit_loop_merge`; operators keep `--merge human-only` on launch lines.
+No work class is read. Until that gate returns a qualified read, no PR enters the merge-eligible
+set regardless of `babysit_loop_merge`; operators keep `--merge human-only` on launch lines.
 
 **C5 hold.** Untrusted provenance is the one work class that holds a merge: no rung, no config
 key, and no invocation argument, including the explicit-`autopilot` exception above, grants merge
@@ -481,11 +481,9 @@ partition derives C5 from the pull request, not the class stamped on the item it
 provenance "dominates every other property" (`work-classes.md`, `C5`): a cross-repository head, or
 a failed trust test (`authorAssociation` other than `OWNER`/`MEMBER` and no
 `babysit_loop_trusted_internal_bot_logins` match, per the trust-signal section below), each failing
-closed to C5 when its field is unavailable. C4 is not a hold: it partitions like C3, admitted at
-`c3-autonomous` and `full-autonomy` against the `C3-auto-merge` cell. The partition compares the
-pull request's own class to the rung (the diff-class check: the diff can raise the recorded class,
-never lower it, and a diff whose class cannot be read fails closed), so `c2-mechanical` excludes a
-C4 diff whatever its item's stamp. **Never derive C5 by testing the PR author's login against
+closed to C5 when its field is unavailable. No other class holds or admits a PR: the partition
+reads no `work-class:` label and compares no class to the rung, and a diff that cannot be read
+fails closed. **Never derive C5 by testing the PR author's login against
 `babysit_watched_owners`.** That key is a repository-owner allowlist, not a trusted-author list, so on an organization-owned
 repository it would classify every internally authored PR as C5.
 
@@ -531,16 +529,14 @@ the two, and every rule below is fail-closed:
 - **The dependency-manager hold wins on intersection.** This key affects *classification* only; the
   babysit-prs cross-tier hold-merge invariant (built-in dependabot/renovate plus
   `babysit_extra_dependency_manager_logins`) affects *merge execution* and is never weakened by it.
-  A login on both lists partitions on its item's recorded work class and is still never merged
-  autonomously; it lands on the merge-ready report. The two keys are never unified: they answer
+  A login on both lists partitions like any other PR and is still never merged autonomously; it lands on the merge-ready report. The two keys are never unified: they answer
   different questions (who is attested to have written this code vs. does this author ship
   third-party dependency payloads).
 - **Consumed by the rung partition's trust test, the drain issue-author provenance test, and
   nowhere else.** The value is never forwarded as `--self-logins`, `--extra-bot-logins`, discovery
   scope, or any write or resolution authority, and a trust match never establishes C2; it only
-  removes the categorical C5 bar. The PR still needs a close-linked item with a recorded
-  classification, and still faces the diff-class check, the rung comparison, and every other withholding
-  in the partition.
+  removes the categorical C5 bar. The PR still needs a close-linked item, and still faces the diff
+  check, the rung's promotion cells, and every other withholding in the partition.
 
 ## babysit-prs repository-policy keys
 

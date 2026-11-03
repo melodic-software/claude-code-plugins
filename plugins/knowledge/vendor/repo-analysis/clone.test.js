@@ -6,7 +6,6 @@ import path from "node:path";
 import { after, describe, it } from "node:test";
 import { pathToFileURL } from "node:url";
 
-import { runCloneCli } from "./clone-cli.js";
 import { liveCloneGroupCount, shallowCloneGitHubRepo } from "./clone.js";
 
 const sandboxes = [];
@@ -334,72 +333,5 @@ describe("shallowCloneGitHubRepo", () => {
     assert.equal(await shallowCloneGitHubRepo("https://github.com/owner/repo", "dest", hanging, { timeoutMs: 200 }), false);
     assert.ok(Date.now() - started < 30_000);
     assert.equal(liveCloneGroupCount(), 0);
-  });
-});
-
-describe("clone-cli", () => {
-  const capture = () => {
-    const io = { err: "" };
-    io.stderr = { write: (text) => (io.err += text) };
-    return io;
-  };
-  const neverCalled = async () => assert.fail("clone must not run");
-
-  it("rejects missing arguments", async () => {
-    const io = capture();
-    assert.equal(await runCloneCli(["https://github.com/o/r"], { clone: neverCalled, stderr: io.stderr }), 2);
-    assert.match(io.err, /^Usage: node clone-cli\.js/);
-  });
-
-  for (const url of ["file:///tmp/repo", "ext::sh -c touch% /tmp/x", "http://github.com/o/r", "not a url"]) {
-    it(`refuses a URL that is not https: ${url}`, async () => {
-      const io = capture();
-      assert.equal(await runCloneCli([url, path.join(sandbox(), "d")], { clone: neverCalled, stderr: io.stderr }), 2);
-      assert.match(io.err, /only an https URL is cloned/);
-    });
-  }
-
-  for (const url of [
-    "https:github.com/o/r",
-    "https://github.com/o/r/",
-    "https://user@github.com/o/r",
-    "https://github.com:443/o/r",
-    "https://github.com/o/r?x=1",
-    "https://gitlab.com/o/r",
-    "https://github.com/o/r/tree/main",
-  ]) {
-    it(`refuses a URL that is not https://github.com/<owner>/<repo>: ${url}`, async () => {
-      const io = capture();
-      assert.equal(await runCloneCli([url, path.join(sandbox(), "d")], { clone: neverCalled, stderr: io.stderr }), 2);
-      assert.match(io.err, /only an https URL is cloned/);
-    });
-  }
-
-  it("clones the rebuilt URL, never the argument as given", async () => {
-    const calls = [];
-    const ok = async (url) => (calls.push(url), true);
-    const dest = path.join(sandbox(), "d");
-    assert.equal(await runCloneCli(["HTTPS://GitHub.com/o/r.git", dest], { clone: ok, stderr: capture().stderr }), 0);
-    assert.deepEqual(calls, ["https://github.com/o/r"]);
-  });
-
-  it("refuses a destination that already holds files", async () => {
-    const dest = sandbox();
-    fs.writeFileSync(path.join(dest, "x"), "");
-    const io = capture();
-    assert.equal(await runCloneCli(["https://github.com/o/r", dest], { clone: neverCalled, stderr: io.stderr }), 2);
-    assert.match(io.err, /destination is not empty/);
-  });
-
-  it("exits 0 on a clone and 1 on a failed one", async () => {
-    const dest = path.join(sandbox(), "d");
-    /** @type {string[][]} */
-    const calls = [];
-    const ok = async (url, to) => (calls.push([url, to]), true);
-    assert.equal(await runCloneCli(["https://github.com/o/r", dest], { clone: ok, stderr: capture().stderr }), 0);
-    assert.deepEqual(calls, [["https://github.com/o/r", dest]]);
-    const io = capture();
-    assert.equal(await runCloneCli(["https://github.com/o/r", dest], { clone: async () => false, stderr: io.stderr }), 1);
-    assert.match(io.err, /the clone of https:\/\/github\.com\/o\/r failed/);
   });
 });

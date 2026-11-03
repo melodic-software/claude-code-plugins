@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "That belongs to `docs-hygiene:write-for-agents`.",
+      "why": "qualified"
+    },
+    {
+      "answer": "Use /docs-hygiene:write-for-agents instead.",
+      "why": "slash form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Here is the bulleted rewrite.",
+      "why": "no route"
+    }
+  ]
+}
