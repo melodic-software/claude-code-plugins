@@ -161,11 +161,9 @@ advisory that the server could benefit), and for C19 not a finding at all. Two d
   session-start context deferral would have saved). WARN.
 
 When auditing SOURCE, accept each SDK's native way of attaching `_meta` to a tool's `tools/list` entry,
-not only a literal `_meta` key in source: the `meta=` dict argument on Python's `@mcp.tool`, the
-`_meta` field of the config object passed to TypeScript's `server.registerTool`, and .NET's repeatable
-`[McpMeta("<key>", <value>)]` attribute on the `[McpServerTool]` method. The SDK maps them to the
-wire-level field. C18 turns on the value's JSON type, so read it in that language's own syntax. See
-**meta-extraction** in [server-discovery.md](server-discovery.md).
+not only a literal `_meta` key in source. Each language's **meta-extraction** entry in
+[server-discovery.md](server-discovery.md) names that way and links its SDK reference. C18 turns on
+the value's JSON type, so read it in that language's own syntax.
 
 | # | Criterion | Authority | Severity | How to evaluate |
 |---|-----------|-----------|----------|-----------------|

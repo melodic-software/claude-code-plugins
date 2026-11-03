@@ -980,6 +980,14 @@ const limitsOf = (limits = {}) => ({
   "fix-docs-per-run": limits["fix-docs-per-run"] ?? 2,
   "admission-factor": limits["admission-factor"] ?? 0.8,
   "admission-min-per-hour": limits["admission-min-per-hour"] ?? 1,
+  "stranded-backoff-hours": {
+    "no-run": 3,
+    "no-report": 3,
+    "failed-again": 3,
+    "failed-mint": 3,
+    "kill-switch": 3,
+    ...limits["stranded-backoff-hours"],
+  },
   // As set: rate-guard.mjs fills it from rate-limits.json beside it.
   api: limits.api ?? {},
 });

@@ -37,8 +37,14 @@ command, a lookup, a config edit, or a change to a severity.
 
 Read MCP configuration ONLY through the inventory script. Never open `~/.claude.json`,
 `.mcp.json`, `managed-mcp.json`, or `managed-settings.json` with Read, `cat`, `jq`, or any other
-tool: `~/.claude.json` holds account data and per-project state, and server entries carry `env`
-and `headers` values that are often tokens. The script emits only the columns the audit needs, and
+tool: we treat every one of them as holding values that must not reach the transcript.
+
+- **Pointer**: when deciding what a scope's file can hold, fetch
+  [MCP installation scopes](https://code.claude.com/docs/en/mcp#mcp-installation-scopes) live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section adds, moves or renames a scope or the file it is stored in.
+
+The script emits only the columns the audit needs, and
 only values that fully match a strict grammar for their kind: npm, Python, and image specs;
 remote URLs reduced to `scheme://host[:port]`; git specs reduced to `scheme://host/owner/repo`;
 tarballs reduced to `scheme://host/.../file`; bare program names. Every printed value also passes

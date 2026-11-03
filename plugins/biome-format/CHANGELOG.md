@@ -3,6 +3,12 @@
 All notable changes to the `biome-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.1] - 2026-11-03
+
+### Changed
+
+- The README no longer describes what `biome check --write` applies; it points at the Biome CLI's `--write, --fix` section instead.
+
 ## [1.0.0] - 2026-11-03
 
 ### Removed

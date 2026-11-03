@@ -110,8 +110,11 @@ complete set.
 
 - All hook script paths resolve to existing files on disk
 - Scripts are readable (not permission-denied)
-- `timeout` is a seconds value. Flag a recognizably millisecond-scale figure (a round thousands
-  multiple like `30000` or `120000`), not merely a large one: the docs give defaults, not a maximum
+- Flag a recognizably millisecond-scale `timeout` figure (a round thousands multiple like `30000` or
+  `120000`), not merely a large one. Read the field's unit and limits from
+  [hooks: timeouts](https://code.claude.com/docs/en/hooks#timeouts) and the `timeout` row of
+  [hooks: common fields](https://code.claude.com/docs/en/hooks#common-fields) live (as of 2026-11-03;
+  recheck when either changes the unit or adds a maximum)
 - Timeouts are reasonable: 5-15s for simple formatters, 30s for slow-startup tools (pwsh)
 - Matchers take their intended evaluation path. The characters a matcher holds decide whether it is
   read as an exact-string list or as a regex, and a regex may match more than the author meant
@@ -288,14 +291,15 @@ warning naming the waived guard. To apply to a settings file that is a symlink, 
 Row-by-row criteria are in [audit-checklist.md](../reference/audit-checklist.md) "G. Skill-listing
 budget". What governs the category:
 
-- **State the budget, or the finding is not computable.** The listing budget is a fraction of the
-  model's context window set by `skillListingBudgetFraction`, which `SLASH_COMMAND_TOOL_CHAR_BUDGET`
-  overrides with a fixed character count. Each entry's combined `description` + `when_to_use` text
-  is separately capped at `skillListingMaxDescChars`, whose authoring limit
+- **State the budget, or the finding is not computable.** The listing budget and the per-entry
+  description cap are upstream settings; the per-entry authoring limit is the one
   `/playbooks:skill-authoring` `## Descriptions` states and `/skill-quality:check` enforces on each
-  `SKILL.md`. Without the constant a report can say "overflowed" but not "by how much", so quote it.
-  All three values are upstream-owned and this file keeps no copy: read them in Phase 3 from the
-  pointers in [audit-checklist.md](../reference/audit-checklist.md) row G before publishing a number
+  `SKILL.md`. Without the budget a report can say "overflowed" but not "by how much", so quote it.
+  This file keeps no copy of either upstream value: read them in Phase 3 from the pointers in
+  [audit-checklist.md](../reference/audit-checklist.md) row G, and how the budget is set from
+  [settings reference: skillListingBudgetFraction](https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction)
+  live (as of 2026-11-03; recheck when that entry changes how the budget is set or overridden),
+  before publishing a number
 - **Overflow check: an existing debug log first, then two routes, and only one of those survives
   a headless run.** The engine looks for a debug log this session already wrote, at the path
   `--debug-log` names, else `CLAUDE_CODE_DEBUG_LOGS_DIR`, else the newest file under
@@ -303,17 +307,13 @@ budget". What governs the category:
   budget in one line, which is everything the category needs. A log the operator named reads as
   fitting when it carries no warning; a log the engine merely found, newest-first, decides only
   when it names this project root, since the debug directory also holds other sessions' logs.
-  Anything else reads as not measured, never as clean. Only then: `/doctor` estimates the
-  listing's cost and its biggest contributors, and it needs an interactive TTY, so prompt the user to
-  run it. When this audit runs headless, under `-p`, a spawned agent, or a background job, use the documented
-  debug route instead: the over-budget warning in the debug log
-  ([skills: skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short),
-  as of 2026-10-11; recheck when the warning leaves the debug log). Report which
-  route was taken; a category that names only `/doctor` yields nothing in the harness's own headless
-  mode. `/context`'s Skills row reports the listing size after the budget is applied, a second
-  *interactive* reading, not a headless one. Overflow silences the least-invoked skills' trigger
-  keywords (names still resolve; auto-invocation degrades silently), and repos with large skill rosters
-  overflow routinely
+  Anything else reads as not measured, never as clean. Only then: in an interactive session, prompt
+  the user to run `/doctor` or read `/context`. When this audit runs headless, under `-p`, a spawned
+  agent, or a background job, use the debug-log route instead. Read what each route reports from
+  [skills: skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)
+  live (as of 2026-11-03; recheck when that section changes which commands report the listing or
+  where the over-budget warning is written). Report which route was taken; a category that names
+  only `/doctor` yields nothing in a headless run. Repos with large skill rosters overflow routinely
 - **Measure the roster composition before naming a lever.** Count listing entries by origin: plugin
   skills, project skills (`.claude/skills/`), user skills (`${CLAUDE_CONFIG_DIR:-~/.claude}/skills/`).
   This is the single input that decides which levers exist, and it is cheap. A run that skips it
@@ -346,11 +346,12 @@ budget". What governs the category:
     finding: it may be a nested directory-qualified skill (`apps/web:deploy`) or a claude.ai-synced
     skill (`anthropic-skills:`), and the docs do not settle whether overrides reach either
   - `G/skill-override-home-local` (`info`): `<user dir>/settings.local.json`, read whatever the
-    project root, holds a non-empty `skillOverrides` object. That file is the project-local file for
-    sessions started in the home directory only (settings scope table: Project local is
-    `.claude/settings.local.json`, "You, in this one project only"), so its entries reach no other
-    project; a user-wide override belongs in `settings.json`. The `/skills` menu saves there from a
-    home-rooted session, so the entry may be intended. The engine lists that read in its `scopes`
+    project root, holds a non-empty `skillOverrides` object. The finding is `info`: a user-wide
+    override belongs in `settings.json`, and the entry may still be intended for home-rooted
+    sessions. Read that file's scope from
+    [settings: compare the scope of each settings file](https://code.claude.com/docs/en/settings#compare-the-scope-of-each-settings-file)
+    live (as of 2026-11-03; recheck when that section changes the local file's scope). The engine
+    lists that read in its `scopes`
     block as `user-local` (absent, unreadable, invalid or ok), except in a home-rooted run, where
     the file is the local scope
   - Not detected, by design: a key naming no skill at all, since bundled and claude.ai-synced skill
@@ -400,12 +401,13 @@ registration". What governs the category:
   handler is actually registered is workstation state, not configuration, and is not audited here
 - **Fetch before reporting.** The accepted value is upstream-owned, so a finding requires the
   Phase 3.1 settings fetch, the way Category F resolves environment variables against their own page
-- **Two authorities, agreeing on the value only.** The declared settings schema types the key
-  `"type": "string", "enum": ["disable"]`, so a schema-aware editor flags a wrong value before the
-  file is loaded, the same authoring-time path two of Category H's rows have. The row stays because
-  the schema is advisory and the harness still reads a file that violates it. The agreement stops at
-  the value: the schema's own `description` puts registration at startup where the docs page puts it
-  at the first prompt sent. Behavior is the docs page's to state, so cite it, not the schema
+- **Cite the docs page for behavior, not the schema.** A schema-aware editor may flag a wrong value
+  before the file is loaded; the row stays because the schema is advisory and the harness still
+  reads a file that violates it. Where the schema and the docs page disagree, the docs page states
+  the behavior: read it from
+  [settings reference: disableDeepLinkRegistration](https://code.claude.com/docs/en/settings-reference#disabledeeplinkregistration)
+  live (as of 2026-11-03; recheck when that entry changes the accepted value or when registration
+  happens)
 - **Value first, then placement.** A key that is **present** and not the string `"disable"` is a
   prevention that was never invoked (warning); gate on `has(…)`, since an absent key is a consumer
   accepting the default on purpose. Where an organization requires enforcement and the key sits with
