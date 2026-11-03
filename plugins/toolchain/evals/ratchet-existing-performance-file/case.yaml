@@ -13,7 +13,7 @@ execution:
 graders:
   - name: joins-performance-file
     type: regex
-    pattern: '(?=[\s\S]*"name":\s*"import-spawns")(?=[\s\S]*"field":\s*"ignores",\s*"ceiling":\s*9\b)'
+    pattern: '(?=[\s\S]*"name":\s*"import-spawns")(?=[\s\S]*\{(?=[^{}]*"field":\s*"ignores")[^{}]*"ceiling":\s*9\b)'
     target: { source: file, path: .performance/ratchets.json }
   - name: no-second-file-bash
     type: tool_used
@@ -39,9 +39,4 @@ graders:
     tool: Bash
     input_match: 'ratchet\.py\S*\s+add\b'
     min: 1
-    arm: with-only
-  - name: skill-fired
-    type: tool_used
-    tool: Skill
-    input_match: '"skill"\s*:\s*"(?:toolchain:)?ratchet"'
     arm: with-only

@@ -3,13 +3,15 @@
 The team layer is `<home>/code-tidying.yaml`, validated by
 [`schemas/code-tidying.schema.json`](../schemas/code-tidying.schema.json). `<home>` is the convention
 home the repository binds in its root instruction file, `docs/conventions` when it binds none or
-declined one. Zero config works: every key has a default.
+declined one. `/code-tidying:tidy` works with zero config: every key it reads has a default. An
+upkeep batch also needs `upkeep_spec_issue`, which has none.
 
 | Key | Values | Default | Meaning |
 |---|---|---|---|
 | `upkeep_cadence` | `daily`, `weekly` | `daily` | How often an upkeep batch may open pull requests. |
 | `upkeep_backstop` | `weekly`, `monthly` | `weekly` | An area changed since its last sweep is overdue once its oldest unswept commit is older than this window, and goes ahead of other changed areas. An unchanged area is never swept. |
 | `upkeep_max_open` | integer, 1 or more | `3` | At most this many `chore/tidy-*` pull requests open at once: `/code-tidying:tidy` stops at it, and an upkeep batch opens only the difference. |
+| `upkeep_spec_issue` | issue number | none | The issue holding the sweep's contract. Each upkeep batch pull request's body opens with `Refs: #<n>`, the spec a verifier judges it against; a batch with no valid value opens no pull request and fails, saying why. |
 
 `skills/tidy/scripts/upkeep-setting.sh <key>` is the one reader. It prints the value and the layer
 that supplied it. A value outside the table, or a file that does not parse, is reported with its file

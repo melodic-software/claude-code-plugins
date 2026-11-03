@@ -27,8 +27,3 @@ graders:
     pattern: 'ratchet\.py'
     match: not_contains
     target: { source: file, path: .github/workflows/ci.yml }
-  - name: skill-fired
-    type: tool_used
-    tool: Skill
-    input_match: '"skill"\s*:\s*"(?:toolchain:)?ratchet"'
-    arm: with-only

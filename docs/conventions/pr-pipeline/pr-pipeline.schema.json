@@ -600,7 +600,8 @@
         "web-access": ["skill"],
         "tidy": ["skill"],
         "applied-by": ["skill"],
-        "permission-mode": ["skill"]
+        "permission-mode": ["skill"],
+        "checkout": ["script"]
       },
       "dependentSchemas": {
         "applied-by": {
@@ -782,6 +783,11 @@
           "type": "string",
           "pattern": "^(?!/)(?!(.*/)?\\.\\.(/|$))[^:]+$",
           "description": "Repository-relative path of a scripted step with no model in it."
+        },
+        "checkout": {
+          "enum": ["head", "base"],
+          "default": "head",
+          "description": "What the write runner checks out for a script activity: head (the gated PR head, replacing the base checkout) or base (no head checkout, so the job holding the lane token holds only the trusted base checkout, credentials not persisted). The read runner ignores it."
         },
         "effect": {
           "enum": [

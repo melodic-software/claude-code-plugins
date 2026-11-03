@@ -88,6 +88,7 @@ const PROSE_LOCATION = /(?<![\w@+./:-])((?:[\w@+.-]+\/)*[\w@+.-]+):([1-9][0-9]{0
 // (SEVERITY_SHAPED), so a bold or trailed one fails closed. Only non-letters
 // may sit before the word, so `severity: not critical` is no match.
 const CRITICAL = new RegExp(`${SEVERITY_SHAPED.source}[^A-Za-z\\n]*critical\\b`, "im");
+export const isCritical = (body) => CRITICAL.test(String(body ?? ""));
 const firstLine = (body) => String(body ?? "").split("\n")[0].replace(/\r$/, "");
 const safePath = (path) => typeof path === "string" && PATH.test(path) && !DOT_SEGMENT.test(path);
 
