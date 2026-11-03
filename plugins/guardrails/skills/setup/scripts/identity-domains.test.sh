@@ -157,6 +157,14 @@ RC=0
 OUT=$(cd "$TEST_TMPDIR/run" && HOME="$TEST_TMPDIR/home" bash "$SCRIPT" --profile "$TWO" \
   --shared-exception "$OWNER_SHARED" 2>"$TEST_TMPDIR/err") || RC=$?
 assert_exit "the same path with no owner for its to domain: refused" 1 "$RC"
+OWNER_ROOT="$TEST_TMPDIR/trees/github.com"
+run "$TWO" --owner beta=beta-org --owner-root "$OWNER_ROOT/" --shared-exception "alpha:beta=$OWNER_ROOT/beta-org/shared"
+assert_exit "an exception below an owner directory of a given owner root: exit 0" 0 "$RC"
+assert_contains "the given owner root is in the map" "$(jq -c '.owner_roots' <<<"$OUT")" "$OWNER_ROOT/"
+run "$TWO" --owner beta=beta-org --owner-root "$OWNER_ROOT" --shared-exception "$OWNER_SHARED"
+assert_exit "an owner root replaces the default directories for an exception: refused" 1 "$RC"
+run "$TWO" --owner-root relative
+assert_exit "a relative owner root: refused" 1 "$RC"
 # shared_refused <label> <value> <what the refusal says>
 shared_refused() {
   run "$TWO" --shared-exception "$2"
