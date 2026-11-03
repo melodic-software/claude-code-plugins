@@ -169,6 +169,15 @@ run 2 "unknown flag" "$WORK/none" --strict
 run 2 "two slice dirs" "$WORK/none" "$WORK/none"
 expect_out "ungradeable summary line" 'status=ungradeable'
 
+# --- an interpreter that strips docstrings ----------------------------------
+# PYTHONOPTIMIZE=2 sets __doc__ to None here and in the parser this script
+# loads. A traceback exits 1, which reads as a violation; exit 2 is the contract.
+
+PYTHONOPTIMIZE=2 run 0 "--help with docstrings stripped" --help
+PYTHONOPTIMIZE=2 run 2 "docstrings stripped: a parser that cannot load is ungradeable" \
+  --err 'cannot load the header parser' "$WORK/none"
+expect_out "docstrings stripped: ungradeable summary line" 'status=ungradeable'
+
 total=$((passes + fails))
 if [[ "$fails" -eq 0 ]]; then
   printf '\nAll %d cases passed.\n' "$total"

@@ -792,7 +792,9 @@ path this plugin's skills render for `${CLAUDE_PLUGIN_ROOT}`:
       "Bash(<plugin root>/scripts/check-source-applicability.py *)",
       "Bash(<plugin root>/scripts/check-restatement-labels.py *)",
       "Bash(python3 \"<plugin root>/scripts/check-claim-eligibility.py\" *)",
-      "Bash(python3 <plugin root>/scripts/check-claim-eligibility.py *)"
+      "Bash(python3 <plugin root>/scripts/check-claim-eligibility.py *)",
+      "Bash(python3 \"<plugin root>/scripts/check-author-kind.py\" *)",
+      "Bash(python3 <plugin root>/scripts/check-author-kind.py *)"
     ]
   }
 }

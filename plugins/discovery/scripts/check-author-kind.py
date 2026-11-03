@@ -39,7 +39,7 @@ import sys
 from pathlib import Path
 
 USAGE = (
-    __doc__
+    (__doc__ or "")
     + """
 Output (stdout, one line):
   status=pass claims=<n> direct=<n>
@@ -150,7 +150,7 @@ def main(argv: list[str]) -> int:
         return 2
     try:
         csa = load_parser()
-    except (ImportError, OSError, SyntaxError) as exc:
+    except (ImportError, OSError, SyntaxError, TypeError) as exc:
         print(f"error: cannot load the header parser: {exc}", file=sys.stderr)
         print("status=ungradeable")
         return 2
