@@ -8,9 +8,9 @@
   "properties": {
     "$schema": { "type": "string" },
     "comment_posture": {
-      "enum": ["auto", "none", "necessary", "explanatory"],
+      "enum": ["auto", "none", "necessary", "explanatory", "strict", "balanced", "conservative", "aggressive"],
       "default": "auto",
-      "description": "Which comments /code-tidying:remove-comments keeps. auto: explanatory, or necessary in a pull-request pipeline run. none: only machine-read directives, license headers, TODO(#issue) markers, paired records and public-API doc comments stay. necessary: also verified outside-constraint comments. explanatory: every comment that passes the earn-its-keep test."
+      "description": "Which comments /code-tidying:remove-comments keeps. auto: explanatory, or necessary in a pull-request pipeline run. none: only machine-read directives, license headers, TODO(#issue) markers, paired records and public-API doc comments stay. necessary: also verified outside-constraint comments. explanatory: every comment that passes the earn-its-keep test. Deprecated, still resolved: strict and balanced read as explanatory, conservative as explanatory plus safe, aggressive as necessary."
     },
     "comment_edit_scope": {
       "enum": ["diff", "files"],
