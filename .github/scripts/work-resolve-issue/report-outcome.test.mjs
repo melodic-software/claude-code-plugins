@@ -4734,16 +4734,18 @@ test("main's close removes the queue labels the issue carries, before the close 
   assert.deepEqual(labelWrites(gone.calls), ["DELETE /labels/status%3A%20ready", "DELETE /labels/agent-ready", "PATCH "]);
 });
 
-// A label DELETE is not resent, so a 5xx on one fails the run before the
-// close: the issue stays open with agent-ready, for work-unblock's sweep.
-test("main's close leaves the issue open when a queue-label removal fails", async () => {
+// A label DELETE is idempotent, so a 5xx is resent (three tries in all); one
+// that keeps failing fails the run before the close: the issue stays open with
+// agent-ready, for work-unblock's sweep.
+const FAILED_STRIP = Array(3).fill("DELETE /labels/status%3A%20ready");
+test("main's close resends a failed queue-label removal, then leaves the issue open", async () => {
   const run = await stopRun({
     reason: "report-delivered: the audit found three stale rows",
     routes: [["DELETE", /\/labels\/status%3A%20ready$/, 502, {}]],
     issue: withLabels("status: ready", "agent-ready"),
   });
   assert.notEqual(run.code, 0);
-  assert.deepEqual(labelWrites(run.calls), ["DELETE /labels/status%3A%20ready"]);
+  assert.deepEqual(labelWrites(run.calls), FAILED_STRIP);
 });
 
 // A verified-done parent closes through the same route, so its queue labels
@@ -4755,7 +4757,7 @@ test("main's verified-done close removes the queue labels before the close, and 
   assert.deepEqual(labelWrites(run.calls), ["DELETE /labels/status%3A%20ready", "DELETE /labels/agent-ready", "PATCH "]);
   const failed = await stopRun({ ...opts, routes: [subs(doneSub(80), doneSub(81)), ["DELETE", /\/labels\/status%3A%20ready$/, 502, {}]] });
   assert.notEqual(failed.code, 0);
-  assert.deepEqual(labelWrites(failed.calls), ["DELETE /labels/status%3A%20ready"]);
+  assert.deepEqual(labelWrites(failed.calls), FAILED_STRIP);
 });
 
 test("retries count the App's retry markers since a listed human last added agent-ready, not this run's", () => {

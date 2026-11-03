@@ -2225,7 +2225,10 @@ async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane
     const base = `${repo}/issues/${plan.issueNumber}`;
     // The App's close starts no work-unblock close run, so the queue labels
     // come off here, before the close: a failed removal leaves the issue open.
-    const removed = await stripQueueLabels(github, base, (await github("GET", base))?.labels ?? []);
+    // A label DELETE is idempotent (a 404 counts as removed), so it is resent
+    // after a 5xx; only a removal that keeps failing leaves the issue open.
+    const resend = (method, path) => github(method, path, undefined, { safeToResend: true });
+    const removed = await stripQueueLabels(resend, base, (await github("GET", base))?.labels ?? []);
     await github("PATCH", base, { state: "closed", state_reason: "completed" }, { safeToResend: true });
     console.log(`report-outcome: closed issue #${plan.issueNumber} (${plan.stop}); removed ${removed.length} queue label(s)`);
   }
