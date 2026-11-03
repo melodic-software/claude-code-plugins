@@ -78,8 +78,11 @@ because a case carries one prompt, one plugins list and one committed `review.ya
 | `request-options` | none (two defects): a shared default mutated; `retries: 0` read as unset |
 | `month-export` | none (two defects): the month's last day dropped; a boolean comparator |
 
-`request-options` and `month-export` plant two defects on one axis, so both land under one heading
-of the report and give the positions within a heading that an act-on cap is set from.
+`request-options` and `month-export` plant two defects that share one ground-truth axis. The axis
+grades the fixture; it does not decide where the report files a finding. In the #12505 pilot the
+L arm put both defects under one heading, at positions 1 and 2, while the M arm split them across
+Spec and Standards. An act-on cap therefore reads within-heading positions only from runs that
+keep the two together.
 
 A decoy is a correct change that looks wrong, so it measures each arm's false positives. Its
 ground truth reads `none` for `defect` and `axis`, and its `not_defects` name the findings a
