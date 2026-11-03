@@ -112,19 +112,11 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    compute the merge-eligible set mechanically before any babysit-prs invocation: for each open
    PR in the snapshot not already excluded by step 2, resolve its close-linked work item (the
    provider's own computed close-linkage,
-   [GitHub](../../../reference/providers/github/babysit-loop/cycle-shape.md#close-linked-work-item)) and read
-   that item's recorded work-class classification **from its `work-class:` label only**, never
-   from a `Work-class: C<n>` body trailer. The class widens merge authority, so it is read only
-   from a surface whose write authority the provider enforces: labeling takes triage or write
-   permission on the base repository (the permission surface the C5 trust test below keys on),
-   while a body's own author, who need hold neither, can edit it. A trailer supplying the class
-   would make the item self-certifying, against the governing rule that "no repo-local
-   (agent-writable) surface may supply any admission input. Rules, caps, or the work class used
-   for admission"
-   ([`admission-policy.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/reference/guardrails/admission-policy.md)).
-   A trailer stays legitimate as recorded operator context and as a proposal, and is reported as
-   such, but never partitions: an item classified only in its body counts as **unclassified
-   here**, not eligible at any rung, exactly as an item with no record.
+   [GitHub](../../../reference/providers/github/babysit-loop/cycle-shape.md#close-linked-work-item)).
+   No work class decides eligibility: the item's `work-class:`
+   label and any `Work-class: C<n>` body trailer are not read, so an item with no class
+   partitions like any other. The one class that still holds a PR is C5, untrusted provenance:
+   the tests below and the merge gate's `work-class: untrusted-provenance` hold (`trust_refusal`).
    Close-linkage is GraphQL-only, and `closingIssuesReferences` is unreadable wherever the forge refuses
    that GraphQL read (a cloud session behind the GitHub proxy; `skills/babysit-prs/SKILL.md` "Engine and
    degrade", and the upstream pointer in `reference/providers/github/README.md` "Sandboxed
@@ -132,12 +124,12 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    eligible, at any rung. It is also moot for merging there: the merge gate itself holds every PR
    as readiness UNPROVEN in such a session, because review-thread resolution has no REST
    equivalent. Report the restriction once per cycle, not per PR.
-   A PR is merge-eligible when its item's class sits within the effective rung **and** its promotable
-   cell is **effective-promoted** (**Promotion-evidence gate (trusted seam, fail-closed)**.
-   [reference/promotion-evidence-resolution.md](promotion-evidence-resolution.md)): C2 at
-   `c2-mechanical`, C2 through C4 at `c3-autonomous`, C1 through C4 at `full-autonomy` (C4 against the `C3-auto-merge`
-   cell, so its blocking AI review is the gate; no rung admits C5). Before
-   work-class comparison, once per cycle, resolve each cell through the trusted seam. When the
+   A PR is merge-eligible when the effective rung is merge-capable **and** the cells that rung
+   needs are **effective-promoted** (**Promotion-evidence gate (trusted seam, fail-closed)**.
+   [reference/promotion-evidence-resolution.md](promotion-evidence-resolution.md)):
+   `C2-auto-merge` at `c2-mechanical`, every promotable cell at `c3-autonomous` and
+   `full-autonomy`, as the merge gate's `RUNG_CELLS` maps them; no rung admits C5. Before the
+   partition, once per cycle, resolve each cell through the trusted seam. When the
    effective rung is merge-capable and step 0's bootstrap check found no problem, run
    `node <plugin-root>/skills/babysit-loop/scripts/resolve-promotion-evidence.mjs` with
    `--checkout` the target checkout and one `--worktree-root` per worktree root step 0 names, and
@@ -162,15 +154,14 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    findings (each option and its problem), or that the bootstrap is complete as far as that check
    can see. When a cell's `line` reports a demotion, report that line; the escalation it names
    follows Escalation below, and this step adds no write path. Effective rung: tracked rung, C3 raise when `autopilot` + `--merge c3-this-run` typed (other `--merge` floors), C5 hold, see "Explicit-`autopilot` widening" above. A PR with no
-   close-linked item, or an item with no recorded classification, is NOT eligible: no
-   classification = no merge, at any rung, including the explicit-`autopilot` widening. A PR still
-   carrying the do-not-merge label at partition time is NOT eligible at any rung or class; the
+   close-linked item is NOT eligible, at any rung, including the explicit-`autopilot` widening. A PR still
+   carrying the do-not-merge label at partition time is NOT eligible at any rung; the
    label veto binds here, in the partition, because a merge-capable babysit-prs tier's ordinary
    gate has no label input (its `--block-labels` criterion is confined to the autopilot merge
    tier); such a PR routes to the `safe` per-PR pass like any other non-eligible PR. The one
    ordered exception: when THIS invocation carries `--strip-do-not-merge`, the strip executes
    between the snapshot and this partition: the label is removed from the flag's target PRs and
-   recorded in the cycle report, so a stripped PR partitions on its work-class like any other; the
+   recorded in the cycle report, so a stripped PR partitions like any other; the
    flag is a per-invocation direct order and never persists (see do-not-merge below). This is a
    deterministic pre-partition, never narrative guidance handed to the invoked skill. Two further
    withholdings bind here, both because the downstream merge gate inspects neither surface: a PR
@@ -183,31 +174,25 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    `human-only` (including the no-tracked-adoption default), or under a non-merge-capable tier,
    the eligible set is empty; the widening does not apply without tracked adoption either
    (config-resolution.md, "Baseline activation is tracked adoption").
-   **C5 hold and diff-class check:** a PR that is C5 (untrusted-provenance) is NEVER in the
-   eligible set, at any rung, under any invocation argument; a PR that is C4 (structural) partitions
-   like C3, so `c2-mechanical` excludes it and the C3 rungs admit it once `C3-auto-merge` is
-   effective-promoted. Both are checked before the rung comparison above. **Both are
-   tests on the PR, not lookups of the linked item's stamp**:
-   `work-classes.md` assigns a class from the risk-property bundle. Blast radius, reversibility,
-   provenance, and "the bundle, not the task's surface description, is what assigns a class".
+   **C5 hold and diff check:** a PR that is C5 (untrusted-provenance) is NEVER in the
+   eligible set, at any rung, under any invocation argument. It is checked before the rung test
+   above, **as tests on the PR, not a lookup of the linked item's stamp**.
    - **C5, the code's provenance.** Two tests on the cycle-start snapshot, either one marking the
      PR C5, each failing closed to C5 when its field is missing or unreadable. **Fork test:** the
      head repository is not the base (`isCrossRepository: true`, or `headRepositoryOwner` differing
      from the base owner). **Trust test:** C5 unless one arm positively passes, `authorAssociation` `OWNER`/`MEMBER`, or a structural bot (`[bot]` login suffix or provider `Bot` type) listed in the TARGET repository's team-tracked, default-branch `babysit_loop_trusted_internal_bot_logins` (read from `docs/conventions/source-control.yaml`, else for one release from the `.claude/source-control.md` H2; grammar, binding, fail-closed empty set: config-resolution reference, "the C5 trust test's one reviewed widening").
      A listing never bypasses the fork test (a listed bot on a cross-repository head is still C5) and never weakens the dependency hold-merge invariant, which wins on intersection. Never test the author login against `babysit_watched_owners`: a repository-owner allowlist, never a trusted-author list. A fork PR closing an internally classified C2/C3 issue is still C5: the class travels with the code's provenance, not the issue it closes.
-   - **Diff-class check, the diff's blast radius.** The diff can raise the PR's class, never lower
-     it: the rung comparison uses the higher of the stamp and the class the diff shows. A PR whose
-     actual change is a refactor, migration, or contract change is C4 however its item is stamped,
-     so a C2-stamped C4 diff leaves `c2-mechanical`'s eligible set. A PR whose diff class cannot be
-     read **fails closed** to escalation rather than to the stamp.
-   - **The verdict authorizes a head SHA, not the PR.** This partition class-checked the snapshot
-     head's diff, so eligibility is pinned to that SHA: the merge-capable invocation carries the
+   - **Diff check.** The diff feeds no class into the rung test, since no rung compares classes.
+     A PR whose diff cannot be read **fails closed** to escalation and stays out of the eligible
+     set.
+   - **The verdict authorizes a head SHA, not the PR.** This partition checked the snapshot
+     head's provenance and diff, so eligibility is pinned to that SHA: the merge-capable invocation carries the
      partitioned head as its merge gate's `--expected-head` pin, and the gate's head-match refusal
      makes the binding deterministic rather than narrative. Any worker push (an ordinary CI or
      review-finding fix, not only the pre-escalation resolver's) moves the head off the pin; the
      pinned gate refuses the merge, and the invocation ends by reporting the new head instead of
      re-pinning (babysit-prs Autopilot step 3's lane-pin exception, `babysit-prs/reference/safety.md`). The
-     lane then re-partitions the post-push head (provenance, diff class, rung), and only a
+     lane then re-partitions the post-push head (provenance, diff, rung), and only a
      still-eligible PR gets a fresh merge-capable invocation pinned to the new head.
 4. **Invoke the mechanic.** Every invocation uses babysit-prs's own `[mode] [--unattended]
    [scope]` grammar in its single-PR scope form (`owner/repo#N`), always with `--unattended`

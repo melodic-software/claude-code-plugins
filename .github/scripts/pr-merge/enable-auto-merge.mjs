@@ -900,17 +900,25 @@ function renderRefusal(fence, person, reason, head, label, since, partial, recor
 // (babysit_postmerge.pin_comment and PIN_RE): arming a pull request that is
 // already mergeable enqueues it at once with no auto-merge event, which the
 // read-back judges as an identity enqueue, so the head is pinned first.
-export const PIN_RE = /^<!-- babysit-merge-pin sha=([0-9a-f]{40}) -->$/;
-export const pinBody = (sha) => `<!-- babysit-merge-pin sha=${sha} -->\nThe unattended merge path armed native auto-merge at head \`${sha}\`.`;
+// The pin names the lane room's rung, C2 or C3, which the promotion-evidence
+// publisher credits, also when the merge lands as a native auto-merge that
+// owes the read-back no pin; any other rung leaves it unnamed (babysit_merge.py).
+export const PIN_RE = /^<!-- babysit-merge-pin sha=([0-9a-f]{40})(?: rung=(C2|C3))? -->$/;
+export const pinBody = (sha, rung) =>
+  `<!-- babysit-merge-pin sha=${sha}${rung === "C2" || rung === "C3" ? ` rung=${rung}` : ""} -->\nThe unattended merge path armed native auto-merge at head \`${sha}\`.`;
 
 // Whether the read-back would already read `head` from `comments`
-// (DETAIL_QUERY's): the lanes App's newest pin names it and is unedited.
-export function pinned(comments, bot, head) {
+// (DETAIL_QUERY's) with `rung`: the lanes App's newest pin names both and is
+// unedited. The publisher credits the rung the newest pin names, so a pin at
+// another rung, or with none where one is due, is posted again.
+export function pinned(comments, bot, head, rung) {
   const pin = (comments ?? [])
     .filter((c) => c?.author?.__typename === "Bot" && c.author.login === bot && PIN_RE.test(String(c.body ?? "").split("\n", 1)[0].replace(/\r$/, "")))
     .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
     .at(-1);
-  return pin !== undefined && !pin.lastEditedAt && PIN_RE.exec(String(pin.body).split("\n", 1)[0].replace(/\r$/, ""))[1] === head;
+  if (pin === undefined || pin.lastEditedAt) return false;
+  const [, sha, pinRung = null] = PIN_RE.exec(String(pin.body).split("\n", 1)[0].replace(/\r$/, ""));
+  return sha === head && pinRung === (rung === "C2" || rung === "C3" ? rung : null);
 }
 
 // The lanes App's newest comment in `comments` (DETAIL_QUERY's) whose first
@@ -2295,9 +2303,9 @@ export async function main({ env = process.env, github, actions, verify, room, c
         await note(pull, detail, { clears, reason, partial, answered });
         continue;
       }
-      if (action === "arm" && !pinned(detail?.comments?.nodes, slug, pull.headRefOid)) {
+      if (action === "arm" && !pinned(detail?.comments?.nodes, slug, pull.headRefOid, lane?.rung)) {
         try {
-          await github("POST", `/repos/${repo[0]}/issues/${pull.number}/comments`, { body: pinBody(pull.headRefOid) });
+          await github("POST", `/repos/${repo[0]}/issues/${pull.number}/comments`, { body: pinBody(pull.headRefOid, lane?.rung) });
           console.log(`enable-auto-merge: #${pull.number} pinned at ${pull.headRefOid}`);
         } catch (error) {
           // No pin, no arm: an immediate enqueue would have no read-back.
