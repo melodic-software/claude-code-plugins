@@ -1294,12 +1294,13 @@ jobs:
           merge-multiple: true
 
       # Also issue mode: report-outcome trusts a merge: human label only from
-      # a listed human or the lanes App.
+      # a listed human or the lanes App; and a checkout: base script, which
+      # reads the owners and the reviewer bot from it.
       - name: Copy the trusted actors for the reply script
         id: reply-actors
         if: >-
           steps.lane-token.outputs.token != ''
-          && (inputs.review-replies || inputs.issue-number != '')
+          && (inputs.review-replies || inputs.issue-number != '' || steps.config.outputs.checkout == 'base')
           && steps.config.outputs.kind == 'script'
         env:
           COPY: ${{ runner.temp }}/base-script/.trusted-actors.json
@@ -1513,8 +1514,10 @@ jobs:
             ${{ steps.lane-token.outcome != 'skipped' && inputs.issue-number == '' && github.event_name == 'pull_request' && 'lane-token:compare' || '' }}
             ${{ steps.lane-token.outcome == 'success' && inputs.issue-number == '' && 'promote:pulls promote:issues/labels' || '' }}
 
+      # A `checkout: base` script activity skips it: the job holds only the
+      # trusted base checkout, and .base stays in place.
       - name: Check out the PR head
-        if: steps.lane-token.outputs.token != ''
+        if: steps.lane-token.outputs.token != '' && steps.config.outputs.checkout != 'base'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: >-
@@ -1533,7 +1536,7 @@ jobs:
 
       # The activity judges exactly the commit the check is posted on.
       - name: Assert the head is the gated SHA
-        if: steps.lane-token.outputs.token != ''
+        if: steps.lane-token.outputs.token != '' && steps.config.outputs.checkout != 'base'
         env:
           HEAD_SHA: >-
             ${{ inputs.issue-number != ''
@@ -2072,7 +2075,7 @@ jobs:
           # review-replies only; empty otherwise.
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           FEEDBACK_REPLIES_DIR: ${{ inputs.review-replies && format('{0}/feedback-replies', runner.temp) || '' }}
-          TRUSTED_ACTORS: ${{ (inputs.review-replies || inputs.issue-number != '') && format('{0}/base-script/.trusted-actors.json', runner.temp) || '' }}
+          TRUSTED_ACTORS: ${{ (inputs.review-replies || inputs.issue-number != '' || steps.config.outputs.checkout == 'base') && format('{0}/base-script/.trusted-actors.json', runner.temp) || '' }}
           RUN_SHA256: ${{ inputs.review-run-sha256 }}
           REPLIES_SHA256: ${{ inputs.review-replies-sha256 }}
           REVIEW_PATCH_STATE: ${{ inputs.review-replies && inputs.review-patch-state || '' }}

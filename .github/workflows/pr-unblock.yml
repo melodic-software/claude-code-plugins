@@ -2147,6 +2147,42 @@ jobs:
       pushed-commit: >-
         ${{ inputs.dispatcher-run-id != '' && needs.apply-feedback-patch.outputs.pushed-commit || '' }}
 
+  # The resolve job, a script with no model and no PR head checkout
+  # (checkout: base): on a PR a trusted person opened it resolves the threads
+  # publish-feedback answered or GitHub reports outdated, with no CRITICAL
+  # finding and no person's comment (resolve-threads.mjs). It reads the
+  # threads from GitHub, never from another job's outputs, and is the one job
+  # whose lane token holds the contents: write that resolving there needs;
+  # publish-feedback keeps publish-artifact. It escalates nothing.
+  resolve-feedback-threads:
+    needs: [address-feedback-select, apply-feedback-patch, publish-feedback]
+    # Not on a publish-feedback skip: a kill-switch stop ends it green with
+    # no token, and nothing may run after it.
+    if: ${{ !cancelled() && needs.publish-feedback.result == 'success' && needs.publish-feedback.outputs.skip-reason == '' }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    with:
+      role: pr-unblock
+      lane: pr-unblock
+      activity: resolve-feedback-threads
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      # As publish-feedback: the gate accepts the review of the head the
+      # select job read while the PR is at it or at the push job's commit.
+      expected-upstream-head: >-
+        ${{ inputs.dispatcher-run-id != '' && needs.address-feedback-select.outputs.head-sha || '' }}
+      pushed-commit: >-
+        ${{ inputs.dispatcher-run-id != '' && needs.apply-feedback-patch.outputs.pushed-commit || '' }}
+
   # review-dependency is six jobs, so no model ever holds a write token. This
   # one runs only base code with a read-only token and checks out no PR head.
   # Before any model turn it reads the PR head, resolves the slot (draft and

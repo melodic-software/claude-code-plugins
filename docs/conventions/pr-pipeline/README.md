@@ -359,15 +359,21 @@ serves an adopted owner PR, posting its replies as the lanes App:
   on an owner PR such a thread starts no round, and the select job skips it with no stop instead of
   escalating `feedback-untaken-threads`.
 - Resolve: GitHub lets only a PR's author or a writer resolve its threads, so `publish-feedback`
-  posts each answer and leaves the thread open, logging it, instead of resolving it. A VALID fix
-  makes its thread outdated, and the owner's babysit worker tier resolves an outdated thread a lane
-  login answered (`--own-pr-lane-logins`, from `babysit_lane_logins`). A thread the adjudicator
-  closed for the lane whose lines did not move stays open for the person.
+  (`publish-artifact`, no writer) posts each answer and leaves the thread open, logging it. The
+  `resolve-feedback-threads` job after it, a script with no model and `checkout: base` (no PR head
+  checkout), holds `mutate-branch` (`contents: write`, which makes it a writer) and resolves, on a
+  PR a person on the trusted-actors list opened, each thread whose comments are all a review bot's
+  or the lanes App's, whose finding no reviewer comment rates CRITICAL and an adjudicator could
+  judge (`adjudicable`: no person-decided security finding), and that is answered (the lane's
+  VALID reply or a `finding-answered` adjudication is its last comment) or outdated with no lane
+  reply that left it open (`resolve-threads.mjs`). It reads the threads from GitHub, never from
+  another job, and escalates nothing. A CRITICAL finding and any thread a person wrote or joined
+  stay open for the person.
 - No pass-only round goes to an owner PR: a person-opened PR gets no fail-note threads
   (`verify-notes.mjs`).
 
-The push is the power fix-ci already holds on an adopted PR, under the same idle rule; the lane
-gains no new grant.
+The push is the power fix-ci already holds on an adopted PR, under the same idle rule; the one
+grant the lane gains is `resolve-feedback-threads`' `mutate-branch`, used only to resolve.
 
 The reviewer bot is `claude[bot]`, a review bot listed in [`review-threads`](#review-threads), or
 `github-actions[bot]` on a comment whose last non-blank line is a review lane's

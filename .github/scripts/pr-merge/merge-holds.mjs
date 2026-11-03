@@ -351,6 +351,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/pr-unblock/report-escalation.sh", "enforcement"],
   [".github/scripts/pr-unblock/adjudicate-feedback.mjs", "enforcement"],
   [".github/scripts/pr-unblock/publish-feedback.mjs", "enforcement"],
+  [".github/scripts/pr-unblock/resolve-threads.mjs", "enforcement"],
   [".github/scripts/pr-unblock/request-budget.mjs", "enforcement"],
   [".github/scripts/pr-verify/resolve-pr.mjs", "enforcement"],
   [".github/scripts/pr-verify/write-verdict.mjs", "enforcement"],

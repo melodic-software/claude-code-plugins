@@ -643,9 +643,15 @@ export function humanGatedLabelFrom(path) {
 // set of ids, given on a PR carrying the human-gated label), a thread is
 // worked only when a reply is a fix request by one of them, after the
 // escalation when there is one.
+// A comment by a review bot: the reviewer bot, a listed review bot, or a
+// review lane's github-actions[bot] comment (threadAuthors, resolve-threads.mjs).
+export const isReviewerComment = (comment, { reviewerId, reviewerIds = [] }) =>
+  comment.authorId === reviewerId || reviewerIds.includes(comment.authorId) || isLaneComment(comment);
+// A pr-verify verifier note's root comment.
+export const isVerifierRoot = (comment) => comment?.authorId === MARKER_AUTHOR_ID && firstLine(comment.body) === VERIFY_NOTE_MARKER;
 export function threadAuthors(comments, { reviewerId, reviewerIds = [], appId, trustedHumans = new Set(), requesters = null, fixers = requesters ?? new Set() }) {
-  const verifier = comments.length > 0 && comments[0].authorId === MARKER_AUTHOR_ID && firstLine(comments[0].body) === VERIFY_NOTE_MARKER;
-  const reviewer = (comment) => comment.authorId === reviewerId || reviewerIds.includes(comment.authorId) || isLaneComment(comment);
+  const verifier = comments.length > 0 && isVerifierRoot(comments[0]);
+  const reviewer = (comment) => isReviewerComment(comment, { reviewerId, reviewerIds });
   const isHuman = (comment) =>
     trustedHumans.has(comment.authorId) && (comment.lastEditedAt == null || trustedHumans.has(comment.editorId));
   if (comments.length === 0 || (!reviewer(comments[0]) && !verifier && !isHuman(comments[0]))) {
