@@ -2,8 +2,8 @@
   "pass": [
     {
       "answer": [
-        {"tool": "TaskCreate", "input": {"subject": "1. Explore", "description": "Read the report export code"}},
-        {"tool": "TaskCreate", "input": {"subject": "4. Contract", "description": "Lock acceptance criteria"}},
+        {"tool": "TaskCreate", "input": {"subject": "1. Interview", "description": "Lock acceptance criteria"}},
+        {"tool": "TaskCreate", "input": {"subject": "2. Explore", "description": "Read the report export code"}},
         {"tool": "TaskCreate", "input": {"subject": "8. Implement", "description": "Add the currency filter"}}
       ],
       "why": "three stage tasks"

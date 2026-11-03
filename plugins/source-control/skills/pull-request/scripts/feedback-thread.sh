@@ -9,19 +9,23 @@
 # a patch that another job pushes.
 #
 #   list                              the kept threads, as JSON
+#   notes                             the pr-verify notes of an earlier FAIL,
+#                                     as JSON (none outside such a round)
 #   check-paths <path>...             exit 0 when every path is in a kept
-#                                     thread's scope (allowed below)
-#   record <thread-id> <disposition>  check the disposition against the
+#                                     thread's or note's scope (allowed below)
+#   record <id> <disposition>         check the disposition against the
 #                                     template and append it to the replies
 #
 # The disposition file is JSON in the scratch directory:
 #   {"disposition": "VALID" | "INCORRECT" | "UNCERTAIN" | "VALID-defer",
 #    "evidence": ["path:line", ...], "fix_sha": "", "note": "<prose>"}
-# fix_sha stays empty: the reply job names the commit the push job made.
+# A note's (a VNOTE_ id) disposition is "VALID" or "already-addressed", with
+# evidence. fix_sha stays empty: the reply job names the commit the push job
+# made.
 #
 # Environment:
 #   FEEDBACK_THREADS    the runner's thread file (repository, pr, head_sha,
-#                       threads[])
+#                       threads[], verify_notes[] in an earlier-fail round)
 #   FEEDBACK_LOG        the replies file, one JSON object per line
 #   FEEDBACK_SCRATCH    the only directory a disposition file may sit in
 #   FEEDBACK_WORKSPACE  the checkout evidence paths and a VALID reply's
@@ -74,7 +78,7 @@ allowed() {
       | ($p | sub("^.*/"; "") | test("^(test_[^/]*\\.py|[^/]*_test\\.py|[^/]*\\.(test|spec)\\.[^/]+)$")) as $test
       | (if $instruction then null else $p | plugin end) as $named
       | ($tracked and any(.pr_paths[]?; . == $p)) as $pr
-      | $plain and ($pr or any(.threads[]; .path as $t
+      | $plain and ($pr or any(.threads[], .verify_notes[]?; .path as $t
           | $t == $p
           or ($plugin != null and ($t | startswith($plugin)))
           or ($test and ($t | dir) == ($p | dir))
@@ -107,6 +111,10 @@ cmd_list() {
   jq '.threads' "$threads_file"
 }
 
+cmd_notes() {
+  jq '.verify_notes // []' "$threads_file"
+}
+
 cmd_check_paths() {
   (($#)) || die 2 "usage: check-paths <path>..."
   local refused=0 path
@@ -122,10 +130,17 @@ cmd_check_paths() {
 
 cmd_record() {
   (($# == 2)) || die 2 "usage: record <thread-id> <disposition-file>"
-  local id=$1 file=$2
-  [[ $id =~ ^PRRT_[A-Za-z0-9_-]{1,100}$ ]] || die 1 "not a review thread id"
-  jq -e --arg id "$id" 'any(.threads[]; .id == $id)' "$threads_file" >/dev/null ||
-    die 1 "$id is not a kept thread"
+  local id=$1 file=$2 kinds
+  if [[ $id =~ ^VNOTE_[1-9][0-9]{0,2}$ ]]; then
+    jq -e --arg id "$id" 'any(.verify_notes[]?; .id == $id)' "$threads_file" >/dev/null ||
+      die 1 "$id is not a pr-verify note of this round"
+    kinds='["VALID", "already-addressed"]'
+  else
+    [[ $id =~ ^PRRT_[A-Za-z0-9_-]{1,100}$ ]] || die 1 "not a review thread id"
+    jq -e --arg id "$id" 'any(.threads[]; .id == $id)' "$threads_file" >/dev/null ||
+      die 1 "$id is not a kept thread"
+    kinds='["VALID", "INCORRECT", "UNCERTAIN", "VALID-defer"]'
+  fi
   if [[ -f $log_file ]] && jq -se --arg id "$id" 'any(.[]; .thread == $id)' "$log_file" >/dev/null 2>&1; then
     die 1 "$id already has a reply recorded"
   fi
@@ -146,14 +161,14 @@ cmd_record() {
   # whose header gh[opsur]_[A-Za-z0-9]{20} matches; this prefix check is not GitHub's recommended regex
   # (as of 2026-10-21; recheck when GitHub changes a token format or its recommended regex).
   local d
-  d=$(jq -ec --arg id "$id" '
+  d=$(jq -ec --arg id "$id" --argjson kinds "$kinds" '
     def path_line: type == "string" and test("^[A-Za-z0-9_@+.-]+(/[A-Za-z0-9_@+.-]+)*:[1-9][0-9]{0,6}$")
       and (test("(^|/)\\.\\.?(/|:)") | not);
     select(type == "object")
     | select(keys - ["disposition", "evidence", "fix_sha", "note"] == [])
-    | select(.disposition | IN("VALID", "INCORRECT", "UNCERTAIN", "VALID-defer"))
+    | select(.disposition as $d | $kinds | index($d) != null)
     | select((.evidence // []) | type == "array" and length <= 10 and all(path_line))
-    | select((.disposition | IN("VALID", "INCORRECT") | not) or ((.evidence // []) | length > 0))
+    | select((.disposition | IN("VALID", "INCORRECT", "already-addressed") | not) or ((.evidence // []) | length > 0))
     | select(.note | type == "string" and length > 0 and length <= 2000)
     | select(.note | explode | all(. == 9 or . == 10 or (. >= 32 and . != 127
         and (. < 128 or . > 159) and (. < 8203 or . > 8207) and (. < 8234 or . > 8238)
@@ -161,7 +176,7 @@ cmd_record() {
     | select(.note | test("<!--|-->|gh[opsur]_[A-Za-z0-9]{20}|ghs_[0-9]+_|github_pat_") | not)
     | select((.fix_sha // "") == "")
     | {thread: $id, disposition, evidence: (.evidence // []), fix_sha: (.fix_sha // ""), note}' "$real") ||
-    die 1 "the disposition file does not match the template: disposition, evidence path:line list (one or more for VALID and INCORRECT), an empty fix_sha, note of 1-2000 characters with no control characters, HTML comments or tokens"
+    die 1 "the disposition file does not match the template: disposition (VALID or already-addressed for a pr-verify note), evidence path:line list (one or more for VALID, INCORRECT and already-addressed), an empty fix_sha, note of 1-2000 characters with no control characters, HTML comments or tokens"
 
   local disposition ev
   disposition=$(jq -r .disposition <<<"$d")
@@ -197,7 +212,8 @@ cmd_record() {
 
 case ${1:-} in
   list) cmd_list ;;
+  notes) cmd_notes ;;
   check-paths) shift && cmd_check_paths "$@" ;;
   record) shift && cmd_record "$@" ;;
-  *) die 2 "usage: feedback-thread.sh list | check-paths <path>... | record <thread-id> <disposition-file>" ;;
+  *) die 2 "usage: feedback-thread.sh list | notes | check-paths <path>... | record <thread-id> <disposition-file>" ;;
 esac

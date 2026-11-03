@@ -29,6 +29,8 @@ Arguments: `$ARGUMENTS`
 
 Every implementation starts with a clear design, evidence, a test strategy, and user sign-off before any code is written. This is **not** Claude Code's built-in plan mode (what that mode does: [Analyze before you edit with plan mode](https://code.claude.com/docs/en/permission-modes#analyze-before-you-edit-with-plan-mode), as of 2026-11-03; recheck when that section changes what plan mode lets Claude do); this skill is a separate *planning discipline* that can run inside it. It consumes exploration, research, and `/planning:design` (types, contracts, module boundaries, package topology) and produces a plan the user approves before execution. A 2-minute plan prevents a 20-minute rework cycle. Match planning depth to blast radius: a one-file fix gets a brief plan; a cross-cutting architecture change gets a full plan with stress-testing and research-iterate loops.
 
+**Level this skill decides: files and symbols**, which files change and which functions, types and tests each phase touches; behavior is the interview's Brief, and interfaces and contracts are `/planning:design`'s.
+
 **Skip the plan when one sentence covers the change.** First try to write the whole diff as one sentence. The test passes when no design question is open and that sentence describes every edit. How this skill was reached decides what happens next:
 
 - **Invoked proactively** (nobody asked for a plan): say the change fits one sentence, give the sentence, and skip the plan. No checklist, no plan-reviewer, no PLAN.md draft.

@@ -1767,3 +1767,77 @@ test("a VALID reply whose fix commit only changes the file's mode is posted and 
   assert.equal(result.escalationReason, "");
   assert.deepEqual(api.resolved(), ["PRRT_a"]);
 });
+
+// #12809: a round on the notes of the earlier FAIL behind a verify:earlier-fail
+// refusal (run.json verify_notes, from the verdict artifact) has no thread to
+// post on. A push fixing a named note ends as any pushed fix does; no push with
+// every note already addressed escalates for a session, never a silent success.
+const FAILED = "e".repeat(40);
+const notesRun = (head = GATED) =>
+  JSON.stringify({
+    version: 1,
+    head_sha: head,
+    pr_paths: ["src/a.js", "docs/b.md"],
+    threads: [],
+    verify_notes: [
+      { id: "VNOTE_1", head: FAILED, path: "src/a.js" },
+      { id: "VNOTE_2", head: FAILED, path: "docs/b.md" },
+    ],
+  });
+const noteReply = (thread, disposition, evidence) => reply({ thread, disposition, evidence: [evidence], note: "Checked against the current diff." });
+const noteFix = (...ids) => fixCommit(FIX, { commit: { ...fixCommit().commit, message: ["Address review feedback on feature", "", "Lane-Activity: pr-unblock/address-feedback", ...ids.map((id) => `Lane-Thread: ${id}`), ""].join("\n") } });
+
+test("an earlier-fail round whose push fixes a named note ends as a pushed fix does, posting nothing", async () => {
+  const api = fakeApi({ compare: { status: "ahead", commits: [noteFix("VNOTE_1")], files: [{ filename: "src/a.js" }] } });
+  const result = await run(api, lines(noteReply("VNOTE_1", "VALID", "src/a.js:3"), noteReply("VNOTE_2", "already-addressed", "docs/b.md:1")), notesRun());
+  assert.equal(result.escalationReason, "");
+  assert.equal(result.skipReason, undefined);
+  assert.deepEqual(api.posted(), []);
+  assert.deepEqual(api.resolved(), []);
+  // The round still counts.
+  assert.equal(api.markers().length, 1);
+});
+
+test("an earlier-fail round that pushes nothing and reports every note already addressed escalates feedback-already-addressed for a session", async () => {
+  const api = fakeApi({ compare: { status: "identical", commits: [], files: [] } });
+  const result = await run(api, lines(noteReply("VNOTE_1", "already-addressed", "src/a.js:3"), noteReply("VNOTE_2", "already-addressed", "docs/b.md:1")), notesRun(NOW));
+  assert.equal(result.escalationReason, "feedback-already-addressed");
+  assert.equal(result.skipReason, undefined);
+  assert.deepEqual(api.posted(), []);
+  const { ROUTES } = await import("./escalation-routes.mjs");
+  assert.deepEqual([ROUTES[result.escalationReason].route, ROUTES[result.escalationReason].label], ["fail", "needs-session"]);
+  assert.match(ROUTES[result.escalationReason].why, /verify:earlier-fail/);
+  assert.match(ROUTES[result.escalationReason].why, /already addressed/);
+});
+
+test("an earlier-fail round never ends silently: a VALID note with no fix, a push no note names, or a missing note each fail", async () => {
+  const both = lines(noteReply("VNOTE_1", "VALID", "src/a.js:3"), noteReply("VNOTE_2", "already-addressed", "docs/b.md:1"));
+  // VALID, but no fix commit reached the branch.
+  const unmoved = await run(fakeApi({ compare: { status: "identical", commits: [], files: [] } }), both, notesRun(NOW));
+  assert.equal(unmoved.escalationReason, "feedback-not-landed");
+  // The fix commit names another note.
+  const misnamed = await run(fakeApi({ compare: { status: "ahead", commits: [noteFix("VNOTE_2")], files: [{ filename: "src/a.js" }] } }), both, notesRun());
+  assert.equal(misnamed.escalationReason, "feedback-not-landed");
+  // Every note already addressed, yet the head moved.
+  const moved = await run(fakeApi(), lines(noteReply("VNOTE_1", "already-addressed", "src/a.js:3"), noteReply("VNOTE_2", "already-addressed", "docs/b.md:1")), notesRun());
+  assert.equal(moved.escalationReason, "feedback-not-landed");
+  // A note with no disposition.
+  const partial = await run(fakeApi(), lines(noteReply("VNOTE_1", "already-addressed", "src/a.js:3")), notesRun(NOW));
+  assert.equal(partial.escalationReason, "feedback-incomplete");
+});
+
+test("an earlier-fail round's replies and run.json are held to their template", async () => {
+  for (const [label, text, runText] of [
+    ["a note left INCORRECT", lines(noteReply("VNOTE_1", "INCORRECT", "src/a.js:3"), noteReply("VNOTE_2", "already-addressed", "docs/b.md:1")), notesRun(NOW)],
+    ["already-addressed with no evidence", lines(reply({ thread: "VNOTE_1", disposition: "already-addressed", evidence: [] }), noteReply("VNOTE_2", "already-addressed", "docs/b.md:1")), notesRun(NOW)],
+    ["a thread reported already addressed", lines(reply({ disposition: "already-addressed" })), JSON.stringify(RUN)],
+    ["a note the select job did not list", lines(noteReply("VNOTE_3", "already-addressed", "src/a.js:3")), notesRun(NOW)],
+    ["notes beside threads", lines(noteReply("VNOTE_1", "already-addressed", "src/a.js:3")), JSON.stringify({ ...JSON.parse(notesRun(NOW)), threads: RUN.threads })],
+    ["a malformed note id", lines(noteReply("VNOTE_1", "already-addressed", "src/a.js:3")), JSON.stringify({ ...JSON.parse(notesRun(NOW)), verify_notes: [{ id: "PRRT_x", head: FAILED, path: "src/a.js" }] })],
+  ]) {
+    const api = fakeApi();
+    const result = await run(api, text, runText);
+    assert.equal(result.escalationReason, "feedback-invalid", label);
+    assert.deepEqual(api.posted(), [], label);
+  }
+});

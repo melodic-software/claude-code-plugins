@@ -422,8 +422,8 @@ report INFO naming `/work-items:setup apply` with a user present.
   `config.github.wont_do_labels`; an empty pick removes the key.
 - **`jira`: classify resolutions.** Modeled on the role-label pass above:
   1. **Read the current binding** and present `config.jira.resolutions` when set.
-  2. **Discover** the instance's resolutions with the paginated
-     `GET /rest/api/3/resolution/search` (the call, its auth and its fields are
+  2. **Discover** the instance's resolutions through Jira's resolution search (the call, its
+     paging, its auth and its fields, with the pointer to Atlassian's Issue resolutions API, are
      [`reference/providers.md`](reference/providers.md) "`jira`"). Show each resolution's name and
      description, and mark the default one.
   3. **Have the user sort each into `completed` or `wont_do`.** You may pre-select a suggestion

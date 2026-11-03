@@ -1193,7 +1193,9 @@ armed auto-merge is disarmed and refused instead, only while the merge queue has
 for failed checks fewer than `merge.max-queue-ejections` times (default 2) since it last changed
 (a refused head gets one `<!-- babysit-merge-queue-ejections -->` comment linking the failing
 `merge_group` runs), and after a
-`<!-- babysit-merge-pin sha=<S> -->` comment records the pin for the post-merge read-back. When the
+`<!-- babysit-merge-pin sha=<S> rung=<C2|C3> -->` comment records the pin for the post-merge
+read-back and the effective rung for the promotion-evidence publisher (the read-back also accepts
+the older shape with no `rung=`). When the
 identity's earlier queue entries and its unverified merges already reach `merge.max-in-flight`
 (default 1), the new entry dequeues itself. The enqueue returns before
 the queue lands the pull request, so a later run with

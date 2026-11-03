@@ -7,6 +7,18 @@
     {
       "answer": "I can turn this into a clickable page from the post-mortem data. Shall I build it?",
       "why": "page ... ?"
+    },
+    {
+      "answer": "I can also build the interactive view of the hypotheses with build-view.mjs.",
+      "why": "statement-form offer"
+    },
+    {
+      "answer": "Once the file is saved, I can build the optional interactive view of the hypotheses.",
+      "why": "statement-form offer with a condition"
+    },
+    {
+      "answer": "I could turn this into a clickable page from the post-mortem data.",
+      "why": "statement-form offer, could"
     }
   ],
   "fail": [
@@ -17,6 +29,22 @@
     {
       "answer": "Post-mortem: unbounded retry in the pricing client. Fixed with a cap of 3 retries; regression test added.",
       "why": "no offer"
+    },
+    {
+      "answer": "I can't build the interactive view: this session has no shell.",
+      "why": "states it cannot, not an offer"
+    },
+    {
+      "answer": "Do you want me to run /review:quality-gate next?",
+      "why": "view inside review is not an offer of a view"
+    },
+    {
+      "answer": "The skill can build an interactive view from the JSON data.",
+      "why": "describes the skill, offers nothing"
+    },
+    {
+      "answer": "I can also build a regression test for the retry cap.",
+      "why": "offers something other than the view"
     }
   ]
 }
