@@ -1103,6 +1103,16 @@ pin "surface.md routes an accept-audit event to audit-answers" "$PLUGIN_DIR/skil
   "the skill routes the round to \`/planning:audit-answers\`"
 pin "surface.md lists the accept-audit event kind" "$PLUGIN_DIR/skills/interview/context/surface.md" \
   "| \`accept-audit\` |"
+# #12660 moved the page clauses out of SKILL.md's gate sections; the page lane reads surface.md
+# beside lane-page.md (surface-registry.test.mjs), so these twins keep each moved gate there.
+pin "surface.md: the page's confirmation gate waits for confirm-understanding" "$PLUGIN_DIR/skills/interview/context/surface.md" \
+  "2. Wait for a \`confirm-understanding\` event."
+pin "surface.md: the page's restate keeps the full recap" "$PLUGIN_DIR/skills/interview/context/surface.md" \
+  "Leave out \`--changed\` here"
+pin "surface.md: the tick exception covers only unticked commitments, any other defect halts" "$PLUGIN_DIR/skills/interview/context/surface.md" \
+  "since the restatement box offers their ticks; a hedged row's condition is still open, so it halts; any other defect halts it, as SKILL.md Step 3 says."
+pin "surface.md: the page's Brief cross-check adds --surface" "$PLUGIN_DIR/skills/interview/context/surface.md" \
+  "On this lane, pass \`--surface '<data_dir>'\` to the Step 4 \`--brief --procedure\` gate"
 
 # A8. Whole-line pins — the five lines that ARE the STOP-on-gap defense. These catch the
 #     neutralize-in-place edit the phrase pins above cannot: a qualifier appended to any of
