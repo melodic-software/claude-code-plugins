@@ -1,0 +1,23 @@
+# The GraphQL sites graphql-operations.test.cjs cannot check, and the paths it
+# skips because their operations go to another GraphQL API. The schema beside
+# this file is https://docs.github.com/public/fpt/schema.docs.graphql, gzipped.
+#
+#   exclude <path prefix> <reason>
+#   <file> <count> <reason>
+#
+# <count> is the file's operations that do not parse after substitution, plus
+# its shorthand and query=@file sites, plus its request sites beyond the
+# operations extracted. The test fails when a file's count differs from its
+# row, a file has a count and no row, or an exclude matches no tracked file.
+
+exclude plugins/work-items/tools/work-item-tracker/seeds/linear/ Linear's GraphQL API
+exclude plugins/work-items/tools/work-item-tracker/conformance/bindings/linear.sh Linear's GraphQL API
+
+.github/actions/log-api-budget/rate-guard.mjs 1 the /graphql( match is a regex over a URL, not a request
+.github/scripts/pr-merge/enable-auto-merge.mjs 2 pageOf() interpolates the connection name; SKIP_STATE_PREFIX is a prefix skipStateQuery() completes at run time
+.github/scripts/pr-unblock/dispatch.mjs 1 HISTORY_QUERY is imported from fix-docs-dispatch.mjs, checked there
+.github/scripts/pr-unblock/feedback-dispatch.mjs 1 REQUEST_HISTORY_QUERY is imported from address-feedback.mjs, checked there
+.github/scripts/pr-unblock/fix-ci-context.mjs 1 graphql(false) makes a client; its operations are resolve-pr.mjs's, checked there
+.github/scripts/pr-unblock/report-escalation.sh 2 QUEUE_ENTRY_QUERY and DEQUEUE_MUTATION are read from address-feedback.mjs, checked there
+plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh 4 two query{ prefixes are a [[ ]] pattern, not operations; two queries gain one alias per branch in a shell loop
+plugins/source-control/skills/babysit-loop/scripts/lane-snapshot.mjs 1 the connection name is interpolated
