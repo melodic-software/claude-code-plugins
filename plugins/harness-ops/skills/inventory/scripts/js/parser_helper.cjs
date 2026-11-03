@@ -2324,6 +2324,19 @@ function sinkHits(entry, names, depth, loaders = new Set()) {
       (node.type === "MemberExpression" && !overwritten && maySpellConstructor(node.property, node.computed) && !constructorInert(node)) ||
       (node.type === "Property" && holder?.type === "ObjectPattern" && maySpellConstructor(node.key, node.computed));
     if (constructorRead) hit("function-constructor", null, node);
+    // A computed key known not to spell `constructor` may still spell
+    // another member the checks here name only literally: `eval`,
+    // `Function`, a vm runner, or `__defineGetter__`/`__defineSetter__`
+    // (`globalThis[`ev${"al"}`]`, or a parameter only ever passed
+    // "Function"). A read of one counts as the named read counts. A key
+    // that may spell `constructor` is judged by the check above.
+    if (node.type === "MemberExpression" && node.computed && member === null && !isTarget(parents, node) && !maySpellConstructor(node.property, true)) {
+      const may = (name) => spells(node.property, name);
+      if (may("eval")) hit("indirect-eval", null, node);
+      else if (may("Function")) hit("function-constructor", null, node);
+      else if ([...VM_RUNNERS].some(may)) hit("vm-string-code", null, node);
+      else if (may("__defineGetter__") || may("__defineSetter__")) hit("definer-escape", null, node);
+    }
     // node:vm runs strings as code, and even a new context reaches this
     // realm (`this.constructor.constructor("...")()` inside
     // `runInNewContext` patches the outer prototypes). Any load of the vm

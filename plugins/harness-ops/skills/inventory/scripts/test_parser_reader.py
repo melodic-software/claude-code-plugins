@@ -996,8 +996,10 @@ class TestFlowQuery(unittest.TestCase):
 
     def test_a_computed_key_counts_only_for_the_names_it_may_spell(self) -> None:
         """In strict code a computed read is a load the parser cannot name
-        only when its key may spell `require`, and reaches `Function` only
-        when it may spell `constructor`. `n+1` is a number or ends in a
+        only when its key may spell `require`, and reaches code built from
+        a string only when it may spell `constructor`, `eval` or `Function`; a key that
+        cannot spell `constructor` still counts for a vm runner or a getter
+        definer it may spell. `n+1` is a number or ends in a
         digit, a template starts and ends with its own text, and a parameter
         of a function only ever called directly holds what the calls pass.
         A parameter that is written, or whose function escapes, is exported,
@@ -1016,6 +1018,15 @@ class TestFlowQuery(unittest.TestCase):
                 ["function-constructor"],
             ),
             ("e[`${s}uire`];", ["unknown-load"]),
+            # A key that cannot spell `constructor` may still spell `eval`,
+            # `Function`, a vm runner or a getter definer.
+            ('globalThis[`ev${"al"}`](s);', ["indirect-eval"]),
+            (
+                'const J=(e,n)=>e[n];J(globalThis,"Function")(s)();',
+                ["function-constructor"],
+            ),
+            ('const J=(e,n)=>e[n];J(o,"runInThisContext");', ["vm-string-code"]),
+            ('const J=(e,n)=>e[n];J(o,"__defineGetter__");', ["definer-escape"]),
             ("function J(e,n){return e[n]}J(o,s);", unknown),
             ("function J(e,n){return e[n]}h(J);", unknown),
             ("export const J=(e,n)=>e[n];J(o,1);", unknown),
