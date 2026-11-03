@@ -1771,11 +1771,19 @@ rdt_name_set() {
   local re_ref='\$\{?([A-Za-z_][A-Za-z0-9_]*)'
   RDT_NAME_SET_CALLS=$((RDT_NAME_SET_CALLS + 1))
   ((RDT_NAME_SET_CALLS > RDT_NAME_SET_MAX || $2 > 4)) && return 1
+  # Bash removes quotes before a builtin parses its words, so the setter checks
+  # read the command with them gone (`printf -v"S"`, `read '-aS'`).
+  local tq="${t//\$\'/}"
+  tq="${tq//[\"\'\\]/}"
   re="(^|[^A-Za-z0-9_])${n}\\+=|\\$\\{${n}:?=|(^|[^A-Za-z0-9_])(read|mapfile|readarray|getopts|select|printf[[:space:]]+-v|wait[[:space:]]+-p|(declare|typeset|local)([[:space:]]+[-+][A-Za-z]+)*[[:space:]]+-[A-Za-z]*n[A-Za-z]*)[[:space:]]([^;&|"$'\n'"]*[[:space:]])?${n}([^A-Za-z0-9_]|$)"
-  [[ "$t" =~ $re ]] && return 1
-  # An option argument glued to its letter (`printf -vS`, `read -aS`), or a
-  # subscript assignment (`S[0]=`), sets the name with no `NAME=` showing.
-  re="(^|[^A-Za-z0-9_])(read|mapfile|readarray|printf|wait)[[:space:]]([^;&|"$'\n'"]*[[:space:]])?-[A-Za-z]*${n}([^A-Za-z0-9_]|$)|(^|[[:space:];&|(\"'])${n}\\["
+  [[ "$tq" =~ $re ]] && return 1
+  # A name-taking option with its name glued on (`printf -vS`, `read -raS`,
+  # `wait -pS`) sets the name with no `NAME=` showing.
+  local re_any="[[:space:]]([^;&|"$'\n'"]*[[:space:]])?-[A-Za-z]*"
+  re="(^|[^A-Za-z0-9_])(read${re_any}a|printf${re_any}v|wait${re_any}p)${n}([^A-Za-z0-9_]|$)"
+  [[ "$tq" =~ $re ]] && return 1
+  # So does a subscript assignment (`S[0]=`).
+  re="(^|[[:space:];&|(\"'])${n}\\["
   [[ "$t" =~ $re ]] && return 1
   # Another word-split separator, or a command that can set any name out of sight.
   [[ "$t" =~ $RDT_NAME_SET_FORBID_RE ]] && return 1
