@@ -398,8 +398,17 @@ The deck lane (`/visualization:present`) is the second exception: a deck exists 
 Artifact made from the account's Slides type, so it publishes behind the same gate (see
 Artifact types), and anything the gate keeps local stays the markdown outline.
 
+The planning views are the third exception: the brainstorm, design and plan views
+(`/planning:brainstorm`, `/planning:design`, `/planning:plan`) ship `medium: artifact` as the
+planning lane's default. Each page is built only by the shared builder from a checked-in template
+(`plugins/planning/scripts/build-view.mjs`), and it publishes behind the same gate as the digest:
+the default publishes only a public repository's record with nothing credential-shaped in it, and
+any other record falls back to `file` with the reader told how to publish it anyway. The planning
+plugin's PRD and interview views are not part of this exception and stay local files.
+
 Rendered views are untracked by default; publishing anywhere else is optional and
-configured, never the default, except for the digest's and the deck's `artifact` default. A
+configured, never the default, except for the digest's, the deck's and the planning views'
+`artifact` default. A
 shared page host is one such configured place: `medium: hosted`, honored only by the digest lane
 (see The `hosted` medium).
 
@@ -620,7 +629,9 @@ Emitters on the shared builder (`lib/view-builder.mjs`, interactive profile): `e
 (`plugins/education/skills/illustrate/scripts/build-explainer.mjs`), which has left the grandfathered
 set and defaults to a local `file`, then `terminal`, publishing an artifact only when an argument or
 a layer asks for one; `planning:plan` and
-`planning:brainstorm`, each offering its view from a checked-in template plus the session's JSON as data
+`planning:brainstorm`, each offering its view from a checked-in template plus the session's JSON as data,
+and `planning:design`, offering a view of PLAN.md's `## Design` section, each kind an entry in the
+builder's view-kind registry rendered through `render(laneId, kind, record)`
 (`plugins/planning/scripts/build-view.mjs`); `debugging:debug` (post-mortem) and `discovery:blindspot`, built
 the same way (`plugins/debugging/scripts/build-view.mjs`, `plugins/discovery/scripts/build-view.mjs`); and the
 `architecture` `map-*` skills, each offering a view of its JSON record from one checked-in template

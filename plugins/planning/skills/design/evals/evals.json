@@ -248,6 +248,18 @@
         "The variation thread is recorded resolved (contain, with its rationale), so the design-handoff gate does not bounce it back as unresolved",
         "Output continues the design rather than blocking on the unanswered question"
       ]
+    },
+    {
+      "id": 20,
+      "name": "offers-built-design-view",
+      "prompt": "/planning:design handoff. The design-handoff gate passed and wrote PLAN.md's Design section for the cache topic. Can I see the design as a page?",
+      "expected_output": "The skill keeps PLAN.md's Design section as the record and builds the design view from it with the checked-in builder; the builder resolves the medium through the shared resolver and publish gate, and the skill prints its report line and never writes HTML or script itself.",
+      "files": [],
+      "expectations": [
+        "PLAN.md's Design section stays the record; the page is not written beside it",
+        "The view is built with scripts/build-view.mjs design --record naming PLAN.md, with the plugin's medium option, not by writing HTML or script in the session",
+        "Output prints the builder's report line, `view: <medium> (<what decided it>)`, and delivers what the builder's JSON names without choosing a medium itself"
+      ]
     }
   ]
 }

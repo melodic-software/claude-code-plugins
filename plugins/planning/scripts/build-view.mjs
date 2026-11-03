@@ -1,63 +1,33 @@
 #!/usr/bin/env node
-// Build the plan or brainstorm view: a checked-in template plus the JSON data
-// object on stdin, through the shared view builder (interactive profile).
-// Writes the page to one deterministic path under the OS temp directory,
-// never beside the record, and prints that path.
+// Build a planning view (a kind the planning lane registers in lib/view-registry.mjs) from its
+// record through render(laneId, kind, record) in the shared view builder. The record is a file
+// (--record) or stdin: JSON for plan and brainstorm, a PLAN.md holding `## Design` for design.
+// A page goes to one deterministic path under the OS temp directory, never beside the record.
 //
-//   node build-view.mjs plan|brainstorm < data.json
-//   node build-view.mjs plan|brainstorm --connect http://127.0.0.1:<port> --out <data_dir>/page.html < data.json
+//   node build-view.mjs <kind> [--record <file>]
+//     builds the page and prints its path
+//   node build-view.mjs <kind> --option <medium option> [--argument <medium>] [--visibility <V>] [--record <file>]
+//     resolves the medium (lib/view-settings.mjs), runs the publish gate (lib/publish-gate.mjs) over a
+//     publishing medium, builds the page unless the medium builds none, and hands it to the medium's
+//     registry entry. Prints one JSON line, the delivery plus `page` when a page was built, then the
+//     report line and one line per notice. <V> is the repository's visibility
+//     (PUBLIC|PRIVATE|INTERNAL|UNKNOWN|NONE); left out, the shipped default never publishes.
+//   node build-view.mjs <kind> --connect http://127.0.0.1:<port> --out <data_dir>/page.html [--record <file>]
 //     the Claude-interactive page that view-bridge (../view-bridge/) serves; <data_dir> must be
 //     a private view-bridge data dir outside any working tree, or the build is refused (exit 2)
 //
-// Exit 0 built, 1 the data or the page fails its checks, 2 usage or environment.
+// Exit 0 built or delivered, 1 the record or the page fails its checks, 2 usage or environment.
 
 import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildView, ViewBuildError } from "../lib/view-builder.mjs";
+import { publishGate } from "../lib/publish-gate.mjs";
+import { render, ViewBuildError } from "../lib/view-builder.mjs";
+import { laneOf, MEDIUMS, mediumOf, NO_PAGE, NO_PREFERENCE, reportLines } from "../lib/view-registry.mjs";
+import { findRoot, gateExplicit, resolveMedium } from "../lib/view-settings.mjs";
 
-const TEMPLATES = {
-  plan: "../skills/plan/templates/plan-view.html",
-  brainstorm: "../skills/brainstorm/templates/brainstorm-view.html",
-};
-
-// Data shapes from reference/rendered-view.md: top-level text fields, then one
-// list of rows whose fields are text, plus `criteria` (a list of text) for plan.
-const SHAPES = {
-  plan: {
-    text: ["title", "goal", "blast"],
-    list: "phases",
-    row: ["status", "name", "what", "needs"],
-    rowList: "criteria",
-  },
-  brainstorm: {
-    text: ["title", "problem"],
-    list: "candidates",
-    row: ["effort", "name", "what", "where", "impact"],
-  },
-};
-
-const isText = (value) => typeof value === "string";
-const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
-
-const shapeFailures = (shape, data) => {
-  if (!isObject(data)) return ["data is not an object"];
-  const failures = shape.text.filter((key) => !isText(data[key])).map((key) => `${key} must be text`);
-  if (!Array.isArray(data[shape.list])) return [...failures, `${shape.list} must be a list`];
-  for (const [index, row] of data[shape.list].entries()) {
-    const at = `${shape.list}[${index}]`;
-    if (!isObject(row)) {
-      failures.push(`${at} must be an object`);
-      continue;
-    }
-    for (const key of shape.row) if (!isText(row[key])) failures.push(`${at}.${key} must be text`);
-    if (shape.rowList && !(Array.isArray(row[shape.rowList]) && row[shape.rowList].every(isText))) {
-      failures.push(`${at}.${shape.rowList} must be a list of text`);
-    }
-  }
-  return failures;
-};
+export const LANE = "planning";
 
 const insideWorkingTree = (dir) => {
   for (let at = dir; ; at = dirname(at)) {
@@ -94,37 +64,93 @@ const bridgeOutProblem = (out, origin) => {
   return null;
 };
 
-const [kind, ...rest] = process.argv.slice(2);
-const flags = {};
-for (let i = 0; i < rest.length; i += 2) flags[rest[i]] = rest[i + 1];
-const flagsOk =
-  Object.keys(flags).every((key) => ["--connect", "--out"].includes(key)) &&
-  ("--connect" in flags) === ("--out" in flags) &&
-  Object.values(flags).every((value) => typeof value === "string" && value !== "");
-if (!Object.hasOwn(TEMPLATES, kind) || !flagsOk) {
-  console.error("usage: build-view.mjs plan|brainstorm [--connect <session-bridge origin> --out <data_dir>/page.html] < data.json");
-  process.exit(2);
+/** Write the page to <tmp>/planning-views/<kind>.html; the temp root is shared, so the directory is private and no link is written through. */
+export function writePrivate(page, kind) {
+  const dir = join(tmpdir(), "planning-views");
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  if (!lstatSync(dir).isDirectory()) throw new Error("build-view: refusing a symlinked or non-directory output path");
+  chmodSync(dir, 0o700);
+  const out = join(dir, `${kind}.html`);
+  rmSync(out, { force: true });
+  writeFileSync(out, page, { mode: 0o600 });
+  return out;
 }
 
-if (flags["--out"]) {
-  const problem = bridgeOutProblem(flags["--out"], flags["--connect"]);
-  if (problem) {
-    console.error(`build-view: refused: ${problem}`);
-    process.exit(2);
+/**
+ * Deliver the `kind` view of `record` on the resolved medium. A publishing medium first passes the
+ * publish gate, which keeps the page on the chain's local step for a non-public repository or a
+ * credential-shaped record unless the reader chose to publish; the report then names the gate.
+ * @param {{kind: string, record: unknown, resolution: {preferred: string|null, medium: string, decidedBy: string, notices: {text: string}[]}, visibility?: string, mediums?: object, write?: (page: string, kind: string) => string, context?: object}} input
+ *   mediums replaces the medium registry; write stores the page and returns its path
+ * @returns {{delivery: object, report: string[]}} delivery: the medium entry's deliver result, plus `page` when a page was built
+ */
+export function deliverView({ kind, record, resolution, visibility = "UNKNOWN", mediums = MEDIUMS, write = writePrivate, context = {} }) {
+  const entryOf = (id) => (Object.hasOwn(mediums, id) ? mediums[id] : undefined);
+  let entry = entryOf(resolution.medium);
+  if (!entry) throw new Error(`build-view: no medium entry for ${JSON.stringify(resolution.medium)}`);
+  let shown = resolution;
+  if (entry.publishes) {
+    const text = typeof record === "string" ? record : JSON.stringify(record);
+    const gate = publishGate({ explicit: gateExplicit(resolution), visibility, text, subject: "record" });
+    if (!mediumOf(gate.medium).publishes) {
+      entry = entryOf(gate.medium) ?? mediumOf(gate.medium);
+      const notices = [...resolution.notices, ...(gate.opt_in ? [{ kind: "gate", text: gate.opt_in }] : [])];
+      shown = { ...resolution, medium: gate.medium, decidedBy: `publish gate: ${gate.reason}`, notices };
+    }
   }
+  const path = entry.id === NO_PAGE ? null : write(render(LANE, kind, record), kind);
+  const delivery = entry.deliver({ kind, path }, context);
+  return { delivery: path ? { ...delivery, page: path } : delivery, report: reportLines(shown) };
 }
 
-try {
-  const data = JSON.parse(readFileSync(0, "utf8"));
-  const failures = shapeFailures(SHAPES[kind], data);
-  if (failures.length > 0) throw new ViewBuildError(failures);
-  const page = buildView({
-    profile: "interactive",
-    template: readFileSync(fileURLToPath(new URL(TEMPLATES[kind], import.meta.url)), "utf8"),
-    data,
-    connect: flags["--connect"] ?? null,
-  });
-  if (flags["--out"]) {
+const USAGE =
+  "usage: build-view.mjs <kind> [--record <file>]\n" +
+  "       build-view.mjs <kind> --option <medium option> [--argument <medium>] [--visibility <V>] [--record <file>]\n" +
+  "       build-view.mjs <kind> --connect <session-bridge origin> --out <data_dir>/page.html [--record <file>]\n";
+const FLAGS = ["--record", "--option", "--argument", "--visibility", "--connect", "--out"];
+
+function main(argv, env = process.env) {
+  const [kind, ...rest] = argv;
+  const flags = {};
+  for (let i = 0; i < rest.length; i += 2) flags[rest[i]] = rest[i + 1];
+  const has = (key) => key in flags;
+  const flagsOk =
+    Object.keys(flags).every((key) => FLAGS.includes(key)) &&
+    Object.values(flags).every((value) => typeof value === "string" && value !== "") &&
+    has("--connect") === has("--out") &&
+    !(has("--option") && has("--connect")) &&
+    (has("--option") || !(has("--argument") || has("--visibility"))) &&
+    (!has("--argument") || flags["--argument"] === NO_PREFERENCE || Boolean(mediumOf(flags["--argument"])));
+  if (!laneOf(LANE).kinds.includes(kind) || !flagsOk) {
+    process.stderr.write(USAGE);
+    return 2;
+  }
+  if (has("--out")) {
+    const problem = bridgeOutProblem(flags["--out"], flags["--connect"]);
+    if (problem) {
+      console.error(`build-view: refused: ${problem}`);
+      return 2;
+    }
+  }
+  try {
+    const record = readFileSync(flags["--record"] ?? 0, "utf8");
+    if (has("--option")) {
+      const argument = flags["--argument"] === NO_PREFERENCE ? null : (flags["--argument"] ?? null);
+      const interactive = !(Boolean(env.CI) && env.CI !== "false");
+      const resolution = resolveMedium(
+        { lane: LANE, argument, userConfig: flags["--option"], projectRoot: findRoot() },
+        { dataDir: env.CLAUDE_PLUGIN_DATA || null, interactive },
+      );
+      const visibility = (flags["--visibility"] ?? "UNKNOWN").toUpperCase();
+      const { delivery, report } = deliverView({ kind, record, resolution, visibility, context: { interactive } });
+      process.stdout.write(`${JSON.stringify(delivery)}\n${report.join("\n")}\n`);
+      return 0;
+    }
+    const page = render(LANE, kind, record, { connect: flags["--connect"] ?? null });
+    if (!has("--out")) {
+      console.log(writePrivate(page, kind));
+      return 0;
+    }
     // Replace a planted link or file rather than write through it.
     if (existsSync(flags["--out"]) && lstatSync(flags["--out"]).isDirectory()) {
       throw new Error(`build-view: refused: ${flags["--out"]} is a directory`);
@@ -132,19 +158,13 @@ try {
     rmSync(flags["--out"], { force: true });
     writeFileSync(flags["--out"], page, { flag: "wx", mode: 0o600 });
     console.log(flags["--out"]);
-    process.exit(0);
+    return 0;
+  } catch (err) {
+    console.error(err instanceof SyntaxError ? "build-view: the record is not JSON" : err.message);
+    return err instanceof ViewBuildError ? 1 : 2;
   }
-  // The temp root is shared: keep the directory private and never write through a link.
-  const dir = join(tmpdir(), "planning-views");
-  mkdirSync(dir, { recursive: true, mode: 0o700 });
-  if (!lstatSync(dir).isDirectory())
-    throw new Error("build-view: refusing a symlinked or non-directory output path");
-  chmodSync(dir, 0o700);
-  const out = join(dir, `${kind}.html`);
-  rmSync(out, { force: true });
-  writeFileSync(out, page, { mode: 0o600 });
-  console.log(out);
-} catch (err) {
-  console.error(err instanceof SyntaxError ? "build-view: stdin is not JSON" : err.message);
-  process.exit(err instanceof ViewBuildError ? 1 : 2);
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  process.exitCode = main(process.argv.slice(2));
 }

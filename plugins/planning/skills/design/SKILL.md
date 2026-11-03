@@ -264,7 +264,8 @@ Rules:
 [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md).
 Resolve `medium` first per
 [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md)
-"Other optional views", with this plugin's `medium` option `${user_config.medium}`: `terminal` skips the view.
+"Other optional views", with this plugin's `medium` option `${user_config.medium}`, print the report line
+it prints, and follow its result.
 
 ### Phase 5: Discussion Rounds
 
@@ -309,6 +310,13 @@ Invoke `/planning:design-handoff` via the Skill tool. It is the only gate implem
 `design-threads.md` (or the `design-resolution.md` early-exit artifact) and on PASS emits the
 plan-ready summary and resume prompt. This skill carries no gate criteria of its own; criteria changes land in
 `/planning:design-handoff` only.
+
+On PASS, offer an interactive design view of PLAN.md's `## Design` (its sections, a tick for each one
+the reader questions, a copy-out of the reply, sent to this session when connected). PLAN.md stays the
+record. Build it only with `${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs` from that record, never
+hand-written; it runs the shared medium resolver and publish gate with this plugin's `medium` option
+`${user_config.medium}`, and you print the report line it prints. Procedure:
+[`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md).
 
 **Stub files (`scaffold_stubs`)**. Before invoking the gate, resolve `scaffold_stubs`, lowest layer
 first: the default `false`; the plugin's user config (`${user_config.scaffold_stubs}`, where a
