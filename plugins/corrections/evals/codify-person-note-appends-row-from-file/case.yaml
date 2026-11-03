@@ -11,6 +11,7 @@ graders:
     type: 'llm'
     criteria: 'Output runs buffer.sh append with that file, not with the observation text on the command line, and reports the result'
     focus: 'trace'
+    arm: 'with-only'
   - name: 'no-count-rung-or-check'
     type: 'llm'
     criteria: 'Output does not count occurrences, pick a rung, propose a check or edit code'
