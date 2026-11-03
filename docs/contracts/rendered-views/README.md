@@ -576,13 +576,15 @@ sets it: `adhd:clarify`. A `terminal` or `file` from any layer keeps its page lo
 `hosted` read as `artifact`, publishes only from the argument, the user-global layer, or an
 untracked, gitignored overlay. Its output names the layer that decided, or "shipped default".
 
+`architecture:improve` resolves `medium` through the shared resolver (lane `architecture`, see
+"The `rendered-views` settings") and publishes nothing: `terminal` skips the HTML report and leaves
+the candidate artifact; every other value writes the local report.
+
 Emitters that resolve `medium` from the argument, then the cascade, and publish nothing themselves.
 None has a `medium` option, so no
 plugin dial sits between the argument and the cascade. Each names the source of `medium`, or
 "shipped default", and keeps its shipped behavior when no layer sets one:
 
-- `architecture:improve`: `terminal` skips the HTML report and leaves the candidate artifact;
-  every other value writes the local report.
 - `education:teach` (topic mode): `terminal` writes `lesson.md`; `file` keeps the host-aware
   format choice and drops the artifact-share offer; `artifact` and `hosted` keep the offer.
 - `prototype:explore-directions`: the mockup stays a local file at every value; `terminal` and

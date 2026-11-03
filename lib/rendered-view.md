@@ -1,7 +1,8 @@
 # Rendered views of a skill's record
 
 How a view lane offers an interactive view of the record its skill wrote. The lanes that carry this file:
-planning (`/planning:plan`, `/planning:brainstorm`), architecture (the `map-*` skills), discovery
+planning (`/planning:plan`, `/planning:brainstorm`), architecture (the `map-*` skills and the
+`/architecture:improve` deepening report), discovery
 (`/discovery:blindspot`) and debugging (`/debugging:debug`). Each lane's section below names its record,
 build command and data shape. `<plugin-root>` is the plugin's root directory, the one that holds
 `.claude-plugin/`: the path the calling skill gave for this file, cut before its first `skills/` or
@@ -22,10 +23,10 @@ script written in the session.
 2. **Offer the view in one sentence.** Build only when the reader accepts and the environment can serve a
    file. A CI or other non-interactive run emits no view: the record stands.
 3. **Resolve `medium`.** The path depends on whether the lane's skill has migrated to the shared medium
-   resolver, not on whether the resolver registers the lane. Only `planning` has migrated today;
-   architecture, discovery and debugging are registered but read the cascade themselves until their own
+   resolver, not on whether the resolver registers the lane. Only `planning` and `architecture` have
+   migrated today; discovery and debugging are registered but read the cascade themselves until their own
    change migrates them.
-   - **Resolver lanes** (`planning`). Run the resolver. `--option` takes this plugin's `medium` option as the
+   - **Resolver lanes** (`planning`, `architecture`). Run the resolver. `--option` takes this plugin's `medium` option as the
      calling skill states it; add `--argument` only when the reader named a medium in the request:
 
      ```bash
@@ -165,6 +166,7 @@ Every field is plain text. List order is the numbering in the record.
 
 The `map-*` skills record a markdown file and a JSON record; both stay authoritative. A record holds
 manifest paths, connection hosts, type names and file citations. Write the record and its markdown first.
+Resolver lane: `--lane architecture`.
 
 Build: pass the record file to the builder. The first argument is the skill's kind, and the record is the
 file in the table below:
@@ -199,6 +201,19 @@ each item is a row labeled with its array (`nodes`, `edges`, `findings`). An edg
 other row takes the first of `id`, `name`, `message`, `title`, `path`, `entry`, `resource`. Open a row for every
 field it holds, evidence citations included. The filter matches a row's whole text, so typing a node id lists the
 node and every edge, finding and cycle that names it. The page draws no diagram: the markdown holds that.
+
+### The deepening report
+
+`/architecture:improve deepening` writes its HTML report itself, not through the builder, and only ever as a
+local file. Before writing it, resolve `medium` as step 3 does, passing the skill's `--medium` value as
+`--argument`, and print the resolver's lines. When the resolver exits 2 with its usage line, the
+`--medium` value names no medium: report it as unknown and resolve again without `--argument`. Then, by
+the JSON's `medium`:
+
+- `terminal`: write no report. The durable candidate artifact and the reply are the deliverable.
+- `file`: write the local report.
+- `artifact`: write the local report. This lane publishes nothing, so say that a publishing value was read
+  as `file`.
 
 ## Discovery: blindspot
 

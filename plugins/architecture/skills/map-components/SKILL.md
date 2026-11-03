@@ -205,8 +205,8 @@ End every run with this block, in this order:
 After the report, offer an interactive view of the chosen deployable's closure in one sentence. The markdown
 and `dependency-graph.json` stay authoritative. Build it only with
 `${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs components --record <dependency-graph.json> --from <the chosen
-deployable's node id>`, never hand-written; the publish destination comes from the `medium` cascade key.
-Procedure: [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md).
+deployable's node id>`, never hand-written; the shared medium resolver decides the destination, with this
+plugin's `medium` option `${user_config.medium}`, and its report line is printed. Procedure: [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md).
 
 ## What this skill does NOT do
 
