@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "1. **Severity**: P1\n**Location**: `src/routes/assistant.js:21`\n**Risk**: The model's JSON picks the orderId and amount passed to payments.refund; a prompt injection in the message refunds any order.\n**Fix**: check ownership and amount in code.",
+      "why": "finding at the refund line naming prompt injection"
+    },
+    {
+      "answer": "The ownership and amount limits live only in the system prompt (src/routes/assistant.js:11).",
+      "why": "class words before the location"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No findings.",
+      "why": "no finding"
+    },
+    {
+      "answer": "**Location**: `src/routes/assistant.js:19`\n**Risk**: JSON.parse throws on malformed text and returns a 500.",
+      "why": "right file, a robustness note with no trust boundary named"
+    },
+    {
+      "answer": "**Location**: `src/llm.js:7`\n**Risk**: the model output is logged with customer data.",
+      "why": "a different file"
+    }
+  ]
+}
