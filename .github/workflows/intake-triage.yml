@@ -260,6 +260,7 @@ jobs:
       runner: ubuntu-24.04
       role: intake
       claude-args: ${{ needs.born-triaged.outputs.claude-args }}
+      lane-transcript-public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
       issue-number: ${{ inputs.issue-number }}
       allowed-author-ids: ${{ needs.born-triaged.outputs.human-ids }}
       allowed-bot-sender-ids: ${{ needs.born-triaged.outputs.bot-ids }}

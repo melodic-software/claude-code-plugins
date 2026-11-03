@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [5.0.2] - 2026-11-03
+
+### Changed
+
+- `workflow`: the Decompose stage says a closed wayfind map whose destination is a set of build items enters it directly, past design and plan, per owner decision Q531 (#12477).
+
 ## [5.0.1] - 2026-11-02
 
 ### Changed

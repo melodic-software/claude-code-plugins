@@ -8,7 +8,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { SIGNALS, planIssues, readMarker } from "./issues.mjs";
-import { errorLines, writePlan } from "./monitor.mjs";
+import { errorLines, readJobsCarry, writePlan } from "./monitor.mjs";
+import { JOBS_ARTIFACT, jobsCarryFile } from "./collect.mjs";
 import { detect } from "./signals.mjs";
 
 const now = new Date("2026-10-19T16:41:00Z");
@@ -253,4 +254,52 @@ test("signal 11 prints one ::error line per run while it fires; other signals pr
   assert.equal(lines.length, 1);
   assert.match(lines[0], /^::error::Post-merge check: unreadable in the last 4 pr-merge sweeps: .*unreadable: x$/);
   assert.deepEqual(errorLines(detect({ postMergeReports: reports.slice(0, 3) })), []);
+});
+
+// The job reads carry comes from the newest scheduled or hand-started run of
+// main's copy of this workflow, this run aside, and only with JOBS_CARRY_PATH.
+const LANE = ".github/workflows/maintenance-monitor-signals.yml";
+const carryActions = (runs) => {
+  const calls = [];
+  const actions = async (method, path) => {
+    calls.push(path);
+    if (/maintenance-monitor-signals\.yml\/runs/.test(path)) return { workflow_runs: runs };
+    if (/runs\/\d+\/artifacts/.test(path)) return { total_count: 1, artifacts: [{ name: JOBS_ARTIFACT, expired: false }] };
+    throw new Error(`no route for ${path}`);
+  };
+  return { actions, calls };
+};
+const ENTRY = { id: 50, attempt: 1, updated_at: "2026-10-19T15:20:00Z", jobs: [] };
+
+test("the job reads carry is read from the newest trusted run, past a pull_request run and this run", async () => {
+  const { actions, calls } = carryActions([
+    { id: 903, path: LANE, event: "schedule", head_branch: "main" },
+    { id: 902, path: LANE, event: "pull_request", head_branch: "main" },
+    { id: 901, path: LANE, event: "workflow_dispatch", head_branch: "main" },
+  ]);
+  const downloaded = [];
+  const map = await readJobsCarry({
+    env: { JOBS_CARRY_PATH: "/x", GITHUB_RUN_ID: "903" },
+    repo: "o/r",
+    actions,
+    download: (id) => (downloaded.push(id), jobsCarryFile("o/r", [ENTRY])),
+  });
+  assert.deepEqual(downloaded, [901]);
+  assert.deepEqual([...map.keys()], ["50:1"]);
+  assert.ok(!calls.some((p) => /runs\/90[23]\/artifacts/.test(p)));
+});
+
+test("no JOBS_CARRY_PATH reads nothing, and a carry that cannot be read carries nothing", async (t) => {
+  const { actions, calls } = carryActions([{ id: 901, path: LANE, event: "schedule", head_branch: "main" }]);
+  assert.equal((await readJobsCarry({ env: {}, repo: "o/r", actions })).size, 0);
+  assert.deepEqual(calls, []);
+  t.mock.method(console, "log", () => {});
+  for (const download of [
+    () => {
+      throw new Error("gh run download failed");
+    },
+    () => jobsCarryFile("other/repo", [ENTRY]),
+  ]) {
+    assert.equal((await readJobsCarry({ env: { JOBS_CARRY_PATH: "/x", GITHUB_RUN_ID: "999" }, repo: "o/r", actions, download })).size, 0);
+  }
 });

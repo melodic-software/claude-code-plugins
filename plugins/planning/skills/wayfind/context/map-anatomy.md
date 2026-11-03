@@ -1,8 +1,8 @@
 # Map anatomy: the five sections + invariants
 
-A decision map is one tracker issue (bare container-label marker, default `work-map`,
+A map is one tracker issue (bare container-label marker, default `work-map`,
 resolved per `tracker-mechanics.md`) whose sub-issues are typed
-decision items. The issue **body** carries five sections. Everything volatile (each decision's
+decision items. Every link in the body is an absolute URL. The issue **body** carries five sections. Everything volatile (each decision's
 actual resolution, current frontier, claim state) lives on the items, not recopied into the
 body. The body is a stable index, not a mirror.
 
@@ -11,12 +11,15 @@ body. The body is a stable index, not a mirror.
 ```markdown
 ## Destination
 
-<Where this effort is going once the fog clears: the coherent Brief / PRD / PLAN it will
-graduate into. One paragraph. This is the map's success condition.>
+<One or two lines, confirmed by the user before any item existed: what finishing the map
+produces. One bounded outcome, of one kind: a PRD, a set of build items, one change, a decision
+record, or a general summary. This is the map's success condition.>
 
 ## Notes
 
-- Durable pointers only: PRs, committed docs, prior items, external links.
+- Skills every session on this map consults, one per line (work step 5 invokes each).
+- Durable pointers only: PRs, committed docs, prior items, the map's dossier branch, external
+  links.
 - Memory-tier `<memory_dir>/<slug>/` artifacts are checkout-local. Distill what matters into a
   line here instead of pointing at a path other readers cannot resolve.
 - Links, not recaps, for anything durably linkable. The memory-tier distillation above is the
@@ -26,12 +29,12 @@ graduate into. One paragraph. This is the map's success condition.>
 ## Decisions-so-far
 
 <A pointer INDEX: one line per resolved-in-scope decision, NOT the decisions themselves.
-Each line names the item by **title**, with the number as a suffix/link, and points at the
+Each line names the item by **title**, linked to its absolute URL, and points at the
 item whose resolution comment is the decision's durable home. Closed-as-out-of-scope items
 do not get a line here. A map seeded from an interview has one line for its seed item, whose
 resolution comment lists the interview's settled answers.>
 
-- <title> (#<item>): <one-line what-was-decided> (resolved <date>)
+- [<title>](<item URL>): <one-line what-was-decided> (resolved <date>)
 
 ## Not-yet-specified (fog)
 
@@ -50,18 +53,19 @@ index is for resolved-in-scope decisions.>
 
 ## Typed decision items
 
-Each sub-issue is one **sharp** question. The `wayfind: <type>` label sets both the routing
-target (which skill resolves it) and the default mode:
+Each sub-issue is one **sharp** question, sized to one session's work. The `wayfind: <type>`
+label sets the routing target (which skill resolves it); the body never states the type:
 
-| Type | Default mode | Meaning |
-|---|---|---|
-| `research` | autonomous-capable | An external-evidence question with no human judgment needed to resolve |
-| `interview` | HITL | A contract/requirements decision the user must make |
-| `design` | HITL | A design-space / domain-model decision |
-| `prototype` | HITL | A feasibility (logic) or UX (ui) unknown that needs a throwaway to answer |
-| `task` | per-item | Decision-unblocking do-work with no feature code and no PR tie |
+| Type | Meaning |
+|---|---|
+| `research` | An external-evidence question with no human judgment needed to resolve |
+| `interview` | A contract/requirements decision the user must make |
+| `design` | A design-space / domain-model decision |
+| `prototype` | A feasibility (logic) or UX (ui) unknown that needs a throwaway to answer |
+| `task` | Decision-unblocking do-work with no feature code and no PR tie; its resolution records what was done and the facts later items need |
 
-Mode is materialized as the `needs-human` label (present = HITL). Extension policy: a new
+Mode is materialized as the `needs-human` label (present = HITL), set only on an item that needs
+the user's intent or vision, whatever its type (SKILL.md "Readiness"). Extension policy: a new
 `wayfind: <type>` value requires an existing routing target. Never add a type with nowhere to go.
 
 ## Invariants (checked at every `work` session start)
@@ -71,7 +75,7 @@ Mode is materialized as the `needs-human` label (present = HITL). Extension poli
    Out-of-scope instead, never under Decisions-so-far. An item closed as moot (another
    resolution invalidated its premise) carries a closing comment linking that resolution and
    no line in either index. A decision later found wrong keeps its line, rewritten as
-   `<old title> (#<old>): superseded by <new title> (#<new>) (resolved <date>)`, so the index
+   `[<old title>](<old URL>): superseded by [<new title>](<new URL>) (resolved <date>)`, so the index
    holds one live answer per question.
 2. **No item resolved-in-comment yet still open.** In-scope resolution is atomic: comment →
    Decisions-so-far → close. A wrongly scoped item closes with one Out-of-scope line and no
@@ -80,10 +84,11 @@ Mode is materialized as the `needs-human` label (present = HITL). Extension poli
 3. **The map holds decisions, not build work.** A buildable item means the decision already
    graduated. Move it to the ordinary tracker (`/work-items:track add`, or
    `/work-items:decompose` for a plan-shaped chunk), off the map.
-4. **Coordination on the tracker, execution artifacts in the memory tier.**
+4. **Coordination on the tracker, files in the memory tier or on the dossier branch.**
    `<memory_dir>/<slug>/` (default `.work/`) is the memory slice (never
-   committed; slug spec shared with the pipeline skills). The map never cites a concrete
-   `<memory_dir>/<slug>/` path as a coordination surface; the memory tier never holds map state.
+   committed; slug spec shared with the pipeline skills) for files one session reads; the map's
+   dossier branch (SKILL.md "Shared files") holds files several sessions read. The map never
+   cites a concrete `<memory_dir>/<slug>/` path; neither surface holds map state.
 5. **No fog prose that an item already charts.** Charting fog is create-then-delete; an
    interrupted run can leave the prose behind. Delete it, and chart nothing new from it.
 
@@ -95,8 +100,9 @@ Mode is materialized as the `needs-human` label (present = HITL). Extension poli
   that work leaves the map for `/work-items:track add`.
 - **Sweep (per resolution):** open items whose premise the resolution invalidated are rewritten
   or closed as moot, and a closed decision it shows was wrong is superseded by a new item, per
-  Work mode step 6.
+  Work mode step 7.
 - **Closure (whole map):** frontier empty ∧ every decision item closed ⟹ the destination is
-  coherent. Close the map and hand the destination to the pipeline entry that fits it
-  (`/planning:interview` or `/planning:prd` → Brief/PRD; `/planning:plan` → PLAN). The
-  map's lifecycle ends exactly where the normal planning pipeline's begins.
+  coherent. Post a closing comment that states every resolved decision in full, close the map,
+  and hand those decisions to the destination's skill in a source form it accepts
+  (`/planning:prd`, `/work-items:decompose #<map-number>` or `/work-items:work`, or a decision
+  record or general summary; SKILL.md work step 8). Then delete the dossier branch.

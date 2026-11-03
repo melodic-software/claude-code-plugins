@@ -201,7 +201,7 @@ the same fail-open posture this contract mandates everywhere else, and this file
 `unknown` an acceptable outcome. "It would produce a confident wrong zone" is not what a
 shape-validating reader does.
 
-The decision stands on the failure a shape check cannot catch: **silent semantic drift.** The
+The decision stands on **silent semantic drift**, the failure a shape check cannot catch. The
 disclaimer covers meaning as well as structure. `input_tokens` can keep its name, its type and its
 plausible magnitude while ceasing to denote full-context occupancy: a per-turn delta after a
 restructuring, a post-summarization figure, a count excluding some newly separate block. Every
@@ -240,8 +240,8 @@ list, deferred tool names included.
    "mods off", and do not offer a remediation the session cannot apply.
 2. **The tool is present and, after a tool call, no fresh snapshot exists** → a real defect,
    usually a missing `node` (each write runs `node lib/write-snapshot.mjs`) or an unwritable
-   `~/.claude/context-guard/context/`. Run `/context-guard:check` for what the session can check
-   itself (`node`, `jq`, whether the mod loads), and ask the operator to run
+   `~/.claude/context-guard/context/`. Run the bundled checker and `scripts/check-mod-load.sh` for
+   what the session can check itself (`node`, `jq`, whether the mod loads), and ask the operator to run
    `/context-guard:setup check`, which is user-only, for the full diagnosis.
 
 A configured `statusLine` no longer decides either branch: the module needs none.

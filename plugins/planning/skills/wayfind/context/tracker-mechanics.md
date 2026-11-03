@@ -15,7 +15,10 @@ identity.
 
 The tracker must support sub-items and blocked-by edges. When an action reports the provider cannot
 (exit `6` from the seam, for example `list --parent` on a read-only Jira binding), stop and report
-that this tracker cannot hold a decision map.
+that this tracker cannot hold a map.
+
+Every link written into a map body, item body or comment is an absolute URL (an item's web URL,
+not a qualified ID or a bare `#<n>`).
 
 ## Resolve the container label (once per session, before any map read or write)
 
@@ -79,15 +82,16 @@ A map is never assigned and never carries a claim label: it is a container, not 
 `/work-items:track add --parent <map-id> --label 'wayfind: <research|interview|design|prototype|task>' --body-file <item-body.md> "<sharp question>"`
 
 The body says what must be decided, the options if known, and for a `prototype` item whether it is
-logic or UI. Materialize the mode at creation: add `--label needs-human` for `interview`, `design` and
-`prototype` (the default); leave it off for `research` (autonomous-capable); decide per item for
-`task`. Create a blocker before the items it gates and pass `--blocked-by <blocker-id>` on those
-items.
+logic or UI; it never states the type, which the label carries. Materialize the mode at creation:
+add `--label needs-human` only when the item needs the user's intent or vision, whatever its type
+(SKILL.md "Readiness"). Create every item first, with no reference to another item in its body.
 
-## Wire a dependency edge (only where one decision genuinely gates another)
+## Wire edges and cross-references (second pass, real ids only)
 
-At creation, `--blocked-by` as above. Between existing items:
-`/work-items:track edit <item-id> --blocked-by <blocker-id>`.
+Once every item of the pass exists, wire each edge with
+`/work-items:track edit <item-id> --blocked-by <blocker-id>` and add any cross-reference to an
+item body by editing it with the other item's absolute URL. Never write a placeholder number: a
+guessed `#<n>` links to an unrelated issue.
 
 Never invent edges to impose order. An edge means the blocker's resolution is a genuine
 precondition for phrasing or answering the dependent decision.
@@ -97,14 +101,28 @@ precondition for phrasing or answering the dependent decision.
 `frontier = open ∧ zero OPEN blockers ∧ unassigned` (in non-interactive sessions, also
 `∧ NOT needs-human`):
 
-List every child with `/work-items:track list --parent <map-id>` and keep the items that are open,
-have no assignee, and have `blocked_by_count - blocked_by_wont_do_count == 0`; in a non-interactive
-session also drop items labeled `needs-human`. Derive it here rather than with `/work-items:track
+Read the map body with `/work-items:track view <map-id>` and list every child with
+`/work-items:track list --parent <map-id>`; open a child's body with `view` only when the step at
+hand needs it. Keep the items that are open, have no assignee, and have
+`blocked_by_count - blocked_by_wont_do_count == 0`, ordered by creation (ascending item number);
+in a non-interactive session also drop items labeled `needs-human`. Derive it here rather than with `/work-items:track
 frontier`, whose count keeps a blocker closed as not planned blocking: a wayfind blocker closed as
 moot or out of scope no longer gates its dependent, so the dependent rejoins the frontier. The same
 listing, closed items included, serves the map hygiene checks.
 
 ## Claim a frontier item (the `work-items` claim model, one model across both)
+
+Before claiming a `needs-human` item, count the map's open children that carry `needs-human`, do
+not carry `wayfind: research`, and have an assignee, from the same listing; at `wayfind_hitl_concurrency` or more, do not claim it.
+Two sessions can both pass that count before either claims, so once a `needs-human` claim
+succeeds, list the children again and recount. Over the limit, rank the counted claims by claim
+order: read each one's active lease comment id (a counted item with no lease comment yet ranks
+last), and the `wayfind_hitl_concurrency` earliest ids keep the slots. When yours is not among
+them, back off: `release` the lease with the `lease_comment_id` the claim returned (on exit `6`
+the lease waits out its TTL), clear your assignee, and pick again from the frontier (no other
+`needs-human` item while the slots stay full). This holds because a claimant recounts only after
+posting its own lease, so the later of two claimants always sees the earlier lease and is the one
+that backs off; an earlier claim never needs to recheck.
 
 `/work-items:track start <item-id>`. It reclaims a stale lease first, then claims race-safely
 (assignee plus a lease comment, with a back-off when another session claimed first) on the session
@@ -136,4 +154,4 @@ Decisions-so-far pointer: see the Decisions-so-far / Out-of-scope sections in
 
 ## Close the map (frontier empty ∧ all items closed)
 
-`/work-items:track done <map-id> --summary "Destination coherent, handed to </planning:interview | /planning:prd | /planning:plan>."`
+`/work-items:track done <map-id> --summary "Destination coherent, handed to </planning:prd | /work-items:decompose | /work-items:work | a decision record | the closing summary>."`

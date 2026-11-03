@@ -7,8 +7,8 @@
   ],
   "fail": [
     {
-      "answer": "plugins/multi-agent/skills/route/scripts/route.sh\nplugins/multi-agent/skills/setup/scripts/setup.sh\nplugins/multi-agent/skills/audit-defaults/scripts/list-pointers.sh\nplugins/multi-agent/skills/check/scripts/check.sh\n",
-      "why": "adds check.sh, which does not run the resolver"
+      "answer": "plugins/multi-agent/skills/route/scripts/route.sh\nplugins/multi-agent/skills/setup/scripts/setup.sh\nplugins/multi-agent/skills/audit-defaults/scripts/list-pointers.sh\nplugins/multi-agent/scripts/check-hook-registration.sh\n",
+      "why": "adds check-hook-registration.sh, which does not run the resolver"
     },
     {
       "answer": "plugins/multi-agent/scripts/docs-cache.sh\nplugins/multi-agent/scripts/fetch-docs.sh\n",

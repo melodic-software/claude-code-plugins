@@ -4,7 +4,6 @@
   "skill_dir": "plugins/context-budget/skills/check",
   "ranking_note": "Authored from the before descriptions at commit 1e8ff6f8bbc232b84b12f6888a85dafc502d5f8b, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the context-guard check skill (same shape, other plugin) plus the same-plugin audit and setup skills.",
   "competitors": [
-    "context-guard:check",
     "context-budget:audit",
     "context-budget:setup"
   ],

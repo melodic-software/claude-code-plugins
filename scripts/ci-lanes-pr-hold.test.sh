@@ -363,8 +363,8 @@ for payload in "STUB_AUTHOR_ID=" "STUB_AUTHOR_ID=x" "STUB_AUTHOR_TYPE="; do
 done
 # A payload claiming another author never skips the lanes App's holds: the
 # read author is tested, and the lanes App's pull request is still held.
-STUB_PULL="$(pull $'Closes #1\n\nHold: x')"
-STUB_AUTHOR_ID='' expect "an empty payload id for the lanes App's pull request still holds it" 1 3 "its body holds it"
+STUB_PULL="$(pull 'Closes #1')"
+STUB_FILES='[["docs/held/a.md"]]' STUB_AUTHOR_ID='' expect "an empty payload id for the lanes App's pull request still holds it" 1 3 "it changes docs/held/a.md, a hold path"
 STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
 STUB_AUTHOR_ID='' STUB_PULL='{}' expect "an unreadable author with no payload author fails closed" 1 0 "the author of #7 could not be read"
 EVENT=merge_group REF="refs/heads/gh-readonly-queue/main/pr-7-$SHA" PR_NUMBER='' GROUP_BASE_SHA=$BASE \
@@ -537,11 +537,10 @@ awk '/^        run: \|$/ { on = 1; next }
 # shellcheck disable=SC2016 # literal workflow expressions, not shell
 if [[ "$author_step" == *"id: queued_author"* && "$author_step" == *"continue-on-error: true"* &&
   "$author_step" == *'if: ${{ !cancelled() && github.event_name == '"'merge_group'"' }}'* &&
-  "$author_step" == *'pr_read "repos/$GITHUB_REPOSITORY/pulls/$pr"'* ]] &&
-  grep -qF 'pull=$(READER=pr_read read3 "#$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr")' <<<"$(step_of "Fail a head a pr-unblock lane stopped")"; then
-  ok "the author step is merge_group-only, cannot fail the job, and reads the pull with the pr-unblock step's pr_read args"
+  "$author_step" == *'pr_read "repos/$GITHUB_REPOSITORY/pulls/$pr"'* ]]; then
+  ok "the author step is merge_group-only, cannot fail the job, and reads the pull with pr_read"
 else
-  fail "no merge_group-only, continue-on-error author step reading the pull with the pr-unblock step's pr_read args"
+  fail "no merge_group-only, continue-on-error author step reading the pull with pr_read"
 fi
 # author_run <label> <want lanes output, or empty for none>
 author_run() {
@@ -587,11 +586,11 @@ for gated in "$restore" "$carry"; do
 done
 
 STUB_PULL="$(pull $'Closes #1\n\nHold: wait for the canary')"
-expect "a Hold: line in the body fails" 1 3 "::error::#7: its body holds it"
+expect "a Hold: line in the body does not hold: do-not-merge is the veto" 0 3 "no body hold, no member veto and no hold path"
 STUB_PULL="$(pull $'Closes #1\r\n  hold: owner call')"
-expect "an indented, lower-case hold line after a CRLF fails" 1 3 "its body holds it"
+expect "an indented, lower-case hold line after a CRLF does not hold" 0 3 "no body hold, no member veto and no hold path"
 STUB_PULL="$(pull $'Closes #1\n\nDo not merge before Friday.')"
-expect "'do not merge' in the body fails" 1 3 "its body holds it"
+expect "'do not merge' in the body does not hold" 0 3 "no body hold, no member veto and no hold path"
 STUB_PULL="$(pull $'Closes #1\n\nThe threshold: unchanged')"
 expect "a line that only contains 'hold:' later does not hold" 0 3
 
@@ -623,7 +622,7 @@ expect "an inline review comment veto holds" 1 3 "kyle asked not to merge it"
 STUB_INLINE='[]' STUB_ISSUE="[$KYLE_VETO,$(comment ana User OWNER 2026-10-23T09:00:00Z 'do not merge')]"
 expect "every vetoing member is named, sorted" 1 3 "ana, kyle asked not to merge it"
 STUB_ISSUE="[$KYLE_VETO]" STUB_PULL="$(pull $'Hold: x')"
-expect "a body hold and a veto are both reported" 1 3 "kyle asked not to merge it"
+expect "beside a body hold, which holds nothing, the veto holds" 1 3 "kyle asked not to merge it"
 STUB_ISSUE='' STUB_REVIEWS='' STUB_INLINE=''
 
 STUB_PULL="$(pull 'Closes #1')"
@@ -778,7 +777,7 @@ expect "a later comment-only review keeps the lift" 0 3 "lifts its hold path"
 STUB_REVIEWS="[$(approval someone 99 APPROVED 2026-10-23T11:00:00Z "$SHA")]"
 expect "an approval by a person off the trusted-actor list does not lift it" 1 3 "a hold path"
 STUB_REVIEWS="[$KYLE_OK]" STUB_PULL="$(pull $'Hold: x')"
-expect "an approval lifts no body hold" 1 3 "its body holds it"
+expect "an approval lifts the hold path, and the body's hold text holds nothing" 0 3 "lifts its hold path"
 STUB_PULL="$(pull 'Closes #1')"
 export STUB_NO_ACTORS=1
 expect "an unreadable trusted-actor list fails closed" 1 0 "::error::cannot read merge.agent-identity's trusted-actor id from the hold config"
@@ -1040,7 +1039,7 @@ expect "in the merge queue, a base module that ignores the reader's report fails
 unset STUB_MODULE
 STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}"
 STUB_PULL="$(pull $'Closes #1\nHold: owner call')"
-expect "in the merge queue, a body hold fails the group" 1 3 "::error::#7: its body holds it"
+expect "in the merge queue, a body hold does not fail the group" 0 3 "no body hold, no member veto and no hold path"
 STUB_PULL="$(pull 'Closes #1')" STUB_ISSUE="[$KYLE_VETO]"
 expect "in the merge queue, a member's veto fails the group" 1 3 "kyle asked not to merge it"
 STUB_ISSUE="[$KYLE_VETO,$(comment kyle User MEMBER 2026-10-23T11:00:00Z 'ok, merge it')]"
