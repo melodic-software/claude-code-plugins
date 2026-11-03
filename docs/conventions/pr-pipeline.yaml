@@ -1516,6 +1516,8 @@ merge:
         class: enforcement
       - glob: ".github/scripts/pr-unblock/verify-notes.mjs"
         class: enforcement
+      - glob: ".github/scripts/pr-unblock/earlier-fail-notes.mjs"
+        class: enforcement
       - glob: ".github/scripts/pr-unblock/limit-stop.mjs"
         class: enforcement
       - glob: ".github/scripts/lib/lane-outcome.mjs"
