@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "usage: /corrections:codify note [--applied] \"<observation>\" [#PR | <commit>]",
+      "why": "verbatim, as actions/note.md prints it"
+    },
+    {
+      "answer": "The note action needs an observation.\n\n```\nusage: /corrections:codify note [--applied] \"<observation>\" [#PR | <commit>]\n```",
+      "why": "the line inside a code fence after a lead sentence"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "usage: /corrections:codify note \"<observation>\" [#PR | <commit>]",
+      "why": "the usage line before --applied existed"
+    },
+    {
+      "answer": "Usage: give me an observation.",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "usage: /corrections:codify group [--by <field>[,<field>...]] [--since <UTC ISO-8601>]",
+      "why": "another action's usage line"
+    }
+  ]
+}
