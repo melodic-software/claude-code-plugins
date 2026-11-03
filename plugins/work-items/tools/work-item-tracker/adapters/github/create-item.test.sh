@@ -40,9 +40,18 @@ case "$1 $2" in
   ;;
 "issue view")
   if ((native)); then
-    printf '{"number":42,"title":"t","state":"OPEN","assignees":[],"labels":[{"name":"a"}],"url":"https://github.com/o/r/issues/42"}\n'
+    printf '{"number":%s,"title":"t","state":"OPEN","assignees":[],"labels":[{"name":"a"}],"url":"https://github.com/o/r/issues/%s"}\n' "$3" "$3"
     exit 0
   fi
+  ;;
+"api graphql")
+  if ((native)); then
+    no_children='{"data":{"repository":{"issue":{"subIssues":{"nodes":[]}}}}}'
+    printf '%s\n' "${GH_STUB_SUBISSUES:-$no_children}"
+    exit 0
+  fi
+  printf 'HTTP 403: GitHub GraphQL is not available from Claude Code sessions\n' >&2
+  exit 1
   ;;
 esac
 case "$1" in
@@ -131,6 +140,43 @@ EOF
   assert_eq "create-item on gh 2.94 keeps the native path → exit 0" "0" "$rc"
   assert_eq "create-item on gh 2.94 emits id" "github:o/r#42" "$(jq -r '.id' <<<"$OUT")"
   assert_contains "create-item on gh 2.94 calls issue create" "$(<"$STUB/calls.log")" "issue create"
+  assert_not_contains "create-item without --parent reads no sub-issues" "$(<"$STUB/calls.log")" "api graphql"
+
+  # --- sibling dedupe under --parent: open, closed within 24h, closed earlier ---
+  siblings() { # <state> <closedAt or null> <title>
+    printf '{"data":{"repository":{"issue":{"subIssues":{"nodes":[{"number":7,"title":%s,"state":"%s","closedAt":%s,"repository":{"nameWithOwner":"O/R"}}]}}}}}' \
+      "$(jq -cn --arg t "$3" '$t')" "$1" "$2"
+  }
+  hour_ago="\"$(jq -rn 'now - 3600 | todate')\""
+  two_days_ago="\"$(jq -rn 'now - 172800 | todate')\""
+  DEDUPE_ERR="$(mktemp "$TMP_ROOT/f.XXXXXX")"
+
+  OUT="$(GH_STUB_SUBISSUES="$(siblings OPEN null '  T ')" GH_STUB_VERSION=2.94.0 \
+    run_create --title T --parent github:o/r#1 --repo o/r 2>"$DEDUPE_ERR")"
+  rc=$?
+  assert_eq "create-item --parent with an open sibling titled T → exit 0" "0" "$rc"
+  assert_eq "create-item --parent with an open sibling prints its id" "github:o/r#7" "$(jq -r '.id' <<<"$OUT")"
+  assert_not_contains "create-item --parent with an open sibling creates no issue" "$(<"$STUB/calls.log")" "issue create"
+  assert_contains "create-item --parent with an open sibling names it on stderr" "$(<"$DEDUPE_ERR")" "github:o/r#7"
+
+  OUT="$(GH_STUB_SUBISSUES="$(siblings CLOSED "$hour_ago" T)" GH_STUB_VERSION=2.94.0 \
+    run_create --title T --parent github:o/r#1 --repo o/r 2>"$DEDUPE_ERR")"
+  rc=$?
+  assert_eq "create-item --parent with a sibling closed 1h ago → exit 0" "0" "$rc"
+  assert_eq "create-item --parent with a sibling closed 1h ago prints its id" "github:o/r#7" "$(jq -r '.id' <<<"$OUT")"
+  assert_not_contains "create-item --parent with a sibling closed 1h ago creates no issue" "$(<"$STUB/calls.log")" "issue create"
+
+  OUT="$(GH_STUB_SUBISSUES="$(siblings CLOSED "$two_days_ago" T)" GH_STUB_VERSION=2.94.0 \
+    run_create --title T --parent github:o/r#1 --repo o/r 2>"$DEDUPE_ERR")"
+  rc=$?
+  assert_eq "create-item --parent with a sibling closed 2 days ago → exit 0" "0" "$rc"
+  assert_eq "create-item --parent with a sibling closed 2 days ago creates a new issue" "github:o/r#42" "$(jq -r '.id' <<<"$OUT")"
+  assert_contains "create-item --parent with a sibling closed 2 days ago calls issue create" "$(<"$STUB/calls.log")" "issue create"
+
+  OUT="$(GH_STUB_SUBISSUES="$(siblings OPEN null 'T2')" GH_STUB_VERSION=2.94.0 \
+    run_create --title T --parent github:o/r#1 --repo o/r 2>"$DEDUPE_ERR")"
+  assert_eq "create-item --parent with a differently titled sibling creates a new issue" "github:o/r#42" "$(jq -r '.id' <<<"$OUT")"
+  rm -f "$DEDUPE_ERR"
 
   # CLAUDE_CODE_REMOTE=true: the cloud proxy refuses GraphQL, so gh 2.94 takes REST.
   OUT="$(CLAUDE_CODE_REMOTE=true GH_STUB_VERSION=2.94.0 run_create --title t --labels a --repo o/r)"
