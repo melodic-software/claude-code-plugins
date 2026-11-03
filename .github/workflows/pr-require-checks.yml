@@ -1754,8 +1754,7 @@ jobs:
           # ... [TODO]` heading is the phase status tag the skill under test reads,
           # not a comment; the scan sees the heredoc line as a shell comment.
           exclude: >-
-            :(exclude)plugins/code-tidying/skills/remove-comments/scripts/detect.sh
-            :(exclude)plugins/code-tidying/skills/remove-comments/scripts/detect.test.sh
+            :(exclude)plugins/code-tidying/skills/remove-comments/scripts/detect*
             :(exclude)plugins/code-tidying/skills/remove-comments/scripts/lib/**
             :(exclude)plugins/code-tidying/skills/remove-comments/evals/**
             :(exclude)plugins/implementation/evals/*/scaffold.sh

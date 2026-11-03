@@ -159,14 +159,14 @@
     },
     {
       "id": 14,
-      "name": "balanced-posture-reports-instead-of-rewriting",
+      "name": "legacy-balanced-posture-resolves-to-explanatory",
       "prompt": "/code-tidying:remove-comments\n\n(comment_posture is balanced. The uncommitted diff contains the same 14-line constraint-plus-rationale comment as the strict case, and one '// increment counter' restatement.)",
       "narration": true,
       "expectations": [
         "Deletes the restatement with a COMMENT-ONLY verdict",
-        "Keeps the 14-line comment unrewritten and reports it as over budget with the line count and the budget",
+        "Rewrites the 14-line comment to within the line budget, keeping the constraint",
         "Does not treat balanced as permission to delete an uncertain comment",
-        "Names the posture in the report so the reader can see why no rewrite was applied"
+        "Names the resolved posture, explanatory, and the layer that supplied it in the report"
       ]
     },
     {
@@ -183,12 +183,12 @@
     },
     {
       "id": 16,
-      "name": "aggressive-deletes-non-exempt-rationale-with-staging",
+      "name": "aggressive-deletes-rationale-and-warning-with-staging",
       "prompt": "/code-tidying:remove-comments aggressive lib/worker.sh\n\n(lib/worker.sh is committed. It carries a rationale comment explaining why a retry count is three, a warning that one function must run before another or the lock file deadlocks, a license header, and a '# shellcheck disable=SC2034' directive with its justification. The repository has no test suite and tree-sitter is present for bash.)",
       "narration": true,
       "expectations": [
         "Deletes the retry rationale with its narrative staged in the proposed commit-message block, without running a git log -L recoverability check on it",
-        "Keeps the deadlock warning, rewritten to at most class_c_max_lines, and names it as a warning of consequence rather than citing criterion-2 evidence",
+        "Deletes the deadlock warning with its narrative staged, and lists it as a reshape flag that names the function and the move, such as enforcing the call order",
         "Keeps the license header and the shellcheck directive with its justification untouched",
         "Certifies each deletion COMMENT-ONLY with change-shape.py and reports the next commit touching the file as the staged block's landing place"
       ]
