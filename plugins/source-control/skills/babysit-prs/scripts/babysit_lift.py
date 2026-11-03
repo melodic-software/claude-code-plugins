@@ -203,10 +203,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="babysit_lift.py", allow_abbrev=False)
     sub = parser.add_subparsers(dest="action", required=True)
     for action in ("canary-block", "revert-block"):
-        block = sub.add_parser(action)
+        block = sub.add_parser(action, allow_abbrev=False)
         block.add_argument("--repo-dir", required=True)
         block.add_argument("commits", nargs="+")
-    close = sub.add_parser("close")
+    close = sub.add_parser("close", allow_abbrev=False)
     close.add_argument("--repo", required=True)
     close.add_argument("--identity", default="")
     args = parser.parse_args(argv)
