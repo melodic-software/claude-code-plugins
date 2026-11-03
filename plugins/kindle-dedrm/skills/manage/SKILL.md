@@ -72,7 +72,7 @@ Sequence:
 6. **Re-run keyfinder** (`~/Tools/Kindle_Key_Finder/Run_keyfinder_admin.vbs`). Saved config auto-loads; tool processes only new books.
 7. **Verify new EPUBs** under Calibre Library.
 
-If user reports a cached installer popped up during step 3, that's expected. Amazon staged 2.9.x. Delete it via step 4 immediately and verify Kindle.exe still reports 2.8.0.70980.
+If user reports a cached installer popped up during step 3, delete it via step 4 immediately and verify Kindle.exe still reports 2.8.0.70980.
 
 ## Action: update
 
