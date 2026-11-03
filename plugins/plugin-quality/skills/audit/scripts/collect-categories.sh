@@ -222,12 +222,12 @@ BEGIN {
   line = trim($0)
   if (line ~ /^## /) {
     close_section()
+    marker = ""
+    items = 0
+    finding_open = 0
     name = substr(line, 4)
     if (name == "Blindspots" || name == "Doc-worthy gotchas" || name == "Unverified claims") {
       section = ""
-      marker = ""
-      items = 0
-      finding_open = 0
       next
     }
     if (name != "Errors" && name != "Improvements" && name != "Quality of life" &&
@@ -240,9 +240,6 @@ BEGIN {
     } else {
       section = name
     }
-    marker = ""
-    items = 0
-    finding_open = 0
     next
   }
   if (section == "" || line == "") next

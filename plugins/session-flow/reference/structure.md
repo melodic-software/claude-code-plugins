@@ -338,7 +338,7 @@ Machine and session state the previous session had and this one does not. One en
 was running, the exact command that restores it, and the observable that confirms it worked.
 
 Covers branch and worktree, services and ports, environment variables, background tasks, and the
-in-memory task list, which `/clear` destroys completely.
+session's task list.
 
 **Worktree claims.** A worktree lock names the session that holds it, and the resuming session has
 a new session id, so its claim gate reads this session's lock as foreign. Read
@@ -359,20 +359,21 @@ name:
 
 - **`TaskList`:** call `TaskList` before writing this section and render live state, not remembered
   state, in the format below.
-- **`TodoWrite` instead:** the checklist is the list in this session's latest `TodoWrite` call,
-  which has no read call. Render that list in the format below.
+- **`TodoWrite` and no `TaskList`:** the checklist is the list in this session's latest
+  `TodoWrite` call. Render that list in the format below.
 - **Neither:** there is no live task list to capture. Write one line saying this session has no task
   tools, and point at the stage state the session already keeps (the `workflow-checklist.md` or the
   plan artifact) when there is one. Never rebuild a list from memory.
 
-Which sessions get the task tools is an upstream default we do not restate.
+Which task tools exist and which sessions get them are upstream facts we do not restate.
 
-- **Pointer**: when deciding whether a session (interactive, background, cloud, or a subagent) will
-  have the task tools, fetch
+- **Pointer**: when deciding which task tools a session (interactive, background, cloud, or a
+  subagent) will have, fetch
   [Task tool availability](https://code.claude.com/docs/en/tools-reference#task-tool-availability)
   live.
-- **As of**: 2026-10-10
-- **Recheck trigger**: that section changes which sessions, models, or opt-ins get the task tools.
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section changes which task tools exist, or which sessions, models, or
+  opt-ins get them.
 
 Format when there is a list:
 
@@ -823,9 +824,14 @@ carry each variable, and the form of its value, are upstream facts: read them li
   value.
 
 `transcript` is the session's own on-disk
-record, resolved by the documented `~/.claude/projects/*/<session_id>.jsonl` glob and `stat`ed at
-write; when the glob misses, the honest `unresolved (…)` value is stored (WARN on validate, FAIL
-under `--strict-transcript`) and a later reader re-runs the same glob.
+record, resolved from the transcript location the docs give and `stat`ed at write; when the lookup
+misses, the honest `unresolved (…)` value is stored (WARN on validate, FAIL under
+`--strict-transcript`) and a later reader re-runs the same lookup.
+
+- **Pointer**: when resolving where a session's transcript lives, fetch
+  [Application data](https://code.claude.com/docs/en/claude-directory#application-data) live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section moves or renames the conversation transcript path.
 
 `previous_handoff` (the prior file's bare name, relative to the handoff directory, never a
 `handoffs/`-prefixed path) is the backward chain pointer. The walker resolves the prior session's

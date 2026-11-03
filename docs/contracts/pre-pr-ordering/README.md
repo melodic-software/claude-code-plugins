@@ -16,7 +16,7 @@ disagreement. That is the exact failure this registry prevents (#3047).
 1. Test thoroughly
 2. Review
 3. Stage surgically
-4. Simplify
+4. Simplify, then the comment pass (`/code-tidying:remove-comments`)
 5. Review the simplify diff
 6. Re-test after simplify
 7. **Verify outcome**

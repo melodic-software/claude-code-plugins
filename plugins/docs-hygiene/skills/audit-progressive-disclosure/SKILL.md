@@ -21,11 +21,14 @@ The pipe is the bound and belongs in the command. A read-time cap ("read only th
 bounds nothing: the Bash tool returns the full output into context before anything can be decided.
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls, not pre-compute lines: the harness runs a skill's whole pre-compute
-block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git. The dated record for that composition claim is the
-[gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation".
+separate body Bash calls, not pre-compute lines.
+
+- **Pointer**: when deciding whether a gather line can move into the pre-compute block, fetch
+  [How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run)
+  live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section changes how a skill's injected commands are grouped into shell
+  invocations, or a release note names skill injected commands.
 
 ## Purpose
 
@@ -45,17 +48,28 @@ threshold, routing rule, or citation posture (Anthropic-prescribed vs corroborat
 
 | Lane | Shape | What it looks like | Default tier | Treatment |
 |---|---|---|---|---|
-| split | `oversize` | File at/approaching its tier's size guidance (SKILL.md approaching the line cap `/playbooks:skill-authoring` `## Body` records and `/skill-quality:check` enforces; CLAUDE.md above ~200; references per the TOC bands). Ceilings, not targets. Size alone below the cap is no finding | 2 | Add a hierarchy layer: name the sections to push into spokes, each behind a conditioned pointer |
+| split | `oversize` | File at/approaching its tier's size guidance (SKILL.md approaching the line cap `/playbooks:skill-authoring` `## Body` records and `/skill-quality:check` enforces; CLAUDE.md approaching the memory page's size target; references per the TOC bands). Ceilings, not targets. Size alone below the cap is no finding | 2 | Add a hierarchy layer: name the sections to push into spokes, each behind a conditioned pointer |
 | split | `mixed-concerns` | Mutually-exclusive contexts co-resident (content that never co-executes), category straddle, multi-topic rules file, cross-file contradiction | 2 | Split by concern. One topic per file; name the proposed split seams |
 | split | `tier-mismatch` | Content at the wrong tier: a procedure grown inside CLAUDE.md (→ skill), path-local rules in a global file (→ scoped rule), reference detail inline in a hub (→ spoke), always-loaded content not needed every session (→ demote behind a pointer) | 1 when an official routing rule decides it; else 2 | Route down-tier per the rule, unless owned upstream (see Hard rules); the finding names source section and destination surface |
 | structure | `blind-pointer` | Pointer with no when-to-read clause, unmarked execute-vs-read intent, or a vague target name (`doc2.md`, `utils`) | 2 | Attach the condition and intent; rename the target descriptively. On skill descriptions, a missing when-NOT-to-use clause is advisory color (community-sourced), never a violation |
 | structure | `orphan-spoke` | Bundled spoke no hub references. Unreachable by pointer | 2 | 3-way: add the missing pointer, merge the content up, or delete the spoke |
 | structure | `deep-nesting` | Spoke-to-spoke chain, required reading more than one level from the hub (documented partial-read failure) | 2; 1 when the chain is the only path to required content | Re-link the deep target directly from the hub, or flatten |
-| structure | `missing-toc` | Reference file >300 lines with no TOC = definite; 100–300 lines with none = awareness only, citing the source conflict on the TOC threshold | 1 (>300) / 3 (100–300) | Add a TOC at top (or a grep recipe for lookup-shaped content) |
+| structure | `missing-toc` | Reference file with no TOC above both sources' TOC thresholds = definite; between the two thresholds = awareness only, citing the source conflict on the TOC threshold | 1 (above both) / 3 (between them) | Add a TOC at top (or a grep recipe for lookup-shaped content) |
 
 Thresholds are advisory and tier-calibrated, never hard gates; consuming repos refine them in
 their own `CLAUDE.md` / rules. There is deliberately **no** "should have spokes" shape: a small
 single-file skill is never flagged for lacking spokes.
+
+- **Pointer**: when sizing a CLAUDE.md, fetch
+  [Write effective instructions](https://code.claude.com/docs/en/memory#write-effective-instructions)
+  live. For the `missing-toc` bands, the pages
+  [Structure longer reference files with a table of contents](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#structure-longer-reference-files-with-a-table-of-contents)
+  and skill-creator's
+  [Progressive Disclosure](https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md#progressive-disclosure)
+  disagree on the TOC threshold; fetch both live when placing a file in a band.
+- **As of**: 2026-11-03
+- **Recheck trigger**: either section changes its size or TOC guidance, or the two TOC sources stop
+  disagreeing.
 
 ## Action router
 
@@ -129,7 +143,7 @@ sibling divergences it owns.
 |------|------|-------|------|----------|-----------|
 | 1    | split | tier-mismatch | 41 | "## Deploy procedure" (multi-step) in always-loaded CLAUDE.md | Move to a skill; leave a one-line pointer |
 | 2    | structure | blind-pointer | 12 | "[details](context/tier-model.md)" — no when-clause | Attach the read condition and intent |
-| 3    | structure | missing-toc | — | reference file, 180 lines, no TOC (sources disagree on the TOC threshold: 100 vs 300) | awareness only |
+| 3    | structure | missing-toc | — | reference file, 180 lines, no TOC (sources disagree on the TOC threshold) | awareness only |
 | 1    | split | tier-mismatch | 41 | "## Deploy procedure" in always-loaded file listed as synced in `sync/README.md` | upstream: file with the owner, citing the decision |
 ```
 
@@ -156,7 +170,8 @@ Total: <N> file(s) audited — T1=<n>, T2=<n>, T3=<n>. Facts: files=<n> pointers
 
 - Ownership is usually stated outside the audited targets. A file that looks local may be synced
   or vendored; grep the repo, not just the target.
-- The SKILL.md line cap and the 200-line CLAUDE.md target are **ceilings, not targets**; *approaching*
+- The SKILL.md line cap and the CLAUDE.md size target (read at the pointer under the shapes
+  table) are **ceilings, not targets**; *approaching*
   the cap is the split trigger, and a well-split hub sits far below it (about 30 lines is common).
   Size alone under the cap never fires `oversize`.
 - Invocation-loaded is **cheap to have, not cheap to use**: once a skill body loads, every line
@@ -166,9 +181,9 @@ Total: <N> file(s) audited — T1=<n>, T2=<n>, T3=<n>. Facts: files=<n> pointers
   are alternates (not required reading) are legitimate.
 - An unresolved pointer (`resolved=no`) is upstream breakage worth surfacing, but rename sweeps
   belong to `/docs-hygiene:rename-references`.
-- The TOC bands exist because two Anthropic sources disagree on the TOC threshold (the Agent
-  Skills best-practices page and skill-creator, both under Sources); never present either source's
-  number as the single official rule.
+- The TOC bands exist because two Anthropic sources disagree on the TOC threshold; never present
+  either source's number as the single official rule. Both are read at the pointer under the
+  shapes table.
 
 ## What this skill is NOT
 
@@ -188,12 +203,12 @@ pointer, as-of date and recheck trigger for each threshold live in
 carries its own as-of date and recheck trigger.
 
 - [Claude Code skills docs: Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle) and [Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short). Loading levels, listing cap and drop order, compaction budgets
-- [Claude Code memory docs: Write effective instructions](https://code.claude.com/docs/en/memory#write-effective-instructions). CLAUDE.md/rules loading, 200-line target, fact-vs-procedure routing
+- [Claude Code memory docs: Write effective instructions](https://code.claude.com/docs/en/memory#write-effective-instructions). CLAUDE.md/rules loading, CLAUDE.md size target, fact-vs-procedure routing
 - [Claude Code large-codebases docs: Layer CLAUDE.md files by directory](https://code.claude.com/docs/en/large-codebases#layer-claude-md-files-by-directory) and [Centralize conventions when layering stops scaling](https://code.claude.com/docs/en/large-codebases#centralize-conventions-when-layering-stops-scaling). Root-orients / per-directory layering, escalation ladder. As of: 2026-10-11. Recheck trigger: either section is removed or renamed, or changes when it moves conventions from per-directory files to a central home
-- [Agent Skills best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices). Hub-and-spoke patterns, pointer rules, observed-navigation diagnostics, >100-line TOC guidance
+- [Agent Skills best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices). Hub-and-spoke patterns, pointer rules, observed-navigation diagnostics, TOC guidance
 - [Agent Skills spec](https://agentskills.io/specification). Frontmatter limits, one-level-deep rule, ~100-token metadata
 - [Progressive disclosure patterns](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#progressive-disclosure-patterns). Mutual-exclusivity split rule (correlate with [Anthropic engineering: Agent Skills](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills))
 - [How Skills work](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview#how-skills-work). Just-in-time retrieval, pointer doctrine (correlate with [Anthropic engineering: context engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents))
-- [skill-creator](https://github.com/anthropics/skills/tree/main/skills/skill-creator). Approaching-the-limit split trigger, >300-line TOC guidance
+- [skill-creator](https://github.com/anthropics/skills/tree/main/skills/skill-creator). Approaching-the-limit split trigger, TOC guidance
 - [UC Davis disclosure study (arXiv 2607.17598)](https://arxiv.org/abs/2607.17598). Scale boundary, depth>1 harm (academic corroboration)
 - [happyskills](https://happyskills.ai). Community source for the when-NOT-to-use description clause (advisory color only); the listing drop order comes from the skills docs entry above
