@@ -132,6 +132,8 @@ expect_cancelled "a later step skipped on its own condition still counts as pass
   "$(job 'test-python (0)' cancelled skipped success)"
 expect_cancelled "a job with no Lane finished step stays cancelled" "$kept" "$cancelled_python" \
   '{"name":"test-python (0)","conclusion":"cancelled","steps":[{"name":"Run","conclusion":"success"},{"name":"Complete job","conclusion":"success"}]}'
+expect_cancelled "a skipped job with no steps stays cancelled" "$kept" "$cancelled_python" \
+  '{"name":"test-python (0)","conclusion":"skipped","steps":[]}'
 expect_cancelled "a step cancelled mid-run stays cancelled" "$kept" "$cancelled_python" \
   "$(job 'test-python (0)' cancelled cancelled skipped)"
 expect_cancelled "a failed step stays cancelled" "$kept" "$cancelled_python" \

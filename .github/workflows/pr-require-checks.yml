@@ -6566,7 +6566,7 @@ jobs:
               to_entries[] | select(.value.result == "cancelled") | .key
               | . as $lane
               | select([$jobs[] | select(.name == $lane or (.name | startswith($lane + " (")))]
-                  | length > 0 and all(.conclusion == "success" or .conclusion == "skipped"
+                  | length > 0 and all(.conclusion == "success"
                       or (.conclusion == "cancelled" and finished)))' <<<"$LANES") || recovered=
             for lane in $(jq -r 'to_entries[] | select(.value.result == "cancelled") | .key' <<<"$LANES"); do
               if grep -qxF "$lane" <<<"$recovered"; then counted=true; else counted=false; fi
