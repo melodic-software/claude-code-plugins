@@ -391,7 +391,8 @@ fi
 # Every NUL-separated git and find stream is written here and read back with
 # `mapfile`, never read from a pipe: bash reads a pipe one byte per read call,
 # because it cannot seek back over what it read past the delimiter. A file it
-# reads in blocks. One file, reused by each step in turn, removed on exit.
+# reads in blocks, except a Cygwin or MSYS2 bash, which reads one byte per call
+# from any descriptor. One file, reused by each step in turn, removed on exit.
 SPOOL=$(mktemp 2>/dev/null) || {
   echo "ERROR: could not create a temporary file (mktemp)" >&2
   exit 2
