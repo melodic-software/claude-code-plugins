@@ -197,7 +197,11 @@ putv cov.py \
   'def f():  # pragma: no cover' \
   'def g():  # pragma: no cover  # only reached on Windows' \
   's = "# pragma: no cover"' \
-  'if x:  # pragma: no branch'
+  'if x:  # pragma: no branch' \
+  'def h():  # pragma no cover' \
+  'def i():  # pragma: nocover' \
+  'if y:  # pragma nobranch' \
+  'def j():  # Pragma no cover'
 putv mut.js \
   '// Stryker disable next-line EqualityOperator: the <= mutant is equivalent' \
   '// Stryker disable all' \
@@ -230,6 +234,9 @@ cov.js:4 c8 - yes
 cov.py:1 coverage.py - no
 cov.py:2 coverage.py - yes
 cov.py:4 coverage.py - no
+cov.py:5 coverage.py - no
+cov.py:6 coverage.py - no
+cov.py:7 coverage.py - no
 mut.js:1 stryker EqualityOperator yes
 mut.js:2 stryker all no
 sec.js:1 semgrep example.rule-id no

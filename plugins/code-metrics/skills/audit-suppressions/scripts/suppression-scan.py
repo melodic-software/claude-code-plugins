@@ -471,7 +471,7 @@ COMMENT_MARKERS = (
     _m(
         "coverage.py",
         ("python",),
-        r"(?i:pragma\s*:\s*no\s+(?:cover|branch)\b)",
+        r"(?:pragma|PRAGMA)[:\s]?\s*(?:no|NO)\s*(?:cover|COVER|branch|BRANCH)",
         names_rules=False,
     ),
     _m(
@@ -520,7 +520,7 @@ ANY_MARKER = re.compile(
     r"eslint-disable|@ts-|noqa|(?:type|pyright)\s*:\s*ignore|pylint\s*:"
     r"|shellcheck\s+disable|pragma\s+warning|SuppressMessage|nolint"
     r"|markdownlint-disable|rubocop\s*:|SuppressWarnings"
-    r"|(?:istanbul|c8)\s+ignore|pragma\s*:\s*no\s|Stryker\s+disable|nosec|nosemgrep"
+    r"|(?:istanbul|c8)\s+ignore|pragma[:\s]?\s*no\s*(?:cover|branch)|Stryker\s+disable|nosec|nosemgrep"
     r"|gitleaks:allow",
     re.IGNORECASE,
 )
