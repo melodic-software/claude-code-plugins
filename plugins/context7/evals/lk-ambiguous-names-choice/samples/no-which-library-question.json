@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "I used `/lumen-http/lumen` because its docs cover retries, and rejected `/lumenjs/lumen`, whose docs cover caching only.\n\nSet `retry: { limit: 3, backoff: \"exponential\", delayMs: 200 }` on the client."
+    },
+    {
+      "answer": "Chosen: /lumen-http/lumen. Rejected: /lumenjs/lumen. Set retry with backoff \"exponential\". Want me to look up how to cap the total retry time?",
+      "why": "a follow-up offer is not a clarifying question about the library"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Context7 has two libraries named Lumen: /lumen-http/lumen and /lumenjs/lumen. Which one do you mean?",
+      "why": "the old ask-first reply"
+    },
+    {
+      "answer": "Did you mean the HTTP client (/lumen-http/lumen) or the React fetch wrapper (/lumenjs/lumen)?"
+    },
+    {
+      "answer": "Before I answer, which library are you using, /lumen-http/lumen or /lumenjs/lumen?"
+    },
+    {
+      "answer": "Can you confirm which Lumen you have installed?"
+    }
+  ]
+}
