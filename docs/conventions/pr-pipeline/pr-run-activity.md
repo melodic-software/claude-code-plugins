@@ -734,7 +734,9 @@ fallback runs unless the first call's `<call> / report` job has a `Post the chec
 succeeded. A skipped or absent report job, which every handoff leaves, decides that at once from
 the job's own conclusion; a report that ran answers through its step, which the script reads again
 with backoff for about five minutes while the jobs listing returns it empty, then fails the job with
-one error line. A failed read runs the fallback too, except for `fix-docs`.
+one error line. Each read after the first sends each listing page that came with an `etag` as a
+conditional request, and a `304` reuses the page it already read. A failed read runs the fallback
+too, except for `fix-docs`.
 `fix-docs-subscription` also needs the first call's `<call> / broker-allowed` job to show the
 broker's allow (the broker step, when that job is absent): `fix-docs` posts nothing on a
 decline, so a kill switch or a refusal starts no second leg, and a failed read starts none either.

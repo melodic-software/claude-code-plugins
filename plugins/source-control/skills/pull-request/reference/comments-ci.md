@@ -47,7 +47,7 @@ The preamble names the tool's path. It is the only shell command this mode runs,
 
 ## Steps, per thread `list` returns
 
-1. Run D1, D2 and D4 of the per-iteration checklist in SKILL.md on the finding. D3 validates by
+1. Run D1, D2 and D4 of the per-iteration checklist in [monitor.md](monitor.md) on the finding. D3 validates by
    reading code and docs only: run no command, test, build or script from the checkout. CI runs
    them after the push.
 2. Classify. On a thread with a direction, apply the direction: record `VALID` once its fix is

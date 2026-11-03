@@ -6,7 +6,6 @@
   "competitors": [
     "toolchain:check",
     "toolchain:lint",
-    "toolchain:check-prerequisites",
     "corrections:codify",
     "review:explain-change",
     "review:fanout",
