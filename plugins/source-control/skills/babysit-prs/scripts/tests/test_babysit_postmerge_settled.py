@@ -383,6 +383,100 @@ class WhatGetsSettled(SettledCase):
         self.assertEqual(verdict.report()["settle"], [])
 
 
+class SettledForTheAnchor(SettledCase):
+    """#7336: a settled merge the anchor needs is judged again from its runs,
+    for `final_by_runs` alone; the marker still verifies it."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.gh.pin_comments = [pin_comment(HEAD_SHA), marker()]
+
+    def rejudged(
+        self, anchor: pm.Anchor | None = None, now: datetime = SOON
+    ) -> pm.PostMergeVerdict:
+        reader = pm.pin_reader(REPO, IDENTITY)
+        return pm.check(
+            REPO,
+            agent_identity=IDENTITY,
+            is_human=human,
+            merged_since=SINCE,
+            now=now,
+            pinned_sha=reader,
+            lane_merges_only=True,
+            settled=reader.settled,
+            rejudge=pm.anchor_needs(anchor),
+        )
+
+    def test_a_settled_merge_final_from_its_runs_seeds_the_anchor(self) -> None:
+        self.lane_dispatch()
+        plain = self.settled_check(now=SOON)
+        verdict = self.rejudged()
+        state = verdict.merges[0]
+        self.assertTrue(state.settled and state.final_by_runs)
+        self.assertGreater(self.window_reads(), 0)
+        # The verdict reads as it would without the second judgment.
+        self.assertEqual(verdict.report(), plain.report())
+        self.assertFalse(plain.merges[0].final_by_runs)
+        merged_at = pm._time(state.merge.merged_at)
+        self.assertEqual(pm.advance_anchor(verdict, None), pm.Anchor(merged_at))
+        self.assertIsNone(pm.advance_anchor(plain, None))
+        self.assertEqual(self.gh.writes(), [])
+
+    def test_unreadable_runs_hold_it_and_leave_the_verdict_readable(self) -> None:
+        # Its record expired: judged on its runs alone it is an unlisted-record
+        # hold, which here only keeps it from passing.
+        self.lane_dispatch(recorded=False)
+        verdict = self.rejudged(now=LATE)
+        self.assertTrue(verdict.ok, verdict.reason)
+        self.assertTrue(verdict.merges[0].settled)
+        self.assertFalse(verdict.merges[0].final_by_runs)
+        self.assertIsNone(pm.advance_anchor(verdict, None))
+
+    def test_runs_that_do_not_show_it_final_hold_it(self) -> None:
+        self.lane_dispatch()
+        self.gh.add_runs(
+            "post-merge-detect-silent-revert.yml",
+            "push",
+            canary_run(22, conclusion=None, status="in_progress"),
+        )
+        verdict = self.rejudged()
+        self.assertTrue(verdict.ok, verdict.reason)
+        self.assertFalse(verdict.merges[0].final_by_runs)
+        self.assertIsNone(pm.advance_anchor(verdict, None))
+
+    def test_the_merges_after_the_first_not_final_are_not_judged(self) -> None:
+        # The anchor stops at that merge, so judging later ones spends reads
+        # that cannot move it.
+        merges = [
+            pm.AutoMerge(n, MERGE_SHA, HEAD_SHA, "2026-10-12T10:00:00+00:00")
+            for n in (1, 2, 3)
+        ]
+        ctx = pm._Context("o", "r", IDENTITY, branch="main", now=SOON)
+        settleable = {1: True, 2: False, 3: True}
+        with (
+            mock.patch.object(pm, "_listed_runs", return_value=([], [])),
+            mock.patch.object(
+                pm,
+                "_judge",
+                side_effect=lambda m, *a, **k: pm.MergeState(
+                    m, True, (), True, settleable=settleable[m.number]
+                ),
+            ) as judge,
+        ):
+            final = pm._final_by_runs(ctx, merges, pins={}, pin_required=(), now=SOON)
+        self.assertEqual(final, frozenset({1}))
+        self.assertEqual(judge.call_count, 2)
+
+    def test_a_merge_the_anchor_carries_reads_no_runs(self) -> None:
+        self.lane_dispatch()
+        anchor = pm.Anchor(SINCE, frozenset({NUMBER}))
+        verdict = self.rejudged(anchor)
+        self.assertFalse(verdict.merges[0].final_by_runs)
+        self.assertEqual(self.window_reads(), 0)
+        merged_at = pm._time(verdict.merges[0].merge.merged_at)
+        self.assertEqual(pm.advance_anchor(verdict, anchor), pm.Anchor(merged_at))
+
+
 class Settle(SettledCase):
     """`settle` and `--settle-from`: the only writes."""
 
