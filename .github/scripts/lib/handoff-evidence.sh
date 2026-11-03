@@ -31,6 +31,13 @@
 # job is absent or neither succeeded nor skipped answers through its broker
 # step the same way.
 #
+# The listing is read a page at a time. A read after the first sends each page
+# it already got with an ETag as a conditional request, and a 304 gives back
+# the body that ETag came with. GitHub does not count a conditional
+# request answered 304 against the primary rate limit when it carries an
+# Authorization header, as gh's do
+# (https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#use-conditional-requests).
+#
 # Usage: handoff-evidence.sh FACT... (allowed, posted, handed-off, stale)
 # Environment: GH_TOKEN, GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_OUTPUT, CALLS.
 # Outputs: one FACT=true|false line per requested fact, and one log line
@@ -101,12 +108,56 @@ settle='
   | . as $f
   | "\($f)\t\(any_of([$cs[] | if $f == "allowed" then allowed(.) elif $f == "posted" then posted(.) elif $f == "stale" then stale(.) else handed_off(.) end]))"'
 
+# Pages read per listing: a Link header that never ends cannot loop.
+max_pages=20
+# Each listing page's ETag, the body that came with it and its Link header's
+# next page, by the URL read: a 304 need not carry the Link header.
+declare -A page_etag=() page_body=() page_next=()
+
+# Sets listing to one {name, conclusion, steps} line per job on every page of
+# the run's latest jobs. Returns 1 when a page is not answered 200 with gh
+# exiting 0, or 304 to a conditional request, or its body is not a job
+# listing: gh exits 1 on a 304, which -i still prints, and on a body cut off
+# after its headers.
+read_jobs() {
+  local url="repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=latest&per_page=100"
+  local out headers status body jobs pages=0 cond rc
+  listing=""
+  while [[ -n $url ]]; do
+    pages=$((pages + 1))
+    ((pages <= max_pages)) || return 1
+    cond=()
+    [[ -z ${page_etag[$url]:-} ]] || cond=(-H "If-None-Match: ${page_etag[$url]}")
+    rc=0
+    out=$(gh api -i "$url" "${cond[@]}") || rc=$?
+    headers=$(awk '{ sub(/\r$/, "") } $0 == "" { exit } { print }' <<<"$out")
+    status=$(awk 'NR == 1 { print $2 }' <<<"$headers")
+    if [[ $status == 200 && $rc -eq 0 ]]; then
+      body=$(awk 'seen { print; next } { line = $0; sub(/\r$/, "", line) } line == "" { seen = 1 }' <<<"$out")
+    elif [[ $status == 304 && ${#cond[@]} -gt 0 ]]; then
+      body=${page_body[$url]}
+    else
+      return 1
+    fi
+    # input fails on an empty body, which would otherwise read as no jobs.
+    jobs=$(jq -nc 'input | .jobs[] | {name, conclusion, steps: [.steps[]? | {name, conclusion}]}' <<<"$body") || return 1
+    # Only a page whose body parsed is kept, so a 304 never reuses a bad one.
+    if [[ $status == 200 ]]; then
+      page_body[$url]=$body
+      page_etag[$url]=$(awk 'NR > 1 && tolower($0) ~ /^etag:/ { sub(/^[^:]*:[ \t]*/, ""); print; exit }' <<<"$headers")
+      page_next[$url]=$(grep -i '^link:' <<<"$headers" | grep -o '<[^>]*>; *rel="next"' | sed 's/^<\([^>]*\)>.*/\1/') || page_next[$url]=""
+    fi
+    listing+=${jobs:+$jobs$'\n'}
+    url=${page_next[$url]}
+  done
+}
+
 reads=0
 for delay in "${delays[@]}" ""; do
   reads=$((reads + 1))
   missing=""
-  if listing=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=latest&per_page=100" \
-    --jq '.jobs[] | {name, conclusion, steps: [.steps[]? | {name, conclusion}]}'); then
+  # shellcheck disable=SC2310 # read_jobs returns 1 itself on every failed read
+  if read_jobs; then
     if answers=$(jq -rs --arg calls "$CALLS" --arg facts "$*" "$settle" <<<"$listing"); then
       missing=$(grep -v $'\t\\(true\\|false\\)$' <<<"$answers" | cut -f2- | paste -sd ';' - || true)
     else

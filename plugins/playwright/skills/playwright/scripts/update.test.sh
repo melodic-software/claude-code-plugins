@@ -203,6 +203,35 @@ stub_latest=""
 out=$(run_check 2>&1)
 assert_exit "registry unreachable: exit 2" 2 "$?"
 
+# --- 10. run_apply preview: repo-side files stay out of the 200-line diff ------------
+# The upstream skill directory ships no LICENSE; the script copies it from the
+# package root afterwards. A LICENSE past 200 lines fills the preview and pushes a
+# real SKILL.md change out of it when it is compared.
+
+APPLY="$TEST_TMPDIR/apply"
+UPSTREAM_DIR="$APPLY/package/skills/playwright-cli"
+VENDOR_DIR="$APPLY/vendor"
+mkdir -p "$VENDOR_DIR" "$UPSTREAM_DIR"
+TMPDIR_RUN="$APPLY"
+seq 1 300 >"$VENDOR_DIR/LICENSE"
+cp "$VENDOR_DIR/LICENSE" "$APPLY/package/LICENSE"
+printf 'old skill line\n' >"$VENDOR_DIR/SKILL.md"
+printf 'new skill line\n' >"$UPSTREAM_DIR/SKILL.md"
+printf '{}\n' >"$VENDOR_DIR/.markdownlint-cli2.jsonc"
+cp "$FIXTURE_SKILL" "$APPLY/SKILL.md"
+FRONTMATTER_FILE="$APPLY/SKILL.md"
+fetch_upstream_skill_dir() { printf '%s' "$UPSTREAM_DIR"; }
+stub_latest="0.2.0"
+
+out=$(run_apply 2>&1)
+assert_exit "apply preview: exit 0" 0 "$?"
+preview="${out#*== Diff against vendor/ (first 200 lines) ==}"
+preview="${preview%%== Replace vendor/ ==*}"
+assert_contains "apply preview: shows the real upstream change" "$preview" "+new skill line"
+assert_not_contains "apply preview: omits LICENSE" "$preview" "$VENDOR_DIR/LICENSE"
+assert_not_contains "apply preview: omits the lint override" "$preview" "$VENDOR_DIR/.markdownlint-cli2.jsonc"
+assert_eq "apply keeps LICENSE in vendor/" "300" "$(wc -l <"$VENDOR_DIR/LICENSE" | tr -d ' ')"
+
 # --- Final report ---------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then

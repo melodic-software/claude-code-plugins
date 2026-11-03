@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Candidates are collision-checked against the existing vocabulary BEFORE scoring; a candidate that collides with `Session` or `Context` is disqualified rather than shortlisted, even if it would otherwise score well.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

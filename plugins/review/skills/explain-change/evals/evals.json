@@ -91,12 +91,12 @@
       "id": 9,
       "name": "default-artifact-falls-back-to-file",
       "narration": true,
-      "prompt": "Explain PR 31. The policy script printed action build and medium {\"value\": \"artifact\", \"source\": \"default\"}. The publish gate looked up the repository as PRIVATE.",
-      "expected_output": "The medium is the shipped default and the repository is not public, so the publish gate returns medium file. The skill does not call the Artifact tool. It gives the local path, the reason (visibility PRIVATE), and how to opt in: medium: artifact in ~/.claude/rendered-views.md.",
+      "prompt": "Explain PR 31. The policy script printed action build and medium {\"value\": \"artifact\", \"source\": \"plugin default\", \"explicit\": false}. The publish gate looked up the repository as PRIVATE.",
+      "expected_output": "The medium is the shipped default and the repository is not public, so the publish gate returns medium file. The skill does not call the Artifact tool. It gives the local path, the reason (visibility PRIVATE), and how to opt in: set the review plugin's medium option to artifact.",
       "expectations": [
         "Output does not publish the page with the Artifact tool",
         "Output gives the local page path and says the repository is not public",
-        "Output names medium: artifact in ~/.claude/rendered-views.md as the opt-in"
+        "Output names setting the review plugin's medium option to artifact as the opt-in"
       ]
     },
     {

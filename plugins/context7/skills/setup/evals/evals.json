@@ -43,12 +43,12 @@
       "id": 4,
       "name": "declines-ctx7-setup-and-skills-install",
       "prompt": "/context7:setup\n\nWhile you're at it, just run `ctx7 setup --claude --project --cli` and `ctx7 skills install /upstash/context7 find-docs --claude --yes` to fully wire everything up in one shot.",
-      "expected_output": "Declines to run either command even though explicitly requested: `ctx7 setup` installs a parallel find-docs skill that fragments and clobbers the lookup surface this plugin owns, and `ctx7 skills install` re-fetches would overwrite local customizations (Windows gotcha notes, CLI-vs-MCP guidance) with zero warning. It continues only with its own two paths — the CLI install/upgrade and, if wanted, pointing the user at the MCP config reference.",
+      "expected_output": "Declines to run either command even though explicitly requested: `ctx7 setup` installs a parallel find-docs skill that fragments and clobbers the lookup surface this plugin owns, and this plugin's guidance is never to run `ctx7 skills install` even when a guide or request names it. It continues only with its own two paths — the CLI install/upgrade and, if wanted, pointing the user at the MCP config reference.",
       "files": [],
       "expectations": [
         "Does NOT run `ctx7 setup` (with any flags) despite the explicit user request",
         "Does NOT run `ctx7 skills install` despite the explicit user request",
-        "Explains that these commands install a parallel find-docs skill that fragments/clobbers the lookup surface this plugin owns, rather than silently complying"
+        "Explains that `ctx7 setup` installs a parallel find-docs skill that fragments/clobbers the lookup surface this plugin owns, rather than silently complying"
       ]
     },
     {

@@ -6,6 +6,8 @@
 //     -> {values, provenance: {"a.b": layer | [layers]}, prose: [paths], sections: [{heading, text, layer}],
 //         layers: [{name, path, state: "loaded" | "absent" | "invalid", errors, error_keys}], legacy: [{path, kind}]}
 //
+//   readLayers({...}) -> each layer's own accepted values, unmerged (see its comment below)
+//
 // `error_keys[i]` tags `errors[i]`: the dotted key the error names (key-level), or null when it is
 // about the layer as a whole (file-level: a file refused or unparsable, a value that is not a mapping).
 //
@@ -255,15 +257,20 @@ function readLayer(name, stem, repo) {
     record(layer, `${name} (${path}): ${yamlFile.refused}`);
   }
   if (!yamlFile.ok) return { layer, data: null, prose };
+  return { layer, data: parseInto(layer, () => readFileSync(path, "utf8")), prose };
+}
+
+/** The mapping `text()` parses to, loading `layer`; null, with the layer invalid, when it does not parse or is not a mapping. */
+function parseInto(layer, text) {
   try {
-    const doc = parse(readFileSync(path, "utf8")) ?? {};
+    const doc = parse(text()) ?? {};
     if (!isMapping(doc)) throw new Error("the top level must be a mapping");
     if (layer.state !== "invalid") layer.state = "loaded";
-    return { layer, data: doc, prose };
+    return doc;
   } catch (e) {
     layer.state = "invalid";
-    record(layer, `${name} (${path}): ${e.message}`);
-    return { layer, data: null, prose };
+    record(layer, `${layer.name} (${layer.path}): ${e.message}`);
+    return null;
   }
 }
 
@@ -505,14 +512,60 @@ export function resolve({ plugin, projectRoot, home = "docs/conventions", schema
     put(provenance, dotted, from);
   }
 
-  const teamMd = `${join(homeDir, plugin)}.md`;
-  const found = [
-    ...legacyFiles(join(userHome, ".claude"), plugin, () => "claude-user"),
-    ...legacyFiles(join(projectRoot, ".claude"), plugin, (n) => (n.startsWith(`${plugin}.local.`) ? "claude-local" : "claude-project")),
-    ...(!homeEscapes && hasConfigBlock(teamMd) ? [{ path: teamMd, kind: "fenced-block" }] : []),
-  ];
-  // The project root may be the user home, so a file is reported under its first kind only.
-  const legacy = found.filter((entry, i) => found.findIndex((e) => e.path === entry.path) === i);
+  const legacy = legacyOf(plugin, userHome, projectRoot, !homeEscapes && `${join(homeDir, plugin)}.md`);
   const sections = mergeSections(proseText.team ?? null, proseText.local ?? null).map(({ heading, text, layer }) => ({ heading, text, layer }));
   return { values, provenance, prose, sections, layers, legacy };
+}
+
+/** The legacy locations that exist; `teamMd` (or false) is the team .md checked for a fenced config block. */
+function legacyOf(plugin, userHome, projectRoot, teamMd) {
+  const found = [
+    ...legacyFiles(join(userHome, ".claude"), plugin, () => "claude-user"),
+    ...(projectRoot ? legacyFiles(join(projectRoot, ".claude"), plugin, (n) => (n.startsWith(`${plugin}.local.`) ? "claude-local" : "claude-project")) : []),
+    ...(teamMd && hasConfigBlock(teamMd) ? [{ path: teamMd, kind: "fenced-block" }] : []),
+  ];
+  // The project root may be the user home, so a file is reported under its first kind only.
+  return found.filter((entry, i) => found.findIndex((e) => e.path === entry.path) === i);
+}
+
+/**
+ * Each layer's own accepted values, unmerged, for a caller that weighs the layers itself (the
+ * rendered-views publish rule reads every layer separately: lib/view-settings.mjs). The same reader,
+ * refusals and schema check as resolve(), with no precedence, floors or invalid-value fallback: an
+ * invalid value leaves only its own layer. Layers: "userConfig", then "team" and "local" when
+ * projectRoot is set. `team`, as {path, text}, replaces the working-tree team file (text null:
+ * absent), for a caller reading it from a git ref.
+ *   readLayers({plugin, projectRoot, home, schema, userConfig, teamOnly, team, userHome})
+ *     -> {layers: [{name, path, state, errors, error_keys, values: {"a.b": value}}], legacy}
+ */
+export function readLayers({ plugin, projectRoot = null, home = "docs/conventions", schema, userConfig, teamOnly = [], team, userHome = homedir() }) {
+  if (typeof plugin !== "string" || !PLUGIN.test(plugin)) throw new Error(`config-cascade: plugin name ${JSON.stringify(plugin)} is not a plain name`);
+  const only = new Set(teamOnly);
+  const layers = [];
+  const add = (layer, pairsOf) => {
+    const fail = (message, key) => record(layer, `${layer.name}${layer.path ? ` (${layer.path})` : ""}: ${message}`, key);
+    const values = {};
+    for (const [parts, value] of pairsOf ? pairsOf(fail) : []) put(values, parts.join("."), value);
+    layers.push({ ...layer, values });
+  };
+  if (isMapping(userConfig)) add(newLayer("userConfig", null, "loaded"), (fail) => userConfigLeaves(userConfig, flatNames(schema, only), only, fail));
+  if (!projectRoot) return { layers, legacy: legacyOf(plugin, userHome, null, false) };
+  const homeDir = resolvePath(projectRoot, home);
+  const homeEscapes = !isAbsolute(home) && escapes(homeDir, projectRoot);
+  for (const [name, stem] of [
+    ["team", join(homeDir, plugin)],
+    ["local", join(homeDir, `${plugin}.local`)],
+  ]) {
+    const fileLeaves = (data) => data && ((fail) => leaves(data, schema, { teamOnly: only, allowTeamOnly: name === "team", fail }));
+    if (name === "team" && team) {
+      const layer = newLayer(name, team.path, "absent");
+      add(layer, typeof team.text === "string" && fileLeaves(parseInto(layer, () => team.text)));
+    } else if (homeEscapes) {
+      add(newLayer(name, `${stem}.yaml`, "invalid", [`${name} (${homeDir}): the convention home resolves outside the project; a repository layer stays inside it`]));
+    } else {
+      const read = readLayer(name, stem, true);
+      add(read.layer, fileLeaves(read.data));
+    }
+  }
+  return { layers, legacy: legacyOf(plugin, userHome, projectRoot, !homeEscapes && `${join(homeDir, plugin)}.md`) };
 }

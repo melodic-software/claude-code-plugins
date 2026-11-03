@@ -19,11 +19,11 @@ invocation:
 - Project root, `git rev-parse --show-toplevel`
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
-block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git. The dated record for that composition claim is the
-[gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
-"The pre-compute block runs as one shell invocation".
+separate body Bash calls rather than pre-compute lines, one command per call, so each git read
+reaches the shell on its own. How the harness runs a skill's injected commands is
+[skills: inject dynamic context](https://code.claude.com/docs/en/skills#inject-dynamic-context)'s
+to say (as of 2026-11-03; recheck when that section states how a block's commands are grouped
+into shell invocations).
 
 ## Purpose
 
@@ -53,8 +53,11 @@ checker before dispatching, and a denied or errored probe **halts** rather than 
 All three reasons in full, and the halt rule: [`context/dispatch.md`](context/dispatch.md).
 
 **Discipline-liveness token.** A dispatched agent receives this body through its `skills:` preload,
-and a preload that fails to resolve is skipped **silently**. Logged to the debug log and nowhere
-else. The dated record for that harness behavior is
+and nothing else in its run shows whether that preload resolved. What the harness does with one
+that fails is
+[subagents: preload skills into subagents](https://code.claude.com/docs/en/sub-agents#preload-skills-into-subagents)'s
+to say (as of 2026-11-03; recheck when that section changes what a missing or disabled skill
+does). The dated record for that harness behavior is
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
 "Harness facts the dispatch design rests on".
 The disk fallback Reads this same file, so a matching `preload_token` is file-identity, **not** proof that preload fired. A missing or mismatched token is a **hard failure: the parent discards the run**. Provenance is `preload: fired | fallback`; `fallback` is the accepted recovery.
@@ -70,7 +73,7 @@ are in the parent contract**. Copy the one matching this session's shell, becaus
 `touch` is not a command in PowerShell and its directory flag is a parameter error there.
 
 **Post-dispatch, the payload is graded off disk before it is believed**. `status: complete` is the
-agent's claim about its own run, and a claim is not evidence. The gate's three steps, the reason this
+agent's claim about its own run, and a claim is not evidence. The gate's four steps, the reason this
 family ships no coverage ledger, the by-value rung, and the boundary the parent still owns after the
 gate passes are in [`context/dispatch.md`](context/dispatch.md). Two things worth knowing before you
 get there: **any non-zero exit halts the workflow**, and a gate that could not run is a FAIL rather
@@ -111,6 +114,12 @@ Every citation also carries a short reliability note: who wrote it, how close th
 decision, and how old it is (a review comment by the change's author and a wiki page four years
 stale are both `Direct`). This is a note, not a second ladder. Only the tier decides which section
 a claim lands in.
+
+### `Direct` needs a person's own words
+
+Each source records `author_kind: owner-quote | agent-relay`: who wrote the words, not whose login
+posted them. When you cannot tell, it is `agent-relay`, and a claim whose sources are all
+`agent-relay` is not `Direct`. Rule and check: [`context/artifact-shape.md`](context/artifact-shape.md).
 
 ### Code shape is not intent evidence
 
@@ -200,6 +209,7 @@ Check these against the written output, not against recollection:
 - Every category appears in *Sources consulted*, including the ones that found nothing.
 - Every skip carries one of the two permitted reasons.
 - Hedged claims are hedged in the output, not flattened into confident prose.
+- `"${CLAUDE_PLUGIN_ROOT}/scripts/check-author-kind.py" <the slice>` exits 0.
 
 ## Spoke paths
 

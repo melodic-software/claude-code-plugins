@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.claude/plugin-data/x.json",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "a settings file, not markdown"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/GLOSSARY.md",
+            "content": "# Glossary"
+          }
+        }
+      ],
+      "why": "writes a glossary"
+    }
+  ]
+}

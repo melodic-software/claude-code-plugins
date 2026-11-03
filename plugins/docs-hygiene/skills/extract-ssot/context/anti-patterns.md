@@ -40,7 +40,11 @@ Patterns are framed for markdown extraction (the dominant case) but apply to cod
 
 **Pattern.** A.md → B.md → C.md chains. The reader has to follow 2-3 links to assemble meaning. Per-link failure rate compounds.
 
-**Symptom.** A skill body cites a rule file; the rule file cites another rule file for the same domain. Anthropic's "head -100" partial-read failure mode triggers when the chain is deep.
+**Symptom.** A skill body cites a rule file; the rule file cites another rule file for the same domain. We treat that depth as an anti-pattern here.
+
+- **Pointer**: when explaining why a deep reference chain fails a reader, fetch [Avoid deeply nested references](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#avoid-deeply-nested-references) live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section changes its guidance on reference nesting depth, or moves.
 
 **Code/config analog.** Re-export chains: `module-A` re-exports from `module-B` which re-exports from `module-C`. IDE "go to definition" jumps through layers; refactor breakage cascades. The same one-level-deep rule applies: the call site imports the canonical SSOT directly.
 
