@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# A Python billing package whose line items hold a float price beside a free-form currency string.
+# A Python billing package whose line items hold a Decimal price beside a free-form currency string.
 # The graded outcome is a new invoice total modeled as a currency code with integer minor units.
 set -euo pipefail
 

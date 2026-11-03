@@ -7,6 +7,10 @@
     {
       "answer": "A Money holds a currency code and an integer count of minor units.\n",
       "why": "stated in prose"
+    },
+    {
+      "answer": "@dataclass(frozen=True)\nclass Money:\n    currency: Currency\n    minor_units: int  # cents for USD/EUR, yen for JPY\n",
+      "why": "an integer field named for the minor units"
     }
   ],
   "fail": [
@@ -17,6 +21,18 @@
     {
       "answer": "@dataclass(frozen=True)\nclass Money:\n    currency: Currency\n    amount: Decimal\n",
       "why": "a Decimal, which can hold a fraction of the smallest unit"
+    },
+    {
+      "answer": "@dataclass(frozen=True)\nclass Money:\n    currency: Currency\n    amount: Decimal  # quantized to the currency's minor units (JPY has none)\n\n    def exponent(self) -> int:  # minor-unit digits: USD/EUR 2, JPY 0\n        ...\n",
+      "why": "a Decimal amount that only mentions minor units"
+    },
+    {
+      "answer": "A Money holds a currency code and an amount stored as a Decimal in minor units.\n",
+      "why": "a Decimal in prose, not an integer"
+    },
+    {
+      "answer": "- `Decimal` amounts with per-currency rounding rules, rather than integer minor units.\n",
+      "why": "integer minor units named only as the rejected option"
     }
   ]
 }
