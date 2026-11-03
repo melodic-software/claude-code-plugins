@@ -90,13 +90,14 @@
       "id": 7,
       "name": "repo-wide-interview-fallback",
       "prompt": "/compress",
-      "expected_output": "Invoked with no target on a clean tree in an interactive session, the skill does not dead-end at the no-op: it offers a repo-wide run via AskUserQuestion. Declining at any step exits with the friendly no-op message ('No uncommitted .md files. Pass file/dir target.'). On accept it runs the free mechanical audit first and presents INLINE only aggregate counts, a dispatch-cost estimate, and the top-20 highest-yield COMPRESS rows (full per-file table written to a file), then interviews on scope/concurrency with prescribed defaults (top-10 COMPRESS-classified highest-yield-first; 2 concurrent subagents; always-loaded files excluded). No file is compressed before the final confirmation.",
+      "expected_output": "Invoked with no target on a clean tree in an interactive session, the skill does not dead-end at the no-op: it offers a repo-wide run via AskUserQuestion. Declining the offer or the final confirmation exits with the friendly no-op message ('No uncommitted .md files. Pass file/dir target.'). On accept it runs the free mechanical audit first and presents INLINE only aggregate counts, a dispatch-cost estimate, and the top-20 highest-yield COMPRESS rows (full per-file table written to a file), then takes the prescribed defaults without asking (top-10 COMPRESS-classified highest-yield-first; 2 concurrent subagents; always-loaded files excluded) and reports them in one line with how to override each. No file is compressed before the final confirmation.",
       "files": [],
       "expectations": [
         "Empty target + clean tree in an interactive session produces an AskUserQuestion offer, not an immediate no-op exit",
-        "Declining the offer (or any later step) exits with the friendly no-op message rather than proceeding",
+        "Declining the offer (or the final confirmation) exits with the friendly no-op message rather than proceeding",
         "The mechanical audit runs BEFORE any compression and its inline output is bounded (aggregates + top-20 rows; full table to a file, never every row inline)",
-        "The interview presents prescribed defaults: top-10 COMPRESS-classified highest-yield-first, 2 concurrent subagents, always-loaded files excluded",
+        "After the audit, no AskUserQuestion runs on scope or concurrency: the skill reports the defaults it took (top-10 COMPRESS-classified highest-yield-first, 2 concurrent subagents, always-loaded files excluded) in one line, each with its override",
+        "Always-loaded files stay excluded unless the user opts in explicitly",
         "No file is edited before the user's explicit final confirmation",
         "Per-file hard rules (semantic-diff dispatch, revert pass, markdownlint, <3% rule) still apply to the confirmed run"
       ]

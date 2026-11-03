@@ -651,7 +651,7 @@ idw_each() { # <deny|allow> <label> <command> [tool]
   done
 }
 for key in user.email user.signingkey credential.helper core.sshCommand core.hooksPath user.useConfigOnly \
-  'includeIf.gitdir:~/work/.path'; do
+  'includeIf.gitdir:~/work/.path' include.path; do
   for form in "--global $key v" "--system $key v" "--file ~/.gitconfig-work $key v" "-f ~/work.gitconfig $key v" \
     "set --global $key v" "--global --unset $key" "--global --add $key v" "unset --global $key"; do
     idw_each deny "git config $form" "git config $form"
@@ -664,6 +664,7 @@ idw_each deny "git config --global in a later segment" 'cd sub && git config --g
 idw_each deny "git config --global --remove-section user" 'git config --global --remove-section user'
 idw_each deny "git config rename-section includeIf" \
   'git config rename-section --global includeIf.gitdir:~/a/ includeIf.gitdir:~/b/'
+idw_each deny "git config --global --remove-section include" 'git config --global --remove-section include'
 idw_each deny "git config --global --edit" 'git config --global --edit'
 idw_each deny "an append redirection to ~/.gitconfig" 'echo "[user]" >> ~/.gitconfig'
 idw_each deny 'a redirection to $HOME/.gitconfig-work' 'printf x > "$HOME/.gitconfig-work"'
@@ -779,6 +780,10 @@ malformed "a filesystem root" "{\"domains\": {\"alpha\": {\"roots\": {\"$OS_KEY\
   "domains.alpha.roots.$OS_KEY holds a path that is not absolute"
 malformed "another host's relative root" "{\"domains\": {\"alpha\": {\"roots\": {\"$OTHER_KEY\": [\"relative\"]}}}}" \
   "domains.alpha.roots.$OTHER_KEY holds a path that is not absolute"
+malformed "a relative owner root" "{\"domains\": {\"alpha\": {\"roots\": {}}}, \"owner_roots\": {\"$OS_KEY\": [\"relative\"]}}" \
+  "owner_roots.$OS_KEY holds a path that is not absolute"
+malformed "an unknown owner_roots key" '{"domains": {"alpha": {"roots": {}}}, "owner_roots": {"plan9": ["/x"]}}' \
+  "owner_roots has an unknown key, plan9"
 malformed "a marker that is not a string" '{"domains": {"alpha": {"roots": {}, "identity_markers": [1]}}}' \
   "domains.alpha.identity_markers[0] is not a non-empty one-line string"
 malformed "a message on two lines" '{"domains": {}, "messages": {"note": "a\nb"}}' \
@@ -859,6 +864,28 @@ OTHER_HOME="$TEST_TMPDIR/other-home"
 call "$EDIT" "$A_ROOT/repo" "ls $OTHER_HOME/src/github.com/beta-org/repo" "HOME=$OTHER_HOME"
 assert_contains "the same map under another HOME is compiled again" "$GUARD_ERR" "trace map-compile"
 verdict "another domain's owner below the new HOME" deny
+
+# --- owner_roots: an owner's directories follow this host's roots -------------
+ROOTED="$TEST_TMPDIR/rooted"
+TREES="$TEST_TMPDIR/trees/github.com"
+mkdir -p "$HOME_DIR/repos/github.com/alpha-org/repo"
+write_map "$ROOTED" "$(MSYS_NO_PATHCONV=1 jq --arg os "$OS_KEY" --arg r "$HOME_DIR/repos/github.com/" --arg t "$TREES" \
+  '.owner_roots = {($os): [$r, $t]}' <<<"$MAP")"
+call "$ROOTED" "$A_ROOT/repo" 'ls ~/repos/github.com/beta-org/repo'
+verdict "owner_roots: another domain's owner below a root under HOME" deny
+call "$ROOTED" "$A_ROOT/repo" "git -C $TREES/beta-org/wt status"
+verdict "owner_roots: another domain's owner below a root outside HOME" deny
+call "$ROOTED" "$A_ROOT/repo" 'ls ~/repos/github.com/alpha-org/repo'
+verdict "owner_roots: the cwd's own owner" allow
+call "$ROOTED" "$HOME_DIR/repos/github.com/alpha-org/repo" "ls $B_ROOT"
+verdict "owner_roots: a cwd in an owner directory is in that owner's domain" deny
+call "$ROOTED" "$A_ROOT/repo" 'ls ~/src/github.com/beta-org/repo'
+verdict "owner_roots: the default directories no longer name the owner" allow
+OTHER_OS_ROOTS="$TEST_TMPDIR/other-os-roots"
+write_map "$OTHER_OS_ROOTS" "$(MSYS_NO_PATHCONV=1 jq --arg other "$OTHER_KEY" --arg root "$OTHER_ROOT" \
+  '.owner_roots = {($other): [$root]}' <<<"$MAP")"
+call "$OTHER_OS_ROOTS" "$A_ROOT/repo" 'ls ~/src/github.com/beta-org/repo'
+verdict "owner_roots for another host only: the default directories still apply" deny
 
 # --- Under the dispatcher, and on the shipped row -----------------------------
 guard_invoke --via dispatched --cwd "$A_ROOT/repo" --command "ls $B_ROOT" -- \

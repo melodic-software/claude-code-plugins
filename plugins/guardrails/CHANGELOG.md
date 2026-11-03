@@ -3,6 +3,28 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.2] - 2026-11-03
+
+### Fixed
+
+- let a map set where block-cross-domain finds owner directories
+
+## [1.0.1] - 2026-11-03
+
+### Fixed
+
+- deny a global git include.path write in block-cross-domain
+
+  An unconditional include can set the machine's git identity just as an
+  includeIf does, and the guard let `git config --global include.path`
+  through. It now treats the key and the include section as identity writes.
+
+## [1.0.0] - 2026-11-03
+
+### Removed
+
+- The `check` skill is gone. To check this plugin's prerequisites, run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`, the command the hook notices already print. With `jq` missing the guards deny that Bash call too, and the denial names `jq`; `/guardrails:setup check` still reports it from its load-time rows.
+
 ## [0.84.5] - 2026-11-02
 
 ### Changed

@@ -3,6 +3,31 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.37.0] - 2026-11-03
+
+### Added
+
+- Upkeep settings `upkeep_cadence`, `upkeep_backstop` and `upkeep_max_open` in
+  `<home>/code-tidying.yaml` (defaults `daily`, `weekly`, 3), read by
+  `skills/tidy/scripts/upkeep-setting.sh`. See `reference/config.md`.
+
+### Changed
+
+- The `/code-tidying:tidy` backlog throttle takes its limit from `upkeep_max_open`, and
+  `open-pr-count.sh` reports the limit and the layer that supplied it.
+
+## [0.36.0] - 2026-11-03
+
+### Changed
+
+- **`dissolve-comments` widens to the repository rung without asking** ([#12588](https://github.com/melodic-software/claude-code-plugins/issues/12588)). When an empty argument resolves to the repository rung, step 1 now takes it in every mode instead of asking first. Outside `report`, that rung runs in safe mode whatever the posture or dial token, and the report names the rung, its file count and the explicit-target re-run that narrows the scope or applies the full contract. Outside `report`, `aggressive` and `strip` now apply to the whole repository only through an explicit target.
+
+## [0.35.5] - 2026-11-03
+
+### Fixed
+
+- The `/code-tidying:tidy` dependency-root and polyglot-services lane templates give `npx @biomejs/biome check` as the example lint command, not `npx biome check`, which runs an unrelated npm package when the project has no local Biome install (#12573).
+
 ## [0.35.4] - 2026-11-02
 
 ### Changed

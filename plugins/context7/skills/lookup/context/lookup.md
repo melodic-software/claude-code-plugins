@@ -37,9 +37,9 @@ Each result includes:
    - Code snippet count (coverage)
    - Source reputation (prefer High or Medium)
    - Benchmark score (higher is better)
-3. If multiple good matches exist, acknowledge this but proceed with the most relevant one
+3. If multiple good matches exist but one is clearly the most relevant, acknowledge the others and proceed with it
 4. If no good matches exist, state this clearly and suggest a refined query
-5. For ambiguous cases, ask the user before guessing
+5. For ambiguous cases, where two or more candidates rank close and the query does not settle which one the user means, probe before asking: run the Step 2 docs query against the top two candidates (read-only; each query counts toward the 3-lookup limit in Common mistakes) and pick the one whose docs answer the question. In the reply, name the library ID you chose and the runner-up you rejected. When neither candidate's docs answer it, follow step 4. Ask the user only when both answer the question equally well, since the probe cannot settle that case
 
 ## Step 2: Query documentation
 

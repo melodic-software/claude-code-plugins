@@ -1,0 +1,12 @@
+schema_version: "1.1"
+name: lk-ambiguous-tie-asks
+graders:
+  - name: names-both-ids
+    type: regex
+    pattern: '^(?=[\s\S]*?/lumen-http/lumen(?![\w-]|\.\w))(?=[\s\S]*?/lumenjs/lumen(?![\w-]|\.\w))'
+    target: last_message
+  - name: asks-which-library
+    type: regex
+    pattern: '\b(?:which|what)\s+(?:one|library|lib|lumen|package|candidate|of\s+(?:the|these|them)(?:\s+two)?)\b[^.!?\n]{0,80}\?|\b(?:did|do)\s+you\s+mean\b|\bcan\s+you\s+(?:clarify|confirm|tell\s+me)\s+which\b'
+    flags: i
+    target: last_message

@@ -472,3 +472,33 @@ date in both UTC and New York. That part stays with #7679.
 | Case | Expected | Observed | Verdict |
 |---|---|---|---|
 | `cloud-routine/state-read-back-next-run` | ran, `result=pass` | hand run: `read-back nonce=267acddb-…, result=pass` | pass (hand run; the case has not run live) |
+
+## Basis for record 20
+
+A live run of the `env-scrub` area's two cases, `probe.py run --live --case ... --case ... --retries 1
+--max-runs 4 --max-cost-usd 2`, with the launch above plus `--permission-mode dontAsk` and the
+checker as the one allowed command. Linux (WSL2), Claude Code **2.1.317**, 2026-11-03: 2 runs, no
+retry needed. The cases are verdict-only, so the run kept no stream and its rows carry no marker: the
+verdict is the evidence for which channels found the value, since each case's `match` names one
+marker. A search of its output directory for the planted value's fixed prefix found nothing. The
+recheck trigger and expiry above apply.
+
+## 20. The subprocess env scrub keeps a planted credential out of a Bash child's reach
+
+**Claim.** With `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, a Bash child finds a random fake value planted
+in the `claude` process's environment neither in its own environment nor in any other process's
+`/proc/<pid>/environ` it can read, and it can still read its own `/proc/self/environ`. With the
+variable unset, the same checker finds the value both in its own environment and in another
+process's environ, so the scrub removed something both routes reach. The checker does not say which
+process held the value, so this does not show that the `claude` process's own environ is the one read
+with the scrub off. This covers the one variable the cases plant. What else the scrub removes or keeps is the
+[docs section](https://code.claude.com/docs/en/env-vars#what-the-subprocess-environment-scrub-removes)'s
+to state.
+
+**Recheck trigger.** A release note naming the subprocess env scrub, its PID namespace or the
+variables it removes.
+
+| Case | Expected | Observed | Verdict |
+|---|---|---|---|
+| `env-scrub/planted-credential-not-readable` | refused, `planted-value own=not-found others=not-found` | refused, with that marker | pass |
+| `env-scrub/planted-credential-readable-without-scrub` | ran, `planted-value own=found others=found` | ran, with that marker | pass |
