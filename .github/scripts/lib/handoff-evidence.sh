@@ -101,12 +101,29 @@ settle='
   | . as $f
   | "\($f)\t\(any_of([$cs[] | if $f == "allowed" then allowed(.) elif $f == "posted" then posted(.) elif $f == "stale" then stale(.) else handed_off(.) end]))"'
 
+jobs_url="repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=latest&per_page=100"
+pick='.jobs[] | {name, conclusion, steps: [.steps[]? | {name, conclusion}]}'
+# The run's jobs as one page, which the gh wrapper reads with its headers, so
+# a rate limit on it holds to that response's own reset (a lane run lists far
+# under 100 jobs). A total_count over the page, or none, reads them all again
+# with --paginate, so no job is dropped.
+read_jobs() {
+  local page count
+  page=$(gh api "$jobs_url") || return 1
+  count=$(jq -r '.total_count' <<<"$page") || return 1
+  if [[ $count =~ ^[0-9]{1,9}$ ]] && ((count <= 100)); then
+    jq -c "$pick" <<<"$page"
+  else
+    gh api --paginate "$jobs_url" --jq "$pick"
+  fi
+}
+
 reads=0
 for delay in "${delays[@]}" ""; do
   reads=$((reads + 1))
   missing=""
-  if listing=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=latest&per_page=100" \
-    --jq '.jobs[] | {name, conclusion, steps: [.steps[]? | {name, conclusion}]}'); then
+  # shellcheck disable=SC2310 # read_jobs returns its own failure
+  if listing=$(read_jobs); then
     if answers=$(jq -rs --arg calls "$CALLS" --arg facts "$*" "$settle" <<<"$listing"); then
       missing=$(grep -v $'\t\\(true\\|false\\)$' <<<"$answers" | cut -f2- | paste -sd ';' - || true)
     else

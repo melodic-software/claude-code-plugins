@@ -6425,7 +6425,8 @@ function jobListing(posted, { reportSkipped = [], unallowed = [], calls = FIX_CI
 
 // Runs a "Read whether ... posted" step, with the default branch tip's
 // handoff-evidence.sh where the step's checkout puts it, against a gh stub
-// that answers the jobs listing through the script's own --jq filter. A list
+// that answers the jobs listing through the script's --jq filter, or whole
+// when the call gives none. A list
 // of listings answers one per read, the last repeating; the retry delays are
 // zero. Returns its exit, outputs, stdout and the arguments of each read.
 const HANDOFF_EVIDENCE = new URL("../../scripts/lib/handoff-evidence.sh", import.meta.url);
@@ -6442,7 +6443,7 @@ function readPosted(t, step, listing, { fail = false, delays = "0 0 0 0 0" } = {
     join(root, "bin", "gh"),
     `#!/bin/bash\nprintf '%s\\n' "$*" >>"${calls}"\n${fail ? "exit 1\n" : ""}` +
       `n=$(($(wc -l <"${calls}") - 1)); [ "$n" -lt ${listings.length} ] || n=${listings.length - 1}\n` +
-      `while [ $# -gt 0 ]; do if [ "$1" = --jq ]; then filter=$2; fi; shift; done\njq -r "$filter" "${root}/listing-$n.json"\n`,
+      `filter=.; while [ $# -gt 0 ]; do if [ "$1" = --jq ]; then filter=$2; fi; shift; done\njq -r "$filter" "${root}/listing-$n.json"\n`,
     { mode: 0o755 },
   );
   const output = join(root, "out");
@@ -6589,6 +6590,59 @@ test("handoff-evidence.sh: job-level evidence decides through a lagging listing,
   assert.match(failed.stdout, /::error::.*the jobs read failed/);
 });
 
+// The jobs listing is one per_page=100 page read without --paginate, so the
+// gh wrapper sees its headers; a total_count over the page reads it all again
+// with --paginate rather than drop a job.
+test("handoff-evidence.sh: one page of up to 100 jobs is read without --paginate; a larger run is read again paginated", (t) => {
+  const read = workflow("pr-unblock.yml").jobs["fix-ci-unreported"].steps.find((s) => s.id === "posted");
+  const listing = withMarkers(jobListing(["fix-ci"]), FIX_CI_CALLS);
+  const url = "repos/o/r/actions/runs/99/jobs?filter=latest&per_page=100";
+  const one = readPosted(t, read, listing);
+  assert.equal(one.status, 0);
+  assert.deepEqual(one.outputs, { posted: "true", allowed: "true" });
+  assert.equal(one.calls, `api ${url}\n`);
+  for (const total_count of [101, null]) {
+    const big = readPosted(t, read, { ...listing, total_count });
+    assert.equal(big.status, 0, String(total_count));
+    assert.deepEqual(big.outputs, { posted: "true", allowed: "true" }, String(total_count));
+    assert.equal(big.calls, `api ${url}\napi --paginate ${url} --jq .jobs[] | {name, conclusion, steps: [.steps[]? | {name, conclusion}]}\n`, String(total_count));
+  }
+});
+
+// Under the gh wrapper the one page goes through its header-visible path: a
+// primary limit holds to that response's x-ratelimit-reset, not a guessed hour,
+// and no later read in the retry loop reaches GitHub before it.
+test("handoff-evidence.sh: a rate-limited jobs page holds to its own x-ratelimit-reset under the gh wrapper", (t) => {
+  const root = tempDir("handoff-rate-");
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const lib = join(root, ".base", ".github");
+  mkdirSync(join(root, "bin"));
+  mkdirSync(join(lib, "scripts", "lib"), { recursive: true });
+  mkdirSync(join(lib, "actions", "log-api-budget"), { recursive: true });
+  writeFileSync(join(lib, "scripts", "lib", "handoff-evidence.sh"), readFileSync(HANDOFF_EVIDENCE));
+  writeFileSync(join(lib, "actions", "log-api-budget", "api-budget.bash"), readFileSync(new URL("../log-api-budget/api-budget.bash", import.meta.url)));
+  const reset = Math.floor(Date.now() / 1000) + 900;
+  const calls = join(root, "calls");
+  writeFileSync(
+    join(root, "bin", "gh"),
+    `#!/bin/bash\nprintf '%s\\n' "$*" >>"${calls}"\n` +
+      `printf 'HTTP/2.0 403 Forbidden\\r\\nX-Ratelimit-Limit: 1000\\r\\nX-Ratelimit-Remaining: 0\\r\\nX-Ratelimit-Reset: ${reset}\\r\\nX-Ratelimit-Resource: core\\r\\n\\r\\n{"message":"API rate limit exceeded for installation ID 1."}\\n'\nexit 1\n`,
+    { mode: 0o755 },
+  );
+  const output = join(root, "out");
+  writeFileSync(output, "");
+  const result = spawnSync("bash", [join(lib, "scripts", "lib", "handoff-evidence.sh"), "handed-off"], {
+    cwd: root,
+    encoding: "utf8",
+    env: { PATH: `${join(root, "bin")}:${process.env.PATH}`, RUNNER_TEMP: root, GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "99", GH_TOKEN: "x", GITHUB_OUTPUT: output, CALLS: "resolve-issue", HANDOFF_EVIDENCE_DELAYS: "0 0" },
+  });
+  assert.notEqual(result.status, 0);
+  assert.equal(readFileSync(calls, "utf8"), "api -i repos/o/r/actions/runs/99/jobs?filter=latest&per_page=100\n");
+  assert.equal(readFileSync(join(root, "api-budget", "stop"), "utf8"), `core ${reset}\n`);
+  assert.ok(!existsSync(join(root, "api-budget", "guessed")), "a header's reset is not a guess");
+  assert.match(result.stderr, /hit GitHub's core API rate limit: no call to it before \S+ \(x-ratelimit-reset\)/);
+});
+
 // The run job runs head code but cannot name a job: a run job step called
 // "Post the check run" or "Ask the broker whether the lane may run", or a
 // forged handed-off that skips the report, never reads as an allow or a post.
@@ -6656,7 +6710,7 @@ test("pr-unblock.yml: each fix-ci fallback call starts on a base job's jobs-API 
     const posted = readPosted(t, step, jobListing([firstId]));
     assert.equal(posted.status, 0);
     assert.deepEqual(posted.outputs, { posted: "true" });
-    assert.match(posted.calls, /^api --paginate repos\/o\/r\/actions\/runs\/99\/jobs\?filter=latest&per_page=100 --jq /);
+    assert.match(posted.calls, /^api repos\/o\/r\/actions\/runs\/99\/jobs\?filter=latest&per_page=100\n/);
     // A handoff, forged or not, skips the report job; a report that ran and
     // posted nothing, or another call's posted check, is no post either.
     for (const [name, listing] of Object.entries({
@@ -7115,7 +7169,7 @@ test("pr-unblock.yml: address-feedback's, review-dependency's and resolve-confli
     const read = readPosted(t, step, listing([firstId]));
     assert.equal(read.status, 0);
     assert.equal(read.outputs.posted, "true");
-    assert.match(read.calls, /^api --paginate repos\/o\/r\/actions\/runs\/99\/jobs\?filter=latest&per_page=100 --jq /);
+    assert.match(read.calls, /^api repos\/o\/r\/actions\/runs\/99\/jobs\?filter=latest&per_page=100\n/);
     for (const [name, value] of Object.entries({
       "a skipped report job": listing([], { reportSkipped: [firstId] }),
       "a report that posted nothing": listing([]),
@@ -7223,7 +7277,7 @@ test("work-resolve-issue.yml: resolve-issue-subscription starts on resolve-issue
     assert.equal(read.status, 0, name);
     assert.deepEqual(read.outputs, { "handed-off": handedOff }, name);
   }
-  assert.match(readPosted(t, step, issueListing()).calls, /^api --paginate repos\/o\/r\/actions\/runs\/99\/jobs\?filter=latest&per_page=100 --jq /);
+  assert.match(readPosted(t, step, issueListing()).calls, /^api repos\/o\/r\/actions\/runs\/99\/jobs\?filter=latest&per_page=100\n/);
   // Sandbox run 40118275531: the broker step's conclusion read null for
   // minutes after its job ended, so the handoff read false and the
   // subscription call never ran. broker-allowed decides at once.

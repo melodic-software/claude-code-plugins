@@ -4729,8 +4729,9 @@ jobs:
       # come from the api-budget gh wrapper's rate guard (API_BUDGET_SH): it
       # reads each response's headers and records a stop for the pool until
       # the reset (retry-after, else x-ratelimit-reset while remaining is 0,
-      # else a guess: the documented minute for a secondary limit, an hour for
-      # any other, as for a paginated read whose headers it cannot see), and
+      # else a guess: the documented minute for a secondary limit; for a
+      # paginated read whose headers it cannot see, the one open window's reset
+      # in the token's earlier readings, else an hour, as for any other), and
       # refuses every gh call to that pool before it, so nothing is sent while
       # limited, a probe included. gh_read waits one second past a reset a
       # header gave; a guessed stop fails the read at once. The job's timeout is not raised
