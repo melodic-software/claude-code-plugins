@@ -34,8 +34,13 @@ Every shape below invokes the same line, and the two arguments are not optional 
 /loop 1w /overengineering:delta --unattended
 ```
 
-`/loop` is a bundled skill and needs no install. This shape supplies an explicit interval; how that
-interval is scheduled is read live.
+This shape supplies an explicit interval. Whether `/loop` is available in a session, and how that
+interval is scheduled, are read live.
+
+- **Pointer**: when deciding whether `/loop` is available, fetch
+  [Commands § All commands](https://code.claude.com/docs/en/commands#all-commands) live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section is removed or retitled, or its `/loop` row is dropped or renamed.
 
 - **Pointer**: when deciding how a supplied interval is scheduled and how far a fire time can drift,
   fetch [scheduled tasks § Run on a fixed interval](https://code.claude.com/docs/en/scheduled-tasks#run-on-a-fixed-interval)

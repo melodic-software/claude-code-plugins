@@ -40,8 +40,30 @@ export function readLimits(path) {
   } catch {
     limits = undefined;
   }
-  return { ...resolveLimits(limits), ...resolveAdmission(limits) };
+  return { ...resolveLimits(limits), ...resolveAdmission(limits), "stranded-backoff-hours": resolveStrandedBackoff(limits?.["stranded-backoff-hours"]) };
 }
+
+// The `limits.stranded-backoff-hours` leaf: per cause work-unblock's sweep
+// re-fires a stranded issue for, the base hours of its backoff, doubled once
+// per re-fire already counted and held at STRANDED_BACKOFF_MAX.
+export const STRANDED_BACKOFF_MAX = 24;
+export const STRANDED_BACKOFF_DEFAULTS = Object.freeze({
+  "no-run": 3,
+  "no-report": 3,
+  "failed-again": 3,
+  "failed-mint": 3,
+  "kill-switch": 3,
+});
+
+// Every cause, each set whole number of hours from 1 to STRANDED_BACKOFF_MAX
+// over its default.
+export const resolveStrandedBackoff = (hours) =>
+  Object.fromEntries(
+    Object.entries(STRANDED_BACKOFF_DEFAULTS).map(([key, value]) => {
+      const set = hours?.[key];
+      return [key, Number.isInteger(set) && set >= 1 && set <= STRANDED_BACKOFF_MAX ? set : value];
+    }),
+  );
 
 const positive = (value) => typeof value === "number" && Number.isFinite(value) && value > 0;
 

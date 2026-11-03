@@ -211,14 +211,14 @@ difference it exists to detect.
 
 **Resolve the write regime here too**, because it decides which restoration gate
 [Phase 3](#phase-3-execute) can run: does the configured tool write mutants out of tree, rewrite the
-working file whole once, or apply and revert it per mutant? Read the project's own config and the
-installed tool version for it. Two rows of the `principles` skill's
-[`tooling.md`](../principles/reference/tooling.md) table can land in tree: StrykerJS under
-`inPlace: true`, and mutmut at 2.x or below, where the installed major version *is* the regime. The
-rest are constants. Resolve it from what this project actually configured, never from the tool's
-reputation. State the resolved regime in the scope report. Refuse when the regime is in-tree per
-mutant and the tool offers neither per-mutant observability nor interrupt safety: the gate that
-regime requires cannot be run, and a check that cannot run is not a check.
+working file whole once, or apply and revert it per mutant? Read the project's config and installed
+tool version against that tool's row in the `principles` skill's [`tooling.md`](../principles/reference/tooling.md)
+table. Pointer: for StrykerJS, fetch [configuration: inPlace](https://stryker-mutator.io/docs/stryker-js/configuration/#inplace-boolean)
+live. As of: 2026-11-03. Recheck trigger: that section changes where mutants are written. Resolve
+the regime from what this project configured, never from the tool's reputation. State the resolved regime
+in the scope report. Refuse when the regime is in-tree per mutant and the tool offers neither
+per-mutant observability nor interrupt safety: the gate that regime requires cannot be run, and a
+check that cannot run is not a check.
 
 ## Phase 1: Scope
 

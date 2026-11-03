@@ -140,15 +140,15 @@ stop with a re-injected self-check (keep going, or declare done), and if the lan
 allows the stop and alerts the operator via `hooks/lane-notify.sh` (OS toast + terminal bell/OSC 9,
 local machine only).
 
-Completion is signaled in two ways (a command hook cannot re-run the `/goal` evaluator model, which runs as a prompt-based Stop
-hook; see [goal: how evaluation works](https://code.claude.com/docs/en/goal#how-evaluation-works)
-and [hooks guide: prompt-based hooks](https://code.claude.com/docs/en/hooks-guide#prompt-based-hooks),
-as of 2026-11-01; recheck when either section changes what a command hook can trigger): the exact
-sentinel token in the agent's final message, or a marker file. The marker is consumed (deleted) when
-it authorizes a stop, one marker, one stop, so a file left in the checkout by a prior completed
-run never authorizes the stops of a later lane run. The gate is the settings-scoped,
-cross-session sibling of `/goal`'s session-only completion condition. Use `/goal` for a single
-session, this gate for a standing lane.
+Completion is signaled in two ways: the exact sentinel token in the agent's final message, or a
+marker file. The gate reads those signals itself and does not lean on the `/goal` evaluator
+(pointer: when deciding whether a command hook could use that evaluator instead, fetch
+[goal: how evaluation works](https://code.claude.com/docs/en/goal#how-evaluation-works) and
+[hooks guide: prompt-based hooks](https://code.claude.com/docs/en/hooks-guide#prompt-based-hooks)
+live; as of 2026-11-03; recheck when either section changes what a command hook can trigger). The
+marker is consumed (deleted) when it authorizes a stop, one marker, one stop, so a file left in the
+checkout by a prior completed run never authorizes the stops of a later lane run. Use `/goal` for a
+single session, this gate for a standing lane.
 
 **Default OFF**, a Stop-blocking hook must never engage for an interactive session.
 
@@ -174,8 +174,10 @@ settings precedence:
    session, and expires it after 7 days. The record is not consumed on a stop, a lane is one
    session across many `/loop` cycles, each of whose stops must stay gated, so it lives for the
    claiming session and is retired by TTL plus the launcher's relaunch sweep. To arm a hand-launched
-   session, run the arm helper from the installed plugin the same way, then pass the id via
-   `--settings '{"pluginConfigs":{"autonomy@<marketplace>":{"options":{"lane_stop_gate_arm_id":"<id>"}}}}'`.
+   session, run the arm helper from the installed plugin the same way, then pass the id as this
+   plugin's `lane_stop_gate_arm_id` option through `--settings`. Read the option's settings shape
+   from [settings reference: pluginConfigs](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
+   live (as of 2026-11-03; recheck when that entry changes its shape).
 3. **User `settings.json`**, located from the hook's own install path, a *persistent* enable that
    also gates interactive sessions, which defeats the default-OFF design; prefer the launcher.
 
@@ -188,11 +190,15 @@ settings precedence:
 - **Recheck trigger**: a Claude Code changelog entry changes managed-source precedence, the
   server-managed cache location, or how the server channel is described in its security section.
 
-A `--settings`-only `lane_stop_gate_enabled=true` is **not honored**; arm a lane through the
-launcher instead. That value reaches the hook only as the forgeable env mirror. The gate says so with a visible
-notice to the user, once per session (none to the model: on Stop it would continue the conversation), instead of disengaging silently, which is also how a stale (pre-arming)
+A `--settings`-only `lane_stop_gate_enabled=true` is **not honored**, because whoever launches the
+session controls that value; arm a lane through the launcher instead. The gate says so with a visible notice to the user, once per session (none to the model: on Stop it would continue the conversation), instead of disengaging silently, which is also how a stale (pre-arming)
 lane launcher surfaces. A `--plugin-dir` checkout install has no trusted user-settings or record
 location, so only managed settings can enable the gate there.
+
+- **Pointer**: when checking how an option value reaches a hook, fetch
+  <https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value> live.
+  **As of**: 2026-11-03. **Recheck trigger**: that section changes how an option value reaches a
+  hook process.
 
 It is fail-open (unreadable stdin / missing `jq` / a `SubagentStop` never trips it) and bounded
 against runaway by the `stop_hook_active` one-nudge guard plus Claude Code's own cap on

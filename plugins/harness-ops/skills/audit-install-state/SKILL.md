@@ -74,9 +74,11 @@ its own.
 
 ## Never read
 
-`.credentials.json`, `daemon/control.key`, `daemon/pipe.key`, `ide/*.lock` (its body carries an
-`authToken`), and the values inside `~/.claude.json`. These are inventory line-items: name, size,
-mtime, and nothing more. **Every subagent this skill dispatches inherits this rule; say so
+`.credentials.json`, `daemon/control.key`, `daemon/pipe.key`, `ide/*.lock`, and the values inside
+`~/.claude.json`. These are inventory line-items: name, size, mtime, and nothing more. What the
+product writes to disk unencrypted is read live from
+[claude directory: plaintext storage](https://code.claude.com/docs/en/claude-directory#plaintext-storage)
+(as of 2026-11-03; recheck when that section changes which files hold credentials or tokens). **Every subagent this skill dispatches inherits this rule; say so
 explicitly in any prompt you fan out.** The engine enforces it in its reader, and its whole
 content-read allowlist is `settings.json`, `.last-cleanup`, `plugins/.last_inuse_sweep`,
 `plugins/installed_plugins.json` and the `plugins/cache/*/*/*/.orphaned_at` markers; each entry
@@ -202,10 +204,12 @@ not run reports `unverified`, **never** `dead`. Schemes: [reference/name-schemes
 
 ## Phase 5. Home-root state
 
-`~/.claude.json` lives in the home directory, and **no value of `cleanupPeriodDays` touches it**.
-Report its size and mtime, never its values; route its growth to `claude purge <path>`, never to
-the retired `claude project purge` name. What the command removes and how it confirms are read
-live from the purge pointer in [reference/surfaces.md](reference/surfaces.md#home-root-state-outside-the-swept-tree).
+`~/.claude.json` lives in the home directory. Report its size and mtime, never its values; route
+its growth to `claude purge <path>`. What the command removes, how it confirms, and what the
+retention sweep leaves alone are read live from
+[claude directory: clear local data](https://code.claude.com/docs/en/claude-directory#clear-local-data)
+and the purge pointer in [reference/surfaces.md](reference/surfaces.md#home-root-state-outside-the-swept-tree)
+(as of 2026-11-03; recheck when that section renames the command or changes what it deletes).
 `.claude.json.tmp.<n>.<hash>` siblings are failed atomic-write remnants whose number is unverified,
 so the engine marks it `unknown` and attempts no lookup.
 
@@ -240,8 +244,11 @@ Consumes a genuinely unmanaged leftover this report surfaced; the audit itself n
   session start; `recent_writers` is behavioral evidence, `/harness-ops:plugins-audit` the verdict.
 - **An empty directory may be deliberate**, and **a cloud-session tree is the common experimental
   state.** Phases 0 and 1 exist so neither is graded as decay.
-- **`commands/`, `todos/`, `statsig/`, `logs/` being absent is good news.** It is positive evidence
-  the sweep completed, including its remove-the-empty-directory step.
+- **A directory the retention sweep owns being absent is not decay.** Never grade its absence as a
+  finding. Which directories the sweep removes, and whether it deletes the emptied directory, are
+  read live from
+  [claude directory: cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically)
+  (as of 2026-11-03; recheck when that section changes its path list).
 - **The "safe, no judgment required" tier most needs an independent check.** A case-insensitive
   comparer collapses deny rules that differ only by case; this skill's deny matching is
   case-sensitive and tested, and it encodes no dedupe or subsumption logic at all.

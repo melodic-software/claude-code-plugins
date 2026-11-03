@@ -1424,6 +1424,54 @@ for script in check-claim-eligibility.py check-claim-eligibility.test.sh; do
   fi
 done
 
+# ---------------------------------------------------------------------------
+# 26. A Direct claim rests on a person's own words (#12517)
+#
+# Trace-intent verification looped on comments under a person's login that
+# agents wrote. The tracer tags each source at write time, a script rejects a
+# Direct claim with only agent relays behind it, and the allow rules keep that
+# script from being denied where nobody can answer a prompt.
+# ---------------------------------------------------------------------------
+assert_present 'the intent header declares author_kind on a source' \
+  'skills/trace-intent/context/artifact-shape.md' '^ {8}author_kind: owner-quote +# owner-quote \| agent-relay$'
+assert_present 'artifact-shape says author_kind is who wrote the words' \
+  'skills/trace-intent/context/artifact-shape.md' '^## `author_kind` says who wrote the words$'
+assert_present 'artifact-shape treats a source it cannot tell about as an agent relay' \
+  'skills/trace-intent/context/artifact-shape.md' '^- \*\*You cannot tell\*\*: `agent-relay`'
+assert_present 'artifact-shape makes Direct need an owner-quote source' \
+  'skills/trace-intent/context/artifact-shape.md' '^\*\*A `Direct` claim needs at least one `owner-quote` source\.\*\*'
+assert_present 'the tracer tags each source with who wrote its words' \
+  'agents/intent-tracer.md' '^\*\*Tag each source with who wrote its words'
+assert_present 'the tracer requires the check to exit 0 before hand-back' \
+  'agents/intent-tracer.md' '^\*\*The author-kind check exits 0 before you hand back\.\*\*'
+assert_present 'the tracer runs the check as one plain command' \
+  'agents/intent-tracer.md' '^"\$\{CLAUDE_PLUGIN_ROOT\}/scripts/check-author-kind\.py" <memory-slice path>$'
+assert_present 'the outcome gate covers an inline trace' \
+  'skills/trace-intent/SKILL.md' '^- `"\$\{CLAUDE_PLUGIN_ROOT\}/scripts/check-author-kind\.py" <the slice>` exits 0\.$'
+assert_present 'the acceptance gate re-runs the check as a step' \
+  'skills/trace-intent/context/dispatch.md' '^3\. \*\*The author-kind check re-runs on disk\.\*\*'
+assert_present 'the acceptance gate runs the check as one plain command' \
+  'skills/trace-intent/context/dispatch.md' '^ +"<plugin-root>/scripts/check-author-kind\.py" <the retained memory-slice path>$'
+assert_present 'the by-value rung re-runs the check too' \
+  'skills/trace-intent/context/dispatch.md' '^steps 2 and 3 above'
+assert_present 'setup prints the quoted author-kind allow rule' \
+  'skills/setup/SKILL.md' '^ +Bash\("\$\{CLAUDE_PLUGIN_ROOT\}/scripts/check-author-kind\.py" \*\)$'
+assert_present 'setup prints the unquoted author-kind allow rule' \
+  'skills/setup/SKILL.md' '^ +Bash\(\$\{CLAUDE_PLUGIN_ROOT\}/scripts/check-author-kind\.py \*\)$'
+assert_present 'setup counts twelve gate allow rules' \
+  'skills/setup/SKILL.md' 'compare it with these twelve rules'
+assert_present 'parent-contract lists the quoted author-kind allow rule' \
+  'reference/parent-contract.md' '"Bash\(\\"<plugin root>/scripts/check-author-kind\.py\\" \*\)",$'
+assert_present 'parent-contract lists the unquoted author-kind allow rule' \
+  'reference/parent-contract.md' '"Bash\(<plugin root>/scripts/check-author-kind\.py \*\)",$'
+for script in check-author-kind.py check-author-kind.test.sh; do
+  if [[ -f "$PLUGIN_ROOT/scripts/$script" ]]; then
+    pass "$script ships"
+  else
+    fail "$script ships"
+  fi
+done
+
 printf '\n'
 if [[ "$fails" -eq 0 ]]; then
   printf 'All contract assertions passed.\n'

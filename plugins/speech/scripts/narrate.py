@@ -44,8 +44,8 @@ def espeak_phonemizer(lang):
     exe = shutil.which('espeak-ng')
     if not exe:
         raise Missing('espeak-ng was not found on PATH, so the kokoro backend cannot phonemize the script. '
-                      'Install it yourself (it is GPL-3.0; this plugin never ships it): run /speech:check for the '
-                      'install line for this system.')
+                      'Install it yourself (it is GPL-3.0; this plugin never ships it): run '
+                      f'python3 "{Path(__file__).with_name("check.py")}" for the install line for this system.')
     cache = {}
 
     def phonemize(word):
@@ -166,7 +166,7 @@ def narrate(text, out, data, voice=DEFAULT_VOICE, speed=1.0, phonemize=None, mod
         import onnxruntime as rt
     except ImportError as e:
         raise Missing(f'the Python packages do not import ({e}); start a new session, whose SessionStart hook '
-                      'installs them, or run the repair line from /speech:check.') from e
+                      f'installs them, or run the repair line that python3 "{Path(__file__).with_name("check.py")}" prints.') from e
     root = assets.assets_dir(data, model_dir=model_dir)
     vocab = json.loads((root / 'tokenizer.json').read_text(encoding='utf-8'))['model']['vocab']
     phonemize = phonemize or espeak_phonemizer(LANGS[voice[0]])

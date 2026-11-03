@@ -1179,4 +1179,28 @@ RO_ERR=$(CLAUDE_PROJECT_DIR="$IDX_REPO" bash "$HOOK" <<<"$IDX_PAYLOAD" 2>&1 >/de
 chmod 755 "$IDX_REPO/.git"
 assert_silent "index cache: an unwritable git directory leaves stderr empty" "$RO_ERR"
 
+# ===================== CODEX AND CURSOR MARKETPLACES ========================
+# A marketplace whose plugins carry only a .codex-plugin/ or .cursor-plugin/
+# manifest is still one: its references are judged against the same `name` and
+# `skills` keys. Each runs in its own repository, so no Claude manifest opens
+# the plugins-root gate for it.
+for HOST in codex cursor; do
+  REPO="$TEST_TMPDIR/$HOST-market"
+  mkdir -p "$REPO/plugins/$HOST-dir/.$HOST-plugin" "$REPO/plugins/$HOST-dir/skills/setup" \
+    "$REPO/plugins/$HOST-dir/extra/held"
+  git -C "$REPO" init -q
+  MSYS_NO_PATHCONV=1 jq -n --arg n "$HOST-tools" '{name:$n,version:"0.1.0",skills:"./extra/"}' \
+    >"$REPO/plugins/$HOST-dir/.$HOST-plugin/plugin.json"
+  : >"$REPO/plugins/$HOST-dir/skills/setup/SKILL.md"
+  : >"$REPO/plugins/$HOST-dir/extra/held/SKILL.md"
+  TARGET="$REPO/notes.md"
+  : >"$TARGET"
+  run "Run \`/$HOST-tools:missing\` next."
+  assert_contains "$HOST manifest: an unresolved skill is reported" "$OUT" "  /$HOST-tools:missing (no such skill"
+  assert_contains "$HOST manifest: the plugin resolves by manifest name to its directory" "$OUT" \
+    "plugins/$HOST-dir/skills/"
+  run "Use \`/$HOST-tools:setup\` and \`/$HOST-tools:held\`."
+  assert_silent "$HOST manifest: skills under skills/ and a declared path resolve" "$OUT"
+done
+
 report

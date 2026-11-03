@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "@dataclass(frozen=True)\nclass Money:\n    currency: Currency\n    amount_minor: int\n",
+      "why": "integer minor units beside a currency code"
+    },
+    {
+      "answer": "@dataclass(frozen=True)\nclass Money:\n    currency: Currency\n    minor_units: int  # cents for USD/EUR, yen for JPY\n",
+      "why": "an integer field named for the minor units"
+    },
+    {
+      "answer": "@dataclass(frozen=True)\nclass Money:\n    currency: Currency\n    amount: int  # smallest unit of the currency\n",
+      "why": "an integer amount field"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no artifact written"
+    },
+    {
+      "answer": "@dataclass(frozen=True)\nclass Money:\n    currency: Currency\n    amount: Decimal\n",
+      "why": "a Decimal, which can hold a fraction of the smallest unit"
+    },
+    {
+      "answer": "@dataclass(frozen=True)\nclass Money:\n    currency: Currency\n    amount: Decimal  # quantized to the currency's minor units (JPY has none)\n\n    def exponent(self) -> int:  # minor-unit digits: USD/EUR 2, JPY 0\n        ...\n",
+      "why": "a Decimal amount that only mentions minor units"
+    },
+    {
+      "answer": "A Money holds a currency code and an integer count of minor units.\n",
+      "why": "prose with no typed field"
+    },
+    {
+      "answer": "- `Decimal` amounts with per-currency rounding rules, rather than an integer count of minor units.\n",
+      "why": "the rejected option in prose"
+    },
+    {
+      "answer": "- `Decimal` amounts quantized to the currency's smallest unit, rather than an integer count of minor units.\n",
+      "why": "smallest unit beside the rejected option"
+    }
+  ]
+}

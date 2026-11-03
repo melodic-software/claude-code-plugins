@@ -3,6 +3,12 @@
 All notable changes to the `animation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.0] - 2026-11-03
+
+### Removed
+
+- The `check-prerequisites` skill is gone. To check this plugin's prerequisites, run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`.
+
 ## [0.7.9] - 2026-11-02
 
 ### Changed

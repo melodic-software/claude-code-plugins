@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Policyholder: the party that owns the insurance contract.",
+      "why": "verbatim"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Policyholder means the insured person.",
+      "why": "made up"
+    }
+  ]
+}

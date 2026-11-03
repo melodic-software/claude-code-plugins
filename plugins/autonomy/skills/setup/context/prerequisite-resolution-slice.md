@@ -70,6 +70,18 @@ record holds the upstream pointer for the platform bound the
 - **Recheck trigger**: a Claude Code release note names `AGENTS.md` loading or the Project
   instructions setting, or either section is renamed or removed.
 
+## Project server enablement
+
+The probe reports `.mcp.json` presence and server enablement separately and leaves enablement to
+the config-audit surface. This record holds the upstream pointer for the enablement rule the
+[prerequisite-resolution contract](../../../reference/prerequisite-resolution.md) does not restate.
+
+- **Pointer**: when deciding what enables a project server, fetch
+  <https://code.claude.com/docs/en/mcp#project-server-approvals-and-workspace-trust> live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section adds, removes or renames a setting that approves or rejects a
+  project server.
+
 ## Binding section shape
 
 ```json

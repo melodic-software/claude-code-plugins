@@ -2149,7 +2149,7 @@ test("no run-claude-cli plugin-dirs or add-dirs value names runner.temp, RUNNER_
 // does; check-permission-mode.sh accepts default for dontAsk on that basis.
 // 7b362428: lane.cjs:311-312; 164c2809: lane.cjs:355-358; d02b8697 and e5167fc2: lane.cjs:357-358;
 // ba7af78d291f10bd75651857a0db2357c23df0fe, 30b251532b2e9f7e0c4215e1dee5be0d3c688743, 81a603a6e2b0319428c981bf28f3fe923032afb2
-// and 2476d5dde8979eab34374150b7e4b0a2b99f4e88: lane.cjs:404-405; in cliArgs. The org requires
+// 2476d5dde8979eab34374150b7e4b0a2b99f4e88 and bc62beb95a989641f30552a932a132ebb8ecd801: lane.cjs:404-405; in cliArgs. The org requires
 // actions pinned to a full SHA, so a pin bump fails here until its lane.cjs is read and its SHA added.
 const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set([
   "7b362428c76085a160e28656cd2c75c3147a69ff",
@@ -2160,6 +2160,7 @@ const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set([
   "30b251532b2e9f7e0c4215e1dee5be0d3c688743",
   "81a603a6e2b0319428c981bf28f3fe923032afb2",
   "2476d5dde8979eab34374150b7e4b0a2b99f4e88",
+  "bc62beb95a989641f30552a932a132ebb8ecd801",
 ]);
 
 test("every run-claude-cli step pin in this repo's workflows is a launcher checked to pass --permission-prompts none", () => {
@@ -6678,6 +6679,40 @@ test("handoff-evidence.sh: job-level evidence decides through a lagging listing,
   assert.notEqual(failed.status, 0);
   assert.deepEqual(failed.outputs, {});
   assert.match(failed.stdout, /::error::.*the jobs read failed/);
+});
+
+// Under the gh wrapper each page goes through its header-visible path: a
+// primary limit holds to that response's x-ratelimit-reset, not a guessed hour,
+// and no later read in the retry loop reaches GitHub before it.
+test("handoff-evidence.sh: a rate-limited jobs page holds to its own x-ratelimit-reset under the gh wrapper", (t) => {
+  const root = tempDir("handoff-rate-");
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const lib = join(root, ".base", ".github");
+  mkdirSync(join(root, "bin"));
+  mkdirSync(join(lib, "scripts", "lib"), { recursive: true });
+  mkdirSync(join(lib, "actions", "log-api-budget"), { recursive: true });
+  writeFileSync(join(lib, "scripts", "lib", "handoff-evidence.sh"), readFileSync(HANDOFF_EVIDENCE));
+  writeFileSync(join(lib, "actions", "log-api-budget", "api-budget.bash"), readFileSync(new URL("../log-api-budget/api-budget.bash", import.meta.url)));
+  const reset = Math.floor(Date.now() / 1000) + 900;
+  const calls = join(root, "calls");
+  writeFileSync(
+    join(root, "bin", "gh"),
+    `#!/bin/bash\nprintf '%s\\n' "$*" >>"${calls}"\n` +
+      `printf 'HTTP/2.0 403 Forbidden\\r\\nX-Ratelimit-Limit: 1000\\r\\nX-Ratelimit-Remaining: 0\\r\\nX-Ratelimit-Reset: ${reset}\\r\\nX-Ratelimit-Resource: core\\r\\n\\r\\n{"message":"API rate limit exceeded for installation ID 1."}\\n'\nexit 1\n`,
+    { mode: 0o755 },
+  );
+  const output = join(root, "out");
+  writeFileSync(output, "");
+  const result = spawnSync("bash", [join(lib, "scripts", "lib", "handoff-evidence.sh"), "handed-off"], {
+    cwd: root,
+    encoding: "utf8",
+    env: { PATH: `${join(root, "bin")}:${process.env.PATH}`, RUNNER_TEMP: root, GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "99", GH_TOKEN: "x", GITHUB_OUTPUT: output, CALLS: "resolve-issue", HANDOFF_EVIDENCE_DELAYS: "0 0" },
+  });
+  assert.notEqual(result.status, 0);
+  assert.equal(readFileSync(calls, "utf8"), "api -i repos/o/r/actions/runs/99/jobs?filter=latest&per_page=100\n");
+  assert.equal(readFileSync(join(root, "api-budget", "stop"), "utf8"), `core ${reset}\n`);
+  assert.ok(!existsSync(join(root, "api-budget", "guessed")), "a header's reset is not a guess");
+  assert.match(result.stderr, /hit GitHub's core API rate limit: no call to it before \S+ \(x-ratelimit-reset\)/);
 });
 
 // The run job runs head code but cannot name a job: a run job step called

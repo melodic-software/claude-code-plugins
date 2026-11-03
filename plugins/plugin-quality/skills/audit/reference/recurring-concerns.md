@@ -7,10 +7,11 @@ audit.
 
 A guard is only as good as its coverage. Find the paths where it *doesn't* fire.
 
-- **Tool-matcher coverage.** Hooks match on tool name (e.g. `matcher: "Bash"`). If the same action
-  can be issued through a *different* tool (a PowerShell tool on Windows, a different shell tool),
-  the guard is silently bypassed. Enumerate every tool that can perform the gated action and check
-  the matcher covers them.
+- **Tool-matcher coverage.** Enumerate every tool that can perform the gated action (a PowerShell
+  tool on Windows, a different shell tool) and check the matcher covers each; a tool it misses is a
+  silent bypass. When reading what a matcher matches, fetch
+  [Matcher patterns](https://code.claude.com/docs/en/hooks#matcher-patterns) live. As of
+  2026-11-03. Recheck trigger: that section changes what a matcher filters on or how it is parsed.
 - **Direct-path bypass.** A skill that enforces a convention only at draft time enforces nothing if
   the user runs the underlying command directly. Ask: what happens if I bypass the skill entirely?
 - **Fail-open vs fail-closed.** When a prerequisite is missing (no `jq`, empty stdin, parse error),
@@ -64,8 +65,12 @@ A guard is only as good as its coverage. Find the paths where it *doesn't* fire.
 ## 5. Coupling & portability
 
 - **`.claude/` coupling.** Is an artifact under `.claude/` because it must be, or just by default?
-  `.claude/` is not write-protected and not special for storage, so a tool-agnostic doc other tools
-  should consume doesn't belong there. Ask whether the path should be configurable.
+  A tool-agnostic doc other tools should consume doesn't belong there. Ask whether the path should
+  be configurable. When checking which files Claude Code itself reads from `.claude/`, fetch
+  [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+  and the [.claude directory file reference](https://code.claude.com/docs/en/claude-directory#file-reference)
+  live. As of 2026-11-03. Recheck trigger: either section adds, removes or moves a file Claude Code
+  reads from `.claude/`.
 - **Single-plugin artifact in a shared repo.** A committed file only one plugin reads is inert (and
   confusing) for everyone else. Make it self-describing, or make its location configurable, or
   derive it from an existing shared source.
