@@ -38,11 +38,11 @@ Smart auto-detect when action is empty: read pre-computed context, classify stat
 
 Apply across every action. Violating any risks losing the working 2.8.0 setup or stranding the user with an upgraded Kindle that can't be downgraded without re-extracting from a different machine.
 
-- **Never open Kindle for PC while the firewall block is disabled UNLESS the user is actively syncing new books AND has the keyfinder ready to run immediately afterward.** Amazon stages 2.9.x installers aggressively; one open window with internet access is enough to cache an installer that auto-runs on next launch.
-- **Never run the cached installer at `%LOCALAPPDATA%\Amazon\Kindle\updates\KindleForPC-installer.exe`.** This is the auto-update payload that breaks key extraction. Delete it whenever it appears.
+- **Never open Kindle for PC while the firewall block is disabled UNLESS the user is actively syncing new books AND has the keyfinder ready to run immediately afterward.**
+- **Never run the cached installer at `%LOCALAPPDATA%\Amazon\Kindle\updates\KindleForPC-installer.exe`.** Delete it whenever it appears.
 - **Never recommend `--no-confirm` flags or batch-confirm cleanup.** Each reversal is independent; some harder to redo than others (re-pinning Kindle 2.8.0 is easy; re-syncing 50 books isn't). This holds when the user asks for "yes to all": never write, run or hand over a script or command that pipes `yes`, skips the prompts or loops over the reversals without asking.
 - **Never send any of these scripts, keys, or extracted files outside the user's machine.** Personal-use scope only.
-- **The cached installer + firewall race is real:** if user reports "an installer popped up when I opened Kindle," immediately follow scripts/sync-finalize.sh delete logic. Do not let the installer complete.
+- **An installer that appears is deleted at once:** if user reports "an installer popped up when I opened Kindle," immediately follow scripts/sync-finalize.sh delete logic. Do not let the installer complete.
 
 ## Action: setup
 
@@ -67,7 +67,7 @@ Sequence:
 1. Verify state via status.sh. Abort if firewall rule absent or ICACLS deny missing (run `setup` first).
 2. **Disable firewall block** (`scripts/firewall.ps1 disable`).
 3. **User opens Kindle for PC, syncs, double-clicks new books, quits Kindle.** Agent cannot drive GUI; pause for user confirmation.
-4. **Delete any newly-staged installer** at `%LOCALAPPDATA%\Amazon\Kindle\updates\*` (`scripts/sync-finalize.sh`). ICACLS deny prevents *future* writes but doesn't stop one that lands during the brief firewall-disabled window.
+4. **Delete any newly-staged installer** at `%LOCALAPPDATA%\Amazon\Kindle\updates\*` (`scripts/sync-finalize.sh`).
 5. **Re-enable firewall block** (`scripts/firewall.ps1 enable`).
 6. **Re-run keyfinder** (`~/Tools/Kindle_Key_Finder/Run_keyfinder_admin.vbs`). Saved config auto-loads; tool processes only new books.
 7. **Verify new EPUBs** under Calibre Library.

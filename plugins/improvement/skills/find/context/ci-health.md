@@ -63,17 +63,25 @@ parameters it applies to. Use the documented `created` date filter:
   each window separately with `created=<start>..<end>`.
 - Write the window bounds as **literal ISO dates** you compute yourself. Do not shell out to
   date arithmetic, whose flags are dialect-split.
-- `per_page` caps at 100 (values above are silently clamped). If a window's `total_count`
-  exceeds 100, either narrow the window or fetch the few extra pages *within* that window.
-  Shallow pages inside a bounded window are fine; an unbounded page walk across the whole
-  history is what the cap breaks.
+- If a window's `total_count` exceeds one page, either narrow the window or fetch the few extra
+  pages *within* that window. Shallow pages inside a bounded window are fine; never walk pages
+  across the whole history.
+  - **Pointer**: for the page-size limit, read the `per_page` parameter in
+    [List workflow runs for a repository](https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-repository).
+  - **As of**: 2026-11-03
+  - **Recheck trigger**: that section changes the `per_page` maximum.
 
 ## Metrics
 
 Per completed run, three fields do all the work: `conclusion` (failure ratio), `run_attempt`
-(retry detection: a run with `run_attempt > 1` was re-run), and
-`updated_at − run_started_at` (wall duration of the latest attempt; use `run_started_at`, not
-`created_at`, which includes queue time).
+(retry detection: `run_attempt > 1`), and `updated_at − run_started_at` (wall duration; use
+`run_started_at`, not `created_at`).
+
+- **Pointer**: for what each field records, read the response schema of
+  [Get a workflow run](https://docs.github.com/en/rest/actions/workflow-runs#get-a-workflow-run).
+- **As of**: 2026-11-03
+- **Recheck trigger**: that schema renames or drops `run_attempt`, `run_started_at` or
+  `created_at`.
 
 Via `gh` (one window; repeat per window):
 
@@ -95,14 +103,19 @@ gh api "repos/$OWNER/$REPO/actions/runs?created=2026-07-01..2026-07-07&per_page=
         | @tsv'
 ```
 
-Via the GitHub MCP tools, the per-run fields are the same (`conclusion`, `run_attempt`,
-`run_started_at`, `updated_at`) but the window mechanics are NOT: the `actions_list` tooling
-exposes no `created` date filter, so date-windowed iteration is unreachable through it. On the
-MCP path, read the most recent page(s) only, cite the covered span verbatim ("last N runs,
+Via the GitHub MCP tools, read the same per-run fields (`conclusion`, `run_attempt`,
+`run_started_at`, `updated_at`), but do not window by date. On the MCP path, read the most
+recent page(s) only, cite the covered span verbatim ("last N runs,
 &lt;oldest&gt;..&lt;newest&gt;"), and record the uncovered windows as a `gap:` line. Never page deep to
 reach them and never present a recent-page sample as full-window coverage. Full date-window
-iteration needs the REST call above (`gh api` or an equivalent raw-request path). Use
-`get_job_logs` (failed-jobs-only option) when a candidate needs "why is CI red" specifics.
+iteration uses the REST call above (`gh api` or an equivalent raw-request path). Use
+`get_job_logs` when a candidate needs "why is CI red" specifics.
+
+- **Pointer**: for the filters `actions_list` takes and the options `get_job_logs` offers, fetch
+  [GitHub MCP Server: Tools](https://github.com/github/github-mcp-server#tools) live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: `actions_list` documents a date filter, or `get_job_logs` changes its
+  options.
 
 Derived signals:
 
