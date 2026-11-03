@@ -5,8 +5,9 @@
 # script answers the question that check cannot: "do the FILES in the cache
 # directory actually match the commit the install record claims". The two are
 # not the same, and the gap between them is a real observed failure — see the
-# mechanism note below. NEVER writes anything: no state file, no cache
-# directory, no `git fetch`, no `claude plugin` call.
+# mechanism note below. Writes nothing but one private temporary file it removes
+# on exit: no state file, no cache directory, no `git fetch`, no `claude plugin`
+# call.
 #
 # Usage:
 #   cache-content-check.sh --marketplace <name> [--scope user|project|all] [--json]
@@ -27,8 +28,10 @@
 # MARKETPLACE rather than of the number of installs in it. Every external call
 # is batched fleet-wide: a marketplace with 77 installs costs the same handful
 # of processes as one with 3. Each process creation on Windows Git Bash is a
-# fork() emulation plus a CreateProcess, so a per-install call is the only cost
-# that matters here — the comparison itself is shell-local set arithmetic.
+# fork() emulation plus a CreateProcess, so no call is made per install. The
+# comparison is shell-local set arithmetic, and its loops over every tree and
+# cache path are what a batched run spends most of its time on, so each loop
+# does its ancestor walk once per directory rather than once per file.
 #   1. one `jq` over installed_plugins.json — every install record, every
 #      marketplace, read once;
 #   2. one `git rev-parse HEAD` in the marketplace clone — only a record whose
@@ -201,9 +204,10 @@
 # Exit codes:
 #   0  ran to completion (per-install verdicts, including every unverifiable
 #      one, are reported in the body — a verdict is not an error)
-#   2  fatal: jq or git missing, a usage error, a named marketplace that is not
-#      in known_marketplaces.json, or an internal state file that is present
-#      but does not match its expected shape (fail loud on schema drift)
+#   2  fatal: jq or git missing, no temporary file, a usage error, a named
+#      marketplace that is not in known_marketplaces.json, or an internal state
+#      file that is present but does not match its expected shape (fail loud on
+#      schema drift)
 #
 #   Deliberate divergence from fleet-state.sh's vocabulary, stated so it does
 #   not read as drift: fleet-state.sh exits 1 when a single marketplace cannot
@@ -383,6 +387,16 @@ if ! command -v git >/dev/null 2>&1; then
   echo "ERROR: git required" >&2
   exit 2
 fi
+
+# Every NUL-separated git and find stream is written here and read back with
+# `mapfile`, never read from a pipe: bash reads a pipe one byte per read call,
+# because it cannot seek back over what it read past the delimiter. A file it
+# reads in blocks. One file, reused by each step in turn, removed on exit.
+SPOOL=$(mktemp 2>/dev/null) || {
+  echo "ERROR: could not create a temporary file (mktemp)" >&2
+  exit 2
+}
+trap 'rm -f -- "$SPOOL"' EXIT
 
 # --- State files ---------------------------------------------------------------
 
@@ -632,8 +646,10 @@ check_marketplace() {
   # single-pathspec call would have produced.
   local -a tree_rel=() tree_blob=()
   local -A tree_hash=() owner_idx=() tree_rc_bad=()
-  local s rec meta path_rel blob owner walk rel idx tree_rc
+  local s rec meta path_rel blob owner walk rel idx tree_rc dir last_dir
+  local -a owners=() dir_owners=()
   for s in ${uniq_shas+"${uniq_shas[@]}"}; do
+    last_dir=$'\x02'
     local -a specs=()
     for ((gi = 0; gi < ${#g_sha[@]}; gi++)); do
       [[ "${g_sha[gi]}" == "$s" ]] || continue
@@ -644,12 +660,9 @@ check_marketplace() {
     # sharing a single commit to approach the argv ceiling; chunk here if one
     # ever does.
     local -a tree_recs=()
-    mapfile -d '' -t tree_recs < <(
-      git -C "$install_loc_native" ls-tree -r -z "$s" -- "${specs[@]}" 2>/dev/null
-      printf '%d\0' "$?"
-    )
-    tree_rc="${tree_recs[-1]}"
-    unset 'tree_recs[-1]'
+    tree_rc=0
+    git -C "$install_loc_native" ls-tree -r -z "$s" -- "${specs[@]}" >"$SPOOL" 2>/dev/null || tree_rc=$?
+    mapfile -d '' -t tree_recs <"$SPOOL"
     if [[ "$tree_rc" != "0" ]]; then
       tree_rc_bad["$s"]=1
       continue
@@ -673,28 +686,47 @@ check_marketplace() {
       # per-source `ls-tree` included the blob in both expected trees. The path
       # itself is tried first so a `source` naming a single file still resolves
       # the way a single-pathspec call resolved it.
-      walk="$path_rel"
-      while :; do
-        gkey="$s"$'\x1f'"$walk"
-        if [[ -n "${g_seen[$gkey]+set}" ]]; then
-          owner="$walk"
-          rel="${path_rel#"$owner"/}"
-          idx=${#tree_rel[@]}
-          tree_rel+=("$rel")
-          tree_blob+=("$blob")
-          # Keyed by SHA as well as source directory, the way `owner_idx` and
-          # `g_seen` are. Two records can share one source directory at
-          # different shas — the same plugin id at user and project scope, same
-          # version, one installPath — and a map keyed by directory alone would
-          # merge their trees: a file present only at the newer sha would then
-          # read as in-tree for the older record, never reach `extras_idx`, and
-          # a stale cache would verdict `match`. The HEAD gate in Pass 1 leaves
-          # one sha today; the key keeps this join correct if that gate widens.
-          tree_hash["$s"$'\x1f'"$owner"$'\x1f'"$rel"]="$blob"
-          owner_idx["$s"$'\x1f'"$owner"]+=" $idx"
+      #
+      # The ancestor walk is the per-entry cost here, not the git call, and
+      # `ls-tree -r` lists a directory's files together, so the owning sources
+      # of the entry's directory are worked out once per directory and reused.
+      owners=()
+      gkey="$s"$'\x1f'"$path_rel"
+      [[ -z "${g_seen[$gkey]+set}" ]] || owners+=("$path_rel")
+      if [[ "$path_rel" == */* ]]; then
+        dir="${path_rel%/*}"
+      else
+        dir=$'\x01'
+      fi
+      if [[ "$dir" != "$last_dir" ]]; then
+        last_dir="$dir"
+        dir_owners=()
+        if [[ "$dir" != $'\x01' ]]; then
+          walk="$dir"
+          while :; do
+            gkey="$s"$'\x1f'"$walk"
+            [[ -z "${g_seen[$gkey]+set}" ]] || dir_owners+=("$walk")
+            [[ "$walk" == */* ]] || break
+            walk="${walk%/*}"
+          done
         fi
-        [[ "$walk" == */* ]] || break
-        walk="${walk%/*}"
+      fi
+      owners+=(${dir_owners+"${dir_owners[@]}"})
+      for owner in ${owners+"${owners[@]}"}; do
+        rel="${path_rel#"$owner"/}"
+        idx=${#tree_rel[@]}
+        tree_rel+=("$rel")
+        tree_blob+=("$blob")
+        # Keyed by SHA as well as source directory, the way `owner_idx` and
+        # `g_seen` are. Two records can share one source directory at
+        # different shas — the same plugin id at user and project scope, same
+        # version, one installPath — and a map keyed by directory alone would
+        # merge their trees: a file present only at the newer sha would then
+        # read as in-tree for the older record, never reach `extras_idx`, and
+        # a stale cache would verdict `match`. The HEAD gate in Pass 1 leaves
+        # one sha today; the key keeps this join correct if that gate widens.
+        tree_hash["$s"$'\x1f'"$owner"$'\x1f'"$rel"]="$blob"
+        owner_idx["$s"$'\x1f'"$owner"]+=" $idx"
       done
     done
   done
@@ -736,48 +768,57 @@ check_marketplace() {
 
   local -a cache_full=()
   if [[ ${#roots[@]} -gt 0 ]]; then
-    mapfile -d '' -t cache_full < <(
-      {
-        # Chunked on a byte budget: an argv over the OS limit would make find
-        # fail, and with its stderr discarded that reads as an empty cache —
-        # every install in the fleet reported wholly missing-from-cache.
-        chunk=()
-        chunk_len=0
-        for rt in "${roots[@]}"; do
-          if [[ ${#chunk[@]} -gt 0 ]] && ((chunk_len + ${#rt} + 1 > 16000)); then
-            walk_cache_roots "${chunk[@]}"
-            chunk=()
-            chunk_len=0
-          fi
-          chunk+=("$rt")
-          chunk_len=$((chunk_len + ${#rt} + 1))
-        done
-        if [[ ${#chunk[@]} -gt 0 ]]; then
+    {
+      # Chunked on a byte budget: an argv over the OS limit would make find
+      # fail, and with its stderr discarded that reads as an empty cache —
+      # every install in the fleet reported wholly missing-from-cache.
+      chunk=()
+      chunk_len=0
+      for rt in "${roots[@]}"; do
+        if [[ ${#chunk[@]} -gt 0 ]] && ((chunk_len + ${#rt} + 1 > 16000)); then
           walk_cache_roots "${chunk[@]}"
+          chunk=()
+          chunk_len=0
         fi
-      } | sort -z
-    )
+        chunk+=("$rt")
+        chunk_len=$((chunk_len + ${#rt} + 1))
+      done
+      if [[ ${#chunk[@]} -gt 0 ]]; then
+        walk_cache_roots "${chunk[@]}"
+      fi
+    } | sort -z >"$SPOOL"
+    mapfile -d '' -t cache_full <"$SPOOL"
   fi
 
   # Each file's path relative to its own install root is derived HERE, once.
   # The passes below index it rather than re-deriving it: with ten thousand
   # cache files and three passes over them, the shell's own loop is what a
   # batched run spends its time on, not the processes it no longer starts.
+  # The sorted walk lists a directory's files together, so the root is found
+  # once per directory and reused for its files.
   local -a cache_rel=()
-  local cache_i f walk_dir
+  local cache_i f walk_dir f_dir last_f_dir=$'\x02' f_root=""
   for ((cache_i = 0; cache_i < ${#cache_full[@]}; cache_i++)); do
     cache_rel[cache_i]=""
     f="${cache_full[cache_i]}"
     [[ -n "$f" ]] || continue
-    walk_dir="$f"
-    while [[ "$walk_dir" == */* ]]; do
-      walk_dir="${walk_dir%/*}"
-      if [[ -n "${root_seen[$walk_dir]+set}" ]]; then
-        root_files["$walk_dir"]+=" $cache_i"
-        cache_rel[cache_i]="${f#"$walk_dir"/}"
-        break
-      fi
-    done
+    f_dir=$'\x01'
+    [[ "$f" != */* ]] || f_dir="${f%/*}"
+    if [[ "$f_dir" != "$last_f_dir" ]]; then
+      last_f_dir="$f_dir"
+      f_root=""
+      walk_dir="$f"
+      while [[ "$walk_dir" == */* ]]; do
+        walk_dir="${walk_dir%/*}"
+        if [[ -n "${root_seen[$walk_dir]+set}" ]]; then
+          f_root="$walk_dir"
+          break
+        fi
+      done
+    fi
+    [[ -n "$f_root" ]] || continue
+    root_files["$f_root"]+=" $cache_i"
+    cache_rel[cache_i]="${f#"$f_root"/}"
   done
 
   # --- Pass 5: split each install's cache files at the tree boundary ----------
@@ -897,10 +938,9 @@ check_marketplace() {
     # match the raw path it came from. check-ignore exits 1 when NOTHING
     # matched, which is a valid answer, so its status is deliberately not read
     # as a failure.
-    mapfile -d '' -t ignored_recs < <(
-      printf '%s\0' "${extra_probe[@]}" |
-        git -C "$install_loc_native" check-ignore -z --no-index --stdin 2>/dev/null
-    )
+    printf '%s\0' "${extra_probe[@]}" |
+      git -C "$install_loc_native" check-ignore -z --no-index --stdin >"$SPOOL" 2>/dev/null
+    mapfile -d '' -t ignored_recs <"$SPOOL"
     for line in ${ignored_recs+"${ignored_recs[@]}"}; do
       [[ -n "$line" ]] || continue
       ignored["$line"]=1
