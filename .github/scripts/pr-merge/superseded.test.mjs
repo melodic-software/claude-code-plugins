@@ -294,3 +294,44 @@ test("a repository name GitHub cannot hold reads nothing and runs the job", asyn
   assert.equal(run.superseded, false);
   assert.deepEqual(run.calls, []);
 });
+
+// pr-verify's wake: a PR-scoped dispatch (pr-merge.yml run-name
+// `pr-merge: arm #<pr>`) that github-actions[bot] starts with its GITHUB_TOKEN.
+const ACTIONS_BOT = { id: 41898282, login: "github-actions[bot]" };
+const scoped = (id, pr, actor = ACTIONS_BOT, options = {}) => ({ ...pending(id, "workflow_dispatch", actor, options), display_title: `pr-merge: arm #${pr}` });
+
+test("a PR-scoped dispatch, the bot's or a listed human's, supersedes no sweep", async () => {
+  for (const event of ["schedule", "workflow_dispatch"]) {
+    for (const actor of [ACTIONS_BOT, OWNER]) {
+      const run = await check({ job: "enable-auto-merge", event, runs: [scoped(600, 42, actor)] });
+      assert.equal(run.superseded, false, `${event} by ${actor.login}`);
+      assert.deepEqual(run.calls, [`GET ${LISTING}`], `${event} by ${actor.login}: no jobs read`);
+    }
+  }
+});
+
+test("a PR-scoped run is superseded by a sweep, which arms its pull request too", async () => {
+  for (const next of [pending(600, "schedule", QUEUE_BOT), pending(600, "workflow_dispatch")]) {
+    const run = await check({ job: "enable-auto-merge", event: "workflow_dispatch", runs: [next], env: { DISPATCH_PR: "42" } });
+    assert.equal(run.superseded, true, next.event);
+  }
+});
+
+test("a PR-scoped run is superseded by a newer dispatch for the same pull request, and no other", async () => {
+  const env = { DISPATCH_PR: "42" };
+  const same = await check({ job: "enable-auto-merge", event: "workflow_dispatch", runs: [scoped(600, 42)], env });
+  assert.equal(same.superseded, true);
+  assert.match(same.stdout, /run 600 \(workflow_dispatch\)/);
+  assert.equal((await check({ job: "enable-auto-merge", event: "workflow_dispatch", runs: [scoped(600, 42, OWNER)], env })).superseded, true, "a listed human's");
+  for (const [why, other] of [
+    ["another pull request", scoped(600, 43)],
+    ["a re-run", scoped(600, 42, ACTIONS_BOT, { attempt: 2 })],
+    ["re-run by another bot", scoped(600, 42, ACTIONS_BOT, { rerunner: LANES_BOT })],
+    ["another bot's", scoped(600, 42, LANES_BOT)],
+    ["another branch", scoped(600, 42, ACTIONS_BOT, { branch: "fix/other" })],
+    ["not a number", { ...scoped(600, 42), display_title: "pr-merge: arm #42 " }],
+  ]) {
+    const run = await check({ job: "enable-auto-merge", event: "workflow_dispatch", runs: [other], env });
+    assert.equal(run.superseded, false, why);
+  }
+});

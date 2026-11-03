@@ -3,6 +3,13 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.6.4] - 2026-11-03
+
+### Changed
+
+- babysit-prs: a push touching `plugins/harness-ops/skills/changelog/scripts/` now stops an
+  approval carrying, since the gated upstream-apply-changelog workflow runs a script there.
+
 ## [5.6.3] - 2026-11-03
 
 ### Changed
