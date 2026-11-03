@@ -7,6 +7,10 @@
     {
       "answer": "The change lowers the coverage minimum (branches 85 to 60) in jest.config.js (lines 7-8).",
       "why": "class words before a parenthesized line location"
+    },
+    {
+      "answer": "`jest.config.js:7-8`: the coverage thresholds drop from 85% to 60% and 90% to 75% with no reason given.",
+      "why": "only the verb drop, with percent signs"
     }
   ],
   "fail": [
