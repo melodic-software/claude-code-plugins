@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Answers from the existing entry without rewriting, normalizing, or relocating the glossary. It recognizes that passive reading is not an active model-language change.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}
