@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: 'codify-model-invoked-note-appends'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'appends-model-invoked-note'
+    type: 'llm'
+    criteria: 'Output appends the row and says a note is an observation, so a model invocation appends'
+    focus: 'trace'
+  - name: 'session-source-id'
+    type: 'llm'
+    criteria: 'Output uses a session:<UTC timestamp> source_id because no PR or commit was given'
+    focus: 'trace'
+  - name: 'no-proposal-or-install'
+    type: 'llm'
+    criteria: 'Output writes no proposal and installs nothing'
+    focus: 'trace'

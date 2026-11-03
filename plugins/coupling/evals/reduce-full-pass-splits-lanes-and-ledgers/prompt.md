@@ -1,0 +1,12 @@
+---
+description: 'The scaffold repository compares the magic status string "archived" in eleven files under src/orders/, and services/storefront and services/backoffice both write the orders table.'
+tags: ['reduce']
+allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+max_turns: 40
+timeout_seconds: 900
+expected_outcome: 'Verifies both findings against the tree, applies the magic-string reduction (named constant or type) as a budgeted behavior-preserving batch on a short-lived branch with build/test verification, routes the shared-database finding to a human as an architectural candidate without editing schema or services, and records both in the coupling ledger with statuses.'
+---
+
+/coupling:reduce
+
+This repo has a magic status string compared in eleven call sites, and its two web services share one database table that both write.

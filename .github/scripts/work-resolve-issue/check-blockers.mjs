@@ -29,12 +29,20 @@
 // A read that fails also skips, with a warning, and is not final, so the
 // sweep retries it.
 //
+// With RECHECK=true it is the read runner's in-slot re-check
+// (pr-run-activity-read.yml broker-check), after admission passed and the run
+// waited for its slot: one read of the blocked_by list decides when the list
+// is empty (proceed) or names an open blocker (blocked, as above). A list of
+// closed blockers alone takes the full check, since only it judges who
+// closed them.
+//
 // Environment:
 //   GH_TOKEN             the job's GITHUB_TOKEN (issues: read)
 //   GITHUB_REPOSITORY    owner/repo
 //   ISSUE_NUMBER         the issue agent-ready was added to
 //   TRUSTED_ACTORS_PATH  the default branch's trusted-actor list
 //   LANES_APP_ID         the lanes App bot's numeric user id
+//   RECHECK              `true` for the in-slot re-check above
 //   GITHUB_OUTPUT        receives proceed=true|false and untrusted=true|false,
 //                        outsider=true on the outside-author stop, and with
 //                        proceed=true split-child=true|false: whether the issue
@@ -70,6 +78,7 @@ export async function main({ env = process.env, github, log = console.log, write
   let subs;
   let splitChild;
   let finished = null;
+  let rechecked = false;
   try {
     if (!REPO.test(repository) || !NUMBER.test(number) || !NUMBER.test(env.LANES_APP_ID ?? "")) {
       throw new Error("GITHUB_REPOSITORY, ISSUE_NUMBER or LANES_APP_ID is not set to a repository, issue number and App id");
@@ -78,24 +87,32 @@ export async function main({ env = process.env, github, log = console.log, write
     const { humans } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
     const client = github ?? createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     const base = `/repos/${repository}/issues/${number}`;
-    const issue = await client("GET", base);
-    outsider = !authorAdmitted(issue, humans, appId);
-    const events = outsider ? [] : await paginate(client, `${base}/events`);
-    const isApp = (actor) => actor?.id === appId;
-    held = !outsider && untrustedHold({ labels: issue?.labels, events, humans, isApp });
-    if (!outsider && !held) {
-      // The same close admission counts (admit.mjs closedByTrusted), so a split
-      // parent the lanes App closed does not hold an issue admission let through.
-      // A blocker the App closed report-delivered no longer holds once a
-      // verdict or admission postdates its close (admit.mjs reportCleared).
-      const after = judgedSince(events, (actor) => humans.has(actor?.id) || isApp(actor));
-      const trusted = clearedPastReport({ github: client, repository, isApp, trusted: closedByTrusted({ github: client, repository, humans, appId }), after });
-      pending = await stillBlocking(await blockersOf(client, base), repository, trusted, (blocker) => trustedElsewhere(client, blocker, humans));
-      subs = pending.length > 0 ? [] : await openSubIssues(client, base, issue);
-      if (pending.length === 0 && subs.length === 0) {
-        const taskList = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)))["task-list"];
-        splitChild = await trustedSplitChild(client, repository, Number(number), humans, appId, taskList);
-        finished = await finishedParent({ github: client, repository, issue, trusted: closedByTrusted({ github: client, repository, humans, appId }) });
+    if (env.RECHECK === "true") {
+      const blockers = await blockersOf(client, base);
+      pending = await stillBlocking(blockers, repository, async () => true, async () => true);
+      rechecked = blockers.length === 0 || pending.length > 0;
+      subs = [];
+    }
+    if (!rechecked) {
+      const issue = await client("GET", base);
+      outsider = !authorAdmitted(issue, humans, appId);
+      const events = outsider ? [] : await paginate(client, `${base}/events`);
+      const isApp = (actor) => actor?.id === appId;
+      held = !outsider && untrustedHold({ labels: issue?.labels, events, humans, isApp });
+      if (!outsider && !held) {
+        // The same close admission counts (admit.mjs closedByTrusted), so a split
+        // parent the lanes App closed does not hold an issue admission let through.
+        // A blocker the App closed report-delivered no longer holds once a
+        // verdict or admission postdates its close (admit.mjs reportCleared).
+        const after = judgedSince(events, (actor) => humans.has(actor?.id) || isApp(actor));
+        const trusted = clearedPastReport({ github: client, repository, isApp, trusted: closedByTrusted({ github: client, repository, humans, appId }), after });
+        pending = await stillBlocking(await blockersOf(client, base), repository, trusted, (blocker) => trustedElsewhere(client, blocker, humans));
+        subs = pending.length > 0 ? [] : await openSubIssues(client, base, issue);
+        if (pending.length === 0 && subs.length === 0) {
+          const taskList = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)))["task-list"];
+          splitChild = await trustedSplitChild(client, repository, Number(number), humans, appId, taskList);
+          finished = await finishedParent({ github: client, repository, issue, trusted: closedByTrusted({ github: client, repository, humans, appId }) });
+        }
       }
     }
   } catch (error) {
@@ -121,6 +138,10 @@ export async function main({ env = process.env, github, log = console.log, write
   if (subs.length > 0) {
     log(`::notice title=umbrella::the run is skipped and agent-ready kept: the issue is an umbrella whose work is its sub-issues', and ${subs.map((sub) => `sub-issue #${sub.number}`).join(", ")} ${subs.length > 1 ? "are" : "is"} open; work-unblock's sweep re-fires it once none is`);
     write({ proceed: "false", untrusted: "false" });
+    return 0;
+  }
+  if (rechecked) {
+    write({ proceed: "true", untrusted: "false" });
     return 0;
   }
   write({ proceed: "true", untrusted: "false", "split-child": String(splitChild || finished !== null), ...(finished && { "verify-close": finished.join(",") }) });

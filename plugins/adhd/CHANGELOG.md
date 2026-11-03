@@ -3,6 +3,12 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.2] - 2026-11-03
+
+### Changed
+
+- Shared medium resolver modules (`view-settings.mjs` and the modules it loads) synced into `lib/` ([#12667](https://github.com/melodic-software/claude-code-plugins/issues/12667)); no other change to this plugin.
+
 ## [0.9.1] - 2026-11-03
 
 ### Changed

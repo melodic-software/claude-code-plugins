@@ -95,8 +95,8 @@
 // (check-blockers.mjs), so the close path above, which leaves an agent-ready
 // issue alone, never re-runs it. The sweep does: an agent-ready issue a
 // blocker still blocks is never re-fired, stranded or handed to a person, and
-// a run the blocker gate skipped is re-fired like a run that did no work once
-// none blocks. An umbrella, an issue with an open sub-issue, is skipped and
+// a run the blocker gate skipped, at admit or at the read runner's in-slot
+// re-check, is re-fired like a run that did no work once none blocks. An umbrella, an issue with an open sub-issue, is skipped and
 // waits the same way until none is open; the listing's sub_issues_summary
 // answers for one with none open at no extra call. A run the gate stopped on
 // an outside author or untrusted provenance, or an issue whose
@@ -291,7 +291,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, LANE_HOLDS, LANE_WORKFLOWS, parseOutcomeMarker, REFIRED, refireComment as refireRecord, refsHoldMarker, stripQueueLabels } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip, resolveStrandedBackoff, STRANDED_BACKOFF_MAX } from "../work-resolve-issue/limits.mjs";
-import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorAdmitted, attendedHold, blockersOf, CONFIRMED, confirmedOnly, decide, deferralLapsed, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, specOf, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorAdmitted, attendedHold, blockersOf, CONFIRMED, confirmedOnly, decide, deferralLapsed, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, SIZE_SPLIT_DONE, SPLIT_PENDING, specOf, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 import { subIssueLeftOpen } from "../lib/done-evidence.mjs";
 import { clearedPastReport, retriageNote, doneReason, judgedSince, mergedRefsReader, splitLeftOpen, splitParentClosed } from "../intake-triage/admit.mjs";
 import { budgetLatch } from "../../actions/log-api-budget/rate-guard.mjs";
@@ -318,6 +318,10 @@ const RESOLVE_CALLS = ["resolve-issue", "resolve-issue-subscription", "resolve-i
 // The admit job's step that skips a run while the issue has an open blocker,
 // or its blockers cannot be read (check-blockers.mjs); pick-slot then skips.
 const BLOCKER_STEP = "Wait for open blockers";
+// The read runner's broker-check step a run stops at, green, when its in-slot
+// re-check (check-blockers.mjs RECHECK) finds an open blocker added while it
+// waited for its slot, or cannot read them; no model ran and no marker follows.
+const RECHECK_STOP_STEP = "Stop on an open blocker";
 // The admit job's step a run stops at for good on untrusted provenance.
 const UNTRUSTED_STEP = "Stop on untrusted provenance";
 // broker-check's step, which asks the broker before any resolve-issue run job.
@@ -1315,7 +1319,7 @@ async function laneRuns(actions, repo, number, addedAt) {
 // skip its broker ask for the kill switch (`breaker`), was skipped by the WIP
 // cap (`capped`: pick-slot ran, resolve-issue did not), or was skipped by the
 // admit job's blocker gate (`blocked`: its BLOCKER_STEP ran and pick-slot did
-// not). A run another gate stopped before its mint (an open closing PR, a reused
+// not, or a call's broker-check stopped at RECHECK_STOP_STEP). A run another gate stopped before its mint (an open closing PR, a reused
 // branch) is none of these, so it is never re-fired here. Returned as
 // `stalled`, with `run` the run that made it a breaker trip and `stage`
 // where: `check` at broker-check, before any model turn, or `token` at a mint.
@@ -1354,8 +1358,8 @@ async function didNoWork(jobsOf, refusalOf, runs) {
       named("resolve-issue").length > 0 &&
       named("resolve-issue").every((job) => job.conclusion === "skipped");
     const blocked =
-      named("admit").some((job) => (job?.steps ?? []).some((step) => step?.name === BLOCKER_STEP && step.conclusion === "success")) &&
-      named("pick-slot").every((job) => job.conclusion === "skipped");
+      (named("admit").some((job) => endedAt(job, BLOCKER_STEP, "success")) && named("pick-slot").every((job) => job.conclusion === "skipped")) ||
+      calls.some((job) => endedAt(job, RECHECK_STOP_STEP, "success"));
     // One log per run: broker-check's when it refused, failed or stopped
     // green, else the first failed mint's, else the first stopped mint's.
     const refused = killed
@@ -2221,7 +2225,7 @@ async function refreshSplitWait({ github, repo, parent, comments, open, bot }) {
     .slice(`${ADMIT_MARKER}\n${WAIT_PREFIX}`.length)
     .replace(/\.$/, "")
     .split("; ");
-  if (!own || !reasons.every((reason) => reason === SIZE_SPLIT_PENDING || /^sub-issue #\d+ is open$/.test(reason))) {
+  if (!own || !reasons.every((reason) => SPLIT_PENDING.has(reason) || /^sub-issue #\d+ is open$/.test(reason))) {
     return false;
   }
   const children = await open();

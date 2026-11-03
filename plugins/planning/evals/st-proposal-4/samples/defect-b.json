@@ -15,6 +15,10 @@
     {
       "answer": "| 2 | HIGH | Assumption | stations.toml shows local clocks with a utc_offset_minutes field, contradicting the draft | Apply the offset |\n",
       "why": "contradicting"
+    },
+    {
+      "answer": "- The draft doesn't account for local clocks in `config/stations.toml`, so readings land in the wrong hour's segment.\n",
+      "why": "doesn't account for"
     }
   ],
   "fail": [

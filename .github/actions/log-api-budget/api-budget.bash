@@ -27,9 +27,9 @@
 #
 # The rate guard, rate-guard.mjs's shell port: once a response shows a pool
 # exhausted, no gh call goes to that pool before its reset for the rest of the
-# job; each refusal returns 1 with an error naming the reset, and so does a
-# call GitHub refused. A call GitHub answered with a 2xx keeps its answer and
-# gh's status, so no caller resends a write GitHub accepted, unless its stop
+# job; each refusal returns 1 with an error naming the reset (a notice when
+# the caller holds, API_BUDGET_HOLD=1), and so does a call GitHub refused. A
+# call GitHub answered with a 2xx keeps its answer and gh's status, so no caller resends a write GitHub accepted, unless its stop
 # cannot be recorded, which ends the step first (below). Its stops are
 # lines `<pool> <reset epoch>` in $RUNNER_TEMP/api-budget/stop; a stop whose time is a guess (no header of
 # the refused response gave it) goes in $RUNNER_TEMP/api-budget/guessed too. Readers take only lines
@@ -403,6 +403,10 @@ api_budget_guessed() {
 
 api_budget_label() { [[ $1 == '*' || $1 == any ]] && echo API || echo "$1 API"; }
 api_budget_when() { jq -rn --argjson t "$1" '$t | todate'; }
+# A rate limit's annotation: a notice when the caller holds (API_BUDGET_HOLD=1,
+# outage posture element 2), else an error. The call returns 1 either way, so
+# a gate that does not hold still fails on it.
+api_budget_level() { [[ ${API_BUDGET_HOLD:-} == 1 ]] && echo notice || echo error; }
 
 api_budget_refuse() {
   local until
@@ -412,13 +416,13 @@ api_budget_refuse() {
   fi
   until=$(api_budget_stop_until "$1")
   [[ -z $until ]] && return 0
-  echo "::error::'$2' was not sent: GitHub's $(api_budget_label "$1") rate limit holds until $(api_budget_when "$until")" >&2
+  echo "::$(api_budget_level)::'$2' was not sent: GitHub's $(api_budget_label "$1") rate limit holds until $(api_budget_when "$until")" >&2
   return 1
 }
 
 api_budget_stop() {
   local dir=${RUNNER_TEMP:-/tmp}/api-budget lines
-  lines=("::error::'$4' hit GitHub's $(api_budget_label "$1") rate limit: no call to it before $(api_budget_when "$2") ($3); ${5:-the call returns 1}")
+  lines=("::$(api_budget_level)::'$4' hit GitHub's $(api_budget_label "$1") rate limit: no call to it before $(api_budget_when "$2") ($3); ${5:-the call returns 1}")
   # One printf per line: the line and its newline go in one write.
   if mkdir -p "$dir" 2>/dev/null && { printf '%s %s\n' "$1" "$2" >>"$dir/stop"; } 2>/dev/null &&
     { [[ $3 == retry-after || $3 == x-ratelimit-reset ]] || { printf '%s %s\n' "$1" "$2" >>"$dir/guessed"; } 2>/dev/null; }; then

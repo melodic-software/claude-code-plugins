@@ -15,6 +15,10 @@
     {
       "answer": "| 4 | HIGH | Plan | send_sms can make 3 requests per call (config attempts = 3), so a row does not map to one text | Fix the assumption |\n",
       "why": "table row, three requests"
+    },
+    {
+      "answer": "- The draft doesn't account for retries in `send_sms` in `reminders/gateway.py`, which sends up to three requests.\n",
+      "why": "doesn't account for"
     }
   ],
   "fail": [

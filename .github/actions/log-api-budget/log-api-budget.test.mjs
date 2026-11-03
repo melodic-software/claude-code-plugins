@@ -516,6 +516,25 @@ test("gh guard: a limited response sends no second call to its pool, and the err
     const reset = new Date(Number(readFileSync(join(dir, "api-budget", "stop"), "utf8").split(" ")[1]) * 1000).toISOString().replace(".000Z", "Z");
     assert.match(out.stderr, new RegExp(`::error::'gh api repos/o/r/pulls/1' hit GitHub's core API rate limit: no call to it before ${reset}`));
     assert.match(out.stderr, new RegExp(`::error::'gh api repos/o/r/pulls/2' was not sent: GitHub's core API rate limit holds until ${reset}`));
+    assert.doesNotMatch(out.stderr, /::notice::/);
+  }));
+
+// Outage posture element 2: a caller that holds (API_BUDGET_HOLD=1) gets each
+// rate limit as a notice, never an error; each call still returns 1, so a
+// caller that does not hold, such as ci-status, still fails on it.
+test("gh guard: when the caller holds, a rate limit is a notice, not an error, and each call still returns 1", () =>
+  withDir((dir) => {
+    const out = guarded(
+      dir,
+      ['403 0 - {"message":"API rate limit exceeded for installation ID 1."}', "200 4000 - {}"],
+      'gh api repos/o/r/pulls/1 >/dev/null || echo "first=$?"\ngh api repos/o/r/pulls/2 >/dev/null || echo "second=$?"',
+      { API_BUDGET_HOLD: "1" },
+    );
+    assert.equal(out.stdout, "first=1\nsecond=1\n");
+    assert.deepEqual(out.calls, ["api -i repos/o/r/pulls/1"]);
+    assert.match(out.stderr, /::notice::'gh api repos\/o\/r\/pulls\/1' hit GitHub's core API rate limit: no call to it before /);
+    assert.match(out.stderr, /::notice::'gh api repos\/o\/r\/pulls\/2' was not sent: GitHub's core API rate limit holds until /);
+    assert.doesNotMatch(out.stderr, /::error::/);
   }));
 
 test("gh guard: retry-after stops every pool until it ends, and an ended stop lets calls go", () =>

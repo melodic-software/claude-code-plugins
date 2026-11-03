@@ -23,6 +23,10 @@
     {
       "answer": "| 1 | IMPORTANT | Plan | AC3's sanity check does not test an overdraw and would pass with `ErrOverdraw` deleted | Fix before building |\n",
       "why": "paraphrase"
+    },
+    {
+      "answer": "- The plan says the Phase 3 sanity check will exercise the overdraw refusal, but moving 5 from a bin of 20 never reaches it.\n",
+      "why": "quotes the claim, then attacks it"
     }
   ],
   "fail": [

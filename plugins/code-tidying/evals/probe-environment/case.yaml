@@ -1,8 +1,10 @@
 schema_version: "1.1"
 name: probe-environment
-description: Confirms the eval run resolves a python3 with the comment-tooling wheels and a make binary
+description: Confirms the sandbox's python3 imports the comment-tooling wheels the scaffold installs, and a make binary resolves
 tags: [probe]
 runs: 1
+context:
+  scaffold_script: scaffold.sh
 execution:
   prompt: "Run this exact command with the Bash tool and report its full output verbatim: command -v python3; python3 -c 'import pygments, tree_sitter, tree_sitter_bash' && echo imports-$((40+2)); command -v make; echo PATH=$PATH"
   allowed_tools: [Bash]

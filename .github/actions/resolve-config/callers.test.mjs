@@ -1184,6 +1184,7 @@ test("pr-run-activity-read.yml: an issue run on stale workflow files stops green
     "steps.config.outputs.applies": "true",
     "steps.config.outputs.kind": "skill",
     "needs.broker-check.outputs.lease": "held",
+    "needs.broker-check.outputs.blocked": "false",
   };
   for (const [stale, stops] of [["true", true], ["", false]]) {
     const context = { ...issueSkill, "steps.workflow-current.outputs.stale": stale };
@@ -1268,6 +1269,121 @@ test("pr-run-activity-read.yml: an issue run on stale workflow files stops green
   proceeds(runCheck("0".repeat(40)));
   proceeds(runCheck(""));
   proceeds(runCheck(run, ""));
+});
+
+// admit checks an issue's blockers before the run waits for its slot, which
+// can take an hour; a blocker added meanwhile must still stop the model. Every
+// job of the read runner runs inside the caller job's slot group, so
+// broker-check, before the run job, re-runs admit's check-blockers.mjs once
+// the run holds the slot and its lease, and an open blocker stops the run as
+// admit's does: no model turn, no outcome marker, the lease ended.
+test("pr-run-activity-read.yml: an issue run re-checks its blockers inside the slot, before the model, and an open blocker stops it as admit does", () => {
+  const caller = workflow("work-resolve-issue.yml").jobs;
+  const { jobs } = workflow("pr-run-activity-read.yml");
+  // The slot is held by the caller jobs that call the read runner, so the
+  // whole call, broker-check included, runs inside it.
+  for (const id of ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback"]) {
+    assert.equal(caller[id].uses, "./.github/workflows/pr-run-activity-read.yml", id);
+    assert.equal(caller[id].concurrency.group, "work-resolve-issue-slot-${{ needs.pick-slot.outputs.slot }}", id);
+  }
+  // The same check, from the default branch tip, as admit's step.
+  const admitStep = caller.admit.steps.find((step) => step.id === "blockers");
+  const check = jobs["broker-check"];
+  const steps = check.steps;
+  const index = (match) => steps.findIndex(match);
+  const recheck = steps[index((step) => step.id === "recheck-blockers")];
+  assert.ok(recheck, "broker-check has a recheck-blockers step");
+  assert.equal(recheck.run, admitStep.run);
+  for (const key of ["ISSUE_NUMBER", "TRUSTED_ACTORS_PATH", "LANES_APP_ID", "GH_TOKEN"]) {
+    assert.ok(recheck.env[key], key);
+  }
+  assert.equal(recheck.env.TRUSTED_ACTORS_PATH, admitStep.env.TRUSTED_ACTORS_PATH);
+  assert.equal(recheck.env.LANES_APP_ID, admitStep.env.LANES_APP_ID);
+  assert.equal(recheck.env.GH_TOKEN, "${{ github.token }}", "the job's own token, as admit's");
+  assert.equal(recheck.env.RECHECK, "true");
+  // After the slot (inside the call), after the lease, before the model's job.
+  assert.ok(index((step) => step.id === "lease") < steps.indexOf(recheck));
+  assert.deepEqual([jobs.run.needs].flat(), ["broker-check"]);
+  // Its calls are counted: job-level API_BUDGET_TOKEN and the always() budget step last.
+  assert.equal(check.env.API_BUDGET_TOKEN, "github-token");
+  const budget = steps.at(-1);
+  assert.equal(budget.uses, "./.base/.github/actions/log-api-budget");
+  assert.equal(budget.if, "always()");
+  // No job's permissions widen: broker-check's issues grant was already the lease's, and the model job holds read only.
+  assert.deepEqual(check.permissions, { contents: "read", "id-token": "write", issues: "write" });
+  assert.deepEqual(jobs.run.permissions, { contents: "read", "pull-requests": "read" });
+  // Only the first call of an issue run re-checks, and only once it holds its lease;
+  // the subscription and fallback legs, PR mode and a backed-off run do not.
+  const first = { "inputs.issue-number": "7", "inputs.fallback": "", "steps.lease.outputs.lease": "held" };
+  assert.equal(evaluate(recheck.if, first), true);
+  for (const [name, change] of [
+    ["the subscription leg", { "inputs.fallback": "handoff" }],
+    ["the fallback leg", { "inputs.fallback": "fallback" }],
+    ["PR mode", { "inputs.issue-number": "" }],
+    ["another session's lease", { "steps.lease.outputs.lease": "already-leased" }],
+    ["no lease", { "steps.lease.outputs.lease": "" }],
+  ]) {
+    assert.equal(evaluate(recheck.if, { ...first, ...change }), false, name);
+  }
+  assert.equal(caller["resolve-issue"].with.fallback, undefined);
+  assert.equal(caller["resolve-issue-subscription"].with.fallback, "handoff");
+  assert.equal(caller["resolve-issue-fallback"].with.fallback, "fallback");
+  // An open blocker, or an unread one (proceed false), stops the run at the named stop step.
+  const stop = steps.find((step) => step.name === "Stop on an open blocker");
+  assert.ok(steps.indexOf(recheck) < steps.indexOf(stop) && steps.indexOf(stop) < steps.length - 1);
+  assert.equal(check.outputs.blocked, "${{ steps.recheck-blockers.outcome == 'success' && steps.recheck-blockers.outputs.proceed != 'true' }}");
+  for (const [outcome, proceed, blocked] of [
+    ["success", "false", true],
+    ["success", "true", false],
+    ["skipped", "", false],
+  ]) {
+    const context = { "steps.recheck-blockers.outcome": outcome, "steps.recheck-blockers.outputs.proceed": proceed };
+    assert.equal(evaluate(stop.if, context), blocked, `${outcome} ${proceed}`);
+    assert.equal(evaluate(check.outputs.blocked, context), blocked, `${outcome} ${proceed}`);
+  }
+  // The run job then starts no model and names no earlier branch, so the
+  // caller's report-outcome and apply jobs skip, as after admit's stop.
+  const runSteps = jobs.run.steps;
+  const go = runSteps.find((step) => step.id === "go");
+  assert.equal(go.env.BLOCKED, "${{ needs.broker-check.outputs.blocked }}");
+  const decideGo = (env) => {
+    const out = join(tempDir("recheck-go-"), "out");
+    writeFileSync(out, "");
+    spawnSync("bash", ["-c", go.run], { encoding: "utf8", env: { ...process.env, PRIOR: "", STALE: "", LEASE: "held", BLOCKED: "", ...env, GITHUB_OUTPUT: out } });
+    return readFileSync(out, "utf8").trim();
+  };
+  assert.equal(decideGo({ BLOCKED: "true" }), "run=false");
+  assert.equal(decideGo({ BLOCKED: "false" }), "run=true");
+  const prior = runSteps.find((step) => step.id === "issue-prior");
+  const issueSkill = {
+    "inputs.issue-number": "7",
+    "steps.config.outputs.applies": "true",
+    "steps.config.outputs.kind": "skill",
+    "steps.workflow-current.outputs.stale": "",
+    "needs.broker-check.outputs.lease": "held",
+  };
+  assert.equal(evaluate(prior.if, { ...issueSkill, "needs.broker-check.outputs.blocked": "true" }), false);
+  assert.equal(evaluate(prior.if, { ...issueSkill, "needs.broker-check.outputs.blocked": "false" }), true);
+  assert.match(jobs.run.outputs["issue-run-started"], /steps\.go\.outputs\.run == 'true'/);
+  // The read runner's report job ends the held lease, since the caller's report-outcome does not run.
+  const report = jobs.report;
+  const stopped = {
+    "needs.run.outputs.handed-off": "false",
+    "github.event_name": "issues",
+    "github.event.pull_request.head.repo.full_name": "",
+    "github.repository": "o/r",
+    "github.event.sender.id": "1",
+    "vars.AUTOMATION_LANES_APP_SENDER_ID": "2",
+    "inputs.issue-number": "7",
+    // Longer names first: evaluate replaces each name as text.
+    "needs.broker-check.outputs.lease-comment-id": "99",
+    "needs.broker-check.outputs.lease": "held",
+    "inputs.caller-releases-lease": true,
+    "needs.issue-fields.outputs.issue-run-started": "false",
+    "needs.issue-fields.outputs.reuse-branch": "",
+  };
+  assert.equal(evaluate(report.if, stopped), true);
+  assert.equal(evaluate(report.if, { ...stopped, "needs.issue-fields.outputs.issue-run-started": "true" }), false, "a run that started leaves it to the caller");
 });
 
 // A fresh start past a stale lane branch (report-outcome --find-prior): the
@@ -2155,7 +2271,8 @@ test("no run-claude-cli plugin-dirs or add-dirs value names runner.temp, RUNNER_
 // does; check-permission-mode.sh accepts default for dontAsk on that basis.
 // 7b362428: lane.cjs:311-312; 164c2809: lane.cjs:355-358; d02b8697 and e5167fc2: lane.cjs:357-358;
 // ba7af78d291f10bd75651857a0db2357c23df0fe, 30b251532b2e9f7e0c4215e1dee5be0d3c688743, 81a603a6e2b0319428c981bf28f3fe923032afb2
-// 2476d5dde8979eab34374150b7e4b0a2b99f4e88 and bc62beb95a989641f30552a932a132ebb8ecd801: lane.cjs:404-405; in cliArgs. The org requires
+// 2476d5dde8979eab34374150b7e4b0a2b99f4e88, bc62beb95a989641f30552a932a132ebb8ecd801 and
+// 09cf6f2ecd22f7188e62552dea9af48adbd23bb1: lane.cjs:404-405; in cliArgs. The org requires
 // actions pinned to a full SHA, so a pin bump fails here until its lane.cjs is read and its SHA added.
 const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set([
   "7b362428c76085a160e28656cd2c75c3147a69ff",
@@ -2167,6 +2284,7 @@ const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set([
   "81a603a6e2b0319428c981bf28f3fe923032afb2",
   "2476d5dde8979eab34374150b7e4b0a2b99f4e88",
   "bc62beb95a989641f30552a932a132ebb8ecd801",
+  "09cf6f2ecd22f7188e62552dea9af48adbd23bb1",
 ]);
 
 test("every run-claude-cli step pin in this repo's workflows is a launcher checked to pass --permission-prompts none", () => {

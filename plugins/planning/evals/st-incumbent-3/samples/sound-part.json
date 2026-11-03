@@ -35,6 +35,14 @@
     {
       "answer": "- `watchDatabase` in `main.go` exits after three failed checks while Tidewrite retries the flush, so the plan's outage handling is wrong: the restart wipes the in-memory queue.\n",
       "why": "a correct defect-c report that says retries and wrong"
+    },
+    {
+      "answer": "- A retried batch is harmless: `ON CONFLICT DO NOTHING` prevents duplicate rows.\n",
+      "why": "approval"
+    },
+    {
+      "answer": "- The ring buffer overwrites the oldest rows when Tidewrite retries during an outage.\n",
+      "why": "other finding"
     }
   ],
   "fail": [
@@ -69,6 +77,14 @@
     {
       "answer": "- Retrying a failed flush is unsafe with `insertSample` as written.\n",
       "why": "unsafe bound to the retry claim"
+    },
+    {
+      "answer": "- Retrying `insertSample` is unsafe: Tidewrite replays the whole buffer and overwrites newer rows.\n",
+      "why": "attack using the draft's word buffer"
+    },
+    {
+      "answer": "- `ON CONFLICT DO NOTHING` does not prevent duplicate rows when Tidewrite retries a batch.\n",
+      "why": "does not prevent"
     }
   ]
 }

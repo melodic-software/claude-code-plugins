@@ -1,5 +1,5 @@
 ---
-description: "Read coverage artifacts a build already wrote (lcov, Cobertura, coverage.py JSON, a Go cover profile) and report line coverage per file and function, plus CRAP per function, for a change, a path, or the tree. Runs no tests, never gates. Use when: 'coverage of this change', 'coverage per function', 'CRAP score', 'which functions are complex and untested', 'read the lcov report', 'coverage.xml', 'how covered is this file'. Complexity alone: /code-metrics:audit-complexity."
+description: "Read coverage artifacts a build already wrote (lcov, Cobertura, coverage.py JSON, a Go cover profile) and report line coverage per file and function, plus CRAP per function, for a change, a path, or the tree. Runs no tests, never gates. Use when: 'coverage of this change', 'coverage per function', 'CRAP score', 'which functions are complex and untested', 'read the lcov report', 'coverage.xml', 'how covered is this file'. Complexity alone: /code-metrics:audit complexity."
 argument-hint: "[--json] [--all] [--base <ref>] [--artifacts <path>]... [<path>...]"
 user-invocable: true
 disable-model-invocation: false
@@ -22,7 +22,7 @@ and stays there, so nothing here executes a test command, starts a runner, or in
 
 Two numbers come out. Line coverage per file and per function is read from the artifact. CRAP per
 function is derived: `comp^2 * (1 - cov/100)^3 + comp`, where `comp` is the function's cyclomatic
-complexity from the sibling `audit-complexity` script, run over the same scope.
+complexity from the `audit` skill's `audit-complexity.sh` script, run over the same scope.
 
 | Format | Written by | What the join gets from it |
 |---|---|---|
