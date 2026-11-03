@@ -367,6 +367,13 @@ def _format_stderr(stderr: object) -> str:
     return text
 
 
+_PLUGIN_ROOT_TEXT = Path(__file__).resolve().parents[3].as_posix()
+_CHECKER_HINT = (
+    f'diagnose with: node "{_PLUGIN_ROOT_TEXT}/lib/prerequisites.mjs" check '
+    f'"{_PLUGIN_ROOT_TEXT}"'
+)
+
+
 def _build_message(failures: list[dict]) -> str:
     count = len(failures)
     # Records are scanned in file order (chronological); the last match is
@@ -380,7 +387,7 @@ def _build_message(failures: list[dict]) -> str:
         f"disk-hygiene: {_GUARD_DISPLAY_NAME} failed to run or exited "
         f"non-zero {count} time{plural} this session, so those calls may have "
         f"run unchecked. Latest: exitCode: {exit_code}, durationMs: "
-        f"{duration_ms}, stderr: {stderr_text} /disk-hygiene:check diagnoses."
+        f"{duration_ms}, stderr: {stderr_text} {_CHECKER_HINT}"
     )
 
 

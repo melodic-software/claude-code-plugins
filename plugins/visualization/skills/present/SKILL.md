@@ -32,11 +32,11 @@ or publish. Your own summary of it is just as untrusted, so it never becomes mar
 
 ## 2. Decide whether a deck leaves the machine
 
-The gate script in step 4 reads the medium layers itself: this plugin's `medium` option,
-`~/.claude/rendered-views.md`, an untracked and gitignored `<repo>/.claude/rendered-views.local.md`,
-and the team `.claude/rendered-views.md`, which can keep a deck local but never publishes from the
-team layer, since it can arrive in a checked-out branch. Do not read or weigh those files yourself.
-A deck never goes to a page host: `medium: hosted` is treated as `artifact` here.
+The gate script in step 4 resolves the medium itself, through the shared medium resolver: your
+argument, this plugin's `medium` option, and the repository's rendered-views convention files. A
+team file can keep a deck local but never publishes from the team layer, since it can arrive in a
+checked-out branch. Do not read or weigh those files yourself. A deck never goes to a page host: `hosted` is treated as
+`artifact` here.
 
 - A CI or other non-interactive run: deliver the outline only.
 - Otherwise go on. The visibility is the source repository's
@@ -79,10 +79,9 @@ escaped text (`&amp;`, `&lt;`, `&gt;`): plain text and layout elements, with `cl
 ```
 
 Pass the real path of the folder, not one through a symlink. Pass `--argument` only when the user's
-own argument to this invocation names that medium. On exit 0, tell the user which layer supplied
-the medium: a `reason` of the form `<layer> sets medium: ...` names it (`hosted, treated as
-artifact` for a `hosted` layer), and any other `reason` means no layer set one, so say "shipped
-default". The output names the `medium`:
+own argument to this invocation names that medium. On exit 0, print each line of the output's
+`report` as it stands: it names the medium and what decided it, then any notice. The output names
+the `medium`:
 
 - `artifact`: say "publishing as a private Artifact on claude.ai", then create the deck from the
   quickstart's `type_url` with its title set to the `title` the gate printed, which it read from the
@@ -93,7 +92,7 @@ default". The output names the `medium`:
     live. **As of**: 2026-10-11. **Recheck trigger**: that section changes who can see an
     unshared artifact.
 - `terminal` or `file`: publish nothing. Give the outline and the `reason`, and the `opt_in` when
-  there is one (`medium: artifact` in `~/.claude/rendered-views.md`).
+  there is one (this plugin's `medium` option set to `artifact`).
 - Exit 1 (a deck refused) or 2: publish nothing; fix the named title or rewrite the named slide as
   text, or keep the outline.
 

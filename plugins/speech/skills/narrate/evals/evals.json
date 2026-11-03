@@ -18,11 +18,11 @@
       "id": 2,
       "name": "missing-espeak-stops-without-installing",
       "prompt": "/speech:narrate notes/intro.txt\n\n(The run printed: speech: espeak-ng was not found on PATH, so the kokoro backend cannot phonemize the script. ... and exited 2.)",
-      "expected_output": "Reports the exit-2 message as written, points at /speech:check for the install line, and does not install espeak-ng or any package that bundles it.",
+      "expected_output": "Reports the exit-2 message as written, points at scripts/check.py for the install line, and does not install espeak-ng or any package that bundles it.",
       "files": [],
       "expectations": [
         "Reports that espeak-ng is missing, using the script's message",
-        "Names /speech:check as the way to see the install line",
+        "Names scripts/check.py as the way to see the install line",
         "Does not run apt, brew, winget, pip or any other install command",
         "Does not claim narration.wav was written"
       ]

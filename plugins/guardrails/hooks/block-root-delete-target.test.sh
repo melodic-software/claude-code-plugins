@@ -861,8 +861,78 @@ expect_both 'bare variable: ${X:-{a,b}}/* blocks' 2 --command 'rm -rf ${X:-{a,b}
 # A glob or dots after the expansion name nothing, so `"${X:-/}"*` with X unset
 # is `/*`. A remainder that names something goes on past the expansion.
 expect_both 'bare variable: "${X:?}"* allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf "${X:?}"*'
-expect_both 'bare variable: "$X"-build allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf "$X"-build'
-expect_both 'bare variable: "${X}"_old* allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf "${X}"_old*'
+expect_both 'bare variable: "$X"-build blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf "$X"-build'
+expect_both 'bare variable: "${X}"_old* blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf "${X}"_old*'
+# #11818: an operand that opens with a name the command never sets and goes on
+# past it, not fully quoted, splits on a blank in the value (`/ tmp` deletes `/`).
+expect_both 'unset suffixed: $S/x blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf $S/x'
+expect_both 'unset suffixed: ${S}/x blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf ${S}/x'
+expect_both 'unset suffixed: ${X}x blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf ${X}x'
+expect_both 'unset suffixed: $S"/x" blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf $S"/x"'
+expect_both 'unset suffixed: "$S"/x blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf "$S"/x'
+expect_both 'unset suffixed: find $S/x -delete blocks' 2 "${RDT_CWD[@]}" --command 'find $S/x -delete'
+expect_both 'unset suffixed: mv $S/x y blocks' 2 "${RDT_CWD[@]}" --command 'mv $S/x y'
+expect_both 'unset suffixed: xargs rm -rf $S/x blocks' 2 "${RDT_CWD[@]}" --command 'find build | xargs rm -rf $S/x'
+expect_both 'unset suffixed: a blank in the assigned value blocks' 2 "${RDT_CWD[@]}" --command 'S="/ tmp"; rm -rf $S/x'
+expect_both 'unset suffixed: a substitution value blocks' 2 "${RDT_CWD[@]}" --command 'S=$(mktemp -d); rm -rf $S/x'
+expect_both 'unset suffixed: a value built on an unset name blocks' 2 "${RDT_CWD[@]}" --command 'Q=$U/b; rm -rf $Q/c'
+expect_both 'unset suffixed: a loop over a substitution blocks' 2 "${RDT_CWD[@]}" --command 'for f in $(ls); do rm -rf $f/x; done'
+expect_both 'unset suffixed: an escaped blank in the value blocks' 2 "${RDT_CWD[@]}" --command 'S=/\ tmp; rm -rf $S/x'
+expect_both 'unset suffixed: a quoted blank joined to the value blocks' 2 "${RDT_CWD[@]}" --command 'S=/" "tmp; rm -rf $S/x'
+expect_both 'unset suffixed: quote-joined parts of the value block' 2 "${RDT_CWD[@]}" --command "S=\"/\"' 'tmp; rm -rf \$S/x"
+expect_both 'unset suffixed: a += append blocks' 2 "${RDT_CWD[@]}" --command "S=/; S+=' tmp'; rm -rf \$S/x"
+expect_both 'unset suffixed: a quoted blank in a for list blocks' 2 "${RDT_CWD[@]}" --command 'for v in "/ tmp"; do rm -rf $v/x; done'
+expect_both 'unset suffixed: a quoted expansion in a for list blocks' 2 "${RDT_CWD[@]}" --command 'for v in "$@"; do rm -rf $v/x; done'
+expect_both 'unset suffixed: an escaped blank in a for list blocks' 2 "${RDT_CWD[@]}" --command 'for v in /\ tmp; do rm -rf $v/x; done'
+expect_both 'unset suffixed: a quoted second for list blocks' 2 "${RDT_CWD[@]}" --command 'for v in a; do :; done; for v in "/ tmp"; do rm -rf $v/x; done'
+expect_both 'unset suffixed: a quoted for list after an assignment blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; for S in "/ tmp"; do rm -rf $S/x; done'
+expect_both 'unset suffixed: a for over the positionals after an assignment blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; for S; do rm -rf $S/x; done'
+expect_both 'unset suffixed: read after an assignment blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; read -r S <f; rm -rf $S/x'
+expect_both 'unset suffixed: printf -v after an assignment blocks' 2 "${RDT_CWD[@]}" --command "S=/tmp; printf -v S '/ tmp'; rm -rf \$S/x"
+expect_both 'unset suffixed: mapfile after an assignment blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; mapfile -t S <f; rm -rf $S/x'
+expect_both 'unset suffixed: getopts after an assignment blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; getopts ab S; rm -rf $S/x'
+expect_both 'unset suffixed: a nameref after an assignment blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; declare -n S=T; rm -rf $S/x'
+expect_both 'unset suffixed: a := default blocks' 2 "${RDT_CWD[@]}" --command 'S=; : ${S:=/ tmp}; rm -rf $S/x'
+expect_both 'unset suffixed: an array value blocks' 2 "${RDT_CWD[@]}" --command 'S=(/ tmp); rm -rf $S/x'
+expect_both 'unset suffixed: an IFS change blocks' 2 "${RDT_CWD[@]}" --command 'S=a:/:b; IFS=:; rm -rf $S/x'
+expect_both 'unset suffixed: eval after an assignment blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; eval "$C"; rm -rf $S/x'
+expect_both 'unset suffixed: source after an assignment blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; source f; rm -rf $S/x'
+expect_both 'unset suffixed: eval after && blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; true && eval "$C"; rm -rf $S/x'
+expect_both 'unset suffixed: eval after then blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; if true; then eval "$C"; fi; rm -rf $S/x'
+expect_both 'unset suffixed: a dot source blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; . ./f; rm -rf $S/x'
+expect_both 'unset suffixed: the word eval as an argument stays allowed' 0 "${RDT_CWD[@]}" --command 'S=/tmp/x; rm -rf $S/y; claude plugin eval . --runs 1'
+expect_both 'unset suffixed: a dot argument stays allowed' 0 "${RDT_CWD[@]}" --command 'S=/tmp/x; find . -name z; echo "$(date)"; rm -rf $S/y'
+expect_both 'unset suffixed: a read of another name stays allowed' 0 "${RDT_CWD[@]}" --command 'S=/tmp/x; read -r T <f; rm -rf $S/y'
+expect_both 'unset suffixed: a name with a for suffix stays allowed' 0 "${RDT_CWD[@]}" --command 'for v2 in "a b"; do :; done; v=/tmp/x; echo "$(date)"; rm -rf $v/y'
+expect_both 'unset suffixed: $*/x with an unrelated = blocks' 2 "${RDT_CWD[@]}" --command 'set -- "/ tmp"; rm -rf $*/x --interactive=never'
+expect_both 'unset suffixed: a positional opener blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf $1/x'
+expect_both 'unset suffixed: a value from a positional blocks' 2 "${RDT_CWD[@]}" --command "bash -c 'S=\$1; rm -rf \$S/x' _ '/ tmp'"
+expect_both 'unset suffixed: an indirect value blocks' 2 "${RDT_CWD[@]}" --command 'S=${!R}; rm -rf $S/x'
+expect_both 'unset suffixed: a self-reference alone blocks' 2 "${RDT_CWD[@]}" --command 'S=$S/a; rm -rf $S/x'
+expect_both 'unset suffixed: a self-reference after a literal allowed' 0 "${RDT_CWD[@]}" --command 'S=/tmp; S=$S/a; echo "$(date)"; rm -rf $S/x'
+expect_both 'unset suffixed: bash -c from the PowerShell tool blocks' 2 --tool PowerShell --command "bash -c 'rm -rf \$S/x'"
+expect_both 'unset suffixed: a Remove-Item operand on the PowerShell tool stays allowed' 0 --tool PowerShell --command 'Remove-Item -Recurse $env:S/x'
+rdt_chain='A='
+for _ in {1..30}; do rdt_chain+='$B'; done
+rdt_chain+='; B='
+for _ in {1..30}; do rdt_chain+='$C'; done
+rdt_chain+='; C='
+for _ in {1..30}; do rdt_chain+='$D'; done
+rdt_chain+='; D='
+for _ in {1..30}; do rdt_chain+='$E'; done
+rdt_chain+='; E=x; rm -rf $A/x'
+expect_both 'unset suffixed: a chain past the call budget blocks' 2 "${RDT_CWD[@]}" --command "$rdt_chain"
+expect_both 'unset suffixed: "$S/x" allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf "$S/x"'
+expect_both 'unset suffixed: ${HOME}/x allowed' 0 --command 'rm -rf ${HOME}/x'
+expect_both 'unset suffixed: $TMPDIR/x allowed' 0 --command 'rm -rf $TMPDIR/x'
+expect_both 'unset suffixed: ${S:?}/x allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf ${S:?}/x'
+expect_both 'unset suffixed: "${S:?}"/x allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf "${S:?}"/x'
+expect_both 'unset suffixed: a name the resolver binds allowed' 0 "${RDT_CWD[@]}" --command 'S=/tmp/x; rm -rf $S/x'
+expect_both 'unset suffixed: a literal the resolver cannot bind allowed' 0 "${RDT_CWD[@]}" --command 'S=/tmp/x; echo "$(date)"; rm -rf $S/x'
+expect_both 'unset suffixed: a value built on a set name allowed' 0 "${RDT_CWD[@]}" --command 'P=/tmp/a; Q=$P/b; echo "$(date)"; rm -rf $Q/c'
+expect_both 'unset suffixed: a loop variable allowed' 0 "${RDT_CWD[@]}" --command 'for v in a b; do rm -rf $v/x; done'
+expect_both 'unset suffixed: a loop over unquoted items allowed' 0 "${RDT_CWD[@]}" --command 'for v in $R/a $R/b; do rm -rf $v/x; done'
+expect_both 'unset suffixed: a name set in a bash -c program allowed' 0 "${RDT_CWD[@]}" --command "bash -c 'S=/tmp/x; echo x; rm -rf \$S/y'"
 expect_both 'bare variable: "${X:?}/*" allowed' 0 --command 'rm -rf "${X:?}/*"'
 expect_both 'bare variable: "${X:?}/*" allowed with a cwd' 0 "${RDT_CWD[@]}" --command 'rm -rf "${X:?}/*"'
 expect_both 'bare variable: "$X/build" allowed with a cwd' 0 "${RDT_CWD[@]}" --command 'rm -rf "$X/build"'
@@ -1006,7 +1076,7 @@ expect_both 'brace: more than 64 expansions is refused' 2 "${RDT_CWD[@]}" \
   --command 'rm -rf {a,b}{c,d}{e,f}{g,h}{i,j}{k,l}{m,n}'
 expect_both 'brace: a partly quoted brace is refused' 2 "${RDT_CWD[@]}" --command 'rm -rf "a"{/,x}'
 expect_both 'brace: "$X"/{a,b} is refused as partly quoted' 2 "${RDT_CWD[@]}" --command 'rm -rf "$X"/{a,b}'
-expect_both 'brace: $X/{a,b} unquoted is left alone like $X/build' 0 "${RDT_CWD[@]}" --command 'rm -rf $X/{a,b}'
+expect_both 'brace: $X/{a,b} unquoted blocks like $X/build' 2 "${RDT_CWD[@]}" --command 'rm -rf $X/{a,b}'
 expect_both 'brace: inside a substitution blocks' 2 --command 'echo $(rm -rf {/,x})'
 guard_invoke "${RDT_CWD[@]}" --command 'rm -rf x{1..3}'
 assert_contains "the brace refusal names its form" "$GUARD_ERR" "brace expansion"

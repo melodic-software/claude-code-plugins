@@ -18,7 +18,7 @@ The GLOBAL HARD list gates every lane. A tidying that would touch any entry is a
 
 ### Agent & enforcement configuration (universal)
 
-Claude Code surface: `.claude/**` in full. The whole directory is agent surface: settings, agents, hooks, rules, routines, tidy-lanes (the consumer's own lane definitions, since the lane contract cannot tidy itself), and any settings-wired hook or bootstrap script that lives there. Any script wired as a hook command **anywhere** is excluded wherever it lives, because a hook command may point outside `.claude/`. Hook wiring is not only the project settings scope (`.claude/settings.json`, `.claude/settings.local.json`): a plugin's `hooks/hooks.json` and a skill's or agent's frontmatter `hooks` block wire hook commands too, and a script reached through either is excluded on the same footing. `.mcp.json`. Other agents' config bundles (e.g. `.codex/**`, `.cursor/**`), since a tidy must not mutate another agent's behavior. GitHub surface: `.github/workflows/**`, `.github/actions/**`, `.github/CODEOWNERS`, `.github/dependabot.yml`. Local git-hook chain: the hook manager's config and script directories (e.g. `lefthook.yml`, `.lefthook/**`, `.husky/**`, `.pre-commit-config.yaml`). Cross-ecosystem lint / style config: `.editorconfig`, `.shellcheckrc`, and their per-tool equivalents.
+Claude Code surface: `.claude/**` in full. The whole directory is agent surface: settings, agents, hooks, rules, routines, tidy-lanes (the consumer's own lane definitions, since the lane contract cannot tidy itself), and any settings-wired hook or bootstrap script that lives there. Any script wired as a hook command **anywhere** is excluded wherever it lives, because a hook command may point outside `.claude/`. Every place a hook can be wired counts, not only the project settings files: see [Hook locations](https://code.claude.com/docs/en/hooks#hook-locations), as of 2026-11-03; recheck when that section adds or removes a location. `.mcp.json`. Other agents' config bundles (e.g. `.codex/**`, `.cursor/**`), since a tidy must not mutate another agent's behavior. GitHub surface: `.github/workflows/**`, `.github/actions/**`, `.github/CODEOWNERS`, `.github/dependabot.yml`. Local git-hook chain: the hook manager's config and script directories (e.g. `lefthook.yml`, `.lefthook/**`, `.husky/**`, `.pre-commit-config.yaml`). Cross-ecosystem lint / style config: `.editorconfig`, `.shellcheckrc`, and their per-tool equivalents.
 
 ### Consumer-declared protections
 
@@ -94,7 +94,7 @@ If during a self-update run you find drift in any of the following, **clean exit
 
 ## 4. Overriding the HARD path list
 
-Everything **path-based** in section 1 is overridable. A path exclusion is a default, not a law: it exists because an autonomous hunt has no reason to be in that file, which is a different claim from "the user may not ask for it". `/code-tidying:dissolve-comments override ruff.toml` is a legitimate request, and a list that cannot express it forces the user to edit by hand what the skill exists to do.
+Everything **path-based** in section 1 is overridable. A path exclusion is a default, not a law: it exists because an autonomous hunt has no reason to be in that file, which is a different claim from "the user may not ask for it". `/code-tidying:remove-comments override ruff.toml` is a legitimate request, and a list that cannot express it forces the user to edit by hand what the skill exists to do.
 
 Three channels lift it, each owning one row of the config-ownership table in `docs/plugin-philosophy.md` "Configuration ownership and scope".
 
@@ -108,9 +108,9 @@ Three channels lift it, each owning one row of the config-ownership table in `do
 
 Bare token `override`, spelled the way `safe`, `docs`, and `dry-run` are. It lifts the HARD **path** list for the run's resolved target and nothing wider. Always honored when the session is interactive, because an interactive user is present to see what the run reports.
 
-Interactivity gates only `tidy`. On `dissolve-comments` and `batch-simplify` the token is honored in a non-interactive run as well, because the target is already the enumeration: the user typing `override <path>` named the file, so there is nothing further to enumerate and take a go-ahead on. The `tidy` gate below exists because a lane of globs is not a named file.
+Interactivity gates only `tidy`. On `remove-comments` and `batch-simplify` the token is honored in a non-interactive run as well, because the target is already the enumeration: the user typing `override <path>` named the file, so there is nothing further to enumerate and take a go-ahead on. The `tidy` gate below exists because a lane of globs is not a named file.
 
-Its reach is the run's target, and the three skills' targets are not the same size. On `dissolve-comments` and `batch-simplify` the target is a named path or a resolved diff, and the user typing the token has the file in view. On `tidy` the target is a whole lane of globs, so the same token lifts the list across every file the lane matches, and the run's output is an autonomous PR rather than a working-tree diff the user reads first.
+Its reach is the run's target, and the three skills' targets are not the same size. On `remove-comments` and `batch-simplify` the target is a named path or a resolved diff, and the user typing the token has the file in view. On `tidy` the target is a whole lane of globs, so the same token lifts the list across every file the lane matches, and the run's output is an autonomous PR rather than a working-tree diff the user reads first.
 
 That difference gets a gate rather than a caveat. On `tidy`, `override` **enumerates before it edits**: after Phase D's hunt, the run lists the specific HARD paths it now intends to touch and takes a go-ahead on that list, exactly as `batch-simplify`'s repo mode confirms its inventory. An interactive user answers. A non-interactive run has nobody to answer, so it does not proceed on a blanket token: it reports the enumerated list and continues with those candidates dropped, leaving the rest of the lane's tidyings to ship normally. The operator then re-runs interactively or puts the durable entries in the repository overrides file, which is the channel built for a standing decision. Combining `override` with `dry-run` produces that enumeration and nothing else, which is the cheap way to see the list first.
 
@@ -122,7 +122,7 @@ To operate on a directory genuinely named `override`, spell it `./override`.
 
 ### The `hard_exclusions` userConfig option
 
-`enforce` (default) keeps the section 1 path list blocking. `advisory` reports each HARD path match and never blocks, so the operator's standing posture is "tell me, then proceed". It is a scalar, not a list: `userConfig` types are `string`, `number`, `boolean`, `directory`, and `file`, so a per-path list cannot live there and belongs in the repository file below. Any value outside the two is read as `enforce`.
+`enforce` (default) keeps the section 1 path list blocking. `advisory` reports each HARD path match and never blocks, so the operator's standing posture is "tell me, then proceed". It is a scalar, not a list: a per-path list belongs in the repository file below. Option types: [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration), as of 2026-11-03; recheck when that section changes the option types. Any value outside the two is read as `enforce`.
 
 ### The consumer-declared overrides file
 

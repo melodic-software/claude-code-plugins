@@ -4,6 +4,9 @@
 # Vendored upstream snapshots: their relative links may target upstream files that are not vendored.
 /plugins/[^/]+/skills/[^/]+/vendor/
 
+# Eval-only review stand-ins carry a verbatim copy of the findings contract: its relative links target fanout files the stand-ins do not hold.
+/plugins/attribution/evals/[^/]+/review-stub/skills/fanout/context/
+
 # Claude Code runtime variables, expanded after a plugin installs: not filesystem paths in source.
 CLAUDE_(PLUGIN_ROOT|PLUGIN_DATA|PROJECT_DIR|SKILL_DIR)
 

@@ -16,13 +16,13 @@
     },
     {
       "id": 2,
-      "name": "missing-row-routes-to-the-named-check",
+      "name": "missing-row-is-a-report",
       "prompt": "/harness-ops:prerequisites\n\nmarkdownlint-cli2 shows as missing. Fix it.",
-      "expected_output": "Does not install. Runs the model-invocable check skill the table's check column names for that row (for markdownlint-cli2, /markdown-format:check) and leaves any install to the user's explicit request.",
+      "expected_output": "Does not install. Reports the row and its install hints (the markdownlint-cli2 row has no check skill) and leaves any install to the user's explicit request.",
       "files": [],
       "expectations": [
         "Does not run `npx`, `npm install`, or `go install` from this skill",
-        "Runs or names the check skill from the row's check column, here /markdown-format:check",
+        "Names the row's install hint from the table",
         "Treats the missing row as a report, not a trigger to install"
       ]
     },

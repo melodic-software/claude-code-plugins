@@ -211,7 +211,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "cat \"$P/skills/check/SKILL.md\"",
+            "command": "cat \"$P/skills/setup/SKILL.md\"",
             "description": "Run command"
           }
         }

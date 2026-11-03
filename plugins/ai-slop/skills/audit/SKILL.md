@@ -1,5 +1,5 @@
 ---
-description: "Audit markdown, commit messages, PR bodies and interface copy for AI-writing tells (slop) from Wikipedia's Signs of AI writing plus model-era tells: em dashes, emoji, AI vocabulary, negative parallelisms, chatbot phrases, filler, stacked hedges, citation artifacts, model-era phrases ('that's the unlock', 'the part most people skip'), plus a judgment rubric for superficial analysis, vague attribution, promotional tone, metaphor jargon ('load-bearing', 'seam'), figures for facts, over-compression, mechanism-free claims and generic headlines. Use when: 'check for AI slop', 'de-slop this doc', 'unslop this', 'find AI tells', 'does this read AI-written', 'remove em dashes', 'check this commit message', 'unslop this PR body', 'is this headline generic', or before publishing agent-written prose. Read-only by default; explicit 'fix' rewrites behind a semantic-diff guard ('detect and rewrite'). Empty target audits tracked markdown, busiest files first. Not for code comments (/code-tidying:audit-comment-residue)."
+description: "Audit markdown, commit messages, PR bodies and interface copy for AI-writing tells (slop) from Wikipedia's Signs of AI writing plus model-era tells: em dashes, emoji, AI vocabulary, negative parallelisms, chatbot phrases, filler, stacked hedges, citation artifacts, model-era phrases ('that's the unlock', 'the part most people skip'), plus a judgment rubric for superficial analysis, vague attribution, promotional tone, metaphor jargon ('load-bearing', 'seam'), figures for facts, over-compression, mechanism-free claims and generic headlines. Use when: 'check for AI slop', 'de-slop this doc', 'unslop this', 'find AI tells', 'does this read AI-written', 'remove em dashes', 'check this commit message', 'unslop this PR body', 'is this headline generic', or before publishing agent-written prose. Read-only by default; explicit 'fix' rewrites behind a semantic-diff guard ('detect and rewrite'). Empty target audits tracked markdown, busiest files first. Not for code comments (/code-tidying:remove-comments audit)."
 argument-hint: "[audit|fix] [target|user-scope [memory]|commit [rev]|pr-body|copy <files>]"
 user-invocable: true
 disable-model-invocation: false
@@ -337,7 +337,7 @@ carries the reason.
   marketplace; mutation rides only the explicit `fix` argument.
 - **Does not put rubric findings in the findings file.** No crosswalk row, no relay: judgment
   verdicts reach the human report only (V1 boundary, revisit with field history).
-- **Does not scan code comments** (`/code-tidying:audit-comment-residue` owns them), or text
+- **Does not scan code comments** (`/code-tidying:remove-comments audit` owns them), or text
   outside markdown files other than the three kinds above; structural markdown (heading
   hierarchy, multiple H1, title case) belongs to the markdown linter lane. Reshaping text so it
   leads with the point and carries fewer words is `/writing:be-concise`, which owns that

@@ -6,22 +6,20 @@
       "need": "required",
       "for": ["hook:install-python-deps.sh"],
       "detect": { "any": ["node"] },
-      "degrade": "Without node the SessionStart hook does not start, so numpy and onnxruntime are never installed and /speech:narrate stops. /speech:check still runs.",
-      "install": { "docs": "https://nodejs.org/en/download", "brew": "node", "winget": "OpenJS.NodeJS.LTS", "apt": "nodejs" },
-      "check": "/speech:check"
+      "degrade": "Without node the SessionStart hook does not start, so numpy and onnxruntime are never installed and /speech:narrate stops. scripts/check.py still runs.",
+      "install": { "docs": "https://nodejs.org/en/download", "brew": "node", "winget": "OpenJS.NodeJS.LTS", "apt": "nodejs" }
     },
     {
       "id": "python",
       "kind": "runtime",
       "need": "required",
-      "for": ["hook:install-python-deps.sh", "skill:narrate", "skill:check", "skill:setup"],
+      "for": ["hook:install-python-deps.sh", "skill:narrate", "skill:setup"],
       "detect": {
         "any": ["python3", "python"],
         "version": { "args": ["--version"], "pattern": "Python ([0-9.]+)", "min": "3.12" }
       },
       "degrade": "Without Python 3.12 or later the SessionStart hook cannot install numpy and onnxruntime, and /speech:narrate stops before it synthesizes anything.",
-      "install": { "docs": "https://www.python.org/downloads/", "brew": "python@3.13", "winget": "Python.Python.3.13", "apt": "python3" },
-      "check": "/speech:check"
+      "install": { "docs": "https://www.python.org/downloads/", "brew": "python@3.13", "winget": "Python.Python.3.13", "apt": "python3" }
     },
     {
       "id": "espeak-ng",
@@ -37,8 +35,7 @@
         "pacman": "espeak-ng",
         "brew": "espeak-ng",
         "winget": "eSpeak-NG.eSpeak-NG (espeak-ng.exe must then be on PATH)"
-      },
-      "check": "/speech:check"
+      }
     },
     {
       "id": "elevenlabs-api-key",
@@ -47,8 +44,7 @@
       "for": ["skill:narrate"],
       "detect": { "name": "ELEVENLABS_API_KEY" },
       "degrade": "Without ELEVENLABS_API_KEY the elevenlabs backend of /speech:narrate does not run; the default kokoro backend still works and needs no key. The key stays in your environment: the plugin never stores, prints or logs it.",
-      "install": { "docs": "https://elevenlabs.io/app/settings/api-keys" },
-      "check": "/speech:check"
+      "install": { "docs": "https://elevenlabs.io/app/settings/api-keys" }
     }
   ]
 }

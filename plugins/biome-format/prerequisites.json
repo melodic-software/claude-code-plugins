@@ -21,8 +21,7 @@
       "degrade": "Without biome, the hook cannot format or lint edited JavaScript, TypeScript, JSON and CSS files.",
       "install": {
         "npm": "npm i -D @biomejs/biome"
-      },
-      "check": "/biome-format:check"
+      }
     },
     {
       "id": "jq",
@@ -39,8 +38,7 @@
       "degrade": "Without jq, the biome-format hooks skip their work.",
       "install": {
         "docs": "https://jqlang.org/download/"
-      },
-      "check": "/biome-format:check"
+      }
     },
     {
       "id": "node",
@@ -57,8 +55,7 @@
       "degrade": "Without node, the biome-format hooks cannot launch, so they do nothing.",
       "install": {
         "docs": "https://nodejs.org/en/download"
-      },
-      "check": "/biome-format:check"
+      }
     }
   ]
 }
