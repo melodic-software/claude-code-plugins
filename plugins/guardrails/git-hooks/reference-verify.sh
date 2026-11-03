@@ -412,6 +412,7 @@ else
       printf '%s: reference-verify: could not check out this pushed tip, so its range was not checked; fix that failure (disk space, a lock under .git/worktrees), then push again.\n' \
         "$TIP" >>"$out"
       git worktree remove --force "$tip_tree" >/dev/null 2>&1
+      git worktree prune 2>/dev/null
       continue
     fi
     check_range

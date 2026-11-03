@@ -263,8 +263,11 @@ printf '#!/usr/bin/env bash\nfaketool --real\nfaketool --bogus\n' >"$REPO/run.sh
 commit_all bogus-too
 expect "a stale path beside an unknown flag: the flag fails the push" "1|run.sh:3: $FLAG_FINDING" \
   "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE")"
+err="$(push_err refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE")"
 expect "a stale path beside an unknown flag is still printed" yes \
-  "$(push_err refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE" | grep -qF 'README.md:1: stale-path-verify' && echo yes)"
+  "$(grep -qF 'README.md:1: stale-path-verify' <<<"$err" && echo yes)"
+expect "a push with a blocking finding names the fix" yes \
+  "$(grep -qxF 'guardrails: correct each flag or skill reference above, or fix the failure a reference-verify line names, commit the fix, then push again.' <<<"$err" && echo yes || echo no)"
 
 # A skill-reference finding fails the push. The verifier judges only inside a
 # marketplace repository, one whose plugins/ holds a plugin manifest.
