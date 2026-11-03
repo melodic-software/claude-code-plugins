@@ -10,6 +10,7 @@ import { chmodSync, mkdirSync, symlinkSync, mkdtempSync, readdirSync, readFileSy
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import { admits } from "../lib/gate-expression.mjs";
 
 const text = readFileSync(new URL("../../workflows/pr-review-main.yml", import.meta.url), "utf8");
 const prompt = readFileSync(new URL("./prompt.md", import.meta.url), "utf8");
@@ -17,6 +18,8 @@ const KEY = "review";
 const SUB = "review-subscription";
 const FB = "review-fallback";
 const LEGS = [KEY, SUB, FB];
+// The credit gate before the key leg: no model, no secret.
+const PROBE = "review-handoffs-credit";
 const jobText = (id) => {
   const found = new RegExp(`\\n  ${id}:\\n([\\s\\S]*?)(?=\\n  [a-z-]+:\\n|$)`).exec(text);
   assert.ok(found, `a job ${id}`);
@@ -29,7 +32,7 @@ const stepsOf = (id) =>
     .slice(1)
     // A step ends before the next step's or job's comment.
     .map((block) => ({ name: /^      - name: (.*)$/m.exec(block)[1], block: block.replace(/\n\n {2}(?: {4})?#[\s\S]*$/, "") }));
-const STEPS = Object.fromEntries(LEGS.map((id) => [id, stepsOf(id)]));
+const STEPS = Object.fromEntries([...LEGS, PROBE, "review-handoffs"].map((id) => [id, stepsOf(id)]));
 const step = (name, job = KEY) => {
   const found = STEPS[job].find((s) => s.name === name);
   assert.ok(found, `a step named ${name} in ${job}`);
@@ -804,9 +807,17 @@ test("it checks out main only, and runs local actions from that checkout", () =>
     for (const lane of ["claude-review", "claude-security-review"]) {
       assert.match(jobText(from), new RegExp(`^ {6}${lane}-base-sha: \\$\\{\\{ steps\\.base\\.outputs\\.${lane}-base-sha \\}\\}$`, "m"));
     }
-    assert.match(jobText(route), new RegExp(`^ {10}CODE_BASE: \\$\\{\\{ needs\\.${from}\\.outputs\\.claude-review-base-sha \\}\\}$`, "m"));
-    assert.match(jobText(route), new RegExp(`^ {10}SECURITY_BASE: \\$\\{\\{ needs\\.${from}\\.outputs\\.claude-security-review-base-sha \\}\\}$`, "m"));
+    // A lane the credit gate handed on had no key leg to record a commit, so
+    // the key route falls back to the trigger job's.
+    const gated = route === "review-handoffs" ? " \\|\\| needs\\.trigger\\.outputs\\.main-sha" : "";
+    assert.match(jobText(route), new RegExp(`^ {10}CODE_BASE: \\$\\{\\{ needs\\.${from}\\.outputs\\.claude-review-base-sha${gated} \\}\\}$`, "m"));
+    assert.match(jobText(route), new RegExp(`^ {10}SECURITY_BASE: \\$\\{\\{ needs\\.${from}\\.outputs\\.claude-security-review-base-sha${gated} \\}\\}$`, "m"));
   }
+  // The trigger job's commit is the tip it checked out, right after that checkout.
+  const triggerSteps = jobText("trigger").split(/\n(?=      - name: )/).slice(1);
+  const mainAt = triggerSteps.findIndex((s) => s.startsWith("      - name: Record the main commit\n"));
+  assert.match(triggerSteps[mainAt - 1], /uses: actions\/checkout@/);
+  assert.match(triggerSteps[mainAt], /^ {8}id: main\n {8}run: echo "main-sha=\$\(git -C \.base rev-parse --verify HEAD\)" >>"\$GITHUB_OUTPUT"$/m);
   for (const [, local] of text.matchAll(/^\s+uses: (\.\/\S+)/gm)) {
     assert.ok(local.startsWith("./.base/.github/actions/"), local);
   }
@@ -892,7 +903,7 @@ test("only a lane-source pull request is reviewed, by the gate's own predicate",
 // trigger job). The later legs always gate themselves.
 test("the key leg takes the trigger job's gate only from this attempt, and every value has a fixed shape", () => {
   const trigger = jobText("trigger");
-  assert.equal(needsOf(KEY), "trigger");
+  assert.equal(needsOf(KEY), `[trigger, ${PROBE}]`);
   const outputs = /^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(trigger)[1];
   assert.deepEqual(
     [...outputs.matchAll(/^ {6}([a-z-]+): (.*)$/gm)].map(([, name, value]) => `${name}=${value}`),
@@ -904,6 +915,7 @@ test("the key leg takes the trigger job's gate only from this attempt, and every
       "head-sha=${{ steps.gate.outputs.head-sha }}",
       "base-sha=${{ steps.gate.outputs.base-sha }}",
       "judged=${{ steps.judged.outputs.judged }}",
+      "main-sha=${{ steps.main.outputs.main-sha }}",
     ],
   );
   assert.doesNotMatch(trigger, /head-ref/);
@@ -1008,9 +1020,119 @@ test("the trigger job reads the files first and gates every lane-source pull req
 // found no lane source, or a head both lanes already reviewed.
 const KEY_SKIP = "      && (needs.trigger.outputs.run-attempt != github.run_attempt\n      || needs.trigger.outputs.review != 'false' && needs.trigger.outputs.judged != 'true')\n";
 
+// The record job runs once a leg could have reviewed: the key leg, or a
+// subscription leg the credit gate's skip of the key leg handed every lane to.
+const RECORD_IF = /^ {4}if: \$\{\{ !cancelled\(\) && github\.ref == 'refs\/heads\/main' && \(needs\.review\.result != 'skipped' \|\| needs\.review-subscription\.result != 'skipped'\) \}\}$/m;
+
 test("no leg starts, and nothing records, for a head with no lane source or one both lanes reviewed", () => {
   assert.ok(/^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(jobText(KEY))[1].endsWith(KEY_SKIP));
-  assert.match(jobText("record"), /^ {4}if: \$\{\{ !cancelled\(\) && github\.ref == 'refs\/heads\/main' && needs\.review\.result != 'skipped' \}\}$/m);
+  assert.match(jobText("record"), RECORD_IF);
+  // A skipped key leg is reported, and a lane handed on, only where this
+  // attempt's trigger job starts the key leg.
+  for (const report of ["Report the skipped claude-review key leg", "Report the skipped claude-security-review key leg"]) {
+    const condition = /^ {8}if: (.*)$/m.exec(step(report, PROBE))[1];
+    for (const term of GO_AHEAD.slice(1)) assert.ok(condition.includes(` && ${term} && `), `${report}: ${term}`);
+  }
+  for (const term of GO_AHEAD) assert.ok(jobGate("review-handoffs").includes(`&& ${term}`), term);
+});
+
+// This attempt's trigger job starts the key leg: a lane-source head not yet judged.
+const GO_AHEAD = ["needs.trigger.outputs.run-attempt == github.run_attempt", "needs.trigger.outputs.proceed == 'true'", "needs.trigger.outputs.review == 'true'", "needs.trigger.outputs.judged != 'true'"];
+
+const jobGate = (id) => /^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(jobText(id))?.[1].replace(/\s+/g, " ").trim();
+const upstreamRun = { ref: "refs/heads/main", repository: "o/r", run_attempt: "1", event: { workflow_run: { event: "pull_request", conclusion: "success", head_repository: { full_name: "o/r" } } } };
+const triggered = { result: "success", outputs: { "run-attempt": "1", proceed: "true", review: "true", judged: "" } };
+
+// ci-workflows check-key-credit (gate.cjs at the pinned SHA): skip-key is
+// `true` only while a credit stop recorded in this workflow is inside the
+// window; any failure leaves it empty, so the key runs as before the gate.
+test("the credit gate skips the key leg only on skip-key true, and a gate failure runs the key", () => {
+  const keyIf = jobGate(KEY);
+  assert.ok(keyIf.startsWith(`needs.${PROBE}.outputs.skip-key != 'true' && !cancelled() && needs.trigger.result == 'success' && `), keyIf);
+  const runs = (probe, trigger = triggered, options) => admits(keyIf, { github: upstreamRun, needs: { trigger, [PROBE]: probe } }, options);
+  assert.ok(!runs({ result: "success", outputs: { "skip-key": "true" } }));
+  for (const probe of [{ result: "success", outputs: { "skip-key": "false" } }, { result: "failure", outputs: {} }, { result: "skipped", outputs: {} }]) {
+    assert.ok(runs(probe), JSON.stringify(probe));
+  }
+  // The trigger job's own result still gates the key leg, as the implicit success() did.
+  assert.ok(!runs({ result: "failure", outputs: {} }, { ...triggered, result: "failure" }));
+  assert.ok(!runs({ result: "success", outputs: {} }, triggered, { cancelled: true }));
+  // The gate runs on every run of this attempt's trigger job, a head with no
+  // lane source or one already judged included, so each completed run the
+  // gate reads next (only the newest few) carries the record forward.
+  const probeRuns = (trigger) => admits(jobGate(PROBE), { github: upstreamRun, needs: { trigger } });
+  for (const outputs of [{}, { proceed: "" }, { review: "false" }, { judged: "true" }]) {
+    assert.ok(probeRuns({ ...triggered, outputs: { ...triggered.outputs, ...outputs } }), JSON.stringify(outputs));
+  }
+  assert.ok(!probeRuns({ ...triggered, outputs: { ...triggered.outputs, "run-attempt": "2" } }));
+  assert.ok(!admits(jobGate(PROBE), { github: { ...upstreamRun, ref: "refs/heads/x" }, needs: { trigger: triggered } }));
+});
+
+test("the credit gate holds no secret, checks nothing out and reads only this workflow's runs", () => {
+  const job = jobText(PROBE);
+  assert.equal(needsOf(PROBE), "trigger");
+  assert.match(job, /^ {4}permissions:\n {6}actions: read #.*\n {4}outputs:\n {6}skip-key: \$\{\{ steps\.gate\.outputs\.skip-key \}\}\n/m);
+  assert.doesNotMatch(job, /secrets\.|actions\/checkout|run-claude-cli|\.\/\.base/);
+  const gate = step("Read the key's credit history", PROBE);
+  assert.match(gate, /^ {8}id: gate$/m);
+  assert.match(gate, /^ {8}continue-on-error: true$/m);
+  assert.match(gate, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/check-key-credit@[0-9a-f]{40} # \S/m);
+  // The gate reads its record in `<key-job>` and `<key-job>-credit` by display
+  // name: review-handoffs and this job, neither renamed.
+  assert.equal(input(gate, "key-job"), "review-handoffs");
+  for (const id of [PROBE, "review-handoffs"]) assert.doesNotMatch(jobText(id), /^ {4}name:/m, id);
+  assert.equal(input(gate, "window-hours"), "${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}");
+  // Each skipped key leg leaves its lane record, so leg counts compare.
+  for (const [lane, sw] of [["claude-review", "CLAUDE_REVIEW_DISABLED"], ["claude-security-review", "CLAUDE_SECURITY_REVIEW_DISABLED"]]) {
+    const report = step(`Report the skipped ${lane} key leg`, PROBE);
+    assert.match(report, new RegExp(`^ {8}if: steps\\.gate\\.outputs\\.skip-key == 'true' && ${GO_AHEAD.slice(1).join(" && ").replace(/[.()|]/g, "\\$&")} && vars\\.${sw} != 'true'$`, "m"));
+    assert.equal(input(report, "outcome"), "skipped");
+    assert.equal(input(report, "lane-id"), `pr-review-main-${lane}`);
+    assert.equal(input(report, "credential"), "REVIEWS_CLAUDE_API_KEY");
+    assert.equal(input(report, "known-failure-class"), "credit-stop");
+    assert.equal(input(report, "handoff"), '"true"');
+  }
+});
+
+// check-key-credit RECORD_PATTERN: /^Record the key's credit stop in run (\d{1,20})$/.
+const RECORD_PATTERN = /^Record the key's credit stop in run (\d{1,20})$/u;
+test("the record steps carry the pattern the gate reads, the key's only after a key leg's credit stop", () => {
+  const carried = "Record the key's credit stop in run ${{ steps.gate.outputs.origin-run }}";
+  const own = "Record the key's credit stop in run ${{ github.run_id }}";
+  assert.match(carried.replace("${{ steps.gate.outputs.origin-run }}", "12345"), RECORD_PATTERN);
+  assert.match(own.replace("${{ github.run_id }}", "12345"), RECORD_PATTERN);
+  assert.match(step(carried, PROBE), /^ {8}if: steps\.gate\.outputs\.skip-key == 'true'$/m);
+  // The key leg's own handoff reason, never the route's: a lane the gate handed
+  // on must not restart the window, or the key would never be tried again.
+  const record = step(own, "review-handoffs");
+  assert.match(record, /^ {8}if: \$\{\{ !cancelled\(\) && \(needs\.review\.outputs\.claude-review == 'credit-stop' \|\| needs\.review\.outputs\.claude-security-review == 'credit-stop'\) \}\}$/m);
+  assert.match(record, /^ {8}continue-on-error: true$/m);
+  for (const job of LEGS) assert.equal(index(own, job), -1, job);
+});
+
+test("with the key leg skipped by the credit gate, every enabled lane goes to the subscription leg as a credit stop", () => {
+  const route = jobText("review-handoffs");
+  assert.equal(needsOf("review-handoffs"), `[trigger, ${PROBE}, ${KEY}]`);
+  const routeIf = jobGate("review-handoffs");
+  const handsOn = (review, probe, trigger = triggered) => admits(routeIf, { github: upstreamRun, needs: { trigger, review, [PROBE]: probe } });
+  const gated = { result: "success", outputs: { "skip-key": "true" } };
+  assert.ok(handsOn({ result: "skipped", outputs: {} }, gated));
+  assert.ok(handsOn({ result: "success", outputs: { "claude-review": "credit-stop" } }, { result: "success", outputs: { "skip-key": "false" } }));
+  // A key leg skipped for any other reason, or that handed nothing on, routes nothing.
+  assert.ok(!handsOn({ result: "skipped", outputs: {} }, { result: "skipped", outputs: {} }));
+  assert.ok(!handsOn({ result: "success", outputs: {} }, { result: "success", outputs: { "skip-key": "false" } }));
+  // With the key out of credit, a run whose trigger job starts no key leg
+  // (no lane source, a judged head, a refused gate, another attempt) routes nothing.
+  for (const outputs of [{ review: "false" }, { judged: "true" }, { proceed: "" }, { "run-attempt": "2" }]) {
+    assert.ok(!handsOn({ result: "skipped", outputs: {} }, gated, { ...triggered, outputs: { ...triggered.outputs, ...outputs } }), JSON.stringify(outputs));
+  }
+  for (const [env, lane, sw] of [["CODE", "claude-review", "CLAUDE_REVIEW_DISABLED"], ["SECURITY", "claude-security-review", "CLAUDE_SECURITY_REVIEW_DISABLED"]]) {
+    assert.match(route, new RegExp(`^ {10}${env}: \\$\\{\\{ needs\\.review\\.outputs\\.${lane} \\|\\| needs\\.review\\.result == 'skipped' && needs\\.${PROBE}\\.outputs\\.skip-key == 'true' && vars\\.${sw} != 'true' && 'credit-stop' \\|\\| '' \\}\\}$`, "m"));
+  }
+  // Both lanes handed on as credit-stop at the trigger job's commit.
+  const { status, matrix } = routeRun("review-handoffs")({ CODE: "credit-stop", SECURITY: "credit-stop", CODE_BASE: SHA_A, SECURITY_BASE: SHA_A });
+  assert.equal(status, 0);
+  assert.deepEqual(matrix.include.map((row) => [row.lane, row.reason, row.base]), [["claude-review", "credit-stop", SHA_A], ["claude-security-review", "credit-stop", SHA_A]]);
 });
 
 // The trigger job's judged-head read: judged=true only when the merge gate's
@@ -1264,10 +1386,11 @@ test("the legs run the review lanes' credentials in the review lanes' order", ()
   const hosted = hostedChain("pr-review-hosted.yml");
   assert.deepEqual(hostedChain("pr-review-security-hosted.yml"), hosted);
   assert.equal(hosted.length, 3);
-  // Walk this workflow's chain from the key leg through each route.
+  // Walk this workflow's chain from the key leg through each route, which
+  // needs the leg before it last (the key route also the trigger and gate).
   const order = [KEY];
   for (let job = KEY; ; ) {
-    const route = ["review-handoffs", "subscription-handoffs"].find((id) => needsOf(id) === job);
+    const route = ["review-handoffs", "subscription-handoffs"].find((id) => needsOf(id).replace(/^\[|\]$/g, "").split(", ").at(-1) === job);
     if (!route) break;
     job = LEGS.find((id) => needsOf(id) === route);
     order.push(job);
@@ -1372,8 +1495,11 @@ test("a route hands the next leg fixed lane rows, only for a lane handed on with
 test("a later leg runs only for the lanes the previous leg handed on", () => {
   for (const [route, from, to] of [["review-handoffs", KEY, SUB], ["subscription-handoffs", SUB, FB]]) {
     const routeJob = jobText(route);
-    assert.equal(needsOf(route), from);
-    assert.match(routeJob, new RegExp(`&& \\(needs\\.${from}\\.outputs\\.claude-review != '' \\|\\| needs\\.${from}\\.outputs\\.claude-security-review != ''\\)`));
+    // The key route also reads the trigger job's commit and the credit gate's
+    // skip, which hands every lane on (its own test above).
+    assert.equal(needsOf(route), route === "review-handoffs" ? `[trigger, ${PROBE}, ${from}]` : from);
+    const gated = route === "review-handoffs" ? `\\n {6}\\|\\| needs\\.review\\.result == 'skipped' && needs\\.${PROBE}\\.outputs\\.skip-key == 'true'\\n[^)]*` : "";
+    assert.match(routeJob, new RegExp(`&& \\(needs\\.${from}\\.outputs\\.claude-review != '' \\|\\| needs\\.${from}\\.outputs\\.claude-security-review != ''${gated}\\)`));
     // !cancelled(): one lane's failed leg does not drop the other lane's
     // handoff; the route still passes on only closed-set reasons.
     assert.match(routeJob, /^ {4}if: >-\n {6}!cancelled\(\)\n {6}&& github\.ref == 'refs\/heads\/main'\n/m);
@@ -1404,9 +1530,14 @@ test("a later leg runs only for the lanes the previous leg handed on", () => {
     assert.doesNotMatch(step(`Review chunk ${k}`, FB), /fallback-ready/);
   }
   // The record job waits for every leg and runs when a later one skipped,
-  // but not when the key leg did (its own test above).
+  // but not when the key leg and the subscription leg both did (its own test above).
   assert.match(jobText("record"), /^ {4}needs: \[review, review-subscription, review-fallback\]$/m);
-  assert.match(jobText("record"), /^ {4}if: \$\{\{ !cancelled\(\) && github\.ref == 'refs\/heads\/main' && needs\.review\.result != 'skipped' \}\}$/m);
+  assert.match(jobText("record"), RECORD_IF);
+  const records = (review, subscription) => admits(/^ {4}if: \$\{\{ (.*) \}\}$/m.exec(jobText("record"))[1], { github: { ref: "refs/heads/main" }, needs: { review: { result: review }, "review-subscription": { result: subscription } } });
+  assert.ok(records("success", "skipped"));
+  assert.ok(records("skipped", "success"));
+  assert.ok(records("skipped", "failure"));
+  assert.ok(!records("skipped", "skipped"));
 });
 
 test("the handoff step names its lane and a closed reason, and a handed-off leg stays green", () => {
@@ -1483,6 +1614,8 @@ test("every later leg repeats the key leg's steps but for its credential and why
       /^ {4}if: >-\n((?: {6}.*\n)+)/m
         .exec(jobText(id))[1]
         .replace(/^ {6}!cancelled\(\)\n {6}&& needs\.[a-z-]+\.result == 'success'\n {6}&& /, "      ")
+        // The key leg's credit gate and its trigger job's success (their own test above).
+        .replace(/^ {6}needs\.review-handoffs-credit\.outputs\.skip-key != 'true'\n {6}&& !cancelled\(\)\n {6}&& needs\.trigger\.result == 'success'\n {6}&& /, "      ")
         .replace(KEY_SKIP, "");
     assert.equal(gates(job), gates(KEY));
   }

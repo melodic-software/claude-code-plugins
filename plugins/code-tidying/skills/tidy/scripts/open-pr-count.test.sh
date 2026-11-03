@@ -2,6 +2,7 @@
 # Self-contained contract tests for open-pr-count.sh (network-free: gh is
 # stubbed via a PATH shim so no real GitHub calls happen).
 set -uo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/open-pr-count.sh"
@@ -39,6 +40,8 @@ cat >"$TEST_TMPDIR/bin/gh" <<'EOF'
 case "$*" in *--search*) exit 64 ;; *"--limit 1000"*) ;; *) exit 65 ;; esac
 case "${GH_STUB_MODE:-}" in
   count0) echo "5 0" ;;
+  count1) echo "9 1" ;;
+  count2) echo "9 2" ;;
   count3) echo "12 3" ;;
   full) echo "1000 0" ;;
   fail | *) exit 4 ;;
@@ -83,6 +86,47 @@ out=$(PATH="$STUB_PATH" GH_STUB_MODE=fail bash "$SCRIPT" 2>&1)
 rc=$?
 assert_exit "gh failure exits 1" 1 "$rc"
 assert_contains "gh failure reports unknown" "$out" "Open tidy PR count: unknown"
+
+# --- 5. The limit comes from the upkeep_max_open setting ------------------------
+
+# A repository whose home is <dir>; a consumer's own root, never the plugin's.
+new_repo() {
+  local repo="$TEST_TMPDIR/$1"
+  mkdir -p "$repo/$2"
+  git -C "$repo" init -q
+  printf '%s\n' "$repo"
+}
+run_at() {
+  PATH="$STUB_PATH" CLAUDE_PROJECT_DIR="$1" GH_STUB_MODE="$2" bash "$SCRIPT" 2>&1
+}
+
+repo="$(new_repo set2 docs/conventions)"
+printf 'upkeep_max_open: 2\n' >"$repo/docs/conventions/code-tidying.yaml"
+out="$(run_at "$repo" count2)"
+assert_contains "setting 2, 2 open: throttled" "$out" "Throttle active: yes"
+assert_contains "setting 2 names the team layer" "$out" "Throttle limit: 2, team"
+out="$(run_at "$repo" count1)"
+assert_contains "setting 2, 1 open: not throttled" "$out" "Throttle active: no"
+
+repo="$(new_repo absent docs/conventions)"
+out="$(run_at "$repo" count3)"
+assert_contains "no file, 3 open: throttled" "$out" "Throttle active: yes"
+assert_contains "no file names the default" "$out" "Throttle limit: 3, default"
+out="$(run_at "$repo" count2)"
+assert_contains "no file, 2 open: not throttled" "$out" "Throttle active: no"
+
+repo="$(new_repo invalid docs/conventions)"
+printf 'upkeep_max_open: 0\n' >"$repo/docs/conventions/code-tidying.yaml"
+out="$(run_at "$repo" count2)"
+assert_contains "invalid value falls to the default" "$out" "Throttle active: no"
+assert_contains "invalid value is named" "$out" "docs/conventions/code-tidying.yaml upkeep_max_open: 0 is not valid"
+
+repo="$(new_repo bound team/rules)"
+# shellcheck disable=SC2016 # literal backticks: the pointer line's grammar.
+printf '<!-- BEGIN GENERATED: convention-home -->\nConventions live in `team/rules`.\n<!-- END GENERATED: convention-home -->\n' >"$repo/AGENTS.md"
+printf 'upkeep_max_open: 1\n' >"$repo/team/rules/code-tidying.yaml"
+out="$(run_at "$repo" count1)"
+assert_contains "the bound home is read" "$out" "Throttle active: yes"
 
 # --- Final report ---------------------------------------------------------------
 

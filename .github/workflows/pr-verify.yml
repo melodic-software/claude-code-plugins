@@ -29,7 +29,8 @@ name: pr-verify
 # when check-intent's key leg handed off (run-claude-cli's handoff output:
 # a credit stop, or class auth with API status 401 or 402) with no permission
 # denial, or its key is empty; then check-intent writes no verdict and does
-# not fail. With the org secret FALLBACK_CLAUDE_CODE_OAUTH_TOKEN set, the
+# not fail. It also runs when check-intent-credit skipped check-intent because
+# the key's credit stop is recent. With the org secret FALLBACK_CLAUDE_CODE_OAUTH_TOKEN set, the
 # subscription leg hands off the same way (a limit stop, a credit stop, or a
 # 401 or 402) and the check-intent-fallback job judges once on that token, on
 # a third VM; with it empty, nothing hands off past the subscription job. So
@@ -90,9 +91,73 @@ defaults:
     shell: bash
 
 jobs:
-  check-intent:
+  # Whether the key is still out of credit: a check-intent credit stop in this
+  # workflow inside the window (vars.KEY_CREDIT_WINDOW_HOURS, 1 hour unset)
+  # skips check-intent, and check-intent-subscription judges instead
+  # (ci-workflows check-key-credit, gate.cjs). Its record step carries the
+  # origin run forward in its name, so the window counts from the credit stop,
+  # not the last skip, and a topped-up or rotated key is tried once it ends.
+  # It holds no secret, checks nothing out and reads only this workflow's runs.
+  # Every failure runs the key: check-intent's `if` starts with !cancelled().
+  check-intent-credit:
     if: >-
       github.ref == 'refs/heads/main'
+      && github.event.workflow_run.event == 'pull_request'
+      && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
+      && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    cache-mode: none
+    permissions:
+      actions: read # this workflow's runs and their jobs
+    outputs:
+      skip-key: ${{ steps.gate.outputs.skip-key }}
+    steps:
+      - name: Read the key's credit history
+        id: gate
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: melodic-software/ci-workflows/.github/actions/check-key-credit@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        with:
+          key-job: check-intent
+          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}
+
+      # Read by the next runs' gate; its name is the record (check-key-credit
+      # RECORD_PATTERN).
+      - name: Record the key's credit stop in run ${{ steps.gate.outputs.origin-run }}
+        if: steps.gate.outputs.skip-key == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        run: echo "carried to the next run's check-key-credit read"
+
+      # The skipped key leg's lane record: outcome skip, class credit-stop,
+      # handed off, so leg counts before and after the gate compare.
+      - name: Report the skipped key leg
+        if: steps.gate.outputs.skip-key == 'true'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: skipped
+          lane: pr-verify
+          lane-id: pr-verify
+          credential: PR_VERIFY_CLAUDE_API_KEY
+          known-failure-class: credit-stop
+          handoff: "true"
+
+      - name: Log the API budget
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/report-api-budget@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        with:
+          tokens: github-token
+
+  check-intent:
+    needs: check-intent-credit
+    if: >-
+      needs.check-intent-credit.outputs.skip-key != 'true'
+      && !cancelled()
+      && github.ref == 'refs/heads/main'
       && github.event.workflow_run.event == 'pull_request'
       && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
       && github.event.workflow_run.head_repository.full_name == github.repository
@@ -1921,6 +1986,16 @@ jobs:
             echo '```'
           } >>"$GITHUB_STEP_SUMMARY"
 
+      # Read by the next runs' check-intent-credit gate: a step named for this
+      # run that succeeds only after a judge step's credit-stop handoff, which
+      # on this key leg means the key is out of credit. Its name is the record;
+      # keep it equal to check-key-credit's RECORD_PATTERN.
+      - name: Record the key's credit stop in run ${{ github.run_id }}
+        if: always() && (steps.judge.outputs.handoff-reason == 'credit-stop' || steps.judge-2.outputs.handoff-reason == 'credit-stop' || steps.judge-3.outputs.handoff-reason == 'credit-stop' || steps.judge-4.outputs.handoff-reason == 'credit-stop' || steps.judge-5.outputs.handoff-reason == 'credit-stop' || steps.judge-6.outputs.handoff-reason == 'credit-stop' || steps.judge-7.outputs.handoff-reason == 'credit-stop' || steps.judge-8.outputs.handoff-reason == 'credit-stop' || steps.judge-9.outputs.handoff-reason == 'credit-stop' || steps.judge-10.outputs.handoff-reason == 'credit-stop' || steps.judge-11.outputs.handoff-reason == 'credit-stop' || steps.judge-12.outputs.handoff-reason == 'credit-stop' || steps.judge-spec.outputs.handoff-reason == 'credit-stop')
+        continue-on-error: true
+        timeout-minutes: 1
+        run: echo "the key ended in a credit stop"
+
       - name: Log the API budget
         if: always()
         continue-on-error: true
@@ -1944,18 +2019,23 @@ jobs:
   # key-leg check and the reads it takes from check-intent's `reads` output
   # (workflow.test.mjs holds them equal), so the trigger gate, the kill
   # switch and the hardening run again. Only this job references the
-  # subscription token. needs adds success(): a check-intent that failed, a
-  # denial on its key leg included, leaves this job skipped.
+  # subscription token. It runs after a check-intent that succeeded, so one
+  # that failed, a denial on its key leg included, leaves this job skipped;
+  # or after check-intent-credit skipped check-intent, with no reads to take.
   check-intent-subscription:
-    needs: check-intent
+    needs: [check-intent-credit, check-intent]
     if: >-
-      github.ref == 'refs/heads/main'
+      !cancelled()
+      && github.ref == 'refs/heads/main'
       && github.event.workflow_run.event == 'pull_request'
       && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
       && github.event.workflow_run.head_repository.full_name == github.repository
+      && ((needs.check-intent.result == 'success'
       && ((needs.check-intent.outputs.handoff == 'true'
       && needs.check-intent.outputs.key-leg-clean == 'true')
-      || needs.check-intent.outputs.credential-present == 'false')
+      || needs.check-intent.outputs.credential-present == 'false'))
+      || (needs.check-intent.result == 'skipped'
+      && needs.check-intent-credit.outputs.skip-key == 'true'))
     runs-on: ubuntu-24.04
     timeout-minutes: 301
     cache-mode: read
@@ -2313,7 +2393,7 @@ jobs:
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
           handoff: ${{ steps.judge.outputs.handoff == 'true' && steps.sub-leg.outcome != 'failure' }}
           # Why this job ran, for its lane record.
-          fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
+          fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || needs.check-intent-credit.outputs.skip-key == 'true' && 'credit-stop' || '' }}
 
       # The leg's transcript, failed legs included, sealed to the transcript
       # key and kept 7 days for the puller; a failed upload never fails the job.
@@ -2423,7 +2503,7 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-2.outputs.lane-class }}
           handoff: ${{ steps.judge-2.outputs.handoff == 'true' && steps.sub-leg-2.outcome != 'failure' }}
-          fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
+          fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || needs.check-intent-credit.outputs.skip-key == 'true' && 'credit-stop' || '' }}
 
       - name: Upload chunk 2's sealed transcript
         if: always() && steps.judge-2.outputs.execution-file != ''
@@ -2521,7 +2601,7 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-3.outputs.lane-class }}
           handoff: ${{ steps.judge-3.outputs.handoff == 'true' && steps.sub-leg-3.outcome != 'failure' }}
-          fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
+          fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || needs.check-intent-credit.outputs.skip-key == 'true' && 'credit-stop' || '' }}
 
       - name: Upload chunk 3's sealed transcript
         if: always() && steps.judge-3.outputs.execution-file != ''
@@ -2620,7 +2700,7 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-4.outputs.lane-class }}
           handoff: ${{ steps.judge-4.outputs.handoff == 'true' && steps.sub-leg-4.outcome != 'failure' }}
-          fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
+          fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || needs.check-intent-credit.outputs.skip-key == 'true' && 'credit-stop' || '' }}
 
       - name: Upload chunk 4's sealed transcript
         if: always() && steps.judge-4.outputs.execution-file != ''
@@ -2721,7 +2801,7 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-5.outputs.lane-class }}
           handoff: ${{ steps.judge-5.outputs.handoff == 'true' && steps.sub-leg-5.outcome != 'failure' }}
-          fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
+          fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || needs.check-intent-credit.outputs.skip-key == 'true' && 'credit-stop' || '' }}
 
       - name: Upload chunk 5's sealed transcript
         if: always() && steps.judge-5.outputs.execution-file != ''
@@ -2822,7 +2902,7 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-6.outputs.lane-class }}
           handoff: ${{ steps.judge-6.outputs.handoff == 'true' && steps.sub-leg-6.outcome != 'failure' }}
-          fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
+          fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || needs.check-intent-credit.outputs.skip-key == 'true' && 'credit-stop' || '' }}
 
       - name: Upload chunk 6's sealed transcript
         if: always() && steps.judge-6.outputs.execution-file != ''
@@ -2924,7 +3004,7 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-7.outputs.lane-class }}
           handoff: ${{ steps.judge-7.outputs.handoff == 'true' && steps.sub-leg-7.outcome != 'failure' }}
-          fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
+          fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || needs.check-intent-credit.outputs.skip-key == 'true' && 'credit-stop' || '' }}
 
       - name: Upload chunk 7's sealed transcript
         if: always() && steps.judge-7.outputs.execution-file != ''
@@ -3027,7 +3107,7 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-8.outputs.lane-class }}
           handoff: ${{ steps.judge-8.outputs.handoff == 'true' && steps.sub-leg-8.outcome != 'failure' }}
-          fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
+          fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || needs.check-intent-credit.outputs.skip-key == 'true' && 'credit-stop' || '' }}
 
       - name: Upload chunk 8's sealed transcript
         if: always() && steps.judge-8.outputs.execution-file != ''
@@ -3131,7 +3211,7 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-9.outputs.lane-class }}
           handoff: ${{ steps.judge-9.outputs.handoff == 'true' && steps.sub-leg-9.outcome != 'failure' }}
-          fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
+          fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || needs.check-intent-credit.outputs.skip-key == 'true' && 'credit-stop' || '' }}
 
       - name: Upload chunk 9's sealed transcript
         if: always() && steps.judge-9.outputs.execution-file != ''
@@ -3236,7 +3316,7 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-10.outputs.lane-class }}
           handoff: ${{ steps.judge-10.outputs.handoff == 'true' && steps.sub-leg-10.outcome != 'failure' }}
-          fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
+          fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || needs.check-intent-credit.outputs.skip-key == 'true' && 'credit-stop' || '' }}
 
       - name: Upload chunk 10's sealed transcript
         if: always() && steps.judge-10.outputs.execution-file != ''
@@ -3342,7 +3422,7 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-11.outputs.lane-class }}
           handoff: ${{ steps.judge-11.outputs.handoff == 'true' && steps.sub-leg-11.outcome != 'failure' }}
-          fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
+          fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || needs.check-intent-credit.outputs.skip-key == 'true' && 'credit-stop' || '' }}
 
       - name: Upload chunk 11's sealed transcript
         if: always() && steps.judge-11.outputs.execution-file != ''
@@ -3449,7 +3529,7 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-12.outputs.lane-class }}
           handoff: ${{ steps.judge-12.outputs.handoff == 'true' && steps.sub-leg-12.outcome != 'failure' }}
-          fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
+          fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || needs.check-intent-credit.outputs.skip-key == 'true' && 'credit-stop' || '' }}
 
       - name: Upload chunk 12's sealed transcript
         if: always() && steps.judge-12.outputs.execution-file != ''
@@ -3622,7 +3702,7 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-spec.outputs.lane-class }}
           handoff: ${{ steps.judge-spec.outputs.handoff == 'true' && steps.sub-leg-spec.outcome != 'failure' }}
-          fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
+          fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || needs.check-intent-credit.outputs.skip-key == 'true' && 'credit-stop' || '' }}
 
       - name: Upload the spec judgment's sealed transcript
         if: always() && steps.judge-spec.outputs.execution-file != ''
@@ -3772,10 +3852,14 @@ jobs:
   # to a fixed string in its `if` or the fallback-reason expression, never
   # written into a `run:` script. It is the last leg and never hands off: an
   # empty subscription token fails the subscription job instead.
+  # !cancelled(): the implicit success() also needs every ancestor, so a
+  # check-intent the credit gate skipped would skip this job too.
   check-intent-fallback:
     needs: check-intent-subscription
     if: >-
-      github.ref == 'refs/heads/main'
+      !cancelled()
+      && needs.check-intent-subscription.result == 'success'
+      && github.ref == 'refs/heads/main'
       && github.event.workflow_run.event == 'pull_request'
       && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
       && github.event.workflow_run.head_repository.full_name == github.repository
