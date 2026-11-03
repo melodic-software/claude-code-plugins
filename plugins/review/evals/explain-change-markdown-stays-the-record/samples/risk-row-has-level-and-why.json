@@ -14,7 +14,7 @@
     },
     {
       "answer": "- Order totals (MEDIUM): placeOrder no longer applies the discount itself",
-      "why": "list row with parenthesised level"
+      "why": "list row with the level in parentheses"
     }
   ],
   "fail": [
