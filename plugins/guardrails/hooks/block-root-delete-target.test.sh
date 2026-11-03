@@ -884,6 +884,14 @@ expect_both 'unset suffixed: a += append blocks' 2 "${RDT_CWD[@]}" --command "S=
 expect_both 'unset suffixed: a quoted blank in a for list blocks' 2 "${RDT_CWD[@]}" --command 'for v in "/ tmp"; do rm -rf $v/x; done'
 expect_both 'unset suffixed: a quoted expansion in a for list blocks' 2 "${RDT_CWD[@]}" --command 'for v in "$@"; do rm -rf $v/x; done'
 expect_both 'unset suffixed: an escaped blank in a for list blocks' 2 "${RDT_CWD[@]}" --command 'for v in /\ tmp; do rm -rf $v/x; done'
+expect_both 'unset suffixed: printf -v glued to the name blocks' 2 "${RDT_CWD[@]}" --command "S=/tmp; printf -vS '/ tmp'; rm -rf \$S/x"
+expect_both 'unset suffixed: read -a glued to the name blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; read -aS <f; rm -rf $S/x'
+expect_both 'unset suffixed: a nameref flag after another flag blocks' 2 "${RDT_CWD[@]}" --command 'R="/ tmp"; declare -g -n S=R; rm -rf $S/x'
+expect_both 'unset suffixed: a subscript assignment blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; S[0]="/ tmp"; rm -rf $S/x'
+expect_both 'unset suffixed: a select list blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; select S in "/ tmp"; do rm -rf $S/x; done'
+expect_both 'unset suffixed: a := default blocks without a cwd' 2 --command 'S=; : ${S:=/ tmp}; rm -rf $S/x'
+expect_both 'unset suffixed: an exported literal stays allowed' 0 "${RDT_CWD[@]}" --command 'export S=/tmp/x; echo "$(date)"; rm -rf $S/y'
+expect_both 'unset suffixed: a printf that only reads the name stays allowed' 0 "${RDT_CWD[@]}" --command "S=/tmp/x; printf '%s\\n' \"\$S\"; rm -rf \$S/y"
 expect_both 'unset suffixed: a quoted second for list blocks' 2 "${RDT_CWD[@]}" --command 'for v in a; do :; done; for v in "/ tmp"; do rm -rf $v/x; done'
 expect_both 'unset suffixed: a quoted for list after an assignment blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; for S in "/ tmp"; do rm -rf $S/x; done'
 expect_both 'unset suffixed: a for over the positionals after an assignment blocks' 2 "${RDT_CWD[@]}" --command 'S=/tmp; for S; do rm -rf $S/x; done'
