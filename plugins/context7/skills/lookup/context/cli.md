@@ -33,7 +33,7 @@ Set it wherever your project manages local environment variables (shell profile,
 |---|---|
 | `ctx7 library <name> [query]` | Resolve library name to a Context7 library ID (the query argument is optional, but pass one: it drives ranking) |
 | `ctx7 docs <libraryId> <query>` | Fetch documentation for a resolved library |
-| `ctx7 search <query>` | One-step search across libraries; an option, not the default (record below) |
+| `ctx7 search <query>` | An option, not the default (record below) |
 | `ctx7 setup [flags]` | Configure Context7 for an IDE (this plugin does NOT use it, see below) |
 | `ctx7 login` / `logout` / `whoami` | OAuth flow (this plugin does NOT use it, since the env var is enough) |
 | `ctx7 remove` / `uninstall` | Remove a `setup`-installed agent configuration (this plugin does NOT use it) |
@@ -46,22 +46,19 @@ Set it wherever your project manages local environment variables (shell profile,
 - **As of**: 2026-11-03
 - **Recheck trigger**: `ctx7 --help` lists `skills` or `generate`.
 
-**Lookups default to `ctx7 library`, then `ctx7 docs`; `ctx7 search` is an option.** The two-step
-path shows the candidate libraries, which the selection, ambiguity-probe and version-specific-ID
-steps in [lookup.md](lookup.md) depend on, and its `docs` answer stays inside the chosen library.
-`search` saves the resolve call but picks the libraries itself. Use it when the question spans
-several libraries or names none, or narrow it with `--library` to one or a few you already know. Use it only when the
-installed CLI's `ctx7 --help` lists `search`; an older install rejects it, and the two-step path
-still answers. Its flags come from `ctx7 search --help`, read live.
+**Lookups default to `ctx7 library`, then `ctx7 docs`; `ctx7 search` is an option.** The
+selection, ambiguity-probe and version-specific-ID steps in [lookup.md](lookup.md) are built on
+the two-step path, so it stays the default. Choose `search` for a question that spans several
+libraries or names none, and only when the installed CLI's `ctx7 --help` lists it; otherwise use
+the two steps.
 
-- **Pointer**: when deciding whether `search` exists, what its flags are, and how its calls count,
-  run `ctx7 --help` and `ctx7 search --help` on the installed CLI, fetch
-  [upstash/context7#3396](https://github.com/upstash/context7/pull/3396), and read
-  [Search API: Pricing](https://context7.com/docs/search-api#pricing) and
-  [Search API or Context API?](https://context7.com/docs/search-api#search-api-or-context-api) live.
+- **Pointer**: when deciding whether `search` exists, what it does, which flags it takes and how
+  its calls count, run `ctx7 --help` and `ctx7 search --help` on the installed CLI, and read
+  [Search API or Context API?](https://context7.com/docs/search-api#search-api-or-context-api) and
+  [Search API: Pricing](https://context7.com/docs/search-api#pricing) live.
 - **As of**: 2026-11-03
 - **Recheck trigger**: `ctx7 search --help` adds or drops a flag, the Context7 MCP server gains a
-  one-step search tool, or the Search API docs change how a search call is counted.
+  one-step search tool, or either docs section changes.
 
 ## Flags
 
