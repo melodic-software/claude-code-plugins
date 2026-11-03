@@ -664,9 +664,27 @@ const ROUTE_LABEL = { "host-run": HOST_RUN_LABEL, attended: ATTENDED_LABEL, park
 const KEPT = new Set(["retry", "wait"]);
 // The routes whose stops are counted against a cap: past it, retry-spent's.
 const COUNTED = new Set([...KEPT, "intake"]);
-// The queue labels: admission's, which work-unblock also strips from a closed
+// The queue labels: admission's, which stripQueueLabels removes from a closed
 // issue and from one its lane PR handed back to triage.
 export const ADMISSION_LABELS = ["agent-ready", "status: ready", "admission-deferred"];
+// Agent-ready last: work-unblock's sweep lists open agent-ready issues, so a
+// failed write leaves the issue for it.
+const QUEUE_LABELS = [...ADMISSION_LABELS.filter((name) => name !== "agent-ready"), "agent-ready"];
+
+// Removes the queue labels `had` holds from the issue at `base`, and returns
+// their names. A 404 is a label already gone, so it counts as removed.
+export async function stripQueueLabels(github, base, had) {
+  const present = new Set(had.map((name) => String(typeof name === "string" ? name : name?.name).toLowerCase()));
+  const removed = QUEUE_LABELS.filter((name) => present.has(name));
+  for (const name of removed) {
+    await github("DELETE", `${base}/labels/${encodeURIComponent(name)}`).catch((error) => {
+      if (error?.status !== 404) {
+        throw error;
+      }
+    });
+  }
+  return removed;
+}
 const ROUTE_REMOVES = { intake: ADMISSION_LABELS, park: ADMISSION_LABELS };
 const ROUTE_TEXT = {
   "host-run": `It added \`${HOST_RUN_LABEL}\` and removed \`agent-ready\`: an agent run on a host builds it, and it waits on no decision from a person.`,
@@ -1878,7 +1896,7 @@ function api({ fetch: rawFetch, apiUrl, token, sleep }) {
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     if (!response.ok) {
-      throw new Error(`${method} ${path} answered ${response.status}`);
+      throw Object.assign(new Error(`${method} ${path} answered ${response.status}`), { status: response.status });
     }
     return response.status === 204 ? null : response.json();
   };
@@ -2182,8 +2200,12 @@ async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane
   }
   await applyHandBack(github, repo, plan);
   if (plan.action === "close") {
-    await github("PATCH", `${repo}/issues/${plan.issueNumber}`, { state: "closed", state_reason: "completed" }, { safeToResend: true });
-    console.log(`report-outcome: closed issue #${plan.issueNumber} (${plan.stop})`);
+    const base = `${repo}/issues/${plan.issueNumber}`;
+    const closed = await github("PATCH", base, { state: "closed", state_reason: "completed" }, { safeToResend: true });
+    // The App's close starts no work-unblock close run, so the queue labels
+    // still on the issue come off here, as read from the close's answer.
+    const removed = await stripQueueLabels(github, base, closed?.labels ?? []);
+    console.log(`report-outcome: closed issue #${plan.issueNumber} (${plan.stop}); removed ${removed.length} queue label(s)`);
   }
 }
 

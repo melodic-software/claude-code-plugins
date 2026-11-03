@@ -4552,6 +4552,18 @@ test("the last sub-issue closing by a listed human or a merge closes its split p
   assert.match(comment, /#31, #32/);
 });
 
+// The App's close starts no close run, so the split parent's queue labels
+// come off right after it: only those present, agent-ready last.
+test("closing a split parent removes the queue labels it carries, agent-ready last", async () => {
+  const { github, calls } = splitWorld({ parent: issue(30, { labels: ["agent-ready", "status: ready", "priority: high"] }) });
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writtenPaths(calls), [
+    ...closeParentWrites,
+    `DELETE /repos/${REPO}/issues/30/labels/status%3A%20ready`,
+    `DELETE /repos/${REPO}/issues/30/labels/agent-ready`,
+  ]);
+});
+
 test("a split parent stays open while a sub-issue is open, or closed by someone else, or with no split record from the App", async () => {
   const outsider = { id: 4242, login: "someone-else", type: "User" };
   for (const setup of [

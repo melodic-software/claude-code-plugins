@@ -12,8 +12,9 @@
 //
 // The close path also strips the closed issue's own queue labels
 // (agent-ready, `status: ready`, admission-deferred; stripClosed), only those
-// present, unless it is open again or is a post-merge fix issue. A close the
-// broker refuses (a bot's) runs no close path, so it keeps them.
+// present, unless it is open again or is a post-merge fix issue. A bot's close
+// runs no close path: where the lanes App closes an issue itself (a split
+// parent here, report-outcome's close route) it strips them after the close.
 //
 // Each new agent-ready is paced: at or over the issue lane's queued cap, or
 // with the lane paused over its WIP or held cap (check-wip-cap.mjs, on or
@@ -283,7 +284,7 @@ import { notBornTriaged } from "../../actions/check-born-triaged/check-born-tria
 import { createGitHub, isTrustedClose as closedByHumanOrMerge, loadTrustedList, paginate, readRerunner } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
-import { ADMISSION_LABELS, clampReset, isLaneBranch, LANE_HOLDS, LANE_WORKFLOWS, parseOutcomeMarker, REFIRED, refireComment as refireRecord, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
+import { clampReset, isLaneBranch, LANE_HOLDS, LANE_WORKFLOWS, parseOutcomeMarker, REFIRED, refireComment as refireRecord, refsHoldMarker, stripQueueLabels } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip, resolveStrandedBackoff, STRANDED_BACKOFF_MAX } from "../work-resolve-issue/limits.mjs";
 import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorAdmitted, attendedHold, blockersOf, CONFIRMED, decide, deferralLapsed, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, SIZE_SPLIT_PENDING, specOf, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 import { clearedPastReport, retriageNote, doneReason, judgedSince, mergedRefsReader, splitLeftOpen, splitParentClosed } from "../intake-triage/admit.mjs";
@@ -861,25 +862,6 @@ const noMirror = async () => {};
 
 // A label change as the status mirror takes it (write-status.mjs statusMirror).
 const change = (had = [], add = [], remove = []) => ({ had, add, remove });
-
-// The queue labels (report-outcome's ADMISSION_LABELS), agent-ready last: the
-// sweep lists open agent-ready issues, so a failed write leaves the issue for it.
-const QUEUE_LABELS = [...ADMISSION_LABELS.filter((name) => name !== LABEL), LABEL];
-
-// Removes the queue labels `had` holds from the issue at `base`, and returns
-// their names. A 404 is a label already gone, so it counts as removed.
-async function stripQueueLabels(github, base, had) {
-  const present = new Set(had.map((name) => name.toLowerCase()));
-  const removed = QUEUE_LABELS.filter((name) => present.has(name));
-  for (const name of removed) {
-    await github("DELETE", `${base}/labels/${encodeURIComponent(name)}`).catch((error) => {
-      if (error?.status !== 404) {
-        throw error;
-      }
-    });
-  }
-  return removed;
-}
 
 // A closed issue loses its queue labels, so no queue or count reads it as
 // waiting. Read fresh: a run queued behind another may land after a reopen,
@@ -2173,7 +2155,9 @@ async function closeDoneParent({ github, repo, parent, humans, closes, bot }) {
     });
   }
   await github("PATCH", base, { state: "closed", state_reason: "completed" });
-  console.log(`label-unblocked: split parent #${parent.number} closed as completed`);
+  // The App's close starts no close run, so its queue labels come off here.
+  const removed = await stripQueueLabels(github, base, labelNames(parent));
+  console.log(`label-unblocked: split parent #${parent.number} closed as completed; removed ${removed.length} queue label(s)`);
 }
 
 // The admission comment's text for a wait, before its reasons (sayWhy's callers).

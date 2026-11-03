@@ -4614,6 +4614,27 @@ test("main posts a delivered report and closes the issue", async () => {
   assert.deepEqual(run.calls.find((c) => c.method === "PATCH").body, { state: "closed", state_reason: "completed" });
 });
 
+// The App's close starts no work-unblock close run, so the queue labels the
+// close's answer still shows come off right after it, agent-ready last.
+test("main's close removes the queue labels the closed issue still carries, after the close and agent-ready last", async () => {
+  const closedWith = (labels) => ["PATCH", /\/issues\/77$/, 200, { state: "closed", labels: labels.map((name) => ({ name })) }];
+  const run = await stopRun({ reason: "report-delivered: the audit found three stale rows", routes: [closedWith(["status: ready", "admission-deferred", "agent-ready", "priority: low"])] });
+  assert.equal(run.code, 0);
+  const after = run.calls.slice(run.calls.findIndex((c) => c.method === "PATCH") + 1).map((c) => `${c.method} ${c.path.replace(/^.*\/issues\/77/, "")}`);
+  assert.deepEqual(after, ["DELETE /labels/status%3A%20ready", "DELETE /labels/admission-deferred", "DELETE /labels/agent-ready"]);
+  // None left on the issue: nothing more is written after the close.
+  const bare = await stopRun({ reason: "report-delivered: the audit found three stale rows", routes: [closedWith(["priority: low"])] });
+  assert.equal(bare.code, 0);
+  assert.deepEqual(bare.calls.slice(bare.calls.findIndex((c) => c.method === "PATCH") + 1), []);
+  // A label already gone (404) counts as removed.
+  const gone = await stopRun({
+    reason: "report-delivered: the audit found three stale rows",
+    routes: [closedWith(["status: ready", "agent-ready"]), ["DELETE", /\/labels\/status%3A%20ready$/, 404, {}]],
+  });
+  assert.equal(gone.code, 0);
+  assert.ok(gone.calls.some((c) => c.method === "DELETE" && c.path.endsWith("/77/labels/agent-ready")));
+});
+
 test("retries count the App's retry markers since a listed human last added agent-ready, not this run's", () => {
   const marker = (outcome, run, at) => ({ user: { login: "melodic-automation-lanes[bot]" }, body: `<!-- work-resolve-issue outcome=${outcome} run=${run} -->`, created_at: at });
   const comments = [marker("retry", "1", "2026-10-17T01:00:00Z"), marker("retry", "2", "2026-10-17T03:00:00Z"), marker("turn-cap", "3", "2026-10-17T04:00:00Z"), marker("retry", "555", "2026-10-17T05:00:00Z")];
