@@ -755,6 +755,20 @@ assert_contains "_existing takes the last duplicate line" "$out" "dup=[second]"
 assert_contains "_existing fails when the key is absent" "$out" "missing_rc=1"
 assert_contains "_existing fails when the env file does not exist" "$out" "nofile_rc=1"
 
+out="$(
+  case_run "$TTY_EOF" <<'BODY'
+printf '%s\n' 'ESCAPED="a\"b"' 'DOLLAR="$HOME/x"' 'SLASH="a\nb"' >.env
+for key in ESCAPED DOLLAR SLASH; do
+  rc=0
+  value="$(_existing "$key")" || rc=$?
+  printf '%s_rc=%s value=[%s]\n' "$key" "$rc" "$value"
+done
+BODY
+)"
+assert_contains "_existing offers no double-quoted value holding an escaped quote" "$out" 'ESCAPED_rc=1 value=[]'
+assert_contains "_existing offers no double-quoted value holding a dollar sign" "$out" 'DOLLAR_rc=1 value=[]'
+assert_contains "_existing offers no double-quoted value holding a backslash" "$out" 'SLASH_rc=1 value=[]'
+
 # --- 5. The gitignore pre-flight -------------------------------------------
 
 out="$(
@@ -819,6 +833,14 @@ done
 assert_contains "open_url never dispatches a refused URL" "$out" "opened=[]"
 assert_not_contains "... and prints no opening line for one" "$out" "opening"
 assert_not_contains "a refused URL is not fatal to the wizard" "$out" "rc=1"
+
+out="$(
+  case_run "$TTY_EOF" <<'BODY'
+PATH=/nonexistent
+open_url "https://dashboard.example.com/keys"
+BODY
+)"
+assert_contains "open_url warns when no browser opener exists" "$out" "open this address yourself: https://dashboard.example.com/keys"
 
 # --- 7. Prompt gates over fd 3 ---------------------------------------------
 
