@@ -86,4 +86,88 @@ expect "a contract-only run passes every skip through" 0 "skipped skipped skippe
   "$(lanes skipped "" "" "" skipped skipped skipped "" skipped | sed 's/"lint-repo":{"result":"success"/"lint-repo":{"result":"skipped"/')"
 expect "unreadable lanes fail and write no results" nonzero "" "not json"
 
+# A lane cancelled after its steps finished. The stub stands in for the jobs read: it prints
+# GH_FIXTURE, or fails on GH_FIXTURE=fail, and records that it was called.
+mkdir -p "$TMP_ROOT/bin"
+cat >"$TMP_ROOT/bin/gh" <<'STUB'
+#!/usr/bin/env bash
+echo called >>"$GH_CALLS"
+[[ "$GH_FIXTURE" == fail ]] && exit 1
+printf '%s\n' "$GH_FIXTURE"
+STUB
+chmod +x "$TMP_ROOT/bin/gh"
+export GH_CALLS="$TMP_ROOT/gh-calls" GITHUB_REPOSITORY=o/r GITHUB_RUN_ID=1 GITHUB_RUN_ATTEMPT=1
+
+# job <name> <conclusion> <completed_at> <last-step-name> <last-step-at> <other-step-conclusion>
+job() {
+  printf '{"name":"%s","conclusion":"%s","completed_at":"%s","steps":[{"name":"Run","conclusion":"%s","completed_at":"2026-11-02T20:00:00Z"},{"name":"%s","conclusion":"success","completed_at":"%s"}]}\n' "$1" "$2" "$3" "$6" "$4" "$5"
+}
+
+# expect_cancelled <label> <want-results> <lanes-json> <fixture> [<want-notice>]
+expect_cancelled() {
+  local out got
+  : >"$TMP_ROOT/out"
+  out="$(PATH="$TMP_ROOT/bin:$PATH" GH_FIXTURE="$4" LANES="$3" GITHUB_OUTPUT="$TMP_ROOT/out" bash -e "$TMP_ROOT/body.sh" 2>&1)" || {
+    fail "$1: step failed: $out"
+    return
+  }
+  got="$(sed -n 's/^results=//p' "$TMP_ROOT/out")"
+  if [[ "$got" != "$2" ]]; then
+    fail "$1: expected results '$2' got '$got'"
+  elif [[ -n "${5-}" && "$out" != *"$5"* ]]; then
+    fail "$1: no notice '$5' in '$out'"
+  else
+    ok "$1"
+  fi
+}
+
+cancelled_python="$(lanes success false true false skipped cancelled skipped false skipped)"
+at=2026-11-02T20:05:00Z
+expect_cancelled "steps done and a long gap: the lane counts as passed, with a notice" \
+  "success success success success success success" "$cancelled_python" \
+  "$(job 'test-python (0)' cancelled 2026-11-02T20:06:00Z 'Complete job' "$at" success)" \
+  "lane=test-python counted-as-passed=true"
+expect_cancelled "a gap under the floor stays cancelled: the limit may have landed between steps" \
+  "success success success success cancelled success" "$cancelled_python" \
+  "$(job 'test-python (0)' cancelled 2026-11-02T20:05:05Z 'Complete job' "$at" success)" \
+  "lane=test-python counted-as-passed=false"
+expect_cancelled "a gap of exactly the floor counts as passed" \
+  "success success success success success success" "$cancelled_python" \
+  "$(job 'test-python (0)' cancelled 2026-11-02T20:05:10Z 'Complete job' "$at" success)"
+expect_cancelled "a step cancelled mid-run stays cancelled" \
+  "success success success success cancelled success" "$cancelled_python" \
+  "$(job 'test-python (0)' cancelled 2026-11-02T20:06:00Z 'Complete job' "$at" cancelled)"
+expect_cancelled "a failed step stays cancelled" \
+  "success success success success cancelled success" "$cancelled_python" \
+  "$(job 'test-python (0)' cancelled 2026-11-02T20:06:00Z 'Complete job' "$at" failure)"
+expect_cancelled "no Complete job stays cancelled" \
+  "success success success success cancelled success" "$cancelled_python" \
+  "$(job 'test-python (0)' cancelled 2026-11-02T20:06:00Z 'Post Run' "$at" success)"
+expect_cancelled "a matrix sibling that failed keeps the lane cancelled" \
+  "success success success success cancelled success" "$cancelled_python" \
+  "$(job 'test-python (0)' cancelled 2026-11-02T20:06:00Z 'Complete job' "$at" success; job 'test-python (1)' failure 2026-11-02T20:06:00Z 'Complete job' "$at" failure)"
+expect_cancelled "every cancelled matrix sibling must have finished" \
+  "success success success success cancelled success" "$cancelled_python" \
+  "$(job 'test-python (0)' cancelled 2026-11-02T20:06:00Z 'Complete job' "$at" success; job 'test-python (1)' cancelled 2026-11-02T20:05:01Z 'Complete job' "$at" success)"
+expect_cancelled "a job read that fails leaves the lane cancelled" \
+  "success success success success cancelled success" "$cancelled_python" fail \
+  "lane=test-python counted-as-passed=false"
+expect_cancelled "a lane with no job in the read stays cancelled" \
+  "success success success success cancelled success" "$cancelled_python" \
+  "$(job 'test-node' cancelled 2026-11-02T20:06:00Z 'Complete job' "$at" success)"
+expect_cancelled "another lane's name prefix does not match" \
+  "success success success success cancelled success" "$cancelled_python" \
+  "$(job 'test-python-extra' cancelled 2026-11-02T20:06:00Z 'Complete job' "$at" success)"
+# select-tests finished but hung: its dependents never ran, so the run stays red on them.
+expect_cancelled "a recovered select-tests does not excuse the lanes it blocked" \
+  "success skipped skipped skipped skipped skipped" \
+  "$(lanes cancelled "" "" "" skipped skipped skipped "" skipped | sed 's/"lint-repo":{"result":"success"/"lint-repo":{"result":"skipped"/')" \
+  "$(job select-tests cancelled 2026-11-02T20:06:00Z 'Complete job' "$at" success)"
+
+: >"$GH_CALLS"
+expect_cancelled "no cancelled lane makes no API call" \
+  "success success failure failure success success" \
+  "$(lanes success true false false failure skipped skipped true failure)" "$(job x success "$at" 'Complete job' "$at" success)"
+if [[ -s "$GH_CALLS" ]]; then fail "gh was called with no cancelled lane"; else ok "gh is not called with no cancelled lane"; fi
+
 test_harness::report

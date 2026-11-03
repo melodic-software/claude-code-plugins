@@ -6511,12 +6511,46 @@ jobs:
       # through as it is, so a skip that hid work stays `skipped` and the
       # aggregate fails it. Pinned by scripts/ci-ordered-skips.test.sh, which
       # runs this body.
+      #
+      # A CANCELLED LANE WHOSE STEPS ALL FINISHED COUNTS AS PASSED. GitHub can
+      # leave a job open after `Complete job` until its `timeout-minutes` ends,
+      # then record it `cancelled`: 31 jobs in 29 of 55 failed or cancelled
+      # merge-queue runs (2026-11-02). This job does not run on a run-level cancel, so a
+      # cancelled lane here reached its limit. The lane counts as passed only when
+      # every step succeeded or skipped, `Complete job` is last, and the job ended
+      # at least 10 s after it: a limit that lands between two steps skips the rest
+      # and ends the job within seconds, which looks the same but for that gap
+      # (3 to 5 s on 4 of those 31, which stay red). Any read failure leaves the
+      # lane cancelled. Each cancelled lane writes a `cancelled-after-success`
+      # notice, the count to compare against that baseline.
       - name: Check each skipped lane against scope
         id: lanes
         if: ${{ !cancelled() }}
         env:
           LANES: ${{ toJSON(needs) }}
+          GH_TOKEN: ${{ github.token }}
         run: |
+          if jq -e 'any(.[]; .result == "cancelled")' <<<"$LANES" >/dev/null 2>&1; then
+            jobs_file=$(mktemp)
+            gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs?per_page=100" --jq '.jobs[]' >"$jobs_file" || : >"$jobs_file"
+            recovered=$(jq -r --slurpfile jobs "$jobs_file" '
+              def finished:
+                .steps as $s
+                | ($s | length) > 0 and $s[-1].name == "Complete job"
+                  and all($s[]; .conclusion == "success" or .conclusion == "skipped")
+                  and ((.completed_at | fromdate) - ($s[-1].completed_at | fromdate)) >= 10;
+              to_entries[] | select(.value.result == "cancelled") | .key
+              | . as $lane
+              | select([$jobs[] | select(.name == $lane or (.name | startswith($lane + " (")))]
+                  | length > 0 and all(.conclusion == "success" or .conclusion == "skipped"
+                      or (.conclusion == "cancelled" and finished)))' <<<"$LANES") || recovered=
+            for lane in $(jq -r 'to_entries[] | select(.value.result == "cancelled") | .key' <<<"$LANES"); do
+              if grep -qxF "$lane" <<<"$recovered"; then counted=true; else counted=false; fi
+              echo "::notice title=cancelled-after-success::lane=$lane counted-as-passed=$counted"
+            done
+            LANES=$(jq --arg names "$recovered" '($names | split("\n")) as $n
+              | with_entries(if (.key as $k | $n | index($k)) then .value.result = "success" else . end)' <<<"$LANES")
+          fi
           results=$(jq -r '
             .["select-tests"] as $s
             | to_entries
