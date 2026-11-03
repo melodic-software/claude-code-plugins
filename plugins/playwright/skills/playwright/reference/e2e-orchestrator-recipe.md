@@ -37,7 +37,7 @@ playwright-cli -s=smoke fill e37 '{"foo":"bar"}' --submit
 # 4. Capture evidence
 playwright-cli -s=smoke screenshot --filename=smoke-<date>.png
 playwright-cli -s=smoke console            # check for JS errors
-playwright-cli -s=smoke network            # verify the API call shape
+playwright-cli -s=smoke requests           # verify the API call shape
 
 # 5. Tear down (only the sessions this run opened)
 playwright-cli -s=smoke close
