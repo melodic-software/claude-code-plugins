@@ -4955,7 +4955,10 @@ hook::bash_parse_segments_shfmt() {
     HOOK_BPS_FAIL="more than $HOOK_BPS_MAX_PARSES parses for one command (nested or repeated extglob patterns)"
     hook::_bps_refuse
   fi
-  local -A __hu_pseen=()
+  # A newline-delimited list of %q-quoted pattern texts, not an associative
+  # array: on bash 3.2 `local -A` fails and an indexed array would evaluate the
+  # pattern text as an arithmetic subscript, running any `$(...)` in it.
+  local __hu_pseen=$'\n' __hu_pk
   local -a __hu_bt=() __hu_ac=() __hu_rc=() __hu_wd=() __hu_wq=() __hu_rop=() __hu_rfd=() __hu_rtg=() __hu_rq=() __hu_ro=() __hu_hb=() __hu_hs=() __hu_pt=() __hu_bt_more=()
   if ! hook::_bps_shfmt_to __hu_bout "$__hu_bcmd"; then
     ((__hu_bsoft)) && return 1
@@ -4995,8 +4998,7 @@ hook::bash_parse_segments_shfmt() {
   # a comment or separator to a command parse). A pattern without one runs
   # nothing, so it is parsed soft for any commands its text spells.
   for __hu_x in ${__hu_pt[@]+"${__hu_pt[@]}"}; do
-    [[ -n "$__hu_x" && -z "${__hu_pseen[$__hu_x]+x}" ]] || continue
-    __hu_pseen[$__hu_x]=1
+    [[ -n "$__hu_x" ]] || continue
     # shellcheck disable=SC2016  # literal substitution openers, not expansions
     case "$__hu_x" in
     *'$('* | *'`'* | *'<('* | *'>('*)
@@ -5004,8 +5006,12 @@ hook::bash_parse_segments_shfmt() {
       ((__hu_bsoft)) && return 1
       hook::_bps_refuse
       ;;
-    *) hook::bash_parse_segments_shfmt "$__hu_x" "$__hu_bcb" 1 ;;
+    *) ;;
     esac
+    printf -v __hu_pk '%q' "$__hu_x"
+    [[ "$__hu_pseen" == *$'\n'"$__hu_pk"$'\n'* ]] && continue
+    __hu_pseen+="$__hu_pk"$'\n'
+    hook::bash_parse_segments_shfmt "$__hu_x" "$__hu_bcb" 1
   done
   # The extglob-off reading and the array `#` reading (which replaces a tree
   # that took the rest of its line for a comment) are readings of the whole
