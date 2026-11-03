@@ -113,9 +113,10 @@ export function validatePlan(text, { areas, date, baseSha }) {
   return plan.sweeps;
 }
 
-// GitHub's closing keywords before an issue reference: a closing issue takes the place of the
-// Refs issue as the spec pr-verify and pr-merge read, and merging closes it.
-const CLOSING = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b:?\s*(?:[\w.-]+\/[\w.-]+)?#\d/i;
+// GitHub's closing keywords before an issue reference (`#n`, `owner/repo#n` or a full issue URL):
+// a closing issue takes the place of the Refs issue as the spec pr-verify and pr-merge read, and
+// merging closes it.
+const CLOSING = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b:?\s*(?:(?:[\w.-]+\/[\w.-]+)?#\d|https?:\/\/github\.com\/[\w.-]+\/[\w.-]+\/issues\/\d)/i;
 
 // The pull request body: `Refs: #<upkeep_spec_issue>` first, the link pr-verify reads the spec
 // through (refsIssue), then the model's body, which may link no other issue.

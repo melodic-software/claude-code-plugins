@@ -179,7 +179,7 @@ test("with no spec issue configured the batch opens no pull request and says why
 
 test("a body that links another issue is refused: a second Refs line unlinks the spec, a closing keyword overrides it", () => {
   assert.equal(prBody("## Summary\n\nRefs: #12894", SPEC).split("\n")[0], "Refs: #12894");
-  for (const body of ["Refs: #7585", "## Related\n\nRefs: #1, #2", "Closes #7585", "## Fix\n\nThis fixes #12.", "resolves melodic-software/other#3"]) {
+  for (const body of ["Refs: #7585", "## Related\n\nRefs: #1, #2", "Closes #7585", "## Fix\n\nThis fixes #12.", "resolves melodic-software/other#3", "Fixes https://github.com/melodic-software/claude-code-plugins/issues/123", "closed: http://github.com/acme/widgets/issues/9"]) {
     assert.throws(() => prBody(body, SPEC), /another issue/, body);
   }
 });
