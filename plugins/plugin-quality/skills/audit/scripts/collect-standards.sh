@@ -114,10 +114,7 @@ findings=0
 
 cite() {
   local file="$1" needle="$2" line
-  if [[ ! -f "$file" ]]; then
-    printf ''
-    return
-  fi
+  [[ -f "$file" ]] || return 0
   line="$(grep -n -F "$needle" "$file" | head -n 1 | cut -d: -f1)"
   printf '%s' "$line"
 }
@@ -275,7 +272,7 @@ if [[ ! -f "$win_file" ]]; then
 elif [[ -z "$win_cite" ]]; then
   emit_probe windows-path-emit basis-missing "$win_rel" - "citation sentence absent"
 else
-  export_line="$(grep -n -E 'export[[:space:]]+(MSYS_NO_PATHCONV|MSYS2_ARG_CONV_EXCL)|declare[[:space:]]+-x[[:space:]]+(MSYS_NO_PATHCONV|MSYS2_ARG_CONV_EXCL)|typeset[[:space:]]+-x[[:space:]]+(MSYS_NO_PATHCONV|MSYS2_ARG_CONV_EXCL)' "$COMPONENT" | head -n 1 | cut -d: -f1 || true)"
+  export_line="$(grep -n -E '(export|declare[[:space:]]+-x|typeset[[:space:]]+-x)[[:space:]]+(MSYS_NO_PATHCONV|MSYS2_ARG_CONV_EXCL)' "$COMPONENT" | head -n 1 | cut -d: -f1 || true)"
   if [[ -n "$export_line" ]]; then
     emit_probe windows-path-emit finding "$win_rel:$win_cite" "$COMPONENT:$export_line" "exported path-conversion suppressor"
   else

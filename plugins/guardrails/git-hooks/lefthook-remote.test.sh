@@ -6,7 +6,7 @@
 # remote names this file. With lefthook on PATH, a consumer whose lefthook.yml carries the
 # snippet `install.mjs plan --scope remote` returns, fetched from a local stand-in for this
 # repository, verifies ok and blocks an off-convention subject, a staged secret and (with jq)
-# a pushed citation of a deleted path, reading the consumer's own files, until the consumer
+# a pushed unresolved skill reference, reading the consumer's own files, until the consumer
 # declines that entry; a new commit on main
 # reaches the consumer on its next lefthook install.
 # test-scope: plugins/guardrails/git-hooks/lefthook-remote.yml plugins/guardrails/git-hooks/entries.json plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/git-hooks/commit-msg-convention.sh plugins/guardrails/git-hooks/pre-commit-content.sh plugins/guardrails/git-hooks/reference-verify.sh plugins/guardrails/git-hooks/pre-push-content.sh plugins/guardrails/git-hooks/content-scan.sh .lefthook/commit-msg/guardrails-commit-msg-convention.sh .lefthook/pre-commit/guardrails-pre-commit-content.sh .lefthook/pre-push/guardrails-reference-verify.sh .lefthook/pre-push/guardrails-pre-push-content.sh .github/scripts/pr-require-checks/install-lefthook.sh
@@ -139,22 +139,22 @@ git -C "$REPO" rm -q --cached notes.md
 rm "$REPO/notes.md"
 
 if command -v jq >/dev/null 2>&1; then
-  mkdir -p "$REPO/docs"
-  printf 'gone\n' >"$REPO/docs/gone.md"
-  git -C "$REPO" add docs
-  git -C "$REPO" commit -q -m "ABC-3: add" >/dev/null 2>&1
-  git -C "$REPO" rm -q docs/gone.md
-  git -C "$REPO" commit -q -m "ABC-4: remove" >/dev/null 2>&1
+  # A marketplace layout, so the skill-reference verifier judges the consumer's references.
+  mkdir -p "$REPO/plugins/alpha/.claude-plugin" "$REPO/plugins/alpha/skills/setup"
+  printf '{"name":"alpha","version":"0.1.0"}\n' >"$REPO/plugins/alpha/.claude-plugin/plugin.json"
+  : >"$REPO/plugins/alpha/skills/setup/SKILL.md"
+  git -C "$REPO" add plugins
+  git -C "$REPO" commit -q -m "ABC-3: plugin" >/dev/null 2>&1
   git -C "$REPO" push -q origin main >/dev/null 2>&1
   # Pushed from another branch, so only the refs lefthook passes on stdin name main's range.
   # shellcheck disable=SC2016 # the backticks are Markdown, not a substitution
-  printf 'See `docs/gone.md`.\n' >"$REPO/README.md"
-  git -C "$REPO" add README.md
-  git -C "$REPO" commit -q -m "ABC-5: cite" >/dev/null 2>&1
+  printf 'Run `/alpha:missing`.\n' >"$REPO/NOTES.md"
+  git -C "$REPO" add NOTES.md
+  git -C "$REPO" commit -q -m "ABC-4: cite" >/dev/null 2>&1
   git -C "$REPO" switch -q -c side
   err="$(git -C "$REPO" push origin main 2>&1)"
-  expect "pre-push: a pushed citation of a deleted path blocks, from the refs on stdin" yes \
-    "$(grep -q 'README.md:1: stale-path-verify' <<<"$err" && echo yes)"
+  expect "pre-push: a pushed unresolved skill reference blocks, from the refs on stdin" "1|yes" \
+    "$?|$(grep -q 'NOTES.md:1: skill-reference-verify' <<<"$err" && echo yes)"
   git -C "$REPO" config checks.guardrails.reference-verify.declined true
   git -C "$REPO" push -q origin main >/dev/null 2>&1
   expect "pre-push: with the entry declined, the same push passes" 0 "$?"

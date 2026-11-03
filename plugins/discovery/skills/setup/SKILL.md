@@ -78,25 +78,27 @@ Report a PASS/INFO/WARN table. Do not write anything. No row is ever a FAIL or a
        release note names fork mode.
 2. **Gate allow rules.** The acceptance-gate scripts prompt on every run unless the operator's
    `~/.claude/settings.json` allows them. Read its `permissions.allow` (a missing file or key reads
-   as no rules; read only, never write) and compare it with these ten rules for this install root:
+   as no rules; read only, never write) and compare it with these twelve rules for this install root:
 
    ```text
    Bash("${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh" *)
    Bash("${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh" *)
    Bash("${CLAUDE_PLUGIN_ROOT}/scripts/check-source-applicability.py" *)
    Bash("${CLAUDE_PLUGIN_ROOT}/scripts/check-restatement-labels.py" *)
+   Bash("${CLAUDE_PLUGIN_ROOT}/scripts/check-author-kind.py" *)
    Bash(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check-claim-eligibility.py" *)
    Bash(${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh *)
    Bash(${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh *)
    Bash(${CLAUDE_PLUGIN_ROOT}/scripts/check-source-applicability.py *)
    Bash(${CLAUDE_PLUGIN_ROOT}/scripts/check-restatement-labels.py *)
+   Bash(${CLAUDE_PLUGIN_ROOT}/scripts/check-author-kind.py *)
    Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/check-claim-eligibility.py *)
    ```
 
-   Report one row, **never FAIL**: PASS when all ten are present for this install root; INFO "stale"
+   Report one row, **never FAIL**: PASS when all twelve are present for this install root; INFO "stale"
    when gate rules name a different `…/scripts/check-*` root (an earlier version's cache directory,
    which stops matching after an update), naming that root; INFO "absent" otherwise. On stale or
-   absent, print the ten rules resolved to this install root and ready to paste, each as a JSON
+   absent, print the twelve rules resolved to this install root and ready to paste, each as a JSON
    string for `permissions.allow` (the quoted forms escape their inner `"`). Applying them is the
    operator's job: this skill never writes user settings. The rules pin this version's cache
    directory on purpose, so a plugin update invalidates them and `check` reports them "stale" again;
@@ -171,7 +173,7 @@ Report a PASS/INFO/WARN table. Do not write anything. No row is ever a FAIL or a
 
 ## Output
 
-`check`: the table and, when the gate allow rules are stale or absent, the ten resolved rules as
+`check`: the table and, when the gate allow rules are stale or absent, the twelve resolved rules as
 JSON strings ready to paste. `apply`: the table before and after, the diff when one was shown, the
 written path, and whether the file is tracked.
 

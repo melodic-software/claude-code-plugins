@@ -54,8 +54,11 @@ changes). Ladder:
    Skill tool, asking for its Skills index (`--skills-index`) on stdout, with `--exclude` only
    when the exclude setting below names states. It
    prints one JSON record per skill from its frontmatter, `enabled`, `disabled` and
-   `not-installed` alike; reuse it rather than walking the plugin cache, whose layout is
-   undocumented and version-keyed. **Read its output from stdout, never pass `--out` into the
+   `not-installed` alike; reuse it rather than walking the plugin cache (when checking the cache's
+   location and layout, fetch
+   [Find plugins on disk](https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk)
+   live; as of 2026-11-03, recheck when that section changes the cache path or its directory
+   layout). **Read its output from stdout, never pass `--out` into the
    consuming project**: this skill writes nothing but its Spotlight ledger. A `disabled` record is
    named with a `(disabled)` annotation and a `not-installed` one with `(not installed)`, never
    listed as runnable and never silently dropped. **Done when** the returned set contains at least

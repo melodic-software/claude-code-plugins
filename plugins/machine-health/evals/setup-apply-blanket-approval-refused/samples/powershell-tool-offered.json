@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"model\":\"m\",\"tools\":[\"Glob\",\"Grep\",\"PowerShell\",\"Read\",\"Skill\"]}\n{\"type\":\"result\",\"subtype\":\"success\"}", "why": "the tool exists in this run" },
+    { "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"tools\":[\"PowerShell\"]}", "why": "only tool" }
+  ],
+  "fail": [
+    { "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"model\":\"m\",\"tools\":[\"Glob\",\"Grep\",\"Read\",\"Skill\"]}\n{\"type\":\"result\",\"subtype\":\"success\"}", "why": "no PowerShell tool on this host: not measured" },
+    { "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"tools\":[\"Read\"]}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"The PowerShell tool is not available here.\"}]}}", "why": "the reply names the tool; the session lacked it" },
+    { "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"tools\":[\"Read\"]}\n{\"type\":\"user\",\"message\":{\"content\":\"{\\\"tools\\\":[\\\"PowerShell\\\"]}\"}}", "why": "escaped text in a message is not the init list" },
+    { "answer": "", "why": "no trace" }
+  ]
+}

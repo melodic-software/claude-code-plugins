@@ -12,20 +12,16 @@ metadata:
 
 ## Purpose
 
-`/permissions` lists your rules and the settings file each one came from, and for "where is this rule
-written" that is the answer, so use it. What it does not do is resolve the outcome: it will show you an
-allow and a deny for the same tool without saying which wins, it cannot tell a scope that was empty
-from one it could not read, there is no `claude permissions` subcommand or machine-readable export of
-the merged allow/ask/deny set, and none of it exists outside a live session. This skill computes that
-locally, off a live session, as line records a script can read.
+For "where is this rule written", use `/permissions`. This skill answers a different question: it
+computes the merged allow/ask/deny outcome itself, locally and off a live session, as line records a
+script can read, and it reports a scope it could not read apart from one that was empty.
 
-We found no CLI surface that exports the merged allow/ask/deny set, so this skill computes it.
-
-- **Pointer**: for the CLI's commands, see
-  [CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands).
-- **As of**: 2026-09-12
+- **Pointer**: when deciding whether a built-in surface already exports the merged set, fetch
+  [CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands) and the `/permissions`
+  row of [commands: all commands](https://code.claude.com/docs/en/commands#all-commands) live.
+- **As of**: 2026-11-03
 - **Recheck trigger**: a release note mentions a permissions export or a `/permissions` export
-  action.
+  action, or either section adds one.
 
 It answers a question the siblings do not. `audit-permission-grants` asks whether the grants you
 **wrote** are durable and portable; `audit` asks whether your config files are **correct**. This
@@ -154,10 +150,12 @@ These mechanics decide those records, and conflating them produces confident wro
 - **The merge treats rules as merging across scopes, never overriding**, so the same rule in the
   same list at two scopes has no winner. Both are live, and `scopes=` names every contributor.
   Never report one of them as having overridden the other.
-- **The merge decides kind by evaluation order, deny then ask then allow, from any scope, in both
-  directions.** A user-level deny blocks a project-level allow just as a project-level deny blocks a
-  user-level allow. Scope rank does not enter into it. This is what answers "why is my allow rule
-  ignored": the `inert` record names the rule that beat it.
+- **The merge decides kind by the fixed evaluation order `scripts/permission-merge.sh` encodes,
+  across scopes, and records which rule made another inert.** That `inert` record is what answers
+  "why is my allow rule ignored". When checking that order and whether scope rank enters it, fetch
+  [settings: permission rules combine differently than you expected](https://code.claude.com/docs/en/settings#permission-rules-combine-differently-than-you-expected)
+  live (as of 2026-11-03; recheck when that section changes the evaluation order or how scopes
+  combine).
 - **The merge treats a bare tool name as reaching every call of that tool.** A whole-tool deny
   makes every other rule naming that tool inert, other denies included, with the one exception
   `reference/criteria.md` names. A whole-tool ask leaves no scoped allow for that tool in effect.
@@ -233,9 +231,11 @@ Eleven checks: three `C2-*` dead-config gates, `C5-disableType`, and seven `C6-*
 `reference/criteria.md` maps each to the docs section it follows from and lists the legitimate rule
 shapes the checks are written NOT to flag.
 
-- **`C5-disableType` is the one to read first.** We treat only the **string** `"disable"` as
-  locking auto mode out; a boolean is valid JSON and the check flags it, because the operator
-  believes auto mode is locked out when it is not.
+- **`C5-disableType` is the one to read first.** It flags any value other than the string
+  `"disable"` as a false lockout: valid JSON the operator believes locks auto mode out. When deciding which value
+  locks it out, fetch
+  [settings reference: `disableAutoMode`](https://code.claude.com/docs/en/settings-reference#disableautomode)
+  live (as of 2026-11-03; recheck when that section changes the value that disables auto mode).
 - **The three `C2` gates stay separate findings.** Different scope sets, different version histories:
   an operator who fixed one and saw the count drop would reasonably believe they had fixed all three.
 - **`findings=0` is a clean bill only under `status=read`.** Under `status=incomplete` a scope could
@@ -281,9 +281,11 @@ nothing surfaces which. Stage: `managed-conformance.sh`, fed the inventory.
 - **`managed enforced deny <rule>`**: the strongest thing an administrator can write. We treat a
   managed permission rule as outranked by no level, command line included, and a tool denied at
   any level as allowed at none.
-- **`managed loosenable rule …`**: the interaction that surprises people. Managed settings rank
-  highest, and evaluation still runs deny, then ask, then allow **from any scope**, so a
-  lower-scope deny beats a managed allow without ever overriding it.
+- **`managed loosenable rule …`**: the interaction that surprises people, reported when a
+  lower-scope rule of an earlier-evaluated kind outranks a managed rule, because an administrator
+  reads the managed rule as policy. When deciding how managed rules rank and evaluate, fetch
+  [permissions: settings precedence](https://code.claude.com/docs/en/permissions#settings-precedence)
+  live (as of 2026-11-03; recheck when that section changes managed rank or the evaluation order).
 - **`managed loosenable autoMode`**: we report a managed `autoMode` section as **additive, not a
   policy boundary**, since a developer's own entries can loosen it.
 - **`managed loosenable lockout`**: `disableAutoMode` set to anything but the string `"disable"`.
@@ -295,9 +297,11 @@ four.
 every rule string it prints came from a file it read. It ships no security floor of its own.
 
 **Completeness is bounded on every run.** "Managed" means the local admin surfaces only. We do not
-fold the server-managed cache at `~/.claude/remote-settings.json` into the effective set: it is
-user-writable and can be stale, so it is not the live policy, and the live delivery has no local
-path. A surface that could not be read gets its own note saying so, because an administrator
+fold the server-managed cache into the effective set, and do not treat it as the live policy. When
+deciding where the cache lives and how current it is, fetch
+[server-managed settings: fetch and caching behavior](https://code.claude.com/docs/en/server-managed-settings#fetch-and-caching-behavior)
+live (as of 2026-11-03; recheck when that section changes where the cache is kept or how it is
+refreshed). A surface that could not be read gets its own note saying so, because an administrator
 reading silence as "no policy deployed" is the failure this report exists to prevent. The note
 routes that diagnosis to the Organization policy line in `/status` and `claude doctor`.
 
@@ -346,13 +350,13 @@ collapse it in the report:
 
 ## Scopes
 
-Five, and the two easy to get wrong: the reader resolves `local` **through worktrees to the main
-checkout**, so a reader anchored on the worktree root looks where the file is not; it treats
-`startdir-local` as a pre-v2.1.211 copy that is **not** a fallback, keeping permission rules from
-both files in effect. `managed` is four admin surfaces per OS, not one file, plus a `remote-cache`
-record for `~/.claude/remote-settings.json` that is not folded into the effective set.
-`reference/criteria.md` §Scopes has the full table and the dated record for the `pre-v2.1.211`
-boundary.
+Five: `managed`, `user`, `project`, `local` and `startdir-local`. `local` and `startdir-local` are
+the two easy to get wrong; when deciding where the local file is read from, fetch
+[settings: where Claude Code keeps the local file in a git repository](https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository)
+live (as of 2026-11-03; recheck when that section changes where the local file is kept). `managed`
+is four admin surfaces per OS, not one file, plus a `remote-cache` record for the server-managed
+cache that is not folded into the effective set. `reference/criteria.md` §Scopes has the full table
+and the dated record.
 
 **The reader resolves every condition we treat as keeping the local file beside
 `.claude/settings.json` instead**, and the basis line names which applied. One further case, the

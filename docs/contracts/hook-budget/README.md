@@ -59,10 +59,9 @@ A new always-on hook adds itself to one of the two.
 
 ### Mods: a third enforcement form
 
-A mod's hooks run as functions inside Claude Code, so a fire starts no process unless the mod calls
-`$.process.run`, and neither list above can see it. A mod hook on `tool.call` or `prompt.submit` is
-always-on. Its budget is k = 0 on the steady path: a fire that writes nothing spawns no process.
-A fire that writes a contract file costs one process, the snapshot helper that renames it into
+Neither list above counts a mod's hooks, so mods get their own form. A mod hook on `tool.call` or
+`prompt.submit` is always-on. Its budget is k = 0 on the steady path: a fire that writes nothing
+spawns no process. A fire that writes a contract file costs one process, the snapshot helper that renames it into
 place. When the consumer sets `HOOK_TELEMETRY_SINK`, context-guard's mod also starts that sink,
 fire-and-forget, once per fire that acts: lines sent to Claude, an operator-mode suggestion shown,
 or a gated call denied. A fire that changes nothing starts no sink. The plugin's own
@@ -71,15 +70,15 @@ counting the calls per scenario: context-guard's
 `hooks/context-guard.test.ts` ("budget: no process on calls that write nothing, one per write,
 none for the gate") and rate-limit-guard's `hooks/rate-limit-guard.test.ts` ("budget: no
 process on events that write nothing, one per write"). A new always-on mod hook adds such a case.
-Claude Code also skips a hook that runs past its own time limit.
 
-- **Pointer**: for the time limit, see
-  [reference: limits](https://code.claude.com/docs/en/plugins/mods/reference#limits); for stubbing
-  `$` calls in a test, see
-  [test: Stub what Claude Code would answer](https://code.claude.com/docs/en/plugins/mods/test#stub-what-claude-code-would-answer).
-- **As of**: 2026-10-03, Claude Code 2.1.288; test anchor 2026-10-11
-- **Recheck trigger**: the limits table changes a hook's own time limit, or `claude plugin test`
-  stops letting a test stub `$.process.run`.
+- **Pointer**: when checking how a mod hook runs or what happens to one that runs past its time
+  limit, fetch [reference: limits](https://code.claude.com/docs/en/plugins/mods/reference#limits)
+  live; when stubbing `$` calls in a test, fetch
+  [test: Stub what Claude Code would answer](https://code.claude.com/docs/en/plugins/mods/test#stub-what-claude-code-would-answer)
+  live.
+- **As of**: 2026-11-03; test anchor 2026-10-11
+- **Recheck trigger**: the limits section changes a hook's time limit or what happens past it, or
+  `claude plugin test` stops letting a test stub `$.process.run`.
 
 ## Wall-clock measurement (Windows)
 

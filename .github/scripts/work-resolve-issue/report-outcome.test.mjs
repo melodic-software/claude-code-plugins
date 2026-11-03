@@ -53,7 +53,8 @@ import {
   unmarkedAnswer,
   waitedPull,
 } from "./report-outcome.mjs";
-import { closeStop } from "../lib/done-evidence.mjs";
+import { closeStop, parentDone } from "../lib/done-evidence.mjs";
+import { finishedParent } from "../intake-triage/admit.mjs";
 import { LIMIT_DEFAULTS } from "./limits.mjs";
 import { STOP_ROUTES } from "./stop-routes.mjs";
 import { isPersonReason, parseReason } from "../lib/stop-reason.mjs";
@@ -4379,9 +4380,9 @@ test("route close: report-delivered retries on a resumed branch when the run com
 
 // main against a fake API for the routes whose effect needs a read first.
 // `trusted` adds the trusted-actor list, whose humans' pull requests a wait accepts.
-const stopRun = async ({ reason, summary = "", routes, trusted = false }) => {
+const stopRun = async ({ reason, summary = "", routes, trusted = false, extraEnv = {}, extraFiles = {} }) => {
   let result;
-  const files = { "work-outcome.json": JSON.stringify({ exit: "stopped", reason, summary }), ...(trusted && { "trusted.json": TRUSTED_LIST }) };
+  const files = { "work-outcome.json": JSON.stringify({ exit: "stopped", reason, summary }), ...(trusted && { "trusted.json": TRUSTED_LIST }), ...extraFiles };
   await withAsyncDir(files, async (dir) => {
     const { fetch, calls } = fakeFetch([
       ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
@@ -4392,7 +4393,7 @@ const stopRun = async ({ reason, summary = "", routes, trusted = false }) => {
       ["DELETE", /\/issues\/77\/labels\//, 200, []],
       ["PATCH", /\/issues\/77$/, 200, {}],
     ]);
-    result = { code: await main({ env: { ...env(dir), ...(trusted && { TRUSTED_ACTORS: join(dir, "trusted.json") }) }, fetch }), calls };
+    result = { code: await main({ env: { ...env(dir), ...(trusted && { TRUSTED_ACTORS: join(dir, "trusted.json") }), ...extraEnv }, fetch }), calls };
   });
   return result;
 };
@@ -4462,6 +4463,106 @@ test("main closes an already-done issue only when its cited commit is on the def
     routes: [["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }], ["GET", /\/compare\/abb359be\.\.\.main$/, 200, { status: "identical" }], tiedCommit],
   });
   assert.ok(later.calls.some((c) => c.method === "PATCH"), "a hex-looking word before the SHA hides nothing");
+});
+
+// #12456 class A: a finished parent's run checks its own done-when and stops
+// verified-done, which closes it only when its sub-issues, read fresh, are each
+// closed as completed and among the admit job's trusted closes (VERIFY_CLOSE).
+const subs = (...children) => ["GET", /\/issues\/77\/sub_issues/, 200, children];
+const doneSub = (number, reason = "completed", repo = "o/r") => ({ number, state: "closed", state_reason: reason, repository_url: `https://api.github.com/repos/${repo}` });
+const VERIFIED = "verified-done: every done-when item checks out: the guide names each flag (#80), the tests cover each (#81)";
+
+test("main closes a verified-done parent only when every sub-issue is closed as completed among VERIFY_CLOSE", async () => {
+  const checks = "The guide names each flag: #80.\nThe tests cover each flag: #81.";
+  const done = await stopRun({ reason: VERIFIED, summary: checks, routes: [subs(doneSub(80), doneSub(81))], extraEnv: { VERIFY_CLOSE: "80,81" } });
+  assert.equal(done.code, 0);
+  assert.deepEqual(done.calls.find((c) => c.method === "PATCH").body, { state: "closed", state_reason: "completed" });
+  const comment = done.calls.find((c) => c.method === "POST").body.body;
+  assert.match(comment, /^<!-- work-resolve-issue outcome=closed run=123 -->/);
+  // The close posts each check the run cites (its summary).
+  assert.match(comment, /The run's report:\n\n> The guide names each flag: ＃80\.\n> The tests cover each flag: ＃81\./);
+  // The stop line carries the code, so a verify run's close is told apart from
+  // an already-done one when close lag is measured again.
+  assert.equal(closeStop(comment).stop, "verified-done");
+  for (const [name, routes, extraEnv] of [
+    ["no VERIFY_CLOSE", [subs(doneSub(80), doneSub(81))], {}],
+    ["a sub-issue closed not planned", [subs(doneSub(80), doneSub(81, "not_planned"))], { VERIFY_CLOSE: "80,81" }],
+    ["an open sub-issue", [subs(doneSub(80), { ...doneSub(81), state: "open", state_reason: null })], { VERIFY_CLOSE: "80,81" }],
+    ["a sub-issue the admit job did not trust", [subs(doneSub(80), doneSub(81))], { VERIFY_CLOSE: "80" }],
+    ["no sub-issue", [subs()], { VERIFY_CLOSE: "80" }],
+    // The listing can name an issue in another repository; VERIFY_CLOSE's
+    // numbers are this repository's, so #81 there is no trusted close.
+    ["a sub-issue in another repository", [subs(doneSub(80), doneSub(81, "completed", "o/other"))], { VERIFY_CLOSE: "80,81" }],
+    ["a sub-issue with no repository_url", [subs(doneSub(80), { number: 81, state: "closed", state_reason: "completed" })], { VERIFY_CLOSE: "80,81" }],
+  ]) {
+    const run = await stopRun({ reason: VERIFIED, routes, extraEnv });
+    assert.ok(!run.calls.some((c) => c.method === "PATCH"), name);
+    assert.match(run.calls.find((c) => c.method === "POST").body.body, /^<!-- work-resolve-issue outcome=retry run=123 -->/, name);
+  }
+});
+
+// A verify run that resumed an earlier unmerged branch and committed nothing
+// checked work that is still off the default branch, so it closes nothing.
+test("main retries a verified-done stop on a resumed branch with no commit of its own, keeping that branch", async () => {
+  const run = await stopRun({
+    reason: VERIFIED,
+    routes: [subs(doneSub(80), doneSub(81))],
+    extraEnv: { VERIFY_CLOSE: "80,81" },
+    extraFiles: { "lane.json": JSON.stringify({ branch: "", resume: RESUMED }) },
+  });
+  assert.equal(run.code, 0);
+  assert.ok(!run.calls.some((c) => c.method === "PATCH"), "no close");
+  const comment = run.calls.find((c) => c.method === "POST").body.body;
+  assert.match(comment, /^<!-- work-resolve-issue outcome=retry run=123 branch=resumed -->/);
+  assert.match(comment, /The run committed to a branch, or resumed one, so it retries instead of closing\./);
+  for (const opts of [{ branch: "", resumed: "work/7-earlier" }, { branch: "work/7" }]) {
+    assert.equal(stoppedPlan(VERIFIED, opts).action, "retry", JSON.stringify(opts));
+  }
+});
+
+test("a verify-unmet stop parks the parent naming the unmet item, with no retry and no person", () => {
+  const plan = stoppedPlan("verify-unmet: the guide does not name --dry-run");
+  assert.equal(plan.action, "park");
+  assert.deepEqual(plan.addLabels, ["status: confirmed"]);
+  assert.match(plan.comment, /^<!-- work-resolve-issue outcome=parked run=555 -->/);
+  assert.match(plan.comment, /--dry-run/);
+  assert.ok(!plan.comment.includes(ESCALATION_MARKER));
+});
+
+// #12365's real shape: its one sub-issue (#12772) closed completed, but its own
+// UX-3 done-when line waits on a watcher capability that does not exist.
+const UX3 = "UX-3: when the watcher or the session can report a pending terminal permission prompt, the page shows that state and a test covers it. Until then, this item stays parked and the #7280 hint stays.";
+const UI14 = "UI-14: the 2026-10-12 \"keep it\" decision is recorded in `plugins/planning/surface/deferred.md`, citing the decision comment.";
+const PARENT_12365 = `## Done when\n\n- [ ] ${UX3}\n- [ ] ${UI14}\n`;
+
+test("#12365: all sub-issues done but its own UX-3 line unmet parks, never closes", async () => {
+  const sub = doneSub(12772);
+  const found = await finishedParent({
+    github: async (method, path) => (path.includes("/sub_issues") ? [sub] : null),
+    repository: "o/r",
+    issue: { number: 12365, body: PARENT_12365, sub_issues_summary: { total: 1, completed: 1 } },
+    trusted: async () => true,
+  });
+  assert.deepEqual(found, [12772], "every sub-issue closed completed, so the parent gets its one verify run");
+  const unmet = `verify-unmet: ${UX3}`;
+  const plan = stoppedPlan(unmet);
+  assert.equal(plan.action, "park");
+  assert.ok(!plan.comment.includes(ESCALATION_MARKER));
+  const run = await stopRun({ reason: unmet, summary: PARENT_12365, routes: [subs(sub), ["POST", /\/issues\/77\/labels$/, 200, []]], extraEnv: { VERIFY_CLOSE: found.join(",") } });
+  assert.equal(run.code, 0);
+  assert.ok(!run.calls.some((c) => c.method === "PATCH"), "no close call");
+  const comment = run.calls.filter((c) => c.method === "POST").map((c) => c.body.body).find((body) => body?.startsWith("<!-- work-resolve-issue outcome=parked"));
+  assert.ok(comment, "the park posts its outcome comment");
+  assert.match(comment, /^<!-- work-resolve-issue outcome=parked run=123 -->/);
+  assert.match(comment, /UX-3/);
+  assert.equal(closeStop(comment), null, "no close evidence");
+  assert.equal(await parentDone(evidenceClient([[/\/issues\/77\/sub_issues/, [sub]]]), "/repos/o/r", 77, async () => true), true, "sub-issues alone would pass, so the unmet own item is what keeps it open");
+});
+
+test("parentDone proves nothing for an issue with no sub-issue,so doneEvidence stays the only already-done proof", async () => {
+  assert.equal(await parentDone(evidenceClient([[/\/issues\/77\/sub_issues/, []]]), "/repos/o/r", 77, async () => true), false);
+  assert.equal(await parentDone(evidenceClient([]), "/repos/o/r", 77, async () => true), false, "an unread listing");
+  assert.equal(await parentDone(evidenceClient([[/\/issues\/77\/sub_issues/, [doneSub(80)]]]), "/repos/o/r", 77, async () => true), true);
 });
 
 // doneEvidence against a fake client: each route answers its path, and a path
