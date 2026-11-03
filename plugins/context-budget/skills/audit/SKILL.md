@@ -75,10 +75,9 @@ Two rules govern everything this skill says, per the plugin's
 One native surface also answers "what is using my tokens", and the two get conflated when a
 session feels crowded:
 
-- **`explain-usage` (bundled skill)**: what it does and who can invoke it are recorded in
-  [`reference/native-explain-usage.md`](reference/native-explain-usage.md). No upstream page
-  documents it: the commands and skills pages and the docs index carry no entry (as of 2026-11-03;
-  recheck when the commands page gains an `/explain-usage` row or a release note names it).
+- **`explain-usage` (bundled skill)**: what it does, who can invoke it, and the fact that no
+  upstream page documents it are recorded in
+  [`reference/native-explain-usage.md`](reference/native-explain-usage.md).
 - **This skill (marketplace plugin).** Measures the fixed startup payload of a fresh headless
   session per item, including the built-in tool pools `/context` shows only as totals, and keeps a
   before/after ledger for every lever the operator toggles.

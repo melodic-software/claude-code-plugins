@@ -219,9 +219,11 @@ that worktree. Two cases:
   in silence.** For a repository created with `--separate-git-dir <path>/.git`, the main working tree is
   the directory holding the `.git` *file*, but git records no back-pointer to it. A recursive search
   of the whole common dir turns up only `worktrees/<name>/gitdir` entries, which point at *linked*
-  worktrees, and the `core.worktree` candidate resolves only where that key is set (git's entry
-  above). Git's own `git worktree list` therefore reports `<path>` as the main worktree, and
-  reports it identically when run *from* that true working tree. That `<path>` is the parent of the
+  worktrees; `core.worktree` is unset by every creation path (`git init --separate-git-dir` on a
+  fresh directory, `git clone --separate-git-dir`, and `git init --separate-git-dir` over an existing
+  repository), observed on git 2.53.0 on 2026-11-03 (recheck when a git release note touches
+  `--separate-git-dir` or `core.worktree`), so candidate 2 does not resolve. Git's own
+  `git worktree list` therefore reports `<path>` as the main worktree, and reports it identically when run *from* that true working tree. That `<path>` is the parent of the
   separate git *directory*, not of the `.git` file, which lives in the true working tree and is the
   very link git does not record in reverse. `<path>`
   also satisfies all three legs of the verification predicate, byte for byte, exactly as a
