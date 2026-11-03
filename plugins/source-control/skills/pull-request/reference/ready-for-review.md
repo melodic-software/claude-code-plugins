@@ -228,8 +228,8 @@ and the venue line's detail, naming the suites skipped: the list `scripts/affect
 prints with no arguments, run from `$PR_TREE`, when the repository ships it, otherwise the
 test-lane names the venue line gives. When the line reads `local`, the venue cannot be read, or
 the run passed `--verify-local`, the gate runs in full as below. A draft's head always reads
-`local`: a draft skips the test lanes, so its first flip runs the suites here. `ci-status` gates
-the merge either way.
+`local`: a draft skips the test lanes, so its first flip runs the suites here up to the budget and
+leaves the rest to CI. `ci-status` gates the merge either way.
 
 - `verify` ran: after the rest of §1.5, run its deterministic last part and the record as one
   shell command, so `pass` is never typed by hand. The gate runs the PR worktree's own

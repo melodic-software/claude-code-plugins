@@ -2,7 +2,7 @@ schema_version: "1.1"
 name: acr-dir-batch-skips
 description: natural-language directory audit skips the markdown file, honors a comment-residue-ignore marker, and still counts a finding in an @generated file while noting it belongs upstream
 tags: [acr, outcome, natural-language, batch]
-expected_outcome: The audit-comment-residue skill is invoked on scripts/. Two code files are audited (NOTES.md is skipped). scripts/deploy.sh has one origin-note at line 10; its line 5 ("we switched from rsync") is covered by the comment-residue-ignore marker and is not reported. scripts/gen_client.py has history-narration at line 8, still counted, with a note that the file is generated and the fix belongs upstream. Total 2 files, 2 Tier 1, 0 Tier 2.
+expected_outcome: The remove-comments skill is invoked on scripts/. Two code files are audited (NOTES.md is skipped). scripts/deploy.sh has one origin-note at line 10; its line 5 ("we switched from rsync") is covered by the comment-residue-ignore marker and is not reported. scripts/gen_client.py has history-narration at line 8, still counted, with a note that the file is generated and the fix belongs upstream. Total 2 files, 2 Tier 1, 0 Tier 2.
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -14,7 +14,7 @@ graders:
   - name: skill-invoked
     type: tool_used
     tool: Skill
-    input_match: 'audit-comment-residue'
+    input_match: 'remove-comments'
   - name: detector-ran
     type: tool_used
     tool: Bash

@@ -1,12 +1,13 @@
 schema_version: "1.1"
 name: ck-hook-notice-read-only
+context:
+  scaffold_script: scaffold.sh
 graders:
-  - name: 'probes-actionlint'
-    type: 'tool_used'
-    tool: 'Bash'
-    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b(?:command\s+-[vV]|which|type(?:\s+-\w+)*|whereis|hash|Get-Command)\s+(?:[\w.-]+\s+)*?actionlint(?![\w.\-/])|(?:(?<=")|[\s;&|(''])(?:[^\s"\\;&|='']*/)?actionlint(?:\.exe)?(?:\\"|'')?\s+-{1,2}version\b)'
-    min: 1
-    arm: 'both'
+  - name: ran-checker
+    type: tool_used
+    tool: Bash
+    input_match: 'prerequisites\.(?:mjs|sh|ps1)(?:\\?"|'')?\s+check\b'
+    arm: with-only
   - name: 'no-install'
     type: 'tool_used'
     tool: 'Bash'
@@ -28,8 +29,21 @@ graders:
     min: 0
     max: 0
     arm: 'both'
-  - name: 'status-table'
-    type: 'regex'
-    pattern: '^[ \t]*\|?[ \t]*:?-+:?[ \t]*\|(?=[\s\S]*?^(?=[^\n]*\|)(?=[^\n]*?(?:^|\|)[^|\n]*?actionlint(?![\w.\-/])[^|\n]*(?:\||$))[^\n]*?(?:\b(?:PASS|FAIL|INFO|WARN|Pass|Fail|Info|Warn)\b|✅|❌|⚠))(?=[\s\S]*?^(?=[^\n]*\|)(?=[^\n]*?(?:^|\|)[^|\n]*?\b[Nn]ode(?:\.js)?(?![\w.\-/])[^|\n]*(?:\||$))[^\n]*?(?:\b(?:PASS|FAIL|INFO|WARN|Pass|Fail|Info|Warn)\b|✅|❌|⚠))'
-    flags: 'm'
-    target: 'last_message'
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: reports-state
+    type: regex
+    pattern: '\bactionlint\b(?=[\s\S]*\b(?:pass(?:es|ed)?|fail(?:s|ed)?|found|resolve[sd]?|present|installed|available|missing|absent)\b)|\b(?:pass(?:es|ed)?|fail(?:s|ed)?|found|resolve[sd]?|present|installed|available|missing|absent)\b(?=[\s\S]*\bactionlint\b)'
+    flags: 'i'
+    target: last_message
+    arm: both

@@ -59,7 +59,7 @@ expect "hooks.json: the end-of-turn option is declared, default false" "boolean 
 # --- SessionStart probe: bound to prerequisites.json, honors the kill switch ---
 # The Stop script stays quiet without pwsh, so the SessionStart row is the only
 # reporter. The manifest declares pwsh and node, never jq, which nothing runs (PSScriptAnalyzer is a
-# module, not a PATH binary, so /powershell-format:check reports it instead), and
+# module, not a PATH binary, so /powershell-format:setup check reports it instead), and
 # the probe's notice must state each tool's name, check and install, verbatim.
 # The probe runs the hooks.json row as the harness spawns it: `node` with the
 # row's args, ${CLAUDE_PLUGIN_ROOT} expanded, from an empty cwd, on a PATH that
