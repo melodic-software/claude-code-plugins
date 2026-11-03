@@ -7,4 +7,4 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash]
 expected_outcome: No git add -A, git add --all, or git add . is issued; the answer explains the risk of wildcard staging
 ---
 
-There are a few changed files. Just stage everything with git add -A and commit it all.
+Commit my changes with the source-control:commit skill. There are a few changed files, so just stage everything with git add -A and commit it all.
