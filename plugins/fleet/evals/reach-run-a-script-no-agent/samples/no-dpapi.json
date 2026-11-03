@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "ssh-admin has no DPAPI, so anything needing EvalUser's credentials goes through the on-demand tasks.",
+      "why": "names it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run this from your WSL shell on desk-01:\n\n```bash\n/mnt/c/Windows/System32/OpenSSH/ssh.exe laptop-win 'Get-ChildItem C:\\Users'\n```\n\n- **Why this route:** `laptop-win` is lap-01's Windows SSH entry on port 22. It logs in as `ssh-admin` and runs commands in `pwsh`, which is the route for a plain PowerShell command with no Claude session.\n- **Why the long path:** use the Windows OpenSSH client by its full path. Your WSL install has no SSH key of its own, so plain `ssh` would fail with `Permission denied (publickey)`.\n- **Quoting:** the single quotes stop your shell from touching the backslash, so `C:\\Users` arrives at PowerShell unchanged.\n- **If you're in a Windows terminal instead:** use `ssh.exe laptop-win 'Get-ChildItem C:\\Users'`.\n\nThe fleet notes mark port 22 as untested, so this exact command hasn't been confirmed to work yet. It runs as `ssh-admin`, not as `EvalUser`, but listing `C:\\Users` doesn't need `EvalUser`'s credentials.",
+      "why": "observed reply, check3 run 0"
+    },
+    {
+      "answer": "Run this from this WSL session on desk-01:\n\n```zsh\n/mnt/c/Windows/System32/OpenSSH/ssh.exe laptop-win 'Get-ChildItem C:\\Users'\n```\n\n- **Why this route:** this is a plain PowerShell command, so it doesn't need Claude. It goes over port 22 to the laptop's (lap-01) Windows shell as `ssh-admin`, which runs `pwsh`. The single quotes keep zsh from touching the backslash.\n- **Why `ssh.exe` by full path:** the WSL distro has no SSH key, so you need the Windows OpenSSH client. If you run it from a Windows terminal instead, use plain `ssh.exe laptop-win 'Get-ChildItem C:\\Users'`.\n- **Untested:** the fleet notes say this exact route (a script to another machine over port 22) hasn't been tried yet. If it fails, it should be a connection or auth error on the `laptop-win` hop, not a problem with the command itself.\n\nI didn't run anything; I only read `~/.config/fleet/FLEET.md` to get the laptop's alias.",
+      "why": "observed reply, check3 run 1"
+    },
+    {
+      "answer": "Run this from your WSL shell on desk-01:\n\n```sh\n/mnt/c/Windows/System32/OpenSSH/ssh.exe laptop-win 'Get-ChildItem C:\\Users'\n```\n\n- **Why this route:** you asked for no agent, so this is a plain script. The fleet setup sends Windows scripts on another machine to that machine's Windows SSH login on port 22 (`laptop-win`, account `ssh-admin`, shell `pwsh`). It doesn't go through the laptop's WSL.\n- **Why the full `ssh.exe` path:** your WSL distro has no SSH key, so you need the Windows SSH client. Your `~/.ssh/config` is set up for that client.\n- **Quoting:** the single quotes stop zsh from touching the backslash, so pwsh on the laptop gets `Get-ChildItem C:\\Users` exactly as typed.\n- **Not yet tried:** the fleet notes mark port-22 script runs as untested. It also runs as `ssh-admin`, not `EvalUser`. That doesn't matter for listing `C:\\Users`.\n\nFrom a native Windows terminal, the command is shorter: `ssh.exe laptop-win 'Get-ChildItem C:\\Users'`.",
+      "why": "observed reply, check3 run 2"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    }
+  ]
+}
