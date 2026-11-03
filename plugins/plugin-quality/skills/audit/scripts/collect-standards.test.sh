@@ -88,6 +88,19 @@ has "seam-phrasing status=candidate" "the seam lead is reported"
 has "status=not-applicable" "hook-budget stays not-applicable"
 has "SKILL.md:" "a component path is cited"
 
+mkdir -p "$ROOT/skills/declared" "$ROOT/skills/typeset" "$ROOT/skills/local-only"
+printf '%s\n' 'declare -x MSYS2_ARG_CONV_EXCL="*"' >"$ROOT/skills/declared/run.sh"
+printf '%s\n' 'typeset  -x MSYS_NO_PATHCONV=1' >"$ROOT/skills/typeset/run.sh"
+printf '%s\n' 'MSYS_NO_PATHCONV=1 tool.exe /c' >"$ROOT/skills/local-only/run.sh"
+for form in declared typeset; do
+  run 1 "a $form path-conversion suppressor is an export" \
+    --component "$ROOT/skills/$form/run.sh" --root "$ROOT"
+  has "run.sh:1 note=exported path-conversion suppressor" "the $form form is flagged at its line"
+done
+run 0 "a per-command suppressor is not an export" \
+  --component "$ROOT/skills/local-only/run.sh" --root "$ROOT"
+has "windows-path-emit status=not-graded" "the per-command form is not graded"
+
 mkdir -p "$ROOT/skills/clean"
 cat >"$ROOT/skills/clean/SKILL.md" <<'EOF'
 ---
