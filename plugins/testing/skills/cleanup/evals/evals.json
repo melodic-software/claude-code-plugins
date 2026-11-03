@@ -124,6 +124,21 @@
       ]
     },
     {
+      "id": "answered_batch_commits",
+      "prompt": "Run /testing:cleanup shop_tests --flaky shop_tests/test_receipt.py::test_total_is_computed_quickly on the fixture, on branch feat/cleanup, on 2026-10-01. For the flaky test, the owner is qa-team and the tracking issue is #42. Answer no to the test_product_name deletion, and answer every other approval question the batch asks.",
+      "expected_output": "With the deletion declined and the rewrite of test_price_is_consistent applied, the replay reports `Gate: pass`. Step 7 shows the batch and then commits it without asking for batch-level approval: no 'commit this batch?' question. The commit stages only the batch's named files (shop_tests/test_pricing.py and shop_tests/test_receipt.py), never with git add -A or git add ., and no .work/ file. The report gives the commit's SHA and both ways to undo it: git reset --soft HEAD~1 while it is the branch's latest commit, and git revert <sha> after that. Cleanup does not push or open a pull request, and it deletes .work/testing-cleanup/shop_tests/before.tsv and after.tsv.",
+      "files": [
+        "evals/fixtures/cleanup/shop/pricing.py",
+        "evals/fixtures/cleanup/shop/checkout.py",
+        "evals/fixtures/cleanup/REQUIREMENTS.md",
+        "evals/fixtures/cleanup/shop_tests/__init__.py",
+        "evals/fixtures/cleanup/shop_tests/test_pricing.py",
+        "evals/fixtures/cleanup/shop_tests/test_receipt.py",
+        "evals/fixtures/cleanup/docs/conventions/mutation-testing.yaml",
+        "evals/fixtures/cleanup/EXPECTED.md"
+      ]
+    },
+    {
       "id": "resumes_own_dirty_batch",
       "prompt": "A /testing:cleanup shop_tests batch on branch feat/cleanup stopped after step 5 while waiting for the user's yes on the test_product_name deletion. The quarantine and the test_price_is_consistent rewrite are uncommitted and recorded in .work/testing-cleanup/shop_tests/decisions.md. In a new session, the user says yes to the deletion and runs /testing:cleanup shop_tests again.",
       "expected_output": "Does not refuse for the dirty tree: every changed path's git hash-object equals the hash decisions.md recorded after the batch's last edit to it. Reads the batch state from .work/testing-cleanup/shop_tests/, applies the approved deletion without re-recording the baseline or re-classifying, and continues to step 6 with the existing before.tsv. A changed path that decisions.md does not record, or whose hash differs (an edit the batch did not make), would still be refused.",
