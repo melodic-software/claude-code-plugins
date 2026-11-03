@@ -176,6 +176,31 @@ printf 'see %s\n' "$FAKE_LINUX" >"$REPO/tests/fixtures/path.txt"
 git -C "$REPO" add -A
 expect "tests/fixtures is still scanned for machine paths" 1 "$(rc_of "$REPO")"
 
+# The repository's exemption list, read from the default branch (origin/HEAD):
+# a listed file or directory is skipped, an unlisted file is still judged, and
+# a list only staged or in the work tree exempts nothing.
+new_repo
+mkdir -p "$REPO/docs/conventions" "$REPO/vendor/copies"
+printf '# path<TAB>reason\nvendor/copies/\tvendored copies\nlisted.md\tfixture\n' \
+  >"$REPO/docs/conventions/guardrails-content-exempt.tsv"
+printf 'see %s\n' "$FAKE_LINUX" >"$REPO/vendor/copies/tool.sh"
+printf 'see %s\n' "$FAKE_LINUX" >"$REPO/listed.md"
+printf 'see %s\n' "$FAKE_LINUX" >"$REPO/unlisted.md"
+git -C "$REPO" add docs vendor listed.md unlisted.md
+expect "a list not yet on the default branch exempts nothing: all three files flagged" "1|3" \
+  "$(
+    c="$(check "$REPO")"
+    printf '%s|%s' "${c%%|*}" "$(grep -c ':1: machine-specific path' <<<"$c")"
+  )"
+git -C "$REPO" commit -q -m list --no-verify -- docs
+git -C "$REPO" update-ref refs/remotes/origin/main HEAD
+git -C "$REPO" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+expect "a listed file and directory are skipped, an unlisted file is still flagged" \
+  "1|unlisted.md:1: machine-specific path (Linux user path detected)
+$HINT" "$(check "$REPO")"
+git -C "$REPO" rm -q --cached unlisted.md
+expect "with only listed paths staged, the commit passes" "0|" "$(check "$REPO")"
+
 # A force-added ignored file is what the commit holds, and .env is the usual
 # secret carrier.
 new_repo

@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Contract tests for the guardrails pre-push entry git-hooks/reference-verify.sh:
-# an unknown CLI flag or a cited path the repository deleted, on a line the
-# pushed commits add, blocks with "<path>:<line>: <message>", the line the text
-# is on; a declined entry checks nothing, run directly or through the
+# an unknown CLI flag or an unresolved skill reference, on a line the pushed
+# commits add, blocks with "<path>:<line>: <message>", the line the text is on;
+# a cited path the repository deleted is printed the same way and passes; a file
+# whose verifier input cannot be built, or a tip that cannot be checked out,
+# blocks; a declined entry checks nothing, run directly or through the
 # lefthook-remote wrapper; the same text on an
 # unchanged line, in a file type the verifiers do not read, or in an eval
 # suite's samples/ folder (recorded model output), does not; a new
@@ -241,13 +243,43 @@ expect "a lib awk that fails while listing the changed lines fails the push" \
   "$?|$(grep -F 'reference-verify.sh: awk exited' <<<"$err")"
 expect "the failing push still leaves no worktree behind" 1 "$(git -C "$REPO" worktree list | wc -l | tr -d ' ')"
 
+# A stale path is advisory: a citation can be correct as written (a deletion
+# record), so a range whose only finding is one prints it and passes, while a
+# blocking finding beside it still fails the push.
 new_repo
 # shellcheck disable=SC2016 # markdown code-span backticks, literal fixture text
 printf 'See `docs/gone.md` for the details.\n' >"$REPO/README.md"
 commit_all readme
-expect "a new file citing a deleted repository path blocks" \
-  "1|README.md:1: stale-path-verify: cited path(s) in README.md were deleted from this repo:" \
+expect "a range whose only finding is a stale path prints it and passes" \
+  "0|README.md:1: stale-path-verify: cited path(s) in README.md were deleted from this repo:" \
   "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE")"
+err="$(push_err refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE")"
+expect "the stale-path finding names the path and says it does not fail the push" yes \
+  "$(grep -qF 'README.md:1:   docs/gone.md' <<<"$err" && grep -qF 'advisory and does not fail the push' <<<"$err" && echo yes)"
+expect "a stale-path-only push names no blocking fix" no \
+  "$(grep -qF 'commit the fix, then push again' <<<"$err" && echo yes || echo no)"
+printf '#!/usr/bin/env bash\nfaketool --real\nfaketool --bogus\n' >"$REPO/run.sh"
+commit_all bogus-too
+expect "a stale path beside an unknown flag: the flag fails the push" "1|run.sh:3: $FLAG_FINDING" \
+  "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE")"
+expect "a stale path beside an unknown flag is still printed" yes \
+  "$(push_err refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE" | grep -qF 'README.md:1: stale-path-verify' && echo yes)"
+
+# A skill-reference finding fails the push. The verifier judges only inside a
+# marketplace repository, one whose plugins/ holds a plugin manifest.
+new_repo
+mkdir -p "$REPO/plugins/alpha/.claude-plugin" "$REPO/plugins/alpha/skills/setup"
+printf '{"name":"alpha","version":"0.1.0"}\n' >"$REPO/plugins/alpha/.claude-plugin/plugin.json"
+: >"$REPO/plugins/alpha/skills/setup/SKILL.md"
+commit_all marketplace
+git -C "$REPO" push -q --no-verify origin main 2>/dev/null
+pushed="$(git -C "$REPO" rev-parse HEAD)"
+# shellcheck disable=SC2016 # markdown code-span backticks, literal fixture text
+printf 'Run `/alpha:setup`, then `/alpha:missing`.\n' >"$REPO/NOTES.md"
+commit_all skill-ref
+expect "an unresolved skill reference fails the push" \
+  "1|NOTES.md:1: skill-reference-verify: skill reference(s) in NOTES.md do not resolve; this repo owns the plugin:" \
+  "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$pushed")"
 
 # A file over the kernel's per-argument limit (128 KiB on Linux) is judged, not
 # skipped: its text never travels as one argument.
@@ -288,13 +320,13 @@ expect "a moved doc is judged on the lines the move adds, so a citation it held 
 printf 'See `docs/gone.md` for the details.\n' >>"$REPO/docs/new/README.md"
 commit_all move-cites
 expect "a line the move adds to the moved doc is judged, at that line" \
-  "1|docs/new/README.md:24: stale-path-verify: cited path(s) in docs/new/README.md were deleted from this repo:" \
+  "0|docs/new/README.md:24: stale-path-verify: cited path(s) in docs/new/README.md were deleted from this repo:" \
   "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$pushed")"
 # A stage that crashes while it lists or merges a copy's lines fails the push.
 # The shims fail the SHIM_NTH call (default 1) whose arguments hold SHIM_FAIL;
 # the copy awk runs the lib's program text, so it is the second such call.
 mkdir -p "$WORK/fail-shims"
-for t in awk git; do
+for t in awk git jq; do
   # shellcheck disable=SC2016 # $* and the SHIM_ variables expand when the shim runs
   printf '#!/bin/sh\ncase " $* " in\n*"$SHIM_FAIL"*)\n  c=$(($(cat "$SHIM_COUNT" 2>/dev/null || echo 0) + 1)); echo "$c" >"$SHIM_COUNT"\n  if [ "$c" -eq "${SHIM_NTH:-1}" ]; then echo "%s: fatal error: internal error" >&2; exit 2; fi ;;\nesac\nexec %s "$@"\n' \
     "$t" "$(command -v "$t")" >"$WORK/fail-shims/$t"
@@ -320,6 +352,50 @@ expect "an awk that fails while listing a copy's lines fails the push" \
 expect "an awk that fails while merging a copy's lines fails the push" \
   "1|reference-verify.sh: awk exited 2 while merging the lines a copy adds into the changed lines, so this change was not fully checked; fix that failure, then push again" \
   "$(push_failing 'copy[$0] = 1' 1 refs/heads/main "$tip" "$pushed")"
+
+# A file whose verifier input cannot be built is reported unchecked and fails
+# the push, never skipped. The pushed text is clean, so the injected failure is
+# the only finding.
+push_unchecked() { # <marker> <ref> <local-sha> <remote-sha> -> "<rc>|<first finding line>"
+  local err rc
+  rm -f "$WORK/shim-count"
+  err="$(cd "$REPO" && printf '%s %s %s %s\n' "$2" "$3" "$2" "$4" |
+    PATH="$WORK/fail-shims:$PATH" SHIM_FAIL="$1" SHIM_COUNT="$WORK/shim-count" \
+      bash "$CHECK" origin "$WORK/r$n.git" 2>&1 >/dev/null)"
+  rc=$?
+  printf '%s|%s' "$rc" "$(grep -m1 -F ': reference-verify: ' <<<"$err")"
+}
+new_repo
+printf '#!/usr/bin/env bash\nfaketool --real\n' >"$REPO/clean.sh"
+commit_all clean-new
+git -C "$REPO" push -q --no-verify origin main 2>/dev/null
+pushed="$(git -C "$REPO" rev-parse HEAD)"
+printf '#!/usr/bin/env bash\nfaketool --real\necho more\n' >"$REPO/clean.sh"
+printf '# Fresh\n\nNew notes, unlike any other file here.\n' >"$REPO/fresh.md"
+commit_all clean-edit
+tip="$(git -C "$REPO" rev-parse HEAD)"
+expect "the clean push passes without a failing tool" "0|" "$(push_check refs/heads/main "$tip" "$pushed")"
+expect "a jq that fails while building a new file's input fails the push, naming the file" \
+  "1|fresh.md:1: reference-verify: jq exited 2 while building the verifiers' input, so it was not checked; fix that failure, then push again." \
+  "$(push_unchecked 'tool_name: "Write"' refs/heads/main "$tip" "$pushed")"
+expect "a jq that fails while building a changed file's input fails the push, naming the file" \
+  "1|clean.sh:3: reference-verify: jq exited 2 while building the verifiers' input, so it was not checked; fix that failure, then push again." \
+  "$(push_unchecked 'tool_name: "Edit"' refs/heads/main "$tip" "$pushed")"
+
+# A pushed tip it cannot check out is a finding that fails the push, not a
+# notice: its range went unchecked. The tip is pushed while main is checked out,
+# so the check needs a checkout of it.
+new_repo
+git -C "$REPO" checkout -q -b side
+printf '#!/usr/bin/env bash\nfaketool --real\n' >"$REPO/side.sh"
+commit_all side
+tip="$(git -C "$REPO" rev-parse HEAD)"
+git -C "$REPO" checkout -q main
+expect "a clean pushed tip passes when it can be checked out" "0|" "$(push_check refs/heads/side "$tip" "$ZERO")"
+expect "a pushed tip that cannot be checked out fails the push, naming the tip" \
+  "1|$tip: reference-verify: could not check out this pushed tip, so its range was not checked; fix that failure (disk space, a lock under .git/worktrees), then push again." \
+  "$(push_unchecked 'worktree add' refs/heads/side "$tip" "$ZERO")"
+expect "the failed checkout leaves no worktree behind" 1 "$(git -C "$REPO" worktree list | wc -l | tr -d ' ')"
 
 # The verifiers judge the pushed tip's tree, not the checkout. Each case below
 # pushes a branch while main, which differs from it, is checked out.
@@ -358,8 +434,8 @@ printf '# R\nSee `docs/kept.md` for the details.\n' >"$REPO/README.md"
 commit_all drop
 tip="$(git -C "$REPO" rev-parse HEAD)"
 git -C "$REPO" checkout -q main
-expect "a pushed tip that deletes a cited path blocks though the checkout has it" \
-  "1|README.md:2: stale-path-verify: cited path(s) in README.md were deleted from this repo:" \
+expect "a pushed tip that deletes a cited path is reported though the checkout has it" \
+  "0|README.md:2: stale-path-verify: cited path(s) in README.md were deleted from this repo:" \
   "$(push_check refs/heads/drop "$tip" "$ZERO")"
 
 # A file only the pushed branch has is still judged.
@@ -371,7 +447,7 @@ commit_all fresh
 tip="$(git -C "$REPO" rev-parse HEAD)"
 git -C "$REPO" checkout -q main
 expect "a file the checkout lacks is judged from the pushed tip" \
-  "1|NEW.md:1: stale-path-verify: cited path(s) in NEW.md were deleted from this repo:" \
+  "0|NEW.md:1: stale-path-verify: cited path(s) in NEW.md were deleted from this repo:" \
   "$(push_check refs/heads/fresh "$tip" "$ZERO")"
 
 # A force-added gitignored file is what the push sends, so it is verified.
@@ -512,7 +588,7 @@ err="$(git -C "$WT" push -q origin restore 2>&1)"
 expect "a push from a linked worktree citing a restored path passes" "0|" "$?|$(head -1 <<<"$err")"
 
 # An inherited discovery ceiling between the doc and the root does not hide the
-# repository, so a citation of a deleted path still blocks.
+# repository, so a citation of a deleted path is still reported.
 new_repo
 node "$INSTALL" copy --scope local --entry reference-verify --repo "$REPO" >/dev/null
 WT="$WORK/wt$n"
@@ -522,8 +598,9 @@ mkdir -p "$WT/docs/sub"
 printf '# R\nSee `docs/gone.md` for the details.\n' >"$WT/docs/sub/README.md"
 git -C "$WT" add -A
 git -C "$WT" commit -q -m cite --no-verify
-GIT_CEILING_DIRECTORIES="$WT/docs" git -C "$WT" push -q origin cite >/dev/null 2>&1
-expect "a push under a discovery ceiling citing a deleted path blocks" 1 "$?"
+err="$(GIT_CEILING_DIRECTORIES="$WT/docs" git -C "$WT" push -q origin cite 2>&1)"
+expect "a push under a discovery ceiling citing a deleted path reports it" "0|yes" \
+  "$?|$(grep -qF 'docs/sub/README.md:2: stale-path-verify' <<<"$err" && echo yes)"
 
 echo "reference-verify: $PASS passed, $FAIL failed"
 ((FAIL == 0))

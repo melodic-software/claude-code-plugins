@@ -33,8 +33,10 @@
 # else a temporary detached worktree of the tip, removed afterwards.
 #
 # A finding prints as "<path>:<line>: <message>" on stderr, the line being the
-# first judged line holding the text the finding names (see report), and exits
-# 1. Missing jq follows the check-placement contract: checks.skipmissing, else
+# first judged line holding the text the finding names (see report). A
+# cli-flag or skill-reference finding, a file it could not build the verifiers'
+# input for, or a tip it could not check out exits 1; a stale-path finding is
+# advisory, printed with exit 0. Missing jq follows the check-placement contract: checks.skipmissing, else
 # fail for an agent and a notice for a person.
 #
 # POSIX sh until check-lib.sh, sourced first, has it running under bash.
@@ -222,11 +224,14 @@ first_line() {
 # text ($CHECKS_TMP/file) holding that text, every line when <whole> is 1, else
 # those the range adds. A heading gets its first detail's line; a line matching
 # nothing, the file's first added line.
+# Each row has a kind, taken from the verifier heading it sits under: a
+# stale-path-verify block is advisory and goes to $advisory; any other block,
+# and a line before any heading, blocks and goes to stdout.
 # The path travels in the environment: awk -v decodes a backslash escape, and
 # the path is printed.
 report() {
   REPORT_PATH="$1" awk -v whole="$2" -v first="$(first_line "$1")" \
-    -v ranges="$CHECKS_TMP/ranges" -v file="$CHECKS_TMP/file" '
+    -v ranges="$CHECKS_TMP/ranges" -v file="$CHECKS_TMP/file" -v adv="$advisory" '
     function judged(i, k) {
       if (whole) return 1
       for (k = 1; k <= n; k++) if (i >= s[k] && i <= e[k]) return 1
@@ -238,14 +243,23 @@ report() {
         if (index(src[i], needle) && (cmd == "" || index(src[i], cmd)) && judged(i)) return i
       return first
     }
-    function row(at, msg) { printf "%s:%s: %s\n", want, at, msg }
+    function row(at, msg, k) {
+      if (k == "advisory") printf "%s:%s: %s\n", want, at, msg >> adv
+      else printf "%s:%s: %s\n", want, at, msg
+    }
     BEGIN {
       want = ENVIRON["REPORT_PATH"]
+      kind = "blocking"
       while ((getline l < ranges) > 0) { split(l, r, "\t"); if (r[1] == want) { n++; s[n] = r[2] + 0; e[n] = r[3] + 0 } }
       while ((getline l < file) > 0) src[++lines] = l
     }
     /^[ \t]*$/ { next }
-    !/^  / { if (head != "") row(first, head); head = $0; at = first; next }
+    !/^  / {
+      if (head != "") row(first, head, kind)
+      if (/^stale-path-verify: /) kind = "advisory"
+      else if (/^[a-z-]+-verify: /) kind = "blocking"
+      head = $0; at = first; next
+    }
     {
       d = substr($0, 3)
       if (d !~ /^\.\.\. and /) {
@@ -256,10 +270,16 @@ report() {
         } else if ((p = index(d, " (")) > 0) needle = substr(d, 1, p - 1)
         at = locate(cmd, needle)
       }
-      if (head != "") { row(at, head); head = "" }
-      row(at, $0)
+      if (head != "") { row(at, head, kind); head = "" }
+      row(at, $0, kind)
     }
-    END { if (head != "") row(first, head) }'
+    END { if (head != "") row(first, head, kind) }'
+}
+
+# finding <path> <message>: a blocking row at the path's first judged line, for
+# a file this check could not judge.
+finding() {
+  printf '%s:%s: reference-verify: %s\n' "$1" "$(first_line "$1")" "$2" >>"$out"
 }
 
 # verified_type <path>: an extension the verifiers read, outside an eval
@@ -274,12 +294,16 @@ verified_type() {
   esac
 }
 
+# Blocking findings, which fail the push, and advisory ones, which are printed
+# and leave it passing.
 out="$CHECKS_TMP/findings"
+advisory="$CHECKS_TMP/advisory"
 : >"$out"
+: >"$advisory"
 
 # check_range: every file the current range (or the worktree) changes.
 check_range() {
-  local f ctx whole _
+  local f ctx whole s _
   local derived=$'\n' text="$CHECKS_TMP/text" payload="$CHECKS_TMP/payload"
   changed_lines
   narrow_to_branch
@@ -296,17 +320,30 @@ check_range() {
     # Git quotes a name holding a quote, a backslash or a control byte whatever
     # core.quotePath says, so the range table has no entry for it: such a file
     # is judged whole, as a new one is.
-    checks_file_text --tip "$TIP" "$f" >"$CHECKS_TMP/file"
+    # A step that fails here would hand the verifiers an empty or partial
+    # payload, so the file is reported unchecked instead.
+    if ! checks_file_text --tip "$TIP" "$f" >"$CHECKS_TMP/file"; then
+      finding "$f" "could not read the file at the pushed tip, so it was not checked; fix that failure, then push again."
+      continue
+    fi
     whole=0
+    s=0
     if [[ "$f" == *[\"\\[:cntrl:]]* ]] || { [[ "$derived" != *$'\n'"$f"$'\n'* ]] && is_new "$f"; }; then
       whole=1
       jq -n --arg p "$PWD/$f" --rawfile c "$CHECKS_TMP/file" \
-        '{hook_event_name: "PostToolUse", tool_name: "Write", tool_input: {file_path: $p, content: $c}}' >"$payload"
+        '{hook_event_name: "PostToolUse", tool_name: "Write", tool_input: {file_path: $p, content: $c}}' >"$payload" || s=$?
     else
-      added_lines "$f" <"$CHECKS_TMP/file" >"$text"
+      if ! added_lines "$f" <"$CHECKS_TMP/file" >"$text"; then
+        finding "$f" "could not list the lines the push adds, so it was not checked; fix that failure, then push again."
+        continue
+      fi
       grep -q '[^[:space:]]' "$text" || continue
       jq -n --arg p "$PWD/$f" --rawfile c "$text" \
-        '{hook_event_name: "PostToolUse", tool_name: "Edit", tool_input: {file_path: $p, old_string: "", new_string: $c}}' >"$payload"
+        '{hook_event_name: "PostToolUse", tool_name: "Edit", tool_input: {file_path: $p, old_string: "", new_string: $c}}' >"$payload" || s=$?
+    fi
+    if ((s != 0)); then
+      finding "$f" "jq exited $s while building the verifiers' input, so it was not checked; fix that failure, then push again."
+      continue
     fi
     # git exports GIT_DIR (a linked worktree's git dir) to its hooks; under it
     # `git -C <dir> rev-parse --show-toplevel` answers <dir>, so the verifiers
@@ -354,20 +391,29 @@ else
     # The verifiers read the tree around a file (cited paths, the plugins
     # tree, an edited file's other lines), so they run in a detached checkout
     # of the tip. An empty hooks path keeps post-checkout hooks from firing.
-    if ! git -c core.hooksPath="$CHECKS_TMP/no-hooks" worktree add -q --detach "$tip_tree" "$TIP" >/dev/null 2>&1; then
-      printf 'NOTICE: could not check out %s, so it was not checked.\n' "$TIP" >&2
+    # A tip it cannot check out is a blocking finding: its range went unchecked.
+    if ! git -c core.hooksPath="$CHECKS_TMP/no-hooks" worktree add -q --detach "$tip_tree" "$TIP" >/dev/null 2>&1 ||
+      ! cd "$tip_tree"; then
+      printf '%s: reference-verify: could not check out this pushed tip, so its range was not checked; fix that failure (disk space, a lock under .git/worktrees), then push again.\n' \
+        "$TIP" >>"$out"
+      git worktree remove --force "$tip_tree" >/dev/null 2>&1
       continue
     fi
-    cd "$tip_tree" && check_range
+    check_range
     cd "$top" || exit 1
     git worktree remove --force "$tip_tree" >/dev/null 2>&1
     git worktree prune 2>/dev/null
   done 3<"$CHECKS_TMP/all-ranges"
 fi
 
+# The exit status follows the blocking findings alone: a stale path can be
+# correct as written (a deletion record), so the author may have nothing to fix.
+cat "$out" "$advisory" >&2
+if [[ -s "$advisory" ]]; then
+  printf '%s\n' 'guardrails: a deleted path above is advisory and does not fail the push: correct it if the citation is wrong, and keep it if it records the deletion.' >&2
+fi
 [[ -s "$out" ]] || exit 0
-cat "$out" >&2
-printf 'guardrails: correct each flag, skill reference or path above, commit the fix, then push again.\n' >&2
+printf 'guardrails: correct each flag or skill reference above, or fix the failure a reference-verify line names, commit the fix, then push again.\n' >&2
 if grep -q ': cli-flag-verify: ' "$out"; then
   printf '%s\n' \
     'guardrails: a cli-flag finding is unverified, not proven wrong. When the flag is right, run /guardrails:setup to stop this' \
