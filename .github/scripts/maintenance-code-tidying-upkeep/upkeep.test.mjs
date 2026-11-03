@@ -162,8 +162,11 @@ test("a tidy lane's branch is not an area sweep", () => {
   assert.equal(plan({ ...base, paths: ["scripts/x"], commits: [{ at: daysAgo(1), paths: ["scripts/x"] }], pulls: [lane] }).proceed, true);
 });
 
-test("a sweep history the page cap cut plans nothing", () => {
-  assert.deepEqual(plan({ ...base, paths: ["scripts/x"], truncated: true }), { proceed: false, reason: "sweep-history-truncated", areas: [] });
+test("a full list of sweeps still plans, reading commits back to its oldest", () => {
+  const sweeps = Array.from({ length: 1000 }, (_, i) => pull("plugins-a", 200 + i));
+  assert.equal(lookbackStart(sweeps, NOW), daysAgo(1199));
+  const commits = [{ sha: "1", at: daysAgo(1), paths: ["scripts/x"] }];
+  assert.deepEqual(plan({ ...base, paths: ["scripts/x"], pulls: sweeps, commits }).areas.map((row) => row.area), ["scripts"]);
 });
 
 test("an area whose only later commit is its sweep's merge stays out; a different later commit brings it back", () => {

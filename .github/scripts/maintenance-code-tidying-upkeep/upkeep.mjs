@@ -86,10 +86,9 @@ export function lookbackStart(pulls, now) {
 // pulls: every sweep. Only an area with a commit after its
 // last sweep is eligible. It is overdue once that oldest unswept commit is past
 // the backstop window; overdue areas go first, then the oldest unswept.
-export function plan({ paths, commits, pulls, cleanSweeps = [], truncated, cadence, backstop, limit, open, throttled, now }) {
+export function plan({ paths, commits, pulls, cleanSweeps = [], cadence, backstop, limit, open, throttled, now }) {
   const stop = (reason) => ({ proceed: false, reason, areas: [] });
   const windowDays = WINDOW_DAYS[backstop];
-  if (truncated) return stop("sweep-history-truncated");
 
   const { last, open: openSlugs, merges } = sweepsOf(pulls);
   for (const { slug, at } of cleanSweeps) last.set(slug, Math.max(last.get(slug) ?? 0, at));
@@ -184,16 +183,17 @@ function gate(root, now) {
   const cadence = setting(root, "upkeep_cadence");
   const backstop = setting(root, "upkeep_backstop");
   const count = parseCount(run(root, "bash", [join(TIDY_SCRIPTS, "open-pr-count.sh")]));
-  // Every sweep, by branch prefix: listing all pull requests reaches about 3 days per 1000 here.
+  // The sweeps, by branch prefix: listing all pull requests reaches about 3 days per 1000 here.
+  // A full list holds the newest; lookbackStart reads commits back to its oldest, and every one of
+  // those is after the last sweep of an area the list has lost, so that area is judged correctly.
   const sweeps = JSON.parse(run(root, "gh", ["pr", "list", "--state", "all", "--limit", String(PULL_LIST_LIMIT), "--search", "head:chore/tidy-adhoc-", "--json", "headRefName,createdAt,state,mergeCommit"]));
-  const truncated = sweeps.length >= PULL_LIST_LIMIT;
   const openPulls = JSON.parse(run(root, "gh", ["pr", "list", "--state", "open", "--limit", String(PULL_LIST_LIMIT), "--json", "headRefName,createdAt,state"]));
   const records = JSON.parse(run(root, "gh", ["api", `repos/{owner}/{repo}/actions/artifacts?name=${SWEEP_ARTIFACT}&per_page=100`])).artifacts ?? [];
   const cleanSweeps = readCleanSweeps(records, (artifact) => downloadRecord(root, artifact));
   const since = new Date(lookbackStart(sweeps, now)).toISOString();
   const commits = parseLog(run(root, "git", ["log", `--since=${since}`, "--no-renames", "--name-only", "--format=%x00%H %ct"]));
   const paths = run(root, "git", ["ls-files"]).split("\n").filter(Boolean);
-  const result = plan({ paths, commits, pulls: [...sweeps, ...openPulls], cleanSweeps, truncated, cadence: cadence.value, backstop: backstop.value, ...count, now });
+  const result = plan({ paths, commits, pulls: [...sweeps, ...openPulls], cleanSweeps, cadence: cadence.value, backstop: backstop.value, ...count, now });
   return { ...result, settings: { upkeep_cadence: cadence, upkeep_backstop: backstop, upkeep_max_open: count.limit }, open: count.open };
 }
 
