@@ -127,11 +127,12 @@
 // so the review run after resolve-conflicts' push dispatches it.
 //
 // A sweep dispatches at most once, since the
-// dispatched-run record names one upstream and one run, and keeps no record
-// but the heads whose verifier read for an earlier FAIL answered none
-// (EARLIER_FAIL_READ). The unsent sweep also sends a head with no unresolved
-// thread, a fail note from another head and no such answer yet: its read
-// failed, or a pass's EARLIER_FAIL_READS cap left it.
+// dispatched-run record names one upstream and one run, and keeps no record.
+// The unsent sweep also sends a head with no unresolved thread and a fail note
+// from another head, while its newest review run completed within
+// EARLIER_FAIL_WINDOW_MS: its verifier read may have failed, or a pass's
+// EARLIER_FAIL_READS cap may have left it. Nothing records an answer, so a
+// head answered "no earlier FAIL" may be read again inside that window.
 //
 // A run of this file an outage lost, or whose dispatch job failed, dispatched
 // nothing the lanes trust when re-run: check-trusted-trigger's dispatcher
@@ -709,14 +710,9 @@ export async function dispatchFeedback({
   const expected = passOnly || notesSince !== null ? [VERIFY_FAIL] : [];
   // Each read can take VERIFY_CAP_TIMEOUT_MS, and a sweep decides PR after PR
   // inside one 10-minute job, so a pass reads at most EARLIER_FAIL_READS heads
-  // that have no thread; the rest wait for the next pass, unrecorded.
-  // A head whose read answered no earlier FAIL is recorded (EARLIER_FAIL_READ)
-  // and read no more; one whose read failed or was not made is not, so
-  // sweepUnsent sends it again on a later pass.
+  // that have no thread; the rest wait for a later pass inside
+  // EARLIER_FAIL_WINDOW_MS (sweepUnsent), as does a head whose read failed.
   if (noThread) {
-    if (isHandled(record, EARLIER_FAIL_READ, head)) {
-      return skip(`#${number} has no unresolved review thread, and the verifier found no earlier FAIL at head ${head} (recorded)`);
-    }
     if (earlierFailReads.left <= 0) {
       return skip(`#${number} has no unresolved review thread, and this pass's ${EARLIER_FAIL_READS} verifier reads for an earlier FAIL are spent; the next pass reads it`);
     }
@@ -725,7 +721,7 @@ export async function dispatchFeedback({
   const read = owner ? null : await verifyCapped({ number, head, base: pull.base?.sha, expected });
   const { cap: capped, supersededAtHead, earlierFailHeads = [], readFailed = false } = read !== null && typeof read === "object" ? read : { cap: read, supersededAtHead: false };
   if (noThread && (readFailed || (capped && !capFinal(capped)))) {
-    return skip(`#${number} has no unresolved review thread, and the verifier read for an earlier FAIL ${readFailed ? "failed" : `could not count every FAIL (${capped})`}; a later pass reads it again`);
+    return skip(`#${number} has no unresolved review thread, and the verifier read for an earlier FAIL ${readFailed ? "failed" : `could not count every FAIL (${capped})`}; a later pass inside the retry window reads it again`);
   }
   if (capped) {
     // The cap never clears for the head: later runs skip it before any
@@ -748,7 +744,6 @@ export async function dispatchFeedback({
   // when no thread is left to work.
   const earlierFail = passOnly ? [] : earlierFailHeads;
   if (noThread && earlierFail.length === 0) {
-    markHandled(record, EARLIER_FAIL_READ, head);
     return skip(`#${number} has no unresolved review thread`);
   }
   const request = {
@@ -795,9 +790,12 @@ export async function dispatchFeedback({
 // unresolved thread (judgment: 3 reads of up to VERIFY_CAP_TIMEOUT_MS each
 // leave the 10-minute job room for its other work).
 export const EARLIER_FAIL_READS = 3;
-// The dispatch record's key for a head with no unresolved thread whose
-// verifier read answered with no earlier FAIL to work.
-export const EARLIER_FAIL_READ = "earlier-fail-read";
+// How long after a head's newest review run completed the unsent sweep still
+// reads a head with no unresolved thread and a fail note from another head
+// (judgment: about four half-hourly ticks, so a failed or capped read is
+// retried a few times, and an answered one is re-read at most that often,
+// with no record to carry across ticks).
+export const EARLIER_FAIL_WINDOW_MS = 2 * 60 * 60_000;
 
 // Whether a review thread holds a pr-verify fail note (verify-notes.mjs, by
 // github-actions[bot], VERIFY_NOTE_MARKER first) from a review of another
@@ -1005,13 +1003,18 @@ async function sweepUnsent(context) {
   const threads = await api.listReviewThreads(pull.number);
   const unresolved = threads.filter((thread) => thread.isResolved === false);
   // A head with no unresolved thread is sent again only while it may be
-  // refused verify:earlier-fail with notes to work and no verifier read has
-  // answered for it yet: its read failed, or a pass's read cap left it.
-  if (unresolved.length === 0 && (!earlierFailNoted(threads, head) || isHandled(rest.record ?? emptyRecord(), EARLIER_FAIL_READ, head))) {
+  // refused verify:earlier-fail with notes to work (a fail note from another
+  // head), and only inside EARLIER_FAIL_WINDOW_MS of its newest review run's
+  // completion: its read may have failed, or a pass's read cap left it.
+  if (unresolved.length === 0 && !earlierFailNoted(threads, head)) {
     return null;
   }
   const upstream = await reviewRunAt({ api, head, repository, settings });
   if (upstream === null) {
+    return null;
+  }
+  // NaN compares false, so a review with no readable completion is left alone.
+  if (unresolved.length === 0 && !(Date.parse(upstream.updated_at ?? "") >= (rest.now ?? Date.now()) - EARLIER_FAIL_WINDOW_MS)) {
     return null;
   }
   // Each review, pr-merge and comment-relay run's completion at the head
@@ -1570,19 +1573,10 @@ export async function main(env, { api, github, resolveSlot, verifyCapped, log = 
       return 0;
     }
     // A lost run is recovered only on a tick the released heads leave idle.
-    // A sweep keeps no record but one: the heads whose verifier read answered
-    // no earlier FAIL (EARLIER_FAIL_READ), so a read that failed is retried
-    // on a later tick and an answered one is not read again.
-    const reads = emptyRecord();
-    reads.handled.set(EARLIER_FAIL_READ, new Set(record.handled.get(EARLIER_FAIL_READ) ?? []));
-    const sweep = async () => (await sweepReleased({ ...common, record: reads })) ?? recoverLost({ ...common, record: reads, now });
+    const sweep = async () => (await sweepReleased(common)) ?? recoverLost({ ...common, now });
     const swept = await sweep().finally(summary);
     if (swept !== null) {
       appendFileSync(env.GITHUB_OUTPUT, `run-id=${swept.workflowRunId}\nupstream-run-id=${swept.upstreamRunId}\n`);
-    }
-    record.handled.set(EARLIER_FAIL_READ, reads.handled.get(EARLIER_FAIL_READ));
-    if (writeRecord(env.DISPATCH_RECORD, record, text)) {
-      appendFileSync(env.GITHUB_OUTPUT, "record-changed=true\n");
     }
     return 0;
   }

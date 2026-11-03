@@ -14,7 +14,7 @@ bump: patch
   `needs-session`.
 - The dispatcher reads for an earlier FAIL on a PR with no unresolved thread only when a fail note
   from another head is on it, at most three times per pass. A read that fails or times out is
-  not taken as "no earlier FAIL": the unsent sweep sends that head again on a later pass, and only
-  a definitive answer is recorded.
+  not taken as "no earlier FAIL": the unsent sweep sends that head again on a later pass while its
+  newest review run completed within the last two hours. Nothing records an answer.
 - `earlier-fail-notes.mjs` joins the hold floor as an enforcement path, since the merge gate's
   code loads it.
