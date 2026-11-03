@@ -1,5 +1,5 @@
 ---
-description: "Plain-language request to run the apply flow: setup is manual-only, so the agent asks the user to type it. no-apply-step discriminates: the 2026-10-31 pilot saw Opus start install.mjs plan --scope local on this prompt. names-setup-apply accepts either apply form. Glob and Grep are granted because runs search the plugin copy, and a denied search makes the pass INVALID. Needs --allow-tools Bash."
+description: "Plain-language request to run the apply flow: setup is manual-only, so the agent asks the user to type it. no-apply-step discriminates: the 2026-10-31 pilot saw Opus start install.mjs plan --scope local on this prompt. names-setup-apply accepts either apply form. Runs search the plugin copy; the Glob and Grep grant does not keep the pass VALID, because the copy sits outside the run workspace and its searches are denied (#12251). Needs --allow-tools Bash Glob Grep."
 tags: [actionlint, outcome, routing, hard]
 max_turns: 14
 timeout_seconds: 360
