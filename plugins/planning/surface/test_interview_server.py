@@ -3491,6 +3491,54 @@ class TestSettingsResolver(unittest.TestCase):
             layers.retry_due()
             self.assertEqual(len(runs), 2)
 
+    def test_idle_event_stream_signature_changes_once_the_failed_read_is_retried(self):
+        # The event stream's signature() is the only caller on an idle page, so it must run the
+        # retry: without it a fixed planning.yaml never reaches the open page.
+        repo = self.tmp / "r"
+        repo.mkdir()
+        watched = repo / "planning.yaml"
+        watched.write_text("planning: {}\n", encoding="utf-8")
+        good = json.dumps(
+            {"values": {}, "layers": {}, "notes": [], "watch": [str(watched)]}
+        )
+        runs = []
+
+        def run(*args, **kwargs):
+            runs.append(args)
+            out = "" if len(runs) == 1 else good
+            return subprocess.CompletedProcess(args, 0, stdout=out, stderr="")
+
+        clock = [1000.0]
+        server = self.server
+        data = self.tmp / "d"
+        data.mkdir()
+        hub = server.Hub(0, data)
+        hub.layers = server.Settings(repo)
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
+            stack.enter_context(
+                unittest.mock.patch.object(server.shutil, "which", return_value="node")
+            )
+            stack.enter_context(
+                unittest.mock.patch.object(server.subprocess, "run", side_effect=run)
+            )
+            stack.enter_context(
+                unittest.mock.patch.object(
+                    server.time, "monotonic", side_effect=lambda: clock[0]
+                )
+            )
+            self.assertEqual(hub.layers.repo_layers(), ({}, {}))
+            before = hub.signature()
+            clock[0] += server.REPO_RETRY_S - 1
+            self.assertEqual(hub.signature(), before)
+            self.assertEqual(len(runs), 1)
+            clock[0] += 1
+            after = hub.signature()
+            self.assertNotEqual(after, before)
+            self.assertEqual(len(runs), 2)
+            self.assertEqual(hub.signature(), after)
+            self.assertEqual(len(runs), 2)
+
 
 class TestEmojiMarkers(ServerCase):
     """meta.emojiMarkers from ensure-running, written once through the locked path."""
