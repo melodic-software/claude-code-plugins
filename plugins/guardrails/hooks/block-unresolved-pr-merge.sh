@@ -639,7 +639,7 @@ else
     local e s t q c d pre body at=0 out=""
     _bupm_text="$COMMAND"
     ((BUPM_SHELL)) && return 0
-    for e in ${HOOK_HEREDOC_BODIES[@]+"${HOOK_HEREDOC_BODIES[@]}"}; do
+    for e in ${HOOK_HEREDOC_BODIES_SRC[@]+"${HOOK_HEREDOC_BODIES_SRC[@]}"}; do
       s="${e%% *}"
       e="${e#* }"
       t="${e%% *}"

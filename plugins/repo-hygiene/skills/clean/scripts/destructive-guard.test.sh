@@ -123,6 +123,10 @@ nested_cmds=(
   $'cat <<EOF | bash\ngit reset --hard\nEOF'
   $'cat <<EOF |\n$(date)\nrm -rf ~\nEOF\nbash'
   $'ssh h <<\'EOF\'\ngit reset --hard\nEOF'
+  # A here-doc opened in an earlier substitution, or in a body, is called back
+  # after the shell that reads its own here-doc as a script.
+  $'X=$(true <<A\nx\nA\n) bash <<A\ngit reset --hard\nA'
+  $'cat <<E\n$(cat <<F\nf\nF\n)\nE\nbash <<G\ngit reset --hard\nG'
   "git --git-dir /r/.git reset --hard"
   "git --work-tree /r stash drop"
 )

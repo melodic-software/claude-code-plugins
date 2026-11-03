@@ -258,10 +258,13 @@ guard_parse() {
   # segment before the one it reads, with that segment's here-strings and
   # here-doc numbers, the here-docs counted so far, and the numbers of the
   # here-docs a command runs as its script.
-  local -a _gp_prev=() _gp_prev_hs=() _gp_prev_hd=() _gp_hd_feed=() _gp_subs=() _gp_bodies=()
+  local -a _gp_prev=() _gp_prev_hs=() _gp_prev_hd=() _gp_hd_feed=() _gp_subs=() _gp_bodies=() _gp_bodies_src=()
   local _gp_hd_seen=0 _gp_s _gp_e _gp_start _gp_end
   hook::bash_parse_segments "$1" argv_segment
+  # Numbered as the callbacks counted the openers; the source-order copy is
+  # what the substitution scan walks.
   _gp_bodies=(${HOOK_HEREDOC_BODIES[@]+"${HOOK_HEREDOC_BODIES[@]}"})
+  _gp_bodies_src=(${HOOK_HEREDOC_BODIES_SRC[@]+"${HOOK_HEREDOC_BODIES_SRC[@]}"})
   # A here-doc on a segment with no command word reaches no callback, so the
   # count no longer numbers the bodies; then every body is read.
   if ((${#_gp_hd_feed[@]} && ${#_gp_bodies[@]} != _gp_hd_seen)); then
@@ -276,7 +279,7 @@ guard_parse() {
     hook::_c_locale byte_slice_to _gp_e "$1" "$_gp_start" $((_gp_end - _gp_start))
     guard_parse "$_gp_e"
   done
-  substitutions_to _gp_subs "$1" ${_gp_bodies[@]+"${_gp_bodies[@]}"}
+  substitutions_to _gp_subs "$1" ${_gp_bodies_src[@]+"${_gp_bodies_src[@]}"}
   for _gp_s in ${_gp_subs[@]+"${_gp_subs[@]}"}; do
     guard_parse "$_gp_s"
   done
@@ -299,7 +302,7 @@ byte_slice_to() {
 # substitutions_to <array-var> <command> [<here-doc entry>...] : the command line
 # inside each $() and backtick substitution bash expands within double quotes or
 # an unquoted here-doc body of <command>. The entries are the parser's
-# HOOK_HEREDOC_BODIES for <command>, in byte offsets, so the scan is over bytes
+# HOOK_HEREDOC_BODIES_SRC (source order) for <command>, in byte offsets, so the scan is over bytes
 # too. Single quotes, $'' and a quoted here-doc body expand nothing. An unquoted
 # substitution is already its own segment to the parser, so only its inside is
 # scanned. A nested substitution stays in its operand, for that operand's parse.

@@ -209,6 +209,13 @@ hd_are 'an empty body' $'cat <<E\nE\nx' '8 10 0 1 E'
 # Offsets by hand: the body starts on the line after its own opener.
 hd_are 'an empty body whose opener is on line 2' $'echo hi\ncat <<\'E\'\nE' '18 19 1 1 E'
 hd_are 'an empty body after an earlier body' $'cat <<A\na\nA\necho y\ncat <<B\nB' '8 12 0 1 A|27 28 0 1 B'
+# Listed in the order the callbacks see the openers (offsets by hand): the
+# statement that holds the substitution is called back before its contents,
+# and a body's own statements after every top-level one.
+hd_are 'a substitution here-doc follows its statement in callback order' \
+  $'X=$(true <<A\nx\nA\n) bash <<A\nrm -rf /\nA' '28 38 0 1 A|13 17 0 1 A'
+hd_are 'a body-nested here-doc follows the top-level ones' \
+  $'cat <<E\n$(cat <<F\nf\nF\n)\nE\nbash <<G\ngit reset --hard\nG' '8 26 0 1 E|35 53 0 1 G|18 22 0 1 F'
 hd_are 'a backslash-quoted delimiter' $'cat <<\\E\nx\nE\n' '9 13 1 1 E'
 
 # --- the caller's locale is put back -----------------------------------------
@@ -338,6 +345,26 @@ if out=$("$BASH_BIN" -c 'source "$1/lib/hook-utils.sh"; cb() { printf "%s\n" "$*
 else
   fail "a shfmt that answers in time: [$out]"
 fi
+
+# --- bash 5.3 command substitutions inside an extglob pattern ----------------
+# `${ cmd; }` and `${| cmd; }` run cmd in the current shell when bash 5.3
+# expands the word. Refused whatever bash runs these rows, so no bash check.
+pattern_refused() { # <desc> <command>
+  local out rc=0
+  # shellcheck disable=SC2016  # the child shell expands these
+  out=$("$BASH_BIN" -c 'source "$1/lib/hook-utils.sh"; hook::bash_parse_segments_shfmt "$2" :' -- "$_T_ROOT" "$2" 2>&1) || rc=$?
+  if ((rc == 2)) && [[ "$out" == *'a substitution inside an extglob pattern'* ]]; then ok "$1"; else fail "$1: exit $rc, [${out:0:200}]"; fi
+}
+# shellcheck disable=SC2016  # the command text under test
+{
+  pattern_refused 'a ${ cmd; } inside a pattern is refused' 'echo @(${ git reset --hard; })'
+  pattern_refused 'a ${| cmd; } inside a pattern is refused' 'echo @(${| git reset --hard; })'
+  pattern_refused 'a ${<tab>cmd; } inside a pattern is refused' $'echo @(${\tgit reset --hard; })'
+  pattern_refused 'a ${<newline>cmd; } inside a pattern is refused' $'echo @(${\ngit reset --hard; })'
+}
+# The paired pass: a parameter expansion in a pattern stays a pattern.
+# shellcheck disable=SC2016  # the command text under test
+parses_with 'a ${var} inside a pattern parses' 'ls @(${x}|y)' 'ls @(${x}|y)'
 
 # --- the parse budget ---------------------------------------------------------
 # Nested extglob patterns each take a parse of their own, and an extglob-off

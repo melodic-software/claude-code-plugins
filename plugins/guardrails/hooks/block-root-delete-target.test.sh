@@ -38,6 +38,10 @@ source "$HOOK_DIR/block-root-delete-target-fixtures.sh"
 expect_both 'rm -rf "\\" blocks' 2 --command 'rm -rf "\\"'
 expect_both 'rm -rf \\ blocks' 2 --command 'rm -rf \\'
 expect_both 'rm -rf / blocks' 2 --command 'rm -rf /'
+# A shell's here-doc script is found by counting openers in callback order; an
+# earlier opener inside a later-called statement must not shift that count.
+expect_both 'a shell here-doc after a substitution here-doc blocks' 2 --command $'X=$(true <<A\nx\nA\n) bash <<A\nrm -rf /\nA'
+expect_both 'a shell here-doc after a body-nested here-doc blocks' 2 --command $'cat <<E\n$(cat <<F\nf\nF\n)\nE\nbash <<G\nrm -rf /\nG'
 expect_both 'rm -rf /* blocks' 2 --command 'rm -rf /*'
 expect_both 'rm -rf "//" blocks' 2 --command 'rm -rf "//"'
 
