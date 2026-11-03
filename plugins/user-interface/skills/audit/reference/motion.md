@@ -63,6 +63,48 @@ layout property ("Swap down a tier").
 - **`performance`**: why an animation drops frames. Name the cause from
   [performance.md](../../../reference/animation/performance.md)'s diagnosis order before any
   proposed change.
+- **`removal`**: which existing animations should go. The burden of proof reverses: "it's already
+  there" and "it looks nice" are not defenses. Walk every animation through catalog.md "Should it
+  animate" and "Name the purpose", and record the rule that decided it. Each verdict is one of:
+  - **Delete**: it fails the gate.
+  - **Reduce**: it has a purpose but is too much for its frequency or role. Reduce means a smaller
+    version of the same motion, at the role and curve the resolved config gives: a hover lift
+    becomes a color or opacity change, a frequent slide or scale entrance becomes a fade, a loop on
+    a persistent element runs once. When that stops carrying the purpose, delete it instead.
+  - **Keep**: it passes, or a comment or design doc explains why it exists. A rare, first-time
+    moment is kept. Motion that prevents a jarring change is kept: deleting it trades a slow
+    interface for a disorienting one.
+
+  Report the Keep list too, with the purpose that saved each one. List a kept animation that is
+  badly built as a normal finding of this lane. Without that list a reader can't tell a judgment
+  from deleting every transition.
+
+  Each Delete and Reduce names the removal hazards below it was checked against, and the cleanup
+  it leaves. With `--fix`, an edit only subtracts: it never adds motion or retunes a curve on an
+  animation that stays. Removing a dependency is proposed, never done.
+
+### Removal hazards
+
+Removal is not find-and-replace. Check each before deleting:
+
+- **Hidden start state.** A keyframe that holds its start, a library's initial state or a reveal
+  class can leave the element at `opacity: 0`. Delete the start state with the animation, or the
+  element stays invisible.
+- **Code that waits for the animation.** An animation-end or transition-end listener, a timer sized
+  to a duration, or a library's exit callback. Delete the wait, or the UI keeps pausing for motion
+  that no longer exists.
+- **Exit that delays unmount.** A wrapper that holds a component until its exit finishes. Move what
+  ran after the exit to where the component closes.
+- **Layout animation hiding a jump.** Removing it exposes a layout shift. Keep the animation and
+  list the shift for the `layout-stability` concern.
+- **Focus timed after motion.** Focus moved in an animation callback must move at once.
+- **Tests and selectors** that wait for an animation class or duration need the same removal.
+
+### Removal cleanup
+
+Delete what a removal orphaned: keyframes, utilities and tokens with no references, a library's
+animated element wrappers with no motion props left, empty exit wrappers, unused variants and
+imports. Then search for each removed name to confirm nothing still references it.
 
 ## Gotchas
 
