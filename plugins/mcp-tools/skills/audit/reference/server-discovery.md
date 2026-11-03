@@ -24,18 +24,23 @@ the server `instructions` field C4 sizes is not in its output. Resolve it once p
 
 The construction site is usually **not** one of that server's `Tool file:` paths. A server typically
 constructs itself at one entry point while tools are registered elsewhere. Search the directory subtree
-those paths share for the per-language spelling, rather than reading the tool files alone:
+those paths share for the server constructor or options (python `FastMCP(...)` or
+`MCPServer(...)`, typescript `new McpServer(...)`, dotnet `McpServerOptions`) and the SDK's own
+spelling of the instructions setting there, rather than reading the tool files alone. Read that
+spelling at the SDK's reference:
 
-- **python:** the `instructions=` keyword argument to the server constructor, spelled either
-  `FastMCP(...)` or `MCPServer(...)`
-- **typescript:** the `instructions` field of the options object passed to
-  `new McpServer(serverInfo, { ... })`, the SDK's `ServerOptions.instructions`
-- **dotnet:** the `ServerInstructions` property on `McpServerOptions`, set where server options are
-  configured at startup
+- **Pointer**: when locating where a server sets its instructions, fetch the
+  [python `MCPServer` class](https://py.sdk.modelcontextprotocol.io/api/mcp/server/#mcp.server.MCPServer),
+  the [typescript `ServerOptions`](https://ts.sdk.modelcontextprotocol.io/v2/api/@modelcontextprotocol/server/server/server.html#serveroptions),
+  or the [dotnet `McpServerOptions` class](https://csharp.sdk.modelcontextprotocol.io/v1/api/ModelContextProtocol.Server.McpServerOptions.html)
+  live; when checking which protocol message carries the field in a revision, fetch the
+  [2026-07-28 changelog, Major changes](https://modelcontextprotocol.io/specification/2026-07-28/changelog#major-changes)
+  live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: an SDK release renames or moves its instructions setting, or a new spec
+  revision changes how a server advertises itself.
 
-All three set the protocol's server `instructions` field, which the protocol delivers via
-`InitializeResult` on `initialize` (protocol revision 2025-11-25 and earlier) and via `DiscoverResult`
-on `server/discover` (2026-07-28 and later). A server whose construction site declares no
+A server whose construction site declares no
 `instructions` has nothing to size, and C4's per-server clause is not a finding against it; record it
 as `n/a` rather than as a pass. When no construction site is reachable in the scanned scope, record it
 as `undetermined`, not as absent. Either way the outcome lands in the server-level row of the Phase 3
@@ -60,6 +65,12 @@ under the title with no heading of its own; as of 2026-10-11, recheck when that 
 stops grading C18 on the JSON type), so the language's own `true` literal has to be told apart
 from a quoted string or a number written in that language's syntax.
 
+- **Pointer**: when reading how an SDK attaches `_meta` to a tool, fetch the reference each
+  language entry's `meta-extraction` links live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: an SDK release renames, removes or changes the serialization of its tool
+  metadata argument, attribute or field.
+
 ### python (`mcp`)
 
 - **source-glob:** `**/*.py`
@@ -67,10 +78,10 @@ from a quoted string or a number written in that language's syntax.
 - **tool-marker:** `@mcp.tool`
 - **name-extraction:** function name immediately following the `@mcp.tool` decorator
 - **description-extraction:** function docstring (first triple-quoted string in body)
-- **meta-extraction:** the `meta=` dict argument on the `@mcp.tool` decorator (equivalently
-  `add_tool(..., meta=...)`); its keys are the wire `_meta` keys. JSON `true` is Python `True`. The
-  `str` `"true"` and the `int` `1` serialize to a JSON string and a JSON number, so neither satisfies
-  C18
+- **meta-extraction:** the `meta=` argument of `@mcp.tool` (or of `add_tool` when the tool is
+  registered programmatically), read at the
+  [`MCPServer.tool` reference](https://py.sdk.modelcontextprotocol.io/api/mcp/server/#mcp.server.MCPServer.tool);
+  only a value that serializes to JSON `true` satisfies C18
 
 ### typescript (`@modelcontextprotocol/sdk`)
 
@@ -79,10 +90,9 @@ from a quoted string or a number written in that language's syntax.
 - **tool-marker:** `server.tool(` or `server.registerTool(`
 - **name-extraction:** first positional argument, a string literal
 - **description-extraction:** the `description` field (or second positional argument), a string literal
-- **meta-extraction:** the `_meta` field of the config object passed to
-  `server.registerTool(name, { ... }, handler)`, copied verbatim into the `tools/list` entry; a later
-  `registeredTool.update({ _meta: ... })` overrides it. JSON `true` is the `true` literal. `'true'`
-  and `1` do not satisfy C18
+- **meta-extraction:** the `_meta` field of the `registerTool` config, and any later update to it,
+  read at the [`registerTool` reference](https://ts.sdk.modelcontextprotocol.io/v2/api/@modelcontextprotocol/server/server/mcp.html#registertool);
+  only a value that serializes to JSON `true` satisfies C18
 
 ### dotnet (`ModelContextProtocol`)
 
@@ -91,10 +101,8 @@ from a quoted string or a number written in that language's syntax.
 - **tool-marker:** `[McpServerTool]`
 - **name-extraction:** method name carrying the `[McpServerTool]` attribute
 - **description-extraction:** `[Description]` attribute on the method
-- **meta-extraction:** `[McpMeta("<key>", <value>)]` attributes on the same method as
-  `[McpServerTool]`, repeatable with one key each, or a `JsonObject` assigned to
-  `McpServerToolCreateOptions.Meta` when the tool is built programmatically; both seed the tool's wire
-  `_meta`. JSON `true` comes from the `bool` overload `[McpMeta("...", true)]` or from the raw-JSON
-  property form `JsonValue = "true"`, whose string holds JSON *source text* that is parsed; the
-  `string` **constructor** overload `[McpMeta("...", "true")]` instead serializes a .NET string, so it
-  yields the JSON string `"true"` and does not satisfy C18
+- **meta-extraction:** `[McpMeta]` attributes on the same method as `[McpServerTool]`, or the
+  create options' metadata when the tool is built programmatically, with each constructor overload
+  and property read at the
+  [`McpMetaAttribute` class](https://csharp.sdk.modelcontextprotocol.io/v1/api/ModelContextProtocol.Server.McpMetaAttribute.html);
+  only a form that yields JSON `true`, not the string `"true"`, satisfies C18
