@@ -138,6 +138,6 @@ Every field is plain text. List order is the numbering in the record.
 `brainstorm`: `title`, `problem`, and `candidates` ordered cheapest first, each with `effort`, `name`, `what`,
 `where` (the files or mechanisms it touches), and `impact`.
 
-`design`: no JSON. The builder reads the `PLAN.md` that `--record` names: its `# ` title, the text before the
+`design`: no JSON. The builder reads the `PLAN.md` that `--record` names: its level-one heading as the title, the text before the
 first `###` subsection of `## Design`, and each subsection's lines as written. A record with no `## Design`
 section exits 1.

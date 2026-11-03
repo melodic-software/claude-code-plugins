@@ -87,7 +87,7 @@ const runtime = loadRuntime();
   check("render builds a registered kind through its entry and the page passes", validateView(rendered).ok, validateView(rendered).failures);
   check("render refuses a kind its lane does not register", failuresOf(() => render("fixture:other", "triage", "{}", opts))?.[0]?.includes("does not register"));
   check("render refuses an unknown lane", failuresOf(() => render("fixture:none", "triage", "{}", opts))?.[0]?.includes("unknown lane"));
-  const copies = readFileSync(`${root}/scripts/shared-copies.txt`, "utf8").match(/^lib\/view-builder\.mjs \S+$/gm).map((line) => line.split(" ")[1]);
+  const copies = readFileSync(`${root}/scripts/shared-copies.txt`, "utf8").match(/^lib\/view-builder\.mjs \S+$/gm).map((line) => line.split(" ")[1]); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
   const failedImports = [];
   for (const copy of copies) {
     try {
