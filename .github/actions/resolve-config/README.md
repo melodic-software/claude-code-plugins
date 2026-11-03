@@ -91,7 +91,7 @@ The step fails and writes no file when:
     (`applied-by-unsupported`). The action checks this; `resolveGrant` does not.
 16. `models.default-profile` or a route names a profile `models.profiles` does not define
     (`undefined-profile`), or a route key is neither a skill activity nor a run route
-    (`verify-pr`, `review-code`, `review-security`, `triage-issue`, `summarize-reuse`, `adjudicate-feedback`; `undefined-route`), so a mistyped route cannot quietly take the default.
+    (`verify-pr`, `review-code`, `review-security`, `triage-issue`, `summarize-reuse`, `adjudicate-feedback`, plus `resolve-issue` for a model job that takes the issue lane's code-change profile; `undefined-route`), so a mistyped route cannot quietly take the default.
 
 It also fails when a predicate it decides cannot be decided: `pulls/{n}/files` lists 3000 files or
 fewer than the PR's `changed_files`, a predicate needs the PR and there is no `pr-number`, or a

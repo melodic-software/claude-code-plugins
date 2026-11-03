@@ -801,10 +801,11 @@ function checkRung(rung) {
   return rung ?? 0;
 }
 
-// The resolved profile of a run that is no lane activity (RUN_ROUTES), after
-// the same file checks as resolve().
+// The resolved profile of a run that is no lane activity (RUN_ROUTES), or of a
+// model job that takes resolve-issue's code-change profile (the upkeep batch and
+// the release intake lane), after the same file checks as resolve().
 export function resolveRoute(files, { route, configPath }) {
-  if (!RUN_ROUTES.has(route)) {
+  if (!RUN_ROUTES.has(route) && route !== "resolve-issue") {
     throw new Rejection(
       "undefined-route",
       `\`${route}\` is not a run route; one of ${[...RUN_ROUTES].join(", ")} is required`,

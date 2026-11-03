@@ -835,6 +835,12 @@ test("a route naming a script activity or nothing known is undefined-route", () 
   assertRejected(() => resolveRoute(LIVE, { route: "fix-docs", configPath: CONFIG_PATH }), "undefined-route");
 });
 
+test("the upkeep and release intake model jobs resolve resolve-issue's profile", () => {
+  const models = resolveRoute(LIVE, { route: "resolve-issue", configPath: CONFIG_PATH });
+  assert.equal(typeof models.model, "string");
+  assert.ok(models.model.length > 0);
+});
+
 test("a run route that is not one of the five is undefined-route, as a model-route and as a config route", () => {
   assertRejected(() => resolveRoute(LIVE, { route: "review-docs", configPath: CONFIG_PATH }), "undefined-route");
   const profiles = { p: { model: "opus", "max-turns": 5 } };
