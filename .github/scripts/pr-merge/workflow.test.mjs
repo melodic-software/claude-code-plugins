@@ -1386,7 +1386,7 @@ test("a dispatch that failed skips the record", () => {
 // there fails the job as a failed record upload does (the test above).
 test("every credential scan has a timeout of at most 2 minutes, and the upload it guards needs its clean output", () => {
   const bestEffort = {
-    "post-merge-dispatch": ["scan-upload"],
+    "post-merge-dispatch": ["scan-upload", "scan-upload-5"],
     merge: ["scan-upload-2", "scan-upload-3", "scan-upload-4", "scan-upload-5", "scan-upload-6", "scan-upload-7"],
     "enable-auto-merge": ["scan-upload", "scan-upload-2"],
     "dispatch-full-run": [],
