@@ -99,8 +99,8 @@ notice_shape() { # reads a notice on stdin; prints ok when it is exactly the use
 }
 s1='{"session_id":"sess-1","hook_event_name":"SessionStart"}'
 
-out="$(notice_sh "$s1" /demo-plugin:check)"
-if [[ "$(printf '%s' "$out" | notice_shape demo-plugin)" == ok ]]; then
+out="$(notice_sh "$s1" /other-plugin:check)"
+if [[ "$(printf '%s' "$out" | notice_shape other-plugin)" == ok ]]; then
   pass "sh node-notice: node absent prints one SessionStart notice to the user naming the check skill"
 else
   fail "sh node-notice: node absent gave $out"
@@ -129,7 +129,7 @@ if [[ -z "$out" ]]; then
 else
   fail "sh node-notice: kill switch false gave $out"
 fi
-a="$(notice_sh '{}' /demo-plugin:check)"
+a="$(notice_sh '{}' /other-plugin:check)"
 b="$(notice_sh '{}' /demo-plugin:check)"
 if [[ -n "$a" && -n "$b" ]]; then
   pass "sh node-notice: with no session id every plugin still notifies"
@@ -149,8 +149,8 @@ if [[ -n "${PWSH:-}" ]]; then
     shift
     printf '%s' "$payload" | PATH="$EMPTY" TMPDIR="$WORK/tmp-ps" "$PWSH" -NoProfile -NonInteractive -File "$LIB/prerequisites.ps1" node-notice "$@"
   }
-  out="$(notice_ps "$s1" /demo-plugin:check)"
-  if [[ "$(printf '%s' "$out" | notice_shape demo-plugin)" == ok ]]; then
+  out="$(notice_ps "$s1" /other-plugin:check)"
+  if [[ "$(printf '%s' "$out" | notice_shape other-plugin)" == ok ]]; then
     pass "pwsh node-notice: node absent prints one SessionStart notice to the user"
   else
     fail "pwsh node-notice: node absent gave $out"
