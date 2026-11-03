@@ -14,7 +14,9 @@
 // (agent-ready, `status: ready`, admission-deferred; stripClosed), only those
 // present, unless it is open again or is a post-merge fix issue. A bot's close
 // runs no close path: where the lanes App closes an issue itself (a split
-// parent here, report-outcome's close route) it strips them after the close.
+// parent here, report-outcome's close route) it strips them after the close,
+// and the sweep strips each issue in its window a listed human or a merge
+// closed (a merge the App ran among them).
 //
 // Each new agent-ready is paced: at or over the issue lane's queued cap, or
 // with the lane paused over its WIP or held cap (check-wip-cap.mjs, on or
@@ -1162,6 +1164,11 @@ async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, 
       if (sweep && !(await trustedClose({ github, repo, number: source, humans, closes, bot }))) {
         console.log(`label-unblocked: #${source} was closed by neither a listed human nor a merge; skipped`);
         continue;
+      }
+      // A merge the App ran closes an issue with no close run, so the sweep
+      // strips its queue labels; a listed human's close run already did.
+      if (sweep) {
+        failed += await stripClosed({ github, repo, number: source });
       }
       blocked = await paginate(github, `/repos/${repo}/issues/${source}/dependencies/blocking`);
     } catch (error) {

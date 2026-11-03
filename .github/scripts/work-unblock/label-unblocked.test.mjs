@@ -756,6 +756,22 @@ function sweptDependent({ sibling = "closed" } = {}) {
   });
 }
 
+// A merge the App ran closes an issue with no close run, so the sweep strips
+// the queue labels from each issue in its window a listed human or a merge closed.
+test("the sweep strips the queue labels from a merge-closed issue, agent-ready last, and writes nothing for one without them", async () => {
+  const mergeClosed = (labels) => ({ ...closedAt(10, "2026-10-16T11:30:00Z"), labels: labels.map((name) => ({ name })) });
+  const labeled = world({ closedList: [mergeClosed(["agent-ready", "status: ready", "priority: low"])], blocking: [] });
+  assert.equal(await sweep({ github: labeled.github }), 0);
+  assert.deepEqual(writes(labeled.calls), [`DELETE /repos/${REPO}/issues/10/labels/status%3A%20ready`, `DELETE /repos/${REPO}/issues/10/labels/agent-ready`]);
+  const bare = world({ closedList: [mergeClosed(["priority: low"])], blocking: [] });
+  assert.equal(await sweep({ github: bare.github }), 0);
+  assert.deepEqual(writes(bare.calls), []);
+  // A close by neither a listed human nor a merge is left alone.
+  const outsider = world({ closedList: [{ ...mergeClosed(["agent-ready"]), graphCloser: null }], blocking: [] });
+  assert.equal(await sweep({ github: outsider.github }), 0);
+  assert.deepEqual(writes(outsider.calls), []);
+});
+
 test("the sweep labels an issue whose last blocker a bot closed", async () => {
   const { github, calls } = sweptDependent();
   assert.equal(await sweep({ github }), 0);
