@@ -6,7 +6,7 @@ expected_outcome: Four findings in billing.py. Line 7 history-narration (Tier 1)
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: /code-tidying:audit-comment-residue billing.py
+  prompt: /code-tidying:remove-comments audit billing.py
   allowed_tools: [Read, Glob, Grep, Skill, Bash]
   max_turns: 80
   timeout_seconds: 1200

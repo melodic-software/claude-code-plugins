@@ -52,7 +52,9 @@ name: pr-feedback-dispatch
 # such head, it dispatches one head whose pr-unblock/address-feedback status
 # still fails though no review thread is left unresolved, once per stop, so
 # the run finds nothing to fix and report-stop-status clears the status
-# (sweepStale). Taking
+# (sweepStale). With neither, it dispatches one head with an unresolved thread
+# and no address-feedback round, whose review completion skipped on a cause
+# that may clear, such as an unreadable pr-verify FAIL cap (sweepUnsent). Taking
 # the tick's completion rather than a schedule of this file's own keeps
 # every dispatch a workflow_run dispatcher's, the one kind the gate and the
 # broker trust with a review run as its upstream.
