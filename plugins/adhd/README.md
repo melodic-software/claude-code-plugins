@@ -139,7 +139,8 @@ wins over the option.
 
 **`medium`** (default `auto`). Where `/adhd:clarify` sends its decision table.
 The shared medium resolver reads it alongside the `rendered-views` convention
-files; see `/adhd:clarify` above.
+files; see `/adhd:clarify` above. Picking a value from a list needs Claude Code
+v2.1.271 or later.
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 

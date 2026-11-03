@@ -4,7 +4,7 @@ bump: minor
 
 ### Added
 
-- A `medium` option (`auto` by default) sets where `/adhd:clarify` sends its decision table ([#12668](https://github.com/melodic-software/claude-code-plugins/issues/12668)).
+- A `medium` option (`auto` by default) sets where `/adhd:clarify` sends its decision table. Picking its value from a list in `/config` needs Claude Code v2.1.271 or later ([#12668](https://github.com/melodic-software/claude-code-plugins/issues/12668)).
 
 ### Changed
 
