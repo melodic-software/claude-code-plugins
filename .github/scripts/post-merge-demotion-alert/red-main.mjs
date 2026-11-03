@@ -9,7 +9,7 @@ export const RED_MAIN_DEFAULTS = Object.freeze({
   "dry-run": true,
   "daily-cap": 3,
   "max-culprit-age-hours": 24,
-  "confirm-wait-minutes": 40,
+  "confirm-wait-minutes": 55,
   remedy: "rollback",
 });
 
@@ -17,7 +17,7 @@ const VALID = {
   "dry-run": (value) => typeof value === "boolean",
   "daily-cap": (value) => Number.isInteger(value) && value >= 0 && value <= 10,
   "max-culprit-age-hours": (value) => Number.isInteger(value) && value >= 1 && value <= 168,
-  "confirm-wait-minutes": (value) => Number.isInteger(value) && value >= 0 && value <= 45,
+  "confirm-wait-minutes": (value) => Number.isInteger(value) && value >= 0 && value <= 60,
   remedy: (value) => value === "rollback" || value === "fail-forward",
 };
 
