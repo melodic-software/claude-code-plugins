@@ -398,8 +398,8 @@
       "readers": [
         ".github/workflows/pr-review-main.yml review-handoffs-credit, through ci-workflows check-key-credit gate.cjs, in later runs once the credit-stop marker is past vars.KEY_CREDIT_WINDOW_HOURS, inside probe-minutes (15 unset)"
       ],
-      "reason": "The gate counts a probe only inside probe-minutes, at most 1440, so 1 day covers it. It holds only the run id the workflow writes, never model text. The gate job checks nothing out, so ci-workflows' scan-upload action at the gate's pin scans it; this table's checker recognizes only the local action, so the row says none.",
-      "scan": "none"
+      "reason": "The gate counts a probe only inside probe-minutes, at most 1440, so 1 day covers it. It holds only the run id the workflow writes, never model text. The gate job checks nothing out, so ci-workflows' scan-upload action at the gate's pin scans it.",
+      "scan": "upload"
     },
     "reconcile-settled-runs": {
       "retention-days": 1,
