@@ -56,6 +56,8 @@ git add .
 git commit -q -m "feat: notes api skeleton"
 
 git checkout -q -b feat/rate-limit
+# The misspelled package name is the defect under test.
+# spellchecker:off
 cat >src/app.js <<'JS'
 import express from "express";
 import rateLimit from "expres-rate-limit";
@@ -112,5 +114,7 @@ cat >package-lock.json <<'JSON'
 JSON
 git add .
 git commit -q -m "feat: rate-limit the API at 100 requests a minute"
+
+# spellchecker:on
 
 git diff main...HEAD >review-input/change.diff

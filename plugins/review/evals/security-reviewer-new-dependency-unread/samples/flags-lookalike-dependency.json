@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "1. **Severity**: P1\n**Location**: `package.json:7`\n**Risk**: `expres-rate-limit` is a typosquat of express-rate-limit, and its lockfile entry sets hasInstallScript.\n**Fix**: use express-rate-limit.",
+      "answer": "1. **Severity**: P1\n**Location**: `package.json:7`\n**Risk**: the new package is a typosquat of express-rate-limit, and its lockfile entry sets hasInstallScript.\n**Fix**: use express-rate-limit.",
       "why": "finding at the manifest line naming the look-alike"
     },
     {
