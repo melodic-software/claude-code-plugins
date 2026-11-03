@@ -21,6 +21,9 @@
 #            request's running checks, so a later run decides again: a fragment
 #            push once they finish, or the next scheduled or dispatched run
 #            (ADR 0048, 2026-10-31 amendment). Absent otherwise.
+#   held     true when it is not rebuilt and carries a hold label the merge
+#            queue removes it for (label-holds.mjs --queue, pr-verify-failed
+#            included), so the merge job does not queue it. Absent otherwise.
 # A gate run leaves the tree detached at <main-sha>. Exit 0 decided, anything
 # else an error.
 set -euo pipefail
@@ -111,6 +114,13 @@ decide() {
         rebuild "$head" "$ci" ::warning:: "ci-status failed on release pull request #$number and its base is behind main"
       else
         echo "Release pull request #$number changes no file main changed since its build base."
+        # The merge queue removes a pull request carrying any hold label, and
+        # each removal drops the entries queued behind it.
+        held="$(node "$here/label-holds.mjs" --queue <<<"$pr")"
+        if [[ -n $held ]]; then
+          echo "::notice::Release pull request #$number carries a hold label; not queuing it: ${held//$'\n'/ }"
+          echo "held=true" >>"$GITHUB_OUTPUT"
+        fi
         echo "rebuild=false" >>"$GITHUB_OUTPUT"
       fi
       ;;
