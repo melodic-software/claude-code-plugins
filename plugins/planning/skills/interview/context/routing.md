@@ -41,7 +41,8 @@ turn out larger or foggier than it looked at entry? Each trigger has its own rec
   that the interview may be outrunning one session, and that `/planning:wayfind chart` would carry
   this ledger over if the effort is still foggy. That block is a pointer, not a question: it waits
   for nothing, the next round goes out as usual, and a reply asking for wayfind takes the handoff
-  below. Skip it when a wayfind recommendation has already been made in this session.
+  below. It recommends nothing, so a `/session-flow:workflow` recommendation on the same boundary
+  stands. Skip it when a wayfind recommendation has already been made in this session.
 
 On a trigger, recommend its route to the user in one short block (the trigger and its evidence,
 what it would carry over); never switch on your own. If it is not a trigger, say nothing and ask
