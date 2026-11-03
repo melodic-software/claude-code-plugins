@@ -4690,7 +4690,12 @@ def anchor_run(run_id: int, **overrides: Any) -> dict[str, Any]:
 
 
 def merge_state(
-    number: int, merged_at: datetime, *, settleable: bool = True, settled: bool = False
+    number: int,
+    merged_at: datetime,
+    *,
+    settleable: bool = True,
+    settled: bool = False,
+    final_by_runs: bool = False,
 ) -> pm.MergeState:
     merge = pm.AutoMerge(number, MERGE_SHA, HEAD_SHA, merged_at.isoformat())
     return pm.MergeState(
@@ -4700,6 +4705,7 @@ def merge_state(
         dispatch_covered=True,
         settled=settled,
         settleable=settleable,
+        final_by_runs=final_by_runs,
     )
 
 
@@ -4844,6 +4850,30 @@ class LaneFloorAnchor(CheckCase):
         self.assertEqual(data["laneMergesOnly"], True)
         self.assertEqual((data["repo"], data["branch"]), (REPO, "main"))
 
+    def test_only_the_anchor_writing_check_judges_settled_merges_again(self) -> None:
+        settled = pm.AutoMerge(7002, MERGE_SHA, HEAD_SHA, ANCHOR_AT.isoformat())
+        for env, rejudged in (({}, False), ({pm.ANCHOR_ENV: "anchor.json"}, True)):
+            with (
+                self.subTest(env=bool(env)),
+                mock.patch.dict(pm.os.environ, env),
+                contextlib.redirect_stdout(io.StringIO()),
+                mock.patch.object(pm, "_default_is_human", return_value=human),
+                mock.patch.object(pm, "default_floor", return_value=(SINCE, {})),
+                mock.patch.object(pm, "lane_floor", return_value=(SINCE, None)),
+                mock.patch.object(pm, "advance_anchor", return_value=None),
+                mock.patch.object(
+                    pm, "check", return_value=lane_verdict()
+                ) as check,
+            ):
+                pm.main(
+                    ["--repo", REPO, "--agent-identity", IDENTITY, "--lane-merges-only"]
+                )
+                rejudge = check.call_args.kwargs["rejudge"]
+                self.assertEqual(rejudge is not None, rejudged)
+                if rejudge:
+                    # With no anchor yet, every settled merge is judged again.
+                    self.assertTrue(rejudge(settled))
+
     def test_a_shared_answer_keeps_the_policy_floor_it_was_anchored_from(
         self,
     ) -> None:
@@ -4983,6 +5013,32 @@ class AnchorAdvance(unittest.TestCase):
         self.assertIsNone(pm.advance_anchor(verdict, None))
         previous = pm.Anchor(self.at(5))
         self.assertEqual(pm.advance_anchor(verdict, previous).at, self.at(5))
+        # The marker never passes a merge, even one whose state reads
+        # settleable: only its runs, judged again, do.
+        marked = lane_verdict(
+            merge_state(1, self.at(10), settled=True), merge_state(2, self.at(20))
+        )
+        self.assertIsNone(pm.advance_anchor(marked, None))
+
+    def test_a_settled_merge_final_from_its_runs_seeds_it(self) -> None:
+        # #7336: every lane merge since the floor was settled before any run
+        # judged it, so with no anchor only their runs can start one.
+        final = {"settleable": False, "settled": True, "final_by_runs": True}
+        verdict = lane_verdict(
+            merge_state(1, self.at(10), **final), merge_state(2, self.at(20), **final)
+        )
+        self.assertEqual(pm.advance_anchor(verdict, None), pm.Anchor(self.at(20)))
+
+    def test_a_settled_merge_its_runs_do_not_show_final_holds_it(self) -> None:
+        final = {"settleable": False, "settled": True, "final_by_runs": True}
+        verdict = lane_verdict(
+            merge_state(1, self.at(10), **final),
+            merge_state(2, self.at(20), settleable=False, settled=True),
+            merge_state(3, self.at(30)),
+        )
+        self.assertEqual(
+            pm.advance_anchor(verdict, None), pm.Anchor(self.at(10), frozenset({3}))
+        )
 
     def test_the_merge_at_the_anchor_is_read_again_without_holding_it(self) -> None:
         previous = pm.Anchor(self.at(10))
