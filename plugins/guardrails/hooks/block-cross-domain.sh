@@ -101,9 +101,10 @@
 # /x/owners/acmex-repo. The name alone cannot say where an owner ends, so of two
 # listed owners the longest one that fits holds it, in a command as for a cwd:
 # with `acme` and `acme-labs` listed, `acme-labs-x` is acme-labs's even when it
-# is acme's repository `labs-x` (the guard then under-denies), and an owner no
-# domain lists, such as `acme-labs` with only `acme` listed, reads as acme's
-# (it over-denies, a nested root's `acme-labs/` included).
+# is acme's repository `labs-x`, so that tree is open to an acme-labs session
+# and denied to an acme one. An owner no domain lists, such as `acme-labs` with
+# only `acme` listed, reads as acme's, a nested root's `acme-labs/` included,
+# which only adds denies.
 # `\` reads as `/` and a run of separators as one, so `C:\x`,
 # `C:\\x` and `C:/x` are one spelling. A path on a drive is also named in its
 # other drive forms (`C:/x`, `/c/x`, `/cygdrive/c/x`, `/mnt/c/x`, where a
