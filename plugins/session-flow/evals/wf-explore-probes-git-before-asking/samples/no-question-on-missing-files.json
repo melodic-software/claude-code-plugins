@@ -11,6 +11,10 @@
     {
       "answer": "Do you want me to restore xml_out.py from HEAD?",
       "why": "a follow-up action, not a question about investigating"
+    },
+    {
+      "answer": "json_out.py was removed on purpose.\nShould I investigate yaml_out.py, which git never tracked?",
+      "why": "the question about the never-tracked file sits on its own line"
     }
   ],
   "fail": [

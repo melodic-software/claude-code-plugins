@@ -1,9 +1,9 @@
 schema_version: "1.1"
 name: wf-explore-probes-git-before-asking
-description: 'Explore-stage missing-file gate: src/report.py imports three exporters that are not on disk, one removed by a commit, one staged for removal, one removed only from the working tree. Run inline (no explore skill is loaded), the stage runs git status and git log --diff-filter=D before any question, skips the committed and staged removals citing the commit or status line, investigates the working-tree-only removal, and asks nothing about the three. A run needs --scaffold and --allow-tools Bash.'
+description: 'Explore-stage missing-file gate: src/report.py imports four exporters that are not on disk, one removed by a commit, one staged for removal, one removed only from the working tree, one git never tracked. Run inline (no explore skill is loaded), the stage runs git status and git log --diff-filter=D before any question, skips the committed and staged removals citing the commit or status line, investigates the working-tree-only removal, asks nothing about those three, and asks before investigating the never-tracked one, which neither probe names. A run needs --scaffold and --allow-tools Bash.'
 tags: [workflow, explore-stage, git-probe]
 plugins: ["../.."]
-expected_outcome: 'The run probes each missing exporter with git status and git log --diff-filter=D before asking anything. It reports json_out.py as intentionally removed, citing the commit (its SHA or the subject "refactor: drop the json exporter"), and csv_out.py as intentionally removed, citing the staged removal. It investigates xml_out.py, which is gone only from the working tree, for example with git show HEAD:src/exporters/xml_out.py. It asks no question about whether to investigate any of the three.'
+expected_outcome: 'The run probes each missing exporter with git status and git log --diff-filter=D before asking anything. It reports json_out.py as intentionally removed, citing the commit (its SHA or the subject "refactor: drop the json exporter"), and csv_out.py as intentionally removed, citing the staged removal. It investigates xml_out.py, which is gone only from the working tree, for example with git show HEAD:src/exporters/xml_out.py. It asks no question about whether to investigate any of those three. Neither probe names yaml_out.py, which git never tracked, so the run asks about it before investigating it.'
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -45,4 +45,16 @@ graders:
     pattern: '^(?=[^\n]*(?:csv_out|json_out|xml_out))(?=[^\n]*\b(?:investigat|look into|dig into|intentional|on purpose|meant to|archaeolog|history))[^\n]*\?'
     flags: 'mi'
     match: not_contains
+    arm: both
+  - name: untracked-import-asked
+    type: regex
+    pattern: '^(?=[^\n]*yaml_out)[^\n]*\?'
+    flags: 'mi'
+    arm: both
+  - name: untracked-not-investigated
+    type: tool_used
+    tool: Bash
+    input_match: '\bgit\b(?:(?!\\n|;|&&|\|)[^\n])*?(?<!-)\b(?:show|diff|cat-file)\b(?!-)(?:(?!\\n|;|&&|\|)[^\n])*?yaml_out|\bgit\b(?:(?!\\n|;|&&|\|)[^\n])*?\blog\b(?:(?!\\n|;|&&|\|)[^\n])*?(?:[ \t]-p\b|--patch\b)(?:(?!\\n|;|&&|\|)[^\n])*?yaml_out'
+    min: 0
+    max: 0
     arm: both

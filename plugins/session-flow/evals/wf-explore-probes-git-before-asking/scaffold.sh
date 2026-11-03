@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# report.py imports three exporters, none of them on disk: one removed by an earlier commit, one
-# staged for removal, one removed only from the working tree.
+# report.py imports four exporters, none of them on disk: one removed by an earlier commit, one
+# staged for removal, one removed only from the working tree, and yaml_out that git never tracked.
 set -euo pipefail
 
 git init -q -b main .
@@ -12,10 +12,11 @@ cat >src/report.py <<'EOF'
 from exporters.csv_out import write_csv
 from exporters.json_out import write_json
 from exporters.xml_out import write_xml
+from exporters.yaml_out import write_yaml
 
 
 def export(rows, fmt):
-    writers = {"csv": write_csv, "json": write_json, "xml": write_xml}
+    writers = {"csv": write_csv, "json": write_json, "xml": write_xml, "yaml": write_yaml}
     return writers[fmt](rows)
 EOF
 for fmt in csv json xml; do
