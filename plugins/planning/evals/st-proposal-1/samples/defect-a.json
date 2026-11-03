@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "- PLAN.md Recommendation: the primary key `(appointment_id, window_name)` leaves out the start time, so a rescheduled appointment hits the existing row and AC2 fails.\n",
+      "why": "bullet naming the key and AC2"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | Requirement | The ledger key has no appointment time: a moved appointment's new reminder is suppressed | Add the start time to the key |\n",
+      "why": "table row, moved appointment"
+    },
+    {
+      "answer": "- AC2 is unmet: appointment_id survives a reschedule, so the same key blocks the reminder for the new time.\n",
+      "why": "AC2 unmet"
+    },
+    {
+      "answer": "| 3 | HIGH | Plan | Rescheduled appointments collide on `sent_reminders` and the patient never gets the new reminder | Key on start too |\n",
+      "why": "collision phrasing in a table"
+    },
+    {
+      "answer": "The key doesn't distinguish the old and new time of a rescheduled appointment.\n",
+      "why": "negated phrasing that is a true finding"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "The ledger key handles a rescheduled appointment; AC2 looks fine.\n",
+      "why": "named and dismissed"
+    },
+    {
+      "answer": "A rescheduled appointment does not collide on the ledger key.\n",
+      "why": "negated mention"
+    },
+    {
+      "answer": "- The ledger needs error handling when the SQLite file is unavailable.\n",
+      "why": "a generic finding about something else"
+    },
+    {
+      "answer": "- Consider reviewing the ledger key for rescheduled appointments.\n",
+      "why": "anchor with a generic warning and no problem named"
+    },
+    {
+      "answer": "- The ledger change is missing a test for a rescheduled appointment.\n",
+      "why": "a test gap, not the key defect"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "- The assumption is false: `config.Load` logs and returns defaults on a parse error, so a broken overlay would not stop startup (AC2).\n",
+      "why": "bullet"
+    },
+    {
+      "answer": "| 1 | CRITICAL | Assumption | internal/config/config.go: Load falls back to Defaults() and has no error return | Return an error and exit |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- config.Load does not exit on bad YAML, contradicting the draft.\n",
+      "why": "negated phrasing that is the finding"
+    },
+    {
+      "answer": "| 2 | HIGH | Assumption | `config.Load` silently keeps running with defaults, so AC2 needs a new error path | Change the signature |\n",
+      "why": "silently"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "config.Load falls back to defaults, which is fine for this draft.\n",
+      "why": "named and dismissed"
+    },
+    {
+      "answer": "config.Load does not fall back; it exits as the draft says.\n",
+      "why": "negated mention"
+    },
+    {
+      "answer": "- `config.Load` needs better error handling.\n",
+      "why": "anchor with a generic warning"
+    },
+    {
+      "answer": "- The pilot on returns-east has no success threshold.\n",
+      "why": "a finding about something else"
+    }
+  ]
+}

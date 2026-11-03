@@ -8,7 +8,8 @@ never skips intake.
 
 `skip=true` only when all of these hold on the issue:
 
-- Its body contains `<!-- work-items:born-triaged -->`, which the decompose publisher writes.
+- Its body ends with `<!-- work-items:born-triaged -->` as its last line, where the decompose
+  publisher writes it; a copy elsewhere in the body does not count.
 - Its author is on [`trusted-actors.json`](../../standards/trusted-actors/trusted-actors.json) with
   kind `human`, or is the lanes App bot, both matched by numeric user id. A marker in an issue from
   anyone else is ignored.

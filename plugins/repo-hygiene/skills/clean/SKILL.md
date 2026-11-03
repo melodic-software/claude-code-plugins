@@ -73,14 +73,17 @@ Run the last two only when the first printed a path. When it fails with `not a g
 on with the batch and `--fleet` forms, which take their repos from arguments or discovery. A
 single-repo tier has nothing to act on there.
 
-The pipe is the bound and belongs in the command. A read-time cap ("read only the first 5 entries")
-bounds nothing: the Bash tool returns the command's complete output into context before there is
-anything to decide about.
+The pipe is the bound and belongs in the command; a read-time cap ("read only the first 5
+entries") is not a bound. How much of a command's output reaches context is in
+[Tools reference: Output limits](https://code.claude.com/docs/en/tools-reference#output-limits)
+(as of 2026-11-03; recheck when that section changes what a command's result returns inline).
 
 Treat any other failure (git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
-block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git. The dated record for that composition claim is the
+separate body Bash calls rather than pre-compute lines. How Claude Code runs a skill's injected
+commands is in
+[Skills: How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run)
+(as of 2026-11-03; recheck when that section says how a multi-line pre-compute block is run). This
+repository's dated record of the composition is the
 [gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
 "The pre-compute block runs as one shell invocation".
 

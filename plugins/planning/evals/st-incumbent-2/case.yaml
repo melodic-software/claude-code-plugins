@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: st-incumbent-2
+description: "A draft plan for an event ticketing API decides whether to replace the locking library behind its seat holds."
+expected_outcome: "A good review reports that the Emberstore row claim feature already in the deployed database was never weighed, that the one-module claim is wrong because src/checkout/complete.ts also calls Holdfast's extend, and that holds under the hf: prefix are invisible to Leaseline during the rollout, so a seat can get a second holder. It does not call the Node version a problem, since the project runs Node 22."
+context:
+  scaffold_script: scaffold.sh

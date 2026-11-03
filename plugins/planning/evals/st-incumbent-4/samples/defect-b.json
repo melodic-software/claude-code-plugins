@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "- Why's premise is false: `Sealbox.rekey` has been available since 5.0.0 and we run 5.2.0.\n",
+      "why": "bullet"
+    },
+    {
+      "answer": "| 1 | CRITICAL | Plan | Sealbox 5.2 has `rekey`, so the claim that it cannot change a master key is wrong | Reassess the decision |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- The changelog contradicts Why: rekey re-seals a value under a new master key.\n",
+      "why": "contradicts"
+    },
+    {
+      "answer": "| 2 | CRITICAL | Plan | `Sealbox.rekey` already meets AC1; the replacement's main reason is stale | Keep Sealbox |\n",
+      "why": "already"
+    },
+    {
+      "answer": "- Sealbox 5.0 provides key rotation through rekey.\n",
+      "why": "provides"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "- Sealbox has no rekey, so replacing it is justified.\n",
+      "why": "agrees with the draft"
+    },
+    {
+      "answer": "- `rekey` is not available in Sealbox 5.2.\n",
+      "why": "negated"
+    },
+    {
+      "answer": "- Sealbox lacks key rotation, which supports the decision.\n",
+      "why": "no rekey or version named"
+    },
+    {
+      "answer": "- Phase 3's rotation task has no schedule owner named.\n",
+      "why": "another finding"
+    },
+    {
+      "answer": "- The claim that Sealbox cannot change a key is wrong.\n",
+      "why": "generic, no function or version"
+    }
+  ]
+}

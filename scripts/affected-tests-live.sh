@@ -253,7 +253,7 @@ read_pairs=(
   "plugins/ruff-format/hooks/ruff-format.test.sh|plugins/ruff-format/lib/git-hooks/install.mjs"
   "plugins/ruff-format/hooks/ruff-format.test.sh|plugins/ruff-format/lib/prerequisites.mjs"
   "plugins/biome-format/hooks/biome-format-end-of-turn.test.sh|plugins/biome-format/hooks/exec-bash.mjs"
-  "plugins/code-metrics/skills/audit-complexity/scripts/audit-complexity.test.sh|plugins/code-metrics/scripts/yaml_subset.py"
+  "plugins/code-metrics/skills/audit/scripts/audit-complexity.test.sh|plugins/code-metrics/scripts/yaml_subset.py"
   "plugins/instruction-placement/git-hooks/index-check.test.sh|plugins/instruction-placement/.claude-plugin/plugin.json"
 )
 for fixture in events-v1 invalid-device-scope-on-prototype invalid-reaction-agree \

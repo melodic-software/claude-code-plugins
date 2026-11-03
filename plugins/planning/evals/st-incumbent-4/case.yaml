@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: st-incumbent-4
+description: "A draft plan for an invoicing app decides whether to replace the field encryption library that seals customer data."
+expected_outcome: "A good review reports that Vaultline's random output cannot serve the email lookup in AC2 once email_bidx holds a seal value, that Sealbox.rekey in the 5.0.0 changelog contradicts the claim that the pinned Sealbox 5.2.0 cannot change a master key, and that the customers:reseal task cannot be re-run after an interruption because Sealbox.open raises BadEnvelope on rows already converted. It does not attack the 4 KB value limit, which is far above the model's field caps."
+context:
+  scaffold_script: scaffold.sh

@@ -18,12 +18,13 @@ this page owns the keys.
 Later layers win per key. Team and overlay are read only when the root is a
 repository that is neither `$HOME` nor an ancestor of it
 (`lib/config-root.sh`). The team file is validated by
-[`schemas/multi-agent.schema.json`](../schemas/multi-agent.schema.json). For
-one release the resolver still reads the old team locations, the
-```` ```yaml config ```` block in `docs/conventions/multi-agent.md` and then
-`.claude/multi-agent.yaml`, and only when the team YAML is absent; when
-several exist the first of the three wins and the resolver names each one it
-ignored. Every layer declares `schema: 1`; a layer that does not
+[`schemas/multi-agent.schema.json`](../schemas/multi-agent.schema.json). The
+resolver no longer reads the old team locations, the config block in
+`docs/conventions/multi-agent.md` and `.claude/multi-agent.yaml`;
+`/multi-agent:setup check` names each one it finds. While the team YAML is
+absent, the first `/multi-agent:setup apply --layer team` write copies the keys
+of one of them, the block when there is one, into the new YAML and leaves the
+old file in place. Every layer declares `schema: 1`; a layer that does not
 parse or names another schema is skipped and named in `notes`, and the layers
 around it still apply. The format is a YAML subset: nested mappings, scalars,
 comments. No lists. `/multi-agent:setup apply` writes a layer after a preview
@@ -44,7 +45,7 @@ and an explicit yes.
 Roles are `orchestrator`, `worker`, `verifier` and `retrieval`. A layer naming
 another role or key is reported and ignored, and so is a workload no layer
 declares. A declaration in any layer covers values set in every layer, so a
-team block can declare a workload that a personal overlay tunes. A full model id
+team layer can declare a workload that a personal overlay tunes. A full model id
 (`claude-opus-5-5`) is rejected, so a role map stays portable across providers.
 Whether a role may name `haiku` is decided in
 [`routing-rubric.md`](routing-rubric.md); the resolver accepts it and adds a
