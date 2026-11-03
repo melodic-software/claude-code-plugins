@@ -33,6 +33,10 @@ cat >"$STUB" <<'EOF'
 printf 'args=%s root=%s base=%s\n' "$*" "$CHECK_SKILL_SKILLS_ROOT" "$CHECK_SKILL_BASE_REF" >>"$CHECK_LOG"
 for arg in "$@"; do
   [[ "$arg" == "broken" ]] && exit 1
+  if [[ "$arg" == "leftover" ]]; then
+    echo "SKIP plugins/p1/skills/leftover/scripts/x.test.sh (past the deadline, left to CI)"
+    exit 3
+  fi
 done
 exit 0
 EOF
@@ -116,6 +120,35 @@ if run "$r" "$b" >/dev/null 2>&1; then
   fail "a failing skill checker should fail the gate"
 else
   ok "failing skill checker fails the gate"
+fi
+rm -rf "$r"
+
+# --- a skill that left script tests past the deadline is no pass -----------
+mk_repo r
+add_skill "$r" p1 leftover
+add_skill "$r" p1 broken
+add_skill "$r" p1 alpha
+commit_all "$r" base >/dev/null
+b="$(base_sha "$r")"
+add_skill "$r" p1 leftover SKILL.md
+add_skill "$r" p1 alpha SKILL.md
+rc=0
+out="$(run "$r" "$b" 2>&1)" || rc=$?
+if [[ $rc -eq 2 ]] && grep -qxF "SKIP plugins/p1/skills/leftover/scripts/x.test.sh (past the deadline, left to CI)" <<<"$out" &&
+  [[ "$(tail -n 1 <<<"$out")" == "1 skill(s) left script tests to CI, past the deadline." ]] &&
+  grep -q "2 skill(s) checked, 0 failed" <<<"$out"; then
+  ok "a skill that left script tests exits 2, naming them, and is not counted failed"
+else
+  fail "a skill that left script tests should exit 2 (rc=$rc): $out"
+fi
+add_skill "$r" p1 broken SKILL.md
+rc=0
+out="$(run "$r" "$b" 2>&1)" || rc=$?
+if [[ $rc -eq 1 ]] && grep -q "3 skill(s) checked, 1 failed" <<<"$out" &&
+  grep -q "left script tests to CI" <<<"$out"; then
+  ok "a failed skill still fails a run where another left script tests"
+else
+  fail "a failed skill should exit 1 beside one that left tests (rc=$rc): $out"
 fi
 rm -rf "$r"
 

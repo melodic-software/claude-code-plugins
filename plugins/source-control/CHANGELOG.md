@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.1.1] - 2026-11-03
+
+### Changed
+
+- The `ready` reference now says a draft's first flip runs the suites up to the budget of `scripts/check-affected.sh --tests` and leaves the rest to CI.
+
 ## [6.1.0] - 2026-11-03
 
 ### Added

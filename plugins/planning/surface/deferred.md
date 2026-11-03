@@ -33,3 +33,5 @@ Reason for parking: the owner's scope guard, "we want these to be, in most cases
 | Several sessions each taking a group | Park |
 | The shared page's question screen on this page: the answer in the same scroll as the question, with a folded Claude section under it | Open: #8633 recommends its own phase, designed with the shared lane |
 | The visual-viewport pin above 820 px, for a phone held landscape | Open |
+| Plain Enter submitting on Save-type buttons (UI-14) | Drop: plain Enter stays a no-op, deliberate for dictation. The owner approved "Keep it" on 2026-10-12, [#7303 comment](https://github.com/melodic-software/claude-code-plugins/issues/7303#issuecomment-6135990573) |
+| The page seeing a terminal permission prompt (UX-3) | Park until the watcher or session can report a pending prompt; the #7280 hint stays. Owner decision of 2026-10-12, [#7303 comment](https://github.com/melodic-software/claude-code-plugins/issues/7303#issuecomment-6135990573) |

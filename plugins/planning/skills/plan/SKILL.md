@@ -19,7 +19,7 @@ Collect these with **individual** Bash calls, one command per call, never combin
 - Recent commits, `git log --oneline -5`
 - Working tree status (empty = clean), `git status --porcelain | head -10`
 
-Keep the pipe in the command: a read-time cap bounds nothing, since the Bash tool returns the full output first. Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as body Bash calls, not pre-compute lines: the pre-compute block runs as one shell invocation, and a worktree-isolated session refuses a compound command that contains git. Dated record: the [gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation), "The pre-compute block runs as one shell invocation".
+Keep the pipe in the command: a read-time cap bounds nothing, since the Bash tool returns the full output first. Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as body Bash calls, not pre-compute lines. How the harness runs a skill's injected commands: [How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run), as of 2026-11-03; recheck when that section changes how injected commands run.
 
 ## Variables
 
@@ -27,7 +27,7 @@ Arguments: `$ARGUMENTS`
 
 ## Purpose
 
-Every implementation starts with a clear design, evidence, a test strategy, and user sign-off before any code is written. This is **not** Claude Code's built-in plan mode (`shift+tab`), which is a read-only *permission mode*; this skill is the *planning discipline* around it. It consumes exploration, research, and `/planning:design` (types, contracts, module boundaries, package topology) and produces a plan the user approves before execution. A 2-minute plan prevents a 20-minute rework cycle. Match planning depth to blast radius: a one-file fix gets a brief plan; a cross-cutting architecture change gets a full plan with stress-testing and research-iterate loops.
+Every implementation starts with a clear design, evidence, a test strategy, and user sign-off before any code is written. This is **not** Claude Code's built-in plan mode (what that mode does: [Analyze before you edit with plan mode](https://code.claude.com/docs/en/permission-modes#analyze-before-you-edit-with-plan-mode), as of 2026-11-03; recheck when that section changes what plan mode lets Claude do); this skill is a separate *planning discipline* that can run inside it. It consumes exploration, research, and `/planning:design` (types, contracts, module boundaries, package topology) and produces a plan the user approves before execution. A 2-minute plan prevents a 20-minute rework cycle. Match planning depth to blast radius: a one-file fix gets a brief plan; a cross-cutting architecture change gets a full plan with stress-testing and research-iterate loops.
 
 **Skip the plan when one sentence covers the change.** First try to write the whole diff as one sentence. The test passes when no design question is open and that sentence describes every edit. How this skill was reached decides what happens next:
 
@@ -314,10 +314,10 @@ Entering plan mode licenses a **scoping confirm**: a short round of questions th
 
 The command and this skill share a name, so "plan this" can mean either.
 
-- **`/plan` (built-in command)**: `/plan [description]` enters plan mode, optionally starting on the description; `/plan open` views the session plan. It is reserved for the person to run; the model does not invoke it.
+- **`/plan` (built-in command)**: enters plan mode. Its forms are in the `/plan` row of [All commands](https://code.claude.com/docs/en/commands#all-commands), as of 2026-11-03; recheck when that row changes. This skill offers it to the person and never runs it.
 - **This skill (marketplace plugin).** The planning discipline: stress-test, blast radius, an approval gate, and a persisted PLAN.md a cleared session can execute.
 
-**Routing.** Where Plan Mode Integration says to suggest plan mode, offer it to the person: If /plan is available in your session (gate basis: not gated behind a setting, though a host may lack it; records in [reference/native-plan.md](reference/native-plan.md)), you can run it (or press `shift+tab`) alongside this skill. Prefer this skill for the plan itself. When the caller passes `--unattended`, the run records the offer in its output instead of asking; without that flag it asks.
+**Routing.** Where Plan Mode Integration says to suggest plan mode, offer it to the person: If /plan is available in your session (gate basis: the records in [reference/native-plan.md](reference/native-plan.md)), you can run it (or press `shift+tab`) alongside this skill. Prefer this skill for the plan itself. When the caller passes `--unattended`, the run records the offer in its output instead of asking; without that flag it asks.
 
 **Mutation gate.** This skill writes PLAN.md and its checklist; `/plan` changes the permission mode. This skill never toggles the mode on the person's behalf.
 
@@ -327,12 +327,12 @@ The command and this skill share a name, so "plan this" can mean either.
 
 Both produce an implementation plan, so "plan this" can also route to the subagent.
 
-- **`Plan` (built-in subagent)**: a research agent that returns a step-by-step approach to its caller, skips CLAUDE.md, and runs no approval gate. It cannot write files. It is reached through the Agent tool's `subagent_type`.
+- **`Plan` (built-in subagent)**: reached through the Agent tool's `subagent_type`; this skill's approval gate does not apply to it. Its purpose, context and tools are in [Built-in subagents](https://code.claude.com/docs/en/sub-agents#built-in-subagents), as of 2026-11-03; recheck when that section changes the Plan subagent's purpose or tools.
 - **This skill (marketplace plugin)**: the plan the person approves: stress-test, blast radius, decision gates, and a persisted PLAN.md.
 
 **Routing.** When the built-in `Plan` agent resolves in this session, dispatch it for a throwaway approach sketch or read-only context-gathering whose result feeds other work; use this skill when the plan needs the person's approval or must outlive the session. This skill may dispatch `Plan` to gather context, but the plan it presents is its own.
 
-**Mutation gate.** `Plan` writes nothing. This skill writes PLAN.md and its checklist.
+**Mutation gate.** This skill writes PLAN.md and its checklist; a dispatched `Plan` agent never writes them.
 
 The four-part records live in [reference/native-plan-agent.md](reference/native-plan-agent.md).
 
