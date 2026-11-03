@@ -530,6 +530,8 @@ async function scan(env) {
   const { IN, RELEASE: release, BASE_SHA: baseSha, REPO_DIR: repoDir } = env;
   const text = readFileSync(`${IN}/plan.json`, "utf8");
   const plan = readPlan(text, { release, baseSha });
+  // Only this check sets hold-path; the model's plan may not claim it.
+  if (plan.stop_reason === "hold-path") throw new Error("ci-plan.json: stop_reason hold-path is set by the scan job, not the plan");
   const held = holdPathBranch(repoDir, baseSha, plan.branches);
   if (held < 0) {
     console.log(`${plan.branches.length} branches stay in their plugins and change no hold path`);

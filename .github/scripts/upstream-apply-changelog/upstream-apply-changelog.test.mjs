@@ -268,16 +268,21 @@ test("the scan stops a release whose planned branch changes a hold path, naming 
   planned.branches[0] = { plugin: "review", branch: "changelog/review/v2.1.300", base_sha: base, head_sha: skill, pr: { title: "chore(review): x", body: "b" } };
   writeFileSync(join(scanIn, "plan.json"), JSON.stringify(planned));
   writeFileSync(join(scanIn, "heads.txt"), `${skill}\n`);
-  const out = execFileSync(process.execPath, [new URL("./upstream-apply-changelog.mjs", import.meta.url).pathname, "scan"], {
-    env: { PATH: process.env.PATH, IN: scanIn, RELEASE: "2.1.300", BASE_SHA: base, REPO_DIR: dir },
-    encoding: "utf8",
-  });
+  const runScan = () =>
+    execFileSync(process.execPath, [new URL("./upstream-apply-changelog.mjs", import.meta.url).pathname, "scan"], {
+      env: { PATH: process.env.PATH, HOME: dir, GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null", IN: scanIn, RELEASE: "2.1.300", BASE_SHA: base, REPO_DIR: dir },
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  const out = runScan();
   assert.match(out, /::warning::branches\[0\] changes a hold path/);
   assert.equal(out.includes("security-review"), false);
   const rewritten = readPlan(readFileSync(join(scanIn, "plan.json"), "utf8"), { release: "2.1.300", baseSha: base });
   assert.deepEqual([rewritten.stop_reason, rewritten.branches.length], ["hold-path", 0]);
   assert.equal(readFileSync(join(scanIn, "heads.txt"), "utf8"), "");
   assert.ok(readFileSync(join(scanIn, "publish.txt"), "utf8").includes("stop_reason `hold-path`"));
+  // A plan that claims hold-path itself is refused: only the scan sets it.
+  assert.throws(runScan, (e) => /stop_reason hold-path is set by the scan job/.test(String(e.stdout)));
 
   // The stopped plan keeps its handoffs, publishes no branch and marks done.
   const stopped = readPlan(stoppedPlanText(JSON.stringify(plan())), ctx);
