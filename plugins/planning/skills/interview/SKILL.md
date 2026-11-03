@@ -4,7 +4,7 @@ argument-hint: "[me|lock|scope|restate|share|product] [topic]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  workflow-stage: contract
+  workflow-stage: interview
   summary: Interview in frontier rounds until the task contract is locked
 ---
 
@@ -39,6 +39,8 @@ Shared-session tunnel for [`context/lane-shared.md`](context/lane-shared.md): `t
 Rework often comes from acting on assumptions the user never made and the agent never surfaced, an **underspecified** task, one missing the constraints needed to act safely. `/planning:interview` is the pipeline's underspecification resolver: a structured pass driving every unknown the task depends on to a decision OR capturing it as a named, explicit assumption, before exploration, planning, or execution start.
 
 The **pre-clarity** stage. Upstream of exploration, research, and `/planning:plan`. `/planning:plan` presupposes a coherent task; `/planning:interview` produces one out of fuzzy intent. The contract it writes is the target every later stage aims at.
+
+**Level this skill decides: behavior**, what the work does and how to tell it is done; interfaces and contracts are `/planning:design`'s, and files and symbols are `/planning:plan`'s.
 
 **Supportive, not adversarial.** `/planning:devils-advocate` attacks an existing artifact after the fact. `/planning:interview` walks alongside the user to extract a clear contract from the start. The `product` action is the one exception: the user asked for the idea itself to be tested ([`context/product.md`](context/product.md)).
 

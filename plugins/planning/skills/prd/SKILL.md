@@ -30,7 +30,7 @@ Arguments: `$ARGUMENTS`
 
 - `/planning:prd` answers *what should we build, for whom, and why*. Required for new user-facing features, business-driven changes, cross-team initiatives
 - `/planning:interview` answers *what is the engineering contract for this task*. Required whenever intent is fuzzy or underspecified, regardless of source
-- A product feature usually wants both: `/planning:prd` → `/planning:interview` → exploration → research → `/planning:design` → `/planning:plan`. Engineering-internal work skips `/planning:prd`
+- A product feature usually wants both: `/planning:interview` runs first and calls `/planning:prd` when a question shows product intent is unsettled, then resumes (with exploration and research as further detours) → `/planning:design` → `/planning:plan`. Engineering-internal work skips `/planning:prd`
 
 The PRD is **never an implementation plan**: problem, users, success, yes; architecture, files, tests, code shapes, no. If the user pulls toward implementation mid-PRD, anchor back to *what for whom* and let `/planning:plan` pick up after.
 
@@ -198,7 +198,7 @@ Optionally offer to render the finalized PRD as a self-contained HTML pitch view
 
 After writing the PRD, recommend the next step by remaining ambiguity:
 
-- **Engineering scope still fuzzy** (constraints, untouchable areas, perf budget unclear) → clear context, then `/planning:interview` (it reads the topic's `PRD.md` as scope)
+- **Engineering scope still fuzzy** (constraints, untouchable areas, perf budget unclear) → `/planning:interview` in this session (it reads the topic's `PRD.md` as scope)
 - **Engineering scope is clear, codebase grounding needed** → `/discovery:explore` if enabled, otherwise the environment's codebase-exploration capability
 - **Need external research (libs, APIs, comparables)** → `/discovery:research` if enabled, otherwise the strongest research capability available
 - **Engineering scope clear and externals understood** → `/planning:design`, which records a one-line early exit when no design question is open and hands off to `/planning:plan`

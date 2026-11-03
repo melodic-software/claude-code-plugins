@@ -1,5 +1,5 @@
 ---
-description: "Staged workflow navigator (explore through retro): names the next stage and routes end-of-phase continuation (continue, clear, compact, handoff, background). Use when: 'what comes next', 'what step am I on', 'clear or compact'. Full skill menu: /session-flow:recommend-skills."
+description: "Staged workflow navigator (interview through retro): names the next stage and routes end-of-phase continuation (continue, clear, compact, handoff, background). Use when: 'what comes next', 'what step am I on', 'clear or compact'. Full skill menu: /session-flow:recommend-skills."
 argument-hint: "[steps|pre-pr|wrap-up|philosophy|spec-first|continue [auto]]"
 user-invocable: true
 disable-model-invocation: false
@@ -74,36 +74,41 @@ Read `$ARGUMENTS` whole: its first word is the mode and, when the mode is `conti
 ### 1. Show the workflow at a glance
 
 ```text
-Discover:  1. Explore → 2. Research
-Shape:     3. PRD (conditional) → 4. Contract (optional)
+Shape:     1. Interview (optional), calling detours when a question needs one:
+             2. Explore · 3. Research · 4. PRD (each conditional)
 Build:     5. Design → 6. Plan (+ stress-test) → 7. Decompose (conditional) → 8. Implement
 Check:     9. Test → 10. Review → 11. Verify outcome
 Ship:      PR lifecycle: prep → create → monitor CI → merge (runs after stage 11)
 12. Retrospective (optional, /session-flow:retro)
 ```
 
-Conditional stages run only on their trigger (`context/steps.md`): PRD for a user-facing,
-business-driven change where alignment on the problem matters; Decompose when the plan holds more
-than one independently shippable ticket. Design runs for design-significant work and records a
-one-line early exit otherwise, so a bug fix passes through it in one step. Discover and shape
-interleave: on new work that does not qualify as a quick change, the contract interview runs
-first and gives explore and research their scope, as detours it triggers.
+Work that does not take the quick-change on-ramp starts at stage 1, the interview. Explore,
+research and a PRD are detours it calls only when a question needs them, then the interview
+resumes; none runs before it. Conditional stages run only on their trigger (`context/steps.md`):
+Explore when a question turns on what the code does now, Research when it rests on an external
+claim, PRD when product intent is unsettled on a user-facing, business-driven change, and Decompose
+when the plan holds more than one independently shippable ticket. Design runs for
+design-significant work and records a one-line early exit otherwise, so a bug fix passes through
+it in one step. The interview decides behavior (the Brief), design decides interfaces and
+contracts, and plan decides files and symbols.
 
-Stages 1-7 expand, for unfamiliar territory, into a known pre-implementation order (blindspot →
-brainstorm/prototype → PRD → interview, escalating to wayfind when it outgrows one session →
-reference port → design → plan → decompose); the workflow section of
-`docs/finding-your-unknowns.md` in the marketplace repository states it with rationale.
+For unfamiliar territory, stages 1-7 sit inside a longer pre-implementation order (blindspot →
+brainstorm/prototype → interview, escalating to wayfind when it outgrows one session, and calling
+a PRD when product intent is unsettled → reference port → design → plan → decompose); the workflow
+section of `docs/finding-your-unknowns.md` in the marketplace repository states it with rationale.
 
 ### 2. Detect current position
 
 Check conversation context for evidence of completed stages:
 
-- Has the relevant code been read or the codebase surveyed? → Stage 1 done
-- Have external sources been consulted for load-bearing technical claims? → Stage 2 done
+- Is the Brief (goal, constraints, acceptance criteria) crisp, stated by the user or in a plan
+  artifact on disk? → Stage 1 satisfied
+- Has the code each open question turns on been read, or does none turn on it? → Stage 2
+  satisfied
+- Have external sources been consulted for each load-bearing technical claim, or does the work
+  rest on none? → Stage 3 satisfied
 - Is product intent (problem, users, success metrics) written down, or is the work not
-  user-facing and business-driven? → Stage 3 satisfied
-- Is the goal/constraints/acceptance-criteria contract crisp (stated by the user, or in a plan
-  artifact on disk)? → Stage 4 satisfied
+  user-facing and business-driven? → Stage 4 satisfied
 - Does the plan artifact carry its design section, or a recorded early exit? → Stage 5 done
 - Has a plan been written and approved? → Stage 6 done
 - Is the plan one ticket, or have its tickets been published? → Stage 7 satisfied
@@ -123,10 +128,8 @@ satisfies, then continue from there.
 ### 3. Suggest next stage
 
 Based on what's been done, recommend the next stage with rationale. For new work whose diff fails
-either quick-change test, with nothing done, suggest the contract interview (stage 4, after stage
-3 when the PRD trigger holds), not stage 1; explore and research then run as detours the
-interview triggers. This fresh-start suggestion takes precedence over tie-break rule 3 ("the
-earlier stage wins"). A change that passes both tests takes the quick-change on-ramp below
+either quick-change test, with nothing done, suggest stage 1, the interview; explore, research
+and a PRD then run as detours the interview calls. A change that passes both tests takes the quick-change on-ramp below
 instead. If the consuming repo has a
 skill for that stage, name it; otherwise describe the inline work. Add that stage's effort advice per "Effort per stage" in `context/steps.md`.
 
@@ -139,7 +142,8 @@ its ordered router; recommend exactly one mechanism with its rationale, zone-inf
 context-guard's zone report (its `mcp__context-guard__status` tool, or its snapshot) has data and
 conservative when it does not. Mid-stage with a healthy window,
 skip this, the default is simply to continue. Mid-stage with a bloated window, walk the router
-too.
+too. Between human stages (interview, PRD, design, plan), suggest a handoff only at context-guard
+zone `dumb`; these stages run in one session (`context/continuation.md`).
 
 The router **suggests; it does not act**. The recommendation goes to the human with the evidence
 that drove it, and executing the routed mechanism takes an explicit per-invocation license
@@ -179,8 +183,7 @@ forcing every session through stage 1. Common classes:
   decide, not size; a diff that adds types, public contracts, or module boundaries is not cheap
   to retry and takes the full path. It enters at stage 8 (reading the code it needs is part of
   implement), then the diff is reviewed and aligned on there, with test and verify at full
-  rigor. If the diff turns out not to be quick to review, stop and route to the contract
-  interview. Basis for adopting this rule:
+  rigor. If the diff turns out not to be quick to review, stop and route to the interview. Basis for adopting this rule:
   the "Session-start flow and main flow" section of `docs/upstream/mattpocock-skills.md` (under Map)
   in the marketplace repository.
 - **Incoming bug or issue intake**, a report or request that arrived raw from outside. An
@@ -188,14 +191,14 @@ forcing every session through stage 1. Common classes:
   through a diagnosis capability first (if the consuming setup installs one, e.g. from a diagnose
   or debugging plugin), then rejoins at implement with the root cause in hand.
 - **A foggy, too-big-to-plan effort**, the destination is clear but the route is not, and no
-  single plan can hold it yet. Start at the contract interview anyway; when that interview
+  single plan can hold it yet. Start at the interview anyway; when that interview
   outgrows one session, escalate to a wayfinding or route-charting capability (if installed, e.g.
   from a planning plugin), which converts the remaining unknowns into decisions BEFORE the plan
   stage. Never start there. Without one, run explore/research cycles until a plan becomes
   writable.
 - **Codebase-upkeep findings**. Audits, tidy sweeps, and architecture surveys surface candidate
   improvements rather than mid-flight work. Each finding the user picks up is a NEW idea entering a
-  fresh cycle at contract/explore; it never merges into an in-progress cycle's later stages.
+  fresh cycle at the interview; it never merges into an in-progress cycle's later stages.
 
 These are classes, not an inventory. Match the arriving situation to its class, then check what the
 consuming setup actually installs for that class, the same rule as stage execution: never invent
@@ -234,7 +237,7 @@ the menu. When a request could be either, "what comes next" is a stage question 
 
 - **Marking a stage done from conversation vibes**. Verify the artifact or output exists before
   suggesting the next stage.
-- **Skipping the contract stage on behavior-changing work that takes the full path**. Fuzzy
+- **Skipping the interview on behavior-changing work that takes the full path**. Fuzzy
   intent becomes silent plan assumptions; lock the goal and acceptance criteria first. Only the
   quick-change on-ramp skips it, and only while its diff stays quick to review.
 - **Skipping design because the task is small**. Size does not decide it: on the full path, new

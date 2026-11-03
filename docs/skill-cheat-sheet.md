@@ -28,10 +28,10 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 
 <!-- cheatsheet:start -->
 
-- [1. Explore](#1-explore)
-- [2. Research](#2-research)
-- [3. PRD](#3-prd)
-- [4. Contract](#4-contract)
+- [1. Interview](#1-interview)
+- [2. Explore](#2-explore)
+- [3. Research](#3-research)
+- [4. PRD](#4-prd)
 - [5. Design](#5-design)
 - [6. Plan](#6-plan)
 - [7. Decompose](#7-decompose)
@@ -45,7 +45,17 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 - [Session lifecycle](#session-lifecycle)
 - [Operator cadence](#operator-cadence)
 
-## 1. Explore
+## 1. Interview
+
+| Skill | Plugin | What it does |
+| --- | --- | --- |
+| [`/bugs:write`](../plugins/bugs/skills/write/SKILL.md) | `bugs` | Turn an informal bug description into a structured 5-field report, read-only |
+| [`/planning:audit-answers`](../plugins/planning/skills/audit-answers/SKILL.md) | `planning` | Adversarially validate interview answers with fresh-context agents |
+| [`/planning:interview`](../plugins/planning/skills/interview/SKILL.md) | `planning` | Interview in frontier rounds until the task contract is locked |
+| [`/planning:questionnaire`](../plugins/planning/skills/questionnaire/SKILL.md) | `planning` | Turn a decision someone else must answer into an async questionnaire |
+| [`/planning:wayfind`](../plugins/planning/skills/wayfind/SKILL.md) | `planning` | Chart a too-big, foggy effort as a decision map worked one decision at a time |
+
+## 2. Explore
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
@@ -65,7 +75,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/performance:go-faster`](../plugins/performance/skills/go-faster/SKILL.md) | `performance` | Whole-process speed sweep with evidenced, ranked findings and adopt-now speedups |
 | [`/performance:target`](../plugins/performance/skills/target/SKILL.md) | `performance` | Rank optimization candidates by evidence quality, not suspicion |
 
-## 2. Research
+## 3. Research
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
@@ -75,22 +85,12 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/dometrain:grounding`](../plugins/dometrain/skills/grounding/SKILL.md) | `dometrain` | Ground an approach in how a Dometrain course teaches it, with lesson links |
 | [`/firecrawl:firecrawl`](../plugins/firecrawl/skills/firecrawl/SKILL.md) | `firecrawl` | Scrape, search, crawl, or parse web pages when WebFetch is blocked |
 
-## 3. PRD
+## 4. PRD
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
 | [`/planning:brainstorm`](../plugins/planning/skills/brainstorm/SKILL.md) | `planning` | Diverge into codebase-grounded candidate approaches before scoping |
 | [`/planning:prd`](../plugins/planning/skills/prd/SKILL.md) | `planning` | Lock product intent. Problem, users, success metrics. Before planning |
-
-## 4. Contract
-
-| Skill | Plugin | What it does |
-| --- | --- | --- |
-| [`/bugs:write`](../plugins/bugs/skills/write/SKILL.md) | `bugs` | Turn an informal bug description into a structured 5-field report, read-only |
-| [`/planning:audit-answers`](../plugins/planning/skills/audit-answers/SKILL.md) | `planning` | Adversarially validate interview answers with fresh-context agents |
-| [`/planning:interview`](../plugins/planning/skills/interview/SKILL.md) | `planning` | Interview in frontier rounds until the task contract is locked |
-| [`/planning:questionnaire`](../plugins/planning/skills/questionnaire/SKILL.md) | `planning` | Turn a decision someone else must answer into an async questionnaire |
-| [`/planning:wayfind`](../plugins/planning/skills/wayfind/SKILL.md) | `planning` | Chart a too-big, foggy effort as a decision map worked one decision at a time |
 
 ## 5. Design
 

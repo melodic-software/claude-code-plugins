@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "json_out.py and csv_out.py were removed on purpose; xml_out.py is gone only from the working tree, so I read its last version.\n\nReady for stage 2, Research?",
+      "answer": "json_out.py and csv_out.py were removed on purpose; xml_out.py is gone only from the working tree, so I read its last version.\n\nReady for stage 3, Research?",
       "why": "a closing question that names no missing file"
     },
     {
