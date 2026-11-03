@@ -3,6 +3,12 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0] - 2026-11-03
+
+### Changed
+
+- The `local-file` findings buffer moves to `findings-buffer/findings.jsonl` under the git common directory, so every worktree of a clone reads and writes one file; `read.sh` still returns rows from the old per-worktree `.work/buffer/findings.jsonl` (#12907).
+
 ## [0.10.0] - 2026-11-03
 
 ### Added
