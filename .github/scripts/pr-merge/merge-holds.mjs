@@ -389,6 +389,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/workflows/intake-triage.yml", "gate"],
   [".github/workflows/maintenance-audit-lane-runs.yml", "gate"],
   [".github/workflows/maintenance-reconcile-lost-runs.yml", "gate"],
+  [".github/workflows/maintenance-tidy-code-upkeep.yml", "gate"],
   [".github/workflows/post-merge-demotion-alert.yml", "gate"],
   [".github/workflows/post-merge-test-mutation.yml", "gate"],
   [".github/workflows/pr-feedback-dispatch.yml", "gate"],
@@ -1692,7 +1693,7 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
       console.log(`::error title=${VERIFIER_TITLE}::#${number}: ${escape(reason)}.`);
     }
     if (!reasons.length) {
-      console.log(`#${number}: no body hold, no member veto and no hold path.`);
+      console.log(`#${number}: no member veto and no hold path.`);
     }
     return reasons.length || verifier.length ? 1 : 0;
   } catch (error) {

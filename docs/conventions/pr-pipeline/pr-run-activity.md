@@ -1940,7 +1940,9 @@ exactly; a job that calls the read file passes it by name only,
 the `scan` job may name an `environment`, `pr-pipeline-scan-carrier`. The one second holder (owner
 decision, 2026-11-02) is `upstream-apply-changelog.yml`'s `scan` job: one `open` step, the same
 action and exact `private-key`, after the main-only gate job, with `contents: read` alone, no
-id-token and a read-only cache; the environment admits main only. GitHub gives an environment
+id-token and a read-only cache; the environment admits main only. The third holder ([owner
+decision, 2026-11-03](https://github.com/melodic-software/claude-code-plugins/issues/12475)) is
+`maintenance-tidy-code-upkeep.yml`'s `scan` job, under the same limits, with no model in that job. GitHub gives an environment
 secret to a reusable workflow only when the caller passes it by name, and the value it then holds
 is the environment's only in the job that names the environment
 ([Reuse workflows](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows)).
@@ -1986,7 +1988,10 @@ Claude Code release it works as a `MAJOR.MINOR.PATCH` string, and none of `pr_nu
 `issue_number` or `dispatcher_run_id`; the broker refuses `release` from any other caller. Its
 dispatch, and a re-run of either, must be started by a listed human. Each of its jobs mints one
 effect: the broker never grants `contents` and `pull_requests` write in one mint, nor `merge` or
-`actions`. An `issues` request, allowed from `work-resolve-issue.yml`, `work-unblock.yml`
+`actions`. A request from `maintenance-tidy-code-upkeep.yml`, on its daily `schedule` or a
+`workflow_dispatch`, names no `pr_number`, `issue_number`, `release` or `dispatcher_run_id`; its dispatch, and
+a re-run of either, must be started by a listed human, and the broker limits its grant to a branch push
+or a pull request open. An `issues` request, allowed from `work-resolve-issue.yml`, `work-unblock.yml`
 and `intake-triage.yml`, sends `issue_number` (the `issue-number` input) instead, and neither of the
 other two. From `work-resolve-issue.yml` its actor, the labeler, must be a listed human, or the
 lanes App; from the other two a listed human. `work-unblock.yml` (also on its hourly `schedule`)
@@ -2033,14 +2038,14 @@ reason; no response at all is `broker-unreachable`. Broker reasons:
 | 400 | (none) | The body is not `{lane, activity, pr_number?, issue_number?, release?, dispatcher_run_id?}` with valid names, positive integers and a `MAJOR.MINOR.PATCH` release, `issue_number` is missing on `issues` or present off it, or `release` is missing from `upstream-apply-changelog.yml` or present from any other caller |
 | 403 | `invalid-token`, `wrong-audience` | The OIDC token does not verify, or is for another audience |
 | 403 | `wrong-owner`, `repo-not-allowed`, `self-hosted-runner` | Not a melodic-software repository on the broker's allowlist, or not a GitHub-hosted runner |
-| 403 | `event-not-allowed` | Not `pull_request` on `refs/pull/<n>/merge`, or `workflow_dispatch` or `workflow_run` on `refs/heads/main`, or `issues` on `refs/heads/main` from `work-resolve-issue.yml`, `work-unblock.yml` or `intake-triage.yml`, or `schedule` on `refs/heads/main` from `pr-merge.yml`, `work-unblock.yml` or `upstream-apply-changelog.yml` only |
+| 403 | `event-not-allowed` | Not `pull_request` on `refs/pull/<n>/merge`, or `workflow_dispatch` or `workflow_run` on `refs/heads/main`, or `issues` on `refs/heads/main` from `work-resolve-issue.yml`, `work-unblock.yml` or `intake-triage.yml`, or `schedule` on `refs/heads/main` from `pr-merge.yml`, `work-unblock.yml`, `upstream-apply-changelog.yml` or `maintenance-tidy-code-upkeep.yml` only |
 | 403 | `workflow-not-allowed` | The job is not this repository's `pr-run-activity-write.yml`, or the caller is not a lane under `lanes:` in the tip's `pr-pipeline.yaml` |
 | 403 | `workflow-modified` | The caller or `pr-run-activity-write.yml` differs from the default-branch tip (a report job, `work-resolve-issue` `report-outcome` or `pr-unblock` `report-escalation`, still mints when every main commit that changed the file is signed, GitHub-made, on a linear range and landed after run start, at most 50 minutes ago: [azure-iac#39](https://github.com/melodic-software/azure-iac/pull/39)) |
 | 403 | `workflow-modified` | With `dispatcher_run_id`: the dispatcher workflow at the dispatcher run's head differs from the tip (same report-job exception) |
 | 403 | `lane-mismatch` | The requested lane is not the caller's file stem |
 | 403 | `activity-not-in-lane`, `slot-disabled`, `config-invalid`, `effect-forbidden-by-lane` | The tip config does not give this activity a write grant |
 | 403 | `effect-read` | The activity is `read`; it belongs in the read file |
-| 403 | `untrusted-actor`, `untrusted-author`, `bot-actor` | The actor, the PR author or a re-runner is not on the tip's trusted-actor list (a scheduled `pr-merge.yml` run has no actor check, and its re-runner must be a listed human; a scheduled `work-unblock.yml` run has no actor check either and skips the workflow's own closer check, so the broker alone gates its re-runs; a `github-actions[bot]` dispatch of `intake-triage.yml` has no actor check and needs its issue open, and its re-runner must be a listed human; a scheduled `upstream-apply-changelog.yml` run has no actor check, and its re-runner must be a listed human), or is the lanes bot |
+| 403 | `untrusted-actor`, `untrusted-author`, `bot-actor` | The actor, the PR author or a re-runner is not on the tip's trusted-actor list (a scheduled `pr-merge.yml` run has no actor check, and its re-runner must be a listed human; a scheduled `work-unblock.yml` run has no actor check either and skips the workflow's own closer check, so the broker alone gates its re-runs; a `github-actions[bot]` dispatch of `intake-triage.yml` has no actor check and needs its issue open, and its re-runner must be a listed human; a scheduled `upstream-apply-changelog.yml` or `maintenance-tidy-code-upkeep.yml` run has no actor check, and its re-runner must be a listed human), or is the lanes bot |
 | 403 | `untrusted-actor` | With `dispatcher_run_id` from `github-actions[bot]`: the dispatcher run or this run is missing or fails a dispatcher check above |
 | 503 | `github-unavailable` | With `dispatcher_run_id`: a dispatcher, run, tag or compare read failed; nothing was minted |
 | 403 | `pr-not-eligible` | The PR is not open, not from a branch of this repository, or does not target `main` |
@@ -2376,9 +2381,9 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   which counts `outcome=intake` as a hand-back, sends the issue back through intake. `close`
   comments, removes `agent-ready` and closes the issue as completed: `already-done` only once a
   cited merged pull request (the first three `#<n>` are tried) or commit is on the default branch
-  and its commit message closes the issue, and `report-delivered` only on a
-  `work-class: read-only` issue the run committed nothing for, with the run's `summary` as the
-  report; either retries otherwise. Dependents and split parents count the lanes App's
+  and its commit message closes the issue, and `report-delivered` only on an
+  issue the run committed nothing for and resumed no branch on, whatever its work class, with the
+  run's `summary` as the report; either retries otherwise. Dependents and split parents count the lanes App's
   `already-done` close as trusted only while that evidence re-checks true when they read it
   (`isTrustedClose` in check-trusted-trigger, through `.github/scripts/lib/done-evidence.mjs`); a
   `report-delivered` close, or any read that fails, counts for nothing. `fail` removes `agent-ready`, adds no label and comments

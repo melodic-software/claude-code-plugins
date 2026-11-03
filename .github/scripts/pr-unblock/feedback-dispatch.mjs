@@ -85,10 +85,13 @@
 // main whose head's newest reply check took one of those skips, fewer than
 // SWEEP_HEAD_CAP times at that head, is decided as above with the
 // newest completed review run at that head as the upstream (reviewRunAt),
-// which the record names. With no such head, and no stale stop, it sends the
-// first idle adopted owner PR whose reviewed head has no round yet, or whose
-// round's stop no thread holds any more (sweepIdleOwner), since that PR's own
-// review completion found it active.
+// which the record names. With no such head and no stale stop, it sends the
+// first lanes App head with an unresolved thread that no round was sent for
+// (sweepUnsent): its review completion skipped on a cause that may clear, such
+// as an unreadable FAIL cap. With none, it sends the first idle adopted owner
+// PR whose reviewed head has no round yet, or whose round's stop no thread
+// holds any more (sweepIdleOwner), since that PR's own review completion found
+// it active.
 //
 // Before those, the tick takes a fix request nothing else would start: no
 // review run follows a reply on a head, and an earlier round's check run holds
@@ -767,6 +770,11 @@ export async function sweepReleased({ api, repository, appSenderId, log, setting
     return stale;
   }
   log("sweep: no head with a failing address-feedback stop and nothing left to fix");
+  const unsent = await sweepPulls(context, (pull) => sweepUnsent({ ...context, pull }), pulls);
+  if (unsent !== null) {
+    return unsent;
+  }
+  log("sweep: no head with an unresolved thread that no round was sent for");
   const owners = listed.filter((pull) => pull.user?.id !== appSenderId);
   const idle = owners.length === 0 ? null : await sweepPulls(context, (pull) => sweepIdleOwner({ ...context, pull }), owners);
   if (idle === null) {
@@ -910,6 +918,57 @@ async function sweepStale({ api, pull, repository, appSenderId, log, settings, r
   }
   log(`dispatched #${number} head ${head} to clear a stop with no thread left, upstream run ${upstream.id} workflow_run_id=${id}`);
   return { number, workflowRunId: id, upstreamRunId: upstream.id };
+}
+
+// pr-feedback-dispatch.yml's dispatch job timeout-minutes.
+export const UNSENT_GRACE_MS = 10 * 60_000;
+
+// A head with an unresolved thread and no address-feedback check run, and no
+// run of the activity for the PR created since its newest review run started:
+// its review completion's dispatch skipped for a reason that may clear, such
+// as verify-cap.mjs's unreadable FAIL cap, and no review run follows to send
+// it again. A skip that stands costs the reads dispatchFeedback makes before
+// it, each tick.
+async function sweepUnsent(context) {
+  const { api, pull, repository, appSenderId, log, settings, rest } = context;
+  const head = pull.head.sha;
+  if ((await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId })).length > 0) {
+    return null;
+  }
+  const unresolved = (await api.listReviewThreads(pull.number)).filter((thread) => thread.isResolved === false);
+  if (unresolved.length === 0) {
+    return null;
+  }
+  const upstream = await reviewRunAt({ api, head, repository, settings });
+  if (upstream === null) {
+    return null;
+  }
+  // Each review, pr-merge and comment-relay run's completion at the head
+  // starts a dispatch in the head's concurrency group, not the sweep's, so the
+  // head waits out that job's timeout after the last of them. An unreadable
+  // time does not count. A pr-verify FAIL's dispatch runs in a verify-<id>
+  // group at main's head, so the notes it posts as unresolved threads just
+  // before it stand in for it: the newest comment on one counts too.
+  const triggers = [];
+  for (const [path, event] of [...settings.reviewWorkflows.map((path) => [path, "pull_request"]), [MERGE_WORKFLOW, "pull_request_target"], [RELAY_WORKFLOW, RELAY_EVENT]]) {
+    triggers.push(...(await api.listCompletedRuns(path, head, event)).filter((run) => run.head_sha === head && run.event === event));
+  }
+  const commented = unresolved.flatMap((thread) => thread.comments?.nodes ?? []).map((comment) => Date.parse(comment.createdAt ?? "")).filter(Number.isFinite);
+  const last = Math.max(...[upstream, ...triggers].map((run) => Date.parse(run.updated_at ?? "")), ...commented);
+  if (!(last <= (rest.now ?? Date.now()) - UNSENT_GRACE_MS)) {
+    return null;
+  }
+  // A round that ended before posting its check is sent once.
+  const reviewStarted = Date.parse(upstream.run_started_at ?? upstream.created_at ?? "");
+  const sent = (await api.listWorkflowRuns(settings.workflow)).find(
+    (run) => run.display_title === runTitle(settings.activity, pull.number) && !(Date.parse(run.created_at ?? "") < reviewStarted),
+  );
+  if (sent) {
+    log(`skip: #${pull.number}: ${settings.workflow} run ${sent.id} for ${settings.activity} started after head ${head}'s review`);
+    return null;
+  }
+  const dispatched = await dispatchFeedback({ ...rest, api, repository, appSenderId, log, settings, upstream });
+  return dispatched === null ? null : { ...dispatched, upstreamRunId: upstream.id };
 }
 
 // Whether the head's newest reply check released it, and whether releasing
@@ -1304,8 +1363,8 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       throw new Error(`commit ${sha} has more than 1000 statuses`);
     },
     // The newest completed pull_request runs of a workflow file at a head.
-    async listCompletedRuns(path, head) {
-      const query = new URLSearchParams({ head_sha: head, event: "pull_request", status: "completed", per_page: "10" });
+    async listCompletedRuns(path, head, event = "pull_request") {
+      const query = new URLSearchParams({ head_sha: head, event, status: "completed", per_page: "10" });
       return (await request(`${repo}/actions/workflows/${path.split("/").at(-1)}/runs?${query}`)).workflow_runs ?? [];
     },
     // A workflow file's newest 100 runs created since `since`: many ticks'

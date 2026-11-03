@@ -220,7 +220,7 @@ one.
   whole repository and reports.
 - `/code-tidying:batch-simplify` sweeps recently changed files; this targets the long-untouched
   ones a recency window excludes.
-- Comment residue is `/code-tidying:audit-comment-residue`.
+- Comment residue is `/code-tidying:remove-comments audit`.
 - Not a dependency, asset, or feature-flag auditor, and not coverage-based runtime detection.
 
 ## Next

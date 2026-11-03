@@ -3874,7 +3874,7 @@ test("merge-holds.mjs holds no hold path from the command line with PATH_HOLDS f
   const gate = [".github/scripts/pr-merge/clear-escalations.mjs"];
   const off = cli([gate], "false");
   assert.equal(off.status, 0, off.stdout);
-  assert.ok(off.stdout.split("\n").includes("#7: no body hold, no member veto and no hold path."), off.stdout);
+  assert.ok(off.stdout.split("\n").includes("#7: no member veto and no hold path."), off.stdout);
   assert.ok(off.stdout.includes("#7: path holds are off (merge.diff-check.path-holds), so nothing holds it for this: it changes .github/scripts/pr-merge/clear-escalations.mjs, a hold path."), off.stdout);
   for (const on of [undefined, "true"]) {
     const held = cli([gate], on);

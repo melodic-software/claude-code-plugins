@@ -5,8 +5,8 @@
         {
           "tool": "Skill",
           "input": {
-            "skill": "code-tidying:audit-comment-residue",
-            "args": "src/cache.ts"
+            "skill": "code-tidying:remove-comments",
+            "args": "audit src/cache.ts"
           }
         }
       ]
@@ -21,12 +21,12 @@
         {
           "tool": "Skill",
           "input": {
-            "skill": "code-tidying:dissolve-comments",
-            "args": "strip src/cache.ts"
+            "skill": "code-tidying:remove-comments",
+            "args": "none src/cache.ts"
           }
         }
       ],
-      "why": "sibling skill"
+      "why": "remove action, not audit"
     }
   ]
 }

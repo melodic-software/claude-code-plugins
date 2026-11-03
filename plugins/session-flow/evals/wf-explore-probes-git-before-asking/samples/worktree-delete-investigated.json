@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "git show HEAD:src/exporters/xml_out.py" } }
+      ],
+      "why": "reads the last committed version"
+    },
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "git diff -- src/exporters/xml_out.py" } }
+      ],
+      "why": "reads the working-tree removal"
+    },
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "git log -p -1 -- src/exporters/xml_out.py" } }
+      ],
+      "why": "reads the file's last change as a patch"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "git log --oneline -1 --diff-filter=D -- src/exporters/xml_out.py" } }
+      ],
+      "why": "the delete probe alone is not an investigation"
+    },
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "git --no-optional-locks status --porcelain -- src/exporters/xml_out.py" } }
+      ],
+      "why": "the status probe alone is not an investigation"
+    },
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "git show HEAD:src/exporters/csv_out.py" } }
+      ],
+      "why": "investigates a different file"
+    }
+  ]
+}

@@ -22,7 +22,7 @@
 # runtime on every host, and this repo does not ship a grant on docs alone
 # (`plugins/discovery/reference/parent-contract.md`). Until a runtime check
 # exists, the skill-local path is the exercised shape — reachable from a shared
-# `scripts/` location through a thin exec wrapper. dissolve-comments ships six
+# `scripts/` location through a thin exec wrapper. remove-comments ships six
 # of those wrappers beside the skill, named so this suite covers them:
 # change-shape.sh, comment-census.sh, comment-tooling-probe.sh,
 # commented-out-code.sh, rank-comment-targets.sh, scope-code-files.sh.
@@ -37,7 +37,7 @@ set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 
-SKILLS=(tidy audit-comment-residue audit-dead-code dissolve-comments tidy-diff)
+SKILLS=(tidy audit-dead-code remove-comments tidy-diff)
 
 # Optional per-skill allowlist, space-separated and sorted. When a skill names
 # one, the granted set must equal it EXACTLY — this is the guard for a

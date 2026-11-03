@@ -185,8 +185,6 @@ import { ATTENDED_LABEL, causeName, HOST_RUN_LABEL, leadingCode, runCode, securi
 export { doneEvidence };
 
 export const HOLD_LINE = "Hold: a human merges this";
-// The work class of an issue that asks for a report and no change.
-const READ_ONLY_CLASS = "work-class: read-only";
 // The label a held PR carries from its opening. The hold line is body text the
 // lanes App can edit; ci-status fails while this label is on, and removing it
 // lifts the hold.
@@ -1338,10 +1336,10 @@ export function decide({
     });
   }
   if (outcome.exit !== "done") {
-    // A delivered report closes only a read-only issue the run committed
-    // nothing for; any other one retries.
-    const retry = stop === "report-delivered" && !(issueLabels.includes(READ_ONLY_CLASS) && !branch);
-    const why = `The issue is not \`${READ_ONLY_CLASS}\`, or the run committed to a branch, so it retries instead of closing.`;
+    // A delivered report closes only an issue with no branch: one this run
+    // committed to, or a resumed one whose earlier commits are still unmerged.
+    const retry = stop === "report-delivered" && (branch || resumed);
+    const why = "The run committed to a branch, or resumed one, so it retries instead of closing.";
     return routeStop(stop, { outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed, unmarked }, retry ? { route: "retry", why } : {});
   }
   // The outcome file is model output, so its own report never clears this.
