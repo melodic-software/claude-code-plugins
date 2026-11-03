@@ -313,7 +313,8 @@ A fifth part 2 change fixed the shared rate guard's gaps, each with a test:
 - **shared, element 1.** The rate latch waits out a stop whose reset fits a 60 s budget per latch
   (`SERVER_RETRY_BUDGET_MS`, the resets summed), plus a second so the call lands after the reset,
   and then sends the call instead of refusing it. `createGitHub` sends a read a rate limit refused
-  once more after that wait, inside its 3 attempts; a write is never resent. A reset past the
+  once more after that wait, inside its 3 attempts, and that refusal fails nothing; a write is
+  never resent. `budgetedFetch` keeps its own resend, so its refusal still fails the step. A reset past the
   budget is still refused without a request (`.github/actions/log-api-budget/rate-guard.mjs`,
   `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs`).
 - **shared, element 2.** A step that sets `API_BUDGET_HOLD=1` holds on a rate limit past the

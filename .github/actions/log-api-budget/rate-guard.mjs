@@ -9,7 +9,8 @@
 // So once a response shows a pool exhausted, the latch sends no further call
 // to that pool before its reset for the rest of the process. A call that meets
 // a stop whose reset is within SERVER_RETRY_BUDGET_MS of the process's waits,
-// summed, waits for it and goes out. Past that budget the call is refused: an
+// summed, waits for it and goes out, and a refused answer its client will send
+// again after that wait (RESEND) fails nothing. Past that budget the call is refused: an
 // error names the reset and the process exits red, or, when the step holds
 // (API_BUDGET_HOLD=1, outage posture element 2), a notice names it and the
 // exit is the caller's. The stop also goes in the
@@ -464,6 +465,24 @@ export class RateLimitStop extends Error {
   }
 }
 
+// The init key a client sets on a request it will send again after a rate
+// limit the latch would wait out (observe's resend).
+export const RESEND = Symbol.for("rate-guard.resend");
+
+// GitHub refused the request for a rate limit: a 403 or 429, or an answer
+// whose errors name the limit. A 200 that spent the last request stands.
+export async function refusedForLimit(response) {
+  if (SIGNALS.statuses.includes(response.status)) {
+    return true;
+  }
+  try {
+    const errors = JSON.parse(await response.clone().text())?.errors;
+    return Array.isArray(errors) && errors.some((error) => error?.type === SIGNALS.graphqlErrorType);
+  } catch {
+    return false;
+  }
+}
+
 // The step fails: an exit listener sets the code last, so a later
 // `process.exitCode = await main()` or process.exit(0) cannot clear it.
 let failing = false;
@@ -583,7 +602,10 @@ export function createRateLimitLatch({
     throw stop;
   }
 
-  async function observe(url, response, method = "GET", token = undefined) {
+  // resend: the client sends this request again if a rate limit refuses it
+  // and the latch would wait (retryServerErrors' resendLimited), so such a
+  // refusal fails nothing.
+  async function observe(url, response, method = "GET", token = undefined, resend = false) {
     const pool = poolOf(url);
     const needsBody = SIGNALS.statuses.includes(response.status) || pool === "graphql";
     const body = needsBody ? await response.clone().text().catch(() => "") : null;
@@ -604,10 +626,12 @@ export function createRateLimitLatch({
         }
       }
       // A stop later steps cannot see is a fault, not a limit to hold on.
-      const holds = hold && !unrecorded;
+      const resent = !unrecorded && resend && waits(url) && (await refusedForLimit(response));
+      const holds = resent || (hold && !unrecorded);
+      const then = resent ? "it is sent again after the reset" : `this step ${holds ? "holds" : "fails"}`;
       log(
         `${holds ? "::notice::" : "::error::"}${method} ${url} hit GitHub's ${poolLabel(verdict.pool)} rate limit (status ${response.status}):` +
-          ` no call to it before ${resetLabel(verdict.reset)} (${verdict.reset_source}); this step ${holds ? "holds" : "fails"}${unrecorded}`,
+          ` no call to it before ${resetLabel(verdict.reset)} (${verdict.reset_source}); ${then}${unrecorded}`,
       );
       if (!holds) {
         fail();
@@ -651,7 +675,7 @@ export function createRateLimitLatch({
           recordContentWrite({ at: Math.floor(now() / 1000) });
         }
         const response = await send(url, init);
-        await observe(url, response, init.method, token);
+        await observe(url, response, init.method, token, init[RESEND] === true);
         return response;
       });
     },

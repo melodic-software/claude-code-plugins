@@ -10,7 +10,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../check-kill-switch/check-kill-switch.mjs";
-import { rateLimitLatch, SERVER_RETRY_BUDGET_MS, SIGNALS } from "../log-api-budget/rate-guard.mjs";
+import { rateLimitLatch, refusedForLimit, RESEND, SERVER_RETRY_BUDGET_MS } from "../log-api-budget/rate-guard.mjs";
 
 const ACTOR_KEYS = ["id", "kind", "login"];
 const KINDS = new Set(["human", "bot"]);
@@ -198,19 +198,6 @@ async function brokenBody(response) {
     return true;
   }
 }
-// GitHub refused the request for a rate limit: a 403 or 429, or a GraphQL
-// answer whose errors name the limit. A 200 that spent the last request stands.
-async function refusedForLimit(response) {
-  if (SIGNALS.statuses.includes(response.status)) {
-    return true;
-  }
-  try {
-    const errors = JSON.parse(await response.clone().text())?.errors;
-    return Array.isArray(errors) && errors.some((error) => error?.type === SIGNALS.graphqlErrorType);
-  } catch {
-    return false;
-  }
-}
 export function retryServerErrors(
   fetchImpl,
   {
@@ -236,17 +223,20 @@ export function retryServerErrors(
       const timeout = idempotent ? AbortSignal.timeout(attemptTimeoutMs) : undefined;
       const signal = timeout && init.signal ? AbortSignal.any([init.signal, timeout]) : (timeout ?? init.signal);
       const started = now();
+      // Whether a rate-limit refusal of this attempt is sent again, which the
+      // guard reads (RESEND) so it fails nothing for it.
+      const resend = resendLimited && idempotent && SERVER_RETRY_DELAYS_MS[attempt] !== undefined && spent <= SERVER_RETRY_BUDGET_MS;
       let response;
       let error;
       let broken = false;
       try {
-        response = await fetchImpl(url, { ...init, signal });
+        response = await fetchImpl(url, { ...init, signal, [RESEND]: resend });
         broken = method === "GET" && (await brokenBody(response));
       } catch (thrown) {
         error = thrown;
       }
       // The latch waits out the reset before the resend, on its own budget.
-      const limited = resendLimited && idempotent && error === undefined && latch.waits(url) && (await refusedForLimit(response));
+      const limited = resend && error === undefined && latch.waits(url) && (await refusedForLimit(response));
       const failed = error !== undefined ? networkFailure(error) && !init.signal?.aborted : response.status >= 500 || broken || limited;
       spent += failed && !limited ? now() - started : 0;
       const delay = SERVER_RETRY_DELAYS_MS[attempt];

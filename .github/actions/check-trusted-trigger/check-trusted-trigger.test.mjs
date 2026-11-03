@@ -2146,12 +2146,22 @@ test("a GraphQL query answered 502 with retry-after is not sent again, and the n
 function latchClock({ hold = false } = {}) {
   const clock = { now: 0 };
   const slept = [];
-  const latch = createRateLimitLatch({ now: () => clock.now, log: () => {}, fail: () => {}, limits: () => ({}), stopFile: null, hold });
+  let failed = 0;
+  const latch = createRateLimitLatch({
+    now: () => clock.now,
+    log: () => {},
+    fail: () => {
+      failed += 1;
+    },
+    limits: () => ({}),
+    stopFile: null,
+    hold,
+  });
   const sleep = async (ms) => {
     slept.push(ms);
     clock.now += ms;
   };
-  return { slept, latch, options: { latch, sleep, now: () => clock.now } };
+  return { slept, latch, failed: () => failed, options: { latch, sleep, now: () => clock.now } };
 }
 const secondaryLimit = (seconds) => ({ status: 403, headers: { "retry-after": String(seconds) }, body: '{"message":"You have exceeded a secondary rate limit."}' });
 
@@ -2161,11 +2171,13 @@ const secondaryLimit = (seconds) => ({ status: 403, headers: { "retry-after": St
 // reset past the budget is refused without a request.
 test("createGitHub waits on the rate latch for a reset within the budget, and refuses one past it", async () => {
   const gh = flaky([secondaryLimit(30), { status: 200, body: '[{"number":7}]' }, secondaryLimit(20), { status: 200, body: "[]" }, secondaryLimit(120)]);
-  const { slept, options } = latchClock();
+  const { slept, failed, options } = latchClock();
   const github = createGitHub({ ...gh.options, ...options, random: () => 0 });
   assert.deepEqual(await github("GET", PULLS_PATH), [{ number: 7 }]);
   assert.deepEqual(slept, [31_000]);
+  assert.equal(failed(), 0, "a read that rode the limit out fails nothing");
   await assert.rejects(github("POST", "/graphql", { query: "mutation { a }" }), (error) => error instanceof GitHubError && error.status === 403);
+  assert.equal(failed(), 1, "a refused mutation, never resent, fails the step");
   assert.deepEqual(await github("GET", PULLS_PATH), []);
   assert.deepEqual(slept, [31_000, 21_000]);
   assert.deepEqual(gh.sent, [`GET ${PULLS_PATH}`, `GET ${PULLS_PATH}`, "POST /graphql", `GET ${PULLS_PATH}`]);
@@ -2173,6 +2185,28 @@ test("createGitHub waits on the rate latch for a reset within the budget, and re
   await assert.rejects(github("GET", PULLS_PATH), (error) => error instanceof GitHubError && error.status === 403);
   await assert.rejects(github("GET", PULLS_PATH), RateLimitStop);
   assert.equal(gh.sent.length, 5);
+  assert.equal(failed(), 3);
+});
+
+// The same ride-out end to end on the process-wide latch: a read answered
+// retry-after 1 waits 2 s, is sent again and answered, and the process exits
+// with main's code, with no error annotation.
+test("a read that rides out a short rate limit leaves the process green", () => {
+  const script = `
+    import { createGitHub } from "./.github/actions/check-trusted-trigger/check-trusted-trigger.mjs";
+    const answers = [
+      new Response('{"message":"You have exceeded a secondary rate limit."}', { status: 403, headers: { "retry-after": "1" } }),
+      new Response('[{"number":7}]', { status: 200 }),
+    ];
+    const github = createGitHub({ token: "t", fetchImpl: async () => answers.shift() });
+    console.log("read=" + JSON.stringify(await github("GET", "/repos/o/r/pulls")));
+    process.exitCode = 0;
+  `;
+  const root = path.join(HERE, "../../..");
+  const run = spawnSync(process.execPath, ["--input-type=module", "-e", script], { cwd: root, encoding: "utf8", env: { ...process.env, RESOLVED_CONFIG: "", RUNNER_TEMP: "", API_BUDGET_HOLD: "" } });
+  assert.match(run.stdout, /read=\[\{"number":7\}\]/);
+  assert.doesNotMatch(run.stdout, /::error::/);
+  assert.equal(run.status, 0);
 });
 
 // Safety: a hold never turns a refusal into a pass. A trust read the holding
