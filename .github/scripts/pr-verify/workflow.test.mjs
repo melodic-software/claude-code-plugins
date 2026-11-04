@@ -384,7 +384,7 @@ test("a key the credit gate skipped runs no pre-judge setup, no judge and no ver
 // credit-stop handoff (pr-review-cli.yml's key job does the same).
 // ci-workflows#980 (09cf6f2) adds the probing marker the next test covers.
 test("the key job uploads the gate's marker only after a credit-stop handoff, and nothing carries a record", () => {
-  assert.match(step("Read the key's credit history"), / {8}uses: [^\n]*\/check-key-credit@09cf6f2ecd22f7188e62552dea9af48adbd23bb1 /);
+  assert.match(step("Read the key's credit history"), / {8}uses: [^\n]*\/check-key-credit@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 /);
   assert.doesNotMatch(text, /Record the key's credit stop|origin-run/);
   const [write, scan, upload] = MARKER_STEPS;
   const writeStep = step(write);

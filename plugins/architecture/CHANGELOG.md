@@ -3,6 +3,28 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.1] - 2026-11-04
+
+### Fixed
+
+- Shared `view-registry.mjs` synced where this plugin carries it: the architecture lane now declares that its plugin ships a `medium` option, which #13027 added; no other change to this plugin.
+
+## [2.0.0] - 2026-11-04
+
+### Added
+
+- A `medium` plugin option that sets where the architecture views go. It declares `options`, so the plugin now needs Claude Code v2.1.271 or later ([Limit a field to fixed options](https://code.claude.com/docs/en/plugins/manifest-reference#limit-a-field-to-fixed-options)).
+
+### Changed
+
+- Shared `view-runtime.js` and `view-builder.mjs` synced where this plugin carries them: the theme toggle binding (`data-rv-theme`, system by default) and the redraw binding (`data-rv-shows` with `data-rv-example`, client-only) (#12654). The shared `reference/rendered-view.md` copy names the planning views' reply text `notes.comment`; no other change to this plugin.
+
+- The `map-*` views and the `improve` deepening report now resolve their medium through the shared resolver (`lib/view-settings.mjs resolve --lane architecture`) and print its report line.
+
+### Removed
+
+- `~/.claude/rendered-views.md` and the `.claude/rendered-views*.md` files no longer choose a publishing medium: an `artifact` or `hosted` value there is ignored. A `terminal` or `file` value there still keeps the view local when no scope sets a value. Each file gives one notice per project naming where to set the medium instead: this plugin's `medium` option, `docs/conventions/rendered-views.yaml`, or `docs/conventions/rendered-views.local.yaml`.
+
 ## [1.4.9] - 2026-11-04
 
 ### Fixed

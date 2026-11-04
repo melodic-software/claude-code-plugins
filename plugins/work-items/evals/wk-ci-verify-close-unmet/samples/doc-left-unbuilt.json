@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {"answer": "# Configuration\n\n`timeout`: seconds before a widget request gives up.\n", "why": "the checkout's file as scaffolded"}
+  ],
+  "fail": [
+    {"answer": "# Configuration\n\n`timeout`: seconds.\n\n`retries`: attempts.\n", "why": "built the missing doc on a verify-only run"}
+  ]
+}

@@ -3,6 +3,12 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.17] - 2026-11-04
+
+### Changed
+
+- The reach evals now create the condition each one measures, and their graders accept the correct reply forms they used to fail. `/fleet:reach` itself does not change.
+
 ## [0.2.16] - 2026-11-03
 
 ### Fixed

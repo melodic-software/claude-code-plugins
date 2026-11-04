@@ -61,8 +61,8 @@ figures above are the max-effort points.
 
 No source explains Haiku 4.5's 0.0%.
 
-The launch page also says Haiku 5.5 costs around 75% less to run than Haiku 4.5 on average
-(vendor-reported; no docs page states it as of 2026-10-10).
+The launch page also reports an average running-cost cut for Haiku 5.5 of about 75% against Haiku
+4.5 (vendor-reported; no docs page states it as of 2026-10-10).
 
 ## System card findings
 

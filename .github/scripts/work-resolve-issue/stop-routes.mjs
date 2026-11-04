@@ -17,6 +17,10 @@
 //             that it takes retry-spent's route. The cap counts every retry
 //             since a listed human last added agent-ready, whatever stop
 //             wrote it, so a row's `retries` is a ceiling on that shared count.
+//             A row with `fault: true` is the lane's machinery failing, no
+//             evidence about the issue: when it and every retry counted were
+//             such stops, report-outcome holds at the cap instead of taking
+//             retry-spent's route (spentOnFaults).
 //   wait      keeps agent-ready with the open pull request the run names in
 //             its marker, so work-unblock starts it again once that pull
 //             request merges or closes, up to limits.stop-retries waits;
@@ -48,6 +52,9 @@ for (const [reason, row] of Object.entries(STOP_ROUTES)) {
   }
   if (row.retries !== undefined && !(COUNTED_ROUTES.has(row.route) && Number.isSafeInteger(row.retries) && row.retries >= 0)) {
     throw new Error(`stop-routes.json: ${reason}'s retries needs a ${[...COUNTED_ROUTES].join(", ")} route and a whole number`);
+  }
+  if (row.fault !== undefined && !(row.route === "retry" && row.fault === true)) {
+    throw new Error(`stop-routes.json: ${reason}'s fault needs a retry route and the value true`);
   }
   if (row.route === "hold" && !HOLD_CLASSES.has(row.class)) {
     throw new Error(`stop-routes.json: ${reason} holds, so its class needs to be one of ${[...HOLD_CLASSES].join(", ")}`);
@@ -81,6 +88,7 @@ const CLASS_CODES = { "intent-change": "intent", "design-change": "design", "sec
 export const stopReasonCode = (reason) => (Object.hasOwn(STOP_ROUTES, reason) && CLASS_CODES[STOP_ROUTES[reason].class]) || "none";
 // The most retries a reason's row allows, within limits.stop-retries.
 export const stopRetries = (reason, cap) => Math.min(cap, (Object.hasOwn(STOP_ROUTES, reason) ? STOP_ROUTES[reason].retries : undefined) ?? cap);
+export const stopFault = (reason) => Object.hasOwn(STOP_ROUTES, reason) && STOP_ROUTES[reason].fault === true;
 export const stopWhy = (reason) => (Object.hasOwn(STOP_ROUTES, reason) ? STOP_ROUTES[reason].why : "the stop reason is not in the lane's route table");
 
 // The codes a run may open its `stopped` reason with, longest first, each in

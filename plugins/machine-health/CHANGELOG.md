@@ -3,6 +3,18 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.6] - 2026-11-04
+
+### Fixed
+
+- Shared `view-registry.mjs` synced where this plugin carries it: the architecture lane now declares that its plugin ships a `medium` option, which #13027 added; no other change to this plugin.
+
+## [0.26.5] - 2026-11-04
+
+### Changed
+
+- Shared `view-runtime.js` and `view-builder.mjs` synced where this plugin carries them: the theme toggle binding (`data-rv-theme`, system by default) and the redraw binding (`data-rv-shows` with `data-rv-example`, client-only) (#12654); no other change to this plugin.
+
 ## [0.26.4] - 2026-11-04
 
 ### Changed

@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Any of `[*.sh]`, `[*.bash]` or `[*.{sh,bash}]` opts the repo in."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Add a `[*.sh]` section.",
+      "why": "near miss: one form"
+    },
+    {
+      "answer": "Add a section that names shell files.",
+      "why": "no form named"
+    }
+  ]
+}

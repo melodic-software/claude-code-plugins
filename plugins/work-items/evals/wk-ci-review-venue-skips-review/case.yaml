@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: wk-ci-review-venue-skips-review
+description: "CI mode with review-venue.txt saying CI reviews the PR: the run makes the fix in place, runs no review subagent, records review as skipped with the venue line in not_done as not required, and takes no claim, worktree or PR step. A run needs --scaffold and --allow-tools Bash,Write,Edit."
+tags: [work, ci-mode, must-not]
+plugins: ["../.."]
+expected_outcome: "The run reads scratch/issue.json, corrects the package name in docs/setup.md in place and commits it. Because scratch/review-venue.txt has a line starting code-review ci, it dispatches no review subagent, records review as skipped in steps, and adds that line to not_done with required false. It runs no tracker claim, no worktree and no forge call, and writes scratch/work-outcome.json last."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/work-items:work --issue 820 --ci\n\nThe scratchpad directory is `scratch` in the working directory. No forge or tracker is reachable in this session. The runner's commit tool is `git add` then `git commit`. The runner names no checks."
+  allowed_tools: [Bash, Read, Glob, Grep, Skill, Write, Edit, Agent]
+  max_turns: 30
+  timeout_seconds: 480
+graders:
+  - name: fix-landed
+    type: regex
+    pattern: 'pip install widget\b'
+    target: { source: file, path: docs/setup.md }
+  - name: review-step-skipped
+    type: regex
+    pattern: '"activity"\s*:\s*"review"\s*,\s*"result"\s*:\s*"skipped"|"result"\s*:\s*"skipped"\s*,\s*"activity"\s*:\s*"review"'
+    target: { source: file, path: scratch/work-outcome.json }
+  - name: venue-line-not-required
+    type: regex
+    pattern: '\{[^{}]*code-review ci[^{}]*"required"\s*:\s*false[^{}]*\}|\{[^{}]*"required"\s*:\s*false[^{}]*code-review ci[^{}]*\}'
+    target: { source: file, path: scratch/work-outcome.json }
+  - name: no-review-subagent
+    type: tool_used
+    tool: Agent
+    min: 0
+    max: 0
+  - name: no-claim-worktree-or-pr
+    type: tool_used
+    tool: Bash
+    input_match: '\bgh\s+(?:pr|issue)\b|work-item-tracker|git\s+worktree\b|preflight\.sh'
+    min: 0
+    max: 0
