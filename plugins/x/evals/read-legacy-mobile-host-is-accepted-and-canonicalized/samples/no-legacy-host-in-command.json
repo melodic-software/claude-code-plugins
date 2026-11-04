@@ -2,18 +2,18 @@
   "pass": [
     {
       "answer": [],
-      "why": "no call"
+      "why": "no call: the saved file is used"
     },
     {
       "answer": [
         {
           "tool": "Bash",
           "input": {
-            "command": "curl -q -sS --proto '=https' -X POST https://xtomd.com/api/markdown -d '{\"url\":\"https://x.com/jack/status/20\"}'"
+            "command": "curl -q -sS --proto '=https' -X POST https://xtomd.com/api/markdown -d '{\"url\":\"https://x.com/tidewren/status/2468013579\"}'"
           }
         }
       ],
-      "why": "rebuilt"
+      "why": "re-fetch with the rebuilt URL"
     }
   ],
   "fail": [
@@ -22,7 +22,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "curl -q -sS --proto '=https' -X POST https://xtomd.com/api/markdown -d '{\"url\":\"https://mobile.twitter.com/jack/status/20\"}'"
+            "command": "curl -q -sS --proto '=https' -X POST https://xtomd.com/api/markdown -d '{\"url\":\"https://mobile.twitter.com/tidewren/status/2468013579\"}'"
           }
         }
       ],

@@ -1,5 +1,41 @@
 # Changelog for the PR pipeline convention
 
+## [8.48.2] - 2026-11-04
+
+### Changed
+
+- A member's veto comment on a lanes App pull request now also gets the `do-not-merge` label:
+  `enable-auto-merge.mjs` adds it on the next reader run that reads the pull request's discussion, at the latest
+  before any run arms it, with a `<!-- member-veto-label -->`
+  comment just after, and dequeues a queued one. It takes the label off once a later comment by
+  each vetoing member lifts the veto, only while the label is that one; a `do-not-merge` the body
+  hold, a session or a person added stays. ci-status still fails on the veto comment itself.
+
+- ci-status no longer fails red while a review lane is still running on a full run. Its review-lanes
+  step polls each waiting lane once a minute, for up to 8 minutes, then judges both lanes as before.
+  A review still running at the cap fails as before, with a message saying pr-feedback-dispatch
+  re-runs ci-status and no manual re-run is needed. `rerun-ci-status` now leaves alone a ci-status
+  that passed with its review step ending after both lanes finished.
+
+### Fixed
+
+- The dispatchers' `budgetedFetch` (`request-budget.mjs`) resends a rate-limited read the way
+  `createGitHub` does: after the reset, inside the read's 3 attempts and the rate latch's 60 s
+  budget, and that refusal no longer fails the step. It counts and logs each request sent, a
+  resend included. A write is still sent once, and a refusal it does not resend still fails the
+  step unless the step holds (`API_BUDGET_HOLD=1`).
+
+- The `pr-verify-failed` fail note, its merge-queue hold reason and the pipeline convention now say
+  that a `pr-verify` pass at the same head removes the label too. Once a trusted person edits the
+  body, and only trusted people have edited it since the fail, that head is judged again, so a fail
+  on the body or the issues it links needs only the body fixed, no new commit.
+
+- The write runner's script step accepts `feedback-already-addressed` from publish-feedback, so an
+  earlier-fail round that finds every pr-verify note already addressed stops for a session as its
+  route says. Before, the step rejected the reason and the run failed with `feedback-publish-failed`.
+  A test now checks that every reason publish-feedback and its adjudication can write is one the
+  step accepts.
+
 ## [8.48.1] - 2026-11-04
 
 ### Changed

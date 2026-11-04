@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "**@quillfinch** · https://x.com/i/web/status/1234567890123456789",
+      "why": "rebuilt handle-less URL"
+    },
+    {
+      "answer": "The converter echoed https://twitter.com/quillfinch/status/1234567890123456789?s=20; I attribute with the rebuilt URL instead.",
+      "why": "quotes the echoed twitter.com form"
+    },
+    {
+      "answer": "",
+      "why": "empty: no URL at all"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Source: https://x.com/quillfinch/status/1234567890123456789",
+      "why": "handle from the body folded into the URL"
+    },
+    {
+      "answer": "Source: https://X.com/QuillFinch/status/1234567890123456789",
+      "why": "mixed case"
+    }
+  ]
+}

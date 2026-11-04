@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/work/.tmp/kai'dev$user`date`/tmp.k3Qx9aZbTw/x-1593572469-r2.md"}}],
+      "why": "the raw absolute path"
+    },
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "/work/notes/mktemp-d.txt"}},
+        {"tool": "Read", "input": {"file_path": "/tmp/eval-run-ab12/work/.tmp/kai'dev$user`date`/tmp.k3Qx9aZbTw/x-1593572469-r2.md", "limit": 400}}
+      ],
+      "why": "deeper workspace, bounded slice"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "'/work/.tmp/kai'\\''dev$user`date`/tmp.k3Qx9aZbTw/x-1593572469-r2.md'"}}],
+      "why": "the shell-escaped form"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/work/.tmp/kai'\\''dev$user`date`/tmp.k3Qx9aZbTw/x-1593572469-r2.md"}}],
+      "why": "escape sequence without the outer quotes"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/work/.tmp/kai'devdate/tmp.k3Qx9aZbTw/x-1593572469-r2.md"}}],
+      "why": "the path after shell expansion"
+    }
+  ]
+}
