@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // summarize.mjs: the job summary for one `claude plugin eval` JSON result.
 //
-//   summarize.mjs <results.json> [--plugin <name>] [--redact]
+//   summarize.mjs <results.json> [--plugin <name>] [--redact] [--annotation <file>]
 //
 // Prints Markdown: a with-versus-without table with one verdict per case,
 // then one health line per case. The verdict is read in the order
@@ -20,10 +20,16 @@
 // prints each case as `case <n>` and leaves out every error and partial
 // reason text, so no model output reaches the public job summary.
 //
+// --annotation writes, when the result is not PASS, one `::error` workflow
+// command naming each case that is not PASS with its verdict and reason, so
+// a red run says which cases failed; the caller prints it outside any
+// stop-commands block. Its title says "Plugin eval verdict", which tells an
+// eval result apart from a step that failed.
+//
 // The last line is `Result: PASS`, `Result: FAIL` or `Result: NOT COMPARABLE`.
 // Exit 0 when every case passes, 1 when any case fails, is not comparable,
 // or the result holds no case, 2 on a usage error or an unreadable result.
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, resolve } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -161,15 +167,26 @@ export function summarize(result, { plugin, base, redact = false }) {
     lines.push("The result holds no case.", "");
   }
   lines.push(`Result: ${result_}`);
-  return { text: lines.join("\n"), result: result_ };
+  const failing = rows.filter((r) => r.verdict !== PASS).map((r) => `${r.verdict}: ${r.name} (${r.reason})`);
+  const message = rows.length === 0 ? "the result holds no case" : failing.join("; ");
+  const annotation = result_ === PASS ? "" : `::error title=${property(`Plugin eval verdict: ${owner || "unknown plugin"}`)}::${data(`${result_}. ${message}`)}`;
+  return { text: lines.join("\n"), result: result_, annotation };
 }
+
+// Workflow-command escaping (GitHub's toolkit command.ts): data escapes %, CR
+// and LF; a property also escapes : and ,.
+const data = (text) => String(text).replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
+const property = (text) => data(text).replace(/:/g, "%3A").replace(/,/g, "%2C");
 
 export function main(args = process.argv.slice(2)) {
   const redact = args.includes("--redact");
-  const argv = args.filter((arg) => arg !== "--redact");
+  let argv = args.filter((arg) => arg !== "--redact");
+  const at = argv.indexOf("--annotation");
+  const annotationFile = at === -1 ? null : argv[at + 1];
+  if (at !== -1) argv = [...argv.slice(0, at), ...argv.slice(at + 2)];
   const [file, flag, plugin] = argv;
-  if (!file || (flag !== undefined && (flag !== "--plugin" || !plugin)) || argv.length > 3) {
-    console.error("usage: summarize.mjs <results.json> [--plugin <name>] [--redact]");
+  if (!file || (flag !== undefined && (flag !== "--plugin" || !plugin)) || argv.length > 3 || (at !== -1 && !annotationFile)) {
+    console.error("usage: summarize.mjs <results.json> [--plugin <name>] [--redact] [--annotation <file>]");
     return 2;
   }
   let result;
@@ -183,8 +200,9 @@ export function main(args = process.argv.slice(2)) {
     console.error(`summarize: ${file} is not a result document`);
     return 2;
   }
-  const { text, result: verdict } = summarize(result, { plugin, base: dirname(resolve(file)), redact });
+  const { text, result: verdict, annotation } = summarize(result, { plugin, base: dirname(resolve(file)), redact });
   console.log(text);
+  if (annotationFile) writeFileSync(annotationFile, annotation ? `${annotation}\n` : "");
   return verdict === PASS ? 0 : 1;
 }
 
