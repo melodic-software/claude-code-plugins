@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/work/notes/x-2082736455463728191-n5.json"}}],
+      "why": "step 1 only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "/work/notes/x-2082736455463728191-n5.json"}},
+        {"tool": "Read", "input": {"file_path": "/work/notes/threadreader-2082736455463728191.html"}}
+      ],
+      "why": "escalates on isNoteTweet or length"
+    }
+  ]
+}

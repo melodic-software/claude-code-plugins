@@ -3,6 +3,20 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.4.0] - 2026-11-04
+
+### Added
+
+- `behavior-probes` has a `plugin-eval` area: its `unlisted-tools-offered` case runs one `claude plugin eval` case whose `allowed_tools` lists only `Read`, `Glob` and `Grep`, and records the run's init tools and what became of a call to each of `Skill`, `Task`, `TaskStop` and `ToolSearch`: not offered, denied, refused, ran, called with no result, or offered but not called. It passes when `Skill` is offered and its call runs.
+
+### Changed
+
+- Shared `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them: the planning lane's design kind and shipped `artifact` default, and the resolver output's `page` and `publishes` fields (#12650); no other change to this plugin.
+
+### Fixed
+
+- Shared `fetch-docs.sh` synced where this plugin carries it ([#12945](https://github.com/melodic-software/claude-code-plugins/issues/12945)): with `--profile generic`, an x.com or twitter.com page that is X's logged-out shell (`redirect_after_login` links and no article text) is now `unread` with reason `login-wall` instead of `read`, whether fetched or served from the cache or a fixture, and is never cached; no other change to this plugin.
+
 ## [8.3.2] - 2026-11-04
 
 ### Fixed

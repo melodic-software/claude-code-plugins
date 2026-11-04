@@ -17,7 +17,7 @@ import path from "node:path";
 import { test } from "node:test";
 
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CARRY_MAX, carryMain, CONTRACT_STEP, DO_NOT_MERGE_LINE, DRAFT_STEP, failureAnnotation, HOLD_STEP, main, packReads, RELINK_QUERY, resolvePull, takeReads } from "./resolve-pr.mjs";
+import { CARRY_MAX, carryMain, CONTRACT_STEP, DO_NOT_MERGE_LINE, DRAFT_STEP, failureAnnotation, HOLD_STEP, main, packReads, RELINK_QUERY, resolvePull, SIBLINGS_MAX, siblingNumbers, takeReads } from "./resolve-pr.mjs";
 import { KEPT_JOBS, keptJobs, shapeJobs } from "./upstream-jobs.mjs";
 import { artifactName } from "./write-verdict.mjs";
 import { bodyVersion, loadRules, REFINE_MARKER, splitItemsLine } from "../intake-triage/admit.mjs";
@@ -295,6 +295,110 @@ test("a Refs number that names no issue or pull request names no spec, and any o
   for (const answer of [{ data: {} }, { data: { repository: null } }, {}, { data: { repository: { issueOrPullRequest: null } } }]) {
     await assert.rejects(resolve({ issues: [], body: "Refs: #7", refs: { 7: { answer } } }), /the Refs issue could not be read/, JSON.stringify(answer));
   }
+});
+
+// Owner decision 2026-11-03 on #12965: a closing pull request's body names on
+// a `Siblings:` line the pull requests that delivered part of its issue, and
+// each counts only when merged into main here with its own `Refs:` naming it.
+const MERGED_AT = "2026-10-10T00:00:00Z";
+const sibling = (number, overrides = {}) => ({
+  __typename: "PullRequest",
+  number,
+  merged: true,
+  mergedAt: MERGED_AT,
+  baseRefName: "main",
+  body: `Refs: #7\n\nPart ${number}.\n\n## Remaining\n\n- The rest.`,
+  lastEditedAt: null,
+  author: ISSUE.author,
+  editor: null,
+  repository: { nameWithOwner: REPO },
+  closingIssuesReferences: { totalCount: 0 },
+  ...overrides,
+});
+const OUTSIDER = { __typename: "User", login: "drive-by", databaseId: 999 };
+
+test("a closing pull request credits the merged Refs siblings its body names", async () => {
+  const queries = [];
+  const resolved = await resolve({ body: "Closes #7\n\nSiblings: #12917, #12937", refs: { 12917: sibling(12917), 12937: sibling(12937) }, queries });
+  assert.equal(resolved.specKind, "closes");
+  assert.deepEqual(resolved.linkedIssues, [LINKED]);
+  assert.deepEqual(resolved.specText, [
+    {
+      number: 7,
+      spec_kind: "closes",
+      body: "the spec",
+      comments: [],
+      credited_siblings: [
+        { number: 12917, body: sibling(12917).body },
+        { number: 12937, body: sibling(12937).body },
+      ],
+    },
+  ]);
+  assert.deepEqual(queries, [12917, 12937]);
+});
+
+test("a sibling that did not merge here, or whose body does not name the issue, is not credited", async () => {
+  for (const [label, node] of [
+    ["unmerged", sibling(12917, { merged: false })],
+    ["into another branch", sibling(12917, { baseRefName: "release" })],
+    ["in another repository", sibling(12917, { repository: { nameWithOwner: "someone/else" } })],
+    ["Refs another issue", sibling(12917, { body: "Refs: #8" })],
+    ["Refs two issues", sibling(12917, { body: "Refs: #7\nRefs: #8" })],
+    ["a hidden Refs line", sibling(12917, { body: "<!-- Refs: #7 -->" })],
+    ["no body", sibling(12917, { body: null })],
+    ["an issue", { __typename: "Issue" }],
+    ["another number", sibling(12918)],
+    // Judged against the issue it closed, never as a slice of this one.
+    ["closing an issue", sibling(12917, { closingIssuesReferences: { totalCount: 1 } })],
+    ["edited after the merge by someone else", sibling(12917, { lastEditedAt: "2026-10-11T00:00:00Z", editor: OUTSIDER })],
+    ["edited before the merge by someone else", sibling(12917, { lastEditedAt: "2026-10-09T00:00:00Z", editor: OUTSIDER })],
+    ["edited after the merge by the lanes App", sibling(12917, { lastEditedAt: "2026-10-11T00:00:00Z", editor: LANES_APP })],
+    ["edited by the lanes App at an unreadable merge time", sibling(12917, { mergedAt: null, lastEditedAt: "2026-10-09T00:00:00Z", editor: LANES_APP })],
+    // Its body is spec text, so its author must be one spec text may come from.
+    ["written by an outsider", sibling(12917, { author: OUTSIDER })],
+    ["written by another bot", sibling(12917, { author: { ...LANES_APP, login: "other-app", databaseId: 4242 } })],
+    ["written by a User with the lanes App's id", sibling(12917, { author: { ...LANES_APP, __typename: "User" } })],
+    ["with no readable author", sibling(12917, { author: null })],
+  ]) {
+    const resolved = await resolve({ body: "Siblings: #12917", refs: { 12917: node } }, { laneAppId: LANES_APP.databaseId });
+    assert.deepEqual(resolved.specText, [{ number: 7, spec_kind: "closes", body: "the spec", comments: [] }], label);
+  }
+  // A sibling the lanes App wrote, or a body a trusted person or the lanes App
+  // before the merge edited last, still counts.
+  for (const [label, node] of [
+    ["written by the lanes App", sibling(12917, { author: LANES_APP })],
+    ["edited before the merge by the lanes App", sibling(12917, { lastEditedAt: "2026-10-09T00:00:00Z", editor: LANES_APP })],
+    ["edited after the merge by a trusted person", sibling(12917, { lastEditedAt: "2026-10-11T00:00:00Z", editor: ISSUE.author })],
+  ]) {
+    const resolved = await resolve({ body: "Siblings: #12917", refs: { 12917: node } }, { laneAppId: LANES_APP.databaseId });
+    assert.deepEqual(resolved.specText[0].credited_siblings, [{ number: 12917, body: node.body }], label);
+  }
+  // With no lanes App id known, nothing it wrote counts.
+  const unknown = await resolve({ body: "Siblings: #12917", refs: { 12917: sibling(12917, { author: LANES_APP }) } });
+  assert.equal(Object.hasOwn(unknown.specText[0], "credited_siblings"), false);
+  // A number that names nothing credits nothing; any other failed read stops the run.
+  assert.equal(Object.hasOwn((await resolve({ body: "Siblings: #99999" })).specText[0], "credited_siblings"), false);
+  const answer = { data: { repository: { issueOrPullRequest: null } }, errors: [{ type: "RATE_LIMITED", path: ["repository", "issueOrPullRequest"] }] };
+  await assert.rejects(resolve({ body: "Siblings: #12917", refs: { 12917: { answer } } }), /sibling #12917 could not be read/);
+});
+
+test("only a plain visible Siblings line of a closing pull request is read", async () => {
+  const refs = { 12917: sibling(12917), 41: sibling(41) };
+  for (const prBody of ["<!-- Siblings: #12917 -->", "```\nSiblings: #12917\n```", "Siblings: #12917 and more", "Siblings: other/repo#12917", " Siblings: #12917", "Siblings: #41"]) {
+    const queries = [];
+    const resolved = await resolve({ body: prBody, refs, queries });
+    assert.equal(Object.hasOwn(resolved.specText[0], "credited_siblings"), false, prBody);
+    assert.deepEqual(queries, [], prBody);
+  }
+  // Over the cap names none.
+  const many = Array.from({ length: SIBLINGS_MAX + 1 }, (_, i) => `#${100 + i}`).join(", ");
+  assert.deepEqual(siblingNumbers(`Siblings: ${many}`), []);
+  assert.deepEqual(siblingNumbers("Siblings: #1,#2\nsiblings: #3"), []);
+  assert.deepEqual(siblingNumbers("Siblings: #1,#2\nSiblings: #2, #3"), [1, 2, 3]);
+  // A Refs pull request delivers a slice, and its Siblings line is never read.
+  const queries = [];
+  const resolved = await resolve({ issues: [], body: "Refs: #7\nSiblings: #12917", refs: { 7: REFS_ISSUE, 12917: sibling(12917) }, queries });
+  assert.deepEqual([resolved.specText, queries], [[{ number: 7, spec_kind: "refs", body: "the spec", comments: [] }], [7]]);
 });
 
 // The production helper throws on any GraphQL `errors` unless asked to keep

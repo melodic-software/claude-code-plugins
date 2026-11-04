@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Step 2 (Thread Reader App) assembled the chain. 3/ They poured the apron in four tides using a cofferdam borrowed from the Thornmouth harbor board.",
+      "why": "prose"
+    },
+    {
+      "answer": "| Post | Text |\n|---|---|\n| 3/ | Cofferdam from THORNMOUTH |",
+      "why": "table, mixed case"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "How we rebuilt the Gorsefield lifeboat slipway in eleven weeks, start to finish. 1/",
+      "why": "the root alone"
+    }
+  ]
+}

@@ -262,6 +262,19 @@ with one link can both write. An adapter that declares no `add-recurrence` key e
 command substitution, a shape a worktree-isolated session refuses (#6929). `--body` together with
 `--body-file`, or a path that is not a readable, non-empty file, exits `2`.
 
+`create-item --parent <id>` creates nothing when the parent already has a child with the same
+title (exact after trimming leading and trailing whitespace from both) that is open, or
+was closed within the last 24 hours. It then exits `0`, prints that child's normalized item
+object, and names the child on stderr. A child closed earlier does not block a new create. This
+makes a retried or repeated publish of one plan file each child once. Without `--parent`, every
+call creates an item. The check is one read of the parent's children before the write, with no
+compare-and-set, so two calls that run at the same moment can still both create. GitHub reads the
+parent's sub-issues in the target repository with their `closedAt` in one GraphQL query;
+local-markdown reads each child's `closed_at` frontmatter field, which only the file edit that
+closes the item sets (see "local-markdown adapter"), and a closed child without one counts as
+closed earlier. The linear seed does not run the check yet; the gitea seed refuses
+`--parent`.
+
 `label-provenance` answers who applied each named label and whether that person may grant
 admission. For every `--label`, the adapter takes the most recent application of that label
 (GitHub: the latest `labeled` event on the issue timeline by `created_at`), reads the actor's
@@ -888,7 +901,13 @@ network tool (`gh`, `curl`); the conformance suite runs it in CI, offline.
   structured `Blocked by: <id>` body lines; `blocked_by_count` counts blockers whose
   file exists and that are `open`, or `closed` with any non-empty `state_reason` other
   than `completed` (such as `not_planned` or `duplicate`); those closed ones also count
-  in `blocked_by_wont_do_count`. A closed item with no `state_reason` was completed. The lease is the same inline marker used
+  in `blocked_by_wont_do_count`. A closed item with no `state_reason` was completed. An optional
+  `closed_at` field (a UTC ISO-8601 timestamp string) holds when the item was closed, and
+  `create-item`'s sibling check reads it (see "Verbs"). This adapter has no close verb (the seam
+  has none, by design), so no verb writes `state` or `closed_at`: whoever closes an item by
+  editing its file sets `state: "closed"` and, for the sibling check to count the close as
+  recent, `closed_at`. A closed item without `closed_at` counts as closed more than 24 hours
+  ago and never blocks a new create. The lease is the same inline marker used
   everywhere (see "Lease protocol"), appended to the item file.
 - **Identity.** No authenticated provider user exists offline, so `claim` records the
   holder from `git config user.name` (falling back to `$USER`, then `local`) and

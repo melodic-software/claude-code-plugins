@@ -3,6 +3,12 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.3] - 2026-11-04
+
+### Changed
+
+- Shared `view-builder.mjs`, `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them: the view-kind registry and `render(laneId, kind, record)`, the planning lane's design kind and shipped `artifact` default, and the resolver output's `page` and `publishes` fields (#12650); no other change to this plugin.
+
 ## [0.23.2] - 2026-11-04
 
 ### Fixed

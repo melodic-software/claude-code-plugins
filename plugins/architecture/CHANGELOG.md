@@ -3,6 +3,20 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.5] - 2026-11-04
+
+### Changed
+
+- Shared `view-builder.mjs`, `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them: the view-kind registry and `render(laneId, kind, record)`, the planning lane's design kind and shipped `artifact` default, and the resolver output's `page` and `publishes` fields (#12650). The shared `reference/rendered-view.md` copy carries the planning section's one-call build and design view; no other change to this plugin.
+
+- `map-components`, `map-containers` and `map-context` drop the claim that mermaid C4 is experimental and point at
+  the Mermaid C4 page.
+- `map-landscape` no longer states Structurizr's landscape view type. It keeps why the mermaid
+  output is a `C4Context` diagram without a focal system and points at the Structurizr
+  `systemLandscape` view and the Mermaid C4 page.
+- `reference/config.md` no longer calls mermaid C4 experimental or restates the recheck
+  trigger; it points at the authoring-formats convention's record.
+
 ## [1.4.4] - 2026-11-04
 
 ### Fixed

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "**@quillfinch** · 2026-10-31 · https://x.com/i/web/status/1234567890123456789\n\nThe Saltmarsh footbridge reopens on Saturday.",
+      "why": "attribution line"
+    },
+    {
+      "answer": "Source: <https://x.com/i/web/status/1234567890123456789>",
+      "why": "angle-bracket link"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Source: https://twitter.com/quillfinch/status/1234567890123456789?s=20",
+      "why": "the converter-echoed URL"
+    },
+    {
+      "answer": "Source: https://x.com/i/web/status/12345678901234567890",
+      "why": "a different id"
+    }
+  ]
+}

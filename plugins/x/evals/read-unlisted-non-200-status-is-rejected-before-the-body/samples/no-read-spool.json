@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call: the 307 decides"
+    },
+    {
+      "answer": [{"tool": "Glob", "input": {"pattern": "notes/*.md"}}],
+      "why": "lists the folder only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/work/notes/x-7777777777777777777-r7.md"}}],
+      "why": "opens the spool of a non-200"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "notes/x-7777777777777777777-r7.md", "limit": 20}}],
+      "why": "relative path, bounded slice"
+    }
+  ]
+}

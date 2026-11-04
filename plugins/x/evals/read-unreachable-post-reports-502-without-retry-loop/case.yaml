@@ -1,5 +1,7 @@
 schema_version: "1.1"
 name: 'read-unreachable-post-reports-502-without-retry-loop'
+context:
+  scaffold_script: scaffold.sh
 graders:
   - name: 'expectation-1'
     type: 'llm'
@@ -13,3 +15,17 @@ graders:
     type: 'llm'
     criteria: 'Does not fabricate post content'
     focus: 'trace'
+  - name: 'no-read-spool'
+    type: 'tool_used'
+    tool: 'Read'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?x-9999999999999999999-u9\.md"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-retry-loop'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'xtomd\.com'
+    min: 0
+    max: 1
+    arm: 'both'
