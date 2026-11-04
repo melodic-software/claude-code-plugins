@@ -776,7 +776,12 @@ function caseYamlProbeText(text) {
       scalar = null;
     }
     const key = /^(\s*(?:-\s+)?)([A-Za-z_][\w-]*)\s*:(?:\s+(.*))?$/.exec(line);
-    if (!key) continue;
+    if (!key) {
+      // A line this selector cannot read (a quoted, spaced or explicit key, a
+      // bare `-`): whatever sits under it is non-probe text, failing closed.
+      scalar = { column: indent, probe: false };
+      continue;
+    }
     const column = key[1].length;
     while (parents.length && parents.at(-1).column >= column) parents.pop();
     const parent = parents.length ? parents.at(-1).key : "<root>";

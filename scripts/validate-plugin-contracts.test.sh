@@ -1002,6 +1002,38 @@ YAML
 r002_uncovered "a probe key under a description mapping is not covered"
 
 r002_fixture <<'YAML'
+graders:
+  - name: g
+    type: regex
+    pattern: clean
+    "description": |
+      pattern: alpha-r002
+YAML
+r002_uncovered "a probe-key line under a grader's quoted description key is not covered"
+
+r002_fixture <<'YAML'
+"description": |
+  expected_outcome: alpha-r002
+name: probe
+YAML
+r002_uncovered "a probe-key line under a top-level quoted description key is not covered"
+
+r002_fixture <<'YAML'
+? description
+: |
+  expected_outcome: alpha-r002
+name: probe
+YAML
+r002_uncovered "a probe-key line under an explicit description key is not covered"
+
+r002_fixture <<'YAML'
+old notes: |
+  expected_outcome: alpha-r002
+name: probe
+YAML
+r002_uncovered "a probe-key line under a spaced key is not covered"
+
+r002_fixture <<'YAML'
 execution:
   prompt: |
     Run setup; the leftover is alpha-r002.
