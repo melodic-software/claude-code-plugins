@@ -6,7 +6,10 @@
   "competitors": [
     "architecture:map-flow",
     "architecture:map-deployment",
-    "architecture:map-containers"
+    "architecture:map-containers",
+    "event-storming:methodology",
+    "visualization:visualize",
+    "discovery:explore"
   ],
   "queries": [
     {
@@ -116,6 +119,60 @@
       "split": "validation",
       "expect_trigger": false,
       "request": "Show the project reference graph."
+    },
+    {
+      "id": "pos-contested-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "OrderShipped gets sent from a few places in our C# code. Which handlers actually receive it, going by what's registered in the repo?"
+    },
+    {
+      "id": "pos-contested-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Find any MassTransit messages we send that nothing consumes, and any consumers whose message nobody ever sends."
+    },
+    {
+      "id": "pos-contested-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "We have Billing.Contracts.OrderPlaced and Shipping.Contracts.OrderPlaced. Draw what sends and receives each, and keep them separate."
+    },
+    {
+      "id": "pos-contested-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Draw the async wiring between our services from the C# code only: which bus messages go out from where and which classes handle them."
+    },
+    {
+      "id": "pos-contested-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "No workshop, just read the code: what messages pass between the Orders and Billing modules over the bus, and where are their handlers registered?"
+    },
+    {
+      "id": "pos-contested-06",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "OrdersController calls Publish<OrderShipped> at the end. I don't care about the call path up to there; which consumers pick it up?"
+    },
+    {
+      "id": "neg-contested-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run a Big Picture workshop with us to discover the domain and bounded contexts of our returns process."
+    },
+    {
+      "id": "neg-contested-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Walk me through what happens step by step when POST /orders hits OrdersController, down to the repository call."
+    },
+    {
+      "id": "neg-contested-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Draw the message retry policy we just decided on as a quick diagram."
     }
   ]
 }
