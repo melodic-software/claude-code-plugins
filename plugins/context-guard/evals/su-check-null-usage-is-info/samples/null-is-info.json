@@ -5,6 +5,10 @@
     },
     {
       "answer": "| Snapshot | INFO | fresh, used_percentage null |"
+    },
+    {
+      "answer": "Here: | Snapshot | FAIL | absent although the mod runs; check node |\nYour teammate's fresh snapshot with a null used_percentage is INFO.",
+      "why": "this host's own FAIL row beside the hypothetical's INFO"
     }
   ],
   "fail": [

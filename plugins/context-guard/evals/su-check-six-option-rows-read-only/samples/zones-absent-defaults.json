@@ -1,6 +1,9 @@
 {
   "pass": [
     {
+      "answer": "| zones.json | INFO | absent: shipped defaults in effect; valid zero-config |"
+    },
+    {
       "answer": "| zones.json | INFO | absent: shipped defaults 50/75 and the window-class token bands apply; valid zero-config |"
     },
     {

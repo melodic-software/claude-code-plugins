@@ -39,7 +39,7 @@ graders:
     focus: 'last_message'
   - name: 'zones-absent-defaults'
     type: 'llm'
-    criteria: 'The reply says zones.json is absent and that the shipped default bands (50 and 75 percent, plus the token bands) are in effect, as a valid state rather than a defect.'
+    criteria: 'The reply says zones.json is absent and that the shipped default bands are in effect, as a valid state rather than a defect. Stated band numbers, if any, must be the shipped 50 and 75.'
     focus: 'last_message'
   - name: 'option-values'
     type: 'llm'

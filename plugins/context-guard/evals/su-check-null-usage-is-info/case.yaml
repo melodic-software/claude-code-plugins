@@ -7,7 +7,7 @@ graders:
     focus: 'last_message'
   - name: 'null-when'
     type: 'llm'
-    criteria: 'The reply says the null happens before the session''s first response or right after /compact.'
+    criteria: 'The reply names both states in which the null happens: before the session''s first response, and right after /compact.'
     focus: 'last_message'
   - name: 'nothing-to-fix'
     type: 'llm'

@@ -5,6 +5,10 @@
     },
     {
       "answer": "No action: the resolver answers unknown until the figures arrive."
+    },
+    {
+      "answer": "On this machine jq is absent: FAIL, install jq (https://jqlang.org/download/). For your teammate's null used_percentage there is nothing to do.",
+      "why": "a fix for this host's own row, none for the null"
     }
   ],
   "fail": [
