@@ -381,11 +381,16 @@ threat model: throughput phase"):
 > Phase: maximum throughput until open issues and open PRs both reach 0. Hardening (re-adding holds, pins, reviews) is deferred to after that, as configuration edits.
 <!-- spellchecker:on -->
 
-**The phase's zero** counts open pull requests and open issues outside cordoned milestones (owner
-decision 2026-11-04, #13252). A milestone in `cordoned-milestones` in
+**The phase's zero** counts open pull requests and open issues outside cordoned milestones. A
+milestone in `cordoned-milestones` in
 [`admission-rules.json`](../../../.github/actions/resolve-config/admission-rules.json), the one
 place those names live, holds issues open on purpose, so they never hold the phase open. A drain
-exit counts the same way (§4).
+exit counts the same way (§4). The owner's answer on 2026-11-04 (#13252), asked whether to exclude
+the milestone from the count, with exclusion recommended:
+
+<!-- spellchecker:off -->
+> gjo w/ recomendations
+<!-- spellchecker:on -->
 
 Trust holds (untrusted provenance, an untrusted spec) are security controls the owner keeps, and so
 is the issue lane's hold on a patch carrying a credential shape or not proven clear of one
