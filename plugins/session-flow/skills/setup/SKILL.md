@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-Two configuration surfaces. The **detached observer** (see
+Two kinds of configuration. The **detached observer** (see
 [`${CLAUDE_PLUGIN_ROOT}/reference/observer.md`](${CLAUDE_PLUGIN_ROOT}/reference/observer.md)) has
 runtime prerequisites (Node.js, Python 3.10+, `jq`) and native `userConfig` tunables; setup reports
 both and writes neither (writing `pluginConfigs` is what the setup contract forbids). The plugin
