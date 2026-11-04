@@ -53,7 +53,7 @@ Write the diff to `<dir>/pr.diff` through `/source-control:pull-request view <ur
 
 ## 3. Rate the risk
 
-Before the record or the page is shown, always run `/review:merge-risk <url> --dir <dir>` via the Skill tool, whatever limit the reader set on which files to read: it reads only `<dir>` and its own rubric and door definition, where `<url>` is the `url` in `facts.json`. It reuses the saved facts and diff, rates the areas, has a fresh-context agent check them blind, and returns rows with their `check` and `checker`. Use those rows as the risk map, with one change: on a `disputed` row, write `checker` as `<checker_level>: <checker>` so the reader sees the checker's level beside its reason. `demote` is not part of the digest, which gates nothing. When it reports no check ran, the record says the risk map is unchecked.
+Before the record or the page is shown, always run `/review:merge-risk <url> --dir <dir>` via the Skill tool, whatever limit the reader set on which files to read: beyond `<dir>` it reads only the closing issue and its own rubric and door definition, where `<url>` is the `url` in `facts.json`. It reuses the saved facts and diff, rates the areas, has a fresh-context agent check them blind, and returns rows with their `check` and `checker`. Use those rows as the risk map, with one change: on a `disputed` row, write `checker` as `<checker_level>: <checker>` so the reader sees the checker's level beside its reason. `demote` is not part of the digest, which gates nothing. When it reports no check ran, the record says the risk map is unchecked.
 
 ## 4. Build the view
 

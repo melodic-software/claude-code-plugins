@@ -45,8 +45,8 @@ rates that case.
 
 Read the rubric (`${CLAUDE_SKILL_DIR}/reference/rubric.md`), the door definition its Reversibility
 area uses (`${CLAUDE_PLUGIN_ROOT}/reference/one-way-doors.md`) and the saved files, and write one
-row per area: area, level, why. Those two paths are the skill's only reads beyond `<dir>`; never
-search for them.
+row per area: area, level, why. Those two paths and step 1's closing-issue read are the skill's only
+reads beyond `<dir>`; never search for them.
 
 ## 3. Check blind
 
