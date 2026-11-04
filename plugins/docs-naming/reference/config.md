@@ -31,21 +31,22 @@ defaults:
 |---|---|---|
 | User-global | `docs-naming.json` under `~/.claude/` | the operator's machine |
 | Team | `<home>/docs-naming.yaml` | committed, team-shared |
-| Personal overlay | `<home>/docs-naming.local.yaml` | gitignored |
+| Personal override | `<home>/docs-naming.local.yaml` | gitignored |
 
 `<home>` is the repository's convention home: the directory the pointer line in
 the marked region of `AGENTS.md` (else `CLAUDE.md`) names, `docs/conventions`
 when there is none. The `layers` and `paths` actions of the resolver report which
-layer supplied each key and which file each layer was read from. The user-global
+layer supplied each key and which file each layer was read from, naming the
+layers `user-global`, `team` and `personal-override`. The user-global
 layer stays a JSON document (`"schema": 1` and a `file_names` object), because
 it is a machine-wide file outside any repository.
 
-The JSON files under `.claude/` the team and overlay layers used to live in
+The JSON files under `.claude/` the team layer and personal override used to live in
 (`docs-naming.json`, `docs-naming.local.json`, and their retired `docs-hygiene`
 names) are not read. `/docs-naming:setup check` shows a WARN row for each one it
 finds. While the team YAML is absent, the first `/docs-naming:setup apply` write
 copies the old team file's keys into it and leaves that file in place; an old
-overlay file's keys are moved by hand.
+personal override file's keys are moved by hand.
 
 A user-global file absent under `docs-naming.json` but present under the retired
 `docs-hygiene` name (`~/.claude/docs-hygiene.json`) is read from there, with a
@@ -54,7 +55,7 @@ new name wins when both exist. Rename the file to retire the warning.
 
 All three absent is a valid state: every key has a bundled default, and the
 defaults are this marketplace's own values, except `generated`, which is empty. The recommended gitignore line for
-the overlay is `<home>/*.local.*`; `/docs-naming:setup check` reports a
+the personal override is `<home>/*.local.*`; `/docs-naming:setup check` reports a
 missing one and never edits a consumer's `.gitignore`.
 
 The user-global JSON layer declares
@@ -233,8 +234,9 @@ per key plus an `!inert:<key>` line for every ignored declaration; `paths` print
 one `layer<TAB>path<TAB>state` line per layer, the state being `present`,
 `absent`, `legacy` (the user-global file at the retired `docs-hygiene` name) or a
 not-applicable reason. All three take
-`--root`, which is the repository the team and overlay layers are read from, so
-a second worktree or a fixture is addressed explicitly rather than inherited
-from the environment. A `--root` that is the home directory (or an ancestor of
-it) or is not a git working tree has no team or overlay layer: `paths` reports
+`--root`, which is the repository the team layer and personal override are read
+from, so a second worktree or a fixture is addressed explicitly rather than
+inherited from the environment. A `--root` that is the home directory (or an
+ancestor of it) or is not a git working tree has no team layer or personal
+override: `paths` reports
 both as not-applicable and only the user-global file is read.

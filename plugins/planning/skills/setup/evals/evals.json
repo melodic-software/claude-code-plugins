@@ -17,7 +17,7 @@
       "id": 2,
       "name": "apply-interviews-before-any-bootstrap-write",
       "prompt": "/planning:setup apply\n\nSet up the standards concern. This repo has no docs/standards directory.",
-      "expected_output": "Reads state in the binding's order (.claude/standards.yaml, the index presence test at the default root, inference sources), proposes the skeleton index and the overlay .gitignore, and writes nothing until the user accepts. After accepted writes it runs the tracked-file pair (git check-ignore -v reports no match, git ls-files --error-unmatch exits 0) on each written team file and reports the actual results. It writes .claude/standards.yaml only if the user relocates the root.",
+      "expected_output": "Reads state in the binding's order (.claude/standards.yaml, the index presence test at the default root, inference sources), proposes the skeleton index and the personal override .gitignore, and writes nothing until the user accepts. After accepted writes it runs the tracked-file pair (git check-ignore -v reports no match, git ls-files --error-unmatch exits 0) on each written team file and reports the actual results. It writes .claude/standards.yaml only if the user relocates the root.",
       "files": [],
       "expectations": [
         "Reads state in the order: .claude/standards.yaml, index presence test, inference sources",
@@ -42,7 +42,7 @@
       "id": 4,
       "name": "standards-bootstrap-second-run-is-a-no-op",
       "prompt": "/planning:setup apply\n\nSet up the standards concern. This repo already has docs/standards/README.md with standards-contract frontmatter at the binding's current version, valid row paths, and a docs/standards/.gitignore containing *.local.md from a previous run of this setup.",
-      "expected_output": "The standards bootstrap reads state in order (concern file, then the index presence test, then inference sources), finds a conforming index at the binding's contract version, validates the row paths, and short-circuits: it reports the index healthy and proposes no changes — a second run produces no diff. It does not re-interview, does not rewrite the index or the setup-owned overlay .gitignore, does not offer a migration (versions match), and touches no other ignore file.",
+      "expected_output": "The standards bootstrap reads state in order (concern file, then the index presence test, then inference sources), finds a conforming index at the binding's contract version, validates the row paths, and short-circuits: it reports the index healthy and proposes no changes — a second run produces no diff. It does not re-interview, does not rewrite the index or the setup-owned personal override .gitignore, does not offer a migration (versions match), and touches no other ignore file.",
       "files": [],
       "expectations": [
         "Reads state via the binding's procedure: concern file, index presence test, then inference sources",

@@ -157,7 +157,7 @@ repo() {
   git -C "$1" init -q -b main
 }
 TEAM=docs/conventions/testing.yaml
-OVERLAY=.claude/testing.local.yaml
+PERSONAL=.claude/testing.local.yaml
 UG="$HOME/.claude/testing.yaml"
 R="$T/repo"
 
@@ -167,18 +167,18 @@ assert_eq "no layer: the default 0" "pixel_tolerance=0 source=default reason=" "
 assert_eq "and exits 0" 0 "$rc"
 
 layer "$R/$TEAM" 2 "anti-aliasing on the CI image"
-layer "$R/$OVERLAY" 5 "my laptop"
+layer "$R/$PERSONAL" 5 "my laptop"
 run config --repo "$R"
-assert_eq "team 2, overlay 5: the team value holds" \
+assert_eq "team 2, personal override 5: the team value holds" \
   "pixel_tolerance=2 source=team (working tree, no origin) reason=anti-aliasing on the CI image" "$out"
-assert_contains "the overlay's raise is reported as ignored" "$err" "ignored"
-assert_contains "naming the overlay" "$err" "$R/$OVERLAY"
+assert_contains "the personal override's raise is reported as ignored" "$err" "ignored"
+assert_contains "naming the personal override" "$err" "$R/$PERSONAL"
 assert_contains "with no origin the report says the working-tree file was read" "$out" "working tree, no origin"
 
-layer "$R/$OVERLAY" 0
+layer "$R/$PERSONAL" 0
 run config --repo "$R"
-assert_eq "team 2, overlay 0: the overlay lowers it" "pixel_tolerance=0 source=overlay reason=" "$out"
-rm -f "$R/$OVERLAY"
+assert_eq "team 2, personal override 0: the personal override lowers it" "pixel_tolerance=0 source=personal-override reason=" "$out"
+rm -f "$R/$PERSONAL"
 
 layer "$UG" 5 "home machine"
 run config --repo "$R"
@@ -208,62 +208,62 @@ printf 'pixel_tolerance:\n  pixels: 2\n  reason: "fonts: hinting differs"\n' >"$
 run config --repo "$R"
 assert_eq "a quoted reason with ': ' prints whole and unquoted, last" \
   "pixel_tolerance=2 source=team (working tree, no origin) reason=fonts: hinting differs" "$out"
-printf 'pixel_tolerance:\n  pixels: 1\n  reason: narrow: crop\n' >"$R/$OVERLAY"
+printf 'pixel_tolerance:\n  pixels: 1\n  reason: narrow: crop\n' >"$R/$PERSONAL"
 run config --repo "$R"
-assert_eq "an unquoted reason with ': ' in the overlay: exit 0" 0 "$rc"
-assert_contains "the overlay is named" "$err" "$R/$OVERLAY"
+assert_eq "an unquoted reason with ': ' in the personal override: exit 0" 0 "$rc"
+assert_contains "the personal override is named" "$err" "$R/$PERSONAL"
 assert_eq "and dropped while the team value still decides" \
   "pixel_tolerance=2 source=team (working tree, no origin) reason=fonts: hinting differs" "$out"
-rm -f "$R/$OVERLAY"
+rm -f "$R/$PERSONAL"
 
 # An invalid layer is named and dropped; the others still decide; never exit 2.
 layer "$R/$TEAM" 2 "team reason"
-layer "$R/$OVERLAY" -1 "x"
+layer "$R/$PERSONAL" -1 "x"
 run config --repo "$R"
-assert_eq "overlay pixels -1: exit 0" 0 "$rc"
+assert_eq "personal override pixels -1: exit 0" 0 "$rc"
 assert_contains "the team still decides" "$out" "pixel_tolerance=2 source=team"
-assert_contains "the file is named" "$err" "$R/$OVERLAY"
+assert_contains "the file is named" "$err" "$R/$PERSONAL"
 assert_contains "with the key and value" "$err" "pixel_tolerance.pixels: '-1'"
-layer "$R/$OVERLAY" x "x"
+layer "$R/$PERSONAL" x "x"
 run config --repo "$R"
-assert_contains "overlay pixels 'x' is named" "$err" "pixel_tolerance.pixels: 'x'"
+assert_contains "personal override pixels 'x' is named" "$err" "pixel_tolerance.pixels: 'x'"
 assert_contains "and dropped" "$out" "pixel_tolerance=2 source=team"
-layer "$R/$OVERLAY" 1
+layer "$R/$PERSONAL" 1
 run config --repo "$R"
-assert_contains "overlay pixels 1 with no reason is named" "$err" "pixel_tolerance.reason"
+assert_contains "personal override pixels 1 with no reason is named" "$err" "pixel_tolerance.reason"
 assert_contains "and dropped" "$out" "pixel_tolerance=2 source=team"
-printf 'pixel_tolerance:\n  pixels: [1]\n  reason: x\n' >"$R/$OVERLAY"
+printf 'pixel_tolerance:\n  pixels: [1]\n  reason: x\n' >"$R/$PERSONAL"
 run config --repo "$R"
-assert_eq "overlay pixels [1]: exit 0" 0 "$rc"
-assert_contains "a list pixels is named with its file and key" "$err" "$R/$OVERLAY: pixel_tolerance.pixels: '<list or map>'"
+assert_eq "personal override pixels [1]: exit 0" 0 "$rc"
+assert_contains "a list pixels is named with its file and key" "$err" "$R/$PERSONAL: pixel_tolerance.pixels: '<list or map>'"
 assert_eq "and dropped while the team value still decides" \
   "pixel_tolerance=2 source=team (working tree, no origin) reason=team reason" "$out"
-printf 'pixel_tolerance:\n  pixels:\n    narrow: 1\n  reason: x\n' >"$R/$OVERLAY"
+printf 'pixel_tolerance:\n  pixels:\n    narrow: 1\n  reason: x\n' >"$R/$PERSONAL"
 run config --repo "$R"
-assert_contains "a map pixels is named too" "$err" "$R/$OVERLAY: pixel_tolerance.pixels: '<list or map>'"
+assert_contains "a map pixels is named too" "$err" "$R/$PERSONAL: pixel_tolerance.pixels: '<list or map>'"
 assert_contains "and dropped" "$out" "pixel_tolerance=2 source=team"
-rm -f "$R/$OVERLAY"
+rm -f "$R/$PERSONAL"
 mkdir -p "$HOME/.claude"
 printf 'pixel_tolerance: 1\n' >"$UG"
-layer "$R/$OVERLAY" 1 "overlay reason"
+layer "$R/$PERSONAL" 1 "personal reason"
 run config --repo "$R"
 assert_contains "a scalar pixel_tolerance is named as not a map" "$err" "$UG: pixel_tolerance: '1' is not a map"
-assert_eq "and a valid other layer still decides" "pixel_tolerance=1 source=overlay reason=overlay reason" "$out"
-rm -f "$UG" "$R/$OVERLAY"
+assert_eq "and a valid other layer still decides" "pixel_tolerance=1 source=personal-override reason=personal reason" "$out"
+rm -f "$UG" "$R/$PERSONAL"
 layer "$R/$TEAM" x "team reason"
 run config --repo "$R"
 assert_eq "with no valid layer, the default 0" "pixel_tolerance=0 source=default reason=" "$out"
 assert_eq "and exit 0" 0 "$rc"
 
-# A symlinked overlay is skipped with a warning.
+# A symlinked personal override is skipped with a warning.
 layer "$R/$TEAM" 2 "team reason"
 layer "$T/elsewhere.yaml" 0
 mkdir -p "$R/.claude"
-ln -s "$T/elsewhere.yaml" "$R/$OVERLAY"
+ln -s "$T/elsewhere.yaml" "$R/$PERSONAL"
 run config --repo "$R"
-assert_contains "a symlinked overlay is skipped" "$out" "pixel_tolerance=2 source=team"
+assert_contains "a symlinked personal override is skipped" "$out" "pixel_tolerance=2 source=team"
 assert_contains "with a warning" "$err" "symlink"
-rm -f "$R/$OVERLAY"
+rm -f "$R/$PERSONAL"
 
 # The team layer is read from origin's default branch when there is an origin.
 O="$T/origin.git"
