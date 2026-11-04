@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "jq is INFO there, because the plugin is disabled."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "jq is FAIL there too: the batch hook needs it.",
+      "why": "stays FAIL"
+    }
+  ]
+}

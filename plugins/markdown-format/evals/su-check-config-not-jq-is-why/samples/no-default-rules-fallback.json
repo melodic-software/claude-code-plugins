@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "No: an unconfigured repository gets no rules, not markdownlint's defaults."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Until you add a config, markdownlint's default rules apply.",
+      "why": "the defaults as a fallback"
+    }
+  ]
+}

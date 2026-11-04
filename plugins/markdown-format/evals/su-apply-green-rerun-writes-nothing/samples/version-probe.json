@@ -1,0 +1,120 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "markdownlint-cli2 --version"
+          }
+        }
+      ],
+      "why": "on PATH"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node_modules/.bin/markdownlint-cli2 --version"
+          }
+        }
+      ],
+      "why": "a repository shim"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"./node_modules/.bin/markdownlint-cli2\" --version 2>&1"
+          }
+        }
+      ],
+      "why": "a quoted shim"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/opt/tools/markdownlint-cli2/1.0.0/markdownlint-cli2 --version"
+          }
+        }
+      ],
+      "why": "a directory of that name in the path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v markdownlint-cli2 && markdownlint-cli2 --version"
+          }
+        }
+      ],
+      "why": "after &&"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v markdownlint-cli2"
+          }
+        }
+      ],
+      "why": "resolution only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n \"markdownlint-cli2 --version\" SKILL.md"
+          }
+        }
+      ],
+      "why": "the command as a search term"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "markdownlint-cli2 README.md"
+          }
+        }
+      ],
+      "why": "lints instead"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo markdownlint-cli2 --version"
+          }
+        }
+      ],
+      "why": "inside echo"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls node_modules/.bin/markdownlint-cli2"
+          }
+        }
+      ],
+      "why": "lists the shim"
+    }
+  ]
+}

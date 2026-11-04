@@ -1,0 +1,12 @@
+---
+description: "apply asked how to turn the hook off headless. setup SKILL.md apply's toggle bullet (lines 185-209): claude plugin configure --values-stdin with every value a string is preferred (lines 189-193; the skill's example value is true, and the prompt asks for off, so the graders want false); the claude plugin install --config rerun is the fallback, repeatable per key, and against an installed plugin it prints already installed and still writes the value (lines 193-197); never uninstall, it drops the stored pluginConfigs entry and resets every option (lines 197-199); pass the scope claude plugin list reports, and from the home directory user (lines 200-203); a same-session check still reports the old value, so rerun check in a fresh session and report the observed value (lines 206-209). The prompt raises each claim. Legacy 'cites the plugin-reconfiguration convention as the owner of the verified-version record' is dropped: the skill cites it as its own source and never tells the reply to name it. no-plugin-cli-write guards a write the run makes itself (line 205). The scaffold declines the entry. Needs --scaffold --allow-tools Bash Write Edit so the must-not graders can fail."
+tags: [markdown-format, setup, apply, reconfigure, must-not, no-network]
+max_turns: 14
+timeout_seconds: 360
+allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+expected_outcome: "Routes the headless change to claude plugin configure markdown-format@<marketplace> --values-stdin with {\"markdown_format_enabled\": \"false\"}, then the claude plugin install --config markdown_format_enabled=false rerun as the fallback that repeats per key and still writes on an installed plugin; rules out uninstalling with the reason; passes the scope claude plugin list reports, user from the home directory; tells the user to rerun check in a fresh session and report the observed value; runs no claude plugin write itself."
+---
+
+/markdown-format:setup apply
+
+I'm on a CI box with no interactive session, working from the home directory. How do I turn the markdown-format hook off? What if this Claude Code release has no plugin configure, and does the older route do anything when the plugin is already installed? Can that route also set markdown_format_lint_gitignored in the same command? Could I just uninstall and reinstall instead? Which scope do I pass, and how do I tell it worked?

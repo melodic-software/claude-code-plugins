@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        "lefthook-local.yml"
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        ".githooks/markdown-format/markdown-check.sh"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "No. The opt-in is per-path: docs/.markdownlint.jsonc covers only docs/, and a root config would cover the tree."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes: a config exists in the repository, so markdownlint-cli2 picks it up everywhere.",
+      "why": "covered on a nested config"
+    },
+    {
+      "answer": "No, README.md is not covered.",
+      "why": "no per-path rule"
+    }
+  ]
+}

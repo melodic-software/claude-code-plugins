@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "Usually a missing Node interpreter or a dangling target."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Something in the install is probably broken, so reinstall it.",
+      "why": "no concrete cause"
+    }
+  ]
+}

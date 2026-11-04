@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Write lefthook-local.yml with pre-commit: jobs: - name: markdown-format-markdown-check, run: sh .git/hooks/markdown-format/markdown-check.sh"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "plan returned a lefthook-config decision. The reply tells the user to add the snippet to lefthook-local.yml.",
+      "why": "hands the merge to the user"
+    },
+    {
+      "answer": "copy printed installed, so the installer wired lefthook and the run moved on.",
+      "why": "expects the installer to edit the config"
+    },
+    {
+      "answer": "Edit lefthook.yml, adding the markdown-format-markdown-check job.",
+      "why": "the shared config at local scope"
+    }
+  ]
+}

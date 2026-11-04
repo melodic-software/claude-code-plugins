@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "verify printed `ok markdown-check`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "verify printed `missing markdown-check installed but not wired into the hook manager`.",
+      "why": "stopped before the wiring"
+    },
+    {
+      "answer": "The entry is installed.",
+      "why": "no verify result"
+    }
+  ]
+}

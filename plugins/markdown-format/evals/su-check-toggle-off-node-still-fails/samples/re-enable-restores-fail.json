@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "If they turn the hook back on, the missing jq goes back to FAIL."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The jq row stays INFO after they turn the hook back on.",
+      "why": "no change"
+    }
+  ]
+}

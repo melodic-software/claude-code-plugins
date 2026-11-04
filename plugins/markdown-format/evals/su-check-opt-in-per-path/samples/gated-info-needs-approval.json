@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "tools/ and scripts/ are INFO, gated: markdownlint-cli2 runs there only once you approve that config state; until then their files are neither rewritten nor checked."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "tools/ and scripts/ are INFO, inactive: markdownlint-cli2 never runs under them.",
+      "why": "the corrected legacy wording: no approval route"
+    },
+    {
+      "answer": "tools/ and scripts/ are covered: their configs govern those directories.",
+      "why": "not gated"
+    }
+  ]
+}

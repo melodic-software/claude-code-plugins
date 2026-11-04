@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "| jq | PASS |\n\nAlready configured: no change made."
+    },
+    {
+      "answer": "Nothing to do, it is already configured.",
+      "why": "sentence-final"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Everything passes. No change made.",
+      "why": "no such report"
+    },
+    {
+      "answer": "Configured already.",
+      "why": "other words"
+    }
+  ]
+}

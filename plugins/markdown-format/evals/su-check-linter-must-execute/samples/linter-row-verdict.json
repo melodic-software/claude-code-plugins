@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "| Item | Result |\n|---|---|\n| markdownlint-cli2 | PASS: v0.24.0 |\n| jq | PASS |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "markdownlint-cli2: PASS",
+      "why": "prose, no table"
+    },
+    {
+      "answer": "| Item | Result |\n|---|---|\n| jq | PASS |\n\nmarkdownlint-cli2 resolves.",
+      "why": "no row for the linter"
+    }
+  ]
+}
