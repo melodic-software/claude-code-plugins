@@ -5,6 +5,16 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [3.0.8] - 2026-11-04
+
+### Fixed
+
+- `fetch-docs.sh --profile generic`: a `text/plain` answer to a URL whose path ends in `.md` is
+  read as markdown on the first request, so a host that serves `.md` files as `text/plain` no
+  longer leaves the page unread `unexpected-content-type`
+  ([#13354](https://github.com/melodic-software/claude-code-plugins/issues/13354)). A `text/plain`
+  answer for any other path is still refused.
+
 ## [3.0.7] - 2026-11-04
 
 ### Fixed
