@@ -229,7 +229,7 @@ on-demand tasks FLEET.md lists.
     probed.
     - **Probe**: [PowerShell quoting to wsl.exe](https://github.com/melodic-software/claude-code-plugins/issues/12908#issuecomment-6624493777).
       **As of**: 2026-11-04. **Recheck trigger**: the
-      [about_Parsing](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_parsing?view=powershell-7.6)
+      [about_Parsing](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_parsing?view=powershell-7.6#passing-arguments-that-contain-quote-characters)
       page changes how quotes pass to native commands.
 - **Use `wsl.exe --exec`, not `--`.** The quoting rules above assume `--exec`. For what each option
   does, run `wsl.exe --help` on that machine, as
