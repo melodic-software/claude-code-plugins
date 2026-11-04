@@ -79,7 +79,8 @@ fi
 cmd="${1:-}"
 shift || true
 
-base="$(basename "$repo")"
+base="${repo%/}"
+base="${base##*/}"
 case "$cmd" in
 rev-parse)
   case "${1:-}" in
