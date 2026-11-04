@@ -218,6 +218,17 @@ on the tracker-bound path, the `refs` item's `ISSUE_BODY` serves.
 
 Persist chosen line(s) into `${CLOSES_LINE}`. NEVER wrap a closing keyword in an HTML comment: `<!-- Closes #N -->` still parses and auto-closes the issue on merge. Fenced code blocks ARE inert, so example snippets are safe.
 
+**Close only what the diff finishes.** Before the siblings step below, read each issue
+`${CLOSES_LINE}` would close (the [Refs issue read](../../../reference/providers/github/pull-request/create.md#refs-issue-read),
+or `ISSUE_BODY` on the tracker-bound path) and mark each of its done-when or acceptance items, and
+each open sub-issue, delivered or not. An item counts as delivered when it is already checked, this
+diff delivers it, or a merged pull request that links the issue with `Refs:` delivered it. Any issue
+with an item not delivered moves from `${CLOSES_LINE}` to its own `Refs: #N` line (on the
+tracker-bound path, the item's `refs` text from `/work-items:track link`), and §2.4.1 lists the
+undelivered items under `## Remaining`. Never write `does not close #N`: the negation still closes
+it. pr-verify still judges the claim after the PR opens; this check keeps the body from claiming
+more than the diff delivers.
+
 **Siblings of a closing pull request.** Once `${CLOSES_LINE}` is final, when it closes one or more
 GitHub issues, earlier pull requests may have delivered part of one with `Refs: #N`. Name them so
 pr-verify judges this diff only for what they left (the pr-verify section of the marketplace's
@@ -381,10 +392,10 @@ writes into each item. The shape, the scrub, the missing-half rule and the `Summ
 condition are the plan line's. A found plan wins outright: a half it lacks is not filled from the
 item. With no plan and no item body, add no line.
 
-**Remaining work on a `Refs:` issue.** When the linkage line is `Refs: #N` (or the tracker's
-`refs` text) and the body closes nothing, append a `## Remaining` section after the scaffold
+**Remaining work on a `Refs:` issue.** For each `Refs: #N` linkage line (or the tracker's
+`refs` text), append a `## Remaining` section after the scaffold
 blocks, never added to `${REQUIRED_SECTIONS[@]}`, listing as plain bullets what stays open on that
-issue: its unchecked `- [ ]` acceptance items, its open sub-issues, or the slices its body lists,
+issue (one section, a sub-list per issue when there are several): its unchecked `- [ ]` acceptance items, its open sub-issues, or the slices its body lists,
 leaving out any this PR delivers. When the issue has none, write one line naming what this PR
 delivers and the condition that closes the issue, with no closing keyword before an issue
 number (`#N closes when the export ships`, never `Closes #N when`). The `Summary` (or the first scaffold section)
@@ -407,6 +418,11 @@ Section content is prose a reviewer reads: plain language, bottom line first, no
 - **Recheck trigger**: a `gh` release note that changes `--attach`.
 
 **Left out.** The section that records verification (`Verification`, or `Test plan` under the portable default) ends with one `Left out:` line naming what was not run or checked, each with its reason (for example, `Left out: end-to-end suite, needs a staging environment`), so a reviewer can tell a gap from an omission; when everything relevant was run, it says `Left out: nothing`. When that section closes the body, the §2.4.3 attribution line still follows it as the body's footer.
+
+**Closing keywords outside the linkage line.** GitHub closes an issue on a closing keyword anywhere
+in the body, a `## Related` or `## Summary` line included (the keyword set is §2.4.2.1's). So the
+only closing keywords in the body are the ones on `${CLOSES_LINE}`; mention any other issue or pull
+request without one, for example `delivered by #M` or `follows #N`.
 
 **Write the body to a file with the Write tool.** Compose the body as literal text: `${CLOSES_LINE}`; `${SIBLINGS_LINE}` (§2.4.0) when non-empty, at the first column directly below it; when §2.7's `--hold` gave a line, that line on its own line below those, before the first `##` block, so the §2.4.2 gates check the body the PR opens with; a blank line when any is non-empty; then one `## <heading>` block per entry in `${SECTION_ORDER[@]}` with real content, leaving out an optional heading that has none (`Related` carries `${REFS_LINES}` when non-empty, else `N/A`), then the `## Acceptance criteria` block when a plan supplied one and no scaffold heading holds it, then the `## Remaining` block for a `Refs:` link, then the ad hoc `## Related` block when the rule above calls for one. Leave the attribution line out; §2.4.3 appends it after the gates. Write it to an absolute path outside the working tree (the session's scratchpad directory when one is listed, else the system temp directory), for example `<tmp>/pr-body-<branch-slug>.md`, and pass that path as `BODY_FILE` to every call below.
 
