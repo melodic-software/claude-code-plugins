@@ -183,7 +183,7 @@
 </div>
 
 <h2>Pattern 1: numbered resonate tokens</h2>
-<p>The cheapest rung. Items carry stable visible numbers; the reader names the numbers back in chat. The page needs no state and no script beyond the render. Reach for this when the reader is picking from a list you already had to show.</p>
+<p>The cheapest pattern. Items carry stable visible numbers; the reader names the numbers back in chat. The page needs no state and no script beyond the render. Reach for this when the reader is picking from a list you already had to show.</p>
 <div class="panel demo">
   <ol class="numbered" id="p1-list"></ol>
   <p class="lead">Reply with the numbers that resonate, for example <code>2, 4</code>.</p>
@@ -223,7 +223,7 @@
 <pre id="src-p4"></pre>
 
 <h2>Pattern 5: live-state export</h2>
-<p>The top rung, and the one a custom editor always owes. The page holds state the reader changed, so the export reads that state and rebuilds the record: markdown, a diff, or plain text. Build the string from state, never by scraping <code>innerHTML</code>, and offer both rungs: the clipboard for a payload the reader pastes into chat, a file download for a payload that is a document.</p>
+<p>The costliest pattern, and the one a custom editor always owes. The page holds state the reader changed, so the export reads that state and rebuilds the record: markdown, a diff, or plain text. Build the string from state, never by scraping <code>innerHTML</code>, and offer both routes: the clipboard for a payload the reader pastes into chat, a file download for a payload that is a document.</p>
 <div class="panel demo">
   <div id="p5-rows"></div>
   <div class="row">
@@ -235,7 +235,7 @@
 </div>
 <pre id="src-p5"></pre>
 
-<h2>Choosing a rung</h2>
+<h2>Choosing a pattern</h2>
 <div class="panel">
   <table>
     <tr><th>The view asks the reader to</th><th>Pattern</th><th>Payload shape</th></tr>
@@ -245,7 +245,7 @@
     <tr><td>Approve or amend a proposal</td><td>4, accept and correct</td><td>Tokens plus free-text corrections</td></tr>
     <tr><td>Edit state the page holds</td><td>5, live-state export</td><td>A rebuilt record, copied or downloaded</td></tr>
   </table>
-  <p>A view may carry more than one rung, and a custom editor carries rung 5 whatever else it carries. Adding a rung the reader did not need is overproduction: the convention's doctrine section names an obligation, not a floor to hit on every page.</p>
+  <p>A view may carry more than one pattern, and a custom editor carries pattern 5 whatever else it carries. Adding a pattern the reader did not need is overproduction: the convention's doctrine section names an obligation, not a floor to hit on every page.</p>
 </div>
 
 <script>
@@ -407,7 +407,7 @@ var SNIPPETS = {
   ].join("\n"),
   "src-p5": [
     "// Pattern 5: live-state export. Build the record from STATE, never",
-    "// by scraping innerHTML, and offer both rungs.",
+    "// by scraping innerHTML, and offer both routes.",
     "function buildMarkdown() {",
     "  return ['# Review notes', ''].concat(rows.map(function (r) {",
     "    return '- [' + (r.done ? 'x' : ' ') + '] ' + r.title +",
