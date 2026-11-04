@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "playbooks:boris"}}], "why": "loads the boris skill"}
+  ],
+  "fail": [
+    {"answer": [], "why": "answers from memory without loading the skill"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "playbooks:update"}}], "why": "loads the update skill instead"}
+  ]
+}

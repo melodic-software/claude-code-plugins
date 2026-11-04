@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "playbooks:repo-sweep", "args": "next"}}], "why": "loads repo-sweep for the next step"}
+  ],
+  "fail": [
+    {"answer": [], "why": "answers without loading the skill"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "code-tidying:audit-dead-code"}}], "why": "jumps straight to the pending step's skill"}
+  ]
+}

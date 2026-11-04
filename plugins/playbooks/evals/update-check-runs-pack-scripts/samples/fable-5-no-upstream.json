@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "- boris: check mode, exit code reported.\n- skill-authoring: check mode, exit code reported.\n- fable-5: self-authored, no upstream; no drift-check applicable, so nothing runs.", "why": "self-authored, no upstream"},
+    {"answer": "fable-5 has no upstream to compare against; it only changes when the model version does.", "why": "no upstream"}
+  ],
+  "fail": [
+    {"answer": "fable-5: run its scripts/update.sh --check too.", "why": "treats fable-5 as upstreamed"},
+    {"answer": "fable-5: run its update.sh --check and expect no drift.", "why": "runs a check for fable-5"},
+    {"answer": "boris and skill-authoring are checked.", "why": "never mentions fable-5"}
+  ]
+}

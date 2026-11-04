@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "Boris runs 3-5 Claude Code sessions at once, each in its own git worktree, so their edits never collide.", "why": "names the count and worktrees"},
+    {"answer": "Spin up three to five sessions; start each with `claude --worktree` so every one gets its own checkout.", "why": "count in words, worktree flag"}
+  ],
+  "fail": [
+    {"answer": "Open several terminal tabs and run claude in each one.", "why": "no worktrees and no count"},
+    {"answer": "Give each parallel session its own git worktree.", "why": "worktrees without the 3-5 count from the tips"},
+    {"answer": "Boris runs 3-5 sessions in separate terminal tabs.", "why": "the count without worktree isolation"}
+  ]
+}

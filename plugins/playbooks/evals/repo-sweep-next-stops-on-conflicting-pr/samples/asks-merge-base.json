@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "I'm stopping before the dead-code step: PR 57 conflicts with its base, and GitHub runs no pull_request workflows on a conflicting PR, so a step commit would get no CI. Merge the base branch into the sweep branch, push, then run next again.", "why": "stops and names the merge"},
+    {"answer": "Not running dead-code yet. Please merge main into chore/repo-sweep-hygiene-20261103 and push; after that, rerun `/playbooks:repo-sweep next`.", "why": "names main and the branch"},
+    {"answer": "Stopping here. On the sweep branch run:\n\n```bash\ngit fetch origin\ngit merge origin/main\ngit push\n```\n\nthen run next again.", "why": "gives the merge as commands"}
+  ],
+  "fail": [
+    {"answer": "Starting the dead-code step: marking it in progress with tick.sh and invoking code-tidying:audit-dead-code.", "why": "runs the pending step on a conflicting PR"},
+    {"answer": "The PR has conflicts. Rebase the branch onto main and force-push, then continue.", "why": "rebases instead of merging the base in"}
+  ]
+}

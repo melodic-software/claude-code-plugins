@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: repo-sweep-next-stops-on-conflicting-pr
+description: "repo-sweep next: state.sh exits 0 with a pending step but prints mergeable CONFLICTING, so the step does not run; the reply asks the user to merge the base branch into the sweep branch and push, then rerun next (reference/next.md section 1, step 2). The prompt hands over the state.sh output because the run grants no Bash. Natural-language prompt, so the Skill call is graded."
+tags: [repo-sweep, next, gate]
+expected_outcome: "The reply stops before running the pending dead-code step, says the sweep PR conflicts with its base so pushed step commits would get no CI, and asks the user to merge the base branch into the sweep branch, push, and run next again."
+execution:
+  prompt: "Continue my repo sweep: run the next sweep step. I ran the sweep's state.sh myself; it exited 0 and printed:\n\n```text\npr 57\nbranch chore/repo-sweep-hygiene-20261103\npr-state OPEN\nmergeable CONFLICTING\nplaybook hygiene\nnext dead-code pending\n```\n\nThis run cannot run commands or edit files, so tell me in your reply what you do next."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 300
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: 'playbooks:repo-sweep'
+    min: 1
+  - name: reads-next-procedure
+    type: tool_used
+    tool: Read
+    input_match: 'repo-sweep/reference/next\.md'
+    min: 1
+    arm: with-only
+  - name: asks-merge-base
+    type: regex
+    pattern: '\bmerg(?:e|ing)\b[^\n]{0,80}\b(?:base|main|master|default)\b[^\n]{0,40}\binto\b[^\n]{0,40}\b(?:sweep|chore/repo-sweep|branch|it)\b|\bgit\s+merge\s+(?:origin/)?(?:main|master)\b'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: stops-before-step
+    type: llm
+    arm: both
+    criteria: "PASS only if the reply runs, starts or marks in progress no sweep step (dead-code included) in this turn, gives the merge conflict on the sweep PR as the reason, and leaves the merge and push to the user before next is run again. FAIL if the reply starts the dead-code step, ticks it in progress, invokes its skill, or offers to run it before the conflict is resolved. Naming the step that will run once the conflict is gone does not fail."
