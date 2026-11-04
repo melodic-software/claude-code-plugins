@@ -998,7 +998,8 @@ class TestConfigLiveness(unittest.TestCase):
             )
             self.assertEqual(result["sessions_predating_settings"], 1)
             self.assertIn("have NOT picked up the change", result["advisory"])
-            self.assertIn("Restart is required", result["advisory"])
+            self.assertIn("/reload-plugins", result["advisory"])
+            self.assertIn("restart", result["advisory"])
 
     def test_no_stale_session_yields_a_consistent_advisory_not_a_warning(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1010,7 +1011,7 @@ class TestConfigLiveness(unittest.TestCase):
             ]
             result = engine.config_liveness(root, records)
             self.assertEqual(result["sessions_predating_settings"], 0)
-            self.assertNotIn("Restart is required", result["advisory"])
+            self.assertNotIn("/reload-plugins", result["advisory"])
 
     def test_the_session_heuristic_is_labelled_rather_than_asserted(self):  # identifier, not prose # spellchecker:disable-line
         with tempfile.TemporaryDirectory() as tmp:

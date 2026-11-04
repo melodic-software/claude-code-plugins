@@ -249,8 +249,8 @@ spawns. Read `fan_out` in this order:
    [settings: when edits take effect](https://code.claude.com/docs/en/settings#when-edits-take-effect)
    and [plugin loading: check which stage a plugin reached](https://code.claude.com/docs/en/plugins/loading#check-which-stage-a-plugin-reached)
    (as of 2026-11-03; recheck when either section changes when plugin enablement is applied). Reporting the disk state as the running state is how a
-   confident and wrong diagnosis gets written. The advisory says restart is required; that
-   restart is the operator's, not this skill's.
+   confident and wrong diagnosis gets written. The advisory names `/reload-plugins` or a restart;
+   either one is the operator's, not this skill's.
 5. **`fan_out.concurrency_ceilings`**. Spawn depth multiplies against the per-session concurrency
    limit, and every subagent carries the same statusline and hook fan-out as its parent, so two
    individually modest settings can license a very large population. Report effective values

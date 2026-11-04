@@ -12,4 +12,6 @@ bump: patch
 - `/harness-ops:audit-performance` and `/harness-ops:observability`: the per-hook timing records name
   the documented debug-log durations and why transcripts stay the source.
 - `audit_skill_visibility.py`: its listing-default and `enabledPlugins` records cite the sections
-  that state them.
+  that state them, and a `disable-model-invocation` spelled `yes`, `on` or `1` now counts as true.
+- `/harness-ops:audit-performance`: the stale-session advisory names `/reload-plugins` as well as a
+  restart.

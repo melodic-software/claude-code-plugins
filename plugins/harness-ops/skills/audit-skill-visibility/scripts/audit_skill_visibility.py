@@ -320,6 +320,12 @@ def _fold_lines(lines: list[str], separator: str) -> str:
     return text
 
 
+# The true spellings of a boolean frontmatter field. Pointer: for what a boolean
+# field accepts, fetch https://code.claude.com/docs/en/skills#frontmatter-reference
+# live. As of: 2026-11-04. Recheck trigger: that section changing its spellings.
+FRONTMATTER_TRUE = frozenset({"true", "yes", "on", "1"})
+
+
 def _yaml_scalar(value: str, continuation: list[str]) -> str:
     """One scalar value as YAML loads it, for the forms skill files use.
 
@@ -399,7 +405,7 @@ def parse_frontmatter(text: str) -> dict:
         "disable_model_invocation": str(
             out.get("disable-model-invocation", out.get("disable_model_invocation", ""))
         ).lower()
-        == "true",
+        in FRONTMATTER_TRUE,
         "user_invocable": out.get("user-invocable", out.get("user_invocable", "")),
     }
 
