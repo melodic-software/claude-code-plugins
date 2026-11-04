@@ -338,10 +338,10 @@ precedence over `plugin.json`.
 
 The pointers below are reading material for naming what a flagged field runs, never the test
 for whether it is flagged. Pointer: what each field loads, runs, grants, or stores is read at
-[plugin manifest reference: Fields](https://code.claude.com/docs/en/plugins-reference#fields),
-[Component path forms](https://code.claude.com/docs/en/plugins-reference#component-path-forms),
-[User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration), and
-[Channels](https://code.claude.com/docs/en/plugins-reference#channels). As of: 2026-10-21.
+[plugin manifest reference: Fields](https://code.claude.com/docs/en/plugins/manifest-reference#fields),
+[Component path forms](https://code.claude.com/docs/en/plugins/manifest-reference#component-path-forms),
+[User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration), and
+[Channels](https://code.claude.com/docs/en/plugins/manifest-reference#channels). As of: 2026-11-04.
 Recheck trigger: any of those sections changes.
 
 ## High-signal bar
