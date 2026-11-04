@@ -34,7 +34,7 @@ Make a fresh directory under the OS temp directory (`mktemp -d`), never in the w
 The output names the `action`, the `triggers` that fired, the `medium`, and the layer each value came from. The script resolves `medium` through the shared medium resolver (`lib/view-settings.mjs`): take the medium from its output, not from the rendered-views settings files. Print each line of `medium.report` as it stands: it names the medium and what decided it, then any notice. Report any `warnings` line. The keys, defaults, and layers are owned by the review-digest convention (`docs/conventions/review-digest.md` in the marketplace repository).
 
 - `skip`: stop without output.
-- `offer`: say in one sentence which triggers fired and offer the digest, naming where the page would go as `medium.where` states it. Go on only when the reader accepts.
+- `offer`: offer the digest in one sentence that names each trigger that fired and where the page would go, as `medium.where` states it, and says nothing about later steps. Go on only when the reader accepts.
 - `build`: go on.
 
 ## 2. Write the record
