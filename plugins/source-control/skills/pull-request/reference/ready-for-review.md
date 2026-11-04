@@ -188,8 +188,10 @@ conflict is work, not an error. Three rules hold however a request is worded:
    what the merge broke.
 5. **Verify and conclude.** Present the resolution table: every path from step 1, one line each,
    with its resolution (composed, PR side kept with evidence, base side kept with evidence) and
-   why. With the gates green, stage the resolved paths by name, never `git add -A`, run
-   `git merge --continue`, and push through `push-branch.sh` as above.
+   why. With the gates green, stage the resolved paths by name, never `git add -A`, and run
+   `git merge --continue`. This step pushes nothing: the caller then pushes its own way (this
+   step's local fallback through `push-branch.sh --pr` as above, create §2.4.1 through its own
+   `push-branch.sh --dir` push, a babysit conflict worker never, and the CI mode not at all).
 
 #### Plugin version-bump collisions
 
