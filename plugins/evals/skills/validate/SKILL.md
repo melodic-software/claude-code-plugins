@@ -162,7 +162,7 @@ stand-in from a subdirectory of its own directory; a stub shared between cases d
 - **Pointer**: the CLI's load refusal for a `plugins` entry outside its containment root, in the
   "Run the plugin eval" step log of
   <https://github.com/melodic-software/claude-code-plugins/actions/runs/41894661524>; its refusal
-  of a stub shared under `evals/fixtures/`, in the Fix section of
+  of a stub shared between cases, in the Fix section of
   <https://github.com/melodic-software/claude-code-plugins/pull/13376>.
 - **As of**: 2026-11-04
 - **Recheck trigger**: a Claude Code release that changes that refusal message or how the
