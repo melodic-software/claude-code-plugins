@@ -405,6 +405,19 @@ describe("planWrites", () => {
     assert.ok(result.reasons.includes("held by needs-human"), result.reasons.join("; "));
   });
 
+  // The same hold when the escalated verdict also reads Flags: none with every
+  // dimension: only the escalation guard keeps this needs-human from being refused.
+  test("needs-human on an escalated run with Flags: none and readable dimensions is not refused", () => {
+    const body = `${MARKER}\nProposed work class: none\n\nThanks for the report. Automated triage handed this issue to a maintainer.\n\nSize: Small\nComplexity: Low\nUncertainty: Known\nFlags: none\n\n${OLD_FOOTER}`;
+    const verdict = parseVerdict(body, DIMS, CLASSES);
+    assert.equal(verdict.escalated, true);
+    assert.deepEqual(verdict.flags, []);
+    assert.notEqual(verdict.dimensions, null);
+    const result = plan(body, { labels: ["needs-human"], holdSetters: { "needs-human": ACTIONS_BOT }, triageLabels: ["needs-human"] });
+    assert.deepEqual(result.refused, []);
+    assert.ok(!result.remove.includes("needs-human"), result.remove.join(", "));
+  });
+
   // Run 41064812826 (#9953) also applied status: needs-decision with no flag.
   // Owner's standing direction §2: only a flag (intent, security, cost) stops
   // for a person, so this run's flagless needs-decision gives way like needs-human.
