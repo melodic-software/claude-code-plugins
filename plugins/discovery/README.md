@@ -159,6 +159,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `explore_output` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_EXPLORE_OUTPUT` | Reply shape of /discovery:explore. auto (default): explain when a person asks how something works, else change-prep, including calls from other skills. change-prep: the handoff summary. explain: a walkthrough citing path:line. EXPLORE.md is unchanged. docs/conventions/discovery.yaml overrides this. |
+| `medium` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_MEDIUM` | Where the /discovery:blindspot view goes. auto (default): a local file. terminal: no page; file: a local file; artifact: a private Artifact; hosted = artifact. A terminal or file value in any rendered-views setting wins over this option. |
 
 ### How to set these
 

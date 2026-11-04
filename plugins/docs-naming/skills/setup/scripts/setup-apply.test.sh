@@ -150,8 +150,8 @@ assert_eq "a malformed existing layer exits 2" "2" "$(
 )"
 assert_eq "a malformed existing layer is left as it was" "{broken" "$(cat "$(target "$root")")"
 
-# 11b. A team layer still at the retired docs-hygiene name is migrated, never
-#      shadowed by a fresh docs-naming.yaml.
+# 11b. A team file still at the retired docs-hygiene name, which the resolver no
+#      longer reads, seeds a fresh docs-naming.yaml.
 root="$(new_repo)"
 mkdir -p "$root/.claude"
 printf '{"schema": 1, "file_names": {"rule": "lower-kebab", "regex": "^retired$"}}\n' >"$root/.claude/docs-hygiene.json"
@@ -160,8 +160,8 @@ assert_contains "the retired-name migration names the file it read" "$out" "migr
 assert_eq "the retired-name regex carried over" "^retired$" "$(doc "$root" | jq -r '.file_names.regex')"
 assert_eq "the retired-name file is left alone" "^retired$" "$(jq -r '.file_names.regex' "$root/.claude/docs-hygiene.json")"
 
-# 11c. The pre-YAML JSON team layer is migrated, not shadowed: the first write
-#      seeds the YAML from it and leaves the JSON where it was.
+# 11c. The old JSON team file, which the resolver no longer reads, is migrated:
+#      the first write seeds the YAML from it and leaves the JSON where it was.
 root="$(new_repo)"
 mkdir -p "$root/.claude"
 printf '{"schema": 1, "_comment": "why we differ", "file_names": {"rule": "lower-kebab", "regex": "^old$", "roots": ["docs", "guide"]}}\n' >"$root/.claude/docs-naming.json"

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "manifest userConfig.medium: flag, the diff edits lib/view-settings.mjs so hosted publishes with no visibility check\n\nseverity: IMPORTANT",
+      "why": "flags the key"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "manifest userConfig.medium: pass, advisory, resolved through lib/view-settings.mjs\n\ncritical-findings: 0",
+      "why": "treats a medium whose resolver the diff changed as advisory"
+    }
+  ]
+}

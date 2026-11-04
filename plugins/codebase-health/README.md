@@ -46,10 +46,14 @@ every doc/config/source file.
 
 In an interactive session with the `visualization` plugin installed, the audit ends its report with
 an offer to render it through `/visualization:visualize`, and never builds a page itself.
-`--medium <value>`, or the `medium` key of `.claude/rendered-views.md`, governs the offer:
-`terminal` drops it, and `file` keeps the view local. An `artifact` or `hosted` value from the
-repository's tracked `.claude/rendered-views.md` also keeps the view local, since a checked-out
-branch can write that file.
+The shared medium resolver (`lib/view-settings.mjs`, lane `codebase-health:audit`) decides the
+offer from `--medium <value>`, the plugin's `medium` option and the `rendered-views` settings under
+`docs/conventions/`. The audit prints the resolver's report line, `view: <medium> (<what decided
+it>)`, and any notice. A `terminal` result drops the offer. The tracked team file,
+`docs/conventions/rendered-views.yaml`, never publishes the view. The retired
+`~/.claude/rendered-views.md` and `.claude/rendered-views*.md` files each get a notice naming the
+new home; a `terminal` or `file` value in one still keeps the view local when no other setting
+decides, and a publishing value there is ignored.
 
 ## Configurable audit dimensions
 
@@ -93,10 +97,90 @@ verified non-issue. Nothing project-specific is baked into the plugin.
 
 ## Configuration
 
-No `userConfig`. Audit targets flow through the tracked `.claude/codebase-health.md` config seam
-above (written by `/codebase-health:setup apply`). No hooks, no MCP servers, no bundled scripts, no network
+One `userConfig` option, `medium`: your own default for the rendered-view offer (default `auto`),
+read by the shared medium resolver above. Audit targets flow through the tracked
+`.claude/codebase-health.md` config seam above (written by `/codebase-health:setup apply`). No
+hooks, no MCP servers, no bundled scripts beyond the shared `lib/` copies (medium resolver, prerequisites check), no network
 calls of its own (Phase 2 may use whatever documentation-research tools your setup provides). State:
 the audit reads and writes only the consumer's own files under the scope you give it.
+
+<!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+
+### Options reference
+
+Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
+will prompt for when the plugin is enabled, with the environment variable each hook
+reads it from.
+
+| Option | Type | Default | Environment variable | Description |
+| --- | --- | --- | --- | --- |
+| `medium` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_MEDIUM` | Where the audit's optional rendered view goes, read by the shared medium resolver. auto (default): the view is offered and visualization:visualize picks the medium; terminal: no offer; file: local, never published; artifact or hosted: passed to visualization:visualize. |
+
+### How to set these
+
+Three supported routes:
+
+1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
+   `/plugin configure codebase-health@<marketplace>`.
+2. **Headless.** Save the values with [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
+   run from the project the plugin is installed in. Replace
+   `<marketplace>` with the marketplace you installed this plugin from:
+
+   ```shell
+   claude plugin configure codebase-health@<marketplace> --values-stdin < values.json
+   ```
+
+   `values.json` holds a JSON object of strings, booleans included:
+
+   ```json
+   {"medium": "<value>"}
+   ```
+
+   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
+   limits: the Claude Code version it needs, which install it finds, how it rejects a bad
+   value, and why a session started before the change keeps the old value until a fresh
+   session starts. Do **not** `claude plugin uninstall` to reconfigure: see
+   [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+
+   The fallback the convention names, for a Claude Code release without
+   `plugin configure`, reruns the install with the new value, passing the scope
+   `claude plugin list` reports for this plugin:
+
+   ```shell
+   claude plugin install codebase-health@<marketplace> -s <scope> --config medium=<value>
+   ```
+
+3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
+   settings (`~/.claude/settings.json`):
+
+   ```json
+   {
+     "pluginConfigs": {
+       "codebase-health@<marketplace>": {
+         "options": {
+           "medium": <value>
+         }
+       }
+     }
+   }
+   ```
+
+   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
+   entry names the settings scopes Claude Code reads this key from.
+
+Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
+of the routes above.
+
+### Upstream documentation
+
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure): the `--values-stdin` flag's reference entry
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
+
+<!-- END GENERATED: plugin options -->
 
 ## License
 

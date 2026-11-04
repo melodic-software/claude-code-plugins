@@ -25,12 +25,15 @@
 // record and a compare per FAIL and a download per untied FAIL: on 2026-10-31,
 // 458 FAILs were 1,252 reads, and every read was killed at
 // VERIFY_CAP_TIMEOUT_MS with its calls spent and no answer. The
-// reads pr-merge carried answer them with no request: its listing
-// (listing-carry.mjs), run cache (carry-run-cache.mjs) and head-ref map
-// (head-ref-map.mjs), used as its gate uses them, only where they count a FAIL.
-// They are fetched on the first read only, so a run that skips before any read
-// spends none of their calls, and the run cache keeps what each read adds for
-// the next.
+// reads pr-merge carried answer them with no request: its run cache
+// (carry-run-cache.mjs) and head-ref map (head-ref-map.mjs), used as its gate
+// uses them, only where they count a FAIL. They are fetched on the first read
+// only, so a run that skips before any read spends none of their calls, and
+// the run cache keeps what each read adds for the next. pr-merge's artifact
+// listing is not fetched: the reader reads the FAIL index by exact name
+// (babysit_verify_evidence.py `index_mode`), so no gate saves a listing to
+// carry, and looking for one cost one run listing and ten runs' artifact
+// listings a job.
 //
 // A count miss on the carried listing takes the reader's waits, about 45 s a
 // read, and a read that ends in DEADLINE_UNREADABLE saves no listing, so the
@@ -119,7 +122,7 @@ export const CARRY_TIMEOUT_MS = 2 * 60_000;
 export function carrySteps(env) {
   const shared = { PR_MERGE_READS_PATH: `${env.RUNNER_TEMP}/verify-carry-reads.json` };
   const carriedFile = `${env.RUNNER_TEMP}/pr-merge-carried.json`;
-  const steps = [{ script: "listing-carry.mjs", args: [], env: { ...shared, API_BUDGET_SCRIPT: "listing-carry" } }];
+  const steps = [];
   if (env.BABYSIT_RUN_CACHE) {
     steps.push(
       { script: "carry-run-cache.mjs", args: ["read"], env: { ...shared, API_BUDGET_SCRIPT: "carry-run-cache", CARRY_TO: carriedFile } },
@@ -191,7 +194,8 @@ function stderrSummary(stderr) {
 // merge.max-verify-fails (the lower of that commit's and main's).
 // `expected`: refusals the round is sent for, which warn nothing.
 // `carry`: fetches what pr-merge carried, before the first read only, when the
-// job names BABYSIT_VERIFY_LISTING_CARRY; a failed fetch is no carry.
+// job names BABYSIT_RUN_CACHE or BABYSIT_VERIFY_HEAD_REFS (`carrySteps`); a
+// failed fetch is no carry.
 export function verifyCapReader(env, options) {
   const read = verifyReader(env, options);
   return async (request) => (await read(request)).cap;
@@ -216,7 +220,7 @@ export function verifyReader(env, { spawn = spawnAsync, log = (line) => console.
   let carried = null;
   let deadlineMissed = false;
   return async ({ number, head, base, expected = [] }) => {
-    if (env.BABYSIT_VERIFY_LISTING_CARRY) {
+    if (carrySteps(env).length > 0) {
       carried ??= Promise.resolve()
         .then(() => carry(env))
         .catch((error) => log(`::warning::pr-merge's carried reads were not all fetched (${oneLine(error?.message ?? error)}); the reader asks GitHub for the rest`));

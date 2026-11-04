@@ -3,6 +3,16 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.1.0] - 2026-11-04
+
+### Added
+
+- `evals/revert-cases.sh` for a revert eval set on `/review:code-review` (#12939). `list` prints each revert pair in git history (original pull request, revert) and the pair count. `build` writes a `revert-<pr>-<slug>` case that grades whether the review posts a finding on a line the revert removed. `report` reads a run's `aggregate-result.json` and prints caught or missed per case and a total that is marked indicative below 5 cases. No CI job runs these cases.
+
+### Changed
+
+- `/review:explain-change`: the `offer` reply is one sentence that names each trigger that fired and where the page would go, and says nothing about later steps such as the merge-risk rating ([#13020](https://github.com/melodic-software/claude-code-plugins/issues/13020)).
+
 ## [7.0.0] - 2026-11-04
 
 ### Added

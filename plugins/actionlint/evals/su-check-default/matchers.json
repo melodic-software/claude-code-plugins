@@ -39,5 +39,40 @@
         "row": "\\b[Nn]ode(?:\\.js)?(?![\\w.\\-/])"
       }
     }
+  ],
+  "covers-check-steps": [
+    {
+      "use": "table_header_rule"
+    },
+    {
+      "use": "table_verdict_cell",
+      "with": {
+        "row": "\\b(?:Bash|bash)\\b"
+      }
+    },
+    {
+      "use": "table_verdict_cell",
+      "with": {
+        "row": "(?:actionlint\\.ya?ml|\\b(?:Config|config)\\b)"
+      }
+    },
+    {
+      "use": "table_verdict_cell",
+      "with": {
+        "row": "(?:actionlint_enabled|\\b(?:Toggles?|toggles?)\\b)"
+      }
+    },
+    {
+      "use": "table_verdict_cell",
+      "with": {
+        "row": "\\b(?:Registration|registration|Registered|registered|Plugin enabled|plugin enabled)\\b"
+      }
+    },
+    {
+      "use": "table_verdict_cell",
+      "with": {
+        "row": "(?:\\b(?:Pre-commit|pre-commit|Git hook|git hook)|git-hooks?\\b|install\\.mjs)"
+      }
+    }
   ]
 }

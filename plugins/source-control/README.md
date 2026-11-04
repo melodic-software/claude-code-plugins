@@ -31,7 +31,7 @@ merge-conflict resolution.
 ### `/source-control:commit`
 
 Builds a commit the safe way: drafts a subject matching the resolved
-convention, the layered `source-control.md` config (written by
+convention, the layered source-control config (written by
 `/source-control:setup`) → the consuming project's own
 `CLAUDE.md`/rules/commit-msg hook → Conventional Commits (11-type vocabulary)
 as the default. Pre-checks it against the
@@ -372,9 +372,9 @@ them ([hooks: WorktreeRemove](https://code.claude.com/docs/en/hooks#worktreeremo
   provides them and replaced by inline guidance when absent. No phase blocks
   on a missing tool.
 - **Reads your conventions, assumes none.** Commit-subject / PR-title
-  convention resolves from the `source-control.md` config (written by
+  convention resolves from the layered source-control config (written by
   `/source-control:setup`) first, a `~/.claude` user-global file, the tracked
-  team file, and a gitignored `.claude/source-control.local.md` personal
+  team file `docs/conventions/source-control.yaml`, and a gitignored `.claude/source-control.local.md` personal
   overlay, merged per key, then the consuming project's own
   `CLAUDE.md`, rules, and hooks; branch naming, PR template, merge style, and
   bot-identity wrappers also come from the project's own `CLAUDE.md` and
@@ -383,6 +383,8 @@ them ([hooks: WorktreeRemove](https://code.claude.com/docs/en/hooks#worktreeremo
 
 ## Requirements
 
+- **shfmt v3.14.1 or later**, which the PR-linkage and worktree gates read commands through.
+  Without it the gates deny the commands they read, naming the cause.
 - **Node.js** on `PATH`. Every hook row launches through `node hooks/exec-bash.mjs`, and Claude
   Code's native binary neither ships nor uses Node
   ([setup](https://code.claude.com/docs/en/setup), fetched 2026-09-29; recheck when the setup page
@@ -444,14 +446,14 @@ repo's owner.
 | `worktree_stale_days` | number | 14 (staleness threshold for `/source-control:worktree status`) |
 | `worktree_reap_after_hours` | number | 48 (last-commit age past which `/source-control:worktree cleanup` proposes a safe worktree by default) |
 | `fetch_logs_max_bytes` | number | 52428800 (CI-log ZIP size cap for `fetch-logs`) |
-| `branch_issue_pattern` | string | deprecated fallback: set the `branch_issue_pattern` key on the layered `.claude/source-control.md` surface instead, which wins when present. Absent in both: the built-in `<type>/<N>-<slug>` (and `routine-issue-<N>`) branch-to-issue grammar; set an ERE (last capture group = the numeric GitHub issue number) for a scheme that places the number differently, e.g. `^[^/]+/([0-9]+)-` (`alice/1234-slug`) or `-([0-9]+)$` (`feat/add-widget-1234`) |
+| `branch_issue_pattern` | string | deprecated fallback: set the `branch_issue_pattern` key in `docs/conventions/source-control.yaml` or another layer of the source-control config instead, which wins when present. Absent in both: the built-in `<type>/<N>-<slug>` (and `routine-issue-<N>`) branch-to-issue grammar; set an ERE (last capture group = the numeric GitHub issue number) for a scheme that places the number differently, e.g. `^[^/]+/([0-9]+)-` (`alice/1234-slug`) or `-([0-9]+)$` (`feat/add-widget-1234`) |
 | `setup_inference_window` | string | `1 year` (`git log --since` window for `/source-control:setup`'s commit-history convention inference; any git-approxidate) |
 | `setup_inference_recency_days` | number | 90 (recent-vs-older split boundary in the inference report) |
 | `setup_inference_min_commits` | number | 50 (below this many classifiable subjects, inference widens to full history and reports low confidence) |
 
 The commit-subject / PR-title convention is separate: run
 **`/source-control:setup`** to interview your repo and write the
-`source-control.md` config. Idempotent and safe to re-run. `apply layer=team`
+source-control config. Idempotent and safe to re-run. `apply layer=team`
 appends the recursive `.claude/**/*.local.*` line to your `.gitignore` when it is missing, so the
 personal overlay layer stays out of version control; `layer=local` never edits `.gitignore` and
 fails with a recommendation when the overlay is exposed.
@@ -547,7 +549,7 @@ opaque id if a machine name should not be published in a public tracker.
 **`promotion_evidence_binding`, `promotion_evidence_root`, `promotion_evidence_source`,
 `promotion_evidence_checker`.** The resolution helper reads each from user or managed plugin
 settings only, never from `--settings`, the `CLAUDE_PLUGIN_OPTION_*` mirror,
-`.claude/source-control.md`, or any repository file. Contract:
+or any repository file. Contract:
 [promotion-evidence-bootstrap.md](skills/babysit-loop/reference/promotion-evidence-bootstrap.md).
 The binding is the binding argument of the autonomy plugin's `check-security-binding.mjs`. The
 probe root is the protected evidence surface the seam resolves isolation probe transcripts against.
@@ -573,7 +575,7 @@ reads it from.
 | --- | --- | --- | --- | --- |
 | `pr_body_linkage_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PR_BODY_LINKAGE_GATE_ENABLED` | Blocks a gh pr create or gh pr edit whose statically readable PR body carries a negated closing reference (does not close #N), which GitHub still closes on merge. A missing closing line or section is advisory and passes. On by default. A body the hook cannot read statically always passes. |
 | `pr_linkage_mcp_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PR_LINKAGE_MCP_GATE_ENABLED` | Blocks a GitHub MCP create_pull_request or update_pull_request whose PR body carries a negated closing reference, covering sessions that open PRs without the gh CLI. On by default. Enforced only for the repository the origin remote names. |
-| `branch_issue_pattern` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BRANCH_ISSUE_PATTERN` | Deprecated fallback: set branch_issue_pattern in .claude/source-control.md instead, which wins. A POSIX ERE whose last capture group extracts the numeric GitHub issue number from the branch name. Absent: the built-in <type>/<N>-<slug> (and routine-issue-<N>) convention. |
+| `branch_issue_pattern` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BRANCH_ISSUE_PATTERN` | Deprecated fallback: set branch_issue_pattern in docs/conventions/source-control.yaml instead, which wins. A POSIX ERE whose last capture group extracts the numeric GitHub issue number from the branch name. Absent: the built-in <type>/<N>-<slug> (and routine-issue-<N>) convention. |
 | `pr_open_state` | string | `"ready"` | `CLAUDE_PLUGIN_OPTION_PR_OPEN_STATE` | State /source-control:pull-request create leaves a PR in. ready (default) runs the ready action's gates and flips it; draft leaves it for ready to flip later. A repository's pr_open_state in docs/conventions/source-control.yaml wins over this value; a request for a draft wins over both. |
 | `fetch_logs_max_bytes` | number<br>*min 1* | `52428800` | `CLAUDE_PLUGIN_OPTION_FETCH_LOGS_MAX_BYTES` | Aborts a CI-log ZIP fetch larger than this many bytes. Default 52428800 (50 MiB). |
 | `worktree_root` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT` | External root under which /worktree create places worktrees, as <root>/<owner>-<repo>-<slug>, a path outside every repository (on Windows, the same drive as the repo). Absent: the worktrees/ subdirectory of the plugin data dir. Never the in-repo .claude/worktrees/ default. |

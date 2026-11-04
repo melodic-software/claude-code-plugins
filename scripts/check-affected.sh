@@ -61,6 +61,10 @@
 #                          of each regex body in the guardrails plugin's
 #                          machine-path-patterns.sh, on the changed files
 #   - spoke-plugin-root:   scripts/check-spoke-plugin-root.sh --check
+#   - cross-plugin-source-drift: scripts/check-cross-plugin-source-drift.sh
+#                          --check, when a plugins/ file, that script or its
+#                          registry scripts/cross-plugin-source-registry.txt
+#                          changed
 #   - plugin-options-docs: python3 scripts/sync-plugin-options-docs.py --check
 #   - changelog-parity:    scripts/check-changelog-parity.sh in the --check,
 #                          --check-bump, --check-preserved and --check-order
@@ -359,6 +363,7 @@ fi
 
 declare -a md=() sh=() py=() shebang=() plugins=()
 skill_touched=0
+drift_touched=0
 for f in ${changed[@]+"${changed[@]}"}; do
   case "$f" in
   *.md) md+=("$f") ;;
@@ -375,7 +380,9 @@ while IFS= read -r f; do
     p="${p%%/*}"
     [[ -d "plugins/$p" && " ${plugins[*]-} " != *" $p "* ]] && plugins+=("$p")
     [[ "$f" == plugins/*/skills/* ]] && skill_touched=1
+    drift_touched=1
     ;;
+  scripts/cross-plugin-source-registry.txt | scripts/check-cross-plugin-source-drift.sh) drift_touched=1 ;;
   *) ;;
   esac
 done <<<"$all_raw"
@@ -652,6 +659,16 @@ fi
 
 run_check spoke-plugin-root "scripts/check-spoke-plugin-root.sh --check" \
   "$tools/scripts/check-spoke-plugin-root.sh" --check
+
+# A file added to, changed in or removed from a plugin can make a cluster of
+# byte-identical copies across plugins that the registry does not list, or
+# leave a listed one drifted or stale.
+if ((drift_touched)); then
+  run_check cross-plugin-source-drift "scripts/check-cross-plugin-source-drift.sh --check" \
+    "$tools/scripts/check-cross-plugin-source-drift.sh" --check
+else
+  skip cross-plugin-source-drift "no plugin file, drift script or registry changed"
+fi
 
 # The generator writes the READMEs, so a copy's older generator fails a branch
 # that changes it and regenerates them.

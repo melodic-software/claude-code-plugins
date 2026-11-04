@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Contract test for CHECK_DATA_ROOT in the spoke-plugin-root, plugin-options-docs
-# and changelog-parity checks: each reads the tree the variable names, not the
-# one holding the script. scripts/check-affected.sh relies on it when the
-# pre-push hook runs a merge-base copy of the scripts against a branch.
+# Contract test for CHECK_DATA_ROOT in the spoke-plugin-root, plugin-options-docs,
+# changelog-parity and cross-plugin-source-drift checks: each reads the tree the
+# variable names, not the one holding the script. scripts/check-affected.sh relies
+# on it when the pre-push hook runs a merge-base copy of the scripts against a branch.
 #
 #   bash scripts/check-data-root.test.sh
 #
 # Each case runs the real script against a fixture tree. This repository's own
-# tree passes all three checks, so a script that ignored the variable would exit
+# tree passes all four checks, so a script that ignored the variable would exit
 # 0 on the failing fixture.
 # shellcheck disable=SC2016
 set -uo pipefail
@@ -80,5 +80,21 @@ check "changelog-parity passes a clean tree CHECK_DATA_ROOT names" '[[ $RC == 0 
 RC=0
 OUT="$(cd "$tmp" && CHECK_DATA_ROOT="$parity_bad" CHANGELOG_PARITY_ROOT="$parity_ok" bash "$SELF_DIR/check-changelog-parity.sh" --check 2>&1)" || RC=$?
 check "changelog-parity still prefers CHANGELOG_PARITY_ROOT when both are set" '[[ $RC == 0 ]]'
+
+# check-cross-plugin-source-drift.sh
+drift_bad="$tmp/drift-bad"
+drift_ok="$tmp/drift-ok"
+for root in "$drift_bad" "$drift_ok"; do
+  mkdir -p "$root/plugins/a/reference" "$root/plugins/b/reference" "$root/scripts"
+  printf 'same\n' >"$root/plugins/a/reference/shared.md"
+  printf 'same\n' >"$root/plugins/b/reference/shared.md"
+done
+printf '# no entries\n' >"$drift_bad/scripts/cross-plugin-source-registry.txt"
+printf 'reference/shared.md\n' >"$drift_ok/scripts/cross-plugin-source-registry.txt"
+run_in "$drift_bad" bash "$SELF_DIR/check-cross-plugin-source-drift.sh" --check
+check "cross-plugin-source-drift reads the tree CHECK_DATA_ROOT names" \
+  '[[ $RC == 1 && $OUT == *"UNREGISTERED: reference/shared.md"* ]]'
+run_in "$drift_ok" bash "$SELF_DIR/check-cross-plugin-source-drift.sh" --check
+check "cross-plugin-source-drift passes a clean tree CHECK_DATA_ROOT names" '[[ $RC == 0 ]]'
 
 test_harness::report

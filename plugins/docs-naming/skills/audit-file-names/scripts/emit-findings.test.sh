@@ -70,7 +70,7 @@ assert_eq "the type is not review-findings" "0" "$(printf '%s\n' "$plan" | grep 
 assert_eq "one record per offender" "3" "$(printf '%s\n' "$plan" | grep -c '^### FN-')"
 assert_contains "the branch is recorded" "$plan" "branch: "
 assert_contains "the head is recorded for the evidence trail" "$plan" "head: "
-assert_contains "the scanned count is carried over" "$plan" "files_scanned: 8"
+assert_contains "the scanned count is carried over" "$plan" "files_scanned: 9"
 assert_contains "a collision count is stated even when zero" "$plan" "collisions: 0"
 
 assert_contains "each record opens pending" "$plan" "- **Status:** pending"

@@ -38,6 +38,15 @@ source "$HOOK_DIR/block-root-delete-target-fixtures.sh"
 expect_both 'rm -rf "\\" blocks' 2 --command 'rm -rf "\\"'
 expect_both 'rm -rf \\ blocks' 2 --command 'rm -rf \\'
 expect_both 'rm -rf / blocks' 2 --command 'rm -rf /'
+# A shell's here-doc script is found by counting openers in callback order; an
+# earlier opener inside a later-called statement must not shift that count.
+expect_both 'a shell here-doc after a substitution here-doc blocks' 2 --command $'X=$(true <<A\nx\nA\n) bash <<A\nrm -rf /\nA'
+expect_both 'a shell here-doc after a body-nested here-doc blocks' 2 --command $'cat <<E\n$(cat <<F\nf\nF\n)\nE\nbash <<G\nrm -rf /\nG'
+expect_both 'a shell here-doc beside a redirect-only one and a joined body blocks' 2 --command $'<<A\nz\nA\nbash <<A\nrm -rf /\nA\ncat <<A\nx\\\ny\nA'
+expect_both 'a shell here-doc beside a redirect-only one and a pattern here-doc blocks' 2 --command $'<<A\nz\nA\nbash <<A\nrm -rf /\nA\necho @(cat <<B\nb\nB\n)'
+# Every body is read as the shell's script; a harmless pair stays allowed.
+expect_both 'a shell here-doc inside a command-start !(…) blocks' 2 --command $'!(bash <<A\nrm -rf /\nA\n)'
+expect_both 'a shell here-doc beside a harmless one is allowed' 0 --command $'cat <<A\ndocs\nA\nbash <<B\necho hi\nB'
 expect_both 'rm -rf /* blocks' 2 --command 'rm -rf /*'
 expect_both 'rm -rf "//" blocks' 2 --command 'rm -rf "//"'
 

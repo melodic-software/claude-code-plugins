@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "manifest userConfig.formatter: flag, reaches the hook command\n\nseverity: IMPORTANT",
+      "why": "a flag, not a pass"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "manifest userConfig.formatter: pass, advisory, picks a formatter",
+      "why": "an advisory pass on a key that reaches a hook"
+    }
+  ]
+}

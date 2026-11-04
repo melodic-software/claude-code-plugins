@@ -265,6 +265,40 @@ to_slashes_to() {
   printf -v "$1" '%s' "${2//\\//}"
 }
 
+# Splits $2 on newlines into the array named $1, with globbing off, and drops
+# empty lines. Word splitting a string already in memory reads nothing, where a
+# `while read` over a here-string reads it back one byte per call on Git Bash.
+split_lines_to() {
+  local -n __sl_out="$1"
+  local -
+  set -f
+  local IFS=$'\n'
+  # shellcheck disable=SC2206  # splitting on newline with globbing off is the point
+  __sl_out=($2)
+}
+
+# Reads the NUL-separated records in $SPOOL into the array named $1, dropping
+# empty records. A Cygwin or MSYS2 bash, Git Bash included, has `mapfile` and
+# `read` take one byte per read call from any descriptor, while command
+# substitution reads its pipe in blocks: one 2.3 MB `ls-tree -z` stream took
+# about 2.5 s through `mapfile -d ''` and under 0.1 s through `$(tr …)`.
+# Command substitution cannot hold a NUL, so `tr` turns each NUL into a newline
+# and each newline into SOH (0x01). A path can hold either of those bytes, so
+# when SOH shows up in the capture, which happens only for a path carrying a
+# newline or an SOH, the records are read with `mapfile -d ''` instead. The
+# test file's space/tab/glob and newline/SOH path cases cover one branch each.
+spool_records_to() {
+  local __sr_text
+  # Byte-wise: a BSD `tr` in a UTF-8 locale stops at an invalid byte sequence.
+  local -x LC_ALL=C
+  __sr_text=$(tr '\n\0' '\001\n' <"$SPOOL")
+  if [[ "$__sr_text" == *$'\x01'* ]]; then
+    mapfile -d '' -t "$1" <"$SPOOL"
+  else
+    split_lines_to "$1" "$__sr_text"
+  fi
+}
+
 INSTALLED_JSON="${CACHE_CONTENT_INSTALLED_JSON:-${FLEET_STATE_INSTALLED_JSON:-$HOME/.claude/plugins/installed_plugins.json}}"
 MARKETPLACES_JSON="${CACHE_CONTENT_MARKETPLACES_JSON:-${FLEET_STATE_MARKETPLACES_JSON:-$HOME/.claude/plugins/known_marketplaces.json}}"
 
@@ -388,11 +422,10 @@ if ! command -v git >/dev/null 2>&1; then
   exit 2
 fi
 
-# Every NUL-separated git and find stream is written here and read back with
-# `mapfile`, never read from a pipe: bash reads a pipe one byte per read call,
-# because it cannot seek back over what it read past the delimiter. A file it
-# reads in blocks, except a Cygwin or MSYS2 bash, which reads one byte per call
-# from any descriptor. One file, reused by each step in turn, removed on exit.
+# Every NUL-separated git and find stream is written here and read back by
+# `spool_records_to`, which keeps the producer's exit status apart from the read
+# and lets a record holding a newline be read again with `mapfile -d ''`. One
+# file, reused by each step in turn, removed on exit.
 SPOOL=$(mktemp 2>/dev/null) || {
   echo "ERROR: could not create a temporary file (mktemp)" >&2
   exit 2
@@ -488,13 +521,15 @@ check_marketplace() {
   # cached so a marketplace whose records share a sha pays for it once. Only
   # entries whose source is a plain path string are kept: an object source names
   # a remote checkout with no local tree here, and is left out so the lookup
-  # miss becomes an honest `no-source` verdict.
-  local -A source_map_by_sha=() source_map_loaded=()
+  # miss becomes an honest `no-source` verdict. Each entry is stored under
+  # "<sha><US><name>", so a record's lookup is one map read rather than a scan
+  # of every entry. When a name is listed twice, its first entry wins.
+  local -A source_by_sha_name=() source_map_loaded=()
   load_source_map() {
-    local s="$1" raw="" parsed=""
+    local s="$1" raw="" parsed="" entry entry_key
+    local -a entries=()
     [[ -z "${source_map_loaded[$s]+set}" ]] || return 0
     source_map_loaded["$s"]=1
-    source_map_by_sha["$s"]=""
     git_to raw -C "$install_loc_native" show "$s:.claude-plugin/marketplace.json" 2>/dev/null || return 0
     jq_to parsed -r '
       (.plugins // [])
@@ -502,7 +537,15 @@ check_marketplace() {
       | map([.name, .source] | join("\u001f")) # delimiter is US (0x1f), as in fleet-state.sh
       | .[]
     ' <<<"$raw" 2>/dev/null || parsed=""
-    source_map_by_sha["$s"]="$parsed"
+    split_lines_to entries "$parsed"
+    for entry in ${entries+"${entries[@]}"}; do
+      # A line with no US is the tail of a name or source that held a newline:
+      # the whole line is a name with an empty source, so it reads `no-source`.
+      [[ "$entry" == *$'\x1f'* ]] || entry+=$'\x1f'
+      entry_key="$s"$'\x1f'"${entry%%$'\x1f'*}"
+      [[ -n "${source_by_sha_name[$entry_key]+set}" ]] ||
+        source_by_sha_name["$entry_key"]="${entry#*$'\x1f'}"
+    done
   }
 
   # --- Pass 0: this marketplace's records, and the verdicts that need no git --
@@ -595,18 +638,12 @@ check_marketplace() {
   # checkout spells it. A plugin renamed or moved after that commit would
   # otherwise be looked up under a path the older tree does not contain, and a
   # pathspec matching nothing is success-with-empty-output, not an error.
-  local plugin_name sm_name sm_source src_dir
+  local name_key src_dir
   for ((k = 0; k < n; k++)); do
     [[ -z "${i_verdict[k]}" ]] || continue
     load_source_map "${i_sha[k]}"
-    plugin_name="${i_id[k]%@*}"
-    src_dir=""
-    while IFS=$'\x1f' read -r sm_name sm_source; do
-      if [[ "$sm_name" == "$plugin_name" ]]; then
-        src_dir="$sm_source"
-        break
-      fi
-    done <<<"${source_map_by_sha[${i_sha[k]}]}"
+    name_key="${i_sha[k]}"$'\x1f'"${i_id[k]%@*}"
+    src_dir="${source_by_sha_name[$name_key]-}"
     # marketplace.json spells a local source relative to the clone root and
     # commonly with a leading `./`, which ls-tree's pathspec does not want.
     src_dir="${src_dir#./}"
@@ -663,11 +700,11 @@ check_marketplace() {
     local -a tree_recs=()
     tree_rc=0
     git -C "$install_loc_native" ls-tree -r -z "$s" -- "${specs[@]}" >"$SPOOL" 2>/dev/null || tree_rc=$?
-    mapfile -d '' -t tree_recs <"$SPOOL"
     if [[ "$tree_rc" != "0" ]]; then
       tree_rc_bad["$s"]=1
       continue
     fi
+    spool_records_to tree_recs
     for rec in ${tree_recs+"${tree_recs[@]}"}; do
       [[ -n "$rec" ]] || continue
       meta="${rec%%$'\t'*}"
@@ -788,7 +825,7 @@ check_marketplace() {
         walk_cache_roots "${chunk[@]}"
       fi
     } | sort -z >"$SPOOL"
-    mapfile -d '' -t cache_full <"$SPOOL"
+    spool_records_to cache_full
   fi
 
   # Each file's path relative to its own install root is derived HERE, once.
@@ -900,14 +937,15 @@ check_marketplace() {
   local hi=0
   if [[ ${#b_full[@]} -gt 0 ]]; then
     local batch_in="" hash_out="" line
+    local -a hash_lines=()
     printf -v batch_in '%s\n' "${b_full[@]}"
     if git_to hash_out -C "$install_loc_native" hash-object --stdin-paths <<<"${batch_in%$'\n'}"; then
-      while IFS= read -r line; do
-        [[ -n "$line" ]] || continue
+      split_lines_to hash_lines "$hash_out"
+      for line in ${hash_lines+"${hash_lines[@]}"}; do
         [[ $hi -lt ${#b_full[@]} ]] || break
         cache_hash["${b_owner[hi]}"$'\x1f'"${b_rel[hi]}"]="$line"
         hi=$((hi + 1))
-      done <<<"$hash_out"
+      done
     fi
     for ((k = 0; k < n; k++)); do
       [[ -z "${i_verdict[k]}" ]] || continue
@@ -934,14 +972,13 @@ check_marketplace() {
   local -A ignored=()
   if [[ ${#extra_probe[@]} -gt 0 ]]; then
     local -a ignored_recs=()
-    # `-z` on both sides, and read as NUL records rather than through command
-    # substitution, for the same reason ls-tree is: a quoted pathname would not
-    # match the raw path it came from. check-ignore exits 1 when NOTHING
-    # matched, which is a valid answer, so its status is deliberately not read
-    # as a failure.
+    # `-z` on both sides, and read as NUL records, for the same reason ls-tree
+    # is: a quoted pathname would not match the raw path it came from.
+    # check-ignore exits 1 when NOTHING matched, which is a valid answer, so its
+    # status is deliberately not read as a failure.
     printf '%s\0' "${extra_probe[@]}" |
       git -C "$install_loc_native" check-ignore -z --no-index --stdin >"$SPOOL" 2>/dev/null
-    mapfile -d '' -t ignored_recs <"$SPOOL"
+    spool_records_to ignored_recs
     for line in ${ignored_recs+"${ignored_recs[@]}"}; do
       [[ -n "$line" ]] || continue
       ignored["$line"]=1

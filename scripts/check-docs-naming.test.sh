@@ -278,17 +278,6 @@ if ! command -v jq >/dev/null 2>&1; then
   fail "template drift: jq is required to emit the template gate, so the drift cases cannot run"
 fi
 
-# 11-pre. The YAML carries every value of the JSON file it replaces. The JSON stays
-#     until the cleanup slice deletes it, and until then the two may not diverge.
-OLD_CONFIG="$SCRIPT_DIR/../.claude/docs-naming.json"
-if [[ -n "$drift_ready" && -f "$OLD_CONFIG" ]]; then
-  if [[ "$(jq -S -c '.file_names' "$REPO_CONFIG")" == "$(jq -S -c '.file_names' "$OLD_CONFIG")" ]]; then
-    ok "docs/conventions/docs-naming.yaml carries every value of the pre-YAML JSON file"
-  else
-    fail "docs/conventions/docs-naming.yaml differs from the pre-YAML JSON file: $(diff <(jq -S '.file_names' "$REPO_CONFIG") <(jq -S '.file_names' "$OLD_CONFIG") | head -n 20)"
-  fi
-fi
-
 exempt_seeds=()
 offender_seeds=()
 if [[ -n "$drift_ready" ]]; then

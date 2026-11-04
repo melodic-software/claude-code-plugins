@@ -1,11 +1,11 @@
 {
   "name": "source-control",
-  "description": "Git and GitHub delivery: /commit (convention-checked subject, Co-authored-by trailer, surgical staging), /pull-request (prep, create, CI monitoring, review triage, merge, CI logs), /babysit-prs (safe-by-default PR fleet loop, opt-in worker and autopilot tiers), /babysit-loop (merge lane; merge is human until the repo adopts it), /worktree, /resolve-conflicts (intent-first), /check, and /setup (layered source-control.md convention config; Conventional Commits by default).",
+  "description": "Git and GitHub delivery: /commit (convention-checked subject, Co-authored-by trailer, surgical staging), /pull-request (prep, create, CI monitoring, review triage, merge, CI logs), /babysit-prs (safe-by-default PR fleet loop, opt-in worker and autopilot tiers), /babysit-loop (merge lane; merge is human until the repo adopts it), /worktree, /resolve-conflicts (intent-first), /check, and /setup (layered source-control convention config; Conventional Commits by default).",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "6.6.0",
+  "version": "6.7.0",
   "license": "MIT",
   "keywords": [
     "git",
@@ -40,7 +40,7 @@
     "branch_issue_pattern": {
       "type": "string",
       "title": "Branch-to-issue pattern (ERE)",
-      "description": "Deprecated fallback: set branch_issue_pattern in .claude/source-control.md instead, which wins. A POSIX ERE whose last capture group extracts the numeric GitHub issue number from the branch name. Absent: the built-in <type>/<N>-<slug> (and routine-issue-<N>) convention."
+      "description": "Deprecated fallback: set branch_issue_pattern in docs/conventions/source-control.yaml instead, which wins. A POSIX ERE whose last capture group extracts the numeric GitHub issue number from the branch name. Absent: the built-in <type>/<N>-<slug> (and routine-issue-<N>) convention."
     },
     "pr_open_state": {
       "type": "string",
