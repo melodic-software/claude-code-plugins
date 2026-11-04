@@ -175,14 +175,14 @@ context_of() {
 # queue with needs-session instead of in front of a person.
 HOLD_REASONS=(feedback-round-cap-security feedback-uncertain-security feedback-disputed-security
   feedback-question-intent feedback-question-design feedback-question-security
-  dependency-security-close dependency-fix-refused
+  dependency-security-close dependency-escalate dependency-fix-refused
   dependency-escalate-intent dependency-escalate-design dependency-escalate-security dependency-escalate-cost)
 # Each hold row's owner reason, the stop-reason code its comment carries: the
 # security rows and dependency-fix-refused (untrusted provenance, a trust hold
 # the owner keeps) are security; a feedback question is its own question.
 declare -A OWNER_REASONS=([feedback-round-cap-security]=security [feedback-uncertain-security]=security
   [feedback-disputed-security]=security [feedback-question-intent]=intent [feedback-question-design]=design
-  [feedback-question-security]=security [dependency-security-close]=security [dependency-fix-refused]=security
+  [feedback-question-security]=security [dependency-security-close]=security [dependency-fix-refused]=security [dependency-escalate]=intent
   [dependency-escalate-intent]=intent [dependency-escalate-design]=design
   [dependency-escalate-security]=security [dependency-escalate-cost]=cost)
 SESSION_REASONS=(protected-path-conflict conflict-patch-protected-path
@@ -231,7 +231,7 @@ done
 # Fail-safe: a well-formed reason the table does not list (a retired name
 # included) holds for a person, with no activity to dispatch, and posts no
 # commit status.
-for reason in bogus workflow-files dependency-workflow-held dependency-escalate; do
+for reason in bogus workflow-files dependency-workflow-held; do
   setup '[]' '[]'
   run "$reason"
   check "$reason, unknown: exit 0" 0 "$RC"
@@ -307,8 +307,8 @@ for reason in "${HOLD_REASONS[@]}"; do
   check "$reason: the resume key stays the second line" "<!-- pr-unblock resume-key=$HEAD_A -->" "$(sed -n 2p "$STUB/bodies")"
 done
 setup '[]' '[]'
-run dependency-escalate
-check "an unlisted reason's hold (the retired dependency-escalate included) carries no stop-reason marker" null \
+run bogus
+check "an unlisted reason's hold carries no stop-reason marker" null \
   "$(LIB="$SCRIPT_DIR/../lib/stop-reason.mjs" node --input-type=module -e "$PARSE" <"$STUB/bodies")"
 
 # Fail-routed reasons: one lanes-stopped comment, no label, no status from

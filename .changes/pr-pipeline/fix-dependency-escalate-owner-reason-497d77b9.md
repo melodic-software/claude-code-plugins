@@ -15,5 +15,5 @@ bump: patch
   `feedback-question-security`, `dependency-security-close` and `dependency-fix-refused` (an
   untrusted-provenance trust hold) are `security`; `feedback-question-intent` and
   `feedback-question-design` are `intent` and `design`. `report-escalation.test.sh` fails any hold
-  row without one. The retired `dependency-escalate` row is gone: an older comment carrying it
-  reads as an unlisted reason, which still holds for a person.
+  row without one. The `dependency-escalate` row stays for holds written before
+  `dependency-escalate-<owner reason>`, as `intent`.

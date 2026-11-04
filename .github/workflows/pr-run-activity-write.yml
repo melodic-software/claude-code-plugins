@@ -708,7 +708,7 @@ jobs:
             feedback-question-security | feedback-stood-open | feedback-verifier-open) ;;
             feedback-already-addressed | feedback-verdict-unreadable) ;;
             dependency-round-cap | dependency-invalid | dependency-fix-not-landed) ;;
-            dependency-security-close | dependency-config-unreadable) ;;
+            dependency-security-close | dependency-escalate | dependency-config-unreadable) ;;
             dependency-files-truncated | dependency-control-uncited | dependency-workflow-unpinned) ;;
             dependency-fix-refused) ;;
             dependency-escalate-intent | dependency-escalate-design | dependency-escalate-security) ;;
@@ -2239,7 +2239,7 @@ jobs:
                 # The verdict script's reasons, only in dependency-verdict mode.
                 case "$FEEDBACK_REPLIES_DIR:$DEPENDENCY_VERDICT_DIR:$escalation" in
                   :?*:dependency-invalid | :?*:dependency-fix-not-landed) ;;
-                  :?*:dependency-security-close | :?*:dependency-config-unreadable) ;;
+                  :?*:dependency-security-close | :?*:dependency-escalate | :?*:dependency-config-unreadable) ;;
                   :?*:dependency-files-truncated | :?*:dependency-control-uncited | :?*:dependency-workflow-unpinned) ;;
                   :?*:dependency-fix-refused) ;;
                   :?*:dependency-escalate-intent | :?*:dependency-escalate-design | :?*:dependency-escalate-security) ;;

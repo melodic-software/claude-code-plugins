@@ -44,6 +44,7 @@
   "dependency-pin-not-applied": { "activity": "review-dependency", "route": "fail", "label": "needs-session", "why": "the claude-code install-script pin move did not apply to the head it was made on, so it was not pushed" },
   "dependency-pin-protected-path": { "activity": "review-dependency", "route": "fail", "label": "needs-session", "why": "the claude-code install-script pin patch changed more than that one allowScripts key in package.json, so it was not pushed" },
   "dependency-security-close": { "activity": "review-dependency", "route": "hold", "owner-reason": "security", "why": "the dependency review would close a security update, which the lane never closes" },
+  "dependency-escalate": { "activity": "review-dependency", "route": "hold", "owner-reason": "intent", "why": "the dependency review found a risk the lane does not decide alone" },
   "dependency-escalate-intent": { "activity": "review-dependency", "route": "hold", "owner-reason": "intent", "why": "the dependency review found that the update turns on what this repository is meant to do, which a person decides" },
   "dependency-escalate-design": { "activity": "review-dependency", "route": "hold", "owner-reason": "design", "why": "the dependency review found that the update turns on a design choice, which a person decides" },
   "dependency-escalate-security": { "activity": "review-dependency", "route": "hold", "owner-reason": "security", "why": "the dependency review found a HIGH or CRITICAL security risk in the update, which a person decides" },

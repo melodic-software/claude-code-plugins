@@ -4,6 +4,8 @@
 // the session-builder queue, when it names one), as report-escalation.sh reads
 // it. No network; imported by gate-source.mjs, the select and emitter scripts, and
 // apply-patch.mjs (which copies this file and the table beside its own copy).
+// dependency-escalate: new verdicts use dependency-escalate-<owner reason>;
+// this row exists for holds written before that, read as owner reason intent.
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
