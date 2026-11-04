@@ -180,7 +180,9 @@ say(/\?\*:feedback-uncertain \| \?\*:feedback-not-landed \| \?\*:feedback-invali
   && /\?\*:feedback-partial \| \?\*:feedback-incomplete \| \?\*:feedback-disputed\)/.test(byId("act-script").run ?? ""),
   "a script escalates only with the reply script's own reasons, and only in review-replies mode");
 say(/:\?\*:dependency-invalid \| :\?\*:dependency-fix-not-landed\)/.test(byId("act-script").run ?? "")
-  && /:\?\*:dependency-security-close \| :\?\*:dependency-escalate \| :\?\*:dependency-config-unreadable\)/.test(byId("act-script").run ?? "")
+  && /:\?\*:dependency-security-close \| :\?\*:dependency-config-unreadable\)/.test(byId("act-script").run ?? "")
+  && /:\?\*:dependency-escalate-intent \| :\?\*:dependency-escalate-design \| :\?\*:dependency-escalate-security\)/.test(byId("act-script").run ?? "")
+  && /:\?\*:dependency-escalate-cost \| :\?\*:dependency-escalate-none\)/.test(byId("act-script").run ?? "")
   && /:\?\*:dependency-files-truncated \| :\?\*:dependency-control-uncited \| :\?\*:dependency-workflow-unpinned\)/.test(byId("act-script").run ?? "")
   && /:\?\*:dependency-fix-refused\)/.test(byId("act-script").run ?? ""),
   "a script escalates with the verdict script's reasons only in dependency-verdict mode");

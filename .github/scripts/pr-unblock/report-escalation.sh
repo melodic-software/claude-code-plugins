@@ -10,7 +10,7 @@
 #   thread or hold): hands the PR to a person with one machine-marked comment
 #   holding the reason, the resume key and how to resume, plus the
 #   human-gated role label; a PR the label goes on while it sits in the merge
-#   queue leaves it (leave_queue). A row's `owner-reason` adds the
+#   queue leaves it (leave_queue). Every hold row's `owner-reason` adds the
 #   ../lib/stop-reason.mjs marker and line naming which owner reason it is.
 #   A reason the table does not list holds
 #   too, with no activity to resume (fail-safe).

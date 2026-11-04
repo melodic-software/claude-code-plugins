@@ -315,7 +315,7 @@ test("a label for a reason now routed to a failing status: fix-ci comes off on a
   assert.deepEqual(
     others.filter((reason) => escalationActivity(reason) === "review-dependency"),
     ["dependency-round-cap", "dependency-invalid", "dependency-fix-not-landed", "dependency-pin-invalid", "dependency-pin-not-applied", "dependency-pin-protected-path", "dependency-escalate-none", "dependency-config-unreadable", "dependency-files-truncated", "dependency-control-uncited", "dependency-workflow-unpinned"],
-    "only dependency-security-close, dependency-escalate, dependency-escalate-<owner reason> and dependency-fix-refused hold for a person",
+    "only dependency-security-close, dependency-escalate-<owner reason> and dependency-fix-refused hold for a person",
   );
   for (const reason of others) {
     const atHead = commented(BOT, escalationBody(reason).replaceAll(KEY, HEAD), "2026-10-18T10:00:05Z");
