@@ -28,7 +28,11 @@
 # The generic profile takes any https URL and needs no index. It prefers
 # markdown, in this order: the URL with Accept: text/markdown; the URL with a
 # .md suffix; a same-origin link in the origin's llms.txt whose path, without a
-# .md or .txt suffix or a trailing /index, is the page's path. When none
+# .md or .txt suffix or a trailing /index, is the page's path. The two later
+# channels accept text/plain as markdown. The URL's own request does too when
+# its path ends in .md, so a host that serves .md files as text/plain is read;
+# for any other path a text/plain answer is not markdown and the read moves
+# on. When none
 # answers with markdown, the page's HTML is converted by html2md.py beside this
 # script, run by the first of python3 and python whose probe prints 3, with
 # PYTHONUTF8=1. Identity: the page's own request must end on the requested
@@ -781,7 +785,9 @@ generic_read() {
     settle_unread "$url" "$dest" markdown html-converted
     return 0
   fi
-  if [[ "$H_STATUS" =~ ^2[0-9][0-9]$ && "$H_CTYPE_LC" =~ $MD_CTYPE && -s "$dest.part" ]] && mv "$dest.part" "$dest"; then
+  local own_md_re="$MD_CTYPE"
+  [[ "$path" != *.md ]] || own_md_re="$MD_OR_TEXT_CTYPE"
+  if [[ "$H_STATUS" =~ ^2[0-9][0-9]$ && "$H_CTYPE_LC" =~ $own_md_re && -s "$dest.part" ]] && mv "$dest.part" "$dest"; then
     G_STATE=read G_FORMAT=markdown G_VALIDATORS="$(dc_validators_or_none text/markdown "$url")" G_DATE="$H_DATE"
   elif [[ "$H_STATUS" =~ ^2[0-9][0-9]$ && "$H_CTYPE_LC" =~ $HTML_CTYPE && -s "$dest.part" ]]; then
     mv "$dest.part" "$html"

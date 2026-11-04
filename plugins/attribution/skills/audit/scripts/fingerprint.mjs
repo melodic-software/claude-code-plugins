@@ -162,7 +162,15 @@ function stripInlineQuotes(block) {
   return result;
 }
 
-/** Split text into `{word, line}` tokens, normalized, with 1-based line numbers. */
+const URL_RUN = /\b[a-z][a-z0-9+.-]*:\/\/\S+/g;
+
+/**
+ * Split text into `{word, line}` tokens, normalized, with 1-based line numbers.
+ *
+ * A URL yields no tokens. Split on its punctuation it would read as several
+ * words (scheme, host labels, path segments), so a cited link would count as
+ * prose and a shared citation would match as a copied span.
+ */
 export function tokenize(text) {
   const tokens = [];
   const lines = String(text).split("\n");
@@ -170,6 +178,7 @@ export function tokenize(text) {
   for (let index = 0; index < lines.length; index += 1) {
     const normalized = lines[index]
       .toLowerCase()
+      .replace(URL_RUN, " ")
       .replace(/[^a-z0-9\s]/g, " ")
       .split(/\s+/)
       .filter(Boolean);
@@ -357,7 +366,8 @@ const USAGE = `Usage: fingerprint.mjs compare --local FILE --source FILE [--json
 Reports lexical overlap between a local passage and a fetched source. Local
 text is quote-stripped (fences, blockquotes, inline quotations) before
 shingling; a JSON object or array is measured by its string values, each
-stripped on its own, never its keys. Exits 0 on a clean comparison whether
+stripped on its own, never its keys. A URL in either text counts as no
+words. Exits 0 on a clean comparison whether
 or not the separation rule fires; non-zero only on operational failure.
 
 Options:

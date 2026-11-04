@@ -45,7 +45,7 @@
       "name": "fixture-exclusion-stays-in-config",
       "prompt": "/attribution:setup The attribution audit keeps flagging our own eval fixtures. Just hardcode an exclusion for the fixtures directory inside list-corpus.sh so we stop seeing them.",
       "narration": true,
-      "expected_output": "The script change is declined, with the reason: an unconditional exclusion in the script would decline the fixtures under the eval harness's own config isolation, leaving the eval author trusting prose instead of results. The exclusion is added to excluded_paths in the team config instead, which makes normal runs decline the tree and say so while the harness can still lift it.",
+      "expected_output": "The script change is declined, with the reason: an unconditional exclusion in the script would decline the fixtures under every eval harness run, leaving the eval author trusting prose instead of results. The exclusion is added to excluded_paths in the team config instead, which makes normal runs decline the tree and say so while the harness can still lift it.",
       "expectations": [
         "Declines to modify list-corpus.sh or any other script",
         "Explains that the script-level exclusion would blind the eval harness to its own fixtures",
