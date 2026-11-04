@@ -21,7 +21,7 @@ A row reading `[shell command execution disabled by policy]` carries no result: 
 ## Purpose
 
 Check-only setup under the Check-only carve-out (`docs/plugin-philosophy.md` "Setup is explicit
-and repeatable" in the marketplace repository): this plugin's configuration surface contains no
+and repeatable" in the marketplace repository): this plugin's configuration contains no
 writable artifact, so `check` inspects, reports PASS/FAIL/INFO with one remediation line per FAIL,
 and no `apply` is offered because there is nothing it could conformingly write. The surfaces that
 qualify it:
@@ -181,7 +181,7 @@ uninstall.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform setup
   contract (`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the marketplace
   repository). Nor `settings.json` (user, project or managed), a wrapper script, or any other
-  Claude Code settings surface.
+  Claude Code settings file.
 - Install `node`, update Claude Code, or install any system package.
 - Write or delete anything under `~/.claude/rate-limit-guard/`. The module and the hook own
   `rate-limits.json` and `stop-events.jsonl`.

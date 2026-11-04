@@ -30,7 +30,7 @@ their repo mid-session.
 - **Reference corpus** (`skills/audit/reference/`), the recurring-concerns checklist plus five
   component-type lenses (hook, skill, agent, command, config). Extending coverage = one file +
   one index row; the hub never grows.
-- **Config surface** (`reference/config.md`). A convention doc at the consumer's convention home
+- **Config** (`reference/config.md`). A convention doc at the consumer's convention home
   (`<home>/plugin-quality/README.md`, bound by the config-cascade pointer line; sink, zone
   behavior, repo-map overrides), with a documented sink ladder and markdown item schema. The
   retired dedicated-file layers are declared in `retirements.yaml` and detected by the shared

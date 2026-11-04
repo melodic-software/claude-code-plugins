@@ -14,7 +14,7 @@ token returns an error that says to run `/plugin configure miro@<marketplace>`. 
 owns the secure credential storage.
 
 Check-only per the uniform setup contract's userConfig-only carve-out: this plugin's entire
-configuration surface is the native sensitive `userConfig` token, so `check` (default and only
+configuration is the native sensitive `userConfig` token, so `check` (default and only
 action) verifies and reports, and reconfiguration routes through Claude Code's native flow. An
 `apply` here would have nothing to write except the credential storage and `pluginConfigs` setup
 must never touch. Non-interactive: the optional API probe runs only when `verify-api` is passed,

@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.28.7] - 2026-11-04
+
+### Changed
+
+- Prose uses the vocabulary the planning chain settled on (scope, fallback chain, personal override, the Brief), and names the file or setting it means.
+
 ## [0.28.6] - 2026-11-04
 
 ### Changed

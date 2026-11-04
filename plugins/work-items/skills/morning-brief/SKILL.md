@@ -212,6 +212,11 @@ Upstream facts the script restates, each with its verification record:
   <https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request> live. **As of**:
   2026-10-03. **Recheck trigger**: that page changes the description of `mergeable`
   or removes the field.
+- **The Lanes section re-reads a lane's runs one UTC day at a time when its week's search
+  returns fewer runs than its `total_count`.** **Pointer**:
+  [List workflow runs for a workflow](https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2022-11-28#list-workflow-runs-for-a-workflow),
+  which states the result cap for a filtered search. **As of**: 2026-11-04. **Recheck trigger**:
+  that section changes or removes its result cap, or one lane's day passes the cap.
 
 ## What each section reports
 

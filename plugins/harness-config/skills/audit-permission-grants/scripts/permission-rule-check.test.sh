@@ -505,7 +505,7 @@ assert_contains "coverage names the project scope it read" "$OUT" "project: 2 ru
 assert_contains "coverage names an absent scope as absent" "$OUT" "local: absent"
 
 # 10bb: P3 is the third axis and counts toward the denominator. A root whose only
-# auditable surface is plugin settings.json files, all clean, IS a clean bill —
+# auditable files are plugin settings.json files, all clean, IS a clean bill —
 # the run examined two files. Folding only frontmatter and allow rules into the
 # denominator made this print "this run has no denominator" two lines above the
 # count of the files it had just examined, which is the defect the block exists

@@ -33,7 +33,7 @@
       "id": 3,
       "name": "convention-paths-not-flagged-as-ghost-refs",
       "prompt": "Declutter a rule file whose body cites memory-slice conventions as examples: the schema placeholder path `.work/<slug>/PLAN.md` and the bare concern-scoped roots `.work/handoffs/`, `.work/reviews/`, and `.work/running-retros/` (none are literal directory names). One line mixes a convention token with a concrete slice: 'See .work/auth-fix/PLAN.md and the ledgers under .work/running-retros/'. Another cites a concrete review report `.work/reviews/pr-123-auth/20260101T000000Z-self.md`. Classify it.",
-      "expected_output": "Recognizes `<slug>` as a slot-variable / schema placeholder and the BARE concern-scoped roots as citable convention surfaces; flags none of those as ghost-refs. Exemption is per matched path, not per line: the mixed line's concrete `.work/auth-fix/PLAN.md` IS flagged despite the bare-root token beside it, and the concrete child `.work/reviews/pr-123-auth/…` IS flagged because the concern-root exemption covers only the bare root (or a placeholder child).",
+      "expected_output": "Recognizes `<slug>` as a slot-variable / schema placeholder and the BARE concern-scoped roots as citable convention paths; flags none of those as ghost-refs. Exemption is per matched path, not per line: the mixed line's concrete `.work/auth-fix/PLAN.md` IS flagged despite the bare-root token beside it, and the concrete child `.work/reviews/pr-123-auth/…` IS flagged because the concern-root exemption covers only the bare root (or a placeholder child).",
       "files": [],
       "expectations": [
         "The `<slug>` placeholder path under `.work/` is NOT flagged as a ghost-ref",
