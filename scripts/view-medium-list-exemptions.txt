@@ -6,5 +6,4 @@
 # more, or that names no registered lane, so the list can only shrink: the slice
 # that removes a lane's list deletes its row.
 
-architecture  # #12672 architecture slice
 visualization:visualize  # #12669 visualization slice
