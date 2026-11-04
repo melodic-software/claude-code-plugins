@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { anyHandles, KILL_SWITCH_STOP, killSwitchStop, limitResetsAt, pendingStop, permanentlyHandles, releasedBy, releasesHead, stopRelease } from "./limit-stop.mjs";
+import { anyHandles, cappedAt, HEAD_LAG_STOP, headLagStop, KILL_SWITCH_STOP, killSwitchStop, limitResetsAt, pendingStop, permanentlyHandles, releasedBy, releasesHead, stopRelease } from "./limit-stop.mjs";
 
 const HOUR = 3_600_000;
 const ENDED = "2026-10-17T10:00:00Z";
@@ -182,6 +182,22 @@ test("with held skips released, an awaiting-human skip does not handle the head"
   assert.equal(anyHandles(three, { now, heldSkipsRelease: true }), true);
   assert.equal(permanentlyHandles(three, { heldSkipsRelease: true }), true);
   assert.equal(anyHandles([heldSkip, run(1), run(2)], { now, heldSkipsRelease: true, failuresRetry: true }), true, "held skips and failures share the cap");
+});
+
+test("with lag stops released, a head-lag stop does not handle the head until the cap; by default it does", () => {
+  const now = ended + HOUR;
+  const lagged = (id) => ({ ...heldSkip, id, output: { title: HEAD_LAG_STOP } });
+  assert.equal(HEAD_LAG_STOP, "Skipped: superseded-sha");
+  assert.equal(headLagStop(lagged(1)), true);
+  assert.equal(headLagStop({ ...lagged(1), conclusion: "failure" }), false);
+  assert.equal(anyHandles([lagged(1)], { now }), true, "by default it handles the head");
+  assert.equal(anyHandles([lagged(1)], { now, lagStopsRelease: true }), false);
+  assert.equal(permanentlyHandles([lagged(1)], { lagStopsRelease: true }), false);
+  assert.equal(anyHandles([lagged(1), { ...lagged(2), status: "in_progress", conclusion: null }], { now, lagStopsRelease: true }), true, "a newer run going handles it");
+  assert.equal(anyHandles([lagged(1), { ...lagged(2), conclusion: "success", output: { title: "Passed" } }], { now, lagStopsRelease: true }), true, "a newer run that acted handles it");
+  const three = [lagged(1), lagged(2), lagged(3)];
+  assert.equal(anyHandles(three, { now, lagStopsRelease: true }), true, "the cap ends it");
+  assert.equal(cappedAt(three, { lagStopsRelease: true }), 3);
 });
 
 // A run the lanes kill switch stopped did no work: its own kill-switch step,
