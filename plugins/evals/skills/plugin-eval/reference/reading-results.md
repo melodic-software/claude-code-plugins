@@ -102,13 +102,14 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   A/B pass, gate each version's result file.
 - Any other denial, in either arm, is a warning only when its case has denial-free runs in that arm
   and its run scored the same as each; otherwise it is a FAIL.
-- A tool result whose `<sandbox_violations>` block holds a `deny network-outbound <host>:<port>`
-  line is a sandbox network denial, whether or not the result is an error; the summary names the
-  hosts. In an invocation probe or a control case (tagged `control`, `no-trigger` or
-  `negative-control`, described as a no-trigger case, or forbidding its own skill's call and
-  requiring none) it is set aside as a warning. Elsewhere a with-arm one is a FAIL, since the score then measures a
-  blocked request, and a without-arm one takes the rules above. The same text quoted anywhere but a
-  tool result is not a denial.
+- A with-arm Bash call whose result reports a sandbox network denial, error or not, is a denial
+  whose hosts the summary names (the report and its source:
+  [SKILL.md, Sources](../SKILL.md#sources), sandbox network denial report). It is a FAIL, since the
+  score then measures a blocked request, unless the case is an invocation probe, a control (tagged
+  `control`, `no-trigger` or `negative-control`, described as a no-trigger case, or forbidding its
+  own skill's call and requiring none), or tagged `no-network`; those set it aside as a warning.
+  A without-arm run's network denials are not read, and the report quoted anywhere but a Bash
+  result is not a denial.
 - A run at 0 turns whose trace holds assistant messages ran a slash-invoked `context: fork` skill
   in a forked session, and the gate lists it under `session started` without failing it. Any run
   fails there whose trace holds a user message with a `local-command-stderr` reading `Shell command
