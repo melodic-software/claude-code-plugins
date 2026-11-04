@@ -1,5 +1,7 @@
 schema_version: "1.1"
 name: 'read-step-one-success-plus-step-two-miss-reaches-step-three'
+context:
+  scaffold_script: scaffold.sh
 graders:
   - name: 'expectation-1'
     type: 'llm'
@@ -13,3 +15,14 @@ graders:
     type: 'llm'
     criteria: 'Does not reconstruct the missing posts from memory'
     focus: 'trace'
+  - name: 'reads-thread-page'
+    type: 'tool_used'
+    tool: 'Read'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?threadreader-4444444444444444444\.html"'
+    min: 1
+    arm: 'both'
+  - name: 'says-truncated'
+    type: 'regex'
+    pattern: '(?<!\bnot )(?<!\bnot a )(?<!n[’'']t )(?<!n[’'']t a )\b(?:partial|incomplete|truncated|cut off|not the (?:whole|full|complete) (?:thread|chain))\b|\b(?:only|just) (?:the )?(?:first|root|opening) post\b'
+    flags: 'i'
+    target: 'last_message'

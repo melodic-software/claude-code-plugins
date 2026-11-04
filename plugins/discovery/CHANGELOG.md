@@ -1,5 +1,15 @@
 # Changelog: discovery plugin
 
+## [1.3.6] - 2026-11-04
+
+### Changed
+
+- Shared `view-builder.mjs`, `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them: the view-kind registry and `render(laneId, kind, record)`, the planning lane's design kind and shipped `artifact` default, and the resolver output's `page` and `publishes` fields (#12650). The shared `reference/rendered-view.md` copy carries the planning section's one-call build and design view; no other change to this plugin.
+
+### Fixed
+
+- Shared `fetch-docs.sh` synced where this plugin carries it ([#12945](https://github.com/melodic-software/claude-code-plugins/issues/12945)): with `--profile generic`, an x.com or twitter.com page that is X's logged-out shell (`redirect_after_login` links and no article text) is now `unread` with reason `login-wall` instead of `read`, whether fetched or served from the cache or a fixture, and is never cached; no other change to this plugin.
+
 ## [1.3.5] - 2026-11-04
 
 ### Fixed

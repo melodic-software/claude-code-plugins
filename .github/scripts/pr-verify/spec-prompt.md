@@ -41,9 +41,13 @@ You may also read these, as context, never as requirements:
 Read the spec as the chunk verifiers did. A `body` of null means the issue has no trusted spec text:
 say so, and return `fail` when no issue has any. With no entry at all there is no spec: return
 `fail`. An issue's `person_checks` lists done-when items of its `body` that the refinement records
-as checks a person runs: leave them out. Only `person_checks` excuses an item; a refinement
-comment's Split section never does. An issue's `scope` limits each done-when item to the targets it
-lists. When an entry's `spec_kind` is `refs`, the body in `CONTEXT_FILE` says which part is
+as checks a person runs: leave them out. An issue's `credited_siblings` lists merged pull requests,
+each `body` saying the part of that issue it delivered: drop the done-when items those bodies
+plainly say they delivered whole, keep one claimed only vaguely, and for an item, the outcome
+included, that a body plainly says it delivered in part, list the chunks that deliver the rest. Only
+`person_checks` and `credited_siblings` excuse an item; a refinement comment's Split section never
+does, nor does this pull request's body, a sibling it names that has no entry there included. An
+issue's `scope` limits each done-when item to the targets it lists. When an entry's `spec_kind` is `refs`, the body in `CONTEXT_FILE` says which part is
 delivered: judge that part only, and return `fail` when it names no delivered part or no remaining
 work, or claims the whole issue.
 

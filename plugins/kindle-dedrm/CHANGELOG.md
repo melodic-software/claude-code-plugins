@@ -3,6 +3,13 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.20] - 2026-11-04
+
+### Changed
+
+- `manage` no longer names the installer version Amazon stages. The hard safety rules and their
+  reasons stay.
+
 ## [0.8.19] - 2026-11-02
 
 ### Changed

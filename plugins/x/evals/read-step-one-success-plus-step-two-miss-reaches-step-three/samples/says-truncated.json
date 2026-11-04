@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Step 1 returned the root; Thread Reader App redirected to /error, so this thread is truncated. Can you paste the URLs of posts 2 onward?",
+      "why": "prose, truncated"
+    },
+    {
+      "answer": "| Step | Result |\n|---|---|\n| 1 | root only |\n| 2 | miss |\n\nI have only the first post. Send me the rest of the post URLs.",
+      "why": "only the first post"
+    },
+    {
+      "answer": "This is **incomplete**: just the root post came back.",
+      "why": "bold incomplete"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Five things we learned running the Ashcombe repair cafe for a year. 1/\n\nThat's the thread.",
+      "why": "presents the root as the whole thread"
+    },
+    {
+      "answer": "The thread is not truncated; here it is in full.",
+      "why": "negated"
+    }
+  ]
+}

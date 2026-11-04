@@ -2415,7 +2415,17 @@ judged as a partial slice (owner decision 2026-10-23, the recommended option): o
 pull request body says it delivers, which must be in the issue's scope, correct and coherent on
 its own, with the body naming what remains; a body that names no delivered part or no remaining
 work, or claims the whole issue, fails. The body only narrows what is judged, never adds a
-requirement, and the spec trust rules below are unchanged. resolve-pr marks each spec entry's
+requirement, and the spec trust rules below are unchanged. The last pull request of an issue split
+across several can close it (owner decision 2026-11-03 on #12965): its body names the earlier ones
+on a plain `Siblings: #<a>, #<b>` line (first column, outside an HTML comment and a fenced code
+block, at most 10), and resolve-pr credits each that GitHub shows written by a trusted person or the
+lanes App, merged into the base in this repository, closing no issue, with a `Refs:` line naming the
+closing issue and a body unedited unless a trusted person edited it last, or the lanes App did
+before the merge. The spec entry then lists them in
+`credited_siblings` with their bodies, and the verifier judges the diff only for the done-when items
+those bodies do not say they delivered; a named sibling that fails a check earns no credit, so the
+diff is judged against the whole issue. The verdict records no sibling, and the merge gate weighs
+such a pass as any closing one. resolve-pr marks each spec entry's
 `spec_kind` (`closes`, `refs` or `pull-request`), and the verdict records it, so the gate refuses a
 pass (`verify:spec-changed`) when the issue is now linked the other way. The model runs
 on ci-workflows' `run-claude-cli` as the `pr-verify` role ([Funding](#funding)), with the Read

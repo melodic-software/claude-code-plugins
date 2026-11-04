@@ -3,6 +3,30 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.0.0] - 2026-11-04
+
+### Added
+
+- `/review:merge-risk`: rates one pull request's merge risk against one rubric (alignment with the closing issue, impact, verification, reversibility, error detection), each `LOW` to `CRITICAL`, checked blind by a fresh-context agent, with a `demote` flag that may only send an unattended merge to a human. A one-way door rates `HIGH` on its own, so no area averages it down.
+
+### Changed
+
+- Shared `view-builder.mjs`, `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them: the view-kind registry and `render(laneId, kind, record)`, the planning lane's design kind and shipped `artifact` default, and the resolver output's `page` and `publishes` fields (#12650); no other change to this plugin.
+
+- `/review:explain-change` names where a digest page goes from the shared medium registry instead of its own list of medium values ([#12670](https://github.com/melodic-software/claude-code-plugins/issues/12670)): `digest-policy.mjs` now prints `medium.where` and `medium.publishes`, and the skill reads them.
+
+- The `quality-gate` PR mode no longer states what the `code-review` marketplace plugin targets
+  or where its findings go; it keeps the plugin gated and points at the plugin's Commands section
+  and the local review's reads-and-edits section.
+- The `security-review` bundled-command record no longer lists what gates the native command;
+  it keeps that the lane never depends on it and points at the commands reference.
+
+- `/review:explain-change` takes its risk map from `/review:merge-risk`; a disputed row shows the checker's level beside its reason.
+
+### Removed
+
+- `/review:explain-change --risk-only`. Use `/review:merge-risk <pr> [--dir <dir>]` instead.
+
 ## [6.1.3] - 2026-11-04
 
 ### Fixed

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "**@brinkmoss** · 2026-10-30 · https://x.com/brinkmoss/status/1357924680\n\nThe Fallowdene library book sale moves indoors.",
+      "why": "attribution line"
+    },
+    {
+      "answer": "I upgraded http://twitter.com/brinkmoss/status/1357924680 to https://x.com/brinkmoss/status/1357924680.",
+      "why": "quotes the input, then the rebuilt URL"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Source: http://twitter.com/brinkmoss/status/1357924680",
+      "why": "the converter-echoed plaintext URL"
+    },
+    {
+      "answer": "Source: http://x.com/brinkmoss/status/1357924680",
+      "why": "host rebuilt, scheme carried"
+    }
+  ]
+}

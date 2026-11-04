@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "Escalates to step 2. isNoteTweet: true describes the post's long-form representation, not the absence of replies — a chain can begin with a note tweet, and the explicit thread request plus the 1/ marker are positive continuation evidence.",
+      "answer": "Escalates to step 2 despite isNoteTweet: true, because the explicit thread request and the 1/ marker are positive continuation evidence, and reports the whole chain from the saved Thread Reader App page, including the cofferdam borrowed from the Thornmouth harbor board in post 3.",
       "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
     }
   ]
