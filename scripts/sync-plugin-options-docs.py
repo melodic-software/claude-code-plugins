@@ -126,7 +126,7 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
         [
             "",
             f"Never put this plugin's `sensitive` option(s) ({', '.join(f'`{k}`' for k in sensitive)})"
-            " on a command line.",
+            f" on a command line. How `plugin configure` handles one is recorded in {cite}.",
         ]
         if sensitive
         else []

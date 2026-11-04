@@ -1,5 +1,7 @@
 ---
-bump: none
+bump: patch
 ---
 
-README's generated options block only: it now points at the upstream docs.
+### Changed
+
+- Token option description no longer restates where Claude Code stores the value; the README's generated block points at the upstream section.
