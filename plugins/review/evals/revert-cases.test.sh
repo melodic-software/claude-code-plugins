@@ -88,10 +88,12 @@ expect "$?" "build writes the file at the merge as fixtures/head/<path>.txt"
 expect "$(has "## Pull request #2: feat: add x" "$(cat "$case_dir/fixtures/pr-context.md.txt")")" \
   "build writes the context as fixtures/pr-context.md.txt"
 expect "$(($(find "$case_dir" -name '*.tar.gz' | grep -c .) != 0))" "build writes no archive"
-[[ -x "$case_dir/fixtures/base/app.sh.txt" && -x "$case_dir/fixtures/head/app.sh.txt" ]]
-expect "$?" "build keeps the exec bit git recorded on each copy"
-[[ ! -x "$case_dir/fixtures/pr-context.md.txt" ]]
-expect "$?" "build leaves the context file non-executable"
+mode=1
+if [[ -x "$case_dir/fixtures/base/app.sh.txt" && -x "$case_dir/fixtures/head/app.sh.txt" ]]; then mode=0; fi
+expect "$mode" "build keeps the exec bit git recorded on each copy"
+mode=1
+if [[ ! -x "$case_dir/fixtures/pr-context.md.txt" ]]; then mode=0; fi
+expect "$mode" "build leaves the context file non-executable"
 yaml="$(cat "$case_dir/case.yaml")"
 expect "$(has "# revert: #4 $D" "$yaml")" "case.yaml records the revert"
 expect "$(has "# pr: melodic-software/claude-code-plugins#2 (merged as $B)" "$yaml")" "case.yaml records the original"
