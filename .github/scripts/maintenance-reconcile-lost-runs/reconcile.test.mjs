@@ -141,6 +141,7 @@ function fakeGitHub({ pulls, runs = [], fail = {}, statuses = {} }) {
 // no trusted pass holds one), in run 900 after `carryRuns` in this workflow's
 // listing; the pass then writes its own, returned as `settled`.
 const LAST_PASS = { id: 900, path: ".github/workflows/maintenance-reconcile-lost-runs.yml", event: "schedule", head_branch: "main" };
+const CARRY_ARTIFACT = 4242;
 async function reconcile({ pulls, runs, status = STATUS, upstream = UPSTREAM_OK, env = {}, fail, statuses, github: wrap = (g) => g, carry, carryRuns = [], download } = {}) {
   const { github, calls } = fakeGitHub({ pulls, runs, fail, statuses });
   const sleeps = [];
@@ -154,7 +155,7 @@ async function reconcile({ pulls, runs, status = STATUS, upstream = UPSTREAM_OK,
     const artifacts = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\/([0-9]+)\/artifacts\?per_page=100$/.exec(path);
     if (carry !== undefined && artifacts) {
       calls.push(`${method} ${path}`);
-      return { total_count: 1, artifacts: [{ name: "reconcile-settled-runs", expired: false }] };
+      return { total_count: 1, artifacts: [{ id: CARRY_ARTIFACT, name: "reconcile-settled-runs", expired: false }] };
     }
     return github(method, path, body);
   });
@@ -188,7 +189,7 @@ async function reconcile({ pulls, runs, status = STATUS, upstream = UPSTREAM_OK,
         download:
           download ??
           ((id) => {
-            assert.equal(id, 900);
+            assert.equal(id, CARRY_ARTIFACT, "the carry is downloaded by the artifact id its listing gave");
             return carry;
           }),
       });
@@ -2222,6 +2223,24 @@ test("a carry whose download fails reads every run", async () => {
   const { code, calls } = await reconcile({ pulls: [], runs: settledRuns(), carry: carryOf(SETTLED), download });
   assert.equal(code, 0);
   assert.deepEqual(jobReads(calls), [202, 302, 401, 402]);
+});
+
+test("the carry's run artifacts are listed once, and a listing that gives the carry no id reads every run", async () => {
+  const downloads = [];
+  const download = (id) => {
+    downloads.push(id);
+    return carryOf(SETTLED);
+  };
+  const listed = await reconcile({ pulls: [], runs: settledRuns(), carry: carryOf(SETTLED), download });
+  assert.equal(listed.code, 0);
+  assert.deepEqual(jobReads(listed.calls), [], "the carried runs are not read again");
+  assert.equal(listed.calls.filter((c) => c.includes("/actions/runs/900/artifacts")).length, 1, "one artifact listing of the carry's run");
+  assert.deepEqual(downloads, [CARRY_ARTIFACT], "plan downloads artifact 4242 by id");
+  const noId = (github) => async (method, apiPath, body) =>
+    apiPath === `/repos/${REPO}/actions/runs/900/artifacts?per_page=100` ? { total_count: 1, artifacts: [{ name: "reconcile-settled-runs", expired: false }] } : github(method, apiPath, body);
+  const unread = await reconcile({ pulls: [], runs: settledRuns(), carry: carryOf(SETTLED), github: noId, download: () => assert.fail("no id, no download") });
+  assert.equal(unread.code, 0);
+  assert.deepEqual(jobReads(unread.calls), [202, 302, 401, 402]);
 });
 
 test("a lane run listing no job settles only once its last change is a pass interval old", async () => {

@@ -178,7 +178,7 @@ import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, loadTrustedList, paginate, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { ghDownload, newestTrustedRun } from "../pr-merge/rotation.mjs";
+import { ghDownloadArtifact, newestTrustedArtifact } from "../pr-merge/rotation.mjs";
 import { refsIssue, resolvePull, specFromBodyApps } from "../pr-verify/resolve-pr.mjs";
 import { checkUpstreamStatus } from "../../actions/check-upstream-status/check-upstream-status.mjs";
 import { ACTIONS, componentStatus, fetchStatus } from "./component-status.mjs";
@@ -364,9 +364,17 @@ export function parseSettled(text, repo) {
 }
 
 // The newest trusted pass's settled runs and job reads, empty when no pass carries any.
+// The carry is fetched by the artifact id the lookup's listing gave, so it is
+// never listed a second time.
 async function readSettled({ repo, runId, call, download }) {
-  const id = await newestTrustedRun({ repo, runId, actions: call, name: SETTLED_ARTIFACT, workflow: WORKFLOW_PATH });
-  return id === undefined ? { runs: new Map(), jobs: new Map() } : parseSettled(download(id), repo);
+  const found = await newestTrustedArtifact({ repo, runId, actions: call, name: SETTLED_ARTIFACT, workflow: WORKFLOW_PATH });
+  if (found === undefined) {
+    return { runs: new Map(), jobs: new Map() };
+  }
+  if (found.artifactId === undefined) {
+    throw new Error(`run ${found.runId}'s ${SETTLED_ARTIFACT} artifact has no id`);
+  }
+  return parseSettled(download(found.artifactId), repo);
 }
 
 // True when a job listing is whole and final: every job it counts is listed,
@@ -1411,7 +1419,7 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
     let settled = { runs: new Map(), jobs: new Map() };
     if (env.SETTLED_PATH) {
       try {
-        download ??= ghDownload({ repo, token: env.GH_TOKEN, dir: env.RUNNER_TEMP, name: SETTLED_ARTIFACT, file: SETTLED_FILE });
+        download ??= ghDownloadArtifact({ repo, token: env.GH_TOKEN, dir: env.RUNNER_TEMP, name: SETTLED_ARTIFACT, file: SETTLED_FILE });
         settled = await readSettled({ repo, runId: String(env.GITHUB_RUN_ID), call, download });
       } catch (error) {
         if (error instanceof RateLimited) {
