@@ -133,6 +133,12 @@
 // re-reads nothing until it changes. A lost lane run's attempt-1 job read is
 // carried the same way while the run stays at attempt 1, so a lane run deferred
 // for want of a place is read once, not on every pass until it gets one.
+// It also carries each passed head's pass read (passStarts): the runs that
+// uploaded its passes, when each started, and when the first pass expires,
+// only from whole listings with every start read. Until that expiry the head
+// is pre-filtered on the carried starts; a pass the carry lacks or a re-run
+// attempt only moves the newest start later, so a carried read is trusted
+// only when the pre-filter drops it, and one it keeps is read again live.
 // Every decision still runs on each pass against the jobs, now and the status
 // pages, and act re-reads each run before it writes.
 //
@@ -351,8 +357,23 @@ const carriedJobsEntry = (e) =>
   Array.isArray(e.jobs) &&
   e.jobs.every(isObject);
 
-// The carried runs, id to hold reason ("" for an intake or verdict run), and
-// the carried job reads by jobsKey, or an error for any other shape.
+const isTime = (value) => typeof value === "string" && !Number.isNaN(Date.parse(value));
+const passesKey = (pr, head) => `${pr}:${head}`;
+// A carried pass read, {pr, head, runs: [{id, started_at}], expires_at}: the
+// runs that uploaded the head's unexpired passes and when each started, and
+// when the first of those passes expires.
+const carriedPassesEntry = (e) =>
+  Number.isSafeInteger(e?.pr) &&
+  e.pr > 0 &&
+  SHA.test(e.head ?? "") &&
+  isTime(e.expires_at) &&
+  Array.isArray(e.runs) &&
+  e.runs.length > 0 &&
+  e.runs.every((r) => Number.isSafeInteger(r?.id) && r.id > 0 && isTime(r.started_at));
+
+// The carried runs, id to hold reason ("" for an intake or verdict run), the
+// carried job reads by jobsKey and the carried pass reads by passesKey (none
+// when the file has no `passes`), or an error for any other shape.
 export function parseSettled(text, repo) {
   const data = JSON.parse(text);
   if (
@@ -361,20 +382,25 @@ export function parseSettled(text, repo) {
     !Array.isArray(data.runs) ||
     !data.runs.every((r) => Number.isSafeInteger(r?.id) && r.id > 0 && typeof r.reason === "string") ||
     !Array.isArray(data.jobs) ||
-    !data.jobs.every(carriedJobsEntry)
+    !data.jobs.every(carriedJobsEntry) ||
+    (data.passes !== undefined && (!Array.isArray(data.passes) || !data.passes.every(carriedPassesEntry)))
   ) {
     throw new Error("the settled runs file has an unexpected shape");
   }
-  return { runs: new Map(data.runs.map((r) => [r.id, r.reason])), jobs: new Map(data.jobs.map((e) => [jobsKey(e.id, e.attempt), e])) };
+  return {
+    runs: new Map(data.runs.map((r) => [r.id, r.reason])),
+    jobs: new Map(data.jobs.map((e) => [jobsKey(e.id, e.attempt), e])),
+    passes: new Map((data.passes ?? []).map((e) => [passesKey(e.pr, e.head), e])),
+  };
 }
 
-// The newest trusted pass's settled runs and job reads, empty when no pass carries any.
+// The newest trusted pass's settled runs, job reads and pass reads, empty when no pass carries any.
 // The carry is fetched by the artifact id the lookup's listing gave, so it is
 // never listed a second time.
 async function readSettled({ repo, runId, call, download }) {
   const found = await newestTrustedArtifact({ repo, runId, actions: call, name: SETTLED_ARTIFACT, workflow: WORKFLOW_PATH });
   if (found === undefined) {
-    return { runs: new Map(), jobs: new Map() };
+    return { runs: new Map(), jobs: new Map(), passes: new Map() };
   }
   if (found.artifactId === undefined) {
     throw new Error(`run ${found.runId}'s ${SETTLED_ARTIFACT} artifact has no id`);
@@ -649,29 +675,41 @@ async function holdReason(call, repo, run, judge, settled, carry = new Map(), ke
 // The start times of the runs that uploaded the PR's unexpired pr-verify
 // PASS or PASS-NOTES at the head, by the exact names write-verdict.mjs
 // artifactName writes, as resolve-pr looks them up; empty when it has none. A
-// run that cannot be read gives null. resolve-pr's full read checks each
-// pass's origin; these feed only the pre-filter.
-async function passStarts(call, repo, number, head) {
+// run that cannot be read gives null; a run whose start `known` holds (a
+// carried read) is not read again. resolve-pr's full read checks each pass's
+// origin; these feed only the pre-filter. `carry` is the read to carry to the
+// next pass (carriedPassesEntry), only when both listings were whole, every
+// pass names its expiry and every start was read.
+async function passStarts(call, repo, number, head, known = new Map()) {
   const ids = new Set();
+  let whole = true;
+  let expires = Infinity;
   for (const name of ["pass", "pass-notes"].map((verdict) => `pr-verify-${number}-${head}-${verdict}`)) {
     const page = await call("GET", `/repos/${repo}/actions/artifacts?name=${name}&per_page=100`);
+    whole &&= Array.isArray(page?.artifacts) && Number.isInteger(page.total_count) && page.total_count <= page.artifacts.length;
     for (const a of page?.artifacts ?? []) {
       if (a?.name === name && a.expired === false && Number.isSafeInteger(a.workflow_run?.id)) {
         ids.add(a.workflow_run.id);
+        expires = Math.min(expires, Date.parse(a.expires_at ?? ""));
       }
     }
   }
-  const starts = [];
+  const runs = [];
   for (const id of ids) {
-    const run = await call("GET", `/repos/${repo}/actions/runs/${id}`).catch((error) => {
-      if (error instanceof RateLimited) {
-        throw error;
-      }
-      return null;
-    });
-    starts.push(run?.run_started_at ?? null);
+    let started = known.get(id);
+    if (started === undefined) {
+      const run = await call("GET", `/repos/${repo}/actions/runs/${id}`).catch((error) => {
+        if (error instanceof RateLimited) {
+          throw error;
+        }
+        return null;
+      });
+      started = run?.run_started_at ?? null;
+    }
+    runs.push({ id, started_at: started });
   }
-  return starts;
+  const entry = { pr: number, head, runs, expires_at: Number.isFinite(expires) ? new Date(expires).toISOString() : "" };
+  return { starts: runs.map((r) => r.started_at), carry: whole && carriedPassesEntry(entry) ? entry : undefined };
 }
 
 // The times resolve-pr's `specChanged` weighs, read with the same comment page
@@ -759,11 +797,13 @@ export async function prefilterSpec(call, repo, candidates) {
 // Reads every open PR's head and the recorded lanes' runs, and returns the
 // re-runs to make in order, with a record name on each lane re-run and each
 // recorded CI re-run.
-async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneApp, settled = new Map(), carriedJobs = new Map(), env = {} }) {
+async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneApp, settled = new Map(), carriedJobs = new Map(), carriedPasses = new Map(), env = {} }) {
   // The runs to carry to the next pass, {id, reason}: read and settled now, or carried and still listed.
   const settle = [];
   // The job reads to carry to the next pass, by jobsKey: read whole now, or carried and still current.
   const keepJobs = new Map();
+  // The pass reads to carry to the next pass: read whole now, or carried and still unexpired.
+  const keepPasses = [];
   const sayHeld = (r, held) => {
     const why = held === NOT_STARTED ? "; a newer run judges the head, so it is not re-run" : "; not re-run";
     say(`lane run ${r.id} (${r.path}) ended ${r.conclusion} ${held}${why}`);
@@ -997,21 +1037,48 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   // The pass reads run only for a head whose spec moved after its earliest
   // checks run. A read that fails here re-runs nothing and is no listing
   // failure: the next tick asks again. A rate limit still stops the run.
-  for (const { pull, checks } of await prefilterSpec(call, repo, passed)) {
-    try {
-      const starts = await passStarts(call, repo, pull.number, pull.head.sha);
-      if (starts.length > 0) {
-        specCandidates.push({ pull, checks, starts });
+  const knownStarts = new Map([...carriedPasses.values()].flatMap((e) => e.runs.map((r) => [r.id, r.started_at])));
+  const readPasses = async (candidates, into, known) => {
+    for (const { pull, checks } of candidates) {
+      try {
+        const { starts, carry } = await passStarts(call, repo, pull.number, pull.head.sha, known);
+        if (carry) {
+          keepPasses.push(carry);
+        }
+        if (starts.length > 0) {
+          into.push({ pull, checks, starts });
+        }
+      } catch (error) {
+        if (error instanceof RateLimited) {
+          throw error;
+        }
+        say(`#${pull.number}: its spec could not be checked (${escapeCommand(error?.message ?? error)}); the next run checks again`);
       }
-    } catch (error) {
-      if (error instanceof RateLimited) {
-        throw error;
-      }
-      say(`#${pull.number}: its spec could not be checked (${escapeCommand(error?.message ?? error)}); the next run checks again`);
+    }
+  };
+  // A head the last pass read whole, with none of its passes expired since,
+  // goes to the pre-filter on its carried pass starts. A newer pass or a
+  // re-run attempt only moves a head's newest start later, so a carried read
+  // the pre-filter drops would be dropped live too, and is carried again; one
+  // it keeps is read again in full, carried starts included, and pre-filtered
+  // again, as it was before.
+  const toRead = [];
+  for (const candidate of await prefilterSpec(call, repo, passed)) {
+    const carried = carriedPasses.get(passesKey(candidate.pull.number, candidate.pull.head.sha));
+    if (carried && Date.parse(carried.expires_at) > now) {
+      specCandidates.push({ ...candidate, starts: carried.runs.map((r) => r.started_at), carried });
+    } else {
+      toRead.push(candidate);
     }
   }
+  await readPasses(toRead, specCandidates, knownStarts);
+  const moved = await prefilterSpec(call, repo, specCandidates);
+  const kept = new Set(moved);
+  keepPasses.push(...specCandidates.filter((c) => c.carried && !kept.has(c)).map((c) => c.carried));
+  const reread = [];
+  await readPasses(moved.filter((c) => c.carried), reread, new Map());
   // Only a candidate whose spec moved after its pass gets resolve-pr's full read.
-  for (const { pull, checks } of await prefilterSpec(call, repo, specCandidates)) {
+  for (const { pull, checks } of [...moved.filter((c) => !c.carried), ...(await prefilterSpec(call, repo, reread))]) {
     try {
       if ((await judgeSpec(checks.id)).reason === "spec-changed") {
         ready.push([withRecord({ kind: "spec", pr: pull.number, id: checks.id, path: checks.path, conclusion: "success", attempt: 1, head: pull.head.sha })]);
@@ -1259,7 +1326,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     place(`#${set[0].pr}`, set);
   }
   items.push(...intake, ...verdicts);
-  return { items, failed, settle, jobs: [...keepJobs.values()] };
+  return { items, failed, settle, jobs: [...keepJobs.values()], passes: [...new Map(keepPasses.map((e) => [passesKey(e.pr, e.head), e])).values()] };
 }
 
 // Re-runs each planned item still lost on a fresh read.
@@ -1457,7 +1524,7 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
           specFromBodyApps: specFromBodyApps(env.SPEC_FROM_BODY_APPS),
         });
     }
-    let settled = { runs: new Map(), jobs: new Map() };
+    let settled = { runs: new Map(), jobs: new Map(), passes: new Map() };
     if (env.SETTLED_PATH) {
       try {
         download ??= ghDownloadArtifact({ repo, token: env.GH_TOKEN, dir: env.RUNNER_TEMP, name: SETTLED_ARTIFACT, file: SETTLED_FILE });
@@ -1469,14 +1536,27 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
         console.log(`::warning title=reconcile::no settled runs carried, so every run is read: ${escapeCommand(error?.message ?? error)}`);
       }
     }
-    const { settle, jobs, ...planned } = await plan({ repo, call, say, since, now, readStatus, judgeSpec, laneApp, settled: settled.runs, carriedJobs: settled.jobs, env });
+    const { settle, jobs, passes, ...planned } = await plan({
+      repo,
+      call,
+      say,
+      since,
+      now,
+      readStatus,
+      judgeSpec,
+      laneApp,
+      settled: settled.runs,
+      carriedJobs: settled.jobs,
+      carriedPasses: settled.passes,
+      env,
+    });
     result = planned;
     if (result.items.some(recorded) && !env.RECORD_PATH) {
       throw new Error("RECORD_PATH is not set");
     }
     write();
     if (env.SETTLED_PATH) {
-      writeFileSync(env.SETTLED_PATH, JSON.stringify({ version: SETTLED_VERSION, repository: repo, runs: [...new Map(settle.map((r) => [r.id, r])).values()], jobs }));
+      writeFileSync(env.SETTLED_PATH, JSON.stringify({ version: SETTLED_VERSION, repository: repo, runs: [...new Map(settle.map((r) => [r.id, r])).values()], jobs, passes }));
     }
     if (lines.length === 0 && result.items.length === 0) {
       say(result.failed > 0 ? `${result.failed} listings failed; what was lost is unknown` : "nothing lost");

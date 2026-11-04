@@ -1470,6 +1470,7 @@ test("a CI set with no stopped review carries one record, so the cap of 3 bounds
 const LANE = "melodic-automation-lanes[bot]";
 const PASS_RUN = 701;
 const PASS_STARTED = "2026-10-19T19:30:00Z";
+const PASS_EXPIRES = "2026-10-20T19:30:00.000Z";
 // The first 16 hex digits of `printf %s fix/1 | sha256sum`, pr(1)'s head ref.
 const FIX_1_DIGEST = "fe65f143bd3d5845";
 // The pre-filter's batched answer holds the issues' comment pages only when its
@@ -1479,7 +1480,7 @@ const prefilterIssue = (query, { comments = [], ...issue }) => (query.includes(C
 
 // `updated` is the issue's updatedAt: the edit time by default, else a time
 // before the pass. PR `number` is the head under check.
-function specChanged({ edited, updated = edited ?? "2026-10-19T00:00:00Z", attempt = 1, pass = true, digest = false, number = 1 } = {}) {
+function specChanged({ edited, updated = edited ?? "2026-10-19T00:00:00Z", attempt = 1, pass = true, digest = false, number = 1, extra = 0 } = {}) {
   const head = sha(number);
   const checks = { ...run(601, head, { conclusion: "success", attempt }), repository: { full_name: REPO } };
   const judged = { ...verifyRun(PASS_RUN, { conclusion: "success" }), repository: { full_name: REPO }, run_started_at: PASS_STARTED, jobs: [] };
@@ -1503,7 +1504,11 @@ function specChanged({ edited, updated = edited ?? "2026-10-19T00:00:00Z", attem
     if (apiPath === `/repos/${REPO}/commits/${head}/pulls?per_page=100&page=1`) return [pull];
     const named = /\/actions\/artifacts\?name=([^&]+)&per_page=100(&page=1)?$/.exec(apiPath);
     if (named && !named[2]) passReads.push(apiPath);
-    if (named) return { artifacts: pass && decodeURIComponent(named[1]) === name ? [{ name, expired: false, workflow_run: { id: PASS_RUN } }] : [] };
+    if (named) {
+      const artifacts = pass && decodeURIComponent(named[1]) === name ? [{ name, expired: false, expires_at: PASS_EXPIRES, workflow_run: { id: PASS_RUN } }] : [];
+      // `extra` artifacts counted but not on the page: a listing that is not whole.
+      return { total_count: artifacts.length + extra, artifacts };
+    }
     if (apiPath === `/repos/${REPO}/compare/${MAIN_TIP}...main`) return { status: "ahead" };
     if (apiPath === "/graphql" && !body.variables) {
       // The pre-filter's batched read: one alias per candidate.
@@ -1572,6 +1577,75 @@ test("a pass judged after the spec's last change, a second attempt, or no pass r
       assert.equal(prefilterReads.length, prefiltered, label);
       assert.equal(passReads.length, artifacts, label);
     }
+  });
+});
+
+// The pass read the settled carry holds for pr(1)'s head: run 701 started at
+// `started`, its pass expiring at `expires`.
+const passCarry = (started = PASS_STARTED, expires = PASS_EXPIRES) => ({ pr: 1, head: sha(1), runs: [{ id: PASS_RUN, started_at: started }], expires_at: expires });
+const passRunReads = (calls) => calls.filter((c) => c === `GET /repos/${REPO}/actions/runs/${PASS_RUN}`).length;
+// The checks run was created at 18:59:43 and the pass started at 19:30; a
+// spec edited at 19:15 moved after the checks run but not after the pass.
+const EDITED_BEFORE_PASS = "2026-10-19T19:15:00Z";
+
+test("a whole pass read is carried, and the next pass pre-filters the head on it without reading its passes", async () => {
+  await withTrustedList(async (env) => {
+    const first = specChanged({ edited: EDITED_BEFORE_PASS });
+    const read = await reconcile({ ...first.setup, env, carry: null });
+    assert.equal(read.code, 0);
+    assert.deepEqual(read.reruns, []);
+    assert.equal(first.passReads.length, 2, "the pass and pass-notes listings");
+    assert.equal(passRunReads(read.calls), 1);
+    assert.deepEqual(read.settled.passes, [passCarry()]);
+    const second = specChanged({ edited: EDITED_BEFORE_PASS });
+    const carried = await reconcile({ ...second.setup, env, carry: carryOf([], SETTLED_VERSION, [], [passCarry()]) });
+    assert.equal(carried.code, 0);
+    assert.deepEqual(carried.reruns, []);
+    assert.equal(second.passReads.length, 0, "no pass listing");
+    assert.equal(passRunReads(carried.calls), 0, "no pass run read");
+    assert.deepEqual(second.specReads, []);
+    assert.deepEqual(carried.settled.passes, [passCarry()], "the carried read is carried again");
+  });
+});
+
+test("a carried pass read the pre-filter keeps is read again live and decides as a live read does", async () => {
+  await withTrustedList(async (env) => {
+    // The spec moved after the carried pass: read live, and re-run as with no carry.
+    const moved = specChanged({ edited: "2026-10-19T19:45:00Z" });
+    const rerun = await reconcile({ ...moved.setup, env, carry: carryOf([], SETTLED_VERSION, [], [passCarry()]) });
+    assert.deepEqual(rerun.reruns, [601]);
+    assert.equal(moved.passReads.length, 2);
+    const uncarried = await reconcile({ ...specChanged({ edited: "2026-10-19T19:45:00Z" }).setup, env, carry: null });
+    assert.deepEqual(uncarried.reruns, [601]);
+    assert.equal(passRunReads(rerun.calls), passRunReads(uncarried.calls), "the live read reads run 701 as a pass with no carry does");
+    // A carry from before a newer pass (19:00, live 19:30): its start keeps
+    // the head, the live read drops it, and resolve-pr is never asked.
+    const stale = specChanged({ edited: EDITED_BEFORE_PASS });
+    const dropped = await reconcile({ ...stale.setup, env, carry: carryOf([], SETTLED_VERSION, [], [passCarry("2026-10-19T19:00:00Z")]) });
+    assert.deepEqual(dropped.reruns, []);
+    assert.deepEqual(stale.specReads, []);
+    assert.equal(stale.passReads.length, 2);
+    assert.deepEqual(dropped.settled.passes, [passCarry()], "the live read replaces the stale one");
+  });
+});
+
+test("an expired carried pass, no carried passes, or a listing that is not whole reads the passes as before", async () => {
+  await withTrustedList(async (env) => {
+    // Expired at 19:59, before NOW (20:00): listed again, but run 701's carried start is not read again.
+    const expired = specChanged({ edited: EDITED_BEFORE_PASS });
+    const listed = await reconcile({ ...expired.setup, env, carry: carryOf([], SETTLED_VERSION, [], [passCarry(PASS_STARTED, "2026-10-19T19:59:00.000Z")]) });
+    assert.deepEqual(listed.reruns, []);
+    assert.equal(expired.passReads.length, 2);
+    assert.equal(passRunReads(listed.calls), 0);
+    const none = specChanged({ edited: EDITED_BEFORE_PASS });
+    const plain = await reconcile({ ...none.setup, env, carry: carryOf([]) });
+    assert.deepEqual(plain.reruns, []);
+    assert.equal(none.passReads.length, 2);
+    assert.equal(passRunReads(plain.calls), 1);
+    const partial = specChanged({ edited: EDITED_BEFORE_PASS, extra: 1 });
+    const cut = await reconcile({ ...partial.setup, env, carry: null });
+    assert.deepEqual(cut.reruns, []);
+    assert.deepEqual(cut.settled.passes, [], "a listing that is not whole is not carried");
   });
 });
 
@@ -2194,7 +2268,7 @@ const SETTLED = [
 ];
 const jobReads = (calls) => calls.filter((c) => /\/attempts\/1\/jobs\?/.test(c)).map((c) => Number(/runs\/([0-9]+)\//.exec(c)[1])).sort();
 const ids = (settled) => settled.runs.map((r) => r.id).sort();
-const carryOf = (runs, version = SETTLED_VERSION, jobs = []) => JSON.stringify({ version, repository: REPO, runs, jobs });
+const carryOf = (runs, version = SETTLED_VERSION, jobs = [], passes = undefined) => JSON.stringify({ version, repository: REPO, runs, jobs, passes });
 
 test("a pass reads the attempt-1 jobs only of runs the last pass did not settle", async () => {
   const toRerun = [verifyRun(201), verdictRun(403)];
@@ -2252,7 +2326,17 @@ test("a short or unfinished listing, or a cut step list, is not settled", async 
 });
 
 test("a carry that cannot be read, names another repository or has another version reads every run", async () => {
-  for (const carry of ["not json", JSON.stringify({ version: SETTLED_VERSION, repository: "other/repo", runs: SETTLED, jobs: [] }), carryOf(SETTLED, SETTLED_VERSION - 1), carryOf([202, 302, 401, 402]), JSON.stringify({ version: SETTLED_VERSION, repository: REPO, runs: SETTLED }), carryOf(SETTLED, SETTLED_VERSION, [{ id: 101, attempt: 1, head: "main", updated_at: "x", jobs: [] }])]) {
+  for (const carry of [
+    "not json",
+    JSON.stringify({ version: SETTLED_VERSION, repository: "other/repo", runs: SETTLED, jobs: [] }),
+    carryOf(SETTLED, SETTLED_VERSION - 1),
+    carryOf([202, 302, 401, 402]),
+    JSON.stringify({ version: SETTLED_VERSION, repository: REPO, runs: SETTLED }),
+    carryOf(SETTLED, SETTLED_VERSION, [{ id: 101, attempt: 1, head: "main", updated_at: "x", jobs: [] }]),
+    carryOf(SETTLED, SETTLED_VERSION, [], {}),
+    carryOf(SETTLED, SETTLED_VERSION, [], [{ pr: 1, head: sha(1), runs: [], expires_at: PASS_EXPIRES }]),
+    carryOf(SETTLED, SETTLED_VERSION, [], [{ pr: 1, head: sha(1), runs: [{ id: PASS_RUN, started_at: null }], expires_at: PASS_EXPIRES }]),
+  ]) {
     const { code, calls, settled } = await reconcile({ pulls: [], runs: settledRuns(), carry });
     assert.equal(code, 0);
     assert.deepEqual(jobReads(calls), [202, 302, 401, 402]);
