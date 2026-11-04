@@ -542,6 +542,8 @@ jobs:
       - name: Resolve the model
         id: models
         if: steps.kill.outputs.proceed == 'true'
+        env:
+          API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           lane: upstream-apply-changelog
@@ -667,6 +669,14 @@ jobs:
           fi
           echo "::notice::Claude Code $RELEASE: the subprocess scrub probe passed"
           echo "Claude Code $RELEASE: the subprocess scrub probe passed" >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # Opens the sealed plan and bundle, scans what will be published for
   # credentials, and uploads only a clean set. No model, no write token.
