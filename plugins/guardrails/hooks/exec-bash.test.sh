@@ -255,10 +255,12 @@ grep -q 'cli-flag-verify' <<<"$caught" && fail "an advisory verify row was flagg
 # harness-ops reports a missing node and runs this plugin's prerequisites probe
 # (scripts/node-notice-rows.test.sh pins both), so guardrails registers no
 # SessionStart row of that kind. Its one row installs shfmt in a cloud session
-# (cloud-shfmt.sh), which the Bash guards cannot run without.
-ss_rows=$(jq -r '[.hooks.SessionStart[]?.hooks[]? | (.args // [] | map(select(endswith(".sh"))) | join(" "))] | join("|")' "$HOOKS_JSON")
-# shellcheck disable=SC2016  # the literal placeholder hooks.json carries
-[[ "$ss_rows" == '${CLAUDE_PLUGIN_ROOT}/hooks/cloud-shfmt.sh' ]] ||
+# (cloud-shfmt.sh), which the Bash guards cannot run without, through the
+# node-or-skip stubs so a session with no node skips it silently.
+ss_rows=$(jq -r '[.hooks.SessionStart[]?.hooks[]? | .command] | join("|")' "$HOOKS_JSON")
+# shellcheck disable=SC2016  # the literal hooks.json text
+ss_want='sh "${CLAUDE_PLUGIN_ROOT}/lib/node-or-skip.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs" "${CLAUDE_PLUGIN_ROOT}/hooks/cloud-shfmt.sh"; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/lib/node-or-skip.ps1" "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs" "${CLAUDE_PLUGIN_ROOT}/hooks/cloud-shfmt.sh"'
+[[ "$ss_rows" == "$ss_want" ]] ||
   fail "guardrails registers a SessionStart row other than the cloud shfmt install: [$ss_rows]"
 
 echo "exec-bash: stdin, exit 2, --fail-closed, --require-verdict, Git Bash resolution, and hooks.json shape passed ($dispatcher dispatcher rows)."
