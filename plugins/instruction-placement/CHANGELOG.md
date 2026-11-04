@@ -3,6 +3,14 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.6] - 2026-11-04
+
+### Changed
+
+- The consumer-config reference, the `realign` skill and the `delta` and `realign` evals now call
+  the config cascade's gitignored `instruction-placement.local.md` layer the personal override,
+  the marketplace's name for it (#13192). Behavior is unchanged.
+
 ## [1.0.5] - 2026-11-04
 
 ### Fixed
