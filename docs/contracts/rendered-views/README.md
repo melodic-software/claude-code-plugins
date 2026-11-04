@@ -332,10 +332,11 @@ first.
   pages, or another host turns out to treat the page differently from the two rule 7
   names.
 
-## Choosing the rung: text, diagram, page, or video
+## Choosing the form: text, diagram, page, or video
 
-Each rung up costs more tokens, more generation time, and more of the reader's
-attention. Climb only when the rung below loses something the reader needs.
+Each form down this list costs more tokens, more generation time, and more of the
+reader's attention. Take the next form only when the one before it loses something the
+reader needs.
 
 - **Text** (the terminal reply, or the markdown record alone) when the answer is a
   decision, a value, a command, or a short list the reader acts on where they are
@@ -349,10 +350,10 @@ attention. Climb only when the rung below loses something the reader needs.
   back. The genre rubric below still decides whether the deliverable gets a page lane.
 - **A video or narrated audio** when the meaning is in time-ordered motion the reader
   will watch rather than scan: an algorithm stepping through its state, a flow of
-  requests over time. It is the costliest rung and always a view: the record carries the
+  requests over time. It is the costliest form and always a view: the record carries the
   same content as text and diagrams.
 
-Accessibility is a standing reason to step back down a rung; see Accessibility floor.
+Accessibility is a standing reason to step back to a cheaper form; see Accessibility floor.
 
 ## Reachability and the fallback chain
 
@@ -375,9 +376,9 @@ notice. What decided it is `argument`, `userConfig`, `team`, `personal override`
 default`, or `fell back: <medium> unreachable: <reason>`, so a skill never prints a dead file path
 without saying why.
 
-## Default ladder and its reconciliation
+## Shipped fallback chain and its reconciliation
 
-The shipped default ladder for the existing emitting surfaces that publish
+The shipped fallback chain for the existing emitting surfaces that publish
 (`adhd:clarify`, `visualization:visualize`) stays **published artifact, then local file,
 then terminal**, exactly as those surfaces and their evals ship today; the other existing
 emitters keep the local default each one ships.
@@ -386,9 +387,9 @@ Two sentences reconcile this with the local-first residence decision:
 1. Local-first governs NEW rendered-view lanes and any operator's personal environment:
    the native Artifact disable switches (`enableArtifact: false` in settings, the
    `CLAUDE_CODE_DISABLE_ARTIFACT=1` environment variable, or a `permissions.deny`
-   `Artifact` rule) are the sanctioned day-one flip that turns every ladder local, with
-   zero plugin changes.
-2. An existing emitting surface keeps its shipped ladder only as its default: each one
+   `Artifact` rule) are the sanctioned day-one flip that makes the local file the first
+   reachable medium for every lane, with zero plugin changes.
+2. An existing publishing surface starts at the published artifact only by default: each one
    reads `medium` from the argument and the cascade first (see Wave-1 adoption and
    grandfathered surfaces).
 
@@ -546,7 +547,7 @@ comprehension quizzes).
 The stopping rule: a lane is added per skill, by a change that names the genre the
 deliverable belongs to and applies the dual-audience test above. A deliverable that fits
 no genre gets no lane, and a genre argument is settled by this list, amended here first.
-The instruction-size budget: an HTML-view lane (ladder, chrome citation, escaping note)
+The instruction-size budget: an HTML-view lane (medium selection, chrome citation, escaping note)
 adds at most 40 lines to a SKILL.md; the cascade wiring adds at most 30. A lane that
 cannot fit the budget is a design smell, not a reason to raise the budget silently.
 
@@ -613,7 +614,7 @@ plugin dial sits between the argument and the cascade. Each names the source of 
 - `overengineering:audit`: `terminal` drops the offer to render the findings through
   `visualization:visualize`; `file` keeps the offer and passes `file` to it; a value from the
   `--medium` argument keeps the offer and passes that value to it; every other value keeps the
-  offer and leaves the rung to `visualization:visualize`.
+  offer and leaves the medium to `visualization:visualize`.
 - `ai-briefing:generate`: only `--format` selects HTML or PPTX, so no layer starts the build; the
   briefing stays markdown under every layer.
 - `codebase-health:audit` (genre: reports; dual-audience, since its findings feed a fix pass):
@@ -621,7 +622,7 @@ plugin dial sits between the argument and the cascade. Each names the source of 
   the offer and passes `file` to it; a value from the `--medium` argument keeps the offer and
   passes that value to it; `artifact` or `hosted` from the team layer keeps the offer and passes
   `file` to it, so a team layer cannot publish; every other value keeps the offer and leaves the
-  rung to `visualization:visualize`.
+  medium to `visualization:visualize`.
 
 `visualization:visualize` reads the argument, its `medium` option and the cascade (the Wave-1
 adopter above). `machine-health:audit` writes no model-written view: its report is markdown, and
@@ -654,7 +655,7 @@ the cascade, defaulting to a local `file`; `artifact` or `hosted` from the team 
 Assessed under the genre rubric and given no lane:
 
 - `education:explain`: a concept explainer, but its answer is short text the reader uses where they
-  read, the lowest rung. Its page and video views already exist as `education:illustrate` and
+  read, the cheapest form. Its page and video views already exist as `education:illustrate` and
   `explainer-video:produce`.
 - `knowledge:docpage-digest`, `knowledge:distill` and `knowledge:absorb-upstream`: each delivers a
   record a later pass reads (a knowledge slice with its interview handoff, skill reference files,
@@ -663,22 +664,22 @@ Assessed under the genre rubric and given no lane:
 - `knowledge:course-digest` (genre: reports, for `repo-candidates.md` and `action-items.md`;
   dual-audience, since each action item needs research before adoption): the person works the
   report in the markdown itself, ticking `action-items.md`'s checkboxes, so a page would be a
-  read-only second copy and the text rung loses nothing. Its course directory (transcripts,
+  read-only second copy and the text form loses nothing. Its course directory (transcripts,
   frames, module summaries) is a digest, which is always markdown. The course is paid content
   kept in a private work root, so a view of it could never publish.
 - `knowledge:map-corpus` (genre: plans presented for approval, for its Phase 3 map approval;
   dual-audience, since later phases re-read the approved `link-map.json`): the person approves or
   narrows a map of at most `max_resources` in-corpus rows (default 30), shown as tallies, the
-  in-corpus list with reasons, bounds and batch plan, which the text rung serves without loss.
+  in-corpus list with reasons, bounds and batch plan, which the text form serves without loss.
   `queue.json` lists the URLs handed to the `knowledge:docpage-digest` runs; it is a record, so
   it gets no view. `mapper-handoff.md` (genre: reports) goes to `planning:interview` when that
   plugin is installed, and its read-only decision table (above) is the view of what comes next;
   otherwise the person reads it directly. It is a short markdown summary of tallies, `uncertain`
-  verdicts with evidence, companion and external lists, and drop candidates, so the text rung
+  verdicts with evidence, companion and external lists, and drop candidates, so the text form
   serves those drop decisions without loss.
 - `testing:audit`: the scanner's output, presented as the script prints it: one rule-tagged
   `path:line` row per finding and a coverage block. Its gate (`--check`) and its fix-pass file
-  (`--persist-findings`) are separate script modes. The text rung loses nothing a page would add.
+  (`--persist-findings`) are separate script modes. The text form loses nothing a page would add.
 
 Emitters through an Artifact type (see Artifact types): `/visualization:present`, a deck made from
 the account's Slides type, gated by `plugins/visualization/skills/present/scripts/check-deck.mjs`.
@@ -781,7 +782,7 @@ pattern broken.
 
 The five escalating payload shapes, cheapest first: numbered resonate tokens;
 chip-assembled replies; generated follow-up prompts; accept-and-correct sign-off tokens;
-live-state exports. A view may carry more than one, and adding a rung the reader did not
+live-state exports. A view may carry more than one, and adding a shape the reader did not
 need is overproduction: this section names an obligation, not a floor to hit on every
 page. On a K2 page every payload carries only reader input and builder-assigned ids
 (see View tiers), so a K2 page has no generated follow-up prompt and no export rebuilt

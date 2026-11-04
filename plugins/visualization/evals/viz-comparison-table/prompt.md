@@ -1,5 +1,5 @@
 ---
-description: "A comparison of four libraries across three attributes renders as an inline markdown table, names the shipped default as the rung that chose the medium, and produces no page"
+description: "A comparison of four libraries across three attributes renders as an inline markdown table, names the shipped default as the layer that chose the medium, and produces no page"
 tags: [visualization, visualize, outcome, form-pick]
 max_turns: 10
 timeout_seconds: 300
