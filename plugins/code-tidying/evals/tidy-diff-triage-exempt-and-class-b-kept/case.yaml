@@ -2,7 +2,7 @@ schema_version: "1.1"
 name: tidy-diff-triage-exempt-and-class-b-kept
 description: 'the comment pass applies class A only behind the change-shape proof: an exported doc comment is never touched, a step comment (class B) stays as a proposal with no extraction, a thread-safety warning (class C) stays, and the narrating comment is deleted only on a COMMENT-ONLY verdict. Written from MB:plugins/code-tidying/skills/tidy-diff/SKILL.md:58-67, 90-91 and 97-99 (the base contract).'
 tags: [tidy-diff, comments, triage]
-expected_outcome: 'In src/users.ts the exported loadUser doc comment is byte-identical, `// Step 1: parse input` stays and no parseInput function appears, the thread-safety warning stays, every code line is unchanged; change-shape.sh runs at least once; the report ties any deletion of `// loop over the records` to a COMMENT-ONLY verdict or lists it as a proposal quoting the verdict, and lists the step comment as a proposal.'
+expected_outcome: 'In src/users.ts the exported loadUser doc comment is byte-identical, `// Step 1: parse input` stays and no parseInput function appears, the thread-safety warning stays, every code line is unchanged; change-shape.sh runs at least once; `// loop over the records` is deleted and the report ties the deletion to a COMMENT-ONLY verdict, and lists the step comment as a proposal.'
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -27,6 +27,11 @@ graders:
   - name: constraint-kept
     type: regex
     pattern: '// NOT thread-safe; callers serialize imports\n'
+    target: { source: file, path: src/users.ts }
+  - name: narration-deleted
+    type: regex
+    pattern: '// loop over the records'
+    match: not_contains
     target: { source: file, path: src/users.ts }
   - name: code-intact
     type: regex
