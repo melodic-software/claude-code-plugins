@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.1.2] - 2026-11-04
+
+### Changed
+
+- The plugin now calls the config cascade's personal layer the personal override; the overlay name is retired. The eval case and sample names follow: `setup-writes-only-confirmed-change`'s `no-overlay-written` grader and sample are now `no-personal-override-written`, and the commit and setup eval cases that said overlay now say personal override (#13189).
+
 ## [8.1.1] - 2026-11-04
 
 ### Fixed

@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.4.3] - 2026-11-04
+
+### Changed
+
+- The config cascade's personal layer is called the personal override in `/planning:setup`, `/planning:plan`, the plan template's provenance column, the authoring-formats context, `reference/config.md` and the setup evals ([#13190](https://github.com/melodic-software/claude-code-plugins/issues/13190)). Wording only.
+
 ## [2.4.2] - 2026-11-04
 
 ### Changed

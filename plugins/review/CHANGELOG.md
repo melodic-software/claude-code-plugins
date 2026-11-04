@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.3.7] - 2026-11-04
+
+### Changed
+
+- The revert-8791 eval case ships its text fixtures, so `revert-cases.sh scaffold` can build it.
+
 ## [7.3.6] - 2026-11-04
 
 ### Changed
