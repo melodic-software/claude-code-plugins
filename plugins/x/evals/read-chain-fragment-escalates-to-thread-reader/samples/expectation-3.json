@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "Treats the step-1 root as a chain fragment, uses the saved Thread Reader App page for the same id after checking its final URL carries no /error suffix, and reports the whole chain, including the Copperfold overnight parking and the 05:52 first departure from posts 2 and 3, saying step 2 assembled it.",
+      "answer": "Treats the step-1 root as a chain fragment, uses the saved Thread Reader App page for the same id after confirming it is a hit (its posts are there, and its recorded final URL carries no /error suffix), and reports the whole chain, including the Copperfold overnight parking and the 05:52 first departure from posts 2 and 3, saying step 2 assembled it.",
       "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
     }
   ]

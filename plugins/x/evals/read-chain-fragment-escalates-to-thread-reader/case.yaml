@@ -9,7 +9,7 @@ graders:
     focus: 'trace'
   - name: 'expectation-2'
     type: 'llm'
-    criteria: 'Checks the Thread Reader App page''s final URL for an /error suffix before trusting the page, since a miss also returns 200'
+    criteria: 'Before trusting the saved Thread Reader App page, confirms positively that it is a hit: it carries the thread''s posts rather than an error, landing or challenge page, and neither the 200 nor the absence of /error in the recorded final URL is taken as proof on its own'
     focus: 'trace'
   - name: 'expectation-3'
     type: 'llm'
