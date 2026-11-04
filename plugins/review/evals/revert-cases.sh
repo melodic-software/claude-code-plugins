@@ -274,6 +274,7 @@ scaffold() {
   [[ $# -eq 1 ]] || die "usage: scaffold <case>"
   local archive="$EVALS/$1/fixtures.tar.gz" fixtures subject
   [[ -f "$archive" ]] || die "no fixtures for $1"
+  [[ ! -e .git ]] || die "refusing to scaffold into an existing repository: $PWD"
   if grep -q '^# confirmed-by: pending' "$EVALS/$1/case.yaml"; then
     die "$1 is unconfirmed: a verifier agent checks its lines and names itself on the confirmed-by line"
   fi

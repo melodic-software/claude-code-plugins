@@ -97,6 +97,9 @@ expect "$?" "scaffold exits 0 once the case is confirmed"
 expect "$(has "+x=1" "$(cat "$WORK/ws/.claude-lane/pr.diff")")" "scaffold writes the pull request's diff"
 expect "$(has "feat: add x" "$(git -C "$WORK/ws" log -1 --format=%s)")" "scaffold commits the change under its subject"
 expect "$(has "## Pull request #2: feat: add x" "$(cat "$WORK/ws/.claude-lane/pr-context.md")")" "scaffold writes the context"
+(cd "$WORK/ws" && bash "$case_dir/scaffold.sh" 2>/dev/null)
+code=$?
+expect "$((code != 2))" "scaffold refuses a directory that is already a repository"
 
 if ! command -v node >/dev/null 2>&1; then
   echo "SKIP: node is not installed; grader and report not tested"
