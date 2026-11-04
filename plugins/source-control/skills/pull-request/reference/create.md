@@ -218,6 +218,24 @@ on the tracker-bound path, the `refs` item's `ISSUE_BODY` serves.
 
 Persist chosen line(s) into `${CLOSES_LINE}`. NEVER wrap a closing keyword in an HTML comment: `<!-- Closes #N -->` still parses and auto-closes the issue on merge. Fenced code blocks ARE inert, so example snippets are safe.
 
+**Siblings of a closing pull request.** Once `${CLOSES_LINE}` is final, when it closes one or more
+GitHub issues, earlier pull requests may have delivered part of one with `Refs: #N`. Name them so
+pr-verify judges this diff only for what they left (the pr-verify section of the marketplace's
+[pr-pipeline convention](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-pipeline/README.md)).
+Run it once with every issue number `${CLOSES_LINE}` closes:
+
+```bash
+SIBLINGS_LINE=$(bash "<skill-dir>/scripts/siblings-line.sh" <N>...)
+```
+
+It prints one `Siblings: #<a>, #<b>` line for the merged pull requests in this repository whose
+body has a `Refs: #N` line of its own and that close no issue, the 10 newest, since pr-verify
+credits none from a body naming more; with none it prints nothing. §2.4.1 writes a non-empty
+`${SIBLINGS_LINE}` directly below `${CLOSES_LINE}`. When it exits 2, a read failed: tell the user
+and write no line. The list comes from GitHub search, which can lag a merge by a few minutes.
+pr-verify checks each named pull request's author, base and edits itself. Under §2.7 run it from
+`$WT`, since `gh` reads the repository from the current directory.
+
 ### 2.4.1 Push and assemble PR body
 
 **Merge the base first when the PR will go ready.** Resolve §2.4.3's open state before the push
@@ -390,7 +408,7 @@ Section content is prose a reviewer reads: plain language, bottom line first, no
 
 **Left out.** The section that records verification (`Verification`, or `Test plan` under the portable default) ends with one `Left out:` line naming what was not run or checked, each with its reason (for example, `Left out: end-to-end suite, needs a staging environment`), so a reviewer can tell a gap from an omission; when everything relevant was run, it says `Left out: nothing`. When that section closes the body, the §2.4.3 attribution line still follows it as the body's footer.
 
-**Write the body to a file with the Write tool.** Compose the body as literal text: `${CLOSES_LINE}`; when §2.7's `--hold` gave a line, that line on its own line directly below `${CLOSES_LINE}`, before the first `##` block, so the §2.4.2 gates check the body the PR opens with; a blank line when either is non-empty; then one `## <heading>` block per entry in `${SECTION_ORDER[@]}` with real content, leaving out an optional heading that has none (`Related` carries `${REFS_LINES}` when non-empty, else `N/A`), then the `## Acceptance criteria` block when a plan supplied one and no scaffold heading holds it, then the `## Remaining` block for a `Refs:` link, then the ad hoc `## Related` block when the rule above calls for one. Leave the attribution line out; §2.4.3 appends it after the gates. Write it to an absolute path outside the working tree (the session's scratchpad directory when one is listed, else the system temp directory), for example `<tmp>/pr-body-<branch-slug>.md`, and pass that path as `BODY_FILE` to every call below.
+**Write the body to a file with the Write tool.** Compose the body as literal text: `${CLOSES_LINE}`; `${SIBLINGS_LINE}` (§2.4.0) when non-empty, at the first column directly below it; when §2.7's `--hold` gave a line, that line on its own line below those, before the first `##` block, so the §2.4.2 gates check the body the PR opens with; a blank line when any is non-empty; then one `## <heading>` block per entry in `${SECTION_ORDER[@]}` with real content, leaving out an optional heading that has none (`Related` carries `${REFS_LINES}` when non-empty, else `N/A`), then the `## Acceptance criteria` block when a plan supplied one and no scaffold heading holds it, then the `## Remaining` block for a `Refs:` link, then the ad hoc `## Related` block when the rule above calls for one. Leave the attribution line out; §2.4.3 appends it after the gates. Write it to an absolute path outside the working tree (the session's scratchpad directory when one is listed, else the system temp directory), for example `<tmp>/pr-body-<branch-slug>.md`, and pass that path as `BODY_FILE` to every call below.
 
 **Why a file, not a shell variable:** the Write tool's content is a JSON string no shell parses, so a `$(...)`, `${...}` or backtick typed into the orphan-PR or multi-issue prompt stays literal, and a long body never pushes a Bash command past the tool's length cap (inline `--body` calls were rejected for length on an unattended lane). The §2.4.2 gates read the same file `--body-file` hands to `gh`.
 
@@ -645,7 +663,7 @@ BRANCH=$(git -C "$WT" branch --show-current)
 - `--draft '<reason>'` is §2.4.3's request level, the same flag the normal `create` path takes,
   for example `Draft: merge hold unread`.
 - `--hold '<line>'` takes a line starting `Hold:`, which §2.4.1's body composition places
-  directly below `${CLOSES_LINE}` in `$BODY_FILE` before the §2.4.2 gates run, so the PR opens
+  below `${CLOSES_LINE}` and any `Siblings:` line in `$BODY_FILE` before the §2.4.2 gates run, so the PR opens
   with the hold before `ready --unattended` can flip it. A value not starting `Hold:` is refused:
   STOP and report it.
 

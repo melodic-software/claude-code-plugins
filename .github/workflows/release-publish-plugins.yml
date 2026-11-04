@@ -115,7 +115,9 @@ jobs:
       # release/plugins in between makes the call fail rather than queue an
       # unchecked head. A head already queued, or whose GitHub Actions
       # `ci-status` has not passed (ci-status.sh), is left for a later run, as
-      # is one a push run deferred and one carrying a hold label (held).
+      # is one a push run deferred, one carrying a hold label (held), and one
+      # that would queue behind an entry changing a file it changes
+      # (queue-ahead.sh).
       - name: Queue the checked head
         if: steps.check.outputs.rebuild == 'false' && steps.check.outputs.deferred != 'true' && steps.check.outputs.held != 'true'
         env:
@@ -124,8 +126,6 @@ jobs:
           PR_NUMBER: ${{ steps.check.outputs.number }}
           HEAD_SHA: ${{ steps.check.outputs.head }}
         run: |
-          owner="${GITHUB_REPOSITORY%/*}"
-          name="${GITHUB_REPOSITORY#*/}"
           # shellcheck disable=SC2016  # the $ names are GraphQL variables, not shell
           queued="$(gh api graphql -f id="$PR_ID" \
             -f query='query($id: ID!) { node(id: $id) { ... on PullRequest { isInMergeQueue } } }' \
@@ -142,10 +142,17 @@ jobs:
             echo "::warning::ci-status on release pull request #$PR_NUMBER is $ci; re-run or fix it, then a later run queues it."
             exit 0
           fi
-          # shellcheck disable=SC2016  # the $ names are GraphQL variables, not shell
-          queue="$(gh api graphql -f owner="$owner" -f name="$name" \
-            -f query='query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { mergeQueue(branch: "main") { id } } }' \
-            --jq '.data.repository.mergeQueue.id // empty')"
+          # An entry ahead that changes a file the release changes fails the
+          # release's merge group once it lands, so leave it until then: the
+          # next run (that entry's fragment push, the schedule or a dispatch)
+          # finds main changed a file it changes and rebuilds it.
+          lines="$(.github/scripts/release-publish-plugins/queue-ahead.sh "$(git rev-parse origin/main)" "$HEAD_SHA")"
+          queue="$(sed -n 's/^queue=//p' <<<"$lines")"
+          ahead="$(sed -n 's/^ahead=//p' <<<"$lines")"
+          if [ -n "$ahead" ]; then
+            echo "::notice::Not queuing release pull request #$PR_NUMBER at $HEAD_SHA behind ${ahead//$'\n'/; }; a later run decides it again once that lands."
+            exit 0
+          fi
           # shellcheck disable=SC2016  # the $ names are GraphQL variables, not shell
           if [ -n "$queue" ]; then
             gh api graphql -f id="$PR_ID" -f head="$HEAD_SHA" \

@@ -359,8 +359,10 @@ verify-on-revisit, not stored metadata:
 
 ## Spoke paths
 
-The `context/` files write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`.
-Put that path in place of the placeholder before running a command or writing it into a brief.
+The `context/` files write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`,
+the plugin root as `<plugin-root>`, which is `${CLAUDE_PLUGIN_ROOT}`, and this plugin's `medium`
+option as `<medium option>`, which is `${user_config.medium}`. Put those values in place of the
+placeholders before running a command or writing them into a brief.
 Those files arrive through the Read tool, and we do not rely on a `${…}` token in them being
 substituted or expanded on the way to the Bash tool.
 
