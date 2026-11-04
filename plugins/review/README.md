@@ -151,7 +151,10 @@ cases and reports a run. Run `list` and `build` from a clone with full history:
 1. `bash plugins/review/evals/revert-cases.sh list` prints one row per revert pair: original
    pull request, original commit, revert pull request (`-` for a direct commit), revert commit,
    then the pair count. A revert is a `revert:` or `revert(<scope>):` subject or a
-   `This reverts commit <sha>` body line. The script skips a pair whose original names no pull
+   `This reverts commit <sha>` body line; when neither names its original, each merged
+   non-revert pull request the message names by number is tried, so one revert can list several
+   pairs, and a message can name one it did not undo, which the verifier below rejects. The
+   script skips a pair whose original names no pull
    request, whose revert removes no line the original added, or whose original no longer
    reverses cleanly onto the revert's parent, and prints each skip with its reason on stderr.
 2. `bash plugins/review/evals/revert-cases.sh build <original> <revert> <slug>` writes

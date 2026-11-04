@@ -1,0 +1,12 @@
+# Revert case: a merged pull request that a later revert undid, rebuilt offline.
+# pr: melodic-software/claude-code-plugins#12121 (merged as 30b8fbfc8bfb74cd17ca215af3a8a8b1c42efa94)
+# base: 04d8570a46674375dbeeeb7037c0ab03dc313a6b
+# revert: #12247 bee196a5e2fda2c0ab61300b15142353364e8a9b
+# lines: at the merge, the lines the pull request added that the revert removed:
+#   plugins/kindle-dedrm/skills/manage/SKILL.md:10,16,29,35,49-52,77,96,98-99,106,108-109,123
+# confirmed-by: verifier agent, every listed line blamed over PR^..revert^ to this PR and removed by the revert; revert diff read, compared with the original's by script
+# rebuilt: only the files above, at base and merge.
+schema_version: "1.1"
+name: revert-12121-kindle-dedrm-concise
+context:
+  scaffold_script: scaffold.sh

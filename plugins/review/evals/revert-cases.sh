@@ -15,7 +15,8 @@
 #
 # A revert is a commit whose subject starts "revert:" or "revert(<scope>):", or whose body has a
 # "This reverts commit <sha>" line. Its original is that sha, else the newest earlier commit whose
-# subject, less a trailing " (#<n>)", equals the revert's subject less its prefix and that suffix.
+# subject, less a trailing " (#<n>)", equals the revert's subject less its prefix and that suffix,
+# else each merged pull request its message names by number that passes the checks below.
 # A pair counts when the original's subject ends " (#<n>)", the revert removes a line the
 # original added, and the original's change to those files still reverses cleanly onto the
 # revert's parent. Run list and build from a clone with full history.
@@ -48,6 +49,20 @@ original_of() { # <revert>: the commit it reverts; nothing when <revert> is not 
   git log --format='%H%x09%s' "$1^" -- |
     TEXT="$text" awk -F '\t' '{ s = $2; sub(/ \(#[0-9]+\)$/, "", s) } s == ENVIRON["TEXT"] { print $1; exit }'
   return 0
+}
+
+named_originals() { # <revert>: the merged commit of each other non-revert pull request its message names
+  local ref commit own
+  own="$(pr_number "$1")"
+  while IFS= read -r ref; do
+    [[ "$ref" == "$own" ]] && continue
+    while IFS= read -r commit; do
+      if [[ "$(pr_number "$commit")" == "$ref" ]]; then
+        is_revert "$commit" || echo "$commit"
+        break
+      fi
+    done < <(git log --format=%H -F --grep=" (#$ref)" "$1^" --)
+  done < <(git log -1 --format=%B "$1" | grep -oE '#[0-9]+' | tr -d '#' | sort -un)
 }
 
 is_revert() { # <commit>: its subject or body has a revert form
@@ -104,7 +119,7 @@ to_top() {
 }
 
 list() {
-  local sha orig pr rpr lines count=0
+  local sha orig pr rpr lines candidate found count=0
   local -a paths
   to_top
   if [[ "$(git rev-parse --is-shallow-repository)" == true ]]; then
@@ -113,7 +128,18 @@ list() {
   while IFS= read -r sha; do
     orig="$(original_of "$sha")"
     if [[ -z "$orig" ]]; then
-      if is_revert "$sha"; then
+      is_revert "$sha" || continue
+      found=0
+      while IFS= read -r candidate; do
+        [[ -n "$(pair_lines "$candidate" "$sha")" ]] || continue
+        mapfile -t paths < <(pair_lines "$candidate" "$sha" | cut -f1)
+        reverses_cleanly "$candidate" "$sha" "${paths[@]}" || continue
+        rpr="$(pr_number "$sha")"
+        printf '#%s\t%s\t%s\t%s\n' "$(pr_number "$candidate")" "$candidate" "${rpr:+#}${rpr:--}" "$sha"
+        count=$((count + 1))
+        found=1
+      done < <(named_originals "$sha")
+      if [[ "$found" == 0 ]]; then
         printf 'skip\t%s\tits original commit is not in this history\n' "$sha" >&2
       fi
       continue

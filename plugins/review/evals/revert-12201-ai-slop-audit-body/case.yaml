@@ -1,0 +1,12 @@
+# Revert case: a merged pull request that a later revert undid, rebuilt offline.
+# pr: melodic-software/claude-code-plugins#12201 (merged as 64e56c7060531277a03b3debe4023ebb677138ef)
+# base: e697879162ed09325ad873f07913536b256d3433
+# revert: #12228 fce50a4b9276e4b7759f05ea2039b424ca98eb7e
+# lines: at the merge, the lines the pull request added that the revert removed:
+#   plugins/ai-slop/skills/audit/SKILL.md:42-43,45,48-49,96-112,128-135,274-288
+# confirmed-by: verifier agent, every listed line blamed over PR^..revert^ to this PR and removed by the revert; revert diff read, compared with the original's by script
+# rebuilt: only the files above, at base and merge.
+schema_version: "1.1"
+name: revert-12201-ai-slop-audit-body
+context:
+  scaffold_script: scaffold.sh
