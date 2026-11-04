@@ -4,6 +4,11 @@ Notable changes to the on-demand dependency contract. The contract is versioned 
 stamp in `README.md` (SemVer). A `[SPEC]` rule that tightens is a major bump; a new rule, exception
 or adopter is a minor bump; wording is a patch.
 
+## [2.4.1] - 2026-11-04
+
+- **Verification record:** the uninstall row points at the section that lists when the data directory
+  is deleted and when it stays, instead of restating one exception.
+
 ## [2.4.0] - 2026-11-02
 
 - **Rule P2**: the install hook skips the install and the load probe, starting no process, while

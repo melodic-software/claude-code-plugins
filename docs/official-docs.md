@@ -46,7 +46,7 @@ so it has no row. For which slots and settings keys a plugin carries, see
 | Monitors (`monitors/monitors.json`) | <https://code.claude.com/docs/en/plugins/components#monitors> | 2026-10-07 |
 | Channels (`channels` manifest field) | <https://code.claude.com/docs/en/channels> | 2026-08-06 |
 | Executables (`bin/`) | <https://code.claude.com/docs/en/plugins/components#executables> | 2026-10-01 |
-| Settings (`settings.json` defaults) | <https://code.claude.com/docs/en/settings> | 2026-08-12 |
+| Settings (`settings.json` defaults) | <https://code.claude.com/docs/en/plugins/components#default-settings> | 2026-11-04 |
 | Dependencies (`dependencies` manifest field) | <https://code.claude.com/docs/en/plugins/dependencies> | 2026-10-07 |
 
 ## Authoring

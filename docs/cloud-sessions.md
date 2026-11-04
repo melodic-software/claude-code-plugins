@@ -288,8 +288,10 @@ from the two together (see
   message, a plugin slash command, returned "Unknown command", and a mid-session probe of the
   skill registry resolved no plugin skill. The command/skill registry is built when the Claude
   Code process starts, before SessionStart hook effects land, and is not re-read afterwards; the
-  [hooks reference](https://code.claude.com/docs/en/hooks#sessionstart) documents no same-session
-  pickup, and neither `/plugin`
+  hooks reference's only same-session pickup is
+  [`reloadSkills`](https://code.claude.com/docs/en/hooks#reload-skills-that-a-hook-installs), whose
+  section names skill directories and not a plugin install, and whether it reaches one is unprobed
+  (as of 2026-11-04; recheck when that section names plugins). Neither `/plugin`
   ([terminal-only commands](https://code.claude.com/docs/en/claude-code-on-the-web#manage-context))
   nor `--plugin-dir` exists in cloud sessions to force one. On an
   ephemeral VM this is a chicken-and-egg: every fresh session re-installs after its registry is

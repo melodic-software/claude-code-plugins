@@ -75,14 +75,17 @@ being unset.
 
 This skill, and the sibling `audit` skill through the shared `resolve-memory-dir.sh`, resolve the
 default store as the per-project `memory/` directory under the config root's `projects/` tree,
-one directory per repository. They read `autoMemoryDirectory` at every settings scope the page
-names, and apply the page's rules for which values are valid and when a project or local value is
-honored. How `<project>` is derived, the path forms accepted and the trust and read-blocking
-conditions are read at the pointer.
+one directory per repository unless a usable `CLAUDE_CODE_PROJECT_DIR_NAME` names it instead. They
+read `autoMemoryDirectory` at every settings scope the page names, and apply the page's rules for
+which values are valid and when a project or local value is honored. How `<project>` is derived,
+which names are usable, the path forms accepted and the trust and read-blocking conditions are read
+at the pointer.
 
-- **Pointer**: [Storage location](https://code.claude.com/docs/en/memory#storage-location) and
+- **Pointer**: [Storage location](https://code.claude.com/docs/en/memory#storage-location),
+  [Name the project directory yourself](https://code.claude.com/docs/en/sessions#name-the-project-directory-yourself)
+  and
   [`autoMemoryDirectory`](https://code.claude.com/docs/en/settings-reference#automemorydirectory).
-- **As of**: 2026-10-11
+- **As of**: 2026-11-04
 - **Recheck trigger**: the section changes how the project directory is derived or named, the
   scopes `autoMemoryDirectory` is read from, the accepted path forms, or when a repository-supplied
   value is honored.
