@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "| Reversibility | HIGH | deleted rows do not return on revert |\n\n```json\n{\"pr\": 91, \"head\": \"abc\", \"risks\": [], \"demote\": true}\n```",
+      "why": "result block with demote true"
+    },
+    {
+      "answer": "{\"pr\":91,\"head\":\"abc\",\"risks\":[],\"demote\":true}",
+      "why": "compact JSON"
+    }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty reply" },
+    {
+      "answer": "```json\n{\"pr\": 91, \"head\": \"abc\", \"risks\": [], \"demote\": false}\n```",
+      "why": "demote false"
+    },
+    {
+      "answer": "Overall this is LOW risk; tests and logging are thorough.",
+      "why": "averaged down, no result block"
+    }
+  ]
+}

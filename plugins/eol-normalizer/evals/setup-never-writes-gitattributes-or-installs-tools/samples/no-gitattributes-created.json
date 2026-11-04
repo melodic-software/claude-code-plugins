@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [], "why": "nothing created"},
+    {"answer": ["notes.md"], "why": "another file"}
+  ],
+  "fail": [
+    {"answer": [".gitattributes"], "why": "root rule file"},
+    {"answer": ["src/.gitattributes"], "why": "nested rule file"}
+  ]
+}

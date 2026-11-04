@@ -1,0 +1,37 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Result | Detail |\n|---|---|---|\n| Bash version | PASS | 5.2 |\n| `node` | PASS | /usr/bin/node |\n| `jq` | PASS | /usr/bin/jq |\n| `git` | PASS | /usr/bin/git |\n| `.gitattributes` eol policy | INFO | `*.sh` resolves to `eol: lf` |"
+    },
+    {
+      "answer": "| # | Check | Status |\n|---|---|---|\n| 1 | Node.js | PASS |\n| 2 | jq | FAIL |\n| 3 | git | PASS |",
+      "why": "numbered rows"
+    },
+    {
+      "answer": "Check | Result\n--- | ---\nnode | ✅ PASS\njq | ✅ PASS\ngit (2.43) | ✅ PASS",
+      "why": "no outer pipes"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "node: PASS. jq: PASS. git: PASS.",
+      "why": "no table"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| node | PASS |\n| jq | PASS |",
+      "why": "no git row"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| node | PASS |\n| jq | PASS |\n| Git repository | INFO |",
+      "why": "repository row is not the git binary row"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| node | PASS |\n| jq | PASS |\n| .gitattributes | INFO |",
+      "why": ".gitattributes row is not the git row"
+    },
+    {
+      "answer": "| Check | Detail |\n|---|---|\n| node | present |\n| jq | present |\n| git | present |",
+      "why": "no verdict"
+    }
+  ]
+}

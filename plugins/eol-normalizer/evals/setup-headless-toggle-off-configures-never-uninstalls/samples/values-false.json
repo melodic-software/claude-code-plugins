@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "`{\"eol_normalizer_enabled\": \"false\"}`"
+    },
+    {
+      "answer": "{\"eol_normalizer_enabled\":\"false\"}",
+      "why": "no space"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"eol_normalizer_enabled\": false}",
+      "why": "unquoted boolean; every value is a string"
+    },
+    {
+      "answer": "eol_normalizer_enabled=false",
+      "why": "the --config form, not the JSON"
+    },
+    {
+      "answer": "{\"eol_normalizer_enabled\": \"true\"}",
+      "why": "wrong value"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

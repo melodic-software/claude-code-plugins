@@ -16,11 +16,30 @@ Collect, deduplicate, rank, and present current AI-industry developments without
 on organization-specific configuration. Markdown is the default output. HTML and PPTX are
 explicit, optional outputs backed by the bundled deterministic build pipeline.
 
-Only `--format` selects HTML or PPTX. The `rendered-views` `medium` preference
-(`~/.claude/rendered-views.md` and the repository's `.claude/rendered-views.md` layers) never
-starts the build, whatever value a layer sets, because the build needs the optional build tree
-and writes into the meetings folder. With no `--format`, the briefing is markdown and the report
-names "shipped default" as the source of the format (step 9).
+Only `--format` selects HTML or PPTX. The resolved view medium never starts the build, because the
+build needs the optional build tree and writes into the meetings folder. With no `--format`, the
+briefing is markdown and the report names "shipped default" as the source of the format (step 9).
+
+Resolve the view medium once, in step 1, through the shared medium resolver. This plugin has no
+`medium` option and the skill takes no medium argument, so `--option` is empty:
+
+```bash
+CLAUDE_PLUGIN_DATA="${CLAUDE_PLUGIN_DATA}" node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --lane ai-briefing:generate --option ""
+```
+
+It prints one JSON line, then the report line naming the medium and what decided it, then one
+line per notice. Print the report line and the notices in the report as they stand (step 9),
+next to the format's source, which alone says what the briefing was emitted as. One exception:
+the notice for a retired `~/.claude/rendered-views.md` ends "set it in the ai-briefing plugin's
+medium option instead", and this plugin has no such option. Print that notice with
+`docs/conventions/rendered-views.local.yaml` (the personal override) in place of "the
+ai-briefing plugin's medium option". When that notice names a value (`(it sets medium: …)`),
+also append `; a publishing value there applies only while that file is untracked and
+gitignored`, since the resolver ignores a publishing value in a committed personal override.
+Which values publish is the resolver's to know, so this caveat holds whatever the value is. Leave
+every other notice as it stands. Do
+not read or weigh the rendered-views convention files yourself. When `node` is missing, say so in
+one line and carry on.
 
 ## Source and access policy
 
@@ -124,7 +143,8 @@ cascade overlay:
 ## Default run
 
 1. Parse and validate arguments. Reject unknown formats and malformed dates before any
-   collection. Resolve the selected profile and read `sources.md` when present.
+   collection. Resolve the selected profile and read `sources.md` when present. Run the medium
+   resolver (see Purpose).
 2. Unless `--yes` is present, show the timeframe, provider scope, source classes, selected
    profile, and requested output format. Ask for confirmation before outbound collection.
 3. Search official vendor publications and GitHub releases first. Read configured feeds and
@@ -163,8 +183,8 @@ cascade overlay:
    provider.
 9. Lead the report with anything waiting on the user (a missing build prerequisite with its
    setup command, the text of a user-supplied X URL the run needs), then the collected,
-   excluded, deduplicated, and secondary-only counts plus the output path, and the source of
-   the format (`--format`, or "shipped default").
+   excluded, deduplicated, and secondary-only counts plus the output path, the source of
+   the format (`--format`, or "shipped default"), and the resolver's report line and notices.
    Make warnings visible, including unreachable sources and missing optional build tooling.
 
 ## Source bookmarks

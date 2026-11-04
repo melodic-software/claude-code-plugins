@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: explain-change-markdown-stays-the-record
+context:
+  scaffold_script: scaffold.sh

@@ -1841,3 +1841,19 @@ test("an earlier-fail round's replies and run.json are held to their template", 
     assert.deepEqual(api.posted(), [], label);
   }
 });
+
+// The write runner's script step (pr-run-activity-write.yml) fails a run whose
+// escalation reason file holds a reason outside its publish-feedback case arms,
+// so every reason publish-feedback and its adjudication can write is in them.
+test("every escalation reason publish-feedback can write is one the write runner's script step accepts", () => {
+  const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
+  const written = new Set(
+    ["./publish-feedback.mjs", "./adjudicate-feedback.mjs"].flatMap((path) => [...read(path).matchAll(/"(feedback-[a-z]+(?:-[a-z]+)*)"/g)].map((match) => match[1])),
+  );
+  assert.ok(written.has("feedback-already-addressed") && written.has("feedback-unadjudicated"), [...written].join(" "));
+  const workflow = read("../../workflows/pr-run-activity-write.yml");
+  const block = workflow.slice(workflow.indexOf('case "$FEEDBACK_REPLIES_DIR:$escalation" in'), workflow.indexOf(":ci-fix-invalid |"));
+  const accepted = new Set([...block.matchAll(/\?\*:(feedback-[a-z]+(?:-[a-z]+)*)/g)].map((match) => match[1]));
+  for (const reason of written) assert.ok(accepted.has(reason), `${reason} is not in the write runner's publish-feedback case arms`);
+  assert.ok(!accepted.has("feedback-bogus"));
+});
