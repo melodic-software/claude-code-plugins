@@ -1089,35 +1089,57 @@ export function unpushablePaths(body, taskList, names, workflows) {
 // at a line (`a.yml:3`): what the body points at, not what the work changes.
 const EVIDENCE_LINE = /^\s*(?:[-*+]\s+|\d+[.)]\s+)?(?:\*\*|_)?(?:basis|evidence|source|sources|see|seen in|refs?|cited?)\b/i;
 const CITED_AT = /`[^`\n]*:\d+(?:-\d+)?`|\S+:\d+(?:-\d+)?(?=[\s.,;)\]]|$)/g;
+// The section headings, at any level, that say what the work changes, and
+// those that hold what was observed: decompose's item body (Outcome, Done
+// when), the agent brief's Desired behavior and Acceptance criteria, the bug
+// templates' Expected behavior against their Steps to reproduce, Actual
+// behavior and Environment, and the brief's Current behavior. A line opening
+// with /bugs:write's `Suggested fix location` says it too.
+const HEADING = /^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$/;
+const CHANGE_SECTION = /^(?:(?:proposed |suggested )?fix|outcome|done when|desired behavior|expected behavior|acceptance criteria)$/;
+const EVIDENCE_SECTION = /^(?:evidence|steps to reproduce|actual behavior|current behavior|environment)$/;
+const CHANGE_LINE = /^\s*(?:[-*+]\s+)?(?:\*\*|_)?suggested fix location\b/i;
+const sectionOf = (title) => {
+  const name = plainText(title).replace(/[*_:]/g, "").trim().toLowerCase();
+  return CHANGE_SECTION.test(name) ? "change" : EVIDENCE_SECTION.test(name) ? "evidence" : null;
+};
 
 // The paths the prose of `body` names that apply-patch refuses under `names`:
-// each line outside a code fence and outside every task-list item (which
-// unpushablePaths reads), read as plainText, less an evidence line, a path
-// cited at a line, and a path named only in a shape that leaves it
-// unmodified (NEGATED), each once. Consecutive prose lines are read as one
-// paragraph, so a negation soft-wrapped across lines still holds; a blank
-// line, a bullet, a heading or a line left out ends one. Pure.
+// each line outside a code fence, an evidence section (EVIDENCE_SECTION) and
+// every task-list item (which unpushablePaths reads), read as plainText, less
+// an evidence line, a path cited at a line outside a change section
+// (CHANGE_SECTION) or CHANGE_LINE, and a path named only in a shape that
+// leaves it unmodified (NEGATED), each once. Consecutive prose lines are read
+// as one paragraph, so a negation soft-wrapped across lines still holds; a
+// blank line, a bullet, a heading or a line left out ends one. Pure.
 export function bodyUnpushablePaths(body, taskList, names, workflows) {
   const lines = String(body ?? "").split("\n");
   const blocks = fenceBlocks(lines);
   const items = new Set(taskItems(body, taskList).flatMap(({ line, more }) => [line, ...more]));
   const paragraphs = [];
   let open = false;
+  let section = null;
   lines.forEach((raw, index) => {
     const line = plainText(raw);
-    if (blocks[index] !== 0 || items.has(index) || EVIDENCE_LINE.test(line) || line.trim() === "") {
+    const heading = blocks[index] === 0 ? HEADING.exec(raw) : null;
+    if (heading) {
+      section = sectionOf(heading[1]);
+    }
+    if (blocks[index] !== 0 || items.has(index) || EVIDENCE_LINE.test(line) || line.trim() === "" || (section === "evidence" && !heading)) {
       open = false;
       return;
     }
-    const starts = BULLET.test(raw) || /^\s*#/.test(raw);
-    if (open && !starts) {
-      paragraphs[paragraphs.length - 1] += ` ${line.trim()}`;
+    const hash = /^\s*#/.test(raw);
+    if (open && !BULLET.test(raw) && !hash && !CHANGE_LINE.test(line)) {
+      paragraphs[paragraphs.length - 1].text += ` ${line.trim()}`;
     } else {
-      paragraphs.push(line);
+      paragraphs.push({ text: line, cites: section === "change" || CHANGE_LINE.test(line) });
     }
-    open = !/^\s*#/.test(raw);
+    open = !hash;
   });
-  const paths = paragraphs.flatMap((text) => pathTokens(withoutNegated(text.replace(CITED_AT, " ")), workflows).filter((path) => names.some((name) => PROTECTED_REFUSALS[name].test({ path: dotted(path) }))));
+  const paths = paragraphs.flatMap(({ text, cites }) =>
+    pathTokens(withoutNegated(cites ? text : text.replace(CITED_AT, " ")), workflows).filter((path) => names.some((name) => PROTECTED_REFUSALS[name].test({ path: dotted(path) }))),
+  );
   return [...new Set(paths)];
 }
 

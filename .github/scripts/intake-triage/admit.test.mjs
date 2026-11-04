@@ -3599,4 +3599,51 @@ describe("bodyUnpushablePaths", () => {
       reasons: ["its body or a criterion names .github/workflows/pr-require-checks.yml, which the issue lane cannot push (patch-protected-path); a builder session takes it"],
     });
   });
+
+  // A section that says what the work changes counts a path cited at a line;
+  // one that holds what was observed counts no path at all.
+  const SHAPE_13233 = (section) =>
+    [
+      "Refs: #6958, #12526",
+      "",
+      "## Problem",
+      "",
+      "`upstream-apply-changelog` has produced no pull request or issue since it was added.",
+      "",
+      "## Evidence",
+      "",
+      "| Run | Started | Result |",
+      "|---|---|---|",
+      "| [41760968895](https://github.com/o/r/actions/runs/41760968895) | 2026-11-04T02:28Z | `class=credit-stop` |",
+      "",
+      section,
+      "",
+      "- `.github/workflows/upstream-apply-changelog.yml:300-316` passes only `ISSUE_LANE_CLAUDE_API_KEY`, with `continue-on-error: true`.",
+      "",
+      "## Done when",
+      "",
+      "- [ ] A credit stop in this lane does not use up its daily cap.",
+      "- [ ] A credit stop shows up in the lane's records.",
+    ].join("\n");
+  const PUSH_13233 = "its body or a criterion names .github/workflows/upstream-apply-changelog.yml, which the issue lane cannot push (patch-protected-path); a builder session takes it";
+
+  test("#13233's shape, its workflow cited at a line under a fix section, parks as a criterion's path does", () => {
+    for (const section of ["## Fix", "## Proposed fix", "### Outcome", "## Expected behavior", "## Done when:"]) {
+      const issue = issueOf({ body: SHAPE_13233(section) });
+      assert.deepEqual(decide(facts({ issue })), { verdict: "refuse", reasons: [PUSH_13233] }, section);
+    }
+    assert.deepEqual(paths("**Severity**: low\n**Suggested fix location**: `.github/workflows/pr-require-checks.yml:40` `check-plugins`"), [".github/workflows/pr-require-checks.yml"]);
+  });
+
+  test("a body citing a workflow only under an evidence section is admitted, with or without a line", () => {
+    for (const section of ["## Evidence", "### Steps to reproduce", "## Actual behavior", "## Current behavior", "### Environment"]) {
+      assert.deepEqual(decide(facts({ issue: issueOf({ body: SHAPE_13233(section) }) })), { verdict: "admit", reasons: [] }, section);
+      assert.deepEqual(paths(`${section}\n\nThe step in .github/workflows/pr-require-checks.yml calls the script.`), [], section);
+    }
+  });
+
+  test("a done-when checkbox naming a workflow still parks beside the sections", () => {
+    const issue = issueOf({ body: SHAPE_13233("## Evidence").replace("- [ ] A credit stop in this lane", "- [ ] `.github/workflows/upstream-apply-changelog.yml` stops") });
+    assert.deepEqual(decide(facts({ issue })), { verdict: "refuse", reasons: [PUSH_13233] });
+  });
 });
