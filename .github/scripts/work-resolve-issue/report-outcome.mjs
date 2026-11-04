@@ -695,6 +695,25 @@ export async function stripQueueLabels(github, base, had) {
   }
   return removed;
 }
+// The state labels a closed issue no longer needs: triage's and the host
+// queue's. Removed only once the issue is closed, so a close that fails leaves
+// an open issue in its state. `attended` stays: only a listed human lifts it.
+export const STATE_LABELS = ["status: confirmed", "status: needs-decision", "status: needs-info", HOST_RUN_LABEL];
+
+// Removes the state labels `had` holds from the closed issue at `base`, and
+// returns their names. A 404 counts as removed.
+export async function stripStateLabels(github, base, had) {
+  const present = new Set(had.map((name) => String(typeof name === "string" ? name : name?.name).toLowerCase()));
+  const removed = STATE_LABELS.filter((name) => present.has(name));
+  for (const name of removed) {
+    await github("DELETE", `${base}/labels/${encodeURIComponent(name)}`).catch((error) => {
+      if (error?.status !== 404) {
+        throw error;
+      }
+    });
+  }
+  return removed;
+}
 const ROUTE_REMOVES = { intake: ADMISSION_LABELS, park: ADMISSION_LABELS };
 const ROUTE_TEXT = {
   "host-run": `It added \`${HOST_RUN_LABEL}\` and removed \`agent-ready\`: an agent run on a host builds it, and it waits on no decision from a person.`,
@@ -2277,9 +2296,11 @@ async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane
     // A label DELETE is idempotent (a 404 counts as removed), so it is resent
     // after a 5xx; only a removal that keeps failing leaves the issue open.
     const resend = (method, path) => github(method, path, undefined, { safeToResend: true });
-    const removed = await stripQueueLabels(resend, base, (await github("GET", base))?.labels ?? []);
+    const had = (await github("GET", base))?.labels ?? [];
+    const removed = await stripQueueLabels(resend, base, had);
     await github("PATCH", base, { state: "closed", state_reason: "completed" }, { safeToResend: true });
-    console.log(`report-outcome: closed issue #${plan.issueNumber} (${plan.stop}); removed ${removed.length} queue label(s)`);
+    const states = await stripStateLabels(resend, base, had);
+    console.log(`report-outcome: closed issue #${plan.issueNumber} (${plan.stop}); removed ${removed.length} queue label(s) and ${states.length} state label(s)`);
   }
 }
 
