@@ -72,7 +72,29 @@ copy-start / copy-end markers so the exact text to reuse is unambiguous.
 End with one scan-scope disclosure line: which lane(s) ran and what was and was not scanned (areas
 read, sources fetched). One line, not a methodology dump.
 
-For a long card list, offer an interactive view (cards filterable by type, a tick for each that was news, a copy-out of the reaction). The page is never written beside the cards, which stay the record. Build it only with `${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs`, never hand-written; the publish destination comes from the `medium` cascade key. Procedure and data shape: [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md).
+For a long card list, offer an interactive view in one sentence (cards filterable by type, a tick
+for each that was news, a copy-out of the reaction). The page is never written beside the cards,
+which stay the record. When the reader accepts:
+
+1. Resolve the medium through the shared resolver. Add `--argument "<medium>"` only when the reader
+   named a medium in the request:
+
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --lane discovery:blindspot --option "${user_config.medium}"
+   ```
+
+   Take the medium from its JSON line only, never from a rendered-views settings file. The step is
+   done when its report line and each notice line are printed as they stand. When `node` is missing
+   or the resolver exits non-zero, build nothing and say in one line why the view was not built.
+2. `page` false: build nothing. The step is done: the cards stand.
+3. `page` true: build the page only with `${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs`, never by
+   hand. With `publishes` true, publish the printed file with the Artifact tool and give the link;
+   when that tool is unavailable, hand back the path and say why in one line. Otherwise hand back
+   the path. The step is done when the reader has the link or the path.
+
+Build command, data shape, build failures and reply ids:
+[`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md),
+steps 1, 2, 4 and 6 and its "Discovery: blindspot" section. The resolver above replaces steps 3 and 5.
 
 This skill makes no changes and runs no open-ended external research: the domain lane fetches
 official docs only to ground the ladder and quality axes, and anything deeper routes to
