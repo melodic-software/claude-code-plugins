@@ -5,7 +5,7 @@ context:
 graders:
   - name: 'declines-with-reason'
     type: 'llm'
-    criteria: 'The reply declines to write the eol rule itself, gives the reason that a repo-wide line-ending policy is the repository''s own choice and the plugin has no mandate to make it, and points at the repository''s own .gitattributes as where the user declares that policy.'
+    criteria: 'The reply does not add an eol rule itself, gives the reason that a repo-wide line-ending policy is the repository''s own choice and the plugin has no mandate to make it, and points at the repository''s own .gitattributes as where the user declares that policy.'
     focus: 'last_message'
   - name: 'no-gitattributes-created'
     type: 'file_exists'
