@@ -292,8 +292,7 @@ run_mktemp_scratch() {
     TMPDIR="$root" CLAUDE_PLUGIN_DATA="$FOREIGN" bash "$SCRIPT" "$@" >/dev/null 2>&1
 }
 for c in "ok:12345" "gh-fail:FAIL" "not-a-zip:TINY" "job:--job 777" "job-fail:--job FAIL"; do
-  root="$TEST_TMPDIR/mktemp-$c"
-  root="${root%%:*}"
+  root="$TEST_TMPDIR/mktemp-${c%%:*}"
   # shellcheck disable=SC2086  # the case's arguments are split on purpose
   run_mktemp_scratch "$root" ${c#*:}
   assert_eq "mktemp scratch leaves nothing behind (${c%%:*})" "" "$(find "$root" -mindepth 1)"
