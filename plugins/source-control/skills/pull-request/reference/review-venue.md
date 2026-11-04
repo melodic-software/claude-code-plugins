@@ -2,10 +2,42 @@
 
 A change gets one AI review venue per lane. When the repository's CI review lane covers that lane
 and is healthy, CI reviews the pull request and no local review runs for it. When the lane is
-absent or unhealthy, the local review runs and the report names it as that lane's stand-in. This
-file is the one statement of that rule; [prep.md](prep.md) §1.2,
-[ready-for-review.md](ready-for-review.md) §2.5.3 and any other skill that reviews before or at
-the ready flip read the venue through it, never through a copy of its test.
+absent or unhealthy, the local review runs and the report names it as that lane's stand-in. The
+`review_venue` setting can fix the venue instead. This file is the one statement of that rule;
+[prep.md](prep.md) §1.2, [ready-for-review.md](ready-for-review.md) §2.5.3 and any other skill
+that reviews before or at the ready flip read the venue through it, never through a copy of its
+test.
+
+## Read the setting
+
+Read `review_venue` first, once per phase, with the bundled reader, which changes nothing:
+
+```bash
+bash "<skill-dir>/scripts/read-review-venue.sh" --user '<SKILL.md "Review venue" value>' \
+  [--base <base> --default-branch <default> (- | --http-response)]
+```
+
+Pass the repository's `docs/conventions/source-control.yaml` as the PR's base branch holds it,
+never the working tree's or the head's copy, since `ci` turns local reviews off
+([GitHub](../../../reference/providers/github/pull-request/review-venue.md#read-the-setting-at-the-base)).
+Before the PR exists (prep), the base is the branch the PR will target. When
+`<plugin-root>/lib/config-root.sh classify` does not print `repo`, pass `--user` alone. The reader
+prints `review_venue<TAB><value><TAB><level>`; levels and fallbacks are in
+[config-resolution.md](../../../reference/config-resolution.md#yaml-keys-docsconventionssource-controlyaml).
+Relay any notice it prints on stderr, such as an unknown value falling back to `auto`. A non-zero
+exit reads as `auto`.
+
+| Value | What runs | Read the venue? |
+|---|---|---|
+| `auto` (default) | each lane's local step runs only when its line below reads `local` | yes |
+| `local` | every local review step, and the `tests` suites | no |
+| `ci` | no local review step, whatever the script prints | yes, for the report only |
+| `both` | every local review step, and the CI lanes still count | yes |
+
+Below, a lane that "reads `ci`" or "reads `local`" means the lane's venue after the setting:
+`local` and `both` make every review lane read `local`, and `ci` makes every review lane read
+`ci`. The `tests` line follows the script under `auto`, `ci` and `both`, and reads `local` under
+`local`.
 
 ## Read the venue
 
@@ -51,7 +83,7 @@ of no pull requests, short enough that a lane broken for a week stops counting.
 
 **Exit codes.** 0 read; 1 bad argument; 2 a forge read failed; 5 a prerequisite is missing. On any
 exit but 0, treat every lane as `local` and report `review venue unread: <the script's message>`.
-An unread venue never skips a review.
+An unread venue never skips a review; only `review_venue: ci` does.
 
 ## Apply it
 
@@ -61,12 +93,24 @@ An unread venue never skips a review.
 | `security-review` | the ready step's `security-review` |
 | `tests` | the ready step's `verify` suites ([ready-for-review.md](ready-for-review.md) §2.5.3) |
 
+Under `auto`:
+
 - **`ci`**, for a review lane: skip the local step. Report it as `skipped, the CI <lane> lane
   covers it: <detail>`.
 - **`local`**, for a review lane: run the local step. Report it as `ran locally in place of the CI <lane> lane
   (<absent|failing|stale|unreadable>)`, or `ran locally, no CI <lane> lane` for `absent`.
 - **`tests`**: [ready-for-review.md](ready-for-review.md) §2.5.3 owns the skip, its
-  `--verify-local` override and its report line.
+  `--verify-local` and `review_venue: local` overrides and its report line.
+
+Under the other values, every review lane gets one report line, naming the setting's level:
+
+- **`local`**: `ran locally, review_venue local (<level>)`. The script does not run, so the
+  `tests` suites run too.
+- **`ci`**: `skipped, review_venue ci (<level>); the CI <lane> lane reads <the script's line>`. A
+  lane line that is not `ci healthy`, or a script that exits non-zero, still skips the step: name
+  the line so a person sees that no healthy lane covers it.
+- **`both`**: `ran locally beside the CI <lane> lane, review_venue both (<level>): <the script's
+  line>`. Findings from both venues go through the same verification.
 
 Read the venue once per phase, just before the first review it decides: prep at §1.2, and the
 ready step again at §2.5.3, since a lane can fail between the two. The ready step reads the

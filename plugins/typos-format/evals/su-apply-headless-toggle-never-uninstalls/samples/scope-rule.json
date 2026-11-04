@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Run either route from the project the plugin is installed in, since configure has no scope flag. For the rerun, -s defaults to user, so pass the scope claude plugin list reports; another scope adds an install record there and enables the plugin there. The value always lands in user settings."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Pass the scope claude plugin list reports.",
+      "why": "near miss: no default, no consequence, no value location"
+    },
+    {
+      "answer": "Use -s project and the value lands in the project's settings.",
+      "why": "wrong location"
+    }
+  ]
+}

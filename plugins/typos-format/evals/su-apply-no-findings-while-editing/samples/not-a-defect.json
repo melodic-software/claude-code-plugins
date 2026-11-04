@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Not a bug: there is no per-edit reporting. Separately, the pre-commit entry is missing in this repo.",
+      "why": "a separate missing entry"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "This is a bug: the edit hook is not firing. Repair it by reinstalling the plugin.",
+      "why": "a defect"
+    },
+    {
+      "answer": "The per-edit check is broken here, so install the entry to repair it.",
+      "why": "near miss: right remedy, framed as a broken per-edit check"
+    }
+  ]
+}
