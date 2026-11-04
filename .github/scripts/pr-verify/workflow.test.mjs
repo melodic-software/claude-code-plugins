@@ -1187,10 +1187,11 @@ const wake = (env) => {
   mkdirSync(bin);
   const args = path.join(dir, "args");
   writeFileSync(args, "");
-  // The stand-in answers an author read with GH_AUTHOR, or fails it when that is unset.
+  // The stand-in answers an author read with GH_AUTHOR, fails it when that is
+  // unset, or prints GH_ERROR_BODY and fails, as gh does on an HTTP error.
   writeFileSync(
     path.join(bin, "gh"),
-    `#!/bin/sh\necho "$@" >>'${args}'\nif [ "$1" = api ]; then [ -n "$GH_AUTHOR" ] || exit 1; echo "$GH_AUTHOR"; fi\n`,
+    `#!/bin/sh\necho "$@" >>'${args}'\nif [ "$1" = api ]; then [ -z "$GH_ERROR_BODY" ] || { printf '%s' "$GH_ERROR_BODY"; exit 1; }; [ -n "$GH_AUTHOR" ] || exit 1; echo "$GH_AUTHOR"; fi\n`,
     { mode: 0o755 },
   );
   const run = spawnSync("bash", ["--noprofile", "--norc", "-c", script], {
@@ -1222,22 +1223,38 @@ test("wake-pr-merge dispatches nothing on a fail, no verdict or a pull request n
   }
 });
 
-test("wake-pr-merge wakes only a lanes App pull request when it can read the author", () => {
-  const read = `api repos/${REPO}/pulls/41 --jq "\\(.user.id) \\(.user.type)"`;
-  const dispatch = `workflow run pr-merge.yml -R ${REPO} --ref main -f pr=41`;
-  const pass = { KEY_PR: "41", KEY_VERDICT: "pass", LANES_APP_ID: "7" };
-  // The lanes App's pull request: read, then woken.
-  assert.deepEqual(wake({ ...pass, GH_AUTHOR: "7 Bot" }).gh, [read, dispatch]);
-  // Another author, or the App's id on a User: read, nothing woken.
-  for (const author of ["9 User", "7 User", "8 Bot"]) {
-    const run = wake({ ...pass, GH_AUTHOR: author });
+const WAKE_READ = `api repos/${REPO}/pulls/41 --jq "\\(.user.id) \\(.user.type) \\(.auto_merge != null) \\([.labels[].name] | index("do-not-merge") != null)"`;
+const WAKE_DISPATCH = `workflow run pr-merge.yml -R ${REPO} --ref main -f pr=41`;
+const WAKE_PASS = { KEY_PR: "41", KEY_VERDICT: "pass", LANES_APP_ID: "7" };
+
+test("wake-pr-merge wakes only an unarmed, unheld lanes App pull request when it can read it", () => {
+  // The lanes App's pull request, unarmed and unheld: read, then woken.
+  assert.deepEqual(wake({ ...WAKE_PASS, GH_AUTHOR: "7 Bot false false" }).gh, [WAKE_READ, WAKE_DISPATCH]);
+  // A person's, Dependabot's, another App's, or the App's id on a User: read, nothing woken.
+  for (const author of ["9 User false false", "7 User false false", "8 Bot false false", "49699333 Bot false false"]) {
+    const run = wake({ ...WAKE_PASS, GH_AUTHOR: author });
     assert.equal(run.status, 0, author);
-    assert.deepEqual(run.gh, [read], author);
-    assert.match(run.stdout, /not a lanes App pull request; nothing woken/, author);
+    assert.deepEqual(run.gh, [WAKE_READ], author);
+    assert.match(run.stdout, /::notice title=pr-verify wake::pr=41 verdict=pass not a lanes App pull request; nothing woken/, author);
   }
-  // A failed read, or no usable lanes App id: woken anyway, pr-merge filters.
-  assert.deepEqual(wake(pass).gh, [read, dispatch]);
-  for (const id of ["", "x"]) assert.deepEqual(wake({ ...pass, LANES_APP_ID: id, GH_AUTHOR: "9 User" }).gh, [dispatch], id);
+  // A failed read, or no usable lanes App id: woken anyway, pr-merge decides.
+  assert.deepEqual(wake(WAKE_PASS).gh, [WAKE_READ, WAKE_DISPATCH]);
+  // A failed read whose error body spans lines (an edge 502 page) is still a failed read.
+  assert.deepEqual(wake({ ...WAKE_PASS, GH_ERROR_BODY: "<html>\n<body>502 Bad Gateway</body>\n</html>\n" }).gh, [WAKE_READ, WAKE_DISPATCH]);
+  for (const id of ["", "x"]) assert.deepEqual(wake({ ...WAKE_PASS, LANES_APP_ID: id, GH_AUTHOR: "9 User false false" }).gh, [WAKE_DISPATCH], id);
+});
+
+test("wake-pr-merge wakes no lanes App pull request already armed or held by do-not-merge", () => {
+  for (const [answer, why] of [
+    ["7 Bot true false", "already armed"],
+    ["7 Bot true true", "already armed"],
+    ["7 Bot false true", "held \\(do-not-merge\\)"],
+  ]) {
+    const run = wake({ ...WAKE_PASS, KEY_VERDICT: "pass-notes", GH_AUTHOR: answer });
+    assert.equal(run.status, 0, answer);
+    assert.deepEqual(run.gh, [WAKE_READ], answer);
+    assert.match(run.stdout, new RegExp(`::notice title=pr-verify wake::pr=41 verdict=pass-notes ${why}; nothing woken`), answer);
+  }
 });
 
 // pr-verify-capture.yml, the capture the judges read (#12232). It runs the

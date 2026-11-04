@@ -3,6 +3,12 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0] - 2026-11-04
+
+### Changed
+
+- **`/overengineering:audit` resolves its view medium through the shared resolver** ([#12679](https://github.com/melodic-software/claude-code-plugins/issues/12679)). The rendered-view offer now runs `lib/view-settings.mjs resolve --lane overengineering:audit` and prints the resolver's report line and notices in the terminal summary, and decides the offer from the resolver's `page` and `medium` fields. The skill no longer lists medium values or reads `~/.claude/rendered-views.md`, `.claude/rendered-views.md` or `.claude/rendered-views.local.md` itself: the resolver gives a notice for each one naming its new home, a `terminal` or `file` value there still keeps the view local unless the `--medium` argument or a current scope's `terminal` or `file` value decides first, and a publishing value there is ignored. The `rendered-views` settings under `docs/conventions/` and the `--medium` argument decide.
+
 ## [0.9.5] - 2026-11-04
 
 ### Changed

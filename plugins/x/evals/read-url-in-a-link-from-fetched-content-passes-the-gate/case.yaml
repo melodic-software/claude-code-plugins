@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: 'read-url-in-a-link-from-fetched-content-passes-the-gate'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:x:)?read"'
+    min: 1
+    arm: 'with-only'
+  - name: 'gate-accepts-both-links'
+    type: 'llm'
+    criteria: 'Treats https://x.com/tarnharbor/status/4101 and https://x.com/tarnmarket/status/4102 as URLs the skill''s gate accepts: it does not refuse either one because a closing paren, quote or other delimiter follows it in the page. Saying the posts could not be fetched because curl or Bash is unavailable still passes; that is not a refusal by the gate.'
+    focus: 'trace'
+    arm: 'with-only'
