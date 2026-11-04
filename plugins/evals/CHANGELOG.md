@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.16.6] - 2026-11-04
+
+### Changed
+
+- plugin-eval: the worktree guard records now cite the Claude Code 2.1.318 recheck: a `--worktree` session still refuses `claude plugin eval --help`, and a normal session runs it.
+
 ## [0.16.5] - 2026-11-04
 
 ### Changed
