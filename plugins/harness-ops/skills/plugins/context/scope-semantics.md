@@ -565,7 +565,7 @@ least one plugin is installed, and removing a cache folder only once it holds no
 symlink. So a removed marketplace's tree is swept on the same clock as any other orphaned version,
 marketplace folder included, provided the machine keeps any plugin installed.
 [`plugin marketplace remove`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-marketplace-remove)
-states what removal deletes and does not name this tree (read 2026-11-04); the marker is our
+says removal "also deletes its cache" and names no directory (read 2026-11-04); the marker is our
 observation that connects the two. The sweep
 does visit a removed marketplace's cache folders: the Claude Code 2.1.270 debug log (2026-09-14,
 recorded on [#3835](https://github.com/melodic-software/claude-code-plugins/issues/3835)) shows its
