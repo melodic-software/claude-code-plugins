@@ -34,7 +34,7 @@ graders:
     arm: both
   - name: no-git-destination
     type: regex
-    pattern: 'git safety[^\n]{0,160}?(?:(?:->|→)(?!\s*\**\s*(?:held|hold|stays?|keep|kept|none|no destination))|\.claude/rules/[\w.-]+\.md|\bmoves? (?:it |this )?to\b)'
+    pattern: 'git safety(?:(?!c#|c-?sharp)[^\n]){0,160}?(?:(?:->|→)(?!\s*[*`(]*\s*(?:held|hold|stays?|keep|kept|none|no destination|not moved|hard[- ]den|irreversible))|\.claude/rules/[\w.-]+\.md|\bmoves? (?:it |this )?to\b)'
     flags: i
     match: not_contains
     target: last_message
