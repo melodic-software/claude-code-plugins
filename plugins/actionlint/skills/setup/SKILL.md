@@ -50,6 +50,7 @@ of truth for what it requires and how it resolves things.
 pre-computed tool rows, run the remaining probes via Bash, and report a PASS/FAIL/INFO
 table with one remediation line per FAIL. Do not modify anything.
 Option values are rendered into this text at load: read them here, and never put a `${user_config.*}` string in a shell command.
+Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names; never Glob or Grep the plugin directory.
 
 When the plugin's toggle is disabled, every prerequisite absence except `node` downgrades from
 FAIL to INFO. The Claude Code hooks exit through their enabled-gate before probing anything, so a
