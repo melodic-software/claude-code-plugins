@@ -1,5 +1,13 @@
 # Changelog: discovery plugin
 
+## [1.4.11] - 2026-11-04
+
+### Changed
+
+- The config reference and the `explore` and `setup` skills now call the config cascade's
+  gitignored `*.local.*` layer the personal override, the marketplace's name for it (#13192).
+  Behavior is unchanged.
+
 ## [1.4.10] - 2026-11-04
 
 ### Fixed

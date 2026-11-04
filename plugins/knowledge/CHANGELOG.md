@@ -4,6 +4,13 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [1.2.4] - 2026-11-04
+
+### Changed
+
+- The config reference now calls the config cascade's gitignored `*.local.*` layer the personal
+  override, the marketplace's name for it (#13192). Behavior is unchanged.
+
 ## [1.2.3] - 2026-11-04
 
 ### Fixed

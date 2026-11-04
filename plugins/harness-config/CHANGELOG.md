@@ -5,6 +5,14 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [3.0.9] - 2026-11-04
+
+### Changed
+
+- `setup`, the `audit` procedures and the `audit-pass` suppression reference now call the config
+  cascade's gitignored `*.local.*` layer the personal override, the marketplace's name for it
+  (#13192). Behavior is unchanged.
+
 ## [3.0.8] - 2026-11-04
 
 ### Fixed

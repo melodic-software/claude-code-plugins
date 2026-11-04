@@ -1,5 +1,12 @@
 # Changelog: session-flow plugin
 
+## [7.0.6] - 2026-11-04
+
+### Changed
+
+- The config reference and the `setup` skill now call the config cascade's gitignored `*.local.*`
+  layer the personal override, the marketplace's name for it (#13192). Behavior is unchanged.
+
 ## [7.0.5] - 2026-11-04
 
 ### Fixed
