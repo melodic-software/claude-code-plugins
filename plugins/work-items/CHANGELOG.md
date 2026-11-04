@@ -3,6 +3,14 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.1.2] - 2026-11-04
+
+### Changed
+
+- The agent brief's acceptance-criteria rule names one more form to avoid: where CI selects test
+  suites by the paths a change touches, a check that a suite the change does not reach passes in
+  its CI can never be proven, because that run never happens.
+
 ## [11.1.1] - 2026-11-04
 
 ### Changed
