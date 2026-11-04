@@ -1452,12 +1452,18 @@ export function evidenceHold(report, head) {
 }
 
 // The evidence file's verdict, a file that does not read included.
-// The reader's refusal of this head's pass, or null. A refusal the workflow
-// step got before reading any pass names leaves verdictHold no pass to read,
-// so the hold names that refusal, not a missing pass.
+// The reader's refusal of this head's pass (one of PASS_REFUSALS), or null.
+// A refusal the workflow step got before reading any pass names leaves
+// verdictHold no pass to read, so the hold names that refusal, not a missing
+// pass. Any other refusal is evidenceHold's.
 export function passRefusalOf(evidence, head) {
-  return evidence?.head === head && typeof evidence.refusal === "string" ? evidence.refusal : null;
+  return evidence?.head === head && PASS_REFUSALS.includes(evidence.refusal) ? evidence.refusal : null;
 }
+
+// Owner decision (2026-11-04, "Hold until re-judged"): a pass the linked issue
+// changed after holds in the queue too, read or not, until pr-verify judges
+// the head again (the lost-run reconciler re-runs it) or an approval lifts it.
+const STALE = "verify:spec-changed";
 
 function evidenceOf(file, head) {
   try {
@@ -1685,16 +1691,18 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
     if (verdictsFile) {
       const records = lines(verdictsFile).map((line) => JSON.parse(line));
       let unverified = verdictHold(records, env.GITHUB_REPOSITORY);
-      if (unverified && records.length === 0 && evidenceFile) {
-        let refused = null;
+      let refused = null;
+      if (evidenceFile) {
         try {
           refused = passRefusalOf(JSON.parse(readFileSync(evidenceFile, "utf8")), head);
         } catch {
           refused = null;
         }
-        if (refused) {
-          unverified = `pr-verify's reader refuses this head's pass (${refused})`;
-        }
+      }
+      if (refused === STALE) {
+        unverified = `pr-verify's pass on this head is stale (${STALE}): its linked issue changed after pr-verify judged it`;
+      } else if (unverified && records.length === 0 && refused) {
+        unverified = `pr-verify's reader refuses this head's pass (${refused})`;
       }
       // An approval lifts the verifier hold whole, the link with it.
       const relinked = unverified || approved.length ? null : linkFile ? linkOf(linkFile, body, repo) : "its issue link could not be checked against its verifier pass";
