@@ -543,7 +543,7 @@ lib/state-key.sh plugins/overengineering/lib/state-key.sh
 lib/rendered-view.md plugins/planning/reference/rendered-view.md
 lib/rendered-view.md plugins/architecture/reference/rendered-view.md
 lib/rendered-view.md plugins/discovery/reference/rendered-view.md
-lib/rendered-view.md plugins/debugging/skills/debug/reference/rendered-view.md
+lib/rendered-view.md plugins/debugging/reference/rendered-view.md
 lib/telemetry-body-gate.sh plugins/work-items/scripts/telemetry-body-gate.sh
 lib/telemetry-body-gate.sh plugins/harness-ops/skills/lanes/scripts/lib/telemetry-body-gate.sh
 lib/telemetry-body-gate.sh plugins/source-control/skills/babysit-loop/scripts/telemetry-body-gate.sh
