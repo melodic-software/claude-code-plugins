@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.4.1] - 2026-11-04
+
+### Changed
+
+- The planning chain now names the interview's record the Brief ([#13185](https://github.com/melodic-software/claude-code-plugins/issues/13185)). `/planning:interview`'s Step 4 heading and checklist step now read "Persist the Brief", and its gotchas heading reads "Brief". The register gate now names the Brief or summary it guards. The paragraph after the unattended ladder, the gate comments and the README's interview row say Brief too, as do the comments in `surface/exporters.py` and `surface/surface-checks.sh`. Where "contracts" meant design's interfaces, `/planning:plan`, the interview's composition table and two hand-off evals now say "interface contracts". The eval samples that quote the checklist line use the new text, and `interview-defenses.test.sh` re-pins the eight digests these edits changed.
+
 ## [2.4.0] - 2026-11-04
 
 ### Changed
