@@ -14,11 +14,11 @@ name: eval-hill-climb-pass
 # tool is granted beyond the read-only set. Console output, which can carry
 # model text, goes to a file that nothing uploads.
 #
-# The pass uploads its result, summarize.mjs's summary (with its health lines,
-# read from the kept traces) and run-validity.py's verdict, after a credential
-# scan, under a manifest whose SHA-256 is this workflow's output. Pass a also
-# uploads the with-arm traces of each case that scored below 1, for the model
-# step. Lane hardening follows ADR 0049
+# The pass uploads only what eval-browser-dispatch.yml uploads, its result
+# (per-case scores and grader verdicts), with summarize.mjs's summary (its
+# health lines read from the kept traces) and run-validity.py's verdict line,
+# after a credential scan, under a manifest whose SHA-256 is this workflow's
+# output. No trace leaves the runner. Lane hardening follows ADR 0049
 # (docs/adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md):
 # the job token can only read, the kill switch is read first, and no write
 # token exists.
@@ -272,8 +272,8 @@ jobs:
           echo "claude plugin eval exited $status"
 
       # The summary (health lines from the kept traces) and the validity
-      # verdict, read here because the traces stay on this runner. Pass a adds
-      # the with-arm traces of each case below 1 and an index of them.
+      # verdict, read here because the traces stay on this runner. Only the
+      # verdict line leaves it: run-validity.py's detail lines can quote a trace.
       - name: Read the pass
         id: read
         env:
@@ -289,20 +289,9 @@ jobs:
           fi
           cp "$OUT/results.json" "$STAGE/results.json"
           node .base/.github/scripts/plugin-eval/summarize.mjs "$OUT/results.json" --plugin "$PLUGIN" >"$STAGE/summary.md" || true
-          python3 .base/plugins/evals/skills/plugin-eval/scripts/run-validity.py "$OUT/results.json" --runs 3 --scaffolded >"$STAGE/validity.txt" || true
-          tail -n 1 "$STAGE/validity.txt"
-          if [ "$PASS" = a ]; then
-            mkdir -p "$STAGE/traces"
-            jq -r '.cases[]? as $c | ($c.arms.with // []) | to_entries[]
-              | select((.value.score // 0) < 1 and (.value.tracePath // "") != "")
-              | [($c.name // $c.dir // "case"), (.key + 1 | tostring), .value.tracePath] | @tsv' "$OUT/results.json" |
-              while IFS=$'\t' read -r name run trace; do
-                [ -f "$trace" ] && [ ! -L "$trace" ] || continue
-                file="$(printf '%s' "$name" | tr -c 'A-Za-z0-9._-' '_')-$run.jsonl"
-                head -c 4194304 "$trace" >"$STAGE/traces/$file"
-                printf '%s\t%s\t%s\n' "$name" "$run" "traces/$file" >>"$STAGE/traces/index.tsv"
-              done
-          fi
+          validity=$(python3 .base/plugins/evals/skills/plugin-eval/scripts/run-validity.py "$OUT/results.json" --runs 3 --scaffolded) || true
+          printf '%s\n' "$validity" | tail -n 1 >"$STAGE/validity.txt"
+          cat "$STAGE/validity.txt"
           sums=$(cd "$STAGE" && find . -type f -print0 | sort -z | xargs -0 sha256sum)
           printf '%s\n' "$sums" >"$STAGE/manifest.sha256"
           sum=$(sha256sum <"$STAGE/manifest.sha256")

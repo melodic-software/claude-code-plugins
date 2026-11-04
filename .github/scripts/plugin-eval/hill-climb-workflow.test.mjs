@@ -59,6 +59,26 @@ test("every pass runs 3 runs per case per arm under --max-cost-usd 5, with no to
   assert.deepEqual([...order].sort((a, b) => a - b), order);
 });
 
+test("no trace leaves a pass runner: a pass uploads its result, summary and validity verdict line only", () => {
+  const readPass = step(pass, "Read the pass");
+  assert.doesNotMatch(code(readPass), /trace/i);
+  assert.match(readPass, /cp "\$OUT\/results\.json" "\$STAGE\/results\.json"\n/);
+  assert.match(readPass, /printf '%s\\n' "\$validity" \| tail -n 1 >"\$STAGE\/validity\.txt"\n/);
+  assert.deepEqual(
+    [...code(readPass).matchAll(/>"\$STAGE\/([\w.]+)"/g)].map(([, name]) => name),
+    ["summary.md", "validity.txt", "manifest.sha256"],
+    "besides the copied results.json, the pass writes only its summary, verdict line and manifest",
+  );
+  assert.match(step(pass, "Upload the pass"), /path: \$\{\{ runner\.temp \}\}\/upload\/\n/);
+  assert.doesNotMatch(step(jobs(main).propose, "Write the prompt and schema"), /traces\//);
+});
+
+test("every ci-workflows action is pinned to one full commit", () => {
+  const pins = [...(main + pass).matchAll(/uses: melodic-software\/ci-workflows\/[^@\n]+@(\S+) # (.+)/g)].map(([, sha, note]) => `${sha} ${note}`);
+  assert.ok(pins.length >= 2);
+  for (const pin of pins) assert.equal(pin, "b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 b8bdd7f 2026-11-04");
+});
+
 test("the one model step is read-only, on the maintenance token, and frames what it reads as data", () => {
   assert.equal(main.match(/run-claude-cli@/g).length, 1);
   assert.doesNotMatch(pass, /run-claude-cli@/);
