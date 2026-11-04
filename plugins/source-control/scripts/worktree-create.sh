@@ -34,7 +34,7 @@
 # It never falls back to Claude Code's in-repo `.claude/worktrees/`, whose nested
 # placement is what the nesting invariant forbids. That claim is owned, measured
 # and dated in exactly one place and is not restated here:
-# skills/worktree/reference/nesting-invariant.md § "The nesting invariant, dated measurement". The data dir is
+# skills/worktree/SKILL.md § "The nesting invariant, dated measurement". The data dir is
 # never read from the environment — see the resolution block.
 #
 # Output contract: on success the created worktree path is the SOLE stdout line
@@ -197,7 +197,7 @@ Options:
                       \${user_config.*} token falls through to the config key /
                       fallback / data-root rungs — never to the in-repo
                       .claude/worktrees/ default, whose nested placement the
-                      nesting invariant forbids (skills/worktree/reference/nesting-invariant.md).
+                      nesting invariant forbids (skills/worktree/SKILL.md).
                       Mutually exclusive with --root-file.
   --fallback-root <dir>
                       The machine-global worktree_root PLUGIN OPTION, consulted
@@ -671,7 +671,7 @@ reference/worktree-root-convention.md.
 Not falling back to the in-repo .claude/worktrees/ default: a worktree nested
 inside a checkout can pick up that checkout's path-scoped rules as well as its
 own. Measurement, disputed arms and expiry:
-skills/worktree/reference/nesting-invariant.md "The nesting invariant, dated measurement".
+skills/worktree/SKILL.md "The nesting invariant, dated measurement".
 EOF
     exit 3
   fi
@@ -801,8 +801,8 @@ worktree_path=$(worktree_path_normalize "$worktree_path")
 
 # Reject placement inside any git repository — a working tree, a normal repo's
 # .git directory, or a bare clone. Keeping worktrees OUT of every repository is
-# the helper's core purpose — see skills/worktree/reference/nesting-invariant.md § "The nesting
-# invariant, dated measurement" for the measured claim, and note that a worktree dropped
+# the helper's core purpose — see skills/worktree/SKILL.md § "The nesting
+# invariant, verified" for the measured claim, and note that a worktree dropped
 # inside a .git or bare directory additionally mixes the checkout into git
 # metadata, which is a separate and undisputed reason to refuse. The root
 # resolution above does not catch a root explicitly pointed inside a repository
@@ -851,7 +851,7 @@ on the same drive as the repo on Windows — then retry.
 Not creating inside a checkout or a git directory: from there a worktree can
 pick up the enclosing checkout's path-scoped rules as well as its own, and a
 git-directory placement mixes the worktree into git metadata. Measurement and
-expiry: skills/worktree/reference/nesting-invariant.md "The nesting invariant, dated measurement".
+expiry: skills/worktree/SKILL.md "The nesting invariant, dated measurement".
 EOF
     exit 3
   fi
