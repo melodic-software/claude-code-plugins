@@ -66,7 +66,7 @@ Spelling findings arrive at commit time, from the git pre-commit entry
 `${CLAUDE_PLUGIN_ROOT}/hooks/typos-format.sh` first: probe what they actually do, don't recite
 this file. Then read the pre-computed tool row, run the remaining probes via Bash, and report a
 PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
-Option values are rendered into this text at load: read them here, and never put a `${user_config.*}` string in a shell command.
+Read each option value from this text; never put a `${user_config.*}` string in a shell command.
 Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names; never Glob or Grep the plugin directory.
 
 typos stays a FAIL even when `typos_format_enabled` is off, because the installed git entry runs
