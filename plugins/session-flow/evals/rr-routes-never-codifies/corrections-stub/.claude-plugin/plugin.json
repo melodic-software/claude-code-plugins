@@ -1,0 +1,5 @@
+{
+  "name": "corrections",
+  "version": "0.0.0",
+  "description": "Eval-only stand-in for the corrections plugin: the codify skill, so a checkpoint can offer it as the route for a durable learning, with no scripts."
+}
