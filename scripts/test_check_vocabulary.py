@@ -204,9 +204,10 @@ ALLOWLIST = [
     path("surface-config", "plugins/*/**/evals/**", EVAL, SURFACE_LINE),
     phrase(
         "surface-config",
-        r"\bsettings surfaces?\b.*\b(ladder|fetched docs)\b|\bladder\b.*\bsettings surfaces?\b",
+        r"\bsettings surfaces?\b.*\b(ladder|fetched docs|UI-only)\b|\bladder\b.*\bsettings surfaces?\b",
         "The ladder resolves the exact settings surface.",
     ),
+    phrase("surface-config", r"\bsettings surfaces a non-zero exit\b", "Bad settings surfaces a non-zero exit."),
     phrase("surface-config", r"\b(memory-layer|instruction) surfaces?\b", "On memory-layer surfaces such as CLAUDE.local.md, read settings.json too."),
     phrase("surface-config", r"\brunnable surfaces?\b", "A live run for any change with a runnable surface in settings.json."),
     phrase(
