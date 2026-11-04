@@ -1,0 +1,1 @@
+{"pass":[{"answer":"INFO: no skills_root set, so the default `.claude/skills` applies.","why":"names the default"},{"answer":"Root: /ws/.claude/skills (2 skills)","why":"absolute path"}],"fail":[{"answer":"","why":"empty"},{"answer":"Root: skills/ (2 skills)","why":"wrong root"}]}

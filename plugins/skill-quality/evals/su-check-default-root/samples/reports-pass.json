@@ -1,0 +1,1 @@
+{"pass":[{"answer":"| PASS | Root exists and has skills |","why":"PASS row"},{"answer":"Already configured: nothing to change.","why":"rerun wording"}],"fail":[{"answer":"FAIL: no skills root found.","why":"wrong verdict"},{"answer":"Here is the root.","why":"no verdict"}]}
