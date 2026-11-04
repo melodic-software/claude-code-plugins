@@ -478,12 +478,13 @@ claims() {
   return 1
 }
 
-# pick_adapter <file>: the adapter claiming <file>; among several, the first in
-# load order whose detect.any_regex matches the content, else the first in load
-# order with no detect list, else the first in load order. Prints nothing when
-# none claims the file.
+# pick_adapter <file>: sets PICKED to the adapter claiming <file>; among several,
+# the first in load order whose detect.any_regex matches the content, else the
+# first in load order with no detect list, else the first in load order. Empty
+# when none claims the file. A variable, not output, so no subshell per file.
 pick_adapter() {
   local id first="" first_detects=""
+  PICKED=""
   for id in ${adapter_ids[@]+"${adapter_ids[@]}"}; do
     claims "$id" "$1" || continue
     # The fallback is the first claimant with no detect list (the default
@@ -494,11 +495,11 @@ pick_adapter() {
     fi
     regex_args "${a_detect[$id]:-}"
     if [[ ${#PATS[@]} -gt 0 ]] && LC_ALL=C grep -qE "${PATS[@]}" -- "$1" 2>/dev/null; then
-      printf '%s' "$id"
+      PICKED="$id"
       return
     fi
   done
-  printf '%s' "$first"
+  PICKED="$first"
 }
 
 # --- Walk ---------------------------------------------------------------------
@@ -515,21 +516,74 @@ collect_files() {
     -o -type f \( "$@" \) -print 2>>"$WALK_ERR" | sort
 }
 
+# walk_all <find name args>: one pruned walk over every name any pass below
+# asks for, sorted once into ALL_FILES. Each pass then filters it by name, which
+# keeps collect_files' order, since a filter of a sorted list stays sorted. On Git
+# for Windows a walk costs a find and a sort; one walk replaces up to seven.
+# Each pass logs the walk's errors again, as when it walked the tree itself, so
+# the error count is unchanged.
+ALL_FILES=()
+WALK_ONCE_ERR=""
+walk_all() {
+  local err
+  err="$(mktemp)"
+  mapfile -t ALL_FILES < <(WALK_ERR="$err" collect_files "$@")
+  WALK_ONCE_ERR="$(<"$err")"
+  rm -f "$err"
+}
+# walked <glob>...: the ALL_FILES entries whose base name matches a glob, one per
+# line, logging the walk's errors for this pass.
+walked() {
+  local f g
+  [[ -z "$WALK_ONCE_ERR" ]] || printf '%s\n' "$WALK_ONCE_ERR" >>"$WALK_ERR"
+  for f in ${ALL_FILES[@]+"${ALL_FILES[@]}"}; do
+    for g in "$@"; do
+      # shellcheck disable=SC2053 # the glob is a pattern on purpose
+      if [[ "${f##*/}" == $g ]]; then
+        printf '%s\n' "$f"
+        break
+      fi
+    done
+  done
+}
+
 # The walk takes the union of every adapter's files: globs, plus the files
 # content_files claims. Each file is then bucketed by its adapter's language,
 # and the buckets scan in the fixed order js, python, cs, bash, pwsh, go, so
 # finding order does not depend on adapter file names.
-name_args=()
+name_globs=()
 declare -A glob_seen=()
 for id in ${adapter_ids[@]+"${adapter_ids[@]}"}; do
   while IFS= read -r glob; do
     [[ -z "$glob" || -n "${glob_seen[$glob]:-}" ]] && continue
     glob_seen[$glob]=1
-    [[ ${#name_args[@]} -gt 0 ]] && name_args+=(-o)
-    name_args+=(-name "$glob")
+    name_globs+=("$glob")
   done <<<"${a_globs[$id]:-}"
 done
-[[ ${#name_args[@]} -gt 0 ]] || name_args=(-name '')
+[[ ${#name_globs[@]} -gt 0 ]] || name_globs=('')
+
+# Every name the passes below filter on, walked once.
+PW_NAMES=(playwright.config.ts playwright.config.js playwright.config.mts playwright.config.mjs
+  playwright.config.cts playwright.config.cjs)
+PYTEST_NAMES=(pytest.toml .pytest.toml pytest.ini .pytest.ini pyproject.toml tox.ini setup.cfg)
+VITEST_EXTS=(ts mts cts js mjs cjs)
+VITEST_NAMES=()
+for n in "${VITEST_EXTS[@]}"; do VITEST_NAMES+=("vitest.config.$n" "vite.config.$n"); done
+JS_NAMES=('*.js' '*.jsx' '*.mjs' '*.cjs' '*.ts' '*.tsx' '*.mts' '*.cts')
+walk_names=("${name_globs[@]}")
+for id in ${adapter_ids[@]+"${adapter_ids[@]}"}; do
+  while IFS= read -r glob; do [[ -n "$glob" ]] && walk_names+=("$glob"); done <<<"${a_cglobs[$id]:-}"
+done
+walk_names+=("${PW_NAMES[@]}")
+[[ -n "$LINES" ]] || walk_names+=("${PYTEST_NAMES[@]}" "${VITEST_NAMES[@]}" "${JS_NAMES[@]}")
+walk_args=()
+declare -A walk_seen=()
+for glob in "${walk_names[@]}"; do
+  [[ -n "${walk_seen[$glob]:-}" ]] && continue
+  walk_seen[$glob]=1
+  walk_args+=(${walk_args[@]+-o} -name "$glob")
+done
+walk_all "${walk_args[@]}"
 
 # content_files: files a claim_by_content.files glob names whose content
 # matches that adapter's any_regex. Adapters sharing both lists (cs-nunit
@@ -544,10 +598,10 @@ content_files() {
     walked[$key]=1
     args=()
     while IFS= read -r glob; do
-      [[ -n "$glob" ]] && args+=(${args[@]+-o} -name "$glob")
+      [[ -n "$glob" ]] && args+=("$glob")
     done <<<"${a_cglobs[$id]}"
     regex_args "${a_cregex[$id]}"
-    collect_files "${args[@]}" | tr '\n' '\0' | LC_ALL=C xargs -0 -r grep -lE "${PATS[@]}" -- 2>/dev/null
+    walked "${args[@]}" | tr '\n' '\0' | LC_ALL=C xargs -0 -r grep -lE "${PATS[@]}" -- 2>/dev/null
   done
 }
 
@@ -597,7 +651,8 @@ while IFS= read -r f; do
     file_adapter[$f]=""
     continue
   fi
-  id="$(pick_adapter "$f")"
+  pick_adapter "$f"
+  id="$PICKED"
   if [[ -z "$id" ]]; then
     tc_unclaimed=$((tc_unclaimed + 1))
     file_adapter[$f]=""
@@ -621,7 +676,7 @@ while IFS= read -r f; do
   esac
 done < <(
   {
-    collect_files "${name_args[@]}"
+    walked "${name_globs[@]}"
     content_files
   } | sort
   include_files
@@ -647,34 +702,24 @@ fi
 # runner probes. Playwright never walks upward, so every directory holding any
 # of the six is its own Playwright root; within one directory only the first in
 # probe order is loaded, and the rest are counted as shadowed without being read.
-mapfile -t cfg_files < <(collect_files \
-  -name 'playwright.config.ts' -o -name 'playwright.config.js' \
-  -o -name 'playwright.config.mts' -o -name 'playwright.config.mjs' \
-  -o -name 'playwright.config.cts' -o -name 'playwright.config.cjs')
+mapfile -t cfg_files < <(walked "${PW_NAMES[@]}")
 
 # pytest, Vitest and Jest retry settings (engine: retry-config-scan.awk). The
 # pytest and Vitest files are configs, picked one per directory below; a Jest
 # retryTimes call sits in any JS/TS file, so every one that names it is read,
 # minus paths.exclude. An edit-scoped run (--lines) reads none of them: a
 # file-level setting is no finding about the lines an edit wrote.
-PYTEST_NAMES=(pytest.toml .pytest.toml pytest.ini .pytest.ini pyproject.toml tox.ini setup.cfg)
-VITEST_EXTS=(ts mts cts js mjs cjs)
 rc_py_files=()
 rc_vt_files=()
 rc_js_files=()
 if [[ -z "$LINES" ]]; then
-  rc_args=()
-  for n in "${PYTEST_NAMES[@]}"; do rc_args+=(${rc_args[@]+-o} -name "$n"); done
-  mapfile -t rc_py_files < <(collect_files "${rc_args[@]}")
-  rc_args=()
-  for n in "${VITEST_EXTS[@]}"; do rc_args+=(${rc_args[@]+-o} -name "vitest.config.$n" -o -name "vite.config.$n"); done
-  mapfile -t rc_vt_files < <(collect_files "${rc_args[@]}")
+  mapfile -t rc_py_files < <(walked "${PYTEST_NAMES[@]}")
+  mapfile -t rc_vt_files < <(walked "${VITEST_NAMES[@]}")
   while IFS= read -r f; do
     [[ -n "$f" ]] || continue
     if [[ ${#tc_exclude_re[@]} -gt 0 ]] && excluded "$f"; then continue; fi
     rc_js_files+=("$f")
-  done < <(collect_files -name '*.js' -o -name '*.jsx' -o -name '*.mjs' -o -name '*.cjs' \
-    -o -name '*.ts' -o -name '*.tsx' -o -name '*.mts' -o -name '*.cts' |
+  done < <(walked "${JS_NAMES[@]}" |
     tr '\n' '\0' | xargs -0 -r grep -lE 'retryTimes' -- 2>/dev/null | sort)
 fi
 
