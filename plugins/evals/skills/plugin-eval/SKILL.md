@@ -113,6 +113,15 @@ inside that set; otherwise it lists the gated tools, which are exactly the ones 
 `--allow-tools` grant. Neither a case nor a skill's own `allowed-tools` can widen that grant; an
 ungranted tool is removed and reported on stderr as `not granted`.
 
+### Route per environment
+
+| Environment | Runs today, and the route | Recorded run | Pointer | As of | Recheck when |
+|---|---|---|---|---|---|
+| Windows native | Read-only suites only: the backend is `absent`, so a gated suite takes the refusal above and its route | None: no read-only run is recorded yet | <https://code.claude.com/docs/en/plugin-evals#grant-tools> | 2026-11-04 | That section names a Windows backend, or a read-only run here is recorded |
+| WSL2 | Any suite once the backend is `present`, with Run step 3's `TMPDIR`. Docker Desktop's links make it `not-ready`: take that route's link swap | One `Bash`-granting case through the swap on Docker Desktop's own store; no record covers a host without Docker Desktop | [Set up Linux and WSL2](https://code.claude.com/docs/en/sandboxing#set-up-linux-and-wsl2); [records.md](reference/records.md#sandbox-and-credential-store) | 2026-11-04 | That section adds or drops a package or WSL note, or a release note touches sandbox credential exclusion |
+| Claude cloud session | Unverified: in the session, take the `absent` route's cloud clause, then the backend table | None: no run is recorded, and whether the CLI runs there is unverified | [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools) | 2026-11-04 | That section changes its host description or package list, or a run here is recorded |
+| GitHub Actions | In this repository, dispatch [`eval-browser-dispatch.yml`](https://github.com/melodic-software/claude-code-plugins/blob/main/.github/workflows/eval-browser-dispatch.yml) on main under the [CI](#ci) rules; read its `env-scrub` input before granting `Bash`. [Issue 6649](https://github.com/melodic-software/claude-code-plugins/issues/6649) tracks the suite job | One with-and-without pass of one plugin's suite, whose logged Bash errors were all a sandbox refusal under `env-scrub` on ([record](https://github.com/melodic-software/claude-code-plugins/issues/6649#issuecomment-6589725145)) | [Issue 6649](https://github.com/melodic-software/claude-code-plugins/issues/6649); <https://code.claude.com/docs/en/plugin-evals#run-evals-in-ci> | 2026-11-04 | Issue 6649 closes, that workflow's run step changes, or that section changes its runner requirements |
+
 ### Worktree isolation
 
 Under Claude Code's worktree isolation a Bash guard can refuse the CLI; which session shapes it
