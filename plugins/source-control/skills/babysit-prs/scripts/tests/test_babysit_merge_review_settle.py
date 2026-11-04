@@ -671,8 +671,8 @@ class RepoSettlePairReachesEvaluate(SettleHarness):
     """
 
     REPO_PAIR = (
-        "## babysit_review_bot_logins\n- github-actions\n\n"
-        "## babysit_review_settle_minutes\n5\n"
+        "babysit_review_bot_logins:\n  - github-actions\n"
+        "babysit_review_settle_minutes: 5\n"
     )
 
     def _run(self, files: dict[str, str | int], *flags: str) -> tuple[int, Any]:
@@ -749,7 +749,7 @@ class RepoSettlePairReachesEvaluate(SettleHarness):
 
     def test_half_declared_repo_pair_leaves_the_flag_pair_in_force(self) -> None:
         _, settle = self._run(
-            {"owner/repo": "## babysit_review_settle_minutes\n1\n"},
+            {"owner/repo": "babysit_review_settle_minutes: 1\n"},
             "--review-bot-logins",
             REVIEWER,
             "--review-settle-minutes",

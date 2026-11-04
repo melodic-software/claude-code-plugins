@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "manifest userConfig.medium: flag, hosted uploads the page\n\nseverity: IMPORTANT",
+      "why": "a flag, not a pass"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "manifest userConfig.medium: pass, advisory, a view medium",
+      "why": "an advisory pass on a medium read outside the resolver"
+    }
+  ]
+}

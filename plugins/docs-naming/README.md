@@ -43,13 +43,13 @@ resolved document and names the layer that supplied each key, and
 consumer's `.gitignore`. Keys, defaults, merge classes, and the policy floor are
 documented in [`reference/config.md`](reference/config.md).
 
-For one release a team or overlay layer whose YAML is absent is read from the
-JSON file under `.claude/` it used to live in, with a WARN row from
-`/docs-naming:setup check`; the YAML wins when both exist, and
-`/docs-naming:setup apply` moves the settings across. A layer with neither file
-under the `docs-naming` name but present under the retired `docs-hygiene` name
-(`docs-hygiene.json` under `.claude/`) is read from there too, with a warning from the
-resolver. Move or rename the file to retire the warning.
+The JSON files under `.claude/` the team and overlay layers used to live in
+(`docs-naming.json`, `docs-naming.local.json`, and their `docs-hygiene` names)
+are not read. `/docs-naming:setup check` names each one it finds, and while the
+team YAML is absent `/docs-naming:setup apply` copies the old team file's keys
+into it. A user-global file still at the retired `docs-hygiene` name
+(`~/.claude/docs-hygiene.json`) is read, with a warning from the resolver; rename
+it to retire the warning.
 
 ## Renames are gated per file
 

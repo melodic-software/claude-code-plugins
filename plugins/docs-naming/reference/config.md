@@ -40,26 +40,24 @@ layer supplied each key and which file each layer was read from. The user-global
 layer stays a JSON document (`"schema": 1` and a `file_names` object), because
 it is a machine-wide file outside any repository.
 
-For one release a team or overlay layer whose YAML is absent is read from the
-JSON file under `.claude/` it used to live in (`docs-naming.json` for the team,
-`docs-naming.local.json` for the overlay; same `"schema": 1` document). The
-resolver stays quiet on stderr, `paths` reports the state `deprecated`, and
-`/docs-naming:setup check` shows a WARN row. The YAML wins whenever it exists, and the two are never
-merged. `/docs-naming:setup apply` seeds the YAML from the old file on its first
-write.
+The JSON files under `.claude/` the team and overlay layers used to live in
+(`docs-naming.json`, `docs-naming.local.json`, and their retired `docs-hygiene`
+names) are not read. `/docs-naming:setup check` shows a WARN row for each one it
+finds. While the team YAML is absent, the first `/docs-naming:setup apply` write
+copies the old team file's keys into it and leaves that file in place; an old
+overlay file's keys are moved by hand.
 
-A layer whose file is absent under that name but present under the retired
-`docs-hygiene` name (`.claude/docs-hygiene.json`, `.claude/docs-hygiene.local.json`,
-`~/.claude/docs-hygiene.json`) is read from there, with a stderr warning from
-`resolve` and a WARN row from `/docs-naming:setup check`. The new name wins when
-both exist. Rename the file to retire the warning.
+A user-global file absent under `docs-naming.json` but present under the retired
+`docs-hygiene` name (`~/.claude/docs-hygiene.json`) is read from there, with a
+stderr warning from `resolve` and a WARN row from `/docs-naming:setup check`. The
+new name wins when both exist. Rename the file to retire the warning.
 
 All three absent is a valid state: every key has a bundled default, and the
 defaults are this marketplace's own values, except `generated`, which is empty. The recommended gitignore line for
-the overlay is `.claude/**/*.local.*`; `/docs-naming:setup check` reports a
+the overlay is `<home>/*.local.*`; `/docs-naming:setup check` reports a
 missing one and never edits a consumer's `.gitignore`.
 
-A JSON layer (the user-global file and the pre-YAML locations) declares
+The user-global JSON layer declares
 `"schema": 1`. A layer that omits it, or names a schema this version does not
 implement, stops the run rather than being skipped: a silently ignored layer is a
 configuration the operator believes is in effect and is not. A YAML layer
@@ -233,8 +231,8 @@ plugins/docs-naming/scripts/resolve-config.sh layers --root <repo>
 `resolve` prints the merged document; `layers` prints one `key<TAB>layers` line
 per key plus an `!inert:<key>` line for every ignored declaration; `paths` prints
 one `layer<TAB>path<TAB>state` line per layer, the state being `present`,
-`absent`, `deprecated` (the pre-YAML location), `legacy` (the retired
-`docs-hygiene` name) or a not-applicable reason. All three take
+`absent`, `legacy` (the user-global file at the retired `docs-hygiene` name) or a
+not-applicable reason. All three take
 `--root`, which is the repository the team and overlay layers are read from, so
 a second worktree or a fixture is addressed explicitly rather than inherited
 from the environment. A `--root` that is the home directory (or an ancestor of

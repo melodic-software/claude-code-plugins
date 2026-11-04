@@ -4,7 +4,7 @@
 # WRITES EXACTLY ONE FILE: `<root>/<home>/docs-naming.yaml`, <home> being the
 # repository's convention home (docs/conventions unless AGENTS.md or CLAUDE.md
 # binds another). Not the personal layers, which are the operator's own files;
-# not `.gitignore`, which is the consumer's; not the pre-YAML JSON file, which
+# not `.gitignore`, which is the consumer's; not the old JSON team file, which
 # stays where it is until the operator removes it. The setup contract scopes
 # `apply` to the artifact the plugin owns, and this script has no code path to
 # any other.
@@ -15,10 +15,10 @@
 # merge; comments between keys do not, because the file is rewritten from the
 # merged document.
 #
-# MIGRATES. When the YAML is absent, the first write seeds it from the JSON team
-# layer the resolver reads in its place: the pre-YAML file, else the one at the
-# retired docs-hygiene name. A fresh YAML so never shadows the JSON it replaces
-# and drops its settings. The JSON is left in place.
+# MIGRATES. When the YAML is absent, the first write seeds it from the old JSON
+# team file, which the resolver no longer reads: .claude/docs-naming.json, else
+# the one at the retired docs-hygiene name. A fresh YAML so carries the old
+# settings over instead of dropping them. The JSON is left in place.
 #
 # Every single-quoted `${...}` below is a jq program argument, substituted by jq
 # from --arg/--argjson, never by the shell.
@@ -114,13 +114,13 @@ if [[ -f "$TARGET" ]]; then
   header="$(tr -d '\r' <"$TARGET" | awk '/^[[:space:]]*#/ { print; next } /^[[:space:]]*$/ { next } { exit }')"
 elif [[ -f "$LEGACY" ]]; then
   seeded=1
-  current="$(jqr -e . "$LEGACY" 2>/dev/null)" || die "the JSON team layer is not valid JSON: $LEGACY"
+  current="$(jqr -e . "$LEGACY" 2>/dev/null)" || die "the old JSON team file is not valid JSON: $LEGACY"
   note="$(jqr -r '._comment // empty' <<<"$current")"
   header="# Migrated from $LEGACY_REL by /docs-naming:setup apply."
   # Prefix every line: a multi-line _comment must not leave a bare line that parses as a key.
   [[ -z "$note" ]] || header="$header
 $(tr -d '\r' <<<"$note" | sed 's/^/# /')"
-  current="$(jqr -c 'del(._comment) | .file_names |= (. // {})' <<<"$current")" || die "cannot read the pre-YAML team layer"
+  current="$(jqr -c 'del(._comment) | .file_names |= (. // {})' <<<"$current")" || die "cannot read the old JSON team file: $LEGACY"
 else
   current="$(jqr -e . "$TEMPLATE" 2>/dev/null)" || die "bundled defaults are not valid JSON: $TEMPLATE"
   current="$(jqr -c 'del(._comment)' <<<"$current")" || die "cannot read the bundled defaults"

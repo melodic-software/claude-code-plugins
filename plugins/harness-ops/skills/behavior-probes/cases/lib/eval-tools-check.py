@@ -130,6 +130,23 @@ def eval_tmpdir() -> Path | None:
     return path
 
 
+def remove_tree(path: Path) -> None:
+    """Remove path, first giving the owner rwx on every directory in it.
+
+    A kept eval temp tree holds directories sealed at mode 000, which a plain
+    rmtree cannot enter."""
+    for top, dirs, _ in os.walk(path):
+        for name in dirs:
+            child = os.path.join(top, name)
+            if os.path.islink(child):
+                continue  # never change a link's target outside the tree
+            try:
+                os.chmod(child, 0o700)
+            except OSError:
+                pass
+    shutil.rmtree(path, ignore_errors=True)
+
+
 def main() -> int:
     here = Path(__file__).resolve().parent
     plugin = here / "eval-tools-plugin"
@@ -140,7 +157,7 @@ def main() -> int:
     try:
         return report(plugin, out, tmp)
     finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+        remove_tree(tmp)
 
 
 def report(plugin: Path, out: Path, tmp: Path) -> int:

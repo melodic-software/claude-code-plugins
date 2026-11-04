@@ -281,11 +281,35 @@ eligible for skip 2. Compare the base and head manifests:
   unchecked. An added key that is a guard (judged by the code or skill text that reads it) whose
   default is the permissive value is a finding. A change that lowers a value's protection is a
   finding too.
+- A selector key is advisory. Judge the bullet above first; a key it makes a finding stays one.
+  An added or changed `userConfig` key is a selector when all of these hold: its `type` is
+  `boolean`, or `string` with an `options` list; no listed value or `default` is a command, path
+  or URL; it is not `sensitive`; and the code or skill text that reads it uses the value only to
+  pick among those values. It is not a selector when its value (`${user_config.<key>}`) reaches
+  `hooks`, `mcpServers`, `lspServers`, `monitors` or `channels`, or is used as a filesystem path
+  or URL. Nor is it one when the value is interpolated unquoted into a shell string; one quoted
+  argument to an in-repository script that accepts only the listed values is still a selector,
+  unless a listed value sends content off the machine. Nor is it one when a listed value enables
+  sending repository or session content off the machine (publishing, uploading, posting, an
+  external write), with one exception: a view `medium` key is a selector when all of these hold,
+  each cited by file and line: the code that reads it passes the value to that plugin's
+  `lib/view-settings.mjs` resolver; the diff neither adds nor changes, in that plugin's `lib/`
+  or the repository-root `lib/`, `view-settings.mjs`, any module it imports from `./` (with
+  their own `./` imports), or `view-settings.test.mjs`; and at head a `view-settings.test.mjs`
+  in one of those two directories holds the test block "a publishing value counts only from a
+  trusted scope". In every other case a `medium` key with a value that publishes is not a
+  selector. A selector gets one summary line,
+  `manifest userConfig.<key>: pass, advisory, <what the value picks and the file and line that
+  reads it>`, and no inline comment and no `severity:` line; it adds nothing to the findings
+  total or `critical-findings: <n>` and never sets `hold`. Pointer: the resolver's trust rules are
+  pinned by `lib/view-settings.test.mjs`, the block "a publishing value counts only from a trusted
+  scope". As of: 2026-11-03. Recheck trigger: that block is removed, or a `medium` key stops
+  resolving through `view-settings.mjs`.
 - Default deny. Every other field added, changed, or removed is a `manifest <field>: flag`,
   whatever the lane believes about it, unless it is in this repository's inert set:
   `description`, `keywords`, `author`, `homepage`, `repository`, `license`, a marketplace
   entry's `tags` and `category`, a `userConfig` key's `title` and `description`, and a changed
-  (not added or removed) `version`. On each such flag, name in the summary what runs and where it comes from (the command, server, or script, and the
+  (not added or removed) `version`, or it is a selector key (above). On each such flag, name in the summary what runs and where it comes from (the command, server, or script, and the
   path, package, or URL with its pin), or what installed users get on update. A source outside
   the repository with no pin, a command fed consumer-controlled input, or a tool grant wider than
   the command needs also gets its exploit path.

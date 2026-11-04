@@ -11,7 +11,7 @@ metadata:
 ---
 
 **Arguments.** `[vary [<variant>]|combine [<base>]|controls [<variant>]] [--unattended] [--medium <value>] [scope]`. e.g.,
-/prototype:explore-directions settings page. `--medium <value>`: [reference/medium.md](reference/medium.md).
+/prototype:explore-directions settings page. `--medium <value>`: [reference/medium.md](reference/medium.md), whose `<plugin-root>` is `${CLAUDE_PLUGIN_ROOT}`.
 
 | Invocation | Behavior |
 | --- | --- |
@@ -432,7 +432,7 @@ the intent selector lands on the HTML mockup substrate:
   the real stack on request, switchable from a control bar; only the winning-variant key survives.
 
 **Routing.** On the mockup host, this skill builds the mockup whether or not the user runs
-`/design`. Unless `medium` resolved to `terminal` or `file` ([reference/medium.md](reference/medium.md)), which drops this offer and the unattended record of it, tell the user before building: If /design is available in your session (gate basis:
+`/design`. Unless the resolved medium keeps the view on this machine ([reference/medium.md](reference/medium.md)), which drops this offer and the unattended record of it, tell the user before building: If /design is available in your session (gate basis:
 the verification record in [reference/design-canvas.md](reference/design-canvas.md)), you
 can run `/design <scope>` instead of or alongside this skill for a hand-editable design canvas.
 State the lifecycle difference with it; the design-canvas subsection above carries the offer

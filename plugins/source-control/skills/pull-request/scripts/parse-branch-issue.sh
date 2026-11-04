@@ -22,12 +22,11 @@
 #   1. The layered `branch_issue_pattern` key (reference/config-resolution.md):
 #      `<repo>/.claude/source-control.local.md` over the team layer over
 #      `$HOME/.claude/source-control.md`. The team layer is the
-#      `branch_issue_pattern` key of `<repo>/docs/conventions/source-control.yaml`;
-#      only when that file lacks the key is the legacy
-#      `<repo>/.claude/source-control.md` read, for one release. Either team
-#      file is read only when git tracks it; an untracked one is skipped with a
-#      note. A team YAML the shared reader rejects stops resolution. `--explain` prints the layer that
-#      supplied the pattern on stderr.
+#      `branch_issue_pattern` key of `<repo>/docs/conventions/source-control.yaml`,
+#      read only when git tracks it; an untracked one is skipped with a note.
+#      The retired `<repo>/.claude/source-control.md` is not read. A team YAML
+#      the shared reader rejects stops resolution. `--explain` prints the layer
+#      that supplied the pattern on stderr.
 #      In a markdown layer the value is the `## branch_issue_pattern` section's
 #      first non-blank line, surrounding backticks
 #      stripped, or, when that line opens a code fence, the first non-blank line
@@ -35,11 +34,10 @@
 #      UTF-8 BOM, trailing whitespace, and a closing `#` sequence on the heading
 #      are accepted. Repo root: CLAUDE_PROJECT_DIR, else
 #      `git rev-parse --show-toplevel`. When that root is the home directory
-#      (or an ancestor of it), team and overlay layers are not applicable: the
-#      team path would be the same file as user-global. Overlay is skipped the
-#      same way. A root outside any git working tree skips both layers too. A
-#      team or overlay path that physically equals the user-global
-#      file is skipped even when the root is not home.
+#      (or an ancestor of it), team and overlay layers are not applicable. A
+#      root outside any git working tree skips both layers too. An overlay
+#      path that physically equals the user-global file is skipped even when
+#      the root is not home.
 #   2. The deprecated branch_issue_pattern userConfig: `pattern` (unless it is the
 #      literal `${user_config...}` placeholder), then
 #      CLAUDE_PLUGIN_OPTION_BRANCH_ISSUE_PATTERN. Using it prints a deprecation
@@ -279,22 +277,15 @@ if [[ -n "$REPO_ROOT" ]]; then
     non-repo) note "team and overlay not applicable: project root is not inside a git repository" ;;
     *)
       overlay="${REPO_ROOT}/.claude/source-control.local.md"
-      team="${REPO_ROOT}/.claude/source-control.md"
       TEAM_YAML="${REPO_ROOT}/${CONVENTION_KEY_YAML_REL}"
       config_root_paths_same "$overlay" "$USER_LAYER" || LAYERS+=("$overlay")
-      # The team layer is the YAML; the legacy markdown file follows it and is
-      # read only when the YAML lacks the key. Either is a layer only when git
-      # tracks it, as in the commit skill.
-      team_files=("$TEAM_YAML")
-      config_root_paths_same "$team" "$USER_LAYER" || team_files+=("$team")
-      for file in "${team_files[@]}"; do
-        rel="${file#"${REPO_ROOT}/"}"
-        if convention_key_tracked "$REPO_ROOT" "$rel"; then
-          LAYERS+=("$file")
-        elif [[ -e "$file" ]]; then
-          note "${rel} is not tracked by git, so it is not a config layer"
-        fi
-      done
+      # The team layer is the YAML, a layer only when git tracks it, as in the
+      # commit skill. The retired .claude/source-control.md is not read.
+      if convention_key_tracked "$REPO_ROOT" "$CONVENTION_KEY_YAML_REL"; then
+        LAYERS+=("$TEAM_YAML")
+      elif [[ -e "$TEAM_YAML" ]]; then
+        note "${CONVENTION_KEY_YAML_REL} is not tracked by git, so it is not a config layer"
+      fi
       ;;
   esac
 fi
@@ -304,7 +295,6 @@ LAYERS+=("$USER_LAYER")
 layer_label() {
   case "$1" in
     "${TEAM_YAML:-}") echo "$CONVENTION_KEY_YAML_REL" ;;
-    "${team:-}") echo "$CONVENTION_KEY_MD_REL (legacy)" ;;
     "${overlay:-}") echo ".claude/source-control.local.md" ;;
     "$USER_LAYER") echo "user-global .claude/source-control.md in the home directory" ;;
     *) echo "$1" ;;

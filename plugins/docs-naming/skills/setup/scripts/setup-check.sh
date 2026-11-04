@@ -111,14 +111,7 @@ while IFS="$(printf '\t')" read -r name path state; do
   [[ -n "$name" ]] || continue
   case "$state" in
   present) row PASS "layer $name" "$path" ;;
-  deprecated) row WARN "layer $name" "$path is the pre-YAML location; move its settings to the docs-naming YAML under the convention home (read for one release)" ;;
-  legacy)
-    if [[ "$name" == user-global ]]; then
-      row WARN "layer $name" "$path is the retired docs-hygiene name; rename it to docs-naming.json in the same directory (read for one release)"
-    else
-      row WARN "layer $name" "$path is the retired docs-hygiene name; move its settings to the docs-naming YAML under the convention home (read for one release)"
-    fi
-    ;;
+  legacy) row WARN "layer $name" "$path is the retired docs-hygiene name; rename it to docs-naming.json in the same directory" ;;
   absent) row INFO "layer $name" "absent; the layer below it supplies these keys" ;;
   *) row INFO "layer $name" "$state" ;;
   esac
@@ -130,6 +123,25 @@ while IFS="$(printf '\t')" read -r name path state; do
 done <<EOF
 $layer_paths
 EOF
+
+# The JSON files the team and overlay layers used to live in are no longer read.
+# setup apply seeds an absent team YAML from the first of the two team files.
+if [[ "$TEAM_STATE" == present || "$TEAM_STATE" == absent ]]; then
+  seeds=0
+  [[ "$TEAM_STATE" == absent ]] && seeds=1
+  for old in "$ROOT/.claude/docs-naming.json" "$ROOT/.claude/docs-hygiene.json"; do
+    [[ -f "$old" ]] || continue
+    if ((seeds)); then
+      row WARN "old team file" "$old is no longer read; /docs-naming:setup apply copies its keys into $TEAM_FILE, then delete it"
+      seeds=0
+    else
+      row WARN "old team file" "$old is no longer read; copy any key still wanted into $TEAM_FILE by hand, then delete it"
+    fi
+  done
+  for old in "$ROOT/.claude/docs-naming.local.json" "$ROOT/.claude/docs-hygiene.local.json"; do
+    [[ -f "$old" ]] && row WARN "old overlay file" "$old is no longer read; move its keys to $OVERLAY_FILE by hand, then delete it"
+  done
+fi
 
 if ! CONFIG="$(resolver resolve 2>/dev/null)"; then
   row FAIL "resolve" "$(resolver resolve 2>&1 >/dev/null)"
@@ -269,9 +281,9 @@ fi
 TEAM_LAYER="${TEAM_FILE#"$ROOT"/}"
 OVERLAY_LAYER="${OVERLAY_FILE#"$ROOT"/}"
 team_read=0
-[[ "$TEAM_STATE" == present || "$TEAM_STATE" == deprecated ]] && team_read=1
+[[ "$TEAM_STATE" == present ]] && team_read=1
 overlay_read=0
-[[ "$OVERLAY_STATE" == present || "$OVERLAY_STATE" == deprecated ]] && overlay_read=1
+[[ "$OVERLAY_STATE" == present ]] && overlay_read=1
 
 if [[ "$HAVE_GIT" -eq 1 && "$team_read" -eq 1 ]]; then
   if git -C "$ROOT" check-ignore -q "$TEAM_LAYER" 2>/dev/null; then
@@ -281,8 +293,6 @@ if [[ "$HAVE_GIT" -eq 1 && "$team_read" -eq 1 ]]; then
   else
     row WARN "team layer tracked" "$TEAM_LAYER is written but untracked; commit it to share it"
   fi
-elif [[ "$TEAM_STATE" == legacy ]]; then
-  row INFO "team layer tracked" "the team layer is still at the retired name; run setup apply to seed the docs-naming YAML from it"
 elif [[ "$team_read" -eq 0 ]]; then
   row INFO "team layer tracked" "no team layer yet; run setup apply --defaults to write one"
 fi

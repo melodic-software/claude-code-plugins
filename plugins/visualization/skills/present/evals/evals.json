@@ -5,7 +5,7 @@
       "id": 1,
       "name": "k0-talk-outline-publishes-through-the-quickstart-type",
       "prompt": "make slides for my lightning talk: why we moved CI to merge queues. Three points: flaky main builds stopped, review latency dropped, and rollbacks got rarer. Five slides max.",
-      "expected_output": "Writes a markdown outline first as the record, classifies it K0 with no repository source (visibility NONE), calls the Artifact tool's quickstart with intent slides instead of using a remembered type_url, writes the deck files under a scratch folder outside any working tree, runs check-deck.mjs, and only on medium artifact says it is publishing as a private Artifact on claude.ai before creating the deck from the type the quickstart returned.",
+      "expected_output": "Writes a markdown outline first as the record, classifies it K0 with no repository source (visibility NONE), calls the Artifact tool's quickstart with intent slides instead of using a remembered type_url, writes the deck files under a scratch folder outside any working tree, runs check-deck.mjs, prints its report lines, and only when the output's publishes is true says it is publishing as a private Artifact on claude.ai before creating the deck from the type the quickstart returned.",
       "files": [],
       "expectations": [
         "Writes the markdown outline before any deck file, and treats it as the record",

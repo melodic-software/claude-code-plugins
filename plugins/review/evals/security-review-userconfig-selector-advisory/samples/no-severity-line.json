@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "No security issues.\n\nmanifest userConfig.layout: pass, advisory, picks a layout\n\ncritical-findings: 0",
+      "why": "no inline finding, so no severity line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "plugins/notes/.claude-plugin/plugin.json:6\n\nseverity: IMPORTANT\n\ncritical-findings: 0",
+      "why": "an inline finding on the selector key"
+    },
+    {
+      "answer": "severity: `SUGGESTION`",
+      "why": "a backticked SUGGESTION line still opens a thread"
+    }
+  ]
+}

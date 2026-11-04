@@ -74,8 +74,7 @@ Contract enforced here (encoded as code, not convention):
   merge-ready list. Absent the flag the gate is byte-for-byte its prior self.
 - The merge method, dependency-manager logins, and block labels are resolved for
   the PR's own repository from its default-branch
-  `docs/conventions/source-control.yaml`, then `.claude/source-control.md` for a
-  key the YAML lacks (`babysit_repo_config`); the matching flags are the deprecated `userConfig`
+  `docs/conventions/source-control.yaml` (`babysit_repo_config`); the matching flags are the deprecated `userConfig`
   fallback. The review-settle pair stays `userConfig`-only: a repository
   declaration of either key is ignored. A repository config that cannot be read
   refuses the run at exit 2.
