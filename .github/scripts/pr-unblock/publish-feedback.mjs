@@ -87,7 +87,7 @@
 //   SKIP_REASON_FILE, ESCALATION_REASON_FILE  where the runner reads them
 
 import { createHash } from "node:crypto";
-import { existsSync, lstatSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, lstatSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -529,7 +529,7 @@ export const PASS_ONLY_SKIP = "pass-only";
 // names it) is resolved while the PR head is the passing one;
 // a failed resolve is logged, the rest are tried, and the job then fails so
 // a re-run tries again. Nothing is posted and no round is counted.
-async function resolveStaleNotes({ api, pr, headSha, headRef, run, log }) {
+async function resolveStaleNotes({ api, pr, headSha, headRef, run, log, summary }) {
   const headMoved = async () => run.head_sha !== headSha || (await api.readBranch(headRef)) !== headSha;
   const open = new Set(staleVerifyNotes(await api.listThreads(pr), headSha, { supersededHead: run.superseded_head }));
   const failed = [];
@@ -553,7 +553,9 @@ async function resolveStaleNotes({ api, pr, headSha, headRef, run, log }) {
       log(`could not resolve ${id}: ${String(error?.message ?? error).slice(0, 300)}`);
     }
   }
-  log(`resolved ${resolved} fail-note thread(s) a pr-verify pass at ${run.head_sha} superseded`);
+  const counted = `resolved ${resolved} fail-note thread(s) a pr-verify pass at ${run.head_sha} superseded`;
+  log(counted);
+  summary(counted);
   if (failed.length > 0) {
     throw new Error(`could not resolve ${failed.join(", ")}`);
   }
@@ -586,10 +588,10 @@ export const undisposedLines = (undisposed = []) =>
       ];
 
 export async function publish(args) {
-  const { api, pr, headSha, appId, modelRun, maxRounds = DEFAULT_MAX_ROUNDS, log = () => {} } = args;
+  const { api, pr, headSha, appId, modelRun, maxRounds = DEFAULT_MAX_ROUNDS, log = () => {}, summary = () => {} } = args;
   const staleRun = staleRunOf(args.readArtifact);
   if (staleRun !== null) {
-    return resolveStaleNotes({ api, pr, headSha, headRef: args.headRef, run: staleRun, log });
+    return resolveStaleNotes({ api, pr, headSha, headRef: args.headRef, run: staleRun, log, summary });
   }
   let result = null;
   let failure = null;
@@ -952,6 +954,8 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
     readAdjudication,
     fileExists: (path) => existsSync(join(env.GITHUB_WORKSPACE, path)),
     log,
+    // A pass-only round's resolved-thread count, for the run's summary page.
+    summary: (line) => env.GITHUB_STEP_SUMMARY && appendFileSync(env.GITHUB_STEP_SUMMARY, `${line}\n`),
   });
   if (escalationReason) {
     writeFileSync(env.ESCALATION_REASON_FILE, `${escalationReason}\n`);

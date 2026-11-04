@@ -1252,11 +1252,11 @@ test("a second dispatcher for one head skips while the first one's run is queued
   }
 });
 
-// #12974: pr-verify passed a head while a round was still going there, the
+// #12974: pr-verify passed a head while a round was in progress there, the
 // dispatch skipped, and nothing sent the pass again, so the earlier head's
 // fail-note threads stayed open. The pass-only round queues behind that round
 // instead; it names the passing head superseded only on the reader's word.
-test("a pass-only dispatch is sent while a round for the PR is still going, listed or recorded", async () => {
+test("a pass-only dispatch is sent while a round for the PR is in progress, listed or recorded", async () => {
   const going = { id: 1, status: "in_progress", display_title: TITLE_42 };
   for (const recorded of [false, true]) {
     const record = emptyRecord();
@@ -1274,6 +1274,19 @@ test("a pass-only dispatch is sent while a round for the PR is still going, list
     const round = { ...fakeApi({ workflowRuns: [going] }), getWorkflowRun: async () => going };
     assert.equal((await decide(round, resolvedLane(), { record })).result, null, `a review run's round, recorded: ${recorded}`);
     assert.deepEqual(round.calls.dispatch, []);
+  }
+});
+
+// pr-unblock.yml's concurrency group keeps one waiting run, so a pass-only
+// dispatch would cancel a round waiting to start, however old.
+test("a pass-only dispatch skips while a round for the PR waits to start", async () => {
+  for (const status of ["queued", "waiting", "pending"]) {
+    const waiting = { id: 2, status, display_title: TITLE_42, created_at: "2026-10-17T09:00:00Z" };
+    const api = fakeApi({ workflowRuns: [{ id: 1, status: "in_progress", display_title: TITLE_42 }, waiting] });
+    const { result, lines } = await decide(api, resolvedLane(), { passOnly: true });
+    assert.equal(result, null, status);
+    assert.deepEqual(api.calls.dispatch, [], status);
+    assert.match(lines.at(-1), /run 2 for address-feedback is not done yet/, status);
   }
 });
 

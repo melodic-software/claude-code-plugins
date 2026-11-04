@@ -65,8 +65,8 @@
 // model and posts no address-feedback check, its reply job resolves the
 // threads from an earlier head as the lanes App, so neither the review markers, a workable thread,
 // the human gate (a needs-human PR dispatches here whoever applied the label),
-// the head's check runs nor a round still going decide it; the hold labels
-// still skip it. Those at
+// the head's check runs nor a round in progress decide it; the hold labels,
+// and a round waiting to start, still skip it. Those at
 // the passing head it resolves only when the merge gate's reader, in the same
 // read as the FAIL cap, found the FAIL there superseded (input
 // verify-superseded-head; babysit_verify_evidence.py `supersededAtHead`). It only
@@ -546,9 +546,10 @@ export async function dispatchFeedback({
       return skip(`#${number}: ${why}`);
     }
   }
-  // A pass-only round is not held by a round still going: nothing sends that
+  // A pass-only round is not held by a round in progress: nothing sends that
   // pass again, and pr-unblock.yml's per-PR concurrency group queues it
-  // behind that round. It resolves nothing if that round moved the head.
+  // behind that round. It resolves nothing if that round moved the head. The
+  // run listing below still holds it for a run waiting to start.
   const sent = passOnly ? undefined : record.dispatched.get(head);
   if (sent?.number === number) {
     let run = null;
@@ -640,21 +641,22 @@ export async function dispatchFeedback({
   // the second skips while a run of this activity for this PR, created after
   // this review started, is not done. An older run (the round whose push made
   // this head) does not hold the dispatch, or the next round would never start.
-  if (!passOnly) {
-    let runs;
-    try {
-      runs = await api.listWorkflowRuns(settings.workflow);
-    } catch (error) {
-      if (!error.rateLimited) {
-        throw error;
-      }
-      log(`::warning::${settings.workflow} run listing is rate limited (${error.message}); #${number} not dispatched; re-run this job once the limit resets`);
-      return null;
+  // A pass-only round skips only for a run of any age still waiting to start:
+  // that group keeps one waiting run, so sending would cancel it.
+  let runs;
+  try {
+    runs = await api.listWorkflowRuns(settings.workflow);
+  } catch (error) {
+    if (!error.rateLimited) {
+      throw error;
     }
-    const active = runs.filter((run) => holds(run, number));
-    if (active.length > 0) {
-      return skip(`#${number}: ${settings.workflow} run ${active[0].id} for ${settings.activity} is not done yet`);
-    }
+    log(`::warning::${settings.workflow} run listing is rate limited (${error.message}); #${number} not dispatched; re-run this job once the limit resets`);
+    return null;
+  }
+  const waits = (run) => run.status !== "completed" && run.status !== "in_progress" && run.display_title === title(number);
+  const active = runs.filter((run) => (passOnly ? waits(run) : holds(run, number)));
+  if (active.length > 0) {
+    return skip(`#${number}: ${settings.workflow} run ${active[0].id} for ${settings.activity} is not done yet`);
   }
   const resolved = await resolveSlot({ number, head });
   const enabled = (name) => resolved?.lane.slots.some((slot) => slot.name === name && slot.enabled === true);
