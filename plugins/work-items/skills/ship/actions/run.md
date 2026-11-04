@@ -78,7 +78,8 @@ any run with no human to answer, STOP before any claim and report that `run` is 
    next starts, renewing the remaining leases before each:
    - **`integration branch → single PR`.** In a worktree checked out on the integration branch,
      never the main checkout: pull, merge the item branch, run the project's build and test gate,
-     and push. A merge conflict goes to `/source-control:resolve-conflicts`. Then close the item
+     and push. Resolve a merge conflict the way `/source-control:pull-request ready` resolves its
+     base merge: both sides' intent first, both changes composed. Then close the item
      through `/work-items:track done` with a summary naming the branch: the checkpoint. No
      per-item PR.
    - **`per-item PRs`.** Each accepted item has a pull request against the default branch; open a

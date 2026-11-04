@@ -146,7 +146,11 @@
         "shortcuts": { "type": "boolean", "default": true },
         "undoSeconds": { "type": "integer", "minimum": 0, "maximum": 60, "default": 5 },
         "checkpoint": { "type": "integer", "minimum": 0, "maximum": 500, "default": 0 },
-        "theme": { "enum": ["auto", "light", "dark"], "default": "auto" },
+        "theme": {
+          "description": "Accepted and resolved, but the page does not apply it: its System, Light and Dark toggle is the only theme choice.",
+          "enum": ["auto", "light", "dark"],
+          "default": "auto"
+        },
         "density": { "enum": ["compact", "comfortable"], "default": "compact" },
         "minText": { "type": "integer", "minimum": 10, "maximum": 32, "default": 14 },
         "displayName": {
@@ -165,7 +169,7 @@
         "requireDepends": { "type": "boolean", "default": false },
         "orderThreshold": { "type": "integer", "minimum": 0, "maximum": 1000, "default": 25 },
         "themeTokens": {
-          "description": "Page color tokens per mode, layered per token under the user file's and the data dir's theme.json.",
+          "description": "Color tokens per mode, layered per token under the user file's and the data dir's theme.json. The server still resolves them, and the page applies none of them.",
           "type": "object",
           "additionalProperties": false,
           "properties": {
