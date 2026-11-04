@@ -79,10 +79,11 @@ make a grant silently do nothing: interpreter-wildcard / blanket rules that Clau
 entering auto mode, hardcoded absolute machine/user paths (Bash rules match literally, no expansion),
 and inert plugin self-grants. A deterministic detector scans skill/command/agent frontmatter
 `allowed-tools` and the project, local, and user-global `permissions.allow` arrays, and recommends the
-bare-command-on-PATH pattern. The user-global file
-(`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json`) is where Claude Code's own "Always allow" path
-writes, so on a long-lived machine expect it to carry most of the findings. Their remediation is
-the operator's, since no skill can write that file. The principle and citations live in the marketplace
+bare-command-on-PATH pattern. A broad rule in the user-global file
+(`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json`) reaches every project. The remediation of a
+finding there is the operator's, since no skill can write that file. Where a prompt approval is
+saved is in [permissions: permission system](https://code.claude.com/docs/en/permissions#permission-system)
+(as of 2026-11-04; recheck when that section changes the file). The principle and citations live in the marketplace
 [permission-rule-hygiene convention](../../docs/contracts/permission-rule-hygiene/README.md).
 Report-only.
 

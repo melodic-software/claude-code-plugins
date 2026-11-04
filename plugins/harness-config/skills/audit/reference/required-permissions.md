@@ -216,8 +216,16 @@ because pushes carry intent the agent should not infer.
 
 | Pattern | Purpose |
 | --- | --- |
-| `Bash(git push *)` | Require confirmation before pushing with args |
-| `Bash(git push)` | Require confirmation before pushing without args |
+| `Bash(git push *)` | Require confirmation before pushing, with or without args |
+
+We keep one row because we read a trailing ` *` as also covering the bare command, so a project
+with this rule is not flagged for lacking a bare `Bash(git push)` rule.
+
+- **Pointer**: when deciding whether a rule covers the bare command, fetch
+  [permissions: wildcard patterns](https://code.claude.com/docs/en/permissions#wildcard-patterns)
+  live.
+- **As of**: 2026-11-04
+- **Recheck trigger**: that section stops treating a trailing ` *` as covering the bare command.
 
 ## Relation to the standards permission floor
 
@@ -263,11 +271,11 @@ This baseline is the smaller set the audit flags when absent. Where the two diff
   flagged for every extra. A project that adopts the floor's extras declares them in its own rules
   files, and Category B checks them there.
 - **`git push` is an ask rule here and an allow rule there.** The floor allows `Bash(git push *)` and
-  `Bash(git push)` and has no `ask` list. The baseline keeps both as ask rules, because a push carries
-  intent the agent should not infer. Carrying both does not cancel the ask rule: Claude Code evaluates
-  deny, then ask, then allow, and a matching ask rule prompts even when an allow rule matches too. A
-  project that takes the floor's allow without the ask rules gets the `ask-rules` warning. Narrowing 1
-  below covers a project that pushes unattended.
+  `Bash(git push)` and has no `ask` list. The baseline keeps `Bash(git push *)` as an ask rule, because
+  a push carries intent the agent should not infer. Carrying both does not cancel the ask rule: Claude
+  Code evaluates deny, then ask, then allow, and a matching ask rule prompts even when an allow rule
+  matches too. A project that takes the floor's allow without the ask rule gets the `ask-rules`
+  warning. Narrowing 1 below covers a project that pushes unattended.
 
 The record for this comparison:
 

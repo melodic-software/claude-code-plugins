@@ -42,16 +42,14 @@ Checking a version number alone is not a presence check. The pass reports **whic
 failed rather than a bare "unavailable", and it distinguishes what official documentation confirms
 from what it does not.
 
-1. **Version floor.** The `CLAUDE.md` trim check this pass hands off has a version floor, and
-   `/doctor`'s shape changed across releases before it. Compare the installed version with the
-   floor the pointer states; below it, the capability this pass hands off is not the capability
-   that exists, and a pass that assumes the current shape on an older install is checking for the
-   wrong thing.
+1. **Version floor.** We state no version floor for the `CLAUDE.md` trim check this pass hands off:
+   the pointer gives none today, so the pass reports the installed version without grading it. If
+   the pointer states a floor again, compare the installed version with it.
    - **Pointer**: when checking the floor, fetch
      [memory: my CLAUDE.md is too large](https://code.claude.com/docs/en/memory#my-claude-md-is-too-large)
      live.
-   - **As of**: 2026-10-11
-   - **Recheck trigger**: that section moves, raises or drops the floor.
+   - **As of**: 2026-11-04
+   - **Recheck trigger**: that section states a floor, or moves.
 2. **`DISABLE_DOCTOR_COMMAND`: documented.** The variable's row is on the environment-variables
    page again, so it is a documented suppression channel, and its scope is the row's: read which
    surface it hides, and which it leaves alone, from the row rather than from here.
@@ -61,28 +59,26 @@ from what it does not.
    - **Recheck trigger**: the row leaves the table, as it did between earlier fetches, or changes
      which surface it hides.
 
-**Suppression channels: one documented, one documented but silent on bundled skills.**
-`skillOverrides` is a documented settings key that reaches some skill sources and not others. The
-skills page names which, and does not say whether it reaches a bundled skill such as `/doctor`, so
-its effect on the handoff is UNVERIFIED; probe rather than assert.
+**Suppression channels: two documented.** We treat a `skillOverrides` entry for `/doctor` as a
+second documented way to hide the handoff, and name it as a suspected cause alongside the variable.
 
 - **Pointer**: when naming `skillOverrides` as a cause, fetch
+  [skills: bundled skills](https://code.claude.com/docs/en/skills#bundled-skills) and
   [skills: override skill visibility from settings](https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section states whether an override reaches a bundled skill.
+- **As of**: 2026-11-04
+- **Recheck trigger**: either section stops letting an override hide a bundled skill.
 
 So the pass **detects absence rather than predicting it**: it checks whether `/doctor` actually
-resolves in this environment, and reports the outcome. If it does not resolve while the version floor
-is met, the run says so and names these channels as the suspected causes, `DISABLE_DOCTOR_COMMAND`
-and a `skillOverrides` entry naming the skill (documented for some skill sources, unverified for
-bundled ones), rather than asserting either as the reason. Detecting beats predicting either way: the variable's presence in the list says an operator
+resolves in this environment, and reports the outcome. If it does not resolve, the run says so and
+names these channels as the suspected causes, `DISABLE_DOCTOR_COMMAND` and a `skillOverrides` entry
+naming the skill, rather than asserting either as the reason. Detecting beats predicting either way: the variable's presence in the list says an operator
 *could* have set it, never that they did.
 
 **Recheck trigger:** any Claude Code minor release, or any change to how bundled skills are
 suppressed. Re-verify against current official documentation before
-treating a failed prerequisite as authoritative. A stale floor would report a present capability as
-missing, and the entry corrected above shows a stale *absence* claim reads exactly like a fresh one.
+treating a failed prerequisite as authoritative. A stale *absence* claim reads exactly like a fresh
+one.
 
 ## Absence classification: optional capability
 
