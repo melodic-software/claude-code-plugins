@@ -1,0 +1,82 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/scripts/pydeps.py run --data-dir \"/d\" -- /p/scripts/render.py video/scene.py Odd --out video/low"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n \"docs/topics/caching\" video/notes.txt"
+          }
+        }
+      ],
+      "why": "a read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/scripts/pydeps.py run --data-dir \"/d\" -- /p/scripts/render.py video/scene.py Odd --out video/low --title docs/topics/caching"
+          }
+        }
+      ],
+      "why": "another flag"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/scripts/pydeps.py run --data-dir \"/d\" -- /p/scripts/render.py video/scene.py Odd --out docs/topics/caching"
+          }
+        }
+      ],
+      "why": "the record folder"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/scripts/pydeps.py run --data-dir \"/d\" -- /p/scripts/render.py video/scene.py Odd --out 'docs/topics/caching/low'"
+          }
+        }
+      ],
+      "why": "single-quoted target"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/scripts/pydeps.py run --data-dir \"/d\" -- /p/scripts/render.py video/scene.py Odd --out /w/docs/topics/caching/low"
+          }
+        }
+      ],
+      "why": "absolute"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/scripts/pydeps.py run --data-dir \"/d\" -- /p/scripts/render.py video/scene.py Odd --out=\"docs/topics/caching\""
+          }
+        }
+      ],
+      "why": "equals form"
+    }
+  ]
+}

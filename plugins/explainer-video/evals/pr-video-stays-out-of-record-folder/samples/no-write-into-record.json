@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/video/scene.py",
+            "content": "docs/topics/caching/README.md"
+          }
+        }
+      ],
+      "why": "named in content"
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/docs/topics/caching/scene.py",
+            "content": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "docs/topics/caching/notes.md",
+            "content": "x"
+          }
+        }
+      ]
+    }
+  ]
+}
