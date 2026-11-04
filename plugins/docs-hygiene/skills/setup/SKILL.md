@@ -34,9 +34,14 @@ Report a PASS/INFO/WARN/FAIL table with one remediation line per FAIL. Modify no
 1. **Resolve `markdownlint-cli2`** the way `compress` does: first `command -v markdownlint-cli2`
    (on `PATH`), then `node_modules/.bin/markdownlint-cli2` under the repository root. Report which
    one resolved. FAIL when neither does.
-2. **Run it.** Execute the resolved binary with `--version`. A shim can resolve and still be broken
-   (a missing Node interpreter, a dangling target), so resolution without a clean exit is FAIL, with
-   the error text in the remediation line.
+2. **Run it.** Execute the resolved binary with `--help`, which prints the version banner and
+   returns before it reads any configuration. Never pass `--version`: `markdownlint-cli2` has no
+   such flag, takes it as a glob, loads the repository's markdownlint config and any code it names,
+   and lints the config's `globs`, fixing files when the config sets `fix`. `--help` exits 2 on a
+   working install, so judge the output, not the exit code: PASS when the first line of stdout is
+   the banner, `markdownlint-cli2 v<version> (markdownlint v<version>)`. A shim can resolve and
+   still be broken (a missing Node interpreter, a dangling target), so resolution without the
+   banner is FAIL, with the stderr text in the remediation line.
 3. **Repository settings.** Run `"${CLAUDE_SKILL_DIR}/scripts/setup-apply.mjs" --check` from the
    project root and report each line it prints under its own INFO, PASS or WARN prefix: INFO when
    `docs/conventions/docs-hygiene.yaml` is absent; a WARN for each problem in the file (a value
@@ -166,7 +171,7 @@ To set the value for the whole repository instead, use `apply`.
 
 ## What this skill does NOT do
 
-- Run `markdownlint-cli2` over repository files. The only execution is the `--version` liveness probe.
+- Run `markdownlint-cli2` over repository files. The only execution is the `--help` liveness probe.
 - Check the consuming repository's markdownlint configuration. Which rules a repository adopts is its
   own decision.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
