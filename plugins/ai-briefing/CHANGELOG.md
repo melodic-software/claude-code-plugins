@@ -3,6 +3,18 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.1] - 2026-11-04
+
+### Changed
+
+- **build: Bump unpdf from 1.9.1 to 2.1.0 in /plugins/ai-briefing/skills/generate/output/build** (#13156).
+
+## [1.0.0] - 2026-11-04
+
+### Changed
+
+- The presentation build now requires Node.js 24 or later: setup's preflight accepts Node.js 24.x and 26.x only, and the build package declares `engines.node >=24`, because unpdf 2.x needs Node.js 24 ([#13156](https://github.com/melodic-software/claude-code-plugins/pull/13156)).
+
 ## [0.9.19] - 2026-11-04
 
 ### Fixed

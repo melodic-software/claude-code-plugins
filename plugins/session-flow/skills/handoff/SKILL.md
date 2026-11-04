@@ -224,7 +224,8 @@ Walk it top to bottom; do not restate or improvise any of its steps.
 
 On the full path the file is shape 3, a hot file plus its hop file, and a script owns every
 deterministic field (engine doc, "Writing the handoff file"; procedure in its structure doc): resolve `memory_dir`,
-run the guards, run `save_point.py new` through the interpreter ladder with `-X utf8`, write one JSON object
+run the guards, run `save_point.py new` (the script is `${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py`;
+call it by that path, never search for it) through the interpreter ladder with `-X utf8`, write one JSON object
 holding the values for the `<!-- FILL: … -->` slots that skeleton carries, apply them all with
 `save_point.py fill <file> --slots <json>`, run `save_point.py validate` until it exits 0, then
 paste the `save_point.py emit` output as the rails block. The Edit tool is the repair path after a

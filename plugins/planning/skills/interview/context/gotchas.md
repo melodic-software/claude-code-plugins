@@ -34,7 +34,7 @@ Failure patterns from real sessions. Loaded on demand from `/planning:interview`
 
 - **A hedged reply read as accept-all:** "yes?" or "I think so" signals doubt, so it cannot lock a bundle or a round (SKILL.md "A hedged reply resolves only the headline").
 
-- **An upstream Brief treated as binding:** a prior Brief locked "as a starting point" reads as settled, so its constraints steer every recommendation without the user confirming them for this topic. Record them as `inherited` and ask the ones the contract relies on (SKILL.md "Keep a running constraint ledger").
+- **An upstream Brief treated as binding:** a prior Brief locked "as a starting point" reads as settled, so its constraints steer every recommendation without the user confirming them for this topic. Record them as `inherited` and ask the ones the Brief relies on (SKILL.md "Keep a running constraint ledger").
 
 - **A research design recommended as found:** explore or research output, or an existing implementation, arrives with a recommended design that was never checked against this interview's constraints. It is a candidate until re-derived against the constraint ledger (SKILL.md "Composed artifacts are candidates").
 
@@ -68,7 +68,7 @@ Failure patterns from real sessions. Loaded on demand from `/planning:interview`
 
 - **A watcher left down after a restart:** when the armed watcher exits 2 after `share.sh restart` or a reboot, run `ensure-running` without `--open` and re-arm, or the group's next round goes unseen.
 
-## Brief contract
+## Brief
 
 - **`lock` mode with hidden gaps:** if synthesis surfaces a true unknown, stop and ask; do not fudge the Brief.
 

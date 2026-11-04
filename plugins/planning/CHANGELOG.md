@@ -3,6 +3,30 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.4.1] - 2026-11-04
+
+### Changed
+
+- The planning chain now names the interview's record the Brief ([#13185](https://github.com/melodic-software/claude-code-plugins/issues/13185)). `/planning:interview`'s Step 4 heading and checklist step now read "Persist the Brief", and its gotchas heading reads "Brief". The register gate now names the Brief or summary it guards. The paragraph after the unattended ladder, the gate comments and the README's interview row say Brief too, as do the comments in `surface/exporters.py` and `surface/surface-checks.sh`. Where "contracts" meant design's interfaces, `/planning:plan`, the interview's composition table and two hand-off evals now say "interface contracts". The eval samples that quote the checklist line use the new text, and `interview-defenses.test.sh` re-pins the eight digests these edits changed.
+
+## [2.4.0] - 2026-11-04
+
+### Changed
+
+- The 1:1 interview page now carries the canonical chrome, `reference/html-chrome.html` ([#12654](https://github.com/melodic-software/claude-code-plugins/issues/12654)). A System, Light and Dark toggle in the header is the page's only theme choice: it opens on System and stores nothing. The chrome's comment box is now the Notes panel's composer, and Send note still delivers its text as a note. `surface/test_page_chrome.py` compares the toggle, the comment box and the chrome rules with `reference/html-chrome.html`.
+
+### Removed
+
+- The interview page no longer applies the `theme` setting or the color tokens from `themeTokens` and the data dir's `theme.json`, and its Settings tab has no Theme row. The server still accepts and resolves all three, so existing files load without errors.
+
+## [2.3.3] - 2026-11-04
+
+### Fixed
+
+- `plan` now says to make the checklist copy and the PLAN.md skeleton by reading the template and
+  writing the file with the Write tool, never `cp`, `sed` or a shell redirect from a plugin file,
+  which a sandbox that denies writes sourced from the plugin root refuses.
+
 ## [2.3.2] - 2026-11-04
 
 ### Changed

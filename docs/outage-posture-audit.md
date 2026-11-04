@@ -395,6 +395,13 @@ A ninth part 2 change fixed pr-refine's script gaps but one, with tests:
   that handed off, whose handoff job succeeded, with no next leg held. That is two more REST reads
   for each green run a candidate head has, until one ends the PR. An outage past that many runs still ends the PR.
 
+The holds above end green with only a notice, so the monitoring lane's signal 13 counts them: the
+`retry-spent` fault hold, work-unblock's held listings and pr-refine's held `fix-docs` reads. A
+lane with `monitor.lane-holds.threshold` held runs over `monitor.lane-holds.window-hours` in
+`docs/conventions/pr-pipeline.yaml` raises the signal's issue, as signal 12 does for pr-merge
+(`.github/scripts/maintenance-monitor-signals/signals.mjs` `laneHoldFindings`). It adds no stop
+and no cap.
+
 Element 4 stays open: `decide.mjs` needs a kind that posts nothing, and the posting code in
 `report-check-run.mjs` needs to honor it (the Remaining row). A neutral check is not the fix, since
 babysit counts neutral as passing. A broker failure on pr-refine does not reach `decide.mjs`: off

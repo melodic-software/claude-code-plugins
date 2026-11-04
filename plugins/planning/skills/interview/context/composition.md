@@ -24,7 +24,7 @@ otherwise do the step inline or name it to the user.
 | The current approach is assumed rather than chosen | `/planning:devils-advocate incumbent` | Attacks the status quo before the Brief locks it in |
 | A branch defers to another person's decision | `/planning:questionnaire` | Turns the question into a document that person fills in (SKILL.md Step 5) |
 | The effort is too big and still foggy | `/planning:wayfind` | Charts it as a decision map from this ledger (SKILL.md Stance), after the scope cut below when the effort is over its budget |
-| Design types, contracts, module boundaries | `/planning:design` | Reads PLAN.md Brief; its handoff writes PLAN.md `## Design` |
+| Design types, interface contracts, module boundaries | `/planning:design` | Reads PLAN.md Brief; its handoff writes PLAN.md `## Design` |
 | Plan the implementation | `/planning:plan` | Reads PLAN.md Brief + `## Design` + explore + research findings |
 | Stress-test the plan | `/planning:devils-advocate` | Adversarial pass on `/planning:plan` output |
 | Validate the interview's answers via agents | `/planning:audit-answers` | Fresh validators challenge each answer in the filled ledger (hand-answered or auto-accepted); only the doubtful ones return as human questions. The Step 3 recap and `--procedure` check show the Q&A and that the procedure ran; this re-validates the answers, and neither duplicates the other |

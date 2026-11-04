@@ -99,8 +99,27 @@ repo="$(fixture_repo "a.ts" "src/b.ts" "src/deep/c.ts" "src/notes.md" "README.md
 out="$(run validate --root "$repo" --glob '**/*.ts')"
 assert_eq "**/*.ts matches root and nested TypeScript" "3" "$(row_field "$out" '**/*.ts' 5)"
 
+# Expected values from the path-specific-rules table on the memory page: `*.md`
+# is anywhere under the base directory, `/*.md` directly in it.
 out="$(run validate --root "$repo" --glob '*.md')"
-assert_eq "*.md is root-only, does not cross a separator" "1" "$(row_field "$out" '*.md' 5)"
+assert_eq "*.md matches at any depth under the base" "2" "$(row_field "$out" '*.md' 5)"
+
+out="$(run validate --root "$repo" --glob '/*.md')"
+assert_eq "/*.md matches only directly in the base" "1" "$(row_field "$out" '/*.md' 5)"
+
+out="$(run validate --root "$repo" --glob '/src/*.ts')"
+assert_eq "a leading slash anchors a pattern that has a directory too" "1" "$(row_field "$out" '/src/*.ts' 5)"
+
+# Each brace expansion is its own pattern, so one group can mix the two forms:
+# README.md for the first alternative, the three .ts files for the second.
+out="$(run validate --root "$repo" --glob '{/*.md,*.ts}')"
+assert_eq "a brace group's alternatives take their own form" "4" "$(row_field "$out" '{/*.md,*.ts}' 5)"
+
+repo_nested_only="$(fixture_repo "deploy/k8s/app.yaml" "a.ts")"
+out="$(run validate --root "$repo_nested_only" --glob '*.yaml')"
+assert_eq "a slash-free glob whose only match is nested is valid" "ok" "$(row_field "$out" '*.yaml' 6)"
+out="$(run validate --root "$repo_nested_only" --glob '/*.yaml')"
+assert_eq "and its anchored form still reports zero-match" "zero-match" "$(row_field "$out" '/*.yaml' 6)"
 
 out="$(run validate --root "$repo" --glob 'src/**/*')"
 assert_eq "src/**/* matches everything under src" "3" "$(row_field "$out" 'src/**/*' 5)"
@@ -274,6 +293,66 @@ assert_eq "the flow entry stays ONE pattern" "1" \
 assert_eq "and it expands and matches correctly" "2" "$(row_field "$out" 'src/*.{ts,tsx}' 5)"
 run rules --root "$flow_repo" >/dev/null 2>&1
 assert_eq "a correct braced flow rule exits 0" "0" "$?"
+
+# The memory page's frontmatter reference accepts a comma-separated string too.
+comma_repo="$(fixture_repo "src/a.ts" "src/b.tsx" "docs/x.md" "other/y.js")"
+mkdir -p "$comma_repo/.claude/rules"
+printf -- '---\npaths: "src/*.{ts,tsx}, docs/**"\n---\n\n# Comma string\n' >"$comma_repo/.claude/rules/comma.md"
+commit_all "$comma_repo" comma
+out="$(run rules --root "$comma_repo")"
+assert_eq "a comma-separated string yields one row per pattern" "2" \
+  "$(printf '%s\n' "$out" | awk -F'\t' '$1=="PATTERN"' | grep -c .)"
+assert_eq "its braced pattern matches both files" "2" "$(row_field "$out" 'src/*.{ts,tsx}' 5)"
+assert_eq "and its second pattern matches on its own" "1" "$(row_field "$out" 'docs/**' 5)"
+run rules --root "$comma_repo" >/dev/null 2>&1
+assert_eq "a correct comma-separated rule exits 0" "0" "$?"
+
+# --------------------------------------------------------------------------
+# A rule's patterns match from its base: the directory holding its .claude folder
+# --------------------------------------------------------------------------
+# <glob> <file>...: a repository with one rule at packages/foo, prints its output.
+nested_rule_run() {
+  local glob="$1" dir
+  shift
+  dir="$(fixture_repo "$@")"
+  mkdir -p "$dir/packages/foo/.claude/rules"
+  printf -- '---\npaths:\n  - "%s"\n---\n\n# Nested\n' "$glob" >"$dir/packages/foo/.claude/rules/r.md"
+  commit_all "$dir" nested
+  run rules --root "$dir"
+}
+
+out="$(nested_rule_run '*.xyz' other/only.xyz)"
+assert_eq "a slash-free glob does not match outside its rule's base" "zero-match" "$(row_field "$out" '*.xyz' 6)"
+out="$(nested_rule_run '*.xyz' packages/foo/deep/in.xyz other/out.xyz)"
+assert_eq "and it matches at any depth inside the base, once" "1" "$(row_field "$out" '*.xyz' 5)"
+out="$(nested_rule_run '/*.xyz' root.xyz)"
+assert_eq "a leading slash anchors at the rule's base, not the repository root" "zero-match" "$(row_field "$out" '/*.xyz' 6)"
+out="$(nested_rule_run '/*.xyz' packages/foo/in.xyz packages/foo/deep/no.xyz)"
+assert_eq "and it matches directly in that base only" "1" "$(row_field "$out" '/*.xyz' 5)"
+out="$(nested_rule_run 'src/*.ts' packages/foo/src/a.ts)"
+assert_eq "a base-relative glob is not reported broken" "ok" "$(row_field "$out" 'src/*.ts' 6)"
+out="$(nested_rule_run 'src/*.ts' src/a.ts)"
+assert_eq "and a same-named path at the repository root does not satisfy it" "zero-match" "$(row_field "$out" 'src/*.ts' 6)"
+out="$(nested_rule_run '**/*' packages/foo/a.ts packages/foo/b.ts o/1 o/2 o/3 o/4 o/5 o/6 o/7 o/8)"
+assert_eq "a nested rule's breadth is measured against its base, not the repository" "over-broad" "$(row_field "$out" '**/*' 6)"
+
+# A base directory is a literal path, so its name holds no regex or glob meaning.
+meta_repo="$(fixture_repo "pkg+[1]/a.ts" "pkgg1/b.ts")"
+mkdir -p "$meta_repo/pkg+[1]/.claude/rules"
+printf -- '---\npaths:\n  - "*.ts"\n---\n\n# Meta\n' >"$meta_repo/pkg+[1]/.claude/rules/r.md"
+commit_all "$meta_repo" meta
+out="$(run rules --root "$meta_repo")"
+assert_eq "a base directory's name is matched literally" "1" "$(row_field "$out" '*.ts' 5)"
+
+# Two rules in one run: each keeps its own base.
+two_repo="$(fixture_repo "a.ts" "packages/foo/b.md")"
+mkdir -p "$two_repo/.claude/rules" "$two_repo/packages/foo/.claude/rules"
+printf -- '---\npaths:\n  - "/*.ts"\n---\n\n# Root\n' >"$two_repo/.claude/rules/root.md"
+printf -- '---\npaths:\n  - "/*.md"\n---\n\n# Nested\n' >"$two_repo/packages/foo/.claude/rules/nested.md"
+commit_all "$two_repo" two
+out="$(run rules --root "$two_repo")"
+assert_eq "a root rule matches from the repository root" "1" "$(row_field "$out" '/*.ts' 5)"
+assert_eq "beside it, a nested rule matches from its own base" "1" "$(row_field "$out" '/*.md' 5)"
 
 # --------------------------------------------------------------------------
 # The brace budget is shared by a rule's whole paths list

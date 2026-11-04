@@ -127,7 +127,8 @@ person. In issue mode the [issue-fields job](#the-issue-fields-job), which ends 
 downloads the `resolve-issue` markers, and a run that left no readable outcome is stopped with a
 fixed sentence naming the refusal (the patch cap for `patch`) instead of a missing outcome file:
 `scan-refused-patch` goes to intake, whose admission parks the issue for a split at any Size,
-as `split-required` does for Size Large, `scan-refused-fault`
+as `split-required` does for Size Large, or, on a size-split sub-issue, which never splits
+again, refuses it for a builder session; `scan-refused-fault`
 retries under `limits.stop-retries`, and
 `scan-refused-output` holds for a person ahead of any funding, limit or turn-cap record. A
 failed download there names no refusal.
@@ -2396,8 +2397,8 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   import. A `security-risk` hold read from the run's words also names the matched word, reduced to
   letters, digits, hyphens, underscores and spaces in a code span, so a person can dismiss a false
   hit in one read; the word changes nothing about the hold. `hold` labels the issue with the human-gated
-  role label, removes `agent-ready` and comments why; `host-run` adds the `host-run` label (the host queue's one signal: an unattended
-  agent run on a host) and removes `agent-ready`; `attended` adds the `attended` label (a manual
+  role label, removes `agent-ready` and comments why; `host-run` adds the `host-run` label (the host queue's one signal: an agent run
+  or builder session on a host) and removes `agent-ready`; `attended` adds the `attended` label (a manual
   external step that needs the owner present, which only a listed human lifts) and removes
   `agent-ready`, asking no decision; `retry` keeps
   `agent-ready` with `<!-- work-resolve-issue outcome=retry run=<run id> -->`, so the work-unblock

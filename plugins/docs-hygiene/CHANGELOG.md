@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [2.5.1] - 2026-11-04
+
+### Fixed
+
+- `/docs-hygiene:setup` links the `userConfig` contract at the current plugin manifest reference page instead of its retired URL.
+
 ## [2.5.0] - 2026-11-03
 
 ### Changed

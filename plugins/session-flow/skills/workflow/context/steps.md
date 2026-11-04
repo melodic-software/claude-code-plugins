@@ -28,7 +28,7 @@ effort.
 - **As of**: 2026-10-02
 - **Recheck trigger**: the section is renamed or moved, or its table columns change.
 
-## 1. Interview (optional: lock the brief before building)
+## 1. Interview (optional: lock the Brief before building)
 
 Drive fuzzy intent to a zero-ambiguity Brief before behavior-changing work: goal, constraints,
 acceptance criteria, captured assumptions. Persist it (a plan file in the repo's artifact location)

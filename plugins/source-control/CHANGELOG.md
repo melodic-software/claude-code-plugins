@@ -3,6 +3,47 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.0.0] - 2026-11-04
+
+### Changed
+
+- `/source-control:worktree`: the nesting invariant's dated measurement, its disputed arms and its
+  expiry stamp move to `skills/worktree/reference/nesting-invariant.md`, and every pointer moves
+  with them. The hub keeps the placement rule and says when to read the file. The worktree eval
+  suite gains three cases on rules the hub states, so a loss of the body now shows.
+
+### Removed
+
+- The `resolve-conflicts` skill and its ten eval cases ([#13197](https://github.com/melodic-software/claude-code-plugins/issues/13197)). Use `/source-control:pull-request` instead: `ready` merges the base and resolves a conflicted merge under the same rules (both sides' intent first, no `--ours`/`--theirs`, a semantic-conflict sweep, the version-bump script), and `conflicts --ci` is the pr-unblock lane's unattended mode. The pr-unblock activity keeps its `resolve-conflicts` name.
+
+## [7.1.4] - 2026-11-04
+
+### Fixed
+
+- The post-merge report now records each full and canary run its run listing read as completed,
+  with the `updated_at` it read (`judgedRuns`). `pending_runs_unchanged` and `idle_runs_refusal`
+  (the lane room, the merge job's `settle`, the idle tick and `refusal_moved`) no longer count
+  such a run as moved when it still reads that `updated_at`: the check already judged it
+  finished. Before, a run that completed within the 60-second clock margin before `computedAt`,
+  or during the check's reads, read as `runs-moved` and ran the whole post-merge check again. A
+  re-run changes `updated_at` and still counts as moved, a run still in progress is handled as
+  before, and a report without the field counts every run completed since as moved, as before.
+
+## [7.1.3] - 2026-11-04
+
+### Fixed
+
+- `/source-control:worktree` cleanup links "Uninstall a plugin the project enables" at the current plugin install page instead of its retired URL.
+
+## [7.1.2] - 2026-11-04
+
+### Changed
+
+- `/source-control:worktree`: the nesting invariant's dated measurement, its disputed arms and its
+  expiry stamp return to the skill body, and every pointer returns with them. A negative control
+  could not show the skill's eval suite detects the loss of that text, so the cut is unmeasurable
+  and the before text ships. The isolation-enforcement passage stays as our rules plus a pointer.
+
 ## [7.1.1] - 2026-11-04
 
 ### Fixed

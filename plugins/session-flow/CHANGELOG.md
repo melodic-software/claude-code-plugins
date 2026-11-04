@@ -1,5 +1,18 @@
 # Changelog: session-flow plugin
 
+## [7.0.2] - 2026-11-04
+
+### Changed
+
+- `/session-flow:workflow` now calls the interview's record the Brief ([#13185](https://github.com/melodic-software/claude-code-plugins/issues/13185)): stage 1's heading in `context/steps.md` reads "lock the Brief before building", and the `never-invent-skill-names` eval prompt now says the Brief is locked in PLAN.md, not "the contract".
+
+## [7.0.1] - 2026-11-04
+
+### Fixed
+
+- `handoff` now names the save-point script by its path, `${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py`,
+  so a run calls it directly instead of searching the plugin root for it.
+
 ## [7.0.0] - 2026-11-04
 
 ### Added
