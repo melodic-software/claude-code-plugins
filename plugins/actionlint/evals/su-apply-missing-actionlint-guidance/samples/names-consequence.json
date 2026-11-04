@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Without actionlint the git pre-commit entry cannot lint: an agent's commit fails with the install command, a person just gets a notice, and the end-of-turn check does nothing."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Without actionlint, workflow files are not linted.",
+      "why": "near miss: names neither the pre-commit entry nor the end-of-turn check"
+    },
+    {
+      "answer": "The pre-commit entry blocks every commit until actionlint is installed.",
+      "why": "wrong: a person's commit gets a notice, and the end-of-turn check is not named"
+    }
+  ]
+}

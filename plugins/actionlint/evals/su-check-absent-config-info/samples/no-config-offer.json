@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "You don't need a config. If you later want to tune rules, you can add .github/actionlint.yaml yourself."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Want me to create a starter .github/actionlint.yaml for you?",
+      "why": "offers to write it"
+    }
+  ]
+}

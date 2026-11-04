@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v actionlint",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".github/actionlint.yaml",
+            "content": "self-hosted-runner: {}"
+          }
+        }
+      ]
+    }
+  ]
+}

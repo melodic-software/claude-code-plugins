@@ -1063,6 +1063,14 @@ assert_contains "the shipped row, another domain's root: the guard parses it" "$
 # payload. HOOK_TELEMETRY_SINK and the trace are cleared. A host without a
 # working strace (Windows Git Bash, macOS) skips visibly; the Linux CI lane is
 # where the pins hold.
+#
+# A call the guard parses pays one shfmt parse (lib/hook-utils.sh
+# hook::_bps_shfmt_to): 7 processes (the `$( )` subshell, the group that carries
+# fd 3, printf's pipeline element, the group that starts shfmt, shfmt, the
+# `read -t` group, and jq) and 2 execs, shfmt and jq. A call the guard's
+# prefilter passes pays nothing.
+PARSE_CREATIONS=7
+PARSE_EXECVE=2
 strace_census() { # <payload> <guard> <data dir> -> CENSUS_RC CENSUS_CREATIONS CENSUS_EXECVE
   local log="$TEST_TMPDIR/strace.log"
   CENSUS_RC=0
@@ -1070,7 +1078,9 @@ strace_census() { # <payload> <guard> <data dir> -> CENSUS_RC CENSUS_CREATIONS C
     CLAUDE_PLUGIN_DATA="$3" HOME="$HOME_DIR" \
     strace -f -e trace=clone,clone3,fork,vfork,execve -o "$log" \
     bash "$HOOK_DIR/run-guards.sh" "$2" <<<"$1" >/dev/null 2>&1) || CENSUS_RC=$?
-  CENSUS_CREATIONS=$(grep -cE '((clone|clone3|fork|vfork)\(|<\.\.\. (clone|clone3|fork|vfork) resumed>).* = [0-9]+$' "$log")
+  # A clone with CLONE_THREAD is a thread (shfmt is Go, whose runtime starts a
+  # varying number), not a process: counted from the opening half of each call.
+  CENSUS_CREATIONS=$(grep -E '(clone3?|v?fork)\(' "$log" | grep -v CLONE_THREAD | grep -cE '= [0-9]+$|<unfinished \.\.\.>$')
   CENSUS_EXECVE=$(grep -cE '(execve\(|<\.\.\. execve resumed>).* = 0$' "$log")
 }
 census_share() { # <command> <data dir> -> SHARE_RC SHARE_CREATIONS SHARE_EXECVE
@@ -1106,24 +1116,24 @@ if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true
 
   census_share "ls $B_ROOT/repo" "$CENSUS"
   assert_exit "strace: compiled map, another domain's root: exit 0" 0 "$SHARE_RC"
-  assert_eq "strace: compiled map, another domain's root parsed and denied: the guard's process creations" 0 "$SHARE_CREATIONS"
-  assert_eq "strace: compiled map, another domain's root parsed and denied: the guard's execve count" 0 "$SHARE_EXECVE"
+  assert_eq "strace: compiled map, another domain's root parsed and denied: the guard's process creations are one parse" "$PARSE_CREATIONS" "$SHARE_CREATIONS"
+  assert_eq "strace: compiled map, another domain's root parsed and denied: the guard's execve count are one parse" "$PARSE_EXECVE" "$SHARE_EXECVE"
 
   census_share "git remote add origin git@example.invalid:beta-org/repo.git" "$CENSUS"
   assert_exit "strace: compiled map, an identity position denied: exit 0" 0 "$SHARE_RC"
-  assert_eq "strace: compiled map, an identity position denied: the guard's process creations" 0 "$SHARE_CREATIONS"
-  assert_eq "strace: compiled map, an identity position denied: the guard's execve count" 0 "$SHARE_EXECVE"
+  assert_eq "strace: compiled map, an identity position denied: the guard's process creations are one parse" "$PARSE_CREATIONS" "$SHARE_CREATIONS"
+  assert_eq "strace: compiled map, an identity position denied: the guard's execve count are one parse" "$PARSE_EXECVE" "$SHARE_EXECVE"
 
   census_share "gh pr list" "$CENSUS"
   assert_exit "strace: compiled map, gh without its directory denied: exit 0" 0 "$SHARE_RC"
-  assert_eq "strace: compiled map, gh without its directory denied: the guard's process creations" 0 "$SHARE_CREATIONS"
-  assert_eq "strace: compiled map, gh without its directory denied: the guard's execve count" 0 "$SHARE_EXECVE"
+  assert_eq "strace: compiled map, gh without its directory denied: the guard's process creations are one parse" "$PARSE_CREATIONS" "$SHARE_CREATIONS"
+  assert_eq "strace: compiled map, gh without its directory denied: the guard's execve count are one parse" "$PARSE_EXECVE" "$SHARE_EXECVE"
 
   for data in "$NO_MAP" "$CENSUS"; do
     census_share "git config --global user.email dev@example.invalid" "$data"
     assert_exit "strace: an identity write denied ($data): exit 0" 0 "$SHARE_RC"
-    assert_eq "strace: an identity write denied ($data): the guard's process creations" 0 "$SHARE_CREATIONS"
-    assert_eq "strace: an identity write denied ($data): the guard's execve count" 0 "$SHARE_EXECVE"
+    assert_eq "strace: an identity write denied ($data): the guard's process creations are one parse" "$PARSE_CREATIONS" "$SHARE_CREATIONS"
+    assert_eq "strace: an identity write denied ($data): the guard's execve count are one parse" "$PARSE_EXECVE" "$SHARE_EXECVE"
   done
 else
   echo "ok: process-creation pins skipped (no working strace on this host)"

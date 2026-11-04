@@ -10,10 +10,6 @@
 # its shorthand and query=@file sites, plus its request sites beyond the
 # operations extracted. The test fails when a file's count differs from its
 # row, a file has a count and no row, or an exclude matches no tracked file.
-#
-# Not scanned at all: Python sources (`*.py`), including the operations in
-# plugins/source-control/skills/babysit-prs/scripts/. They join adjacent string
-# literals and f-strings, which the extractor does not follow.
 
 exclude plugins/work-items/tools/work-item-tracker/seeds/linear/ Linear's GraphQL API
 exclude plugins/work-items/tools/work-item-tracker/conformance/bindings/linear.sh Linear's GraphQL API
@@ -26,3 +22,4 @@ exclude plugins/work-items/tools/work-item-tracker/conformance/bindings/linear.s
 .github/scripts/pr-unblock/report-escalation.sh 2 QUEUE_ENTRY_QUERY and DEQUEUE_MUTATION are read from address-feedback.mjs, checked there
 plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh 4 two query{ prefixes are a [[ ]] pattern, not operations; two queries gain one alias per branch in a shell loop
 plugins/source-control/skills/babysit-loop/scripts/lane-snapshot.mjs 1 the connection name is interpolated
+plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py 1 _lift_query() joins PolicyRecordLift with + around a conditional variable and local strings

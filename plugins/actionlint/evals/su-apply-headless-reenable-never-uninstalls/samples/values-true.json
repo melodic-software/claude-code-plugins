@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "`{\"actionlint_enabled\": \"true\"}`"
+    },
+    {
+      "answer": "{\"actionlint_enabled\":\"true\"}",
+      "why": "no space"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"actionlint_enabled\": true}",
+      "why": "unquoted boolean; every value is a string"
+    },
+    {
+      "answer": "actionlint_enabled=true",
+      "why": "the --config form, not the JSON"
+    },
+    {
+      "answer": "{\"actionlint_enabled\": \"false\"}",
+      "why": "wrong value"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}
