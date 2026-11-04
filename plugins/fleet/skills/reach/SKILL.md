@@ -126,13 +126,16 @@ dated measurement and how to re-measure it). When a script can do the job, run t
   - **Pointer**: when deciding whether a lane can take a session name in place of the id, fetch
     [CLI reference: CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands) live.
     **As of**: 2026-10-10. **Recheck trigger**: the `claude logs` or `claude attach` row changes.
-- A `-p` receiver needs `crossSessionInbound: accept`; delivery rules and the pointer are in
+- A `-p` receiver needs `crossSessionInbound: accept` and lives only as long as its turn; for a
+  session that must stay up, use a background session. Delivery rules and the pointer are in
   [reference/relay.md](reference/relay.md#a-named-receiver).
 - `--bare` cuts per-turn cost but binds no inbox socket, so a bare session cannot receive messages
   or be listed. Use it for prompts, never for a receiver.
 - Remote Control is interactive only: `-p --remote-control` does not connect. Keep it out of
   headless recipes.
-- Session names belong to the target lane. List first, then message a name from that list.
+- Session names belong to the target lane, and a listing shows only its own lane. When a request
+  names a machine and not a lane, list each of that machine's lanes (on another machine, one R2 and
+  one R3 turn), then message a name from the listing that shows it.
 - **Pointer**: the receiver, `--bare` and Remote Control bullets rest on our probes and the flag
   behavior in [reference/relay.md § Verified behavior](reference/relay.md#verified-behavior); when
   one stops holding, fetch

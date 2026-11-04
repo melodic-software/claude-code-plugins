@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "wsl.exe -d Ubuntu --cd /tmp --exec /bin/bash -lc 'cd ~/sample-repo && claude -p \"Run the tests and say what''s failing; stop if they cannot run.\" < /dev/null'", "why": "doubled inside the single-quoted command" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty reply" },
+    { "answer": "wsl.exe -d Ubuntu --cd /tmp --exec /bin/bash -lc 'claude -p \"Run the tests and say what's failing.\" < /dev/null'", "why": "bare apostrophe closes the pwsh quote" },
+    { "answer": "wsl.exe -d Ubuntu --cd /tmp --exec /bin/bash -lc 'claude -p \"Run the tests and say what'\\''s failing.\" < /dev/null'", "why": "the bash form in a pwsh window" },
+    { "answer": "wsl.exe -d Ubuntu --cd /tmp --exec /bin/bash -lc \"claude -p 'Run the tests and say what is failing.' < /dev/null\"", "why": "double-quoted outer command, apostrophe reworded away" }
+  ]
+}

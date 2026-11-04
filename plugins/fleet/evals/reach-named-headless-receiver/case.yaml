@@ -28,7 +28,7 @@ graders:
     focus: 'trace'
   - name: 'offers-bg-or-resume'
     type: 'regex'
-    pattern: '--bg\s+--name\b|--resume\b'
+    pattern: '--bg\b|--resume\b'
     flags: 'i'
     target: 'last_message'
   - name: 'bg-needs-trusted-dir'

@@ -15,6 +15,10 @@
     {
       "answer": "wsl.exe -d Ubuntu --cd /tmp --exec /bin/bash -lc 'claude -p \"Run the test suite and report; stop if it cannot run.\" < /dev/null'",
       "why": "the relay.md form"
+    },
+    {
+      "answer": "wsl.exe -d Ubuntu --cd ~/sample-repo --exec /bin/bash -lc 'claude -p \"Run the tests; stop if they cannot run.\" < /dev/null'",
+      "why": "--cd to the repo"
     }
   ],
   "fail": [
@@ -29,6 +33,10 @@
     {
       "answer": "wsl.exe -d Ubuntu --cd /tmp --exec /bin/bash -lc 'claude -p \"run tests\"'",
       "why": "no stdin redirect"
+    },
+    {
+      "answer": "wsl.exe -d Ubuntu --cd ~/sample-repo --exec /bin/bash -lc \"claude -p 'Run the tests.' < /dev/null\"",
+      "why": "double quotes outside"
     }
   ]
 }
