@@ -5,8 +5,8 @@
 # hourly triage sweep skips github-actions[bot] issues and a re-run takes the
 # existing-record path, so a failed hand-off is recorded in a hidden marker
 # comment and retry_undelivered, before each alert run files, retries it:
-# - `<!-- post-merge-undelivered issue=<n> -->`, on issue <n> and on its record,
-#   when issue <n> was not locked or not dispatched;
+# - `<!-- post-merge-undelivered issue=<n> -->`, on issue <n> when it was not
+#   locked or not dispatched, and, for a fix issue, on its record too;
 # - `<!-- post-merge-undelivered check=<name> -->`, on the record, when the
 #   check's fix issue could not be filed or reopened.
 # Only github-actions[bot]'s own open issues and its own comments on them count:
@@ -18,10 +18,13 @@ fix_name_ok() {
   [[ "$1" =~ $fix_charset && "$1" != *babysit-merge-demotion* && "$1" != *post-merge-failure* ]]
 }
 
-# mark_undelivered <issue> <issue=N|check=name>
+# mark_undelivered <issue> <issue=N|check=name>: returns 1 when the marker could
+# not be written.
 mark_undelivered() {
-  gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$1/comments" -f body="<!-- post-merge-undelivered $2 -->" >/dev/null ||
+  if ! gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$1/comments" -f body="<!-- post-merge-undelivered $2 -->" >/dev/null; then
     echo "::error::could not mark #$1 for the hand-off retry"
+    return 1
+  fi
 }
 
 # send_to_intake <issue>: locked before intake reads it, so no outsider comment
@@ -53,17 +56,19 @@ send_to_intake() {
 # reason and first body line, tab-separated). An issue this files or reopens
 # joins own_records, so a later retry of the same check finds it open. On
 # failure, fix_missed names what failed and fix_missed_issue the filed issue
-# intake did not receive, if there is one.
+# intake did not receive, if there is one. fix_open is the issue found already
+# open; fix_handled the issue this sent to intake or reopened.
 fix_work() {
   local check="$1" sha="$2" signal="$3" on_record="$4" merges="$5" run_link="$6" fix_marker="$7" note="$8"
   local found fix_number fix_state fix_reason fix_body
-  fix_missed='' fix_missed_issue=''
+  fix_missed='' fix_missed_issue='' fix_open='' fix_handled=''
   found="$(awk -F'\t' -v m="$fix_marker" '$4 == m && any == "" { any = $0 }
     $4 == m && $2 == "open" && open == "" { open = $0 }
     END { print (open != "" ? open : any) }' <<<"$own_records")"
   IFS=$'\t' read -r fix_number fix_state fix_reason _ <<<"$found"
   if [[ "$fix_state" == open ]]; then
     echo "#$fix_number already tracks $check"
+    fix_open="$fix_number"
   elif [[ -n "$fix_number" && "$fix_reason" =~ ^(not_planned|duplicate)$ ]]; then
     echo "#$fix_number, closed as $fix_reason, mutes $check"
   elif [[ -n "$fix_number" ]]; then
@@ -71,6 +76,7 @@ fix_work() {
       gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/$fix_number" -f state=open -f state_reason=reopened >/dev/null; then
       echo "reopened fix issue #$fix_number for $check"
       own_records+=$'\n'"$fix_number"$'\topen\tnone\t'"$fix_marker"
+      fix_handled="$fix_number"
     else
       echo "::error::could not reopen fix issue #$fix_number for $check"
       fix_missed="#$fix_number (\`$check\`) could not be reopened"
@@ -90,7 +96,9 @@ Fix the check on main. Closing this issue changes nothing on $on_record."
       [[ "$fix_number" =~ ^[1-9][0-9]*$ ]]; then
       echo "filed fix issue #$fix_number for $check"
       own_records+=$'\n'"$fix_number"$'\topen\tnone\t'"$fix_marker"
-      if ! send_to_intake "$fix_number"; then
+      if send_to_intake "$fix_number"; then
+        fix_handled="$fix_number"
+      else
         fix_missed="$intake_missed" fix_missed_issue="$fix_number"
       fi
     else
@@ -113,12 +121,15 @@ clear_marks() {
 # comments of each fix issue, quarantine issue and record among them that has
 # any, and, when a check marker turns up, one of all its issues. A failed read
 # warns and leaves the marker to the next run. A marker on an issue names that
-# issue; only a record's may name another. A retry that fails again keeps its
-# marker, and the function returns 1 once every marker has been tried.
+# issue; only a record's may name another. A check marker that finds its fix
+# issue open sends it, unless this run already did: the run that filed it may
+# have failed both to send it and to mark it, so a second send is the cost of
+# never losing one. A retry that fails again keeps its marker, or moves it to
+# the issue it filed, and the function returns 1 once every marker has been tried.
 retry_undelivered() {
-  local listed n kind count first failing marks id mark named t row failed=0
+  local listed n kind count first failing marks id mark named t row moved failed=0
   local r check sha signal on_record run_link own_records
-  local -A sendable=() marked=()
+  local -A sendable=() marked=() sent=()
   local -a checks=()
   # shellcheck disable=SC2016 # jq variables, not shell
   listed="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues?state=open&creator=github-actions%5Bbot%5D&per_page=100" \
@@ -176,6 +187,7 @@ retry_undelivered() {
       echo "#$t is no longer an open fix or quarantine issue: nothing to re-send"
     elif send_to_intake "$t"; then
       echo "re-sent #$t to intake triage"
+      sent[$t]=1
     else
       failed=1
       continue
@@ -211,13 +223,32 @@ retry_undelivered() {
     fix_work "$check" "$sha" "$signal" "$on_record" "see $on_record" "$run_link" \
       "<!-- post-merge-fix check=$check -->" \
       "This check failed on main again at \`$sha\`. Merge range: see $on_record. Run: $run_link"
+    if [[ -n "$fix_handled" ]]; then
+      sent[$fix_handled]=1
+    fi
+    if [[ -n "$fix_open" && -z "${sent[$fix_open]:-}" ]]; then
+      if send_to_intake "$fix_open"; then
+        echo "re-sent #$fix_open to intake triage"
+        sent[$fix_open]=1
+      else
+        fix_missed="$intake_missed" fix_missed_issue="$fix_open"
+      fi
+    fi
     if [[ -n "$fix_missed" ]]; then
       failed=1
       if [[ -z "$fix_missed_issue" ]]; then
         continue
       fi
-      mark_undelivered "$fix_missed_issue" "issue=$fix_missed_issue"
-      mark_undelivered "$r" "issue=$fix_missed_issue"
+      moved=''
+      if mark_undelivered "$fix_missed_issue" "issue=$fix_missed_issue"; then
+        moved=1
+      fi
+      if mark_undelivered "$r" "issue=$fix_missed_issue"; then
+        moved=1
+      fi
+      if [[ -z "$moved" ]]; then
+        continue
+      fi
     fi
     clear_marks "$id"
   done

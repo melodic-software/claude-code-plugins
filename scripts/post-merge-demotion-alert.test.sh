@@ -123,6 +123,10 @@ fi
 if [[ "$method" == PATCH && "${STUB_PATCH_FAIL:-}" == 1 ]]; then
   exit 1
 fi
+# STUB_MARK_FAIL, a glob of endpoints, fails the write of a hand-off marker there.
+if [[ "$method" == POST && -n "${STUB_MARK_FAIL:-}" && "$endpoint" == $STUB_MARK_FAIL ]] && printf '%s\n' "${fields[@]}" | grep -q '^body=<!-- post-merge-undelivered '; then
+  exit 1
+fi
 # STUB_FIX_POST_FAIL fails the write of a fix issue.
 if [[ "$method" == POST && "${STUB_FIX_POST_FAIL:-}" == 1 ]] && printf '%s\n' "${fields[@]}" | grep -q '^body=<!-- post-merge-fix '; then
   exit 1
@@ -389,7 +393,7 @@ PY
   : >"$TMP_ROOT/stub/output"
   OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" GITHUB_OUTPUT="$TMP_ROOT/stub/output" STUB_FAIL_READ="${FAIL_READ:-}" STUB_FAIL_LANE_READ="${FAIL_LANE_READ:-}" \
     STUB_FAIL_GRAPHQL="${FAIL_GRAPHQL:-}" STUB_FAIL_NEWER_READ="${FAIL_NEWER_READ:-}" STUB_FAIL_PREV_READ="${FAIL_PREV_READ:-}" STUB_FAIL_BASE_READ="${FAIL_BASE_READ:-}" STUB_FAIL_COMPARE_PAGE="${FAIL_COMPARE_PAGE:-}" STUB_FAIL_COMMIT_READ="${FAIL_COMMIT_READ:-}" STUB_REVERT_POST_FAIL="${REVERT_POST_FAIL:-}" STUB_FIX_POST_FAIL="${FIX_POST_FAIL:-}" STUB_NEWER_FROM="${NEWER_FROM:-}" \
-    RETRY_OUTCOME="${RETRY_OUTCOME:-}" STUB_RUN_SHA="$6" STUB_RUN_CREATED="$CREATED" STUB_RERUN="${RERUN:-}" POLL_SECONDS=0 \
+    RETRY_OUTCOME="${RETRY_OUTCOME:-}" STUB_MARK_FAIL="${MARK_FAIL:-}" STUB_RUN_SHA="$6" STUB_RUN_CREATED="$CREATED" STUB_RERUN="${RERUN:-}" POLL_SECONDS=0 \
     STUB_ANCESTRY="${ANCESTRY:-}" STUB_ON_MAIN="${ON_MAIN:-}" STUB_RERUN_POST_FAIL="${RERUN_POST_FAIL:-}" STUB_DISPATCH_FAIL="${DISPATCH_FAIL:-}" STUB_PATCH_FAIL="${PATCH_FAIL:-}" STUB_LOCK_FAIL="${LOCK_FAIL:-}" RUN_TRIGGERING_ACTOR="${STARTER:-octocat}" \
     GH_TOKEN=x GITHUB_REPOSITORY=o/r EVENT_NAME="${VIA:-workflow_run}" RUN_WORKFLOW="$1" RUN_EVENT="$2" RUN_CONCLUSION="$3" \
     RUN_BRANCH="$4" RUN_REPO="$5" RUN_SHA="$6" RUN_URL="$RUN_URL" RUN_ATTEMPT="${ATTEMPT:-2}" \
@@ -1931,23 +1935,79 @@ else
 fi
 
 next_run "[$RECORD_ISSUE, $FIX_OPEN]"
-if [[ "$RC" -eq 0 && "$(dispatches)" -eq 0 ]] && ! grep -qx 'POST repos/o/r/issues' <<<"$LOG" && ! grep -q 'issues/60' <<<"$LOG" &&
-  grep -qx 'DELETE repos/o/r/issues/comments/5004' <<<"$LOG"; then
-  ok "an open fix issue for the check stops the retry from filing a duplicate, and clears the marker"
+lock_at="$(line_of 'PUT repos/o/r/issues/60/lock')"
+send_at="$(line_of 'POST repos/o/r/actions/workflows/intake-triage.yml/dispatches')"
+if [[ "$RC" -eq 0 && "$(sent_numbers)" == 60 && -n "$lock_at" && "$lock_at" -lt "$send_at" ]] && ! grep -qx 'POST repos/o/r/issues' <<<"$LOG" &&
+  ! grep -qE 'PATCH|issues/60/comments' <<<"$LOG" && grep -qx 'DELETE repos/o/r/issues/comments/5004' <<<"$LOG"; then
+  ok "an open fix issue for the check stops the retry from filing a duplicate; it is sent, and the marker clears"
 else
   fail "open fix issue on retry: rc=$RC log='$LOG' out='$OUT'"
 fi
 
 ISSUE_COMMENTS+=([70]="[$(from "$BOT" 5005 "$check_mark")]")
 next_run "[$RECORD_ISSUE, $(open_with_comments "$(issue 70 "$RECORD_BODY")")]"
-if [[ "$RC" -eq 0 && "$(grep -c '^POST repos/o/r/issues$' <<<"$LOG")" -eq 1 ]] &&
+if [[ "$RC" -eq 0 && "$(grep -c '^POST repos/o/r/issues$' <<<"$LOG")" -eq 1 && "$(dispatches)" -eq 1 ]] &&
   grep -qx 'DELETE repos/o/r/issues/comments/5004' <<<"$LOG" && grep -qx 'DELETE repos/o/r/issues/comments/5005' <<<"$LOG"; then
-  ok "two records marking one check file one fix issue"
+  ok "two records marking one check file one fix issue and send it once"
 else
   fail "two records one check: rc=$RC log='$LOG' out='$OUT'"
 fi
 unset 'ISSUE_COMMENTS[70]'
 
+# An issue its own marker re-sent is not sent again for a check marker naming it.
+ISSUE_COMMENTS+=([60]="[$(from "$BOT" 5006 '<!-- post-merge-undelivered issue=60 -->')]")
+next_run "[$RECORD_ISSUE, $(open_with_comments "$FIX_OPEN")]"
+if [[ "$RC" -eq 0 && "$(sent_numbers)" == 60 ]] && grep -qx 'DELETE repos/o/r/issues/comments/5004' <<<"$LOG" &&
+  grep -qx 'DELETE repos/o/r/issues/comments/5006' <<<"$LOG"; then
+  ok "an issue and a check marker naming the same fix issue send it once and both clear"
+else
+  fail "issue and check marker: rc=$RC log='$LOG' out='$OUT'"
+fi
+unset 'ISSUE_COMMENTS[60]'
+
+# A retry that files an issue it can neither send nor mark loses nothing: the
+# check marker stays, and the next run finds the issue open and delivers it.
+LOCK_FAIL=1 MARK_FAIL='*' next_run "[$RECORD_ISSUE]"
+filed_n=$((900 + $(line_of 'POST repos/o/r/issues')))
+if [[ "$RC" -eq 1 && "$(dispatches)" -eq 0 ]] && ! grep -q '^DELETE \|/labels$' <<<"$LOG"; then
+  ok "a retry that can neither send nor mark the issue it filed keeps the check marker"
+else
+  fail "no send, no mark: rc=$RC log='$LOG' out='$OUT'"
+fi
+next_run "[$RECORD_ISSUE, $(issue "$filed_n" "<!-- post-merge-fix check=test-bash -->")]"
+lock_at="$(line_of "PUT repos/o/r/issues/$filed_n/lock")"
+send_at="$(line_of 'POST repos/o/r/actions/workflows/intake-triage.yml/dispatches')"
+if [[ "$RC" -eq 0 && "$(sent_numbers)" == "$filed_n" && -n "$lock_at" && "$lock_at" -lt "$send_at" ]] &&
+  ! grep -qx 'POST repos/o/r/issues' <<<"$LOG" && grep -qx 'DELETE repos/o/r/issues/comments/5004' <<<"$LOG"; then
+  ok "the next run delivers the issue that retry left unsent and unmarked, then clears the check marker"
+else
+  fail "next run after no send, no mark: rc=$RC log='$LOG' out='$OUT'"
+fi
+# One replacement marker written is enough to clear the check marker.
+LOCK_FAIL=1 MARK_FAIL="repos/o/r/issues/$record_n/comments" next_run "[$RECORD_ISSUE]"
+filed_n=$((900 + $(line_of 'POST repos/o/r/issues')))
+if [[ "$RC" -eq 1 ]] && marked "$filed_n" "issue=$filed_n" && grep -qx 'DELETE repos/o/r/issues/comments/5004' <<<"$LOG"; then
+  ok "a replacement marker written on the filed issue alone clears the check marker"
+else
+  fail "one marker written: rc=$RC log='$LOG' out='$OUT'"
+fi
+# In the filing step a marker that fails ends nothing early.
+JOBS="$(job 1 test-bash 'Run the bash tests'), $(job 2 lint-shell ShellCheck)" LOCK_FAIL=1 MARK_FAIL='*' \
+  run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+note_line="$(grep -n "^POST repos/o/r/issues/$(record_number)/comments$" <<<"$LOG" | tail -1 | cut -d: -f1)"
+if [[ "$RC" -eq 1 && "$(fixes)" -eq 2 && -n "$note_line" ]] &&
+  grep -q -- "- #$(fix_number 1) could not be locked" "$TMP_ROOT/stub/post.$note_line" &&
+  grep -q -- "- #$(fix_number 2) could not be locked" "$TMP_ROOT/stub/post.$note_line"; then
+  ok "markers that cannot be written still file every fix issue, post the note and exit 1"
+else
+  fail "filing with failed markers: rc=$RC log='$LOG' out='$OUT'"
+fi
+JUDGE=0 JUDGE_QUARANTINE='[77, 78]' DISPATCH_FAIL=1 MARK_FAIL='*' RUNS="$(baseline_run 4141 success)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 1 && "$(sent_numbers)" == "77 78" ]] && grep -qx 'excused=true' "$TMP_ROOT/stub/output"; then
+  ok "a quarantine marker that cannot be written still tries the next issue and exits 1"
+else
+  fail "quarantine with failed markers: rc=$RC log='$LOG' out='$OUT'"
+fi
 
 FIX_POST_FAIL=1 next_run "[$RECORD_ISSUE]"
 if [[ "$RC" -eq 1 ]] && ! grep -q '^DELETE \|/labels$' <<<"$LOG"; then

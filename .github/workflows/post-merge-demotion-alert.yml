@@ -21,10 +21,10 @@ name: post-merge-demotion-alert
 # close-cleared job closes it and removes the label. A canary record with no
 # block (the push's commits were not all read, the scan could not run, or the
 # block was too large) clears only on a
-# person's close. A fix issue or quarantine issue not delivered to intake gets
-# a hidden marker comment, on it and on its record, and a check whose fix issue
-# could not be filed or reopened gets one on the record; each alert run retries
-# what a marker names until it succeeds (handoff.bash). A record gets
+# person's close. A fix issue not delivered to intake gets a hidden marker
+# comment on it and on its record, a quarantine issue one on the issue, and a
+# check whose fix issue could not be filed or reopened one on the record; each
+# alert run retries what a marker names until it succeeds (handoff.bash). A record gets
 # needs-human when a failing check got no fix issue because it was over the cap
 # or outside the name charset, which no retry can file.
 # The close-cleared job, on each completed scheduled full run, closes each
@@ -562,7 +562,7 @@ jobs:
             for q in $quarantined; do
               if ! send_to_intake "$q"; then
                 echo "::error::quarantine issue #$q was not sent to intake triage: the next alert run retries it"
-                mark_undelivered "$q" "issue=$q"
+                mark_undelivered "$q" "issue=$q" || true
                 handoff_failed=1
               fi
             done
@@ -1224,10 +1224,10 @@ jobs:
             if [[ -n "$fix_missed" ]]; then
               undelivered+=("$fix_missed")
               if [[ -n "$fix_missed_issue" ]]; then
-                mark_undelivered "$fix_missed_issue" "issue=$fix_missed_issue"
-                mark_undelivered "$record" "issue=$fix_missed_issue"
+                mark_undelivered "$fix_missed_issue" "issue=$fix_missed_issue" || true
+                mark_undelivered "$record" "issue=$fix_missed_issue" || true
               else
-                mark_undelivered "$record" "check=$check"
+                mark_undelivered "$record" "check=$check" || true
               fi
             fi
           done
