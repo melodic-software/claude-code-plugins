@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "| master | true |\n| bell | true |\n| terminal_notify | true |\n| os_toast | true |\n| forward_toasts | true |"
+    },
+    {
+      "answer": "All five are true: master, bell, terminal_notify, os_toast and forward_toasts."
+    },
+    {
+      "answer": "master on, bell on, terminal_notify on, os_toast on, forward_toasts on."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The toggles are fine.",
+      "why": "no values"
+    },
+    {
+      "answer": "The master toggle is true.",
+      "why": "near miss: one toggle"
+    },
+    {
+      "answer": "bell true, terminal_notify true, os_toast true, forward_toasts true.",
+      "why": "near miss: no master"
+    },
+    {
+      "answer": "master true, bell true, os_toast true, forward_toasts true.",
+      "why": "near miss: no terminal_notify"
+    },
+    {
+      "answer": "There are five toggles: master, bell, terminal_notify, os_toast and forward_toasts.",
+      "why": "near miss: named, no values"
+    }
+  ]
+}
