@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "\"/plugins/code-metrics/skills/audit/scripts/audit-size.sh\""}}],
+      "why": "the entry script, as the skill body runs it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "wc -l greet.py settings.py deploy.sh"}}],
+      "why": "a hand count instead of the script"
+    },
+    {
+      "answer": [],
+      "why": "no shell call at all"
+    }
+  ]
+}

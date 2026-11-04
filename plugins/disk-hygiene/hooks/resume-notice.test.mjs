@@ -78,16 +78,17 @@ test('an unexpanded data placeholder falls back to the tmp candidate off Windows
 // marker through the real launcher, and the SessionStart row reads it.
 function registered(event, needle) {
   const rows = hooksJson.hooks[event].flatMap((group) => group.hooks)
-  const row = rows.find((h) => (h.args ?? []).join(' ').includes(needle))
+  const row = rows.find((h) => [h.command, ...(h.args ?? [])].join(' ').includes(needle))
   assert.ok(row, `${event} has a row naming ${needle}`)
   return row
 }
 
+// Exec form spawns `command` with `args`; shell form runs `command` under bash, as Claude Code
+// does where Git Bash or a POSIX shell is present. Placeholders are substituted first in both.
 function run(row, dataRoot, payload, env = {}) {
-  const args = row.args.map((a) =>
-    a.replaceAll('${CLAUDE_PLUGIN_ROOT}', pluginRoot).replaceAll('${CLAUDE_PLUGIN_DATA}', dataRoot),
-  )
-  return spawnSync(row.command, args, {
+  const sub = (a) => a.replaceAll('${CLAUDE_PLUGIN_ROOT}', pluginRoot).replaceAll('${CLAUDE_PLUGIN_DATA}', dataRoot)
+  const [cmd, args] = row.args ? [row.command, row.args.map(sub)] : ['bash', ['-c', sub(row.command)]]
+  return spawnSync(cmd, args, {
     input: JSON.stringify(payload),
     encoding: 'utf8',
     env: { ...process.env, ...env },
@@ -102,7 +103,7 @@ test('the registered rows: the notice fires only after /disk-hygiene:clean expan
   const env = { TMPDIR: tmp }
   const expansion = registered('UserPromptExpansion', 'engine_context.py')
   const resume = registered('SessionStart', 'resume-notice.mjs')
-  assert.equal(resume.command, 'node')
+  assert.match(resume.command, /^sh "\$\{CLAUDE_PLUGIN_ROOT\}\/lib\/node-or-skip\.sh" /)
 
   const before = run(resume, data, { session_id: 'sess-9', source: 'resume' }, env)
   assert.equal(before.status, 0, before.stderr)

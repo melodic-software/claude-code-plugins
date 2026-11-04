@@ -2529,10 +2529,14 @@ jobs:
       # and runs the sweep's post-merge check fresh, as post-merge-dispatch
       # does when its idle tick refuses, with this job's read-only token (the
       # check writes nothing without --remediate). The fresh report stands
-      # only when the check passed (exit 0 or 5) and `settle --idle-tick`
-      # keeps it too: the wake starts no full run or re-run and files
-      # nothing, so it arms only on a report that needs none of those
-      # (idle_report_refusal: no hold, no needsDispatch, no reruns). Any
+      # only when the check passed (exit 0 or 5) and `settle --idle-tick
+      # --fresh` keeps it too: the wake starts no full run or re-run and
+      # files nothing, so it arms only on a report that needs none of those
+      # (idle_report_refusal: no hold, no needsDispatch, no reruns), with the
+      # quarantine and pin reads as well. `--fresh` skips only the verifying
+      # runs test (idle_runs_refusal): the check just read those runs, and a
+      # sweep arms on the report post-merge-dispatch just made with no idle
+      # rule. Any
       # other result removes it and skips the arm step: a wake with no
       # standing report decides nothing, so it neither arms nor disarms (an
       # unreadable room would disarm every armed lane pull request), and the
@@ -2558,7 +2562,7 @@ jobs:
           kept=false fresh='' reason=''
           settle() {
             python3 "$scripts/babysit_verify_evidence.py" settle --idle-tick --repo "$REPO" \
-              --postmerge-result "$last/post-merge.json" --code-sha "$1"
+              --postmerge-result "$last/post-merge.json" --code-sha "$@"
           }
           if [ -f "$last/post-merge.json" ] && [ -f "$last/post-merge-code" ]; then
             last_code=$(cat "$last/post-merge-code")
@@ -2588,13 +2592,13 @@ jobs:
             sha=$(git -C .base rev-parse HEAD) || sha=''
             echo "$sha" >"$last/post-merge-code-sha"
             if [[ $fresh =~ ^[05]$ ]]; then
-              settled=$(settle "$sha") && kept=true
+              settled=$(settle "$sha" --fresh) && kept=true
               echo "$settled"
               # Why the idle tick refused the fresh report, for the outcome line.
               reason=$(jq -r '.reason // ""' <<<"$settled" 2>/dev/null | head -n 1) || reason=''
             fi
             if [ "$kept" = true ]; then
-              echo "the fresh post-merge check (exit $fresh) passed and settle --idle-tick keeps it"
+              echo "the fresh post-merge check (exit $fresh) passed and settle --idle-tick --fresh keeps it"
             else
               rm -rf "${last:?}"
               echo "::notice::the fresh post-merge check (exit $fresh) does not stand for this run; nothing is armed or disarmed, and the next sweep checks again"

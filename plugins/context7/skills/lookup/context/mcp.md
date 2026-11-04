@@ -51,12 +51,17 @@ or its as-of date changes):
 
 ## Tools exposed
 
-| Tool | Purpose | CLI equivalent |
-|---|---|---|
-| `mcp__context7__resolve-library-id` | Resolve library name → `/org/project` ID | `ctx7 library <name> <query>` |
-| `mcp__context7__query-docs` | Fetch docs for a resolved ID | `MSYS_NO_PATHCONV=1 ctx7 docs <id> <query>` |
+| Tool | CLI equivalent |
+|---|---|
+| `mcp__context7__resolve-library-id` | `ctx7 library <name> <query>` |
+| `mcp__context7__query-docs` | `MSYS_NO_PATHCONV=1 ctx7 docs <id> <query>` |
 
-Both tools require a `query` argument for result ranking. Same input shape as CLI, same backend, and same output substance. Only the transport differs.
+Same input shape as CLI, same backend, and same output substance. Only the transport differs.
+
+- **Pointer**: for what each tool does and the arguments it takes, fetch
+  [Context7: MCP Tools](https://github.com/upstash/context7#mcp-tools) live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section renames a tool or changes which arguments it requires.
 
 ## Why prefer MCP over CLI for most lookups
 
