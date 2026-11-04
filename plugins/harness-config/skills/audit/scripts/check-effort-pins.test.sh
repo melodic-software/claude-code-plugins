@@ -117,7 +117,7 @@ assert_not_contains "print-baseline: no row text in the baseline" "$(cat "$BASE"
 
 # --- slice path: the hash the whole-page scan gave on the committed fixture ---------
 # The hashed lines, copied by hand from the fixture: the level rows of the Choose
-# table, the Levels table rows, then item 3 of the list.
+# table, the Levels table rows, then the list item that states the defaults.
 want="$(printf '%s\n' \
   '| `low` | Sorting socks by color |' \
   '| `medium` | Baking bread from a known recipe |' \
@@ -198,13 +198,42 @@ run "$(variant levels 's/^| Model Gamma | `low`, `medium`, `high`, `max` |$/| Mo
 assert_eq "changed-table, Levels row: exits 1" 1 "$RC"
 assert_contains "changed-table, Levels row: changed" "$OUT" "table status=changed"
 
-# --- changed-defaults: item 3 of the resolution list changed -----------------------
+# --- changed-defaults: the resolution-list item that states the defaults changed ----
 run "$(variant defaults 's/Model Gamma at `low`/Model Gamma at `high`/')" --baseline "$BASE" --root "$ROOT"
 assert_eq "changed-defaults: exits 1" 1 "$RC"
 assert_contains "changed-defaults: table line is changed" "$OUT" "table status=changed"
 assert_eq "changed-defaults: every pin flagged table-changed" 8 "$(count "$OUT" 'reason=table-changed')"
 run "$(variant item4 's/a coin toss/a dice roll/')" --baseline "$BASE" --root "$ROOT"
 assert_contains "changed-defaults: another list item is not hashed" "$OUT" "table status=same"
+
+# The defaults item is found by what it says, wherever the list numbers it: new
+# sources above it push it to item 5, and item 3 becomes a line with no defaults.
+MOVE_DEFAULTS='/^3\. Pretend default source/{
+s/^3\. /5. /
+i\
+3. Pretend flag source: a switch at launch
+}'
+run "$(variant moved "$MOVE_DEFAULTS")" --print-baseline --root "$EMPTY"
+assert_eq "defaults moved: still parses" 0 "$RC"
+want="$(printf '%s\n' \
+  '| `low` | Sorting socks by color |' \
+  '| `medium` | Baking bread from a known recipe |' \
+  '| `high` | Tuning a piano with a friend listening |' \
+  '| `xhigh` | Charting a coastline by moonlight |' \
+  '| `max` | Solving a locked-room puzzle alone |' \
+  '| Model Alpha and Model Beta | `low`, `medium`, `high`, `xhigh`, `max` |' \
+  '| Model Gamma | `low`, `medium`, `high`, `max` |' \
+  '5. Pretend default source: Model Alpha starts at `medium`, Model Beta at `high`, Model Gamma at `low`' |
+  sha256sum | cut -d' ' -f1)"
+assert_contains "defaults moved: the hash covers the defaults line, not item 3" "$OUT" "sha256=$want"
+MOVED_BASE="$T/moved.baseline"
+printf '%s\n' "$OUT" >"$MOVED_BASE"
+run "$(variant moved-edited "$MOVE_DEFAULTS;"'s/Model Gamma at `low`/Model Gamma at `high`/')" --baseline "$MOVED_BASE" --root "$ROOT"
+assert_contains "defaults moved: an edit to the defaults line still changes the hash" "$OUT" "table status=changed"
+
+# A second item that mentions a default is hashed too, never skipped for the first.
+run "$(variant two-defaults 's/a coin toss/a default coin toss/')" --baseline "$BASE" --root "$ROOT"
+assert_contains "two default items: a change to either one is seen" "$OUT" "table status=changed"
 
 # --- failed-fetch: the page cannot be read ---------------------------------------
 mkdir -p "$T/v-noindex"
@@ -231,9 +260,13 @@ assert_eq "reshaped, Choose heading renamed: exits 3" 3 "$RC"
 assert_contains "reshaped, Choose heading renamed: unparsed" "$OUT" "table status=unparsed"
 assert_contains "reshaped, Choose heading renamed: reason" "$OUT" "reason=no-choose-heading"
 assert_eq "reshaped, Choose heading renamed: no pin line" 0 "$(count "$OUT" '^pin ')"
-run "$(variant noitem3 '/^3\. /d')" --baseline "$BASE" --root "$ROOT"
-assert_eq "reshaped, no item 3: exits 3" 3 "$RC"
-assert_contains "reshaped, no item 3: reason" "$OUT" "reason=no-defaults-item"
+run "$(variant nodefaults '/^3\. /d')" --baseline "$BASE" --root "$ROOT"
+assert_eq "reshaped, no defaults item: exits 3" 3 "$RC"
+assert_contains "reshaped, no defaults item: reason" "$OUT" "reason=no-defaults-item"
+# Item 3 is still there but no longer states the defaults: no claim, not a stale hash.
+run "$(variant reworded 's/^3\. Pretend default source.*/3. Pretend flag source: a switch at launch/')" --baseline "$BASE" --root "$ROOT"
+assert_eq "reshaped, item 3 states no default: exits 3" 3 "$RC"
+assert_contains "reshaped, item 3 states no default: reason" "$OUT" "reason=no-defaults-item"
 run "$(variant nocol 's/^| Model | Levels |$/| Model | Options |/')" --baseline "$BASE" --root "$ROOT"
 assert_eq "reshaped, Levels column renamed: exits 3" 3 "$RC"
 assert_contains "reshaped, Levels column renamed: reason" "$OUT" "reason=no-levels-column"
