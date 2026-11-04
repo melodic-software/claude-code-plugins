@@ -97,7 +97,7 @@ without Claude Code. Node.js (step 5) is a FAIL either way too.
    INFO (this clone said no; silent at session start), and `missing`, `stale` or `modified` is a
    FAIL whose remediation is `apply install-git-hooks`. A `tool\t<tool>\tmissing` line means the
    installed entry cannot run here: list every such tool with its install method from the
-   plugin's `prerequisites.json`, so a lane or cloud setup script can provision it before an
+   `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` (Read that path), so a lane or cloud setup script can provision it before an
    auto-mode session commits. Outside a git repository, report INFO and skip the step.
 
 ## `apply install-git-hooks [scope=local|shared]`
