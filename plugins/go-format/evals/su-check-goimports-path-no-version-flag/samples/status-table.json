@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Result | Detail |\n|---|---|---|\n| Bash version | PASS | 5.2 |\n| jq | PASS | /usr/bin/jq |\n| node | PASS | /usr/bin/node |\n| goimports | PASS | /usr/local/bin/goimports |\n| go_format_enabled | INFO | default true |\n| Hook registration | INFO | see /plugin |",
+      "why": "every row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Bash, jq, goimports, the toggle and the hook all look fine.",
+      "why": "prose, no grades"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| jq | PASS |\n| goimports | PASS |",
+      "why": "near miss: no Bash, toggle or hook registration row"
+    }
+  ]
+}

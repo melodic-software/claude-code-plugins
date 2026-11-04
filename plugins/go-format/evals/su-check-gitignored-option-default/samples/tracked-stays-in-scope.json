@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "A tracked file that matches an ignore pattern stays in scope, so the hook would format it."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Any file matching an ignore pattern is skipped, tracked or not.",
+      "why": "wrong"
+    },
+    {
+      "answer": "Tracked files are different.",
+      "why": "near miss: does not say the file stays in scope"
+    }
+  ]
+}

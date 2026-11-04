@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v goimports",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [],
+      "why": "no calls"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".golangci.yml",
+            "content": "run:\n"
+          }
+        }
+      ],
+      "why": "writes a config"
+    }
+  ]
+}

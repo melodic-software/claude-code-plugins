@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Yes: a rerun against the already-installed plugin still writes the value."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "If the plugin is already installed the rerun does nothing; uninstall first.",
+      "why": "says the rerun writes nothing"
+    },
+    {
+      "answer": "The fallback is `claude plugin install go-format@<marketplace> -s user --config go_format_enabled=false`.",
+      "why": "near miss: names the rerun but not what it does on an installed plugin"
+    }
+  ]
+}

@@ -1,0 +1,82 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugins/go-format/lib/git-hooks/install.mjs\" verify",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "the check step"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'install.mjs copy' SKILL.md",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "the verb as a search term"
+    },
+    {
+      "answer": [],
+      "why": "no calls"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugins/go-format/lib/git-hooks/install.mjs\" plan --scope local",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "plan"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /plugins/go-format/lib/git-hooks/install.mjs copy --scope local",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "copy writes the entry"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /plugins/go-format/lib/git-hooks/install.mjs decline --entry goimports-format",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "decline writes git config"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status && node /plugins/go-format/lib/git-hooks/install.mjs config-hook",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "after &&"
+    }
+  ]
+}
