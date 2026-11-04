@@ -1,0 +1,40 @@
+{
+  "pass": [
+    {
+      "answer": "| Hook registration | INFO | confirm via `/plugin` → Installed |"
+    },
+    {
+      "answer": "Open /plugin and look under the Installed tab."
+    },
+    {
+      "answer": "Installed: check it under `/plugin`.",
+      "why": "Installed first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The hook is registered in ~/.claude/settings.json under enabledPlugins.",
+      "why": "parsed settings"
+    },
+    {
+      "answer": "Run /plugin to check.",
+      "why": "no Installed"
+    },
+    {
+      "answer": "Installed per the /plugin-reconfiguration convention.",
+      "why": "a different token"
+    },
+    {
+      "answer": "Installed\nsee /plugin",
+      "why": "split line"
+    },
+    {
+      "answer": "Read /tmp/plugin/hooks/eol-normalizer.sh: jq installed.",
+      "why": "path segment, not the /plugin command"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

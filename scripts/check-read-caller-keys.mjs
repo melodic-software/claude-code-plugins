@@ -11,9 +11,19 @@ import { pathToFileURL } from "node:url";
 const WORKFLOWS = ".github/workflows";
 const READ_WORKFLOW = `${WORKFLOWS}/pr-run-activity-read.yml`;
 // The one job of the read workflow that may name id-token. It runs no PR head
-// code, so it may only check out the default branch tip.
+// code, so it may only check out the default branch tip: by name, or as the
+// SHA an unconditional tip step before it resolves from this repository's refs.
 const CHECK_JOB = "broker-check";
 const TIP_REF = "${{ github.event.repository.default_branch }}";
+const TIP_STEP_REF = "${{ steps.tip.outputs.sha }}";
+const TIP_BRANCHES = new Set(["main", TIP_REF]);
+const TIP_RUN = [
+  'sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |',
+  "  awk -v ref=\"refs/heads/$TIP_BRANCH\" '$2 == ref { print $1 }')",
+  '[[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }',
+  'echo "sha=$sha" >>"$GITHUB_OUTPUT"',
+  "",
+].join("\n");
 const REPOSITORY = "melodic-software/claude-code-plugins";
 // A job-level `uses:` naming one of this repository's workflows, in local
 // (`./`) or remote (`owner/repo/...@ref`) form.
@@ -303,6 +313,28 @@ function carrierPassesOf(doc) {
 
 const CHECKOUT_WITH = new Set(["ref", "path", "persist-credentials"]);
 
+// A checkout of the tip step's SHA is the default branch tip only when the step
+// is the canonical script on main or the default branch, and neither it nor the
+// checkout is conditional or may fail soft: an empty ref checks out the event's.
+function isTipCheckout(values, index) {
+  const checkout = values[index];
+  const tip = values.find((value) => value?.id === "tip");
+  const env = tip?.env ?? {};
+  return (
+    checkout.with?.ref === TIP_STEP_REF &&
+    values.indexOf(tip) !== -1 &&
+    values.indexOf(tip) < index &&
+    tip.uses === undefined &&
+    tip.run === TIP_RUN &&
+    Object.keys(env).sort().join() === "GIT_TERMINAL_PROMPT,TIP_BRANCH" &&
+    TIP_BRANCHES.has(env.TIP_BRANCH) &&
+    String(env.GIT_TERMINAL_PROMPT) === "0" &&
+    [tip, checkout].every(
+      (step) => step.if === undefined && step["continue-on-error"] === undefined,
+    )
+  );
+}
+
 // The read workflow's shape: an empty top-level grant, an explicit
 // permissions map on every job, and a broker-check job made of steps whose
 // checkouts can only fetch this repository's default branch tip.
@@ -336,8 +368,10 @@ function checkReadShape(file, doc, lineCounter) {
       `${file}:${lineOf(job)}: the ${CHECK_JOB} job must be steps, not a reusable-workflow call`,
     );
   }
-  for (const step of yaml.isSeq(steps) ? steps.items : []) {
-    const value = step?.toJSON?.();
+  const items = yaml.isSeq(steps) ? steps.items : [];
+  const values = items.map((step) => step?.toJSON?.());
+  for (const [index, step] of items.entries()) {
+    const value = values[index];
     if (
       typeof value?.uses !== "string" ||
       !/^actions\/checkout@/i.test(value.uses.trim())
@@ -346,7 +380,7 @@ function checkReadShape(file, doc, lineCounter) {
     }
     const withKeys = Object.keys(value.with ?? {});
     if (
-      value.with?.ref !== TIP_REF ||
+      (value.with?.ref !== TIP_REF && !isTipCheckout(values, index)) ||
       withKeys.some((key) => !CHECKOUT_WITH.has(key))
     ) {
       offenders.push(

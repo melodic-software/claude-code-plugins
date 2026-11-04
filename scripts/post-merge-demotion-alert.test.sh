@@ -70,13 +70,19 @@ else
   fail "the alert job's permissions are not exactly issues: write, actions: write, checks: read, contents: read, pull-requests: read"
 fi
 # Beside the checkout, only the job-end log-api-budget action, run from that
-# checkout of main's tip.
+# checkout of main's tip. The checkout takes main's tip as the SHA the job's
+# first step, a run step on TIP_BRANCH main, resolves, which saves checkout's
+# REST call for a branch ref.
 uses="$(grep -E '^[[:space:]]*-?[[:space:]]*uses:' <<<"$alert_job" | sed -E 's/^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*//; s/@.*//; s/[[:space:]]+#.*//')"
 checkout="$(awk '/- name: Check out the default branch tip/ { on = 1 } on && /^      - name: Read/ { exit } on' <<<"$alert_job")"
-if [[ "$uses" == $'actions/checkout\n./.base/.github/actions/log-api-budget' && "$checkout" == *"ref: refs/heads/main"* && "$checkout" == *"persist-credentials: false"* ]]; then
+first_step="$(awk '/^    steps:$/ { on = 1; next } on && /^      - / { n++ } n == 1 { print } n > 1 { exit }' <<<"$alert_job")"
+# shellcheck disable=SC2016 # literal workflow expressions, not shell
+if [[ "$uses" == $'actions/checkout\n./.base/.github/actions/log-api-budget' &&
+  "$first_step" == *"- name: Resolve main's tip"* && "$first_step" == *"id: tip"* && "$first_step" == *"TIP_BRANCH: main"* &&
+  "$checkout" == *'ref: ${{ steps.tip.outputs.sha }}'* && "$checkout" == *"persist-credentials: false"* ]]; then
   ok "the alert job checks out main's tip without credentials and runs no other action but that checkout's log-api-budget"
 else
-  fail "the alert job runs an action other than one credential-less checkout of main and its log-api-budget: '$uses'"
+  fail "the alert job runs an action other than one credential-less checkout of main's tip SHA and its log-api-budget: '$uses'"
 fi
 if grep -qF "\${{" "$TMP_ROOT/body.sh"; then
   fail "the step body interpolates an expression; pass it through env"

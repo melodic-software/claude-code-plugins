@@ -42,7 +42,13 @@
 # job, may name `id-token` only inside its `broker-check` job, which runs no PR
 # head code, and that job must be `steps` (not a reusable call) whose
 # `actions/checkout` steps take only `ref`, `path` and `persist-credentials`,
-# with `ref: ${{ github.event.repository.default_branch }}`. A missing
+# with `ref: ${{ github.event.repository.default_branch }}`, or
+# `ref: ${{ steps.tip.outputs.sha }}` after an earlier step with `id: tip`
+# that runs the canonical `git ls-remote` tip script on `TIP_BRANCH: main` or
+# the default branch (env exactly `TIP_BRANCH` and `GIT_TERMINAL_PROMPT: "0"`),
+# with no `if` or `continue-on-error` on either step, since an empty ref would
+# check out the event's ref. A full SHA saves checkout's hash-algorithm REST
+# call, which any branch ref costs. A missing
 # read workflow, a workflow that does not parse, or a workflow whose run
 # reaches the read workflow with no entry in the caller map is an offender, so
 # neither a rename, a syntax error nor a new caller turns the check into a
