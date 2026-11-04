@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls ~/.claude/"
+          }
+        }
+      ],
+      "why": "lists the directory"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n registration README.md"
+          }
+        }
+      ],
+      "why": "another search"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat ~/.claude/settings.json"
+          }
+        }
+      ],
+      "why": "reads user settings"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq .enabledPlugins .claude/settings.local.json"
+          }
+        }
+      ],
+      "why": "parses local settings"
+    }
+  ]
+}

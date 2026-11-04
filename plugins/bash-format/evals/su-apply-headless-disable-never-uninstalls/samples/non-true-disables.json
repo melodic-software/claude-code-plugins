@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Any value other than `true` disables the hook, so `false` is the one to set."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Only the string false turns it off.",
+      "why": "wrong rule"
+    },
+    {
+      "answer": "Set it to false.",
+      "why": "near miss: says nothing about other values"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "apply writes neither file. `.editorconfig` governs every editor and tool in the repo, so the choice and the edit are yours."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "apply does not write `.editorconfig`.",
+      "why": "near miss: no reason"
+    },
+    {
+      "answer": "apply adds the `[*.sh]` section for you.",
+      "why": "wrong"
+    }
+  ]
+}

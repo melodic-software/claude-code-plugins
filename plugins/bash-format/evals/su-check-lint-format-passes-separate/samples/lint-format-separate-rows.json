@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Result | Detail |\n|---|---|---|\n| Bash version | PASS | 5.2 |\n| node | PASS | /usr/bin/node |\n| jq | PASS | /usr/bin/jq |\n| shellcheck (lint pass) | PASS | /usr/bin/shellcheck |\n| shfmt (format pass) | PASS | opted in |\n| .editorconfig shell opt-in | INFO | [*.sh] governs |\n| .shellcheckrc | INFO | found |\n| bash_format_enabled | INFO | default true |\n| Hook registration | INFO | see /plugin |\n| Project scope | INFO | inside CLAUDE_PROJECT_DIR only |",
+      "why": "two rows"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| ShellCheck | PASS |\n| .editorconfig | INFO |\n| shfmt | FAIL |",
+      "why": "title case, apart"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Check | Result |\n|---|---|\n| shellcheck / shfmt | PASS |",
+      "why": "one combined row"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| shfmt / shellcheck | PASS |",
+      "why": "combined, other order"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| .shellcheckrc | INFO |\n| shfmt | PASS |",
+      "why": "near miss: the config row is not the shellcheck row"
+    },
+    {
+      "answer": "shellcheck passes and shfmt passes.",
+      "why": "prose"
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/plugins/bash-format/README.md"
+          }
+        }
+      ],
+      "why": "the README"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".editorconfig"
+          }
+        }
+      ],
+      "why": "the opt-in"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "~/.claude/settings.json"
+          }
+        }
+      ],
+      "why": "user settings"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".claude/settings.local.json"
+          }
+        }
+      ],
+      "why": "local settings"
+    }
+  ]
+}

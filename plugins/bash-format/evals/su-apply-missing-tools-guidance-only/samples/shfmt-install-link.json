@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Install guide: [shfmt](https://github.com/mvdan/sh#shfmt)"
+    },
+    {
+      "answer": "See https://github.com/mvdan/sh#shfmt.",
+      "why": "sentence-final period"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Install shfmt with your package manager.",
+      "why": "no link"
+    },
+    {
+      "answer": "See https://github.com/mvdan/sh.",
+      "why": "near miss: not the shfmt section"
+    }
+  ]
+}

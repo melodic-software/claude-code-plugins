@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Registration: confirm the plugin is enabled for this project in `/plugin` under Installed; I do not parse settings files for this."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I read `~/.claude/settings.json` and bash-format is listed under enabledPlugins, so the hook is registered.",
+      "why": "parses settings"
+    },
+    {
+      "answer": "The hook is registered.",
+      "why": "near miss: no way to confirm it"
+    }
+  ]
+}

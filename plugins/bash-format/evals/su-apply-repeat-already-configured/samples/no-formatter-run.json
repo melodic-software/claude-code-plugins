@@ -1,0 +1,153 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v shfmt"
+          }
+        }
+      ],
+      "why": "a presence probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "shfmt --version"
+          }
+        }
+      ],
+      "why": "a version read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v shellcheck && shellcheck --version"
+          }
+        }
+      ],
+      "why": "a version read after a probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n \"shfmt\" git-hooks/shfmt-rewrite.sh"
+          }
+        }
+      ],
+      "why": "the tool as a search term"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .shellcheckrc"
+          }
+        }
+      ],
+      "why": "reads the config"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -n git-hooks/shfmt-rewrite.sh"
+          }
+        }
+      ],
+      "why": "the helper's name, not the tool"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "shfmt -d demo.sh"
+          }
+        }
+      ],
+      "why": "runs the formatter"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "shfmt -w demo.sh"
+          }
+        }
+      ],
+      "why": "rewrites"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "shellcheck demo.sh"
+          }
+        }
+      ],
+      "why": "runs the linter"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v shellcheck && shellcheck demo.sh"
+          }
+        }
+      ],
+      "why": "after &&"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat demo.sh | shfmt"
+          }
+        }
+      ],
+      "why": "in a pipeline"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/usr/local/bin/shfmt -l ."
+          }
+        }
+      ],
+      "why": "by path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "find . -name '*.sh' -exec shellcheck {} +"
+          }
+        }
+      ],
+      "why": "through -exec"
+    }
+  ]
+}
