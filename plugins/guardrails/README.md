@@ -482,7 +482,21 @@ operand takes, so with a payload cwd the call has the k a recursive `rm` has (4 
 `git`, `realpath` and two `timeout`), and a call whose nested text judges no target keeps its k. The
 Bash prefilter now also passes a command whose text holds `cmd` followed by `rd` (as do the
 in-process checks on a substitution body, interpreter code and a `parallel` item), so such a call
-pays the tokenizer parse. The measured wall time is recorded under #5946.
+pays the tokenizer parse. Measured on melo-lap-001 (Windows on AC, Git Bash 5.3.15, Node 24.21.0) with
+the method of the #9754 entry, guardrails at `772577404a` against its parent, with one `Bash|PowerShell`
+row in both arms. The host was busier than in the #9767 run, with eval runs alongside: the harness's S
+was 19 to 66 ms (median 33) and hyperfine's `bash -c :` floor 128 ms. Fan-out harness, 15 interleaved
+rounds of `--runs 7`: the `Bash` row's paired median moved −16 ms and the `$(…)` sample +9 ms, inside
+the −3 and +16 ms the untouched `Write` and `Edit` rows moved, so the common call shows no change
+outside noise and keeps its k. With `hyperfine -N` (300 runs per arm per payload in five alternating
+blocks), the `rm -rf ./build` control, which this arm does not change, went from 832.4 to 725.1 ms:
+−107 ms, the size of this run's noise. `watch rm -rf build/x` went from 295.2 to 654.5 ms,
+`cmd //c rd //s //q build` from 250.8 to 679.1, `echo 'rm -rf build/x' | sh` from 279.6 to 658.4, and a
+`bash` heredoc from 257.4 to 648.1: +359 to +428 ms, about 11 to 13 S at the harness's median, roughly
+what a recursive `rm` pays. That is overage against the row's k × S, held as guardrails spawn-reduction
+work under the hook-budget contract's Rule 2. `eval` and `wsl`, which the earlier arm already judged,
+went from 808.4 to 729.0 and from 787.0 to 634.4 ms, within this run's noise or close to it. #9770
+added no judged shape, since it left an unresolved expansion alone, so it has no entry here.
 
 **block-root-delete-target moves and content destroyers (#9767).** The arm starts no process of its
 own: it reads the argv of `mv`, `truncate`, `shred` and `dd` from the parse the guard already makes,
