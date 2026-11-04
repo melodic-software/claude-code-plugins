@@ -125,8 +125,10 @@ surfaced to the user, never merged.
    at a configured root. Persist the answer in the pointer file
    `${CLAUDE_PLUGIN_DATA}/workspace-root` (never a `pluginConfigs` write), a machine-local cache
    that also records the migration-offer outcome, and recommend making it durable via
-   `/education:setup`. Non-interactive or headless sessions skip this rung silently; when plugin data is unavailable,
-   fall through silently.
+   `/education:setup`. Read the pointer file with the Read tool in a call of its own, never
+   through Bash and never chained with `list-workspaces.sh` or another command. Non-interactive
+   or headless sessions skip this rung silently; when plugin data is unavailable, fall through
+   silently.
 4. **OS Documents default, `topic` mode only.** Run
    `bash "${CLAUDE_PLUGIN_ROOT}/skills/teach/scripts/list-workspaces.sh" --default-root`. It
    resolves the platform Documents directory (Windows: the Documents known folder resolved
