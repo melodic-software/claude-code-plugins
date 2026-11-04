@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "Against an installed plugin the rerun prints already installed and still writes the value."
+    },
+    {
+      "answer": "It says `already installed`, yet the --config value lands."
+    },
+    {
+      "answer": "The install --config rerun writes the value despite printing already installed."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It is a no-op, since the plugin is already installed.",
+      "why": "the trap"
+    },
+    {
+      "answer": "It prints already installed, so uninstall first.",
+      "why": "near miss: no write"
+    },
+    {
+      "answer": "It writes the value.",
+      "why": "near miss: already installed not mentioned"
+    },
+    {
+      "answer": "It fails with an error.",
+      "why": "false"
+    },
+    {
+      "answer": "It reinstalls the plugin from scratch.",
+      "why": "near miss: false"
+    }
+  ]
+}

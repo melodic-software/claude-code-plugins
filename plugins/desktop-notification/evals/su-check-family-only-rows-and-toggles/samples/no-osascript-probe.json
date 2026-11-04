@@ -1,0 +1,142 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v notify-send"
+          }
+        }
+      ],
+      "why": "this family's probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n osascript /plugins/desktop-notification/hooks/desktop-notification.sh"
+          }
+        }
+      ],
+      "why": "search term"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /opt/osascript/README.md"
+          }
+        }
+      ],
+      "why": "a directory of that name in a read path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls /opt/osascript/bin"
+          }
+        }
+      ],
+      "why": "a directory of that name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo osascript is the macOS branch"
+          }
+        }
+      ],
+      "why": "echoed"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v /opt/osascript/bin/tool"
+          }
+        }
+      ],
+      "why": "a directory in a probed path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v osascript"
+          }
+        }
+      ],
+      "why": "the other family's probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "which osascript"
+          }
+        }
+      ],
+      "why": "which"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v notify-send osascript"
+          }
+        }
+      ],
+      "why": "both in one probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v notify-send && command -v osascript"
+          }
+        }
+      ],
+      "why": "second probe after &&"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "type osascript"
+          }
+        }
+      ],
+      "why": "type"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "osascript -e 'return 1'"
+          }
+        }
+      ],
+      "why": "run directly"
+    }
+  ]
+}

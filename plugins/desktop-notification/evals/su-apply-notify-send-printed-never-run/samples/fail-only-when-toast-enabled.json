@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "FAIL with os_toast on; INFO with it off."
+    },
+    {
+      "answer": "With the channel enabled the absence is a FAIL; disabled, it is only INFO."
+    },
+    {
+      "answer": "| notify-send | FAIL if os_toast is enabled, otherwise INFO |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "FAIL either way.",
+      "why": "unconditional"
+    },
+    {
+      "answer": "INFO either way.",
+      "why": "near miss: unconditional"
+    },
+    {
+      "answer": "FAIL with it off, INFO with it on.",
+      "why": "near miss: reversed"
+    },
+    {
+      "answer": "It is FAIL with os_toast on.",
+      "why": "near miss: half the answer"
+    },
+    {
+      "answer": "It is a FAIL whenever the master toggle is on, even with os_toast off.",
+      "why": "near miss: wrong toggle"
+    }
+  ]
+}

@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.3.0] - 2026-11-04
+
+### Added
+
+- `fanout_act_on_cap` sets how many rows under each `## By axis` heading of a `/review:fanout` report are marked act on. Under `### Spec` and `### Standards`, each counted on its own, the first that many rows get `yes` in a new last `Act on` cell and every later row gets `no`; no row leaves the report. It is set per user through the plugin option and per repository in `docs/conventions/review.yaml`, resolved like `fanout_diversity`. The default is `2`: in the two-defect fixtures both planted defects sat at positions 1 and 2 under one heading in 12 of 12 runs, so a cap of `1` would have dropped the second each time (#12505).
+
 ## [7.2.0] - 2026-11-04
 
 ### Changed

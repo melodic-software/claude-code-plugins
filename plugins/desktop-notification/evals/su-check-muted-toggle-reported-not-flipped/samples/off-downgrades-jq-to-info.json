@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "With the hook off a missing jq is INFO, not FAIL."
+    },
+    {
+      "answer": "jq row: INFO while disabled, because the hook exits through its enabled gate before probing anything."
+    },
+    {
+      "answer": "| jq | INFO | hook is off |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A missing jq is still FAIL while the hook is off.",
+      "why": "no downgrade"
+    },
+    {
+      "answer": "The jq row is skipped while the hook is off.",
+      "why": "near miss: no grade"
+    },
+    {
+      "answer": "It is PASS while the hook is off.",
+      "why": "near miss: wrong grade"
+    },
+    {
+      "answer": "FAIL, because every notification needs jq.",
+      "why": "near miss: wrong grade"
+    },
+    {
+      "answer": "With the hook off, check does not look at jq.",
+      "why": "near miss: no grade"
+    }
+  ]
+}
