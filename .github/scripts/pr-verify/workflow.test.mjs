@@ -1187,10 +1187,11 @@ const wake = (env) => {
   mkdirSync(bin);
   const args = path.join(dir, "args");
   writeFileSync(args, "");
-  // The stand-in answers an author read with GH_AUTHOR, or fails it when that is unset.
+  // The stand-in answers an author read with GH_AUTHOR, fails it when that is
+  // unset, or prints GH_ERROR_BODY and fails, as gh does on an HTTP error.
   writeFileSync(
     path.join(bin, "gh"),
-    `#!/bin/sh\necho "$@" >>'${args}'\nif [ "$1" = api ]; then [ -n "$GH_AUTHOR" ] || exit 1; echo "$GH_AUTHOR"; fi\n`,
+    `#!/bin/sh\necho "$@" >>'${args}'\nif [ "$1" = api ]; then [ -z "$GH_ERROR_BODY" ] || { printf '%s' "$GH_ERROR_BODY"; exit 1; }; [ -n "$GH_AUTHOR" ] || exit 1; echo "$GH_AUTHOR"; fi\n`,
     { mode: 0o755 },
   );
   const run = spawnSync("bash", ["--noprofile", "--norc", "-c", script], {
@@ -1238,6 +1239,8 @@ test("wake-pr-merge wakes only an unarmed, unheld lanes App pull request when it
   }
   // A failed read, or no usable lanes App id: woken anyway, pr-merge decides.
   assert.deepEqual(wake(WAKE_PASS).gh, [WAKE_READ, WAKE_DISPATCH]);
+  // A failed read whose error body spans lines (an edge 502 page) is still a failed read.
+  assert.deepEqual(wake({ ...WAKE_PASS, GH_ERROR_BODY: "<html>\n<body>502 Bad Gateway</body>\n</html>\n" }).gh, [WAKE_READ, WAKE_DISPATCH]);
   for (const id of ["", "x"]) assert.deepEqual(wake({ ...WAKE_PASS, LANES_APP_ID: id, GH_AUTHOR: "9 User false false" }).gh, [WAKE_DISPATCH], id);
 });
 
