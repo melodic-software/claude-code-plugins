@@ -1,1 +1,26 @@
-{"pass":[{"answer":"| FAIL | Root exists and has skills | no .claude/skills directory |","why":"FAIL row"},{"answer":"Check failed: no SKILL.md found.","why":"failed wording"}],"fail":[{"answer":"PASS: already configured.","why":"claims success"},{"answer":"No skills here.","why":"no verdict"}]}
+{
+  "pass": [
+    {
+      "answer": "| FAIL | Root exists and has skills | no .claude/skills directory |",
+      "why": "FAIL row"
+    },
+    {
+      "answer": "Check: Failed. No SKILL.md found.",
+      "why": "failed wording"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "PASS: already configured.",
+      "why": "claims success"
+    },
+    {
+      "answer": "No skills here.",
+      "why": "no verdict"
+    },
+    {
+      "answer": "PASS: the default root resolves. A rerun only fails if the root moves.",
+      "why": "lowercase fails in prose"
+    }
+  ]
+}

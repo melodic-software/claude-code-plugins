@@ -5,8 +5,7 @@ context:
 graders:
   - name: 'reports-fail'
     type: 'regex'
-    pattern: '\bFAIL(?:ED|S)?\b|❌'
-    flags: 'i'
+    pattern: '\b(?:FAIL(?:ED|S)?|Fail(?:ed|s)?)\b|❌'
     target: 'last_message'
   - name: 'routes-to-configure'
     type: 'regex'
