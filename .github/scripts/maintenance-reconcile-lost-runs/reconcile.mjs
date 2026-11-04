@@ -322,6 +322,11 @@ export const LANE_RUN_PAGES = 5;
 // runs a re-run may have put in flight). Earlier statuses are read first, so a
 // run that starts between two queries is still listed by the later one.
 export const LANE_LIST_STATUSES = [...LANE_LOST, "requested", "pending", "waiting", "queued", "in_progress"];
+// The statuses few runs repository-wide hold (0-15 a day, against hundreds
+// cancelled or failed): each is read in one repository-wide listing, split by
+// workflow path, for every lane at once. A listing that does not fit one page
+// is read per lane instead, never in part.
+export const SHARED_LIST_STATUSES = new Set(LANE_LIST_STATUSES.filter((s) => s !== "cancelled" && s !== "failure"));
 
 // The artifact that carries settled runs from one pass to the next.
 export const SETTLED_ARTIFACT = "reconcile-settled-runs";
@@ -1042,27 +1047,63 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   ready.sort((a, b) => position.get(a[0].pr) - position.get(b[0].pr));
   const created = encodeURIComponent(`>=${new Date(since).toISOString().replace(/\.\d{3}Z$/, "Z")}`);
   const lanes = [];
+  // Each lane's runs by id, or the error its listing failed with. Statuses
+  // are read in LANE_LIST_STATUSES order for every lane together, so each
+  // lane still reads its earlier statuses first and a later read overwrites
+  // an earlier one.
+  const laneRuns = new Map([...RECORDED_LANES.keys()].map((lanePath) => [lanePath, new Map()]));
+  const laneFailures = new Map();
+  const runsPage = async (...args) => {
+    const page = await call(...args);
+    if (!Array.isArray(page?.workflow_runs)) {
+      throw new Error("its run listing is not a page of runs");
+    }
+    return page.workflow_runs;
+  };
+  // One repository-wide page of the runs in `status`, or undefined when it is
+  // not whole or cannot be read, so each lane lists that status itself. The
+  // lane listing filters only on `created` and `status`, both of which this
+  // endpoint takes; the workflow path is split here.
+  const sharedRuns = async (status) => {
+    try {
+      const page = await call("GET", `/repos/${repo}/actions/runs?created=${created}&status=${status}&per_page=100`);
+      if (Array.isArray(page?.workflow_runs) && Number.isInteger(page.total_count) && page.total_count <= page.workflow_runs.length) {
+        return page.workflow_runs;
+      }
+    } catch (error) {
+      if (error instanceof RateLimited) {
+        throw error;
+      }
+    }
+    return undefined;
+  };
+  for (const status of LANE_LIST_STATUSES) {
+    const open = [...laneRuns.keys()].filter((lanePath) => !laneFailures.has(lanePath));
+    if (open.length === 0) {
+      break;
+    }
+    const shared = SHARED_LIST_STATUSES.has(status) ? await sharedRuns(status) : undefined;
+    for (const lanePath of open) {
+      try {
+        const file = lanePath.slice(lanePath.lastIndexOf("/") + 1);
+        const listed = shared?.filter((r) => r?.path === lanePath) ?? (await paginate(runsPage, `/repos/${repo}/actions/workflows/${file}/runs?created=${created}&status=${status}`, LANE_RUN_PAGES));
+        for (const r of listed) {
+          laneRuns.get(lanePath).set(r.id, r);
+        }
+      } catch (error) {
+        if (error instanceof RateLimited) {
+          throw error;
+        }
+        laneFailures.set(lanePath, error);
+      }
+    }
+  }
   for (const [lanePath, judge] of RECORDED_LANES) {
     try {
-      const file = lanePath.slice(lanePath.lastIndexOf("/") + 1);
-      const byId = new Map();
-      for (const status of LANE_LIST_STATUSES) {
-        const listed = await paginate(
-          async (...args) => {
-            const page = await call(...args);
-            if (!Array.isArray(page?.workflow_runs)) {
-              throw new Error("its run listing is not a page of runs");
-            }
-            return page.workflow_runs;
-          },
-          `/repos/${repo}/actions/workflows/${file}/runs?created=${created}&status=${status}`,
-          LANE_RUN_PAGES,
-        );
-        for (const r of listed) {
-          byId.set(r.id, r);
-        }
+      if (laneFailures.has(lanePath)) {
+        throw laneFailures.get(lanePath);
       }
-      const listed = [...byId.values()];
+      const listed = [...laneRuns.get(lanePath).values()];
       const runs = listed.filter((r) => r.path === lanePath);
       inFlight += runs.filter((r) => r.status !== "completed" && r.run_attempt > 1).length;
       const unpublished = [];

@@ -102,6 +102,11 @@ function fakeGitHub({ pulls, runs = [], fail = {}, statuses = {} }) {
       const page = Number(byWorkflow[3] ?? 1);
       return { total_count: found.length, workflow_runs: found.slice((page - 1) * 100, page * 100) };
     }
+    const byStatus = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\?created=%3E%3D2026-10-18T20%3A00%3A00Z&status=([a-z_]+)&per_page=100$/.exec(path);
+    if (method === "GET" && byStatus) {
+      const found = runs.filter((r) => r.status === byStatus[1] || r.conclusion === byStatus[1]);
+      return { total_count: found.length, workflow_runs: found.slice(0, 100) };
+    }
     const jobs = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\/([0-9]+)\/attempts\/1\/jobs\?per_page=100$/.exec(path);
     if (method === "GET" && jobs) {
       const found = byId.get(Number(jobs[1]))?.jobs ?? [];
@@ -1034,7 +1039,7 @@ test("verify re-runs that start while the listing is read still take places", as
     pulls: [],
     runs: [...queued, verifyRun(201)],
     github: (g) => async (method, path, body) => {
-      if (path.includes("/workflows/pr-verify.yml/runs?") && path.includes("&status=queued&")) {
+      if (path.startsWith(`/repos/${REPO}/actions/runs?created=`) && path.includes("&status=queued&")) {
         for (const r of queued) {
           r.status = "in_progress";
         }
@@ -1044,6 +1049,55 @@ test("verify re-runs that start while the listing is read still take places", as
   });
   assert.equal(code, 0);
   assert.deepEqual(reruns, []);
+});
+
+// Two lane re-runs already in flight leave one of MAX_IN_FLIGHT's 3 places,
+// which the newest lost run (202, created 19:00) takes; a CI run in progress
+// belongs to neither lane.
+const laneMix = () => [
+  verifyRun(201),
+  verifyRun(202, { created: "2026-10-19T19:00:00Z" }),
+  verifyRun(209, { status: "in_progress", attempt: 2 }),
+  mainReviewRun(309, { status: "queued", attempt: 2 }),
+  run(500, sha(5), { path: CHECKS, status: "in_progress" }),
+];
+const repoWide = (calls) => calls.filter((c) => c.startsWith(`GET /repos/${REPO}/actions/runs?created=`));
+const perLane = (calls) => calls.filter((c) => /\/actions\/workflows\/pr-(verify|review-main)\.yml\/runs\?/.test(c));
+// Every repository-wide listing answers a total past one page.
+const overfull = (g) => async (method, apiPath, body) => {
+  const answer = await g(method, apiPath, body);
+  return apiPath.startsWith(`/repos/${REPO}/actions/runs?created=`) ? { ...answer, total_count: 101 } : answer;
+};
+
+test("the near-empty statuses are listed once repository-wide and split by lane, deciding as the per-lane listings do", async () => {
+  const shared = await reconcile({ pulls: [], runs: laneMix(), carry: null });
+  const fallback = await reconcile({ pulls: [], runs: laneMix(), carry: null, github: overfull });
+  for (const [label, result] of Object.entries({ shared, fallback })) {
+    assert.equal(result.code, 0, label);
+    assert.deepEqual(result.reruns, [202], label);
+    assert.deepEqual(records(result.outputs), [`reconcile-rerun-202-2-${MAIN_TIP}`, "", ""], label);
+  }
+  assert.deepEqual(shared.settled, fallback.settled);
+  assert.equal(repoWide(shared.calls).length, 7, "one listing per shared status");
+  assert.equal(perLane(shared.calls).length, 4, "cancelled and failure for each of 2 lanes");
+  assert.equal(repoWide(fallback.calls).length, 7);
+  assert.equal(perLane(fallback.calls).length, 18, "a listing past one page is read per lane, 9 statuses for each of 2 lanes");
+});
+
+test("a repository-wide listing that fails is read per lane, and a rate limit on it stops the run", async () => {
+  const failing = (error) => (g) => async (method, apiPath, body) => {
+    if (apiPath.startsWith(`/repos/${REPO}/actions/runs?created=`) && apiPath.includes("&status=in_progress&")) {
+      throw error;
+    }
+    return g(method, apiPath, body);
+  };
+  const failed = await reconcile({ pulls: [], runs: laneMix(), github: failing(new GitHubError(502, "bad gateway")) });
+  assert.equal(failed.code, 0);
+  assert.deepEqual(failed.reruns, [202]);
+  assert.equal(perLane(failed.calls).filter((c) => c.includes("&status=in_progress&")).length, 2);
+  const limited = await reconcile({ pulls: [], runs: laneMix(), github: failing(new GitHubError(429, "rate limited")) });
+  assert.equal(limited.code, 1);
+  assert.deepEqual(limited.reruns, []);
 });
 
 test("a lane listing past the page cap is a failure, and nothing is called lost", async (t) => {
@@ -1579,10 +1633,11 @@ test("passed heads whose spec nobody touched since their checks ran cost one Gra
     const count = (part) => reads.filter((r) => r.includes(part)).length;
     assert.equal(count("/actions/artifacts?"), 0);
     assert.equal(count("POST /graphql"), 1);
-    // The pulls page, one run listing per head, nine status listings for each
-    // of pr-verify and pr-review-main, one intake listing, one stopped-verdict
-    // listing and the one pre-filter query.
-    assert.equal(reads.length, 1 + numbers.length + 2 * 9 + 1 + 1 + 1);
+    // The pulls page, one run listing per head, the cancelled and failure
+    // listings for each of pr-verify and pr-review-main, one repository-wide
+    // listing for each of the other seven statuses, one intake listing, one
+    // stopped-verdict listing and the one pre-filter query.
+    assert.equal(reads.length, 1 + numbers.length + 2 * 2 + 7 + 1 + 1 + 1);
   });
 });
 
