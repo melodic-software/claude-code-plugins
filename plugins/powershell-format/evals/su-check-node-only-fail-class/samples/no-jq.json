@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "No, this plugin doesn't need jq."
+    },
+    {
+      "answer": "jq isn't a requirement here, though it happens to be installed on this machine.",
+      "why": "reports the host too"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "jq is required; missing it is a FAIL.",
+      "why": "claims a need"
+    },
+    {
+      "answer": "jq is installed here.",
+      "why": "near miss: does not say whether the plugin needs it"
+    }
+  ]
+}
