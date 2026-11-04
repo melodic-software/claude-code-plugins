@@ -1126,6 +1126,43 @@ test("lane holds: no carry, a stale one or an unread rule is a gap, and the carr
   assert.deepEqual([off.gaps, off.laneHolds], [[], []]);
 });
 
+// Eight green pr-refine runs completed 15:40 to 16:15, listed newest first,
+// the two oldest held, after 908, already carried, at 15:38.
+const REFINE_AT = ["15:40", "15:45", "15:50", "15:55", "16:00", "16:05", "16:10", "16:15"];
+const refineRoutes = () => [
+  [/workflows\/pr-refine\.yml\/runs/, {
+    workflow_runs: [...REFINE_AT.map((t, i) => run(900 + i, { event: "workflow_dispatch", updated_at: `2026-10-19T${t}:00Z` })), run(908, { event: "workflow_dispatch", updated_at: "2026-10-19T15:38:00Z" })].reverse(),
+  }],
+  [/runs\/90[01]\/jobs/, (path) => ({ jobs: [{ id: Number(/runs\/(\d+)/.exec(path)[1]) * 10, name: "fix-docs-handoff", conclusion: "success" }] })],
+  [/check-runs\/90[01]0\/annotations/, [notice("Handoff evidence hold", "handoff evidence for fix-docs still missing after the read")]],
+  [/runs\/90\d\/jobs/, { jobs: [] }],
+  ...holdRoutes(),
+];
+
+test("lane holds: past the cap the oldest unread runs are read, a carried one takes no slot, and the span stops at the last read", async () => {
+  const carried = { ...CARRIED, runs: [...CARRIED.runs, carriedHold("pr-refine", 908, "2026-10-19T15:38:00Z")] };
+  const api = fakeApi(refineRoutes());
+  const data = await collect(input(api, { holds: { rule: RULE, carried } }));
+  assert.deepEqual(data.gaps, [`lane holds: over ${LIMITS.holdRuns} unread green runs of pr-refine; held runs read only through 2026-10-19T16:05:00Z`]);
+  assert.deepEqual(data.laneHolds.filter((h) => h.lane === "pr-refine").map((h) => [h.runId, h.reason]), [
+    [901, "fix-docs handoff evidence missing"],
+    [900, "fix-docs handoff evidence missing"],
+    [908, "closed-issue listing failed"],
+  ]);
+  assert.deepEqual([data.heldCarry.from, data.heldCarry.through], [CARRIED.from, "2026-10-19T16:05:00Z"]);
+  for (const id of [906, 907, 908]) assert.ok(!api.calls.some((c) => c.includes(`runs/${id}/jobs`)), id);
+  // The next run, an hour on, reads the rest from where this one stopped, and the span holds.
+  const later = fakeApi(refineRoutes());
+  const next = await collect(input(later, {
+    now: new Date("2026-10-19T17:41:00Z"),
+    windowStart: new Date("2026-10-19T16:36:00Z"),
+    holds: { rule: RULE, carried: data.heldCarry },
+  }));
+  assert.deepEqual(next.gaps.filter((g) => g.startsWith("lane holds")), []);
+  for (const id of [906, 907]) assert.ok(later.calls.some((c) => c.includes(`runs/${id}/jobs`)), id);
+  assert.equal(next.heldCarry.through, "2026-10-19T17:41:00Z");
+});
+
 test("a carried held run of another repository or an unknown lane, or a bad span, is refused", () => {
   assert.deepEqual(parseHeldCarry(JSON.stringify({ version: JOBS_VERSION, repository: repo, runs: [] }), repo), { runs: [], from: null, through: null });
   const [first] = CARRIED.runs;

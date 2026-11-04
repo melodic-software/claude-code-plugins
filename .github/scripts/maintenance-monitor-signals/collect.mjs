@@ -38,9 +38,10 @@ export const LIMITS = {
   stalledPulls: 40,
   stalledCommentRounds: 2,
   stalledChecks: 20,
-  // Green runs per hold lane read in one window, newest first: one run list,
-  // then a jobs read and one annotation read per job that prints a hold, so
-  // at most 3 + 6 × 3 × 2 calls while each run has one such job. A sample.
+  // Uncarried green runs per hold lane read in one window, oldest completion
+  // first: one run list, then a jobs read and one annotation read per job that
+  // prints a hold, so at most 3 + 6 × 3 × 2 calls while each run has one such
+  // job. Past it, the span stops at the last run read and the window is a gap.
   holdRuns: 6,
   // Held runs the carry keeps, newest first.
   holdsKept: 300,
@@ -499,13 +500,15 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
   // default branch's code that completed in the window, whose hold job
   // succeeded with a hold notice (signals.mjs parseHold), one entry per run,
   // added to the carried ones still inside the rule's window. A run already
-  // carried is not read again. The carry also records the span it was read
-  // over. It stays unbroken when the last run read through a time inside the
-  // run list's lookback: runs that completed since then are read, so a late
-  // cron loses none. Otherwise (no carry, a stale one, a failed read) it starts
-  // again at this window. An unread rule, or a span shorter than the rule's
-  // window, is a gap, so signal 13's issue neither clears nor files from part
-  // of its window; the carried runs still go on to the next run.
+  // carried is not read again, nor counted against LIMITS.holdRuns. The carry
+  // also records the span it was read over, which ends at the last run read
+  // when a lane had more than the cap. It stays unbroken when the last run
+  // read through a time inside the run list's lookback: runs that completed
+  // since then are read, so a late cron loses none. Otherwise (no carry, a
+  // stale one, a failed read) it starts again at this window. An unread rule,
+  // a lane over the cap, or a span shorter than the rule's window, is a gap,
+  // so signal 13's issue neither clears nor files from part of its window;
+  // the carried runs still go on to the next run.
   const heldRuns = new Map();
   let heldFrom = null;
   let heldThrough = null;
@@ -521,11 +524,22 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
       return at >= readFrom && at <= now.getTime();
     };
     await source("lane holds", async () => {
+      // The span is read through now unless a lane has more unread runs than
+      // the cap: then only its oldest are read, and the span stops at the last
+      // of them, so the next run reads the rest and this one reports a gap.
+      let readThrough = now.getTime();
+      const cut = [];
       for (const { lane, workflow, jobs } of HOLD_LANES) {
         const runs = (await get(`/repos/${repo}/actions/workflows/${workflow}/runs?status=success&created=${created}&per_page=100`)).workflow_runs;
-        for (const run of runs.filter((r) => defaultBranchCode(r) && ownHead(r) && completedSince(r)).slice(0, LIMITS.holdRuns)) {
+        const unread = runs
+          .filter((r) => defaultBranchCode(r) && ownHead(r) && completedSince(r) && !heldRuns.has(`${lane}:${r.id}`))
+          .sort((a, b) => Date.parse(a.updated_at) - Date.parse(b.updated_at));
+        if (unread.length > LIMITS.holdRuns) {
+          readThrough = Math.min(readThrough, Date.parse(unread[LIMITS.holdRuns - 1].updated_at));
+          cut.push(lane);
+        }
+        for (const run of unread.slice(0, LIMITS.holdRuns)) {
           const key = `${lane}:${run.id}`;
-          if (heldRuns.has(key)) continue;
           const found = [];
           for (const job of (await jobsOf(run)).filter((j) => j.conclusion === "success" && jobs.includes(j.name))) {
             for (const a of await annotationsOf(job.id)) {
@@ -544,7 +558,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
           });
         }
       }
-      heldThrough = iso(now);
+      heldThrough = iso(new Date(readThrough));
       if (holds.rule instanceof Error) throw holds.rule;
       const since = now.getTime() - holds.rule.windowHours * 3600_000;
       for (const [key, h] of heldRuns) {
@@ -552,6 +566,9 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
         if (at < since || at > now.getTime()) heldRuns.delete(key);
       }
       data.holdRule = holds.rule;
+      if (cut.length > 0) {
+        throw new Error(`over ${LIMITS.holdRuns} unread green runs of ${cut.join(", ")}; held runs read only through ${heldThrough}`);
+      }
       if (Date.parse(heldFrom) > since) throw new Error(`held runs read only since ${heldFrom}, short of the ${holds.rule.windowHours}-hour window`);
     });
   }
