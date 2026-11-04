@@ -1,5 +1,24 @@
 # Changelog for the PR pipeline convention
 
+## [8.51.2] - 2026-11-04
+
+### Fixed
+
+- A size-split sub-issue whose run's patch the scan job refused for its size
+  (`scan-refused-patch`) is no longer re-admitted unchanged into the same stop. A sub-issue never
+  splits again (owner Q93), so admission skipped the split park and admitted it, and the triage
+  sweep looped it until its run limit handed it to a maintainer. Admission now refuses it with
+  no hold, at `status: confirmed`, for a builder session.
+
+- Admission now refuses an issue whose fix section names a workflow or other path the issue lane
+  cannot push, even when the path is cited at a line: a section headed Fix, Proposed fix,
+  Outcome, Done when, Desired behavior, Expected behavior or Acceptance criteria, or a
+  `Suggested fix location` line. Before, a line citation was read as evidence everywhere, so the
+  issue was admitted and its run failed at the patch scan. A path named only under Evidence,
+  Steps to reproduce, Actual behavior, Current behavior or Environment no longer refuses the
+  issue, unless it is on a `Suggested fix location` line. A deeper heading with no section of
+  its own (`### Option A` under `## Proposed fix`) stays inside the section above it.
+
 ## [8.51.1] - 2026-11-04
 
 ### Fixed
