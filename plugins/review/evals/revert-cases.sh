@@ -205,8 +205,8 @@ build() {
       git cat-file -e "$at:$path" 2>/dev/null || continue
       mkdir -p "$(dirname "$fixtures/$side/$path")"
       git cat-file blob "$at:$path" >"$fixtures/$side/$path.txt"
-      # A shebang copy keeps the exec bit, so the repository's exec-bit check passes.
-      if [[ "$(head -c 2 "$fixtures/$side/$path.txt")" == '#!' ]]; then chmod +x "$fixtures/$side/$path.txt"; fi
+      # A copy keeps the mode git recorded, so an executable script stays one.
+      if [[ "$(git ls-tree --format='%(objectmode)' "$at" -- "$path")" == 100755 ]]; then chmod +x "$fixtures/$side/$path.txt"; fi
     done
   done
 

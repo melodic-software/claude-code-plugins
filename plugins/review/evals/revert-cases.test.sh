@@ -41,6 +41,9 @@ commit() { # <file> <content> <subject> [<git commit args>...]: prints the new c
   g rev-parse HEAD
 }
 
+# app.sh is committed executable, so build's copies keep the exec bit.
+touch "$REPO/app.sh"
+chmod +x "$REPO/app.sh"
 commit app.sh 'a\nb\nc\n' "chore: seed (#1)" >/dev/null
 # shellcheck disable=SC2016 # the fixture file holds a literal $x
 B="$(commit app.sh 'a\nx=1\necho "$x"\nb\nc\n' "feat: add x (#2)")"
@@ -85,6 +88,10 @@ expect "$?" "build writes the file at the merge as fixtures/head/<path>.txt"
 expect "$(has "## Pull request #2: feat: add x" "$(cat "$case_dir/fixtures/pr-context.md.txt")")" \
   "build writes the context as fixtures/pr-context.md.txt"
 expect "$(($(find "$case_dir" -name '*.tar.gz' | grep -c .) != 0))" "build writes no archive"
+[[ -x "$case_dir/fixtures/base/app.sh.txt" && -x "$case_dir/fixtures/head/app.sh.txt" ]]
+expect "$?" "build keeps the exec bit git recorded on each copy"
+[[ ! -x "$case_dir/fixtures/pr-context.md.txt" ]]
+expect "$?" "build leaves the context file non-executable"
 yaml="$(cat "$case_dir/case.yaml")"
 expect "$(has "# revert: #4 $D" "$yaml")" "case.yaml records the revert"
 expect "$(has "# pr: melodic-software/claude-code-plugins#2 (merged as $B)" "$yaml")" "case.yaml records the original"
