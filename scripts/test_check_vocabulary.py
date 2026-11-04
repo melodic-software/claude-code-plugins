@@ -78,10 +78,12 @@ ALLOWED = {
 }
 
 GUIDE = "docs/guide.md"
-RUNG_LINE = "Rung 2 opens the page."
+RUNG_LINE = "The rung opens the page."
 OVERLAY_LINE = "The overlay layers on the shipped defaults."
 TIER_LINE = "The tier overrides the default."
 SURFACE_LINE = "The surface reads settings.json."
+CONTRACT_LINE = "The contract locks the brief."
+EVAL = "plugins/x/evals/case/samples/a.json"
 
 
 def phrase(sense: str, regex: str, line: str):
@@ -115,6 +117,22 @@ ALLOWLIST = [
     phrase("rung", r"\b(explanation rungs?|rungs? of explanation)\b", "The explanation rung sits above the page."),
     phrase("rung", r"\bcandidate ladder\b", "The candidate ladder's rung for a page stays."),
     path("rung", "plugins/session-flow/skills/recommend-skills/**", "plugins/session-flow/skills/recommend-skills/SKILL.md", RUNG_LINE),
+    path("rung", "plugins/*/**/evals/**", EVAL, RUNG_LINE),
+    phrase("rung", r"\brungs?[- ][0-9]", "Rung 2 opens the page."),
+    phrase("rung", r"\bfetch-route rungs?\b", "Read the page by the fetch-route rungs."),
+    path("rung", "docs/contracts/upstream-drift/**", "docs/contracts/upstream-drift/README.md", RUNG_LINE),
+    phrase("rung", r"\brung-up\b", "The rung-up's page stops."),
+    phrase("rung", r"\bASR[- ]rung\b", "The ASR rung needs the media file."),
+    path("rung", "plugins/knowledge/skills/video-digest/**", "plugins/knowledge/skills/video-digest/SKILL.md", RUNG_LINE),
+    phrase("rung", r"\bcode-rung\b|\bneighboring rungs\b", "Code-rung diagrams are out of scope."),
+    path("rung", "plugins/discovery/skills/research/**", "plugins/discovery/skills/research/SKILL.md", RUNG_LINE),
+    phrase("rung", r"\brung rather than a hope\b", "It makes resume the first rung rather than a hope; no page says more."),
+    phrase("rung", r"\bpartitioning the rungs\b", "The root coordinates at medium, partitioning the rungs."),
+    path("rung", "plugins/songwriting/skills/suno/**", "plugins/songwriting/skills/suno/SKILL.md", RUNG_LINE),
+    path("rung", "plugins/source-control/skills/babysit-*/**", "plugins/source-control/skills/babysit-loop/SKILL.md", RUNG_LINE),
+    phrase("rung", r"\bsame-machine rung\b", "Portability no longer bars a same-machine rung for the page."),
+    phrase("rung", r"\bsimplifier\b.*\brungs?\b", "The simplifier's third rung is a fallback for the page."),
+    phrase("rung", r"\bproject-convention-files rung\b", "Read it at the project-convention-files rung of the page."),
     phrase("default-ladder", r"\bautonomy\b", "The autonomy default ladder starts at observe."),
     phrase("default-ladder", r"\benforcement[- ]ladder\b", "The enforcement ladder is the default ladder here."),
     phrase("default-ladder", r"\bresolution ladder\b", "The resolution ladder's default ladder tries npm first."),
@@ -141,6 +159,9 @@ ALLOWLIST = [
     path("overlay", "plugins/testing/skills/audit/evals/judge-calibration/**", "plugins/testing/skills/audit/evals/judge-calibration/case.md", OVERLAY_LINE),
     phrase("overlay", r"\b(css|ui|video|image|visual|modal)[- ]overlays?\b", "The modal overlay layers on the page."),
     phrase("overlay", r"\badr/[0-9]{4}-[a-z0-9-]*overlay[a-z0-9-]*\.md\b", "Read [ADR 0015](../../adr/0015-bind-the-tracker-with-a-personal-overlay.md) on the layer."),
+    path("overlay", "plugins/*/**/evals/**", EVAL, OVERLAY_LINE),
+    path("overlay", "plugins/disk-hygiene/skills/clean/**", "plugins/disk-hygiene/skills/clean/SKILL.md", OVERLAY_LINE),
+    path("overlay", "plugins/songwriting/context/**", "plugins/songwriting/context/x.md", OVERLAY_LINE),
     phrase("tier-precedence", r"\bview tiers?\b", "The view tier overrides the page default."),
     phrase("tier-precedence", r"\b(static|client-interactive|animated|claude-interactive) tiers?\b", "The static tier overrides the page default."),
     phrase("tier-precedence", r"\benforcement[- ]ladder\b", "The enforcement ladder tier overrides the default."),
@@ -148,7 +169,28 @@ ALLOWLIST = [
     path("tier-precedence", "docs/conventions/enforcement-ladder/**", "docs/conventions/enforcement-ladder/README.md", TIER_LINE),
     path("tier-precedence", "**/enforcement-ladder.md", "docs/enforcement-ladder.md", TIER_LINE),
     phrase("tier-precedence", r"\bmemory[- ]tiers?\b", "The memory tier overrides the default."),
-    phrase("tier-precedence", r"\b(model|strong|frontier|capability|cheap|fast)[- ]tiers?\b", "The model tier overrides the default."),
+    phrase("tier-precedence", r"\b(model|strong|frontier|capability|cheap|fast)(:`)?[- ]tiers?\b|\bmodel:<tier>", "The model tier overrides the default."),
+    path("tier-precedence", "plugins/*/**/evals/**", EVAL, TIER_LINE),
+    phrase("tier-precedence", r"\btiers?[- ](?:[0-9]|(?-i:[A-D])\b)", "Tier 2 overrides the default."),
+    phrase("tier-precedence", r"\bconsumer[- ]precedence\b", "The severity tier follows the consumer-precedence rule."),
+    path("tier-precedence", "docs/contracts/detector-findings/**", "docs/contracts/detector-findings/README.md", TIER_LINE),
+    path("tier-precedence", "plugins/review/context/severity.md", "plugins/review/context/severity.md", TIER_LINE),
+    phrase("tier-precedence", r"\beffort-tiers\b", "A pin overrides it through the [override levers](#effort-tiers)."),
+    phrase("tier-precedence", r"\bmanaged[- ]tier\b", "Within the managed tier, read the precedence per file."),
+    phrase("tier-precedence", r"\bmods?\b.*\btiers?\b|\btiers?\b.*\bmods?\b", "A user-tier mod hears toasts."),
+    path("tier-precedence", "plugins/harness-ops/skills/audit-mod-posture/**", "plugins/harness-ops/skills/audit-mod-posture/SKILL.md", TIER_LINE),
+    phrase("tier-precedence", r"\bautonomy[- ]tiers?\b", "The session-only autonomy-tier override applies."),
+    phrase("tier-precedence", r"\bbabysit-prs tier\b", "A babysit-prs tier name overrides dimension 1."),
+    path("tier-precedence", "plugins/source-control/skills/babysit-*/**", "plugins/source-control/skills/babysit-prs/SKILL.md", TIER_LINE),
+    path("tier-precedence", "plugins/discipline/**", "plugins/discipline/README.md", TIER_LINE),
+    phrase("tier-precedence", r"^\s*local\s+(\w+(=\S*)?\s+)*tier\b", '  local tier reason pr_line="none"'),
+    path("tier-precedence", "plugins/docs-naming/**", "plugins/docs-naming/README.md", TIER_LINE),
+    phrase("tier-precedence", r"`tiers`", "A policy-floor class on `tiers` overrides the default."),
+    path("tier-precedence", "plugins/repo-hygiene/skills/clean/**", "plugins/repo-hygiene/skills/clean/SKILL.md", TIER_LINE),
+    phrase("tier-precedence", r"\btrust tiers?\b", "Trust tiers: repo conventions override both."),
+    path("tier-precedence", "plugins/performance/skills/target/SKILL.md", "plugins/performance/skills/target/SKILL.md", TIER_LINE),
+    phrase("tier-precedence", r"\bone tier: Minor\b", "The response names one tier: Minor, Moderate or Major, which overrides."),
+    path("tier-precedence", "plugins/work-items/reference/pipeline-shape.md", "plugins/work-items/reference/pipeline-shape.md", TIER_LINE),
     phrase("surface-config", r"\binterview surfaces?\b", "The interview surface reads settings.json."),
     phrase("surface-config", r"\b(terminal|shared session)\b", "The terminal surface reads settings.json."),
     path("surface-config", "plugins/planning/surface/**", "plugins/planning/surface/README.md", SURFACE_LINE),
@@ -159,6 +201,30 @@ ALLOWLIST = [
         "Each surface reads its skills from settings.json.",
     ),
     phrase("surface-config", r"\bemitting surfaces?\b", "The emitting surface reads settings.json."),
+    path("surface-config", "plugins/*/**/evals/**", EVAL, SURFACE_LINE),
+    phrase(
+        "surface-config",
+        r"\bsettings surfaces?\b.*\b(ladder|fetched docs)\b|\bladder\b.*\bsettings surfaces?\b",
+        "The ladder resolves the exact settings surface.",
+    ),
+    phrase("surface-config", r"\b(memory-layer|instruction) surfaces?\b", "On memory-layer surfaces such as CLAUDE.local.md, read settings.json too."),
+    phrase("surface-config", r"\brunnable surfaces?\b", "A live run for any change with a runnable surface in settings.json."),
+    phrase(
+        "surface-config",
+        r"\b(trust|attack|telemetry|launch|escape) surfaces?\b|\bPATH surfaces\b",
+        "The added trust surface is that settings.json read.",
+    ),
+    path("surface-config", "docs/contracts/standards/**", "docs/contracts/standards/README.md", SURFACE_LINE),
+    path("surface-config", "**/standards-contract.md", "plugins/review/reference/standards-contract.md", SURFACE_LINE),
+    phrase(
+        "surface-config",
+        r"\bsurface,?\s+(or|and|checker or)\s+(supplying\s+)?settings files?\b",
+        "It refuses a surface, checker or supplying settings file.",
+    ),
+    phrase("surface-config", r"##\s*Surfaces\b|\bthe surfaces `lens` runs\b", "Say so in the report's ## Surfaces for settings.json."),
+    path("surface-config", "plugins/harness-config/skills/audit-permission-state/**", "plugins/harness-config/skills/audit-permission-state/SKILL.md", SURFACE_LINE),
+    path("surface-config", "plugins/harness-config/schemas/harness-config.schema.json", "plugins/harness-config/schemas/harness-config.schema.json", SURFACE_LINE),
+    path("surface-config", "plugins/harness-config/skills/audit/scripts/**", "plugins/harness-config/skills/audit/scripts/x.sh", SURFACE_LINE),
     phrase(
         "contract-brief",
         r"\bdocs/contracts\b|\bcontracts/[\w-]+|\bversioned contracts?\b",
@@ -167,11 +233,17 @@ ALLOWLIST = [
     phrase("contract-brief", r"\binterface contracts?\b", "The Brief names an interface contract."),
     phrase(
         "contract-brief",
-        r"\b(pr|api|feed|payload|behavioral|presentation|execution|detection)[- ]contracts?\b",
+        r"\b(pr|api|feed|payload|behavioral|presentation|execution|detection|return|framing|findings)[- ]contracts?\b",
         "The dispatch brief carries the PR contract forward.",
     ),
     phrase("contract-brief", r"\bname[- ]by[- ]contract\b", "The brief follows the name-by-contract rule."),
     phrase("contract-brief", r"\bcontract case\b", "Contract case for the hand-off once the Brief is locked."),
+    path("contract-brief", "plugins/*/**/evals/**", EVAL, CONTRACT_LINE),
+    path("contract-brief", "plugins/implementation/agents/*.md", "plugins/implementation/agents/implementer.md", CONTRACT_LINE),
+    phrase("contract-brief", r'\|\s*contract\s*\|\s*name\s*\||\("contract",', "| contract | name | `BRIEF*` |"),
+    phrase("contract-brief", r"\bparent-contract\b", "The Brief links reference/parent-contract.md."),
+    phrase("contract-brief", r"\bmodule layout, contracts\b", "The brief quotes its module layout, contracts and verdicts."),
+    phrase("contract-brief", r"\bworker specs as contracts\b", "The brief writes worker specs as contracts."),
 ]
 
 
@@ -233,6 +305,15 @@ class EachSense(unittest.TestCase):
 
     def test_a_line_outside_the_sense_context_is_not_reported(self):
         code, out, _ = run_gate({"docs/guide.md": "Each rung up costs more tokens."})
+        self.assertEqual((code, out), (0, ""))
+
+    def test_surface_as_a_verb_or_a_key_is_not_reported(self):
+        lines = [
+            "When it does not, setup surfaces the missing line in settings.json.",
+            "- surface: .claude/settings.json",
+            "select(.identity.sites[0].surface==\"user:settings.json\")",
+        ]
+        code, out, _ = run_gate({"docs/guide.md": "\n".join(lines)})
         self.assertEqual((code, out), (0, ""))
 
 
