@@ -780,17 +780,19 @@ pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shap
 # here from SKILL.md "Acceptance-criteria capture"; it exempts that one prompt, and every other
 # question still writes its row at ask-time and brings the gate into scope.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
+# The vocabulary sweep only renamed the absent convention source to "no convention file present", which it is (authoring-formats/README.md, AGENTS.md); the coverage prompt still runs with none present and exempts only itself, and no plant, gate or ladder rule changed
 pin_file "context/coverage-prompt.md is unchanged (the coverage prompt exempts itself and nothing else)" \
   "$COVERAGE" \
-  "ce7cb30bef3740dfe2d5135ca715dc9e5368f6f5d40ea8f6a40f451b1af52524"
+  "602d44c1312dd079efa38ed518136aeb62079293d8685b78aff10e2db083aeb0"
 # The EARS tags and the acceptance_criteria_format ladder moved here from SKILL.md and loop.md
 # Step 4; they shape criteria text and resolve no register row.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
 # Only the acceptance_criteria_format ladder moved out, into the shared context/authoring-formats.md (#10119), which ears.md now points at; the EARS tag vocabulary and bullet shapes are unchanged.
 # The resolving section names the ladder step-2 resolver command with --root (#11597) and has it run before any root-file or README read; a non-zero exit stays the ladder step-6 free-text degrade, and the EARS tags and bullet shapes are byte-identical
+# The vocabulary sweep only renamed the absent convention source to "no convention file at all", which it is (authoring-formats/README.md, AGENTS.md); free-text output stays untagged and byte-comparable, and the EARS tags and ladder are unchanged
 pin_file "context/ears.md is unchanged (the EARS tags and the format resolution ladder)" \
   "$EARS" \
-  "9b0ef001c95777aaec490eb8b4b5d5a28b7662ae0da00107db7c01f4b5ce481d"
+  "2707011ce51e3057290cff39b3d5509e20778e49f78393709290ecd3971f7b8c"
 # audit-answers holds a `hedged:` row on the never-auto floor (Step 1) and routes it to the
 # human whatever the verdict (Step 4). Both sections are digested so a qualifier cannot be
 # appended beside either line.
