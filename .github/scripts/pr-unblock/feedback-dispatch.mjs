@@ -64,8 +64,9 @@
 // That dispatch is a pass-only round (input verify-pass-head): it runs no
 // model and posts no address-feedback check, its reply job resolves the
 // threads from an earlier head as the lanes App, so neither the review markers, a workable thread,
-// the human gate (a needs-human PR dispatches here whoever applied the label)
-// nor the head's check runs decide it; the hold labels still skip it. Those at
+// the human gate (a needs-human PR dispatches here whoever applied the label),
+// the head's check runs nor a round still going decide it; the hold labels
+// still skip it. Those at
 // the passing head it resolves only when the merge gate's reader, in the same
 // read as the FAIL cap, found the FAIL there superseded (input
 // verify-superseded-head; babysit_verify_evidence.py `supersededAtHead`). It only
@@ -545,7 +546,10 @@ export async function dispatchFeedback({
       return skip(`#${number}: ${why}`);
     }
   }
-  const sent = record.dispatched.get(head);
+  // A pass-only round is not held by a round still going: nothing sends that
+  // pass again, and pr-unblock.yml's per-PR concurrency group queues it
+  // behind that round. It resolves nothing if that round moved the head.
+  const sent = passOnly ? undefined : record.dispatched.get(head);
   if (sent?.number === number) {
     let run = null;
     try {
@@ -636,19 +640,21 @@ export async function dispatchFeedback({
   // the second skips while a run of this activity for this PR, created after
   // this review started, is not done. An older run (the round whose push made
   // this head) does not hold the dispatch, or the next round would never start.
-  let runs;
-  try {
-    runs = await api.listWorkflowRuns(settings.workflow);
-  } catch (error) {
-    if (!error.rateLimited) {
-      throw error;
+  if (!passOnly) {
+    let runs;
+    try {
+      runs = await api.listWorkflowRuns(settings.workflow);
+    } catch (error) {
+      if (!error.rateLimited) {
+        throw error;
+      }
+      log(`::warning::${settings.workflow} run listing is rate limited (${error.message}); #${number} not dispatched; re-run this job once the limit resets`);
+      return null;
     }
-    log(`::warning::${settings.workflow} run listing is rate limited (${error.message}); #${number} not dispatched; re-run this job once the limit resets`);
-    return null;
-  }
-  const active = runs.filter((run) => holds(run, number));
-  if (active.length > 0) {
-    return skip(`#${number}: ${settings.workflow} run ${active[0].id} for ${settings.activity} is not done yet`);
+    const active = runs.filter((run) => holds(run, number));
+    if (active.length > 0) {
+      return skip(`#${number}: ${settings.workflow} run ${active[0].id} for ${settings.activity} is not done yet`);
+    }
   }
   const resolved = await resolveSlot({ number, head });
   const enabled = (name) => resolved?.lane.slots.some((slot) => slot.name === name && slot.enabled === true);
