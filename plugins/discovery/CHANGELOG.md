@@ -1,5 +1,17 @@
 # Changelog: discovery plugin
 
+## [1.4.3] - 2026-11-04
+
+### Fixed
+
+- **`research`: a sidecar line that cites a claim must quote it verbatim.** The restatement check
+  read sweep words on the index only, so sidecar decision bullets, table cells, conflict notes and
+  abstracts could drop a condition or turn "prefer" into a rule and still pass. Now each sidecar
+  line that names a claim's ID quotes its `claim:` text as `M1 (HIGH (single source)): "<claim>"`,
+  and `scripts/check-restatement-labels.py` fails a line that cites a claim without the quote, or
+  whose quote does not match the claim byte for byte. Its summary line now reports `quoted=<n>`
+  ([#12902](https://github.com/melodic-software/claude-code-plugins/issues/12902)).
+
 ## [1.4.2] - 2026-11-04
 
 ### Changed
