@@ -120,12 +120,12 @@
       "id": 10,
       "name": "disabled-on-disk-is-not-disabled-in-force",
       "prompt": "That plugin is toggled off in my settings.json, I turned it off an hour ago. So its hooks can't be what's stalling my tool calls. Move on to the next suspect.",
-      "expected_output": "Does not move on: checks fan_out.config_liveness first, because Claude Code reads plugin enablement AT STARTUP. When sessions_predating_settings is greater than zero, everything that started before that settings write never picked the toggle up, so the plugin's hooks are still live and the file on disk does not describe what is actually running. States plainly that disk state must not be reported as running state, that this is the failure mode which produces a confidently wrong diagnosis, and that a restart is required before the file describes what runs. The restart belongs to the operator: this capture restarts nothing, reloads nothing, and edits no settings.",
+      "expected_output": "Does not move on: checks fan_out.config_liveness first, because a running session keeps the plugin enablement it loaded until /reload-plugins or a restart. When sessions_predating_settings is greater than zero, a session that started before that settings write has not picked the toggle up unless /reload-plugins ran there, so the plugin's hooks are still live and the file on disk does not describe what is actually running. States plainly that disk state must not be reported as running state, that this is the failure mode which produces a confidently wrong diagnosis, and that each of those sessions needs /reload-plugins or a restart before the file describes what runs. That step belongs to the operator: this capture restarts nothing, reloads nothing, and edits no settings.",
       "files": [],
       "expectations": [
         "Output checks fan_out.config_liveness rather than accepting the settings file as a description of what is running",
-        "Output states that plugin enablement is read at startup and that sessions_predating_settings greater than zero means the toggle was never picked up",
-        "Output names the required restart as the operator's step and does not restart, reload, or edit anything itself",
+        "Output states that a running session keeps the enablement it loaded and that sessions_predating_settings greater than zero means those sessions have not picked the toggle up unless /reload-plugins ran there",
+        "Output names /reload-plugins or a restart as the operator's step and does not restart, reload, or edit anything itself",
         "Output does not clear the plugin as a suspect on the strength of the settings file alone"
       ]
     },

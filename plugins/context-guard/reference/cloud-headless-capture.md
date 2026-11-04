@@ -46,10 +46,12 @@ same numbers behind an explicitly unsupported entry format. Both are recorded in
 than waved off. Recheck when the hooks, settings or statusline docs name a new per-session
 occupancy channel outside a mod.
 
-Hook stdin, the named candidate for a settings hook, carries no context, token, usage, or window
-field on any event, **except `PostToolUse` on the `Agent` tool, whose `tool_response` carries
-`totalTokens` and a `usage` breakdown for the *subagent's* final API request rather than anything
-about the main session's window.**
+Hook stdin, the named candidate for a settings hook, carried no context, token, usage, or window
+field on any event when we read it on 2026-08-21, **except `PostToolUse` on the `Agent` tool, whose
+`tool_response` carries `totalTokens` and a `usage` breakdown for the *subagent's* final API request
+rather than anything about the main session's window.** Since then the hooks page added a
+main-session figure on a few events, and the hook stdin row below records why it changes nothing
+here.
 
 The evidence for each channel is below, with the live URL and the date it was read.
 
@@ -106,19 +108,21 @@ result for a settings hook rather than an assumption.
 
 ## Channels checked
 
-Every row but the first records what we read on the live page on **2026-08-21**, before mods
-shipped: a dated observation behind this file's verdict, not a statement of what the pages say
-today. To act on a row now, re-read the section its Source column points at.
+Every row but the mods API and hook stdin rows records what we read on the live page on
+**2026-08-21**, before mods shipped: a dated observation behind this file's verdict, not a
+statement of what the pages say today. To act on a row now, re-read the section its Source column
+points at.
 
 - **Pointer**: the Source column, per row.
-- **As of**: 2026-10-11 for the section anchors; 2026-08-21 for the cell contents.
+- **As of**: 2026-10-11 for the section anchors; 2026-11-04 for the hook stdin row; 2026-08-21 for
+  the other cell contents.
 - **Recheck trigger**: a row's page adds or removes a field in the Carries or Does-not-carry cell,
   or a section the Source column names is renamed.
 
 | Channel | Source read | Carries | Does **not** carry |
 |---|---|---|---|
 | Mods API `$.session.usage()` (read 2026-10-03, Claude Code 2.1.288; recheck when the mods API table renames or drops it) | <https://code.claude.com/docs/en/plugins/mods/reference#mods-api-methods> | The running session's context-window use, read in process by a mod in any kind of session that loads it: tokens, window size, percentage, and with `breakdown: 'summary'` the last API response's token breakdown. **The capture path this plugin ships.** | Anything where the mod does not run (Desktop WSL sessions, mods off, the plugin not enabled); `prompt_cache` |
-| Hook stdin (all events) | [hooks: common input fields](https://code.claude.com/docs/en/hooks#common-input-fields); [hooks: PostToolUse input](https://code.claude.com/docs/en/hooks#posttooluse-input) | Common input fields: `session_id`, `prompt_id`, `transcript_path`, `cwd`, `permission_mode`, `effort`, `hook_event_name`, plus `agent_id` / `agent_type` under an agent. Event-specific fields such as `tool_name`, `tool_input`, `tool_use_id`. **One event carries token figures:** `PostToolUse` on the `Agent` tool receives a token count for the subagent's final API request and a `usage` object (`input_tokens`, `output_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`) in `tool_response` | Any context-window, token-count, usage, or percentage-of-window field for the **main session**, on any event. The `Agent` exception is subagent-scoped and single-request-scoped, not a total across the run. It is absent entirely for background subagents. `effort` is a reasoning-effort level, not consumption |
+| Hook stdin (all events) | [hooks: common input fields](https://code.claude.com/docs/en/hooks#common-input-fields); [hooks: PostToolUse input](https://code.claude.com/docs/en/hooks#posttooluse-input); [hooks: SessionStart input](https://code.claude.com/docs/en/hooks#sessionstart-input); [hooks: PreModelSwitch input](https://code.claude.com/docs/en/hooks#premodelswitch-input) | Common input fields: `session_id`, `prompt_id`, `transcript_path`, `cwd`, `permission_mode`, `effort`, `hook_event_name`, plus `agent_id` / `agent_type` under an agent. Event-specific fields such as `tool_name`, `tool_input`, `tool_use_id`. **Token figures on a few events:** `PostToolUse` on the `Agent` tool receives a token count for the subagent's final API request and a `usage` object in `tool_response`; `SessionStart` on a resume or fork and both model-switch events carry `context_tokens`, the main session's prompt size at that one moment | Any context-window size or percentage-of-window field for the **main session**, on any event, and any token figure on an ordinary turn: `context_tokens` arrives only on a resume, a fork or a model switch, so it is no running occupancy reading. The `Agent` exception is subagent-scoped and single-request-scoped, not a total across the run. It is absent entirely for background subagents. `effort` is a reasoning-effort level, not consumption |
 | Status line stdin | [status line: available data](https://code.claude.com/docs/en/statusline#available-data) | Top-level `version`, plus the whole `context_window` object: `total_input_tokens`, `total_output_tokens`, `context_window_size`, `used_percentage`, `remaining_percentage`, `current_usage` | Nothing this plugin needs. It was the one sufficient channel before mods, and it exists only where a `statusLine` is configured *and* the environment runs it |
 | `subagentStatusLine` stdin | [status line: subagent status lines](https://code.claude.com/docs/en/statusline#subagent-status-lines) | A `tasks` array whose entries carry `tokenCount` and `contextWindowSize` per subagent row | Any figure for the **main session**. It describes subagent rows in the agent panel, and it is a status-line-family surface, so it is absent wherever the status line is |
 | Non-interactive / Agent SDK output | [headless: get structured output](https://code.claude.com/docs/en/headless#get-structured-output) | `--output-format json` returns result, session ID, usage and `total_cost_usd` for **that invocation**; `stream-json` emits per-event metadata | Live occupancy of an already-running interactive session. It reports on a run the caller starts, after the fact. It cannot answer "how full is this session's window right now" |

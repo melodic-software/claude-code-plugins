@@ -181,8 +181,14 @@ builder. Node missing: the markdown report stands and the dashboard is not built
 `hooks` and the `latency` fallback read the per-hook timing records the harness writes into transcripts. `scripts/hook-transcript-timing.sh` names the records and fields it reads and reads nothing else, never a hook's output ([context/privacy.md](context/privacy.md)). Stop rows are labeled `complete` and every other event's `sampled`; the script's header says why. A transcript carries no `claude.lane`.
 
 - **Pointer**: neither shape is documented; [hooks](https://code.claude.com/docs/en/hooks) contains neither `stop_hook_summary` nor `durationMs` as of the date below. Probe: run `jq -r 'select(.subtype? == "stop_hook_summary") | .hookInfos[]?.command'`, and the same for `hook_success` attachments, over recent `~/.claude/projects/*/*.jsonl`; the fields the script reads held on Claude Code 2.1.288 transcripts. The attachment envelope matches the one `hooks/hook-failure-audit.sh` parses.
-- **As of**: 2026-10-13, Claude Code 2.1.288
-- **Recheck trigger**: the hooks page documents a per-hook timing record, or `hooks` exits 2 with "no hook durations found" on a transcript whose hooks ran, or an `--enabled` hook that sets `statusMessage` is listed unsampled in a session where it ran.
+- **As of**: 2026-11-04 for the page; Claude Code 2.1.288 for the fields
+- **Recheck trigger**: the hooks page documents per-hook timing in transcript records, or `hooks` exits 2 with "no hook durations found" on a transcript whose hooks ran, or an `--enabled` hook that sets `statusMessage` is listed unsampled in a session where it ran.
+
+We read transcripts rather than a debug log because a transcript covers a session that already ran, with nothing turned on beforehand.
+
+- **Pointer**: for what the debug route records, see [hooks: debug hooks](https://code.claude.com/docs/en/hooks#debug-hooks).
+- **As of**: 2026-11-04
+- **Recheck trigger**: that section changes what it records or where.
 
 Action invocation: `/harness-ops:observability clean [flags]`.
 

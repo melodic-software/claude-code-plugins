@@ -266,7 +266,7 @@ On the audited machine a plugin was disabled in `settings.json` at 13:53:02 whil
 live. Reading config off disk and describing it as the running state produces a confidently
 incorrect report, in this case "that plugin is disabled, so it is not the cause" while it was
 exactly the cause. That is why `fan_out.config_liveness` compares the settings mtime against each
-session process's start time and says plainly when a restart is required.
+session process's start time and says plainly when `/reload-plugins` or a restart is needed.
 
 - **Pointer**: when stating which settings edits reach a running session, fetch
   [settings: when edits take effect](https://code.claude.com/docs/en/settings#when-edits-take-effect)
