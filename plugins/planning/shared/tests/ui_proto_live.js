@@ -186,8 +186,9 @@ async function main() {
     ok("the suite ran to the end", false, String(e && e.stack || e));
   } finally {
     await browser.close().catch(() => {});
-    if (A) A.proc.kill();
-    fs.rmSync(tmp, { recursive: true, force: true });
+    // Windows refuses to delete a folder a live process still holds, and the handles outlast its exit for a moment.
+    if (A && A.proc.exitCode === null) await new Promise(res => { A.proc.once("exit", res); A.proc.kill(); });
+    fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }
   return s.finish();
 }

@@ -6,6 +6,10 @@ SCRIPT="$SCRIPT_DIR/audit-fleet.sh"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 mkdir "$TMP/plan-tmp" && export TMPDIR="$TMP/plan-tmp" # default plan files (mktemp) land inside the cleaned dir
+# A case naming no --config reads $HOME/.claude/repo-fleet-hygiene.conf, so the operator's own fleet
+# config would add its roots to that run: assertions then read its findings and discovery walks them.
+mkdir "$TMP/suite-home" && export HOME="$TMP/suite-home"
+unset CLAUDE_CONFIG_DIR CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT CLAUDE_PROJECT_DIR
 
 MOCK_BIN="$TMP/bin"
 mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/repo-b" "$TMP/old-repo" \
@@ -627,7 +631,7 @@ api)
         done
         json+=",\"$alias\":{\"pullRequests\":{\"totalCount\":${parts[0]},\"nodes\":[$nodes]}}"
       done
-      printf '%s}}' "$json" | jq -r "$jq_filter"
+      printf '%s}}' "$json" | jq -r "$jq_filter" | tr -d '\r' # native jq.exe writes CRLF; gh --jq does not
       exit
     fi
     # Collect exact headRefName values from aliases (order preserved).
@@ -706,7 +710,7 @@ api)
     done
     json+='}}'
     if [[ -n "$jq_filter" ]]; then
-      printf '%s' "$json" | jq -r "$jq_filter"
+      printf '%s' "$json" | jq -r "$jq_filter" | tr -d '\r' # native jq.exe writes CRLF; gh --jq does not
     else
       printf '%s' "$json"
     fi
@@ -2271,7 +2275,10 @@ assert_contains "rollup section present" "Repository rollup"
 assert_contains "fleet action plan present" "Fleet action plan"
 assert_contains "one-gate confirmation model" "ONE gate for this entire plan"
 assert_contains "branch-before-worktree order rule" "delete/clean branches before pruning worktrees"
-assert_contains "action plan path named" "Action plan: $PLAN_FILE"
+# A Windows host prints the plan path in native form (to_native_file_path); elsewhere it is unchanged.
+plan_file_shown="$PLAN_FILE"
+if [[ "$(uname -s)" =~ ^(MINGW|MSYS|CYGWIN) ]]; then plan_file_shown="$(cygpath -m -- "$PLAN_FILE")"; fi
+assert_contains "action plan path named" "Action plan: $plan_file_shown"
 if [[ -f "$PLAN_FILE" ]]; then
   printf 'PASS: action plan file was written\n'
 else

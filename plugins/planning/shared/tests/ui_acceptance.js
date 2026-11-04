@@ -21,6 +21,7 @@
 // Expected values come from the Brief's acceptance criteria (PLAN.md), the server contract (error codes, limits) and
 // the texts this suite writes, never from the page.
 "use strict";
+const { execFileSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 const { loadPlaywright, suite, recorder, until, settled, snap, joinAs } = require("./browser_harness");
@@ -297,8 +298,10 @@ async function main() {
     // ---------- new tunnel address ----------
     const recFile = path.join(A.dir, ".shared-tunnel.json");
     const cf = JSON.parse(fs.readFileSync(recFile, "utf8"));
-    const cmd = fs.readFileSync(`/proc/${cf.pid}/cmdline`, "utf8");
-    if (!/fake-cloudflared/.test(cmd)) throw new Error(`the tunnel record's pid ${cf.pid} is not the fake cloudflared: ${cmd}`);
+    const cmd = process.platform === "win32"
+      ? execFileSync("powershell", ["-NoProfile", "-Command", `(Get-CimInstance Win32_Process -Filter 'ProcessId=${cf.pid}').CommandLine`], { encoding: "utf8" })
+      : fs.readFileSync(`/proc/${cf.pid}/cmdline`, "utf8");
+    if (!/fake[-_]cloudflared/.test(cmd)) throw new Error(`the tunnel record's pid ${cf.pid} is not the fake cloudflared: ${cmd}`);
     process.kill(cf.pid, "SIGTERM");
     ok("new tunnel address: the owner view shows \"New guest link, share again\"", await until(owner, () => /New guest link, share again/.test(document.querySelector(".vf-banner")?.textContent || "")
       || document.querySelector(".vf-share")?.getAttribute("aria-label") === "New guest link, share again"

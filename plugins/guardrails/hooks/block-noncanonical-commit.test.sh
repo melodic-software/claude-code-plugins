@@ -212,8 +212,15 @@ run "depth cap: the same chain inside the cap is allowed" \
 NC_HOPS30=""
 for ((nc_i = 1; nc_i < 30; nc_i++)); do NC_HOPS30+=" -c alias.a$nc_i=a$((nc_i + 1))"; done
 NC_HOPS30+=" -c alias.a30='commit -m ok'"
-run "depth cap: a 30-hop chain to an allowed commit is allowed under the real stack" \
-  "git$NC_HOPS30 a1" 0
+# guard::alias_depth_max reads the stack from /proc/self/limits, which Git Bash
+# lacks, so the real stack there is the same fallback as a missing limits file.
+if [[ -r /proc/self/limits ]]; then
+  run "depth cap: a 30-hop chain to an allowed commit is allowed under the real stack" \
+    "git$NC_HOPS30 a1" 0
+else
+  run "depth cap: a host with no /proc/self/limits caps at 25, so the 30-hop chain denies" \
+    "git$NC_HOPS30 a1" 2
+fi
 run "depth cap: no limits file falls back to 25, so the 30-hop chain denies" \
   "git$NC_HOPS30 a1" 2 GUARDRAILS_PROC_LIMITS="$TEST_TMPDIR/no-such-limits"
 assert_contains "depth cap: the no-/proc deny names the alias chain" "$GUARD_ERR" "alias chain"
@@ -295,12 +302,15 @@ run_guarded "traversal: 20-hop dual-spelling chain to a multi-line commit -m (bl
   "$(alias_chain 20 "commit -m \"bypass \$b\"")" 2
 # A long chain that does NOT branch (one spelling per hop) must stay allowed —
 # the budget bounds branching, not depth. Hang-guarded too: a regression that
-# made this one branch would otherwise wedge the suite rather than fail it.
-run_guarded "traversal: 60-hop single-spelling chain to a canonical commit (allowed)" \
+# made this one branch would otherwise wedge the suite rather than fail it. With
+# no /proc/self/limits the depth cap is 25, so the chain stays inside it there.
+NC_LONG_HOPS=60
+[[ -r /proc/self/limits ]] || NC_LONG_HOPS=24
+run_guarded "traversal: $NC_LONG_HOPS-hop single-spelling chain to a canonical commit (allowed)" \
   "$(
     cmd="git"
-    for ((i = 1; i < 60; i++)); do cmd+=" -c alias.a$i=a$((i + 1))"; done
-    printf '%s' "$cmd -c alias.a60='commit -F -' a1"
+    for ((i = 1; i < NC_LONG_HOPS; i++)); do cmd+=" -c alias.a$i=a$((i + 1))"; done
+    printf '%s' "$cmd -c alias.a$NC_LONG_HOPS='commit -F -' a1"
   )" 0
 # Divergent spellings defeat state collapse, so the budget is what stops the walk:
 # fail CLOSED rather than stall the hook. Exit 2 plus the message asserted just
