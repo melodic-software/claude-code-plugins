@@ -1,7 +1,19 @@
 ---
-type: regex
-pattern: '^(?:(?=[^\n]*\b(?:but|however|only\s+if|unless|although|though)\b)|(?![^\n]*(?:\bNo plan gaps found\b|\b(?:is|are|looks?|seems?)\s+(?:perfectly\s+|entirely\s+|fully\s+|also\s+)?(?:fine|ok|okay|good|sound|correct|right|accurate|safe)\b|\bno\s+(?:\w+\s+)?(?:issue|problem|concern|finding|gap|defect|risk)s?\b|\bnot\s+a\s+(?:\w+\s+)?(?:issue|problem|concern|defect|gap|risk)\b|\bnothing\s+to\s+(?:flag|fix|report)\b)))(?![^\n]*(?:\b(?:no|(?:not|never|cannot|(?:is|are|was|were|do|does|did|has|have|had|ca|could|wo|would|should|must)n.?t)|without|free\s+of|(?<!not )(?<!n''t )(?:prevents?|avoids?|rules?\s+out))\s+(?:(?!(?:and|or|so|but|then|which|because|against|see|sees|seen)\b|(?:prevent|stop|avoid|block|guard|protect|dedup|catch|detect|check|notic|mention|account|consider|handl|address|acknowledg|recogni|realiz|explain|verif|measur|test|validate|validating|validation|enforc|convert|translat|adjust|shift|normali|recover|reclaim|release|releasing|reset|requeu)\w*\b)\w+\s+){0,3}(?:rac(?:e|es|ing|y)|lost\s+updates?|corrupt\w*)\b|\b(?:need|needs|needed|requires?)\s+no\s+(?:\w+\s+)?lock\w*|\bno\s+(?:\w+\s+){0,2}lock\w*\s+(?:is\s+)?(?:needed|required|necessary)\b|(?<!nothing )(?<!not )(?<!n''t )\bserializ\w*))(?!(?![^\n]*\b(?:but|yet|still|although|though)\b)[^\n]*\bholds?\s+`?s\.mu)(?=[^\n]*(?:\bs\.mu\b|\bmutex\b|\block\w*\b|\brac(?:e|es|y|ing)\b|\bconcurren\w*))[^\n]*(?:\brac(?:e|es|y|ing)\b|\blost\s+updates?\b|\block\s+is\s+(?:\w+\s+)?(?:needed|required|missing)\b|\b(?:need|needs|requires?|must\s+(?:add|take|hold)|should\s+(?:add|take|hold)|add)\s+(?:\w+\s+){0,2}lock\b|\bconcurren\w*[^\n]*\b(?:corrupt\w*|unsafe|clobber\w*|interleav\w*|overwrite\w*))'
-flags: mi
-match: not_contains
-target: last_message
+type: llm
+focus: last_message
 ---
+
+The reply reviews a draft plan for a bin-to-bin transfer command in a Go warehouse stock service.
+One part of the draft is sound: it adds no file lock, because `Server.handle` holds `s.mu` for
+every command and `stockd` is the only process that touches the data directory. This grader
+checks only that the reply leaves that part alone. The case's other graders score the defects it
+finds.
+
+PASS if no finding asks for a lock or says concurrent commands can race. A reply passes when it
+approves the mutex, reports other defects (the Phase 3 sanity check, the save order between
+`SaveBins` and the journal, or `capacity_kg` being a weight), or flags nothing. Judge a finding
+by what its text says, not by its severity or action column.
+
+FAIL if any finding asks for a file lock or any other lock around transfers or the data
+directory, or says two transfers, `stockctl` calls or `stockd` processes can race on, lose updates
+to or corrupt `bins.json` or the store. A finding that names `s.mu` and still claims a race fails.
