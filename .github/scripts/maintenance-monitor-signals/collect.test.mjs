@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { collect, jobsCarryFile, JOBS_VERSION, LIMITS, listFiled, parseJobsCarry } from "./collect.mjs";
+import { collect, jobsCarryFile, JOBS_VERSION, LIMITS, listFiled, parseHeldCarry, parseJobsCarry } from "./collect.mjs";
 import { ceilingFindings } from "./signals.mjs";
 
 const repo = "o/r";
@@ -1026,5 +1026,117 @@ test("a carried job reads file of another version or repository, or a malformed 
     jobsCarryFile(repo, [{ ...entry, attempt: 0 }]),
   ]) {
     assert.throws(() => parseJobsCarry(text, repo), /unexpected shape/);
+  }
+});
+
+// Green runs of the three hold lanes: 81 a work-unblock sweep that held twice,
+// 82 a pull_request run, never read, and 83 a hold that completed at 15:20,
+// before the window, read only when the carry stops short of it; 84 already
+// carried; 85 a fault hold; 86 a skipped report job; 87 a pr-refine run with
+// no hold notice.
+const notice = (title, message) => ({ annotation_level: "notice", title, message });
+const holdRoutes = () => [
+  [/workflows\/work-resolve-issue\.yml\/runs/, { workflow_runs: [run(84, { event: "issues" }), run(85, { event: "issues" }), run(86, { event: "issues" })] }],
+  [/workflows\/work-unblock\.yml\/runs/, { workflow_runs: [run(81), run(82, { event: "pull_request" }), run(83, { updated_at: "2026-10-19T15:20:00Z" })] }],
+  [/runs\/83\/jobs/, { jobs: [{ id: 830, name: "label-unblocked", conclusion: "success" }] }],
+  [/check-runs\/830\/annotations/, [notice("label-unblocked", "the agent-ready listing failed (HTTP 502); holding, and the next sweep reads it again")]],
+  [/workflows\/pr-refine\.yml\/runs/, { workflow_runs: [run(87, { event: "workflow_dispatch" })] }],
+  [/runs\/84\/jobs/, { jobs: [] }],
+  [/runs\/81\/jobs/, { jobs: [{ id: 810, name: "label-unblocked", conclusion: "success" }, { id: 811, name: "wip-state", conclusion: "success" }] }],
+  [/check-runs\/810\/annotations/, [
+    notice("label-unblocked", "the open listing failed (HTTP 502); holding, and the next sweep reads it again"),
+    notice("label-unblocked", "the closed-issue listing failed (HTTP 502); holding, and the next sweep reads it again"),
+  ]],
+  [/runs\/85\/jobs/, { jobs: [{ id: 850, name: "report-outcome / run", conclusion: "success" }, { id: 851, name: "report-outcome / report", conclusion: "success" }] }],
+  [/check-runs\/850\/annotations/, [notice("report-outcome", "issue #812 stopped on a fault (outcome-unread), and every retry since a person last added agent-ready was one too; it keeps agent-ready and a later run tries again")]],
+  [/runs\/86\/jobs/, { jobs: [{ id: 860, name: "report-outcome / run", conclusion: "skipped" }] }],
+  [/runs\/87\/jobs/, { jobs: [{ id: 870, name: "fix-docs-handoff", conclusion: "success" }] }],
+  [/check-runs\/870\/annotations/, [notice("api-budget", "end github-token core remaining=1 used=1 limit=2 reset=x")]],
+  ...routes(),
+];
+const carriedHold = (lane, runId, at) => ({ lane, runId, url: `https://github.com/o/r/actions/runs/${runId}`, item: null, reason: "closed-issue listing failed", at });
+// Read without a break since a day and a half ago, through 15:40, after this
+// window opened at 15:36.
+const CARRIED = {
+  runs: [
+    carriedHold("work-resolve-issue", 84, "2026-10-19T15:50:00Z"),
+    carriedHold("work-unblock", 70, "2026-10-19T09:00:00Z"),
+    carriedHold("work-unblock", 71, "2026-10-18T10:00:00Z"),
+  ],
+  from: "2026-10-18T04:00:00Z",
+  through: "2026-10-19T15:40:00Z",
+};
+const RULE = { threshold: 4, windowHours: 24 };
+const SHORT = "lane holds: held runs read only since 2026-10-19T15:36:00Z, short of the 24-hour window";
+
+test("lane holds: green runs in the window add their holds to the carried ones inside the rule's window", async () => {
+  const api = fakeApi(holdRoutes());
+  const data = await collect(input(api, { holds: { rule: RULE, carried: CARRIED } }));
+  assert.deepEqual(data.gaps, []);
+  assert.deepEqual(
+    data.laneHolds.map((h) => [h.lane, h.runId, h.item, h.reason]),
+    [
+      ["work-resolve-issue", 85, "#812", "fault outcome-unread"],
+      ["work-unblock", 81, null, "closed-issue listing failed; open listing failed"],
+      ["work-resolve-issue", 84, null, "closed-issue listing failed"],
+      ["work-unblock", 70, null, "closed-issue listing failed"],
+    ],
+  );
+  assert.equal(data.laneHolds[0].at, "2026-10-19T16:00:00Z");
+  assert.deepEqual(data.heldCarry, { runs: data.laneHolds, from: CARRIED.from, through: "2026-10-19T16:41:00Z" });
+  assert.deepEqual(data.holdRule, RULE);
+  for (const path of ["runs/82/jobs", "runs/83/jobs", "runs/84/jobs", "check-runs/811/", "check-runs/851/", "check-runs/860/"]) {
+    assert.ok(!api.calls.some((c) => c.includes(path)), path);
+  }
+  assert.ok(api.calls.some((c) => c.includes("workflows/pr-refine.yml/runs?status=success")));
+  assert.deepEqual(parseHeldCarry(jobsCarryFile(repo, data.jobsCarry, data.heldCarry), repo), data.heldCarry);
+});
+
+test("lane holds: no carry, a stale one or an unread rule is a gap, and the carried runs still go on", async () => {
+  // No carry: this window starts the span, which falls short of 24 hours.
+  const uncarried = await collect(input(fakeApi(holdRoutes()), { holds: { rule: RULE, carried: null } }));
+  assert.deepEqual(uncarried.gaps, [SHORT]);
+  assert.deepEqual(uncarried.laneHolds.map((h) => h.runId), [85, 81]);
+  assert.deepEqual([uncarried.heldCarry.from, uncarried.heldCarry.through], ["2026-10-19T15:36:00Z", "2026-10-19T16:41:00Z"]);
+  // A late cron: the carry read through 15:00, so runs completed since then are read and the span holds.
+  const late = await collect(input(fakeApi(holdRoutes()), { holds: { rule: RULE, carried: { ...CARRIED, through: "2026-10-19T15:00:00Z" } } }));
+  assert.deepEqual(late.gaps, []);
+  assert.deepEqual(late.laneHolds.map((h) => [h.runId, h.reason]).slice(0, 4), [
+    [85, "fault outcome-unread"],
+    [81, "closed-issue listing failed; open listing failed"],
+    [84, "closed-issue listing failed"],
+    [83, "agent-ready listing failed"],
+  ]);
+  assert.equal(late.heldCarry.from, CARRIED.from);
+  // A carry read through 09:00, past the run list's 6-hour lookback: the span starts again.
+  const stale = await collect(input(fakeApi(holdRoutes()), { holds: { rule: RULE, carried: { ...CARRIED, through: "2026-10-19T09:00:00Z" } } }));
+  assert.deepEqual(stale.gaps, [SHORT]);
+  assert.deepEqual(stale.laneHolds.map((h) => h.runId), [85, 81, 84, 70]);
+  // An unread rule: this window is still read and carried, unpruned, over the same span.
+  const unruled = await collect(input(fakeApi(holdRoutes()), { holds: { rule: new Error("the monitor.lane-holds rule was not read: yq failed"), carried: CARRIED } }));
+  assert.deepEqual(unruled.gaps, ["lane holds: the monitor.lane-holds rule was not read: yq failed"]);
+  assert.deepEqual(unruled.heldCarry.runs.map((h) => h.runId), [85, 81, 84, 70, 71]);
+  assert.equal(unruled.heldCarry.from, CARRIED.from);
+  assert.equal(unruled.holdRule, undefined);
+  // A failed read keeps the carried runs and marks the span unknown, so the next run starts it again.
+  const failed = await collect(input(fakeApi([[/workflows\/work-unblock\.yml\/runs/, new Error("GET runs: HTTP 502")], ...holdRoutes()]), { holds: { rule: RULE, carried: CARRIED } }));
+  assert.deepEqual(failed.gaps, ["lane holds: GET runs: HTTP 502"]);
+  assert.deepEqual([failed.heldCarry.runs.map((h) => h.runId), failed.heldCarry.from, failed.heldCarry.through], [[85, 84, 70, 71], null, null]);
+  const off = await collect(input(fakeApi(routes())));
+  assert.deepEqual([off.gaps, off.laneHolds], [[], []]);
+});
+
+test("a carried held run of another repository or an unknown lane, or a bad span, is refused", () => {
+  assert.deepEqual(parseHeldCarry(JSON.stringify({ version: JOBS_VERSION, repository: repo, runs: [] }), repo), { runs: [], from: null, through: null });
+  const [first] = CARRIED.runs;
+  for (const text of [
+    jobsCarryFile("other/repo", [], CARRIED),
+    jobsCarryFile(repo, [], { ...CARRIED, runs: [{ ...first, lane: "pr-merge" }] }),
+    jobsCarryFile(repo, [], { ...CARRIED, runs: [{ ...first, at: "never" }] }),
+    jobsCarryFile(repo, [], { ...CARRIED, runs: [{ ...first, item: 812 }] }),
+    jobsCarryFile(repo, [], { ...CARRIED, from: "never" }),
+    jobsCarryFile(repo, [], { ...CARRIED, runs: null }),
+  ]) {
+    assert.throws(() => parseHeldCarry(text, repo), /unexpected shape/);
   }
 });

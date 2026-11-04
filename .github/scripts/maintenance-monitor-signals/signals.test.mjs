@@ -11,8 +11,11 @@ import {
   detect,
   ejectionFindings,
   heldFindings,
+  holdRule,
+  laneHoldFindings,
   mainRedFindings,
   parseBudget,
+  parseHold,
   platformFindings,
   POST_MERGE_UNREADABLE_SWEEPS,
   LISTING_HELD_SWEEPS,
@@ -544,6 +547,71 @@ test("signal 11: the fingerprint holds while the cause holds, through new runs a
   const later = [5, 4, 3, 2].map((id) => report(id, "3", CAP.replace("1239", "1302")));
   assert.equal(fp([report(4), report(3), report(2), report(1)]), fp(later));
   assert.notEqual(fp(later), fp([report(5, "3", "pull requests: HTTP 502"), report(4), report(3), report(2)]));
+});
+
+// The three hold notices as their scripts print them (report-outcome.mjs,
+// label-unblocked.mjs reportHold, handoff-evidence.sh), title and message.
+const FAULT = ["report-outcome", "issue #812 stopped on a fault (outcome-unread), and every retry since a person last added agent-ready was one too; it keeps agent-ready and a later run tries again"];
+const LISTING = ["label-unblocked", "the closed-issue listing failed (GET /repos/o/r/issues: HTTP 502); holding, and the next sweep reads it again"];
+const HANDOFF = ["Handoff evidence hold", "handoff evidence for fix-docs still missing after 3 reads: read-failed; no fallback starts, and the next dispatcher tick sends the PR again"];
+
+test("signal 13: each lane's hold notice parses, and other notices do not", () => {
+  assert.deepEqual(parseHold(...FAULT), { item: "#812", reason: "fault outcome-unread" });
+  assert.deepEqual(parseHold(...LISTING), { item: null, reason: "closed-issue listing failed" });
+  assert.deepEqual(parseHold(...HANDOFF), { item: null, reason: "fix-docs handoff evidence missing" });
+  assert.equal(parseHold("api-budget", LISTING[1]), null);
+  assert.equal(parseHold("report-outcome", "could not read this issue's earlier work (HTTP 502); the model is skipped, and a later run reads it again"), null);
+  assert.equal(parseHold(undefined, "handoff evidence for fix-docs still missing after 3 reads: x; the outputs stay empty"), null);
+});
+
+const held = (lane, runId, { item = null, reason = "closed-issue listing failed", hour = 10 } = {}) => ({
+  lane,
+  runId,
+  url: `https://github.com/o/r/actions/runs/${runId}`,
+  item,
+  reason,
+  at: `2026-10-19T${String(hour).padStart(2, "0")}:47:00Z`,
+});
+
+test("signal 13: a repeated hold raises it and a single hold does not", () => {
+  const rule = holdRule({ threshold: 2 });
+  const once = held("work-resolve-issue", 1, { item: "#812", reason: "fault outcome-unread" });
+  assert.deepEqual(laneHoldFindings({ laneHolds: [once], holdRule: rule }), []);
+  const again = { ...once, runId: 2, url: "https://github.com/o/r/actions/runs/2", at: "2026-10-19T14:47:00Z" };
+  const found = detect({ ...base, laneHolds: [once, again], holdRule: rule });
+  assert.equal(found.length, 1);
+  const [f] = found;
+  assert.equal(f.key, "lane-hold:work-resolve-issue");
+  assert.equal(f.signal, "13 lane holds");
+  assert.equal(f.area, "Issue lane (work-resolve-issue)");
+  assert.match(f.summary, /^2 green work-resolve-issue runs held on a fault in the last 24 hours, at or over the threshold of 2/);
+  assert.match(f.summary, /Held more than once: #812 2 times\./);
+  assert.deepEqual(f.facts, [
+    "2026-10-19T14:47:00Z #812 https://github.com/o/r/actions/runs/2: fault outcome-unread",
+    "2026-10-19T10:47:00Z #812 https://github.com/o/r/actions/runs/1: fault outcome-unread",
+  ]);
+  assert.equal(f.observedAt, again.at);
+});
+
+test("signal 13: the default threshold counts each lane on its own, and no rule fires nothing", () => {
+  const rule = holdRule({});
+  assert.deepEqual(rule, { threshold: 4, windowHours: 24 });
+  const three = [1, 2, 3].map((id) => held("work-unblock", id, { hour: 9 + id }));
+  const others = [4, 5].map((id) => held("pr-refine", id, { reason: "fix-docs handoff evidence missing" }));
+  assert.deepEqual(laneHoldFindings({ laneHolds: [...three, ...others], holdRule: rule }), []);
+  const four = [...three, held("work-unblock", 9, { hour: 15 })];
+  assert.deepEqual(laneHoldFindings({ laneHolds: [...four, ...others], holdRule: rule }).map((f) => [f.key, f.facts.length]), [["lane-hold:work-unblock", 4]]);
+  assert.deepEqual(laneHoldFindings({ laneHolds: four }), []);
+  assert.throws(() => holdRule({ threshold: 1 }), /threshold of 2 to 100/);
+  assert.throws(() => holdRule({ "window-hours": 1.5 }), /window-hours of 1 to 168/);
+});
+
+test("signal 13: the fingerprint holds while the reasons hold, through new runs", () => {
+  const rule = holdRule({ threshold: 2 });
+  const fp = (holds) => laneHoldFindings({ laneHolds: holds, holdRule: rule })[0].fingerprint;
+  const two = [held("work-unblock", 1), held("work-unblock", 2, { hour: 11 })];
+  assert.equal(fp(two), fp([...two, held("work-unblock", 3, { hour: 12 })]));
+  assert.notEqual(fp(two), fp([...two, held("work-unblock", 3, { reason: "open listing failed" })]));
 });
 
 test("signal 11: a reason from the report reaches the issue inert", () => {
