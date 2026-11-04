@@ -102,6 +102,13 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   A/B pass, gate each version's result file.
 - Any other denial, in either arm, is a warning only when its case has denial-free runs in that arm
   and its run scored the same as each; otherwise it is a FAIL.
+- A tool result whose `<sandbox_violations>` block holds a `deny network-outbound <host>:<port>`
+  line is a sandbox network denial, whether or not the result is an error; the summary names the
+  hosts. In an invocation probe or a control case (tagged `control`, `no-trigger` or
+  `negative-control`, described as a no-trigger case, or forbidding its own skill's call and
+  requiring none) it is set aside as a warning. Elsewhere a with-arm one is a FAIL, since the score then measures a
+  blocked request, and a without-arm one takes the rules above. The same text quoted anywhere but a
+  tool result is not a denial.
 - A run at 0 turns whose trace holds assistant messages ran a slash-invoked `context: fork` skill
   in a forked session, and the gate lists it under `session started` without failing it. Any run
   fails there whose trace holds a user message with a `local-command-stderr` reading `Shell command
@@ -130,7 +137,7 @@ above the plugin's directory, or with no absolute path or no known plugin direct
 - An invocation probe is a case whose `prompt.md` tags include `invocation-probe`, as
   `/skill-quality:check measure-invocation` emits it. Its should-fire misses are the trigger rate
   it measures: `skill fired` reports them as a warning with per-case counts, never a FAIL. Run
-  errors and denials keep their full force, apart from the two probe exceptions above and a
+  errors and denials keep their full force, apart from the probe exceptions above and a
   max-turns error after the graded Skill call. `probe tools` warns when a probe run could call
   Read, Glob, Grep or Agent, the tools the emitted README's run line removes, or its trace has no
   init tools list; when no probe run's list can be read, the check is UNCHECKED.

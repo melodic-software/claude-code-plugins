@@ -14,7 +14,10 @@ structural lines of its kept traces, with no answer text:
     traces/             clean.jsonl stands in for every trace with no denial;
                         self-*.jsonl are hand-written traces of a run reading or
                         searching its plugin copy, with made-up paths: denied in
-                        all but self-lookup-allowed.jsonl
+                        all but self-lookup-allowed.jsonl; network-denied.jsonl
+                        is a hand-written Bash call whose result reports a
+                        sandbox network denial, in the shape a real trace gives
+                        it, with a made-up host and command
 
 The other tests copy a fixture into a temporary directory and change one field.
 
@@ -1942,6 +1945,109 @@ class RunValidityTest(unittest.TestCase):
         result.write_text(json.dumps(data), encoding="utf-8")
         proc = self.run_script(result, "--runs", "1")
         self.assertVerdict(proc, "VALID", 0)
+
+    NETWORK = TRACES / "network-denied.jsonl"
+    NETWORK_FAIL = (
+        "check permission denials: FAIL (1 denial in 1 run; 1 sandbox network denial,"
+        " outbound to example.org:443)"
+    )
+
+    def network_run(self, tags=None, arm="with", trace=NETWORK, every=False):
+        """The clean result at two runs per arm, the plugin's directory a
+        suite.plugins path, measurable-criterion's prompt.md carrying tags (None:
+        no prompt.md) and its second `arm` run's trace `trace`, scoring the same
+        as its first; with every, each of the case's runs in both arms."""
+        result = self.clean()
+        if tags:
+            prompt = self.dir / "suite" / result["cases"][1]["dir"] / "prompt.md"
+            prompt.write_text("---\ndescription: d\n%s\n---\n\nQ\n" % tags, encoding="utf-8")
+        data = load(self.write(result))
+        data["suite"]["plugins"] = [{"path": self.PLUGIN}]
+        for case in data["cases"]:
+            for name in ("with", "without"):
+                case["arms"][name].append(copy.deepcopy(case["arms"][name][0]))
+        rows = data["cases"][1]["arms"]
+        for row in [r for rs in rows.values() for r in rs] if every else [rows[arm][1]]:
+            row["tracePath"] = str(trace)
+        path = self.dir / "aggregate-result.json"
+        path.write_text(json.dumps(data), encoding="utf-8")
+        return self.run_script(path, "--runs", "2")
+
+    def network_trace(self, name, *lines):
+        trace = self.dir / name
+        trace.write_text(
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
+            + "".join(json.dumps(line) + "\n" for line in lines),
+            encoding="utf-8",
+        )
+        return trace
+
+    def test_a_with_arm_network_denial_is_a_fail_naming_the_host(self):
+        proc = self.network_run(tags="tags: [knowledge]")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn(self.NETWORK_FAIL, proc.stdout)
+        self.assertIn(
+            "  case measurable-criterion, with-arm run 2: Bash network-outbound"
+            " example.org:443 (",
+            proc.stdout,
+        )
+
+    def test_a_with_arm_network_denial_in_every_run_of_both_arms_is_a_fail(self):
+        proc = self.network_run(every=True)
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn(
+            "check permission denials: FAIL (4 denials in 4 runs; 4 sandbox network"
+            " denials, outbound to example.org:443",
+            proc.stdout,
+        )
+
+    def test_a_without_arm_network_denial_scoring_like_its_clean_run_is_a_warning(self):
+        proc = self.network_run(arm="without")
+        self.assertDenials(proc, "WARN")
+        self.assertIn(
+            "  case measurable-criterion, without-arm run 2: Bash network-outbound"
+            " example.org:443 (",
+            proc.stdout,
+        )
+
+    def test_a_network_denial_in_a_probe_or_control_case_is_a_warning(self):
+        for tags in ("tags: [invocation-probe, train]", "tags: [knowledge, control]"):
+            proc = self.network_run(tags=tags)
+            self.assertDenials(proc, "WARN")
+            self.assertIn(
+                "check permission denials: WARN (1 denial in 1 run; 1 sandbox network"
+                " denial, outbound to example.org:443; 1 sandbox network denial in an"
+                " invocation-probe or control case, not counted;",
+                proc.stdout,
+            )
+            self.assertIn("): measurable-criterion)", proc.stdout)
+
+    def test_network_denial_text_outside_a_tool_result_is_not_a_denial(self):
+        report = (
+            "<sandbox_violations>\ndeny network-outbound example.org:443"
+            " (user denied)\n</sandbox_violations>"
+        )
+        quoted = self.network_trace(
+            "quoted.jsonl",
+            {"type": "user", "message": {"content": [{"type": "text", "text": report}]}},
+            {"type": "assistant", "message": {"content": [{"type": "text", "text": report}]}},
+            {"type": "result", "is_error": False, "result": report, "permission_denials": []},
+        )
+        other = self.network_trace(
+            "other-violation.jsonl",
+            {"type": "user", "message": {"content": [{
+                "type": "tool_result", "tool_use_id": "n1", "is_error": False,
+                "content": [{"type": "text", "text": "<sandbox_violations>\ndeny"
+                             " file-write-create /tmp/x\n</sandbox_violations>"}],
+            }]}},
+        )
+        for trace in (quoted, other):
+            proc = self.network_run(tags="tags: [knowledge]", trace=trace)
+            self.assertVerdict(proc, "VALID", 0)
+            self.assertIn(
+                "check permission denials: PASS (no denied tool call in 12 traces)",
+                proc.stdout,
+            )
 
     def test_runs_on_different_models_are_invalid(self):
         trace = self.dir / "other-model.jsonl"
