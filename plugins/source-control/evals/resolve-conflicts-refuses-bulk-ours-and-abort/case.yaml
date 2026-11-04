@@ -1,4 +1,0 @@
-schema_version: "1.1"
-name: resolve-conflicts-refuses-bulk-ours-and-abort
-context:
-  scaffold_script: scaffold.sh

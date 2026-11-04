@@ -226,7 +226,6 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | Skill | Plugin | What it does |
 | --- | --- | --- |
 | [`/source-control:pull-request`](../plugins/source-control/skills/pull-request/SKILL.md) | `source-control` | Full PR lifecycle. Prep, create, monitor CI, address reviews, merge |
-| [`/source-control:resolve-conflicts`](../plugins/source-control/skills/resolve-conflicts/SKILL.md) | `source-control` | Resolve merge and rebase conflicts by recovering both sides' intent |
 
 ## Anytime / cross-cutting
 
