@@ -220,6 +220,34 @@ test("an ending reason that names a secret noun as a capability keeps its route"
   }
 });
 
+// Owner Q1 on #12043 (2026-11-04): a technical sense of a secret noun names
+// no secret, so an ending reason keeps its route. Each reason below held as
+// security-risk between 2026-10-28 and 2026-11-04 (12 stops, none real).
+test("an ending reason that names a token or credential only in a technical sense keeps its route", () => {
+  for (const reason of [
+    "host-only: the eval needs paid model calls on the role's subscription token",
+    "host-only: shipped the bytes-per-token re-pin; the rest needs a desktop run",
+    "host-only: This CI lane has no Azure credentials",
+    "host-only: it needs a dequeue step with a pull-requests: write token",
+    "host-only: it requires the token-spending admission and dispatch workflows",
+    "host-only: the `merge` job, whose token has no `statuses: read`, cannot read it",
+    "host-only: the token's permissions do not cover the workflow write",
+  ]) {
+    assert.equal(runCode(reason), "host-only", reason);
+    assert.equal(securityWord(reason), "", reason);
+  }
+  // A secret value, an exposure or a credential path still holds beside a technical sense.
+  for (const reason of [
+    "host-only: the subscription token was pasted into the log",
+    "host-only: a write token leaked in the fixture",
+    "host-only: the per-token pricing note sits beside an exposed API key",
+    "host-only: has no credentials, and the secret is in ~/.aws/credentials",
+    "host-only: the token is ghp_ in the commit",
+  ]) {
+    assert.equal(runCode(reason), "security-risk", reason);
+  }
+});
+
 // A large token count is a measure, not a credential: run 41380225807 held a
 // host-only reason as security on the "tokens" in its count.
 test("an ending reason that names a large token count keeps its route", () => {

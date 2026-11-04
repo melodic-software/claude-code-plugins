@@ -176,7 +176,16 @@ const CAPABILITY = new RegExp(
 const TOKEN_COUNT =
   /(?<![\w.,])(?:\d{1,3}(?:,\d{3})+|\d{4,}|\d+(?:\.\d+)?[kKM])\s?tokens?\b(?=\s*(?:\.?\s*$|\))|\s+(?:headless|interactive|vs|versus|per|spent|used|total|budget|startup|payload|context|prompt|cached|saved|more|fewer|less)\b)/g;
 const TOKEN_HANDLING = /\b(?:rotat|revok|leak|expos|upload|paste|print|commit|push|dump|reveal|email|cop(?:y|ie[ds])|gist|screenshot)|\b(?:post(?:ed|s)?|shar(?:e|ed|es|ing)|logged|visible|shown|reus\w*|stol\w*)\b/i;
-const withoutCounts = (text) => (TOKEN_HANDLING.test(text) ? text : text.replace(TOKEN_COUNT, " "));
+// The technical senses of a secret noun, which name no secret (owner Q1 on
+// #12043, 2026-11-04, narrowing Q4 to a secret value, a credential path or an
+// account compromise): a model or subscription token, a per-token measure or
+// token spending, a token's permission scope ("a pull-requests: write token",
+// "whose token has no `statuses: read`", "the token's permissions"), and a
+// lane that has no credentials. Like a count, each releases nothing in a
+// reason that also says what was done with a secret (TOKEN_HANDLING).
+const TOKEN_SENSE =
+  /\b(?:subscription|oauth|model|session|input|output|cache)\s+tokens?\b|\b[\w-]+-per-tokens?\b|\bper-tokens?\b|\btokens?-(?:spending|budget|count|counting|usage)\b|\b(?:[\w-]+:\s*(?:read|write)|read-only|read|write)\s+tokens?\b|\btokens?\s+(?:has|have|had)\s+no\b|\btoken['’]s\s+(?:permissions?|scopes?)\b|\b(?:has|have|had)\s+no\s+(?:[\w-]+\s+)?credentials?\b/gi;
+const withoutCounts = (text) => (TOKEN_HANDLING.test(text) ? text : text.replace(TOKEN_COUNT, " ").replace(TOKEN_SENSE, " "));
 // The only words a reason that names a secret noun may hold beside its
 // capability phrasings. Fail closed: any other word, so any exposure however
 // worded ("uploaded", "posted", "the key was ..."), a pronoun that could point
