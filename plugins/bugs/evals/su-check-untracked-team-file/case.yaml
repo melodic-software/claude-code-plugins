@@ -16,7 +16,7 @@ graders:
     target: 'last_message'
   - name: 'says-commit-it'
     type: 'regex'
-    pattern: '\bcommit\b|\bgit add\b'
+    pattern: '\b(?:commit|stage)\b[^\n]{0,60}\b(?:it|the (?:team )?file|bugs\.yaml)\b|\bgit add\b'
     flags: 'i'
     target: 'last_message'
   - name: 'reports-team-lane'

@@ -1,1 +1,18 @@
-{"pass":[{"answer":"INFO: no bugs config at any layer; /bugs:scan uses its bundled generic default lanes.","why":"bundled default lanes"},{"answer":"Zero config works: the default lanes apply.","why":"default lanes"}],"fail":[{"answer":"FAIL: docs/conventions/bugs.yaml missing.","why":"no fallback named"}]}
+{
+  "pass": [
+    {
+      "answer": "INFO: no bugs config at any layer; /bugs:scan uses its bundled generic default lanes.",
+      "why": "bundled default lanes"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "FAIL: docs/conventions/bugs.yaml missing.",
+      "why": "no fallback named"
+    },
+    {
+      "answer": "Zero config works: the default lanes apply.",
+      "why": "unqualified default lanes"
+    }
+  ]
+}

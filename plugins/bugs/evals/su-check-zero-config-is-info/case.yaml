@@ -5,7 +5,7 @@ context:
 graders:
   - name: 'default-lanes-named'
     type: 'regex'
-    pattern: '\b(?:bundled|built-in|generic)\b[^\n]{0,40}\bdefault lanes?\b|\bdefault lanes?\b'
+    pattern: '\b(?:bundled|built-in|generic)\b[^\n]{0,40}\bdefault lanes?\b'
     flags: 'i'
     target: 'last_message'
   - name: 'missing-config-not-a-failure'

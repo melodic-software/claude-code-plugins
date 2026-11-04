@@ -1,1 +1,22 @@
-{"pass":[{"answer":"Commit it so teammates receive it.","why":"commit"},{"answer":"Run git add docs/conventions/bugs.yaml.","why":"git add"}],"fail":[{"answer":"Everything looks fine.","why":"no remediation"}]}
+{
+  "pass": [
+    {
+      "answer": "Commit it so teammates receive it.",
+      "why": "commit"
+    },
+    {
+      "answer": "Run git add docs/conventions/bugs.yaml.",
+      "why": "git add"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Everything looks fine.",
+      "why": "no remediation"
+    },
+    {
+      "answer": "check is read-only, so I made no commit.",
+      "why": "word commit without the remediation"
+    }
+  ]
+}
