@@ -49,6 +49,13 @@
       "default": "ready",
       "options": ["draft", "ready"]
     },
+    "review_venue": {
+      "type": "string",
+      "title": "Review venue",
+      "description": "Who reviews a PR before the ready flip. auto (default) reviews locally only where no healthy CI lane does; local always reviews locally; ci leaves it to the CI lanes; both does both. A repository's review_venue in docs/conventions/source-control.yaml wins over this value.",
+      "default": "auto",
+      "options": ["auto", "local", "ci", "both"]
+    },
     "fetch_logs_max_bytes": {
       "type": "number",
       "title": "CI log fetch size cap (bytes)",

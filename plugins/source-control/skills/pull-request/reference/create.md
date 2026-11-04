@@ -243,7 +243,7 @@ pr-verify checks each named pull request's author, base and edits itself. Under 
 `ready` and `ready`'s `base-merge` step would run ([ready-for-review.md](ready-for-review.md),
 "Read which pre-flip steps run"), fetch `$REMOTE/$DEFAULT_BRANCH` again and, when the branch is
 behind it, merge it in the way §2.5.2's local fallback does: a merge, never a rebase, with
-conflicts routed to `/source-control:resolve-conflicts`, and stop as `ready` does. The draft then
+conflicts resolved per §2.5.2 ([Resolve a conflicted merge](ready-for-review.md#resolve-a-conflicted-merge)), and stop as `ready` does. The draft then
 opens on a head containing the base, so §2.5.2 pushes nothing and the PR saves a CI run. A
 `draft` state skips this.
 
@@ -261,8 +261,8 @@ With `sync_stale_base` on ([config-resolution.md](../../../reference/config-reso
 `push-branch.sh` first merges the base into a branch behind it on overlapping paths, so a push
 that waited in a rate gate while the base moved is not refused by a pre-push stale-base check; it
 reports the merge on stderr. Exit 4 means that merge conflicted, was aborted, and nothing was
-pushed: resolve it with `/source-control:resolve-conflicts` (merge the base by hand), then push
-again.
+pushed: merge the base by hand and resolve it per §2.5.2
+([Resolve a conflicted merge](ready-for-review.md#resolve-a-conflicted-merge)), then push again.
 
 Derive the PR title from the commit subject, shaped to the resolved subject/title convention (the ladder in [SKILL.md](../SKILL.md): layered source-control config → project convention → Conventional Commits default). Build the body with `${CLOSES_LINE}` at top, then the resolved section scaffold and a config-gated attribution line.
 

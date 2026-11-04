@@ -739,17 +739,22 @@ fallback runs unless the first call's `<call> / report` job has a `Post the chec
 succeeded. A skipped or absent report job, which every handoff leaves, decides that at once from
 the job's own conclusion; a report that ran answers through its step, which the script reads again
 while the jobs listing returns it empty, each wait drawn at random from 0 to a capped backoff, until
-the waits reach about five minutes, then fails the job with one error line. Each read after the first
-sends each listing page that came with an `etag` as a conditional request, and a `304` reuses the
-page it already read. A failed read runs the fallback too, except for `fix-docs`.
+the waits reach about five minutes, then fails the job with one error line. `pr-refine.yml`'s two
+handoff jobs set `HANDOFF_EVIDENCE_LAG=notice`, so there that lag ends as one notice with no handoff
+fact set; `fix-docs-handoff` still sets `fallback-ready`, which starts nothing without `handed-off`.
+Each read after the first sends each listing page that came with an `etag` as a conditional request,
+and a `304` reuses the page it already read. A failed read runs the fallback too, except for
+`fix-docs`.
 `fix-docs-subscription` also needs the first call's `<call> / broker-allowed` job to show the
 broker's allow (the broker step, when that job is absent): `fix-docs` posts nothing on a
 decline, so a kill switch or a refusal starts no second leg, and a failed read starts none either.
-A `fix-docs` read that stays unsettled, or fails 3 times, holds instead of failing: one notice, no
-output and a green job. `fix-docs-dispatch.mjs` dispatches no PR again once a run for it completed,
+A `fix-docs` or `fix-docs-subscription` read that fails, or whose listing does not parse, stops after
+3 failures and holds instead of failing the job: one notice, no output and a green job. A usage error
+or a missing environment variable still fails it, as a failed read still does for every other call.
+`fix-docs-dispatch.mjs` dispatches no PR again once a run for it completed,
 check or not, unless each such run says nothing about the PR: one lost run (`cancelled`, `timed_out`
-or `startup_failure`), or fewer than `limits.limit-stops-per-head` runs that went red or held on that
-read. It tells a held run from a decline by the job conclusions: a leg that handed off, whose handoff
+or `startup_failure`), or fewer than `limits.limit-stops-per-head` runs that went red, held on that
+read or ended on that lag. It tells a held run from a decline by the job conclusions: a leg that handed off, whose handoff
 job succeeded, with no next leg started. These fallback calls
 pass `fallback: handoff`, so the lane record says the key posted no check, not why: only the run
 job, which head code can forge, knows whether it was a credit stop or an empty key.

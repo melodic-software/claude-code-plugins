@@ -4,6 +4,23 @@ The GitHub facts behind the pull-request skill's
 [review venue](../../../../skills/pull-request/reference/review-venue.md). That file owns the rule
 and what each line means; this one says how `scripts/review-venue.sh` reads GitHub.
 
+## Read the setting at the base
+
+`scripts/read-review-venue.sh` takes the base's copy of `docs/conventions/source-control.yaml`
+with the same reads as the pre-ready list
+([Read the pre-ready steps at the base](ready-for-review.md#read-the-pre-ready-steps-at-the-base)):
+the PR's base branch and base repository, the base repository's default branch, and one
+`gh api -i` contents read piped to the reader with `--http-response`. Before the PR exists, take
+the base repository from the remote the PR will target and the base from the branch it will
+target.
+
+```bash
+gh api -i -X GET "repos/$BASE_REPO/contents/docs/conventions/source-control.yaml" \
+  -f ref="$BASE" -H "Accept: application/vnd.github.raw" |
+  bash "<skill-dir>/scripts/read-review-venue.sh" --user "$USER_VENUE" \
+    --base "$BASE" --default-branch "$DEFAULT_BRANCH" --http-response
+```
+
 ## Which workflows are lanes
 
 A lane is a caller workflow whose pull request runs reference one of the org's reusable review

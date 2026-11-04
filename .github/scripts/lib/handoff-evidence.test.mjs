@@ -6,7 +6,7 @@
 // never settles ends in.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
@@ -26,11 +26,12 @@ const BROKER = { name: "fix-docs / broker-check", conclusion: "success", steps: 
 const UNLISTED = { name: "fix-docs / report", conclusion: "success", steps: [] };
 const POSTED = { name: "fix-docs / report", conclusion: "success", steps: [{ name: "Post the check run", conclusion: "success" }] };
 
-// Runs `handoff-evidence.sh posted` with no waits; each answer is [gh -i
-// output, gh exit status]. A call past the last answer gets nothing and exits 1.
-// With `draw` set, shuf answers min(draw, the range's top) and records the
-// range, and sleep only records its argument; delays null leaves the default.
-function run(answers, delays = "0 0 0", { calls = "fix-docs", draw, runnerTemp } = {}) {
+// Runs `handoff-evidence.sh` with no waits, `posted` unless facts says; each
+// answer is [gh -i output, gh exit status]. A call past the last answer gets
+// nothing and exits 1. With `draw` set, shuf answers min(draw, the range's top)
+// and records the range, and sleep only records its argument; delays null leaves
+// the default.
+function run(answers, delays = "0 0 0", { calls = "fix-docs", draw, runnerTemp, env = {}, facts = ["posted"] } = {}) {
   const dir = tempDir("handoff-evidence-");
   try {
     const bin = join(dir, "bin");
@@ -58,7 +59,7 @@ function run(answers, delays = "0 0 0", { calls = "fix-docs", draw, runnerTemp }
     }
     const output = join(dir, "output");
     writeFileSync(output, "");
-    const result = spawnSync("bash", [SCRIPT, "posted"], {
+    const result = spawnSync("bash", [SCRIPT, ...facts], {
       encoding: "utf8",
       env: {
         ...process.env,
@@ -70,6 +71,7 @@ function run(answers, delays = "0 0 0", { calls = "fix-docs", draw, runnerTemp }
         GITHUB_OUTPUT: output,
         CALLS: calls,
         ...(delays === null ? { HANDOFF_EVIDENCE_DELAYS: undefined } : { HANDOFF_EVIDENCE_DELAYS: delays }),
+        ...env,
       },
     });
     const read = (name) => (existsSync(join(dir, name)) ? readFileSync(join(dir, name), "utf8") : "");
@@ -186,12 +188,38 @@ test("pr-refine's fix-docs calls hold green with a notice after three failed rea
   }
 });
 
-test("a listing that stays unsettled holds fix-docs too, after every read: a poll is not a failed read", () => {
-  const out = run(UNSETTLED.slice(0, 6), "0 0 0 0 0");
+test("a listing that stays unsettled is no failed read: fix-docs reads on through every wait, and the opt-in ends it as the lag notice", () => {
+  const out = run(UNSETTLED.slice(0, 6), "0 0 0 0 0", { env: { HANDOFF_EVIDENCE_LAG: "notice" } });
   assert.equal(out.status, 0);
   assert.equal(out.args.length, 6);
-  assert.match(out.stdout, /^::notice title=Handoff evidence hold::.*missing: fix-docs \/ report has no steps listed/m);
+  assert.match(out.stdout, /^::notice::.*after 6 reads: missing: fix-docs \/ report has no steps listed; the outputs stay empty$/m);
   assert.equal(out.output, "");
+});
+
+// HANDOFF_EVIDENCE_LAG decides a last read that got the listing, the CALLS scope
+// one that did not, and the failed-read count runs across the reads between.
+test("a fix-docs call whose lag and failed reads mix ends on what its last read found", () => {
+  const LAG = UNSETTLED[0];
+  const env = { HANDOFF_EVIDENCE_LAG: "notice" };
+  const lagLast = run([LAG, BROKEN, LAG], "0 0", { env });
+  assert.equal(lagLast.status, 0);
+  assert.match(lagLast.stdout, /^::notice::.*after 3 reads: missing: .*; the outputs stay empty$/m);
+  assert.doesNotMatch(lagLast.stdout, /Handoff evidence hold/);
+  const failLast = run([LAG, BROKEN, LAG, BROKEN], "0 0 0", { env });
+  assert.equal(failLast.status, 0);
+  assert.match(failLast.stdout, /^::notice title=Handoff evidence hold::.*after 4 reads: the jobs read failed;/m);
+  const counted = run([BROKEN, LAG, BROKEN, LAG, BROKEN, LAG], "0 0 0 0 0 0", { env });
+  assert.equal(counted.args.length, 5, "the third failed read ends it, with lag reads between");
+  assert.match(counted.stdout, /^::notice title=Handoff evidence hold::.*after 5 reads: the jobs read failed;/m);
+  for (const out of [lagLast, failLast, counted]) {
+    assert.doesNotMatch(out.stdout, /::error::/);
+    assert.equal(out.output, "");
+  }
+  const noOptIn = run([BROKEN, LAG], "0");
+  assert.equal(noOptIn.status, 1, "a last read that got the listing needs the opt-in");
+  assert.match(noOptIn.stdout, /^::error::.*after 2 reads: missing: /m);
+  const settled = run([LAG, BROKEN, [answer("200 OK", {}, listing(POSTED)), 0]], "0 0", { env });
+  assert.equal(settled.output, "posted=true\n");
 });
 
 test("every other caller still fails closed after six failed reads, a list of calls holding fix-docs included", () => {
@@ -219,3 +247,67 @@ test("a rate limit holds fix-docs under the gh wrapper: one request, a notice an
   assert.equal(other.args.length, 1);
   assert.match(other.stderr, /^::error::.*hit GitHub's core API rate limit/m);
 });
+
+const lagged = () => [
+  [answer("200 OK", {}, listing(UNLISTED)), 0],
+  [answer("200 OK", {}, listing(UNLISTED)), 0],
+];
+// The job-level setting a pr-refine.yml job passes the script, read from the
+// job's block in the workflow file; this suite runs with no yaml dependency.
+function refineJobEnv(name) {
+  const blocks = readFileSync(new URL("../../workflows/pr-refine.yml", import.meta.url), "utf8").split(/^(?=  [\w-]+:$)/m);
+  const value = /^ {6}HANDOFF_EVIDENCE_LAG: (\S+)$/m.exec(blocks.find((block) => block.startsWith(`  ${name}:`)))?.[1];
+  return value ? { HANDOFF_EVIDENCE_LAG: value } : {};
+}
+
+// An empty output starts a second leg in pr-unblock.yml, so the opt-in stays on
+// the two jobs whose empty facts start nothing.
+test("only pr-refine.yml's two fix-docs handoff jobs name HANDOFF_EVIDENCE_LAG", () => {
+  const dir = new URL("../../workflows/", import.meta.url);
+  const text = (file) => readFileSync(new URL(file, dir), "utf8");
+  const files = readdirSync(dir).filter((file) => /\.ya?ml$/.test(file) && text(file).includes("HANDOFF_EVIDENCE_LAG"));
+  assert.deepEqual(files, ["pr-refine.yml"]);
+  const blocks = text("pr-refine.yml").split(/^(?=  [\w-]+:$)/m).filter((block) => block.includes("HANDOFF_EVIDENCE_LAG"));
+  assert.deepEqual(blocks.map((block) => /^ {2}([\w-]+):$/m.exec(block)?.[1]), ["fix-docs-handoff", "fix-docs-subscription-handoff"]);
+});
+
+test("a fact still unsettled in a listing that was read fails with no output by default", () => {
+  const out = run(lagged(), "0");
+  assert.equal(out.status, 1);
+  assert.match(out.stdout, /^::error::handoff evidence for fix-docs still missing after 2 reads: missing: fix-docs \/ report has no steps listed$/m);
+  assert.equal(out.output, "");
+});
+
+for (const name of ["fix-docs-handoff", "fix-docs-subscription-handoff"]) {
+  test(`${name}: a listing that lags past the last read ends as a notice with no output`, () => {
+    const out = run(lagged(), "0", { env: refineJobEnv(name) });
+    assert.equal(out.status, 0, out.stdout + out.stderr);
+    assert.match(out.stdout, /^::notice::handoff evidence for fix-docs still missing after 2 reads: missing: fix-docs \/ report has no steps listed; the outputs stay empty$/m);
+    assert.doesNotMatch(out.stdout, /::error::/);
+    assert.equal(out.output, "", "an empty output starts no later leg");
+  });
+
+  // The opt-in names lag alone: a failed read holds through the CALLS scope, and
+  // the opt-in does not green one for any other call.
+  test(`${name}: a read that failed fails under the opt-in outside the fix-docs calls and holds on them; a fact the script does not know still fails`, () => {
+    const env = refineJobEnv(name);
+    const failed = answer("403 Forbidden", {}, { message: "Resource not accessible by integration" });
+    const unread = run([[failed, 1], [failed, 1]], "0", { env, calls: "fix-ci" });
+    assert.equal(unread.status, 1);
+    assert.match(unread.stdout, /^::error::handoff evidence for fix-ci still missing after 2 reads: the jobs read failed$/m);
+    assert.equal(unread.output, "");
+    const notJson = [answer("200 OK", {}).replace(/\r\n$/, "\r\n[1]"), 0];
+    const unparsed = run([notJson, notJson], "0", { env, calls: "fix-ci" });
+    assert.equal(unparsed.status, 1);
+    assert.equal(unparsed.output, "");
+    for (const answers of [[[failed, 1], [failed, 1]], [notJson, notJson]]) {
+      const held = run(answers, "0", { env });
+      assert.equal(held.status, 0);
+      assert.match(held.stdout, /^::notice title=Handoff evidence hold::handoff evidence for fix-docs still missing after 2 reads: the jobs read failed;/m);
+      assert.equal(held.output, "");
+    }
+    const usage = run([], "0", { env, facts: ["nonsense"] });
+    assert.equal(usage.status, 2);
+    assert.match(usage.stdout, /^::error::unknown handoff fact: nonsense$/m);
+  });
+}

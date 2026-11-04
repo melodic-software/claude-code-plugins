@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "A missing goimports is a FAIL. The hook skips the files, and the SessionStart probe reports the absence in every repository where the plugin is enabled."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A missing goimports is a FAIL and the hook skips the files.",
+      "why": "near miss: nothing on the session-start report"
+    },
+    {
+      "answer": "A missing goimports only shows up in this check; nothing else ever tells you.",
+      "why": "false: prerequisites.json declares it, so the session-start probe reports it"
+    }
+  ]
+}

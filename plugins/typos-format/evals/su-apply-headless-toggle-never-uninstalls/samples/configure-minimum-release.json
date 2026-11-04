@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "`plugin configure` needs Claude Code 2.1.285 or later."
+    },
+    {
+      "answer": "That route needs 2.1.285.",
+      "why": "sentence-final period"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It needs a recent release.",
+      "why": "near miss: no number"
+    },
+    {
+      "answer": "It needs 2.1.2850.",
+      "why": "a different number"
+    }
+  ]
+}

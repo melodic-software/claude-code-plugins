@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "No repository configuration is involved: the option is a plugin setting, so there is nothing to add to the repo."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Add a `.goimports` file to the repo with the option in it.",
+      "why": "tells the user to add repository config"
+    },
+    {
+      "answer": "The option decides this.",
+      "why": "near miss: does not answer whether repo config is needed"
+    }
+  ]
+}

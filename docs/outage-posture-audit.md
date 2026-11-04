@@ -381,11 +381,14 @@ A ninth part 2 change fixed pr-refine's script gaps but one, with tests:
   so a listing that lags keeps its five minutes: at most 12 reads and about seven minutes. A
   `fix-docs` call stops after 3 failed reads; other callers keep 6, since pr-unblock starts a second
   model leg on a failed read. The head-SHA read is the workflow's (row below).
-- **pr-refine, element 2.** A `fix-docs` or `fix-docs-subscription` read that stays unknown holds:
-  one `::notice::`, no output, exit 0, and a rate limit's annotation is a notice (the script sets
+- **pr-refine, element 2.** A `fix-docs` or `fix-docs-subscription` read that fails holds: one
+  `::notice::`, no output, exit 0, and a rate limit's annotation is a notice (the script sets
   `API_BUDGET_HOLD=1` for these two calls). The script scopes this by `CALLS`, since a workflow edit
   is out of this lane's reach and every other caller reads a red job or empty output its own way, so
-  they still fail closed.
+  they still fail closed. A listing that lags ends as a notice through the two jobs'
+  `HANDOFF_EVIDENCE_LAG=notice` in `pr-refine.yml`. A hold looks green, so a permanent fault such as
+  a token that cannot read the jobs shows only as notices, and each PR's hold ends with element 3's
+  count.
 - **pr-refine, element 3.** `fix-docs-dispatch.mjs` no longer ends a PR on a red run with no check. It
   dispatches again until `limit-stops-per-head` runs went red or held, which bounds a broker refusal,
   since red names no cause. A held run ends green, so the dispatcher reads a green run's jobs: a leg

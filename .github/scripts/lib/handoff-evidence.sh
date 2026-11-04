@@ -44,12 +44,16 @@
 # Environment: GH_TOKEN, GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_OUTPUT, CALLS.
 # Outputs: one FACT=true|false line per requested fact, and one log line
 # naming them with the read count. A fact still unsettled after the last read:
-#   - fix-docs or fix-docs-subscription, pr-refine.yml's two reads, holds (outage
-#     posture element 2): one ::notice line, no output and exit 0, after at most
-#     3 failed reads (element 1), and a rate limit's annotation is a notice too.
-#     Empty outputs start no next leg, and fix-docs-dispatch.mjs reads a leg that
-#     handed off with no next leg as this hold and dispatches the PR again.
-#   - every other call fails closed: exit 1, one ::error line naming what stayed
+#   - a last read that failed, on fix-docs or fix-docs-subscription, pr-refine.yml's
+#     two reads, holds (outage posture element 2): one ::notice line, no output
+#     and exit 0, after at most 3 failed reads (element 1), and a rate limit's
+#     annotation is a notice too. Empty outputs start no next leg, and
+#     fix-docs-dispatch.mjs reads a leg that handed off with no next leg as this
+#     hold and dispatches the PR again.
+#   - a last read that got the listing, with HANDOFF_EVIDENCE_LAG=notice, set by a
+#     job whose empty outputs start nothing, ends the same way: one ::notice::
+#     line, no output and exit 0.
+#   - anything else fails closed: exit 1, one ::error line naming what stayed
 #     missing and no output, after at most 6 failed reads. Its callers read an
 #     empty output as a failed read; each lane's own job fallbacks depend on it,
 #     pr-unblock's starting its second leg on that read.
@@ -208,7 +212,11 @@ while :; do
   sleep "$delay"
   waited=$((waited + delay))
 done
-if [[ -n $hold ]]; then
+if [[ ${HANDOFF_EVIDENCE_LAG:-} == notice && $missing == missing:* ]]; then
+  echo "::notice::handoff evidence for ${CALLS} still missing after $reads reads: $missing; the outputs stay empty"
+  exit 0
+fi
+if [[ -n $hold && $missing != missing:* ]]; then
   echo "::notice title=Handoff evidence hold::handoff evidence for ${CALLS} still missing after $reads reads: $missing; no fallback starts, and the next dispatcher tick sends the PR again"
   exit 0
 fi

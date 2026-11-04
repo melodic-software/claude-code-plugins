@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "It resolves goimports from PATH only, the same as the hook; there is no .venv-style per-repo lookup."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It looks in the repo's .venv/bin first, then falls back to PATH.",
+      "why": "invents a per-repo lookup"
+    },
+    {
+      "answer": "goimports was found at /usr/local/bin/goimports.",
+      "why": "near miss: says where, not how it resolves"
+    }
+  ]
+}

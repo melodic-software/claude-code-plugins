@@ -8415,6 +8415,8 @@ test("every job that runs or reads untrusted head content has a read-only Action
     "pr-unblock.yml": ["resolve-conflicts-select", "adjudicate-feedback"],
     "maintenance-audit-lane-runs.yml": ["judge", "judge-subscription", "judge-fallback"],
     "eval-browser-dispatch.yml": ["eval"],
+    "eval-hill-climb.yml": ["propose", "scan", "verdict"],
+    "eval-hill-climb-pass.yml": ["pass"],
     "intake-triage.yml": ["refine-issue", "refine-issue-subscription"],
     "pr-review-main.yml": ["review", "review-subscription", "review-fallback"],
     "pr-verify.yml": ["check-intent", "check-intent-subscription", "check-intent-fallback"],

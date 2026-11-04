@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Pick a method at https://github.com/crate-ci/typos#install"
+    },
+    {
+      "answer": "The methods are at https://github.com/crate-ci/typos#install.",
+      "why": "sentence-final period"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "See the typos repository.",
+      "why": "near miss: no link"
+    },
+    {
+      "answer": "https://github.com/crate-ci/typos#install-notes",
+      "why": "another anchor"
+    }
+  ]
+}

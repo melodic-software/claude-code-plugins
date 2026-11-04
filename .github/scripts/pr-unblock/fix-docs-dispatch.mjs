@@ -27,8 +27,9 @@
 // run says nothing about the PR. Those get another dispatch, the next tick
 // being the probe (outage posture element 3):
 //   - one lost run (LOST: cancelled, timed_out or startup_failure);
-//   - fewer than maxRunsPerHead runs that went red, or that held green on a
-//     failed handoff read (heldHandoff, the one green run whose jobs are read).
+//   - fewer than maxRunsPerHead runs that went red, or that ended green on a
+//     failed or lagging handoff read (heldHandoff, the one green run whose jobs
+//     are read).
 //     A red run that posted its check is ended by that check. Red alone names no
 //     cause, a read that failed or a broker that refused, so the count is what
 //     ends a refusal, and an outage past that many runs still ends the PR.
@@ -145,8 +146,8 @@ function historyHasRun(pullRequest) {
   });
 }
 
-// Whether a run held on a failed handoff read (handoff-evidence.sh's hold, which
-// ends the run green): a leg handed off, read from job conclusions as that script
+// Whether a run held on a handoff read (handoff-evidence.sh's hold or lag notice,
+// each of which ends the run green): a leg handed off, read from job conclusions as that script
 // reads them, its handoff job succeeded, and the next leg never started, which
 // pr-refine.yml starts on a handoff that read settled. A scan job skips on the run
 // job's handed-off output, which head code can forge, so the handoff job's own
