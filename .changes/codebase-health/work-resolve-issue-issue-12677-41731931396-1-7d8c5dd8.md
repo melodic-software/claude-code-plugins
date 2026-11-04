@@ -8,4 +8,4 @@ bump: minor
 
 ### Added
 
-- **`medium` option.** A per-user default for the audit's rendered-view offer (default `auto`), passed to the shared medium resolver; the retired `~/.claude/rendered-views.md` notice points at it.
+- **`medium` option.** A per-user default for the audit's rendered-view offer (default `auto`), passed to the shared medium resolver; the retired `~/.claude/rendered-views.md` notice points at it. Its fixed list of values needs Claude Code v2.1.271 or later.
