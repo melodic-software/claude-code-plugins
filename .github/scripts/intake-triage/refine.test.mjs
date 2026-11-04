@@ -8,7 +8,7 @@ import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-t
 
 import { ADMIT_MARKER, refinementExact, refusalText, splitItemsLine, unrunnableCriteria, unrunnableReason, withoutItems } from "./admit.mjs";
 import { MARKER, UNRECORDED, VERDICT_MARKER } from "./apply-verdict.mjs";
-import { DECISION_REPLY, REFINE_MARKER, applyRefinement, bodyVersion, isThin, movedTexts, render, searchTerms, selectRefinement, splitOf, validateOutput } from "./refine.mjs";
+import { DECISION_REPLY, titleLine, REFINE_MARKER, applyRefinement, bodyVersion, isThin, movedTexts, render, searchTerms, selectRefinement, splitOf, validateOutput } from "./refine.mjs";
 
 const HUMAN = 153232337;
 const OUTSIDER = 4242;
@@ -1386,4 +1386,9 @@ describe("an instruction in issue text is not followed", () => {
     assert.ok(!comment.includes("@owner"), "the mention is broken");
     assert.equal(refinementExact(comment), false);
   });
+});
+
+test("a split child's title keeps a Conventional Commits scope unescaped and still breaks mentions and links", () => {
+  assert.equal(titleLine("refactor(source-control)!: drop [old] <x>"), "refactor(source-control)!: drop [old] <x>");
+  assert.equal(titleLine("fix  @owner #12 GH-3\nhttps://www.example.com"), "fix @​owner #​12 GH-​3 https:/​/www​.example.com");
 });
