@@ -6,6 +6,6 @@ git init -q -b main .
 git config user.email eval@example.invalid
 git config user.name eval
 printf '# demo\n' >README.md
-if [ "$#" -gt 0 ]; then printf '%s\n' "$@" >.gitattributes; fi
+if [[ "$#" -gt 0 ]]; then printf '%s\n' "$@" >.gitattributes; fi
 git add .
 git commit -q -m "chore: init"

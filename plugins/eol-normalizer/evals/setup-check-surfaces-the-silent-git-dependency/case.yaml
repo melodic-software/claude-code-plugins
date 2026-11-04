@@ -14,7 +14,7 @@ graders:
     focus: 'last_message'
   - name: 'plugin-installed-registration'
     type: 'regex'
-    pattern: '/plugin(?![\w:/-])[^\n]*\b[Ii]nstalled\b|\b[Ii]nstalled\b[^\n]*/plugin(?![\w:/-])'
+    pattern: '/plugin(?![\w:/-])[^\n]*\b(?:Installed|installed)\b|\b(?:Installed|installed)\b[^\n]*/plugin(?![\w:/-])'
     target: 'last_message'
   - name: 'read-sourced-library'
     type: 'tool_used'
