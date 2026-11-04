@@ -5062,6 +5062,14 @@ hook::bash_parse_segments_shfmt() {
       ((__hu_bsoft)) && return 1
       hook::_bps_refuse
       ;;
+    # shfmt ends a pattern at a `)` whatever its quoting, while bash skips a
+    # quoted one, so a pattern holding a quote or backslash may have been cut
+    # short with a substitution left outside what shfmt reports.
+    *"'"* | *'"'* | *\\*)
+      HOOK_BPS_FAIL="a quote or backslash inside an extglob pattern, where shfmt and bash may end the pattern at different places"
+      ((__hu_bsoft)) && return 1
+      hook::_bps_refuse
+      ;;
     *) ;;
     esac
     printf -v __hu_pk '%q' "$__hu_x"

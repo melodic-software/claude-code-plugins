@@ -435,6 +435,11 @@ hit_print() { printf '%s\n' "$*"; }
   form refused 'echo @($(echo HIT >&2)|)'
   form refused 'echo +(`echo HIT >&2`|)'
   form refused 'echo @(;$(echo HIT >&2))'
+  # shfmt ends a pattern at a `)` whatever its quoting, bash skips a quoted
+  # one: a pattern holding a quote or backslash may hide a substitution.
+  form refused "echo @(x')'\$(echo HIT >&2)) #'"
+  # shellcheck disable=SC2016  # literal backticks in the command under test
+  form refused "echo @(x')'\`echo HIT >&2\`) #'"
   # A `#` or a newline inside a pattern is literal to bash, but a reparse of
   # the pattern as a command would read a comment there: no reparse is trusted.
   form refused 'echo @(#$(echo HIT >&2))'
