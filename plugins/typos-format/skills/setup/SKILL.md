@@ -76,7 +76,7 @@ without Claude Code. Node.js (step 5) is a FAIL either way too.
    Report the resolved path and `typos --version` output when found. FAIL when absent: an agent's
    commit then fails with the install command, and a person's commit passes with a notice.
 3. **Consumer typos config (informational only).** typos resolves its own governing config from
-   each checked path, and the check adds the bundled `config/default-typos.toml` via `typos -c`
+   each checked path, and the check adds the bundled `${CLAUDE_PLUGIN_ROOT}/config/default-typos.toml` via `typos -c`
    (SHA `extend-ignore-re`); `extend-*` keys merge rather than replace. Report whether a
    `typos.toml`, `_typos.toml`, `.typos.toml`, a `Cargo.toml` with
    `[workspace.metadata.typos]`/`[package.metadata.typos]`, or a `pyproject.toml` with
