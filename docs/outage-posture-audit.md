@@ -411,6 +411,28 @@ Two parts of the work-unblock rows stay open, for the reasons in the table:
   in the `wip-state` job, and `work-unblock.yml` says a cache must not reach a job that mints. The
   closed listing's URL also changes every run with its `since`, so its `etag` could not match.
 
+Two parts of the pr-unblock rows stay open, for the reasons in the table:
+
+- **Element 3.** `limit-stops-per-head` is the only bound on a head's `resolve-conflicts` model runs.
+  `dispatch.mjs` passes `failuresRetry`, so a failed run is dispatched again at the next half-hourly
+  tick, and `anyHandles` in `limit-stop.mjs` ends the head at the cap. A failed run's lane record
+  can name a class that follows model turns (`max-turns`), so without the cap a failure that repeats
+  runs the model every tick. A usage limit or a refused credential already waits for its reset, so a
+  credential outage spends the cap over two waits of `fallback-reset`, about 10 hours. An outage past
+  the cap ends the head until a new push, as it ends a PR for `fix-docs-dispatch.mjs`.
+- **Element 4.** `feedback-publish-failed` is the row a job fault files, and it covers causes that
+  need opposite answers, since `pr-unblock.yml` derives it from the reply job's failed result alone.
+  A lane token refused as `workflow-modified`, or one that failed transiently, already has a retry:
+  `sweepRefused` in `feedback-dispatch.mjs` for the first and `refire-refused.mjs` for the second. A
+  script error or another refusal has none: a failed reply check is not one of
+  `feedback-dispatch.mjs`'s `RELEASES`, so it holds the head, and the `lane-stopped` comment that
+  `collect.mjs`'s stalled-stop signal reads is the only report of it. Filing nothing for every cause
+  would make that a silent stall, so filing has to depend on the cause. `tokenRefusal` reads the
+  cause from the run's jobs and annotations, which needs `actions: read` and `checks: read` on the
+  `report-stop-status` and `report-escalation` jobs. An unlisted reason's hold stays: the write
+  runner's reason check refuses such a reason first, so it fires only when that list and
+  `escalation-routes.json` disagree.
+
 The other script rows below are still open. Part 2 also found one row that is not a script-only
 fix: holding intake-triage green on a read error (element 2) needs something to start the lane
 again, since it has no cron.
@@ -432,7 +454,8 @@ again, since it has no cron.
 | pr-verify | 2, 6 | script | `.github/scripts/pr-verify/resolve-pr.mjs`, `check-trusted-trigger.mjs` |
 | pr-verify | 2, 3 | workflow | `.github/workflows/pr-verify.yml` |
 | pr-require-checks | 1, 2, 3, 4, 5, 6 | workflow | `.github/workflows/pr-require-checks.yml` |
-| pr-unblock | 3, 4 | script | `.github/scripts/pr-unblock/limit-stop.mjs`, `escalation-routes.json`; part 2 fixed `report-escalation.sh`'s comment resends, `request-budget.mjs`'s write resends and 6-minute waits, the lane's parallel reads, and the dispatchers' failed reads |
+| pr-unblock | 3 | script | `.github/scripts/pr-unblock/limit-stop.mjs` (dropping the per-head cap needs another bound on model runs); part 2 fixed `report-escalation.sh`'s comment resends, `request-budget.mjs`'s write resends and 6-minute waits, the lane's parallel reads, and the dispatchers' failed reads |
+| pr-unblock | 4 | workflow | `.github/workflows/pr-unblock.yml` (`actions: read` and `checks: read` on the reporting jobs), with `report-escalation.sh` and `escalation-routes.json` filing no fail route when `tokenRefusal` shows a retry will take the head |
 | pr-unblock | 5, 6 | workflow | `.github/workflows/pr-unblock-dispatch.yml`, `pr-feedback-dispatch.yml` |
 | pr-merge | 2, 6 | workflow | `.github/workflows/pr-merge.yml` (listing-full and rate-limit exits, cover-read dispatch, `queue: max`) |
 | pr-merge | 2 | workflow | `.github/workflows/pr-merge.yml:1192`: hold green on a full listing and count it toward the monitor signal, so 1000 or more open pull requests reaches a person the way a held listing does |
