@@ -138,8 +138,8 @@ const unwritable = (error) => error instanceof GitHubError && (error.status === 
 // the run's edges still standing, unwritten the ones it deleted after a miss,
 // undeleted the ones whose delete failed. Any other API error on a read or
 // write stops it.
-export async function writeEdges({ github, repository, number, blockers }) {
-  const { result, ids } = await addEdges({ github, repository, number, blockers });
+export async function writeEdges({ github, repository, number, blockers, log = console.log }) {
+  const { result, ids } = await addEdges({ github, repository, number, blockers, log });
   if (result.missed.length === 0) {
     return result;
   }
@@ -161,7 +161,12 @@ export async function writeEdges({ github, repository, number, blockers }) {
   return result;
 }
 
-async function addEdges({ github, repository, number, blockers }) {
+// GitHub's 422 for an edge whose reverse exists. UNVERIFIED wording: matched on
+// "cycle" or "circular", from an owner's report of the refusal, not a
+// recorded answer.
+const CYCLE = /\b(cycle|circular)/i;
+
+async function addEdges({ github, repository, number, blockers, log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const ids = [];
   const result = { written: [], skipped: [], missed: [], unwritten: [], undeleted: [] };
@@ -229,7 +234,12 @@ async function addEdges({ github, repository, number, blockers }) {
         result.written.push(blocker);
         ids.push({ blocker, id: issue.id });
       } catch (error) {
-        if (error instanceof GitHubError && error.status === 422) {
+        if (error instanceof GitHubError && error.status === 422 && CYCLE.test(`${error.message} ${error.detail ?? ""}`)) {
+          // The reverse edge exists, as when a person reversed an order a
+          // re-triage's verdict still names: skipped, not retried, not failed.
+          log(`::notice title=apply-verdict::blocked-by edge not written: #${number} blocked by #${blocker}, GitHub refused it as a cycle (the reverse edge exists)`);
+          skip(blocker, "GitHub refused it as a cycle");
+        } else if (error instanceof GitHubError && error.status === 422) {
           // A resend refused because the first copy landed: the edge is this
           // run's, so a later miss deletes it with the rest.
           let landed = false;
