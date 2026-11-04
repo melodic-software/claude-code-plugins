@@ -23,6 +23,10 @@
 // repository, a deleted author), so a caller's fail-closed test sees the gap rather than
 // a default. Author login and type keep the REST shape the trust test matches: a GraphQL
 // Bot login gains the `[bot]` suffix REST reports, and type is the GraphQL typename.
+//
+// Each issue also carries `milestone` (its title or null) and `cordoned`: true when that
+// title is in `cordoned-milestones` in RULES_PATH on the repository's default branch. A
+// repository without that file cordons nothing; any other failed read of it exits 3.
 
 import { spawnSync } from "node:child_process";
 import process from "node:process";
@@ -30,18 +34,21 @@ import { parseArgs } from "node:util";
 
 const REPO = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
 const TIMEOUT_MS = 120_000;
+const RULES_PATH = ".github/actions/resolve-config/admission-rules.json";
 
 function fail(code, reason) {
   process.stderr.write(`lane-snapshot: ${reason}\n`);
   process.exit(code);
 }
 
-function ghJson(args, label) {
+// `ifNotFound`, when given, is returned for an HTTP 404 instead of failing the read.
+function ghJson(args, label, ifNotFound) {
   const run = spawnSync("gh", ["api", ...args], {
     encoding: "utf8",
     timeout: TIMEOUT_MS,
     maxBuffer: 256 * 1024 * 1024,
   });
+  if (ifNotFound !== undefined && run.status !== 0 && run.stderr?.includes("HTTP 404")) return ifNotFound;
   if (run.error || run.status !== 0) {
     const detail = (run.error?.message ?? run.stderr ?? "").trim().slice(0, 300);
     fail(3, `${label} read failed (exit ${run.status ?? "none"}): ${detail}`);
@@ -57,7 +64,7 @@ const LABELS = "labels(first: 100) { totalCount nodes { name } }";
 const AUTHOR = "author { __typename login }";
 const FIELDS = {
   pullRequests: `number title isDraft ${LABELS} headRefOid updatedAt isCrossRepository headRepositoryOwner { login } authorAssociation ${AUTHOR}`,
-  issues: `number title ${LABELS} updatedAt authorAssociation ${AUTHOR}`,
+  issues: `number title ${LABELS} milestone { title } updatedAt authorAssociation ${AUTHOR}`,
 };
 
 // Every open node of one connection, oldest first, through `--paginate --slurp` (one
@@ -116,6 +123,10 @@ if (!REPO.test(repo) || repo.split("/").some((part) => /^\.+$/.test(part)))
 const meta = ghJson([`repos/${repo}`], "repository");
 if (typeof meta?.has_issues !== "boolean") fail(3, "repository read carried no has_issues");
 
+const rules = ghJson(["-H", "Accept: application/vnd.github.raw", `repos/${repo}/contents/${RULES_PATH}`], "admission rules", {});
+const cordoned = rules?.["cordoned-milestones"] ?? [];
+if (!Array.isArray(cordoned)) fail(3, "admission rules carried a cordoned-milestones that is not a list");
+
 // One read of both lists. With issues disabled there is no issue list to read.
 function readLists() {
   const pulls = listAll("pullRequests", "open pull requests");
@@ -144,6 +155,8 @@ const issues = read.issues.map((issue) => ({
   number: issue.number,
   title: issue.title,
   labels: labels(issue),
+  milestone: issue.milestone?.title ?? null,
+  cordoned: cordoned.includes(issue.milestone?.title),
   updatedAt: issue.updatedAt ?? null,
   authorAssociation: issue.authorAssociation ?? null,
   author: author(issue.author),

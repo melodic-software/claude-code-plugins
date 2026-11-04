@@ -5,6 +5,18 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [19.0.0] - 2026-11-04
+
+Major: a loop-layer invariant changes (§4).
+
+- **The phase's zero and drain exits exclude cordoned milestones (§2, §4).** An issue in a milestone
+  named by `cordoned-milestones` in `admission-rules.json` does not hold the throughput phase or a
+  drain open, and a repository without that file cordons nothing. `/source-control:babysit-loop`
+  reads this from its snapshot. `/work-items:work-loop` applies it only once the tracker seam's rows
+  carry a milestone (#13252).
+- **Usage-credit consent is stated by launch shape (§3).** The known gap named every unattended lane;
+  it now separates CI lanes from local `claude --bg` lanes, with its own upstream record.
+
 ## [18.0.0] - 2026-11-04
 
 Major: the escalation contract changes (§2).

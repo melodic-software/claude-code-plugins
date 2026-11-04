@@ -481,6 +481,15 @@ The loop never works, closes, or waits on them; an open telemetry issue is the l
 backlog, and an open container is lane infrastructure for the same reason, not unresolved backlog
 blocking drain exit.
 
+Cordoned items never gate a drain exit, ordinary or terminal: an open item whose row carries a
+`milestone` listed in `cordoned-milestones` is dropped from the exit evaluation. Those names live
+only in `.github/actions/resolve-config/admission-rules.json` on the target's default branch, read
+through the forge's contents read; no such file means no cordoned milestones, and any other failed
+read is a failed snapshot read ([reference/snapshot-reads.md](reference/snapshot-reads.md)). A row
+with no `milestone` field counts, and the seam's rows carry none today
+([`CONTRACT.md`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md), "JSON output contract"),
+so until they do an open cordoned item still holds a drain open.
+
 ## Next
 
 `/work-items:attend-queue` for the escalations that wait.
