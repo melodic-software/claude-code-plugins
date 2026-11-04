@@ -77,6 +77,94 @@ ALLOWED = {
     ),
 }
 
+GUIDE = "docs/guide.md"
+RUNG_LINE = "Rung 2 opens the page."
+OVERLAY_LINE = "The overlay layers on the shipped defaults."
+TIER_LINE = "The tier overrides the default."
+SURFACE_LINE = "The surface reads settings.json."
+
+
+def phrase(sense: str, regex: str, line: str):
+    return (sense, "phrase", regex, GUIDE, line)
+
+
+def path(sense: str, glob: str, file: str, line: str):
+    return (sense, "path", glob, file, line)
+
+
+# Every allowlist entry in the data file, each with one line that a rule of
+# its sense matches and that the entry keeps: (sense, kind, value, path, line).
+# Deleting or renaming an entry fails test_the_table_names_every_allowlist_entry,
+# and a new entry needs a row here.
+ALLOWLIST = [
+    phrase("rung", r"\bautonomy (ladder|rungs?)\b", "The autonomy ladder rung for a page stays."),
+    path("rung", "plugins/autonomy/**", "plugins/autonomy/README.md", RUNG_LINE),
+    phrase("rung", r"\benforcement[- ]ladder\b", "The enforcement ladder's rung for a page stays."),
+    path("rung", "docs/contracts/enforcement-ladder/**", "docs/contracts/enforcement-ladder/v1.md", RUNG_LINE),
+    path("rung", "docs/conventions/enforcement-ladder/**", "docs/conventions/enforcement-ladder/README.md", RUNG_LINE),
+    path("rung", "**/enforcement-ladder.md", "docs/enforcement-ladder.md", RUNG_LINE),
+    phrase("rung", r"\bresolution ladder\b", "The resolution ladder's rung for a page stays."),
+    path("rung", "plugins/toolchain/**", "plugins/toolchain/README.md", RUNG_LINE),
+    phrase("rung", r"\bmethod[- ]ladder\b", "The method ladder's rung for a page stays."),
+    path("rung", "plugins/github/reference/method-ladder.md", "plugins/github/reference/method-ladder.md", RUNG_LINE),
+    phrase("rung", r"\b(loop[- ]lane|pr[- ]pipeline)\b.*\brungs?\b", "The loop-lane rung for a page stays."),
+    path("rung", "docs/contracts/loop-lane/**", "docs/contracts/loop-lane/v1.md", RUNG_LINE),
+    path("rung", "docs/conventions/loop-lane/**", "docs/conventions/loop-lane/README.md", RUNG_LINE),
+    path("rung", "docs/conventions/pr-pipeline/**", "docs/conventions/pr-pipeline/README.md", RUNG_LINE),
+    path("rung", "plugins/session-flow/skills/find-handoff/**", "plugins/session-flow/skills/find-handoff/SKILL.md", RUNG_LINE),
+    phrase("rung", r"\b(explanation rungs?|rungs? of explanation)\b", "The explanation rung sits above the page."),
+    phrase("rung", r"\bcandidate ladder\b", "The candidate ladder's rung for a page stays."),
+    path("rung", "plugins/session-flow/skills/recommend-skills/**", "plugins/session-flow/skills/recommend-skills/SKILL.md", RUNG_LINE),
+    phrase("default-ladder", r"\bautonomy\b", "The autonomy default ladder starts at observe."),
+    phrase("default-ladder", r"\benforcement[- ]ladder\b", "The enforcement ladder is the default ladder here."),
+    phrase("default-ladder", r"\bresolution ladder\b", "The resolution ladder's default ladder tries npm first."),
+    phrase("default-ladder", r"\bmethod[- ]ladder\b", "The method ladder's default ladder tries gh first."),
+    phrase("default-ladder", r"\bcandidate ladder\b", "The candidate ladder's default ladder ranks skills first."),
+    phrase("overlay", r"\bpolicy[- ]overlays?\b", "The policy overlay layers on the shipped defaults."),
+    phrase("overlay", r"\bcatalog[- ]?overlays?\b", "The catalog overlay layers on the shipped catalog."),
+    path("overlay", "plugins/machine-health/skills/**", "plugins/machine-health/skills/check/SKILL.md", OVERLAY_LINE),
+    path("overlay", "plugins/machine-health/README.md", "plugins/machine-health/README.md", OVERLAY_LINE),
+    path("overlay", "plugins/user-interface/skills/**", "plugins/user-interface/skills/x/SKILL.md", OVERLAY_LINE),
+    path("overlay", "plugins/user-interface/reference/**", "plugins/user-interface/reference/x.md", OVERLAY_LINE),
+    path("overlay", "plugins/user-interface/evals/**", "plugins/user-interface/evals/x.md", OVERLAY_LINE),
+    path("overlay", "plugins/planning/shared/web/**", "plugins/planning/shared/web/page.css", OVERLAY_LINE),
+    path("overlay", "plugins/playwright/skills/**", "plugins/playwright/skills/x/SKILL.md", OVERLAY_LINE),
+    path("overlay", "plugins/animation/skills/**", "plugins/animation/skills/x/SKILL.md", OVERLAY_LINE),
+    path("overlay", "plugins/pixel-art/reference/**", "plugins/pixel-art/reference/x.md", OVERLAY_LINE),
+    path("overlay", "plugins/pixel-art/skills/**", "plugins/pixel-art/skills/x/SKILL.md", OVERLAY_LINE),
+    phrase("overlay", r"\bbrand[- ]overlays?\b", "The brand overlay layers on the slide."),
+    path("overlay", "plugins/ai-briefing/skills/generate/output/**", "plugins/ai-briefing/skills/generate/output/brief.md", OVERLAY_LINE),
+    path("overlay", "plugins/gaming/**", "plugins/gaming/README.md", OVERLAY_LINE),
+    path("overlay", "plugins/songwriting/skills/**", "plugins/songwriting/skills/x/SKILL.md", OVERLAY_LINE),
+    phrase("overlay", r"\bagentic[- ]overlays?\b", "The agentic overlay layers on the harness."),
+    path("overlay", "plugins/testing/skills/audit/evals/judge-calibration/**", "plugins/testing/skills/audit/evals/judge-calibration/case.md", OVERLAY_LINE),
+    phrase("overlay", r"\b(css|ui|video|image|visual|modal)[- ]overlays?\b", "The modal overlay layers on the page."),
+    phrase("tier-precedence", r"\bview tiers?\b", "The view tier overrides the page default."),
+    phrase("tier-precedence", r"\b(static|client-interactive|animated|claude-interactive) tiers?\b", "The static tier overrides the page default."),
+    phrase("tier-precedence", r"\benforcement[- ]ladder\b", "The enforcement ladder tier overrides the default."),
+    path("tier-precedence", "docs/contracts/enforcement-ladder/**", "docs/contracts/enforcement-ladder/v1.md", TIER_LINE),
+    path("tier-precedence", "docs/conventions/enforcement-ladder/**", "docs/conventions/enforcement-ladder/README.md", TIER_LINE),
+    path("tier-precedence", "**/enforcement-ladder.md", "docs/enforcement-ladder.md", TIER_LINE),
+    phrase("tier-precedence", r"\bmemory[- ]tiers?\b", "The memory tier overrides the default."),
+    phrase("tier-precedence", r"\b(model|strong|frontier|capability|cheap|fast)[- ]tiers?\b", "The model tier overrides the default."),
+    phrase("surface-config", r"\binterview surfaces?\b", "The interview surface reads settings.json."),
+    phrase("surface-config", r"\b(terminal|shared session)\b", "The terminal surface reads settings.json."),
+    path("surface-config", "plugins/planning/surface/**", "plugins/planning/surface/README.md", SURFACE_LINE),
+    phrase("surface-config", r"\bplanning/surface\b", "The planning/surface code reads settings.json."),
+    phrase(
+        "surface-config",
+        r"\b(skills?|commands?)\b.*\bsurfaces?\b|\bsurfaces?\b.*\b(skills?|commands?)\b",
+        "Each surface reads its skills from settings.json.",
+    ),
+    phrase("surface-config", r"\bemitting surfaces?\b", "The emitting surface reads settings.json."),
+    phrase(
+        "contract-brief",
+        r"\bdocs/contracts\b|\bcontracts/[\w-]+|\bversioned contracts?\b",
+        "The Brief cites docs/contracts/loop-lane.",
+    ),
+    phrase("contract-brief", r"\binterface contracts?\b", "The Brief names an interface contract."),
+]
+
 
 def run_gate(files: dict, *args: str):
     with tempfile.TemporaryDirectory() as tmp:
@@ -137,6 +225,32 @@ class EachSense(unittest.TestCase):
     def test_a_line_outside_the_sense_context_is_not_reported(self):
         code, out, _ = run_gate({"docs/guide.md": "Each rung up costs more tokens."})
         self.assertEqual((code, out), (0, ""))
+
+
+class EachAllowlistEntry(unittest.TestCase):
+    def test_the_table_names_every_allowlist_entry(self):
+        data = json.loads(DATA.read_text(encoding="utf-8"))
+        shipped = sorted(
+            (sense["id"], kind, entry[kind])
+            for sense in data["senses"]
+            for entry in sense.get("allow", [])
+            for kind in ("path", "phrase")
+            if kind in entry
+        )
+        tabled = sorted((sense, kind, value) for sense, kind, value, _, _ in ALLOWLIST)
+        self.assertEqual(tabled, shipped)
+
+    def test_each_entry_keeps_its_line(self):
+        for sense, kind, value, file, line in ALLOWLIST:
+            with self.subTest(sense=sense, entry=value):
+                self.assertTrue(rules_match(sense, line), "the rule must match the line")
+                if kind == "phrase":
+                    self.assertTrue(re.search(value, line, re.I), "the phrase must match the line")
+                else:
+                    code, out, err = run_gate({GUIDE: line}, "--sense", sense)
+                    self.assertEqual(code, 1, "the line must be reported outside the path")
+                code, out, err = run_gate({file: line})
+                self.assertEqual((code, out), (0, ""), err)
 
 
 class Paths(unittest.TestCase):
