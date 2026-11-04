@@ -293,7 +293,7 @@ import { notBornTriaged } from "../../actions/check-born-triaged/check-born-tria
 import { createGitHub, isTrustedClose as closedByHumanOrMerge, loadTrustedList, paginate, readRerunner } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
-import { clampReset, isLaneBranch, LANE_HOLDS, LANE_WORKFLOWS, parseOutcomeMarker, REFIRED, refireComment as refireRecord, refsHoldMarker, stripQueueLabels } from "../work-resolve-issue/report-outcome.mjs";
+import { clampReset, isLaneBranch, LANE_HOLDS, LANE_WORKFLOWS, parseOutcomeMarker, REFIRED, refireComment as refireRecord, refsHoldMarker, stripQueueLabels, stripStateLabels } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip, resolveStrandedBackoff, STRANDED_BACKOFF_MAX } from "../work-resolve-issue/limits.mjs";
 import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorAdmitted, attendedHold, blockersOf, CONFIRMED, confirmedOnly, decide, deferralLapsed, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, SIZE_SPLIT_DONE, SPLIT_PENDING, specOf, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 import { subIssueLeftOpen } from "../lib/done-evidence.mjs";
@@ -920,8 +920,8 @@ async function stripClosed({ github, repo, number, read }) {
       console.log(`label-unblocked: #${number} is a post-merge fix issue; its queue labels stay`);
       return 0;
     }
-    const removed = await stripQueueLabels(github, base, labelNames(issue));
-    console.log(`label-unblocked: #${number} closed; removed ${removed.length} queue label(s)${removed.length > 0 ? `: ${removed.join(", ")}` : ""}`);
+    const removed = [...(await stripQueueLabels(github, base, labelNames(issue))), ...(await stripStateLabels(github, base, labelNames(issue)))];
+    console.log(`label-unblocked: #${number} closed; removed ${removed.length} queue and state label(s)${removed.length > 0 ? `: ${removed.join(", ")}` : ""}`);
     return 0;
   } catch (error) {
     reportError(number, error);
@@ -2205,7 +2205,8 @@ async function closeDoneParent({ github, repo, parent, humans, closes, bot, mirr
   // before the close: a failed removal leaves the parent open.
   const removed = await stripQueueLabels(github, base, labelNames(parent));
   await github("PATCH", base, { state: "closed", state_reason: "completed" });
-  console.log(`label-unblocked: split parent #${parent.number} closed as completed; removed ${removed.length} queue label(s)`);
+  const states = await stripStateLabels(github, base, labelNames(parent));
+  console.log(`label-unblocked: split parent #${parent.number} closed as completed; removed ${removed.length} queue label(s) and ${states.length} state label(s)`);
 }
 
 // Takes status: confirmed off `parent` (an open issue as read, with its

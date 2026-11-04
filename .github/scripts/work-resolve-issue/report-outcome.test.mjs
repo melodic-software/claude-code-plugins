@@ -4809,6 +4809,18 @@ test("main's close removes the queue labels the issue carries, before the close 
   assert.deepEqual(labelWrites(gone.calls), ["DELETE /labels/status%3A%20ready", "DELETE /labels/agent-ready", "PATCH "]);
 });
 
+// The state labels come off only after the close, so a failed close never
+// leaves an open issue without its state; attended stays.
+test("main's close removes the state labels after the close and keeps attended", async () => {
+  const run = await stopRun({
+    reason: "report-delivered: the audit found three stale rows",
+    routes: [],
+    issue: withLabels("status: confirmed", "host-run", "attended", "agent-ready"),
+  });
+  assert.equal(run.code, 0);
+  assert.deepEqual(labelWrites(run.calls), ["DELETE /labels/agent-ready", "PATCH ", "DELETE /labels/status%3A%20confirmed", "DELETE /labels/host-run"]);
+});
+
 // A label DELETE is idempotent, so a 5xx is resent (three tries in all); one
 // that keeps failing fails the run before the close: the issue stays open with
 // agent-ready, for work-unblock's sweep.

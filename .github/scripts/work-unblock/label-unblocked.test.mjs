@@ -260,7 +260,7 @@ function world({
     if (method === "POST" && (match = route.match(/\/issues\/(\d+)\/labels$/))) {
       return [];
     }
-    if (method === "DELETE" && route.match(/\/issues\/(\d+)\/labels\/(agent-ready|needs-human|admission-deferred|status%3A%20ready|status%3A%20confirmed)$/)) {
+    if (method === "DELETE" && route.match(/\/issues\/(\d+)\/labels\/(agent-ready|needs-human|admission-deferred|status%3A%20ready|status%3A%20confirmed|status%3A%20needs-decision|status%3A%20needs-info|host-run)$/)) {
       return [];
     }
     const lookup = (number) =>
@@ -415,6 +415,18 @@ test("a closed issue loses the queue labels it carries, agent-ready last, and ke
   const deferred = closedSelf(["admission-deferred", "status: ready"]);
   assert.equal(await main({ env: envFor(), github: deferred.github }), 0);
   assert.deepEqual(writes(deferred.calls), [unlabeled("status: ready"), unlabeled("admission-deferred")]);
+});
+
+test("a closed issue also loses its state labels, after the queue labels, and keeps attended", async () => {
+  const { github, calls } = closedSelf(["status: confirmed", "host-run", "attended", "agent-ready", "status: needs-decision", "status: needs-info"]);
+  assert.equal(await main({ env: envFor(), github }), 0);
+  assert.deepEqual(writes(calls), [
+    unlabeled("agent-ready"),
+    unlabeled("status: confirmed"),
+    unlabeled("status: needs-decision"),
+    unlabeled("status: needs-info"),
+    unlabeled("host-run"),
+  ]);
 });
 
 test("a closed issue with no queue label gets no write", async () => {
