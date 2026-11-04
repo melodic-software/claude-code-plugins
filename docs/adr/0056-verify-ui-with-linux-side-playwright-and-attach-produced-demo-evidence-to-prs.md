@@ -237,10 +237,12 @@ in `melodic-software/claude-code-plugins` Actions.
   in the [settings reference](https://code.claude.com/docs/en/settings-reference). As of:
   2026-10-11. Recheck trigger: a Claude Code release that exposes sandbox network options to eval
   runs.
-- **`CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` breaks every eval Bash call.** With it set, a one-command
-  `echo` case fails with
-  `bwrap: Can't create file at <tmp>/home/cwd/.eval-artifacts: Read-only file system`; with it `0`, the same case runs (runs 38114987035 and 38118268413). Observed on the
-  versions above and not filed upstream.
+- **`CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` breaks eval Bash calls when `TMPDIR` is under `/tmp`.** With
+  both set, a one-command `echo` case fails with
+  `bwrap: Can't create file at <tmp>/home/cwd/.eval-artifacts: Read-only file system`; with it `0`, the same case runs (runs 38114987035 and 38118268413). With `TMPDIR` moved out of
+  `/tmp`, [a CI run](https://github.com/melodic-software/claude-code-plugins/actions/runs/41706844559)
+  scored a `Bash,Write` case 1.00 with the scrub on. Observed on the versions above and not filed
+  upstream.
 
 Consequences: a measured browser eval needs an MCP-driven harness
 ([#7137](https://github.com/melodic-software/claude-code-plugins/issues/7137)). The rubric's tool
