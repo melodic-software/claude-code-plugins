@@ -63,6 +63,17 @@ test("a red summary names the failed cases or the suite that did not run in one 
   assert.match(summarize, /elif \[ ! -e "\$annotation" \]; then\n\s+echo "::error title=Plugin eval did not run%3A [^\n]*::The result could not be read\."/);
 });
 
+test("a dispatched run writes the validity verdict's last line and the noise report into its uploaded results", () => {
+  const summarize = step("Summarize the results");
+  assert.match(summarize, /DISPATCHED: \$\{\{ github\.event_name == 'workflow_dispatch' \}\}\n/);
+  assert.match(summarize, /RUNS: \$\{\{ inputs\.runs \}\}\n/);
+  assert.match(summarize, /if \[ "\$DISPATCHED" = true \]; then\n\s+validity=\$\(python3 \.base\/plugins\/evals\/skills\/plugin-eval\/scripts\/run-validity\.py "\$results" --runs "\$RUNS" --scaffolded\) \|\| true\n/);
+  // Only the last line leaves the runner: run-validity's detail lines can quote a trace.
+  assert.match(summarize, /printf '%s\\n' "\$validity" \| tail -n 1 >"\$OUT\/\$name\/validity\.txt"\n/);
+  assert.match(summarize, /noise-report\.py "\$results" >"\$OUT\/\$name\/noise\.txt"/);
+  assert.doesNotMatch(summarize, /\$validity"? >/);
+});
+
 test("a pull request run redacts its summary and uploads no results", () => {
   assert.match(step("Summarize the results"), /REDACT: \$\{\{ github\.event_name == 'pull_request' && '--redact' \|\| '' \}\}/);
   assert.match(step("Summarize the results"), /summarize\.mjs "\$results" --plugin "\$name" "\$\{redact\[@\]\}"/);
