@@ -212,6 +212,26 @@ describe("earlier reviews and blocking only", () => {
     assert.equal(collect({ threads: [], reviews: [], comments: [summary(v1, 1)], lane: LANE, head: edited, diff }).findings[0].posted, v1);
   });
 
+  test("a partial read with an inline finding is still not a whole review of its head", () => {
+    // publish.cjs posts a review whenever there is an inline finding, so a
+    // partial first read leaves a lane thread and a review on v1 beside its
+    // `read 3 of 18` summary; the summary decides for v1.
+    const partialSummary = {
+      url: "u",
+      lastEditedAt: null,
+      author: BOT,
+      body: `<!-- claude-lane-reviewed-head lane=${LANE} sha=${v1} -->\n**${LANE}** reviewed \`${v1}\`: read 3 of 18 changed file(s); 1 finding(s), 1 as inline comments.`,
+    };
+    const review = { url: "u", body: `**${LANE}**: 1 inline finding(s) on \`${v1}\`.\n\nclaude-lane: ${LANE}`, lastEditedAt: null, author: BOT, commit: { oid: v1 } };
+    const result = (comments) => collect({ threads: [thread(BOT)], reviews: [review], comments, lane: LANE, head: edited, diff }).reviewed;
+    assert.equal(result([partialSummary]), 0);
+    // The same thread and review with no partial summary still count v1.
+    assert.equal(result([]), 1);
+    // A skip's comment on v1 reports no read, so it does not mark v1 partial.
+    const skip = { ...partialSummary, body: `<!-- claude-lane-reviewed-head lane=${LANE} sha=${v1} -->\n**${LANE}** needs no new review of \`${v1}\`: no file in scope changed.` };
+    assert.equal(result([skip]), 1);
+  });
+
   test("render states blocking only once the lane reviewed an earlier head", () => {
     assert.match(render({ lane: LANE, findings: [], reviewed: 0, more: false }), /^- blocking only: no$/mu);
     assert.match(render({ lane: LANE, findings: [], reviewed: 1, more: false }), /^- blocking only: yes$/mu);

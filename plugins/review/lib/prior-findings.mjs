@@ -86,8 +86,8 @@ export function isLanePost(post, lane) {
 // review, as ci-workflows publish-review/publish.cjs writes them: the marker,
 // an optional reviewed-base line, then `**<lane>** reviewed `<sha>`: read N of
 // M changed file(s); K finding(s), ...`. Only N equal to M is a whole review:
-// a partial read leaves files no review saw. A skip's "needs no new review"
-// line reports none.
+// a partial read (N below M) leaves files no review saw. A skip's "needs no new
+// review" line reports neither.
 function reviewedHead(body, lane) {
   const lines = nonBlank(body);
   const sha = marker(lane).exec(lines[0] ?? "")?.[1];
@@ -96,7 +96,7 @@ function reviewedHead(body, lane) {
   const read = new RegExp(`^\\*\\*${lane}\\*\\* reviewed \`${sha}\`: read (\\d+) of (\\d+) changed file\\(s\\); \\d+ finding\\(s\\)`, "u").exec(
     status ?? "",
   );
-  return { sha, reviewed: read !== null && read[1] === read[2] };
+  return { sha, reviewed: read !== null && read[1] === read[2], partial: read !== null && read[1] !== read[2] };
 }
 
 // Whether `git diff -U0 <posted> <head>` output changes any line in
@@ -141,11 +141,14 @@ function judge(thread, posted, head, diff) {
 // on it: an inline thread, a review (publish.cjs posts one only with inline
 // findings), or a reviewed-head comment whose status line reports a review,
 // with or without findings. A skip's comment is not a review, and a rerun's
-// own posts on the head under review do not count.
+// own posts on the head under review do not count. A head whose reviewed-head
+// comment reports a partial read never counts, even with an inline thread or
+// review on it: those mean only that the partial read found something.
 // `diff(from, to, path)` returns `git diff -U0` text and throws on failure.
 export function collect({ threads, reviews, comments, lane, head, diff }) {
   const findings = [];
   const heads = new Set();
+  const partial = new Set();
   const reviewedAt = (posted) => {
     if (SHA.test(posted) && posted !== head) heads.add(posted);
   };
@@ -171,13 +174,14 @@ export function collect({ threads, reviews, comments, lane, head, diff }) {
       if (!isLanePost(post, lane)) continue;
       const summary = source === "comment" ? reviewedHead(post.body, lane) : null;
       const posted = String((summary ? summary.sha : post.commit?.oid) ?? "");
+      if (summary?.partial) partial.add(posted);
       if (source === "review" || summary?.reviewed) reviewedAt(posted);
       const body = stripFooter(post.body, lane);
       if (!body) continue;
       findings.push({ source, path: null, posted, url: post.url, body, lines: null, changed: "yes (no line anchor)" });
     }
   }
-  return { findings, reviewed: heads.size };
+  return { findings, reviewed: [...heads].filter((h) => !partial.has(h)).length };
 }
 
 const cap = (text) => (text.length > MAX_BODY ? `${text.slice(0, MAX_BODY)}\n[truncated]` : text);
