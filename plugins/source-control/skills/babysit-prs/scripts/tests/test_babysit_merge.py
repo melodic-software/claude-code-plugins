@@ -2352,7 +2352,7 @@ class RepoPolicyReachesTheGate(unittest.TestCase):
         self.assertEqual((code, result["ready"]), (0, True), result["blockers"])
 
         RepoConfigFake(
-            {"owner/repo": "## babysit_merge_block_labels\n- repo-veto\n"}
+            {"owner/repo": "babysit_merge_block_labels:\n  - repo-veto\n"}
         ).install(self)
         code, result = self._run_real_gate("owner/repo#1", labeled, *self.TIER_FLAGS)
         self.assertEqual((code, result["ready"]), (10, False))
@@ -2361,8 +2361,8 @@ class RepoPolicyReachesTheGate(unittest.TestCase):
     def test_two_repositories_get_different_effective_holds(self) -> None:
         RepoConfigFake(
             {
-                "owner/a": "## babysit_merge_block_labels\n- hold-a\n",
-                "owner/b": "## babysit_merge_block_labels\n- hold-b\n",
+                "owner/a": "babysit_merge_block_labels:\n  - hold-a\n",
+                "owner/b": "babysit_merge_block_labels:\n  - hold-b\n",
             }
         ).install(self)
         pr = _pr(labels=[{"name": "hold-a"}])
@@ -2373,7 +2373,7 @@ class RepoPolicyReachesTheGate(unittest.TestCase):
 
     def test_repo_block_label_is_add_only(self) -> None:
         RepoConfigFake(
-            {"owner/repo": "## babysit_merge_block_labels\n- repo-veto\n"}
+            {"owner/repo": "babysit_merge_block_labels:\n  - repo-veto\n"}
         ).install(self)
         code, result = self._run_real_gate(
             "owner/repo#1",
@@ -2389,7 +2389,7 @@ class RepoPolicyReachesTheGate(unittest.TestCase):
         flags = self.TIER_FLAGS[:-2]
         self.assertNotIn("--block-labels", flags)
         RepoConfigFake(
-            {"owner/repo": "## babysit_merge_block_labels\n- repo-veto\n"}
+            {"owner/repo": "babysit_merge_block_labels:\n  - repo-veto\n"}
         ).install(self)
         code, held = self._run_real_gate(
             "owner/repo#1", _pr(labels=[{"name": "repo-veto"}]), *flags
@@ -2419,7 +2419,7 @@ class RepoPolicyReachesTheGate(unittest.TestCase):
         RepoConfigFake(
             {
                 "owner/repo": (
-                    "## babysit_extra_dependency_manager_logins\n- Repo-Dep[bot]\n"
+                    "babysit_extra_dependency_manager_logins:\n  - Repo-Dep[bot]\n"
                 )
             }
         ).install(self)
@@ -2455,18 +2455,16 @@ class RepoPolicyReachesTheGate(unittest.TestCase):
         evaluate.assert_not_called()
 
     def test_invalid_repo_file_refuses_a_merge_run(self) -> None:
-        RepoConfigFake(
-            {"owner/repo": "## babysit_merge_method\nfast-forward\n"}
-        ).install(self)
+        RepoConfigFake({"owner/repo": "babysit_merge_method: fast-forward\n"}).install(
+            self
+        )
         code, result, _ = self._run_stubbed_gate("--merge", "--expected-head", HEAD)
         self.assertEqual(code, 2)
         self.assertIn("babysit_merge_method", result["error"])
         self.assertFalse(result.get("merged", False))
 
     def test_repo_merge_method_wins_over_the_flag(self) -> None:
-        RepoConfigFake({"owner/repo": "## babysit_merge_method\nrebase\n"}).install(
-            self
-        )
+        RepoConfigFake({"owner/repo": "babysit_merge_method: rebase\n"}).install(self)
         code, _, method = self._run_stubbed_gate(
             "--merge", "--expected-head", HEAD, "--method", "squash"
         )
@@ -2481,9 +2479,7 @@ class RepoPolicyReachesTheGate(unittest.TestCase):
         method.assert_called_once_with("owner/repo", "merge")
 
     def test_auto_refuses_a_repo_method_other_than_squash(self) -> None:
-        RepoConfigFake({"owner/repo": "## babysit_merge_method\nrebase\n"}).install(
-            self
-        )
+        RepoConfigFake({"owner/repo": "babysit_merge_method: rebase\n"}).install(self)
         code, result, method = self._run_stubbed_gate(
             "--merge", "--expected-head", HEAD, "--auto"
         )
@@ -2494,9 +2490,7 @@ class RepoPolicyReachesTheGate(unittest.TestCase):
     def test_auto_with_a_non_squash_flag_is_judged_on_the_effective_method(
         self,
     ) -> None:
-        RepoConfigFake({"owner/repo": "## babysit_merge_method\nsquash\n"}).install(
-            self
-        )
+        RepoConfigFake({"owner/repo": "babysit_merge_method: squash\n"}).install(self)
         code, result, method = self._run_stubbed_gate(
             "--merge", "--expected-head", HEAD, "--auto", "--method", "merge"
         )

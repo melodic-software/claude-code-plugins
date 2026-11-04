@@ -1126,11 +1126,9 @@ the rules that only tighten in
   claude-review or a lower security one, is listed in the reasons and does not hold.
 - **Review evidence.** For each review lane, the newest run of the lane's caller workflow on the
   pinned head SHA concluded success and carries the lane's completion record for that SHA.
-- **Effective rung.** The lowest of `merge.rung`, the `babysit_loop_merge` key (with no
-  `.claude/source-control.md`, the value in `docs/conventions/source-control.yaml`, `off` when it
-  sets none; while the legacy file exists, the lower of the two files, a legacy file without the key
-  means `off` and a YAML without it leaves the legacy value; either file the wrapper cannot read or
-  trust means `off`), the cap variable, and `off` while any demotion issue holds.
+- **Effective rung.** The lowest of `merge.rung`, the `babysit_loop_merge` key (the value in
+  `docs/conventions/source-control.yaml`, `off` when it sets none or the wrapper cannot read or
+  trust the file), the cap variable, and `off` while any demotion issue holds.
 - **Cap variable.** `CLAUDE_LANES_MERGE_RUNG_CAP` (`off`, `merge` or `merge-reviewed`, or the
   aliases `C2` and `C3`) is a repository variable
   only a human sets, and it can only lower the rung. The wrapper never writes it, and the identity
@@ -1285,7 +1283,7 @@ the rules that only tighten in
     `**/.claude-lane/**` whole (settings, hooks and the scripts settings registers, skills, agents,
     commands, rules, output styles and memory, under owner decision Q11, which supersedes the
     2026-10-22 direction for rules), `docs/conventions/source-control.yaml` (the babysit loop's
-    team layer, trusted bot logins included, read before `.claude/source-control.md`),
+    team layer, trusted bot logins included),
     `docs/conventions/instruction-exception-register/**` and
     `docs/conventions/untrusted-content/**` (the security review's criteria), `**/.mcp.json`, `**/CLAUDE.md`, `**/CLAUDE.local.md`,
     `**/AGENTS.md`, `REVIEW.md` and `docs/standards/**`. On a pull

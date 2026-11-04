@@ -67,6 +67,25 @@ write_layer() {
   printf '{"schema": %s, "file_names": %s}\n' "$schema" "$2" >"$1"
 }
 
+# shellcheck source=../lib/layer-yaml.sh
+. "$SCRIPT_DIR/../lib/layer-yaml.sh"
+
+write_yaml() {
+  # write_yaml <path> <content>
+  mkdir -p "$(dirname "$1")"
+  printf '%s\n' "$2" >"$1"
+}
+
+# write_team <root> <file_names-json>, write_overlay likewise: the YAML layers
+# under the default convention home, rendered from the same JSON a case states.
+write_team() {
+  write_yaml "$1/docs/conventions/docs-naming.yaml" "$(layer_yaml_render "$2")"
+}
+
+write_overlay() {
+  write_yaml "$1/docs/conventions/docs-naming.local.yaml" "$(layer_yaml_render "$2")"
+}
+
 resolve() {
   # resolve <root> [extra args...]
   r="$1"
@@ -90,12 +109,12 @@ assert_eq "no layers: every key is provenance bundled" "" "$(layers "$root" | gr
 
 # 2. The team layer supplies a nearest-wins key whole.
 root="$(new_root)"
-write_layer "$root/.claude/docs-naming.json" '{"regex": "^team$"}'
+write_team "$root" '{"regex": "^team$"}'
 assert_eq "team layer: regex overrides the default" "^team$" "$(resolve "$root" | jq -r '.file_names.regex')"
 assert_contains "team layer: provenance names it" "$(layers "$root")" "regex	bundled,team"
 
 # 3. The overlay beats the team layer on a nearest-wins key.
-write_layer "$root/.claude/docs-naming.local.json" '{"regex": "^overlay$"}'
+write_overlay "$root" '{"regex": "^overlay$"}'
 assert_eq "overlay: nearest wins on regex" "^overlay$" "$(resolve "$root" | jq -r '.file_names.regex')"
 
 # 3b. And the team layer beats the USER-GLOBAL one, because the team layer is
@@ -103,7 +122,7 @@ assert_eq "overlay: nearest wins on regex" "^overlay$" "$(resolve "$root" | jq -
 #     case that keeps the two from being collapsed into one loop again: a
 #     machine-wide rule must never decide what a repository enforces.
 root="$(new_root)"
-write_layer "$root/.claude/docs-naming.json" '{"rule": "team-rule", "regex": "^team$"}'
+write_team "$root" '{"rule": "team-rule", "regex": "^team$"}'
 write_layer "$(home_of "$root")/.claude/docs-naming.json" '{"rule": "user-rule", "regex": "^user$"}'
 assert_eq "team beats user-global on rule" "team-rule" "$(resolve "$root" | jq -r '.file_names.rule')"
 assert_eq "team beats user-global on regex" "^team$" "$(resolve "$root" | jq -r '.file_names.regex')"
@@ -112,8 +131,8 @@ assert_contains "provenance lists both, team last" "$(layers "$root")" "rule	bun
 # 4. On an additive key the team layer REPLACES the bundled default, and a
 #    personal layer only adds to what the team decided.
 root="$(new_root)"
-write_layer "$root/.claude/docs-naming.json" '{"sweep_exclude": ["docs/frozen/**"]}'
-write_layer "$root/.claude/docs-naming.local.json" '{"sweep_exclude": ["docs/mine/**"]}'
+write_team "$root" '{"sweep_exclude": ["docs/frozen/**"]}'
+write_overlay "$root" '{"sweep_exclude": ["docs/mine/**"]}'
 out="$(resolve "$root" | jq -c '.file_names.sweep_exclude')"
 assert_contains "additive: the team entry survives the overlay" "$out" '"docs/frozen/**"'
 assert_contains "additive: the overlay entry is added" "$out" '"docs/mine/**"'
@@ -121,7 +140,7 @@ assert_lacks "additive: the team layer replaced the bundled default" "$out" '".w
 
 # 4b. With no team layer, a personal layer adds to the bundled default.
 root="$(new_root)"
-write_layer "$root/.claude/docs-naming.local.json" '{"sweep_exclude": ["docs/mine/**"]}'
+write_overlay "$root" '{"sweep_exclude": ["docs/mine/**"]}'
 out="$(resolve "$root" | jq -c '.file_names.sweep_exclude')"
 assert_contains "additive: the bundled default survives a personal addition" "$out" '".work/**"'
 assert_contains "additive: the personal entry is added to it" "$out" '"docs/mine/**"'
@@ -129,13 +148,13 @@ assert_contains "additive: the personal entry is added to it" "$out" '"docs/mine
 # 5. A personal layer cannot shrink a policy-floor list: an overlay `tiers` that
 #    omits the frozen released tier still resolves with it present.
 root="$(new_root)"
-write_layer "$root/.claude/docs-naming.local.json" '{"tiers": [{"name": "mine", "paths": ["docs/x/**"], "forms": "all"}]}'
+write_overlay "$root" '{"tiers": [{"name": "mine", "paths": ["docs/x/**"], "forms": "all"}]}'
 names="$(resolve "$root" | jq -r '.file_names.tiers[].name' | sort | tr '\n' ' ')"
 assert_eq "policy floor: the overlay adds a tier and removes none" "historical mine released " "$names"
 
 # 6. `generated` is team-layer only: an overlay declaration is inert.
 root="$(new_root)"
-write_layer "$root/.claude/docs-naming.local.json" '{"generated": [{"path": "x", "regenerate": "rm -rf /"}]}'
+write_overlay "$root" '{"generated": [{"path": "x", "regenerate": "rm -rf /"}]}'
 out="$(resolve "$root" | jq -c '.file_names.generated')"
 assert_eq "team-only: the overlay regenerator is ignored" "[]" "$out"
 assert_contains "team-only: the overlay declaration is reported inert" "$(layers "$root")" "!inert:generated	overlay"
@@ -148,28 +167,35 @@ assert_contains "team-only: the user-global declaration is reported inert" "$(la
 
 # 8. A team layer DOES supply `generated`.
 root="$(new_root)"
-write_layer "$root/.claude/docs-naming.json" '{"generated": [{"path": "build/out.json", "regenerate": "make out"}]}'
+write_team "$root" '{"generated": [{"path": "build/out.json", "regenerate": "make out"}]}'
 assert_eq "team layer supplies the regenerator" "build/out.json" "$(resolve "$root" | jq -r '.file_names.generated[0].path')"
 
-# 9. Malformed JSON is fatal and names the file.
+# 9. A malformed user-global JSON layer is fatal and names the file.
 root="$(new_root)"
-printf '{not json' >"$root/.claude/docs-naming.json"
+mkdir -p "$(home_of "$root")/.claude"
+printf '{not json' >"$(home_of "$root")/.claude/docs-naming.json"
 err="$(resolve "$root" 2>&1 >/dev/null)"
-assert_eq "malformed team layer exits 2" "2" "$(
+assert_eq "malformed user-global layer exits 2" "2" "$(
   resolve "$root" >/dev/null 2>&1
   printf '%s' "$?"
 )"
-assert_contains "malformed team layer is named" "$err" "docs-naming.json"
+assert_contains "malformed user-global layer is named" "$err" "$(home_of "$root")/.claude/docs-naming.json"
 
-# 10. A missing schema is fatal.
+# 9b. A malformed team JSON at the old location is not read, so it fails nothing.
 root="$(new_root)"
-printf '{"file_names": {"rule": "lower-kebab"}}\n' >"$root/.claude/docs-naming.json"
+printf '{not json' >"$root/.claude/docs-naming.json"
+assert_eq "an old team JSON, even malformed, is ignored" "lower-kebab" "$(resolve "$root" 2>/dev/null | jq -r '.file_names.rule')"
+
+# 10. A user-global layer with no schema is fatal.
+root="$(new_root)"
+mkdir -p "$(home_of "$root")/.claude"
+printf '{"file_names": {"rule": "lower-kebab"}}\n' >"$(home_of "$root")/.claude/docs-naming.json"
 err="$(resolve "$root" 2>&1 >/dev/null)"
 assert_contains "missing schema is refused" "$err" "schema 'missing'"
 
 # 11. An unknown schema is fatal.
 root="$(new_root)"
-write_layer "$root/.claude/docs-naming.json" '{"rule": "lower-kebab"}' 99
+write_layer "$(home_of "$root")/.claude/docs-naming.json" '{"rule": "lower-kebab"}' 99
 err="$(resolve "$root" 2>&1 >/dev/null)"
 assert_contains "unknown schema is refused" "$err" "schema '99'"
 
@@ -183,7 +209,7 @@ mkdir -p "$root/bin"
   printf '"$REAL" "$@" | sed "s/$/\\r/"\n'
 } >"$root/bin/jq"
 chmod +x "$root/bin/jq"
-write_layer "$root/.claude/docs-naming.json" '{"regex": "^crlf$"}'
+write_team "$root" '{"regex": "^crlf$"}'
 out="$(PATH="$root/bin:$PATH" resolve "$root" | jq -r '.file_names.regex')"
 assert_eq "CRLF jq: the resolved regex carries no carriage return" "^crlf$" "$out"
 
@@ -203,9 +229,10 @@ assert_eq "a missing --root directory exits 2" "2" "$(
 
 # 14. `paths` reports each layer's location and presence.
 root="$(new_root)"
-write_layer "$root/.claude/docs-naming.json" '{}'
+write_team "$root" '{"rule": "lower-kebab"}'
 out="$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")")"
-assert_contains "paths: the pre-YAML team layer is deprecated" "$out" "team	$root/.claude/docs-naming.json	deprecated"
+assert_contains "paths: the team YAML is present" "$out" "team	$root/docs/conventions/docs-naming.yaml	present"
+assert_contains "paths: the user-global layer is absent" "$out" "user-global	$(home_of "$root")/.claude/docs-naming.json	absent"
 assert_contains "paths: the overlay is absent, at its YAML path" "$out" "overlay	$root/docs/conventions/docs-naming.local.yaml	absent"
 
 # 15. With no --root the resolver takes the git toplevel of the working
@@ -215,14 +242,14 @@ git init -q "$root" >/dev/null 2>&1
 git -C "$root" config user.email fixture@example.invalid
 git -C "$root" config user.name "Fixture"
 git -C "$root" config commit.gpgsign false
-write_layer "$root/.claude/docs-naming.json" '{"regex": "^from-cwd$"}'
+write_team "$root" '{"regex": "^from-cwd$"}'
 out="$(cd "$root" && HOME="$(home_of "$root")" bash "$SUT" resolve | jq -r '.file_names.regex')"
 assert_eq "no --root: the git toplevel of the cwd supplies the team layer" "^from-cwd$" "$out"
 
 # Every tier entry carries the layer that contributed it, which is what lets a
 # consumer hold the policy floor per file rather than per key.
 root="$(new_root)"
-write_layer "$root/.claude/docs-naming.json" \
+write_team "$root" \
   '{"tiers": [{"name": "t-team", "paths": ["docs/a/**"], "forms": "none"}]}'
 write_layer "$(home_of "$root")/.claude/docs-naming.json" \
   '{"tiers": [{"name": "t-personal", "paths": ["docs/a/deep/**"], "forms": "all"}]}'
@@ -250,10 +277,9 @@ assert_contains "home root: paths marks the overlay not-applicable" "$out" "over
 
 # An ancestor of the home is a home root too.
 parent="$TEST_TMPDIR/hroot"
-mkdir -p "$parent/.claude"
-write_layer "$parent/.claude/docs-naming.json" '{"rule": "ancestor-rule"}'
+write_team "$parent" '{"rule": "ancestor-rule"}'
 out="$(bash "$SUT" resolve --root "$parent" --home "$home")"
-assert_eq "an ancestor of the home is a home root: its .claude is not the team layer" "home-rule" "$(printf '%s' "$out" | jq -r '.file_names.rule')"
+assert_eq "an ancestor of the home is a home root: its YAML is not the team layer" "home-rule" "$(printf '%s' "$out" | jq -r '.file_names.rule')"
 
 # A git repository at the home directory is still a home root.
 git init -q "$home" >/dev/null 2>&1
@@ -262,58 +288,47 @@ assert_contains "a git repository at the home is still a home root" "$out" "team
 
 # A directory that is not a git working tree has no team or overlay layer.
 plain="$TEST_TMPDIR/plain"
-mkdir -p "$plain/.claude" "$TEST_TMPDIR/plainhome"
-write_layer "$plain/.claude/docs-naming.json" '{"rule": "plain-team"}'
-write_layer "$plain/.claude/docs-naming.local.json" '{"rule": "plain-overlay"}'
+mkdir -p "$TEST_TMPDIR/plainhome"
+write_team "$plain" '{"rule": "plain-team"}'
+write_overlay "$plain" '{"rule": "plain-overlay"}'
 out="$(bash "$SUT" resolve --root "$plain" --home "$TEST_TMPDIR/plainhome")"
 assert_eq "a non-repo root: the bundled rule stands" "lower-kebab" "$(printf '%s' "$out" | jq -r '.file_names.rule')"
 out="$(bash "$SUT" paths --root "$plain" --home "$TEST_TMPDIR/plainhome")"
 assert_contains "a non-repo root: paths marks team not-applicable" "$out" "team	-	not-applicable: non-repo root"
 
-# A repository whose team file is the user-global file (a symlinked .claude) reads
-# it once.
+# The retired docs-hygiene name of the user-global file is read when the
+# docs-naming file is absent, with a stderr WARN on `resolve` and the state
+# `legacy` on `paths`; the new name wins whenever it exists.
 root="$(new_root)"
-rm -rf "$root/.claude"
-ln -s "$(home_of "$root")/.claude" "$root/.claude" 2>/dev/null || true
-if [[ -L "$root/.claude" ]]; then
-  write_layer "$(home_of "$root")/.claude/docs-naming.json" '{"rule": "shared-rule"}'
-  out="$(bash "$SUT" layers --root "$root" --home "$(home_of "$root")")"
-  assert_contains "a team path that is the user-global file: read once" "$out" "rule	bundled,user-global
-"
-  out="$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")")"
-  assert_contains "a team path that is the user-global file: paths says so" "$out" "team	-	same file as the user-global layer"
-fi
+write_layer "$(home_of "$root")/.claude/docs-hygiene.json" '{"regex": "^retired$"}'
+out="$(resolve "$root" 2>"$TEST_TMPDIR/err")"
+err="$(cat "$TEST_TMPDIR/err")"
+assert_eq "retired name: the user-global layer is still read" "^retired$" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
+assert_contains "retired name: resolve warns and names the file" "$err" "WARN: reading $(home_of "$root")/.claude/docs-hygiene.json, the retired name; rename it to $(home_of "$root")/.claude/docs-naming.json"
+out="$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")")"
+assert_contains "retired name: paths reports the user-global layer as legacy" "$out" "user-global	$(home_of "$root")/.claude/docs-hygiene.json	legacy"
+assert_eq "retired name: layers stays quiet on stderr" "" "$(layers "$root" 2>&1 >/dev/null)"
+write_layer "$(home_of "$root")/.claude/docs-naming.json" '{"regex": "^current$"}'
+out="$(resolve "$root" 2>"$TEST_TMPDIR/err")"
+assert_eq "retired name: the new name wins when both exist" "^current$" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
+assert_lacks "retired name: no warning once the new-name file exists" "$(cat "$TEST_TMPDIR/err")" "docs-hygiene.json"
 
-# The retired docs-hygiene name is read when the docs-naming file is absent, with
-# a stderr WARN on `resolve` and the state `legacy` on `paths`; the new name wins
-# whenever it exists.
+# The team and overlay files at the retired docs-hygiene name are not read at
+# all, and resolve says nothing about them.
 root="$(new_root)"
 write_layer "$root/.claude/docs-hygiene.json" '{"regex": "^retired$"}'
 write_layer "$root/.claude/docs-hygiene.local.json" '{"exempt_paths": ["docs/retired/**"]}'
 out="$(resolve "$root" 2>"$TEST_TMPDIR/err")"
-err="$(cat "$TEST_TMPDIR/err")"
-assert_eq "retired name: the team layer is still read" "^retired$" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
-assert_contains "retired name: the overlay is still read" "$(printf '%s' "$out" | jq -c '.file_names.exempt_paths')" '"docs/retired/**"'
-assert_contains "retired name: resolve warns and names the file" "$err" "WARN: reading $root/.claude/docs-hygiene.json, the retired name; rename it to $root/.claude/docs-naming.json"
-assert_contains "retired name: the overlay is named too" "$err" "$root/.claude/docs-naming.local.json"
+assert_eq "retired team name: not read" "$(jq -r '.file_names.regex' "$SCRIPT_DIR/../skills/setup/templates/docs-naming.json")" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
+assert_lacks "retired overlay name: not read" "$(printf '%s' "$out" | jq -c '.file_names.exempt_paths')" "docs/retired/**"
+assert_eq "retired team name: resolve is quiet on stderr" "" "$(cat "$TEST_TMPDIR/err")"
 out="$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")")"
-assert_contains "retired name: paths reports the team layer as legacy" "$out" "team	$root/.claude/docs-hygiene.json	legacy"
-assert_eq "retired name: layers stays quiet on stderr" "" "$(layers "$root" 2>&1 >/dev/null)"
-write_layer "$root/.claude/docs-naming.json" '{"regex": "^current$"}'
-out="$(resolve "$root" 2>"$TEST_TMPDIR/err")"
-assert_eq "retired name: the new name wins when both exist" "^current$" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
-assert_lacks "retired name: no warning for a layer that has a new-name file" "$(cat "$TEST_TMPDIR/err")" "docs-hygiene.json"
+assert_contains "retired team name: paths reports the team YAML absent" "$out" "team	$root/docs/conventions/docs-naming.yaml	absent"
 
 # --- the YAML layers under the convention home --------------------------------
 
 new_repo() {
   new_root
-}
-
-write_yaml() {
-  # write_yaml <path> <content>
-  mkdir -p "$(dirname "$1")"
-  printf '%s\n' "$2" >"$1"
 }
 
 # The team YAML supplies a nearest-wins key, and the resolver names the layer.
@@ -327,7 +342,7 @@ out="$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")")"
 assert_contains "yaml team layer: paths names the file and says present" "$out" "team	$root/docs/conventions/docs-naming.yaml	present"
 assert_eq "yaml team layer: resolve is quiet on stderr" "" "$(resolve "$root" 2>&1 >/dev/null)"
 
-# The YAML wins when both it and the pre-YAML file exist, and the two are never merged.
+# An old team JSON beside the YAML adds nothing to it.
 root="$(new_repo)"
 write_layer "$root/.claude/docs-naming.json" '{"regex": "^old$", "sweep_exclude": ["docs/old/**"]}'
 write_yaml "$root/docs/conventions/docs-naming.yaml" 'regex: "^new$"'
@@ -338,18 +353,18 @@ assert_eq "both exist: no warning, the JSON is not read" "" "$(cat "$TEST_TMPDIR
 out="$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")")"
 assert_contains "both exist: paths reports the YAML" "$out" "team	$root/docs/conventions/docs-naming.yaml	present"
 
-# The pre-YAML location is read when the YAML is absent, and paths says so.
+# With no YAML, the old team and overlay JSON files are not read either.
 root="$(new_repo)"
 write_layer "$root/.claude/docs-naming.json" '{"regex": "^old$"}'
 write_layer "$root/.claude/docs-naming.local.json" '{"sweep_exclude": ["docs/mine/**"]}'
 out="$(resolve "$root" 2>"$TEST_TMPDIR/err")"
-assert_eq "no YAML: the old team layer is read" "^old$" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
-assert_contains "no YAML: the old overlay is read" "$(printf '%s' "$out" | jq -c '.file_names.sweep_exclude')" '"docs/mine/**"'
+assert_eq "no YAML: the old team JSON is not read" "$(jq -r '.file_names.regex' "$SCRIPT_DIR/../skills/setup/templates/docs-naming.json")" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
+assert_lacks "no YAML: the old overlay JSON is not read" "$(printf '%s' "$out" | jq -c '.file_names.sweep_exclude')" "docs/mine/**"
 assert_eq "no YAML: resolve stays quiet on stderr, which skill scripts pass through" "" "$(cat "$TEST_TMPDIR/err")"
 pout="$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")")"
-assert_contains "no YAML: paths reports the team layer as deprecated" "$pout" "team	$root/.claude/docs-naming.json	deprecated"
-assert_contains "no YAML: paths reports the overlay as deprecated" "$pout" "overlay	$root/.claude/docs-naming.local.json	deprecated"
-assert_contains "no YAML: provenance still names the team layer" "$(layers "$root")" "regex	bundled,team"
+assert_contains "no YAML: paths reports the team YAML absent" "$pout" "team	$root/docs/conventions/docs-naming.yaml	absent"
+assert_contains "no YAML: paths reports the overlay YAML absent" "$pout" "overlay	$root/docs/conventions/docs-naming.local.yaml	absent"
+assert_eq "no YAML: every key stays bundled" "" "$(layers "$root" | grep -v 'bundled$' || true)"
 
 # The resolver names the layer that supplied each value, across all three layers.
 root="$(new_repo)"
@@ -397,7 +412,7 @@ assert_eq "yaml: a regenerator with quotes survives" "bash gen.sh --flag 'a b' >
 assert_eq "yaml: a nested list survives" "generated_on" "$(printf '%s' "$out" | jq -r '.file_names.generated[0].churn[0]')"
 assert_eq "yaml: redirect_map null is JSON null" "null" "$(printf '%s' "$out" | jq -c '.file_names.redirect_map')"
 
-# The overlay YAML is held to the same policy floor as the JSON overlay.
+# A hand-written overlay YAML is held to the policy floor too.
 root="$(new_repo)"
 write_yaml "$root/docs/conventions/docs-naming.local.yaml" 'generated:
   - path: "x"

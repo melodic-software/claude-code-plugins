@@ -22,8 +22,7 @@
 #
 # The babysit_loop_* keys are the /source-control:babysit-loop lane's repository policy: a standing
 # lane at the worker tier, merge authority up to the c2-mechanical rung, and a 30-minute activity
-# grace window. Landing them here is the lane's tracked adoption. .claude/source-control.md keeps
-# the same four values until the cleanup slice deletes it; change both while it exists.
+# grace window. Landing them here is the lane's tracked adoption.
 pr_open_state: ready
 # sync_stale_base: push-branch.sh merges the base into a branch behind it on paths
 # scripts/check-stale-base-overlap.sh calls overlapping, just before the push, so a push that

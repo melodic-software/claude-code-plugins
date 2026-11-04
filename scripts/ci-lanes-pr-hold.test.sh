@@ -447,7 +447,7 @@ fi
 config_step="$(step_of "Check out the base commit's hold config")"
 config_sparse="$(awk '/sparse-checkout: \|/ { on = 1; next } on && /^            \// { print substr($0, 13); next } on { exit }' <<<"$config_step")"
 config_missing=()
-for path in /docs/conventions/pr-pipeline.yaml /docs/conventions/source-control.yaml /.claude/source-control.md; do
+for path in /docs/conventions/pr-pipeline.yaml /docs/conventions/source-control.yaml; do
   grep -qxF -- "$path" <<<"$config_sparse" || config_missing+=("$path")
 done
 if ((${#config_missing[@]} == 0)); then

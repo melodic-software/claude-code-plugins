@@ -12,6 +12,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT="$SCRIPT_DIR/sweep.sh"
 INVENTORY="$SCRIPT_DIR/inventory.sh"
 BUILD="$SCRIPT_DIR/fixtures/build-fixture.sh"
+EDIT_CONFIG="$SCRIPT_DIR/fixtures/edit-config.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
@@ -231,9 +232,7 @@ assert_contains "a personal tier still claims a file no team tier covers" "$adds
 # --- per-site exclusions -----------------------------------------------------
 
 root3="$(new_fixture)"
-jq '.file_names.sweep_exclude_sites = ["README.md:forge URL"]' \
-  "$root3/.claude/docs-naming.json" >"$root3/.claude/t.json"
-mv "$root3/.claude/t.json" "$root3/.claude/docs-naming.json"
+bash "$EDIT_CONFIG" "$root3" '.file_names.sweep_exclude_sites = ["README.md:forge URL"]'
 excl="$(bash "$SUT" --root "$root3" --pairs "$TEST_TMPDIR/pairs.tsv" | view)"
 assert_contains "a per-site exclusion is reported as skipped" "$excl" "README.md:github-url:current:skip"
 assert_contains "its neighbors on other lines are unaffected" "$excl" "README.md:md-link:current:edit"

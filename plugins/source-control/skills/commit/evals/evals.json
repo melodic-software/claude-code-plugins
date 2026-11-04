@@ -144,9 +144,9 @@
     {
       "id": 12,
       "name": "untracked-team-config-file-is-not-a-layer",
-      "prompt": "There's a .claude/source-control.md in my repo declaring a ticket-prefix subject_pattern, but it's gitignored and was never committed. Commit the staged change.",
+      "prompt": "There's a docs/conventions/source-control.yaml in my repo declaring a ticket-prefix subject_pattern, but it's gitignored and was never committed. Commit the staged change.",
       "expected_output": "The untracked file is NOT treated as the tracked-team config layer — resolution requires that layer to be git-tracked, checked via git ls-files --error-unmatch rather than an on-disk existence test. The convention therefore falls through to the next ladder rung (project convention, then Conventional Commits), and the skill says which rung it resolved and why the file was skipped.",
-      "files": [".claude/source-control.md"],
+      "files": ["docs/conventions/source-control.yaml"],
       "expectations": [
         "Does not adopt the ticket-prefix pattern from the untracked file",
         "Checks tracked-ness rather than mere file existence",

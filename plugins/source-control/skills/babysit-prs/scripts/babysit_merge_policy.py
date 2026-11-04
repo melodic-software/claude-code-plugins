@@ -102,7 +102,6 @@ NOT_ASSESSED = "not-assessed"
 
 CONFIG_PATH = "docs/conventions/pr-pipeline.yaml"
 FLOOR_PATHS_KEY = "merge.diff-check.floor-paths"
-SOURCE_CONTROL_PATH = repo_config.CONFIG_PATH
 LOOP_MERGE_KEY = "babysit_loop_merge"
 # The largest `merge.max-in-flight` the gate takes, as the schema's maximum:
 # over twice the 11 the sizing formula gives for the day recorded in
@@ -875,37 +874,6 @@ def _file_at(owner: str, name: str, path: str, sha: str) -> str | None:
         raise PolicyReadError(f"{path} at {sha} is unreadable: {exc}") from exc
 
 
-def _loop_merge(text: str) -> tuple[str | None, bool]:
-    """(the one `## babysit_loop_merge` value or None when the file has no
-    such H2, whether the file can be trusted: False for a file the
-    repository-config parser rejects, two such H2s or an empty one)."""
-    try:
-        repo_config.parse_repo_config(text)
-    except repo_config.RepoConfigError:
-        return None, False
-    values: list[str] = []
-    current: list[str] | None = None
-    in_fence = False
-    for raw in text.removeprefix("﻿").replace("\r\n", "\n").split("\n"):
-        if repo_config.FENCE_RE.match(raw):
-            in_fence = not in_fence
-            continue
-        heading = None if in_fence else repo_config.HEADING_RE.match(raw)
-        if heading:
-            current = None
-            if (
-                raw.startswith(repo_config.H2_PREFIX)
-                and heading.group(1) == LOOP_MERGE_KEY
-            ):
-                current = []
-                values.append("")
-        elif current is not None and raw.strip() and not values[-1]:
-            values[-1] = raw.strip().strip("`").strip()
-    if not values:
-        return None, True
-    return (values[0], True) if len(values) == 1 and values[0] else (None, False)
-
-
 def _team_loop_merge(text: str) -> tuple[str | None, str | None]:
     """(`babysit_loop_merge` from the team YAML or None when it sets none,
     a note when the file cannot be trusted). A file the shared reader
@@ -927,20 +895,9 @@ def _team_loop_merge(text: str) -> tuple[str | None, str | None]:
 def _resolve_loop_merge(
     file_at: Callable[[str, str], str | None], base_sha: str, notes: list[str]
 ) -> str | None:
-    """`babysit_loop_merge` at `base_sha`. With no legacy file the YAML value
-    sets the rung by itself, and None (off) when it sets none. While the
-    legacy file exists it must set the key, else None (off), so a raise needs
-    both files; the result is the lower of the two, or the legacy value when
-    the YAML sets none. Either file unreadable or untrustworthy yields None
-    (off), never the other file's value alone."""
-    try:
-        source = file_at(SOURCE_CONTROL_PATH, base_sha)
-    except PolicyReadError as exc:
-        notes.append(f"{SOURCE_CONTROL_PATH} unreadable: {exc}")
-        return None
-    legacy, trusted = _loop_merge(source) if source is not None else (None, True)
-    if not trusted:
-        return None
+    """`babysit_loop_merge` from the team YAML at `base_sha`, or None (off)
+    when it sets none. A YAML that is unreadable or untrustworthy yields None
+    (off) with a note. The retired `.claude/source-control.md` is not read."""
     try:
         team_text = file_at(repo_config.YAML_CONFIG_PATH, base_sha)
     except PolicyReadError as exc:
@@ -950,11 +907,7 @@ def _resolve_loop_merge(
     if note:
         notes.append(note)
         return None
-    if source is None:
-        return team
-    if legacy is None or team is None:
-        return legacy
-    return min(team, legacy, key=lambda v: RUNG_RANK[LOOP_MERGE_RUNG.get(v, "off")])
+    return team
 
 
 def read_config_at(
@@ -963,8 +916,7 @@ def read_config_at(
     file_at: Callable[[str, str], str | None] | None = None,
 ) -> PipelineConfig:
     """`merge:` from `docs/conventions/pr-pipeline.yaml` and `babysit_loop_merge`
-    (`_resolve_loop_merge`: `docs/conventions/source-control.yaml` alone when
-    `.claude/source-control.md` is absent, else the lower of the two), all read
+    (`_resolve_loop_merge`: `docs/conventions/source-control.yaml`), all read
     at `base_sha` through
     `file_at(path, sha)` (text, or None when absent), by default a local clone
     holding `base_sha` (`_clones_holding`), else a checkout of `base_sha`

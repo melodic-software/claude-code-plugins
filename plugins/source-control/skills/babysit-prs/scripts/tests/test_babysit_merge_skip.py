@@ -783,7 +783,8 @@ class FilterThenRecordEndToEnd(unittest.TestCase):
         inputs = skip.main_inputs(self.base)
         self.assertEqual(set(inputs), set(skip.MAIN_PATHS))
         self.assertRegex(inputs["docs/conventions/pr-pipeline.yaml"], r"^[0-9a-f]{40}$")
-        self.assertEqual(inputs[".claude/source-control.md"], "absent")
+        self.assertEqual(inputs["docs/conventions/source-control.yaml"], "absent")
+        self.assertNotIn(".claude/source-control.md", inputs)
 
 
 class TheReaderListingRaisesOnAFailedRead(unittest.TestCase):
