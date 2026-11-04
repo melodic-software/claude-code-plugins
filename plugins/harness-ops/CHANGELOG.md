@@ -3,6 +3,35 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.4.7] - 2026-11-04
+
+### Fixed
+
+- `lane-launcher.test.sh`: the no-claude PATH reaches `jq` through a wrapper instead of adding jq's
+  directory, so the cases hold on a host that keeps `claude` beside `jq`.
+- `session-event-log.test.sh`: every run clears an inherited `TRACEPARENT`, so the mod-environment
+  parity cases hold inside a traced session.
+- `/harness-ops:audit-performance` eval: the disabled-on-disk case expects `/reload-plugins` or a
+  restart, as the stale-session advisory now says.
+- `/harness-ops:audit-performance`: the stale-session advisory says permissions and hooks edits
+  reach a running session, and claims a pending change only for a plugin enable or disable.
+- `audit_skill_visibility.py`: the `enabledPlugins` merge record names the `--add-dir` source it
+  leaves out.
+- `/harness-ops:plugins` gotchas: the `marketplace remove` record keeps the bundle as the basis for
+  the settings cleanup the docs do not state.
+
+- `/harness-ops:plugins` references: `marketplace remove`'s flag and data-cleanup records follow the
+  current CLI reference and `--help`, the uninstall option record no longer restates a list, and the
+  monitors pointer moves to the section that says it.
+- `/harness-ops:lanes` refresh: a `/loop` fire is treated as not delivering a skill edit, without
+  claiming a repeat invocation never appends changed content.
+- `/harness-ops:audit-performance` and `/harness-ops:observability`: the per-hook timing records name
+  the documented debug-log durations and why transcripts stay the source.
+- `audit_skill_visibility.py`: its listing-default and `enabledPlugins` records cite the sections
+  that state them, and a `disable-model-invocation` spelled `yes`, `on` or `1` now counts as true.
+- `/harness-ops:audit-performance`: the stale-session advisory names `/reload-plugins` as well as a
+  restart.
+
 ## [8.4.6] - 2026-11-04
 
 ### Changed

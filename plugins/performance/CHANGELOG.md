@@ -3,6 +3,15 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.8] - 2026-11-04
+
+### Fixed
+
+- `/performance:go-faster` harness catalog: a timed-out PreToolUse hook blocks when its failure is
+  set to block, and the skill listing's drop order follows ADR 0016 rather than the skills page.
+  The Stop-hook timing pointer names the documented debug-log durations and why the transcript
+  record stays.
+
 ## [0.14.7] - 2026-11-04
 
 ### Fixed

@@ -1,5 +1,12 @@
 # Changelog: session-flow plugin
 
+## [7.0.4] - 2026-11-04
+
+### Fixed
+
+- `/session-flow:audit-sessions` says an uninstall can delete the store, and points at the section
+  that lists which uninstall deletes it and when it stays.
+
 ## [7.0.3] - 2026-11-04
 
 ### Changed
