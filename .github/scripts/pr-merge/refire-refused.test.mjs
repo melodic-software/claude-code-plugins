@@ -685,6 +685,13 @@ test("a token 403 for any reason other than workflow-modified is not re-fired, a
   }
 });
 
+test("an address-feedback run refused as workflow-modified is left to the feedback sweep, which dispatches it again on main", async () => {
+  const w = refusedWorld([pr(9)], { runOptions: { title: FEEDBACK.title, jobName: FEEDBACK.jobName } });
+  assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
+  assert.deepEqual(pushes(w.calls), []);
+  assert.deepEqual(posts(w.calls), []);
+});
+
 test("a transient token failure of an activity pr-unblock-dispatch retries itself is left to that tick", async () => {
   for (const activity of ["resolve-conflicts", "review-dependency", "fix-ci"]) {
     const w = refusedWorld([pr(9)], { runOptions: { title: `pr-unblock ${activity} #9`, messages: [DENIED_5XX] } });

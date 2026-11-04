@@ -135,6 +135,12 @@
 // EARLIER_FAIL_READS cap may have left it. Nothing records an answer, so a
 // head answered "no earlier FAIL" may be read again inside that window.
 //
+// Before every other sweep, the tick sends again a round the token broker
+// refused as workflow-modified, once per refused run (sweepRefused): a round
+// in flight when a lane workflow file changes on main is refused its push or
+// reply token, a re-run keeps the old file, and the head's check runs would
+// otherwise hold it.
+//
 // A run of this file an outage lost, or whose dispatch job failed, dispatched
 // nothing the lanes trust when re-run: check-trusted-trigger's dispatcher
 // check accepts a dispatcher at attempt 1 or re-run by a listed human, so
@@ -175,7 +181,9 @@ import { pathToFileURL } from "node:url";
 
 import { commitPulls, detailSuffix, errorLabel, responseDetail } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
+import { postingRunId } from "../../actions/report-check-run/posting-run.mjs";
 import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
+import { tokenRefusal } from "../pr-merge/refire-refused.mjs";
 import { anyListed, fixRequesters, HOLD_LINE, humanGatedLabelFrom, isFixRequest, MARKER_AUTHOR_ID, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, readTriggers, REQUEST_HISTORY_QUERY, requestHistoryOf, requestSkip, requestSkipLine, restMentions, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 
 // fix-ci-dispatch.mjs imports HOLD_LINE from here.
@@ -1120,6 +1128,65 @@ async function dispatchAtHead({ api, pull, repository, appSenderId, log, setting
   return dispatched === null ? null : { ...dispatched, upstreamRunId: upstream.id };
 }
 
+// A round the token broker refused as workflow-modified (refire-refused.mjs
+// tokenRefusal): it was in flight when a lane workflow file changed on main,
+// so its push or reply job's token was refused, and a re-run keeps the old
+// file. The tick, before its other sweeps, sends the activity again as a
+// fresh attempt-1 dispatch on main's files at the same head, with the head's
+// newest completed review run as the upstream, as every sweep dispatch.
+// Once per refused run: only the newest run of the activity for the PR
+// counts, so the run this sends, or any later one, ends it. It counts only
+// when it failed within FAILED_RUN_WINDOW_HOURS, posted a check run on the
+// PR's current head (one head per refusal), and that head has fewer than
+// SWEEP_HEAD_CAP address-feedback check runs, which bounds a chain of
+// refusals. Check runs started before the refused run ended stop counting
+// (requestSince), but a limit stop keeps its reset hold. A refusal for any
+// other reason is left alone. The result names the refused run (refireOf),
+// which the dispatched-run record keeps.
+async function sweepRefused({ api, repository, appSenderId, log, settings = DEFAULTS, ...rest }) {
+  const context = { api, repository, appSenderId, log, settings, rest };
+  const since = (rest.now ?? Date.now()) - FAILED_RUN_WINDOW_HOURS * 3_600_000;
+  let runs;
+  try {
+    runs = await api.listWorkflowRuns(settings.workflow);
+  } catch (error) {
+    log(`::warning::${settings.workflow} run listing failed (${error.message}); no refused round is sent again this tick`);
+    return null;
+  }
+  const refired = await sweepPulls(context, (pull) => refireRefused({ ...context, pull }, runs, since), await openPulls(context));
+  if (refired === null) {
+    log("sweep: no round the broker refused as workflow-modified to send again");
+  }
+  return refired;
+}
+
+async function refireRefused(context, runs, since) {
+  const { api, pull, log, settings } = context;
+  const head = pull.head.sha;
+  const [last] = runs
+    .filter((run) => run.display_title === runTitle(settings.activity, pull.number))
+    .sort((a, b) => Date.parse(b.created_at ?? "") - Date.parse(a.created_at ?? ""));
+  if (last?.status !== "completed" || last.conclusion !== "failure" || !RUN_ID.test(String(last.id)) || !(Date.parse(last.updated_at ?? "") >= since)) {
+    return null;
+  }
+  const rounds = await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId });
+  const posted = (checks) => checks.some((check) => postingRunId(check) === String(last.id));
+  if (!posted(rounds) && !posted(await api.listCheckRuns({ sha: head, checkName: settings.replyCheckName, appId: settings.appId }))) {
+    return null;
+  }
+  const why = await tokenRefusal({ jobs: await api.listRunJobs(last.id), readAnnotations: api.listAnnotations, activity: settings.activity });
+  if (why?.kind !== "workflow-modified") {
+    return null;
+  }
+  if (rounds.length >= SWEEP_HEAD_CAP) {
+    log(`skip: #${pull.number}: run ${last.id} was refused as workflow-modified (${why.path}), and head ${head} has ${rounds.length} rounds, the sweep's cap`);
+    return null;
+  }
+  log(`refire: #${pull.number}: run ${last.id} was refused as workflow-modified (${why.path}) at head ${head}; sending ${settings.activity} again on main`);
+  const dispatched = await dispatchAtHead(context, { requestSince: Date.parse(last.updated_at) });
+  return dispatched === null ? null : { ...dispatched, refireOf: String(last.id) };
+}
+
 // This file's workflow, whose lost runs the tick recovers.
 export const DISPATCH_WORKFLOW = ".github/workflows/pr-feedback-dispatch.yml";
 
@@ -1503,6 +1570,8 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       }
       return listing.jobs;
     },
+    // A job's check run annotations, one page: the token step's refusal.
+    listAnnotations: (id) => request(`${repo}/check-runs/${encodeURIComponent(id)}/annotations?per_page=100`),
     async dispatchWorkflow({ workflow, ref, inputs }) {
       const result = await request(`${repo}/actions/workflows/${workflow}/dispatches`, "POST", {
         ref,
@@ -1600,10 +1669,10 @@ export async function main(env, { api, github, resolveSlot, verifyCapped, log = 
       return 0;
     }
     // A lost run is recovered only on a tick the released heads leave idle.
-    const sweep = async () => (await sweepReleased(common)) ?? recoverLost({ ...common, now });
+    const sweep = async () => (await sweepRefused(common)) ?? (await sweepReleased(common)) ?? recoverLost({ ...common, now });
     const swept = await sweep().finally(summary);
     if (swept !== null) {
-      appendFileSync(env.GITHUB_OUTPUT, `run-id=${swept.workflowRunId}\nupstream-run-id=${swept.upstreamRunId}\n`);
+      appendFileSync(env.GITHUB_OUTPUT, `run-id=${swept.workflowRunId}\nupstream-run-id=${swept.upstreamRunId}\n${swept.refireOf ? `refire-of=${swept.refireOf}\n` : ""}`);
     }
     return 0;
   }

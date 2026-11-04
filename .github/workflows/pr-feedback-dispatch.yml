@@ -339,7 +339,7 @@ jobs:
     permissions:
       contents: read # check out main
       pull-requests: read # the PR, its comments and review threads
-      checks: read # skip a head that already has an address-feedback check run
+      checks: read # skip a head that already has an address-feedback check run; a refused round's annotations
       statuses: read # the sweep's read of a head's pr-unblock/address-feedback stop
       actions: write # list pr-unblock runs; dispatch pr-unblock.yml
     env:
@@ -461,20 +461,23 @@ jobs:
 
       # The record of the run this run dispatched and the review run that
       # started it: an artifact only steps of this run can upload, read by the
-      # gate and the broker with one list call and no download.
+      # gate and the broker with one list call and no download. A round sent
+      # again after a workflow-modified refusal also names the refused run
+      # (refire_of_run_id).
       - name: Name the dispatched-run record
         id: record
         if: always() && steps.dispatch.outputs.run-id != ''
         env:
           RUN_ID: ${{ steps.dispatch.outputs.run-id }}
           UPSTREAM_RUN_ID: ${{ steps.dispatch.outputs.upstream-run-id }}
+          REFIRE_OF: ${{ steps.dispatch.outputs.refire-of }}
         run: |
-          if [[ ! "$RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$UPSTREAM_RUN_ID" =~ ^[1-9][0-9]{0,14}$ ]]; then
-            echo "::error::run-id or the upstream run id is not a run id"
+          if [[ ! "$RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$UPSTREAM_RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$REFIRE_OF" =~ ^([1-9][0-9]{0,14})?$ ]]; then
+            echo "::error::run-id, the upstream run id or refire-of is not a run id"
             exit 1
           fi
-          printf '{"dispatcher_run_id":%s,"upstream_run_id":%s,"run_id":%s}\n' \
-            "$GITHUB_RUN_ID" "$UPSTREAM_RUN_ID" "$RUN_ID" >"$RUNNER_TEMP/pr-feedback-dispatched.json"
+          printf '{"dispatcher_run_id":%s,"upstream_run_id":%s,"run_id":%s%s}\n' \
+            "$GITHUB_RUN_ID" "$UPSTREAM_RUN_ID" "$RUN_ID" "${REFIRE_OF:+,\"refire_of_run_id\":$REFIRE_OF}" >"$RUNNER_TEMP/pr-feedback-dispatched.json"
           echo "name=pr-feedback-dispatched-$UPSTREAM_RUN_ID-$RUN_ID" >>"$GITHUB_OUTPUT"
 
       - name: Scan the upload for credentials
