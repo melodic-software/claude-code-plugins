@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: mu-calm-gameboy-loop
+graders:
+  - name: music-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:retro-audio:)?music"'
+  - name: sfx-not-invoked
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:retro-audio:)?sfx"'
+    min: 0
+    max: 0
+    arm: both
+  - name: renders-with-mml
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:python[\d.]*(?:\.exe)?(?:\s+-\w+)*(?:\s|\\\\\\n)+)?(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?mml\.py(?:\\\"|'')?(?![\w.-])'
+    arm: with-only
+  - name: reports-gameboy-render
+    type: regex
+    pattern: 'calm-loop\.wav \(\d+\.\d{3}s, gameboy\)'
+    target: trace
+    arm: with-only
+  - name: wav-written
+    type: file_exists
+    path: 'audio/calm-loop.wav'
+    arm: both
+  - name: shows-score
+    type: regex
+    pattern: '(?:\b(?:t\d{2,3}|o\d|l\d{1,2}|v\d{1,2})\b|@\d)[^\n]*?(?:\b(?:t\d{2,3}|o\d|l\d{1,2}|v\d{1,2})\b|@\d)'
+    target: last_message
+    arm: both
