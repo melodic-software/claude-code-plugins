@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/work/notes/x-2091847365019283746-p4.md"}}],
+      "why": "step 1 only"
+    },
+    {
+      "answer": [{"tool": "Glob", "input": {"pattern": "notes/*"}}],
+      "why": "lists the folder only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "/work/notes/x-2091847365019283746-p4.md"}},
+        {"tool": "Read", "input": {"file_path": "/work/notes/threadreader-2091847365019283746.html"}}
+      ],
+      "why": "escalates on length"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "notes/threadreader-2091847365019283746.html", "limit": 50}}],
+      "why": "relative path, bounded slice"
+    }
+  ]
+}

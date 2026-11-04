@@ -2817,6 +2817,25 @@ class TheSpecMustBeTheJudgedOne(unittest.TestCase):
             any("issueOrPullRequest" in " ".join(c) for c in fake.calls), fake.calls
         )
 
+    def test_a_closing_pass_that_credited_siblings_counts_as_any_closing_one(
+        self,
+    ) -> None:
+        # pr-verify credits the merged `Refs:` siblings a `Siblings:` line
+        # names in the spec text it judges (resolve-pr.mjs creditedSiblings),
+        # which the record does not carry: the gate weighs such a pass by its
+        # closing issues and spec comments alone, and reads no sibling.
+        fake = passing()
+        fake.body = "Closes #7\n\nSiblings: #12917, #12937"
+        fake.records[named(HEAD, "pass")] = record(spec_kind="closes")
+        self.assertIsNone(read(fake).refusal)
+        self.assertFalse(
+            any("12917" in " ".join(c) for c in fake.calls), fake.calls
+        )
+        fake = passing()
+        fake.body = "Closes #7\n\nSiblings: #12917, #12937"
+        fake.closing_edited = {7: "2026-10-15T00:00:01Z"}
+        self.assertEqual(read(fake).refusal, "verify:spec-changed")
+
     def test_an_issue_edited_after_the_judgment_started_refuses(self) -> None:
         fake = passing()
         fake.closing_edited = {7: "2026-10-15T00:00:01Z"}

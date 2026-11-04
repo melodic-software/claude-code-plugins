@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "rm -f '/work/.tmp/kai'\\''dev$user`date`/tmp.k3Qx9aZbTw/x-1593572469-r2.md' && rmdir '/work/.tmp/kai'\\''dev$user`date`/tmp.k3Qx9aZbTw'"}}],
+      "why": "the skill's single-quoted delete"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "rm -f \"/work/.tmp/kai'dev$user`date`/tmp.k3Qx9aZbTw/x-1593572469-r2.md\""}}],
+      "why": "double-quoted delete"
+    }
+  ]
+}

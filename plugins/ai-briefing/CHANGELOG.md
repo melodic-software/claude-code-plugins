@@ -3,6 +3,14 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.17] - 2026-11-04
+
+### Changed
+
+- Shared `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them: the planning lane's design kind and shipped `artifact` default, and the resolver output's `page` and `publishes` fields (#12650); no other change to this plugin.
+
+- **`/ai-briefing:generate` resolves the view medium through the shared resolver** ([#12722](https://github.com/melodic-software/claude-code-plugins/issues/12722)). It runs `lib/view-settings.mjs resolve --lane ai-briefing:generate` and prints the report line and any notice; it no longer names the retired `~/.claude/rendered-views.md` or `.claude/rendered-views.md` layers. Only `--format` still selects HTML or PPTX.
+
 ## [0.9.16] - 2026-11-04
 
 ### Fixed

@@ -3,6 +3,25 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.2.0] - 2026-11-04
+
+### Added
+
+- `/planning:design` offers a design view of PLAN.md's `## Design` section after the handoff gate passes, built by `scripts/build-view.mjs design --record <PLAN.md>` from a checked-in template (#12650).
+- `scripts/build-view.mjs --option <medium option>` resolves the medium through the shared resolver, runs the publish gate over a publishing medium, builds the page and hands it to the medium's registry entry, then prints the delivery and the `view: <medium> (<what decided it>)` report line. A new medium needs no edit to the planning skills.
+
+### Changed
+
+- The plan, brainstorm and design views ship a private Artifact as their default medium. The publish gate keeps the view a local file for a repository that is not public or a record with anything credential-shaped in it, unless the `medium` option or the request says to publish; set the `medium` option to `file` to keep them local. The PRD and interview views stay local files.
+- The plan and brainstorm views render as entries of the shared view-kind registry; their JSON shapes are unchanged.
+- The design view reads code fences by the CommonMark rule: a fence closes only on a run of its own character at least as long as the one that opened it, so a shorter fence line or a `##` line inside a longer fence no longer ends the `## Design` section.
+
+- `/planning:design` reads the one-way and two-way door definition from a shared reference that `/review:merge-risk` also reads. The definition widened: a decision whose effect has already left the code (data rewritten or deleted, a message sent, a package published, a third-party call with a lasting effect) is now a one-way door and gets the ADR prompt, where before only a decision others build on was.
+
+### Fixed
+
+- Shared `fetch-docs.sh` synced where this plugin carries it ([#12945](https://github.com/melodic-software/claude-code-plugins/issues/12945)): with `--profile generic`, an x.com or twitter.com page that is X's logged-out shell (`redirect_after_login` links and no article text) is now `unread` with reason `login-wall` instead of `read`, whether fetched or served from the cache or a fixture, and is never cached; no other change to this plugin.
+
 ## [2.1.2] - 2026-11-04
 
 ### Fixed

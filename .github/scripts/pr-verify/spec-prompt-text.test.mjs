@@ -10,12 +10,17 @@ const chunk = flat("./prompt.md");
 
 test("the final judge reads the spec under the chunk verifiers' words", () => {
   for (const rule of [
-    "Only `person_checks` excuses an item; a refinement comment's Split section never does.",
+    "Only `person_checks` and `credited_siblings` excuse an item; a refinement comment's Split section never does, nor does this pull request's body, a sibling it names that has no entry there included.",
     "A `body` of null means the issue has no trusted spec text: say so, and return `fail` when no issue has any.",
   ]) {
     assert.ok(chunk.includes(rule), rule);
     assert.ok(spec.includes(rule), rule);
   }
+});
+
+test("a refs pull request that names no remaining work fails, under either judge", () => {
+  assert.ok(chunk.includes("Return `fail`, saying why, when the body names no delivered part, names no remaining work or claims to deliver the whole issue"));
+  assert.ok(spec.includes("return `fail` when it names no delivered part or no remaining work, or claims the whole issue."));
 });
 
 test("nothing a chunk reports is cut from the final judge", () => {

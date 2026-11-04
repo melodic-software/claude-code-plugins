@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "**@fernquill** · 2026-10-29\n\nThe Hollowmere reservoir path closes for resurfacing from Monday for three weeks.",
+      "why": "the post"
+    },
+    {
+      "answer": "- HOLLOWMERE path closed three weeks",
+      "why": "list, uppercase"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Read could not find the file at '/work/.tmp/kai'\\''dev$user`date`/tmp.k3Qx9aZbTw/x-1593572469-r2.md'.",
+      "why": "a quoted Read path that missed the file"
+    }
+  ]
+}

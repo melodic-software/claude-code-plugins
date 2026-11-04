@@ -1,5 +1,7 @@
 schema_version: "1.1"
 name: 'read-handle-less-i-web-status-link-is-accepted'
+context:
+  scaffold_script: scaffold.sh
 graders:
   - name: 'expectation-1'
     type: 'llm'
@@ -13,3 +15,13 @@ graders:
     type: 'llm'
     criteria: 'Attributes with the handle from the converted body, not from the URL'
     focus: 'trace'
+  - name: 'attributes-rebuilt-url'
+    type: 'regex'
+    pattern: 'https://x\.com/i/web/status/1234567890123456789(?![0-9])'
+    target: 'last_message'
+  - name: 'no-invented-handle-url'
+    type: 'regex'
+    pattern: '(?<![A-Za-z0-9.-])x\.com/(?!i/)[A-Za-z0-9_]{1,15}/status/1234567890123456789'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'

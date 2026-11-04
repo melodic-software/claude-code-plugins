@@ -85,6 +85,33 @@ for blocker in "${blocker_ids[@]+"${blocker_ids[@]}"}"; do
   }
 done
 
+# Sibling dedupe (CONTRACT.md "Verbs"): a child of the parent with the same trimmed title,
+# open or closed within 24 hours by its `closed_at`, is returned instead of a new item. A
+# closed child with no `closed_at` counts as closed earlier. An open match wins over a closed one.
+if [[ -n "$parent" ]]; then
+  sibling="" sibling_state=""
+  for n in $(wit_item_numbers); do
+    file="$(wit_item_file "$n")"
+    [[ "$(wit_fm_field "$file" parent)" == "$parent_id" ]] || continue
+    state="$(wit_fm_field "$file" state)"
+    jq -en --arg title "$title" --argjson stored "$(wit_fm_field "$file" title)" \
+      --argjson state "$state" --argjson closed_at "$(wit_fm_field "$file" closed_at | grep . || echo null)" '
+      def trimmed: gsub("^[[:space:]]+|[[:space:]]+$"; "");
+      ($stored | trimmed) == ($title | trimmed)
+      and ($state == "open" or ($state == "closed" and ($closed_at | type) == "string"
+        and (($closed_at | sub("\\.[0-9]+"; "") | fromdateiso8601) > now - 86400)))' >/dev/null 2>&1 || continue
+    sibling="$n" sibling_state="$state"
+    [[ "$state" == '"open"' ]] && break
+  done
+  if [[ -n "$sibling" ]]; then
+    printf 'create-item: %s already has %s child %s titled "%s"; created nothing\n' \
+      "$parent" "$(jq -r . <<<"$sibling_state")" \
+      "$(jq -r . <<<"$(wit_fm_field "$(wit_item_file "$sibling")" id)")" "$title" >&2
+    wit_emit_local_item "$sibling"
+    exit 0
+  fi
+fi
+
 ns="${repo_override:-$WIT_LOCAL_DEFAULT_NS}"
 # owner/repo must match the ID grammar's char class (lib/id.sh); an out-of-grammar
 # --repo would otherwise mint an ID that get-item and later verbs cannot parse.

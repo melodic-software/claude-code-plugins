@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/work/.tmp/kai'dev$user`date`/tmp.k3Qx9aZbTw/x-1593572469-r2.md"}}],
+      "why": "the raw path, its own apostrophe included"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/work/notes/mktemp-d.txt"}}],
+      "why": "another file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "'/work/.tmp/kai'\\''dev$user`date`/tmp.k3Qx9aZbTw/x-1593572469-r2.md'"}}],
+      "why": "single-quoted shell form"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "\"/work/.tmp/kai'dev$user`date`/tmp.k3Qx9aZbTw/x-1593572469-r2.md\""}}],
+      "why": "double-quoted"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/work/.tmp/kai'\\''dev$user`date`/tmp.k3Qx9aZbTw/x-1593572469-r2.md"}}],
+      "why": "escape sequence embedded"
+    }
+  ]
+}

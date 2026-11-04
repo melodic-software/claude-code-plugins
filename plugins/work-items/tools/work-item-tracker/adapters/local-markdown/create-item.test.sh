@@ -33,4 +33,54 @@ WIT_STORAGE_DIR="$STORE" bash "$S" --title orphan --blocked-by "local-markdown:l
 assert_eq "a missing --blocked-by is not-found (5), not a dead edge" "5" "$?"
 rm -rf "$STORE"
 
+# Sibling dedupe under --parent: an open child with the same trimmed title, or one
+# closed within 24 hours by its closed_at, is returned; one closed earlier is not.
+close_child() { # <file> <closed_at JSON, or empty for none>
+  awk -v c="$2" '$0 == "state: \"open\"" { print "state: \"closed\""; if (c != "") print "closed_at: " c; next } { print }' \
+    "$1" >"$1.new" && mv "$1.new" "$1"
+}
+STORE="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
+PARENT="$(WIT_STORAGE_DIR="$STORE" bash "$S" --title parent | jq -r '.id')"
+CHILD="$(WIT_STORAGE_DIR="$STORE" bash "$S" --title "  T " --parent "$PARENT" | jq -r '.id')"
+CHILD_FILE="$STORE/${CHILD##*#}.md"
+ERR="$(mktemp "$TMP_ROOT/f.XXXXXX")"
+
+OUT="$(WIT_STORAGE_DIR="$STORE" bash "$S" --title T --parent "$PARENT" 2>"$ERR")"
+assert_eq "an open sibling titled T → exit 0" "0" "$?"
+assert_eq "an open sibling titled T prints its id" "$CHILD" "$(jq -r '.id' <<<"$OUT")"
+assert_eq "an open sibling titled T creates no item" "2" "$(find "$STORE" -name '*.md' | wc -l | tr -d ' ')"
+assert_contains "an open sibling titled T is named on stderr" "$(<"$ERR")" "$CHILD"
+
+close_child "$CHILD_FILE" "\"$(jq -rn 'now - 3600 | todate')\""
+OUT="$(WIT_STORAGE_DIR="$STORE" bash "$S" --title T --parent "$PARENT" 2>"$ERR")"
+assert_eq "a sibling closed 1h ago → exit 0" "0" "$?"
+assert_eq "a sibling closed 1h ago prints its id" "$CHILD" "$(jq -r '.id' <<<"$OUT")"
+assert_eq "a sibling closed 1h ago creates no item" "2" "$(find "$STORE" -name '*.md' | wc -l | tr -d ' ')"
+
+OUT="$(WIT_STORAGE_DIR="$STORE" bash "$S" --title T 2>"$ERR")"
+assert_eq "without --parent a same-titled item is still created" "false" \
+  "$(jq -r --arg c "$CHILD" '.id == $c' <<<"$OUT")"
+rm -rf "$STORE"
+
+STORE="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
+PARENT="$(WIT_STORAGE_DIR="$STORE" bash "$S" --title parent | jq -r '.id')"
+CHILD="$(WIT_STORAGE_DIR="$STORE" bash "$S" --title T --parent "$PARENT" | jq -r '.id')"
+close_child "$STORE/${CHILD##*#}.md" "\"$(jq -rn 'now - 172800 | todate')\""
+OUT="$(WIT_STORAGE_DIR="$STORE" bash "$S" --title T --parent "$PARENT" 2>"$ERR")"
+assert_eq "a sibling closed 2 days ago → exit 0" "0" "$?"
+assert_eq "a sibling closed 2 days ago does not block a new create" "false" \
+  "$(jq -r --arg c "$CHILD" '.id == $c' <<<"$OUT")"
+assert_eq "a sibling closed 2 days ago: the new item is a child of the parent" "$PARENT" \
+  "$(jq -r '.parent_id' <<<"$OUT")"
+rm -rf "$STORE"
+
+STORE="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
+PARENT="$(WIT_STORAGE_DIR="$STORE" bash "$S" --title parent | jq -r '.id')"
+CHILD="$(WIT_STORAGE_DIR="$STORE" bash "$S" --title T --parent "$PARENT" | jq -r '.id')"
+close_child "$STORE/${CHILD##*#}.md" ""
+OUT="$(WIT_STORAGE_DIR="$STORE" bash "$S" --title T --parent "$PARENT" 2>"$ERR")"
+assert_eq "a closed sibling with no closed_at does not block a new create" "false" \
+  "$(jq -r --arg c "$CHILD" '.id == $c' <<<"$OUT")"
+rm -rf "$STORE" "$ERR"
+
 [[ $FAILED -eq 0 ]] || exit 1
