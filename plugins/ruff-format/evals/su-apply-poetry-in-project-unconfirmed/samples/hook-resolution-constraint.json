@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "The hook only looks for ruff in a .venv up the tree from the edited file, then on PATH, so a Ruff in Poetry's cache-directory environment would never be found."}
+  ],
+  "fail": [
+    {"answer": "The hook finds Ruff in whatever environment Poetry activates.", "why": "wrong resolution rule"},
+    {"answer": "The hook resolves Ruff the way check does.", "why": "near miss: does not say where it looks"}
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "Not a bare `pip install ruff` into Poetry's environment: Poetry's next sync or clean silently removes anything its lockfile does not record, so it goes through `poetry add --group dev ruff`."}
+  ],
+  "fail": [
+    {"answer": "`pip install ruff` into the Poetry environment works fine and is quickest.", "why": "recommends the bare pip route"},
+    {"answer": "Use `poetry add --group dev ruff`.", "why": "near miss: no reason a bare pip install is wrong"}
+  ]
+}
