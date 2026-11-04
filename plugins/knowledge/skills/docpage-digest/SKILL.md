@@ -41,10 +41,10 @@ trailing slash, taken BEFORE any channel suffix like `.md` is appended. Drop onl
 query parameters (`utm_*`, `gclid`, `fbclid`); KEEP content-selecting ones (`?version=v2` is a
 different document). Keep `ref`, which often selects a branch or revision, unless the matched
 publisher profile marks it tracking-only for that host. Before any shell command carries the
-canonical URL, it must pass the checks `urlRejection` in
-[`../../workflows/docpage-digest-batch.js`](../../workflows/docpage-digest-batch.js) defines
-(https, that function's character allowlist, a public host); a URL that fails stops the run with
-that reason. Equivalent spellings then resume the same
+canonical URL, it must pass `isPublicUrl` in
+[`../../workflows/docpage-digest-batch.js`](../../workflows/docpage-digest-batch.js) and hold no
+single quote, backslash, whitespace or control character, since every command here single-quotes
+it; a URL that fails stops the run with that reason. Equivalent spellings then resume the same
 root, and different resources never share one:
 
 1. Join the host (dots → hyphens) and every non-empty path segment with hyphens.
@@ -286,10 +286,11 @@ self-contained prompt naming the slug, the first unticked checklist phase, and t
 
 ## Batch path
 
-Several pages from one session run through the `knowledge:docpage-digest-batch` workflow. An agent
-inside a workflow cannot spawn another, so the workflow script itself dispatches each Phase 3
-digest agent and both Phase 4 arms as separate agents, and points every one at this file and its
-`context/` spokes. It runs no correction rounds and no resume: a page whose verifiers fail is
+Several pages from one session run through the `knowledge:docpage-digest-batch` workflow. Our rule:
+the workflow script itself dispatches each Phase 3 digest agent and both Phase 4 arms as separate
+agents, and no stage spawns its own, and every stage is pointed at this file and its `context/`
+spokes. Pointer: [When to use a workflow](https://code.claude.com/docs/en/workflows#when-to-use-a-workflow).
+As-of: 2026-11-04. Recheck trigger: that section changes who holds the plan in a workflow. It runs no correction rounds and no resume: a page whose verifiers fail is
 rerun here, one page at a time. Each page keeps its own slice, checklist and handoff.
 Read [context/batch-path.md](context/batch-path.md) before launching it: it owns the launch steps,
 the `args`, and what to do with each page's returned `verification`.

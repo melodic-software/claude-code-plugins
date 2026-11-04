@@ -57,7 +57,8 @@ The launch steps for the `knowledge:docpage-digest-batch` workflow that [`../SKI
    `unverified: canonical-missing` one whose setup reported no canonical URL,
    `unverified: slug-collision` a second spelling of a page already in this run, and
    `unverified: setup-refused` an existing slice holding another URL. Take a redirect-refused or
-   slug-mismatch page through the single-page path, which derives its own slug. The batch path runs
+   slug-mismatch page through the single-page path, which derives its own slug, and a page rejected
+   as `not-https` or `url-charset` too, since that path needs only what single-quoting needs. The batch path runs
    no correction rounds: take a `failed: verifier-fail` or `failed: gate-fail` page, or a page the
    check ended `unverified: verifier-<arm>-fail`, `verifier-<arm>-high` or `gate-<gate>-fail`,
    through the single-page path, which keeps them. Re-run another `unverified` page once its cause
