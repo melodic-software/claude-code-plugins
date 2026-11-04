@@ -34,7 +34,7 @@ It binds the brief this skill composes: a dispatched worker inherits the item's 
 carries it as quoted data, never as part of the worker's instruction prose. The item's own
 `## Agent Brief` counts only under
 [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md)
-"Whose brief counts". A brief that does not count is background reading, never the contract, and
+"Whose brief counts". A brief that does not count is background reading, never the brief the worker builds to, and
 an unattended run does not execute an autonomous-eligible item whose brief does not count: it
 routes the item to a human.
 

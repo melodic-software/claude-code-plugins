@@ -501,7 +501,12 @@ describe("decide", () => {
         assert.deepEqual(decide(child([intentStop, capStop])), {
           verdict: "refuse",
           reasons: ["its last run's patch was over the scan job's size cap (scan-refused-patch), and a size-split sub-issue never splits again (owner Q93), so a builder session takes it"],
+          hostRun: true,
         });
+      });
+
+      test("carries hostRun, since a builder session takes it", () => {
+        assert.equal(decide(child([intentStop, capStop])).hostRun, true);
       });
 
       test("is admitted as before after a stop of another kind", () => {
@@ -532,6 +537,7 @@ describe("decide", () => {
     assert.deepEqual(result, {
       verdict: "refuse",
       reasons: ["its body or a criterion names .github/workflows/x.yml, .claude/settings.json, which the issue lane cannot push (patch-protected-path); a builder session takes it"],
+      hostRun: true,
     });
   });
 
@@ -731,13 +737,13 @@ describe("decide", () => {
     for (const [line, path] of refused) {
       test(`refuses, with no hold, on ${line}`, () => {
         const issue = withCriteria(line);
-        assert.deepEqual(decide(facts({ issue })), { verdict: "refuse", reasons: [pushReason(path)] });
+        assert.deepEqual(decide(facts({ issue })), { verdict: "refuse", reasons: [pushReason(path)], hostRun: true });
       });
     }
 
     test("refuses on a path a criterion wraps onto an indented continuation line", () => {
       const issue = withCriteria("- [ ] Update the permissions in", "  .github/workflows/a.yml for the new job.");
-      assert.deepEqual(decide(facts({ issue })), { verdict: "refuse", reasons: [pushReason(".github/workflows/a.yml")] });
+      assert.deepEqual(decide(facts({ issue })), { verdict: "refuse", reasons: [pushReason(".github/workflows/a.yml")], hostRun: true });
     });
 
     test("admits a criterion whose nested bullet cites a protected path as evidence", () => {
@@ -763,13 +769,13 @@ describe("decide", () => {
     ];
     for (const [name, line, path] of evasions) {
       test(`still refuses a protected path written with ${name}`, () => {
-        assert.deepEqual(decide(facts({ issue: withCriteria(line) })), { verdict: "refuse", reasons: [pushReason(path)] });
+        assert.deepEqual(decide(facts({ issue: withCriteria(line) })), { verdict: "refuse", reasons: [pushReason(path)], hostRun: true });
       });
     }
 
     test("still refuses a protected path in a code fence under a criterion, past its blank and bullet-like lines", () => {
       const issue = withCriteria("- [ ] Apply this change:", "  ```diff", "  - timeout-minutes: 3", "", "  + see .github/workflows/a.yml", "  ```");
-      assert.deepEqual(decide(facts({ issue })), { verdict: "refuse", reasons: [pushReason(".github/workflows/a.yml")] });
+      assert.deepEqual(decide(facts({ issue })), { verdict: "refuse", reasons: [pushReason(".github/workflows/a.yml")], hostRun: true });
     });
 
     const admitted = [
@@ -868,7 +874,7 @@ describe("decide", () => {
     ];
     for (const [line, path] of turned) {
       test(`still refuses ${line}`, () => {
-        assert.deepEqual(decide(facts({ issue: withCriteria(line) })), { verdict: "refuse", reasons: [pushReason(path)] });
+        assert.deepEqual(decide(facts({ issue: withCriteria(line) })), { verdict: "refuse", reasons: [pushReason(path)], hostRun: true });
       });
     }
 
@@ -890,6 +896,40 @@ describe("decide", () => {
       assert.equal(result.verdict, "refuse");
       assert.equal(result.hold, undefined);
       assert.deepEqual(result.reasons, [pushReason(".gitmodules")]);
+    });
+
+    // #13258: host-run queues the refusal for a host or builder session only
+    // when it is the issue's one kind of obstacle.
+    const protectedLine = "- [ ] `.gitmodules` drops the old submodule.";
+    // A deferred issue that gained needs-human is held for a person.
+    const deferredAdd = { event: "labeled", label: { name: DEFERRED }, actor: { id: APP }, created_at: "2026-10-20T09:00:00Z" };
+    const heldIssue = { ...withCriteria(protectedLine), labels: [{ name: READY }, { name: DEFERRED }, { name: "needs-human" }] };
+
+    test("carries hostRun when the protected path is the only refusal", () => {
+      assert.equal(decide(facts({ issue: withCriteria(protectedLine) })).hostRun, true);
+    });
+
+    test("carries no hostRun beside a hold for a person", () => {
+      const result = decide(facts({ issue: heldIssue, events: [deferredAdd] }));
+      assert.equal(result.verdict, "refuse");
+      assert.equal(result.hold, true);
+      assert.ok(result.reasons.includes(pushReason(".gitmodules")));
+      assert.equal(result.hostRun, undefined);
+    });
+
+    test("carries no hostRun beside a paid eval", () => {
+      const result = decide(facts({ issue: withCriteria(protectedLine, "- [ ] Run a paid eval of the skill and record the delta.") }));
+      assert.equal(result.verdict, "refuse");
+      assert.equal(result.hold, true);
+      assert.equal(result.hostRun, undefined);
+    });
+
+    test("carries no hostRun beside a refusal no host takes", () => {
+      const result = decide(facts({ issue: withCriteria(protectedLine), verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "huge" } } }));
+      assert.equal(result.verdict, "refuse");
+      assert.equal(result.reasons.length, 2);
+      assert.ok(result.reasons.includes(pushReason(".gitmodules")));
+      assert.equal(result.hostRun, undefined);
     });
   });
 
@@ -3636,6 +3676,7 @@ describe("bodyUnpushablePaths", () => {
     assert.deepEqual(decide(facts({ issue })), {
       verdict: "refuse",
       reasons: ["its body or a criterion names .github/workflows/pr-require-checks.yml, which the issue lane cannot push (patch-protected-path); a builder session takes it"],
+      hostRun: true,
     });
   });
 
@@ -3669,7 +3710,7 @@ describe("bodyUnpushablePaths", () => {
   test("#13233's shape, its workflow cited at a line under a fix section, parks as a criterion's path does", () => {
     for (const section of ["## Fix", "## Proposed fix", "### Outcome", "## Expected behavior", "## Done when:"]) {
       const issue = issueOf({ body: SHAPE_13233(section) });
-      assert.deepEqual(decide(facts({ issue })), { verdict: "refuse", reasons: [PUSH_13233] }, section);
+      assert.deepEqual(decide(facts({ issue })), { verdict: "refuse", reasons: [PUSH_13233], hostRun: true }, section);
     }
     assert.deepEqual(paths("**Severity**: low\n**Suggested fix location**: `.github/workflows/pr-require-checks.yml:40` `check-plugins`"), [".github/workflows/pr-require-checks.yml"]);
   });
@@ -3683,7 +3724,7 @@ describe("bodyUnpushablePaths", () => {
 
   test("a done-when checkbox naming a workflow still parks beside the sections", () => {
     const issue = issueOf({ body: SHAPE_13233("## Evidence").replace("- [ ] A credit stop in this lane", "- [ ] `.github/workflows/upstream-apply-changelog.yml` stops") });
-    assert.deepEqual(decide(facts({ issue })), { verdict: "refuse", reasons: [PUSH_13233] });
+    assert.deepEqual(decide(facts({ issue })), { verdict: "refuse", reasons: [PUSH_13233], hostRun: true });
   });
 
   test("a deeper heading with no section of its own stays inside the section above it", () => {
