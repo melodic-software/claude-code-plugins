@@ -225,7 +225,8 @@ OUT="$(run --topic t1 status)"
 assert_exit "spend over the ceiling exits 1" "$?" "1"
 assert_contains "spend over the ceiling is reported as spent" "$OUT" "spend: 34 of 30"
 
-# A team layer's ceiling is refined by the overlay: the later layer wins.
+# A team layer's ceiling is refined by the personal override: the later layer
+# wins.
 printf '%s\n' '{"budgets": {"corpus_fetch_ceiling": 500}}' >"$CLAUDE_PROJECT_DIR/.claude/attribution.local.json"
 OUT="$(run --topic t1 status)"
 assert_exit "a later layer raising the ceiling clears the stop" "$?" "0"

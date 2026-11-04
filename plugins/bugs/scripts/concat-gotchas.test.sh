@@ -102,10 +102,10 @@ lanes concatenate.
 '
 layer "$CLAUDE_PROJECT_DIR/.claude/bugs.local.md" '## Gotchas
 
-- Overlay: my fork uses a different tracker.
+- Personal override: my fork uses a different tracker.
 '
 # shellcheck disable=SC2016  # backticks are the literal markdown code spans in the expected fixture, not substitution
-run_case "three layers concatenate in cascade order" "$(printf '### Consumer gotchas (cascade)\n\n#### user-global (`%s`)\n\n- User: this machine has no GPU.\n\n#### team (`%s`)\n\n- Team: do not file from the sandbox.\n\n#### local overlay (`%s`)\n\n- Overlay: my fork uses a different tracker.\n' "$HOME/.claude/bugs.md" "$CLAUDE_PROJECT_DIR/docs/conventions/bugs.md" "$CLAUDE_PROJECT_DIR/.claude/bugs.local.md")"
+run_case "three layers concatenate in cascade order" "$(printf '### Consumer gotchas (cascade)\n\n#### user-global (`%s`)\n\n- User: this machine has no GPU.\n\n#### team (`%s`)\n\n- Team: do not file from the sandbox.\n\n#### personal override (`%s`)\n\n- Personal override: my fork uses a different tracker.\n' "$HOME/.claude/bugs.md" "$CLAUDE_PROJECT_DIR/docs/conventions/bugs.md" "$CLAUDE_PROJECT_DIR/.claude/bugs.local.md")"
 
 HOME="${FIXTURES}/home-c"
 CLAUDE_PROJECT_DIR="${FIXTURES}/repo-c"
@@ -191,10 +191,10 @@ layer "$HOME/.claude/bugs.md" '## Gotchas
 '
 layer "$HOME/.claude/bugs.local.md" '## Gotchas
 
-- Overlay under home: not a layer here.
+- Personal override under home: not a layer here.
 '
 # shellcheck disable=SC2016  # backticks are literal markdown in the expected output
-run_case "home-rooted session reads user-global once, no team or overlay" "$(printf '### Consumer gotchas (cascade)\n\n#### user-global (`%s`)\n\n- User: read once.\n' "$HOME/.claude/bugs.md")"
+run_case "home-rooted session reads user-global once, no team or personal override" "$(printf '### Consumer gotchas (cascade)\n\n#### user-global (`%s`)\n\n- User: read once.\n' "$HOME/.claude/bugs.md")"
 
 HOME="${FIXTURES}/home-i"
 CLAUDE_PROJECT_DIR="${FIXTURES}/not-a-repo"

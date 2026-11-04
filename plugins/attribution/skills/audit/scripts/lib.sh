@@ -32,14 +32,16 @@ json_str() {
 _CFG_LIB="${BASH_SOURCE[0]%/*}/../../../lib"
 
 # cfg_layers_init <config-root>: fill CFG_LAYERS with the config cascade in
-# refinement order, user-global then team then overlay, skipping a layer that is
-# not present. The team layer is <home>/attribution.yaml and the overlay
-# <home>/attribution.local.yaml (ADR 0075), <home> being the bound convention
-# home, else docs/conventions. Each falls back to its .claude/attribution.json or
-# .claude/attribution.local.json only when the YAML is absent: per file, not per
-# key. The config root is a parameter because it is resolved differently per
-# script (CLAUDE_PROJECT_DIR over a corpus root that each one finds its own way).
-# Config-cascade step 2: a home or non-repo root has no team or overlay layer.
+# refinement order, user-global then team then personal override, skipping a
+# layer that is not present. The team layer is <home>/attribution.yaml and the
+# personal override <home>/attribution.local.yaml (ADR 0075), <home> being the
+# bound convention home, else docs/conventions. Each falls back to its
+# .claude/attribution.json or .claude/attribution.local.json only when the YAML
+# is absent: per file, not per key. The config root is a parameter because it is
+# resolved differently per script (CLAUDE_PROJECT_DIR over a corpus root that
+# each one finds its own way).
+# Config-cascade step 2: a home or non-repo root has no team layer or personal
+# override.
 cfg_layers_init() {
   local config_root="$1" home="docs/conventions" resolved name layer
   CFG_LAYERS=()
@@ -120,9 +122,9 @@ cfg_scalar() {
 
 # cfg_list <dest-array> <key>: the last layer that defines the top-level <key>
 # replaces the list. Presence, not emptiness, decides: an explicit empty list is
-# a value meaning "none", so an overlay can clear an earlier layer's list, while
-# a layer that lacks the key leaves it standing. One element per line, internal
-# spaces kept.
+# a value meaning "none", so a personal override can clear an earlier layer's
+# list, while a layer that lacks the key leaves it standing. One element per
+# line, internal spaces kept.
 cfg_list() {
   local -n _cfg_arr="$1"
   local _cfg_key="$2" _cfg_layer _cfg_v _cfg_src="" _cfg_bom=$'\xEF\xBB\xBF'

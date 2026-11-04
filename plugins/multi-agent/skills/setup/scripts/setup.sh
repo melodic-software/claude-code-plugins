@@ -3,7 +3,7 @@
 #
 #   setup.sh check [session=<alias>]
 #       The resolved map through the route wrapper (JSON on stdout, notes on
-#       stderr), then one row on the personal overlay's gitignore state and a
+#       stderr), then one row on the personal override's gitignore state and a
 #       WARN row for each retired team file still present.
 #   setup.sh apply --layer user|team|local [--write] <key>=<value> ...
 #       Merges the pairs into that layer's existing keys. `<key>=` with no
@@ -73,11 +73,11 @@ LOCATE=(--root "$ROOT" --home "$HOME_DIR")
 check() {
   "$ROUTE" all "${SESSION[@]+"${SESSION[@]}"}" "${LOCATE[@]}" || return
   if [[ "$CLASS" != repo ]]; then
-    printf 'INFO overlay: not applicable at a %s root\n' "$CLASS"
+    printf 'INFO personal-override: not applicable at a %s root\n' "$CLASS"
   elif git -C "$ROOT" check-ignore -q .claude/multi-agent.local.yaml; then
-    printf 'PASS overlay: .claude/multi-agent.local.yaml is gitignored\n'
+    printf 'PASS personal-override: .claude/multi-agent.local.yaml is gitignored\n'
   else
-    printf 'WARN overlay: .claude/multi-agent.local.yaml is not gitignored; the recommended line is .claude/**/*.local.*\n'
+    printf 'WARN personal-override: .claude/multi-agent.local.yaml is not gitignored; the recommended line is .claude/**/*.local.*\n'
   fi
   if [[ "$CLASS" == repo ]]; then retired_rows; fi
 }
@@ -235,7 +235,7 @@ apply() {
   if ! "$RESOLVER" --root "$tmp/repo" --home "$tmp/home" all >/dev/null 2>"$tmp/notes" ||
     [[ -s "$tmp/notes" ]]; then
     printf 'setup: the layer would not resolve cleanly; nothing written:\n' >&2
-    sed 's/^resolve-roles: overlay/  candidate/; s/^resolve-roles: /  /' "$tmp/notes" >&2
+    sed 's/^resolve-roles: personal-override/  candidate/; s/^resolve-roles: /  /' "$tmp/notes" >&2
     exit 1
   fi
 

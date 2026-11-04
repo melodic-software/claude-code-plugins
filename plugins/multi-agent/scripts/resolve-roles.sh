@@ -2,13 +2,14 @@
 # resolve-roles.sh: resolve the multi-agent role map through the config cascade.
 #
 # LAYERS, bottom to top, each overriding per key:
-#   bundled      reference/defaults.yaml
-#   user-global  <home>/.claude/multi-agent.yaml
-#   team         <home>/multi-agent.yaml (<home> is the convention home the
-#                repository binds, else docs/conventions)
-#   overlay      <root>/.claude/multi-agent.local.yaml
-# Team and overlay apply only when lib/config-root.sh classifies <root> as
-# `repo`; a team or overlay path that is the user-global file is read once.
+#   bundled            reference/defaults.yaml
+#   user-global        <home>/.claude/multi-agent.yaml
+#   team               <home>/multi-agent.yaml (<home> is the convention home
+#                      the repository binds, else docs/conventions)
+#   personal-override  <root>/.claude/multi-agent.local.yaml
+# Team and personal override apply only when lib/config-root.sh classifies
+# <root> as `repo`; a team or personal override path that is the user-global
+# file is read once.
 # A layer that does not parse, or declares a schema other than 1, is skipped
 # and named in `notes`. A key with a value outside its allowed set is rejected
 # and named; the layer below keeps the key. Keys and values: reference/config.md.
@@ -300,20 +301,20 @@ if [[ -f "$SCRIPT_DIR/../lib/resolve-convention-home.sh" ]]; then
   home_out="$(bash "$SCRIPT_DIR/../lib/resolve-convention-home.sh" --root "$ROOT" 2>/dev/null)" && CONVENTION_HOME="$home_out"
 fi
 TEAM_CONCERN="$ROOT/$CONVENTION_HOME/multi-agent.yaml"
-OVERLAY="$ROOT/.claude/multi-agent.local.yaml"
+PERSONAL_OVERRIDE="$ROOT/.claude/multi-agent.local.yaml"
 if [[ "$ROOT_CLASS" != repo ]]; then
   layer_state team "$TEAM_CONCERN" "not-applicable ($ROOT_CLASS root)"
-  layer_state overlay "$OVERLAY" "not-applicable ($ROOT_CLASS root)"
+  layer_state personal-override "$PERSONAL_OVERRIDE" "not-applicable ($ROOT_CLASS root)"
 else
   if [[ -f "$TEAM_CONCERN" ]]; then
     read_layer team "$TEAM_CONCERN"
   else
     layer_state team "$TEAM_CONCERN" absent
   fi
-  if [[ -f "$OVERLAY" ]] && ! config_root_paths_same "$OVERLAY" "$USER_LAYER"; then
-    read_layer overlay "$OVERLAY"
+  if [[ -f "$PERSONAL_OVERRIDE" ]] && ! config_root_paths_same "$PERSONAL_OVERRIDE" "$USER_LAYER"; then
+    read_layer personal-override "$PERSONAL_OVERRIDE"
   else
-    layer_state overlay "$OVERLAY" absent
+    layer_state personal-override "$PERSONAL_OVERRIDE" absent
   fi
 fi
 

@@ -245,7 +245,7 @@ describe("the team YAML file against the old locations", () => {
     assert.equal(result.config.digest_policy.source, "default", "the old block's other keys are not mixed in");
     assert.deepEqual(result.triggers, ["files"]);
   });
-  test("the YAML file, a user key and the overlay resolve key by key", () => {
+  test("the YAML file, a user key and the personal override resolve key by key", () => {
     writeFileSync(join(home, ".claude/review-digest.json"), '{"max_files": 9, "opt_in_label": "mine"}');
     const result = run(facts);
     assert.equal(result.config.max_files.value, 1);
@@ -290,7 +290,7 @@ describe("cascade layers resolve through the CLI", () => {
     assert.equal(result.config.max_files.source, "default");
     assert.deepEqual(at(result.medium), DEFAULT_MEDIUM);
   });
-  test("user-global, then the tracked team docs block, then the overlay, key by key", () => {
+  test("user-global, then the tracked team docs block, then the personal override, key by key", () => {
     writeFileSync(join(home, ".claude/review-digest.json"), '{"max_files": 1, "opt_in_label": "mine"}');
     let result = run(facts);
     assert.deepEqual(result.triggers, ["files"]);
@@ -312,7 +312,7 @@ describe("cascade layers resolve through the CLI", () => {
     writeFileSync(join(repo, ".claude/review-digest.local.json"), '{"digest_policy": "offer"}');
     result = run(facts);
     assert.equal(result.action, "offer");
-    assert.match(result.policy.source, /^overlay /);
+    assert.match(result.policy.source, /^personal override /);
     assert.deepEqual(result.warnings, []);
   });
   test("the argument beats every layer", () => {
@@ -325,7 +325,7 @@ describe("cascade layers resolve through the CLI", () => {
     writeFileSync(join(home, ".claude/review-digest.json"), '{"max_files": -1, "palette": "red"}');
     const result = run(facts);
     const warnings = result.warnings.join("\n");
-    assert.match(warnings, /overlay .*layer ignored/);
+    assert.match(warnings, /personal override .*layer ignored/);
     assert.match(warnings, /invalid max_files/);
     assert.match(warnings, /unknown key palette is inert/);
     assert.equal(result.config.max_files.value, 2);
@@ -388,7 +388,7 @@ describe("a pull request branch cannot silence its own digest", () => {
   const run = runPolicy(home, repo);
   const facts = { ...quiet, files: [{ path: "docs/conventions/review-digest.md" }], baseRefOid: "MAIN" };
 
-  test("team config comes from the base ref, a tracked overlay is ignored, and a config path offers", () => {
+  test("team config comes from the base ref, a tracked personal override is ignored, and a config path offers", () => {
     const result = run(facts);
     assert.deepEqual(result.policy, { value: "offer", source: "default" });
     assert.equal(result.action, "offer");
@@ -412,8 +412,8 @@ describe("a pull request branch cannot silence its own digest", () => {
   });
 });
 
-describe("overlay guards", () => {
-  const overlay = '{"max_files": 0}';
+describe("personal override guards", () => {
+  const personalOverride = '{"max_files": 0}';
   const setup = (name) => {
     const home = join(scratch, `home-${name}`);
     const repo = join(scratch, `repo-${name}`);
@@ -423,24 +423,24 @@ describe("overlay guards", () => {
   };
   const facts = { ...quiet, baseRefOid: "MAIN" };
 
-  test("an untracked overlay that is not gitignored applies, with a warning", () => {
+  test("an untracked personal override that is not gitignored applies, with a warning", () => {
     const { repo, run } = setup("unignored");
     mkdirSync(join(repo, ".claude"));
-    writeFileSync(join(repo, ".claude/review-digest.local.json"), overlay);
+    writeFileSync(join(repo, ".claude/review-digest.local.json"), personalOverride);
     const result = run(facts);
-    assert.match(result.config.max_files.source, /^overlay /);
+    assert.match(result.config.max_files.source, /^personal override /);
     assert.match(result.warnings.join("\n"), /not gitignored, so it can reach team history$/m);
   });
-  test("a symlinked overlay file is refused", () => {
+  test("a symlinked personal override file is refused", () => {
     const { repo, run } = setup("linkfile");
     mkdirSync(join(repo, ".claude"));
-    writeFileSync(join(scratch, "outside.json"), overlay);
+    writeFileSync(join(scratch, "outside.json"), personalOverride);
     symlinkSync(join(scratch, "outside.json"), join(repo, ".claude/review-digest.local.json"));
     const result = run(facts);
     assert.equal(result.config.max_files.source, "default");
     assert.match(result.warnings.join("\n"), /symlink.*layer ignored/);
   });
-  test("a .claude submodule holding the overlay is refused and .gitmodules fires risk-path", () => {
+  test("a .claude submodule holding the personal override is refused and .gitmodules fires risk-path", () => {
     const { repo, git, commit, run } = setup("submodule");
     const sub = join(scratch, "sub");
     mkdirSync(sub);
@@ -457,11 +457,11 @@ describe("overlay guards", () => {
     assert.equal(result.action, "offer");
     assert.match(result.warnings.join("\n"), /submodule or tracked entry; layer ignored/);
   });
-  test("a tracked symlinked .claude pointing at a dir holding the overlay is refused", () => {
+  test("a tracked symlinked .claude pointing at a dir holding the personal override is refused", () => {
     const { repo, git, commit, run } = setup("linkdir");
     const evil = join(scratch, "evil");
     mkdirSync(evil);
-    writeFileSync(join(evil, "review-digest.local.json"), overlay);
+    writeFileSync(join(evil, "review-digest.local.json"), personalOverride);
     symlinkSync(evil, join(repo, ".claude"));
     git("add", ".claude");
     commit();
@@ -471,7 +471,7 @@ describe("overlay guards", () => {
   });
 });
 
-describe("a case-variant overlay a pull request tracks is ignored and fires risk-path", () => {
+describe("a case-variant personal override a pull request tracks is ignored and fires risk-path", () => {
   // Simulates a case-insensitive filesystem on any host: the tracked entry differs
   // only in case from the untracked, gitignored file the script reads.
   const home = join(scratch, "home-case");
@@ -492,7 +492,7 @@ describe("a case-variant overlay a pull request tracks is ignored and fires risk
   writeFileSync(join(repo, "docs/conventions/rendered-views.local.yaml"), "medium: hosted\n");
   const run = runPolicy(home, repo);
 
-  test("the overlay is treated as tracked and a case-variant config path offers", () => {
+  test("the personal override is treated as tracked and a case-variant config path offers", () => {
     const result = run({ ...quiet, files: [{ path: "./.claude//Review-Digest.local.json" }], baseRefOid: "MAIN" });
     assert.deepEqual(result.policy, { value: "offer", source: "default" });
     assert.equal(result.action, "offer");

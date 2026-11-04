@@ -12,7 +12,7 @@ answer.
 | `/multi-agent:assess <task>` | Returns `workflow`, `subagent` or `single` with a one-line reason. Checks whether workflows are available in this session first; when they are not, `workflow` becomes `subagent`. Writes nothing. |
 | `/multi-agent:route <role\|all> [code\|research\|mechanical] [session=<alias>]` | Resolves the role map through the config cascade and prints it as fenced JSON: per role a `single` and a `fanout` variant, each with model, effort and the layer that supplied them, and each value's basis (upstream statement, judgment, or a config layer). `all` is the map a workflow reads from `args.roles`. |
 | `/multi-agent:audit-defaults [<role>\|fanout\|repo]` | Fetches each bundled default's pointer and reports which defaults have drifted, whose pointer does not state its value, or whose recheck trigger has fired, with evidence and a proposed diff. `repo` checks the repository's own model, effort, subagent and workflow statements against upstream instead. Runs the `multi-agent:drift-audit` workflow when workflows are available. Never edits a file. |
-| `/multi-agent:setup [check\|apply]` | `check` prints the resolved map and whether the personal overlay is gitignored. `apply` previews a change to the user, team or local layer as a diff, writes it on your explicit yes, and shows the map before and after. Run by hand only. |
+| `/multi-agent:setup [check\|apply]` | `check` prints the resolved map and whether the personal override is gitignored. `apply` previews a change to the user, team or local layer as a diff, writes it on your explicit yes, and shows the map before and after. Run by hand only. |
 
 ## How a workflow uses it
 
@@ -132,7 +132,7 @@ and its evidence: [`reference/routing-rubric.md`](reference/routing-rubric.md).
 ## Configuration
 
 One surface, layered user-global (`~/.claude/multi-agent.yaml`), team
-(`docs/conventions/multi-agent.yaml`) and a gitignored overlay
+(`docs/conventions/multi-agent.yaml`) and a gitignored personal override
 (`.claude/multi-agent.local.yaml`), each overriding the bundled defaults per
 key. `/multi-agent:setup` writes any of the three. Keys, values and layering:
 [`reference/config.md`](reference/config.md).

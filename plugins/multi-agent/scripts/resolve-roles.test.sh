@@ -126,7 +126,7 @@ fixture crosslayer
 printf 'schema: 1\nworkloads:\n  deep: true\n' >"$T/crosslayer/home/.claude/multi-agent.yaml"
 printf 'schema: 1\nroles:\n  verifier:\n    workloads:\n      deep:\n        effort: max\n' >"$T/crosslayer/repo/.claude/multi-agent.local.yaml"
 out="$(run crosslayer verifier --session-model opus --workload deep)"
-assert_contains "user-global declaration, overlay value" "$out" '"single":{"model":"inherit","omit_model":true,"effort":"max"'
+assert_contains "user-global declaration, personal override value" "$out" '"single":{"model":"inherit","omit_model":true,"effort":"max"'
 assert_lacks "declared across layers: no undeclared note" "$out" 'undeclared'
 
 # An undeclared workload is reported and ignored, and cannot be resolved.
@@ -194,8 +194,8 @@ fixture layered
 printf 'schema: 1\nroles:\n  worker:\n    effort: high\n' >"$T/layered/home/.claude/multi-agent.yaml"
 printf 'schema: 1\nroles:\n  worker:\n    model: sonnet\n' >"$T/layered/repo/.claude/multi-agent.local.yaml"
 out="$(run layered worker --session-model opus)"
-assert_contains "user-global effort and overlay model merge per key" "$out" '"single":{"model":"sonnet","omit_model":false,"effort":"high"'
-assert_contains "source names the layer per value" "$out" '"source":{"model":"overlay","effort":"user-global"}'
+assert_contains "user-global effort and personal override model merge per key" "$out" '"single":{"model":"sonnet","omit_model":false,"effort":"high"'
+assert_contains "source names the layer per value" "$out" '"source":{"model":"personal-override","effort":"user-global"}'
 
 # Turning the guard off is the explicit opt-in to frontier fan-outs.
 fixture optout
@@ -218,7 +218,7 @@ out="$(run malformed worker --session-model opus)"
 assert_eq "malformed layer still exits 0" 0 "$?"
 assert_contains "malformed layer is named with its line" "$out" 'team layer skipped:'
 assert_contains "malformed layer state is skipped" "$out" '"layer":"team"'
-assert_contains "the overlay still applies" "$out" '"effort":"low"'
+assert_contains "the personal override still applies" "$out" '"effort":"low"'
 
 # Wrong schema skips the layer.
 fixture schema
@@ -254,13 +254,13 @@ out="$(run frontiercomma worker --session-model opus)"
 assert_contains "trailing comma in frontier rejected" "$out" "frontier rejected: 'opus,'"
 assert_contains "rejected frontier keeps the bundled list" "$out" '"session_frontier":false'
 
-# Team and overlay are not read at a home root.
+# Team and personal override are not read at a home root.
 mkdir -p "$T/homeroot/.claude"
 git -C "$T/homeroot" init -q
 printf 'schema: 1\nroles:\n  worker:\n    effort: low\n' >"$T/homeroot/.claude/multi-agent.local.yaml"
 out="$("$SUT" --root "$T/homeroot" --home "$T/homeroot" worker 2>/dev/null)"
-assert_contains "home root: overlay not applicable" "$out" 'not-applicable (home root)'
-assert_contains "home root: overlay value not applied" "$out" '"effort":"medium"'
+assert_contains "home root: personal override not applicable" "$out" 'not-applicable (home root)'
+assert_contains "home root: personal override value not applied" "$out" '"effort":"medium"'
 
 # A role resolving to haiku is not blocked, but gains a note pointing at the rubric.
 fixture haikurole

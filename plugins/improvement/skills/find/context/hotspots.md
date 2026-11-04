@@ -64,7 +64,7 @@ generated output, vendored trees. The `excludes` ERE above is the bundled defaul
 generated/minified artifacts, and vendored/dependency directories.
 
 The consuming repo overrides or extends these globs through the `.claude/improvement.md` config
-cascade (team file, `.claude/improvement.local.md` gitignored overlay, `~/.claude/improvement.md`
+cascade (team file, `.claude/improvement.local.md` gitignored personal override, `~/.claude/improvement.md`
 user-global), along with the churn window. Key contract: `../../../reference/config.md`. All
 layers absent is a valid state. Use the bundled defaults above.
 

@@ -45,7 +45,7 @@
       "id": 3,
       "name": "resolve-config-or-infer-and-persist",
       "prompt": "/codebase-health:audit --docs-only",
-      "expected_output": "Resolves the tracked audit config (.claude/codebase-health.md and overlays) for the documentation dimension. When it is present, uses its primary/verification sources; when absent, infers targets from the repo layout and offers to persist the inference via /codebase-health:setup rather than hardcoding a layout.",
+      "expected_output": "Resolves the tracked audit config (.claude/codebase-health.md and its other layers) for the documentation dimension. When it is present, uses its primary/verification sources; when absent, infers targets from the repo layout and offers to persist the inference via /codebase-health:setup rather than hardcoding a layout.",
       "files": [],
       "expectations": [
         "Attempts to resolve the tracked audit config before enumerating targets, rather than assuming a fixed repo layout",

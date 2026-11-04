@@ -15,7 +15,7 @@ resolved in this order over the bundled defaults (`scripts/config-defaults.json`
 |---|---|---|---|
 | 1 | user-global | `~/.claude/code-metrics.yaml` | the operator, across repositories |
 | 2 | team | `<repo>/docs/conventions/code-metrics.yaml` | the repository, tracked |
-| 3 | local overlay | `<repo>/.claude/code-metrics.local.yaml` | one operator in one repository, gitignored |
+| 3 | personal override | `<repo>/.claude/code-metrics.local.yaml` | one operator in one repository, gitignored |
 
 The team layer is `docs/conventions/code-metrics.yaml` alone. The team file earlier releases read
 from the repository's `.claude/` directory is retired and never read. `/code-metrics:setup check`
@@ -35,7 +35,7 @@ holding a newline, carriage return or tab, a `scope.exclude` glob the matcher ca
 A later layer replaces an earlier layer's value key by key; a key absent from a later layer keeps
 the earlier value; a list (`scope.exclude`, `lanes.<lane>.collectors.<measure>`) is a closed value
 and is replaced whole, never concatenated. Unknown keys are inert. All three layers absent is
-valid. The recommended consumer `.gitignore` line for the overlay is `.claude/**/*.local.*`; the
+valid. The recommended consumer `.gitignore` line for the personal override is `.claude/**/*.local.*`; the
 plugin never edits your `.gitignore`.
 
 The consumer's `.claude/ecosystems/<lane>.yaml` files (the ecosystem-commands convention) resolve

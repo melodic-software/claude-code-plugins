@@ -17,7 +17,7 @@ Decision 8):
 | 1 | per user | the plugin's `userConfig` option of the same name |
 | 2 | repository | `docs/conventions/discipline.yaml` at the repository root, tracked, validated by [`schemas/discipline.schema.json`](../schemas/discipline.schema.json) |
 
-No `~/.claude` file, `.claude/` file or local overlay sets these keys. The reading skill resolves
+No `~/.claude` file, `.claude/` file or personal override sets these keys. The reading skill resolves
 each key in its own text, with no reader script, and reports one line naming the value and the
 layer that supplied it. `/discipline:setup apply <key>=<value>` writes the repository file after
 validating it against the schema, and shows the diff and asks before it changes an existing one.

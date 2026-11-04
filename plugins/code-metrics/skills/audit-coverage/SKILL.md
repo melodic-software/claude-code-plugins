@@ -156,7 +156,7 @@ configuration.
 ## Configuration
 
 Everything tunable resolves through the code-metrics layers (user-global, team
-`docs/conventions/code-metrics.yaml`, local overlay; per-key override; keys in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`):
+`docs/conventions/code-metrics.yaml`, personal override; per-key override; keys in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`):
 
 | Key | Default | Effect |
 |---|---|---|

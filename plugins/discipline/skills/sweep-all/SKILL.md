@@ -89,7 +89,7 @@ surfaces these for the user; it does not resolve them unasked.
 
 ## Configuration
 
-The overlay reads three personal-scalar `userConfig` options (configured
+The batch overlay reads three personal-scalar `userConfig` options (configured
 through Claude Code's native plugin-config flow, see the plugin README, never a hand-edited member), substituted here at load:
 
 - Excluded correctors: `${user_config.batch_exclude}`

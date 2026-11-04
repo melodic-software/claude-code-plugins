@@ -115,7 +115,7 @@ a regular file). `apply` is the fix.
 4. **The convention-home offer.** When the repository's `AGENTS.md` or `CLAUDE.md` binds no
    convention home, the script prints an offer: with the operator's confirmation it adds a
    convention-home pointer region to that instruction file (creating `AGENTS.md` when neither
-   exists or `CLAUDE.md` only imports it) and the overlay ignore line
+   exists or `CLAUDE.md` only imports it) and the personal override ignore line
    `docs/conventions/**/*.local.*` to `.gitignore`, the only files `apply` writes outside
    `docs/conventions/`. It prints the offer at the end of an exit 0 run and below the diff of an
    exit 3 run, so show the operator stdout on exit 0 too. Ask whether to add the region and the
@@ -142,7 +142,7 @@ Plugin-side notes on top of the binding's procedure:
    index rows. Converting it requires the binding's explicit-confirmation gate.
 2. **Bootstrap writes** (interactive, user-accepted. No silent writes): the skeleton index with
    its `standards-contract` frontmatter at the binding's version, and the setup-owned
-   `<standards_dir>/.gitignore` containing `*.local.md` (the personal-overlay ignore). Write
+   `<standards_dir>/.gitignore` containing `*.local.md` (the personal override ignore). Write
    `.claude/standards.yaml` only when the user relocates the root from the documented default.
    After a bootstrap write, run the tracked-file pair on each written team file:
    `git check-ignore -v` reports no match (a match is FAIL with the pattern) AND
@@ -157,7 +157,7 @@ Plugin-side notes on top of the binding's procedure:
 
 ## Output
 
-A written (or confirmed-healthy) standards index and its overlay `.gitignore`, a one-line summary
+A written (or confirmed-healthy) standards index and its `.gitignore` for personal overrides, a one-line summary
 of the effective standards root, the row-validation result, and how to re-run this setup to
 reconfigure or migrate. When repository settings were written: the diff shown, the written path,
 the value `check` reads back, and whether the file is tracked.

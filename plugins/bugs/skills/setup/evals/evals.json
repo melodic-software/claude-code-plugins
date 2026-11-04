@@ -42,14 +42,14 @@
     {
       "id": 4,
       "name": "apply-stays-off-user-config-and-gitignore",
-      "prompt": "/bugs:setup apply\n\nAlso point output_dir at docs/bug-reports/ and add the ignore line for my personal overlay.",
-      "expected_output": "Writes the lane config only, routes the output_dir change to Claude Code's plugin configuration prompt, and recommends the recursive .claude ignore line for the .local.md overlay without editing .gitignore.",
+      "prompt": "/bugs:setup apply\n\nAlso point output_dir at docs/bug-reports/ and add the ignore line for my personal override.",
+      "expected_output": "Writes the lane config only, routes the output_dir change to Claude Code's plugin configuration prompt, and recommends the recursive .claude ignore line for the .local.md personal override without editing .gitignore.",
       "files": [],
       "narration": true,
       "expectations": [
         "Does not write settings files, pluginConfigs, or userConfig",
         "Routes output_dir through Claude Code's native configuration flow",
-        "Recommends the overlay gitignore line but leaves the edit to the consumer"
+        "Recommends the personal override gitignore line but leaves the edit to the consumer"
       ]
     },
     {
