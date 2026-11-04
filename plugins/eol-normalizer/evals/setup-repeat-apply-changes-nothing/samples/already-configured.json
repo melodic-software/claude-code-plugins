@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": "Already configured; nothing changed."
+    },
+    {
+      "answer": "All checks pass, so apply reports already configured."
+    },
+    {
+      "answer": "| Result | Everything is ALREADY CONFIGURED |",
+      "why": "case-insensitive"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Configured.",
+      "why": "no already"
+    },
+    {
+      "answer": "jq is missing: install it from https://jqlang.org/download/",
+      "why": "a FAIL routed"
+    },
+    {
+      "answer": "Nothing to do, it was configured already.",
+      "why": "near miss: not the skill's literal"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

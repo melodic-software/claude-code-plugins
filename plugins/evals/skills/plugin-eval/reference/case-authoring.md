@@ -215,6 +215,18 @@ a `regex` takes flags, or which files `file_exists` counts.
 - A gated tool in `allowed_tools` with no matching `--allow-tools` grant. The tool is removed from
   the session and reported on stderr as `not granted`, and the case quietly measures a model without
   it.
+- Relying on `allowed_tools` to keep a tool away from the model. A run can offer a tool the case
+  does not list: in all 12 runs of one case (`mp-sung-line-template`, `allowed_tools: [Read, Glob,
+  Grep]`) on Claude Code 2.1.317, the session was also offered `Skill`, `Task`, `TaskStop` and
+  `ToolSearch`, and two runs called `Skill` with no denial. That is one case on one version; which
+  tools a run always offers is only as settled as the harness-ops behavior probe
+  [`plugin-eval/unlisted-tools-offered`](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/harness-ops/skills/behavior-probes/cases/plugin-eval/unlisted-tools-offered/expect.json)
+  shows once a live run records it in that skill's `records.md`; until then, treat it as unsettled.
+  When a case must not reach a tool, add a `tool_used` grader for it with `min: 0` and `max: 0`
+  instead of trusting the list. When checking what `allowed_tools` is documented to allow,
+  fetch [`prompt.md` fields](https://code.claude.com/docs/en/plugin-evals#prompt-md-fields) live.
+  As of 2026-11-04. Recheck trigger: that probe reports `fail`, or that section changes what a run
+  offers beyond the listed tools.
 - Taking `claude plugin eval init --bare`'s scaffold as-is without checking which grader it
   writes. Replace a paid `llm` grader with a deterministic one wherever one can decide the case.
   When checking what the scaffold writes, fetch

@@ -2417,7 +2417,17 @@ judged as a partial slice (owner decision 2026-10-23, the recommended option): o
 pull request body says it delivers, which must be in the issue's scope, correct and coherent on
 its own, with the body naming what remains; a body that names no delivered part or no remaining
 work, or claims the whole issue, fails. The body only narrows what is judged, never adds a
-requirement, and the spec trust rules below are unchanged. resolve-pr marks each spec entry's
+requirement, and the spec trust rules below are unchanged. The last pull request of an issue split
+across several can close it (owner decision 2026-11-03 on #12965): its body names the earlier ones
+on a plain `Siblings: #<a>, #<b>` line (first column, outside an HTML comment and a fenced code
+block, at most 10), and resolve-pr credits each that GitHub shows written by a trusted person or the
+lanes App, merged into the base in this repository, closing no issue, with a `Refs:` line naming the
+closing issue and a body unedited unless a trusted person edited it last, or the lanes App did
+before the merge. The spec entry then lists them in
+`credited_siblings` with their bodies, and the verifier judges the diff only for the done-when items
+those bodies do not say they delivered; a named sibling that fails a check earns no credit, so the
+diff is judged against the whole issue. The verdict records no sibling, and the merge gate weighs
+such a pass as any closing one. resolve-pr marks each spec entry's
 `spec_kind` (`closes`, `refs` or `pull-request`), and the verdict records it, so the gate refuses a
 pass (`verify:spec-changed`) when the issue is now linked the other way. The model runs
 on ci-workflows' `run-claude-cli` as the `pr-verify` role ([Funding](#funding)), with the Read
@@ -2912,8 +2922,13 @@ them on every `pull_request` run, contract-only runs included:
 - **`do-not-merge` is the veto.** report-outcome labels a lanes App PR that carries `Hold: a
   human merges this` with `do-not-merge`, since the App can edit that body line; ci-status's label
   steps fail while it is on, and removing it lifts the hold. ci-status reads no body hold text: a
-  person who wants a PR held applies `do-not-merge`. On a lanes App PR, a member's veto comment
-  still fails ci-status's merge-holds step until a later comment by the same member lifts it.
+  person who wants a PR held applies `do-not-merge`. On a lanes App PR, a member's veto comment is
+  label-backed: pr-merge's enable-auto-merge job adds `do-not-merge` on the next scheduled run
+  that reads the pull request's discussion, at the latest before any run arms it, with a `<!-- member-veto-label -->` comment just after, and takes the label off once a later
+  comment by each vetoing member lifts the veto, only while its newest `labeled` event is that
+  one. A `do-not-merge` the body hold, a session or a person added is never taken off there.
+  ci-status's merge-holds step still fails on the veto comment until a later comment by the same
+  member lifts it, so the veto holds before the label lands and if the label is removed.
 - **Both lanes review the head.** On a ready PR, the newest `pull_request` run of each caller on the
   head must have a successful status job (`pr-review / claude-review-status`,
   `pr-review-security / security-review`) whose `Apply the hold` step ran. A summary-mode run or
@@ -2978,14 +2993,19 @@ them on every `pull_request` run, contract-only runs included:
   - `review-dependency` (`dependency-invalid`): no merge marker is posted, and pr-merge merges a
     review-tier update only on one (tier `review` above).
 
-A review usually finishes after ci-status has read it, so `pr-feedback-dispatch.yml`'s
+A review usually finishes after ci-status first reads it, so on a full run (not a label flip or
+body edit) ci-status's review-lanes step waits: it polls each lane whose run on the head has not
+completed, every 60 seconds for at most 8 minutes (`REVIEW_WAIT_SECONDS`), reading that run once a
+poll, then judges both lanes as below. A lane with no run is not waited for. A review still running at the cap fails as before,
+naming the automatic re-run, so no manual re-run is needed. Then `pr-feedback-dispatch.yml`'s
 `rerun-ci-status` job re-runs the ci-status job of the newest `pr-require-checks` run on the head
 when a review caller completes (not when GitHub skipped it) on an open same-repository PR still at
 that head and the other lane's newest run on the head has finished or never ran. While the other
 lane is still going a re-run could only be red, and that lane's completion re-runs it, so a head
 gets one re-run, not one per lane. A ci-status not started yet, or one that started after both
 lanes finished, is left to read the reviews itself; an earlier one in progress is polled every 60
-seconds for at most 10 minutes first. A read refused by the token's primary rate limit waits for
+seconds for at most 10 minutes first. One that passed with its review-lanes step ending after both
+lanes finished (it waited for them) is left alone too, since a re-run can only pass again. A read refused by the token's primary rate limit waits for
 the reset inside the same 10 minutes; a reset past them fails the job, naming the reset, since
 nothing else re-runs a ci-status left stale. The merge-group run re-checks the labels, and also
 fails while the queued PR carries `pr-verify-failed`, which a `pr-verify` pass removes, at a new

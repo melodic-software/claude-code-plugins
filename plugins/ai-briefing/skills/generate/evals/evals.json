@@ -124,14 +124,31 @@
     {
       "id": 10,
       "name": "rendered-views-medium-never-starts-build",
-      "prompt": "Catch me up on AI from the last week for the team meeting. (Fixture: ~/.claude/rendered-views.md contains only 'medium: artifact'; the repo has no rendered-views layer; no --format argument was given.)",
-      "expected_output": "A markdown briefing covering roughly the last 7 days. The user-global medium: artifact does not start the HTML or slide build, because only --format selects those outputs. The summary names the shipped default as the source of the format.",
+      "prompt": "Catch me up on AI from the last week for the team meeting. (Fixture: the repository's untracked, gitignored docs/conventions/rendered-views.local.yaml sets a publishing medium; no --format argument was given.)",
+      "expected_output": "A markdown briefing covering roughly the last 7 days. The skill runs the shared medium resolver and prints its report line, but the publishing medium the personal override chose does not start the HTML or slide build, because only --format selects those outputs. The summary names the shipped default as the source of the format.",
       "files": [],
       "narration": true,
       "expectations": [
         "Output is a markdown briefing, not an HTML page, a PPTX deck or a published Artifact",
         "The build pipeline (output/build/*.js) is not invoked",
+        "The skill runs view-settings.mjs resolve with --lane ai-briefing:generate and prints the report line it returns, the one starting with 'view:'",
+        "The skill does not read or weigh docs/conventions/rendered-views.local.yaml itself",
         "The summary names the shipped default as the source of the format"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "retired-rendered-views-file-gives-notice",
+      "prompt": "Catch me up on AI from the last week. (Fixture: ~/.claude/rendered-views.md exists and sets medium: artifact, and its notice has not been shown in this project before; the repository has no rendered-views convention file; no --format argument was given.)",
+      "expected_output": "A markdown briefing covering roughly the last 7 days. The skill takes the medium from the shared resolver, not from the retired file, and prints the resolver's report line plus its notice that ~/.claude/rendered-views.md is no longer read, with docs/conventions/rendered-views.local.yaml as the place to set it, since this plugin has no medium option, and the caveat that a publishing value there applies only while that file is untracked and gitignored.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Output is a markdown briefing and the build pipeline (output/build/*.js) is not invoked",
+        "The skill does not read ~/.claude/rendered-views.md itself or take a value from it",
+        "The report carries the resolver's 'view:' report line and its notice that ~/.claude/rendered-views.md is no longer read",
+        "The notice points the user at docs/conventions/rendered-views.local.yaml, not at an ai-briefing plugin medium option, which does not exist",
+        "Because the retired file's notice names a value, the notice ends with '; a publishing value there applies only while that file is untracked and gitignored'"
       ]
     }
   ]

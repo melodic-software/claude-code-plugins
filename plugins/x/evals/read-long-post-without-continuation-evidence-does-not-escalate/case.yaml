@@ -1,5 +1,7 @@
 schema_version: "1.1"
 name: 'read-long-post-without-continuation-evidence-does-not-escalate'
+context:
+  scaffold_script: scaffold.sh
 graders:
   - name: 'expectation-1'
     type: 'llm'
@@ -19,3 +21,15 @@ graders:
     min: 0
     max: 0
     arm: 'both'
+  - name: 'no-thread-reader-read'
+    type: 'tool_used'
+    tool: 'Read'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?threadreader-2091847365019283746\.html"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'reports-post'
+    type: 'regex'
+    pattern: '\btest[- ]tile\b|\bsilicon carbide\b'
+    flags: 'i'
+    target: 'last_message'

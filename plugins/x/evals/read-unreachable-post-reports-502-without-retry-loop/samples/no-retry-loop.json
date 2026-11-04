@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call: reports the user's result"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "curl -q -sS --proto '=https' --max-time 30 --max-filesize 5000000 -X POST https://xtomd.com/api/markdown -H \"Content-Type: application/json\" -H \"Accept: text/markdown\" -d '{\"url\":\"https://x.com/someone/status/9999999999999999999\"}' -o '/tmp/tmp.Qx12/x-9999999999999999999-a1.md' -w '%{http_code}'"}}],
+      "why": "one confirming request"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "curl -q -sS --proto '=https' -X POST https://xtomd.com/api/markdown -d '{\"url\":\"https://x.com/someone/status/9999999999999999999\"}' -o '/tmp/tmp.Qx12/x-9999999999999999999-a1.md' -w '%{http_code}'"}},
+        {"tool": "Bash", "input": {"command": "curl -q -sS --proto '=https' -X POST https://xtomd.com/api/markdown -d '{\"url\":\"https://x.com/someone/status/9999999999999999999\"}' -o '/tmp/tmp.Qx12/x-9999999999999999999-a2.md' -w '%{http_code}'"}}
+      ],
+      "why": "retries the same request"
+    }
+  ]
+}

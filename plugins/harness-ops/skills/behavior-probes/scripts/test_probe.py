@@ -1111,6 +1111,122 @@ class PlantCheckTests(unittest.TestCase):
         self.assertIn("/proc/self/environ", denied.stderr)
 
 
+class EvalToolsCheckTests(unittest.TestCase):
+    """The plugin-eval case's checker, run against a stub `claude` that writes a fixed result."""
+
+    STUB = (
+        "#!/usr/bin/env bash\n"
+        'out=""\n'
+        'while [ $# -gt 0 ]; do [ "$1" = --json ] && out="$2"; shift; done\n'
+        "printf '%s' \"$EVAL_RESULT\" >\"$out\"\n"
+    )
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="probe-test-"))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.checker = self.tmp / "eval-tools-check.py"
+        shutil.copy(probe.DEFAULT_CASES / "lib" / "eval-tools-check.py", self.checker)
+        bin_dir = self.tmp / "bin"
+        bin_dir.mkdir()
+        stub = bin_dir / "claude"
+        stub.write_text(self.STUB)
+        stub.chmod(0o755)
+        self.env = {
+            "PATH": f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}",
+            "HOME": str(self.tmp),
+        }
+
+    # The test's HOME is longer than the checker's TMPDIR cap allows, so these runs
+    # lift the cap; test_a_long_home_prints_no_marker covers it.
+    UNCAPPED = (
+        "import importlib.util, sys\n"
+        "spec = importlib.util.spec_from_file_location('check', sys.argv[1])\n"
+        "module = importlib.util.module_from_spec(spec)\n"
+        "spec.loader.exec_module(module)\n"
+        "module.MAX_TMPDIR = 4096\n"
+        "sys.exit(module.main())\n"
+    )
+
+    def check(self, trace_lines, result=None, capped=False):
+        (self.tmp / "trace.jsonl").write_text(
+            "\n".join(json.dumps(line) for line in trace_lines)
+        )
+        result = result or {"cases": [{"arms": {"with": [{"tracePath": "trace.jsonl"}]}}]}
+        argv = [sys.executable, str(self.checker)]
+        if not capped:
+            argv = [sys.executable, "-c", self.UNCAPPED, str(self.checker)]
+        return subprocess.run(  # noqa: S603 - fixed argv
+            argv,
+            env={**self.env, "EVAL_RESULT": json.dumps(result)},
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    def test_a_long_home_prints_no_marker(self):
+        self.env["HOME"] = str(self.tmp / ("h" * 30))
+        Path(self.env["HOME"]).mkdir()
+        done = self.check([], capped=True)
+        self.assertEqual(done.returncode, 1)
+        self.assertEqual(done.stdout, "")
+        self.assertEqual(list(Path(self.env["HOME"]).iterdir()), [])
+
+    def test_the_run_gets_a_short_tmpdir_that_is_removed(self):
+        log = self.tmp / "tmpdir.log"
+        stub = self.tmp / "bin" / "claude"
+        stub.write_text(self.STUB + f'printf %s "$TMPDIR" >"{log}"\n')
+        self.check([])
+        seen = Path(log.read_text())
+        self.assertEqual(seen.parent, self.tmp)
+        self.assertFalse(seen.exists())
+
+    def test_reports_each_watched_tool_state_and_the_init_tools(self):
+        init = {
+            "type": "system",
+            "subtype": "init",
+            "claude_code_version": "9.9.9",
+            "tools": ["Task", "Glob", "Grep", "Read", "Skill", "TaskStop"],
+        }
+        done = self.check(
+            [
+                init,
+                use("s1", name="Skill"),
+                use("a1", name="Agent"),
+                use("t1", name="TaskStop"),
+                result("s1", "loaded"),
+                result(
+                    "a1",
+                    "Permission to use Agent has been denied by your permission settings",
+                    is_error=True,
+                ),
+                result("t1", "No task found", is_error=True),
+            ]
+        )
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(
+            done.stdout.strip(),
+            "eval-tools: Skill=ran Task=denied TaskStop=refused ToolSearch=absent "
+            "claude=9.9.9 offered=Task,Glob,Grep,Read,Skill,TaskStop",
+        )
+
+    def test_offered_but_uncalled_and_denial_records(self):
+        init = {"type": "system", "subtype": "init", "tools": ["Read", "ToolSearch", "Skill"]}
+        done = self.check([init, use("s1", name="Skill"), final(denials=["s1"])])
+        self.assertIn(
+            "Skill=denied Task=absent TaskStop=absent ToolSearch=not-called", done.stdout
+        )
+
+    def test_no_kept_trace_prints_no_marker(self):
+        done = self.check([], result={"cases": [{"arms": {"with": [{}]}}]})
+        self.assertEqual(done.returncode, 1)
+        self.assertEqual(done.stdout, "")
+
+    def test_no_init_tools_prints_no_marker(self):
+        done = self.check([use("s1", name="Skill")])
+        self.assertEqual(done.returncode, 1)
+        self.assertEqual(done.stdout, "")
+
+
 CHANGELOG = """# Claude Code changelog
 
 <Update label="2.1.300" description="x">

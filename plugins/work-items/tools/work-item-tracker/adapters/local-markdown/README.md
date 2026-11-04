@@ -54,6 +54,11 @@ search, and aggregation stay on those verbs; do not invent a query language
 against the markdown files. `--assignee`, `--search`, and `stats` projections
 that need item bodies or update times are **unsupported** on this adapter.
 `create-item` records `created_at`; items created before it read `null`.
+The adapter has no close verb: close an item by editing its file to `state:
+"closed"` and adding `closed_at` (a UTC ISO-8601 string, e.g.
+`"2026-11-03T12:00:00Z"`). Without `closed_at`, `create-item --parent` counts
+the closed child as closed more than 24 hours ago and files a new same-titled
+sibling (CONTRACT.md "local-markdown adapter").
 
 ## Auth
 

@@ -1,5 +1,7 @@
 schema_version: "1.1"
 name: 'read-plaintext-scheme-is-accepted-and-upgraded-by-rebuild'
+context:
+  scaffold_script: scaffold.sh
 graders:
   - name: 'expectation-1'
     type: 'llm'
@@ -23,3 +25,7 @@ graders:
     min: 0
     max: 0
     arm: 'both'
+  - name: 'attributes-https-url'
+    type: 'regex'
+    pattern: 'https://x\.com/brinkmoss/status/1357924680(?![0-9])'
+    target: 'last_message'

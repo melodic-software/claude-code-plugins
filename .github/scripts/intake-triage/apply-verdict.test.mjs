@@ -393,11 +393,29 @@ describe("planWrites", () => {
     });
   }
 
+  // A kept trust control (loop-lane "When work stops for the owner"): text
+  // addressed to the triage run escalates, and the needs-human this run's
+  // triage applied for it stays, though the escalated verdict carries no flag.
   test("needs-human on an escalated run holds even when this run's triage applied it", () => {
-    const result = plan(ESCALATED_BODY, { labels: ["needs-human"], triageLabels: ["needs-human"] });
+    const result = plan(ESCALATED_BODY, { labels: ["needs-human"], holdSetters: { "needs-human": ACTIONS_BOT }, triageLabels: ["needs-human"] });
     assert.equal(result.ready, false);
     assert.deepEqual(result.remove, []);
+    assert.deepEqual(result.refused, []);
+    assert.ok(result.reasons.includes("the triage run escalated"), result.reasons.join("; "));
     assert.ok(result.reasons.includes("held by needs-human"), result.reasons.join("; "));
+  });
+
+  // The same hold when the escalated verdict also reads Flags: none with every
+  // dimension: only the escalation guard keeps this needs-human from being refused.
+  test("needs-human on an escalated run with Flags: none and readable dimensions is not refused", () => {
+    const body = `${MARKER}\nProposed work class: none\n\nThanks for the report. Automated triage handed this issue to a maintainer.\n\nSize: Small\nComplexity: Low\nUncertainty: Known\nFlags: none\n\n${OLD_FOOTER}`;
+    const verdict = parseVerdict(body, DIMS, CLASSES);
+    assert.equal(verdict.escalated, true);
+    assert.deepEqual(verdict.flags, []);
+    assert.notEqual(verdict.dimensions, null);
+    const result = plan(body, { labels: ["needs-human"], holdSetters: { "needs-human": ACTIONS_BOT }, triageLabels: ["needs-human"] });
+    assert.deepEqual(result.refused, []);
+    assert.ok(!result.remove.includes("needs-human"), result.remove.join(", "));
   });
 
   // Run 41064812826 (#9953) also applied status: needs-decision with no flag.

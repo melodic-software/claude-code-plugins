@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "No, it isn't broken. There is no eol=lf or eol=crlf rule in your .gitattributes (there is no .gitattributes at all), so the hook has nothing to apply. That is the opt-out by design: INFO, not FAIL. The plugin ships no policy of its own; your .gitattributes is the whole opt-in."
+    },
+    {
+      "answer": "| eol= policy | INFO | no rule governs any path: inert by design, not a failure |\n\nThe plugin works; resolution is entirely .gitattributes-driven and this repository declares nothing."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| eol= policy | FAIL | no eol= rule found |\n\nThe plugin is misconfigured until you add a rule.",
+      "why": "classified FAIL"
+    },
+    {
+      "answer": "It isn't broken.",
+      "why": "near miss: no classification or reason"
+    }
+  ]
+}

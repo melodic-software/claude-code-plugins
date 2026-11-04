@@ -1,5 +1,7 @@
 schema_version: "1.1"
 name: 'read-note-tweet-root-of-a-chain-still-escalates'
+context:
+  scaffold_script: scaffold.sh
 graders:
   - name: 'expectation-1'
     type: 'llm'
@@ -11,5 +13,16 @@ graders:
     focus: 'trace'
   - name: 'expectation-3'
     type: 'llm'
-    criteria: 'Uses the gate-captured id for the threadreaderapp.com lookup'
+    criteria: 'Uses the Thread Reader App result for the gate-captured id'
     focus: 'trace'
+  - name: 'reads-thread-page'
+    type: 'tool_used'
+    tool: 'Read'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?threadreader-3333333333333333333\.html"'
+    min: 1
+    arm: 'both'
+  - name: 'reports-later-post'
+    type: 'regex'
+    pattern: '\bcofferdam\b|\bthornmouth\b'
+    flags: 'i'
+    target: 'last_message'

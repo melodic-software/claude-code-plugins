@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "Returns the long single post from step 1 alone. No continuation evidence exists — no thread request, no mid-thought ending, no numbered markers — so length by itself is not a reason to escalate.",
+      "answer": "Returns the long single post from step 1 alone, including the test-tile board and the silicon carbide shelves. No continuation evidence exists, so length by itself is not a reason to escalate: the saved Thread Reader App page is never opened and Thread Reader App is never fetched.",
       "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
     }
   ]

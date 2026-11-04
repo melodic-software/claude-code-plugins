@@ -9,7 +9,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "curl -q -sS --proto '=https' -X POST https://xtomd.com/api/markdown -d '{\"url\":\"https://x.com/karpathy/status/2015883857489522876\"}'"
+            "command": "curl -q -sS --proto '=https' -X POST https://xtomd.com/api/markdown -d '{\"url\":\"https://x.com/sedgeloft/status/2082736455463728191\"}'"
           }
         }
       ],
@@ -22,7 +22,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "curl -sS https://threadreaderapp.com/thread/2015883857489522876.html"
+            "command": "curl -sS https://threadreaderapp.com/thread/2082736455463728191.html"
           }
         }
       ],

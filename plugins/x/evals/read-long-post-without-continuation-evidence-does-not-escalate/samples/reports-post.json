@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "**@marrowfen** · 2026-10-26\n\nIf you start one, begin with the calendar and the test-tile board.",
+      "why": "quotes the closing line"
+    },
+    {
+      "answer": "- They replaced the shelves with Silicon Carbide ones.",
+      "why": "list, title case"
+    },
+    {
+      "answer": "A board of test tiles... the test tile board by the door.",
+      "why": "test tile, spaced"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Thread Reader App has no unroll for this post, so I can't read it.",
+      "why": "reports the step-2 page, not the post"
+    }
+  ]
+}

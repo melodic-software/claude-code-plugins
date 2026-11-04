@@ -301,7 +301,24 @@ deterministic surface for out-of-band notification.
 The event classes that oblige escalation are governing policy owned by
 [`guardrails.md`](../../../plugins/autonomy/reference/guardrails.md#escalation) (gate failure,
 verification divergence, admission rejection, demotion, structural-plan approval, and
-untrusted-provenance). This convention adds no second escalation channel; the telemetry comment (§4)
+untrusted-provenance). An event class does not by itself stop work for the owner: each routes
+to the lane that owns its follow-up (a failed gate or a verifier dissent to the lane doing the
+work, a demotion to its fix issues through intake triage, the cell re-earning from run
+evidence), an audited admission rejection stays final with any follow-up entering intake as a
+new signal, and each carries the `needs-human` role label only for a reason or kept control
+[When work stops for the owner](#when-work-stops-for-the-owner) names. Structural-plan approval
+stops only when the plan changes intent or the primary design; untrusted-provenance is a kept
+trust control (below). The post-merge demotion alert
+([`post-merge-demotion-alert.yml`](../../../.github/workflows/post-merge-demotion-alert.yml))
+follows the record rules [#11022](https://github.com/melodic-software/claude-code-plugins/issues/11022)
+set and the pr-pipeline "Demotion issue" rule
+([the local babysit lane](../../conventions/pr-pipeline/README.md#the-local-babysit-lane)) states: a
+red-main record carries no label and clears once main is green at a later commit; a canary,
+revert or read-back record, which a green main does not clear, keeps `needs-human` only until it
+lifts on its own lane-verifiable condition, when the alert's `close-cleared` job closes it and
+removes the label; and a fix or quarantine issue intake triage did not receive gets `needs-human`,
+as does a red-main record whose failing check got no fix issue, because no lane retries that
+delivery. This convention adds no second escalation channel; the telemetry comment (§4)
 is the report surface, never the sole path when human action is required. The escalation record
 write and the out-of-band notification seam below are notification depth on the one filed
 escalation, the fan-out posture the runner design
@@ -369,6 +386,14 @@ is the issue lane's hold on a patch carrying a credential shape or not proven cl
 [`stop-routes.json`](../../../.github/scripts/work-resolve-issue/stop-routes.json)), a token-leak
 path under section 10. A patch proven clear, or a fault that says nothing about credentials,
 retries.
+
+Intake triage keeps one more: text in an issue addressed to the triage run (its labels, its
+rules or its output) rather than describing work, an injection attempt, stops for the owner
+with the `needs-human` role label ([`intake-triage.yml`](../../../.github/workflows/intake-triage.yml)
+ESCALATION rule). It is none of the reasons as written, but the text tries to steer a lane, and
+loosening a security control stays with the owner (owner decision 2026-10-29, #10517).
+[`apply-verdict.mjs`](../../../.github/scripts/intake-triage/apply-verdict.mjs) never refuses
+the hold on such an escalated verdict, though it carries no flag.
 
 The pr-merge gate keeps two more holds for the owner, each a reason
 [`babysit_risk.person_reasons`](../../../plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py)
@@ -454,10 +479,14 @@ real-time deadline. A hold that lands after the merge is not a hold (the inciden
 clause: an escalating lane decided to hold, drafted its explanation first, and applied the label
 ~30 minutes later, 3 minutes *after* the PR had merged).
 
-- **The `do-not-merge` label is the only cross-lane hold.** A lanes App hold line and a person
-  merging by hand use it; ci-status reads no body hold text or `pr-unblock/*` stop status, and a
-  member's veto comment holds only a lanes App pull request, in ci-status's merge-holds step. It is
-  the one hold mechanism enforced
+- **The `do-not-merge` label is the only cross-lane hold.** A lanes App hold line, a member's veto
+  comment on a lanes App pull request and a person merging by hand use it; ci-status reads no body
+  hold text or `pr-unblock/*` stop status. pr-merge's enable-auto-merge job labels a member's veto
+  on the next scheduled run that reads the pull request's discussion, at the latest before any
+  run arms it, and takes that label off once a later comment by each vetoing member
+  lifts it, never a `do-not-merge` anyone else added. ci-status's merge-holds step still fails a
+  lanes App pull request on the veto comment itself, so the veto holds before the label lands and
+  if the label is removed. The label is the one hold mechanism enforced
   server-side: the org ruleset requires the `ci-status` check, whose `check-contract` step fails on the
   `do-not-merge` label and re-evaluates on `labeled`/`unlabeled`, so applying the label flips a
   SHA-bound required check with no bypass actors. A PR already in the merge queue is held by the
@@ -465,8 +494,8 @@ clause: an escalating lane decided to hold, drafted its explanation first, and a
   the PR. A label that lands after that run's `ci-status` passed does not stop the merge, so on a
   queued PR also dequeue it (the `dequeuePullRequest` command under **Hold a PR** in
   [§7](#7-operator-steering-through-github-state)). A PR **comment is advisory, except a member's
-  veto comment, which holds a lanes App pull request** (above): an escalation comment on the PR
-  obliges nothing until the label is on.
+  veto comment, which holds a lanes App pull request and gets the label** (above): an escalation
+  comment on the PR obliges nothing until the label is on.
 - **Hold first, explain second.** The moment a lane decides a PR must not merge, it applies
   `do-not-merge`, before drafting the escalation comment and before assembling the supporting
   evidence. Explain-then-hold inverts the deadline: the drafting time is exactly the window a

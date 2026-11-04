@@ -1,9 +1,11 @@
 schema_version: "1.1"
 name: 'read-note-tweet-does-not-escalate'
+context:
+  scaffold_script: scaffold.sh
 graders:
   - name: 'expectation-1'
     type: 'llm'
-    criteria: 'Does not treat length as evidence of a chain'
+    criteria: 'Does not treat length or isNoteTweet: true as evidence of a chain'
     focus: 'trace'
   - name: 'no-thread-reader-fetch'
     type: 'tool_used'
@@ -19,3 +21,15 @@ graders:
     min: 0
     max: 0
     arm: 'both'
+  - name: 'no-thread-reader-read'
+    type: 'tool_used'
+    tool: 'Read'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?threadreader-2082736455463728191\.html"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'reports-post'
+    type: 'regex'
+    pattern: '\brainwater butts?\b|\bcompost bays?\b'
+    flags: 'i'
+    target: 'last_message'

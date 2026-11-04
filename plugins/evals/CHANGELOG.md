@@ -1,5 +1,15 @@
 # Changelog: evals
 
+## [0.15.7] - 2026-11-04
+
+### Changed
+
+- `plugin-eval`'s case-authoring checklist warns not to rely on `allowed_tools` to keep a tool from the model: a run was seen offering `Skill`, `Task`, `TaskStop` and `ToolSearch` to a case that listed only `Read`, `Glob` and `Grep`. It points at the harness-ops behavior probe that rechecks this.
+
+### Fixed
+
+- `/evals:plugin-eval` run-validity counts a with-arm Bash result's sandbox network denial as a permission denial and names the denied hosts in the summary: it is a FAIL, and a warning in an invocation-probe or control case or one tagged `no-network`; a without-arm run's network denials are not read
+
 ## [0.15.6] - 2026-11-03
 
 ### Fixed
