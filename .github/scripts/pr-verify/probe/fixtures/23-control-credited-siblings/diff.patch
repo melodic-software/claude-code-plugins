@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000..5a6b7c8
 --- /dev/null
 +++ b/plugins/sample-kit/tests/status-json.test.mjs
-@@ -0,0 +1,22 @@
+@@ -0,0 +1,23 @@
 +import assert from "node:assert/strict";
 +import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 +import { tmpdir } from "node:os";
