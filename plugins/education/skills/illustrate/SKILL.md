@@ -1,6 +1,6 @@
 ---
 description: "Visual explainer for a concept or codebase topic, one idea per diagram, grounded in the real artifact and written as a markdown record plus an interactive page (markdown only on request). Presets: newcomer (default) and zero-knowledge (ELI5). Options: an STE register, and a video view too when explainer-video is installed. Use when the user says 'ELI5', 'explain like I'm five', 'illustrate this', 'picture explainer', 'show me a diagram of this', 'explain this visually' or 'explainer video'. A prose drop to plainer words is education:explain; restructuring a dense message is adhd:clarify (if installed)."
-argument-hint: "[topic] [zero-knowledge] [ste] [markdown] [terminal|file|artifact]"
+argument-hint: "[topic] [zero-knowledge] [ste] [markdown] [medium]"
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/build-explainer.mjs:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/build-explainer.mjs\":*)"]
 user-invocable: true
 disable-model-invocation: false
@@ -22,7 +22,7 @@ default, and a **video** when the explainer-video plugin is installed and the re
 | Preset | `newcomer`, `zero-knowledge` | `newcomer`; "ELI5" or "explain like I'm five" selects `zero-knowledge` |
 | Register | `plain`, `ste` | `plain` |
 | Format | `page`, `markdown` | `page` (the record plus its page view); `markdown` writes the record alone |
-| Medium | `terminal`, `file`, `artifact` | See Step 4 |
+| Medium | A medium the reader names in the request | Step 4 resolves it |
 
 ## Step 1. Ground the topic before drawing it
 
@@ -123,26 +123,29 @@ and deliver the record.
 
 ## Step 4. Deliver the view
 
-Resolve the medium; the first rung that gives a value wins:
+Run the shared medium resolver. When the reader named a medium in the request, add
+`--argument <medium>`, `<medium>` being that word:
 
-1. An explicit `terminal`, `file`, or `artifact` argument.
-2. The `rendered-views` cascade: anchor at the repo root (`${CLAUDE_PROJECT_DIR}`, else
-   `git rev-parse --show-toplevel`), then read whichever of `~/.claude/rendered-views.md`,
-   `<root>/.claude/rendered-views.md`, and `<root>/.claude/rendered-views.local.md` exist, in that
-   order. The last layer that sets `medium:` wins. `auto` defers, and `hosted` is treated as
-   `artifact`: this view is never sent to a page host. Name the winning layer; treat a malformed
-   layer as absent and say so.
-3. The shipped ladder: `file`, else `terminal`. Never publish an artifact unless an argument or
-   a layer asks for it.
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --lane education:illustrate --option "${user_config.medium}"
+```
 
-| Medium | Delivery |
-|---|---|
-| `artifact` | Publish the page as an artifact, and give the record's path |
-| `file` | Give the page's path and the record's path |
-| `terminal` | Print the record. Do not paste HTML into the terminal |
+It prints one JSON line, then the report line naming the medium and the fact that decided it, then
+one line per notice; print the report line and each notice line as they stand. The resolver weighs
+the request, this plugin's `medium` option and the repository's rendered-views convention files,
+steps down to a medium this session can reach, and never publishes on a team file's value: leave
+reading and weighing those files to it. When the resolver exits non-zero, the word named no medium
+it knows: print its stderr and run it again without `--argument`. When `node` is missing, the page
+was not built either (Step 3): deliver the record and say the resolver did not run.
 
-When the preferred medium is not reachable here, say which fact decided it. The `markdown` format
-delivers the record by the same rules, with no page.
+Deliver by the JSON line's `page` and `publishes`:
+
+- `page` false: print the record. Do not paste HTML into the terminal.
+- `publishes` true: publish the page with the Artifact tool, and give the record's path. When the
+  Artifact tool is absent, give both paths and say why in one line.
+- Otherwise: give the page's path and the record's path.
+
+The `markdown` format delivers the record by the same rules, with no page.
 
 ## Step 5. Offer the video view
 
