@@ -286,18 +286,21 @@ eligible for skip 2. Compare the base and head manifests:
   `boolean`, or `string` with an `options` list; no listed value or `default` is a command, path
   or URL; it is not `sensitive`; and the code or skill text that reads it uses the value only to
   pick among those values. It is not a selector when its value (`${user_config.<key>}`) reaches
-  `hooks`, `mcpServers`, `lspServers`, `monitors` or `channels`, is used as a filesystem path or
-  URL, or is interpolated unquoted into a shell string, or when a listed value enables sending
-  repository or session content off the machine (publishing, uploading, posting, an external
-  write), unless a tested trust rule gates it (the view `medium` pointer below). One quoted argument to an in-repository
-  script that accepts only the listed values is still a selector. A selector gets one summary
-  line, `manifest userConfig.<key>: pass, advisory, <what the value picks and the file and line
-  that reads it>`, and no inline comment and no `severity:` line; it adds nothing to the findings
-  total or `critical-findings: <n>` and never sets `hold`. A view `medium` key resolved by a
-  plugin's `lib/view-settings.mjs` is a selector while that resolver's trust rules gate what
-  publishes. Pointer: those rules are pinned by `lib/view-settings.test.mjs`, the block "a
-  publishing value counts only from a trusted scope". As of: 2026-11-03. Recheck trigger: that
-  block is removed, or a `medium` key stops resolving through `view-settings.mjs`.
+  `hooks`, `mcpServers`, `lspServers`, `monitors` or `channels`, or is used as a filesystem path
+  or URL. Nor is it one when the value is interpolated unquoted into a shell string; one quoted
+  argument to an in-repository script that accepts only the listed values is still a selector,
+  unless a listed value sends content off the machine. Nor is it one when a listed value enables
+  sending repository or session content off the machine (publishing, uploading, posting, an
+  external write), with one exception: a view `medium` key is a selector when the diff or the
+  repository shows the code that reads it passing the value to a plugin's `lib/view-settings.mjs`
+  resolver, whose trust rules gate what publishes; cite that line. A `medium` key read any other
+  way, with a value that publishes, is not a selector. A selector gets one summary line,
+  `manifest userConfig.<key>: pass, advisory, <what the value picks and the file and line that
+  reads it>`, and no inline comment and no `severity:` line; it adds nothing to the findings
+  total or `critical-findings: <n>` and never sets `hold`. Pointer: the resolver's trust rules are
+  pinned by `lib/view-settings.test.mjs`, the block "a publishing value counts only from a trusted
+  scope". As of: 2026-11-03. Recheck trigger: that block is removed, or a `medium` key stops
+  resolving through `view-settings.mjs`.
 - Default deny. Every other field added, changed, or removed is a `manifest <field>: flag`,
   whatever the lane believes about it, unless it is in this repository's inert set:
   `description`, `keywords`, `author`, `homepage`, `repository`, `license`, a marketplace

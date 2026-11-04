@@ -11,8 +11,10 @@ bump: patch
   `boolean`, or a `string` with an `options` list, that is not `sensitive`, lists no command, path
   or URL, and whose value only picks among those values. A key whose value reaches a hook, an MCP,
   LSP or monitor server, a channel, a path, a URL or an unquoted shell string, or whose value
-  turns on sending repository or session content off the machine with no tested trust rule
-  gating it, stays a `manifest <field>: flag`, and the guard-default rule still runs first. View
-  `medium` keys resolved by `lib/view-settings.mjs` are selectors while
-  `lib/view-settings.test.mjs` pins its trust rules. Three eval cases cover an advisory layout
-  key, a key substituted into a hook command, and a share switch that uploads a session summary.
+  turns on sending repository or session content off the machine, stays a
+  `manifest <field>: flag`, and the guard-default rule still runs first. The one exception is a
+  view `medium` key whose value the diff or repository shows passed to a plugin's
+  `lib/view-settings.mjs` resolver, whose trust rules `lib/view-settings.test.mjs` pins; a
+  `medium` key read any other way, with a publishing value, still flags. Five eval cases cover an
+  advisory layout key, a key substituted into a hook command, a share switch that uploads a
+  session summary, and a publishing `medium` key read through the resolver and read directly.
