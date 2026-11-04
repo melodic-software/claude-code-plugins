@@ -25,16 +25,17 @@ The launch steps for the `knowledge:docpage-digest-batch` workflow that [`../SKI
 5. **Launch** `Workflow({ name: "knowledge:docpage-digest-batch", args: { pages, workRoot, skillDir, date, roles, maxConcurrent } })`.
    `workRoot` is the root `work-root.mjs` printed, `skillDir` is `<skill-dir>`, and `date` is
    today as `YYYY-MM-DD`. An `error` return dispatched nothing. The result lists pages it did not
-   run with a `reason` and a `verification` of `unverified: not run: <reason>` each: `rejected`
-   (not an https URL on a public host, or a character outside the shell-safe allowlist) and
-   `deferred` (past the per-run cap). Relaunch the `deferred` pages.
-6. **Read each page's `verification`**, the same value as its checklist's `Verification status`
-   line: `verified`, `unverified: <reason>` or `failed: <reason>`. A page with `closed: false` had
-   a close stage that returned nothing after its retry, so no checklist or handoff holds the
-   status: write `Verification status: unverified: close stage returned nothing` on that slice's
-   checklist yourself, write each `unwritten` entry's verdict to its `file` under the slice's
-   verification records, append-only, with its `header` and `findings`, and read what Phase 4
-   reached from `outcome`. Re-run an `unverified` page once its cause clears, take a `failed` page
-   to the operator, and treat `unverified: refused: redirect target <reason>` as a page whose
-   redirect left the checks the workflow applies to input URLs; any other `unverified: refused:`
-   page is a collision. Then run the Phase 5 interview once over the `verified` pages' handoffs.
+   run with a `reason` code and a `verification` of `unverified: not run: <reason>` each:
+   `rejected` (`not-https`, `url-charset` for a character outside the shell-safe allowlist, or
+   `not-public-host`) and `deferred` (`page-cap`). Relaunch the `deferred` pages.
+6. **Read each page's `verification`**: `verified`, `unverified: <code>` or `failed: <code>`, built
+   only from the workflow's own reason codes, never from agent text. `verified` needs both arms
+   to return a written `PASS` or `PASS-WITH-FINDINGS` in this run, every standing gate passed,
+   and a close stage that wrote the checklist and handoff. A page with `closed: false` has no
+   checklist line or handoff from the close stage: write `Verification status: <verification>`
+   on its checklist yourself. Re-run an `unverified` page once its cause clears; a rerun redoes
+   Phases 3 to 5, since the batch path has no resume. `unverified: redirect-refused` is a page
+   whose redirect target failed the input URL checks, and `unverified: setup-refused` a slug
+   collision. The batch path runs no correction rounds: take a `failed: verifier-fail` or
+   `failed: gate-fail` page through the single-page path, which keeps them. Then run the Phase 5
+   interview once over the `verified` pages' handoffs.

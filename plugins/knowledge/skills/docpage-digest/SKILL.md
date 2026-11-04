@@ -284,8 +284,9 @@ self-contained prompt naming the slug, the first unticked checklist phase, and t
 
 Several pages from one session run through the `knowledge:docpage-digest-batch` workflow. An agent
 inside a workflow cannot spawn another, so the workflow script itself dispatches each Phase 3
-digest agent, both Phase 4 arms and each correction round as separate agents, and points every one
-at this file and its `context/` spokes. Each page keeps its own slice, checklist and handoff.
+digest agent and both Phase 4 arms as separate agents, and points every one at this file and its
+`context/` spokes. It runs no correction rounds and no resume: a page whose verifiers fail is
+rerun here, one page at a time. Each page keeps its own slice, checklist and handoff.
 Read [context/batch-path.md](context/batch-path.md) before launching it: it owns the launch steps,
 the `args`, and what to do with each page's returned `verification`.
 

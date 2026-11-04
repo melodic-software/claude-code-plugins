@@ -1,6 +1,6 @@
 ---
 name: digest-worker
-description: "Runs one stage of the knowledge:docpage-digest-batch workflow for one page (setup, digest, pin, verifier, correct or close), following the docpage-digest skill files the prompt names. Holds file and shell tools but cannot spawn agents. Dispatched by that workflow; not intended for direct ad-hoc use."
+description: "Runs one stage of the knowledge:docpage-digest-batch workflow for one page (setup, digest, pin, verifier or close), following the docpage-digest skill files the prompt names. Holds file and shell tools but cannot spawn agents. Dispatched by that workflow; not intended for direct ad-hoc use."
 tools: "Read, Write, Edit, Bash, Grep, Glob, WebFetch"
 model: inherit # reason: the docpage-digest-batch workflow passes model and effort per stage from the role map
 maxTurns: 80 # reason: design choice; a setup or verifier stage replays many commands and gates, and 80 still stops a stuck stage
