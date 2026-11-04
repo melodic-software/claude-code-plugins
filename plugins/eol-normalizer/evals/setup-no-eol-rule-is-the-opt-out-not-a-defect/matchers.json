@@ -1,0 +1,12 @@
+{
+  "ran-check-attr": [
+    {
+      "use": "command_position"
+    },
+    "git(?:\\.exe)?(?![\\w.\\-/])",
+    {
+      "use": "token_argument"
+    },
+    "\\bcheck-attr\\b"
+  ]
+}

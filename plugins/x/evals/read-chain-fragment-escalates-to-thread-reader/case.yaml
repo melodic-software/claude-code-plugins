@@ -1,5 +1,7 @@
 schema_version: "1.1"
 name: 'read-chain-fragment-escalates-to-thread-reader'
+context:
+  scaffold_script: scaffold.sh
 graders:
   - name: 'expectation-1'
     type: 'llm'
@@ -7,9 +9,20 @@ graders:
     focus: 'trace'
   - name: 'expectation-2'
     type: 'llm'
-    criteria: 'Treats a final URL ending in /error as a miss even though the status code is 200'
+    criteria: 'Before trusting the saved Thread Reader App page, confirms positively that it is a hit: it carries the thread''s posts rather than an error, landing or challenge page, and neither the 200 nor the absence of /error in the recorded final URL is taken as proof on its own'
     focus: 'trace'
   - name: 'expectation-3'
     type: 'llm'
     criteria: 'States that step 2 produced the assembled chain rather than presenting it as one fetch'
     focus: 'trace'
+  - name: 'reads-thread-page'
+    type: 'tool_used'
+    tool: 'Read'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?threadreader-1234567890123456789\.html"'
+    min: 1
+    arm: 'both'
+  - name: 'reports-later-post'
+    type: 'regex'
+    pattern: '\bcopperfold\b|\b05[:.]52\b'
+    flags: 'i'
+    target: 'last_message'

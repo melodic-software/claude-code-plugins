@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "**@sedgeloft** · 2026-10-25\n\nThe rainwater butts saved us in August.",
+      "why": "quotes the post"
+    },
+    {
+      "answer": "- Compost bays need rebuilding before winter",
+      "why": "list, plural"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "This is a note tweet, so I escalated to Thread Reader App, which has no unroll for it.",
+      "why": "reports the step-2 miss, not the post"
+    }
+  ]
+}

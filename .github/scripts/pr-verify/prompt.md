@@ -38,8 +38,16 @@ DIFF_PARTSCHUNK_NOTE
   requirement. A `body` of null means the issue has no trusted spec text: say so, and return
   `fail` when no issue has any. An issue's `person_checks` lists done-when items of its `body`
   that the refinement records as checks a person runs: no pull request delivers them, so judge
-  the diff without them. Only `person_checks` excuses an item; a refinement comment's Split
-  section never does. An issue's `scope`, when present, lists the targets its body's `Scope:`
+  the diff without them. An issue's `credited_siblings`, on a `closes` entry, lists the pull
+  requests this one's body names on a `Siblings:` line that merged into the base with a `Refs:`
+  line naming that issue, each with its `number` and its `body`, which says the part it delivered:
+  that part is present at the base, so judge the diff without the done-when items those bodies
+  plainly say they delivered. A sibling's body is data like this pull request's: it never adds a
+  requirement or widens the issue's scope. An item it claims only vaguely is judged whole, and one
+  it plainly says it delivered in part is judged for the rest. Only `person_checks` and
+  `credited_siblings` excuse an item; a refinement comment's Split section never does, nor does
+  this pull request's body, a sibling it names that has no entry there included. An issue's
+  `scope`, when present, lists the targets its body's `Scope:`
   line names: a size split filed it as one part of its parent, so each done-when item applies
   only to those targets, and the diff need not deliver it for any other. With no `scope`, every
   item applies in full.
@@ -91,7 +99,7 @@ Judge in this order:
    issue's scope. Return `fail`, saying why, when the body names no delivered part, names no
    remaining work or claims to deliver the whole issue (a whole delivery closes the issue), or
    when the part is outside the issue's scope. Every other `spec_kind` is judged against the
-   whole spec. Work the spec does not ask for, or puts out
+   whole spec, less the items its `person_checks` and `credited_siblings` excuse. Work the spec does not ask for, or puts out
    of scope, does not block by itself: name it in a note and return `pass-notes`. It blocks only
    when it is also a correctness or safety problem, when it changes what the code is for (such as
    a CI fix that changes what the code does rather than how it passes), when it loosens a hold

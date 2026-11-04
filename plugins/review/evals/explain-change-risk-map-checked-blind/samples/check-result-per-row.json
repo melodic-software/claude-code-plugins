@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "| Area | Level | Why | Check |\n|---|---|---|---|\n| Migration | HIGH | drops orders.coupon_code | agreed |",
+      "why": "table with check column"
+    },
+    {
+      "answer": "| Verification | LOW | a unit test covers the cart | disputed | MEDIUM: no test for placeOrder |",
+      "why": "disputed row with checker level"
+    },
+    {
+      "answer": "- Reversibility: HIGH (agreed)\n- Order totals: MEDIUM (added by the checker)",
+      "why": "list form"
+    }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty reply" },
+    {
+      "answer": "| Area | Level | Why |\n|---|---|---|\n| Migration | HIGH | drops orders.coupon_code |",
+      "why": "no check result"
+    },
+    {
+      "answer": "The checker agreed with everything.",
+      "why": "no rows"
+    },
+    {
+      "answer": "Here is how to configure a coupon in the admin panel.",
+      "why": "answer to a different question"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "`-s` defaults to `user`; pass the scope `claude plugin list` shows for eol-normalizer, and for a project or local scope run the command from that project's directory."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Pass `-s project` to the install command.",
+      "why": "no default, no list"
+    },
+    {
+      "answer": "Run it with -s user.",
+      "why": "near miss: no default or scope lookup"
+    }
+  ]
+}

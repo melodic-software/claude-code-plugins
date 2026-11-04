@@ -1,0 +1,60 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/plugin/hooks/normalize-eol.sh"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/plugin/hooks/eol-normalizer.sh"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/plugin/hooks/normalize-eol.sh"
+          }
+        }
+      ],
+      "why": "both files"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/plugin/hooks/eol-normalizer.sh"
+          }
+        }
+      ],
+      "why": "entry script alone"
+    },
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /tmp/plugin/hooks/normalize-eol.sh",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "Bash, not Read"
+    }
+  ]
+}

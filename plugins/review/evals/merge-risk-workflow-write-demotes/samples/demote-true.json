@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "| Area | Level | Why |\n|---|---|---|\n| Impact | HIGH | release.yml widens the token to contents: write |\n\n```json\n{\"pr\": 88, \"head\": \"abc\", \"risks\": [], \"demote\": true}\n```",
+      "why": "result block with demote true"
+    },
+    {
+      "answer": "{\"pr\":88,\"head\":\"abc\",\"risks\":[],\"demote\":true}",
+      "why": "compact JSON"
+    }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty reply" },
+    {
+      "answer": "```json\n{\"pr\": 88, \"head\": \"abc\", \"risks\": [], \"demote\": false}\n```",
+      "why": "demote false"
+    },
+    {
+      "answer": "Demote is true, so a human should merge this.",
+      "why": "prose only, no result block"
+    },
+    {
+      "answer": "Here is a summary of the release notes for version 1.4.0.",
+      "why": "answer to a different question"
+    }
+  ]
+}

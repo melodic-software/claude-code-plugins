@@ -1665,6 +1665,37 @@ test("a pass-only round resolves nothing once the head moved past the passing on
   }
 });
 
+test("main writes a pass-only round's resolved-thread count to the step summary", async (t) => {
+  const dir = tempDir("publish-feedback-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const replies = join(dir, "replies");
+  mkdirSync(replies);
+  const runText = staleRun(["PRRT_old", "PRRT_also_old", "PRRT_now"]);
+  writeFileSync(join(replies, "run.json"), runText);
+  const actors = join(dir, "actors.json");
+  writeFileSync(actors, JSON.stringify({ actors: [{ id: REVIEWER, login: "claude[bot]", kind: "bot" }] }));
+  const env = {
+    GH_TOKEN: "t",
+    GITHUB_REPOSITORY: "o/r",
+    PR_NUMBER: "42",
+    HEAD_SHA: NOW,
+    HEAD_REF: "feature",
+    GITHUB_RUN_ID: "5000",
+    APP_SENDER_ID: String(APP),
+    TRUSTED_ACTORS: actors,
+    FEEDBACK_REPLIES_DIR: replies,
+    GITHUB_WORKSPACE: dir,
+    SKIP_REASON_FILE: join(dir, "skip"),
+    ESCALATION_REASON_FILE: join(dir, "escalation"),
+    RUN_SHA256: createHash("sha256").update(runText).digest("hex"),
+    GITHUB_STEP_SUMMARY: join(dir, "summary"),
+  };
+  const api = staleApi([noteThread("PRRT_old"), noteThread("PRRT_also_old"), noteThread("PRRT_now", { commit: NOW })]);
+  assert.equal(await main(env, { api, log: () => {} }), 0);
+  assert.deepEqual(api.resolved(), ["PRRT_old", "PRRT_also_old"]);
+  assert.equal(readFileSync(env.GITHUB_STEP_SUMMARY, "utf8"), `resolved 2 fail-note thread(s) a pr-verify pass at ${NOW} superseded\n`);
+});
+
 test("a malformed stale_notes list reads as a malformed run.json", async () => {
   const api = fakeApi();
   const result = await run(api, null, JSON.stringify({ version: 1, head_sha: NOW, threads: [], stale_notes: ["not a thread"] }));
@@ -1840,4 +1871,20 @@ test("an earlier-fail round's replies and run.json are held to their template", 
     assert.equal(result.escalationReason, "feedback-invalid", label);
     assert.deepEqual(api.posted(), [], label);
   }
+});
+
+// The write runner's script step (pr-run-activity-write.yml) fails a run whose
+// escalation reason file holds a reason outside its publish-feedback case arms,
+// so every reason publish-feedback and its adjudication can write is in them.
+test("every escalation reason publish-feedback can write is one the write runner's script step accepts", () => {
+  const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
+  const written = new Set(
+    ["./publish-feedback.mjs", "./adjudicate-feedback.mjs"].flatMap((path) => [...read(path).matchAll(/"(feedback-[a-z]+(?:-[a-z]+)*)"/g)].map((match) => match[1])),
+  );
+  assert.ok(written.has("feedback-already-addressed") && written.has("feedback-unadjudicated"), [...written].join(" "));
+  const workflow = read("../../workflows/pr-run-activity-write.yml");
+  const block = workflow.slice(workflow.indexOf('case "$FEEDBACK_REPLIES_DIR:$escalation" in'), workflow.indexOf(":ci-fix-invalid |"));
+  const accepted = new Set([...block.matchAll(/\?\*:(feedback-[a-z]+(?:-[a-z]+)*)/g)].map((match) => match[1]));
+  for (const reason of written) assert.ok(accepted.has(reason), `${reason} is not in the write runner's publish-feedback case arms`);
+  assert.ok(!accepted.has("feedback-bogus"));
 });

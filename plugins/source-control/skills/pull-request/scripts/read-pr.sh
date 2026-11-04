@@ -191,6 +191,7 @@ facts=$(cat "$work"/files-*.json | jq -n --slurpfile pull "$work/pull.json" '
     state: (if $p.merged_at then "MERGED" else ($p.state | ascii_upcase) end),
     isDraft: ($p.draft // false),
     title: $p.title,
+    body: ($p.body // ""),
     baseRefName: $p.base.ref,
     headRefName: $p.head.ref,
     baseRefOid: $p.base.sha,

@@ -1273,12 +1273,8 @@ describe("read-only boundary", () => {
       assert.ok(!tools.includes(verb), verb);
     }
   });
-  test("the risk-map checker is the read-only brief-reviewer agent", () => {
-    assert.match(skill, /## 3\. Check the risk map[\s\S]*?read-only `review:brief-reviewer` agent/);
-  });
-  test("the risk-map checker's brief carries only the pull request number, repository, and the saved reads' directory", () => {
-    const brief = /## 3\. Check the risk map[\s\S]*?```text\n([\s\S]*?)```/.exec(skill)[1];
-    assert.deepEqual([...new Set(brief.match(/<[^>]+>/g))].sort(), ["<dir>", "<n>", "<owner/repo>"]);
+  test("the risk map comes from /review:merge-risk on the saved reads", () => {
+    assert.match(skill, /## 3\. Rate the risk[\s\S]*?`\/review:merge-risk <url> --dir <dir>`/);
   });
   test("the scripts never call gh", () => {
     for (const script of [POLICY, BUILDER]) {

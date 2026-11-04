@@ -299,7 +299,9 @@ dispatches nothing. On a lanes App PR it posts and resolves nothing: it reads th
 unresolved fail-note thread is open (`address-feedback.mjs` `staleVerifyNotes`,
 by the first comment's original commit) it names the head in `pass-head-sha`. The dispatch job then
 sends a pass-only round (input `verify-pass-head`), needing no workable thread, review marker or
-check-run room. When the merge gate's reader, in the dispatch job's FAIL-cap read, reports the FAIL
+check-run room, and not held by a round for the PR in progress: `pr-unblock.yml`'s per-PR
+concurrency group queues it behind that round. A round waiting to start still holds it, since the
+group keeps one waiting run and sending would cancel that round. When the merge gate's reader, in the dispatch job's FAIL-cap read, reports the FAIL
 at that head superseded (`babysit_verify_evidence.py` `supersededAtHead`, the gate's own
 `_superseded` judgment), the dispatch also names the head in `verify-superseded-head`.
 `address-feedback-select` lists in `run.json`'s `stale_notes` the threads from another head, and
@@ -2417,7 +2419,17 @@ judged as a partial slice (owner decision 2026-10-23, the recommended option): o
 pull request body says it delivers, which must be in the issue's scope, correct and coherent on
 its own, with the body naming what remains; a body that names no delivered part or no remaining
 work, or claims the whole issue, fails. The body only narrows what is judged, never adds a
-requirement, and the spec trust rules below are unchanged. resolve-pr marks each spec entry's
+requirement, and the spec trust rules below are unchanged. The last pull request of an issue split
+across several can close it (owner decision 2026-11-03 on #12965): its body names the earlier ones
+on a plain `Siblings: #<a>, #<b>` line (first column, outside an HTML comment and a fenced code
+block, at most 10), and resolve-pr credits each that GitHub shows written by a trusted person or the
+lanes App, merged into the base in this repository, closing no issue, with a `Refs:` line naming the
+closing issue and a body unedited unless a trusted person edited it last, or the lanes App did
+before the merge. The spec entry then lists them in
+`credited_siblings` with their bodies, and the verifier judges the diff only for the done-when items
+those bodies do not say they delivered; a named sibling that fails a check earns no credit, so the
+diff is judged against the whole issue. The verdict records no sibling, and the merge gate weighs
+such a pass as any closing one. resolve-pr marks each spec entry's
 `spec_kind` (`closes`, `refs` or `pull-request`), and the verdict records it, so the gate refuses a
 pass (`verify:spec-changed`) when the issue is now linked the other way. The model runs
 on ci-workflows' `run-claude-cli` as the `pr-verify` role ([Funding](#funding)), with the Read
@@ -2798,9 +2810,8 @@ head and commits, its head branch, its live issues and their other closing pull 
 run they name and the pass names at each FAILed head; the file holds every FAIL from before the
 index. The module docstring's "Index mode" states the rule. Until then the listing below applies.
 A listing read from the API builds on the newest whole listing begun within three hours (the
-reader's own, the run's saved one, or the `pr-merge-verify-listing` artifact the last scheduled or
-hand-started run of main's pr-merge.yml uploaded, which `.github/scripts/pr-merge/listing-carry.mjs`
-fetches as the head-ref map is fetched): it reads pages newest id first down past that listing's
+reader's own, or the run's saved one; no run carries a listing to the next, since in index mode no
+gate saves one): it reads pages newest id first down past that listing's
 highest id until an artifact created two hours before that listing was read, keeps that listing's
 entries below the lowest id those pages hold, less those expired by the first page's `Date`, and is
 kept only when it holds exactly that page's `total_count`. A count above it first reads again the pages
@@ -2983,14 +2994,19 @@ them on every `pull_request` run, contract-only runs included:
   - `review-dependency` (`dependency-invalid`): no merge marker is posted, and pr-merge merges a
     review-tier update only on one (tier `review` above).
 
-A review usually finishes after ci-status has read it, so `pr-feedback-dispatch.yml`'s
+A review usually finishes after ci-status first reads it, so on a full run (not a label flip or
+body edit) ci-status's review-lanes step waits: it polls each lane whose run on the head has not
+completed, every 60 seconds for at most 8 minutes (`REVIEW_WAIT_SECONDS`), reading that run once a
+poll, then judges both lanes as below. A lane with no run is not waited for. A review still running at the cap fails as before,
+naming the automatic re-run, so no manual re-run is needed. Then `pr-feedback-dispatch.yml`'s
 `rerun-ci-status` job re-runs the ci-status job of the newest `pr-require-checks` run on the head
 when a review caller completes (not when GitHub skipped it) on an open same-repository PR still at
 that head and the other lane's newest run on the head has finished or never ran. While the other
 lane is still going a re-run could only be red, and that lane's completion re-runs it, so a head
 gets one re-run, not one per lane. A ci-status not started yet, or one that started after both
 lanes finished, is left to read the reviews itself; an earlier one in progress is polled every 60
-seconds for at most 10 minutes first. A read refused by the token's primary rate limit waits for
+seconds for at most 10 minutes first. One that passed with its review-lanes step ending after both
+lanes finished (it waited for them) is left alone too, since a re-run can only pass again. A read refused by the token's primary rate limit waits for
 the reset inside the same 10 minutes; a reset past them fails the job, naming the reset, since
 nothing else re-runs a ci-status left stale. The merge-group run re-checks the labels, and also
 fails while the queued PR carries `pr-verify-failed`, which a `pr-verify` pass removes, at a new

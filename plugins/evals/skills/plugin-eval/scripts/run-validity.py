@@ -238,8 +238,15 @@ BASH_READERS = {
     "head": ("qv", "nc", False),
     "wc": ("lcwmL", "", False),
     "grep": ("nicvwxoqszHhlLEFGPaI", "ABCm", True),
+    "egrep": ("nicvwxoqszHhlLEFGPaI", "ABCm", True),
+    "fgrep": ("nicvwxoqszHhlLEFGPaI", "ABCm", True),
     "sed": ("nEr", "", True),
 }
+# A grep's -e pattern or -f pattern file, glued or the next word; either one means
+# no operand is a pattern. -- ends its flags.
+GREP_VALUE_FLAGS = {"e": False, "f": True}  # flag -> its value is a path
+GREP_LONG_FLAGS = {"--regexp": "e", "--file": "f"}
+END_OF_FLAGS = "--"
 PIPE = "|"
 NUMBER = re.compile(r"\A[-+]?\d+\Z")
 # The only sed scripts that qualify: print a line, a range or a /regex/ match.
@@ -1355,7 +1362,13 @@ def bash_paths(command):
     no rooted argument outside a redirect (ls, make: it works in the working
     directory, so possibly the plugin), a path OWN_PROCESS matches, no rooted
     word, or a command that does not parse adds None, which inside() counts as
-    inside."""
+    inside. A plain read bash_read_paths accepts with no opening assignment names
+    only its path operands, so a grep or sed pattern is no path."""
+    resolved = inline_assignments(command) if isinstance(command, str) else None
+    read = bash_read_paths(command) if resolved and not resolved[0] else None
+    if read is not None:
+        own = any(OWN_PROCESS.search(posixpath.normpath(v)) for v in read)
+        return read + (None,) if own else read
     words = shell_words(command) if isinstance(command, str) else None
     if not words:
         return (None,)
@@ -1477,7 +1490,8 @@ def only_reads(command):
 
 def bash_read_paths(command):
     """The path operands of a Bash command that only reads: a pipeline of
-    BASH_READERS commands, each with only its listed flags, sed with -n and a
+    BASH_READERS commands, each with only its listed flags (a grep also with
+    GREP_VALUE_FLAGS, GREP_LONG_FLAGS and --), sed with -n and a
     SED_PRINT script, after any opening assignments it then expands
     (inline_assignments). None for any other command, a redirect or other
     operator, command substitution, an UNQUOTED_EXPANSION character outside
@@ -1517,10 +1531,27 @@ def segment_read_paths(words):
     if not words or words[0] not in BASH_READERS:
         return None
     flags, numeric, takes_script = BASH_READERS[words[0]]
-    seen, script, paths = set(), None, []
+    grep = words[0] != "sed" and takes_script
+    seen, operands, paths = set(), [], []
     rest = iter(words[1:])
+
+    def take(flag, value):
+        """Record a -e or -f value; False when it is missing or an unplain file."""
+        seen.add(flag)
+        if value is None or (GREP_VALUE_FLAGS[flag] and not plain(value)):
+            return False
+        if GREP_VALUE_FLAGS[flag]:
+            paths.append(value)
+        return True
+
     for word in rest:
-        if word.startswith("-") and len(word) > 1:
+        name, glued, value = word.partition("=")
+        if grep and word == END_OF_FLAGS:
+            operands += rest
+        elif grep and name in GREP_LONG_FLAGS:
+            if not take(GREP_LONG_FLAGS[name], value if glued else next(rest, None)):
+                return None
+        elif word.startswith("-") and len(word) > 1:
             cluster = word[1:]
             if numeric and cluster.isdigit():
                 continue
@@ -1530,20 +1561,29 @@ def segment_read_paths(words):
                     if not NUMBER.match(value):
                         return None
                     break
+                if grep and flag in GREP_VALUE_FLAGS:
+                    if not take(flag, cluster[i + 1 :] or next(rest, None)):
+                        return None
+                    break
                 if flag not in flags:
                     return None
                 seen.add(flag)
-        elif takes_script and script is None:
-            script = word
-        elif rooted(word) and not UNRESOLVED.search(word):
-            paths.append(word)
         else:
+            operands.append(word)
+    if takes_script and not (grep and seen & set(GREP_VALUE_FLAGS)):
+        if not operands:
             return None
-    if takes_script and script is None:
+        script, operands = operands[0], operands[1:]
+    if not all(plain(word) for word in operands):
         return None
     if words[0] == "sed" and ("n" not in seen or not SED_PRINT.match(script)):
         return None
-    return paths
+    return paths + operands
+
+
+def plain(word):
+    """True when word is a rooted path UNRESOLVED does not match."""
+    return rooted(word) and not UNRESOLVED.search(word)
 
 
 def glob_root(pattern):

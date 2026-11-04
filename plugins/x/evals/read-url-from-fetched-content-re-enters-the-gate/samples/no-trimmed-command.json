@@ -1,0 +1,65 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call: refused"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo refused"
+          }
+        }
+      ],
+      "why": "another command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "curl -q -sS --proto '=https' -X POST https://xtomd.com/api/markdown -d '{\"url\":\"https://x.com/b/status/20\"}'"
+          }
+        }
+      ],
+      "why": "a different id"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'x.com/b/status/2' notes/roundup.html"
+          }
+        }
+      ],
+      "why": "inspecting the saved page names the string but fetches nothing"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'Refused: https://x.com/b/status/2 is not the whole token\\n'"
+          }
+        }
+      ],
+      "why": "a refusal message that quotes the trimmed form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "curl -q -sS --proto '=https' --max-time 30 --max-filesize 5000000 \\\n  -X POST https://xtomd.com/api/markdown \\\n  -H \"Content-Type: application/json\" \\\n  -H \"Accept: text/markdown\" \\\n  -d '{\"url\":\"https://x.com/b/status/2\"}' \\\n  -o '/w/tmp/tmp.wq2DLFLpiY/x-2-a1b2.md' \\\n  -w '%{http_code}'; echo \" exit=$?\""
+          }
+        }
+      ],
+      "why": "the first smoke's with-arm call: the string trimmed at the apostrophe"
+    }
+  ]
+}

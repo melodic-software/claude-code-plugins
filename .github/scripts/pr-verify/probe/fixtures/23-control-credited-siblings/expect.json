@@ -1,0 +1,7 @@
+{
+  "class": "control",
+  "expected": "pass",
+  "scored": "main",
+  "defect": "none: the merged siblings the body names delivered the flag and its README section, and the diff adds the test, the last done-when item",
+  "mentions": []
+}

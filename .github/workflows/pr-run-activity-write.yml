@@ -2228,6 +2228,7 @@ jobs:
               ?*:feedback-uncertain-security | ?*:feedback-disputed-security) ;;
               ?*:feedback-unadjudicated | ?*:feedback-question-intent | ?*:feedback-question-design) ;;
               ?*:feedback-question-security | ?*:feedback-stood-open | ?*:feedback-verifier-open) ;;
+              ?*:feedback-already-addressed) ;;
               :ci-fix-invalid | :ci-fix-protected-path | :ci-fix-not-applied | :patch-invalid | :patch-credential | :patch-protected-path | :patch-not-applied | :patch-empty)
                 [ "$PREPARE" = apply-patch ] || { echo "::error::the escalation reason file holds no reason this script may give"; exit 1; }
                 ;;
