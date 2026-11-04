@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "manifest userConfig.formatter: flag, its value is substituted into the PostToolUse hook command\n\nseverity: IMPORTANT",
+      "why": "flags the key"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "manifest userConfig.formatter: pass, advisory, picks prettier or biome\n\ncritical-findings: 0",
+      "why": "treats a hook-reaching key as advisory"
+    }
+  ]
+}

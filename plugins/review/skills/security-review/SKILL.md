@@ -281,11 +281,26 @@ eligible for skip 2. Compare the base and head manifests:
   unchecked. An added key that is a guard (judged by the code or skill text that reads it) whose
   default is the permissive value is a finding. A change that lowers a value's protection is a
   finding too.
+- A selector key is advisory. Judge the bullet above first; a key it makes a finding stays one.
+  An added or changed `userConfig` key is a selector when all of these hold: its `type` is
+  `boolean`, or `string` with an `options` list; no listed value or `default` is a command, path
+  or URL; it is not `sensitive`; and the code or skill text that reads it uses the value only to
+  pick among those values. It is not a selector when its value (`${user_config.<key>}`) reaches
+  `hooks`, `mcpServers`, `lspServers`, `monitors` or `channels`, is used as a filesystem path or
+  URL, or is interpolated unquoted into a shell string. One quoted argument to an in-repository
+  script that accepts only the listed values is still a selector. A selector gets one summary
+  line, `manifest userConfig.<key>: pass, advisory, <what the value picks and the file and line
+  that reads it>`, and no inline comment and no `severity:` line; it adds nothing to the findings
+  total or `critical-findings: <n>` and never sets `hold`. A view `medium` key resolved by a
+  plugin's `lib/view-settings.mjs` is a selector while that resolver's trust rules gate what
+  publishes. Pointer: those rules are pinned by `lib/view-settings.test.mjs`, the block "a
+  publishing value counts only from a trusted scope". As of: 2026-11-03. Recheck trigger: that
+  block is removed, or a `medium` key stops resolving through `view-settings.mjs`.
 - Default deny. Every other field added, changed, or removed is a `manifest <field>: flag`,
   whatever the lane believes about it, unless it is in this repository's inert set:
   `description`, `keywords`, `author`, `homepage`, `repository`, `license`, a marketplace
   entry's `tags` and `category`, a `userConfig` key's `title` and `description`, and a changed
-  (not added or removed) `version`. On each such flag, name in the summary what runs and where it comes from (the command, server, or script, and the
+  (not added or removed) `version`, or it is a selector key (above). On each such flag, name in the summary what runs and where it comes from (the command, server, or script, and the
   path, package, or URL with its pin), or what installed users get on update. A source outside
   the repository with no pin, a command fed consumer-controlled input, or a tool grant wider than
   the command needs also gets its exploit path.
