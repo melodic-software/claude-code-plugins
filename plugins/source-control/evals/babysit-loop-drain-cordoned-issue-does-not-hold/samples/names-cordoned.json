@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "The drain exits: #601 is cordoned and the telemetry issue is lane infrastructure, so 0 open PRs and 0 counted issues remain.",
+      "why": "names the reason #601 does not count"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#601 is open and actionable, so the drain stays open.",
+      "why": "misses a required token"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

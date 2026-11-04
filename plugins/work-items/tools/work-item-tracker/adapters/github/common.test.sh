@@ -72,7 +72,7 @@ printf '%s\n' "$*" >>"${GH_STUB_DIR:?}/calls.log"
 case "$1" in
 issue)
   if [[ "${GH_STUB_VERSION:-2.45.0}" == 2.94.0 && -z "${GH_STUB_REFUSE:-}" ]]; then
-    printf '{"number":1,"title":"t","state":"OPEN","assignees":[],"labels":[],"url":"https://github.com/o/r/issues/1"}\n'
+    printf '{"number":1,"title":"t","state":"OPEN","assignees":[],"labels":[],"url":"https://github.com/o/r/issues/1","milestone":{"number":1,"title":"After zero"}}\n'
     exit 0
   fi
   printf 'HTTP 403: GitHub GraphQL is not available from Claude Code sessions\n' >&2
@@ -85,7 +85,7 @@ repo)
 api)
   case "$*" in
   *"repos/{owner}/{repo}"*) printf 'o/r\n' ;;
-  *) printf '{"number":1,"title":"t","state":"open","assignees":[{"login":"u"}],"labels":[{"name":"a"}],"type":null,"html_url":"https://github.com/o/r/issues/1","created_at":"2026-03-01T10:00:00Z"}\n' ;;
+  *) printf '{"number":1,"title":"t","state":"open","assignees":[{"login":"u"}],"labels":[{"name":"a"}],"type":null,"html_url":"https://github.com/o/r/issues/1","created_at":"2026-03-01T10:00:00Z","milestone":{"number":1,"title":"After zero"}}\n' ;;
   esac
   exit 0
   ;;
@@ -109,6 +109,7 @@ EOF
   assert_eq "wit_emit_item on gh 2.45 → blocked_by_count 0" "0" "$(jq -r '.blocked_by_count' <<<"$OUT")"
   assert_eq "wit_emit_item on gh 2.45 → created_at from created_at" "2026-03-01T10:00:00Z" \
     "$(jq -r '.created_at' <<<"$OUT")"
+  assert_eq "wit_emit_item on gh 2.45 → milestone from its title" "After zero" "$(jq -r '.milestone' <<<"$OUT")"
   assert_contains "wit_emit_item on gh 2.45 reads over REST" "$(<"$EMIT_STUB/calls.log")" \
     "api repos/o/r/issues/1"
   assert_not_contains "wit_emit_item on gh 2.45 skips issue view" "$(<"$EMIT_STUB/calls.log")" "issue view"
@@ -125,8 +126,10 @@ EOF
   rm -rf "$PR_STUB"
 
   : >"$EMIT_STUB/calls.log"
-  GH_STUB_DIR="$EMIT_STUB" GH_STUB_VERSION=2.94.0 PATH="$EMIT_STUB:$PATH" wit_emit_item o r 1 >/dev/null
+  OUT="$(GH_STUB_DIR="$EMIT_STUB" GH_STUB_VERSION=2.94.0 PATH="$EMIT_STUB:$PATH" wit_emit_item o r 1)"
   CALLS="$(<"$EMIT_STUB/calls.log")"
+  assert_eq "wit_emit_item on gh 2.94 → milestone from its title" "After zero" "$(jq -r '.milestone' <<<"$OUT")"
+  assert_contains "wit_emit_item on gh 2.94 requests milestone" "$CALLS" "milestone"
   assert_contains "wit_emit_item on gh 2.94 requests blockedBy" "$CALLS" "blockedBy"
   assert_contains "wit_emit_item on gh 2.94 requests parent" "$CALLS" "parent"
   assert_contains "wit_emit_item on gh 2.94 requests issueType" "$CALLS" "issueType"

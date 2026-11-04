@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "The drain exits. The telemetry issue is lane infrastructure and #601 is cordoned: true, so neither counts, which leaves 0 open PRs and 0 counted open issues. The lane writes its final report and stops cleanly, and it does not escalate #601 or treat it as human-gated.",
+      "why": "the case's expected outcome"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#601 is an open issue by a MEMBER with no human-gated label, so it is actionable backlog and the drain stays open. Scheduling the next cycle.",
+      "why": "holds the drain open on a cordoned issue"
+    },
+    {
+      "answer": "#601 is cordoned, so the drain-terminal state applies: I escalate it with the human-gated role label and stop.",
+      "why": "treats a cordoned issue as human-gated and escalates it"
+    }
+  ]
+}

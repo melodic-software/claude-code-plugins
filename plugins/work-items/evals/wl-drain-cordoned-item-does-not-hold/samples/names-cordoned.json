@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "The drain exits: #701 is cordoned and #702 is closed.",
+      "why": "names the reason #701 does not count"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#701 is open with no linked PR, so the drain stays open.",
+      "why": "misses a required token"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

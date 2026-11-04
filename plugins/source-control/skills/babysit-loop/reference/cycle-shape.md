@@ -72,10 +72,14 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    draft state, labels, and the provenance fields the rung partition consumes
    (`isCrossRepository`, `headRepositoryOwner`, `authorAssociation`, plus the author login and bot
    type the trust test's listed-bot arm reads), and open issues with the same author-association /
-   login / bot-type fields the issue-author test consumes. A `null` provenance field is a field
-   GitHub did not return, and the tests below fail closed on it.
+   login / bot-type fields the issue-author test consumes, plus `milestone` and the `cordoned` flag
+   the drain exits read: true when that milestone is listed in `cordoned-milestones` in the target's
+   `.github/actions/resolve-config/admission-rules.json` on its default branch, the one place those
+   names live (no such file means none). A `null` provenance field is a field GitHub did not return,
+   and the tests below fail closed on it.
    **A failed snapshot is never a quiet queue.** Exit 0 is the only usable snapshot: 3 is a read
-   failure and 4 a list incomplete on two reads (the queue kept moving); both print
+   failure, the admission rules file's included unless it is absent, and 4 a list incomplete on two
+   reads (the queue kept moving); both print
    nothing. On a non-zero exit, run no step 2 to 5 this cycle: take **no drain exit**, hold
    `cycle` and `backoff_level`, and invoke no mechanic. Count the cycle as one with no progress
    and work in view (fail closed: the queue is unknown, not empty), so `no_progress_streak`

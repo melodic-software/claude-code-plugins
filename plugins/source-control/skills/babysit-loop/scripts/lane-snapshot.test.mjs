@@ -243,6 +243,57 @@ test("a deleted fork head or author leaves the provenance fields null", () => {
   assert.deepEqual(forked.author, { login: null, type: null });
 });
 
+const RULES = `repos/${REPO}/contents/.github/actions/resolve-config/admission-rules.json`;
+const milestoned = () =>
+  pages("issues", 3, [
+    issue(10, { milestone: { title: "Parked" } }),
+    issue(11, { milestone: { title: "Sprint" } }),
+    issue(12, { milestone: null }),
+  ]);
+
+test("only an issue in a listed milestone is cordoned", () => {
+  const fixtures = complete();
+  fixtures[RULES] = { out: { "cordoned-milestones": ["Parked"] } };
+  fixtures.issues = milestoned();
+  const result = run(fixtures);
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(
+    JSON.parse(result.stdout).issues.map((i) => [i.number, i.milestone, i.cordoned]),
+    [
+      [10, "Parked", true],
+      [11, "Sprint", false],
+      [12, null, false],
+    ],
+  );
+});
+
+test("a repository without the rules file cordons nothing", () => {
+  const fixtures = complete();
+  fixtures.issues = milestoned();
+  const result = run(fixtures);
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(
+    JSON.parse(result.stdout).issues.map((i) => i.cordoned),
+    [false, false, false],
+  );
+});
+
+test("a failed read of the rules file exits 3, never an empty list", () => {
+  const fixtures = complete();
+  fixtures[RULES] = { out: "", code: 1 };
+  const result = run(fixtures);
+  assert.equal(result.status, 3);
+  assert.equal(result.stdout, "");
+});
+
+test("a cordoned-milestones that is not a list exits 3", () => {
+  const fixtures = complete();
+  fixtures[RULES] = { out: { "cordoned-milestones": "Parked" } };
+  const result = run(fixtures);
+  assert.equal(result.status, 3);
+  assert.equal(result.stdout, "");
+});
+
 test("a malformed --repo exits 2 before any read", () => {
   const result = spawnSync(process.execPath, [SCRIPT, "--repo", "../x"], {
     encoding: "utf8",

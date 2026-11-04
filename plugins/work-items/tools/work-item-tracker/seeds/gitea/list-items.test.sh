@@ -42,6 +42,7 @@ assert_eq "envelope schema_version" "1.0" "$(jq -r '.schema_version' <<<"$(gitea
 assert_eq "one item" "1" "$(jq -r '.items | length' <<<"$(gitea_out)")"
 assert_eq "a complete listing carries truncated:false" "false" "$(jq -c '.truncated' <<<"$(gitea_out)")"
 assert_eq "item id is fully qualified" "gitea:acme/webapp#12" "$(jq -r '.items[0].id' <<<"$(gitea_out)")"
+assert_eq "a row carries milestone as null" "true" "$(jq -c '.items[0] | has("milestone") and .milestone == null' <<<"$(gitea_out)")"
 # The page size must be EXPLICIT. Gitea defaults an omitted limit to 30 and truncates
 # silently — the same trap the contract calls out for `gh`.
 assert_contains "the request sends an explicit limit" "$(gitea_requests)" "limit=50"

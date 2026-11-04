@@ -301,7 +301,8 @@ readonly WIT_ITEM_JQ="$WIT_JQ_DEF_UTC_TS"'{
     else null
     end),
   url: .url,
-  created_at: (.createdAt | wit_utc_ts)
+  created_at: (.createdAt | wit_utc_ts),
+  milestone: (.milestone.title // null)
 }'
 
 # wit_gh_load_wont_do_labels — set WIT_GH_WONT_DO_LABELS (JSON array, lowercased) from
@@ -381,10 +382,10 @@ wit_gh_annotate_blocker_reasons() {
 # .type, and parent and blockers have no REST field there, so they emit as null and 0.
 wit_emit_item() {
   local owner="$1" repo="$2" number="$3" native=0
-  local rest_to_view='{number, title, state, assignees, labels, issueType: .type, url: .html_url, createdAt: .created_at}'
+  local rest_to_view='{number, title, state, assignees, labels, issueType: .type, url: .html_url, createdAt: .created_at, milestone}'
   if wit_gh_has_native_surface; then
     wit_run_gh_native read issue view "$number" -R "$owner/$repo" \
-      --json number,title,state,assignees,labels,issueType,blockedBy,parent,url,createdAt &&
+      --json number,title,state,assignees,labels,issueType,blockedBy,parent,url,createdAt,milestone &&
       native=1
   fi
   if ((native)); then

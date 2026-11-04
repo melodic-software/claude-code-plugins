@@ -458,7 +458,8 @@ readonly WIT_GITEA_NORMALIZE_PROGRAM="$WIT_JQ_DEF_UTC_TS"'
     blocked_by_wont_do_count: 0,
     parent_id: null,
     url: (.html_url // ""),
-    created_at: (.created_at | wit_utc_ts)
+    created_at: (.created_at | wit_utc_ts),
+    milestone: null
   }'
 
 # wit_gitea_blocked_by_count <owner> <repo> <index> — echo the number of OPEN issues
