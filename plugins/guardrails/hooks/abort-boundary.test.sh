@@ -271,7 +271,8 @@ for name in "${REGISTERED[@]}"; do
   stem="${name%.sh}"
   inject_after "$COPY/hooks/$name" "^guard::abort_boundary ${stem} " \
     ": \"\${${MARKER}?forced abort}\"" || continue
-  run_hook CLAUDE_PLUGIN_ROOT="$COPY" OSTYPE=msys -- feed_run "$BASH_BENIGN" bash "$COPY/hooks/$name"
+  # cloud-shfmt leaves before its boundary outside a cloud session.
+  run_hook CLAUDE_PLUGIN_ROOT="$COPY" OSTYPE=msys CLAUDE_CODE_REMOTE=true -- feed_run "$BASH_BENIGN" bash "$COPY/hooks/$name"
   assert_exit "$stem: forced abort exits with the declared fail-open posture" 0 "$RC"
   assert_contains "$stem: stderr names the guard and the status" "$ERR" \
     "guardrails ${stem}: ${NOTICE}1); this call was not checked"

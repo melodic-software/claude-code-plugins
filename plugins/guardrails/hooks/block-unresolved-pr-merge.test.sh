@@ -625,7 +625,7 @@ assert_contains "unauthenticated -> carries gh's reason" "$OUT" "Bad credentials
 assert_contains "unauthenticated -> user channel too" "$OUT" '"systemMessage"'
 NOGH="$TEST_TMPDIR/nogh"
 mkdir -p "$NOGH"
-for t in bash jq cat mktemp rm git dirname timeout; do
+for t in bash jq cat mktemp rm git dirname timeout shfmt; do
   p=$(command -v "$t") && ln -sf "$p" "$NOGH/$t"
 done
 scenario unresolved none green green
@@ -861,7 +861,11 @@ unresolvable "quoted heredoc opener after a \$( in quotes, then a backtick merge
 unresolvable "heredoc delimiter closed by a parenthesis, then a backtick merge" $'(cat <<\'E\')\nx\nE\ngh pr merge 5`echo 0` -R acme/widgets'
 unresolvable "<< inside \${...} is no heredoc, then a backtick merge" $'echo ${x:-<<\'E\' }\ngh pr merge 5`echo 0` -R acme/widgets\nE'
 unresolvable "<< inside ((...)) is no heredoc, then a backtick merge" $'((x = 1 <<\'E\' ))\ngh pr merge 5`echo 0` -R acme/widgets\nE'
-unresolvable "escaped quote in a double-quoted delimiter, then a backtick merge" $'cat <<"E\\"F"\nx\nE"F\ngh pr merge 5`echo 0` -R acme/widgets'
+# shfmt reads this delimiter differently from bash and finds the here-doc
+# unclosed, so the command reader refuses it before the guard's own check.
+run "escaped quote in a double-quoted delimiter, then a backtick merge (refused by the reader)" \
+  $'cat <<"E\\"F"\nx\nE"F\ngh pr merge 5`echo 0` -R acme/widgets' 2
+assert_contains "escaped quote in a double-quoted delimiter -> the reader names its refusal" "$ERR" "got no parse"
 unresolvable "backtick merge in a quoted heredoc fed to sudo -s" $'sudo -s <<\'E\'\ngh pr merge 5`echo 0` -R acme/widgets\nE'
 unresolvable "backtick merge in a quoted heredoc fed to ssh" $'ssh host <<\'E\'\ngh pr merge 5`echo 0` -R acme/widgets\nE'
 unresolvable "backtick merge in a quoted heredoc fed to a globbed command word" $'/bin/ba?h <<\'E\'\ngh pr merge 5`echo 0` -R acme/widgets\nE'
@@ -1006,7 +1010,7 @@ assert_contains "budget -> fails open, saying so" "$OUT" "will run unchecked"
 if ((SECONDS < 8)); then ok "budget -> returned in ${SECONDS}s"; else bad "budget -> took ${SECONDS}s"; fi
 NOTIMEOUT="$TEST_TMPDIR/notimeout"
 mkdir -p "$NOTIMEOUT"
-for t in bash jq cat mktemp rm git dirname sleep kill; do
+for t in bash jq cat mktemp rm git dirname sleep kill shfmt; do
   p=$(command -v "$t") && ln -sf "$p" "$NOTIMEOUT/$t"
 done
 ln -sf "$BIN/gh" "$NOTIMEOUT/gh"
@@ -1030,6 +1034,13 @@ scenario unresolved none green green
 run_ps "PowerShell: gh pr merge" 'gh pr merge 42 --squash' 2
 scenario unresolved none green green
 run_ps "PowerShell: gh.exe pr merge after ;" 'Set-Location C:\repo; gh.exe pr merge 42' 2
+# The call operator `&` opens a PowerShell statement and no bash one: the merge
+# behind it is checked, not refused as a parse failure.
+scenario none none green green
+run_ps "PowerShell: & gh pr merge with -R, a clean PR (allowed)" '& gh pr merge 42 -R acme/widgets' 0
+scenario unresolved none green green
+run_ps "PowerShell: & gh pr merge with -R, an unresolved thread (blocked)" '& gh pr merge 42 -R acme/widgets' 2
+assert_contains "PowerShell: & gh pr merge -> names the thread, not a parse failure" "$ERR" "src/app.py:12"
 # Item 3 on PowerShell: a directory change with no -R is refused before any read.
 for c in 'Set-Location ..\other; gh pr merge 42 --squash' 'Push-Location other; gh pr merge 42' \
   'Pop-Location; gh pr merge 42' 'sl other; gh pr merge 42' 'set-location other; gh pr merge 42'; do

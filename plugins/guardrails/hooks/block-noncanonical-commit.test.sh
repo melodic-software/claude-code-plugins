@@ -343,11 +343,14 @@ run "config-env alias, env name colliding with an internal global (blocked)" "gi
 run "--config-env setting a NON-alias key, canonical commit (allowed)" "git --config-env=user.name=NAMEVAR commit -F -" 0
 run "--config-env alias for a subcommand that is NOT invoked (allowed)" "git --config-env=alias.foo=AV status" 0
 run "inline value last-wins over an earlier --config-env for the same key (allowed)" "git --config-env=alias.c=AV -c alias.c=log c" 0
-# A `$( )` env name is command-substituted by the shell before git and split by the
-# static parser — neither evaluates it, so no exec and (git-fatal) no commit runs.
+# A `$( )` env name is command-substituted by the shell before git runs, so the
+# alias is whatever the substitution prints and the guard cannot read it: it
+# refuses. The substitution can name a variable holding a `!` alias that runs
+# (`NAME='!touch f' git --config-env=alias.c=$(printf NAME) c` creates f).
+# The guard itself still evaluates nothing.
 rm -f "$TEST_TMPDIR/pwned-nc"
-run "injection-shaped config-env env name (allowed — never evaluated)" \
-  "git --config-env=alias.c=\$(touch $TEST_TMPDIR/pwned-nc) c" 0
+run "injection-shaped config-env env name (blocked — the alias is not readable)" \
+  "git --config-env=alias.c=\$(touch $TEST_TMPDIR/pwned-nc) c" 2
 assert_file_absent "config-env injection: no exec for a shell-metachar env name" "$TEST_TMPDIR/pwned-nc"
 
 # --- case-insensitive alias resolution (git folds config names) --------------
@@ -1510,23 +1513,27 @@ assert_exit "NUL in command (blocked)" 2 "$nul_rc"
 # substitution. A host without a working strace (Windows Git Bash, macOS) skips
 # visibly; the Linux CI lane is where the pins hold.
 #
-# The benign pin is EXACT on purpose, and it is ZERO: this guard creates no
-# process of its own on a benign Bash call. The shared parser's `< <(printf …)`
-# in lib/hook-utils.sh (hook::bash_parse_segments) used to hold the figure at
-# 1; #3878 replaced it with a `${cmd:i:1}` walk, so nothing is left to remove
-# here. A count that rises is a fork put back on every Bash call. The other
-# pins are DELTAS against that benign share, so they read the cost of one path
-# (the sequencer probe, a `!` alias reparse and its trailing arguments) rather
-# than the library's total.
+# The benign pin is EXACT on purpose: on a benign Bash call this guard creates
+# only the processes of one shfmt parse. One parse (lib/hook-utils.sh
+# hook::_bps_shfmt_to) creates 7: the `$( )` subshell, the group that carries
+# fd 3, printf's pipeline element, the group that starts shfmt, shfmt, the
+# `read -t` group, and jq; and execs 2, shfmt and jq. A count that rises is a
+# fork put back on every Bash call. The other pins are DELTAS against that
+# benign share, so they read the cost of one path (the sequencer probe, a `!`
+# alias reparse and its trailing arguments) rather than the library's total.
 # Under -f strace may split a call into `<unfinished ...>` and `<... resumed>`
-# halves, so both spellings of a completed call are counted.
+# halves, so each call is counted once, from its opening half.
+PARSE_CREATIONS=7
+PARSE_EXECVE=2
 strace_census() { # <payload> <guard> -> CENSUS_RC CENSUS_CREATIONS CENSUS_EXECVE
   local log="$TEST_TMPDIR/strace.log"
   CENSUS_RC=0
   env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR= \
     strace -f -e trace=clone,clone3,fork,vfork,execve -o "$log" \
     bash "$HOOK_DIR/run-guards.sh" "$2" <<<"$1" >/dev/null 2>&1 || CENSUS_RC=$?
-  CENSUS_CREATIONS=$(grep -cE '((clone|clone3|fork|vfork)\(|<\.\.\. (clone|clone3|fork|vfork) resumed>).* = [0-9]+$' "$log")
+  # A clone with CLONE_THREAD is a thread (shfmt is Go, whose runtime starts a
+  # varying number), not a process: counted from the opening half of each call.
+  CENSUS_CREATIONS=$(grep -E '(clone3?|v?fork)\(' "$log" | grep -v CLONE_THREAD | grep -cE '= [0-9]+$|<unfinished \.\.\.>$')
   CENSUS_EXECVE=$(grep -cE '(execve\(|<\.\.\. execve resumed>).* = 0$' "$log")
 }
 # guard_share <command> -> SHARE_RC SHARE_CREATIONS SHARE_EXECVE (guard minus no-op)
@@ -1547,8 +1554,8 @@ if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true
   guard_share 'git status --short'
   benign_creations=$SHARE_CREATIONS
   assert_exit "strace: dispatched benign command exits 0" 0 "$SHARE_RC"
-  assert_eq "strace: guard's own process creations on a benign Bash call" 0 "$SHARE_CREATIONS"
-  assert_eq "strace: guard's own execve count on a benign Bash call" 0 "$SHARE_EXECVE"
+  assert_eq "strace: guard's own process creations on a benign Bash call are one parse" "$PARSE_CREATIONS" "$SHARE_CREATIONS"
+  assert_eq "strace: guard's own execve count on a benign Bash call is one parse" "$PARSE_EXECVE" "$SHARE_EXECVE"
 
   # A single-line -m is the common commit shape and takes the same allow path
   # as any other non-blocking segment: nothing beyond the benign share.
@@ -1566,10 +1573,11 @@ if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true
   assert_exit "strace: dispatched multi-line -m still blocks under the tracer" 2 "$SHARE_RC"
   assert_eq "strace: a blocked multi-line -m is two creations over benign (the sequencer probe only)" \
     $((benign_creations + 2)) "$SHARE_CREATIONS"
-  assert_eq "strace: a blocked multi-line -m is one execve (git rev-parse)" 1 "$SHARE_EXECVE"
+  assert_eq "strace: a blocked multi-line -m is one execve over the parse (git rev-parse)" \
+    $((PARSE_EXECVE + 1)) "$SHARE_EXECVE"
 
-  # A `!` alias reparse re-enters the shared parser once (fork-free since
-  # #3878) and composes the launch directory without a fork; what it still
+  # A `!` alias reparse re-enters the shared parser once (one parse's
+  # processes) and composes the launch directory without a fork; what it still
   # pays is the alias-resolution git probes, counted here as the baseline the
   # trailing-arguments pin below is measured against.
   guard_share "git -c alias.y='!git status' y"

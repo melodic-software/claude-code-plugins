@@ -68,6 +68,16 @@ deny() {
   N_DENY=$((N_DENY + 1))
 }
 
+# refused <label> <command>: text shfmt cannot parse, so the command reader
+# denies it (exit 2) with its own reason before the guard looks for a fence.
+refused() {
+  verdict "$(payload Bash "$2")"
+  assert_eq "refused: $1 (direct, dispatched)" "2 2" "$RCS"
+  assert_contains "refused: $1 -> the reader names its refusal" "$OUT_D" "got no parse"
+  assert_contains "refused: $1 -> the dispatcher relays it" "$OUT_R" "got no parse"
+  N_DENY=$((N_DENY + 1))
+}
+
 # quiet <label> <command> [tool] [text a substring matcher would see]
 quiet() {
   local hay="${4:-$2}"
@@ -166,7 +176,8 @@ EOF"
 # ``` or ~~~ (address-feedback.mjs isFixRequest), so a marker after `x=` or a
 # quote is no fence to it.
 deny "body word with a marker after x=" "gh pr comment 12 --body \$'x=$F\\n$P'"
-deny "echo of a fence before a heredoc body" "echo \"$F\"
+# The echo leaves a backtick fence unclosed, which bash rejects too.
+refused "echo of a fence before a heredoc body" "echo \"$F\"
 gh pr comment 12 -F - <<EOF
 $P
 EOF"
