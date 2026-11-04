@@ -326,6 +326,7 @@ const startWrite = () => {
 };
 const leg = (over) => ({
   "steps.gate.outputs.proceed": "true",
+  "steps.models.outcome": "success",
   "steps.run.outcome": "failure",
   "steps.credit-marker-upload.outcome": "success",
   ...over,
@@ -346,7 +347,20 @@ test("a leg that ran writes a start record on success, on any other failure, and
     const ctx = leg({ "steps.run.outputs.handoff-reason": "credit-stop", "steps.credit-marker-upload.outcome": marker });
     assert.equal(evalIf(write, ctx), true, `credit stop, marker upload ${marker}`);
   }
-  assert.equal(evalIf(write, leg({ "steps.run.outcome": "skipped", "steps.credit-marker-upload.outcome": "skipped" })), false, "no leg");
+});
+
+test("a setup failure before the leg still writes a start record, so the cap bounds a persistent setup fault", () => {
+  const write = startWrite();
+  const noLeg = { "steps.run.outcome": "skipped", "steps.credit-marker-upload.outcome": "skipped" };
+  for (const models of ["success", "failure"]) {
+    assert.equal(evalIf(write, leg({ ...noLeg, "steps.models.outcome": models })), true, `resolve ${models}, no leg`);
+  }
+  // The kill switch skips Resolve the model: that run is not counted.
+  assert.equal(evalIf(write, leg({ ...noLeg, "steps.models.outcome": "skipped" })), false, "kill switch");
+  // The scan the record needs comes from the trusted checkout, which runs on the same condition.
+  for (const step of ["Clear the trusted checkout path", "Check out the base for the sealer"]) {
+    assert.equal(ifOf(stepIn("model", step)), "always() && steps.models.outcome != 'skipped'", step);
+  }
 });
 
 test("the model step times out before the job does, so a timed-out leg still writes its start record", () => {

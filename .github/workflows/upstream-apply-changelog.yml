@@ -388,11 +388,11 @@ jobs:
       # checkout of the base after the leg: the model could have written
       # anything under the workspace and RUNNER_TEMP, including this path.
       - name: Clear the trusted checkout path
-        if: always() && steps.run.outcome != 'skipped'
+        if: always() && steps.models.outcome != 'skipped'
         run: rm -rf "${GITHUB_WORKSPACE:?}/.lane-trusted"
 
       - name: Check out the base for the sealer
-        if: always() && steps.run.outcome != 'skipped'
+        if: always() && steps.models.outcome != 'skipped'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.gate.outputs.base-sha }}
@@ -439,15 +439,16 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-      # The gate's per-day cap counts these: every run whose leg ran, success
-      # or failure, except one whose key credit-stopped with its marker
-      # uploaded, since the credit gate then holds the next runs off the key.
-      # A credit stop with no marker (the gate could not read the key's
-      # history) still counts, so the cap stays the brake. The file is
-      # rewritten after the leg and scanned, as the marker is.
+      # The gate's per-day cap counts these: every run past the kill switch,
+      # a setup failure before the leg included, except one whose key
+      # credit-stopped with its marker uploaded, since the credit gate then
+      # holds the next runs off the key. A credit stop with no marker (the
+      # gate could not read the key's history) still counts, so the cap stays
+      # the brake. The file is rewritten after the leg and scanned, as the
+      # marker is.
       - name: Record the start
         id: start
-        if: always() && steps.run.outcome != 'skipped' && (steps.run.outputs.handoff-reason != 'credit-stop' || steps.credit-marker-upload.outcome != 'success')
+        if: always() && steps.models.outcome != 'skipped' && (steps.run.outputs.handoff-reason != 'credit-stop' || steps.credit-marker-upload.outcome != 'success')
         env:
           RELEASE: ${{ needs.gate.outputs.release }}
         run: |

@@ -1092,9 +1092,10 @@ limits:
     failed-again: 3
     failed-mint: 1
     kill-switch: 1
-  # upstream-apply-changelog runs that reach the model in any 24 hours (counted from
-  # the start records its model job writes after the leg, as red-main.daily-cap
-  # counts reverts; a credit-stopped leg whose marker uploaded writes none). Each run
+  # upstream-apply-changelog model jobs past the kill switch in any 24 hours, a setup
+  # failure before the leg included (counted from the start records the model job
+  # writes after the leg, as red-main.daily-cap counts reverts; a credit-stopped leg
+  # whose marker uploaded writes none). Each run
   # takes one release, so 3 is the most anthropics/claude-code releases
   # published in one UTC day or any 24 hours from 2026-05-02 to 2026-11-01
   # (158 releases; GitHub releases API published_at, read 2026-11-02).
