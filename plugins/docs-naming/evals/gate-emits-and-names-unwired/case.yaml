@@ -48,12 +48,12 @@ graders:
     arm: both
   - name: names-ci-unwired
     type: regex
-    pattern: '\b(?:CI|workflow)\b[^\n]{0,200}?(?:NOT-WIRED|not (?:yet )?(?:wired|hooked up|added|connected|invoked)|isn''t (?:yet )?(?:wired|hooked up|added|invoked)|left (?:to you|for you|unwired)|you(?:''ll)? (?:need|have) to (?:add|wire|hook))|(?:NOT-WIRED|not (?:yet )?(?:wired|hooked up)|isn''t (?:yet )?(?:wired|hooked up)|left (?:to you|for you|unwired)|you(?:''ll)? (?:need|have) to (?:add|wire|hook))[^\n]{0,200}?\b(?:CI|workflow)\b'
+    pattern: '\b(?:CI|workflow)\b[^\n]{0,200}?(?:NOT-WIRED|not (?:yet )?(?:wired|hooked up|added|connected|invoked)|isn''t (?:yet )?(?:wired|hooked up|added|invoked)|(?:didn''t|did not|doesn''t|does not) (?:wire|hook)|left (?:to you|for you|unwired)|you(?:''ll)? (?:need|have) to (?:add|wire|hook))|\badd (?:a|the) CI step\b|\badd (?:it|the gate|the checker) to (?:your )?CI\b|\bCI step:(?:\*\*)?\s*add\b|(?:NOT-WIRED|not (?:yet )?(?:wired|hooked up)|isn''t (?:yet )?(?:wired|hooked up)|(?:didn''t|did not|doesn''t|does not) (?:wire|hook)|left (?:to you|for you|unwired)|you(?:''ll)? (?:need|have) to (?:add|wire|hook))[^\n]{0,200}?\b(?:CI|workflow)\b'
     flags: i
     arm: both
   - name: names-registry-and-adr
     type: regex
-    pattern: '^(?=[\s\S]*\bregistry\b)(?=[\s\S]*(?:decision record|\bADR\b|record-decision))'
+    pattern: '^(?=[\s\S]*(?:\bregistry\b|\bgate list\b|\bother (?:gates|checks)\b|\b(?:list|table|index) of\b[^\n]{0,40}\b(?:gates|checks)\b))(?=[\s\S]*(?:decision record|\bADR\b|record-decision))'
     flags: i
     arm: both
   - name: no-rule-file

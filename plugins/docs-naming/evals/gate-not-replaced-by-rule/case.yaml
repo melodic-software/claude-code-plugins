@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: gate-not-replaced-by-rule
-description: "The paragraph the upstream-pointer sweep rewrote: a path-scoped rule file is not a substitute for the gate. A teammate proposes the rule alone; the run still emits the checker and explains that a rule blocks nothing and never runs in CI, without opting into the rule file. Source: written from the skill's Purpose section. Hard because the prompt argues for the cheaper answer, and a run can agree with the teammate or write the rule as a compromise."
+description: "The paragraph the upstream-pointer sweep rewrote: a path-scoped rule file is not a substitute for the gate. A teammate proposes the rule alone; the run still emits the checker and explains that a rule blocks nothing and never runs in CI, without opting into the rule file. Source: written from the skill's Purpose section. Hard because the prompt argues for the cheaper answer, and a run can agree with the teammate. The prompt rules out writing under .claude/ because the eval sandbox denies those writes, which would invalidate the run."
 tags: [generate-file-name-gate, docs-naming, hard]
 expected_outcome: "emit-gate.sh runs without --rule and creates scripts/check-file-names.sh; the reply says the teammate is wrong because a rule file does not block anything, bind other editors or run in CI; no Write touches .claude/rules."
 context:
@@ -27,7 +27,7 @@ graders:
     arm: both
   - name: explains-rule-limit
     type: regex
-    pattern: '\brules?\b[^\n]{0,200}?(?:\bblocks? nothing\b|\bbinds? no\b|\b(?:only|just|merely) guidance\b|\bis guidance\b|\b(?:never|not|cannot|can''t|won''t|doesn''t|does not|don''t|do not)\s+(?:actually\s+)?(?:block|run|enforce|bind|execute)s?\b)'
+    pattern: '\brules?\b[^\n]{0,200}?(?:\bnothing fails\b|\bblocks? nothing\b|\bbinds? no\b|\b(?:only|just|merely) guidance\b|\bis guidance\b|\b(?:never|not|cannot|can''t|won''t|doesn''t|does not|don''t|do not)\s+(?:actually\s+)?(?:block|run|enforce|bind|execute)s?\b)'
     flags: i
     arm: both
   - name: no-rule-flag
