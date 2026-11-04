@@ -9,7 +9,7 @@ graders:
     focus: 'trace'
   - name: 'windows-openssh-client'
     type: 'regex'
-    pattern: 'OpenSSH/ssh\.exe\s+desk-wsl\b'
+    pattern: '\bssh\.exe\s+(?:-n\s+)?desk-wsl\b'
     flags: 'i'
     target: 'last_message'
   - name: 'skill-fired'

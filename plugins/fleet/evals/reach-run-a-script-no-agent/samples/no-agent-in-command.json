@@ -15,6 +15,10 @@
     {
       "answer": "/mnt/c/Windows/System32/OpenSSH/ssh.exe -n laptop-win 'Get-ChildItem C:\\Users'",
       "why": "observed reply form: ssh -n, which the skill recommends, with no agent"
+    },
+    {
+      "answer": "Run `ssh.exe laptop-win 'Get-ChildItem C:\\Users'`; it runs as `ssh-admin`, which has no Claude sign-in.",
+      "why": "states the limit on the same line as the command"
     }
   ],
   "fail": [
