@@ -58,7 +58,10 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   assignment is a command of its own that always runs in the top-level shell. A command that
   names no absolute argument, a redirect's file or a prefix assignment's value aside (`ls`,
   `PYTHONPATH=/x pytest`, `cat /x | ls`), also adds no path, unless it is `cat`, `head`, `wc`,
-  `grep` or `sed` reading a pipe.
+  `grep`, `egrep`, `fgrep` or `sed` reading a pipe. A plain read pipeline of those, `sed` only
+  with `-n`, with no opening assignment, names only its absolute file operands, so a
+  quoted grep pattern or `-e` value is no path (`grep -E "a|b" /x | head`); a `-f` pattern file
+  is a path.
 - Up to four kinds of denial are set aside before any other rule judges the run, each a warning that never
   counts toward a FAIL: a named call other than Skill aimed only under the run's own plugin-data
   directory (`<sandbox>/config/plugins/data`), or a compound Bash command one of whose commands is
@@ -67,7 +70,7 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   or command substitution names nothing (`rm -f '<data>/f'; echo "rm exit=$?"`). A `Read`, `Grep`
   or `Glob` aimed only under the
   session's own `<sandbox>/config/projects/*/*/tool-results/`, where it reads back output it already
-  received. A Bash pipeline of `cat`, `head`, `wc`, `grep` and `sed -n` that reads only there is set
+  received. The same plain read pipeline that reads only there is set
   aside the same way, also after opening `NAME=value` commands whose names it expands
   (`F=<saved>; grep -n x "$F"`). Any other Bash call (a
   redirect, another command or operator, an unquoted glob, brace or `$`, or a path outside that

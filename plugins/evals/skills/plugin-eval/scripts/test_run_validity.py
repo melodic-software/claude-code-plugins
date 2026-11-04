@@ -2586,6 +2586,52 @@ class BashPathsTest(unittest.TestCase):
         ):
             self.assertEqual(self.paths(command), paths, command)
 
+    def test_a_grep_pattern_is_no_path(self):
+        for command, paths in (
+            ('grep -n -i -E "a|b-c|d" "/s/x.js" | head -40', ("/s/x.js",)),
+            ("cat /s/x | grep foo", ("/s/x",)),
+            ("grep 'a.*b' /s/x", ("/s/x",)),
+            ("egrep 'a|b' /s/x", ("/s/x",)),
+            ("fgrep -e foo -e bar /s/x /s/y", ("/s/x", "/s/y")),
+            ("grep -ne foo /s/x", ("/s/x",)),
+            ("grep -nefoo /s/x", ("/s/x",)),
+            ("grep foo -e bar /s/x", None),
+            ("grep --regexp=foo /s/x", ("/s/x",)),
+            ("grep --regexp foo /s/x", ("/s/x",)),
+            ("grep -n -- -foo /s/x", ("/s/x",)),
+            ("grep -e foo -- /s/x", ("/s/x",)),
+            ("grep -f /s/pats /s/x", ("/s/pats", "/s/x")),
+            ("grep --file=/s/pats /s/x", ("/s/pats", "/s/x")),
+            ("grep -A 3 foo /s/x", ("/s/x",)),
+        ):
+            if paths is None:
+                self.assertIn(None, self.paths(command), command)
+            else:
+                self.assertEqual(self.paths(command), paths, command)
+
+    def test_a_grep_it_cannot_read_as_a_plain_read_still_adds_none(self):
+        for command in (
+            "grep foo",
+            "grep -f pats /s/x",
+            "grep -e foo bar /s/x",
+            "grep -e",
+            "grep a* /s/x",
+            "grep $P /s/x",
+            'grep "$P" /s/x',
+            'grep "$(cat /s/p)" /s/x',
+            "D=/s; grep foo $D/x",
+            "grep -r foo /s/x",
+            "grep foo /s/x 2>&1",
+            "LC_ALL=C grep foo /s/x; ls",
+            "grep foo /proc/self/environ",
+            "rg foo /s/x",
+            "git grep foo /s/x",
+            "xargs grep foo /s/x",
+            "grep foo /s/x; make",
+            "grep foo ./x",
+        ):
+            self.assertIn(None, self.paths(command), command)
+
     def test_a_variable_it_cannot_resolve_still_adds_none(self):
         for command in (
             'cat "$D/a"',
