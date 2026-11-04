@@ -511,10 +511,6 @@ D_KEY=()
 D_REPO=()
 
 append_decision() {
-  D_REMOTE+=("${12:-}")
-  D_CLASS+=("${13:-}")
-  D_KEY+=("${14:-}")
-  D_REPO+=("${15:-}")
   D_PHASE+=("$1")
   D_OP+=("$2")
   D_CANONICAL+=("$3")
@@ -526,6 +522,10 @@ append_decision() {
   D_ACTION+=("$9")
   D_REASON+=("${10}")
   D_WT_PATH+=("${11}")
+  D_REMOTE+=("${12:-}")
+  D_CLASS+=("${13:-}")
+  D_KEY+=("${14:-}")
+  D_REPO+=("${15:-}")
 }
 
 refresh_branch_delete() {
